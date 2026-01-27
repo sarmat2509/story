@@ -1,0 +1,1104 @@
+# Kazka+ Coding Standards & Architecture Rules
+
+> These rules prevent architectural issues and ensure code consistency.
+> **MUST** be followed in all new code and refactoring.
+
+## 🏗️ Architecture Principles
+
+### Separation of Concerns (Layered Architecture)
+
+**MUST** follow strict layer separation:
+
+```
+┌─────────────────────────────────────┐
+│   Routes (HTTP/Presentation Layer)  │
+│   - Request/response handling       │
+│   - Input validation                │
+│   - Response formatting             │
+│   - Calling services                │
+└─────────────────────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│   Services (Business Logic Layer)   │
+│   - Business rules                  │
+│   - Data transformation             │
+│   - Service orchestration           │
+│   - Database queries                │
+└─────────────────────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│   Database (Data Layer)             │
+│   - Schema definition               │
+│   - Drizzle ORM                     │
+└─────────────────────────────────────┘
+```
+
+#### Routes Layer Rules
+- **NEVER** import `db` directly (except `health.ts` for checks)
+- **NEVER** write database queries
+- **MUST** only call service methods
+- **MUST** handle HTTP concerns (status codes, response format)
+- **MUST** validate input and format output
+
+```typescript
+// ✅ Good - Route delegates to service
+router.get('/me', requireAuth, async (req, res) => {
+  try {
+    const user = await getUserWithOAuth(req.user!.id); // Service call
+    res.json({ status: 'success', user });             // HTTP response
+  } catch (error) {
+    logger.error({ err: error }, 'Get user failed');   // Logging
+    res.status(500).json({ status: 'error', ... });    // Error response
+  }
+});
+
+// ❌ Bad - Route does DB query
+router.get('/me', requireAuth, async (req, res) => {
+  const [user] = await db.select().from(users).where(...); // VIOLATION!
+  res.json({ user });
+});
+```
+
+#### Services Layer Rules
+- **MUST** contain business logic
+- **CAN** do database queries (for simple apps)
+- **SHOULD** keep methods under 50 lines
+- **MUST** split fat methods (>50 lines) into smaller functions
+- **SHOULD** return domain objects, not raw DB results
+
+```typescript
+// ✅ Good - Service with clear separation
+export async function getUserWithOAuth(id: string) {
+  const user = await getUserById(id);              // Data access
+  if (!user) return null;                          // Business logic
+  
+  const identities = await getOAuthIdentities(id); // Data access
+  return { ...user, oauthProviders: identities };  // Transformation
+}
+
+// ❌ Bad - Service with mixed concerns (too long, multiple responsibilities)
+export async function handleOAuthCallback(...) {
+  // 80 lines of code doing:
+  // - DB queries
+  // - Business logic
+  // - Decision making
+  // - Data transformation
+  // This violates SRP (Single Responsibility Principle)
+}
+```
+
+#### Middleware Layer Rules
+- **NEVER** do direct database queries
+- **MUST** delegate to service methods
+- **MUST** only handle cross-cutting concerns:
+  - Authentication
+  - Logging
+  - Rate limiting
+  - Error handling
+
+```typescript
+// ✅ Good - Middleware delegates to service
+export async function requireAuth(req, res, next) {
+  const decoded = verifyToken(token);
+  const result = await getSessionWithUser(decoded.sessionId); // Service call
+  req.user = result.user;
+  next();
+}
+
+// ❌ Bad - Middleware does DB query
+export async function requireAuth(req, res, next) {
+  const result = await db                          // VIOLATION!
+    .select({ session: sessions, user: users })
+    .from(sessions)
+    .innerJoin(users, ...);
+  req.user = result[0].user;
+  next();
+}
+```
+
+### Service Organization
+
+**MUST** split large services into smaller functions:
+
+```typescript
+// ✅ Good - Small, focused functions
+async function findOAuthIdentity(provider, providerId) {
+  return await db.select()...
+}
+
+async function updateOAuthTokens(id, tokens) {
+  return await db.update(oauthIdentities)...
+}
+
+async function linkOrCreateUser(profile) {
+  const existing = await getUserByEmail(profile.email);
+  if (existing) return { user: existing, isNew: false };
+  
+  const newUser = await createUser(profile);
+  return { user: newUser, isNew: true };
+}
+
+// Main function orchestrates sub-functions
+export async function handleOAuthCallback(...) {
+  const identity = await findOAuthIdentity(...);
+  if (identity) {
+    await updateOAuthTokens(identity.id, tokens);
+    return { user: identity.user, isNewUser: false };
+  }
+  
+  const { user, isNew } = await linkOrCreateUser(profile);
+  await createOAuthIdentity(user.id, provider, tokens);
+  return { user, isNewUser: isNew, isNewIdentity: true };
+}
+
+// ❌ Bad - One giant function doing everything
+export async function handleOAuthCallback(...) {
+  // 80 lines of inline code
+  // Multiple DB queries
+  // Business logic mixed with data access
+  // Hard to test, maintain, understand
+}
+```
+
+### Repository Pattern (Optional)
+
+**CONSIDER** for complex domains (OAuth, Stories in future):
+
+```typescript
+// repositories/oauthRepository.ts
+export class OAuthRepository {
+  async findByProvider(provider: string, providerId: string) {
+    return db.select().from(oauthIdentities).where(...);
+  }
+  
+  async updateTokens(id: string, tokens: TokenData) {
+    return db.update(oauthIdentities).set(tokens).where(...);
+  }
+}
+
+// services/oauthService.ts
+const oauthRepo = new OAuthRepository();
+
+export async function handleOAuthCallback(...) {
+  const identity = await oauthRepo.findByProvider(...); // Repository
+  // Pure business logic here
+}
+```
+
+**NOT REQUIRED** for simple CRUD (Users, Sessions) - current approach is fine.
+
+### AI Provider Architecture (4-Layer System)
+
+For AI-powered features (story generation, image generation, TTS), **MUST** follow strict 4-layer separation to enable easy provider replacement without changing business logic.
+
+**Architecture:**
+
+```
+┌─────────────────────────────────────────┐
+│  Orchestration (StoryOrchestration)     │
+│  - Координация workflow                 │
+│  - Вызовы Domain Services               │
+└─────────────────────────────────────────┘
+              ↓
+┌─────────────────────────────────────────┐
+│  Domain Services (StoryDomainService)   │
+│  - Бизнес-логика (getSceneCount, etc)  │
+│  - Вызов Prompt Builders                │
+│  - Вызов Providers                      │
+│  - Обработка результатов                │
+└─────────────────────────────────────────┘
+              ↓                 ↓
+┌──────────────────────┐  ┌───────────────────────┐
+│  Prompt Engineering  │  │  Provider Layer       │
+│  - OutlinePrompt     │  │  - GeminiTextProvider │
+│  - TextPrompt        │  │  - GeminiImageProvider│
+│  - ValidationPrompt  │  │  - ElevenLabsProvider │
+└──────────────────────┘  └───────────────────────┘
+```
+
+#### Layer 1: Orchestration Services
+
+**Location:** `services/storyOrchestrationService.ts`
+
+**Rules:**
+- **NEVER** import провайдеров напрямую (`GeminiTextProvider`)
+- **MUST** только вызывать Domain Services через `getStoryDomainService()`
+- **NEVER** строить промпты или вызывать LLM API
+- **MUST** управлять workflow и progress updates
+- **MUST** координировать Domain Services для сложных флоу
+
+```typescript
+// ✅ Good - Orchestration вызывает Domain Service
+const storyDomain = getStoryDomainService();
+const outline = await storyDomain.generateOutline(spec);
+const text = await storyDomain.generateText(spec, outline);
+
+// ❌ Bad - Orchestration вызывает провайдер напрямую
+const textClient = getTextClient();
+const outline = await textClient.generateOutline(spec);
+```
+
+#### Layer 2: Domain Services
+
+**Location:** `domain/story/StoryDomainService.ts`, `domain/image/ImageDomainService.ts`, `domain/audio/AudioDomainService.ts`
+
+**Rules:**
+- **MUST** содержать бизнес-логику (`getSceneCount()`, `getVocabularyLevel()`)
+- **MUST** координировать Prompt Builders и Providers
+- **NEVER** содержать API-специфичный код (Gemini SDK, SchemaType)
+- **NEVER** строить промпты inline (использовать Prompt Builders)
+- **MUST** работать с provider-agnostic интерфейсами (`ITextProvider`, `IImageProvider`)
+- **MUST** обрабатывать и маппировать результаты провайдеров в domain типы
+
+```typescript
+// ✅ Good - Domain Service координирует слои
+async generateOutline(spec: StorySpec): Promise<EpisodeOutline> {
+  const sceneCount = this.getSceneCount(spec.ageGroup); // Бизнес-логика
+  const prompt = this.promptBuilder.buildOutline({ spec, sceneCount }); // Промпт
+  return await this.textProvider.generateStructured({ prompt, schema }); // Провайдер
+}
+
+// ❌ Bad - Domain Service вызывает Gemini напрямую
+async generateOutline(spec: StorySpec): Promise<EpisodeOutline> {
+  const model = this.geminiClient.getGenerativeModel({ ... }); // VIOLATION!
+  const prompt = `You are a story writer...`; // VIOLATION!
+}
+```
+
+#### Layer 3: Prompt Engineering
+
+**Location:** `prompts/PromptBuilder.ts`, `prompts/text/`, `prompts/image/`, `prompts/audio/`
+
+**Rules:**
+- **MUST** быть provider-agnostic (работать с Gemini, OpenAI, Claude)
+- **NEVER** импортировать провайдеров или их типы
+- **MUST** возвращать чистый string (промпт)
+- **SHOULD** использовать базовый класс `PromptBuilder` для переиспользования
+- **NEVER** содержать бизнес-логику (как `getSceneCount()`)
+- **MUST** принимать все параметры через аргументы (не вычислять внутри)
+
+```typescript
+// ✅ Good - Prompt Builder provider-agnostic
+export class OutlinePromptBuilder extends PromptBuilder {
+  build(params: { spec: StorySpec; sceneCount: number }): string {
+    return this.template`
+      You are a professional children's story writer.
+      Language: ${this.getLanguageName(params.spec.language)}
+      Number of scenes: ${params.sceneCount}
+    `;
+  }
+}
+
+// ❌ Bad - Prompt Builder с Gemini-специфичным кодом
+export class OutlinePromptBuilder {
+  build(spec: StorySpec): { prompt: string; schema: SchemaType } {
+    const sceneCount = this.getSceneCount(spec.ageGroup); // VIOLATION!
+    return {
+      prompt: `...`,
+      schema: { type: SchemaType.OBJECT } // VIOLATION!
+    };
+  }
+}
+```
+
+#### Layer 4: Provider Implementation
+
+**Location:** `providers/base/`, `providers/text/gemini/`, `providers/image/gemini/`, `providers/audio/elevenlabs/`
+
+**Rules:**
+- **MUST** реализовывать provider-agnostic интерфейс (`ITextProvider`, `IImageProvider`)
+- **MUST** содержать ТОЛЬКО API-специфичный код
+- **NEVER** содержать бизнес-логику или построение промптов
+- **MUST** адаптировать provider-agnostic schemas к API провайдера
+- **MUST** обрабатывать retry логику и errors
+- **MUST** работать с generic типами и параметрами
+
+```typescript
+// ✅ Good - Provider только вызывает API
+export class GeminiTextProvider implements ITextProvider {
+  async generateStructured<T>(request: {
+    prompt: string;
+    schema: JsonSchema;
+  }): Promise<T> {
+    const geminiSchema = this.schemaAdapter.convert(request.schema); // Адаптация
+    const model = this.client.getGenerativeModel({ responseSchema: geminiSchema });
+    const result = await model.generateContent(request.prompt);
+    return JSON.parse(result.response.text());
+  }
+}
+
+// ❌ Bad - Provider содержит бизнес-логику
+export class GeminiTextProvider {
+  async generateOutline(spec: StorySpec): Promise<EpisodeOutline> {
+    const sceneCount = this.getSceneCount(spec.ageGroup); // VIOLATION!
+    const prompt = this.buildOutlinePrompt(spec); // VIOLATION!
+    // ...
+  }
+}
+```
+
+#### Critical Rules (Layer Isolation)
+
+**NEVER:**
+- Импортировать `GeminiTextProvider` в `storyOrchestrationService.ts`
+- Писать промпты в `StoryDomainService` или `GeminiTextProvider`
+- Писать бизнес-логику (`getSceneCount`) в `PromptBuilder` или `Provider`
+- Использовать Gemini-специфичные типы (`SchemaType`) вне `GeminiTextProvider`
+- Создавать зависимость: Orchestration → Provider (только через Domain)
+- Создавать vendor-specific сервисы в `services/` (только в `providers/{type}/{vendor}/`)
+- Зависеть от конкретных vendor providers (только через интерфейсы в `providers/base/`)
+
+#### Adding New Provider (Future)
+
+Для добавления OpenAI провайдера:
+
+1. Создать `providers/text/openai/OpenAITextProvider.ts` с реализацией `ITextProvider`
+2. Создать `providers/text/openai/OpenAISchemaAdapter.ts` для schema адаптации
+3. Обновить `aiService.ts` factory (добавить case 'openai')
+4. **НЕ МЕНЯТЬ**: Domain Services, Prompt Builders, Orchestration
+
+```typescript
+// Только aiService.ts меняется
+switch (config.ai.textVendor) {
+  case 'gemini':
+    return new GeminiTextProvider(config.ai.geminiApiKey);
+  case 'openai': // НОВЫЙ
+    return new OpenAITextProvider(config.ai.openaiApiKey);
+}
+```
+
+**Key Benefit:** Замена провайдера требует изменения только 1-2 файлов в Provider Layer, все остальные слои остаются нетронутыми.
+
+### Vendor-Specific Services Pattern
+
+**CRITICAL RULE:** Vendor-specific services MUST be isolated in provider layer, NOT in global services.
+
+#### Bad Pattern (Vendor Lock-in):
+```typescript
+// ❌ services/googleQuotaService.ts - vendor-specific in global layer
+export class GoogleQuotaService {
+  fetchFromGoogleCloudAPI() { /* ... */ }
+}
+
+// ❌ services/imageRateLimiter.ts - depends on concrete vendor
+import { getGoogleQuotaService } from './googleQuotaService';
+export class ImageRateLimiter {
+  private quotaService = getGoogleQuotaService(); // VIOLATION!
+}
+```
+
+#### Good Pattern (Vendor Abstraction):
+```typescript
+// ✅ providers/base/IQuotaProvider.ts - vendor-agnostic interface
+export interface IQuotaProvider {
+  getRPMLimit(): Promise<number>;
+  reduceRPMLimit(factor: number): number;
+  getCachedLimit(): number | null;
+}
+
+// ✅ providers/image/gemini/GeminiQuotaProvider.ts - vendor-specific
+export class GeminiQuotaProvider implements IQuotaProvider {
+  fetchFromGoogleCloudAPI() { /* ... */ } // Google-specific code isolated here
+}
+
+// ✅ services/imageRateLimiter.ts - vendor-agnostic
+export class ImageRateLimiter {
+  constructor(private quotaProvider: IQuotaProvider) {} // DI via interface
+}
+
+// ✅ services/aiService.ts - DI orchestration
+function getImageRateLimiter(): ImageRateLimiter {
+  const provider = new GeminiQuotaProvider(); // Vendor selection here
+  return new ImageRateLimiter(provider);      // Inject dependency
+}
+```
+
+#### Rules for Vendor-Specific Services:
+
+1. **Location:**
+   - **MUST** be in `providers/{type}/{vendor}/` (e.g., `providers/image/gemini/`)
+   - **NEVER** in `services/` (reserved for vendor-agnostic services)
+
+2. **Abstraction:**
+   - **MUST** create interface in `providers/base/I{Name}Provider.ts`
+   - **MUST** implement the interface in vendor-specific provider
+   - **NEVER** expose vendor-specific types to global services
+
+3. **Dependency Injection:**
+   - **MUST** use constructor injection with interface type
+   - **MUST** manage DI in `aiService.ts` factory
+   - **NEVER** create hard dependencies on concrete implementations
+
+4. **Vendor Selection:**
+   - **MUST** be configured via `config.ts` (e.g., `AI_IMAGE_VENDOR=gemini`)
+   - **MUST** use switch statement in `aiService.ts` for vendor selection
+   - **NEVER** hardcode vendor selection in global services
+
+#### Example: Adding OpenAI Quota Provider
+
+```typescript
+// 1. Create OpenAI-specific provider
+// providers/image/openai/OpenAIQuotaProvider.ts
+export class OpenAIQuotaProvider implements IQuotaProvider {
+  async getRPMLimit(): Promise<number> {
+    // OpenAI-specific API call
+    const response = await fetch('https://api.openai.com/v1/usage/limits');
+    return response.rateLimit;
+  }
+}
+
+// 2. Update aiService.ts ONLY
+function getQuotaProvider(): IQuotaProvider {
+  switch (config.ai.imageVendor) {
+    case 'gemini':
+      return new GeminiQuotaProvider();
+    case 'openai': // NEW
+      return new OpenAIQuotaProvider();
+  }
+}
+
+// 3. NO CHANGES needed in:
+// - services/imageRateLimiter.ts (already uses IQuotaProvider)
+// - services/storyOrchestrationService.ts
+// - domain/image/ImageDomainService.ts
+```
+
+**Key Benefit:** Changing vendors requires modifying ONLY 2 files:
+1. Create new provider implementation in `providers/{type}/{vendor}/`
+2. Add case to switch statement in `aiService.ts`
+
+All other code (services, domain, orchestration) remains unchanged.
+
+### Monorepo Structure
+- **MUST** use pnpm workspaces for all packages
+- **MUST** keep shared code in `packages/shared`
+- **NEVER** duplicate types/schemas between services
+- **MUST** export from `packages/shared/src/index.ts` for clean imports
+
+### Dependency Management
+- **MUST** define shared devDependencies in root `package.json`
+- **MUST** use exact versions for security-critical packages
+- **NEVER** install packages without checking existing alternatives
+- **MUST** use `pnpm add` with workspace filter: `pnpm --filter @kazka-plus/api add <package>`
+
+## 🗄️ Database & ORM
+
+### Query Optimization
+- **MUST** use JOINs instead of multiple separate queries
+- **NEVER** make N+1 queries (use eager loading)
+- **MUST** add database indexes for foreign keys and frequently queried columns
+- **MUST** use `limit(1)` when expecting single result
+
+### Schema Design
+- **MUST** use PostgreSQL triggers for `updated_at` auto-update
+- **MUST** use UUIDs for primary keys: `uuid('id').primaryKey().defaultRandom()`
+- **MUST** add indexes for: foreign keys, unique constraints, frequently filtered columns
+- **NEVER** store sensitive data in plaintext (use encryption)
+
+### Drizzle ORM
+- **MUST** use Drizzle query builder, not raw SQL
+- **MUST** use typed schema imports: `import { users, sessions } from '../db/schema'`
+- **MUST** use proper operators: `eq()`, `gt()`, `lt()`, `and()`, `or()`
+- **NEVER** use `<` `>` operators directly - use Drizzle operators
+
+### Migrations
+- **MUST** use `drizzle-kit` for schema migrations
+- **MUST** run migrations before deployment
+- **MUST** test migrations on dev database first
+- **MUST** keep manual SQL migrations in `drizzle/` folder
+
+## 🔐 Security
+
+### Authentication & Sessions
+- **MUST** encrypt OAuth tokens with AES-256-GCM before storing
+- **MUST** validate JWT on every protected route
+- **MUST** check session expiry with `gt(sessions.expiresAt, new Date())`
+- **NEVER** use `lt()` for expiry checks (validates expired sessions!)
+- **MUST** update `lastActiveAt` on every authenticated request
+
+### Secrets & Environment
+- **MUST** validate all secrets in production at startup
+- **MUST** enforce minimum secret length (JWT_SECRET: 32+ chars)
+- **MUST** use separate keys: JWT_SECRET ≠ ENCRYPTION_KEY
+- **NEVER** commit secrets to git
+- **NEVER** use default values in production
+
+### Input Validation
+- **MUST** use Zod schemas for all request validation
+- **MUST** validate OAuth profile data before processing
+- **MUST** sanitize user input (max lengths, allowed characters)
+- **MUST** return 400 Bad Request with validation errors
+
+### Rate Limiting
+- **MUST** apply rate limiting to all endpoints
+- **MUST** use stricter limits for auth endpoints (10 req/15min)
+- **MUST** use very strict limits for OAuth (5 req/hour)
+- **NEVER** skip rate limiting in production
+
+## 📊 Logging
+
+### Structured Logging (Pino)
+- **MUST** use `logger` from `utils/logger.ts`
+- **NEVER** use `console.log` or `console.error`
+- **MUST** include context in logs: `logger.info({ userId, action }, 'message')`
+- **MUST** use appropriate log levels: `debug`, `info`, `warn`, `error`
+
+### Sensitive Data
+- **MUST** redact: tokens, passwords, authorization headers, cookies
+- **NEVER** log OAuth tokens, JWT tokens, or user passwords
+- **MUST** use Pino redaction for automatic filtering
+- **MUST** use `[REDACTED]` for sensitive fields
+
+### Log Patterns
+```typescript
+// ✅ Good
+logger.info({ userId, sessionId, action: 'login' }, 'User authenticated');
+logger.error({ err, userId }, 'Auth failed');
+
+// ❌ Bad
+console.log('User logged in:', userId);
+console.error('Error:', error);
+```
+
+## 🛣️ Routing & Middleware
+
+### RESTful API Design
+
+**MUST** follow RESTful principles for all endpoints:
+
+#### API Versioning
+- **MUST** use versioning prefix: `/api/v1/`
+- **MUST NOT** version infrastructure endpoints (`/health`)
+- **MUST** increment version for breaking changes
+
+```typescript
+// ✅ Good
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/me', userRoutes);
+app.use('/health', healthRoutes); // No version
+
+// ❌ Bad
+app.use('/auth', authRoutes); // Missing version
+app.use('/v1/health', healthRoutes); // Health shouldn't be versioned
+```
+
+#### Resource Naming
+- **MUST** use plural nouns for collections: `/users`, `/sessions`, `/oauth-providers`
+- **MUST** use kebab-case for multi-word resources: `/oauth-providers`, `/child-profiles`
+- **NEVER** use verbs in URLs: `/login`, `/logout`, `/start`, `/link`
+- **NEVER** use nested actions: `/logout/all`, `/oauth/link`
+
+```typescript
+// ✅ Good
+DELETE /api/v1/sessions           # Delete all sessions
+DELETE /api/v1/sessions/current   # Delete current session
+POST   /api/v1/oauth-providers    # Link provider
+
+// ❌ Bad
+POST /api/v1/logout/all           # Action in URL
+POST /api/v1/oauth/link           # Verb in URL
+GET  /api/v1/getUserProfile       # Verb in URL
+```
+
+#### HTTP Methods (RESTful Semantics)
+- **GET**: Retrieve resource(s) - MUST be idempotent and safe
+- **POST**: Create new resource or complex operations
+- **PUT**: Replace entire resource or update specific resource
+- **PATCH**: Partial update of resource
+- **DELETE**: Remove resource
+
+```typescript
+// ✅ Good
+GET    /api/v1/users/me          # Get current user
+PATCH  /api/v1/users/me          # Update user profile
+DELETE /api/v1/users/me          # Delete account
+POST   /api/v1/sessions          # Create session (login)
+DELETE /api/v1/sessions/current  # Delete session (logout)
+PUT    /api/v1/sessions/current  # Refresh session token
+
+// ❌ Bad
+POST /api/v1/logout              # Should be DELETE
+POST /api/v1/refresh             # Should be PUT
+GET  /api/v1/deleteUser          # Should be DELETE
+```
+
+#### Sub-resources (Nested Resources)
+- **MUST** nest sub-resources under parent: `/users/me/sessions`
+- **MUST** limit nesting to 2 levels maximum
+- **MUST** use plural for collections, singular for specific items
+
+```typescript
+// ✅ Good
+GET    /api/v1/me/sessions              # List user sessions
+DELETE /api/v1/me/sessions/:id          # Delete specific session
+GET    /api/v1/me/oauth-providers       # List OAuth providers
+DELETE /api/v1/me/oauth-providers/:id   # Unlink provider
+
+// ❌ Bad
+GET /api/v1/me/session                  # Singular instead of plural
+GET /api/v1/users/me/sessions/active    # Too deep (3 levels)
+```
+
+#### Query Parameters
+- **MUST** use query params for filtering, sorting, pagination
+- **NEVER** use query params for resource identification (use path params)
+- **MUST** use lowercase snake_case for query params
+
+```typescript
+// ✅ Good
+GET /api/v1/stories?age_group=4-5&limit=10&offset=20
+GET /api/v1/sessions?active=true&sort_by=created_at
+
+// ❌ Bad
+GET /api/v1/getStories?ageGroup=4-5  # camelCase, verb in URL
+GET /api/v1/stories?id=123           # ID should be path param
+```
+
+#### OAuth Exception
+- **ALLOWED**: OAuth endpoints can use descriptive paths (industry standard)
+- **MUST** still namespace under `/api/v1/auth`
+
+```typescript
+// ✅ Acceptable for OAuth
+GET  /api/v1/auth/google/authorize    # Industry convention
+GET  /api/v1/auth/google/callback
+POST /api/v1/auth/google/token
+```
+
+#### Special Resource: `/me`
+- **ALLOWED**: `/me` as shortcut for current user (industry standard)
+- **ALTERNATIVE**: `/users/me` is more RESTful but less intuitive
+- **MUST** choose one pattern and be consistent
+
+```typescript
+// ✅ Option A: Pragmatic (current)
+/api/v1/me
+/api/v1/me/sessions
+/api/v1/me/oauth-providers
+
+// ✅ Option B: Strict REST (alternative)
+/api/v1/users/me
+/api/v1/users/me/sessions
+/api/v1/users/me/oauth-providers
+```
+
+### HTTP Status Codes
+
+**MUST** use correct HTTP status codes:
+
+- **200 OK**: Successful GET, PUT, PATCH, DELETE
+- **201 Created**: Successful POST that creates resource
+- **204 No Content**: Successful DELETE with no response body
+- **400 Bad Request**: Invalid input, validation errors
+- **401 Unauthorized**: Missing or invalid authentication
+- **403 Forbidden**: Authenticated but not authorized
+- **404 Not Found**: Resource doesn't exist
+- **409 Conflict**: Resource conflict (e.g., duplicate)
+- **422 Unprocessable Entity**: Valid syntax but semantic errors
+- **429 Too Many Requests**: Rate limit exceeded
+- **500 Internal Server Error**: Server error
+- **501 Not Implemented**: Feature not yet implemented
+- **503 Service Unavailable**: Service temporarily down
+
+### Response Format
+
+**MUST** return consistent JSON structure:
+
+```typescript
+// ✅ Success response
+{
+  "status": "success",
+  "data": { /* resource */ },
+  "meta": { /* pagination, etc. */ }  // Optional
+}
+
+// ✅ Error response
+{
+  "status": "error",
+  "message": "Human-readable error",
+  "code": "ERROR_CODE",              // Optional
+  "details": { /* validation errors */ }  // Optional
+}
+
+// ❌ Bad - inconsistent structure
+{
+  "user": { /* data */ },  // Should be wrapped in data/status
+  "success": true          // Redundant with HTTP status
+}
+```
+
+### Deprecation Strategy
+
+**MUST** handle breaking changes gracefully:
+
+```typescript
+// Keep old endpoint with deprecation warning
+router.post('/logout', requireAuth, async (req, res) => {
+  // ... do logout ...
+  res.json({
+    status: 'success',
+    deprecated: 'Use DELETE /api/v1/auth/sessions/current instead',
+    message: 'Logged out successfully'
+  });
+});
+
+// Add new RESTful endpoint
+router.delete('/sessions/current', requireAuth, async (req, res) => {
+  // ... do logout ...
+});
+```
+
+### Route Structure
+- **MUST** group related routes in separate files (`auth.ts`, `user.ts`)
+- **MUST** apply middleware at router level, not global (except security)
+- **MUST** use Express Router for all route groups
+- **NEVER** define routes directly on `app`
+
+```typescript
+// ✅ Good structure
+// routes/auth.ts
+const router = Router();
+router.delete('/sessions', requireAuth, ...);
+export default router;
+
+// index.ts
+app.use('/api/v1/auth', authLimiter, authRoutes);
+
+// ❌ Bad
+app.delete('/logout/all', requireAuth, ...); // Defined on app, not router
+```
+
+### Middleware Order
+```typescript
+// MUST follow this order:
+1. Security (helmet, cors)
+2. Rate limiting
+3. Body parsing
+4. Passport initialization
+5. Custom middleware
+6. Routes
+7. Error handlers (404, 500)
+```
+
+### Authentication Middleware
+- **MUST** use `requireAuth` for protected routes
+- **MUST** use `optionalAuth` for public routes with optional user context
+- **MUST** attach `req.user` and `req.sessionId` after successful auth
+- **NEVER** manually check `if (!req.user)` in requireAuth routes (middleware handles it)
+
+```typescript
+// ✅ Good - Trust the middleware
+router.get('/me', requireAuth, async (req, res) => {
+  // req.user is guaranteed to exist
+  const user = await getUser(req.user!.id);
+  res.json({ user });
+});
+
+// ❌ Bad - Redundant check
+router.get('/me', requireAuth, async (req, res) => {
+  if (!req.user) {  // Unnecessary - requireAuth guarantees this
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  // ...
+});
+```
+
+### Error Handling
+- **MUST** use centralized error handler
+- **MUST** log all errors with context
+- **MUST** return appropriate HTTP status codes
+- **NEVER** expose internal errors in production
+
+## 🎯 Code Quality
+
+### DRY Principle
+- **MUST** extract common logic into generic functions
+- **MUST** use strategy pattern for provider-specific logic
+- **NEVER** copy-paste code between similar functions
+- **MUST** refactor if duplication exceeds 10 lines
+
+### Type Safety
+- **MUST** use TypeScript strict mode
+- **MUST** define interfaces for all data structures
+- **MUST** use Zod for runtime validation + type inference
+- **NEVER** use `any` type (use `unknown` if needed)
+
+### Async/Await
+- **MUST** use async/await, not callbacks
+- **MUST** use try-catch for error handling
+- **MUST** handle promise rejections
+- **NEVER** use `.then()` chains in new code
+
+### Resource Cleanup
+- **MUST** clear intervals/timeouts on shutdown
+- **MUST** implement SIGTERM/SIGINT handlers
+- **MUST** close database connections gracefully
+- **MUST** store interval IDs for cleanup
+
+```typescript
+// ✅ Good
+let intervalId: NodeJS.Timeout | null = null;
+
+export function start() {
+  if (intervalId) clearInterval(intervalId);
+  intervalId = setInterval(() => {...}, 1000);
+}
+
+export function stop() {
+  if (intervalId) {
+    clearInterval(intervalId);
+    intervalId = null;
+  }
+}
+
+// ❌ Bad
+setInterval(() => {...}, 1000); // Memory leak on reload
+```
+
+## 🚀 Performance
+
+### Database Queries
+- **MUST** combine related queries with JOINs
+- **MUST** use indexes for WHERE, JOIN, ORDER BY columns
+- **MUST** use connection pooling
+- **MUST** implement query timeouts
+
+### Caching Strategy (Future)
+- **SHOULD** cache frequently accessed data (sessions, user profiles)
+- **SHOULD** use Redis for distributed caching
+- **MUST** implement cache invalidation
+- **MUST** set appropriate TTLs
+
+### N+1 Queries
+```typescript
+// ✅ Good - Single JOIN query
+const result = await db
+  .select({ session: sessions, user: users })
+  .from(sessions)
+  .innerJoin(users, eq(sessions.userId, users.id))
+  .where(eq(sessions.token, token));
+
+// ❌ Bad - Multiple queries
+const session = await getSession(token);
+const user = await getUser(session.userId);
+const identity = await getIdentity(user.id);
+```
+
+## 🏥 Health & Monitoring
+
+### Health Checks
+- **MUST** implement `/health/health` (liveness)
+- **MUST** implement `/health/ready` (readiness with dependency checks)
+- **MUST** return proper status codes (200 = healthy, 503 = unhealthy)
+- **MUST** check: database, memory, uptime
+
+### Observability
+- **MUST** log all errors with stack traces
+- **MUST** include request IDs for tracing
+- **MUST** measure query latency
+- **SHOULD** implement metrics (Prometheus format)
+
+## 🧪 Testing (Future)
+
+### Unit Tests
+- **MUST** test business logic in `services/`
+- **MUST** mock external dependencies
+- **MUST** test error cases
+- **MUST** achieve >80% coverage for critical code
+
+### Integration Tests
+- **MUST** test API endpoints
+- **MUST** test database operations
+- **MUST** test authentication flows
+- **SHOULD** use test database
+
+## 📦 Dependencies
+
+### Package Selection
+- **MUST** check existing packages before adding new ones
+- **MUST** prefer well-maintained packages (recent updates)
+- **MUST** check security advisories
+- **NEVER** add packages for trivial functionality
+
+### Current Stack (Do NOT change without discussion)
+- **Express** 4.x (API framework)
+- **Drizzle ORM** 0.29+ (database)
+- **Pino** 8.x (logging)
+- **Passport** 0.7+ (auth)
+- **Zod** 3.x (validation)
+- **express-rate-limit** 7.x (rate limiting)
+
+## 🚫 Common Anti-Patterns to AVOID
+
+### Architecture & Separation of Concerns
+- ❌ Routes doing database queries
+- ❌ Middleware doing database queries
+- ❌ Fat service methods (>50 lines)
+- ❌ Mixed business logic and data access in one function
+- ❌ Services returning raw DB results instead of domain objects
+- ❌ Multiple responsibilities in one function (SRP violation)
+
+### API Design
+- ❌ No API versioning
+- ❌ Verbs in URLs (`/getUserProfile`, `/logout/all`)
+- ❌ Inconsistent naming (mix of singular/plural)
+- ❌ Deep nesting (>2 levels: `/users/me/sessions/active/details`)
+- ❌ Using POST for everything
+- ❌ Returning HTML from JSON API endpoints
+- ❌ Different response formats per endpoint
+
+### Routing
+- ❌ Routes defined directly on `app` instead of Router
+- ❌ Nested action routes (`/logout/all`)
+- ❌ Inconsistent HTTP methods (POST for logout)
+- ❌ Query params for resource IDs
+- ❌ camelCase in URLs (use kebab-case)
+
+### Database
+- ❌ Multiple queries instead of JOIN
+- ❌ Using `<` `>` instead of Drizzle operators
+- ❌ Storing sensitive data in plaintext
+- ❌ Missing indexes on foreign keys
+- ❌ Not using transactions for multi-step operations
+
+### Security
+- ❌ No input validation
+- ❌ Weak secrets (< 32 chars)
+- ❌ Default values in production
+- ❌ No rate limiting
+- ❌ Logging sensitive data
+
+### Code Quality
+- ❌ Copy-pasted code (>10 lines duplication)
+- ❌ `console.log` instead of structured logging
+- ❌ Missing error handling
+- ❌ Memory leaks (unclosed intervals)
+- ❌ No cleanup on process termination
+
+### Performance
+- ❌ N+1 queries
+- ❌ No connection pooling
+- ❌ No query timeouts
+- ❌ Loading unnecessary data
+
+## 📋 Code Review Checklist
+
+Before submitting code, verify:
+
+### Architecture & Separation
+- [ ] Routes only call services, no DB queries
+- [ ] Middleware delegates to services, no DB queries
+- [ ] Service methods under 50 lines
+- [ ] No mixed concerns (business logic + data access in one block)
+- [ ] Clear function names indicating responsibility
+
+### API & Routing
+- [ ] All routes use API versioning (`/api/v1/*`)
+- [ ] Resource names are plural nouns (`/sessions`, not `/session`)
+- [ ] No verbs in URLs (use HTTP methods instead)
+- [ ] HTTP methods match semantics (DELETE for deletion, not POST)
+- [ ] Query params use snake_case
+
+### Database & Performance
+- [ ] All database queries use Drizzle operators (not `<` `>`)
+- [ ] No plaintext sensitive data in database
+- [ ] Input validated with Zod schemas
+- [ ] Resources cleaned up (intervals, connections)
+
+### Code Quality
+- [ ] Structured logging (no `console.log`)
+- [ ] Rate limiting applied
+- [ ] Error handling in try-catch
+- [ ] No code duplication (>10 lines)
+- [ ] TypeScript strict mode passes
+- [ ] Health checks updated if needed
+- [ ] No redundant auth checks in requireAuth routes
+
+## 📚 RESTful API Examples
+
+### Good Examples
+
+```typescript
+// Authentication & Sessions
+POST   /api/v1/auth/sessions              # Login (create session)
+DELETE /api/v1/auth/sessions              # Logout all devices
+DELETE /api/v1/auth/sessions/current      # Logout current device
+PUT    /api/v1/auth/sessions/current      # Refresh token
+
+// User Management
+GET    /api/v1/me                         # Get current user
+PATCH  /api/v1/me                         # Update profile
+DELETE /api/v1/me                         # Delete account
+
+// Sub-resources
+GET    /api/v1/me/sessions                # List sessions
+DELETE /api/v1/me/sessions/:id            # Revoke session
+GET    /api/v1/me/oauth-providers         # List OAuth
+POST   /api/v1/me/oauth-providers         # Link provider
+DELETE /api/v1/me/oauth-providers/:id     # Unlink provider
+
+// OAuth (exception - industry standard)
+GET  /api/v1/auth/google/authorize
+GET  /api/v1/auth/google/callback
+POST /api/v1/auth/google/token
+
+// Collections with filters
+GET /api/v1/stories?age_group=4-5&limit=10
+GET /api/v1/child-profiles?active=true
+```
+
+### Bad Examples (DO NOT USE)
+
+```typescript
+// ❌ No versioning
+GET /auth/me
+
+// ❌ Verbs in URLs
+POST /api/v1/logout
+POST /api/v1/refreshToken
+GET  /api/v1/getUserProfile
+
+// ❌ Nested actions
+POST /api/v1/logout/all
+POST /api/v1/oauth/link
+
+// ❌ Inconsistent naming
+GET /api/v1/me/session      # Should be plural
+GET /api/v1/me/oauth        # Should be oauth-providers
+
+// ❌ Wrong HTTP methods
+POST /api/v1/logout         # Should be DELETE /sessions/current
+POST /api/v1/refresh        # Should be PUT /sessions/current
+
+// ❌ camelCase in URLs
+GET /api/v1/childProfiles   # Should be child-profiles
+GET /api/v1/oauthProviders  # Should be oauth-providers
+```
+
+## 📋 Code Review Checklist
+
+Before submitting code, verify:
+
+- [ ] All database queries use Drizzle operators (not `<` `>`)
+- [ ] No plaintext sensitive data in database
+- [ ] Input validated with Zod schemas
+- [ ] Structured logging (no `console.log`)
+- [ ] Rate limiting applied
+- [ ] Error handling in try-catch
+- [ ] Resources cleaned up (intervals, connections)
+- [ ] No code duplication (>10 lines)
+- [ ] TypeScript strict mode passes
+- [ ] Health checks updated if needed
+
+## 🔄 When to Update These Rules
+
+- **MUST** update after finding new architectural issues
+- **MUST** update when adopting new patterns
+- **MUST** discuss breaking changes with team
+- **SHOULD** review quarterly
+
+---
+
+**Last Updated**: 2026-01-25 (after Architecture Review Fixes)  
+**Version**: 1.0.0  
+**Status**: Active
