@@ -24,11 +24,11 @@ export const useGoogleLogin = () => {
   
   return useMutation({
     mutationFn: async (idToken: string) => {
-      const response = await apiClient.post<{ status: string; data: AuthResponse }>(
+      const response = await apiClient.post<AuthResponse>(
         '/api/v1/auth/google/token',
         { idToken }
       );
-      return response.data.data;
+      return response.data;
     },
     onSuccess: async (data) => {
       await storage.setAuthToken(data.token);
@@ -42,12 +42,17 @@ export const useAppleLogin = () => {
   const { login } = useAuthStore();
   
   return useMutation({
-    mutationFn: async (idToken: string) => {
-      const response = await apiClient.post<{ status: string; data: AuthResponse }>(
+    mutationFn: async (data: { 
+      identityToken: string; 
+      user?: any;
+      deviceName?: string;
+      deviceType?: string;
+    }) => {
+      const response = await apiClient.post<AuthResponse>(
         '/api/v1/auth/apple/token',
-        { idToken }
+        data
       );
-      return response.data.data;
+      return response.data;
     },
     onSuccess: async (data) => {
       await storage.setAuthToken(data.token);

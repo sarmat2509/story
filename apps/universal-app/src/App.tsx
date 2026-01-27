@@ -16,6 +16,32 @@ const queryClient = new QueryClient({
   },
 });
 
+// Linking configuration for OAuth callbacks
+const linking = {
+  prefixes: ['kazka://', 'http://localhost:8081'],
+  config: {
+    screens: {
+      Auth: {
+        screens: {
+          Login: 'login',
+          OAuthCallback: 'auth/:provider/callback',
+        },
+      },
+      Main: {
+        screens: {
+          HomeTabs: {
+            screens: {
+              Home: 'home',
+              Library: 'library',
+              Profile: 'profile',
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
 export default function App() {
   const [isReady, setIsReady] = useState(false);
 
@@ -46,7 +72,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
-          <NavigationContainer>
+          <NavigationContainer linking={linking}>
             <StatusBar style="auto" />
             <RootNavigator />
           </NavigationContainer>

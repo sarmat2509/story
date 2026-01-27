@@ -1,6 +1,18 @@
 import dotenv from 'dotenv';
+import path from 'path';
 
-dotenv.config();
+// Load .env from workspace root (monorepo structure)
+// When compiled, files are in dist/, so we need to go up 4 levels: dist/config -> dist -> api -> services -> root
+const envPath = path.resolve(__dirname, '../../../../.env');
+dotenv.config({ path: envPath });
+
+// Debug: Log if OAuth credentials are loaded
+if (process.env.NODE_ENV === 'development') {
+  console.log('🔐 OAuth Config Check:');
+  console.log('  ENV path:', envPath);
+  console.log('  GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'Set ✓' : 'Missing ✗');
+  console.log('  GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'Set ✓' : 'Missing ✗');
+}
 
 // Validate required environment variables in production
 function validateProductionConfig() {

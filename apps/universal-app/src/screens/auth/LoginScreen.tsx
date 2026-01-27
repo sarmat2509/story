@@ -1,19 +1,31 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useGoogleLogin } from '@/api/auth';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function LoginScreen() {
-  const googleLogin = useGoogleLogin();
+  const { signInWithGoogle, signInWithApple, isLoading } = useAuth();
+  const [error, setError] = useState<string | null>(null);
 
   const handleGoogleLogin = async () => {
-    // TODO: Implement actual Google Sign In
-    // For now, just show placeholder
-    alert('Google Sign In - TODO: Implement OAuth flow');
+    try {
+      setError(null);
+      await signInWithGoogle();
+      // For web, page will redirect. For mobile, success handled by RootNavigator
+    } catch (err) {
+      setError('Google Sign In failed. Please try again.');
+      console.error('Google login error:', err);
+    }
   };
 
   const handleAppleLogin = async () => {
-    // TODO: Implement actual Apple Sign In
-    alert('Apple Sign In - TODO: Implement OAuth flow');
+    try {
+      setError(null);
+      await signInWithApple();
+      // For web, page will redirect. For mobile, success handled by RootNavigator
+    } catch (err) {
+      setError('Apple Sign In failed. Please try again.');
+      console.error('Apple login error:', err);
+    }
   };
 
   return (
@@ -22,21 +34,43 @@ export default function LoginScreen() {
         <Text style={styles.title}>Kazka+</Text>
         <Text style={styles.subtitle}>Personalized illustrated fairy tales</Text>
         
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+        
         <View style={styles.buttonContainer}>
           <TouchableOpacity 
             style={[styles.button, styles.googleButton]}
             onPress={handleGoogleLogin}
+            disabled={isLoading}
           >
-            <Text style={styles.buttonText}>Sign in with Google</Text>
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Sign in with Google</Text>
+            )}
           </TouchableOpacity>
           
           <TouchableOpacity 
             style={[styles.button, styles.appleButton]}
             onPress={handleAppleLogin}
+            disabled={isLoading}
           >
-            <Text style={styles.buttonText}>Sign in with Apple</Text>
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Sign in with Apple</Text>
+            )}
           </TouchableOpacity>
         </View>
+        
+        {Platform.OS === 'web' && (
+          <Text style={styles.noteText}>
+            Note: Web OAuth will open in the same window
+          </Text>
+        )}
       </View>
     </View>
   );
@@ -67,6 +101,17 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginBottom: 48,
   },
+  errorContainer: {
+    backgroundColor: '#fee2e2',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#dc2626',
+    textAlign: 'center',
+    fontSize: 14,
+  },
   buttonContainer: {
     gap: 16,
   },
@@ -85,5 +130,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  noteText: {
+    marginTop: 16,
+    fontSize: 12,
+    textAlign: 'center',
+    color: '#94a3b8',
   },
 });

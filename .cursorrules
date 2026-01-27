@@ -609,12 +609,13 @@ GET  /api/v1/getUserProfile       # Verb in URL
 
 ```typescript
 // ✅ Good
-GET    /api/v1/users/me          # Get current user
-PATCH  /api/v1/users/me          # Update user profile
-DELETE /api/v1/users/me          # Delete account
-POST   /api/v1/sessions          # Create session (login)
-DELETE /api/v1/sessions/current  # Delete session (logout)
-PUT    /api/v1/sessions/current  # Refresh session token
+GET    /api/v1/me                # Get current user
+PATCH  /api/v1/me                # Update user profile
+DELETE /api/v1/me                # Delete account
+POST   /api/v1/auth/sessions          # Create session (login)
+DELETE /api/v1/auth/sessions          # Delete all sessions (logout all)
+DELETE /api/v1/auth/sessions/current  # Delete current session (logout)
+PUT    /api/v1/auth/sessions/current  # Refresh session token
 
 // ❌ Bad
 POST /api/v1/logout              # Should be DELETE
@@ -636,7 +637,7 @@ DELETE /api/v1/me/oauth-providers/:id   # Unlink provider
 
 // ❌ Bad
 GET /api/v1/me/session                  # Singular instead of plural
-GET /api/v1/users/me/sessions/active    # Too deep (3 levels)
+GET /api/v1/me/sessions/active/details  # Too deep (3 levels)
 ```
 
 #### Query Parameters
@@ -660,9 +661,13 @@ GET /api/v1/stories?id=123           # ID should be path param
 
 ```typescript
 // ✅ Acceptable for OAuth
-GET  /api/v1/auth/google/authorize    # Industry convention
-GET  /api/v1/auth/google/callback
-POST /api/v1/auth/google/token
+GET  /api/v1/auth/google/start        # Start OAuth flow (industry convention)
+GET  /api/v1/auth/google/callback     # OAuth callback
+POST /api/v1/auth/google/token        # Mobile token exchange
+
+GET  /api/v1/auth/apple/start         # Start Apple OAuth
+POST /api/v1/auth/apple/callback      # Apple OAuth callback
+POST /api/v1/auth/apple/token         # Apple mobile token exchange
 ```
 
 #### Special Resource: `/me`
@@ -670,13 +675,18 @@ POST /api/v1/auth/google/token
 - **ALTERNATIVE**: `/users/me` is more RESTful but less intuitive
 - **MUST** choose one pattern and be consistent
 
+**Current Pattern (Option A - Pragmatic):**
 ```typescript
-// ✅ Option A: Pragmatic (current)
-/api/v1/me
-/api/v1/me/sessions
-/api/v1/me/oauth-providers
+// ✅ Current implementation
+/api/v1/me                          # Get current user
+/api/v1/me/oauth-providers          # List OAuth providers
+/api/v1/auth/sessions               # Session management under auth
+/api/v1/auth/sessions/current       # Current session operations
+```
 
-// ✅ Option B: Strict REST (alternative)
+**Alternative (Option B - Strict REST):**
+```typescript
+// ✅ Alternative pattern (not currently used)
 /api/v1/users/me
 /api/v1/users/me/sessions
 /api/v1/users/me/oauth-providers
@@ -1031,20 +1041,23 @@ PATCH  /api/v1/me                         # Update profile
 DELETE /api/v1/me                         # Delete account
 
 // Sub-resources
-GET    /api/v1/me/sessions                # List sessions
-DELETE /api/v1/me/sessions/:id            # Revoke session
-GET    /api/v1/me/oauth-providers         # List OAuth
-POST   /api/v1/me/oauth-providers         # Link provider
-DELETE /api/v1/me/oauth-providers/:id     # Unlink provider
+GET    /api/v1/me/oauth-providers         # List OAuth providers
+POST   /api/v1/me/oauth-providers         # Link OAuth provider
+DELETE /api/v1/me/oauth-providers/:id     # Unlink OAuth provider
 
-// OAuth (exception - industry standard)
-GET  /api/v1/auth/google/authorize
-GET  /api/v1/auth/google/callback
-POST /api/v1/auth/google/token
+// OAuth Flows (exception - industry standard)
+GET  /api/v1/auth/google/start            # Start Google OAuth (web)
+GET  /api/v1/auth/google/callback         # Google OAuth callback
+POST /api/v1/auth/google/token            # Google token exchange (mobile)
+
+GET  /api/v1/auth/apple/start             # Start Apple OAuth (web)
+POST /api/v1/auth/apple/callback          # Apple OAuth callback
+POST /api/v1/auth/apple/token             # Apple token exchange (mobile)
 
 // Collections with filters
 GET /api/v1/stories?age_group=4-5&limit=10
-GET /api/v1/child-profiles?active=true
+GET /api/v1/children?active=true          # Child profiles
+GET /api/v1/plans?currency=USD            # Subscription plans
 ```
 
 ### Bad Examples (DO NOT USE)
@@ -1067,8 +1080,8 @@ GET /api/v1/me/session      # Should be plural
 GET /api/v1/me/oauth        # Should be oauth-providers
 
 // ❌ Wrong HTTP methods
-POST /api/v1/logout         # Should be DELETE /sessions/current
-POST /api/v1/refresh        # Should be PUT /sessions/current
+POST /api/v1/logout         # Should be DELETE /auth/sessions/current
+POST /api/v1/refresh        # Should be PUT /auth/sessions/current
 
 // ❌ camelCase in URLs
 GET /api/v1/childProfiles   # Should be child-profiles

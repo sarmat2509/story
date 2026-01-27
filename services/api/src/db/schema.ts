@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, jsonb, uniqueIndex, index, inet, integer, boolean, date, decimal } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, jsonb, uniqueIndex, index, inet, integer, boolean, date, decimal, primaryKey } from 'drizzle-orm/pg-core';
 
 // Users table
 export const users = pgTable('users', {
@@ -536,7 +536,7 @@ export const voiceAgeGroups = pgTable('voice_age_groups', {
   ageGroupId: uuid('age_group_id').references(() => ageGroups.id, { onDelete: 'cascade' }).notNull(),
 }, (table) => {
   return {
-    pk: table.primaryKey(table.voiceId, table.ageGroupId),
+    pk: primaryKey({ columns: [table.voiceId, table.ageGroupId] }),
     voiceIdIdx: index('voice_age_groups_voice_id_idx').on(table.voiceId),
     ageGroupIdIdx: index('voice_age_groups_age_group_id_idx').on(table.ageGroupId),
   };

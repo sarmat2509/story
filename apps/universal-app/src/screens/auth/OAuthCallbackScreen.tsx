@@ -12,6 +12,8 @@ export default function OAuthCallbackScreen() {
   useEffect(() => {
     async function handleCallback() {
       try {
+        console.log('OAuth callback starting...');
+        
         // Get token from URL
         let token: string | null = null;
         let isNewUser = false;
@@ -20,21 +22,37 @@ export default function OAuthCallbackScreen() {
           const params = new URLSearchParams(window.location.search);
           token = params.get('token');
           isNewUser = params.get('isNewUser') === 'true';
+          console.log('Token from URL:', token ? 'Found' : 'Missing');
+          console.log('Is new user:', isNewUser);
         }
 
         if (!token) {
           throw new Error('No token received');
         }
 
-        // Save token
+        // Save token first
+        console.log('Saving token to storage...');
         await storage.setAuthToken(token);
 
-        // Fetch user info
-        const response = await apiClient.get('/api/v1/me');
+        // Fetch user info with the token
+        console.log('Fetching user info...');
+        const response = await apiClient.get('/api/v1/me', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        
+        console.log('User response:', response.data);
         const user = response.data.user;
+
+        if (!user) {
+          throw new Error('No user data received');
+        }
 
         await storage.setUser(user);
         login(user, token);
+        
+        console.log('Login successful!');
 
         // Clear OAuth state
         if (Platform.OS === 'web' && typeof window !== 'undefined' && window.sessionStorage) {
@@ -44,6 +62,8 @@ export default function OAuthCallbackScreen() {
         // Success - RootNavigator will redirect to main app
       } catch (error) {
         console.error('OAuth callback error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Error details:', errorMessage);
         alert('Authentication failed. Please try again.');
         navigation.navigate('Login' as never);
       }

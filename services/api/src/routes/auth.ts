@@ -12,6 +12,7 @@ const router = Router();
 
 // Configure Google OAuth strategy
 if (config.oauth.google.clientId && config.oauth.google.clientSecret) {
+  logger.info('Configuring Google OAuth strategy');
   passport.use(
     new GoogleStrategy(
       {
@@ -21,16 +22,17 @@ if (config.oauth.google.clientId && config.oauth.google.clientSecret) {
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
-          // Import validation schema
-          const { GoogleProfileSchema } = await import('@kazka-plus/shared/schemas');
-          
-          // Validate profile data
-          const googleProfile = GoogleProfileSchema.parse({
+          // Validate profile data - using inline validation since shared schemas may not be set up yet
+          const googleProfile = {
             id: profile.id,
             email: profile.emails?.[0]?.value || '',
             name: profile.displayName,
             picture: profile.photos?.[0]?.value,
-          });
+          };
+          
+          if (!googleProfile.email) {
+            return done(new Error('Email is required from Google profile'));
+          }
           
           done(null, { profile: googleProfile, accessToken, refreshToken });
         } catch (error) {
@@ -39,6 +41,11 @@ if (config.oauth.google.clientId && config.oauth.google.clientSecret) {
       }
     )
   );
+} else {
+  logger.warn('Google OAuth not configured - missing clientId or clientSecret', {
+    hasClientId: !!config.oauth.google.clientId,
+    hasClientSecret: !!config.oauth.google.clientSecret,
+  });
 }
 
 // Helper to extract device info from request
@@ -96,7 +103,7 @@ router.get(
       // Generate JWT
       const token = generateToken({
         userId: result.user.id,
-        sessionId: session.token,
+        sessionId: session.id, // Use session.id (UUID), not session.token
       });
       
       // Parse state for redirect_uri
@@ -187,7 +194,7 @@ router.post('/google/token', async (req: Request, res: Response) => {
     // Generate JWT
     const token = generateToken({
       userId: result.user.id,
-      sessionId: session.token,
+      sessionId: session.id, // Use session.id (UUID), not session.token
     });
     
     logger.info({ 
@@ -286,7 +293,7 @@ router.post('/apple/callback', async (req: Request, res: Response) => {
     // Generate JWT
     const token = generateToken({
       userId: result.user.id,
-      sessionId: session.token,
+      sessionId: session.id, // Use session.id (UUID), not session.token
     });
     
     logger.info({ userId: result.user.id }, 'Apple OAuth callback successful');
@@ -382,7 +389,7 @@ router.post('/apple/token', async (req: Request, res: Response) => {
     // Generate JWT
     const token = generateToken({
       userId: result.user.id,
-      sessionId: session.token,
+      sessionId: session.id, // Use session.id (UUID), not session.token
     });
     
     logger.info({ 
