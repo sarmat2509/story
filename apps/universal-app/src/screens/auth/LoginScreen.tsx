@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
+import { theme } from '@/theme';
 
 export default function LoginScreen() {
   const { signInWithGoogle, signInWithApple, isLoading } = useAuth();
@@ -79,62 +80,62 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   content: {
     width: '100%',
     maxWidth: 400,
-    padding: 24,
+    padding: theme.spacing[6],
   },
   title: {
-    fontSize: 48,
-    fontWeight: 'bold',
+    fontSize: theme.typography.fontSize['6xl'],
+    fontWeight: theme.typography.fontWeight.bold,
     textAlign: 'center',
-    marginBottom: 8,
-    color: '#0ea5e9',
+    marginBottom: theme.spacing[2],
+    color: theme.colors.interactive.primary,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: theme.typography.fontSize.base,
     textAlign: 'center',
-    color: '#64748b',
-    marginBottom: 48,
+    color: theme.colors.text.tertiary,
+    marginBottom: theme.spacing[12],
   },
   errorContainer: {
-    backgroundColor: '#fee2e2',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
+    backgroundColor: theme.colors.error[50],
+    padding: theme.spacing[3],
+    borderRadius: theme.borders.radius.md,
+    marginBottom: theme.spacing[4],
   },
   errorText: {
-    color: '#dc2626',
+    color: theme.colors.status.error,
     textAlign: 'center',
-    fontSize: 14,
+    fontSize: theme.typography.fontSize.sm,
   },
   buttonContainer: {
-    gap: 16,
+    gap: theme.spacing[4],
   },
   button: {
-    padding: 16,
-    borderRadius: 8,
+    padding: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
     alignItems: 'center',
   },
   googleButton: {
-    backgroundColor: '#4285F4',
+    backgroundColor: theme.colors.google,
   },
   appleButton: {
-    backgroundColor: '#000',
+    backgroundColor: theme.colors.apple,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: theme.colors.text.inverse,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
   },
   noteText: {
-    marginTop: 16,
-    fontSize: 12,
+    marginTop: theme.spacing[4],
+    fontSize: theme.typography.fontSize.xs,
     textAlign: 'center',
-    color: '#94a3b8',
+    color: theme.colors.neutral[400],
   },
 });

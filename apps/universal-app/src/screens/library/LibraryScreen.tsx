@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { useStories } from '@/api/stories';
+import { theme } from '@/theme';
 
 export default function LibraryScreen() {
   const { data: stories, isLoading, error } = useStories();
@@ -50,38 +51,38 @@ export default function LibraryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background.primary,
   },
   list: {
-    padding: 16,
+    padding: theme.spacing[4],
   },
   storyCard: {
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 8,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    padding: theme.spacing[4],
+    marginBottom: theme.spacing[3],
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.secondary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
   },
   storyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.semibold,
+    marginBottom: theme.spacing[1],
   },
   storyMeta: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
   },
   emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.semibold,
     textAlign: 'center',
-    marginTop: 48,
+    marginTop: theme.spacing[12],
   },
   emptySubtext: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: theme.spacing[2],
   },
 });

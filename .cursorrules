@@ -991,6 +991,600 @@ const identity = await getIdentity(user.id);
 - ❌ No query timeouts
 - ❌ Loading unnecessary data
 
+## 🎨 Design System & UI Standards
+
+### Design Token System
+
+**Location:** `apps/universal-app/src/theme/`
+
+**MUST** use centralized design tokens for all UI styling. **NEVER** hardcode colors, spacing, typography, or borders in component styles.
+
+#### Theme Structure
+
+```
+src/theme/
+  ├── colors.ts       # Color palette + semantic colors
+  ├── typography.ts   # Font sizes, weights, line heights
+  ├── spacing.ts      # Spacing scale (0-80px)
+  ├── borders.ts      # Border radius and widths
+  └── index.ts        # Main theme export
+```
+
+#### Using Design Tokens
+
+**MUST** import theme at the top of every screen/component file:
+
+```typescript
+import { theme } from '@/theme';
+```
+
+**MUST** use theme tokens in StyleSheet.create():
+
+```typescript
+// ✅ Good - Using design tokens
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background.primary,
+    padding: theme.spacing[6],
+  },
+  title: {
+    fontSize: theme.typography.fontSize['3xl'],
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing[4],
+  },
+  card: {
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    padding: theme.spacing[4],
+  },
+});
+
+// ❌ Bad - Hardcoded values
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: '#fff',     // VIOLATION!
+    padding: 24,                 // VIOLATION!
+  },
+  title: {
+    fontSize: 28,                // VIOLATION!
+    fontWeight: 'bold',          // VIOLATION!
+    color: '#1e293b',            // VIOLATION!
+    marginBottom: 16,            // VIOLATION!
+  },
+});
+```
+
+#### Color Tokens
+
+**Available Palettes:**
+- `theme.colors.primary[50-900]` - Primary brand color (Sky Blue)
+- `theme.colors.neutral[50-900]` - Neutral grays (Slate)
+- `theme.colors.success[50/500/600]` - Success states
+- `theme.colors.error[50/500/600/700]` - Error states
+- `theme.colors.warning[50/500/600]` - Warning states
+
+**Semantic Colors (Preferred):**
+- `theme.colors.background.primary` - Main background (#ffffff)
+- `theme.colors.background.secondary` - Card backgrounds (#f8fafc)
+- `theme.colors.background.tertiary` - Nested backgrounds (#f1f5f9)
+- `theme.colors.background.inverse` - Dark backgrounds (#0f172a)
+
+- `theme.colors.text.primary` - Main text (#1e293b)
+- `theme.colors.text.secondary` - Secondary text (#475569)
+- `theme.colors.text.tertiary` - Tertiary text (#64748b)
+- `theme.colors.text.disabled` - Disabled text (#94a3b8)
+- `theme.colors.text.inverse` - White text (#ffffff)
+
+- `theme.colors.border.light` - Light borders (#e2e8f0)
+- `theme.colors.border.medium` - Medium borders (#cbd5e1)
+- `theme.colors.border.dark` - Dark borders (#94a3b8)
+
+- `theme.colors.interactive.primary` - Primary buttons/links (#0ea5e9)
+- `theme.colors.interactive.primaryHover` - Primary hover (#0284c7)
+- `theme.colors.interactive.primaryActive` - Primary active (#0369a1)
+- `theme.colors.interactive.secondary` - Secondary buttons (#f1f5f9)
+
+- `theme.colors.status.success` - Success messages (#10b981)
+- `theme.colors.status.error` - Error messages (#dc2626)
+- `theme.colors.status.warning` - Warning messages (#f59e0b)
+
+**Brand Colors:**
+- `theme.colors.google` - Google brand (#4285F4)
+- `theme.colors.apple` - Apple brand (#000000)
+
+#### Typography Tokens
+
+**Font Sizes:**
+```typescript
+theme.typography.fontSize.xs      // 12
+theme.typography.fontSize.sm      // 14
+theme.typography.fontSize.base    // 16
+theme.typography.fontSize.lg      // 18
+theme.typography.fontSize.xl      // 20
+theme.typography.fontSize['2xl']  // 24
+theme.typography.fontSize['3xl']  // 28
+theme.typography.fontSize['4xl']  // 32
+theme.typography.fontSize['5xl']  // 36
+theme.typography.fontSize['6xl']  // 48
+```
+
+**Font Weights:**
+```typescript
+theme.typography.fontWeight.regular   // '400'
+theme.typography.fontWeight.medium    // '500'
+theme.typography.fontWeight.semibold  // '600'
+theme.typography.fontWeight.bold      // '700'
+```
+
+**Line Heights:**
+```typescript
+theme.typography.lineHeight.tight    // 1.2
+theme.typography.lineHeight.normal   // 1.5
+theme.typography.lineHeight.relaxed  // 1.75
+```
+
+#### Spacing Tokens
+
+**MUST** use spacing scale for padding, margin, gap:
+
+```typescript
+theme.spacing[0]   // 0
+theme.spacing[1]   // 4px
+theme.spacing[2]   // 8px
+theme.spacing[3]   // 12px
+theme.spacing[4]   // 16px
+theme.spacing[5]   // 20px
+theme.spacing[6]   // 24px
+theme.spacing[8]   // 32px
+theme.spacing[10]  // 40px
+theme.spacing[12]  // 48px
+theme.spacing[16]  // 64px
+theme.spacing[20]  // 80px
+```
+
+#### Border Tokens
+
+**Border Radius:**
+```typescript
+theme.borders.radius.none  // 0
+theme.borders.radius.sm    // 4
+theme.borders.radius.md    // 8
+theme.borders.radius.lg    // 12
+theme.borders.radius.xl    // 16
+theme.borders.radius.full  // 9999 (circular)
+```
+
+**Border Width:**
+```typescript
+theme.borders.width.thin    // 1
+theme.borders.width.medium  // 2
+theme.borders.width.thick   // 4
+```
+
+### Navigation Icons
+
+**MUST** use `@expo/vector-icons` (specifically Ionicons) for all navigation icons.
+
+**NEVER** leave navigation without icons - this causes "Image: asset with ID X could not be found" errors.
+
+#### Icon Setup in Navigators
+
+```typescript
+import { Ionicons } from '@expo/vector-icons';
+import { theme } from '@/theme';
+
+// ✅ Good - Tab Navigator with icons
+<Tab.Navigator
+  screenOptions={{
+    tabBarActiveTintColor: theme.colors.interactive.primary,
+    tabBarInactiveTintColor: theme.colors.text.tertiary,
+  }}
+>
+  <Tab.Screen 
+    name="Dashboard" 
+    component={DashboardScreen}
+    options={{ 
+      title: 'Home',
+      tabBarIcon: ({ color, size }) => (
+        <Ionicons name="home-outline" size={size} color={color} />
+      ),
+    }}
+  />
+</Tab.Navigator>
+
+// ✅ Good - Drawer Navigator with icons
+<Drawer.Navigator
+  screenOptions={{
+    drawerActiveTintColor: theme.colors.interactive.primary,
+    drawerInactiveTintColor: theme.colors.text.tertiary,
+  }}
+>
+  <Drawer.Screen 
+    name="Dashboard" 
+    component={DashboardScreen}
+    options={{ 
+      title: 'Dashboard',
+      drawerIcon: ({ color, size }) => (
+        <Ionicons name="home-outline" size={size} color={color} />
+      ),
+    }}
+  />
+</Drawer.Navigator>
+
+// ❌ Bad - No icons (causes asset errors)
+<Tab.Screen 
+  name="Dashboard" 
+  component={DashboardScreen}
+  options={{ title: 'Home' }}  // Missing tabBarIcon!
+/>
+```
+
+#### Standard Icon Mapping
+
+**MUST** use these Ionicons for standard screens:
+
+- **Dashboard/Home** → `home-outline`
+- **Create/Wizard** → `create-outline`
+- **Library/Stories** → `library-outline`
+- **Children/Users** → `people-outline`
+- **Profile/Settings** → `person-outline`
+- **Search** → `search-outline`
+- **Notifications** → `notifications-outline`
+- **Calendar** → `calendar-outline`
+- **Heart/Favorite** → `heart-outline`
+- **Add** → `add-circle-outline`
+- **Edit** → `pencil-outline`
+- **Delete** → `trash-outline`
+- **Back** → `arrow-back-outline`
+- **Forward** → `arrow-forward-outline`
+- **Close** → `close-outline`
+
+**Finding More Icons:**
+- Browse: https://ionic.io/ionicons
+- Search for `-outline` variants for consistency
+- Use filled variants (`heart` instead of `heart-outline`) for active states
+
+### Creating New Screens
+
+When creating new screens, **MUST** follow this checklist:
+
+1. **Import theme:**
+   ```typescript
+   import { theme } from '@/theme';
+   ```
+
+2. **Use theme tokens in styles:**
+   - Colors: `theme.colors.*`
+   - Typography: `theme.typography.*`
+   - Spacing: `theme.spacing[*]`
+   - Borders: `theme.borders.*`
+
+3. **Add navigation icon:**
+   - Import: `import { Ionicons } from '@expo/vector-icons';`
+   - Add `tabBarIcon` or `drawerIcon` prop
+   - Use theme colors for icon tints
+
+4. **Never hardcode:**
+   - ❌ `backgroundColor: '#fff'`
+   - ❌ `fontSize: 24`
+   - ❌ `padding: 16`
+   - ❌ `borderRadius: 8`
+   - ❌ `fontWeight: 'bold'`
+
+### Updating Existing Screens
+
+When updating screens, **MUST** migrate hardcoded values to tokens:
+
+**Migration Pattern:**
+
+```typescript
+// Before:
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: '#fff',
+    padding: 24,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginBottom: 16,
+  },
+});
+
+// After:
+import { theme } from '@/theme';
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: theme.colors.background.primary,
+    padding: theme.spacing[6],
+  },
+  title: {
+    fontSize: theme.typography.fontSize['3xl'],
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing[4],
+  },
+});
+```
+
+**Common Conversions:**
+
+| Hardcoded | Token |
+|-----------|-------|
+| `#ffffff`, `#fff` | `theme.colors.background.primary` |
+| `#f8fafc` | `theme.colors.background.secondary` |
+| `#1e293b` | `theme.colors.text.primary` |
+| `#64748b` | `theme.colors.text.tertiary` |
+| `#0ea5e9` | `theme.colors.interactive.primary` |
+| `#dc2626` | `theme.colors.status.error` |
+| `#e2e8f0` | `theme.colors.border.light` |
+| `48` (font) | `theme.typography.fontSize['6xl']` |
+| `28` (font) | `theme.typography.fontSize['3xl']` |
+| `24` (font) | `theme.typography.fontSize['2xl']` |
+| `18` (font) | `theme.typography.fontSize.lg` |
+| `16` (font) | `theme.typography.fontSize.base` |
+| `14` (font) | `theme.typography.fontSize.sm` |
+| `'bold'` | `theme.typography.fontWeight.bold` |
+| `'600'` | `theme.typography.fontWeight.semibold` |
+| `48` (spacing) | `theme.spacing[12]` |
+| `24` (spacing) | `theme.spacing[6]` |
+| `16` (spacing) | `theme.spacing[4]` |
+| `8` (spacing) | `theme.spacing[2]` |
+| `12` (border radius) | `theme.borders.radius.lg` |
+| `8` (border radius) | `theme.borders.radius.md` |
+| `1` (border width) | `theme.borders.width.thin` |
+| `2` (border width) | `theme.borders.width.medium` |
+
+### Benefits of Design Token System
+
+1. **Consistency** - All components use the same design values
+2. **Maintainability** - Change theme in one place, updates everywhere
+3. **Type Safety** - TypeScript autocomplete for all tokens
+4. **Dark Mode Ready** - Easy to add theme variants
+5. **Scalability** - Easy to add new tokens as needed
+6. **Documentation** - Tokens serve as design system documentation
+
+## 🔄 Loading & Error States
+
+### React Query Hooks
+
+**MUST** always handle loading and error states when using TanStack Query (React Query) hooks.
+
+**NEVER** render data directly without checking loading/error states first.
+
+```typescript
+// ✅ Good - Proper loading/error handling
+export default function MyScreen() {
+  const { data, isLoading, error } = useMyData();
+
+  if (isLoading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorTitle}>Failed to load data</Text>
+        <Text style={styles.errorMessage}>{error.message}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Now safe to render data
+  return (
+    <View>
+      {data.map(item => <ItemCard key={item.id} item={item} />)}
+    </View>
+  );
+}
+
+// ❌ Bad - No loading/error handling
+export default function MyScreen() {
+  const { data } = useMyData();
+  
+  return (
+    <View>
+      {data.map(item => <ItemCard key={item.id} item={item} />)} {/* VIOLATION! */}
+    </View>
+  );
+}
+```
+
+### Required Styles for Loading/Error States
+
+**MUST** include these standard styles in screens with data fetching:
+
+```typescript
+const styles = StyleSheet.create({
+  // ... other styles ...
+  
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing[6],
+    backgroundColor: theme.colors.background.primary,
+  },
+  loadingText: {
+    marginTop: theme.spacing[4],
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.tertiary,
+  },
+  errorTitle: {
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.status.error,
+    marginBottom: theme.spacing[2],
+  },
+  errorMessage: {
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.tertiary,
+    textAlign: 'center',
+    marginBottom: theme.spacing[6],
+  },
+  retryButton: {
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[6],
+    backgroundColor: theme.colors.interactive.primary,
+    borderRadius: theme.borders.radius.md,
+  },
+  retryButtonText: {
+    color: theme.colors.text.inverse,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+});
+```
+
+### Error Boundaries
+
+**MUST** wrap major sections or entire app with ErrorBoundary component to catch React component errors.
+
+**Location:** Use `src/components/ErrorBoundary.tsx`
+
+```typescript
+// ✅ Good - App wrapped with ErrorBoundary
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
+}
+
+// ✅ Good - Critical section wrapped
+export default function MyComplexScreen() {
+  return (
+    <ErrorBoundary fallback={<ErrorFallback />}>
+      <ComplexComponent />
+    </ErrorBoundary>
+  );
+}
+```
+
+### Authentication State Loading
+
+**MUST** handle authentication state hydration loading in `src/navigation/RootNavigator.tsx`.
+
+**NEVER** render navigation before auth state is loaded from storage.
+
+```typescript
+// ✅ Good - Wait for auth hydration
+export default function RootNavigator() {
+  const { isAuthenticated, isLoading } = useAuthStore();
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <Stack.Navigator>
+      {!isAuthenticated ? (
+        <Stack.Screen name="Public" component={PublicNavigator} />
+      ) : (
+        <Stack.Screen name="Main" component={MainNavigator} />
+      )}
+    </Stack.Navigator>
+  );
+}
+
+// ❌ Bad - No loading check
+export default function RootNavigator() {
+  const { isAuthenticated } = useAuthStore();
+  
+  return (
+    <Stack.Navigator>
+      {!isAuthenticated ? (
+        <Stack.Screen name="Public" component={PublicNavigator} />
+      ) : (
+        <Stack.Screen name="Main" component={MainNavigator} />
+      )}
+    </Stack.Navigator>
+  ); // VIOLATION! Flickers between states during hydration
+}
+```
+
+### Query Client Configuration
+
+**MUST** configure TanStack Query with proper error handling in `src/App.tsx`:
+
+```typescript
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      onError: (error: any) => {
+        console.error('Query error:', error);
+        // Handle specific error codes
+        if (error?.response?.status === 401 || error?.response?.status === 403) {
+          console.log('Authentication required');
+        }
+      },
+    },
+  },
+});
+```
+
+### Empty States
+
+**MUST** provide helpful empty states when data arrays are empty:
+
+```typescript
+// ✅ Good - Empty state handling
+if (!data || data.length === 0) {
+  return (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyIcon}>📭</Text>
+      <Text style={styles.emptyTitle}>No items yet</Text>
+      <Text style={styles.emptyMessage}>Get started by creating your first item</Text>
+      <TouchableOpacity style={styles.createButton} onPress={handleCreate}>
+        <Text style={styles.createButtonText}>Create Item</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ❌ Bad - No empty state
+return (
+  <FlatList data={data} renderItem={...} /> {/* VIOLATION! Shows blank screen */}
+);
+```
+
+### Testing Checklist for Data-Fetching Screens
+
+Before committing a screen with data fetching, verify:
+
+- [ ] Loading state is shown with spinner and text
+- [ ] Error state is shown with message and retry button
+- [ ] Empty state is shown when data array is empty
+- [ ] Success state renders data properly
+- [ ] Navigation doesn't flicker during auth hydration
+- [ ] Console has no unhandled promise rejections
+- [ ] ActivityIndicator is imported from 'react-native'
+
 ## 📋 Code Review Checklist
 
 Before submitting code, verify:
@@ -1023,6 +1617,26 @@ Before submitting code, verify:
 - [ ] TypeScript strict mode passes
 - [ ] Health checks updated if needed
 - [ ] No redundant auth checks in requireAuth routes
+
+### UI & Design System
+- [ ] Imported `theme` from `@/theme`
+- [ ] No hardcoded colors (use `theme.colors.*`)
+- [ ] No hardcoded font sizes (use `theme.typography.fontSize.*`)
+- [ ] No hardcoded spacing (use `theme.spacing[*]`)
+- [ ] No hardcoded border radius (use `theme.borders.radius.*`)
+- [ ] Navigation screens have icons (`tabBarIcon` or `drawerIcon`)
+- [ ] Icons use `Ionicons` from `@expo/vector-icons`
+- [ ] Icon colors use theme tokens (`theme.colors.interactive.primary`)
+
+### Loading & Error States
+- [ ] Extracted isLoading and error from React Query hooks
+- [ ] Loading state shows ActivityIndicator with descriptive text
+- [ ] Error state shows error message with retry button
+- [ ] Empty state provides helpful message and action
+- [ ] Auth state hydration is handled with loading check
+- [ ] No screen renders data without checking loading/error first
+- [ ] ErrorBoundary wraps critical sections or entire app
+- [ ] Console shows no unhandled promise rejections
 
 ## 📚 RESTful API Examples
 

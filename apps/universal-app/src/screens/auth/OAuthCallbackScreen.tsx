@@ -1,12 +1,10 @@
 import React, { useEffect } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, Platform } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
 import { storage } from '@/utils/storage';
 import apiClient from '@/api/client';
 
 export default function OAuthCallbackScreen() {
-  const navigation = useNavigation();
   const { login } = useAuthStore();
 
   useEffect(() => {
@@ -59,18 +57,18 @@ export default function OAuthCallbackScreen() {
           window.sessionStorage.removeItem('oauth_redirect');
         }
 
-        // Success - RootNavigator will redirect to main app
+        // Success - RootNavigator will automatically redirect to Main (Dashboard)
       } catch (error) {
         console.error('OAuth callback error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('Error details:', errorMessage);
+        // On error, show alert but let RootNavigator handle redirect to Public/Login
         alert('Authentication failed. Please try again.');
-        navigation.navigate('Login' as never);
       }
     }
 
     handleCallback();
-  }, [navigation, login]);
+  }, [login]);
 
   return (
     <View style={styles.container}>

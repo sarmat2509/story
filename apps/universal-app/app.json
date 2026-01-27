@@ -27,8 +27,7 @@
       "package": "com.kazkaplus.app"
     },
     "web": {
-      "bundler": "metro",
-      "favicon": "./assets/images/favicon.png"
+      "bundler": "metro"
     }
   }
 }

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { theme } from '@/theme';
 
 export default function WizardScreen() {
   return (
@@ -13,16 +14,16 @@ export default function WizardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    backgroundColor: '#fff',
+    padding: theme.spacing[6],
+    backgroundColor: theme.colors.background.primary,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    fontSize: theme.typography.fontSize['2xl'],
+    fontWeight: theme.typography.fontWeight.bold,
+    marginBottom: theme.spacing[4],
   },
   text: {
-    fontSize: 16,
-    color: '#64748b',
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.tertiary,
   },
 });
