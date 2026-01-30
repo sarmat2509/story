@@ -4,8 +4,78 @@ import * as childProfileService from '../services/childProfileService';
 import * as planService from '../services/planService';
 import { CreateChildProfileSchema, UpdateChildProfileSchema } from '@kazka/shared';
 import { logger } from '../utils/logger';
+import { CharacterAnalysisService } from '../services/characterAnalysisService';
+import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
+import { config } from '../config';
 
 const router = Router();
+
+// Initialize analysis service
+const geminiProvider = new GeminiTextProvider(config.google.apiKey);
+const analysisService = new CharacterAnalysisService(geminiProvider);
+
+// POST /api/v1/children/analyze - Analyze child photos
+router.post('/analyze', requireAuth, async (req, res) => {
+  const { photos, language } = req.body;
+  
+  try {
+    // Validation
+    if (!photos || !Array.isArray(photos) || photos.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'Photos array is required and must not be empty'
+      });
+    }
+    
+    logger.info({ 
+      userId: req.user!.id, 
+      photoCount: photos.length,
+      language: language || 'en'
+    }, 'Analyzing child photos');
+    
+    // Call analysis service (always 'person' for children)
+    const result = await analysisService.analyzeCharacter({
+      photos,
+      characterType: 'person',
+      language: language || 'en'
+    });
+    
+    // Map result to child-specific format
+    const analysis: any = {
+      description: result.detailedDescription
+    };
+    
+    if (result.appearanceTraits) {
+      analysis.appearance = {
+        hairColor: result.appearanceTraits.hairColor || undefined,
+        hairLength: result.appearanceTraits.hairLength || undefined,
+        hairStyle: result.appearanceTraits.hairStyle || undefined,
+        eyeColor: result.appearanceTraits.eyeColor || undefined,
+        skinTone: result.appearanceTraits.skinTone || undefined,
+        distinctiveFeatures: result.distinctiveFeatures || []
+      };
+    }
+    
+    res.json({
+      status: 'success',
+      analysis
+    });
+  } catch (error) {
+    logger.error({ 
+      error: error instanceof Error ? {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      } : error,
+      userId: req.user?.id,
+      photoCount: photos?.length || 0
+    }, 'Error analyzing child photos');
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to analyze photos'
+    });
+  }
+});
 
 // GET /api/v1/children - List child profiles
 router.get('/', requireAuth, async (req, res) => {

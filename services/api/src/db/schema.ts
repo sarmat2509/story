@@ -160,6 +160,10 @@ export const childProfiles = pgTable('child_profiles', {
   interests: jsonb('interests'), // array of interests
   sensitivities: jsonb('sensitivities'), // fears and topics to avoid
   familyCast: jsonb('family_cast'), // family member names
+  // AI-generated fields from Gemini Vision analysis
+  aiGeneratedDescription: text('ai_generated_description'), // Detailed narrative description
+  clothing: jsonb('clothing'), // Structured clothing data
+  distinctiveFeatures: jsonb('distinctive_features'), // Array of distinctive features
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -181,6 +185,10 @@ export const characters = pgTable('characters', {
   appearanceTraits: jsonb('appearance_traits'), // type-specific structured data
   personality: jsonb('personality'), // traits and activities
   description: text('description'),
+  // AI-generated fields from Gemini Vision analysis
+  aiGeneratedDescription: text('ai_generated_description'), // Detailed narrative description
+  clothing: jsonb('clothing'), // Structured clothing data
+  distinctiveFeatures: jsonb('distinctive_features'), // Array of distinctive features
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -288,10 +296,35 @@ export const scenarioCards = pgTable('scenario_cards', {
   nameKey: varchar('name_key', { length: 100 }).notNull(),
   descriptionKey: varchar('description_key', { length: 100 }).notNull(),
   icon: varchar('icon', { length: 50 }),
+  promptGuidance: text('prompt_guidance').notNull(), // Detailed plot guidance (30-50 words)
   suggestedGoals: text('suggested_goals').notNull(), // JSON array
   ageGroups: text('age_groups').notNull(), // JSON array
   sortOrder: integer('sort_order').notNull().default(0),
   isActive: boolean('is_active').notNull().default(true),
+});
+
+// Translations table (M6)
+export const translations = pgTable('translations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  entityType: varchar('entity_type', { length: 50 }).notNull(), // 'story_goal' | 'story_tone' | 'scenario_card'
+  entityId: varchar('entity_id', { length: 100 }).notNull(),
+  locale: varchar('locale', { length: 5 }).notNull(), // 'uk' | 'ru' | 'en' | 'es'
+  fieldName: varchar('field_name', { length: 50 }).notNull(), // 'name' | 'description'
+  value: text('value').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    uniqueConstraint: uniqueIndex('translations_unique').on(
+      table.entityType,
+      table.entityId,
+      table.locale,
+      table.fieldName
+    ),
+    lookupIdx: index('idx_translations_lookup').on(table.entityType, table.entityId, table.locale),
+    entityIdx: index('idx_translations_entity').on(table.entityType, table.entityId),
+    localeIdx: index('idx_translations_locale').on(table.locale),
+  };
 });
 
 // ==========================================
@@ -309,11 +342,15 @@ export const storyRequests = pgTable('story_requests', {
   goal: varchar('goal', { length: 50 }).references(() => storyGoals.slug),
   tone: varchar('tone', { length: 50 }).references(() => storyTones.slug),
   scenarioCardId: varchar('scenario_card_id', { length: 100 }).references(() => scenarioCards.id),
+  imageStyle: varchar('image_style', { length: 50 }), // Image art style (soft_watercolor, etc.)
   userNotes: text('user_notes'),
+  selectedCharacters: jsonb('selected_characters'), // Array of character UUIDs selected by user
+  selectedChildren: jsonb('selected_children'), // NEW: Array of child profile UUIDs to include in story
   
   status: varchar('status', { length: 20 }).notNull().default('pending'),
   progress: integer('progress').default(0),
-  progressData: jsonb('progress_data'), // NEW: task-based progress tracking
+  progressData: jsonb('progress_data'), // Task-based progress tracking (activeTasks, completedTasks)
+  intermediateData: jsonb('intermediate_data'), // Checkpoints for retry (outline, text, validation)
   
   storyId: uuid('story_id'), // FK constraint added in migration, not in schema to avoid circular reference
   
@@ -400,6 +437,9 @@ export type NewAgeEngineRule = typeof ageEngineRules.$inferInsert;
 
 export type ScenarioCard = typeof scenarioCards.$inferSelect;
 export type NewScenarioCard = typeof scenarioCards.$inferInsert;
+
+export type Translation = typeof translations.$inferSelect;
+export type NewTranslation = typeof translations.$inferInsert;
 
 export type StoryRequest = typeof storyRequests.$inferSelect;
 export type NewStoryRequest = typeof storyRequests.$inferInsert;

@@ -14,7 +14,9 @@ export type MainDrawerParamList = {
   Dashboard: undefined;
   Wizard: undefined;
   Library: undefined;
+  Story: { storyId: string };
   Children: undefined;
+  Characters: undefined;
   Profile: undefined;
 };
 

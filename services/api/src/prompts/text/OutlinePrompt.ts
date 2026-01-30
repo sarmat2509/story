@@ -30,8 +30,14 @@ LANGUAGE: Write entirely in ${helpers.getLanguageName(spec.language)}.
 CHILD PROFILE:
 ${helpers.formatChildProfile(spec)}
 
+${helpers.formatSupportingCharacters(spec)}
+
 STORY REQUIREMENTS:
 ${helpers.formatStoryRequirements({ spec, sceneCount })}
+
+${helpers.formatAgeRequirements(spec.ageGroup)}
+
+${spec.scenarioCard?.id === 'scary_stories' ? helpers.formatScaryStoryRequirements(spec.ageGroup) : ''}
 
 ${helpers.formatSafetyPolicy(spec.policyProfile)}
 
@@ -47,7 +53,7 @@ OUTPUT FORMAT (JSON):
       "goal": "What should happen in this scene",
       "emotion": "Primary emotion (calm/happy/curious/concerned)",
       "beats": ["beat 1", "beat 2", "beat 3"],
-      "visualPrompt": "VISUAL DESCRIPTION for image generation: Describe the scene visually - setting details, character positions/actions, lighting/mood, colors. Focus on what would appear in an illustration. Age-appropriate, safe, positive imagery only."
+      "visualPrompt": "CARTOON ILLUSTRATION description for image generation. Describe the scene as a CARTOON/ANIMATED/ILLUSTRATED scene, NOT a photo, NOT realistic. Focus on: setting details, character positions and ACTIONS (what they are doing), lighting/mood, colors. Describe what would appear in a children's book illustration. Age-appropriate, safe, positive imagery only. Style: cartoon/illustration art, NOT photographic."
     }
   ],
   "safetyNotes": ["Any safety considerations"]

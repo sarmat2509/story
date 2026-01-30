@@ -13,6 +13,13 @@ interface UploadAssetParams {
   assetType: 'image' | 'audio' | 'video';
 }
 
+interface UploadUserPhotoParams {
+  buffer: Buffer;
+  mimeType: string;
+  userId: string;
+  photoType: 'profile' | 'character' | 'child';
+}
+
 interface AssetStorageResult {
   storagePath: string;
   storageUrl: string | null;
@@ -92,6 +99,39 @@ export class AssetStorageService {
     
     // Generate storage path
     const storagePath = this.generateStoragePath(userId, storyId, sceneId, assetType, mimeType);
+    
+    if (this.provider === 'local') {
+      return await this.uploadToLocal(storagePath, buffer, mimeType);
+    } else {
+      return await this.uploadToS3(storagePath, buffer, mimeType);
+    }
+  }
+
+  /**
+   * Upload user photo (not story-related)
+   */
+  async uploadUserPhoto(params: UploadUserPhotoParams): Promise<AssetStorageResult> {
+    await this.ensureInitialized();
+    
+    const { buffer, mimeType, userId, photoType } = params;
+    
+    // Validate file size
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    if (buffer.length > MAX_FILE_SIZE) {
+      throw new Error(`File size ${buffer.length} exceeds maximum allowed size ${MAX_FILE_SIZE}`);
+    }
+    
+    // Validate MIME type
+    await this.validateMimeType(buffer, mimeType);
+    
+    // Generate storage path for user photos
+    const extension = this.getExtensionFromMimeType(mimeType);
+    const timestamp = Date.now();
+    const safeUserId = this.sanitizePath(userId);
+    const env = config.nodeEnv;
+    
+    // Structure: {environment}/{userId}/photos/{photoType}/{timestamp}{ext}
+    const storagePath = `${env}/${safeUserId}/photos/${photoType}/${timestamp}${extension}`;
     
     if (this.provider === 'local') {
       return await this.uploadToLocal(storagePath, buffer, mimeType);
@@ -196,11 +236,10 @@ export class AssetStorageService {
     
     logger.info({ path: storagePath, size: buffer.length }, 'Asset uploaded to local storage');
     
-    // For local dev, use HTTP endpoint instead of file:// URLs
-    // Note: This requires an assets endpoint to be implemented
-    const storageUrl = this.provider === 'local' 
-      ? `/api/v1/assets/${storagePath}`
-      : fullPath;
+    // For local dev, generate API endpoint URL
+    // Frontend will call: http://localhost:8081/api/v1/assets/development/...
+    // which proxies to API server: http://localhost:3000/api/v1/assets/development/...
+    const storageUrl = `/api/v1/assets/${storagePath}`;
     
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     
@@ -217,7 +256,7 @@ export class AssetStorageService {
     const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
     
     return {
-      signedUrl: `/api/v1/assets/${storagePath}`,
+      signedUrl: `/assets/${storagePath}`,
       expiresAt,
     };
   }

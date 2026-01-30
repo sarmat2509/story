@@ -3,6 +3,9 @@ import db from '../db';
 import { childProfiles, type ChildProfile, type NewChildProfile } from '../db/schema';
 import { logger } from '../utils/logger';
 import * as planService from './planService';
+import { CharacterAnalysisService } from './characterAnalysisService';
+import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
+import { config } from '../config';
 
 // Age calculation helpers
 export interface AgeData {
@@ -61,6 +64,86 @@ export function calculateAgeGroup(ageMonths: number): string {
   return '9-12';
 }
 
+// Initialize character analysis service (lazy)
+let characterAnalysisService: CharacterAnalysisService | null = null;
+
+function getCharacterAnalysisService(): CharacterAnalysisService {
+  if (!characterAnalysisService) {
+    const textProvider = new GeminiTextProvider(config.google.apiKey);
+    characterAnalysisService = new CharacterAnalysisService(textProvider);
+  }
+  return characterAnalysisService;
+}
+
+/**
+ * Analyze child profile photos and update with AI-generated description
+ * Called after create/update if reference photos exist
+ */
+async function analyzeChildPhotos(profile: ChildProfile): Promise<void> {
+  // Skip if no reference photos
+  const referencePhotos = profile.referencePhotos as any;
+  if (!referencePhotos || !Array.isArray(referencePhotos) || referencePhotos.length === 0) {
+    logger.debug({ profileId: profile.id }, 'No reference photos to analyze');
+    return;
+  }
+  
+  // Extract photo URLs
+  const photoUrls = referencePhotos
+    .filter((photo: any) => photo && photo.url)
+    .map((photo: any) => photo.url);
+  
+  if (photoUrls.length === 0) {
+    logger.debug({ profileId: profile.id }, 'No valid photo URLs');
+    return;
+  }
+  
+  try {
+    logger.info({ 
+      profileId: profile.id, 
+      photoCount: photoUrls.length 
+    }, 'Starting character analysis for child profile');
+    
+    const analysisService = getCharacterAnalysisService();
+    const analysis = await analysisService.analyzeCharacter({
+      photos: photoUrls,
+      characterType: 'person',
+      existingTraits: profile.appearanceTraits as Record<string, any> | undefined
+    });
+    
+    // Update profile with AI-generated fields
+    await db
+      .update(childProfiles)
+      .set({
+        aiGeneratedDescription: analysis.detailedDescription,
+        clothing: analysis.clothing as any,
+        distinctiveFeatures: analysis.distinctiveFeatures as any,
+        // Optionally merge AI analysis into existing appearanceTraits
+        appearanceTraits: analysis.appearanceTraits ? {
+          ...(profile.appearanceTraits as any || {}),
+          ...analysis.appearanceTraits
+        } as any : profile.appearanceTraits
+      })
+      .where(eq(childProfiles.id, profile.id));
+    
+    logger.info({ 
+      profileId: profile.id,
+      hasDescription: !!analysis.detailedDescription,
+      hasClothing: !!analysis.clothing,
+      featuresCount: analysis.distinctiveFeatures?.length || 0
+    }, 'Character analysis completed for child profile');
+  } catch (error) {
+    // Log error but don't fail the profile creation/update
+    logger.error({ 
+      error: error instanceof Error ? {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      } : String(error),
+      profileId: profile.id 
+    }, 'Failed to analyze child profile photos - continuing without analysis');
+  }
+}
+
 // Child profile CRUD
 export async function createChildProfile(
   userId: string,
@@ -86,6 +169,14 @@ export async function createChildProfile(
     .returning();
   
   logger.info({ userId, profileId: profile.id, name: profile.name }, 'Created child profile');
+  
+  // Trigger character analysis asynchronously (don't wait for it)
+  if (config.features?.enableCharacterAnalysis !== false) {
+    analyzeChildPhotos(profile).catch(err => {
+      logger.error({ error: err, profileId: profile.id }, 'Background character analysis failed');
+    });
+  }
+  
   return profile;
 }
 
@@ -144,6 +235,14 @@ export async function updateChildProfile(
   }
   
   logger.info({ userId, profileId: id }, 'Updated child profile');
+  
+  // Trigger character analysis if reference photos changed
+  if (config.features?.enableCharacterAnalysis !== false && data.referencePhotos) {
+    analyzeChildPhotos(updated).catch(err => {
+      logger.error({ error: err, profileId: id }, 'Background character analysis failed');
+    });
+  }
+  
   return updated;
 }
 

@@ -25,3 +25,7 @@ yarn-error.*
 
 # Logs
 *.log
+
+# User uploads (local dev only)
+public/uploads/*
+!public/uploads/.gitkeep

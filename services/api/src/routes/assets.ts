@@ -12,13 +12,75 @@ import { validate as isUUID } from 'uuid';
 const router = Router();
 
 /**
- * GET /api/v1/assets/*
- * Serve local assets (development only)
- * In production, assets should be served from S3/CDN
+ * GET /api/v1/assets/{env}/{userId}/photos/{photoType}/{filename}
+ * Serve user photos (character, child, profile reference photos)
+ * Public in dev mode with local storage (no auth required)
+ * In production with S3, use signed URLs
  */
-router.get('/*', requireAuth, async (req: Request, res: Response) => {
+router.get('/:env/:userId/photos/:photoType/:filename', async (req: Request, res: Response) => {
+  try {
+    const { env, userId, photoType, filename } = req.params;
+    
+    // Validate photo type
+    if (!['character', 'child', 'profile'].includes(photoType)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid photo type'
+      });
+    }
+    
+    // Build path
+    const sanitizedPath = `${env}/${userId}/photos/${photoType}/${filename}`;
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    const fullPath = path.join(uploadsDir, sanitizedPath);
+    
+    // Check file exists
+    try {
+      await fs.access(fullPath);
+    } catch {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Photo not found'
+      });
+    }
+    
+    // Detect MIME type from extension
+    const ext = path.extname(fullPath).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.webp': 'image/webp',
+      '.gif': 'image/gif'
+    };
+    const mimeType = mimeTypes[ext] || 'application/octet-stream';
+    
+    // Set appropriate headers
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // 24 hours
+    res.setHeader('Access-Control-Allow-Origin', '*'); // Allow CORS for images
+    
+    // Send file
+    res.sendFile(fullPath);
+    
+  } catch (error) {
+    logger.error({ error }, 'Failed to serve user photo');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to serve photo'
+    });
+  }
+});
+
+/**
+ * GET /api/v1/assets/*
+ * Serve story assets (images, audio from generated stories)
+ * Security: Uses signed URLs with expiring tokens
+ */
+router.get('/*', async (req: Request, res: Response) => {
   try {
     const assetPath = req.params[0];
+    const { token, expires } = req.query;
     
     if (!assetPath) {
       return res.status(400).json({
@@ -27,10 +89,40 @@ router.get('/*', requireAuth, async (req: Request, res: Response) => {
       });
     }
     
+    // Verify signed URL token
+    if (!token || !expires) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Missing signature parameters'
+      });
+    }
+    
+    // Check if token expired
+    const expiresAt = parseInt(expires as string, 10);
+    if (Date.now() > expiresAt) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Signed URL has expired'
+      });
+    }
+    
+    // Verify token signature
+    const crypto = require('crypto');
+    const secret = process.env.JWT_SECRET || 'dev-secret-key';
+    const expectedToken = crypto
+      .createHmac('sha256', secret)
+      .update(`${assetPath}:${expires}`)
+      .digest('hex');
+    
+    if (token !== expectedToken) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid signature'
+      });
+    }
+    
     // Sanitize path to prevent directory traversal
     const sanitizedPath = assetPath.replace(/\.\./g, '');
-    
-    // Verify asset exists in database and user has access
     const pathParts = sanitizedPath.split('/');
     
     // Expected format: {env}/{userId}/{storyId}/{assetType}/{filename}
@@ -51,7 +143,7 @@ router.get('/*', requireAuth, async (req: Request, res: Response) => {
       });
     }
     
-    // Check that user has access to this story
+    // Check that asset exists
     const [asset] = await db
       .select({
         id: assets.id,
@@ -70,10 +162,6 @@ router.get('/*', requireAuth, async (req: Request, res: Response) => {
       });
     }
     
-    // Verify user owns this story (security check)
-    // Note: This requires joining with stories table
-    // For simplicity, we trust the path structure in dev mode
-    
     // Serve file
     const uploadsDir = path.join(process.cwd(), 'uploads');
     const fullPath = path.join(uploadsDir, sanitizedPath);
@@ -90,7 +178,8 @@ router.get('/*', requireAuth, async (req: Request, res: Response) => {
     
     // Set appropriate headers
     res.setHeader('Content-Type', asset.mimeType);
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // 24 hours
+    res.setHeader('Cache-Control', 'private, max-age=86400'); // Private cache for 24h
+    res.setHeader('Access-Control-Allow-Origin', '*'); // Allow CORS for images
     
     // Send file
     res.sendFile(fullPath);

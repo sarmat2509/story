@@ -43,9 +43,11 @@ export function buildRegenerationPrompt(params: RegenerationPromptParams): strin
   return helpers.cleanTemplate`
 You are regenerating ONE scene of a children's story based on validation feedback.
 
+IMPORTANT CONTEXT: You are creating SAFE, age-appropriate content for children. The validation feedback below identifies content that should be IMPROVED to ensure child safety. Your task is to rewrite the scene to be completely safe and appropriate.
+
 LANGUAGE: Write entirely in ${getLanguageFullDisplay(spec.language as any)}.
 
-VALIDATION FEEDBACK (ISSUES TO FIX):
+VALIDATION FEEDBACK (ISSUES TO FIX FOR CHILD SAFETY):
 ${validationFeedback}
 
 STORY CONTEXT:
@@ -70,12 +72,11 @@ WRITING REQUIREMENTS:
 - Age group: ${spec.ageGroup}
 - Vocabulary level: ${vocabLevel}
 - Target word count for this scene: ${minWords}-${maxWords} words
-- Max sentence length: ${spec.policyProfile.readability.maxSentenceLen} words
 
 ${helpers.formatSafetyPolicy(spec.policyProfile)}
 
 CRITICAL INSTRUCTIONS:
-- FIX all issues mentioned in validation feedback
+- FIX all issues mentioned in validation feedback to ensure CHILD SAFETY
 - Maintain continuity with previous/next scenes
 - Follow the scene outline (setting, goal, emotion, beats)
 - If this is the last scene: MUST end with clear positive resolution

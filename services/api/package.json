@@ -14,7 +14,12 @@
     "db:push": "drizzle-kit push:pg",
     "db:studio": "drizzle-kit studio",
     "db:migrate": "pnpm db:push && psql $DATABASE_URL -f drizzle/add_updated_at_triggers.sql",
-    "seed:voices": "tsx src/scripts/seedVoices.ts"
+    "db:migrate:m4-images": "npx tsx src/scripts/runMigration.ts 0005_add_m4_image_generation.sql",
+    "db:migrate:metadata": "npx tsx src/scripts/runMigration.ts 0011_add_stories_metadata.sql",
+    "db:migrate:audio": "npx tsx src/scripts/runMigration.ts 0012_add_stories_audio_metadata.sql",
+    "db:migrate:intermediate": "npx tsx src/scripts/runMigration.ts 0013_add_story_request_intermediate_data.sql",
+    "seed:voices": "tsx src/scripts/seedVoices.ts",
+    "test:imagen": "npx tsx src/scripts/testImagenAPI.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -29,6 +34,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pg": "^8.11.3",
@@ -42,6 +48,7 @@
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/morgan": "^1.9.9",
+    "@types/multer": "^1.4.11",
     "@types/passport": "^1.0.16",
     "@types/passport-google-oauth20": "^2.0.14",
     "@types/pg": "^8.10.9",

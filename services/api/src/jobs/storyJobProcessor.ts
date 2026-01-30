@@ -141,9 +141,12 @@ class StoryJobQueue {
       
       logger.error({ 
         error, 
+        errorMessage: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
         jobId: job.id,
         type: job.type,
-        retries: job.retries 
+        retries: job.retries,
+        requestId: job.type === 'story_generation' ? (job as StoryGenerationJob).requestId : undefined
       }, 'Job processing failed');
       
       if (job.retries < this.MAX_RETRIES) {
@@ -154,7 +157,11 @@ class StoryJobQueue {
         // Max retries reached
         job.status = 'failed';
         job.error = error instanceof Error ? error.message : 'Unknown error';
-        logger.error({ jobId: job.id }, 'Job failed after max retries');
+        logger.error({ 
+          jobId: job.id,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        }, 'Job failed after max retries');
         
         // Remove failed job after a delay
         setTimeout(() => {

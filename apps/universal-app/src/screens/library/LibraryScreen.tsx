@@ -1,9 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NavigationProp } from '@react-navigation/native';
 import { useStories } from '@/api/stories';
 import { theme } from '@/theme';
+import { StoryCard } from '@/components/StoryCard';
+import type { MainDrawerParamList } from '@/types/navigation';
 
 export default function LibraryScreen() {
+  const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { data: stories, isLoading, error } = useStories();
 
   if (isLoading) {
@@ -37,10 +42,10 @@ export default function LibraryScreen() {
         data={stories}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View style={styles.storyCard}>
-            <Text style={styles.storyTitle}>{item.title}</Text>
-            <Text style={styles.storyMeta}>{item.language} • {item.status}</Text>
-          </View>
+          <StoryCard 
+            story={item}
+            onPress={() => navigation.navigate('Story', { storyId: item.id })}
+          />
         )}
         contentContainerStyle={styles.list}
       />
@@ -55,23 +60,6 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: theme.spacing[4],
-  },
-  storyCard: {
-    padding: theme.spacing[4],
-    marginBottom: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.background.secondary,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-  },
-  storyTitle: {
-    fontSize: theme.typography.fontSize.lg,
-    fontWeight: theme.typography.fontWeight.semibold,
-    marginBottom: theme.spacing[1],
-  },
-  storyMeta: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
   },
   emptyText: {
     fontSize: theme.typography.fontSize.lg,

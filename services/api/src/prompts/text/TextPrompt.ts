@@ -29,10 +29,15 @@ LANGUAGE: Write entirely in ${helpers.getLanguageName(spec.language)}.
 OUTLINE:
 ${JSON.stringify(outline, null, 2)}
 
+${helpers.formatSupportingCharacters(spec)}
+
 WRITING REQUIREMENTS:
 - Age group: ${spec.ageGroup}
 - Vocabulary level: ${vocabLevel}
-${helpers.formatReadabilityRequirements(spec.policyProfile)}
+
+${helpers.formatAgeRequirements(spec.ageGroup)}
+
+${spec.scenarioCard?.id === 'scary_stories' ? helpers.formatScaryStoryRequirements(spec.ageGroup) : ''}
 
 ${helpers.formatSafetyPolicy(spec.policyProfile)}
 
@@ -46,7 +51,7 @@ OUTPUT FORMAT (JSON):
     {
       "sceneId": 1,
       "text": "Full text for scene 1 (multiple paragraphs OK)...",
-      "visualPrompt": "Enhanced visual description based on the actual text written. Be specific about character actions, expressions, setting details visible in this scene. This will be used for image generation."
+      "visualPrompt": "CARTOON ILLUSTRATION description for image generation. Describe as a CARTOON/ANIMATED/ILLUSTRATED scene, NOT a photo, NOT realistic. Specify: character ACTIONS and what they are DOING in this moment, their interactions, activities, expressions, setting details visible in the scene. Focus on the ACTION and SITUATION. Style: illustration/cartoon/animated art, NOT realistic or photographic."
     }
   ],
   "fullText": "Complete story with all scenes concatenated for easy reading...",

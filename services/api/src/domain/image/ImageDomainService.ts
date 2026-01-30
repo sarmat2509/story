@@ -25,6 +25,10 @@ export interface SceneImageRequest {
   characters?: CharacterReference[];
   referenceImages?: ReferenceImage[];
   mode?: 'with_references' | 'without_references';
+  // NEW: Scene context from outline for action/situation depiction
+  sceneGoal?: string; // What happens in this scene
+  sceneBeats?: string[]; // Key moments/actions
+  sceneEmotion?: string; // Primary emotion (happy/calm/curious/concerned)
 }
 
 /**
@@ -36,6 +40,40 @@ export interface CharacterPortraitRequest {
   style: string;
   ageGroup: string;
   characterType?: string;
+}
+
+/**
+ * Scene image generation with reference approach (Nano Banana Pro)
+ * Uses AI-generated character descriptions + optional reference image
+ */
+export interface SceneImageWithReferenceRequest {
+  visualPrompt: string;
+  sceneId: number;
+  sceneText?: string;
+  ageGroup: string;
+  style: string;
+  aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+  
+  // AI-generated character descriptions (from Gemini Vision analysis)
+  characterDescriptions: Array<{
+    name: string;
+    detailedDescription: string; // From Gemini Vision
+    clothing?: any;
+    distinctiveFeatures?: string[];
+  }>;
+  
+  // Reference image (first scene of the story, used for consistency)
+  referenceImage?: {
+    url?: string; // Optional: storage URL (deprecated, prefer base64Data)
+    base64Data?: string; // Preferred: base64-encoded image data
+    mimeType?: string; // MIME type if using base64Data
+    instructionText: string; // Instruction for maintaining consistency
+  };
+  
+  // Scene context from outline
+  sceneGoal?: string;
+  sceneBeats?: string[];
+  sceneEmotion?: string;
 }
 
 /**
@@ -65,35 +103,42 @@ export class ImageDomainService {
       },
       'Generating scene illustration'
     );
-
-    // Calculate dimensions based on age group
-    const dimensions = this.calculateImageDimensions(request.ageGroup);
     
     // Extract scene characters if scene text provided
     const sceneCharacters = request.sceneText && request.characters
       ? extractSceneCharacters(request.sceneText, request.characters)
       : request.characters || [];
     
-    // Build enhanced prompt with characters and style
+    // Determine if we need capability model (for reference images)
+    const useCapabilityModel = request.mode === 'with_references' && 
+                               request.referenceImages && 
+                               request.referenceImages.length > 0;
+    
+    // Build negative prompt for safety (will be included in main prompt)
+    const negativePrompt = buildNegativePrompt(request.ageGroup);
+    
+    // Build enhanced prompt with characters, style, and safety guidelines
     const enhancedPrompt = buildSceneImagePrompt({
       visualPrompt: request.visualPrompt,
       ageGroup: request.ageGroup,
       style: request.style || 'soft_watercolor',
       characters: sceneCharacters,
-      hasReferences: request.mode === 'with_references' && !!request.referenceImages?.length,
+      hasReferences: useCapabilityModel,
+      negativePrompt, // Include negative prompt in text
+      // NEW: Pass scene context for action/situation depiction
+      sceneGoal: request.sceneGoal,
+      sceneBeats: request.sceneBeats,
+      sceneEmotion: request.sceneEmotion,
     });
-    
-    // Build negative prompt for safety
-    const negativePrompt = buildNegativePrompt(request.ageGroup);
     
     // Create provider request
     const providerRequest: GenerateImageRequest = {
       prompt: enhancedPrompt,
-      negativePrompt,
-      width: dimensions.width,
-      height: dimensions.height,
-      aspectRatio: '16:9',
+      // Only use aspectRatio for generate model (not capability model)
+      aspectRatio: useCapabilityModel ? undefined : '16:9',
       referenceImages: request.referenceImages,
+      // Use 'allow_all' for children's stories (allows all ages including children)
+      personGeneration: 'allow_all',
     };
 
     return await this.imageProvider.generateImage(providerRequest);
@@ -106,28 +151,105 @@ export class ImageDomainService {
   async generateCharacterPortrait(request: CharacterPortraitRequest): Promise<GeneratedImage> {
     logger.info({ characterName: request.characterName }, 'Generating character portrait');
 
-    // Build portrait-specific prompt
+    // Build negative prompt for safety (will be included in main prompt)
+    const negativePrompt = buildNegativePrompt(request.ageGroup);
+    
+    // Build portrait-specific prompt with safety guidelines included
     const prompt = buildCharacterPortraitPrompt({
       characterName: request.characterName,
       description: request.description,
       style: request.style,
       ageGroup: request.ageGroup,
       characterType: request.characterType,
+      negativePrompt, // Include negative prompt in text
     });
-    
-    const negativePrompt = buildNegativePrompt(request.ageGroup);
-    
-    // Use square aspect ratio for portraits
-    const dimensions = { width: 768, height: 768 };
     
     const providerRequest: GenerateImageRequest = {
       prompt,
-      negativePrompt,
-      width: dimensions.width,
-      height: dimensions.height,
-      aspectRatio: '1:1',
+      aspectRatio: '1:1', // Square portraits
+      // Use 'allow_all' for children's portraits (allows all ages including children)
+      personGeneration: 'allow_all',
     };
 
+    return await this.imageProvider.generateImage(providerRequest);
+  }
+
+  /**
+   * Generate scene with reference-based approach (Nano Banana Pro)
+   * Uses AI-generated descriptions + optional reference image for character consistency
+   * 
+   * Flow:
+   * - Scene 1: Generate from text descriptions only (no reference)
+   * - Scenes 2-N: Generate using Scene 1 as reference + text descriptions
+   */
+  async generateSceneWithReference(request: SceneImageWithReferenceRequest): Promise<GeneratedImage> {
+    logger.info({ 
+      sceneId: request.sceneId,
+      hasReference: !!request.referenceImage,
+      characterCount: request.characterDescriptions.length
+    }, 'Generating scene with reference approach');
+    
+    // Build character descriptions section from AI analysis
+    const charactersSection = request.characterDescriptions
+      .map(char => {
+        let desc = `${char.name}: ${char.detailedDescription}`;
+        
+        // Add clothing if available
+        if (char.clothing) {
+          const clothingDesc = typeof char.clothing === 'string' 
+            ? char.clothing 
+            : JSON.stringify(char.clothing);
+          desc += `, wearing ${clothingDesc}`;
+        }
+        
+        // Add distinctive features if available
+        if (char.distinctiveFeatures && char.distinctiveFeatures.length > 0) {
+          desc += `, notable features: ${char.distinctiveFeatures.join(', ')}`;
+        }
+        
+        return desc;
+      })
+      .join('\n');
+    
+    // Build negative prompt for safety
+    const negativePrompt = buildNegativePrompt(request.ageGroup);
+    
+    // Build enhanced prompt (without old character system)
+    let enhancedPrompt = buildSceneImagePrompt({
+      visualPrompt: request.visualPrompt,
+      ageGroup: request.ageGroup,
+      style: request.style,
+      characters: [], // Don't use old character reference system
+      hasReferences: !!request.referenceImage,
+      negativePrompt,
+      sceneGoal: request.sceneGoal,
+      sceneBeats: request.sceneBeats,
+      sceneEmotion: request.sceneEmotion,
+    });
+    
+    // Add character descriptions to prompt
+    if (charactersSection) {
+      enhancedPrompt = `${enhancedPrompt}\n\nCHARACTERS IN THIS SCENE:\n${charactersSection}`;
+    }
+    
+    // Add reference instruction if this is not the first scene
+    if (request.referenceImage) {
+      enhancedPrompt = `${request.referenceImage.instructionText}\n\n${enhancedPrompt}`;
+    }
+    
+    // Create provider request for Nano Banana Pro
+    const providerRequest: GenerateImageRequest = {
+      prompt: enhancedPrompt,
+      aspectRatio: request.aspectRatio || '16:9',
+      // Nano Banana uses simpler API - pass reference images with base64 or URL
+      referenceImages: request.referenceImage ? [{
+        url: request.referenceImage.url,
+        base64Data: request.referenceImage.base64Data,
+        mimeType: request.referenceImage.mimeType,
+        characterName: 'scene_reference'
+      }] : undefined
+    };
+    
     return await this.imageProvider.generateImage(providerRequest);
   }
 

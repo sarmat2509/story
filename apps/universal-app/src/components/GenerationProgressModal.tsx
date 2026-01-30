@@ -1,0 +1,223 @@
+import React from 'react';
+import { Modal, View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
+import { theme } from '@/theme';
+
+interface Props {
+  visible: boolean;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  progressData?: {
+    activeTasks: Array<{ task: string; progress: number }>;
+    completedTasks: string[];
+    overallProgress: number;
+  };
+  errorMessage?: string;
+  onClose?: () => void;
+  onRetry?: () => void;
+}
+
+export function GenerationProgressModal({
+  visible,
+  status,
+  progress,
+  progressData,
+  errorMessage,
+  onClose,
+  onRetry
+}: Props) {
+  
+  const getTaskLabel = (task: string) => {
+    const labels: Record<string, string> = {
+      'generating_outline': 'Створюємо сюжет...',
+      'generating_text': 'Пишемо текст...',
+      'validating': 'Перевіряємо безпечність контенту...',
+      'generating_portraits': 'Малюємо персонажів...',
+      'generating_images': 'Створюємо ілюстрації...',
+      'generating_audio': 'Озвучуємо історію...',
+    };
+    return labels[task] || 'Обробляємо запит...';
+  };
+  
+  const getStatusText = () => {
+    if (status === 'pending') {
+      return 'Додаємо історію до черги...';
+    }
+    if (status === 'processing' && progressData?.activeTasks?.[0]) {
+      return getTaskLabel(progressData.activeTasks[0].task);
+    }
+    if (status === 'completed') {
+      return 'Готово! 🎉';
+    }
+    if (status === 'failed') {
+      return errorMessage || 'Виникла помилка';
+    }
+    return 'Обробляємо запит...';
+  };
+
+  const getProgressPercentage = () => {
+    if (status === 'completed') return 100;
+    if (status === 'failed') return 0;
+    // Use progressData.overallProgress if available, fallback to progress
+    return progressData?.overallProgress ?? progress;
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.overlay}>
+        <View style={styles.modal}>
+          {status !== 'completed' && status !== 'failed' && (
+            <ActivityIndicator 
+              size="large" 
+              color={theme.colors.interactive.primary}
+              style={styles.spinner}
+            />
+          )}
+          
+          {status === 'completed' && (
+            <Text style={styles.successIcon}>✅</Text>
+          )}
+          
+          {status === 'failed' && (
+            <Text style={styles.errorIcon}>❌</Text>
+          )}
+          
+          <Text style={[
+            styles.statusText,
+            status === 'failed' && styles.errorText
+          ]}>
+            {getStatusText()}
+          </Text>
+          
+          {status !== 'completed' && status !== 'failed' && (
+            <>
+              <View style={styles.progressBarContainer}>
+                <View 
+                  style={[
+                    styles.progressBar, 
+                    { width: `${getProgressPercentage()}%` }
+                  ]} 
+                />
+              </View>
+              <Text style={styles.progressText}>
+                {Math.round(getProgressPercentage())}%
+              </Text>
+            </>
+          )}
+          
+          {status === 'failed' && errorMessage && (
+            <Text style={styles.errorMessage}>{errorMessage}</Text>
+          )}
+          
+          {status === 'failed' && onRetry && (
+            <TouchableOpacity 
+              style={styles.retryButton}
+              onPress={onRetry}
+            >
+              <Text style={styles.retryButtonText}>Спробувати ще раз</Text>
+            </TouchableOpacity>
+          )}
+          
+          {status === 'completed' && onClose && (
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={onClose}
+            >
+              <Text style={styles.closeButtonText}>Переглянути історію</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing[6],
+  },
+  modal: {
+    backgroundColor: theme.colors.background.primary,
+    borderRadius: theme.borders.radius.lg,
+    padding: theme.spacing[8],
+    alignItems: 'center',
+    minWidth: 300,
+    maxWidth: 400,
+  },
+  spinner: {
+    marginBottom: theme.spacing[6],
+  },
+  successIcon: {
+    fontSize: 64,
+    marginBottom: theme.spacing[4],
+  },
+  errorIcon: {
+    fontSize: 64,
+    marginBottom: theme.spacing[4],
+  },
+  statusText: {
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+    marginBottom: theme.spacing[4],
+  },
+  errorText: {
+    color: theme.colors.status.error,
+  },
+  progressBarContainer: {
+    width: '100%',
+    height: 8,
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.full,
+    overflow: 'hidden',
+    marginBottom: theme.spacing[3],
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: theme.colors.interactive.primary,
+    borderRadius: theme.borders.radius.full,
+  },
+  progressText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
+    marginBottom: theme.spacing[4],
+  },
+  errorMessage: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
+    textAlign: 'center',
+    marginBottom: theme.spacing[6],
+  },
+  retryButton: {
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[6],
+    backgroundColor: theme.colors.interactive.primary,
+    borderRadius: theme.borders.radius.md,
+  },
+  retryButtonText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
+  },
+  closeButton: {
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[6],
+    backgroundColor: theme.colors.interactive.primary,
+    borderRadius: theme.borders.radius.md,
+    marginTop: theme.spacing[4],
+  },
+  closeButtonText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
+  },
+});

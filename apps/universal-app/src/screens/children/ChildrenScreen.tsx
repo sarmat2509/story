@@ -1,10 +1,26 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useChildren } from '@/api/children';
+import { ChildFormModal } from '@/components/ChildFormModal';
 import { theme } from '@/theme';
+import { ReferencePhoto } from '@kazka/shared';
 
 export default function ChildrenScreen() {
   const { data: children, isLoading, error } = useChildren();
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [editingChild, setEditingChild] = useState<{
+    id: string;
+    name: string;
+    birthDate: Date;
+    gender?: 'girl' | 'boy' | 'other';
+    languages: string[];
+    referencePhotos?: ReferencePhoto[];
+    appearanceTraits?: any;
+    personality?: any;
+    interests?: any;
+    sensitivities?: any;
+    familyCast?: Record<string, string>;
+  } | undefined>();
 
   if (isLoading) {
     return (
@@ -32,7 +48,13 @@ export default function ChildrenScreen() {
         </Text>
       </View>
 
-      <TouchableOpacity style={styles.addButton}>
+      <TouchableOpacity 
+        style={styles.addButton}
+        onPress={() => {
+          setEditingChild(undefined);
+          setIsModalVisible(true);
+        }}
+      >
         <Text style={styles.addButtonIcon}>+</Text>
         <Text style={styles.addButtonText}>Add New Child</Text>
       </TouchableOpacity>
@@ -70,13 +92,49 @@ export default function ChildrenScreen() {
                   </Text>
                 )}
               </View>
-              <TouchableOpacity style={styles.editButton}>
+              <TouchableOpacity 
+                style={styles.editButton}
+                onPress={() => {
+                  const childData = {
+                    id: child.id,
+                    name: child.name,
+                    birthDate: new Date(child.birthDate),
+                    gender: child.gender,
+                    languages: child.languages,
+                    referencePhotos: child.referencePhotos,
+                    appearanceTraits: child.appearanceTraits,
+                    personality: child.personality,
+                    interests: child.interests,
+                    sensitivities: child.sensitivities,
+                    familyCast: child.familyCast,
+                  };
+                  console.log('[ChildrenScreen] Opening edit for child:', {
+                    id: child.id,
+                    hasPhotos: !!child.referencePhotos,
+                    photosCount: child.referencePhotos?.length || 0,
+                    photos: child.referencePhotos
+                  });
+                  setEditingChild(childData);
+                  setIsModalVisible(true);
+                }}
+              >
                 <Text style={styles.editButtonText}>Edit</Text>
               </TouchableOpacity>
             </View>
           ))}
         </View>
       )}
+
+      {/* Child Form Modal */}
+      <ChildFormModal
+        visible={isModalVisible}
+        onClose={() => {
+          setIsModalVisible(false);
+          setEditingChild(undefined);
+        }}
+        childId={editingChild?.id}
+        initialData={editingChild}
+      />
     </ScrollView>
   );
 }

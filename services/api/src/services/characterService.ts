@@ -2,9 +2,107 @@ import { eq, and } from 'drizzle-orm';
 import db from '../db';
 import { characters, type Character, type NewCharacter } from '../db/schema';
 import { logger } from '../utils/logger';
+import { CharacterAnalysisService } from './characterAnalysisService';
+import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
+import { config } from '../config';
 
 // Character type for filtering
 export type CharacterType = 'pet' | 'family_member' | 'friend' | 'neighbor' | 'imaginary_friend';
+
+// Initialize character analysis service (lazy)
+let characterAnalysisService: CharacterAnalysisService | null = null;
+
+function getCharacterAnalysisService(): CharacterAnalysisService {
+  if (!characterAnalysisService) {
+    const textProvider = new GeminiTextProvider(config.google.apiKey);
+    characterAnalysisService = new CharacterAnalysisService(textProvider);
+  }
+  return characterAnalysisService;
+}
+
+/**
+ * Determine character type for analysis based on character type
+ */
+function getAnalysisCharacterType(characterType: CharacterType): 'person' | 'animal' | 'imaginary' {
+  if (characterType === 'pet') {
+    return 'animal';
+  } else if (characterType === 'imaginary_friend') {
+    return 'imaginary';
+  }
+  return 'person'; // family_member, friend, neighbor
+}
+
+/**
+ * Analyze character photos and update with AI-generated description
+ * Called after create/update if reference photos exist
+ */
+async function analyzeCharacterPhotos(character: Character): Promise<void> {
+  // Skip if no reference photos
+  const referencePhotos = character.referencePhotos as any;
+  if (!referencePhotos || !Array.isArray(referencePhotos) || referencePhotos.length === 0) {
+    logger.debug({ characterId: character.id }, 'No reference photos to analyze');
+    return;
+  }
+  
+  // Extract photo URLs
+  const photoUrls = referencePhotos
+    .filter((photo: any) => photo && photo.url)
+    .map((photo: any) => photo.url);
+  
+  if (photoUrls.length === 0) {
+    logger.debug({ characterId: character.id }, 'No valid photo URLs');
+    return;
+  }
+  
+  try {
+    logger.info({ 
+      characterId: character.id,
+      characterType: character.type,
+      photoCount: photoUrls.length 
+    }, 'Starting character analysis');
+    
+    const analysisService = getCharacterAnalysisService();
+    const analysisType = getAnalysisCharacterType(character.type as CharacterType);
+    
+    const analysis = await analysisService.analyzeCharacter({
+      photos: photoUrls,
+      characterType: analysisType,
+      existingTraits: character.appearanceTraits as Record<string, any> | undefined
+    });
+    
+    // Update character with AI-generated fields
+    await db
+      .update(characters)
+      .set({
+        aiGeneratedDescription: analysis.detailedDescription,
+        clothing: analysis.clothing as any,
+        distinctiveFeatures: analysis.distinctiveFeatures as any,
+        // Optionally merge AI analysis into existing appearanceTraits
+        appearanceTraits: analysis.appearanceTraits ? {
+          ...(character.appearanceTraits as any || {}),
+          ...analysis.appearanceTraits
+        } as any : character.appearanceTraits
+      })
+      .where(eq(characters.id, character.id));
+    
+    logger.info({ 
+      characterId: character.id,
+      hasDescription: !!analysis.detailedDescription,
+      hasClothing: !!analysis.clothing,
+      featuresCount: analysis.distinctiveFeatures?.length || 0
+    }, 'Character analysis completed');
+  } catch (error) {
+    // Log error but don't fail the character creation/update
+    logger.error({ 
+      error: error instanceof Error ? {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      } : String(error),
+      characterId: character.id 
+    }, 'Failed to analyze character photos - continuing without analysis');
+  }
+}
 
 // Character CRUD
 export async function createCharacter(
@@ -22,6 +120,15 @@ export async function createCharacter(
     .returning();
   
   logger.info({ userId, characterId: character.id, name: character.name, type: character.type }, 'Created character');
+  
+  // Analysis is now handled by frontend before save, so skip automatic analysis
+  // Trigger character analysis asynchronously (don't wait for it)
+  // if (config.features?.enableCharacterAnalysis !== false) {
+  //   analyzeCharacterPhotos(character).catch(err => {
+  //     logger.error({ error: err, characterId: character.id }, 'Background character analysis failed');
+  //   });
+  // }
+  
   return character;
 }
 
@@ -95,6 +202,15 @@ export async function updateCharacter(
   }
   
   logger.info({ userId, characterId: id, type: updated.type }, 'Updated character');
+  
+  // Analysis is now handled by frontend before save, so skip automatic analysis
+  // Trigger character analysis if reference photos changed
+  // if (config.features?.enableCharacterAnalysis !== false && data.referencePhotos) {
+  //   analyzeCharacterPhotos(updated).catch(err => {
+  //     logger.error({ error: err, characterId: id }, 'Background character analysis failed');
+  //   });
+  // }
+  
   return updated;
 }
 

@@ -54,11 +54,20 @@ export interface StorySpec {
   ageGroup: string;
   childName: string;
   goal?: string;
+  goalGuidance?: string; // NEW: Detailed guidance for the moral/goal (30-50 words)
   tone?: string;
   characters: CharacterData[];
   userNotes?: string;
+  imageStyle?: string; // Image art style (soft_watercolor, colored_pencil, etc.)
   policyProfile: PolicyProfile;
   childProfile?: any; // Used for image generation context
+  scenarioCard?: { // NEW: Scenario card theme
+    id: string;
+    name: string;
+    description: string;
+    promptGuidance?: string; // NEW: Detailed plot guidance
+  };
+  scenarioGuidance?: string; // NEW: Detailed plot guidance (30-50 words)
 }
 
 /**

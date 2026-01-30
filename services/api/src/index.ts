@@ -15,6 +15,7 @@ import charactersRoutes from './routes/characters';
 import storiesRoutes from './routes/stories';
 import assetsRoutes from './routes/assets';
 import voicesRoutes from './routes/voices';
+import uploadRoutes from './routes/upload';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { globalLimiter, authLimiter, apiLimiter } from './middleware/rateLimiter';
 import { startSessionCleanupJob } from './services/sessionService';
@@ -53,6 +54,7 @@ app.use('/api/v1/characters', apiLimiter, charactersRoutes);
 app.use('/api/v1/stories', apiLimiter, storiesRoutes); // M3: story generation
 app.use('/api/v1/assets', apiLimiter, assetsRoutes); // M4: asset serving (local dev)
 app.use('/api/v1/voices', apiLimiter, voicesRoutes); // M5: TTS voices
+app.use('/api/v1/upload', apiLimiter, uploadRoutes); // M6: photo upload
 app.use('/api/v1', indexRoutes);
 
 // Root redirect to API

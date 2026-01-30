@@ -7,7 +7,7 @@
  */
 
 import { SchemaType } from '@google/generative-ai';
-import type { JsonSchema, JsonSchemaType } from '../../providers/base/JsonSchema';
+import type { JsonSchema, JsonSchemaType } from '../../base/JsonSchema';
 
 /**
  * Gemini-specific schema representation
@@ -39,9 +39,31 @@ export class GeminiSchemaAdapter {
    * @returns Gemini-specific schema
    */
   convert(schema: JsonSchema): GeminiSchema {
+    // Handle union types (e.g., ['object', 'null'])
+    let schemaType = schema.type;
+    let isNullable = false;
+    
+    if (Array.isArray(schemaType)) {
+      // Extract non-null type and set nullable flag
+      const types = schemaType.filter(t => t !== 'null');
+      isNullable = schemaType.includes('null');
+      
+      if (types.length === 0) {
+        throw new Error('Schema must have at least one non-null type');
+      }
+      
+      // Use the first non-null type
+      schemaType = types[0];
+    }
+    
     const geminiSchema: GeminiSchema = {
-      type: this.convertType(schema.type as JsonSchemaType)
+      type: this.convertType(schemaType as JsonSchemaType)
     };
+
+    // Set nullable flag if type is a union with null
+    if (isNullable || schema.nullable) {
+      geminiSchema.nullable = true;
+    }
 
     // Add optional properties
     if (schema.description) {
@@ -49,11 +71,8 @@ export class GeminiSchemaAdapter {
     }
 
     if (schema.enum) {
-      geminiSchema.enum = schema.enum;
-    }
-
-    if (schema.nullable) {
-      geminiSchema.nullable = schema.nullable;
+      // Filter out null from enum if present (handled by nullable flag)
+      geminiSchema.enum = schema.enum.filter(v => v !== null);
     }
 
     if (schema.minimum !== undefined) {

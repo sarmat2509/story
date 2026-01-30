@@ -64,6 +64,7 @@ export const config = {
     imageVendor: process.env.AI_IMAGE_VENDOR || 'gemini',
     ttsVendor: process.env.AI_TTS_VENDOR || 'elevenlabs',
     geminiApiKey: process.env.GEMINI_API_KEY || '',
+    geminiVisionModel: process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash',
     elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || '',
     modelVersion: process.env.AI_MODEL_VERSION || 'gemini-2.5-flash',
     maxRetries: parseInt(process.env.AI_MAX_RETRIES || '3', 10),
@@ -72,9 +73,9 @@ export const config = {
   
   // Image Generation
   image: {
-    provider: process.env.IMAGE_PROVIDER || 'gemini',
+    provider: process.env.IMAGE_PROVIDER || 'nanobananapro', // Default to Nano Banana Pro
     gemini: {
-      model: process.env.GEMINI_IMAGE_MODEL || 'imagen-3.0-generate-001',
+      model: process.env.GEMINI_IMAGE_MODEL || 'imagen-3.0-generate-002', // Legacy Imagen 3
       projectId: process.env.GOOGLE_CLOUD_PROJECT || '',
       location: process.env.GOOGLE_CLOUD_LOCATION || 'us-central1',
     },
@@ -87,6 +88,13 @@ export const config = {
     rpmDefaultLimit: parseInt(process.env.IMAGE_RPM_DEFAULT_LIMIT || '150', 10), // Default RPM for Tier 1
     rpmSafetyMargin: parseFloat(process.env.IMAGE_RPM_SAFETY_MARGIN || '0.9'), // Use 90% of limit
     queueTimeoutMs: parseInt(process.env.IMAGE_QUEUE_TIMEOUT_MS || '300000', 10), // 5 minutes max wait in queue
+  },
+  
+  // Nano Banana Pro (Gemini 2.5 Flash Image) - for cartoon/illustration with character consistency
+  nanoBanana: {
+    model: process.env.NANO_BANANA_MODEL || 'gemini-2.5-flash-image', // or 'gemini-3.0-pro-image' for better quality
+    aspectRatio: process.env.NANO_BANANA_ASPECT_RATIO || '16:9',
+    enableReferenceImages: process.env.ENABLE_FIRST_IMAGE_REFERENCE !== 'false', // Enabled by default
   },
   
   // Audio/TTS Generation (M5)
@@ -141,6 +149,11 @@ export const config = {
     expiresIn: process.env.SESSION_EXPIRES_IN || '30d',
   },
   
+  // Google APIs
+  google: {
+    apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '', // For Gemini APIs (Vision, Image generation)
+  },
+  
   // OAuth
   oauth: {
     google: {
@@ -168,6 +181,11 @@ export const config = {
     accessKey: process.env.STORAGE_ACCESS_KEY || '',
     secretKey: process.env.STORAGE_SECRET_KEY || '',
     cdnUrl: process.env.STORAGE_CDN_URL || '',
+  },
+  
+  // Feature Flags
+  features: {
+    enableCharacterAnalysis: process.env.ENABLE_CHARACTER_ANALYSIS !== 'false', // Enabled by default
   },
 };
 

@@ -1,0 +1,18 @@
+{
+  "version": "5",
+  "dialect": "pg",
+  "entries": [
+    {"idx": 1, "version": "5", "when": 1706356800000, "tag": "0001_complete_schema", "breakpoints": true},
+    {"idx": 3, "version": "5", "when": 1706443200000, "tag": "0003_add_plans_features_profiles_characters", "breakpoints": true},
+    {"idx": 4, "version": "5", "when": 1706529600000, "tag": "0004_add_stories_and_config", "breakpoints": true},
+    {"idx": 5, "version": "5", "when": 1706616000000, "tag": "0005_add_m4_image_generation", "breakpoints": true},
+    {"idx": 6, "version": "5", "when": 1706702400000, "tag": "0006_add_performance_indexes", "breakpoints": false},
+    {"idx": 7, "version": "5", "when": 1706788800000, "tag": "0007_add_m5_audio_generation", "breakpoints": true},
+    {"idx": 8, "version": "5", "when": 1706875200000, "tag": "0008_add_voice_catalog_and_age_groups", "breakpoints": true},
+    {"idx": 9, "version": "5", "when": 1738008000000, "tag": "0009_add_translations_table", "breakpoints": true},
+    {"idx": 10, "version": "5", "when": 1738008000000, "tag": "0010_update_goals_and_scenarios", "breakpoints": true},
+    {"idx": 11, "version": "5", "when": 1738094400000, "tag": "0011_add_stories_metadata", "breakpoints": false},
+    {"idx": 12, "version": "5", "when": 1738180800000, "tag": "0012_add_stories_audio_metadata", "breakpoints": false},
+    {"idx": 13, "version": "5", "when": 1738267200000, "tag": "0013_add_story_request_intermediate_data", "breakpoints": false}
+  ]
+}

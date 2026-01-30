@@ -10,11 +10,41 @@ import {
   IMAGINARY_SPECIES_SUGGESTIONS, COLOR_SUGGESTIONS, SIZE_SUGGESTIONS, MAGICAL_FEATURES_SUGGESTIONS
 } from '@kazka/shared';
 import { db } from '../db';
-import { storyGoals, storyTones, scenarioCards } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { storyGoals, storyTones, scenarioCards, translations } from '../db/schema';
+import { eq, and, inArray } from 'drizzle-orm';
 import { logger } from '../utils/logger';
 
 const router = Router();
+
+// Helper function to get translations
+async function getTranslations(
+  entityType: string,
+  entityIds: string[],
+  locale: string
+): Promise<Map<string, Map<string, string>>> {
+  const translationsData = await db
+    .select()
+    .from(translations)
+    .where(
+      and(
+        eq(translations.entityType, entityType),
+        inArray(translations.entityId, entityIds),
+        eq(translations.locale, locale)
+      )
+    );
+  
+  // Build map: entityId -> fieldName -> value
+  const translationsMap = new Map<string, Map<string, string>>();
+  
+  translationsData.forEach(t => {
+    if (!translationsMap.has(t.entityId)) {
+      translationsMap.set(t.entityId, new Map());
+    }
+    translationsMap.get(t.entityId)!.set(t.fieldName, t.value);
+  });
+  
+  return translationsMap;
+}
 
 // GET /api/v1/dictionaries/character-traits - Get type-specific traits (public)
 router.get('/character-traits', async (req, res) => {
@@ -100,47 +130,56 @@ router.get('/story-themes', async (req, res) => {
   try {
     const locale = (req.query.locale as string) || 'uk';
     
-    // Fetch from database
+    // Fetch all data from DB
     const [goalsData, tonesData, scenarioCardsData] = await Promise.all([
       db.select().from(storyGoals).orderBy(storyGoals.sortOrder),
       db.select().from(storyTones).orderBy(storyTones.sortOrder),
       db.select().from(scenarioCards).where(eq(scenarioCards.isActive, true)).orderBy(scenarioCards.sortOrder)
     ]);
     
-    // Transform for API response
-    // TODO M4: Add i18n translations based on locale
-    // For M3, return English descriptions from DB
-    const goals = goalsData.map(g => ({
-      slug: g.slug,
-      name: g.name, // TODO M4: translate using name_key
-      description: g.description,
-      minAge: g.minAge
-    }));
+    // Fetch translations
+    const [goalsTranslations, tonesTranslations, scenariosTranslations] = await Promise.all([
+      getTranslations('story_goal', goalsData.map(g => g.slug), locale),
+      getTranslations('story_tone', tonesData.map(t => t.slug), locale),
+      getTranslations('scenario_card', scenarioCardsData.map(sc => sc.id), locale)
+    ]);
     
-    const tones = tonesData.map(t => ({
-      slug: t.slug,
-      name: t.name, // TODO M4: translate using name_key
-      description: t.description,
-      writingStyle: JSON.parse(t.writingStyle)
-    }));
+    // Map with translations, fallback to English if not available
+    const goals = goalsData.map(g => {
+      const trans = goalsTranslations.get(g.slug);
+      return {
+        slug: g.slug,
+        name: trans?.get('name') || g.name,
+        description: trans?.get('description') || g.description,
+        minAge: g.minAge
+      };
+    });
     
-    // Scenario cards from DB (database-driven!)
-    const scenarios = scenarioCardsData.map(sc => ({
-      id: sc.id,
-      name: sc.nameKey, // TODO M4: translate based on locale
-      description: sc.descriptionKey, // TODO M4: translate based on locale
-      icon: sc.icon,
-      suggestedGoals: JSON.parse(sc.suggestedGoals),
-      ageGroups: JSON.parse(sc.ageGroups)
-    }));
+    const tones = tonesData.map(t => {
+      const trans = tonesTranslations.get(t.slug);
+      return {
+        slug: t.slug,
+        name: trans?.get('name') || t.name,
+        description: trans?.get('description') || t.description,
+        writingStyle: JSON.parse(t.writingStyle)
+      };
+    });
+    
+    const scenarios = scenarioCardsData.map(sc => {
+      const trans = scenariosTranslations.get(sc.id);
+      return {
+        id: sc.id,
+        name: trans?.get('name') || sc.nameKey,
+        description: trans?.get('description') || sc.descriptionKey,
+        icon: sc.icon,
+        suggestedGoals: JSON.parse(sc.suggestedGoals),
+        ageGroups: JSON.parse(sc.ageGroups)
+      };
+    });
     
     return res.json({
       status: 'success',
-      data: { 
-        goals, 
-        tones, 
-        scenarioCards: scenarios 
-      }
+      data: { goals, tones, scenarioCards: scenarios }
     });
   } catch (error: unknown) {
     logger.error({ error }, 'Error fetching story themes');

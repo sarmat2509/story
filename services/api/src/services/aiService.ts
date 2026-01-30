@@ -11,6 +11,7 @@
 import { GeminiTextProvider } from '../providers/text/gemini';
 import { GeminiImageProvider } from '../providers/image/gemini';
 import { GeminiQuotaProvider } from '../providers/image/gemini/GeminiQuotaProvider';
+import { NanoBananaProProvider } from '../providers/image/nanobananapro';
 import { ElevenLabsProvider } from '../providers/audio/elevenlabs';
 import { StoryDomainService } from '../domain/story';
 import { ImageDomainService } from '../domain/image';
@@ -123,20 +124,28 @@ function getTextProvider(): ITextProvider {
 /**
  * Get image provider instance (private)
  * Only called by getImageDomainService()
- * M4: Returns Gemini provider with rate limiting
+ * Supports:
+ * - 'nanobananapro': Gemini 2.5 Flash Image (for cartoon/illustration with character consistency)
+ * - 'gemini': Imagen 3 (legacy, for photorealistic images)
  */
 function getImageProvider(): IImageProvider {
   if (!imageProvider) {
-    const vendor = config.ai.imageVendor || 'gemini';
+    const provider = config.image.provider || 'nanobananapro';
     
-    logger.info({ vendor }, 'Initializing image provider with rate limiting');
+    logger.info({ provider }, 'Initializing image provider');
     
-    switch (vendor) {
+    switch (provider) {
+      case 'nanobananapro':
+        // Nano Banana Pro (Gemini 2.5 Flash Image) - for cartoon/illustration
+        imageProvider = new NanoBananaProProvider(config.google.apiKey);
+        break;
       case 'gemini':
+        // Legacy Imagen 3 provider
         imageProvider = new GeminiImageProvider(config.ai.geminiApiKey);
         break;
       default:
-        throw new Error(`Unknown image vendor: ${vendor}`);
+        logger.warn({ provider }, 'Unknown image provider, falling back to nanobananapro');
+        imageProvider = new NanoBananaProProvider(config.google.apiKey);
     }
   }
   

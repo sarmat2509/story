@@ -833,6 +833,35 @@ router.get('/me', requireAuth, async (req, res) => {
 - **MUST** use Zod for runtime validation + type inference
 - **NEVER** use `any` type (use `unknown` if needed)
 
+### Code Comments
+- **MUST** write all code comments in English
+- **MUST** use comments to explain "why", not "what"
+- **SHOULD** use JSDoc for public functions and complex interfaces
+- **NEVER** leave commented-out code (remove or move to git history)
+
+```typescript
+// ✅ Good - Explains reasoning in English
+// Convert relative URL to full URL for Zod .url() validation
+const photoUrl = `${window.location.origin}${relativePath}`;
+
+// ✅ Good - JSDoc for public API
+/**
+ * Uploads a photo to the server and returns the stored URL.
+ * @param uri - Local URI from ImagePicker
+ * @param photoType - Type of photo (character, child, profile)
+ * @returns Promise with uploaded photo metadata
+ */
+export async function uploadPhoto(uri: string, photoType: string): Promise<UploadPhotoResult>
+
+// ❌ Bad - Comment in Ukrainian/Russian
+// Конвертуємо відносний URL в повний для валідації
+const photoUrl = `${window.location.origin}${relativePath}`;
+
+// ❌ Bad - States the obvious
+// Set the name variable to the value from the input
+const name = input.value;
+```
+
 ### Async/Await
 - **MUST** use async/await, not callbacks
 - **MUST** use try-catch for error handling
@@ -929,6 +958,44 @@ const identity = await getIdentity(user.id);
 - **MUST** prefer well-maintained packages (recent updates)
 - **MUST** check security advisories
 - **NEVER** add packages for trivial functionality
+
+### Adding Dependencies to Universal App
+
+**CRITICAL WORKFLOW** - When adding dependencies to `apps/universal-app`:
+
+1. **MUST** first manually add to `apps/universal-app/package.json`:
+   ```json
+   {
+     "dependencies": {
+       "new-package": "^1.0.0"
+     }
+   }
+   ```
+
+2. **MUST** then run install from workspace root:
+   ```bash
+   cd /Users/ivanryzhenko/Documents/Repository/story
+   pnpm install
+   ```
+
+3. **NEVER** use `pnpm add` directly in subdirectory (causes store location issues)
+
+**Why:** Direct `pnpm add` in subdirectories can cause store location conflicts. Manual package.json edit + root install ensures consistency.
+
+**Example:**
+```typescript
+// Step 1: Edit apps/universal-app/package.json
+{
+  "dependencies": {
+    "http-proxy-middleware": "^3.0.5",
+    "@expo/server": "^0.7.5"
+  }
+}
+
+// Step 2: Install from root
+// cd to workspace root
+// pnpm install
+```
 
 ### Current Stack (Do NOT change without discussion)
 - **Express** 4.x (API framework)

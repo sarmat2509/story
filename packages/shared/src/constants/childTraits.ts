@@ -3,8 +3,12 @@ export const HAIR_COLORS = [
   'blonde', 'light_brown', 'dark_brown', 'black', 'red', 'auburn', 'grey'
 ] as const;
 
+export const HAIR_LENGTHS = [
+  'very_short', 'short', 'medium', 'long', 'very_long'
+] as const;
+
 export const HAIR_STYLES = [
-  'short', 'medium', 'long', 'very_long', 'curly', 'wavy', 'straight', 'braided'
+  'straight', 'wavy', 'curly', 'braided', 'ponytail', 'bun', 'afro', 'dreadlocks'
 ] as const;
 
 export const EYE_COLORS = [
@@ -16,7 +20,9 @@ export const SKIN_TONES = [
 ] as const;
 
 export const DISTINCTIVE_FEATURES = [
-  'freckles', 'dimples', 'curly_hair', 'glasses', 'birthmark', 'round_face', 'oval_face'
+  'freckles', 'dimples', 'glasses', 'birthmark', 'round_face', 'oval_face',
+  'braces', 'earrings', 'curly_hair', 'straight_hair', 'braids', 'ponytail',
+  'kind_smile', 'bright_eyes', 'long_eyelashes', 'rosy_cheeks'
 ] as const;
 
 // Personality enums
@@ -53,6 +59,7 @@ export const AVOID_TOPICS = [
 
 // Type exports
 export type HairColor = typeof HAIR_COLORS[number];
+export type HairLength = typeof HAIR_LENGTHS[number];
 export type HairStyle = typeof HAIR_STYLES[number];
 export type EyeColor = typeof EYE_COLORS[number];
 export type SkinTone = typeof SKIN_TONES[number];

@@ -104,4 +104,3 @@ process.on('SIGTERM', async () => {
 
 export default db;
 
-export default db;

@@ -101,11 +101,14 @@ export async function updateTaskProgress(
       currentProgress.activeTasks
     );
     
+    // Update overall progress in the object
+    currentProgress.overallProgress = overallProgress;
+    
     // Save with atomic update
     await tx
       .update(storyRequests)
       .set({
-        progressData: currentProgress as any,
+        progressData: currentProgress,
         progress: overallProgress,
         updatedAt: new Date(),
       })
@@ -114,6 +117,18 @@ export async function updateTaskProgress(
     logger.info(
       { requestId, task, progress: activeTask.progress, overallProgress },
       'Task progress updated'
+    );
+    
+    // Verify update by re-reading
+    const [updated] = await tx
+      .select()
+      .from(storyRequests)
+      .where(eq(storyRequests.id, requestId))
+      .limit(1);
+    
+    logger.debug(
+      { requestId, dbProgress: updated?.progress, expectedProgress: overallProgress },
+      'Progress verification'
     );
   });
 }
@@ -165,7 +180,7 @@ async function saveProgress(requestId: string, progress: StoryProgress): Promise
   await db
     .update(storyRequests)
     .set({
-      progressData: progress as any,
+      progressData: progress,
       progress: progress.overallProgress,
       updatedAt: new Date(),
     })

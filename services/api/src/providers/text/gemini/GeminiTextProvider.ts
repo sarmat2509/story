@@ -10,7 +10,7 @@
  * - MUST adapt provider-agnostic schemas to Gemini format
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai';
 import type { ITextProvider } from '../../base/ITextProvider';
 import type { GenerateStructuredRequest, GenerateTextRequest, StreamCallback } from '../../base/JsonSchema';
 import { GeminiSchemaAdapter } from './GeminiSchemaAdapter';
@@ -20,6 +20,46 @@ export class GeminiTextProvider implements ITextProvider {
   private client: GoogleGenerativeAI;
   private model: string = 'gemini-2.5-flash';
   private schemaAdapter: GeminiSchemaAdapter;
+  
+  // Safety settings for validation (less restrictive)
+  private validationSafetySettings = [
+    {
+      category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+      threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+      threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+      threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+      threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH
+    }
+  ];
+
+  // Ultra-relaxed safety settings for character photo analysis (children's content)
+  private photoAnalysisSafetySettings = [
+    {
+      category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+      threshold: HarmBlockThreshold.BLOCK_NONE
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+      threshold: HarmBlockThreshold.BLOCK_NONE
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+      threshold: HarmBlockThreshold.BLOCK_NONE
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+      threshold: HarmBlockThreshold.BLOCK_NONE
+    }
+  ];
 
   constructor(apiKey: string) {
     if (!apiKey) {
@@ -34,14 +74,31 @@ export class GeminiTextProvider implements ITextProvider {
    * Implements ITextProvider.generateStructured
    */
   async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
-    logger.debug({ temperature: request.temperature }, 'Generating structured content with Gemini');
+    logger.debug({ 
+      temperature: request.temperature,
+      hasImages: !!request.imageData,
+      imageCount: request.imageData?.length || 0
+    }, 'Generating structured content with Gemini');
 
     // Adapt provider-agnostic schema to Gemini format
     const geminiSchema = this.schemaAdapter.convert(request.schema);
+    
+    // Detect if this is a validation call (lower temp = validation)
+    const isValidation = request.temperature !== undefined && request.temperature < 0.5;
+
+    // Use model override if provided (for vision models)
+    const modelName = request.model || this.model;
+    
+    logger.debug({ 
+      model: modelName,
+      hasImages: !!request.imageData,
+      imageCount: request.imageData?.length || 0
+    }, 'Creating Gemini model for structured generation');
 
     // Create Gemini model with schema
+    // ALWAYS use relaxed safety settings for children's stories
     const model = this.client.getGenerativeModel({
-      model: this.model,
+      model: modelName,
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: geminiSchema as any, // TypeScript workaround for complex nested schemas
@@ -49,19 +106,121 @@ export class GeminiTextProvider implements ITextProvider {
         ...(request.maxTokens && { maxOutputTokens: request.maxTokens }),
         ...(request.topP && { topP: request.topP }),
         ...(request.topK && { topK: request.topK })
-      }
+      },
+      // Use ultra-relaxed safety for photo analysis, normal relaxed for stories
+      safetySettings: request.relaxedSafety 
+        ? this.photoAnalysisSafetySettings 
+        : this.validationSafetySettings
     });
 
     try {
+      // Build content parts for Gemini (text + optional images)
+      const contentParts: any[] = [];
+      
+      // Add images first if provided (for vision models)
+      if (request.imageData && request.imageData.length > 0) {
+        for (const image of request.imageData) {
+          contentParts.push({
+            inlineData: {
+              mimeType: image.mimeType,
+              data: image.data
+            }
+          });
+        }
+      }
+      
+      // Add text prompt
+      contentParts.push({ text: request.prompt });
+      
       // Call Gemini API with retry logic
-      const result = await this.callGeminiWithRetry(() => model.generateContent(request.prompt));
+      const result = await this.callGeminiWithRetry(() => model.generateContent(contentParts));
+      
+      // Check if response was blocked
+      if (result.response.promptFeedback?.blockReason) {
+        const blockReason = result.response.promptFeedback.blockReason;
+        const safetyRatings = result.response.promptFeedback?.safetyRatings || [];
+        
+        // Log detailed blocking information
+        logger.warn({ 
+          blockReason,
+          safetyRatings: safetyRatings.map(r => ({
+            category: r.category,
+            probability: r.probability,
+          })),
+          isValidation,
+          temperature: request.temperature,
+          promptLength: request.prompt.length,
+          promptPreview: request.prompt.substring(0, 200),
+          model: modelName,
+          hasImages: !!request.imageData
+        }, 'Gemini blocked content - detailed safety info');
+        
+        // Build detailed error message with safety ratings
+        const safetyDetails = safetyRatings
+          .filter(r => r.probability !== 'NEGLIGIBLE')
+          .map(r => `${r.category}: ${r.probability}`)
+          .join(', ');
+        
+        throw new Error(`Content blocked by Gemini: ${blockReason}. Details: ${safetyDetails || 'none'}`);
+      }
+      
       const responseText = result.response.text();
 
-      // Parse JSON response
-      const parsed = JSON.parse(responseText) as T;
-      return parsed;
+      // Check if response was truncated due to token limit
+      const candidate = result.response.candidates?.[0];
+      if (candidate?.finishReason === 'MAX_TOKENS') {
+        logger.warn({
+          finishReason: candidate.finishReason,
+          responseLength: responseText.length,
+          maxTokens: request.maxTokens,
+        }, 'Response was truncated due to MAX_TOKENS - increase maxOutputTokens');
+        throw new Error('Response truncated: increase maxOutputTokens parameter');
+      }
+
+      // Log response for debugging JSON parse errors
+      logger.debug({
+        responseLength: responseText.length,
+        responsePreview: responseText.substring(0, 200),
+        responseSuffix: responseText.substring(Math.max(0, responseText.length - 200)),
+        finishReason: candidate?.finishReason,
+      }, 'Gemini response received');
+
+      // Parse JSON response with fallback for markdown-wrapped responses
+      try {
+        const parsed = JSON.parse(responseText) as T;
+        return parsed;
+      } catch (parseError) {
+        logger.error({
+          parseError: parseError instanceof Error ? {
+            message: parseError.message,
+            name: parseError.name
+          } : String(parseError),
+          responseText,
+          responseLength: responseText.length,
+          model: modelName,
+          hasImages: !!request.imageData
+        }, 'Failed to parse Gemini response as JSON');
+        
+        // Try to extract JSON from markdown code blocks
+        const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+          logger.info('Found JSON in markdown code block, retrying parse');
+          return JSON.parse(jsonMatch[1]) as T;
+        }
+        
+        throw new Error(`Gemini structured generation failed: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+      }
     } catch (error) {
-      logger.error({ error }, 'Gemini structured generation failed');
+      logger.error({ 
+        error: error instanceof Error ? {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        } : String(error),
+        model: modelName,
+        hasImages: !!request.imageData,
+        imageCount: request.imageData?.length || 0
+      }, 'Gemini structured generation failed');
       throw new Error(`Gemini structured generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

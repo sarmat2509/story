@@ -53,6 +53,7 @@ const linking: any = {
           Wizard: 'wizard',
           Library: 'library',
           Children: 'children',
+          Characters: 'characters',
           Profile: 'profile',
         },
       },

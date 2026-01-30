@@ -14,8 +14,14 @@ interface Story {
 interface StoryStatus {
   status: string;
   progress: number;
-  currentPhase: string;
-  activeTasks: any[];
+  progressData?: {
+    activeTasks: Array<{ task: string; progress: number; details?: any }>;
+    completedTasks: string[];
+    overallProgress: number;
+  };
+  storyId?: string | null;
+  errorMessage?: string | null;
+  createdAt?: string;
 }
 
 interface CreateStoryRequest {
@@ -24,9 +30,11 @@ interface CreateStoryRequest {
   storyLanguage: string;
   goal?: string;
   tone?: string;
-  includeFamily?: boolean;
+  imageStyle?: string;
   selectedCharacters?: string[];
+  selectedChildren?: string[]; // NEW: Selected child profiles to include in story
   userNotes?: string;
+  scenarioCardId?: string;
 }
 
 // List stories
@@ -42,15 +50,15 @@ export const useStories = () => {
   });
 };
 
-// Get story detail
+// Get story detail with scenes and assets
 export const useStory = (id: string) => {
   return useQuery({
     queryKey: ['story', id],
     queryFn: async () => {
-      const response = await apiClient.get<{ status: string; story: Story }>(
-        `/api/v1/stories/${id}`
+      const response = await apiClient.get<{ status: string; manifest: any }>(
+        `/api/v1/stories/${id}/manifest`
       );
-      return response.data.story;
+      return response.data.manifest;
     },
     enabled: !!id,
   });

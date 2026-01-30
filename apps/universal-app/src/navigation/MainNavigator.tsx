@@ -7,7 +7,9 @@ import { theme } from '@/theme';
 import DashboardScreen from '@/screens/dashboard/DashboardScreen';
 import WizardScreen from '@/screens/wizard/WizardScreen';
 import LibraryScreen from '@/screens/library/LibraryScreen';
+import StoryViewerScreen from '@/screens/story/StoryViewerScreen';
 import ChildrenScreen from '@/screens/children/ChildrenScreen';
+import CharactersScreen from '@/screens/characters/CharactersScreen';
 import ProfileScreen from '@/screens/profile/ProfileScreen';
 import type { MainDrawerParamList, MainTabParamList } from '@/types/navigation';
 
@@ -54,12 +56,30 @@ function TabNavigator() {
         }}
       />
       <Tab.Screen 
+        name="Story" 
+        component={StoryViewerScreen}
+        options={{ 
+          title: 'Story',
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen 
         name="Children" 
         component={ChildrenScreen}
         options={{ 
           title: 'Children',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen 
+        name="Characters" 
+        component={CharactersScreen}
+        options={{ 
+          title: 'Characters',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="body-outline" size={size} color={color} />
           ),
         }}
       />
@@ -85,6 +105,7 @@ function DrawerNavigator() {
         drawerType: 'permanent',
         drawerActiveTintColor: theme.colors.interactive.primary,
         drawerInactiveTintColor: theme.colors.text.tertiary,
+        headerLeft: () => null, // Hide hamburger menu on permanent drawer
       }}
     >
       <Drawer.Screen 
@@ -118,12 +139,30 @@ function DrawerNavigator() {
         }}
       />
       <Drawer.Screen 
+        name="Story" 
+        component={StoryViewerScreen}
+        options={{ 
+          title: 'Story',
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
+      <Drawer.Screen 
         name="Children" 
         component={ChildrenScreen}
         options={{ 
           title: 'Children',
           drawerIcon: ({ color, size }) => (
             <Ionicons name="people-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen 
+        name="Characters" 
+        component={CharactersScreen}
+        options={{ 
+          title: 'Characters',
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="body-outline" size={size} color={color} />
           ),
         }}
       />

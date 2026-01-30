@@ -24,15 +24,106 @@ export function getLanguageName(code: string): string {
  * @returns Formatted child profile text
  */
 export function formatChildProfile(spec: StorySpec): string {
+  if (!spec.childName) return '';
+  
   const parts = [
-    `- Name: ${spec.childName}`,
-    `- Age group: ${spec.ageGroup}`,
-    `- Interests: ${spec.characters.map(c => c.name).join(', ') || 'none specified'}`
+    `Main Character: ${spec.childName}`,
+    `Age group: ${spec.ageGroup}`
+  ];
+  
+  // Add AI-generated description if available
+  if (spec.childProfile?.aiGeneratedDescription) {
+    parts.push(`Physical Description: ${spec.childProfile.aiGeneratedDescription}`);
+  }
+  
+  // Add structured appearance traits
+  if (spec.childProfile?.appearanceTraits) {
+    const traits = spec.childProfile.appearanceTraits;
+    const appearanceParts: string[] = [];
+    
+    if (traits.hairColor) appearanceParts.push(`hair: ${traits.hairColor}`);
+    if ((traits as any).hairLength) appearanceParts.push(`hair length: ${(traits as any).hairLength}`);
+    if ((traits as any).hairStyle) appearanceParts.push(`hair style: ${(traits as any).hairStyle}`);
+    if (traits.eyeColor) appearanceParts.push(`eyes: ${traits.eyeColor}`);
+    if (traits.skinTone) appearanceParts.push(`skin tone: ${traits.skinTone}`);
+    if ((traits as any).distinctiveFeatures && (traits as any).distinctiveFeatures.length > 0) {
+      appearanceParts.push(`distinctive features: ${(traits as any).distinctiveFeatures.join(', ')}`);
+    }
+    
+    if (appearanceParts.length > 0) {
+      parts.push(`Appearance Details: ${appearanceParts.join('; ')}`);
+    }
+  }
+  
+  // Add interests if available
+  if (spec.childProfile?.interests && spec.childProfile.interests.length > 0) {
+    parts.push(`Interests: ${spec.childProfile.interests.join(', ')}`);
+  }
+  
+  // Add user notes if available
+  if (spec.userNotes) {
+    parts.push(`Parent notes: ${spec.userNotes}`);
+  }
+
+  return parts.join('\n');
+}
+
+/**
+ * Format supporting characters section for prompts
+ * @param spec - Story specification
+ * @returns Formatted characters list with instruction to include them
+ */
+export function formatSupportingCharacters(spec: StorySpec): string {
+  if (!spec.characters || spec.characters.length === 0) {
+    return '';
+  }
+
+  const parts = [
+    'SUPPORTING CHARACTERS:',
+    'IMPORTANT: Include ALL these characters in the story. They should participate in scenes, interact with the main character, and be part of the plot.',
+    ''
   ];
 
-  if (spec.userNotes) {
-    parts.push(`- Parent notes: ${spec.userNotes}`);
-  }
+  spec.characters.forEach((char, index) => {
+    const charParts = [`${index + 1}. ${char.name}`];
+    
+    // Add type
+    if (char.type) {
+      charParts.push(`(${char.type})`);
+    }
+    
+    // Add AI-generated description if available
+    if ((char as any).aiGeneratedDescription) {
+      charParts.push(`- Description: ${(char as any).aiGeneratedDescription}`);
+    } else if (char.description) {
+      charParts.push(`- Description: ${char.description}`);
+    }
+    
+    // Add appearance traits if available
+    if (char.appearanceTraits) {
+      const traits = char.appearanceTraits;
+      const traitsParts: string[] = [];
+      
+      if (traits.hairColor) traitsParts.push(`hair: ${traits.hairColor}`);
+      if (traits.hairStyle) traitsParts.push(`style: ${traits.hairStyle}`);
+      if (traits.eyeColor) traitsParts.push(`eyes: ${traits.eyeColor}`);
+      if (traits.skinTone) traitsParts.push(`skin: ${traits.skinTone}`);
+      
+      if (traitsParts.length > 0) {
+        charParts.push(`- Appearance: ${traitsParts.join(', ')}`);
+      }
+    }
+    
+    // Add role if specified
+    if (char.role) {
+      charParts.push(`- Role: ${char.role}`);
+    }
+    
+    parts.push(charParts.join(' '));
+  });
+  
+  parts.push('');
+  parts.push('Make sure each character has meaningful interactions and contributes to the story.');
 
   return parts.join('\n');
 }
@@ -47,10 +138,27 @@ export function formatStoryRequirements(params: {
   sceneCount?: number;
   targetWordCount?: [number, number];
 }): string {
-  const parts = [
-    `- Goal/Moral: ${params.spec.goal || 'general positive message'}`,
-    `- Tone: ${params.spec.tone || 'calm'}`
-  ];
+  const parts = [];
+  
+  // Add scenario/theme with detailed guidance
+  if (params.spec.scenarioCard) {
+    parts.push(`- Theme/Scenario: ${params.spec.scenarioCard.name} - ${params.spec.scenarioCard.description}`);
+    if (params.spec.scenarioGuidance) {
+      parts.push(`  Plot Guidance: ${params.spec.scenarioGuidance}`);
+    }
+  }
+  
+  // Add goal/moral with detailed guidance
+  if (params.spec.goal) {
+    parts.push(`- Goal/Moral: ${params.spec.goal}`);
+    if (params.spec.goalGuidance) {
+      parts.push(`  Guidance: ${params.spec.goalGuidance}`);
+    }
+  } else {
+    parts.push(`- Goal/Moral: general positive message`);
+  }
+  
+  parts.push(`- Tone: ${params.spec.tone || 'calm'}`);
 
   if (params.sceneCount) {
     parts.push(`- Number of scenes: ${params.sceneCount}`);
@@ -67,21 +175,159 @@ export function formatStoryRequirements(params: {
 }
 
 /**
+ * Format age-appropriate requirements for prompts
+ * @param ageGroup - Age group (0-1, 1y, 2-3, 4-5, 6-8, 9-12)
+ * @returns Formatted age requirements text with research-based complexity standards
+ */
+export function formatAgeRequirements(ageGroup: string): string {
+  const requirements: Record<string, string[]> = {
+    '0-1': [
+      'TEXT COMPLEXITY (Lexile: Below 0L):',
+      '- Sentence length: 2-5 words maximum per sentence',
+      '- Vocabulary: 100-300 unique words, use same words 5-10 times for repetition',
+      '- Word complexity: 1-2 syllable words only (mama, baby, dog, ball)',
+      '- Structure: Simple subject-verb patterns, present tense only',
+      '- Use rhyme, rhythm, and sound words (woof-woof, meow, splash)',
+      '- No conflicts or problems - only joyful exploration',
+      '- Focus on basic emotions: happy, excited, surprised'
+    ],
+    '1y': [
+      'TEXT COMPLEXITY (Lexile: 0L-100L):',
+      '- Sentence length: 3-6 words maximum per sentence',
+      '- Vocabulary: 200-400 unique words, high repetition of key words',
+      '- Word complexity: 1-2 syllable words (truck, kitty, apple, water)',
+      '- Structure: Simple subject-verb-object, present and simple past tense',
+      '- Use predictable patterns and repeated phrases',
+      '- Onomatopoeia and sound effects for engagement',
+      '- Very simple cause-effect (push button, toy beeps)',
+      '- Bright, cheerful atmosphere throughout'
+    ],
+    '2-3': [
+      'TEXT COMPLEXITY (Lexile: 100L-200L):',
+      '- Sentence length: 4-8 words per sentence average',
+      '- Vocabulary: 400-600 unique words, moderate repetition',
+      '- Word complexity: 1-3 syllable words, familiar everyday concepts',
+      '- Structure: Simple sentences with "and" connections, past/present/future tense',
+      '- Dialogue: 30% of text should be character speech',
+      '- Use predictable story patterns (problem -> simple solution)',
+      '- Small challenges that resolve within same scene',
+      '- Focus on family, friendship, daily routines'
+    ],
+    '4-5': [
+      'TEXT COMPLEXITY (Lexile: 200L-500L):',
+      '- Sentence length: 6-12 words per sentence average',
+      '- Vocabulary: 600-1,200 unique words, introduce new words with context',
+      '- Word complexity: 1-3 syllable words, some descriptive adjectives',
+      '- Structure: Mix simple and compound sentences (and, but, so)',
+      '- Dialogue: 35-40% dialogue for character development',
+      '- Vary sentence beginnings (Once, Then, Suddenly, After)',
+      '- Mild suspense that resolves in same or next scene',
+      '- Use basic comparisons (as big as, like a)',
+      '- Themes: helping others, being brave, solving problems together'
+    ],
+    '6-8': [
+      'TEXT COMPLEXITY (Lexile: 500L-700L):',
+      '- Sentence length: 10-16 words per sentence average, vary between 5-20 words',
+      '- Vocabulary: 2,000-3,500 unique words, introduce 5-8 challenging words per story',
+      '- Word complexity: 1-4 syllable words, some domain-specific vocabulary with context clues',
+      '- Structure: Mix of simple, compound, and complex sentences with dependent clauses',
+      '- Dialogue: 40-50% dialogue with character-specific speech patterns',
+      '- Use varied sentence structures: questions, exclamations, short impactful sentences',
+      '- Literary devices: Similes, basic metaphors, sensory details, foreshadowing',
+      '- Expected reading speed: 90-115 words per minute',
+      '- Themes: Courage, responsibility, empathy, facing fears, problem-solving'
+    ],
+    '9-12': [
+      'TEXT COMPLEXITY (Lexile: 700L-1000L):',
+      '- Sentence length: 15-22 words per sentence average, range 8-30 words',
+      '- Vocabulary: 4,000-6,500 unique words, introduce abstract concepts and specialized terms',
+      '- Word complexity: Multi-syllable words (3-5 syllables), nuanced vocabulary, figurative language',
+      '- Structure: Complex sentences with multiple clauses, varied syntax, sentence fragments for effect',
+      '- Dialogue: 30-40% dialogue (more narrative depth and description)',
+      '- Use sophisticated transitions, varied paragraph lengths, intentional pacing',
+      '- Literary devices: Metaphors, symbolism, irony, multiple perspectives, flashbacks',
+      '- Expected reading speed: 115-140 words per minute',
+      '- Themes: Identity, moral complexity, justice, personal growth, relationships, consequences'
+    ]
+  };
+
+  // Map age groups to requirements
+  const ageReqs = requirements[ageGroup] || requirements['6-8']; // default to 6-8
+
+  return ageReqs.join('\n');
+}
+
+/**
+ * Format scary story specific requirements based on age
+ * Only call this if the scenario is 'scary_stories'
+ * @param ageGroup - Age group (0-1, 1y, 2-3, 4-5, 6-8, 9-12)
+ * @returns Formatted scary story requirements for specific age
+ */
+export function formatScaryStoryRequirements(ageGroup: string): string {
+  const requirements: Record<string, string[]> = {
+    '4-5': [
+      'SCARY STORY REQUIREMENTS (Ages 4-5: Silly & Friendly Spooks):',
+      '- Tone: Humorous and playful, NOT frightening',
+      '- Characters: Friendly ghosts, goofy monsters, silly witches, clumsy vampires',
+      '- Situations: Funny misunderstandings, silly problems (monster afraid of dark, ghost can\'t scare)',
+      '- Tension: Minimal - brief "uh-oh" moments quickly resolved with humor',
+      '- Resolution: FAST positive ending within 1-2 scenes of any tension',
+      '- Emphasis: Friendship, laughter, monsters are friends not threats',
+      '- Style examples: Hotel Transylvania, Room on the Broom, Vampirina',
+      '- CRITICAL: More silly than scary - kids should laugh, not worry'
+    ],
+    '6-8': [
+      'SCARY STORY REQUIREMENTS (Ages 6-8: Gentle Goosebumps):',
+      '- Tone: Mild mystery with safe, positive outcomes',
+      '- Elements: Strange noises, mysterious shadows, "haunted" places, hidden secrets',
+      '- Characters: Misunderstood creatures, friendly ghosts needing help, mysterious but kind beings',
+      '- Tension: Moderate buildup allowed, but always explained logically or resolved positively',
+      '- Problem-solving: Child uses bravery and cleverness to solve the mystery',
+      '- Resolution: Clear explanation (wasn\'t actually scary, just misunderstood), friendship formed',
+      '- Lessons: Facing small fears with courage, things aren\'t always as scary as they seem',
+      '- Style examples: Friendly monster stories, mystery-adventure hybrids, cozy spooky',
+      '- IMPORTANT: Spooky atmosphere YES, genuine fear NO - always safe feeling'
+    ],
+    '9-12': [
+      'SCARY STORY REQUIREMENTS (Ages 9-12: Classic Kid Horror):',
+      '- Tone: Suspenseful with sustained tension, but age-appropriate',
+      '- Elements: Creepy settings, mysterious creatures, unexplained phenomena, detective work',
+      '- Plot: Mystery that needs solving, clues to piece together, building suspense',
+      '- Tension: Can build across multiple scenes, keeps reader guessing',
+      '- Scary elements: Strange occurrences, eerie atmospheres, unknown threats (but NOT graphic/gory)',
+      '- Problem-solving: Main character uses intelligence, courage, and persistence',
+      '- Resolution: Mystery solved through cleverness, threats overcome, positive ending with accomplishment',
+      '- Character growth: Overcoming significant fears, becoming braver and more confident',
+      '- Style examples: Goosebumps series, Coraline, Scary Stories to Tell in the Dark (age-adapted)',
+      '- BALANCE: Real suspense and "shivers" YES, nightmares and trauma NO'
+    ]
+  };
+
+  // Default to 6-8 for unlisted age groups (0-1, 1y, 2-3 shouldn't use scary stories theme)
+  const ageReqs = requirements[ageGroup] || requirements['6-8'];
+  
+  return ageReqs.join('\n');
+}
+
+/**
  * Format content safety policy section for prompts
  * @param policy - Policy profile
  * @returns Formatted safety policy text
  */
 export function formatSafetyPolicy(policy: PolicyProfile): string {
   const sections = [
-    'CONTENT SAFETY POLICY - STRICTLY FOLLOW:',
-    policy.promptGuidelines,
-    '',
     'POSITIVE REQUIREMENTS:',
     '- MUST have happy, safe ending',
     '- Show problem-solving through: communication, kindness, asking for help',
     '- Include emotional validation (feelings are real and OK)',
     '- Characters learn and grow from experiences',
-    '- Family/friends provide support when needed'
+    '- Family/friends provide support when needed',
+    '',
+    'SAFETY GUIDELINES:',
+    '- All content must be age-appropriate and safe',
+    '- Conflicts resolve peacefully through communication',
+    '- Focus on friendship, family love, and kindness',
+    '- Include adult support when characters face challenges'
   ];
 
   return sections.join('\n');
@@ -105,26 +351,6 @@ export function formatWritingStyle(spec: StorySpec, vocabLevel: string): string 
   ];
 
   return sections.join('\n');
-}
-
-/**
- * Format readability requirements for text generation
- * @param policy - Policy profile
- * @returns Formatted readability requirements
- */
-export function formatReadabilityRequirements(policy: PolicyProfile): string {
-  if (!policy.readability) {
-    return '';
-  }
-
-  const parts = [
-    'READABILITY REQUIREMENTS:',
-    `- Max sentence length: ${policy.readability.maxSentenceLen} words`,
-    `- Dialog ratio: ~${policy.readability.dialogRatio * 100}% of text`,
-    `- Target word count: ${policy.readability.targetWordsRange[0]}-${policy.readability.targetWordsRange[1]} words`
-  ];
-
-  return parts.join('\n');
 }
 
 /**

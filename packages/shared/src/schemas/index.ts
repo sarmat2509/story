@@ -1,5 +1,10 @@
 import { z } from 'zod';
 import { LOCALE_IDS } from '../config/languages';
+import { CHARACTER_TYPES } from '../constants/characterTypes';
+
+// ==========================================
+// Schemas
+// ==========================================
 
 // Locale schema - dynamically generated from config
 export const LocaleSchema = z.enum(LOCALE_IDS as [string, ...string[]]);
@@ -152,7 +157,7 @@ export const AppleTokenSchema = z.object({
 // ==========================================
 
 import {
-  HAIR_COLORS, HAIR_STYLES, EYE_COLORS, SKIN_TONES, DISTINCTIVE_FEATURES,
+  HAIR_COLORS, HAIR_LENGTHS, HAIR_STYLES, EYE_COLORS, SKIN_TONES, DISTINCTIVE_FEATURES,
   PERSONALITY_TRAITS, FAVORITE_ACTIVITIES, INTERESTS,
   COMMON_FEARS, AVOID_TOPICS
 } from '../constants/childTraits';
@@ -163,7 +168,7 @@ import {
 } from '../constants/petTraits';
 
 import {
-  AGE_RANGES, HUMAN_HAIR_COLORS, HUMAN_HAIR_STYLES, HEIGHTS, BUILDS,
+  AGE_RANGES, HUMAN_HAIR_COLORS, HUMAN_HAIR_LENGTHS, HUMAN_HAIR_STYLES, HEIGHTS, BUILDS,
   CLOTHING_STYLES, HUMAN_DISTINCTIVE_FEATURES
 } from '../constants/humanTraits';
 
@@ -179,17 +184,17 @@ export const CreateChildProfileSchema = z.object({
   // Reference photos (optional)
   referencePhotos: z.array(z.object({
     url: z.string().url(),
-    purpose: z.enum(['face', 'full_body']),
     uploadedAt: z.coerce.date()
   })).max(5).optional(),
   
   // Appearance traits (select from enums)
   appearanceTraits: z.object({
     hairColor: z.enum(HAIR_COLORS).optional(),
+    hairLength: z.enum(HAIR_LENGTHS).optional(),
     hairStyle: z.enum(HAIR_STYLES).optional(),
     eyeColor: z.enum(EYE_COLORS).optional(),
     skinTone: z.enum(SKIN_TONES).optional(),
-    distinctiveFeatures: z.array(z.enum(DISTINCTIVE_FEATURES)).max(3).optional()
+    distinctiveFeatures: z.array(z.enum(DISTINCTIVE_FEATURES)).max(5).optional()
   }).optional(),
   
   // Personality (select from enums, max 5 each)
@@ -219,12 +224,11 @@ export const UpdateChildProfileSchema = CreateChildProfileSchema.partial();
 // Base character schema
 const BaseCharacterSchema = z.object({
   name: z.string().min(1).max(100),
-  type: z.enum(['pet', 'family_member', 'friend', 'neighbor', 'imaginary_friend']),
+  type: z.enum(CHARACTER_TYPES),
   
   // Reference photos (optional, not for imaginary)
   referencePhotos: z.array(z.object({
     url: z.string().url(),
-    purpose: z.enum(['full_body', 'face', 'action']),
     uploadedAt: z.coerce.date()
   })).max(5).optional(),
   
@@ -252,6 +256,7 @@ const PetPersonalitySchema = z.object({
 const HumanAppearanceSchema = z.object({
   ageRange: z.enum(AGE_RANGES).optional(),
   hairColor: z.enum(HUMAN_HAIR_COLORS).optional(),
+  hairLength: z.enum(HUMAN_HAIR_LENGTHS).optional(),
   hairStyle: z.enum(HUMAN_HAIR_STYLES).optional(),
   eyeColor: z.enum(EYE_COLORS).optional(), // reuse from child
   skinTone: z.enum(SKIN_TONES).optional(), // reuse from child
@@ -341,9 +346,10 @@ export const CreateStoryRequestSchema = z.object({
   goal: z.string().max(50).optional(), // DB-driven, slug from story_goals
   tone: z.string().max(50).optional(), // DB-driven, slug from story_tones
   scenarioCardId: z.string().max(100).optional(), // DB-driven, from scenario_cards
+  imageStyle: z.string().max(50).optional(), // Image art style (soft_watercolor, colored_pencil, etc.)
   userNotes: z.string().max(500).optional(),
-  includeFamily: z.boolean().default(false),
-  selectedCharacters: z.array(z.string().uuid()).max(5).optional()
+  selectedCharacters: z.array(z.string().uuid()).max(5).optional(),
+  selectedChildren: z.array(z.string().uuid()).max(5).optional() // NEW: Selected child profiles to include in story
 });
 
 export type CreateStoryRequestInput = z.infer<typeof CreateStoryRequestSchema>;

@@ -1,49 +1,74 @@
 /**
  * Gemini Image Provider - Imagen 3 Implementation
- * Implementation of IImageProvider for Google Imagen 3
+ * Implements IImageProvider using Vertex AI REST API for Imagen 3
+ * 
+ * Supports two models:
+ * - imagen-3.0-generate-002: Basic model for text-to-image (supports aspectRatio)
+ * - imagen-3.0-capability-001: Customization model for reference images (no aspectRatio support)
  */
 
-import type { IImageProvider, GenerateImageRequest, GeneratedImage } from '../../base/IImageProvider';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import type { IImageProvider, GenerateImageRequest, GeneratedImage, ReferenceImage } from '../../base/IImageProvider';
 import { logger } from '../../../utils/logger';
 import { config } from '../../../config';
 import { getImageRateLimiter } from '../../../services/aiService';
+import { GoogleAuth } from 'google-auth-library';
 
-interface ImagenGenerationConfig {
-  aspectRatio?: string;
-  negativePrompt?: string;
-  numberOfImages?: number;
-  seed?: number;
-  guidanceScale?: number;
+interface VertexAIImageResponse {
+  predictions: Array<{
+    bytesBase64Encoded: string;
+    mimeType: string;
+  }>;
+}
+
+interface ReferenceImageConfig {
+  referenceType: 'REFERENCE_TYPE_SUBJECT' | 'REFERENCE_TYPE_CONTROL';
+  referenceId: number;
+  referenceImage: {
+    bytesBase64Encoded: string;
+  };
+  subjectImageConfig: {
+    subjectDescription: string;
+    subjectType: 'SUBJECT_TYPE_PERSON' | 'SUBJECT_TYPE_PRODUCT' | 'SUBJECT_TYPE_ANIMAL';
+  };
 }
 
 /**
- * GeminiImageProvider - Imagen 3 provider
+ * GeminiImageProvider - Imagen 3 provider using Vertex AI REST API
  * 
- * Uses Google Generative AI SDK for Imagen 3 image generation
- * Supports:
- * - Text-to-image generation
- * - Reference images for character consistency (if API supports)
- * - Multiple aspect ratios
- * - Safety filters
- * - Retry logic with exponential backoff
+ * Flow selection:
+ * - If referenceImages provided → use imagen-3.0-capability-001
+ * - Otherwise → use imagen-3.0-generate-002
  */
 export class GeminiImageProvider implements IImageProvider {
-  private genAI: GoogleGenerativeAI;
+  private auth: GoogleAuth;
   private maxRetries: number;
   private retryDelayMs: number;
   private rateLimiter = getImageRateLimiter();
+  private projectId: string;
+  private location: string;
 
-  constructor(apiKey: string) {
-    if (!apiKey) {
-      throw new Error('Gemini API key is required');
+  constructor(apiKey?: string) {
+    this.projectId = config.image.gemini.projectId;
+    this.location = config.image.gemini.location;
+    
+    if (!this.projectId) {
+      throw new Error('Google Cloud Project ID is required for Imagen 3. Set GOOGLE_CLOUD_PROJECT env var.');
     }
     
-    this.genAI = new GoogleGenerativeAI(apiKey);
+    // Initialize Google Auth for Vertex AI
+    this.auth = new GoogleAuth({
+      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      // If GOOGLE_APPLICATION_CREDENTIALS is set, it will be used automatically
+      // Otherwise, falls back to Application Default Credentials
+    });
+    
     this.maxRetries = config.image.maxRetries;
     this.retryDelayMs = config.image.retryDelayMs;
     
-    logger.info('Gemini Image Provider initialized with Imagen 3 and rate limiting');
+    logger.info({ 
+      projectId: this.projectId, 
+      location: this.location 
+    }, 'Gemini Image Provider initialized with Vertex AI REST API');
   }
 
   /**
@@ -55,11 +80,13 @@ export class GeminiImageProvider implements IImageProvider {
     
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
+        const hasReferences = request.referenceImages && request.referenceImages.length > 0;
+        
         logger.info(
           { 
             prompt: request.prompt.substring(0, 100), 
             aspectRatio: request.aspectRatio,
-            hasReferences: !!request.referenceImages?.length,
+            hasReferences,
             attempt: attempt + 1
           },
           'Generating image with Imagen 3'
@@ -105,76 +132,158 @@ export class GeminiImageProvider implements IImageProvider {
   }
 
   /**
+   * Truncate base64 strings in objects for logging
+   * Prevents huge log files from base64-encoded images
+   */
+  private truncateBase64(obj: any, maxLength: number = 300): any {
+    if (typeof obj === 'string' && obj.length > maxLength) {
+      return obj.substring(0, maxLength) + `... (${obj.length} chars total)`;
+    }
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.truncateBase64(item, maxLength));
+    }
+    if (obj && typeof obj === 'object') {
+      const result: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (key.includes('base64') || key.includes('Base64') || key.includes('bytesBase64')) {
+          result[key] = this.truncateBase64(value, maxLength);
+        } else {
+          result[key] = value;
+        }
+      }
+      return result;
+    }
+    return obj;
+  }
+
+  /**
    * Internal method to generate image (called by retry logic)
    * Wrapped with rate limiter to control RPM
    */
   private async generateImageInternal(request: GenerateImageRequest): Promise<GeneratedImage> {
     // Execute through rate limiter
     return await this.rateLimiter.execute(async () => {
-      // Build generation config
-      const generationConfig: ImagenGenerationConfig = {
-        aspectRatio: this.mapAspectRatio(request.aspectRatio),
-        negativePrompt: request.negativePrompt,
-        numberOfImages: 1,
-      };
+      const hasReferences = request.referenceImages && request.referenceImages.length > 0;
       
-      if (request.seed !== undefined) {
-        generationConfig.seed = request.seed;
-      }
+      // Select model based on whether we have reference images
+      const modelName = hasReferences 
+        ? 'imagen-3.0-capability-001'  // Supports reference images, NO aspectRatio
+        : 'imagen-3.0-generate-002';   // Supports aspectRatio, NO reference images
       
-      if (request.guidanceScale !== undefined) {
-        generationConfig.guidanceScale = request.guidanceScale;
-      }
-      
-      // For MVP, we use text-to-image model
-      // NOTE: Reference images support depends on Imagen 3 API capabilities
-      // If not supported by API, caller should analyze references and add to prompt
-      const model = this.genAI.getGenerativeModel({
-        model: config.image.gemini.model,
-      });
+      logger.debug({ 
+        modelName, 
+        hasReferences,
+        referenceCount: request.referenceImages?.length || 0
+      }, 'Selected Imagen model');
       
       try {
-        // Create timeout promise (2 minutes for generation only, not including queue time)
-        const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Image generation timeout after 120 seconds')), 120000)
-        );
+        // Get access token
+        const client = await this.auth.getClient();
+        const accessToken = await client.getAccessToken();
         
-        // Create generation promise
-        const generationPromise = model.generateContent({
-          contents: [{
-            role: 'user',
-            parts: [{ text: request.prompt }]
-          }],
-          generationConfig: generationConfig as any,
+        if (!accessToken.token) {
+          throw new Error('Failed to obtain access token for Vertex AI');
+        }
+        
+        // Build request based on model type
+        let requestBody: any;
+        
+        if (hasReferences) {
+          // Capability model: with reference images
+          const convertedRefs = await this.convertReferenceImages(request.referenceImages!);
+          
+          requestBody = {
+            instances: [{
+              prompt: request.prompt,
+              referenceImages: convertedRefs,
+            }],
+            parameters: {
+              sampleCount: 1,
+              ...(request.personGeneration && { personGeneration: request.personGeneration }),
+              // Note: aspectRatio NOT supported in capability model
+            },
+          };
+        } else {
+          // Generate model: without reference images, with aspectRatio
+          requestBody = {
+            instances: [{
+              prompt: request.prompt,
+            }],
+            parameters: {
+              sampleCount: 1,
+              aspectRatio: request.aspectRatio || '16:9',
+              ...(request.personGeneration && { personGeneration: request.personGeneration }),
+            },
+          };
+        }
+        
+        // Log the request for debugging
+        logger.debug({ 
+          modelName,
+          personGeneration: requestBody.parameters?.personGeneration,
+          hasAspectRatio: !!requestBody.parameters?.aspectRatio,
+          hasReferenceImages: hasReferences,
+        }, 'Sending request to Vertex AI');
+        
+        // Make REST API call to Vertex AI
+        const endpoint = `https://${this.location}-aiplatform.googleapis.com/v1/projects/${this.projectId}/locations/${this.location}/publishers/google/models/${modelName}:predict`;
+        
+        logger.debug({ endpoint, bodySize: JSON.stringify(requestBody).length }, 'Calling Vertex AI Imagen API');
+        
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
         });
         
-        // Race between generation and timeout
-        const result = await Promise.race([generationPromise, timeoutPromise]);
+        if (!response.ok) {
+          const errorText = await response.text();
+          logger.error({ 
+            status: response.status, 
+            statusText: response.statusText, 
+            error: errorText,
+            requestBody: this.truncateBase64(requestBody, 300),
+          }, 'Vertex AI API request failed');
+          
+          throw new Error(`Vertex AI API error (${response.status}): ${errorText}`);
+        }
         
-        // Extract image data from response
-        // NOTE: The actual response structure may vary
-        // This is a placeholder that needs to be adjusted based on actual API
-        await result.response; // Ensure response is awaited
+        const data = await response.json() as VertexAIImageResponse;
         
-        // For MVP, throw error with guidance for implementation
-        throw new Error(
-          'Imagen 3 API integration pending. ' +
-          'The @google/generative-ai SDK may not directly support Imagen 3. ' +
-          'Consider using Vertex AI SDK with proper authentication. ' +
-          'See: https://cloud.google.com/vertex-ai/generative-ai/docs/image/generate-images'
-        );
+        // Log the full response for debugging (with truncated base64)
+        logger.debug({
+          hasPredictions: !!data.predictions,
+          predictionCount: data.predictions?.length || 0,
+          fullResponse: this.truncateBase64(data, 300),
+        }, 'Vertex AI API response received');
         
-        // TODO: Implement actual image extraction when API is available
-        // Expected implementation:
-        // const imageData = Buffer.from(response.image.data, 'base64');
-        // return {
-        //   imageData,
-        //   mimeType: 'image/png',
-        //   width: request.width || 1024,
-        //   height: request.height || 576,
-        //   format: 'png',
-        //   seed: generationConfig.seed,
-        // };
+        if (!data.predictions || data.predictions.length === 0) {
+          logger.error({
+            response: this.truncateBase64(data, 300),
+            requestBody: this.truncateBase64(requestBody, 300),
+          }, 'Empty predictions array - content may have been blocked by safety filters');
+          
+          throw new Error('No image predictions returned from Vertex AI (content may be blocked by safety filters)');
+        }
+        
+        const prediction = data.predictions[0];
+        
+        // Decode base64 image
+        const imageData = Buffer.from(prediction.bytesBase64Encoded, 'base64');
+        
+        // Determine dimensions based on aspect ratio
+        const dimensions = this.calculateDimensions(request.aspectRatio, hasReferences);
+        
+        return {
+          imageData,
+          mimeType: prediction.mimeType || 'image/png',
+          width: dimensions.width,
+          height: dimensions.height,
+          format: this.getMimeFormat(prediction.mimeType),
+        };
         
       } catch (error: any) {
         logger.error({ 
@@ -188,13 +297,117 @@ export class GeminiImageProvider implements IImageProvider {
   }
 
   /**
+   * Convert reference images from URLs to base64-encoded format
+   */
+  private async convertReferenceImages(refs: ReferenceImage[]): Promise<ReferenceImageConfig[]> {
+    const converted: ReferenceImageConfig[] = [];
+    
+    for (let i = 0; i < Math.min(refs.length, 4); i++) { // Max 4 references
+      const ref = refs[i];
+      
+      try {
+        // Download image from URL
+        const imageBuffer = await this.downloadImage(ref.url);
+        const base64 = imageBuffer.toString('base64');
+        
+        converted.push({
+          referenceType: 'REFERENCE_TYPE_SUBJECT',
+          referenceId: i + 1, // 1-indexed for prompt references like [1], [2], etc.
+          referenceImage: {
+            bytesBase64Encoded: base64,
+          },
+          subjectImageConfig: {
+            subjectDescription: ref.subjectDescription || ref.characterName || 'character',
+            subjectType: ref.subjectType || 'SUBJECT_TYPE_PERSON',
+          },
+        });
+        
+        logger.debug({ 
+          referenceId: i + 1, 
+          characterName: ref.characterName,
+          imageSize: imageBuffer.length 
+        }, 'Converted reference image');
+        
+      } catch (error: any) {
+        logger.warn({ 
+          error: error.message, 
+          url: ref.url,
+          characterName: ref.characterName 
+        }, 'Failed to download reference image, skipping');
+        // Continue with other references
+      }
+    }
+    
+    if (converted.length === 0) {
+      logger.warn('No reference images could be converted, will generate without references');
+    }
+    
+    return converted;
+  }
+
+  /**
+   * Download image from URL
+   */
+  private async downloadImage(url: string): Promise<Buffer> {
+    try {
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to download image: ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+      
+    } catch (error: any) {
+      logger.error({ error: error.message, url }, 'Image download failed');
+      throw new Error(`Failed to download reference image from ${url}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Calculate dimensions based on aspect ratio
+   */
+  private calculateDimensions(
+    aspectRatio?: string, 
+    isCapabilityModel: boolean = false
+  ): { width: number; height: number } {
+    // Capability model returns default size (usually 1024x1024 or similar)
+    // We'll use 1024x1024 as default for capability model
+    if (isCapabilityModel) {
+      return { width: 1024, height: 1024 };
+    }
+    
+    // For generate model, use aspect ratio
+    const dimensionsMap: Record<string, { width: number; height: number }> = {
+      '1:1': { width: 1024, height: 1024 },
+      '16:9': { width: 1024, height: 576 },
+      '9:16': { width: 576, height: 1024 },
+      '4:3': { width: 1024, height: 768 },
+      '3:4': { width: 768, height: 1024 },
+    };
+    
+    return dimensionsMap[aspectRatio || '16:9'] || dimensionsMap['16:9'];
+  }
+
+  /**
+   * Extract format from MIME type
+   */
+  private getMimeFormat(mimeType?: string): 'png' | 'jpeg' | 'webp' {
+    if (!mimeType) return 'png';
+    
+    if (mimeType.includes('jpeg') || mimeType.includes('jpg')) return 'jpeg';
+    if (mimeType.includes('webp')) return 'webp';
+    return 'png';
+  }
+
+  /**
    * Generate multiple image variations
-   * Future: Implement batch generation for efficiency
    */
   async generateImages(request: GenerateImageRequest & { count: number }): Promise<GeneratedImage[]> {
     logger.info({ count: request.count }, 'Generating multiple images with Imagen 3');
     
-    // For MVP, generate sequentially
+    // Generate sequentially (parallel not recommended due to rate limits)
     const images: GeneratedImage[] = [];
     for (let i = 0; i < request.count; i++) {
       const image = await this.generateImage(request);
@@ -209,21 +422,6 @@ export class GeminiImageProvider implements IImageProvider {
   // ==========================================
 
   /**
-   * Map aspect ratio to Imagen 3 format
-   */
-  private mapAspectRatio(ratio?: string): string {
-    const mapping: Record<string, string> = {
-      '1:1': '1:1',
-      '16:9': '16:9',
-      '9:16': '9:16',
-      '4:3': '4:3',
-      '3:4': '3:4',
-    };
-    
-    return mapping[ratio || '16:9'] || '16:9';
-  }
-
-  /**
    * Check if error is retryable
    */
   private isRetryableError(error: any): boolean {
@@ -233,6 +431,8 @@ export class GeminiImageProvider implements IImageProvider {
       'timeout',
       'temporarily unavailable',
       'internal server error',
+      'ECONNRESET',
+      'ETIMEDOUT',
       '429', // Too Many Requests
       '500', // Internal Server Error
       '503', // Service Unavailable

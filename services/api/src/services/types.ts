@@ -3,6 +3,21 @@
  * Replaces 'any' types with proper interfaces
  */
 
+import { 
+  ReferencePhoto, 
+  AppearanceTraits, 
+  ChildProfileData, 
+  CharacterData 
+} from '@kazka/shared';
+
+// Re-export for convenience
+export type { 
+  ReferencePhoto, 
+  AppearanceTraits, 
+  ChildProfileData, 
+  CharacterData 
+};
+
 export interface StoryRequestData {
   id: string;
   userId: string;
@@ -12,7 +27,10 @@ export interface StoryRequestData {
   goal?: string | null;
   tone?: string | null;
   scenarioCardId?: string | null;
+  imageStyle?: string | null; // Image art style
   userNotes?: string | null;
+  selectedCharacters?: string[]; // Array of character UUIDs selected by user
+  selectedChildren?: string[]; // NEW: Array of child profile UUIDs to include in story
   status: string;
   progress: number | null;
   progressData?: any;
@@ -21,52 +39,6 @@ export interface StoryRequestData {
   retryCount?: number | null;
   createdAt: Date;
   updatedAt: Date;
-}
-
-export interface ChildProfileData {
-  id: string;
-  userId: string;
-  name: string;
-  birthDate: Date | string;
-  gender?: string | null;
-  languages: any;
-  referencePhotos?: ReferencePhoto[];
-  appearanceTraits?: AppearanceTraits;
-  personality?: any;
-  interests?: any;
-  sensitivities?: any;
-  familyCast?: any;
-  isActive: boolean;
-}
-
-export interface ReferencePhoto {
-  url: string;
-  purpose?: string;
-  description?: string;
-}
-
-export interface AppearanceTraits {
-  hairColor?: string;
-  hairStyle?: string;
-  eyeColor?: string;
-  skinTone?: string;
-  height?: string;
-  build?: string;
-  clothingStyle?: string;
-}
-
-export interface CharacterData {
-  id?: string;
-  name: string;
-  type: string;
-  referencePhotos?: ReferencePhoto[];
-  appearanceTraits?: AppearanceTraits;
-  description?: string;
-  appearance?: string; // LLM-generated detailed description
-  role?: string;
-  personality?: any;
-  traits?: any;
-  source?: 'llm_generated' | 'user_enriched_by_llm' | 'user_provided';
 }
 
 export interface SceneData {
@@ -118,6 +90,10 @@ export interface ImageGenerationContext {
   userId: string;
   assetStorage: any; // Keep as any for now to avoid circular deps
   imageDomain: any; // Keep as any for now to avoid circular deps
+  // NEW: Scene context from outline
+  sceneGoal?: string;
+  sceneBeats?: string[];
+  sceneEmotion?: string;
 }
 
 export interface PlanFeatures {

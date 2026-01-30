@@ -2,6 +2,7 @@ export * from './types';
 export * as StoryTypes from './types/story';
 export * from './schemas';
 export * from './config/languages';
+export * from './constants/characterTypes';
 export * from './constants/childTraits';
 export * from './constants/petTraits';
 export * from './constants/humanTraits';

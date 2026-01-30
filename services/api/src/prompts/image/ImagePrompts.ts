@@ -13,7 +13,7 @@ export interface CharacterReference {
 
 /**
  * Build complete image prompt for a scene
- * Includes style, characters, scene description, and safety additions
+ * Includes style, characters, scene description, safety additions, and negative prompt
  */
 export function buildSceneImagePrompt(params: {
   visualPrompt: string;
@@ -21,18 +21,56 @@ export function buildSceneImagePrompt(params: {
   style: string;
   characters?: CharacterReference[];
   hasReferences?: boolean; // Flag indicating reference photos are available
+  negativePrompt?: string; // Negative prompt to include as text
+  // NEW: Scene context for action/situation depiction
+  sceneGoal?: string; // What happens in this scene
+  sceneBeats?: string[]; // Key moments/actions
+  sceneEmotion?: string; // Primary emotion
 }): string {
   const stylePrefix = getStylePrefix(params.style, params.ageGroup);
   const safetyAdditions = getSafetyPromptAdditions(params.ageGroup);
   
-  // If no characters or no references, generate simple prompt
-  if (!params.characters || params.characters.length === 0 || !params.hasReferences) {
-    return `${stylePrefix}, ${params.visualPrompt}, ${safetyAdditions}`;
+  // Build character descriptions (ALWAYS include, even with references)
+  let characterPart = '';
+  if (params.characters && params.characters.length > 0) {
+    const characterDescriptions = buildCharacterDescriptions(params.characters);
+    if (characterDescriptions) {
+      if (params.hasReferences) {
+        // With references: traits are supplementary details to guide the stylization
+        characterPart = `. Character appearance details: ${characterDescriptions}`;
+      } else {
+        // Without references: traits are primary description
+        characterPart = `, ${characterDescriptions}`;
+      }
+    }
   }
   
-  // If characters exist, add their descriptions
-  const characterDescriptions = buildCharacterDescriptions(params.characters);
-  return `${stylePrefix}, ${characterDescriptions}, ${params.visualPrompt}, ${safetyAdditions}`;
+  // Build scene action/situation context (CRITICAL for showing WHAT IS HAPPENING)
+  let situationContext = '';
+  if (params.sceneGoal) {
+    situationContext += `. ACTION/SITUATION: ${params.sceneGoal}`;
+  }
+  if (params.sceneBeats && params.sceneBeats.length > 0) {
+    situationContext += `. Key moments: ${params.sceneBeats.join(', ')}`;
+  }
+  if (params.sceneEmotion) {
+    situationContext += `. Emotion: ${params.sceneEmotion}`;
+  }
+  
+  // Build strong style enforcement for reference photos (CRITICAL)
+  const referenceStyleEnforcement = params.hasReferences
+    ? '. CRITICAL INSTRUCTION: Transform reference photos into CARTOON/ILLUSTRATION style matching the art style above. Create a STYLIZED CARTOON VERSION of the real person, NOT a photorealistic image, NOT a realistic photo. Apply the illustration art style specified: simplified cartoon features, illustrated faces, cartoon stylization. The reference photo shows WHO the character is (their appearance), but you must draw them as a CARTOON CHARACTER in the specified illustration style, NOT as a realistic photograph.'
+    : '';
+  
+  // No text instruction (CRITICAL for clean visual storytelling)
+  const noTextInstruction = '. IMPORTANT: No text, no speech bubbles, no captions, no written words on the image - pure visual storytelling only';
+  
+  // Build negative guidance as text (since API doesn't support negativePrompt parameter)
+  const negativeGuidance = params.negativePrompt 
+    ? `, avoid: ${params.negativePrompt}` 
+    : '';
+  
+  return `${stylePrefix}${characterPart}, ${params.visualPrompt}${situationContext}, ${safetyAdditions}${referenceStyleEnforcement}${noTextInstruction}${negativeGuidance}`;
 }
 
 /**
@@ -62,6 +100,7 @@ function buildCharacterDescriptions(characters?: CharacterReference[]): string {
       if (traits.skinTone) parts.push(`${traits.skinTone} skin`);
       if (traits.height) parts.push(traits.height);
       if (traits.build) parts.push(traits.build);
+      if (traits.clothingStyle) parts.push(traits.clothingStyle); // NEW: Add clothing style
       
       return parts.join(', ');
     }
@@ -81,7 +120,11 @@ export function buildNegativePrompt(ageGroup: string): string {
     'scary', 'horror', 'violent', 'gore', 'blood',
     'sexual', 'nude', 'inappropriate',
     'text', 'watermark', 'logo', 'signature',
-    'photorealistic', 'photo',
+    'speech bubbles', 'dialogue bubbles', 'text bubbles', 'captions',
+    'subtitles', 'written text', 'letters', 'words on image',
+    'photorealistic', 'photo', 'photograph', 'realistic photo',
+    'real person', 'camera', 'photography', 'stock photo', 'selfie',
+    'realistic photograph', 'photographic', 'real life photo',
     'deformed', 'ugly', 'blurry', 'low quality',
     'extra limbs', 'distorted face', 'bad anatomy',
   ];
@@ -99,14 +142,21 @@ export function buildNegativePrompt(ageGroup: string): string {
  */
 function getStylePrefix(style: string, ageGroup: string): string {
   const presets: Record<string, string> = {
-    'soft_watercolor': 'soft watercolor children\'s book illustration, paper texture, pastel colors, gentle outlines, warm cozy mood',
-    'colored_pencil': 'colored pencil drawing, light sketch lines, soft shading, white paper background, hand-drawn style',
-    'comic_line': 'clean lineart, comic panel style, simple cel shading, bold but friendly outlines, cartoon style',
-    'anime_light': 'anime-inspired illustration, soft cel shading, expressive eyes, clean outlines, bright friendly palette',
-    'warm_3d': '3D family animation style, Pixar-like, warm soft lighting, rounded shapes, friendly faces, smooth textures',
-    'night_calm': 'nighttime cozy scene, deep blue palette, warm lamp highlights, calm atmosphere, not scary, peaceful',
-    'felt_craft': 'felt craft style, fabric texture, handmade look, stitched details, soft depth, tactile appearance',
-    'clay': 'claymation style, soft clay texture, gentle lighting, rounded friendly shapes, stop-motion aesthetic',
+    'soft_watercolor': 'cartoon illustration in soft watercolor style like classic Winnie the Pooh books, Peter Rabbit (Beatrix Potter), or The Velveteen Rabbit, NOT photorealistic, NOT a photo, paper texture, gentle painted brushstrokes, pastel colors, classic children\'s book illustration art',
+    
+    'colored_pencil': 'cartoon illustration drawn with colored pencils like Where the Wild Things Are, The Giving Tree, or Corduroy books, NOT photorealistic, hand-drawn cartoon characters with visible pencil strokes, soft shading, artistic children\'s book illustration',
+    
+    'comic_line': 'cartoon illustration in comic style like Calvin and Hobbes, Peanuts, or Tintin adventures, NOT photorealistic, clean lineart, comic panel art, simple cel shading, friendly cartoon faces, graphic novel for children',
+    
+    'anime_light': 'cartoon illustration in anime style like Studio Ghibli films (My Neighbor Totoro, Kiki\'s Delivery Service), Pokemon anime, or Doraemon, NOT photorealistic, NOT a photo, soft cel-shaded animation art, large expressive anime eyes, clean outlines, bright friendly anime palette, Japanese children\'s animation style like Ghibli or Pokemon',
+    
+    'warm_3d': 'cartoon illustration in 3D animated style like Pixar films (Toy Story, Finding Nemo, Up), Disney 3D movies (Frozen, Moana), or Illumination (Despicable Me), NOT photorealistic, 3D cartoon characters, warm soft lighting, rounded shapes, smooth cartoon textures, family animation movie style',
+    
+    'night_calm': 'cartoon illustration of nighttime scene like Goodnight Moon or Owl Babies books, NOT photorealistic, soft children\'s book art, deep blue calm palette, warm lamp glow, peaceful bedtime story illustration, not scary, gentle night scene',
+    
+    'felt_craft': 'cartoon illustration in handmade craft style like felt storybooks or craft animations, NOT photorealistic, fabric texture, handmade look with visible stitching, soft tactile appearance, children\'s craft art style',
+    
+    'clay': 'cartoon illustration in claymation style like Wallace & Gromit, Shaun the Sheep, or Chicken Run, NOT photorealistic, soft clay texture, stop-motion puppet animation aesthetic, rounded friendly shapes, Aardman-style clay animation art',
   };
   
   const baseStyle = presets[style] || presets['soft_watercolor'];
@@ -148,11 +198,42 @@ export function buildCharacterPortraitPrompt(params: {
   style: string;
   ageGroup: string;
   characterType?: string;
+  negativePrompt?: string; // Negative prompt to include as text
 }): string {
   const stylePrefix = getStylePrefix(params.style, params.ageGroup);
   const safetyAdditions = getSafetyPromptAdditions(params.ageGroup);
   
-  return `${stylePrefix}, character portrait, close-up view, ${params.description}, clear details, front-facing, ${safetyAdditions}`;
+  // No text instruction
+  const noTextInstruction = ', no text, no speech bubbles, no captions';
+  
+  // Build negative guidance as text (since API doesn't support negativePrompt parameter)
+  const negativeGuidance = params.negativePrompt 
+    ? `, avoid: ${params.negativePrompt}` 
+    : '';
+  
+  return `${stylePrefix}, character portrait, close-up view, ${params.description}, clear details, front-facing${noTextInstruction}, ${safetyAdditions}${negativeGuidance}`;
+}
+
+/**
+ * Build reference instruction for character consistency (Nano Banana Pro)
+ * Based on official Google Cloud workflow for generating consistent imagery
+ * 
+ * @returns Instruction text to prepend to the prompt
+ */
+export function buildReferenceInstruction(): string {
+  // Format based on official Nano Banana workflow from Google Cloud
+  // Source: "Generating Consistent Imagery with Gemini" by Laurent Picard
+  return `- Image 1: Reference image with all characters.
+
+IMPORTANT! Use the attached reference image to keep the same appearance of all people, animals, and creatures:
+- Preserve ALL character faces, facial features, and expressions
+- Keep clothing details, colors, patterns, and accessories IDENTICAL
+- Maintain character body proportions and sizes
+- Preserve hair styles, colors, and details
+- Keep any distinctive features (glasses, jewelry, scars, etc.)
+- Maintain the same illustration style and art quality
+
+CHANGE ONLY: scene background, character poses/positions, actions as described below.`;
 }
 
 /**

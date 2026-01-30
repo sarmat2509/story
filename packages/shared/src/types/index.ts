@@ -1,5 +1,8 @@
 import type { Locale } from '../config/languages';
 
+// Re-export common types
+export * from './common';
+
 // Age groups
 export type AgeGroup = '1y' | '2-3' | '4-5' | '6-8' | '9-12';
 
