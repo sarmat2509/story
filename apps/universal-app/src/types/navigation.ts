@@ -5,7 +5,7 @@ export type RootStackParamList = {
 
 export type PublicStackParamList = {
   Landing: undefined;
-  Prices: undefined;
+  Plans: undefined; // CHANGED from 'Prices'
   Login: undefined;
   OAuthCallback: { provider: 'google' | 'apple' };
 };
@@ -17,6 +17,7 @@ export type MainDrawerParamList = {
   Story: { storyId: string };
   Children: undefined;
   Characters: undefined;
+  Plans: undefined; // NEW - same screen in both stacks
   Profile: undefined;
 };
 

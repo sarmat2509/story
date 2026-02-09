@@ -46,11 +46,14 @@ router.post('/photo', requireAuth, upload.single('photo'), async (req, res) => {
       });
     }
 
-    // Upload to storage
+    // Preprocess image (auto-orient, resize, enhance exposure, convert to JPEG)
     const storageService = getAssetStorageService();
+    const preprocessedBuffer = await storageService.preprocessImage(req.file.buffer);
+
+    // Upload to storage
     const result = await storageService.uploadUserPhoto({
-      buffer: req.file.buffer,
-      mimeType: req.file.mimetype,
+      buffer: preprocessedBuffer,
+      mimeType: 'image/jpeg', // Always JPEG after preprocessing
       userId,
       photoType
     });
@@ -72,6 +75,65 @@ router.post('/photo', requireAuth, upload.single('photo'), async (req, res) => {
   } catch (error) {
     logger.error({ error, userId: req.user?.id }, 'Photo upload failed');
     const errorMessage = error instanceof Error ? error.message : 'Failed to upload photo';
+    res.status(500).json({
+      status: 'error',
+      error: errorMessage
+    });
+  }
+});
+
+/**
+ * DELETE /api/v1/upload/photo
+ * Delete an uploaded photo (cleanup for cancelled character creation)
+ */
+router.delete('/photo', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const { url } = req.body;
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({
+        status: 'error',
+        error: 'Missing or invalid url in request body'
+      });
+    }
+
+    // Extract storage path from URL
+    // URL formats: 
+    //   /api/v1/assets/development/{userId}/photos/...
+    //   http://localhost:3000/api/v1/assets/development/{userId}/photos/...
+    const assetPrefix = '/api/v1/assets/';
+    const prefixIndex = url.indexOf(assetPrefix);
+    if (prefixIndex === -1) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'Invalid photo URL format'
+      });
+    }
+
+    const storagePath = url.substring(prefixIndex + assetPrefix.length);
+
+    // Security: verify the path belongs to the requesting user
+    if (!storagePath.includes(userId)) {
+      logger.warn({ userId, storagePath }, 'User attempted to delete another user\'s photo');
+      return res.status(403).json({
+        status: 'error',
+        error: 'You can only delete your own photos'
+      });
+    }
+
+    const storageService = getAssetStorageService();
+    await storageService.deleteAsset(storagePath);
+
+    logger.info({ userId, storagePath }, 'User photo deleted');
+
+    res.json({
+      status: 'success',
+      message: 'Photo deleted'
+    });
+  } catch (error) {
+    logger.error({ error, userId: req.user?.id }, 'Photo deletion failed');
+    const errorMessage = error instanceof Error ? error.message : 'Failed to delete photo';
     res.status(500).json({
       status: 'error',
       error: errorMessage

@@ -1,3 +1,4 @@
+import sharp from 'sharp';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import crypto from 'crypto';
@@ -104,6 +105,64 @@ export class AssetStorageService {
       return await this.uploadToLocal(storagePath, buffer, mimeType);
     } else {
       return await this.uploadToS3(storagePath, buffer, mimeType);
+    }
+  }
+
+  /**
+   * Preprocess user photo before storage.
+   * Auto-orients, resizes if too large, conditionally enhances exposure, converts to JPEG.
+   * Returns optimized buffer ready for storage and Gemini Vision analysis.
+   */
+  async preprocessImage(buffer: Buffer): Promise<Buffer> {
+    try {
+      const stats = await sharp(buffer).stats();
+      const meanBrightness = stats.channels.reduce((sum, c) => sum + c.mean, 0) / stats.channels.length;
+      const metadata = await sharp(buffer).metadata();
+
+      logger.info({ 
+        originalSize: buffer.length, 
+        width: metadata.width, 
+        height: metadata.height, 
+        format: metadata.format,
+        meanBrightness: Math.round(meanBrightness) 
+      }, 'Preprocessing image');
+
+      let pipeline = sharp(buffer).rotate(); // Auto-orient from EXIF
+      let resized = false;
+      let enhancement = 'none';
+
+      // Resize if too large (max 2048px on longest side)
+      const MAX_DIMENSION = 2048;
+      if ((metadata.width && metadata.width > MAX_DIMENSION) || (metadata.height && metadata.height > MAX_DIMENSION)) {
+        pipeline = pipeline.resize(MAX_DIMENSION, MAX_DIMENSION, { fit: 'inside', withoutEnlargement: true });
+        resized = true;
+      }
+
+      // Conditional exposure enhancement
+      if (meanBrightness < 80) {
+        pipeline = pipeline.gamma(1.8).normalize().sharpen({ sigma: 0.8 });
+        enhancement = 'dark (gamma+normalize+sharpen)';
+      } else if (meanBrightness < 140) {
+        pipeline = pipeline.normalize();
+        enhancement = 'medium (normalize)';
+      }
+
+      const result = await pipeline.jpeg({ quality: 85 }).toBuffer();
+      
+      logger.info({ 
+        originalSize: buffer.length, 
+        processedSize: result.length, 
+        brightness: Math.round(meanBrightness),
+        resized, 
+        enhancement,
+        compressionRatio: `${Math.round((1 - result.length / buffer.length) * 100)}%`
+      }, 'Image preprocessed');
+      
+      return result;
+    } catch (error) {
+      // If preprocessing fails, return original buffer
+      logger.warn({ error: error instanceof Error ? error.message : String(error) }, 'Image preprocessing failed, using original');
+      return buffer;
     }
   }
 
@@ -220,6 +279,146 @@ export class AssetStorageService {
     }
   }
   
+  /**
+   * Get asset buffer by storage path (for reference images without asset ID)
+   * 
+   * @param storagePath - Storage path (e.g., "development/.../image.png")
+   * @returns Buffer containing the asset data
+   * @throws Error if file doesn't exist
+   */
+  async getAssetByPath(storagePath: string): Promise<Buffer> {
+    await this.ensureInitialized();
+    
+    // Read from appropriate storage
+    if (this.provider === 'local') {
+      const filePath = path.join(this.localUploadDir, storagePath);
+      
+      try {
+        const buffer = await fs.readFile(filePath);
+        logger.debug({ storagePath, size: buffer.length }, 'Asset buffer loaded from local storage by path');
+        return buffer;
+      } catch (error) {
+        logger.error({ storagePath, filePath, error }, 'Failed to read asset from local storage');
+        throw new Error(`Asset file not found: ${filePath}`);
+      }
+    } else {
+      // S3 storage
+      const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
+      
+      const s3Client = new S3Client({
+        region: config.storage.region || 'us-east-1',
+        credentials: {
+          accessKeyId: config.storage.accessKey || '',
+          secretAccessKey: config.storage.secretKey || '',
+        },
+      });
+
+      try {
+        const command = new GetObjectCommand({
+          Bucket: config.storage.bucket!,
+          Key: storagePath,
+        });
+
+        const response = await s3Client.send(command);
+        const chunks: Uint8Array[] = [];
+        
+        if (response.Body) {
+          // @ts-ignore - Body is a stream
+          for await (const chunk of response.Body) {
+            chunks.push(chunk);
+          }
+        }
+        
+        const buffer = Buffer.concat(chunks);
+        logger.debug({ storagePath, size: buffer.length }, 'Asset buffer loaded from S3 by path');
+        return buffer;
+      } catch (error) {
+        logger.error({ storagePath, error }, 'Failed to read asset from S3');
+        throw new Error(`Asset file not found in S3: ${storagePath}`);
+      }
+    }
+  }
+
+  /**
+   * Get asset buffer from storage (for cache retrieval and audio concatenation)
+   * 
+   * Retrieves the raw Buffer data for an asset from storage. Used primarily
+   * for loading cached scene group audio and FFmpeg concatenation.
+   * 
+   * @param assetId - Asset UUID from assets table
+   * @returns Buffer containing the asset data
+   * @throws Error if asset not found or file doesn't exist
+   */
+  async getAssetBuffer(assetId: string): Promise<Buffer> {
+    await this.ensureInitialized();
+    
+    const { assets } = await import('../db/schema');
+    const { eq } = await import('drizzle-orm');
+    const { db } = await import('../db');
+    
+    // Get asset metadata from database
+    const [asset] = await db
+      .select()
+      .from(assets)
+      .where(eq(assets.id, assetId))
+      .limit(1);
+
+    if (!asset) {
+      throw new Error(`Asset not found: ${assetId}`);
+    }
+
+    // Read from appropriate storage
+    if (this.provider === 'local') {
+      const filePath = path.join(this.localUploadDir, asset.storagePath);
+      
+      try {
+        const buffer = await fs.readFile(filePath);
+        logger.debug({ assetId, storagePath: asset.storagePath, size: buffer.length }, 'Asset buffer loaded from local storage');
+        return buffer;
+      } catch (error) {
+        logger.error({ assetId, filePath, error }, 'Failed to read asset from local storage');
+        throw new Error(`Asset file not found: ${filePath}`);
+      }
+    } else {
+      // S3 storage
+      const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
+      
+      const s3Client = new S3Client({
+        region: config.storage.region || 'us-east-1',
+        credentials: {
+          accessKeyId: config.storage.accessKey || '',
+          secretAccessKey: config.storage.secretKey || '',
+        },
+      });
+
+      try {
+        const command = new GetObjectCommand({
+          Bucket: config.storage.bucket!,
+          Key: asset.storagePath,
+        });
+        
+        const response = await s3Client.send(command);
+        
+        if (!response.Body) {
+          throw new Error('Empty response body from S3');
+        }
+        
+        // Convert stream to buffer
+        const chunks: Buffer[] = [];
+        for await (const chunk of response.Body as any) {
+          chunks.push(Buffer.from(chunk));
+        }
+        const buffer = Buffer.concat(chunks);
+        
+        logger.debug({ assetId, storagePath: asset.storagePath, size: buffer.length }, 'Asset buffer loaded from S3');
+        return buffer;
+      } catch (error) {
+        logger.error({ assetId, storagePath: asset.storagePath, error }, 'Failed to read asset from S3');
+        throw new Error(`Failed to retrieve asset from S3: ${assetId}`);
+      }
+    }
+  }
+  
   // ==========================================
   // PRIVATE METHODS - Local Storage
   // ==========================================
@@ -254,9 +453,18 @@ export class AssetStorageService {
   
   private generateLocalUrl(storagePath: string, expiresInHours: number): { signedUrl: string; expiresAt: Date } {
     const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
+    const expiresTimestamp = expiresAt.getTime();
+    
+    // Generate HMAC signature
+    const crypto = require('crypto');
+    const secret = process.env.JWT_SECRET || 'dev-secret-key';
+    const token = crypto
+      .createHmac('sha256', secret)
+      .update(`${storagePath}:${expiresTimestamp}`)
+      .digest('hex');
     
     return {
-      signedUrl: `/assets/${storagePath}`,
+      signedUrl: `/api/v1/assets/${storagePath}?token=${token}&expires=${expiresTimestamp}`,
       expiresAt,
     };
   }
@@ -368,6 +576,35 @@ export class AssetStorageService {
     };
     
     return mimeToExt[mimeType] || '.bin';
+  }
+  
+  /**
+   * Upload voice sample audio
+   * Stores sample in voice-samples/{language}/{voiceId}.mp3
+   */
+  async uploadVoiceSample(params: {
+    audioBuffer: Buffer;
+    language: string;
+    voiceId: string;
+  }): Promise<AssetStorageResult> {
+    await this.ensureInitialized();
+    
+    const filename = `${params.voiceId}.mp3`;
+    const storagePath = `voice-samples/${params.language}/${filename}`;
+    
+    logger.info({ 
+      language: params.language, 
+      voiceId: params.voiceId,
+      storagePath,
+      bufferSize: params.audioBuffer.length 
+    }, 'Uploading voice sample');
+    
+    // Use private upload methods directly with custom storage path
+    if (this.provider === 'local') {
+      return await this.uploadToLocal(storagePath, params.audioBuffer, 'audio/mpeg');
+    } else {
+      return await this.uploadToS3(storagePath, params.audioBuffer, 'audio/mpeg');
+    }
   }
 }
 

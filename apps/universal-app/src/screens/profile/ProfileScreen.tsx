@@ -1,19 +1,29 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
+import { usePlansWithAuth } from '@/api/plans';
 
 export default function ProfileScreen() {
+  const { t } = useTranslation();
   const { user, logout } = useAuthStore();
+  const navigation = useNavigation();
+  const { data: plans, isLoading: plansLoading } = usePlansWithAuth();
+
+  // Get current subscription plan
+  const currentPlan = plans?.find(plan => plan.isCurrent);
+  const storiesLimit = currentPlan?.features?.stories_per_month?.value?.limit || 5;
 
   const handleLogout = () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      t('profile.logout_confirm_title'),
+      t('profile.logout_confirm_message'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('profile.cancel'), style: 'cancel' },
         {
-          text: 'Logout',
+          text: t('profile.logout'),
           style: 'destructive',
           onPress: () => logout(),
         },
@@ -25,11 +35,11 @@ export default function ProfileScreen() {
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Text style={styles.title}>Profile Settings</Text>
+        <Text style={styles.title}>{t('profile.title')}</Text>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account Information</Text>
+        <Text style={styles.sectionTitle}>{t('profile.account_info')}</Text>
         
         <View style={styles.profileCard}>
           {user?.avatarUrl && (
@@ -41,70 +51,87 @@ export default function ProfileScreen() {
           )}
           
           <View style={styles.infoRow}>
-            <Text style={styles.label}>Name</Text>
-            <Text style={styles.value}>{user?.displayName || 'Not set'}</Text>
+            <Text style={styles.label}>{t('profile.name')}</Text>
+            <Text style={styles.value}>{user?.displayName || t('profile.not_set')}</Text>
           </View>
 
           <View style={styles.infoRow}>
-            <Text style={styles.label}>Email</Text>
-            <Text style={styles.value}>{user?.email || 'Not set'}</Text>
+            <Text style={styles.label}>{t('profile.email')}</Text>
+            <Text style={styles.value}>{user?.email || t('profile.not_set')}</Text>
           </View>
 
           <View style={styles.infoRow}>
-            <Text style={styles.label}>Language</Text>
+            <Text style={styles.label}>{t('profile.language')}</Text>
             <Text style={styles.value}>{user?.preferredLocale || 'en'}</Text>
           </View>
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Preferences</Text>
+        <Text style={styles.sectionTitle}>{t('profile.preferences')}</Text>
         
-        <TouchableOpacity style={styles.settingButton}>
-          <Text style={styles.settingText}>Language Settings</Text>
-          <Text style={styles.settingArrow}>›</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.settingButton}>
-          <Text style={styles.settingText}>Notification Settings</Text>
-          <Text style={styles.settingArrow}>›</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.settingButton}>
-          <Text style={styles.settingText}>Privacy Settings</Text>
-          <Text style={styles.settingArrow}>›</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Subscription</Text>
-        
-        <View style={styles.subscriptionCard}>
-          <Text style={styles.subscriptionPlan}>Free Plan</Text>
-          <Text style={styles.subscriptionDetail}>
-            5 stories per month
-          </Text>
-          <TouchableOpacity style={styles.upgradeButton}>
-            <Text style={styles.upgradeButtonText}>Upgrade Plan</Text>
+        {/* Only show Language Settings on native platforms */}
+        {Platform.OS !== 'web' && (
+          <TouchableOpacity 
+            style={styles.settingButton}
+            onPress={() => navigation.navigate('LanguageSettings' as any)}
+          >
+            <Text style={styles.settingText}>{t('profile.language_settings')}</Text>
+            <Text style={styles.settingArrow}>›</Text>
           </TouchableOpacity>
-        </View>
+        )}
+
+        <TouchableOpacity style={styles.settingButton}>
+          <Text style={styles.settingText}>{t('profile.notification_settings')}</Text>
+          <Text style={styles.settingArrow}>›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.settingButton}>
+          <Text style={styles.settingText}>{t('profile.privacy_settings')}</Text>
+          <Text style={styles.settingArrow}>›</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Support</Text>
+        <Text style={styles.sectionTitle}>{t('profile.subscription')}</Text>
+        
+        {plansLoading ? (
+          <View style={styles.subscriptionCard}>
+            <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+          </View>
+        ) : (
+          <View style={styles.subscriptionCard}>
+            <Text style={styles.subscriptionPlan}>
+              {currentPlan?.name || t('plans.free.name')}
+            </Text>
+            <Text style={styles.subscriptionDetail}>
+              {t('profile.stories_per_month', { count: storiesLimit })}
+            </Text>
+            <TouchableOpacity 
+              style={styles.upgradeButton}
+              onPress={() => navigation.navigate('Plans' as any)}
+            >
+              <Text style={styles.upgradeButtonText}>{t('profile.upgrade_plan')}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('profile.support')}</Text>
         
         <TouchableOpacity style={styles.settingButton}>
-          <Text style={styles.settingText}>Help Center</Text>
+          <Text style={styles.settingText}>{t('profile.help_center')}</Text>
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.settingButton}>
-          <Text style={styles.settingText}>Terms of Service</Text>
+          <Text style={styles.settingText}>{t('profile.terms_of_service')}</Text>
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.settingButton}>
-          <Text style={styles.settingText}>Privacy Policy</Text>
+          <Text style={styles.settingText}>{t('profile.privacy_policy')}</Text>
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
       </View>
@@ -113,7 +140,7 @@ export default function ProfileScreen() {
         style={styles.logoutButton}
         onPress={handleLogout}
       >
-        <Text style={styles.logoutButtonText}>Logout</Text>
+        <Text style={styles.logoutButtonText}>{t('profile.logout')}</Text>
       </TouchableOpacity>
 
       <View style={styles.footer}>

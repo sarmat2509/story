@@ -1,30 +1,39 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, FlatList, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
 import { useStories } from '@/api/stories';
 import { useChildren } from '@/api/children';
+import { StoryCard } from '@/components/StoryCard';
 import { theme } from '@/theme';
 
 export default function DashboardScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { user } = useAuthStore();
-  const { data: stories, isLoading: storiesLoading, error: storiesError } = useStories();
-  const { data: children, isLoading: childrenLoading, error: childrenError } = useChildren();
+  const { data: storiesData, isLoading: storiesLoading, error: storiesError } = useStories();
+  const { data: childrenData, isLoading: childrenLoading, error: childrenError } = useChildren();
 
-  const storiesCount = stories?.length || 0;
-  const childrenCount = children?.length || 0;
+  const stories = storiesData?.stories || [];
+  const children = childrenData || [];
+  const storiesCount = Number(storiesData?.pagination?.total) || 0;
+  const childrenCount = children.length;
   const isLoading = storiesLoading || childrenLoading;
   const hasError = storiesError || childrenError;
+
+  // Responsive columns: 2 on mobile, 3 on desktop
+  const { width } = useWindowDimensions();
+  const numColumns = width < 768 ? 2 : 3;
 
   // Show loading state
   if (isLoading) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
-        <Text style={styles.loadingText}>Loading your dashboard...</Text>
+        <Text style={styles.loadingText}>{t('dashboard.loading')}</Text>
       </View>
     );
   }
@@ -33,9 +42,9 @@ export default function DashboardScreen() {
   if (hasError) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorTitle}>Unable to load dashboard</Text>
+        <Text style={styles.errorTitle}>{t('dashboard.error_title')}</Text>
         <Text style={styles.errorMessage}>
-          {(storiesError as any)?.message || (childrenError as any)?.message || 'Please try again later'}
+          {(storiesError as any)?.message || (childrenError as any)?.message || t('dashboard.error_message')}
         </Text>
         <TouchableOpacity
           style={styles.retryButton}
@@ -44,7 +53,7 @@ export default function DashboardScreen() {
             window.location.reload();
           }}
         >
-          <Text style={styles.retryButtonText}>Retry</Text>
+          <Text style={styles.retryButtonText}>{t('dashboard.retry')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -54,65 +63,79 @@ export default function DashboardScreen() {
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Text style={styles.greeting}>
-          Welcome back, {user?.displayName || 'User'}!
+          {t('dashboard.welcome_back', { name: user?.displayName || 'User' })}
         </Text>
         <Text style={styles.subtext}>
-          What magical story shall we create today?
+          {t('dashboard.tagline')}
         </Text>
       </View>
 
-      <View style={styles.stats}>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{storiesCount}</Text>
-          <Text style={styles.statLabel}>Stories</Text>
+      {/* Stats with integrated actions - 2 columns */}
+      <View style={styles.statsSection}>
+        {/* Stories Column */}
+        <View style={styles.statColumn}>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{storiesCount}</Text>
+            <Text style={styles.statLabel}>{t('dashboard.stats.stories')}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => navigation.navigate('Wizard')}
+          >
+            <Text style={styles.actionIcon}>✨</Text>
+            <Text style={styles.actionText}>{t('dashboard.actions.create_story')}</Text>
+          </TouchableOpacity>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{childrenCount}</Text>
-          <Text style={styles.statLabel}>Children</Text>
+
+        {/* Children Column */}
+        <View style={styles.statColumn}>
+          <View style={styles.statCard}>
+            <Text style={styles.statNumber}>{childrenCount}</Text>
+            <Text style={styles.statLabel}>{t('dashboard.stats.children')}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => navigation.navigate('Children')}
+          >
+            <Text style={styles.actionIcon}>👶</Text>
+            <Text style={styles.actionText}>{t('dashboard.actions.add_child')}</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      <View style={styles.quickActions}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        
-        <TouchableOpacity
-          style={[styles.actionButton, styles.primaryAction]}
-          onPress={() => navigation.navigate('Wizard')}
-        >
-          <Text style={styles.actionIcon}>✨</Text>
-          <Text style={styles.actionText}>Create New Story</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation.navigate('Children')}
-        >
-          <Text style={styles.actionIcon}>👶</Text>
-          <Text style={styles.actionText}>Add Child Profile</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => navigation.navigate('Library')}
-        >
-          <Text style={styles.actionIcon}>📚</Text>
-          <Text style={styles.actionText}>View Story Library</Text>
-        </TouchableOpacity>
-      </View>
-
-      {stories && stories.length > 0 && (
+      {/* Recent Stories */}
+      {stories.length > 0 && (
         <View style={styles.recentSection}>
-          <Text style={styles.sectionTitle}>Recent Stories</Text>
-          {stories.slice(0, 3).map((story: any) => (
-            <View key={story.id} style={styles.storyCard}>
-              <Text style={styles.storyTitle}>{story.title}</Text>
-              <Text style={styles.storyMeta}>
-                {story.language} • {story.status}
-              </Text>
-            </View>
-          ))}
+          <Text style={styles.sectionTitle}>{t('dashboard.recent_stories')}</Text>
+          <FlatList
+            data={stories.slice(0, 6)}
+            keyExtractor={(item) => item.id}
+            numColumns={numColumns}
+            key={`dashboard-grid-${numColumns}`}
+            scrollEnabled={false}
+            renderItem={({ item }) => (
+              <View style={{ width: `${100 / numColumns - 2}%`, marginBottom: theme.spacing[3] }}>
+                <StoryCard 
+                  story={item}
+                  onPress={() => navigation.navigate('Story', { storyId: item.id })}
+                  variant="grid"
+                />
+              </View>
+            )}
+            contentContainerStyle={{ gap: theme.spacing[4] }}
+            columnWrapperStyle={{ gap: theme.spacing[4] }}
+          />
         </View>
       )}
+
+      {/* View Library Button */}
+      <TouchableOpacity
+        style={styles.viewLibraryButton}
+        onPress={() => navigation.navigate('Library')}
+      >
+        <Text style={styles.viewLibraryIcon}>📚</Text>
+        <Text style={styles.viewLibraryText}>{t('dashboard.actions.view_library')}</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -171,19 +194,22 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.tertiary,
   },
-  stats: {
+  statsSection: {
     flexDirection: 'row',
     gap: theme.spacing[4],
     marginBottom: theme.spacing[8],
   },
-  statCard: {
+  statColumn: {
     flex: 1,
+  },
+  statCard: {
     backgroundColor: theme.colors.background.secondary,
     padding: theme.spacing[5],
     borderRadius: theme.borders.radius.lg,
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
     alignItems: 'center',
+    marginBottom: theme.spacing[3],
   },
   statNumber: {
     fontSize: theme.typography.fontSize['4xl'],
@@ -196,8 +222,23 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     fontWeight: theme.typography.fontWeight.medium,
   },
-  quickActions: {
-    marginBottom: theme.spacing[8],
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing[4],
+    backgroundColor: theme.colors.interactive.primary,
+    borderRadius: theme.borders.radius.lg,
+  },
+  actionIcon: {
+    fontSize: theme.typography.fontSize.xl,
+    marginRight: theme.spacing[2],
+  },
+  actionText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
+    textAlign: 'center',
   },
   sectionTitle: {
     fontSize: theme.typography.fontSize.xl,
@@ -205,48 +246,27 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[4],
   },
-  actionButton: {
+  recentSection: {
+    marginBottom: theme.spacing[6],
+  },
+  viewLibraryButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     padding: theme.spacing[4],
     backgroundColor: theme.colors.background.secondary,
     borderRadius: theme.borders.radius.lg,
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
-    marginBottom: theme.spacing[3],
-  },
-  primaryAction: {
-    backgroundColor: theme.colors.interactive.primary,
-    borderColor: theme.colors.interactive.primary,
-  },
-  actionIcon: {
-    fontSize: theme.typography.fontSize['2xl'],
-    marginRight: theme.spacing[3],
-  },
-  actionText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.primary,
-  },
-  recentSection: {
     marginBottom: theme.spacing[6],
   },
-  storyCard: {
-    padding: theme.spacing[4],
-    backgroundColor: theme.colors.background.secondary,
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-    marginBottom: theme.spacing[3],
+  viewLibraryIcon: {
+    fontSize: theme.typography.fontSize.xl,
+    marginRight: theme.spacing[3],
   },
-  storyTitle: {
+  viewLibraryText: {
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
-    marginBottom: theme.spacing[1],
-  },
-  storyMeta: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
   },
 });

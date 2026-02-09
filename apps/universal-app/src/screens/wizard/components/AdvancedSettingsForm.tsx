@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
+import { IMAGE_STYLES, IMAGE_STYLE_METADATA } from '@kazka/shared';
 
 interface Goal {
   slug: string;
@@ -54,7 +55,7 @@ export function AdvancedSettingsForm({
   imageStyle,
   onImageStyleChange,
   userNotes = '',
-  onNotesChange
+  onNotesChange,
 }: Props) {
   const { t } = useTranslation();
   
@@ -67,16 +68,11 @@ export function AdvancedSettingsForm({
   };
   
   // Image style options
-  const imageStyles = [
-    { slug: 'soft_watercolor', name: t('wizard.style_watercolor'), icon: '🎨' },
-    { slug: 'colored_pencil', name: t('wizard.style_pencil'), icon: '✏️' },
-    { slug: 'comic_line', name: t('wizard.style_comic'), icon: '💭' },
-    { slug: 'anime_light', name: t('wizard.style_anime'), icon: '🌸' },
-    { slug: 'warm_3d', name: t('wizard.style_3d'), icon: '🎬' },
-    { slug: 'night_calm', name: t('wizard.style_night'), icon: '🌙' },
-    { slug: 'felt_craft', name: t('wizard.style_felt'), icon: '🧵' },
-    { slug: 'clay', name: t('wizard.style_clay'), icon: '🪴' },
-  ];
+  const imageStyles = IMAGE_STYLES.map(slug => ({
+    slug,
+    name: t(IMAGE_STYLE_METADATA[slug].i18nKey),
+    icon: IMAGE_STYLE_METADATA[slug].icon,
+  }));
 
   return (
     <View style={styles.container}>

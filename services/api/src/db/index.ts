@@ -42,15 +42,33 @@ export const db = drizzle(pool, { schema });
 
 // Health check with retry
 export async function checkDatabaseHealth(retries = 3): Promise<boolean> {
+  // Check if pool is already closed
+  if (pool.ended || isClosing) {
+    logger.warn('Database pool is closed or closing, health check skipped');
+    return false;
+  }
+  
   for (let i = 0; i < retries; i++) {
     try {
+      // Double-check pool status before query
+      if (pool.ended || isClosing) {
+        logger.warn('Database pool closed during health check');
+        return false;
+      }
+      
       const startTime = Date.now();
       await pool.query('SELECT 1');
       const duration = Date.now() - startTime;
       
       logger.debug({ duration, attempt: i + 1 }, 'Database health check passed');
       return true;
-    } catch (error) {
+    } catch (error: any) {
+      // Check if error is due to closed pool
+      if (error?.message?.includes('pool') && error?.message?.includes('end')) {
+        logger.warn('Database pool was closed during health check');
+        return false;
+      }
+      
       logger.error(
         { err: error, attempt: i + 1, maxRetries: retries },
         'Database health check failed'
@@ -78,29 +96,71 @@ export function getPoolStats() {
 }
 
 // Graceful shutdown
+let isClosing = false;
 export async function closeDatabaseConnection(): Promise<void> {
+  // Prevent multiple calls
+  if (isClosing) {
+    logger.warn('Database connection already closing, skipping...');
+    return;
+  }
+  
+  if (pool.ended) {
+    logger.warn('Database pool already ended, skipping...');
+    return;
+  }
+  
   try {
+    isClosing = true;
     logger.info('Closing database connections...');
     await pool.end();
     logger.info('Database connection closed');
   } catch (error) {
+    isClosing = false;
     logger.error({ err: error }, 'Error closing database connection');
     throw error;
   }
 }
 
 // Handle process termination
-process.on('SIGINT', async () => {
-  logger.info('SIGINT received, closing database...');
-  await closeDatabaseConnection();
-  process.exit(0);
-});
+let shutdownInProgress = false;
+let signalHandlersRegistered = false;
 
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received, closing database...');
-  await closeDatabaseConnection();
-  process.exit(0);
-});
+async function gracefulShutdown(signal: string) {
+  if (shutdownInProgress) {
+    logger.warn(`${signal} received but shutdown already in progress`);
+    return;
+  }
+  
+  shutdownInProgress = true;
+  logger.info(`${signal} received, starting graceful shutdown...`);
+  
+  try {
+    await closeDatabaseConnection();
+    logger.info('Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    logger.error({ err: error }, 'Error during graceful shutdown');
+    process.exit(1);
+  }
+}
+
+// Register signal handlers only once (prevent duplicate registration on module reload)
+if (!signalHandlersRegistered) {
+  signalHandlersRegistered = true;
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  
+  // Also handle uncaught exceptions and unhandled rejections
+  process.on('uncaughtException', (error) => {
+    logger.error({ err: error }, 'Uncaught exception, shutting down...');
+    gracefulShutdown('uncaughtException').catch(() => process.exit(1));
+  });
+  
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error({ reason, promise }, 'Unhandled rejection, shutting down...');
+    gracefulShutdown('unhandledRejection').catch(() => process.exit(1));
+  });
+}
 
 export default db;
 

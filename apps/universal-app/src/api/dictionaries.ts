@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import apiClient from './client';
+import i18n from '@/config/i18n';
 
 interface StoryGoal {
   slug: string;
@@ -25,8 +26,10 @@ interface ScenarioCard {
 
 // Get story themes (goals, tones, scenarios)
 export const useStoryThemes = () => {
+  const locale = i18n.language || 'uk';
+  
   return useQuery({
-    queryKey: ['dictionaries', 'story-themes'],
+    queryKey: ['dictionaries', 'story-themes', locale],
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
@@ -35,7 +38,7 @@ export const useStoryThemes = () => {
           tones: StoryTone[];
           scenarioCards: ScenarioCard[];
         };
-      }>('/api/v1/dictionaries/story-themes');
+      }>(`/api/v1/dictionaries/story-themes?locale=${locale}`);
       return response.data.data;
     },
     staleTime: Infinity, // Never refetch automatically

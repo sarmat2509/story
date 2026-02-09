@@ -75,6 +75,18 @@ export async function updateTaskProgress(
       completedTasks: [],
     };
     
+    // DEBUG LOG - Before update
+    logger.info({
+      requestId,
+      task,
+      newProgress: Math.round(progress * 100),
+      beforeUpdate: {
+        activeTasks: currentProgress.activeTasks.map(t => ({ task: t.task, progress: t.progress })),
+        completedTasks: currentProgress.completedTasks,
+        overallProgress: currentProgress.overallProgress,
+      }
+    }, '[PROGRESS DEBUG] Before update');
+    
     // Find or create active task
     let activeTask = currentProgress.activeTasks.find(t => t.task === task);
     
@@ -103,6 +115,17 @@ export async function updateTaskProgress(
     
     // Update overall progress in the object
     currentProgress.overallProgress = overallProgress;
+    
+    // DEBUG LOG - After update
+    logger.info({
+      requestId,
+      task,
+      afterUpdate: {
+        activeTasks: currentProgress.activeTasks.map(t => ({ task: t.task, progress: t.progress })),
+        completedTasks: currentProgress.completedTasks,
+        overallProgress: currentProgress.overallProgress,
+      }
+    }, '[PROGRESS DEBUG] After update');
     
     // Save with atomic update
     await tx

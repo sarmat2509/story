@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { LOCALE_IDS } from '../config/languages';
 import { CHARACTER_TYPES } from '../constants/characterTypes';
+import { IMAGE_STYLES } from '../constants/imageStyles';
 
 // ==========================================
 // Schemas
@@ -28,16 +29,7 @@ export const StoryGoalSchema = z.enum([
 export const StoryToneSchema = z.enum(['calm', 'adventure', 'humor', 'lullaby', 'educational']);
 
 // Art style schema
-export const ArtStyleSchema = z.enum([
-  'soft_watercolor',
-  'colored_pencil',
-  'comic_line',
-  'anime_light',
-  'warm_3d',
-  'night_calm',
-  'felt_craft',
-  'clay',
-]);
+export const ArtStyleSchema = z.enum(IMAGE_STYLES);
 
 // Child profile schema
 export const ChildProfileSchema = z.object({
@@ -301,9 +293,12 @@ export const CreateCharacterSchema = BaseCharacterSchema.and(
     }),
     z.object({
       type: z.literal('imaginary_friend'),
+      referencePhotos: z.array(z.object({
+        url: z.string().url(),
+        uploadedAt: z.coerce.date()
+      })).max(5).optional(), // Explicitly allow photos for imaginary friends (drawings, etc.)
       appearanceTraits: ImaginaryAppearanceSchema.optional(),
-      personality: ImaginaryPersonalitySchema.optional(),
-      referencePhotos: z.undefined() // not allowed for imaginary
+      personality: ImaginaryPersonalitySchema.optional()
     })
   ])
 );
@@ -322,9 +317,12 @@ export const UpdateCharacterSchema = BaseCharacterSchema.partial().and(
     }),
     z.object({
       type: z.literal('imaginary_friend'),
+      referencePhotos: z.array(z.object({
+        url: z.string().url(),
+        uploadedAt: z.coerce.date()
+      })).max(5).optional(), // Explicitly allow photos for imaginary friends (drawings, etc.)
       appearanceTraits: ImaginaryAppearanceSchema.optional(),
-      personality: ImaginaryPersonalitySchema.optional(),
-      referencePhotos: z.undefined() // not allowed for imaginary
+      personality: ImaginaryPersonalitySchema.optional()
     })
   ]).optional()
 );

@@ -116,6 +116,22 @@ export interface CharacterAnalysisResult {
     // For fantasy creatures
     fantasyType?: string | null;
     magicalFeatures?: string[] | null;
+    // Imaginary creature structured fields
+    bodyShape?: string | null;
+    bodyTexture?: string | null;
+    primaryColor?: string | null;
+    secondaryColor?: string | null;
+    colorPattern?: string | null;
+    eyeCount?: number | null;
+    earCount?: number | null;
+    armCount?: number | null;
+    legCount?: number | null;
+    wingCount?: number | null;
+    tailCount?: number | null;
+    hornCount?: number | null;
+    headCount?: number | null;
+    wingType?: string | null;
+    tailShape?: string | null;
   } | null;
   
   // Clothing and accessories (nullable if not visible)
@@ -148,7 +164,7 @@ export class CharacterAnalysisService {
       characterType: request.characterType 
     }, 'Starting character analysis with Gemini Vision');
     
-    // 1. Download photos from URLs
+    // 1. Download photos from URLs (already preprocessed at upload time by assetStorageService)
     const photoBuffers = await Promise.all(
       request.photos.map(url => this.downloadImage(url))
     );
@@ -263,25 +279,172 @@ export class CharacterAnalysisService {
     };
     const languageName = languageMap[language] || 'English';
     
+    // Type-specific description guidance (used in the prompt for DETAILED_DESCRIPTION section)
+    const descriptionGuidance = characterType === 'person' 
+      ? `A flowing, narrative description of the character's appearance (2-3 sentences) in ${languageName}. Describe from top to bottom: hair/head first, then face features (eyes, nose, mouth), skin details (freckles, moles, birthmarks, dimples), body build, and clothing. Mention specific jewelry, hair accessories, and glasses if visible.`
+      : characterType === 'animal'
+      ? `A flowing, narrative description of the animal's appearance (2-3 sentences) in ${languageName}. Start with species/breed, then describe fur/feathers (color, pattern, length, texture), body shape and size, distinctive markings (spots, patches, stripes with locations), and any accessories (collar, bandana).`
+      : `A detailed, comprehensive description of the imaginary creature's appearance (3-5 sentences) in ${languageName}. Start with overall shape and size. Then describe EVERY body part with EXACT COUNTS (e.g. "three large blue eyes", "four small wings", "two curled horns"). Describe body texture, all colors and patterns, limbs and extremities. Mention any drawn accessories or magical elements.`;
+
+    // Fully type-specific visual analysis guidance — each type gets ONLY its relevant sections
     const traitGuidance = characterType === 'person' ? `
+  HEAD & FACE:
    - Hair: color (${HUMAN_HAIR_COLORS.join('/')}), style (${HUMAN_HAIR_STYLES.join('/')}), length (${HUMAN_HAIR_LENGTHS.join('/')}) - return null if not visible
-   - Eyes: color (${EYE_COLORS.join('/')}) - return null if not visible
-   - Skin: tone (${SKIN_TONES.join('/')}) - return null if unclear
-   - Face: shape (${FACE_SHAPES.join('/')}) - return null if unclear
-   - Body: type (${BUILDS.join('/')}), height (${HEIGHTS.join('/')}) - return null if unclear
-   - Age: approximate age group (${CHARACTER_AGE_GROUPS.join('/')}) - return null if unclear` :
+   - Hair texture: straight/wavy/curly/coily/frizzy - note if visible
+   - Bangs/fringe: present or not, style (straight-cut/side-swept/curtain)
+   - Eyes: color (${EYE_COLORS.join('/')}), shape (round/almond/narrow/wide/hooded), size (small/normal/large), eyelash length (short/normal/long) - return null if not visible
+   - Eyebrows: shape (arched/straight/thick/thin/bushy), color - return null if not visible
+   - Nose: shape (small/button/long/wide/upturned/pointed/flat/aquiline) - return null if not visible
+   - Mouth & lips: size (thin/medium/full), lip color, smile/expression - return null if not visible
+   - Ears: size (small/normal/large), protruding or flat against head - return null if not visible
+   - Chin & jaw: shape (pointed/round/square/soft) - return null if not visible
+   - Face shape: (${FACE_SHAPES.join('/')}) - return null if unclear
+   - Skin: tone (${SKIN_TONES.join('/')}), freckles (location: cheeks/nose/all-over), moles/birthmarks (exact location!), dimples (cheek/chin), rosy cheeks, wrinkles - return null if not visible
+
+  BODY:
+   - Build: (${BUILDS.join('/')}) - return null if unclear
+   - Height: (${HEIGHTS.join('/')}) - return null if unclear
+   - Age group: (${CHARACTER_AGE_GROUPS.join('/')}) - return null if unclear
+
+  HAIR ACCESSORIES & HEADWEAR:
+   - Headband, hair clips, bows, ribbons, tiara/crown, scrunchie
+   - Hat, cap, beanie, beret, hood
+   - Return null if none visible
+
+  JEWELRY & ACCESSORIES:
+   - Earrings (type: studs/hoops/dangly), necklace, pendant, bracelet, ring, watch
+   - Glasses (type: round/rectangular/cat-eye/no-frame/sunglasses)
+   - Return null if none visible
+
+  CLOTHING (if visible):
+   - Overall style: (${CLOTHING_STYLES.join('/')}/fantasy) - return null if unclear
+   - Colors: choose from (${CLOTHING_COLORS.join('/')}) - return null or empty array if not visible
+   - Distinctive items: choose from (${CLOTHING_ITEMS.join('/')}) - return null or empty array if none visible
+   - Accessories: choose from (${ACCESSORIES.join('/')}) - return null or empty array if none visible
+   - Pattern on clothing: solid/striped/polka-dot/plaid/floral/printed - note if visible
+
+  DISTINCTIVE FEATURES (max 5):
+   - Choose from: (${HUMAN_DISTINCTIVE_FEATURES.join('/')})
+   - For children also consider: (${CHILD_DISTINCTIVE_FEATURES.join('/')})
+   - Return null or empty array if none visible
+   - Select only the MOST distinctive and recognizable features` :
+
     characterType === 'animal' ? `
-   - Species and breed (if recognizable)
-   - Fur/feathers color: choose from (${FUR_COLORS.join('/')}) - return null if not visible
-   - Fur pattern: ${FUR_PATTERNS.join('/')} - return null if not visible
-   - Fur length: ${FUR_LENGTHS.join('/')} - return null if not visible
-   - Size: relative size (${PET_SIZES.join('/')})
-   - Eye color (${PET_EYE_COLORS.join('/')}) - return null if not visible
-   - Distinctive animal features (fluffy tail, short tail, white paws, floppy ears, etc.) - return null if none visible` : `
-   - Fantasy creature type (dragon, unicorn, fairy, etc.)
-   - Magical or unusual features (return null if none visible)
-   - Color scheme (return null if colors unclear)
-   - Size and proportions (return null if unclear)`;
+  HEAD:
+   - Eyes: color (${PET_EYE_COLORS.join('/')}), shape (round/almond/narrow), size (small/normal/large), expression - return null if not visible
+   - Ears: shape (floppy/pointy/short/folded/large/round/tufted), position (upright/sideways/back), size relative to head - return null if not visible
+   - Nose/snout: color (black/pink/brown/spotted), shape (short/long/flat/pointed), size - return null if not visible
+   - Mouth/muzzle: shape, visible teeth, tongue - return null if not visible
+   - Whiskers: length (short/medium/long), color, prominent or subtle - return null if not visible
+
+  BODY:
+   - Species and breed (if recognizable) - return null if unclear
+   - Size: (${PET_SIZES.join('/')}) - return null if unclear
+   - Body shape: stocky/slender/muscular/round/long/compact
+   - Fur/feathers: primary color (${FUR_COLORS.join('/')}), secondary color if any
+   - Fur pattern: (${FUR_PATTERNS.join('/')}) - return null if not visible
+   - Fur length: (${FUR_LENGTHS.join('/')}) - return null if not visible
+   - Fur texture: smooth/wiry/fluffy/silky/rough/curly/double-coat
+
+  LEGS & PAWS:
+   - Paw color: same as body or different (white paws, dark paws)
+   - Paw size: relative to body
+   - Claws: visible or not, color
+   - Leg length: short/normal/long relative to body
+
+  TAIL:
+   - Length: long/medium/short/no tail/docked
+   - Shape: bushy/thin/curled/straight/plumed/bobbed/ringed
+   - Color: same as body or different
+
+  MARKINGS & PATTERNS (location is critical!):
+   - Spots: location (face/chest/belly/back/paws/all-over), size (small/large)
+   - Stripes: location, direction, width
+   - Patches: location, color contrast
+   - Specific markings: white chest, white belly, white paws/socks, spot over eye, mask pattern, tabby pattern, tuxedo pattern, blaze on forehead, ear tips color
+   - Return null if no distinctive markings
+
+  ACCESSORIES (if any):
+   - Collar: color, type (plain/studded/bell), tag
+   - Bow, bandana, scarf
+   - Return null if none visible
+
+  DISTINCTIVE FEATURES (max 5):
+   - Choose from: (${PET_DISTINCTIVE_FEATURES.join('/')})
+   - Return null or empty array if none visible
+   - Select only the MOST distinctive and recognizable features` : `
+
+  CRITICAL - EXACT BODY PART COUNTS (imaginary creatures may have unusual anatomy):
+   - Number of eyes: (0? 1? 2? 3? many? where positioned on body/head/stalks?)
+     IMPORTANT: Round structures on stalks WITH PUPILS or circles inside = EYES ON STALKS (not ears/antennae!)
+     Children often draw eyes on stalks like a snail. Count stalk-eyes.
+     WARNING: Do NOT count the nose as an eye! A large teardrop/triangle/blob shape centered on the face above the mouth is a NOSE, even if it looks dark or has dots inside (those are nostrils). Only count clearly separate round shapes with a single distinct pupil as eyes.
+   - Has nose: (yes/no?) — a teardrop, triangle, or blob centered above the mouth = nose. Two dots inside = nostrils.
+   - Number of ears: (0? 2? 4? shape?) - Only count if clearly ear-shaped WITHOUT pupils inside
+   - Number of arms/hands: (0? 2? 4? tentacles instead?)
+   - Number of legs/feet: (0? 2? 4? 6? 8? none?) - count carefully even if legs overlap or are close together
+   - Number of wings: (0? 2? 4? type?)
+   - Number of tails: (0? 1? 2? many?)
+   - Number of heads: (1? 2? 3?)
+   - Number of fingers per hand: (if applicable and visible)
+   - Number of horns: (0? 1? 2? many? shape?)
+   - Number of antennae: (0? 1? 2? what's on tips?) - Only if tips have balls/stars/lights, NOT pupils
+   - DISAMBIGUATION: stalk with pupil/circle = EYE; stalk with ball/star/light = ANTENNA; flat flap without pupil = EAR
+   - IMPORTANT: Count carefully and report EXACT numbers!
+
+  OVERALL BODY:
+   - Body shape: round/oval/square/triangular/blob/elongated/star-shaped/amorphous/serpentine/humanoid
+   - Body segmentation: single uniform shape, or divided into distinct colored zones? Describe each zone top-to-bottom (e.g., "blue upper torso, yellow midsection, green lower body")
+   - Size relative to a child (tiny/small/child-sized/large/huge)
+   - Proportions: head-to-body ratio (big head? tiny body? normal?), limb proportions
+
+  HEAD & FACE (IMPORTANT — identify nose BEFORE eyes to avoid misclassification):
+   - Head shape: round/square/triangular/elongated/star/heart/irregular
+   - Nose FIRST: Look at the large shape centered on the face directly above the mouth.
+     * If it is a teardrop/triangle/oval/blob shape positioned between the mouth and the top of the head → it is a NOSE (children often draw oversized, colorful noses)
+     * Two small dots or holes inside it = nostrils, confirming it is a nose
+     * If the creature already has eyes on stalks or elsewhere, a large face-centered shape is almost certainly a NOSE, not another eye
+     * Return null only if no nose-like shape is visible at all
+   - Eyes: ONLY features that are clearly eyes (round with a distinct single pupil/iris).
+     * Include eyes on stalks (stalks with pupils = eyes, not ears)
+     * Do NOT count the nose as an eye. If you already identified a shape as a nose above, do not also list it as an eye.
+     * Eyes on the face itself: only if there are separate round shapes with clear pupils APART from the nose
+   - Mouth: size (tiny/normal/wide), shape, visible teeth (type: sharp/flat/fangs/none), tongue (visible? color? forked?)
+   - Ears: shape (pointy/round/antenna-like/leaf-shaped/fin-shaped/absent), size (tiny/normal/huge), position on head
+   - Horns: type (straight/curved/spiral/branching/antler-like), size, color, position
+   - Antennae: shape (straight/curled/segmented), length, what's on tips (balls/stars/lights/hearts?)
+   - Crown/crest/mane/fin/tuft on head: type, color, size
+
+  BODY SURFACE & TEXTURE:
+   - Texture: furry/scaly/smooth/spiky/slimy/rocky/crystalline/feathered/woolly/metallic/gelatinous/bark-like
+   - Fur/hair: length (short/medium/long/shaggy), color, fluffiness, direction
+   - Scales: size (tiny/medium/large), pattern (overlapping/mosaic)
+   - Surface details: bumps, ridges, plates, segments
+
+  COLORS & PATTERNS:
+   - Primary color (main body color)
+   - Secondary color (accents, belly, limbs)
+   - Tertiary color (small details)
+   - Gradient: does color fade from one to another? where?
+   - Pattern type: solid/spotted/striped/swirled/checkered/starry/geometric/rainbow
+   - Spots: color, size, location
+   - Stripes: color, width, direction (horizontal/vertical/diagonal)
+   - Glow/luminescence: which parts glow? what color?
+   - Sparkles/shimmer/transparency: where?
+   - Body markings: belly button, dot on belly, mark on chest, navel, circle/symbol on body — note exact location
+
+  LIMBS & EXTREMITIES:
+   - Arms/tentacles: shape (thin/thick/tapering), what's at the end (hands/claws/suction-cups/paws/pincers), color
+   - Legs: shape (thin/thick/stumpy/digitigrade), hoof/paw/claw type, color — count legs carefully even when overlapping or close together in the drawing
+   - Wings: type (bat-like/bird-like/butterfly/dragonfly/fairy/insect/membrane), size relative to body, color, pattern on wings, transparent or opaque
+   - Tail: shape (bushy/thin/arrow-tip/heart-tip/star-tip/flame-tip/curled/spiked), length, color, features at tip
+
+  DRAWN ACCESSORIES & MAGICAL ELEMENTS:
+   - Accessories drawn on creature: hat, bow, crown, scarf, necklace, glasses, cape, collar, belt
+   - Held items: wand, star, flower, book, orb
+   - Special markings: heart on belly, star on forehead, symbol on chest, runes
+   - Magical elements: glowing parts, sparkles, aura, floating elements, fire, ice, lightning, bubbles
+   - Return null if none visible`;
 
     return `LEGITIMATE USE CASE: This analysis is for creating personalized children's storybook illustrations. The photos are uploaded by parents/guardians for their own children to appear as characters in educational stories.
 
@@ -294,25 +457,15 @@ IMPORTANT: Return null for ANY field that you cannot confidently determine from 
 
 Please provide a comprehensive JSON response with the following structure:
 
-1. DETAILED_DESCRIPTION: A flowing, narrative description of the character's appearance (2-3 sentences) in ${languageName}. This should be based ONLY on what is visible in the photos. If photos are very unclear, describe what you CAN see.
+1. DETAILED_DESCRIPTION: ${descriptionGuidance}
+   This should be based ONLY on what is visible in the photos. If photos are very unclear, describe what you CAN see.
 
-2. APPEARANCE_TRAITS: Structured characteristics (use null for unclear/invisible features):
+2. VISUAL ANALYSIS (use null for any unclear/invisible features):
 ${traitGuidance}
 
-3. CLOTHING: (if applicable and visible)
-   - Overall style: ${CLOTHING_STYLES.join('/')}/fantasy - return null if unclear
-   - Colors: choose from (${CLOTHING_COLORS.join('/')}) - return null or empty array if not visible
-   - Distinctive items: choose from (${CLOTHING_ITEMS.join('/')}) - return null or empty array if none visible
-   - Accessories: choose from (${ACCESSORIES.join('/')}) - return null or empty array if none visible
-
-4. DISTINCTIVE_FEATURES: Notable marks, expressions, or characteristics - MAX 5 items
-   - For humans: choose from (${HUMAN_DISTINCTIVE_FEATURES.join('/')})
-   - For children (person type): choose from (${CHILD_DISTINCTIVE_FEATURES.join('/')})
-   - For animals: choose from (${PET_DISTINCTIVE_FEATURES.join('/')})
-   - Return null or empty array if none visible
-   - IMPORTANT: Select only the MOST distinctive features, maximum 5
-
 Important guidelines:
+- NO DOUBLE-COUNTING: Each visible element in the image must be identified as ONE thing only. Never describe the same visual feature under two different categories. A single teardrop/triangle/blob shape on the face is EITHER a nose OR an eye — NEVER both. Decision rule: if it is centered above the mouth and the creature already has eyes elsewhere (e.g., on stalks), it is a NOSE.
+- SELF-CHECK: Before finalizing, count how many distinct physical features you described vs how many are actually drawn. If your total described features exceeds the actual count, you are double-counting. Remove duplicates, keeping the most anatomically logical interpretation (position on face matters: above mouth = nose, at eye-level = eye).
 - Return null for ANY field you cannot determine with confidence from the photos
 - If a feature is not visible (e.g., eyes closed, face turned away) → return null
 - If a feature is unclear due to photo quality → return null
@@ -442,6 +595,67 @@ Return ONLY valid JSON matching this structure. Prefer null over guessing.`;
               items: { type: 'string' },
               maxItems: 10,
               description: 'Magical features - max 10 items (null if none visible)'
+            },
+            // Imaginary creature structured fields
+            bodyShape: {
+              type: ['string', 'null'],
+              description: 'Overall body shape: round/oval/square/triangular/blob/elongated/star-shaped/amorphous/serpentine/humanoid (null if unclear)'
+            },
+            bodyTexture: {
+              type: ['string', 'null'],
+              description: 'Surface texture: furry/scaly/smooth/spiky/slimy/rocky/crystalline/feathered/woolly/metallic/gelatinous (null if unclear)'
+            },
+            primaryColor: {
+              type: ['string', 'null'],
+              description: 'Main body color (null if unclear)'
+            },
+            secondaryColor: {
+              type: ['string', 'null'],
+              description: 'Secondary/accent color (null if not present or unclear)'
+            },
+            colorPattern: {
+              type: ['string', 'null'],
+              description: 'Color pattern: solid/spotted/striped/swirled/checkered/starry/geometric/gradient/rainbow (null if not applicable)'
+            },
+            eyeCount: {
+              type: ['number', 'null'],
+              description: 'Exact number of eyes (null if unclear)'
+            },
+            earCount: {
+              type: ['number', 'null'],
+              description: 'Exact number of ears (null if unclear or absent)'
+            },
+            armCount: {
+              type: ['number', 'null'],
+              description: 'Exact number of arms/tentacles (null if unclear or absent)'
+            },
+            legCount: {
+              type: ['number', 'null'],
+              description: 'Exact number of legs (null if unclear or absent)'
+            },
+            wingCount: {
+              type: ['number', 'null'],
+              description: 'Exact number of wings (null if absent)'
+            },
+            tailCount: {
+              type: ['number', 'null'],
+              description: 'Exact number of tails (null if absent)'
+            },
+            hornCount: {
+              type: ['number', 'null'],
+              description: 'Exact number of horns (null if absent)'
+            },
+            headCount: {
+              type: ['number', 'null'],
+              description: 'Exact number of heads (null if unclear, usually 1)'
+            },
+            wingType: {
+              type: ['string', 'null'],
+              description: 'Wing type: bat-like/bird-like/butterfly/dragonfly/fairy/insect/membrane (null if no wings)'
+            },
+            tailShape: {
+              type: ['string', 'null'],
+              description: 'Tail shape: bushy/thin/arrow-tip/heart-tip/star-tip/flame-tip/curled/spiked (null if no tail)'
             }
           }
         },

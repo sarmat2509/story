@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useChildren } from '@/api/children';
 import { ChildFormModal } from '@/components/ChildFormModal';
 import { theme } from '@/theme';
 import { ReferencePhoto } from '@kazka/shared';
 
 export default function ChildrenScreen() {
+  const { t } = useTranslation();
   const { data: children, isLoading, error } = useChildren();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingChild, setEditingChild] = useState<{
@@ -25,8 +27,8 @@ export default function ChildrenScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#0ea5e9" />
-        <Text style={styles.loadingText}>Loading children...</Text>
+        <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+        <Text style={styles.loadingText}>{t('children_screen.loading')}</Text>
       </View>
     );
   }
@@ -34,7 +36,7 @@ export default function ChildrenScreen() {
   if (error) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>Failed to load children profiles</Text>
+        <Text style={styles.errorText}>{t('children_screen.error')}</Text>
       </View>
     );
   }
@@ -42,29 +44,18 @@ export default function ChildrenScreen() {
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Text style={styles.title}>Child Profiles</Text>
+        <Text style={styles.title}>{t('children_screen.title')}</Text>
         <Text style={styles.subtitle}>
-          Create personalized stories for each child
+          {t('children_screen.subtitle')}
         </Text>
       </View>
-
-      <TouchableOpacity 
-        style={styles.addButton}
-        onPress={() => {
-          setEditingChild(undefined);
-          setIsModalVisible(true);
-        }}
-      >
-        <Text style={styles.addButtonIcon}>+</Text>
-        <Text style={styles.addButtonText}>Add New Child</Text>
-      </TouchableOpacity>
 
       {!children || children.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>👶</Text>
-          <Text style={styles.emptyTitle}>No children yet</Text>
+          <Text style={styles.emptyTitle}>{t('children_screen.empty_title')}</Text>
           <Text style={styles.emptyText}>
-            Add your first child profile to create personalized stories
+            {t('children_screen.empty_text')}
           </Text>
         </View>
       ) : (
@@ -80,15 +71,17 @@ export default function ChildrenScreen() {
                 <Text style={styles.childName}>{child.name}</Text>
                 {child.birthDate && (
                   <Text style={styles.childDetail}>
-                    Born: {new Date(child.birthDate).toLocaleDateString()}
+                    {t('children_screen.born')}: {new Date(child.birthDate).toLocaleDateString()}
                   </Text>
                 )}
                 {child.gender && (
-                  <Text style={styles.childDetail}>Gender: {child.gender}</Text>
+                  <Text style={styles.childDetail}>
+                    {t('children_screen.gender')}: {t(`gender_values.${child.gender}`, child.gender)}
+                  </Text>
                 )}
                 {child.languages && child.languages.length > 0 && (
                   <Text style={styles.childDetail}>
-                    Languages: {child.languages.join(', ')}
+                    {t('children_screen.languages')}: {child.languages.map((lang: string) => t(`language_names.${lang}`, lang)).join(', ')}
                   </Text>
                 )}
               </View>
@@ -118,12 +111,24 @@ export default function ChildrenScreen() {
                   setIsModalVisible(true);
                 }}
               >
-                <Text style={styles.editButtonText}>Edit</Text>
+                <Text style={styles.editButtonText}>{t('children_screen.edit_button')}</Text>
               </TouchableOpacity>
             </View>
           ))}
         </View>
       )}
+
+      {/* Add New Child button moved to bottom */}
+      <TouchableOpacity 
+        style={styles.addButton}
+        onPress={() => {
+          setEditingChild(undefined);
+          setIsModalVisible(true);
+        }}
+      >
+        <Text style={styles.addButtonIcon}>+</Text>
+        <Text style={styles.addButtonText}>{t('children_screen.add_button')}</Text>
+      </TouchableOpacity>
 
       {/* Child Form Modal */}
       <ChildFormModal
@@ -172,7 +177,8 @@ const styles = StyleSheet.create({
     padding: theme.spacing[4],
     backgroundColor: theme.colors.interactive.primary,
     borderRadius: theme.borders.radius.lg,
-    marginBottom: theme.spacing[6],
+    marginTop: theme.spacing[6],
+    marginBottom: theme.spacing[4],
   },
   addButtonIcon: {
     fontSize: theme.typography.fontSize['2xl'],

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { LogBox } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { initI18n } from '@/config/i18n';
 import { NavigationContainer } from '@react-navigation/native';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -42,7 +43,7 @@ const linking: any = {
       Public: {
         screens: {
           Landing: '',
-          Prices: 'prices',
+          Plans: 'pricing',
           Login: 'login',
           OAuthCallback: 'auth/:provider/callback',
         },
@@ -52,8 +53,10 @@ const linking: any = {
           Dashboard: 'dashboard',
           Wizard: 'wizard',
           Library: 'library',
+          Story: 'story/:storyId',
           Children: 'children',
           Characters: 'characters',
+          Plans: 'plans',
           Profile: 'profile',
         },
       },
@@ -101,6 +104,7 @@ export default function App() {
           </NavigationContainer>
         </QueryClientProvider>
       </GestureHandlerRootView>
+      <Toast />
     </ErrorBoundary>
   );
 }

@@ -1,0 +1,452 @@
+/**
+ * Series Service
+ * Business logic for managing story series and continuations
+ */
+
+import { db } from '../db';
+import { stories, storySeries } from '../db/schema';
+import { eq } from 'drizzle-orm';
+import type { Story } from '../db/schema';
+import logger from '../utils/logger';
+
+/**
+ * Create or get existing series for a story
+ */
+export async function getOrCreateSeries(storyId: string): Promise<{
+  seriesId: string;
+  partNumber: number;
+  continuationContext: any;
+}> {
+  // 1. Get the original story
+  const [story] = await db.select().from(stories).where(eq(stories.id, storyId));
+  
+  if (!story) {
+    throw new Error(`Story not found: ${storyId}`);
+  }
+  
+  // 2. Check if story already belongs to a series
+  if (story.seriesId) {
+    const [series] = await db.select().from(storySeries).where(eq(storySeries.id, story.seriesId));
+    
+    if (!series) {
+      throw new Error(`Series not found: ${story.seriesId}`);
+    }
+    
+    logger.info({ seriesId: series.id, totalParts: series.totalParts }, 'Found existing series');
+    
+    return {
+      seriesId: series.id,
+      partNumber: series.totalParts,
+      continuationContext: series.continuationContext,
+    };
+  }
+  
+  // 3. Create new series with this story as Part 1
+  const baseTitle = story.title.replace(/\s*-\s*Частина\s+\d+/i, ''); // Remove part number if exists
+  
+  logger.info({ storyId, baseTitle }, 'Creating new series');
+  
+  const [newSeries] = await db.insert(storySeries).values({
+    userId: story.userId,
+    childProfileId: story.childProfileId,
+    baseTitle,
+    language: story.language,
+    ageGroup: story.ageGroup,
+    imageStyle: (story.metadata as any)?.imageStyle || 'watercolor',
+    tone: story.tone,
+    totalParts: 1,
+    storyIds: [storyId],
+    continuationContext: buildInitialContext(story),
+  }).returning();
+  
+  // 4. Update original story with series_id
+  await db.update(stories)
+    .set({ seriesId: newSeries.id, partNumber: 1 })
+    .where(eq(stories.id, storyId));
+  
+  logger.info({ seriesId: newSeries.id }, 'Created new series');
+  
+  return {
+    seriesId: newSeries.id,
+    partNumber: 1,
+    continuationContext: newSeries.continuationContext,
+  };
+}
+
+/**
+ * Build initial context from first story
+ */
+function buildInitialContext(story: Story): any {
+  const outline = story.outline as any;
+  const metadata = story.metadata as any;
+  const scenes = story.scenes as any[]; // Actual scene data with text
+  
+  // Separate user-provided characters (from wizard) and LLM-generated characters
+  const userProvidedCharacters = metadata?.mergedCharacters || []; // From wizard selection
+  const llmGeneratedCharacters = metadata?.llmGeneratedCharacters || []; // Created by LLM
+  
+  // DEBUG: Log raw character data
+  logger.debug({
+    storyId: story.id,
+    userProvidedRaw: userProvidedCharacters.map(c => ({
+      name: c.name,
+      type: c.type,
+      description: c.description,
+      appearance: c.appearance,
+      personality: c.personality,
+      traits: c.traits,
+    })),
+    llmGeneratedRaw: llmGeneratedCharacters.map(c => ({
+      name: c.name,
+      type: c.type,
+      description: c.description,
+      appearance: c.appearance,
+      personality: c.personality,
+    })),
+  }, 'Raw character data before formatting');
+  
+  // Extract scene summaries - handle both outline mode and direct mode
+  const sceneSummaries = [];
+  
+  // First try to get summaries from outline
+  if (outline?.scenes && Array.isArray(outline.scenes)) {
+    for (let i = 0; i < outline.scenes.length; i++) {
+      const outlineScene = outline.scenes[i];
+      const actualScene = scenes?.[i]; // Match by index
+      
+      // Priority order: goal -> setting -> visualPrompt -> first 200 chars of actual scene text
+      let summary = outlineScene.goal || outlineScene.setting || outlineScene.visualPrompt;
+      
+      // If no summary fields, use beginning of actual scene text
+      if ((!summary || !summary.trim()) && actualScene?.text) {
+        summary = actualScene.text.slice(0, 200).trim();
+      }
+      
+      if (summary && summary.trim()) {
+        sceneSummaries.push(summary.trim());
+      }
+    }
+  } else if (scenes && Array.isArray(scenes)) {
+    // Fallback: if no outline, use actual scenes directly
+    for (const scene of scenes) {
+      const summary = scene.text ? scene.text.slice(0, 200).trim() : '';
+      if (summary) {
+        sceneSummaries.push(summary);
+      }
+    }
+  }
+  
+  // Format character descriptions properly
+  const formatCharacters = (chars: any[]) => {
+    return chars.map(char => {
+      // Build description from available fields, prioritizing description > appearance > personality > traits
+      let description = '';
+      
+      if (char.description && typeof char.description === 'string' && char.description.trim() && char.description !== 'undefined') {
+        description = char.description.trim();
+      } else if (char.appearance && typeof char.appearance === 'string' && char.appearance.trim() && char.appearance !== 'undefined') {
+        description = char.appearance.trim();
+      } else if (char.personality && typeof char.personality === 'string' && char.personality.trim() && char.personality !== 'undefined') {
+        description = char.personality.trim();
+      } else if (char.traits && typeof char.traits === 'string' && char.traits.trim() && char.traits !== 'undefined') {
+        description = char.traits.trim();
+      }
+      
+      return {
+        name: char.name || '',
+        type: char.type || 'unknown',
+        description: description,
+        role: char.role || 'character',
+      };
+    });
+  };
+  
+  logger.debug({
+    userProvidedCount: userProvidedCharacters.length,
+    llmGeneratedCount: llmGeneratedCharacters.length,
+    sceneSummariesCount: sceneSummaries.length,
+    firstSummaryPreview: sceneSummaries[0]?.slice(0, 50),
+  }, 'Building initial context');
+  
+  return {
+    previousOutlines: [{
+      title: story.title,
+      moral: outline?.moral || '',
+      scenes: sceneSummaries.map((summary, idx) => ({
+        setting: '', // Not critical for continuation
+        goal: summary, // Use summary as goal
+      })),
+    }],
+    requiredCharacters: formatCharacters(userProvidedCharacters), // User-provided = MUST use
+    optionalCharacters: formatCharacters(llmGeneratedCharacters), // LLM-generated = MAY use
+    usedPlots: sceneSummaries, // Use scene summaries as used plots
+  };
+}
+
+/**
+ * Extract plot elements to avoid repetition
+ */
+function extractUsedPlots(outline: any): string[] {
+  if (!outline?.scenes) return [];
+  
+  // Extract high-level plot beats from scene goals
+  return outline.scenes.map((s: any) => s.goal.toLowerCase());
+}
+
+/**
+ * Update series after generating continuation
+ */
+export async function addContinuationToSeries(
+  seriesId: string,
+  newStoryId: string,
+  newStory: Story
+): Promise<void> {
+  const [series] = await db.select().from(storySeries).where(eq(storySeries.id, seriesId));
+  
+  if (!series) {
+    throw new Error(`Series not found: ${seriesId}`);
+  }
+  
+  const metadata = newStory.metadata as any;
+  const llmGeneratedCharacters = metadata?.llmGeneratedCharacters || [];
+  const outline = newStory.outline as any;
+  const scenes = newStory.scenes as any[]; // Actual scene data with text
+  
+  // Extract scene summaries - handle both outline mode and direct mode
+  const sceneSummaries = [];
+  if (outline?.scenes && Array.isArray(outline.scenes)) {
+    for (let i = 0; i < outline.scenes.length; i++) {
+      const outlineScene = outline.scenes[i];
+      const actualScene = scenes?.[i]; // Match by index
+      
+      // Priority order: goal -> setting -> visualPrompt -> first 200 chars of actual scene text
+      let summary = outlineScene.goal || outlineScene.setting || outlineScene.visualPrompt;
+      
+      // If no summary fields, use beginning of actual scene text
+      if ((!summary || !summary.trim()) && actualScene?.text) {
+        summary = actualScene.text.slice(0, 200).trim();
+      }
+      
+      if (summary && summary.trim()) {
+        sceneSummaries.push(summary.trim());
+      }
+    }
+  } else if (scenes && Array.isArray(scenes)) {
+    // Fallback: if no outline, use actual scenes directly
+    for (const scene of scenes) {
+      const summary = scene.text ? scene.text.slice(0, 200).trim() : '';
+      if (summary) {
+        sceneSummaries.push(summary);
+      }
+    }
+  }
+  
+  // Format character descriptions
+  const formatCharacters = (chars: any[]) => {
+    return chars.map((char: any) => {
+      // Build description from available fields, prioritizing description > appearance > personality > traits
+      let description = '';
+      
+      if (char.description && typeof char.description === 'string' && char.description.trim() && char.description !== 'undefined') {
+        description = char.description.trim();
+      } else if (char.appearance && typeof char.appearance === 'string' && char.appearance.trim() && char.appearance !== 'undefined') {
+        description = char.appearance.trim();
+      } else if (char.personality && typeof char.personality === 'string' && char.personality.trim() && char.personality !== 'undefined') {
+        description = char.personality.trim();
+      } else if (char.traits && typeof char.traits === 'string' && char.traits.trim() && char.traits !== 'undefined') {
+        description = char.traits.trim();
+      }
+      
+      return {
+        name: char.name || '',
+        type: char.type || 'unknown',
+        description: description,
+        role: char.role || 'character',
+      };
+    });
+  };
+  
+  const updatedContext = {
+    ...series.continuationContext,
+    previousOutlines: [
+      ...series.continuationContext.previousOutlines,
+      {
+        title: newStory.title,
+        moral: outline?.moral || '',
+        scenes: sceneSummaries.map((summary) => ({
+          setting: '',
+          goal: summary,
+        })),
+      },
+    ],
+    // requiredCharacters stay the same (user-provided don't change)
+    requiredCharacters: series.continuationContext.requiredCharacters,
+    // Merge new optional characters (LLM-generated from this episode)
+    optionalCharacters: mergeCharacters(
+      series.continuationContext.optionalCharacters,
+      formatCharacters(llmGeneratedCharacters)
+    ),
+    usedPlots: [
+      ...series.continuationContext.usedPlots,
+      ...sceneSummaries,
+    ],
+  };
+  
+  logger.info({
+    seriesId,
+    newPartNumber: series.totalParts + 1,
+    totalOptionalChars: updatedContext.optionalCharacters.length,
+  }, 'Adding continuation to series');
+  
+  await db.update(storySeries)
+    .set({
+      totalParts: series.totalParts + 1,
+      storyIds: [...(series.storyIds as string[]), newStoryId],
+      continuationContext: updatedContext,
+      updatedAt: new Date(),
+    })
+    .where(eq(storySeries.id, seriesId));
+}
+
+/**
+ * Merge new characters with existing, avoiding duplicates
+ */
+function mergeCharacters(existing: any[], newChars: any[]): any[] {
+  const merged = [...existing];
+  
+  for (const char of newChars) {
+    if (!merged.find(c => c.name.toLowerCase() === char.name.toLowerCase())) {
+      merged.push(char);
+    }
+  }
+  
+  return merged;
+}
+
+/**
+ * Get series information for a story
+ */
+export async function getSeriesInfo(storyId: string): Promise<{
+  seriesId: string;
+  baseTitle: string;
+  totalParts: number;
+  partNumber: number;
+  storyIds: string[];
+} | null> {
+  const [story] = await db.select().from(stories).where(eq(stories.id, storyId));
+  
+  logger.debug({ 
+    storyId, 
+    foundStory: !!story,
+    hasSeriesId: !!story?.seriesId,
+    seriesId: story?.seriesId,
+    partNumber: story?.partNumber,
+  }, 'getSeriesInfo - story lookup');
+  
+  if (!story || !story.seriesId) {
+    return null;
+  }
+  
+  const [series] = await db.select().from(storySeries).where(eq(storySeries.id, story.seriesId));
+  
+  logger.debug({
+    storyId,
+    seriesId: story.seriesId,
+    foundSeries: !!series,
+    totalParts: series?.totalParts,
+    storyIdsCount: (series?.storyIds as string[])?.length,
+  }, 'getSeriesInfo - series lookup');
+  
+  if (!series) {
+    return null;
+  }
+  
+  const result = {
+    seriesId: series.id,
+    baseTitle: series.baseTitle,
+    totalParts: series.totalParts,
+    partNumber: story.partNumber || 1,
+    storyIds: series.storyIds as string[],
+  };
+  
+  logger.info({
+    storyId,
+    result,
+  }, 'getSeriesInfo - returning result');
+  
+  return result;
+}
+
+/**
+ * Remove story from series and update related data
+ * Called when a story part is deleted
+ */
+export async function removeStoryFromSeries(
+  storyId: string,
+  seriesId: string
+): Promise<void> {
+  const [series] = await db.select().from(storySeries).where(eq(storySeries.id, seriesId));
+  
+  if (!series) {
+    logger.warn({ seriesId, storyId }, 'Series not found when removing story');
+    return;
+  }
+  
+  const storyIds = series.storyIds as string[];
+  const deletedIndex = storyIds.indexOf(storyId);
+  
+  if (deletedIndex === -1) {
+    logger.warn({ seriesId, storyId }, 'Story not found in series');
+    return;
+  }
+  
+  // Remove story from array
+  const updatedStoryIds = storyIds.filter(id => id !== storyId);
+  
+  // If only one story remains, delete the series entirely
+  if (updatedStoryIds.length === 1) {
+    logger.info({
+      seriesId,
+      storyId,
+      remainingStoryId: updatedStoryIds[0],
+    }, 'Only one story remains, deleting series');
+    
+    // Remove series_id and part_number from remaining story
+    await db.update(stories)
+      .set({ 
+        seriesId: null, 
+        partNumber: null 
+      })
+      .where(eq(stories.id, updatedStoryIds[0]));
+    
+    // Delete the series
+    await db.delete(storySeries).where(eq(storySeries.id, seriesId));
+    
+    logger.info({ seriesId }, 'Series deleted - only one story remained');
+    return;
+  }
+  
+  // Update series
+  await db.update(storySeries)
+    .set({
+      totalParts: series.totalParts - 1,
+      storyIds: updatedStoryIds,
+      updatedAt: new Date(),
+    })
+    .where(eq(storySeries.id, seriesId));
+  
+  // Update part_number for remaining stories
+  // Stories after the deleted one need their part_number decremented
+  for (let i = deletedIndex; i < updatedStoryIds.length; i++) {
+    await db.update(stories)
+      .set({ partNumber: i + 1 })
+      .where(eq(stories.id, updatedStoryIds[i]));
+  }
+  
+  logger.info({
+    seriesId,
+    storyId,
+    newTotalParts: series.totalParts - 1,
+    remainingStories: updatedStoryIds.length,
+  }, 'Story removed from series');
+}

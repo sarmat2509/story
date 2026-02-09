@@ -9,7 +9,7 @@ import { logger } from '../utils/logger';
 
 interface BaseJob {
   id: string;
-  type: 'story_generation' | 'regenerate_scene_image';
+  type: 'story_generation' | 'regenerate_scene_image' | 'audio_generation';
   status: 'queued' | 'processing' | 'completed' | 'failed';
   retries: number;
   createdAt: Date;
@@ -28,7 +28,18 @@ interface RegenerateSceneImageJob extends BaseJob {
   visualPrompt?: string;
 }
 
-type Job = StoryGenerationJob | RegenerateSceneImageJob;
+interface AudioGenerationJob extends BaseJob {
+  type: 'audio_generation';
+  storyId: string;
+  userId: string;
+  voiceParams?: {
+    voiceId?: string;
+    speed?: number;
+    nightMode?: boolean;
+  };
+}
+
+type Job = StoryGenerationJob | RegenerateSceneImageJob | AudioGenerationJob;
 
 class StoryJobQueue {
   private queue: Map<string, Job> = new Map();
@@ -122,9 +133,29 @@ class StoryJobQueue {
     try {
       // Process based on job type
       if (job.type === 'story_generation') {
-        await processStoryRequest(job.requestId);
+        // Check if this is a continuation request
+        const { db } = await import('../db');
+        const { storyRequests } = await import('../db/schema');
+        const { eq } = await import('drizzle-orm');
+        
+        const [request] = await db
+          .select()
+          .from(storyRequests)
+          .where(eq(storyRequests.id, job.requestId))
+          .limit(1);
+        
+        const isContinuation = (request?.intermediateData as any)?.isContinuation;
+        
+        if (isContinuation) {
+          const { processContinuationRequest } = await import('../services/storyOrchestrationService');
+          await processContinuationRequest(job.requestId);
+        } else {
+          await processStoryRequest(job.requestId);
+        }
       } else if (job.type === 'regenerate_scene_image') {
         await processRegenerateSceneImage(job);
+      } else if (job.type === 'audio_generation') {
+        await processAudioGeneration(job as AudioGenerationJob);
       }
       
       job.status = 'completed';
@@ -200,6 +231,30 @@ class StoryJobQueue {
   }
   
   /**
+   * Get audio job status for a specific story
+   * @param storyId - Story ID to check
+   * @returns 'queued' | 'processing' | null
+   */
+  getAudioJobStatus(storyId: string): 'queued' | 'processing' | null {
+    const job = Array.from(this.queue.values()).find(
+      j => j.type === 'audio_generation' && 
+           (j as AudioGenerationJob).storyId === storyId &&
+           (j.status === 'queued' || j.status === 'processing')
+    );
+    
+    return job ? job.status : null;
+  }
+  
+  /**
+   * Check if there's an active audio job for a story (for backwards compatibility)
+   * @param storyId - Story ID to check
+   * @returns true if there's a queued or processing audio job
+   */
+  hasAudioJobForStory(storyId: string): boolean {
+    return this.getAudioJobStatus(storyId) !== null;
+  }
+  
+  /**
    * Clear all jobs (for testing)
    */
   clear() {
@@ -226,6 +281,183 @@ async function processRegenerateSceneImage(job: RegenerateSceneImageJob): Promis
     storyId: job.storyId, 
     sceneId: job.sceneId 
   }, 'Scene image regenerated successfully');
+}
+
+/**
+ * Process audio generation job (M5)
+ */
+async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
+  logger.info({ 
+    storyId: job.storyId,
+    userId: job.userId 
+  }, 'Generating audio for story');
+  
+  const { getAudioDomainService } = await import('../domain/audio');
+  const { groupScenesIntoChunks } = await import('../domain/audio/sceneGrouper');
+  const { stories, scenes: scenesTable } = await import('../db/schema');
+  const { db } = await import('../db');
+  const { eq } = await import('drizzle-orm');
+  const { getConcurrencyLimitForPlan } = await import('../config');
+  
+  // Load story
+  const [story] = await db.select().from(stories)
+    .where(eq(stories.id, job.storyId))
+    .limit(1);
+  
+  if (!story) {
+    throw new Error('Story not found');
+  }
+  
+  // Load scenes (ordered by sceneId)
+  const storyScenes = await db.select({
+    sceneId: scenesTable.sceneId,
+    text: scenesTable.text,
+  })
+    .from(scenesTable)
+    .where(eq(scenesTable.storyId, job.storyId))
+    .orderBy(scenesTable.sceneId);
+  
+  logger.info({
+    storyId: job.storyId,
+    totalScenes: storyScenes.length,
+    totalChars: storyScenes.reduce((sum, s) => sum + s.text.length, 0)
+  }, 'Loaded scenes for audio generation');
+  
+  // Get user's plan type and concurrency limit
+  const { getUserSubscription, getPlanById } = await import('../services/planService');
+  const subscription = await getUserSubscription(job.userId);
+  const plan = subscription ? await getPlanById(subscription.planId) : null;
+  const planType = plan?.slug === 'premium' ? 'premium' : 'free';
+  const concurrencyLimit = getConcurrencyLimitForPlan(plan?.slug);
+  
+  // Group scenes optimally for parallel generation
+  const sceneGroups = groupScenesIntoChunks(storyScenes, concurrencyLimit);
+  
+  logger.info({
+    storyId: job.storyId,
+    concurrencyLimit,
+    numGroups: sceneGroups.length,
+    planSlug: plan?.slug || 'free'
+  }, 'Scene groups created for parallel audio generation');
+  
+  // Generate audio with optimal parallelism
+  const audioDomain = getAudioDomainService();
+  
+  try {
+    const result = await audioDomain.synthesizeSceneGroups(
+      story,
+      sceneGroups,
+      job.voiceParams || {},
+      planType,
+      concurrencyLimit // Pass concurrency limit for batching
+    );
+    
+    // ✅ Only update story and charge user if successful
+    await db.update(stories)
+      .set({
+        audioMetadata: {
+          voiceId: result.voiceId,
+          voiceName: result.voiceName,
+          totalDuration: result.duration,
+          generatedAt: new Date().toISOString(),
+          nightMode: job.voiceParams?.nightMode || false,
+        }
+      })
+      .where(eq(stories.id, job.storyId));
+    
+    // Increment usage (duration in minutes, rounded up)
+    const { incrementUsage } = await import('../services/planService');
+    const durationMinutes = Math.ceil(result.duration / 60);
+    await incrementUsage(job.userId, 'audio', durationMinutes);
+    
+    logger.info({ 
+      storyId: job.storyId, 
+      duration: result.duration,
+      durationMinutes,
+      cached: result.cached 
+    }, 'Audio generation completed successfully - user charged');
+    
+    // M6: Generate forced alignment automatically after audio completes
+    try {
+      logger.info({ storyId: job.storyId }, 'Starting forced alignment generation');
+      
+      const { getAlignmentProvider } = await import('../services/aiService');
+      const alignmentProvider = getAlignmentProvider();
+      
+      // Get final audio asset ID from result
+      const finalAssetId = result.assetId;
+      
+      // Generate alignment (works with audio from any provider)
+      const alignmentResult = await audioDomain.generateAlignmentForStory(
+        job.storyId,
+        finalAssetId,
+        alignmentProvider
+      );
+      
+      // Update audioMetadata with alignment data
+      const currentAudioMetadata = story.audioMetadata as any || {};
+      await db.update(stories)
+        .set({
+          audioMetadata: {
+            ...currentAudioMetadata,
+            voiceId: result.voiceId,
+            voiceName: result.voiceName,
+            totalDuration: result.duration,
+            generatedAt: new Date().toISOString(),
+            nightMode: job.voiceParams?.nightMode || false,
+            alignment: {
+              characters: alignmentResult.characters,
+              words: alignmentResult.words,
+              averageConfidence: alignmentResult.averageConfidence,
+              provider: alignmentProvider.getProviderName().toLowerCase(),
+              language: alignmentResult.language,
+              generatedAt: new Date().toISOString(),
+            },
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(stories.id, job.storyId));
+      
+      logger.info({
+        storyId: job.storyId,
+        wordCount: alignmentResult.words.length,
+        averageConfidence: alignmentResult.averageConfidence,
+      }, 'Forced alignment generated and saved successfully');
+      
+    } catch (alignmentError) {
+      // Log error but don't fail the audio generation job
+      logger.error({
+        err: alignmentError,
+        storyId: job.storyId,
+      }, 'Failed to generate alignment - audio generation still successful');
+      
+      // Alignment failure should not block audio generation
+      // User can still listen to the story without text synchronization
+    }
+  } catch (error) {
+    // ✅ NEW: Mark as failed, DON'T charge user
+    logger.error({
+      storyId: job.storyId,
+      userId: job.userId,
+      error: (error as Error).message,
+      stack: (error as Error).stack,
+    }, 'Audio generation failed - user NOT charged');
+    
+    // Update story to show error state (preserves partial chunks in metadata)
+    const currentMetadata = (story.audioMetadata as any) || {};
+    await db.update(stories)
+      .set({
+        audioMetadata: {
+          ...currentMetadata, // Keep sceneGroupAssetIds for retry
+          error: true,
+          errorMessage: 'Audio generation failed. Please try again.',
+          failedAt: new Date().toISOString(),
+        }
+      })
+      .where(eq(stories.id, job.storyId));
+    
+    throw error; // Re-throw for job retry mechanism
+  }
 }
 
 // Singleton instance

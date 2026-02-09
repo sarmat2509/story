@@ -45,6 +45,7 @@ export interface SceneData {
   sceneId: number;
   text: string;
   visualPrompt: string;
+  characters?: string[]; // NEW: Character names appearing in this scene
 }
 
 export interface StoryTextData {
@@ -84,7 +85,7 @@ export interface ImageGenerationContext {
     imageRegenerationPerDay: number;
     allowReferencePhotos: boolean;
     allowGeneratedReferences: boolean;
-    storiesPerDay: number;
+    storiesPerMonth: number;
     audioMinutesPerMonth: number;
   };
   userId: string;
@@ -102,7 +103,7 @@ export interface PlanFeatures {
   imageRegenerationPerDay: number;
   allowReferencePhotos: boolean;
   allowGeneratedReferences: boolean;
-  storiesPerDay: number;
+  storiesPerMonth: number;
   audioMinutesPerMonth: number;
 }
 

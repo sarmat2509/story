@@ -1,50 +1,84 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/authMiddleware';
-import { getAudioDomainService } from '../services/aiService';
 import { logger } from '../utils/logger';
+import { db } from '../db';
+import { ttsVoices } from '../db/schema';
+import { eq, and } from 'drizzle-orm';
+import { getUserSubscription, hasFeature, getPlanById } from '../services/planService';
 
 const router = Router();
 
 /**
  * GET /api/v1/voices
- * Get available TTS voices (M5)
+ * Get available TTS voices from database catalog
+ * Returns all voices with premium/locked status based on user's plan
  */
 router.get('/', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { language } = req.query;
+    const { language = 'uk' } = req.query;
+    const userId = req.user!.id;
     
     // Validate language
-    if (language && typeof language !== 'string') {
+    if (typeof language !== 'string') {
       return res.status(400).json({
         status: 'error',
         message: 'Invalid language parameter'
       });
     }
     
-    const audioDomain = getAudioDomainService();
-    const voices = await audioDomain.getAvailableVoices(language || 'uk');
+    // Check if user has premium voices feature enabled
+    const hasPremiumVoices = await hasFeature(userId, 'premium_voices');
+    
+    // Get user's subscription plan for metadata
+    const subscription = await getUserSubscription(userId);
+    let userPlan = 'free';
+    if (subscription) {
+      const plan = await getPlanById(subscription.planId);
+      userPlan = plan?.slug || 'free';
+    }
+    
+    // Fetch all voices from database (including premium)
+    const voices = await db
+      .select({
+        id: ttsVoices.providerVoiceId,
+        name: ttsVoices.name,
+        displayName: ttsVoices.displayName,
+        gender: ttsVoices.gender,
+        description: ttsVoices.description,
+        previewUrl: ttsVoices.providerPreviewUrl,
+        sampleAudioUrl: ttsVoices.sampleAudioUrl,
+        isPremium: ttsVoices.isPremium,
+        provider: ttsVoices.provider,
+      })
+      .from(ttsVoices)
+      .where(and(
+        eq(ttsVoices.language, language),
+        eq(ttsVoices.isActive, true)
+      ))
+      .orderBy(ttsVoices.isPremium, ttsVoices.name); // Free voices first, then premium
+    
+    // Mark which voices are locked for this user
+    const voicesWithAccess = voices.map(voice => ({
+      ...voice,
+      isLocked: voice.isPremium && !hasPremiumVoices,
+    }));
     
     logger.info({ 
-      userId: req.user!.id, 
+      userId, 
       language,
-      voiceCount: voices.length 
-    }, 'Voices fetched');
+      userPlan,
+      voiceCount: voices.length,
+      premiumCount: voices.filter(v => v.isPremium).length,
+      accessibleCount: voicesWithAccess.filter(v => !v.isLocked).length,
+    }, 'Voices fetched from database');
     
     res.json({
       status: 'success',
-      data: {
-        voices: voices.map(v => ({
-          id: v.id,
-          name: v.name,
-          language: v.language,
-          gender: v.gender,
-          ageCategory: v.ageCategory,
-          description: v.description,
-          sampleUrl: v.sampleUrl,
-          tags: v.tags,
-          isPremium: v.isPremium,
-        }))
-      }
+      data: voicesWithAccess,
+      meta: {
+        userPlan,
+        hasPremiumAccess: hasPremiumVoices,
+      },
     });
   } catch (error) {
     logger.error({ 

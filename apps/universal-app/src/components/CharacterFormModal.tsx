@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 import { useCreateCharacter, useUpdateCharacter, useAnalyzeCharacter } from '@/api/characters';
-import { UploadPhotoResult } from '@/utils/uploadPhoto';
+import { UploadPhotoResult, deletePhoto } from '@/utils/uploadPhoto';
 import { storage } from '@/utils/storage';
 import { 
   CreateCharacterSchema,
@@ -131,8 +131,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
     primaryColor: '',
     secondaryColor: '',
     size: '',
-    magicalFeatures: [] as string[],
-    customDescription: ''
+    magicalFeatures: [] as string[]
   });
 
   // Personality (universal structure)
@@ -140,6 +139,21 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
     traits: [] as (PetPersonalityTrait | string)[],
     favoriteActivities: [] as (PetActivity | string)[]
   });
+
+  // Handle close with cleanup: delete orphaned photos for new characters
+  const handleClose = async () => {
+    // Only cleanup uploaded photos for NEW characters (not when editing existing ones)
+    if (!characterId) {
+      const uploadedPhotos = photos.filter(p => !p.isUploading && p.url?.startsWith('http'));
+      if (uploadedPhotos.length > 0) {
+        // Best-effort: delete in parallel, don't block UI on failures
+        await Promise.allSettled(
+          uploadedPhotos.map(photo => deletePhoto(photo.url))
+        );
+      }
+    }
+    onClose();
+  };
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -194,8 +208,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
               primaryColor: initialData.appearanceTraits.primaryColor || '',
               secondaryColor: initialData.appearanceTraits.secondaryColor || '',
               size: initialData.appearanceTraits.size || '',
-              magicalFeatures: initialData.appearanceTraits.magicalFeatures || [],
-              customDescription: initialData.appearanceTraits.customDescription || ''
+              magicalFeatures: initialData.appearanceTraits.magicalFeatures || []
             });
           }
         } else {
@@ -226,8 +239,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
             primaryColor: '',
             secondaryColor: '',
             size: '',
-            magicalFeatures: [],
-            customDescription: ''
+            magicalFeatures: []
           });
         }
         
@@ -279,8 +291,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
           primaryColor: '',
           secondaryColor: '',
           size: '',
-          magicalFeatures: [],
-          customDescription: ''
+          magicalFeatures: []
         });
         setPersonality({
           traits: [],
@@ -313,12 +324,6 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
         t('character_form.upload_in_progress') || 'Upload in progress',
         t('character_form.wait_for_upload') || 'Please wait for photo upload to complete'
       );
-      return;
-    }
-
-    // For imaginary characters, skip analysis
-    if (isImaginaryType(type)) {
-      setCurrentStep(2);
       return;
     }
 
@@ -375,6 +380,14 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
             build: analysis.humanAppearance.build as Build || undefined,
             clothingStyle: analysis.humanAppearance.clothingStyle as ClothingStyle || undefined,
             distinctiveFeatures: (analysis.humanAppearance.distinctiveFeatures || []) as HumanDistinctiveFeature[]
+          });
+        } else if (analysis.imaginaryAppearance && isImaginaryType(type)) {
+          setImaginaryAppearance({
+            species: analysis.imaginaryAppearance.species || '',
+            primaryColor: analysis.imaginaryAppearance.primaryColor || '',
+            secondaryColor: analysis.imaginaryAppearance.secondaryColor || '',
+            size: analysis.imaginaryAppearance.size || '',
+            magicalFeatures: analysis.imaginaryAppearance.magicalFeatures || []
           });
         }
 
@@ -434,9 +447,6 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
         if (imaginaryAppearance.size) imagData.size = imaginaryAppearance.size;
         if (imaginaryAppearance.magicalFeatures.length > 0) {
           imagData.magicalFeatures = imaginaryAppearance.magicalFeatures;
-        }
-        if (imaginaryAppearance.customDescription) {
-          imagData.customDescription = imaginaryAppearance.customDescription;
         }
         appearanceTraits = Object.keys(imagData).length > 0 ? imagData : undefined;
       }
@@ -513,7 +523,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
       visible={visible}
       animationType="slide"
       transparent
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
@@ -527,7 +537,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                 {t('character_form.step_indicator', { current: currentStep, total: 2 })}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color={theme.colors.text.primary} />
             </TouchableOpacity>
           </View>
@@ -585,18 +595,21 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                   {errors.type && <Text style={styles.errorText}>{errors.type}</Text>}
                 </View>
 
-                {/* Photos - NO ACCORDION */}
-                {!isImaginaryType(type) && (
-                  <View style={styles.field}>
-                    <Text style={styles.label}>{t('character_form.photos_title')}</Text>
-                    <PhotoUploadGrid
-                      photos={photos}
-                      onPhotosChange={setPhotos}
-                      maxPhotos={5}
-                      photoType="character"
-                    />
-                  </View>
-                )}
+                {/* Photos - Available for all character types */}
+                <View style={styles.field}>
+                  <Text style={styles.label}>{t('character_form.photos_title')}</Text>
+                  {isImaginaryType(type) && (
+                    <Text style={styles.hint}>
+                      {t('character_form.imaginary_photos_hint')}
+                    </Text>
+                  )}
+                  <PhotoUploadGrid
+                    photos={photos}
+                    onPhotosChange={setPhotos}
+                    maxPhotos={5}
+                    photoType="character"
+                  />
+                </View>
               </>
             )}
 
@@ -645,7 +658,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                       style={styles.input}
                       value={petAppearance.breed || ''}
                       onChangeText={(val) => setPetAppearance({...petAppearance, breed: val || undefined})}
-                      placeholder="e.g. Golden Retriever, Persian"
+                      placeholder={t('character_form.breed_placeholder')}
                       placeholderTextColor={theme.colors.text.disabled}
                     />
                   </View>
@@ -814,7 +827,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                       style={styles.input}
                       value={imaginaryAppearance.species}
                       onChangeText={(val) => setImaginaryAppearance({...imaginaryAppearance, species: val})}
-                      placeholder="e.g. Dragon, Unicorn, Cloud creature"
+                      placeholder={t('character_form.species_placeholder')}
                       placeholderTextColor={theme.colors.text.disabled}
                     />
                   </View>
@@ -825,7 +838,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                       style={styles.input}
                       value={imaginaryAppearance.primaryColor}
                       onChangeText={(val) => setImaginaryAppearance({...imaginaryAppearance, primaryColor: val})}
-                      placeholder="e.g. Rainbow, Sparkly gold"
+                      placeholder={t('character_form.primary_color_placeholder')}
                       placeholderTextColor={theme.colors.text.disabled}
                     />
                   </View>
@@ -836,7 +849,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                       style={styles.input}
                       value={imaginaryAppearance.secondaryColor}
                       onChangeText={(val) => setImaginaryAppearance({...imaginaryAppearance, secondaryColor: val})}
-                      placeholder="e.g. Silver stars"
+                      placeholder={t('character_form.secondary_color_placeholder')}
                       placeholderTextColor={theme.colors.text.disabled}
                     />
                   </View>
@@ -847,7 +860,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                     onTagsChange={(tags) => setImaginaryAppearance({...imaginaryAppearance, size: tags[0] || ''})}
                     suggestions={SIZE_SUGGESTIONS}
                     max={1}
-                    placeholder="e.g. Tiny as a mouse, Giant as a mountain"
+                    placeholder={t('character_form.size_placeholder')}
                   />
 
                   <TagsInput
@@ -856,22 +869,8 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                     onTagsChange={(tags) => setImaginaryAppearance({...imaginaryAppearance, magicalFeatures: tags})}
                     suggestions={MAGICAL_FEATURES_SUGGESTIONS}
                     max={10}
-                    placeholder="Add magical feature..."
+                    placeholder={t('character_form.magical_features_placeholder')}
                   />
-
-                  <View style={styles.field}>
-                    <Text style={styles.label}>{t('character_form.custom_description')}</Text>
-                    <TextInput
-                      style={[styles.input, styles.textArea]}
-                      value={imaginaryAppearance.customDescription}
-                      onChangeText={(val) => setImaginaryAppearance({...imaginaryAppearance, customDescription: val})}
-                      placeholder="Full description of appearance..."
-                      placeholderTextColor={theme.colors.text.disabled}
-                      multiline
-                      numberOfLines={4}
-                      textAlignVertical="top"
-                    />
-                  </View>
                 </View>
               )}
             </ExpandableCard>
@@ -909,7 +908,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                     tags={personality.traits}
                     onTagsChange={(tags) => setPersonality({...personality, traits: tags})}
                     max={5}
-                    placeholder="Add trait..."
+                    placeholder={t('character_form.personality_trait_placeholder')}
                   />
 
                   <TagsInput
@@ -917,7 +916,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                     tags={personality.favoriteActivities}
                     onTagsChange={(tags) => setPersonality({...personality, favoriteActivities: tags})}
                     max={5}
-                    placeholder="Add activity..."
+                    placeholder={t('character_form.favorite_activity_placeholder')}
                   />
                 </View>
               )}
@@ -935,7 +934,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
           <View style={styles.footer}>
             <TouchableOpacity
               style={[styles.button, styles.cancelButton]}
-              onPress={onClose}
+              onPress={handleClose}
             >
               <Text style={styles.cancelButtonText}>{t('character_form.cancel_button')}</Text>
             </TouchableOpacity>

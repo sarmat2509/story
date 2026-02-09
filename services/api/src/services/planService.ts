@@ -55,6 +55,16 @@ export async function getFeatureBySlug(slug: string): Promise<Feature | null> {
   return feature || null;
 }
 
+export async function getFeatureById(id: string): Promise<Feature | null> {
+  const [feature] = await db
+    .select()
+    .from(features)
+    .where(eq(features.id, id))
+    .limit(1);
+  
+  return feature || null;
+}
+
 export async function getPlanFeaturesByPlanId(planId: string) {
   const features = await db
     .select()
@@ -163,8 +173,8 @@ export interface PlanFeatures {
   imageRegenerationPerDay: number;
   allowReferencePhotos: boolean;
   allowGeneratedReferences: boolean;
-  storiesPerDay: number;
-  audioMinutesPerMonth: number;
+  storiesPerMonth: number;
+  audioStoriesPerMonth: number;
 }
 
 /**
@@ -185,8 +195,8 @@ export async function getPlanFeatures(userId: string): Promise<PlanFeatures> {
       imageRegenerationPerDay: 0,
       allowReferencePhotos: false,
       allowGeneratedReferences: false,
-      storiesPerDay: 1,
-      audioMinutesPerMonth: 0,
+      storiesPerMonth: 5,
+      audioStoriesPerMonth: 1,
     };
     return defaultFeatures;
   }
@@ -211,8 +221,8 @@ export async function getPlanFeatures(userId: string): Promise<PlanFeatures> {
     imageRegenerationPerDay: getNumericFeature(featureMap, 'image_regeneration_per_day', 0),
     allowReferencePhotos: getBooleanFeature(featureMap, 'allow_reference_photos', false),
     allowGeneratedReferences: getBooleanFeature(featureMap, 'allow_generated_references', false),
-    storiesPerDay: getNumericFeature(featureMap, 'stories_per_day', 1),
-    audioMinutesPerMonth: getNumericFeature(featureMap, 'audio_minutes_per_month', 0),
+    storiesPerMonth: getNumericFeature(featureMap, 'stories_per_month', 5),
+    audioStoriesPerMonth: getNumericFeature(featureMap, 'audio_stories_per_month', 1),
   };
   
   return result;
@@ -335,7 +345,7 @@ export async function checkUsageLimit(
   
   // Check current usage against limit
   let currentUsage = 0;
-  if (featureSlug === 'stories_per_day') {
+  if (featureSlug === 'stories_per_month') {
     currentUsage = subscription.storiesUsed;
   } else if (featureSlug === 'audio_minutes_per_month') {
     currentUsage = subscription.audioMinutesUsed;

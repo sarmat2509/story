@@ -12,7 +12,8 @@
 
 import type { StorySpec, EpisodeOutline, EpisodeText, PolicyProfile, SceneValidationResult } from '../../ai/types';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
-import { buildOutlinePrompt, buildTextPrompt, buildValidationPrompt, buildRegenerationPrompt } from '../../prompts/text';
+import { buildOutlinePrompt, buildTextPrompt, buildValidationPrompt, buildRegenerationPrompt, buildContinuationPrompt } from '../../prompts/text';
+import { buildDirectTextPrompt } from '../../prompts/text/DirectTextPrompt';
 import { logger } from '../../utils/logger';
 import { OUTLINE_SCHEMA, TEXT_SCHEMA, VALIDATION_SCHEMA, SCENE_SCHEMA } from './schemas';
 
@@ -44,7 +45,7 @@ export class StoryDomainService {
         prompt,
         schema: OUTLINE_SCHEMA,
         temperature: 0.9,
-        maxTokens: 9216 // Increased by 2.25x (4096 × 2.25) to handle longer stories with scary themes
+        // No maxTokens limit - let the model generate as much as needed
       });
 
       logger.info({ sceneCount: outline.scenes.length }, 'Outline generated successfully');
@@ -56,7 +57,7 @@ export class StoryDomainService {
   }
 
   /**
-   * Generate full story text from outline
+   * Generate full story text from outline (2-step process)
    * Business logic: determines vocabulary level based on age group
    */
   async generateText(spec: StorySpec, outline: EpisodeOutline): Promise<EpisodeText> {
@@ -80,14 +81,59 @@ export class StoryDomainService {
         prompt,
         schema: TEXT_SCHEMA,
         temperature: 0.8,
-        maxTokens: 12288 // Increased by 3x (4096 × 3) - generates all scenes, needs most tokens
+        // No maxTokens limit - let the model generate as much as needed
       });
+
+      // Compute fullText and wordCount server-side for consistency
+      text.fullText = text.scenes.map(s => s.text).join('\n\n');
+      text.wordCount = text.fullText.split(/\s+/).length;
 
       logger.info({ wordCount: text.wordCount, sceneCount: text.scenes.length }, 'Story text generated successfully');
       return text;
     } catch (error) {
       logger.error({ error }, 'Failed to generate text');
       throw new Error(`Text generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Generate story text directly (1-step process, no outline)
+   * Business logic: determines scene count and vocabulary level based on age group
+   */
+  async generateTextDirect(spec: StorySpec): Promise<EpisodeText> {
+    logger.info({ ageGroup: spec.ageGroup, language: spec.language }, 'Generating story text directly');
+
+    // Business logic: determine scene count and vocabulary level
+    const sceneCount = this.getSceneCount(spec.ageGroup);
+    const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
+
+    // Build direct text generation prompt
+    const prompt = buildDirectTextPrompt({ spec, sceneCount, vocabLevel });
+    
+    // Log the FULL prompt being sent
+    logger.debug({ 
+      promptLength: prompt.length,
+      prompt: prompt // Full prompt for debugging
+    }, 'Direct text generation prompt');
+
+    try {
+      // Call provider with provider-agnostic request
+      const text = await this.textProvider.generateStructured<EpisodeText>({
+        prompt,
+        schema: TEXT_SCHEMA,
+        temperature: 0.9,
+        // No maxTokens limit - let the model generate as much as needed
+      });
+
+      // Compute fullText and wordCount server-side for consistency
+      text.fullText = text.scenes.map(s => s.text).join('\n\n');
+      text.wordCount = text.fullText.split(/\s+/).length;
+
+      logger.info({ wordCount: text.wordCount, sceneCount: text.scenes.length }, 'Story text generated directly');
+      return text;
+    } catch (error) {
+      logger.error({ error }, 'Failed to generate text directly');
+      throw new Error(`Direct text generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -194,7 +240,7 @@ export class StoryDomainService {
         prompt,
         schema: SCENE_SCHEMA,
         temperature: 0.9,
-        maxTokens: 9216, // Increased by 2.25x (4096 × 2.25) for regeneration to avoid truncated responses
+        // No maxTokens limit - let the model generate as much as needed
       });
 
       logger.info({ sceneId: scene.sceneId }, 'Scene regenerated successfully');
@@ -202,6 +248,71 @@ export class StoryDomainService {
     } catch (error) {
       logger.error({ error, sceneId }, 'Scene regeneration failed');
       throw new Error(`Scene regeneration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Generate continuation for an existing story series
+   * Business logic: determines scene count and vocabulary level based on age group
+   */
+  async generateContinuation(params: {
+    spec: StorySpec;
+    previousOutlines: any[];
+    requiredCharacters: any[];
+    optionalCharacters: any[];
+    usedPlots: string[];
+  }): Promise<EpisodeText> {
+    logger.info({
+      ageGroup: params.spec.ageGroup,
+      language: params.spec.language,
+      partNumber: params.previousOutlines.length + 1,
+    }, 'Generating story continuation');
+
+    // Business logic: determine scene count and vocabulary level
+    const sceneCount = this.getSceneCount(params.spec.ageGroup);
+    const vocabLevel = this.getVocabularyLevel(params.spec.ageGroup);
+
+    // Build continuation prompt
+    const prompt = buildContinuationPrompt({
+      spec: params.spec,
+      sceneCount,
+      vocabLevel,
+      previousOutlines: params.previousOutlines,
+      requiredCharacters: params.requiredCharacters,
+      optionalCharacters: params.optionalCharacters,
+      usedPlots: params.usedPlots,
+    });
+
+    // Log the FULL prompt being sent
+    logger.debug({
+      promptLength: prompt.length,
+      prompt: prompt // Full prompt for debugging
+    }, 'Continuation generation prompt');
+
+    try {
+      // Call provider with provider-agnostic request
+      // Use higher temperature for creativity in continuations
+      const text = await this.textProvider.generateStructured<EpisodeText>({
+        prompt,
+        schema: TEXT_SCHEMA,
+        temperature: 0.9,
+        // No maxTokens limit - let the model generate as much as needed
+      });
+
+      // Compute fullText and wordCount server-side for consistency
+      text.fullText = text.scenes.map(s => s.text).join('\n\n');
+      text.wordCount = text.fullText.split(/\s+/).length;
+
+      logger.info({
+        wordCount: text.wordCount,
+        sceneCount: text.scenes.length,
+        partNumber: params.previousOutlines.length + 1,
+      }, 'Story continuation generated successfully');
+      
+      return text;
+    } catch (error) {
+      logger.error({ error }, 'Failed to generate continuation');
+      throw new Error(`Continuation generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

@@ -63,7 +63,7 @@ export default function LandingScreen() {
 
         <TouchableOpacity
           style={[styles.button, styles.secondaryButton]}
-          onPress={() => navigation.navigate('Prices')}
+          onPress={() => navigation.navigate('Plans')}
         >
           <Text style={styles.secondaryButtonText}>View Pricing</Text>
         </TouchableOpacity>

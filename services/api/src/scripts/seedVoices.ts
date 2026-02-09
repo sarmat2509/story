@@ -6,79 +6,44 @@
  * - Voice-age group associations
  * - Provider preview URLs
  * 
+ * Supports multiple TTS providers (ElevenLabs, Google TTS, OpenAI TTS)
+ * 
  * Usage:
  *   npm run seed:voices
+ *   AUDIO_PROVIDER=google npm run seed:voices
+ *   AUDIO_PROVIDER=openai npm run seed:voices
  */
 
 import { db } from '../db';
 import { ttsVoices, ageGroups, voiceAgeGroups } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { logger } from '../utils/logger';
-
-/**
- * Initial voice catalog
- * Configure based on actual ElevenLabs voices available
- * Get voice IDs and preview URLs from ElevenLabs dashboard or API:
- * https://api.elevenlabs.io/v1/voices
- */
-const INITIAL_VOICES = [
-  {
-    providerVoiceId: '21m00Tcm4TlvDq8ikWAM', // Replace with actual ElevenLabs voice ID
-    name: 'Оленка', // Ukrainian female narrator
-    language: 'uk',
-    gender: 'female' as const,
-    ageCategory: 'young_adult' as const,
-    roleType: 'both' as const,
-    voiceTags: ['calm', 'storyteller', 'warm'],
-    description: 'Тепла жіноча розповідачка для казок',
-    providerPreviewUrl: 'https://storage.googleapis.com/eleven-public-prod/...', // From ElevenLabs API
-    isPremium: false,
-    suitableForAgeSlugs: ['2-3', '4-5', '6-8', '9-12'], // Will be converted to UUIDs
-  },
-  {
-    providerVoiceId: 'another-voice-id', // Replace with actual voice ID
-    name: 'Богдан', // Ukrainian male character
-    language: 'uk',
-    gender: 'male' as const,
-    ageCategory: 'adult' as const,
-    roleType: 'character' as const,
-    voiceTags: ['strong', 'confident', 'hero'],
-    description: 'Чоловічий голос для персонажів-героїв',
-    providerPreviewUrl: 'https://storage.googleapis.com/eleven-public-prod/...',
-    isPremium: false,
-    suitableForAgeSlugs: ['4-5', '6-8', '9-12'],
-  },
-  // TODO: Add more voices for other languages (en, ru, es)
-  // Each language should have at least 1 narrator voice
-  // Example:
-  // {
-  //   providerVoiceId: 'english-voice-id',
-  //   name: 'Emma',
-  //   language: 'en',
-  //   gender: 'female',
-  //   ageCategory: 'young_adult',
-  //   roleType: 'narrator',
-  //   voiceTags: ['gentle', 'storyteller'],
-  //   description: 'Gentle English storyteller',
-  //   providerPreviewUrl: 'https://storage.googleapis.com/...',
-  //   isPremium: false,
-  //   suitableForAgeSlugs: ['2-3', '4-5', '6-8', '9-12'],
-  // },
-];
+import { getAudioProvider, getAudioProviderByName } from '../services/aiService';
+import { getAssetStorageService } from '../services/assetStorageService';
+import { getVoiceSampleText } from '../utils/i18nLoader';
+import { config } from '../config';
 
 /**
  * Seed voice catalog with age group associations
  */
 async function seedVoices() {
-  logger.info({ count: INITIAL_VOICES.length }, 'Starting voice catalog seeding');
+  const provider = config.audio?.provider || 'elevenlabs';
   
-  for (const voiceData of INITIAL_VOICES) {
+  logger.info({ provider }, 'Starting voice catalog seeding for provider');
+  
+  // Get voice catalog from the active provider
+  const audioProvider = getAudioProvider();
+  const voiceCatalog = audioProvider.getDefaultVoices();
+  
+  logger.info({ count: voiceCatalog.length }, 'Retrieved voice catalog from provider');
+  
+  for (const voiceData of voiceCatalog) {
     try {
       const { suitableForAgeSlugs, ...voiceFields } = voiceData;
       
       // Check if voice already exists
       const existing = await db.query.ttsVoices.findFirst({
-        where: (voices, { eq }) => eq(voices.providerVoiceId, voiceData.providerVoiceId)
+        where: (voices: any, { eq }: any) => eq(voices.providerVoiceId, voiceData.providerVoiceId)
       });
       
       if (existing) {
@@ -90,7 +55,7 @@ async function seedVoices() {
       const [voice] = await db
         .insert(ttsVoices)
         .values({
-          provider: 'elevenlabs',
+          provider,
           ...voiceFields,
           isActive: true,
         })
@@ -120,6 +85,51 @@ async function seedVoices() {
       
       logger.info({ voiceId: voice.id, ageGroups: suitableForAgeSlugs.length }, 'Voice fully configured');
       
+      // Generate voice sample
+      try {
+        logger.info({ voiceId: voice.id, language: voiceFields.language }, 'Generating voice sample');
+        
+        const sampleText = getVoiceSampleText(voiceFields.language);
+        const assetStorage = getAssetStorageService();
+        
+        // Synthesize audio sample
+        const result = await audioProvider.synthesize({
+          text: sampleText,
+          voiceId: voiceFields.providerVoiceId,
+          language: voiceFields.language,
+          prosody: {
+            speed: 1.0,
+          },
+        });
+        
+        logger.info({ voiceId: voice.id, audioSize: result.audioData.length }, 'Sample audio synthesized');
+        
+        // Upload to storage
+        const uploadResult = await assetStorage.uploadVoiceSample({
+          audioBuffer: result.audioData,
+          language: voiceFields.language,
+          voiceId: voiceFields.providerVoiceId,
+        });
+        
+        logger.info({ voiceId: voice.id, storagePath: uploadResult.storagePath }, 'Sample uploaded');
+        
+        // Update database with sample URL
+        await db
+          .update(ttsVoices)
+          .set({ sampleAudioUrl: uploadResult.storagePath })
+          .where(eq(ttsVoices.id, voice.id));
+        
+        logger.info({ voiceId: voice.id }, '✅ Voice sample generated successfully');
+        
+      } catch (sampleError) {
+        logger.error({ 
+          error: sampleError instanceof Error ? sampleError.message : String(sampleError),
+          errorStack: sampleError instanceof Error ? sampleError.stack : undefined,
+          voiceId: voice.id 
+        }, '⚠️ Failed to generate voice sample (voice seeded without sample)');
+        // Don't fail the entire seeding if sample generation fails
+      }
+      
     } catch (error) {
       logger.error({ error, voice: voiceData.name }, 'Failed to seed voice');
     }
@@ -136,9 +146,12 @@ async function displayCatalog() {
     .select({
       id: ttsVoices.id,
       name: ttsVoices.name,
+      displayName: ttsVoices.displayName,
       language: ttsVoices.language,
       gender: ttsVoices.gender,
       roleType: ttsVoices.roleType,
+      isPremium: ttsVoices.isPremium,
+      provider: ttsVoices.provider,
     })
     .from(ttsVoices)
     .where(eq(ttsVoices.isActive, true));
@@ -154,10 +167,13 @@ async function displayCatalog() {
     
     logger.info({
       name: voice.name,
+      displayName: voice.displayName,
+      provider: voice.provider,
       language: voice.language,
       gender: voice.gender,
       role: voice.roleType,
-      ageGroups: ageGroupLinks.map(ag => ag.slug).join(', '),
+      isPremium: voice.isPremium ? '⭐ Premium' : 'Free',
+      ageGroups: ageGroupLinks.map((ag: any) => ag.slug).join(', '),
     });
   }
 }

@@ -11,6 +11,8 @@ import {
   characters,
   scenarioCards, // NEW: Import scenario cards table
   storyGoals, // NEW: Import story goals table
+  translations as translationsTable, // NEW: Import translations table
+  storySeries, // NEW: Import story series table for continuation references
 } from '../db/schema';
 import type { CreateStoryRequestInput } from '@kazka/shared';
 import { getStoryDomainService, getImageDomainService, getAudioDomainService } from './aiService';
@@ -24,11 +26,12 @@ import {
   StoryProgress,
 } from './storyProgress';
 import { buildPolicyProfile } from './policyService';
-import type { StorySpec } from '../ai/types';
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import type { StorySpec, StoryEnvironment } from '../ai/types';
+import { eq, and, desc, inArray, sql, isNotNull } from 'drizzle-orm';
 import { logger } from '../utils/logger';
 import type { CharacterReference } from '../prompts/image';
 import { validate as isUUID } from 'uuid';
+import { config } from '../config';
 import type {
   StoryRequestData,
   ChildProfileData,
@@ -40,6 +43,13 @@ import type {
   ReferencePhoto,
   AppearanceTraits,
 } from './types';
+// NEW M9: Character-based reference tracking
+import { buildCharacterRegistry, normalizeCharacterName, matchCharacterNames } from '../utils/characterNormalization';
+import {
+  selectReferencesForScene,
+  markSceneAsReference,
+  loadReferenceImageData,
+} from './referenceImageTracker';
 
 /**
  * Story Orchestration Service (Milestone 3)
@@ -107,6 +117,73 @@ export async function createStoryRequest(
 }
 
 /**
+ * Create a continuation request for an existing story series
+ */
+export async function createContinuationRequest(
+  userId: string,
+  input: {
+    language: string;
+    ageGroup: string;
+    tone: string | null;
+    childProfileId: string | null;
+    imageStyle: string;
+    moralTheme: string | null;
+    // Preserved from original request
+    scenarioCardId: string | null;
+    selectedCharacters: any;
+    selectedChildren: any;
+    userNotes: string | null;
+    // Series context
+    seriesId: string;
+    partNumber: number;
+    continuationContext: any;
+  }
+): Promise<string> {
+  try {
+    logger.info({
+      userId,
+      seriesId: input.seriesId,
+      partNumber: input.partNumber,
+    }, 'Creating continuation request');
+    
+    // Create a special story request for continuation
+    const [request] = await db.insert(storyRequests).values({
+      userId,
+      childProfileId: input.childProfileId,
+      uiLocale: 'uk', // Use default, doesn't affect story
+      storyLanguage: input.language,
+      goal: input.moralTheme, // Use moral theme from original story (can be null)
+      tone: input.tone,
+      scenarioCardId: input.scenarioCardId, // Preserve from original
+      imageStyle: input.imageStyle,
+      userNotes: input.userNotes, // Preserve from original
+      selectedCharacters: input.selectedCharacters, // Preserve from original
+      selectedChildren: input.selectedChildren, // Preserve from original
+      status: 'pending',
+      progress: 0,
+      // Store continuation context in intermediate data
+      intermediateData: {
+        isContinuation: true,
+        seriesId: input.seriesId,
+        partNumber: input.partNumber,
+        continuationContext: input.continuationContext,
+      },
+    }).returning();
+    
+    logger.info({ requestId: request.id, seriesId: input.seriesId }, 'Continuation request created');
+    return request.id;
+  } catch (error) {
+    logger.error({
+      error,
+      userId,
+      seriesId: input.seriesId,
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'Failed to create continuation request');
+    throw new Error('Failed to create continuation request. Please try again.');
+  }
+}
+
+/**
  * Process a story request (main orchestration function)
  * This runs in the job queue
  * 
@@ -149,6 +226,115 @@ export async function processStoryRequest(requestId: string): Promise<void> {
     
     let outline, text, mergedCharacters, spec, selectedCharacters;
     
+    // Get Domain Services (needed throughout the function)
+    const storyDomain = getStoryDomainService();
+    const imageDomain = getImageDomainService();
+    const assetStorage = getAssetStorageService();
+    
+    // Get user plan features (needed for later steps)
+    const userPlan = await getPlanFeatures(request.userId);
+    
+    // Determine generation mode
+    const useDirectGeneration = config.storyGeneration.useDirectTextGeneration;
+    logger.info({ requestId, useDirectGeneration }, 'Story generation mode');
+    
+    if (useDirectGeneration) {
+      // ========================================
+      // NEW: Direct Text Generation (1-step)
+      // ========================================
+      
+      // Build story spec
+      const specData = await buildStorySpec(request);
+      spec = specData.spec;
+      selectedCharacters = specData.selectedCharacters;
+      
+      // Task 1: Generate Text Directly (skip outline)
+      await startTask(requestId, STORY_TASKS.GENERATING_TEXT);
+      text = await storyDomain.generateTextDirect(spec);
+      await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
+      
+      logger.info({ requestId, title: text.title, wordCount: text.wordCount }, 'Text generated directly');
+      
+      // Log environments from LLM output
+      const textEnvironments = (text as any).environments;
+      if (textEnvironments && textEnvironments.length > 0) {
+        logger.info({
+          requestId,
+          environmentCount: textEnvironments.length,
+          environments: textEnvironments.map((e: any) => ({
+            id: e.id,
+            name: e.name,
+            visualDescription: e.visualDescription,
+          })),
+        }, 'LLM generated story environments (full descriptions)');
+
+        // Log scene-to-environment mapping
+        const sceneEnvMapping = text.scenes.map((s: any) => ({
+          sceneId: s.sceneId,
+          environmentId: (s as any).environmentId || 'MISSING',
+          visualPromptPreview: s.visualPrompt?.substring(0, 80) + (s.visualPrompt?.length > 80 ? '...' : ''),
+        }));
+        logger.info({
+          requestId,
+          sceneEnvMapping,
+        }, 'Scene-to-environment mapping from LLM');
+      } else {
+        logger.warn({ requestId }, 'LLM did not generate environments array — images will use raw visualPrompt without setting context');
+      }
+
+      // Create a minimal outline structure for compatibility (needed for validation and images)
+      outline = {
+        title: text.title,
+        language: text.language,
+        moral: text.moral,
+        scenes: text.scenes.map((scene, idx) => ({
+          sceneId: scene.sceneId,
+          setting: '', // Not generated in direct mode
+          goal: '',
+          emotion: 'neutral' as const,
+          beats: [],
+          visualPrompt: scene.visualPrompt,
+        })),
+        safetyNotes: [],
+      };
+      
+      // Extract LLM-generated characters from text if any
+      const llmCharacters = (text.characters || []).map(char => ({
+        name: char.name,
+        type: char.type,
+        description: char.description,
+        role: char.role,
+        personality: char.personality,
+        appearance: char.description, // Map description to appearance for image generation
+      }));
+      
+      logger.info({ 
+        llmCharacterCount: llmCharacters.length,
+        llmCharacterNames: llmCharacters.map(c => c.name).join(', ')
+      }, 'Extracted LLM-generated characters from direct text generation');
+      
+      // Merge user characters
+      mergedCharacters = mergeCharacters(selectedCharacters as CharacterData[], llmCharacters);
+      
+      // Save checkpoint
+      const specForCheckpoint = { ...spec, policyProfile: undefined };
+      await db.update(storyRequests).set({
+        intermediateData: { 
+          outline, 
+          text,
+          mergedCharacters,
+          spec: specForCheckpoint,
+          selectedCharacters 
+        }
+      }).where(eq(storyRequests.id, requestId));
+      
+      logger.info({ requestId, checkpoint: 'direct_text' }, 'Checkpoint saved');
+      
+    } else {
+      // ========================================
+      // OLD: Outline-based Generation (2-step)
+      // ========================================
+      
     // CHECKPOINT 1: Build Spec & Generate Outline
     if (checkpoints.outline && checkpoints.spec && checkpoints.selectedCharacters) {
       logger.info({ requestId }, 'Reusing existing outline from checkpoint');
@@ -163,9 +349,6 @@ export async function processStoryRequest(requestId: string): Promise<void> {
       const specData = await buildStorySpec(request);
       spec = specData.spec;
       selectedCharacters = specData.selectedCharacters;
-      
-      // Get Domain Services
-      const storyDomain = getStoryDomainService();
       
       // Task 1: Generate Outline
       await startTask(requestId, STORY_TASKS.GENERATING_OUTLINE);
@@ -187,15 +370,8 @@ export async function processStoryRequest(requestId: string): Promise<void> {
       logger.info({ requestId, checkpoint: 'outline' }, 'Checkpoint saved');
     }
     
-    // Get user plan features (needed for later steps)
-    const userPlan = await getPlanFeatures(request.userId);
-    
-    // Get Domain Services
-    const storyDomain = getStoryDomainService();
-    const imageDomain = getImageDomainService();
-    const assetStorage = getAssetStorageService();
-    
-    // CHECKPOINT 2: Generate Text
+    // CHECKPOINT 2: Generate Text (only for outline-based mode)
+    if (!useDirectGeneration) {
     if (checkpoints.text && checkpoints.mergedCharacters) {
       logger.info({ requestId }, 'Reusing existing text from checkpoint');
       text = checkpoints.text;
@@ -230,6 +406,8 @@ export async function processStoryRequest(requestId: string): Promise<void> {
       
       logger.info({ requestId, checkpoint: 'text' }, 'Checkpoint saved');
     }
+    } // End of outline-based text generation
+    } // End of else block for outline-based generation
     
     // CHECKPOINT 3: Validation
     if (checkpoints.validationComplete && checkpoints.validatedText) {
@@ -421,8 +599,12 @@ export async function processStoryRequest(requestId: string): Promise<void> {
       await completeTask(requestId, STORY_TASKS.GENERATING_PORTRAITS);
     }
     
-    // Task 5: Generate Scene Images (Parallel for all plans)
+    // Task 5: Generate Scene Images (Sequential for character-aware reference tracking - M9)
     await startTask(requestId, STORY_TASKS.GENERATING_IMAGES);
+    
+    if (config.image.skipGeneration) {
+      logger.info({ requestId }, 'Image generation skipped (SKIP_IMAGE_GENERATION=true)');
+    } else {
     
     const imagesPerStory = userPlan.imagesPerStory || 0;
     
@@ -449,96 +631,333 @@ export async function processStoryRequest(requestId: string): Promise<void> {
       sceneCount: scenesToGenerate.length
     }, 'Selected scenes for image generation (evenly distributed)');
     
+    // Build environment map for visual prompt composition
+    const environmentMap = new Map<string, StoryEnvironment>();
+    const environments = (text as any).environments as StoryEnvironment[] | undefined;
+    if (environments && environments.length > 0) {
+      for (const env of environments) {
+        environmentMap.set(env.id, env);
+      }
+      logger.info({
+        requestId,
+        environmentCount: environments.length,
+        environmentIds: environments.map(e => e.id),
+        environmentNames: environments.map(e => e.name),
+      }, 'Built environment map from LLM output');
+    } else {
+      logger.warn({ requestId }, 'No environments found in LLM output — visual prompts will not include environment context');
+    }
+
     if (scenesToGenerate.length > 0) {
+      // Log image generation plan with environment enrichment preview
+      const generationPlan = scenesToGenerate.map((s, idx) => {
+        const sceneIdx = sceneIndices[idx];
+        const prevIdx = idx > 0 ? sceneIndices[idx - 1] : -1;
+        const skippedCount = sceneIdx - prevIdx - 1;
+        const envId = (s as any).environmentId || 'MISSING';
+        const envName = environmentMap.get(envId)?.name || 'N/A';
+        return {
+          sceneId: s.sceneId,
+          sceneIndex: sceneIdx,
+          environmentId: envId,
+          environmentName: envName,
+          skippedScenesBefore: skippedCount,
+          willInheritFrom: skippedCount > 0
+            ? Array.from({ length: skippedCount }, (_, i) => prevIdx + 1 + i)
+                .filter(i => i >= 0 && i < text.scenes.length)
+                .map(i => text.scenes[i].sceneId)
+            : [],
+        };
+      });
+      logger.info({
+        requestId,
+        generationPlan,
+        totalEnvironments: environmentMap.size,
+      }, 'Image generation plan with environment enrichment preview');
+
       logger.info({ 
         requestId, 
         sceneCount: scenesToGenerate.length,
         plan: userPlan.allowGeneratedReferences ? 'premium' : 'free'
-      }, 'Starting reference-based image generation (Nano Banana Pro)');
+      }, 'Starting character-aware reference image generation (M9)');
       
-      // STEP 1: Generate first scene (no reference)
-      const firstScene = scenesToGenerate[0];
-      const firstOutlineScene = outline.scenes.find(s => s.sceneId === firstScene.sceneId);
+      // Build character registry for name normalization
+      const llmCharacters = (outline as any).characters || (text as any).characters || [];
+      const characterRegistry = buildCharacterRegistry(
+        spec.characters,
+        spec.childProfile,
+        llmCharacters
+      );
       
-      logger.info({ sceneId: firstScene.sceneId }, 'Generating first scene (no reference)');
-      
-      let firstSceneImageData: { base64: string; mimeType: string } | null = null;
-      
-      try {
-        firstSceneImageData = await generateSceneImageWithReference(storyId, firstScene, {
-          childProfile: spec.childProfile,
-          characters: mergedCharacters,
-          userStyle: (spec as any).imageStyle,
-          ageGroup: spec.ageGroup,
-          userPlan,
-          userId: request.userId,
-          assetStorage,
-          imageDomain,
-          sceneGoal: firstOutlineScene?.goal,
-          sceneBeats: firstOutlineScene?.beats,
-          sceneEmotion: firstOutlineScene?.emotion,
-          referenceImageData: undefined, // No reference for first scene
-        });
-        
-        await updateTaskProgress(
-          requestId,
-          STORY_TASKS.GENERATING_IMAGES,
-          1 / scenesToGenerate.length,
-          { current: 1, total: scenesToGenerate.length }
+      // Build character description map for quick lookup
+      const characterDescriptionMap = new Map<string, CharacterData>();
+      for (const [normalized, char] of characterRegistry.entries()) {
+        // Find the full CharacterData from mergedCharacters
+        const fullChar = mergedCharacters.find(c => 
+          normalizeCharacterName(c.name) === normalized
         );
-        
-        logger.info({ 
-          base64Length: firstSceneImageData.base64.length,
-          mimeType: firstSceneImageData.mimeType 
-        }, 'First scene generated, will use as reference');
-      } catch (error) {
-        logger.error({ error, sceneId: firstScene.sceneId }, 'Failed to generate first scene image');
-        // Don't throw - allow graceful degradation
+        if (fullChar) {
+          characterDescriptionMap.set(normalized, fullChar);
+        }
       }
       
-      // STEP 2: Generate remaining scenes IN PARALLEL (all use first scene as reference)
-      // Only proceed if first scene was successfully generated (needed as reference)
-      if (firstSceneImageData && scenesToGenerate.length > 1) {
-        const remainingScenes = scenesToGenerate.slice(1);
+      // Log selected characters with their reference photos
+      const charactersWithReferenceInfo = Array.from(characterDescriptionMap.entries()).map(([normalized, char]) => ({
+        normalizedName: normalized,
+        name: char.name,
+        type: (char as any).type || 'unknown',
+        hasReferencePhotos: !!(char.referencePhotos && char.referencePhotos.length > 0),
+        referencePhotoCount: char.referencePhotos?.length || 0,
+        referencePhotoUrls: char.referencePhotos?.map((p: any) => p.url).slice(0, 3) || [] // First 3 URLs for logging
+      }));
+      
+      logger.info({
+        storyId,
+        requestId,
+        totalCharactersInStory: characterDescriptionMap.size,
+        charactersWithReferences: charactersWithReferenceInfo.filter(c => c.hasReferencePhotos),
+        charactersWithoutReferences: charactersWithReferenceInfo.filter(c => !c.hasReferencePhotos).map(c => c.name),
+        imaginaryFriendCount: charactersWithReferenceInfo.filter(c => c.type === 'imaginary_friend').length,
+        imaginaryFriendsWithPhotos: charactersWithReferenceInfo.filter(c => c.type === 'imaginary_friend' && c.hasReferencePhotos).map(c => ({
+          name: c.name,
+          photoCount: c.referencePhotoCount
+        }))
+      }, 'Selected characters for story - reference photos analysis');
+      
+      // Helper function to extract storage path from URL
+      // Handles both full URLs (http://localhost:8081/api/v1/assets/path) and relative URLs (/api/v1/assets/path)
+      const extractStoragePath = (url: string): string => {
+        // Remove protocol and domain if present
+        const urlWithoutProtocol = url.replace(/^https?:\/\/[^/]+/, '');
+        // Remove /api/v1/assets/ prefix
+        const storagePath = urlWithoutProtocol.replace(/^\/api\/v1\/assets\//, '');
+        return storagePath;
+      };
+      
+      // IMAGE GENERATION LOOP - Sequential for reference tracking
+      for (let i = 0; i < scenesToGenerate.length; i++) {
+        const scene = scenesToGenerate[i];
+        const outlineScene = outline.scenes.find(s => s.sceneId === scene.sceneId);
         
-        logger.info({ count: remainingScenes.length }, 'Generating remaining scenes in parallel with reference');
+        // Normalize scene character names
+        // Prefer visualCharacters (physically present) over characters (mentioned) for image generation
+        const sceneCharacters = (scene as any).visualCharacters || scene.characters || [];
+        const normalizedCharacters = matchCharacterNames(sceneCharacters, characterRegistry);
         
-        await Promise.all(
-          remainingScenes.map((scene, i) => {
-            const outlineScene = outline.scenes.find(s => s.sceneId === scene.sceneId);
+        // Extract imaginary friend reference photos for this scene
+        const imaginaryFriendReferences: string[] = [];
+        
+        for (const char of characterDescriptionMap.values()) {
+          // Check if character appears in this scene and is imaginary_friend
+          if (!char.name) continue; // Skip if no name
+          
+          // Use normalizedCharacters (from LLM's characters array) instead of text.includes()
+          // text.includes() fails with Ukrainian/Russian declensions (e.g. "Стрекориба" vs "Стрекориб")
+          const charNormalized = normalizeCharacterName(char.name);
+          
+          if (normalizedCharacters.includes(charNormalized) && 
+              (char as any).type === 'imaginary_friend' &&
+              char.referencePhotos && 
+              char.referencePhotos.length > 0) {
             
-            return generateSceneImageWithReference(storyId, scene, {
-              childProfile: spec.childProfile,
-              characters: mergedCharacters,
-              userStyle: (spec as any).imageStyle,
-              ageGroup: spec.ageGroup,
-              userPlan,
-              userId: request.userId,
-              assetStorage,
-              imageDomain,
-              sceneGoal: outlineScene?.goal,
-              sceneBeats: outlineScene?.beats,
-              sceneEmotion: outlineScene?.emotion,
-              referenceImageData: firstSceneImageData, // All use first scene image as reference
-            }).then(() => {
-              return updateTaskProgress(
-                requestId,
-                STORY_TASKS.GENERATING_IMAGES,
-                (i + 2) / scenesToGenerate.length, // +2 because first scene already done
-                { current: i + 2, total: scenesToGenerate.length }
-              );
-            }).catch(error => {
-              logger.error({ error, sceneId: scene.sceneId }, 'Failed to generate scene image');
-              // Continue with other images (graceful degradation)
-            });
+            // Add ALL reference photos for imaginary friends (these are drawings, not real photos)
+            for (const photo of char.referencePhotos) {
+              if (photo.url) {
+                // Extract storage path from URL (handle full or relative URLs)
+                const storagePath = extractStoragePath(photo.url);
+                imaginaryFriendReferences.push(storagePath);
+                
+                logger.info({
+                  storyId,
+                  sceneId: scene.sceneId,
+                  characterName: char.name,
+                  characterType: 'imaginary_friend',
+                  originalUrl: photo.url,
+                  storagePath
+                }, 'Added imaginary friend reference photo (drawing)');
+              }
+            }
+          }
+        }
+        
+        // Select references for this scene (from previously generated scenes)
+        const referenceSelection = await selectReferencesForScene(
+          storyId,
+          normalizedCharacters,
+          scene.sceneId
+        );
+        
+        // Load imaginary friend reference photos with metadata
+        const imaginaryFriendData = await Promise.all(
+          imaginaryFriendReferences.map(async (url, index) => {
+            const data = await loadReferenceImageData(url, assetStorage);
+            // Find character name for this reference
+            const char = Array.from(characterDescriptionMap.values()).find(c => 
+              c.referencePhotos?.some(p => {
+                const storagePath = extractStoragePath(p.url);
+                return storagePath === url;
+              })
+            );
+            
+            const referenceInfo = {
+              ...data,
+              source: 'imaginary_friend',
+              characterName: char?.name || 'unknown',
+              type: 'imaginary_friend',
+              url: url,
+              index: index + 1
+            };
+            
+            logger.info({
+              storyId,
+              sceneId: scene.sceneId,
+              referenceIndex: index + 1,
+              characterName: referenceInfo.characterName,
+              characterType: 'imaginary_friend',
+              storagePath: url,
+              dataSizeBytes: data.base64 ? Buffer.from(data.base64, 'base64').length : 0
+            }, 'Loaded imaginary friend reference photo for image generation');
+            
+            return referenceInfo;
           })
         );
         
-        logger.info('All scenes generated in parallel');
-      } else if (!firstSceneImageData && scenesToGenerate.length > 1) {
-        logger.warn({ requestId }, 'Skipping remaining scenes - first scene failed (needed as reference)');
+        // Load reference image data from previously generated scenes with metadata
+        const sceneReferenceData = await Promise.all(
+          referenceSelection.referenceImages.map(async (ref) => {
+            const data = await loadReferenceImageData(ref.imageUrl, assetStorage);
+            
+            // Determine character name(s) from charactersPresent in the reference
+            // Use the first character that matches current scene characters, or first available
+            let characterName = 'unknown';
+            if (ref.charactersPresent && ref.charactersPresent.length > 0) {
+              // Try to find matching character from current scene
+              const matchingChar = normalizedCharacters.find(nc => 
+                ref.charactersPresent.includes(nc)
+              );
+              if (matchingChar) {
+                // Get actual character name from characterDescriptionMap
+                const charData = characterDescriptionMap.get(matchingChar);
+                characterName = charData?.name || matchingChar;
+              } else {
+                // Use first character from reference
+                const firstCharNormalized = ref.charactersPresent[0];
+                const charData = characterDescriptionMap.get(firstCharNormalized);
+                characterName = charData?.name || firstCharNormalized;
+              }
+            }
+            
+            return {
+              ...data,
+              source: 'previous_scene',
+              characterName: characterName,
+              type: 'scene_reference',
+              sceneId: ref.sceneId,
+              url: ref.imageUrl,
+              charactersPresent: ref.charactersPresent // Include all characters for reference
+            };
+          })
+        );
+        
+        // Combine imaginary friend photos (first) with scene references
+        const referenceImageDataArray = [
+          ...imaginaryFriendData,
+          ...sceneReferenceData
+        ];
+        
+        // Filter character descriptions to only include characters in THIS scene
+        const sceneCharacterDescriptions = normalizedCharacters
+          .map(normalized => characterDescriptionMap.get(normalized))
+          .filter(Boolean) as CharacterData[];
+        
+        // Prepare detailed reference information for logging
+        const referenceDetails = referenceImageDataArray.map((ref, idx) => ({
+          index: idx + 1,
+          source: (ref as any).source || 'unknown',
+          characterName: (ref as any).characterName || 'unknown',
+          type: (ref as any).type || 'unknown',
+          sceneId: (ref as any).sceneId || null,
+          url: (ref as any).url || 'unknown'
+        }));
+        
+        logger.info({
+          storyId,
+          sceneId: scene.sceneId,
+          charactersInScene: sceneCharacters,
+          normalizedCharacters,
+          imaginaryFriendReferenceCount: imaginaryFriendData.length,
+          sceneReferenceCount: sceneReferenceData.length,
+          totalReferenceCount: referenceImageDataArray.length,
+          newCharacters: referenceSelection.newCharactersIntroduced,
+          referenceDetails,
+          imaginaryFriendReferences: imaginaryFriendData.map((ref, idx) => ({
+            index: idx + 1,
+            characterName: (ref as any).characterName,
+            storagePath: (ref as any).url
+          })),
+          sceneReferences: sceneReferenceData.map((ref, idx) => ({
+            index: imaginaryFriendData.length + idx + 1,
+            characterName: (ref as any).characterName,
+            charactersPresent: (ref as any).charactersPresent || [],
+            fromSceneId: (ref as any).sceneId,
+            storagePath: (ref as any).url
+          }))
+        }, 'Generating scene image with character-aware references - full reference list');
+        
+        try {
+          // Compose enriched visual prompt with environment + skipped scene context
+          const composedVisualPrompt = buildComposedVisualPrompt({
+            scene,
+            sceneIndexInAll: sceneIndices[i],
+            generatedIndices: sceneIndices,
+            allScenes: text.scenes as SceneData[],
+            environmentMap,
+          });
+
+          // Create scene copy with enriched visual prompt
+          const enrichedScene: SceneData = { ...scene, visualPrompt: composedVisualPrompt };
+
+          // Generate image with multiple references
+          const imageResult = await generateSceneImageWithReference(storyId, enrichedScene, {
+            childProfile: spec.childProfile,
+            characters: sceneCharacterDescriptions, // ONLY scene characters
+            userStyle: (spec as any).imageStyle,
+            ageGroup: spec.ageGroup,
+            userPlan,
+            userId: request.userId,
+            assetStorage,
+            imageDomain,
+            sceneGoal: outlineScene?.goal,
+            sceneBeats: outlineScene?.beats,
+            sceneEmotion: outlineScene?.emotion,
+            referenceImageDataArray: referenceImageDataArray, // Multiple references
+          });
+          
+          // Mark as reference if it introduces new characters
+          if (referenceSelection.shouldMarkAsReference) {
+            await markSceneAsReference(
+              imageResult.sceneDbId,
+              normalizedCharacters,
+              imageResult.imageUrl
+            );
+          }
+          
+          await updateTaskProgress(
+            requestId,
+            STORY_TASKS.GENERATING_IMAGES,
+            (i + 1) / scenesToGenerate.length,
+            { current: i + 1, total: scenesToGenerate.length }
+          );
+        } catch (error) {
+          logger.error({ error, sceneId: scene.sceneId }, 'Failed to generate scene image');
+          // Continue with other images (graceful degradation)
+        }
       }
+      
+      logger.info('All scenes generated with character-aware references');
     }
+    
+    } // end if !skipGeneration
     
     await completeTask(requestId, STORY_TASKS.GENERATING_IMAGES);
     
@@ -590,10 +1009,49 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
 }> {
   try {
     // Get child profile if specified
-    let childName = 'дитя'; // Default name
+    let childName: string | undefined = undefined; // Will be set if child is a character
     let ageGroup = '4-5'; // Default age group
     let childProfile: ChildProfileData | null = null;
     let selectedCharacters: CharacterData[] = [];
+    
+    // Load selected characters ALWAYS if provided (not dependent on childProfileId)
+    if (request.selectedCharacters && request.selectedCharacters.length > 0) {
+      const userCharacters = await db
+        .select()
+        .from(characters)
+        .where(and(
+          eq(characters.userId, request.userId),
+          eq(characters.isActive, true),
+          inArray(characters.id, request.selectedCharacters) // Filter by selection
+        ));
+      
+      selectedCharacters = userCharacters
+        .filter(c => c.name) // Only include characters with valid name
+        .map(c => ({
+          id: c.id,
+          name: c.name,
+          type: c.type,
+          traits: c.personality || undefined,
+          referencePhotos: c.referencePhotos as ReferencePhoto[] | undefined,
+          appearanceTraits: c.appearanceTraits as AppearanceTraits | undefined,
+          description: c.description || undefined,
+          role: undefined,
+          appearance: undefined,
+          personality: c.personality || undefined,
+        }));
+      
+      logger.info({
+        requestId: request.id,
+        userId: request.userId,
+        selectedCharacterIds: request.selectedCharacters,
+        loadedCharactersCount: selectedCharacters.length,
+        charactersWithReferences: selectedCharacters.filter(c => c.referencePhotos && c.referencePhotos.length > 0).map(c => ({
+          name: c.name,
+          type: c.type,
+          referencePhotoCount: c.referencePhotos?.length || 0
+        }))
+      }, 'Loaded selected characters (independent of childProfileId)');
+    }
     
     if (request.childProfileId) {
       const [profile] = await db
@@ -603,43 +1061,9 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
         .limit(1);
       
       if (profile && profile.name && profile.birthDate) {
-        childName = profile.name;
+        // DON'T set childName here - will be set later based on allCharacters
         ageGroup = calculateAgeGroup(new Date(profile.birthDate));
         childProfile = profile as ChildProfileData;
-        
-        // Get characters for this user with filtering by selectedCharacters if provided
-        const userCharacters = request.selectedCharacters && request.selectedCharacters.length > 0
-          ? await db
-              .select()
-              .from(characters)
-              .where(and(
-                eq(characters.userId, request.userId),
-                eq(characters.isActive, true),
-                inArray(characters.id, request.selectedCharacters) // ✅ FILTER by selection
-              ))
-          : await db
-              .select()
-              .from(characters)
-              .where(and(
-                eq(characters.userId, request.userId),
-                eq(characters.isActive, true)
-              ))
-              .limit(5); // Fallback: load up to 5 if no selection
-        
-        selectedCharacters = userCharacters
-          .filter(c => c.name) // Only include characters with valid name
-          .map(c => ({
-            id: c.id,
-            name: c.name,
-            type: c.type,
-            traits: c.personality || undefined,
-            referencePhotos: c.referencePhotos as ReferencePhoto[] | undefined,
-            appearanceTraits: c.appearanceTraits as AppearanceTraits | undefined,
-            description: c.description || undefined,
-            role: undefined,
-            appearance: undefined,
-            personality: c.personality || undefined,
-          }));
       } else {
         logger.warn({ 
           childProfileId: request.childProfileId, 
@@ -687,6 +1111,55 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
     // Merge all characters (user characters + selected children)
     const allCharacters = [...selectedCharacters, ...selectedChildrenData];
     
+    // Set childName ONLY if child profile is included as a character in the story
+    if (childProfile && request.childProfileId) {
+      const isChildInStory = allCharacters.some(
+        c => c.type === 'child' && c.id === request.childProfileId
+      );
+      
+      childName = isChildInStory ? childProfile.name : undefined;
+      
+      logger.info({
+        childProfileId: request.childProfileId,
+        isChildInStory,
+        childName: childName || 'not-set',
+        totalCharacters: allCharacters.length
+      }, 'Child profile processed for story generation');
+    }
+    
+    // Log detailed character information including reference photos
+    const characterDetails = allCharacters.map(c => ({
+      id: c.id,
+      name: c.name,
+      type: c.type,
+      hasReferencePhotos: !!(c.referencePhotos && c.referencePhotos.length > 0),
+      referencePhotoCount: c.referencePhotos?.length || 0,
+      referencePhotoTypes: c.referencePhotos?.map((p: any) => {
+        // Extract type from URL or path if possible
+        const url = p.url || '';
+        if (url.includes('imaginary_friend') || url.includes('character')) {
+          return 'imaginary_friend';
+        }
+        return 'unknown';
+      }) || []
+    }));
+    
+    logger.info({ 
+      requestId: request.id,
+      userCharactersCount: selectedCharacters.length,
+      selectedChildrenCount: selectedChildrenData.length,
+      totalCharacters: allCharacters.length,
+      characterNames: allCharacters.map(c => c.name),
+      selectedCharactersInput: request.selectedCharacters,
+      selectedChildrenInput: request.selectedChildren,
+      characterDetails,
+      charactersWithReferences: characterDetails.filter(c => c.hasReferencePhotos).map(c => ({
+        name: c.name,
+        type: c.type,
+        referencePhotoCount: c.referencePhotoCount
+      }))
+    }, 'Characters prepared for story generation - detailed info with reference photos');
+    
     // Load scenario card if specified
     // Load scenario card with guidance
     let scenarioCard: { id: string; name: string; description: string; promptGuidance?: string } | undefined;
@@ -698,18 +1171,30 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
         .limit(1);
       
       if (card) {
-        // Use nameKey and descriptionKey as fallbacks if translation not loaded
+        // Load translations for name and description (use story language for prompts)
+        const translations = await db
+          .select()
+          .from(translationsTable)
+          .where(and(
+            eq(translationsTable.entityType, 'scenario_card'),
+            eq(translationsTable.entityId, card.id),
+            eq(translationsTable.locale, request.storyLanguage)
+          ));
+        
+        const nameTranslation = translations.find(t => t.fieldName === 'name');
+        const descTranslation = translations.find(t => t.fieldName === 'description');
+        
         scenarioCard = {
           id: card.id,
-          name: card.nameKey, // TODO: Load translation based on request.uiLocale
-          description: card.descriptionKey, // TODO: Load translation based on request.uiLocale
-          promptGuidance: card.promptGuidance, // NEW: Include detailed plot guidance
+          name: nameTranslation?.value || card.nameKey, // Use translated name or fallback to key
+          description: descTranslation?.value || card.descriptionKey, // Use translated description or fallback
+          promptGuidance: card.promptGuidance,
         };
       }
     }
     
-    // Load goal with guidance
-    let goalWithGuidance: { slug: string; promptGuidance: string } | undefined;
+    // Load goal with guidance and translations
+    let goalWithGuidance: { slug: string; name: string; promptGuidance: string } | undefined;
     if (request.goal) {
       const [goalData] = await db
         .select()
@@ -718,8 +1203,21 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
         .limit(1);
       
       if (goalData) {
+        // Load translations for goal name (use story language for prompts)
+        const translations = await db
+          .select()
+          .from(translationsTable)
+          .where(and(
+            eq(translationsTable.entityType, 'story_goal'),
+            eq(translationsTable.entityId, goalData.slug),
+            eq(translationsTable.locale, request.storyLanguage)
+          ));
+        
+        const goalNameTranslation = translations.find(t => t.fieldName === 'name');
+        
         goalWithGuidance = {
           slug: goalData.slug,
+          name: goalNameTranslation?.value || goalData.slug, // Use translated name or fallback to slug
           promptGuidance: goalData.promptGuidance
         };
       }
@@ -734,6 +1232,7 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
       childName,
       childProfile: childProfile || undefined,
       goal: goalWithGuidance?.slug || request.goal || undefined,
+      goalName: goalWithGuidance?.name, // NEW: Translated goal name for prompts
       goalGuidance: goalWithGuidance?.promptGuidance, // NEW: Detailed goal guidance
       tone: request.tone || undefined,
       imageStyle: (request as any).imageStyle || undefined, // Image art style
@@ -1037,14 +1536,108 @@ async function hasGeneratedPortraits(storyId: string): Promise<boolean> {
 }
 
 /**
+ * Build a composed visual prompt that combines:
+ * 1. Environment description (persistent setting from environments array)
+ * 2. Transient context from non-generated neighboring scenes
+ * 3. Current scene's action-focused visualPrompt
+ *
+ * This ensures no visual details are lost when images are generated for a subset of scenes.
+ */
+function buildComposedVisualPrompt(params: {
+  scene: SceneData;
+  sceneIndexInAll: number;
+  generatedIndices: number[];
+  allScenes: SceneData[];
+  environmentMap: Map<string, StoryEnvironment>;
+}): string {
+  const { scene, sceneIndexInAll, generatedIndices, allScenes, environmentMap } = params;
+
+  const parts: string[] = [];
+
+  // 1. Resolve environment (persistent setting)
+  const environmentId = (scene as any).environmentId as string | undefined;
+  const environment = environmentId ? environmentMap.get(environmentId) : undefined;
+
+  if (environment) {
+    parts.push(`SETTING: ${environment.visualDescription}`);
+  }
+
+  // 2. Collect transient context from skipped scenes between previous generated and current
+  const currentPos = generatedIndices.indexOf(sceneIndexInAll);
+  const previousGeneratedIndex = currentPos > 0 ? generatedIndices[currentPos - 1] : -1;
+
+  const skippedContextParts: string[] = [];
+  for (let i = previousGeneratedIndex + 1; i < sceneIndexInAll; i++) {
+    if (i >= 0 && i < allScenes.length && !generatedIndices.includes(i)) {
+      const skippedScene = allScenes[i];
+      if (skippedScene.visualPrompt) {
+        skippedContextParts.push(`- Scene ${skippedScene.sceneId}: ${skippedScene.visualPrompt}`);
+      }
+    }
+  }
+
+  if (skippedContextParts.length > 0) {
+    parts.push(`SCENE CONTEXT (from preceding story moments not illustrated):\n${skippedContextParts.join('\n')}`);
+  }
+
+  // 3. Current scene action
+  parts.push(`CURRENT SCENE ACTION:\n${scene.visualPrompt}`);
+
+  // 4. If we added context, append instruction to include persistent details
+  if (environment || skippedContextParts.length > 0) {
+    parts.push('Include relevant environmental and contextual details that naturally persist in the current scene.');
+  }
+
+  const composed = parts.join('\n\n');
+
+  logger.info({
+    sceneId: scene.sceneId,
+    sceneIndexInAll,
+    environmentId: environmentId || 'MISSING',
+    environmentName: environment?.name || 'N/A',
+    environmentResolved: !!environment,
+    environmentDescriptionPreview: environment?.visualDescription?.substring(0, 100) || 'N/A',
+    skippedSceneIds: skippedContextParts.map(p => {
+      const match = p.match(/Scene (\d+)/);
+      return match ? parseInt(match[1]) : null;
+    }).filter(Boolean),
+    skippedScenesCount: skippedContextParts.length,
+    originalVisualPrompt: scene.visualPrompt,
+    composedLength: composed.length,
+  }, 'Composed visual prompt — environment + skipped context + action');
+
+  logger.debug({
+    sceneId: scene.sceneId,
+    composedVisualPrompt: composed,
+  }, 'Full composed visual prompt text');
+
+  return composed;
+}
+
+/**
  * Generate image for a single scene using reference-based approach (Nano Banana Pro)
  * Returns the image data (base64) for use as reference in subsequent scenes
+ */
+/**
+ * Generate scene image with character-aware reference selection
+ * Supports multiple reference images for better character consistency (M9)
+ * Returns image data plus scene DB ID and URL for reference tracking
  */
 async function generateSceneImageWithReference(
   storyId: string,
   scene: SceneData,
-  context: ImageGenerationContext & { referenceImageData?: { base64: string; mimeType: string } }
-): Promise<{ base64: string; mimeType: string }> {
+  context: ImageGenerationContext & { 
+    referenceImageDataArray?: Array<{ 
+      base64: string; 
+      mimeType: string;
+      source?: string;
+      characterName?: string;
+      type?: string;
+      sceneId?: number;
+      url?: string;
+    }> 
+  }
+): Promise<{ base64: string; mimeType: string; sceneDbId: string; imageUrl: string }> {
   const startTime = Date.now();
   
   try {
@@ -1070,15 +1663,63 @@ async function generateSceneImageWithReference(
       distinctiveFeatures: (char as any).distinctiveFeatures
     }));
     
-    // Add child profile as character if present
-    if (context.childProfile) {
+    // Add child profile as character ONLY if child is included in story characters
+    // Check if child profile is in the characters array (would have type: 'child')
+    const childIsCharacter = context.characters.some(
+      c => c.type === 'child' && c.id === context.childProfile?.id
+    );
+
+    if (context.childProfile && childIsCharacter) {
       characterDescriptions.unshift({
         name: context.childProfile.name,
         detailedDescription: (context.childProfile as any).aiGeneratedDescription || `${context.childProfile.name}`,
         clothing: (context.childProfile as any).clothing,
         distinctiveFeatures: (context.childProfile as any).distinctiveFeatures
       });
+      
+      logger.debug({
+        storyId,
+        sceneId: scene.sceneId,
+        childName: context.childProfile.name
+      }, 'Added child profile to character descriptions for image generation');
     }
+    
+    // Build reference images array with character-aware instruction text
+    const referenceImagesArray = context.referenceImageDataArray?.map((ref, index) => {
+      const meta: ReferenceMetadata = {
+        imageNumber: index + 1,
+        source: (ref as any).source === 'imaginary_friend' ? 'imaginary_friend' : 'previous_scene',
+        characterName: (ref as any).characterName || 'unknown',
+      };
+
+      if ((ref as any).type === 'imaginary_friend') {
+        // Find this character's description from the descriptions we already built
+        const charDesc = characterDescriptions.find(
+          c => c.name === (ref as any).characterName
+        );
+        meta.characterDescription = charDesc?.detailedDescription;
+      } else {
+        // Scene reference — include all characters present with their descriptions
+        meta.charactersPresent = (ref as any).charactersPresent || [];
+        meta.sceneId = (ref as any).sceneId;
+        meta.characterDescriptions = ((ref as any).charactersPresent || [])
+          .map((name: string) => {
+            const desc = characterDescriptions.find(
+              c => normalizeCharacterName(c.name) === name
+            );
+            return desc
+              ? { name: desc.name, description: desc.detailedDescription }
+              : null;
+          })
+          .filter(Boolean) as Array<{ name: string; description: string }>;
+      }
+
+      return {
+        base64Data: ref.base64,
+        mimeType: ref.mimeType,
+        instructionText: buildReferenceInstructionText(meta),
+      };
+    });
     
     // Generate scene with reference approach
     const image = await context.imageDomain.generateSceneWithReference({
@@ -1088,12 +1729,7 @@ async function generateSceneImageWithReference(
       ageGroup: context.ageGroup,
       style: context.userStyle || context.imageDomain.buildImageStyle(context.ageGroup),
       characterDescriptions,
-      // Use reference image if provided (not for first scene)
-      referenceImage: context.referenceImageData ? {
-        base64Data: context.referenceImageData.base64,
-        mimeType: context.referenceImageData.mimeType,
-        instructionText: buildReferenceInstructionText()
-      } : undefined,
+      referenceImages: referenceImagesArray, // Array of references
       sceneGoal: context.sceneGoal,
       sceneBeats: context.sceneBeats,
       sceneEmotion: context.sceneEmotion,
@@ -1121,10 +1757,19 @@ async function generateSceneImageWithReference(
       mimeType: image.mimeType,
       fileSizeBytes: uploadResult.fileSizeBytes,
       generationParams: {
-        mode: context.referenceImageUrl ? 'with_reference' : 'without_reference',
+        mode: referenceImagesArray ? 'with_reference' : 'without_reference',
+        referenceCount: referenceImagesArray?.length || 0,
         style: context.userStyle,
         visualPrompt: scene.visualPrompt,
-        hasReference: !!context.referenceImageUrl,
+        referenceImages: context.referenceImageDataArray?.map((ref, index) => ({
+          index: index + 1,
+          source: ref.source || 'unknown',
+          characterName: ref.characterName || 'unknown',
+          type: ref.type || 'unknown',
+          sceneId: ref.sceneId,
+          charactersPresent: (ref as any).charactersPresent || [],
+          url: ref.url || 'unknown'
+        })) || [],
       },
       generationTimeMs: Date.now() - startTime,
       status: 'completed',
@@ -1133,15 +1778,18 @@ async function generateSceneImageWithReference(
     logger.info({ 
       storyId, 
       sceneId: scene.sceneId,
-      hasReference: !!context.referenceImageData,
+      hasReferences: !!referenceImagesArray,
+      referenceCount: referenceImagesArray?.length || 0,
       imageSizeBytes: image.imageData.length,
       duration: Date.now() - startTime
     }, 'Scene image generated with reference approach');
     
-    // Return the base64 image data and mime type for use as reference in subsequent scenes
+    // Return the base64 image data, mime type, scene DB ID, and storage path for reference tracking
     return {
       base64: image.imageData.toString('base64'),
-      mimeType: image.mimeType
+      mimeType: image.mimeType,
+      sceneDbId: sceneRecord.id,
+      imageUrl: uploadResult.storagePath, // Use storagePath, not storageUrl
     };
     
   } catch (error) {
@@ -1155,21 +1803,48 @@ async function generateSceneImageWithReference(
 }
 
 /**
- * Build reference instruction text for Nano Banana Pro
- * Based on official Google Cloud workflow
+ * Metadata for building character-aware reference instruction text
  */
-function buildReferenceInstructionText(): string {
-  return `- Image 1: Reference image with all characters.
+interface ReferenceMetadata {
+  imageNumber: number;
+  source: 'imaginary_friend' | 'previous_scene';
+  characterName: string;
+  characterDescription?: string;
+  charactersPresent?: string[];
+  characterDescriptions?: Array<{ name: string; description: string }>;
+  sceneId?: number;
+}
 
-IMPORTANT! Use the attached reference image to keep the same appearance of all people, animals, and creatures:
-- Preserve ALL character faces, facial features, and expressions
-- Keep clothing details, colors, patterns, and accessories IDENTICAL
-- Maintain character body proportions and sizes
-- Preserve hair styles, colors, and details
-- Keep any distinctive features (glasses, jewelry, scars, etc.)
-- Maintain the same illustration style and art quality
+/**
+ * Build character-aware reference instruction text
+ * Tells the image model exactly WHO is on each reference image
+ */
+function buildReferenceInstructionText(meta: ReferenceMetadata): string {
+  if (meta.source === 'imaginary_friend') {
+    // Imaginary friend drawing — typically one character
+    const desc = meta.characterDescription
+      ? ` (${meta.characterDescription})`
+      : '';
+    return `- Image ${meta.imageNumber}: Child's drawing of imaginary friend "${meta.characterName}"${desc}.
+Reproduce this character EXACTLY as drawn: same shape, colors, proportions, and distinctive features. This drawing defines what "${meta.characterName}" looks like.
+CRITICAL: Do NOT add, invent, or fill in any body parts or facial features that are NOT present in the original drawing. If the drawing has no eyes on the face — do NOT draw eyes on the face. If the drawing has eyes only on stalks — draw eyes ONLY on stalks. Reproduce ONLY what exists in the drawing, nothing more.`;
+  }
 
-CHANGE ONLY: scene background, character poses/positions, actions as described below.`;
+  // Scene reference — may contain multiple characters
+  const charList = meta.charactersPresent?.length
+    ? meta.charactersPresent.join(', ')
+    : meta.characterName;
+
+  let charDescriptions = '';
+  if (meta.characterDescriptions && meta.characterDescriptions.length > 0) {
+    charDescriptions = '\nCharacters in this image:\n' +
+      meta.characterDescriptions
+        .map(c => `  - ${c.name}: ${c.description}`)
+        .join('\n');
+  }
+
+  return `- Image ${meta.imageNumber}: Previously generated illustration (scene ${meta.sceneId}) showing: ${charList}.${charDescriptions}
+Match the EXACT appearance of ALL characters from this image: faces, hair, clothing, body proportions, colors, and distinctive features must remain identical.`;
 }
 
 /**
@@ -1313,17 +1988,22 @@ async function saveStory(
       
       // Save all scenes in parallel within transaction
       await Promise.all(
-        text.scenes.map(scene => 
-          tx.insert(scenesTable).values({
+        text.scenes.map(scene => {
+          // Normalize character names for storage (M9)
+          const normalizedCharacters = (scene.characters || [])
+            .map(name => normalizeCharacterName(name));
+          
+          return tx.insert(scenesTable).values({
             storyId: story.id,
             sceneId: scene.sceneId,
             text: scene.text,
             visualPrompt: scene.visualPrompt,
+            charactersPresent: normalizedCharacters, // NEW M9: Store normalized character names
             generationParams: {
               wordCount: scene.text.split(/\s+/).length,
             },
-          })
-        )
+          });
+        })
       );
       
       logger.info({ storyId: story.id, sceneCount: text.scenes.length }, 'Scenes saved to table');
@@ -1363,6 +2043,482 @@ async function saveStory(
     return storyId;
   } catch (error) {
     logger.error({ error, requestId: request.id }, 'Failed to save story');
+    throw error;
+  }
+}
+
+/**
+ * Process a continuation request (M8)
+ * Similar to processStoryRequest but uses existing series context
+ */
+export async function processContinuationRequest(requestId: string): Promise<void> {
+  const startTime = Date.now();
+  
+  try {
+    logger.info({ requestId }, 'Processing continuation request');
+    
+    // Get request details
+    const [request] = await db
+      .select()
+      .from(storyRequests)
+      .where(eq(storyRequests.id, requestId))
+      .limit(1);
+    
+    if (!request) {
+      throw new Error(`Continuation request ${requestId} not found`);
+    }
+    
+    // Extract continuation context from intermediate data
+    const intermediateData = (request.intermediateData as any) || {};
+    const { seriesId, partNumber, continuationContext } = intermediateData;
+    
+    if (!seriesId || !continuationContext) {
+      throw new Error('Invalid continuation request: missing series context');
+    }
+    
+    // Update status to 'processing'
+    await db
+      .update(storyRequests)
+      .set({
+        status: 'processing',
+        updatedAt: new Date(),
+      })
+      .where(eq(storyRequests.id, requestId));
+    
+    logger.info({ requestId, seriesId, partNumber }, 'Processing continuation');
+    
+    // Get Domain Services
+    const storyDomain = getStoryDomainService();
+    const imageDomain = getImageDomainService();
+    const assetStorage = getAssetStorageService();
+    
+    // Get user plan features
+    const userPlan = await getPlanFeatures(request.userId);
+    
+    // Build story spec for continuation
+    const specData = await buildStorySpec(request);
+    const spec = specData.spec;
+    
+    // DEBUG: Log language values
+    logger.info({
+      requestId,
+      requestStoryLanguage: request.storyLanguage,
+      specLanguage: spec.language,
+    }, 'Language values before story creation');
+    
+    // Task 1: Generate Continuation Text
+    await startTask(requestId, STORY_TASKS.GENERATING_TEXT);
+    const text = await storyDomain.generateContinuation({
+      spec,
+      previousOutlines: continuationContext.previousOutlines,
+      requiredCharacters: continuationContext.requiredCharacters,
+      optionalCharacters: continuationContext.optionalCharacters,
+      usedPlots: continuationContext.usedPlots,
+    });
+    await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
+    
+    logger.info({ requestId, title: text.title, wordCount: text.wordCount }, 'Continuation text generated');
+    
+    // Create outline structure for compatibility
+    const outline = {
+      title: text.title,
+      language: request.storyLanguage || 'uk', // Use storyLanguage field, not language
+      moral: text.moral,
+      scenes: text.scenes.map((scene, idx) => ({
+        sceneId: scene.sceneId,
+        setting: '',
+        goal: '',
+        emotion: 'neutral' as const,
+        beats: [],
+        visualPrompt: scene.visualPrompt,
+      })),
+      safetyNotes: [],
+    };
+    
+    // Extract LLM-generated characters (new characters from this episode)
+    const llmCharacters = (text.characters || []).map(char => ({
+      name: char.name,
+      type: char.type,
+      description: char.description,
+      role: char.role,
+      personality: char.personality,
+      appearance: char.description,
+    }));
+    
+    logger.info({
+      llmCharacterCount: llmCharacters.length,
+      llmCharacterNames: llmCharacters.map(c => c.name).join(', ')
+    }, 'New characters in continuation');
+    
+    // Merge ALL characters for image generation (required + optional + new)
+    const allCharacters = [
+      ...(continuationContext.requiredCharacters || []),
+      ...(continuationContext.optionalCharacters || []),
+      ...llmCharacters,
+    ];
+    
+    // Create continuation story in database FIRST (to get storyId for scenes and images)
+    const [createdStory] = await db.insert(stories).values({
+      userId: request.userId,
+      childProfileId: request.childProfileId,
+      storyRequestId: request.id,
+      title: text.title,
+      language: request.storyLanguage || 'uk', // Use storyLanguage field from request, fallback to 'uk'
+      ageGroup: spec.ageGroup,
+      tone: request.tone,
+      moralTheme: request.goal,
+      outline: outline as any,
+      scenes: text.scenes.map((scene) => ({
+        sceneId: scene.sceneId,
+        text: scene.text,
+        visualPrompt: scene.visualPrompt,
+        imageUrl: null, // Will be updated after image generation
+      })),
+      fullText: text.fullText,
+      wordCount: text.wordCount,
+      estimatedReadMinutes: Math.ceil(text.wordCount / 200),
+      metadata: {
+        llmGeneratedCharacters: llmCharacters,
+        mergedCharacters: allCharacters, // Store all characters
+        imageStyle: request.imageStyle,
+        generatedAt: new Date().toISOString(),
+      },
+      modelVersion: 'gemini-2.0-flash-exp',
+      generationTimeMs: Date.now() - startTime,
+      isPublished: true,
+      // Series fields
+      seriesId: seriesId,
+      partNumber: partNumber,
+    }).returning();
+    
+    const storyId = createdStory.id;
+    logger.info({ storyId, seriesId, partNumber }, 'Continuation story created');
+    
+    // Create scene records in database
+    await Promise.all(
+      text.scenes.map(async (scene) => {
+        // Normalize character names for storage (M9)
+        const normalizedCharacters = (scene.characters || [])
+          .map(name => normalizeCharacterName(name));
+        
+        await db.insert(scenesTable).values({
+          storyId: storyId,
+          sceneId: scene.sceneId,
+          text: scene.text,
+          visualPrompt: scene.visualPrompt,
+          charactersPresent: normalizedCharacters, // NEW M9: Store normalized character names
+        });
+      })
+    );
+    
+    logger.info({ storyId, sceneCount: text.scenes.length }, 'Continuation scenes saved to DB');
+    
+    // Task 2: Generate Scene Images (using reference-based approach from FIRST PART)
+    await startTask(requestId, STORY_TASKS.GENERATING_IMAGES);
+    
+    if (config.image.skipGeneration) {
+      logger.info({ requestId, storyId }, 'Continuation image generation skipped (SKIP_IMAGE_GENERATION=true)');
+    } else {
+    
+    const imagesPerStory = userPlan.imagesPerStory || 0;
+    
+    // Calculate evenly distributed scene indices instead of generating ALL scenes
+    const sceneIndices: number[] = [];
+    const totalScenes = text.scenes.length;
+    
+    if (imagesPerStory > 0 && totalScenes > 0) {
+      for (let i = 0; i < imagesPerStory; i++) {
+        // Distribute images evenly across the story
+        // Example: 8 scenes, 3 images → indices [1, 4, 6]
+        const index = Math.floor((i + 0.5) * totalScenes / imagesPerStory);
+        sceneIndices.push(Math.min(index, totalScenes - 1)); // Ensure within bounds
+      }
+    }
+    
+    const scenesToGenerate = sceneIndices.map(i => text.scenes[i]);
+    
+    logger.info({ 
+      requestId, 
+      totalScenes,
+      imagesPerStory,
+      sceneIndices,
+      sceneCount: scenesToGenerate.length
+    }, 'Selected scenes for continuation image generation (evenly distributed)');
+
+    // Build environment map for visual prompt composition (continuation)
+    const continuationEnvironmentMap = new Map<string, StoryEnvironment>();
+    const continuationEnvironments = (text as any).environments as StoryEnvironment[] | undefined;
+    if (continuationEnvironments && continuationEnvironments.length > 0) {
+      for (const env of continuationEnvironments) {
+        continuationEnvironmentMap.set(env.id, env);
+      }
+      logger.info({
+        requestId,
+        environmentCount: continuationEnvironments.length,
+        environmentIds: continuationEnvironments.map(e => e.id),
+      }, 'Built environment map from continuation LLM output');
+    } else {
+      logger.warn({ requestId }, 'No environments in continuation LLM output — visual prompts will not include environment context');
+    }
+
+    // CRITICAL: Get reference image from FIRST PART of series for visual consistency
+    let referenceImageFromFirstPart: { base64: string; mimeType: string } | undefined = undefined;
+    
+    try {
+      // Get the first story ID from series
+      const [series] = await db.select().from(storySeries).where(eq(storySeries.id, seriesId));
+      
+      if (series && series.storyIds && (series.storyIds as string[]).length > 0) {
+        const firstStoryId = (series.storyIds as string[])[0];
+        logger.info({ firstStoryId, seriesId }, 'Loading reference image from first part of series');
+        
+        // Get first story's scenes
+        const firstStoryScenes = await db
+          .select()
+          .from(scenesTable)
+          .where(eq(scenesTable.storyId, firstStoryId));
+        
+        logger.debug({ 
+          scenesCount: firstStoryScenes.length,
+          firstSceneHasImageUrl: !!firstStoryScenes[0]?.imageUrl
+        }, 'Loaded scenes from first story');
+        
+        // Find first scene with an image (check both imageUrl field and assets table)
+        let imageStoragePath: string | null = null;
+        
+        for (const scene of firstStoryScenes) {
+          // First check if imageUrl is populated (new stories after M9)
+          if (scene.imageUrl) {
+            imageStoragePath = scene.imageUrl;
+            logger.info({ 
+              sceneId: scene.sceneId, 
+              imageUrl: scene.imageUrl 
+            }, 'Found reference image URL from first part (from scenes.imageUrl)');
+            break;
+          }
+          
+          // Fallback: check assets table (older stories before M9)
+          const [asset] = await db
+            .select()
+            .from(assets)
+            .where(and(
+              eq(assets.sceneId, scene.id),
+              eq(assets.assetType, 'image')
+            ))
+            .limit(1);
+          
+          if (asset && asset.storagePath) {
+            imageStoragePath = asset.storagePath;
+            logger.info({ 
+              sceneId: scene.sceneId, 
+              storagePath: asset.storagePath 
+            }, 'Found reference image from first part (from assets table)');
+            break;
+          }
+        }
+        
+        if (imageStoragePath) {
+          // Fetch the image from asset storage
+          const imageBuffer = await assetStorage.getAssetByPath(imageStoragePath);
+          
+          if (imageBuffer) {
+            referenceImageFromFirstPart = {
+              base64: imageBuffer.toString('base64'),
+              mimeType: 'image/png', // Our system stores PNGs
+            };
+            
+            logger.info({ 
+              base64Length: referenceImageFromFirstPart.base64.length,
+              storagePath: imageStoragePath
+            }, 'Successfully loaded reference image from first part');
+          } else {
+            logger.warn({ imageStoragePath }, 'Image file not found in storage');
+          }
+        } else {
+          logger.warn({ firstStoryId, scenesCount: firstStoryScenes.length }, 'No images found in first part - will generate without reference');
+        }
+      }
+    } catch (error) {
+      logger.error({ error, seriesId }, 'Failed to load reference image from first part - continuing without reference');
+      // Continue without reference - not a critical error
+    }
+    
+    if (scenesToGenerate.length > 0) {
+      // Build character registry and description map (same as main generation M9)
+      const characterRegistry = buildCharacterRegistry(
+        allCharacters,
+        spec.childProfile,
+        []
+      );
+      
+      const characterDescriptionMap = new Map<string, any>();
+      for (const char of allCharacters) {
+        const normalized = normalizeCharacterName(char.name);
+        characterDescriptionMap.set(normalized, char);
+      }
+      
+      // SEQUENTIAL IMAGE GENERATION with character-aware references (M9)
+      for (let i = 0; i < scenesToGenerate.length; i++) {
+        const scene = scenesToGenerate[i];
+        
+        logger.info({ 
+          sceneId: scene.sceneId, 
+          sceneIndex: i + 1,
+          totalScenes: scenesToGenerate.length 
+        }, 'Generating continuation scene image');
+        
+        // Normalize scene character names
+        const sceneCharacters = scene.characters || [];
+        const normalizedCharacters = sceneCharacters
+          .map(name => normalizeCharacterName(name));
+        
+        // Select references for this scene
+        const referenceSelection = await selectReferencesForScene(
+          storyId,
+          normalizedCharacters,
+          scene.sceneId
+        );
+        
+        // For first scene, prioritize reference from first part
+        let referenceImageDataArray: Array<{ base64: string; mimeType: string }> = [];
+        
+        if (i === 0 && referenceImageFromFirstPart) {
+          // Use reference from first part for first scene
+          referenceImageDataArray = [referenceImageFromFirstPart];
+          logger.info({ sceneId: scene.sceneId }, 'Using reference from first part for first continuation scene');
+        } else {
+          // Use character-aware reference selection for other scenes
+          referenceImageDataArray = await Promise.all(
+            referenceSelection.referenceImages.map(ref => 
+              loadReferenceImageData(ref.imageUrl, assetStorage)
+            )
+          );
+        }
+        
+        // Filter character descriptions to only include characters in THIS scene
+        const sceneCharacterDescriptions = normalizedCharacters
+          .map(normalized => characterDescriptionMap.get(normalized))
+          .filter(Boolean) as any[];
+        
+        logger.info({
+          sceneId: scene.sceneId,
+          charactersInScene: sceneCharacters,
+          normalizedCharacters,
+          referenceCount: referenceImageDataArray.length,
+          usedReferenceFromFirstPart: i === 0 && !!referenceImageFromFirstPart,
+        }, 'Generating continuation scene with character-aware references');
+        
+        try {
+          // Compose enriched visual prompt with environment + skipped scene context
+          const composedVisualPrompt = buildComposedVisualPrompt({
+            scene,
+            sceneIndexInAll: sceneIndices[i],
+            generatedIndices: sceneIndices,
+            allScenes: text.scenes as SceneData[],
+            environmentMap: continuationEnvironmentMap,
+          });
+
+          // Create scene copy with enriched visual prompt
+          const enrichedScene: SceneData = { ...scene, visualPrompt: composedVisualPrompt };
+
+          const imageResult = await generateSceneImageWithReference(storyId, enrichedScene, {
+            childProfile: spec.childProfile,
+            characters: sceneCharacterDescriptions, // ONLY scene characters
+            userStyle: (spec as any).imageStyle,
+            ageGroup: spec.ageGroup,
+            userPlan,
+            userId: request.userId,
+            assetStorage,
+            imageDomain,
+            sceneGoal: undefined,
+            sceneBeats: undefined,
+            sceneEmotion: undefined,
+            referenceImageDataArray: referenceImageDataArray, // Use array
+          });
+          
+          // Mark as reference if it introduces new characters
+          if (referenceSelection.shouldMarkAsReference) {
+            await markSceneAsReference(
+              imageResult.sceneDbId,
+              normalizedCharacters,
+              imageResult.imageUrl
+            );
+          }
+          
+          await updateTaskProgress(
+            requestId,
+            STORY_TASKS.GENERATING_IMAGES,
+            (i + 1) / scenesToGenerate.length,
+            { current: i + 1, total: scenesToGenerate.length }
+          );
+        } catch (error) {
+          logger.error({ error, sceneId: scene.sceneId }, 'Failed to generate continuation scene image');
+        }
+      }
+      
+      logger.info('All continuation scenes generated');
+    }
+    
+    } // end if !skipGeneration
+    
+    await completeTask(requestId, STORY_TASKS.GENERATING_IMAGES);
+    
+    logger.info({ storyId }, 'Continuation images complete');
+    
+    // Fetch actual image URLs from database (already uploaded by generateSceneImageWithReference)
+    const sceneRecords = await db
+      .select()
+      .from(scenesTable)
+      .where(eq(scenesTable.storyId, storyId));
+    
+    // Update story with scene image URLs
+    await db.update(stories)
+      .set({
+        scenes: text.scenes.map((scene) => {
+          const sceneRecord = sceneRecords.find(r => r.sceneId === scene.sceneId);
+          return {
+            sceneId: scene.sceneId,
+            text: scene.text,
+            visualPrompt: scene.visualPrompt,
+            imageUrl: sceneRecord?.imageUrl || null,
+          };
+        }),
+      })
+      .where(eq(stories.id, storyId));
+    
+    logger.info({ storyId }, 'Story updated with image URLs');
+    
+    // Update series with new story
+    const { addContinuationToSeries } = await import('./seriesService');
+    await addContinuationToSeries(seriesId, storyId, createdStory);
+    
+    // Mark request as completed
+    await db.update(storyRequests).set({
+      status: 'completed',
+      progress: 100,
+      storyId: storyId,
+      updatedAt: new Date(),
+    }).where(eq(storyRequests.id, requestId));
+    
+    const totalTime = Date.now() - startTime;
+    logger.info({
+      requestId,
+      storyId: storyId,
+      seriesId,
+      partNumber,
+      totalTimeMs: totalTime
+    }, 'Continuation request completed successfully');
+    
+  } catch (error) {
+    logger.error({ error, requestId }, 'Continuation request failed');
+    
+    // Mark request as failed
+    await db.update(storyRequests).set({
+      status: 'failed',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      updatedAt: new Date(),
+    }).where(eq(storyRequests.id, requestId));
+    
     throw error;
   }
 }
@@ -1444,10 +2600,109 @@ export async function getStory(storyId: string, userId: string) {
     wordCount: story.wordCount,
     estimatedReadMinutes: story.estimatedReadMinutes,
     outline: story.outline,
+    audioMetadata: story.audioMetadata, // M7: Include audio metadata for alignment
     characters: linkedCharacters,
     isFavorite: story.isFavorite,
-    createdAt: story.createdAt
+    createdAt: story.createdAt,
+    // M8: Series fields
+    seriesId: story.seriesId,
+    partNumber: story.partNumber,
   };
+}
+
+/**
+ * Enrich scenes with image data from assets table
+ */
+async function enrichScenesWithImages(storyId: string, scenes: any[]): Promise<any[]> {
+  if (!Array.isArray(scenes) || scenes.length === 0) {
+    return scenes;
+  }
+
+  // Get all image assets for this story
+  const imageAssets = await db
+    .select({
+      id: assets.id,
+      url: assets.storageUrl,
+      signedUrl: assets.signedUrl,
+      signedUrlExpiresAt: assets.signedUrlExpiresAt,
+      storagePath: assets.storagePath,
+      generationParams: assets.generationParams,
+      visualPrompt: sql<string>`${assets.generationParams}->>'visualPrompt'`,
+    })
+    .from(assets)
+    .where(and(
+      eq(assets.storyId, storyId),
+      eq(assets.assetType, 'image'),
+      eq(assets.status, 'completed')
+    ));
+
+  // Generate fresh signed URLs for assets that need them
+  const assetStorage = getAssetStorageService();
+  const assetsWithSignedUrls = await Promise.all(
+    imageAssets.map(async (asset) => {
+      // Always generate fresh signed URLs for library listing
+      // to avoid 401 errors from expired or invalid URLs
+      if (asset.storagePath) {
+        try {
+          const { signedUrl, expiresAt } = await assetStorage.generateSignedUrl(
+            asset.storagePath,
+            24 // 24 hours
+          );
+          
+          // Update asset with new signed URL
+          await db
+            .update(assets)
+            .set({
+              signedUrl,
+              signedUrlExpiresAt: expiresAt,
+            })
+            .where(eq(assets.id, asset.id));
+          
+          return { ...asset, signedUrl, signedUrlExpiresAt: expiresAt };
+        } catch (error) {
+          logger.error({ err: error, assetId: asset.id }, 'Failed to generate signed URL');
+          return asset;
+        }
+      }
+      
+      return asset;
+    })
+  );
+
+  logger.debug({
+    storyId,
+    imageAssetsCount: assetsWithSignedUrls.length,
+    firstAsset: assetsWithSignedUrls[0] ? {
+      hasSignedUrl: !!assetsWithSignedUrls[0].signedUrl,
+      hasStorageUrl: !!assetsWithSignedUrls[0].url,
+      visualPromptLength: assetsWithSignedUrls[0].visualPrompt?.length,
+    } : null,
+  }, 'enrichScenesWithImages - assets fetched with signed URLs');
+
+  // Match assets to scenes by visualPrompt
+  const enrichedScenes = scenes.map(scene => {
+    const matchingAsset = assetsWithSignedUrls.find(asset => {
+      const scenePrompt = scene.visualPrompt?.trim().replace(/\s+/g, ' ');
+      const assetPrompt = asset.visualPrompt?.trim().replace(/\s+/g, ' ');
+      return scenePrompt && assetPrompt && scenePrompt === assetPrompt;
+    });
+
+    return {
+      ...scene,
+      image: matchingAsset ? {
+        url: matchingAsset.signedUrl || matchingAsset.url,
+        expiresAt: matchingAsset.signedUrlExpiresAt,
+      } : null,
+    };
+  });
+
+  logger.debug({
+    storyId,
+    scenesWithImagesCount: enrichedScenes.filter(s => s.image).length,
+    totalScenes: enrichedScenes.length,
+  }, 'enrichScenesWithImages - scenes enriched');
+
+  return enrichedScenes;
 }
 
 /**
@@ -1460,9 +2715,16 @@ export async function listUserStories(
     language?: string;
     limit?: number;
     offset?: number;
+    hasAudio?: boolean;
   } = {}
 ) {
-  const { childProfileId: _childProfileId, language: _language, limit = 20, offset = 0 } = options;
+  const { childProfileId: _childProfileId, language: _language, limit = 20, offset = 0, hasAudio } = options;
+  
+  // Build WHERE conditions
+  const whereConditions = [eq(stories.userId, userId)];
+  if (hasAudio) {
+    whereConditions.push(isNotNull(stories.audioMetadata));
+  }
   
   let query = db
     .select({
@@ -1473,10 +2735,18 @@ export async function listUserStories(
       wordCount: stories.wordCount,
       estimatedReadMinutes: stories.estimatedReadMinutes,
       isFavorite: stories.isFavorite,
-      createdAt: stories.createdAt
+      createdAt: stories.createdAt,
+      scenes: stories.scenes,
+      fullText: stories.fullText,
+      audioMetadata: stories.audioMetadata,
+      metadata: stories.metadata,
+      status: stories.isPublished, // Map isPublished to status for client
+      // M8: Series fields
+      seriesId: stories.seriesId,
+      partNumber: stories.partNumber,
     })
     .from(stories)
-    .where(eq(stories.userId, userId))
+    .where(and(...whereConditions))
     .orderBy(desc(stories.createdAt))
     .limit(limit)
     .offset(offset);
@@ -1487,19 +2757,80 @@ export async function listUserStories(
   
   const results = await query;
   
-  return results;
+  // Enrich scenes with images from assets table
+  const enrichedResults = await Promise.all(
+    results.map(async (story) => {
+      const enrichedScenes = await enrichScenesWithImages(story.id, story.scenes as any[]);
+      return {
+        ...story,
+        scenes: enrichedScenes,
+        status: story.status ? 'completed' : 'draft', // Convert boolean to status string
+      };
+    })
+  );
+  
+  return enrichedResults;
+}
+
+/**
+ * Get total count of user stories (for pagination)
+ */
+export async function getTotalUserStoriesCount(
+  userId: string,
+  options: {
+    childProfileId?: string;
+    language?: string;
+    hasAudio?: boolean;
+  } = {}
+): Promise<number> {
+  const { childProfileId: _childProfileId, language: _language, hasAudio } = options;
+  
+  // Build WHERE conditions
+  const whereConditions = [eq(stories.userId, userId)];
+  if (hasAudio) {
+    whereConditions.push(isNotNull(stories.audioMetadata));
+  }
+  
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(stories)
+    .where(and(...whereConditions));
+  
+  return result[0]?.count || 0;
 }
 
 /**
  * Delete story
  */
 export async function deleteStory(storyId: string, userId: string): Promise<boolean> {
+  // Get story to check if it's part of a series
+  const [story] = await db
+    .select()
+    .from(stories)
+    .where(and(
+      eq(stories.id, storyId),
+      eq(stories.userId, userId)
+    ));
+  
+  if (!story) {
+    throw new Error('Story not found');
+  }
+  
+  // If story is part of series, update series first
+  if (story.seriesId) {
+    const { removeStoryFromSeries } = await import('./seriesService');
+    await removeStoryFromSeries(storyId, story.seriesId);
+  }
+  
+  // Delete the story
   await db
     .delete(stories)
     .where(and(
       eq(stories.id, storyId),
       eq(stories.userId, userId)
     ));
+  
+  logger.info({ storyId, userId, hadSeries: !!story.seriesId }, 'Story deleted');
   
   return true;
 }
@@ -1539,6 +2870,11 @@ export async function getStoryManifest(storyId: string) {
     title: story.title,
     language: story.language,
     ageGroup: story.ageGroup,
+    fullText: story.fullText, // M6: Add fullText for alignment sync
+    audioMetadata: story.audioMetadata,
+    // M8: Series fields
+    seriesId: story.seriesId,
+    partNumber: story.partNumber,
     scenes: storyScenes.map(scene => {
       const sceneAssets = storyAssets.filter(
         a => a.sceneId === scene.id

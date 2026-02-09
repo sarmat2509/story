@@ -12,6 +12,7 @@ if (process.env.NODE_ENV === 'development') {
   console.log('  ENV path:', envPath);
   console.log('  GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'Set ✓' : 'Missing ✗');
   console.log('  GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'Set ✓' : 'Missing ✗');
+  console.log('  ELEVENLABS_API_KEY:', process.env.ELEVENLABS_API_KEY ? `Set ✓ (length: ${process.env.ELEVENLABS_API_KEY.length})` : 'Missing ✗');
 }
 
 // Validate required environment variables in production
@@ -63,8 +64,11 @@ export const config = {
     textVendor: process.env.AI_TEXT_VENDOR || 'gemini',
     imageVendor: process.env.AI_IMAGE_VENDOR || 'gemini',
     ttsVendor: process.env.AI_TTS_VENDOR || 'elevenlabs',
+    alignmentVendor: process.env.AI_ALIGNMENT_VENDOR || 'elevenlabs', // M6: Forced alignment provider
     geminiApiKey: process.env.GEMINI_API_KEY || '',
     geminiVisionModel: process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash',
+    openaiApiKey: process.env.OPENAI_API_KEY || '',
+    openaiModel: process.env.OPENAI_TEXT_MODEL || 'gpt-5.2',
     elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || '',
     modelVersion: process.env.AI_MODEL_VERSION || 'gemini-2.5-flash',
     maxRetries: parseInt(process.env.AI_MAX_RETRIES || '3', 10),
@@ -73,6 +77,7 @@ export const config = {
   
   // Image Generation
   image: {
+    skipGeneration: process.env.SKIP_IMAGE_GENERATION === 'true',
     provider: process.env.IMAGE_PROVIDER || 'nanobananapro', // Default to Nano Banana Pro
     gemini: {
       model: process.env.GEMINI_IMAGE_MODEL || 'imagen-3.0-generate-002', // Legacy Imagen 3
@@ -95,14 +100,28 @@ export const config = {
     model: process.env.NANO_BANANA_MODEL || 'gemini-2.5-flash-image', // or 'gemini-3.0-pro-image' for better quality
     aspectRatio: process.env.NANO_BANANA_ASPECT_RATIO || '16:9',
     enableReferenceImages: process.env.ENABLE_FIRST_IMAGE_REFERENCE !== 'false', // Enabled by default
+    maxPromptLength: parseInt(process.env.NANO_BANANA_MAX_PROMPT_LENGTH || '2000', 10), // Max chars before truncation
   },
   
   // Audio/TTS Generation (M5)
   audio: {
-    provider: process.env.AUDIO_PROVIDER || 'elevenlabs',
+    provider: process.env.AUDIO_PROVIDER || 'elevenlabs', // 'elevenlabs' | 'google' | 'openai'
+    premiumProvider: process.env.AUDIO_PREMIUM_PROVIDER || 'elevenlabs', // Premium provider for Fairyworld plan
     elevenlabs: {
       apiKey: process.env.ELEVENLABS_API_KEY || '',
-      model: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
+      model: process.env.ELEVENLABS_MODEL || 'eleven_v3',
+    },
+    // NEW: Google Cloud TTS configuration
+    google: {
+      projectId: process.env.GOOGLE_CLOUD_PROJECT || '',
+      credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS || '', // path to JSON
+      model: process.env.GOOGLE_TTS_MODEL || 'gemini-2.5-flash-tts',
+      location: process.env.GOOGLE_TTS_LOCATION || 'global', // or 'us', 'eu'
+    },
+    // NEW: OpenAI TTS configuration
+    openai: {
+      apiKey: process.env.OPENAI_API_KEY || '',
+      model: process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts', // or 'tts-1', 'tts-1-hd'
     },
     // Default voices per language
     defaultVoice: {
@@ -110,11 +129,14 @@ export const config = {
       en: process.env.DEFAULT_VOICE_EN || '',
       ru: process.env.DEFAULT_VOICE_RU || '',
       es: process.env.DEFAULT_VOICE_ES || '',
+      fr: process.env.DEFAULT_VOICE_FR || '',
+      de: process.env.DEFAULT_VOICE_DE || '',
     },
     maxRetries: parseInt(process.env.AUDIO_MAX_RETRIES || '3', 10),
     retryDelayMs: parseInt(process.env.AUDIO_RETRY_DELAY_MS || '2000', 10),
-    maxTextLength: parseInt(process.env.AUDIO_MAX_TEXT_LENGTH || '5000', 10),
-    timeoutMs: parseInt(process.env.AUDIO_TIMEOUT_MS || '30000', 10), // 30 seconds
+    maxTextLength: parseInt(process.env.AUDIO_MAX_TEXT_LENGTH || '100000', 10), // Increased - chunking handles it
+    chunkSize: parseInt(process.env.AUDIO_CHUNK_SIZE || '4500', 10), // Safety margin under ElevenLabs 5k limit
+    timeoutMs: parseInt(process.env.AUDIO_TIMEOUT_MS || '120000', 10), // 120 seconds (2 min) - ElevenLabs needs time for long audio generation
     cache: {
       ttl: parseInt(process.env.AUDIO_CACHE_TTL || '2592000', 10), // 30 days
     },
@@ -124,6 +146,15 @@ export const config = {
     quotaRefreshIntervalMs: parseInt(process.env.AUDIO_QUOTA_REFRESH_INTERVAL_MS || '300000', 10), // 5 min
     queueTimeoutMs: parseInt(process.env.AUDIO_QUEUE_TIMEOUT_MS || '300000', 10), // 5 min
     safetyMargin: parseFloat(process.env.AUDIO_SAFETY_MARGIN || '0.9'), // Use 90% of quota
+    // Concurrency limits by plan (ElevenLabs Multilingual v2)
+    concurrency: {
+      free: 2,
+      starter: 3,
+      creator: 5,
+      pro: 10,
+      scale: 15,
+      enterprise: 30,
+    },
   },
   
   // Google Cloud (for Quotas API)
@@ -187,6 +218,22 @@ export const config = {
   features: {
     enableCharacterAnalysis: process.env.ENABLE_CHARACTER_ANALYSIS !== 'false', // Enabled by default
   },
+  
+  // Story Generation
+  storyGeneration: {
+    useDirectTextGeneration: process.env.USE_DIRECT_TEXT_GENERATION === 'true', // false = outline->text, true = direct text
+  },
 };
+
+/**
+ * Get ElevenLabs concurrency limit for a given plan
+ * @param planSlug - Plan identifier (free, starter, creator, pro, scale, enterprise)
+ * @returns Concurrency limit for the plan
+ */
+export function getConcurrencyLimitForPlan(planSlug?: string): number {
+  const slug = planSlug || 'free';
+  const limits = config.audio.concurrency as Record<string, number>;
+  return limits[slug] || limits.free;
+}
 
 export default config;

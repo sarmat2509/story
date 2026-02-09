@@ -12,13 +12,34 @@ export interface Voice {
   id: string;
   name: string;
   language: string;
-  gender?: 'male' | 'female' | 'neutral';
+  gender?: 'male' | 'female' | 'neutral'; // Updated to include 'neutral'
+  provider?: 'elevenlabs' | 'google' | 'openai'; // NEW: Provider type
   ageCategory?: 'child' | 'young_adult' | 'adult' | 'senior';
   tags?: string[];        // e.g., ['calm', 'energetic', 'storyteller', 'parent']
   accent?: string;
   description?: string;
   sampleUrl?: string;
   isPremium?: boolean;
+  dbId?: string; // Database UUID (for caching)
+}
+
+/**
+ * Voice catalog entry for seeding database
+ * Used by getDefaultVoices() method
+ */
+export interface VoiceCatalogEntry {
+  providerVoiceId: string;
+  name: string;              // Backend DB name: "cassiopeia", "orion"
+  displayName: string;       // Frontend display: "Кассіопея", "Оріон"
+  language: string;
+  gender: 'male' | 'female';
+  ageCategory: 'child' | 'young_adult' | 'adult' | 'senior';
+  roleType: 'narrator' | 'character' | 'both';
+  voiceTags: string[];
+  description: string;
+  providerPreviewUrl?: string;
+  isPremium: boolean;
+  suitableForAgeSlugs: string[];
 }
 
 /**
@@ -28,6 +49,7 @@ export interface ProsodySettings {
   speed?: number;         // 0.5 - 2.0, default 1.0
   pitchShift?: number;    // -10 to +10 semitones
   nightMode?: boolean;    // Softer, slower for bedtime
+  tone?: string | null;   // Story tone (calm, adventure, humor, lullaby, educational)
 }
 
 /**
@@ -91,4 +113,11 @@ export interface IAudioProvider {
    * @returns True if provider is healthy
    */
   healthCheck(): Promise<boolean>;
+
+  /**
+   * Get default voice catalog for seeding database
+   * Each provider exports its own curated list of voices
+   * @returns Array of voice catalog entries
+   */
+  getDefaultVoices(): VoiceCatalogEntry[];
 }

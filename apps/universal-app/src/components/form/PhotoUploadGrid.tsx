@@ -3,7 +3,7 @@ import { View, Text, Image, TouchableOpacity, StyleSheet, Alert, Platform, Activ
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { theme } from '@/theme';
-import { uploadPhoto, UploadPhotoResult } from '@/utils/uploadPhoto';
+import { uploadPhoto, deletePhoto, UploadPhotoResult } from '@/utils/uploadPhoto';
 
 type Photo = UploadPhotoResult & {
   isUploading?: boolean;
@@ -89,7 +89,12 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
     }
   };
 
-  const removePhoto = (index: number) => {
+  const removePhoto = async (index: number) => {
+    const photo = photos[index];
+    // Delete from server if already uploaded (best-effort, don't block UI)
+    if (!photo.isUploading && photo.url?.startsWith('http')) {
+      deletePhoto(photo.url);
+    }
     onPhotosChange(photos.filter((_, i) => i !== index));
   };
 

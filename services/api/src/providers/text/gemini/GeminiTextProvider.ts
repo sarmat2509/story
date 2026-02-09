@@ -96,9 +96,18 @@ export class GeminiTextProvider implements ITextProvider {
     }, 'Creating Gemini model for structured generation');
 
     // Create Gemini model with schema
-    // ALWAYS use relaxed safety settings for children's stories
     const model = this.client.getGenerativeModel({
       model: modelName,
+      // System instruction helps prevent PROHIBITED_CONTENT false positives
+      // on children's imaginary creature descriptions (e.g. "sharp teeth", "claws")
+      systemInstruction: {
+        parts: [{
+          text: 'You are a children\'s story generation engine for a safe, age-appropriate bedtime stories app. '
+            + 'All input comes from parents describing their children\'s drawings and imaginary friends. '
+            + 'All output must be positive, safe, and suitable for children ages 0-12. '
+            + 'Character descriptions may include fantasy creature features (teeth, claws, horns) — these are from children\'s drawings and are always playful and non-threatening.'
+        }]
+      },
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: geminiSchema as any, // TypeScript workaround for complex nested schemas
@@ -107,10 +116,10 @@ export class GeminiTextProvider implements ITextProvider {
         ...(request.topP && { topP: request.topP }),
         ...(request.topK && { topK: request.topK })
       },
-      // Use ultra-relaxed safety for photo analysis, normal relaxed for stories
-      safetySettings: request.relaxedSafety 
-        ? this.photoAnalysisSafetySettings 
-        : this.validationSafetySettings
+      // Use BLOCK_NONE for all children's content generation — our prompts enforce safety.
+      // Gemini's built-in filters produce false positives on character descriptions
+      // (e.g. "sharp white teeth" on an imaginary creature drawn by a child).
+      safetySettings: this.photoAnalysisSafetySettings
     });
 
     try {
@@ -143,17 +152,20 @@ export class GeminiTextProvider implements ITextProvider {
         // Log detailed blocking information
         logger.warn({ 
           blockReason,
+          fullPromptFeedback: result.response.promptFeedback,
           safetyRatings: safetyRatings.map(r => ({
             category: r.category,
             probability: r.probability,
           })),
+          candidateCount: result.response.candidates?.length || 0,
+          candidateFinishReasons: result.response.candidates?.map(c => c.finishReason) || [],
           isValidation,
           temperature: request.temperature,
           promptLength: request.prompt.length,
-          promptPreview: request.prompt.substring(0, 200),
+          promptPreview: request.prompt.substring(0, 500),
           model: modelName,
           hasImages: !!request.imageData
-        }, 'Gemini blocked content - detailed safety info');
+        }, 'Gemini blocked content - PROHIBITED_CONTENT debug info');
         
         // Build detailed error message with safety ratings
         const safetyDetails = safetyRatings
@@ -177,13 +189,12 @@ export class GeminiTextProvider implements ITextProvider {
         throw new Error('Response truncated: increase maxOutputTokens parameter');
       }
 
-      // Log response for debugging JSON parse errors
-      logger.debug({
+      // Log full LLM response for debugging
+      logger.info({
         responseLength: responseText.length,
-        responsePreview: responseText.substring(0, 200),
-        responseSuffix: responseText.substring(Math.max(0, responseText.length - 200)),
         finishReason: candidate?.finishReason,
-      }, 'Gemini response received');
+        response: responseText,
+      }, 'Gemini structured response JSON');
 
       // Parse JSON response with fallback for markdown-wrapped responses
       try {

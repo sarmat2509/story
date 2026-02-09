@@ -24,15 +24,9 @@ export type StoryGoal =
 export type StoryTone = 'calm' | 'adventure' | 'humor' | 'lullaby' | 'educational';
 
 // Art styles
-export type ArtStyle =
-  | 'soft_watercolor'
-  | 'colored_pencil'
-  | 'comic_line'
-  | 'anime_light'
-  | 'warm_3d'
-  | 'night_calm'
-  | 'felt_craft'
-  | 'clay';
+import { IMAGE_STYLES } from '../constants/imageStyles';
+
+export type ArtStyle = typeof IMAGE_STYLES[number];
 
 // User types
 export interface User {
@@ -310,4 +304,39 @@ export interface ContinuityState {
   used_morals: string[];
   used_hooks: string[];
   embedding_fingerprints: string[];
+}
+
+// Audio Alignment (M6) - Forced alignment for text-audio synchronization
+export interface AlignmentCharacter {
+  text: string;
+  start: number; // seconds
+  end: number;   // seconds
+}
+
+export interface AlignmentWord {
+  text: string;
+  start: number;     // seconds
+  end: number;       // seconds
+  confidence?: number; // 0-1 confidence score (optional, provider-specific)
+}
+
+export interface AlignmentData {
+  characters: AlignmentCharacter[];
+  words: AlignmentWord[];
+  averageConfidence?: number; // Average confidence score
+  provider: string;           // 'elevenlabs' | 'google' | 'azure' | 'aws'
+  language?: string;          // Detected language
+  generatedAt: string;        // ISO timestamp
+}
+
+export interface AudioMetadata {
+  voiceId: string;
+  voiceName: string;
+  totalDuration: number;
+  generatedAt: string;
+  nightMode?: boolean;
+  sceneGroupAssetIds?: (string | null)[];
+  finalAssetId?: string;
+  provider?: string;           // Audio generation provider ('elevenlabs' | 'google' | 'openai' | 'azure')
+  alignment?: AlignmentData;   // M6: Forced alignment data (works with audio from any provider)
 }

@@ -50,9 +50,9 @@ LANGUAGE: Write entirely in ${getLanguageFullDisplay(spec.language as any)}.
 VALIDATION FEEDBACK (ISSUES TO FIX FOR CHILD SAFETY):
 ${validationFeedback}
 
+${helpers.formatChildProfile(spec)}
+
 STORY CONTEXT:
-- Child name: ${spec.childName}
-- Age group: ${spec.ageGroup}
 - Story title: ${outline.title}
 - Story moral: ${outline.moral}
 

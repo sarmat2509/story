@@ -73,6 +73,55 @@ router.get('/:env/:userId/photos/:photoType/:filename', async (req: Request, res
 });
 
 /**
+ * GET /api/v1/assets/voice-samples/{language}/{voiceId}.mp3
+ * Serve TTS voice sample audio files (public, no auth required)
+ */
+router.get('/voice-samples/:language/:filename', async (req: Request, res: Response) => {
+  try {
+    const { language, filename } = req.params;
+    
+    // Validate language
+    const validLanguages = ['uk', 'en', 'ru', 'de', 'es', 'fr'];
+    if (!validLanguages.includes(language)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid language'
+      });
+    }
+    
+    // Build path
+    const sanitizedPath = `voice-samples/${language}/${filename}`;
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    const fullPath = path.join(uploadsDir, sanitizedPath);
+    
+    // Check file exists
+    try {
+      await fs.access(fullPath);
+    } catch {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Voice sample not found'
+      });
+    }
+    
+    // Set appropriate headers
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 days (samples don't change)
+    res.setHeader('Access-Control-Allow-Origin', '*'); // Allow CORS
+    
+    // Send file
+    res.sendFile(fullPath);
+    
+  } catch (error) {
+    logger.error({ error }, 'Failed to serve voice sample');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to serve voice sample'
+    });
+  }
+});
+
+/**
  * GET /api/v1/assets/*
  * Serve story assets (images, audio from generated stories)
  * Security: Uses signed URLs with expiring tokens

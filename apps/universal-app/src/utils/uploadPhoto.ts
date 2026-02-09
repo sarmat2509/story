@@ -78,3 +78,17 @@ export async function uploadPhoto(
     throw new Error('Failed to upload photo');
   }
 }
+
+/**
+ * Deletes a previously uploaded photo from the server
+ * Best-effort: failures are logged but not thrown to avoid blocking UI
+ * @param url - Server URL of the uploaded photo
+ */
+export async function deletePhoto(url: string): Promise<void> {
+  try {
+    await apiClient.delete('/api/v1/upload/photo', { data: { url } });
+  } catch (error) {
+    console.error('Photo deletion failed:', error);
+    // Best-effort: don't throw, the photo will be orphaned but won't block the user
+  }
+}

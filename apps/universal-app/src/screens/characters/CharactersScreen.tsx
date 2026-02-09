@@ -62,28 +62,30 @@ export default function CharactersScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>{t('characters.title')}</Text>
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={handleAddCharacter}
-          >
-            <Ionicons name="add-circle" size={28} color={theme.colors.interactive.primary} />
-          </TouchableOpacity>
-        </View>
-        
         {/* Characters Grid */}
         {characters && characters.length > 0 ? (
-          <View style={styles.grid}>
-            {characters.map((character) => (
-              <CharacterCard 
-                key={character.id}
-                character={character}
-                onPress={() => handleEditCharacter(character)}
-              />
-            ))}
-          </View>
+          <>
+            <View style={styles.grid}>
+              {characters.map((character) => (
+                <CharacterCard 
+                  key={character.id}
+                  character={character}
+                  onPress={() => handleEditCharacter(character)}
+                />
+              ))}
+            </View>
+            
+            {/* Add Character Button */}
+            <TouchableOpacity 
+              style={styles.addCharacterButton}
+              onPress={handleAddCharacter}
+            >
+              <Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />
+              <Text style={styles.addCharacterButtonText}>
+                {t('characters.add_character')}
+              </Text>
+            </TouchableOpacity>
+          </>
         ) : (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>👥</Text>
@@ -128,19 +130,21 @@ const styles = StyleSheet.create({
     padding: theme.spacing[6],
     minHeight: '100%',
   },
-  header: {
+  addCharacterButton: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing[6],
+    justifyContent: 'center',
+    backgroundColor: theme.colors.interactive.primary,
+    paddingVertical: theme.spacing[4],
+    paddingHorizontal: theme.spacing[6],
+    borderRadius: theme.borders.radius.lg,
+    marginTop: theme.spacing[6],
+    gap: theme.spacing[2],
   },
-  title: {
-    fontSize: theme.typography.fontSize['3xl'],
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.primary,
-  },
-  addButton: {
-    padding: theme.spacing[2],
+  addCharacterButtonText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
   },
   grid: {
     flexDirection: 'row',

@@ -9,10 +9,14 @@
  */
 
 import { GeminiTextProvider } from '../providers/text/gemini';
+import { OpenAITextProvider } from '../providers/text/openai';
 import { GeminiImageProvider } from '../providers/image/gemini';
 import { GeminiQuotaProvider } from '../providers/image/gemini/GeminiQuotaProvider';
 import { NanoBananaProProvider } from '../providers/image/nanobananapro';
 import { ElevenLabsProvider } from '../providers/audio/elevenlabs';
+import { GoogleTTSProvider } from '../providers/audio/google/GoogleTTSProvider';
+import { OpenAITTSProvider } from '../providers/audio/openai/OpenAITTSProvider';
+import { ElevenLabsAlignmentProvider } from '../providers/alignment/elevenlabs/ElevenLabsAlignmentProvider';
 import { StoryDomainService } from '../domain/story';
 import { ImageDomainService } from '../domain/image';
 import { AudioDomainService } from '../domain/audio';
@@ -20,6 +24,7 @@ import { ImageRateLimiter } from './imageRateLimiter';
 import type { ITextProvider } from '../providers/base/ITextProvider';
 import type { IImageProvider } from '../providers/base/IImageProvider';
 import type { IAudioProvider } from '../providers/base/IAudioProvider';
+import type { IAlignmentProvider } from '../providers/base/IAlignmentProvider';
 import type { IQuotaProvider } from '../providers/base/IQuotaProvider';
 import config from '../config';
 import { logger } from '../utils/logger';
@@ -33,6 +38,7 @@ let audioDomainService: AudioDomainService | null = null;
 let textProvider: ITextProvider | null = null;
 let imageProvider: IImageProvider | null = null;
 let audioProvider: IAudioProvider | null = null;
+let alignmentProvider: IAlignmentProvider | null = null;
 
 // Rate limiting instances
 let imageRateLimiter: ImageRateLimiter | null = null;
@@ -86,7 +92,7 @@ export function getAudioDomainService(): AudioDomainService {
     logger.info('Initializing Audio Domain Service');
     
     // Create provider (hidden from orchestration)
-    const provider = getAudioProvider();
+    const provider = getAudioProviderInternal();
     
     // Create domain service with provider
     audioDomainService = new AudioDomainService(provider);
@@ -109,10 +115,9 @@ function getTextProvider(): ITextProvider {
       case 'gemini':
         textProvider = new GeminiTextProvider(config.ai.geminiApiKey);
         break;
-      // Future providers can be added here:
-      // case 'openai':
-      //   textProvider = new OpenAITextProvider(config.ai.openaiApiKey);
-      //   break;
+      case 'openai':
+        textProvider = new OpenAITextProvider(config.ai.openaiApiKey, config.ai.openaiModel);
+        break;
       default:
         throw new Error(`Unknown text vendor: ${vendor}`);
     }
@@ -155,9 +160,9 @@ function getImageProvider(): IImageProvider {
 /**
  * Get audio provider instance (private)
  * Only called by getAudioDomainService()
- * M5: Returns ElevenLabs provider
+ * M5: Supports ElevenLabs, Google Cloud TTS, OpenAI TTS
  */
-function getAudioProvider(): IAudioProvider {
+function getAudioProviderInternal(): IAudioProvider {
   if (!audioProvider) {
     const vendor = config.audio?.provider || 'elevenlabs';
     
@@ -173,12 +178,27 @@ function getAudioProvider(): IAudioProvider {
           config.audio.elevenlabs.model
         );
         break;
-      // Future providers:
-      // case 'google':
-      //   audioProvider = new GoogleTTSProvider(...);
-      //   break;
+      case 'google':
+        if (!config.audio?.google?.projectId || !config.audio?.google?.credentials) {
+          throw new Error('Google Cloud project ID and credentials are required');
+        }
+        audioProvider = new GoogleTTSProvider(
+          config.audio.google.projectId,
+          config.audio.google.credentials,
+          config.audio.google.model
+        );
+        break;
+      case 'openai':
+        if (!config.audio?.openai?.apiKey) {
+          throw new Error('OpenAI API key is required');
+        }
+        audioProvider = new OpenAITTSProvider(
+          config.audio.openai.apiKey,
+          config.audio.openai.model
+        );
+        break;
       default:
-        throw new Error(`Unknown audio vendor: ${vendor}`);
+        throw new Error(`Unknown audio vendor: ${vendor}. Supported: elevenlabs, google, openai`);
     }
   }
   
@@ -227,6 +247,103 @@ export function getImageRateLimiter(): ImageRateLimiter {
 }
 
 /**
+ * Get Audio Provider instance (exported for testing/seeding)
+ * Usually should call getAudioDomainService() instead
+ */
+export function getAudioProvider(): IAudioProvider {
+  return getAudioProviderInternal();
+}
+
+/**
+ * Get audio provider by specific vendor name
+ * Used by scripts that need to work with multiple providers
+ */
+export function getAudioProviderByName(providerName: string): IAudioProvider {
+  logger.info({ providerName }, 'Creating audio provider by name');
+  
+  switch (providerName) {
+    case 'elevenlabs':
+      if (!config.audio?.elevenlabs?.apiKey) {
+        throw new Error('ElevenLabs API key is required');
+      }
+      return new ElevenLabsProvider(
+        config.audio.elevenlabs.apiKey,
+        config.audio.elevenlabs.model
+      );
+    
+    case 'google':
+      if (!config.audio?.google?.projectId || !config.audio?.google?.credentials) {
+        logger.error({
+          hasProjectId: !!config.audio?.google?.projectId,
+          hasCredentials: !!config.audio?.google?.credentials,
+          projectId: config.audio?.google?.projectId,
+          credentials: config.audio?.google?.credentials,
+        }, 'Google Cloud credentials missing');
+        throw new Error('Google Cloud project ID and credentials are required');
+      }
+      logger.info({
+        projectId: config.audio.google.projectId,
+        credentialsPath: config.audio.google.credentials,
+        model: config.audio.google.model,
+      }, 'Creating GoogleTTSProvider');
+      return new GoogleTTSProvider(
+        config.audio.google.projectId,
+        config.audio.google.credentials,
+        config.audio.google.model
+      );
+    
+    case 'openai':
+      if (!config.audio?.openai?.apiKey) {
+        throw new Error('OpenAI API key is required');
+      }
+      return new OpenAITTSProvider(
+        config.audio.openai.apiKey,
+        config.audio.openai.model
+      );
+    
+    default:
+      throw new Error(`Unknown audio provider: ${providerName}. Supported: elevenlabs, google, openai`);
+  }
+}
+
+/**
+ * Get Alignment Provider instance
+ * M6: Forced alignment provider (works with audio from any provider)
+ * Singleton pattern for provider reuse
+ */
+export function getAlignmentProvider(): IAlignmentProvider {
+  if (!alignmentProvider) {
+    const vendor = config.ai.alignmentVendor || 'elevenlabs';
+    
+    logger.info({ vendor }, 'Initializing alignment provider');
+    
+    switch (vendor) {
+      case 'elevenlabs':
+        if (!config.audio?.elevenlabs?.apiKey) {
+          throw new Error('ElevenLabs API key is required for alignment');
+        }
+        alignmentProvider = new ElevenLabsAlignmentProvider(
+          config.audio.elevenlabs.apiKey
+        );
+        break;
+      
+      // Future providers:
+      // case 'google':
+      //   alignmentProvider = new GoogleAlignmentProvider(config.ai.geminiApiKey);
+      //   break;
+      // case 'azure':
+      //   alignmentProvider = new AzureAlignmentProvider(config.azure.key);
+      //   break;
+      
+      default:
+        throw new Error(`Unknown alignment vendor: ${vendor}. Supported: elevenlabs`);
+    }
+  }
+  
+  return alignmentProvider;
+}
+
+/**
  * Reset all domain services and providers (useful for testing)
  */
 export function resetServices(): void {
@@ -236,6 +353,7 @@ export function resetServices(): void {
   textProvider = null;
   imageProvider = null;
   audioProvider = null;
+  alignmentProvider = null;
   imageRateLimiter = null;
   quotaProvider = null;
   logger.info('AI services reset');

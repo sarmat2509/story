@@ -46,24 +46,39 @@ OUTPUT FORMAT (JSON):
   "title": "Story title in ${spec.language}",
   "language": "${spec.language}",
   "moral": "The moral/lesson",
+  "environments": [
+    {
+      "id": "short_id",
+      "name": "Human-readable location name",
+      "visualDescription": "Rich visual description of the location IN ENGLISH: layout, furniture, objects, colors, baseline lighting, atmosphere."
+    }
+  ],
   "scenes": [
     {
       "sceneId": 1,
       "setting": "Where this happens",
+      "environmentId": "short_id",
       "goal": "What should happen in this scene",
       "emotion": "Primary emotion (calm/happy/curious/concerned)",
       "beats": ["beat 1", "beat 2", "beat 3"],
-      "visualPrompt": "CARTOON ILLUSTRATION description for image generation. Describe the scene as a CARTOON/ANIMATED/ILLUSTRATED scene, NOT a photo, NOT realistic. Focus on: setting details, character positions and ACTIONS (what they are doing), lighting/mood, colors. Describe what would appear in a children's book illustration. Age-appropriate, safe, positive imagery only. Style: cartoon/illustration art, NOT photographic."
+      "visualPrompt": "Action-focused description IN ENGLISH: character poses, expressions, interactions, transient changes. Do NOT describe the room/location here."
     }
   ],
   "safetyNotes": ["Any safety considerations"]
 }
 
+CRITICAL - Environments:
+- Define ALL distinct physical locations in the story in "environments" array
+- "visualDescription" MUST be in English: describe room layout, furniture, objects, colors, baseline lighting, atmosphere
+- Be DETAILED and SPECIFIC - this is the only source of setting details for image generation
+- Multiple scenes can share the same environmentId. Only create a new environment when the physical location changes.
+- Example good visualDescription: "Cozy bedroom with a small wooden bed, nightstand with a glowing lamp, stuffed animals on a shelf, stars visible through a large window, soft warm lighting, pastel wallpaper with cloud patterns."
+
 IMPORTANT - Visual Prompts:
-- Each scene needs a clear visual description for future illustration
-- Describe: setting elements, character appearances/poses, lighting, colors, mood
+- "visualPrompt" describes ONLY the ACTION: character poses, interactions, expressions, transient changes (weather, new objects)
+- Do NOT repeat the room/location in visualPrompt — that comes from the environment
 - Keep visual style appropriate for age group
 - Ensure visual prompts follow all safety guidelines (no scary imagery, violence, etc.)
-- Example good visual prompt: "Cozy bedroom at twilight. ${spec.childName} (age ${spec.ageGroup}) sits on bed with stuffed bunny, warm lamp glow, stars visible through window. Peaceful, safe atmosphere."
+- Example good visual prompt: "${spec.childName || 'Child'} (age ${spec.ageGroup}) sits on the bed hugging a stuffed bunny, peaceful expression, warm lamp glow on their face."
 `;
 }

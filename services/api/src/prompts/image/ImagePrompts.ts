@@ -3,6 +3,9 @@
  * Functions for building prompts for image generation with character consistency
  */
 
+import { stripAudioTags } from '../../utils/audioTags';
+import { logger } from '../../utils/logger';
+
 export interface CharacterReference {
   name: string;
   referencePhotos?: Array<{ url: string; purpose?: string }>;
@@ -27,6 +30,9 @@ export function buildSceneImagePrompt(params: {
   sceneBeats?: string[]; // Key moments/actions
   sceneEmotion?: string; // Primary emotion
 }): string {
+  // Strip audio tags from visualPrompt for clean image generation
+  const cleanVisualPrompt = stripAudioTags(params.visualPrompt);
+  
   const stylePrefix = getStylePrefix(params.style, params.ageGroup);
   const safetyAdditions = getSafetyPromptAdditions(params.ageGroup);
   
@@ -62,15 +68,24 @@ export function buildSceneImagePrompt(params: {
     ? '. CRITICAL INSTRUCTION: Transform reference photos into CARTOON/ILLUSTRATION style matching the art style above. Create a STYLIZED CARTOON VERSION of the real person, NOT a photorealistic image, NOT a realistic photo. Apply the illustration art style specified: simplified cartoon features, illustrated faces, cartoon stylization. The reference photo shows WHO the character is (their appearance), but you must draw them as a CARTOON CHARACTER in the specified illustration style, NOT as a realistic photograph.'
     : '';
   
-  // No text instruction (CRITICAL for clean visual storytelling)
-  const noTextInstruction = '. IMPORTANT: No text, no speech bubbles, no captions, no written words on the image - pure visual storytelling only';
+  // ULTRA-STRONG no text instruction (place at start for maximum weight)
+  const noTextPrefixInstruction = 'CRITICAL RULE: ABSOLUTELY NO TEXT OR LETTERS anywhere on the image. ';
+  
+  // No text instruction (CRITICAL for clean visual storytelling) - repeated for emphasis
+  const noTextSuffixInstruction = '. STRICTLY FORBIDDEN: No text, no letters, no words, no numbers, no symbols, no writing, no typography, no captions, no subtitles, no labels, no signs, no banners, no speech bubbles, no thought bubbles, no text on screens, no text on objects, no text on clothing, no text on buildings, no text on vehicles, no text anywhere. Pure visual storytelling ONLY - use images and colors to tell the story, NOT WORDS';
   
   // Build negative guidance as text (since API doesn't support negativePrompt parameter)
   const negativeGuidance = params.negativePrompt 
     ? `, avoid: ${params.negativePrompt}` 
     : '';
   
-  return `${stylePrefix}${characterPart}, ${params.visualPrompt}${situationContext}, ${safetyAdditions}${referenceStyleEnforcement}${noTextInstruction}${negativeGuidance}`;
+  // Aggressive text blocking in negative prompt
+  const aggressiveTextBlocking = ', NO TEXT, NO LETTERS, NO WORDS, NO WRITING, NO TYPOGRAPHY, NO CAPTIONS, NO LABELS, NO SIGNS';
+  
+  const fullPrompt = `${noTextPrefixInstruction}${stylePrefix}${characterPart}, ${cleanVisualPrompt}${situationContext}, ${safetyAdditions}${referenceStyleEnforcement}${noTextSuffixInstruction}${aggressiveTextBlocking}${negativeGuidance}`;
+  
+  // Optimize prompt length to stay within limits
+  return optimizePromptLength(fullPrompt, 2000);
 }
 
 /**
@@ -119,9 +134,14 @@ export function buildNegativePrompt(ageGroup: string): string {
   const baseNegative = [
     'scary', 'horror', 'violent', 'gore', 'blood',
     'sexual', 'nude', 'inappropriate',
-    'text', 'watermark', 'logo', 'signature',
+    // ULTRA-AGGRESSIVE text blocking
+    'text', 'letters', 'words', 'writing', 'typography', 'font',
+    'watermark', 'logo', 'signature', 'label', 'sign', 'banner',
     'speech bubbles', 'dialogue bubbles', 'text bubbles', 'captions',
-    'subtitles', 'written text', 'letters', 'words on image',
+    'subtitles', 'written text', 'words on image', 'text on screen',
+    'text on objects', 'text on clothing', 'text on buildings',
+    'numbers', 'digits', 'symbols on image', 'written symbols',
+    'alphabet', 'characters', 'glyphs', 'inscriptions',
     'photorealistic', 'photo', 'photograph', 'realistic photo',
     'real person', 'camera', 'photography', 'stock photo', 'selfie',
     'realistic photograph', 'photographic', 'real life photo',
@@ -142,21 +162,31 @@ export function buildNegativePrompt(ageGroup: string): string {
  */
 function getStylePrefix(style: string, ageGroup: string): string {
   const presets: Record<string, string> = {
-    'soft_watercolor': 'cartoon illustration in soft watercolor style like classic Winnie the Pooh books, Peter Rabbit (Beatrix Potter), or The Velveteen Rabbit, NOT photorealistic, NOT a photo, paper texture, gentle painted brushstrokes, pastel colors, classic children\'s book illustration art',
+    // Стиль: Прозрачность и подтеки. Никаких черных контуров.
+    'soft_watercolor': 'ethereal watercolor painting, wet-on-wet technique, soft bleeding edges, no outlines, transparent layered washes, visible cold-press paper grain, delicate pastel palette, classic storybook aesthetics, Beatrix Potter style',
     
-    'colored_pencil': 'cartoon illustration drawn with colored pencils like Where the Wild Things Are, The Giving Tree, or Corduroy books, NOT photorealistic, hand-drawn cartoon characters with visible pencil strokes, soft shading, artistic children\'s book illustration',
+    // Стиль: Текстура и штрих. Максимальная имитация «ручной» работы.
+    'colored_pencil': 'heavy-textured colored pencil drawing, visible wax strokes, cross-hatching technique, layered colors on grainy paper, soft sketchy outlines, handcrafted tactile feel, warm and nostalgic, Maurice Sendak inspired',
     
-    'comic_line': 'cartoon illustration in comic style like Calvin and Hobbes, Peanuts, or Tintin adventures, NOT photorealistic, clean lineart, comic panel art, simple cel shading, friendly cartoon faces, graphic novel for children',
+    // Стиль: Графика и контраст. Акцент на жирную черную тушь.
+    'comic_line': 'bold ink-line comic art, clean black outlines, flat vibrant colors, halftone dot patterns in shadows, expressive cartoon gestures, Tintin and Hergé aesthetic, high contrast, graphic vector-like clarity',
     
-    'anime_light': 'cartoon illustration in anime style like Studio Ghibli films (My Neighbor Totoro, Kiki\'s Delivery Service), Pokemon anime, or Doraemon, NOT photorealistic, NOT a photo, soft cel-shaded animation art, large expressive anime eyes, clean outlines, bright friendly anime palette, Japanese children\'s animation style like Ghibli or Pokemon',
+    // Стиль: Свет и градиенты. Атмосфера японской анимации.
+    'anime_light': 'classic 1990s hand-drawn cel animation aesthetic, authentic anime cel painting style, bold black outlines, hard-edged cel-shading with distinct shadow layers (no soft gradients on characters), flat saturated colors, detailed hand-painted watercolor backgrounds with visible brushstrokes, film grain texture, retro anime screen capture look',
     
-    'warm_3d': 'cartoon illustration in 3D animated style like Pixar films (Toy Story, Finding Nemo, Up), Disney 3D movies (Frozen, Moana), or Illumination (Despicable Me), NOT photorealistic, 3D cartoon characters, warm soft lighting, rounded shapes, smooth cartoon textures, family animation movie style',
+    'retro_magical_shojo': 'hyper-cute retro 90s "magical girl" shojo anime aesthetic, resembling a vintage anime screenshot with film grain. Human characters must have enormous, highly expressive, "watery" sparkling anime eyes with multiple starburst highlights and glossy hair. Any animal or creature subjects must be rendered as tiny, exaggerated "chibi mascots" with oversized heads and massive sparkling eyes matching the humans. The entire scene is bathed in intense magical atmosphere: dramatic sunbeams (god rays), lens flares, floating cherry blossom petals, and excessive sparkling glitter effects covering everything. Bright, highly saturated color palette with distinct hard-edged cel-shading.',
+
+    // Стиль: Объем и лоск. Ощущение дорогого мультфильма.
+    'warm_3d': 'modern 3D CGI animation style, Pixar-like character design, soft subsurface scattering on skin, volumetric warm lighting, rounded glossy shapes, highly detailed fabric textures, ray-traced shadows, cinematic 4k render',
     
-    'night_calm': 'cartoon illustration of nighttime scene like Goodnight Moon or Owl Babies books, NOT photorealistic, soft children\'s book art, deep blue calm palette, warm lamp glow, peaceful bedtime story illustration, not scary, gentle night scene',
+    // Стиль: Глубокие тени и свет. Ограниченная палитра.
+    'night_calm': 'nocturnal atmospheric illustration, deep indigo and violet tones, glowing warm highlights, soft blurred edges, peaceful silence, stippling texture, magical night vibe, inspired by Goodnight Moon, high contrast between dark and light',
     
-    'felt_craft': 'cartoon illustration in handmade craft style like felt storybooks or craft animations, NOT photorealistic, fabric texture, handmade look with visible stitching, soft tactile appearance, children\'s craft art style',
+    // Стиль: Ткань и швы. Игрушечный, тактильный мир.
+    'felt_craft': 'stop-motion felted wool aesthetic, handmade fabric collage, visible embroidery stitches and seams, fuzzy fiber textures, soft shadows between layers, craft material appearance, 3D felt puppets',
     
-    'clay': 'cartoon illustration in claymation style like Wallace & Gromit, Shaun the Sheep, or Chicken Run, NOT photorealistic, soft clay texture, stop-motion puppet animation aesthetic, rounded friendly shapes, Aardman-style clay animation art',
+    // Стиль: Пластичность и отпечатки. Ощущение лепки.
+    'clay': 'plasticine claymation style, hand-molded clay textures, visible fingerprints, soft matte finish, chunky solid shapes, Aardman animations look (Wallace & Gromit), playful stop-motion studio lighting',
   };
   
   const baseStyle = presets[style] || presets['soft_watercolor'];
@@ -203,15 +233,19 @@ export function buildCharacterPortraitPrompt(params: {
   const stylePrefix = getStylePrefix(params.style, params.ageGroup);
   const safetyAdditions = getSafetyPromptAdditions(params.ageGroup);
   
-  // No text instruction
-  const noTextInstruction = ', no text, no speech bubbles, no captions';
+  // ULTRA-STRONG no text instruction for portraits
+  const noTextPrefixInstruction = 'CRITICAL: ABSOLUTELY NO TEXT OR LETTERS. ';
+  const noTextSuffixInstruction = ', STRICTLY NO text, NO letters, NO words, NO writing, NO speech bubbles, NO captions, NO labels, NO text on clothing';
   
   // Build negative guidance as text (since API doesn't support negativePrompt parameter)
   const negativeGuidance = params.negativePrompt 
     ? `, avoid: ${params.negativePrompt}` 
     : '';
   
-  return `${stylePrefix}, character portrait, close-up view, ${params.description}, clear details, front-facing${noTextInstruction}, ${safetyAdditions}${negativeGuidance}`;
+  // Aggressive text blocking
+  const aggressiveTextBlocking = ', NO TEXT, NO LETTERS, NO WORDS ANYWHERE';
+  
+  return `${noTextPrefixInstruction}${stylePrefix}, character portrait, close-up view, ${params.description}, clear details, front-facing${noTextSuffixInstruction}, ${safetyAdditions}${aggressiveTextBlocking}${negativeGuidance}`;
 }
 
 /**
@@ -233,7 +267,32 @@ IMPORTANT! Use the attached reference image to keep the same appearance of all p
 - Keep any distinctive features (glasses, jewelry, scars, etc.)
 - Maintain the same illustration style and art quality
 
-CHANGE ONLY: scene background, character poses/positions, actions as described below.`;
+CHANGE ONLY: scene background, character poses/positions, actions as described below.
+NEVER add facial features or body parts that are not present in the reference image. Reproduce characters EXACTLY — no invented eyes, ears, or other features.`;
+}
+
+/**
+ * Optimize prompt length to stay within recommended limits
+ * Truncates at word boundary if prompt exceeds maxLength
+ */
+function optimizePromptLength(prompt: string, maxLength: number = 2000): string {
+  if (prompt.length <= maxLength) {
+    return prompt;
+  }
+  
+  logger.warn({
+    originalLength: prompt.length,
+    maxLength,
+    excess: prompt.length - maxLength
+  }, 'Prompt exceeds recommended length, truncating');
+  
+  // Truncate at word boundary
+  const truncated = prompt.substring(0, maxLength);
+  const lastSpace = truncated.lastIndexOf(' ');
+  
+  return lastSpace > 0 
+    ? truncated.substring(0, lastSpace) + '...' 
+    : truncated + '...';
 }
 
 /**

@@ -5,6 +5,9 @@ const STORAGE_KEYS = {
   USER: '@kazka/user',
   LANGUAGE: '@kazka/language',
   WIZARD_STATE: '@kazka/wizard_state',
+  AUDIO_NOTIFICATIONS: '@kazka/audio_notifications_shown',
+  LIBRARY_VIEW_MODE: '@kazka/library_view_mode',
+  AUDIO_FILTER: '@kazka/audio_filter',
 } as const;
 
 export const storage = {
@@ -69,5 +72,31 @@ export const storage = {
 
   async setLanguage(language: string): Promise<void> {
     return this.setItem('LANGUAGE', language);
+  },
+
+  async getLibraryViewMode(): Promise<'grid' | 'list' | null> {
+    const data = await this.getItem('LIBRARY_VIEW_MODE');
+    return (data as 'grid' | 'list') || null;
+  },
+
+  async setLibraryViewMode(mode: 'grid' | 'list'): Promise<void> {
+    return this.setItem('LIBRARY_VIEW_MODE', mode);
+  },
+
+  async getAudioFilter(): Promise<boolean | null> {
+    try {
+      const value = await this.getItem('AUDIO_FILTER');
+      return value ? JSON.parse(value) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async setAudioFilter(filter: boolean): Promise<void> {
+    try {
+      return this.setItem('AUDIO_FILTER', JSON.stringify(filter));
+    } catch (error) {
+      console.error('Failed to save audio filter:', error);
+    }
   },
 };

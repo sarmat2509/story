@@ -62,13 +62,14 @@ export interface SceneImageWithReferenceRequest {
     distinctiveFeatures?: string[];
   }>;
   
-  // Reference image (first scene of the story, used for consistency)
-  referenceImage?: {
+  // Reference images (NEW: Array to support multiple characters)
+  // First scene uses one reference, later scenes may use multiple
+  referenceImages?: Array<{
     url?: string; // Optional: storage URL (deprecated, prefer base64Data)
     base64Data?: string; // Preferred: base64-encoded image data
     mimeType?: string; // MIME type if using base64Data
     instructionText: string; // Instruction for maintaining consistency
-  };
+  }>;
   
   // Scene context from outline
   sceneGoal?: string;
@@ -185,7 +186,8 @@ export class ImageDomainService {
   async generateSceneWithReference(request: SceneImageWithReferenceRequest): Promise<GeneratedImage> {
     logger.info({ 
       sceneId: request.sceneId,
-      hasReference: !!request.referenceImage,
+      hasReferences: !!request.referenceImages,
+      referenceCount: request.referenceImages?.length || 0,
       characterCount: request.characterDescriptions.length
     }, 'Generating scene with reference approach');
     
@@ -220,7 +222,7 @@ export class ImageDomainService {
       ageGroup: request.ageGroup,
       style: request.style,
       characters: [], // Don't use old character reference system
-      hasReferences: !!request.referenceImage,
+      hasReferences: !!request.referenceImages && request.referenceImages.length > 0,
       negativePrompt,
       sceneGoal: request.sceneGoal,
       sceneBeats: request.sceneBeats,
@@ -232,22 +234,25 @@ export class ImageDomainService {
       enhancedPrompt = `${enhancedPrompt}\n\nCHARACTERS IN THIS SCENE:\n${charactersSection}`;
     }
     
-    // Add reference instruction if this is not the first scene
-    if (request.referenceImage) {
-      enhancedPrompt = `${request.referenceImage.instructionText}\n\n${enhancedPrompt}`;
+    // Add combined reference instruction if multiple references exist
+    if (request.referenceImages && request.referenceImages.length > 0) {
+      const referenceInstruction = request.referenceImages
+        .map(ref => ref.instructionText)
+        .join('\n\n');
+      enhancedPrompt = `${referenceInstruction}\n\n${enhancedPrompt}`;
     }
     
     // Create provider request for Nano Banana Pro
     const providerRequest: GenerateImageRequest = {
       prompt: enhancedPrompt,
       aspectRatio: request.aspectRatio || '16:9',
-      // Nano Banana uses simpler API - pass reference images with base64 or URL
-      referenceImages: request.referenceImage ? [{
-        url: request.referenceImage.url,
-        base64Data: request.referenceImage.base64Data,
-        mimeType: request.referenceImage.mimeType,
-        characterName: 'scene_reference'
-      }] : undefined
+      // Pass all reference images to provider
+      referenceImages: request.referenceImages?.map(ref => ({
+        url: ref.url,
+        base64Data: ref.base64Data,
+        mimeType: ref.mimeType,
+        characterName: 'scene_reference' // Generic name for multiple refs
+      })) || undefined
     };
     
     return await this.imageProvider.generateImage(providerRequest);

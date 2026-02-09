@@ -1,24 +1,31 @@
 /**
  * ElevenLabs Audio Provider (M5 Implementation)
- * Implementation of IAudioProvider for ElevenLabs TTS
+ * Implementation of IAudioProvider for ElevenLabs Text-to-Dialogue API
  * 
  * Features:
- * - Text-to-speech synthesis with Ukrainian language support
+ * - Text-to-dialogue synthesis with emotional audio tags support
+ * - Ukrainian language support
  * - Voice fetching and caching
- * - Prosody control (speed, stability)
+ * - Prosody control (stability, similarity_boost)
  * - Retry logic with exponential backoff
  * - Error handling (rate limits, timeouts)
+ * 
+ * Note: Uses text-to-dialogue endpoint which supports emotional tags like:
+ * [excited], [thoughtful], [sighs], [laughing], [curious], [happy], etc.
  */
 
 import type {
-  IAudioProvider,
   SynthesizeRequest,
   SynthesizeResult,
   Voice,
   ProsodySettings,
+  VoiceCatalogEntry,
 } from '../../base/IAudioProvider';
+import { BaseAudioProvider } from '../../base/BaseAudioProvider';
 import { logger } from '../../../utils/logger';
 import { config } from '../../../config';
+import { mapToneToVoiceSettings } from '../../../domain/audio/toneVoiceMapper';
+import { ELEVENLABS_VOICE_CATALOG } from './voices';
 
 /**
  * ElevenLabs API voice response
@@ -50,17 +57,16 @@ interface ElevenLabsVoiceSettings {
 /**
  * ElevenLabs TTS Provider
  */
-export class ElevenLabsProvider implements IAudioProvider {
+export class ElevenLabsProvider extends BaseAudioProvider {
   private readonly apiKey: string;
   private readonly baseUrl: string = 'https://api.elevenlabs.io/v1';
   private readonly model: string;
   private voiceCache: Map<string, Voice> = new Map();
   private voiceCacheExpiry: number = 0;
   private readonly voiceCacheTTL: number = 3600000; // 1 hour
-  private readonly maxRetries: number = 3;
-  private readonly retryDelayMs: number = 2000;
 
-  constructor(apiKey: string, model: string = 'eleven_multilingual_v2') {
+  constructor(apiKey: string, model: string = 'eleven_v3') {
+    super();
     if (!apiKey) {
       throw new Error('ElevenLabs API key is required');
     }
@@ -68,10 +74,33 @@ export class ElevenLabsProvider implements IAudioProvider {
     this.model = model;
   }
 
+  protected getProviderName(): string {
+    return 'ElevenLabs';
+  }
+
+  protected isValidVoiceId(voiceId: string): boolean {
+    // ElevenLabs voice IDs are alphanumeric strings (22 chars typically)
+    return /^[a-zA-Z0-9]{20,30}$/.test(voiceId);
+  }
+
+  protected async performHealthCheck(): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/voices`, {
+      headers: { 'xi-api-key': this.apiKey },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Health check failed: ${response.statusText}`);
+    }
+  }
+
   /**
-   * Synthesize text to speech
+   * Synthesize text to speech using text-to-dialogue API
+   * Supports emotional audio tags like [excited], [thoughtful], [sighs]
    */
   async synthesize(request: SynthesizeRequest): Promise<SynthesizeResult> {
+    // Validate input
+    this.validateSynthesizeRequest(request);
+    
     const { text, voiceId, language, prosody, outputFormat = 'mp3' } = request;
 
     logger.info(
@@ -79,10 +108,10 @@ export class ElevenLabsProvider implements IAudioProvider {
         textLength: text.length,
         voiceId,
         language,
-        speed: prosody?.speed,
         nightMode: prosody?.nightMode,
+        tone: (prosody as any)?.tone,
       },
-      'Synthesizing audio with ElevenLabs'
+      'Synthesizing audio with ElevenLabs text-to-dialogue'
     );
 
     const startTime = Date.now();
@@ -91,14 +120,43 @@ export class ElevenLabsProvider implements IAudioProvider {
       // Map prosody settings to ElevenLabs format
       const voiceSettings = this.mapVoiceSettings(prosody);
 
+      // DEBUG: Log API request details
+      logger.debug(
+        {
+          apiKeyPrefix: this.apiKey.substring(0, 5),
+          apiKeyLength: this.apiKey.length,
+          apiKeySuffix: this.apiKey.substring(this.apiKey.length - 5),
+          voiceId,
+          url: `${this.baseUrl}/text-to-dialogue`,
+          stability: voiceSettings.stability,
+          similarityBoost: voiceSettings.similarity_boost,
+        },
+        'About to call ElevenLabs text-to-dialogue API'
+      );
+
       // Call ElevenLabs API with retry logic
       const audioBuffer = await this.retryWithBackoff(async () => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), config.audio.timeoutMs);
 
         try {
+          // Build text-to-dialogue request body
+          const requestBody: any = {
+            inputs: [
+              {
+                text,
+                voice_id: voiceId,
+              }
+            ],
+            model_id: this.model,
+            settings: {
+              stability: voiceSettings.stability,
+              similarity_boost: voiceSettings.similarity_boost,
+            },
+          };
+          
           const response = await fetch(
-            `${this.baseUrl}/text-to-speech/${voiceId}`,
+            `${this.baseUrl}/text-to-dialogue`,
             {
               method: 'POST',
               headers: {
@@ -106,19 +164,38 @@ export class ElevenLabsProvider implements IAudioProvider {
                 'Content-Type': 'application/json',
                 'xi-api-key': this.apiKey,
               },
-              body: JSON.stringify({
-                text,
-                model_id: this.model,
-                voice_settings: voiceSettings,
-              }),
+              body: JSON.stringify(requestBody),
               signal: controller.signal,
             }
           );
 
           clearTimeout(timeoutId);
 
+          // DEBUG: Log response details
+          logger.debug(
+            {
+              status: response.status,
+              statusText: response.statusText,
+              contentType: response.headers.get('content-type'),
+            },
+            'ElevenLabs API response received'
+          );
+
           if (!response.ok) {
             const errorText = await response.text();
+            
+            // DEBUG: Log full error response for 401
+            if (response.status === 401) {
+              logger.error(
+                {
+                  status: response.status,
+                  errorText,
+                  apiKeyPrefix: this.apiKey.substring(0, 5),
+                  apiKeyLength: this.apiKey.length,
+                },
+                'ElevenLabs 401 error details'
+              );
+            }
             
             // Handle specific error cases
             if (response.status === 429) {
@@ -150,12 +227,12 @@ export class ElevenLabsProvider implements IAudioProvider {
 
       const generationTime = Date.now() - startTime;
 
-      // Calculate duration (approximate based on text length and speed)
+      // Calculate duration (approximate based on text length)
       // Average speaking rate: ~150 words per minute
+      // Note: Speed parameter not supported by text-to-dialogue API
       const wordCount = text.split(/\s+/).length;
       const baseSpeed = 150; // words per minute
-      const speedMultiplier = prosody?.speed || 1.0;
-      const durationSeconds = (wordCount / baseSpeed) * 60 / speedMultiplier;
+      const durationSeconds = (wordCount / baseSpeed) * 60;
 
       logger.info(
         {
@@ -164,7 +241,7 @@ export class ElevenLabsProvider implements IAudioProvider {
           durationSeconds,
           generationTimeMs: generationTime,
         },
-        'Audio synthesized successfully'
+        'Audio synthesized successfully with text-to-dialogue'
       );
 
       return {
@@ -257,46 +334,30 @@ export class ElevenLabsProvider implements IAudioProvider {
   }
 
   /**
-   * Health check
-   */
-  async healthCheck(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.baseUrl}/user`, {
-        method: 'GET',
-        headers: {
-          'xi-api-key': this.apiKey,
-        },
-      });
-
-      return response.ok;
-    } catch (error) {
-      logger.error({ error }, 'ElevenLabs health check failed');
-      return false;
-    }
-  }
-
-  /**
    * Map prosody settings to ElevenLabs voice settings
    */
   private mapVoiceSettings(
     prosody?: ProsodySettings
   ): ElevenLabsVoiceSettings {
-    // Default settings for storytelling
-    let stability = 0.5;
-    let similarityBoost = 0.75;
+    // Get tone-based settings (if tone is provided via prosody)
+    const tone = (prosody as any)?.tone;
+    const nightMode = prosody?.nightMode || false;
+    
+    const toneSettings = mapToneToVoiceSettings(tone, nightMode);
 
-    // Night mode: more stable, less variation
-    if (prosody?.nightMode) {
-      stability = 0.7;
-      similarityBoost = 0.8;
-    }
-
-    return {
-      stability,
-      similarity_boost: similarityBoost,
-      style: 0,
+    // Build voice settings
+    const settings: ElevenLabsVoiceSettings = {
+      stability: toneSettings.stability,
+      similarity_boost: toneSettings.similarityBoost,
       use_speaker_boost: true,
     };
+
+    // Add style only for v2 models (v3 doesn't support it)
+    if (!this.model.includes('v3')) {
+      settings.style = toneSettings.style;
+    }
+
+    return settings;
   }
 
   /**
@@ -344,38 +405,10 @@ export class ElevenLabsProvider implements IAudioProvider {
   }
 
   /**
-   * Retry logic with exponential backoff
+   * Get default voice catalog for database seeding
    */
-  private async retryWithBackoff<T>(
-    fn: () => Promise<T>,
-    attempt: number = 1
-  ): Promise<T> {
-    try {
-      return await fn();
-    } catch (error: any) {
-      // Don't retry on non-retryable errors
-      if (
-        error.message?.includes('Invalid API key') ||
-        error.message?.includes('Voice not found')
-      ) {
-        throw error;
-      }
-
-      // Retry on rate limits and temporary errors
-      if (attempt < this.maxRetries) {
-        const delay = this.retryDelayMs * Math.pow(2, attempt - 1);
-        
-        logger.warn(
-          { attempt, maxRetries: this.maxRetries, delayMs: delay },
-          'Retrying ElevenLabs request'
-        );
-        
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        return this.retryWithBackoff(fn, attempt + 1);
-      }
-
-      throw error;
-    }
+  getDefaultVoices(): VoiceCatalogEntry[] {
+    return ELEVENLABS_VOICE_CATALOG;
   }
 }
 

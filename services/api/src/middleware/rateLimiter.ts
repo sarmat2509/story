@@ -10,12 +10,8 @@ export const globalLimiter = rateLimit({
     status: 'error',
     message: 'Too many requests from this IP, please try again later',
   },
-  // Skip rate limiting for certain IPs (optional)
-  skip: (req) => {
-    // Skip for localhost in development
-    const ip = req.ip;
-    return process.env.NODE_ENV === 'development' && (ip === '127.0.0.1' || ip === '::1');
-  },
+  // Skip rate limiting in development
+  skip: () => process.env.NODE_ENV === 'development',
 });
 
 // Stricter rate limiter for authentication endpoints
@@ -54,4 +50,6 @@ export const apiLimiter = rateLimit({
     status: 'error',
     message: 'API rate limit exceeded',
   },
+  // Skip rate limiting in development
+  skip: () => process.env.NODE_ENV === 'development',
 });

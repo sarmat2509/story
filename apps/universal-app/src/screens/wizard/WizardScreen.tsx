@@ -56,17 +56,7 @@ export default function WizardScreen() {
     }
   }, [i18n.language]);
   
-  // Handle generation completion
-  useEffect(() => {
-    if (storyStatus?.status === 'completed' && storyStatus.storyId) {
-      // Navigate to library after short delay
-      setTimeout(() => {
-        setIsGenerating(false);
-        setRequestId(null);
-        navigation.navigate('Library');
-      }, 1500);
-    }
-  }, [storyStatus?.status, storyStatus?.storyId]);
+  // Auto-close removed - user must manually close modal
   
   const handleGenerate = async () => {
     if (!storyLanguage) {
@@ -87,7 +77,7 @@ export default function WizardScreen() {
         ...(imageStyle && { imageStyle }),
         ...(userNotes && { userNotes }),
         ...(selectedCharacters.length > 0 && { selectedCharacters }),
-        ...(selectedChildren.length > 0 && { selectedChildren }) // NEW: Selected children as characters
+        ...(selectedChildren.length > 0 && { selectedChildren }), // NEW: Selected children as characters
       };
       
       const result = await createStory.mutateAsync(payload);
@@ -106,9 +96,17 @@ export default function WizardScreen() {
   };
   
   const handleCloseModal = () => {
+    const storyId = storyStatus?.storyId;
     setIsGenerating(false);
     setRequestId(null);
-    navigation.navigate('Library');
+    
+    if (storyId) {
+      // Navigate to the newly created story
+      navigation.navigate('Story', { storyId });
+    } else {
+      // Fallback to Library if no storyId
+      navigation.navigate('Library');
+    }
   };
   
   if (themesLoading || childrenLoading || charactersLoading) {
@@ -192,6 +190,7 @@ export default function WizardScreen() {
         errorMessage={storyStatus?.errorMessage}
         onClose={storyStatus?.status === 'completed' ? handleCloseModal : undefined}
         onRetry={storyStatus?.status === 'failed' ? handleRetry : undefined}
+        allowManualClose={true}
       />
 
       {/* Child Form Modal */}

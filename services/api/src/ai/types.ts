@@ -52,8 +52,9 @@ export interface PolicyProfile {
 export interface StorySpec {
   language: string;
   ageGroup: string;
-  childName: string;
+  childName?: string; // Optional - only set if child is a character in the story
   goal?: string;
+  goalName?: string; // NEW: Translated goal name for prompts
   goalGuidance?: string; // NEW: Detailed guidance for the moral/goal (30-50 words)
   tone?: string;
   characters: CharacterData[];
@@ -71,6 +72,16 @@ export interface StorySpec {
 }
 
 /**
+ * Story environment - persistent location/setting description
+ * Used for consistent image generation across scenes sharing the same location
+ */
+export interface StoryEnvironment {
+  id: string;
+  name: string;
+  visualDescription: string; // Rich English description of the location for image generation
+}
+
+/**
  * Episode outline - high-level story structure
  * Each scene includes visualPrompt for future image generation (M4)
  */
@@ -78,6 +89,7 @@ export interface EpisodeOutline {
   title: string;
   language: string;
   moral: string;
+  environments?: StoryEnvironment[]; // Persistent location descriptions
   scenes: Array<{
     sceneId: number;
     setting: string;
@@ -85,6 +97,7 @@ export interface EpisodeOutline {
     emotion: string;
     beats: string[];
     visualPrompt: string; // Description for image generation (M4)
+    environmentId?: string; // Reference to environment where this scene takes place
   }>;
   safetyNotes: string[];
 }
@@ -96,13 +109,24 @@ export interface EpisodeOutline {
 export interface EpisodeText {
   title: string;
   language: string;
+  environments?: StoryEnvironment[]; // Persistent location descriptions
+  characters?: Array<{ // NEW - optional for backward compatibility
+    name: string;
+    type: string;
+    description: string;
+    role?: string;
+    personality?: string;
+  }>;
   scenes: Array<{
     sceneId: number;
     text: string; // Text for this specific scene
-    visualPrompt: string; // Visual description for image generation
+    visualPrompt: string; // Visual description for image generation (action/composition only)
+    environmentId?: string; // Reference to environment where this scene takes place
+    characters?: string[]; // NEW: Character names appearing in this scene (optional for backward compatibility)
   }>;
   fullText: string; // Concatenated full story for reading
   wordCount: number;
+  moral?: string; // For direct generation mode
 }
 
 /**

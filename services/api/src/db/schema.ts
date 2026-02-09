@@ -367,6 +367,31 @@ export const storyRequests = pgTable('story_requests', {
   };
 });
 
+// Story Series table (M8)
+export const storySeries = pgTable('story_series', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  childProfileId: uuid('child_profile_id').references(() => childProfiles.id, { onDelete: 'set null' }),
+  
+  baseTitle: varchar('base_title', { length: 255 }).notNull(),
+  language: varchar('language', { length: 5 }).notNull(),
+  ageGroup: varchar('age_group', { length: 10 }).notNull(),
+  imageStyle: varchar('image_style', { length: 50 }).notNull(),
+  tone: varchar('tone', { length: 50 }),
+  
+  totalParts: integer('total_parts').notNull().default(1),
+  storyIds: jsonb('story_ids').notNull().$type<string[]>().default([]),
+  continuationContext: jsonb('continuation_context'),
+  
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index('story_series_user_id_idx').on(table.userId),
+    createdAtIdx: index('story_series_created_at_idx').on(table.createdAt),
+  };
+});
+
 // Stories table
 export const stories = pgTable('stories', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -376,7 +401,7 @@ export const stories = pgTable('stories', {
   
   title: varchar('title', { length: 255 }).notNull(),
   language: varchar('language', { length: 5 }).notNull(),
-  ageGroup: varchar('age_group', { length: 10 }).references(() => ageEngineRules.ageGroup).notNull(),
+  ageGroup: varchar('age_group', { length: 10 }).notNull(),
   moralTheme: varchar('moral_theme', { length: 50 }).references(() => storyGoals.slug),
   tone: varchar('tone', { length: 50 }).references(() => storyTones.slug),
   
@@ -392,6 +417,10 @@ export const stories = pgTable('stories', {
   metadata: jsonb('metadata'), // NEW: llmGeneratedCharacters, imageStyle, etc
   audioMetadata: jsonb('audio_metadata'), // M5: { voiceId, voiceName, totalDuration, generatedAt, nightMode }
   
+  // Series support (M8)
+  seriesId: uuid('series_id').references(() => storySeries.id, { onDelete: 'set null' }),
+  partNumber: integer('part_number'),
+  
   isPublished: boolean('is_published').default(true),
   isFavorite: boolean('is_favorite').default(false),
   
@@ -404,6 +433,7 @@ export const stories = pgTable('stories', {
     languageIdx: index('stories_language_idx').on(table.language),
     ageGroupIdx: index('stories_age_group_idx').on(table.ageGroup),
     createdAtIdx: index('stories_created_at_idx').on(table.createdAt),
+    seriesIdIdx: index('stories_series_id_idx').on(table.seriesId),
   };
 });
 
@@ -444,6 +474,9 @@ export type NewTranslation = typeof translations.$inferInsert;
 export type StoryRequest = typeof storyRequests.$inferSelect;
 export type NewStoryRequest = typeof storyRequests.$inferInsert;
 
+export type StorySeries = typeof storySeries.$inferSelect;
+export type NewStorySeries = typeof storySeries.$inferInsert;
+
 export type Story = typeof stories.$inferSelect;
 export type NewStory = typeof stories.$inferInsert;
 
@@ -462,6 +495,11 @@ export const scenes = pgTable('scenes', {
   
   text: text('text').notNull(),
   visualPrompt: text('visual_prompt').notNull(),
+  
+  // NEW: Character tracking for reference image selection (M9)
+  charactersPresent: jsonb('characters_present').$type<string[]>(),
+  isReferenceImage: boolean('is_reference_image').default(false),
+  imageUrl: text('image_url'), // Denormalized from assets for quick access
   
   generationParams: jsonb('generation_params'),
   generationTimeMs: integer('generation_time_ms'),
@@ -592,6 +630,7 @@ export const ttsVoices = pgTable('tts_voices', {
   
   // Voice metadata
   name: varchar('name', { length: 100 }).notNull(),
+  displayName: varchar('display_name', { length: 100 }).notNull(),
   language: varchar('language', { length: 10 }).notNull(),
   gender: varchar('gender', { length: 20 }), // 'male' | 'female' | 'neutral'
   ageCategory: varchar('age_category', { length: 20 }), // 'child' | 'young_adult' | 'adult' | 'senior'
@@ -648,6 +687,11 @@ export const audioAssets = pgTable('audio_assets', {
   assetId: uuid('asset_id').references(() => assets.id, { onDelete: 'cascade' }).notNull(),
   durationSeconds: decimal('duration_seconds', { precision: 8, scale: 2 }),
   
+  // Scene group tracking (M5.2 - Partial chunk support)
+  sceneGroupIndex: integer('scene_group_index'), // NULL = final, 0-N = partial chunk
+  isFinal: boolean('is_final').default(false).notNull(), // TRUE if final concatenated audio
+  retryCount: integer('retry_count').default(0).notNull(), // Number of retry attempts
+  
   // Provider info
   provider: varchar('provider', { length: 50 }).notNull().default('elevenlabs'),
   providerRequestId: varchar('provider_request_id', { length: 255 }),
@@ -664,6 +708,7 @@ export const audioAssets = pgTable('audio_assets', {
     statusIdx: index('audio_assets_status_idx').on(table.status),
     cacheIdx: index('audio_assets_cache_idx').on(table.textHash, table.voiceId, table.speed),
     createdAtIdx: index('audio_assets_created_idx').on(table.createdAt),
+    sceneGroupIdx: index('audio_assets_scene_group_idx').on(table.storyId, table.sceneGroupIndex, table.status),
   };
 });
 

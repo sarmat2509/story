@@ -10,7 +10,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 interface Props {
   title: string;
-  icon?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
   children: React.ReactNode;
   defaultExpanded?: boolean;
 }
@@ -31,7 +31,14 @@ export function ExpandableCard({ title, icon, children, defaultExpanded = false 
         activeOpacity={0.7}
       >
         <View style={styles.headerLeft}>
-          {icon && <Text style={styles.icon}>{icon}</Text>}
+          {icon && (
+            <Ionicons 
+              name={icon} 
+              size={24} 
+              color={theme.colors.text.primary}
+              style={styles.iconSpacing}
+            />
+          )}
           <Text style={styles.title}>{title}</Text>
         </View>
         <Ionicons 
@@ -70,8 +77,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  icon: {
-    fontSize: theme.typography.fontSize.xl,
+  iconSpacing: {
     marginRight: theme.spacing[3],
   },
   title: {

@@ -18,7 +18,9 @@ const languages: Language[] = [
   { code: 'uk', label: 'Українська', flag: '🇺🇦' },
   { code: 'ru', label: 'Русский', flag: '🇷🇺' },
   { code: 'en', label: 'English', flag: '🇬🇧' },
-  { code: 'es', label: 'Español', flag: '🇪🇸' }
+  { code: 'es', label: 'Español', flag: '🇪🇸' },
+  { code: 'fr', label: 'Français', flag: '🇫🇷' },
+  { code: 'de', label: 'Deutsch', flag: '🇩🇪' }
 ];
 
 export function LanguageSelector({ selected, onSelect, defaultLanguage }: Props) {

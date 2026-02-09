@@ -24,40 +24,61 @@ export function getLanguageName(code: string): string {
  * @returns Formatted child profile text
  */
 export function formatChildProfile(spec: StorySpec): string {
-  if (!spec.childName) return '';
+  // Check if child is selected as a character (in spec.characters array)
+  const childIsCharacter = spec.characters?.some(c => c.type === 'child' && c.name === spec.childName);
   
+  // If no child profile, return empty
+  if (!spec.childProfile) {
+    return '';
+  }
+  
+  // If child is NOT selected as character, show only preferences/context
+  if (!childIsCharacter && spec.childName !== spec.childProfile.name) {
+    const parts = [
+      'TARGET AUDIENCE PROFILE:',
+      `Age group: ${spec.ageGroup}`
+    ];
+    
+    // Add interests if available
+    if (spec.childProfile?.interests && spec.childProfile.interests.length > 0) {
+      parts.push(`Child's interests (use for inspiration): ${spec.childProfile.interests.join(', ')}`);
+    }
+    
+    // Add fears/sensitivities if available
+    if (spec.childProfile?.fears && spec.childProfile.fears.length > 0) {
+      parts.push(`Avoid these topics (child's fears): ${spec.childProfile.fears.join(', ')}`);
+    }
+    
+    // Add user notes if available
+    if (spec.userNotes) {
+      parts.push(`Parent notes: ${spec.userNotes}`);
+    }
+    
+    parts.push('');
+    parts.push('Note: Create appropriate protagonist(s) for the story. The child profile above is for context only.');
+    
+    return parts.join('\n');
+  }
+  
+  // If child IS selected as character, show profile focusing on personality, interests, fears
   const parts = [
     `Main Character: ${spec.childName}`,
     `Age group: ${spec.ageGroup}`
   ];
   
-  // Add AI-generated description if available
-  if (spec.childProfile?.aiGeneratedDescription) {
-    parts.push(`Physical Description: ${spec.childProfile.aiGeneratedDescription}`);
-  }
-  
-  // Add structured appearance traits
-  if (spec.childProfile?.appearanceTraits) {
-    const traits = spec.childProfile.appearanceTraits;
-    const appearanceParts: string[] = [];
-    
-    if (traits.hairColor) appearanceParts.push(`hair: ${traits.hairColor}`);
-    if ((traits as any).hairLength) appearanceParts.push(`hair length: ${(traits as any).hairLength}`);
-    if ((traits as any).hairStyle) appearanceParts.push(`hair style: ${(traits as any).hairStyle}`);
-    if (traits.eyeColor) appearanceParts.push(`eyes: ${traits.eyeColor}`);
-    if (traits.skinTone) appearanceParts.push(`skin tone: ${traits.skinTone}`);
-    if ((traits as any).distinctiveFeatures && (traits as any).distinctiveFeatures.length > 0) {
-      appearanceParts.push(`distinctive features: ${(traits as any).distinctiveFeatures.join(', ')}`);
-    }
-    
-    if (appearanceParts.length > 0) {
-      parts.push(`Appearance Details: ${appearanceParts.join('; ')}`);
-    }
-  }
-  
   // Add interests if available
   if (spec.childProfile?.interests && spec.childProfile.interests.length > 0) {
     parts.push(`Interests: ${spec.childProfile.interests.join(', ')}`);
+  }
+  
+  // Add fears/sensitivities if available
+  if (spec.childProfile?.fears && spec.childProfile.fears.length > 0) {
+    parts.push(`Fears: ${spec.childProfile.fears.join(', ')}`);
+  }
+  
+  // Add personality if available
+  if (spec.childProfile?.personality) {
+    parts.push(`Personality: ${spec.childProfile.personality}`);
   }
   
   // Add user notes if available
@@ -71,11 +92,14 @@ export function formatChildProfile(spec: StorySpec): string {
 /**
  * Format supporting characters section for prompts
  * @param spec - Story specification
- * @returns Formatted characters list with instruction to include them
+ * @returns Formatted characters list with instruction to include them, or guidance for free choice
  */
 export function formatSupportingCharacters(spec: StorySpec): string {
   if (!spec.characters || spec.characters.length === 0) {
-    return '';
+    return `CHARACTERS:
+You have creative freedom to invent supporting characters that fit the story's theme and plot.
+Create diverse, interesting characters appropriate for the age group and scenario.
+Characters should enhance the story and support the narrative goals.`;
   }
 
   const parts = [
@@ -124,6 +148,7 @@ export function formatSupportingCharacters(spec: StorySpec): string {
   
   parts.push('');
   parts.push('Make sure each character has meaningful interactions and contributes to the story.');
+  parts.push('You may add additional characters if needed for the plot, but these MUST be included.');
 
   return parts.join('\n');
 }
@@ -150,7 +175,8 @@ export function formatStoryRequirements(params: {
   
   // Add goal/moral with detailed guidance
   if (params.spec.goal) {
-    parts.push(`- Goal/Moral: ${params.spec.goal}`);
+    const goalDisplay = params.spec.goalName || params.spec.goal; // Use translated name or fallback to slug
+    parts.push(`- Goal/Moral: ${goalDisplay}`);
     if (params.spec.goalGuidance) {
       parts.push(`  Guidance: ${params.spec.goalGuidance}`);
     }

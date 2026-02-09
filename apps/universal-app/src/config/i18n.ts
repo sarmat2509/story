@@ -8,12 +8,16 @@ import ukTranslations from '@kazka/shared/i18n/uk.json';
 import ruTranslations from '@kazka/shared/i18n/ru.json';
 import enTranslations from '@kazka/shared/i18n/en.json';
 import esTranslations from '@kazka/shared/i18n/es.json';
+import frTranslations from '@kazka/shared/i18n/fr.json';
+import deTranslations from '@kazka/shared/i18n/de.json';
 
 const resources = {
   uk: { translation: ukTranslations },
   ru: { translation: ruTranslations },
   en: { translation: enTranslations },
   es: { translation: esTranslations },
+  fr: { translation: frTranslations },
+  de: { translation: deTranslations },
 };
 
 export async function initI18n() {

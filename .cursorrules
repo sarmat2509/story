@@ -502,10 +502,116 @@ All other code (services, domain, orchestration) remains unchanged.
 - **NEVER** use `<` `>` operators directly - use Drizzle operators
 
 ### Migrations
-- **MUST** use `drizzle-kit` for schema migrations
-- **MUST** run migrations before deployment
-- **MUST** test migrations on dev database first
-- **MUST** keep manual SQL migrations in `drizzle/` folder
+
+**MUST** follow this workflow for database schema changes:
+
+#### Migration File Creation
+
+- **MUST** create SQL files in `services/api/drizzle/` folder
+- **MUST** use naming pattern: `NNNN_descriptive_name.sql` (e.g., `0022_reset_audio_story_limits.sql`)
+- **MUST** include migration header with description and date:
+  ```sql
+  -- Migration: Brief description of changes
+  -- Created: YYYY-MM-DD
+  ```
+- **MUST** write idempotent migrations when possible (use `IF NOT EXISTS`, `ON CONFLICT`, etc.)
+- **MUST** add comments explaining business logic or complex queries
+
+#### Running Migrations
+
+**MUST** use the migration script, NOT direct psql commands:
+
+```bash
+cd services/api
+npx tsx src/scripts/runMigration.ts NNNN_migration_file.sql
+```
+
+**NEVER** run migrations with:
+- ❌ `psql $DATABASE_URL -f drizzle/migration.sql` (bypasses error handling)
+- ❌ `pnpm db:push` (for schema sync only, not for data migrations)
+- ❌ Direct SQL execution in database client
+
+#### Migration Script (`src/scripts/runMigration.ts`)
+
+The script provides:
+- ✅ Automatic `.env` loading from project root
+- ✅ Connection validation before execution
+- ✅ Structured logging with success/failure messages
+- ✅ Proper error handling and exit codes
+- ✅ Transaction support (if migration fails, nothing is applied)
+
+Example usage:
+```bash
+# Run specific migration
+npx tsx src/scripts/runMigration.ts 0022_reset_audio_story_limits.sql
+
+# Output:
+# ✅ DATABASE_URL found
+# 📄 Running migration: 0022_reset_audio_story_limits.sql
+# ✅ Migration applied successfully!
+```
+
+#### Migration Best Practices
+
+- **MUST** test migrations on development database first
+- **MUST** backup production database before running migrations
+- **MUST** write reversible migrations when possible (document rollback steps)
+- **SHOULD** keep migrations small and focused (one logical change per file)
+- **MUST** update schema types after migration: `cd services/api && pnpm db:generate`
+- **NEVER** modify existing migration files after they've been applied to production
+- **NEVER** delete migration files (they serve as database history)
+
+#### Migration Types
+
+**Schema Changes** (add/drop tables, columns, indexes):
+```sql
+-- Add new column with default
+ALTER TABLE stories ADD COLUMN audio_metadata JSONB DEFAULT NULL;
+
+-- Add index for performance
+CREATE INDEX IF NOT EXISTS idx_stories_user_id ON stories(user_id);
+```
+
+**Data Migrations** (update existing data):
+```sql
+-- Update feature slug
+UPDATE features 
+SET slug = 'audio_stories_per_month'
+WHERE slug = 'audio_minutes_per_month';
+
+-- Migrate plan features
+UPDATE plan_features pf
+SET value = '{"limit": 5}'::jsonb
+FROM plans p, features f
+WHERE pf.plan_id = p.id 
+  AND pf.feature_id = f.id
+  AND p.slug = 'silver';
+```
+
+**Seed Data** (insert reference data):
+```sql
+-- Add new plan
+INSERT INTO plans (slug, name, price_monthly, sort_order)
+VALUES ('golden', 'Золоті зорі', 10000, 3)
+ON CONFLICT (slug) DO UPDATE SET 
+  name = EXCLUDED.name,
+  price_monthly = EXCLUDED.price_monthly;
+```
+
+#### Troubleshooting
+
+If migration fails:
+1. Check error message in console output
+2. Review migration SQL for syntax errors
+3. Verify database connection (`psql $DATABASE_URL -c "SELECT 1"`)
+4. Check if migration was partially applied (may need manual rollback)
+5. Fix migration file and run again
+
+Common issues:
+- **Foreign key violations**: Check if referenced records exist
+- **Unique constraint violations**: Check for duplicate data
+- **Type mismatches**: Ensure JSONB structure matches expected format
+- **Missing permissions**: Verify database user has DDL permissions
 
 ## 🔐 Security
 

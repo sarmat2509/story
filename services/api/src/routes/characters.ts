@@ -77,6 +77,14 @@ router.post('/analyze', requireAuth, async (req, res) => {
           clothingStyle: result.clothing?.style || undefined,
           distinctiveFeatures: result.distinctiveFeatures || []
         };
+      } else if (characterType === 'imaginary') {
+        analysis.imaginaryAppearance = {
+          species: result.appearanceTraits?.fantasyType || undefined,
+          primaryColor: extractPrimaryColor(result.appearanceTraits),
+          secondaryColor: extractSecondaryColor(result.appearanceTraits),
+          size: result.appearanceTraits?.size || undefined,
+          magicalFeatures: result.appearanceTraits?.magicalFeatures || []
+        };
       }
     }
     
@@ -116,6 +124,35 @@ function mapAgeRange(age: string | null | undefined): string | undefined {
   return ageMap[age] || 'adult';
 }
 
+// Extract primary/secondary colors from appearance traits
+function extractPrimaryColor(traits: any): string | undefined {
+  if (!traits) return undefined;
+  // Priority: furColor (for animal-like), then first magical feature color
+  if (traits.furColor) return traits.furColor;
+  if (traits.magicalFeatures && traits.magicalFeatures.length > 0) {
+    // Try to extract color from magical features description
+    const firstFeature = traits.magicalFeatures[0].toLowerCase();
+    const colorKeywords = ['red', 'blue', 'green', 'purple', 'gold', 'silver', 'rainbow'];
+    for (const color of colorKeywords) {
+      if (firstFeature.includes(color)) return color;
+    }
+  }
+  return undefined;
+}
+
+function extractSecondaryColor(traits: any): string | undefined {
+  if (!traits) return undefined;
+  // Try to find secondary color from magical features or patterns
+  if (traits.magicalFeatures && traits.magicalFeatures.length > 1) {
+    const secondFeature = traits.magicalFeatures[1].toLowerCase();
+    const colorKeywords = ['red', 'blue', 'green', 'purple', 'gold', 'silver', 'rainbow'];
+    for (const color of colorKeywords) {
+      if (secondFeature.includes(color)) return color;
+    }
+  }
+  return undefined;
+}
+
 // GET /api/v1/characters - List characters (optionally filtered by type)
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -142,9 +179,24 @@ router.post('/', requireAuth, async (req, res) => {
   try {
     const userId = req.user!.id;
     
+    // Log incoming request
+    logger.info({ 
+      userId, 
+      body: req.body,
+      hasPhotos: !!req.body.referencePhotos,
+      photoCount: req.body.referencePhotos?.length || 0
+    }, 'Creating character - request received');
+    
     // Validate input
     const validation = CreateCharacterSchema.safeParse(req.body);
     if (!validation.success) {
+      logger.error({ 
+        userId,
+        body: req.body,
+        validationErrors: validation.error.format(),
+        zodIssues: validation.error.issues
+      }, 'Character validation failed');
+      
       return res.status(400).json({
         status: 'error',
         error: 'Validation failed',
@@ -153,6 +205,13 @@ router.post('/', requireAuth, async (req, res) => {
     }
     
     const data = validation.data;
+    
+    logger.info({ 
+      userId,
+      characterType: data.type,
+      hasPhotos: !!data.referencePhotos,
+      photoCount: data.referencePhotos?.length || 0
+    }, 'Character validation passed, creating character');
     
     // Create character
     const character = await characterService.createCharacter(userId, data);

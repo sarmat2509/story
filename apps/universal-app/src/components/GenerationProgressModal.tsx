@@ -14,6 +14,7 @@ interface Props {
   errorMessage?: string;
   onClose?: () => void;
   onRetry?: () => void;
+  allowManualClose?: boolean; // New prop for X button
 }
 
 export function GenerationProgressModal({
@@ -23,7 +24,8 @@ export function GenerationProgressModal({
   progressData,
   errorMessage,
   onClose,
-  onRetry
+  onRetry,
+  allowManualClose = false,
 }: Props) {
   
   const getTaskLabel = (task: string) => {
@@ -70,6 +72,15 @@ export function GenerationProgressModal({
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
+          {allowManualClose && onClose && status === 'completed' && (
+            <TouchableOpacity 
+              style={styles.closeIcon}
+              onPress={onClose}
+            >
+              <Text style={styles.closeIconText}>✕</Text>
+            </TouchableOpacity>
+          )}
+          
           {status !== 'completed' && status !== 'failed' && (
             <ActivityIndicator 
               size="large" 
@@ -151,6 +162,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minWidth: 300,
     maxWidth: 400,
+    position: 'relative',
+  },
+  closeIcon: {
+    position: 'absolute',
+    top: theme.spacing[4],
+    right: theme.spacing[4],
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.full,
+    zIndex: 10,
+  },
+  closeIconText: {
+    fontSize: 20,
+    color: theme.colors.text.tertiary,
+    fontWeight: theme.typography.fontWeight.bold,
   },
   spinner: {
     marginBottom: theme.spacing[6],

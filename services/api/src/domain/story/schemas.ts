@@ -18,6 +18,19 @@ export const OUTLINE_SCHEMA: JsonSchema = {
     title: { type: 'string', description: 'Story title in target language' },
     language: { type: 'string', description: 'Language code (uk/ru/en/es/de/fr)' },
     moral: { type: 'string', description: 'The moral or lesson of the story' },
+    environments: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Short unique identifier for this environment (e.g. "bedroom", "forest_clearing")' },
+          name: { type: 'string', description: 'Human-readable name of the location' },
+          visualDescription: { type: 'string', description: 'Rich visual description of the location in English: layout, furniture, objects, colors, baseline lighting, atmosphere. This is used for image generation.' }
+        },
+        required: ['id', 'name', 'visualDescription']
+      },
+      description: 'All distinct physical locations/settings in the story. Multiple scenes can share the same environment.'
+    },
     scenes: {
       type: 'array',
       items: {
@@ -25,6 +38,7 @@ export const OUTLINE_SCHEMA: JsonSchema = {
         properties: {
           sceneId: { type: 'number', description: 'Sequential scene number starting from 1' },
           setting: { type: 'string', description: 'Where this scene takes place' },
+          environmentId: { type: 'string', description: 'ID of the environment where this scene takes place (from environments array)' },
           goal: { type: 'string', description: 'What should happen in this scene' },
           emotion: { type: 'string', description: 'Primary emotion (calm/happy/curious/concerned/excited)' },
           beats: {
@@ -34,10 +48,10 @@ export const OUTLINE_SCHEMA: JsonSchema = {
           },
           visualPrompt: {
             type: 'string',
-            description: 'Detailed visual description for future image generation'
+            description: 'Action-focused visual description: character poses, expressions, interactions, transient changes (weather, lighting shifts). Do NOT repeat the environment/setting here.'
           }
         },
-        required: ['sceneId', 'setting', 'goal', 'emotion', 'beats', 'visualPrompt']
+        required: ['sceneId', 'setting', 'environmentId', 'goal', 'emotion', 'beats', 'visualPrompt']
       }
     },
     safetyNotes: {
@@ -46,7 +60,7 @@ export const OUTLINE_SCHEMA: JsonSchema = {
       description: 'Any safety or content policy considerations'
     }
   },
-  required: ['title', 'language', 'moral', 'scenes', 'safetyNotes']
+  required: ['title', 'language', 'moral', 'environments', 'scenes', 'safetyNotes']
 };
 
 /**
@@ -58,31 +72,68 @@ export const TEXT_SCHEMA: JsonSchema = {
   properties: {
     title: { type: 'string' },
     language: { type: 'string' },
+    environments: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Short unique identifier for this environment (e.g. "bedroom", "forest_clearing")' },
+          name: { type: 'string', description: 'Human-readable name of the location' },
+          visualDescription: { type: 'string', description: 'Rich visual description of the location in English: layout, furniture, objects, colors, baseline lighting, atmosphere. Used for image generation.' }
+        },
+        required: ['id', 'name', 'visualDescription']
+      },
+      description: 'All distinct physical locations/settings in the story. Multiple scenes can share the same environment.'
+    },
+    characters: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Character name' },
+          type: { type: 'string', description: 'Character type: human, animal, creature, object' },
+          description: { type: 'string', description: 'Detailed visual appearance description for consistent image generation' },
+          role: { type: 'string', description: 'Role in story: protagonist, sidekick, mentor, helper, guide, friend' },
+          personality: { type: 'string', description: 'Key personality traits' }
+        },
+        required: ['name', 'type', 'description']
+      },
+      description: 'All characters created in the story (excluding user-provided characters from SUPPORTING CHARACTERS section)'
+    },
     scenes: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
           sceneId: { type: 'number' },
+          environmentId: {
+            type: 'string',
+            description: 'ID of the environment where this scene takes place (from environments array)'
+          },
           text: {
             type: 'string',
             description: 'Complete text for this scene (1-3 paragraphs depending on age)'
           },
           visualPrompt: {
             type: 'string',
-            description: 'Enhanced visual description based on actual story text'
+            description: 'Action-focused visual description: character poses, expressions, interactions, transient changes (weather, lighting). Do NOT repeat the environment/setting here.'
+          },
+          characters: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Names of characters appearing or mentioned in this scene text (EXACT names from character list or SUPPORTING CHARACTERS section)'
+          },
+          visualCharacters: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Characters that should be VISUALLY DRAWN in this scene illustration. Only characters physically present in the scene location. Exclude characters merely mentioned in dialogue or memories. Use EXACT names from character list or SUPPORTING CHARACTERS section.'
           }
         },
-        required: ['sceneId', 'text', 'visualPrompt']
+        required: ['sceneId', 'environmentId', 'text', 'visualPrompt', 'characters', 'visualCharacters']
       }
-    },
-    fullText: {
-      type: 'string',
-      description: 'All scene texts concatenated with proper spacing'
-    },
-    wordCount: { type: 'number' }
+    }
   },
-  required: ['title', 'language', 'scenes', 'fullText', 'wordCount']
+  required: ['title', 'language', 'environments', 'characters', 'scenes']
 };
 
 /**
@@ -125,8 +176,25 @@ export const SCENE_SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
     sceneId: { type: 'number' },
+    environmentId: {
+      type: 'string',
+      description: 'ID of the environment where this scene takes place (from environments array)'
+    },
     text: { type: 'string' },
-    visualPrompt: { type: 'string' }
+    visualPrompt: {
+      type: 'string',
+      description: 'Action-focused visual description: character poses, expressions, interactions, transient changes. Do NOT repeat the environment/setting.'
+    },
+    characters: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Names of characters appearing in this scene'
+    },
+    visualCharacters: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Characters that should be VISUALLY DRAWN in this scene illustration. Only characters physically present in the scene location.'
+    }
   },
-  required: ['sceneId', 'text', 'visualPrompt']
+  required: ['sceneId', 'environmentId', 'text', 'visualPrompt', 'characters', 'visualCharacters']
 };
