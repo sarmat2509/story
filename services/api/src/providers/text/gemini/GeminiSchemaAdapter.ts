@@ -6,7 +6,7 @@
  * Domain Services and Prompt Builders work with JsonSchema only.
  */
 
-import { SchemaType } from '@google/generative-ai';
+import { Type } from '@google/genai';
 import type { JsonSchema, JsonSchemaType } from '../../base/JsonSchema';
 
 /**
@@ -14,7 +14,7 @@ import type { JsonSchema, JsonSchemaType } from '../../base/JsonSchema';
  * This is what the Gemini API expects
  */
 export interface GeminiSchema {
-  type: SchemaType;
+  type: Type;
   description?: string;
   enum?: any[];
   items?: GeminiSchema;
@@ -109,20 +109,20 @@ export class GeminiSchemaAdapter {
    * @param type - JSON schema type string
    * @returns Gemini SchemaType enum value
    */
-  private convertType(type: JsonSchemaType): SchemaType {
+  private convertType(type: JsonSchemaType): Type {
     switch (type) {
       case 'string':
-        return SchemaType.STRING;
+        return Type.STRING;
       case 'number':
-        return SchemaType.NUMBER;
+        return Type.NUMBER;
       case 'integer':
-        return SchemaType.INTEGER;
+        return Type.INTEGER;
       case 'boolean':
-        return SchemaType.BOOLEAN;
+        return Type.BOOLEAN;
       case 'object':
-        return SchemaType.OBJECT;
+        return Type.OBJECT;
       case 'array':
-        return SchemaType.ARRAY;
+        return Type.ARRAY;
       default:
         throw new Error(`Unsupported schema type: ${type}`);
     }

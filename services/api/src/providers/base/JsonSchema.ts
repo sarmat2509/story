@@ -24,8 +24,13 @@ export interface JsonSchemaProperty {
   maximum?: number;
   minLength?: number;
   maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
+  minProperties?: number;
+  maxProperties?: number;
   pattern?: string;
   default?: any;
+  additionalProperties?: JsonSchema | boolean;
 }
 
 export interface JsonSchema extends JsonSchemaProperty {
@@ -35,11 +40,13 @@ export interface JsonSchema extends JsonSchemaProperty {
 }
 
 /**
- * Image data for vision models
+ * Image data for vision models.
+ * Supports both inline base64 and Files API URI references.
  */
 export interface ImageData {
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
-  data: string; // base64 encoded
+  data: string; // base64 encoded (can be empty when fileUri is provided)
+  fileUri?: string; // Files API URI — when present, used instead of inline data
 }
 
 /**

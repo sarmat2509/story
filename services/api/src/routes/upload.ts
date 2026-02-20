@@ -65,10 +65,11 @@ router.post('/photo', requireAuth, upload.single('photo'), async (req, res) => {
       size: req.file.size 
     }, 'User photo uploaded successfully');
 
+    // Return signed URL so <Image> can load it without Bearer auth header
     res.json({
       status: 'success',
       photo: {
-        url: result.storageUrl,
+        url: result.signedUrl || result.storageUrl,
         uploadedAt: new Date().toISOString()
       }
     });
@@ -114,7 +115,11 @@ router.delete('/photo', requireAuth, async (req, res) => {
     const storagePath = url.substring(prefixIndex + assetPrefix.length);
 
     // Security: verify the path belongs to the requesting user
-    if (!storagePath.includes(userId)) {
+    // Use startsWith with env prefix to prevent substring collision
+    // Expected format: {env}/{userId}/photos/...
+    const pathParts = storagePath.split('/');
+    // pathParts[0] = env, pathParts[1] = userId
+    if (pathParts.length < 2 || pathParts[1] !== userId) {
       logger.warn({ userId, storagePath }, 'User attempted to delete another user\'s photo');
       return res.status(403).json({
         status: 'error',

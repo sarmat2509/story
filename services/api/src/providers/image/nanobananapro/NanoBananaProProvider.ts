@@ -1,6 +1,6 @@
 /**
- * Nano Banana Pro Provider - Gemini 2.5 Flash Image Implementation
- * Implements IImageProvider using Google Generative AI SDK
+ * Nano Banana Pro Provider - Gemini Image Generation Implementation
+ * Implements IImageProvider using @google/genai SDK
  * 
  * Model: gemini-2.5-flash-image (also known as "Nano Banana")
  * Supports:
@@ -10,301 +10,458 @@
  * - Aspect ratios: 1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import type { IImageProvider, GenerateImageRequest, GeneratedImage } from '../../base/IImageProvider';
+import { GoogleGenAI, Modality } from '@google/genai';
+import type { IImageProvider, GenerateImageRequest, EditImageRequest, GeneratedImage } from '../../base/IImageProvider';
+import type { IFileManager } from '../../base/IFileManager';
+import { GeminiFileManager } from './GeminiFileManager';
 import { logger } from '../../../utils/logger';
 import { config } from '../../../config';
 
 export class NanoBananaProProvider implements IImageProvider {
-  private genAI: GoogleGenerativeAI;
+  private client: GoogleGenAI;
   private model: string;
+  private fileManager: GeminiFileManager | null = null;
   
-  constructor(apiKey?: string) {
+  constructor(apiKey?: string, modelOverride?: string) {
     const key = apiKey || config.google.apiKey;
     
     if (!key) {
       throw new Error('Google API Key is required for Nano Banana Pro. Set GOOGLE_API_KEY env var.');
     }
     
-    this.genAI = new GoogleGenerativeAI(key);
-    this.model = config.nanoBanana?.model || 'gemini-2.5-flash-image';
+    this.client = new GoogleGenAI({ apiKey: key });
+    this.model = modelOverride || config.nanoBanana?.model || 'gemini-2.5-flash-image';
     
     logger.info({ 
       model: this.model 
     }, 'Nano Banana Pro Provider initialized');
   }
+
+  /**
+   * Get the file manager for uploading reference files to Google Files API.
+   * Lazy-initialized on first call.
+   */
+  getFileManager(): IFileManager | null {
+    if (!this.fileManager) {
+      this.fileManager = new GeminiFileManager(this.client);
+    }
+    return this.fileManager;
+  }
   
   /**
-   * Generate image using Gemini 2.5 Flash Image (Nano Banana)
+   * Generate image using Gemini Image model (Nano Banana)
    */
   async generateImage(request: GenerateImageRequest): Promise<GeneratedImage> {
-    // Log full prompt details BEFORE API call
+    // Log full prompt and all text parts for debugging
     logger.info({ 
       promptLength: request.prompt.length,
-      promptCharCount: request.prompt.length,
       promptWordCount: request.prompt.split(/\s+/).length,
+      fullPrompt: request.prompt,
+      hasReferences: !!request.referenceImages,
+      referenceCount: request.referenceImages?.length || 0,
+      referenceInstructions: request.referenceImages?.map((ref, i) => ({
+        index: i,
+        instructionText: ref.instructionText || null,
+        characterName: ref.characterName || null,
+      })),
+      aspectRatio: request.aspectRatio,
+      model: this.model,
+    }, 'Generating image with Nano Banana Pro - Full Request Details');
+    
+    try {
+      // Build content parts: reference images first, then main prompt
+      const parts: any[] = await this.buildReferenceParts(request.referenceImages);
+      parts.push({ text: request.prompt });
+      
+      return await this.callGeminiImageAPI({
+        parts,
+        aspectRatio: request.aspectRatio,
+        systemInstruction: request.systemInstruction,
+        personGeneration: request.personGeneration,
+        promptLength: request.prompt.length,
+        referenceCount: request.referenceImages?.length || 0,
+        operationType: 'generate',
+      });
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to generate image with Nano Banana Pro');
+      throw new Error(`Nano Banana Pro generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Edit an existing image to fix specific issues while preserving correct elements.
+   * Sends the original image + edit instructions + reference images to Gemini.
+   */
+  async editImage(request: EditImageRequest): Promise<GeneratedImage> {
+    logger.info({
+      editInstructionsLength: request.editInstructions.length,
+      editInstructionsPreview: request.editInstructions.substring(0, 300),
+      originalMimeType: request.originalMimeType,
+      originalImageSize: request.originalImage.length,
       hasReferences: !!request.referenceImages,
       referenceCount: request.referenceImages?.length || 0,
       aspectRatio: request.aspectRatio,
       model: this.model,
-      // Log prompt sections for debugging
-      promptBreakdown: {
-        first500chars: request.prompt.substring(0, 500),
-        middle500chars: request.prompt.substring(
-          Math.max(0, Math.floor(request.prompt.length / 2) - 250),
-          Math.floor(request.prompt.length / 2) + 250
-        ),
-        last500chars: request.prompt.substring(Math.max(0, request.prompt.length - 500)),
-      }
-    }, 'Generating image with Nano Banana Pro - Full Request Details');
-    
+    }, 'Editing image with Nano Banana Pro - Image Edit Request');
+
     try {
-      // Get the generative model
-      const model = this.genAI.getGenerativeModel({ model: this.model });
-      
-      // Build content parts array: reference images first, then prompt
-      const parts: any[] = [];
-      
-      // Add reference images if provided
-      if (request.referenceImages && request.referenceImages.length > 0) {
-        logger.info({ 
-          count: request.referenceImages.length,
-          references: request.referenceImages.map(ref => ({
-            hasUrl: !!ref.url,
-            hasBase64: !!ref.base64Data,
-            characterName: ref.characterName,
-            mimeType: ref.mimeType,
-            urlPreview: ref.url ? ref.url.substring(0, 100) : undefined,
-            base64Length: ref.base64Data?.length || 0,
-          }))
-        }, 'Adding reference images to request');
-        
-        for (const refImage of request.referenceImages) {
-          // Use base64Data if available, otherwise download from URL
-          let imageBase64: string;
-          let mimeType: string;
-          
-          if (refImage.base64Data) {
-            // Already have base64 data
-            imageBase64 = refImage.base64Data;
-            mimeType = refImage.mimeType || 'image/png';
-            logger.debug('Using provided base64 data for reference');
-          } else if (refImage.url) {
-            // Download and convert to base64
-            const imageBuffer = await this.downloadImage(refImage.url);
-            imageBase64 = imageBuffer.toString('base64');
-            mimeType = 'image/jpeg';
-            logger.debug({ url: refImage.url }, 'Downloaded and converted reference image');
-          } else {
-            throw new Error('Reference image must have either url or base64Data');
-          }
-          
-          parts.push({
-            inlineData: {
-              mimeType,
-              data: imageBase64
-            }
-          });
-        }
+      // Build content parts: reference images first, then original image, then edit instructions
+      const parts: any[] = await this.buildReferenceParts(request.referenceImages);
+
+      // Add the original generated image that needs editing
+      parts.push({
+        inlineData: {
+          mimeType: request.originalMimeType,
+          data: request.originalImage.toString('base64'),
+        },
+      });
+
+      // Add edit instructions last
+      parts.push({ text: request.editInstructions });
+
+      return await this.callGeminiImageAPI({
+        parts,
+        aspectRatio: request.aspectRatio,
+        systemInstruction: request.systemInstruction,
+        personGeneration: request.personGeneration,
+        promptLength: request.editInstructions.length,
+        referenceCount: request.referenceImages?.length || 0,
+        operationType: 'edit',
+      });
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to edit image with Nano Banana Pro');
+      throw new Error(`Nano Banana Pro image edit failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Build interleaved reference image parts for the content array.
+   * Each reference image is preceded by its instructionText so the model
+   * unambiguously knows which description matches which image.
+   */
+  private async buildReferenceParts(referenceImages?: import('../../base/IImageProvider').ReferenceImage[]): Promise<any[]> {
+    const parts: any[] = [];
+
+    if (!referenceImages || referenceImages.length === 0) {
+      return parts;
+    }
+
+    logger.info({
+      count: referenceImages.length,
+      references: referenceImages.map(ref => ({
+        hasUrl: !!ref.url,
+        hasBase64: !!ref.base64Data,
+        hasFileUri: !!ref.fileUri,
+        characterName: ref.characterName,
+        hasInstructionText: !!ref.instructionText,
+        mimeType: ref.mimeType,
+        urlPreview: ref.url ? ref.url.substring(0, 100) : undefined,
+        base64Length: ref.base64Data?.length || 0,
+      }))
+    }, 'Adding reference images to request (interleaved mode)');
+
+    for (const refImage of referenceImages) {
+      // Interleave: place instruction text immediately before its image
+      if (refImage.instructionText) {
+        parts.push({ text: refImage.instructionText });
       }
-      
-      // Add text prompt
-      parts.push({ text: request.prompt });
-      
-      // Configure generation
-      const generationConfig: any = {
-        responseModalities: ['IMAGE'],
-      };
-      
-      // Add aspect ratio if specified
-      if (request.aspectRatio) {
-        generationConfig.imageConfig = {
-          aspectRatio: request.aspectRatio
-        };
+
+      // Prefer fileUri (Files API) over inline base64 to reduce payload
+      if (refImage.fileUri) {
+        const mimeType = refImage.mimeType || 'image/png';
+        parts.push({
+          fileData: {
+            fileUri: refImage.fileUri,
+            mimeType,
+          },
+        });
+        logger.debug({ fileUri: refImage.fileUri }, 'Using file URI for reference (Files API)');
+      } else if (refImage.base64Data) {
+        const mimeType = refImage.mimeType || 'image/png';
+        parts.push({
+          inlineData: {
+            mimeType,
+            data: refImage.base64Data,
+          },
+        });
+        logger.debug('Using provided base64 data for reference');
+      } else if (refImage.url) {
+        const imageBuffer = await this.downloadImage(refImage.url);
+        const imageBase64 = imageBuffer.toString('base64');
+        parts.push({
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: imageBase64,
+          },
+        });
+        logger.debug({ url: refImage.url }, 'Downloaded and converted reference image');
+      } else {
+        throw new Error('Reference image must have fileUri, base64Data, or url');
       }
-      
-      // Generate content
-      logger.info({ 
-        partsCount: parts.length,
-        partsStructure: parts.map((p, idx) => {
-          if (p.inlineData) {
-            return {
-              index: idx,
-              type: 'image',
-              mimeType: p.inlineData.mimeType,
-              dataLength: p.inlineData.data.length,
-            };
-          }
+    }
+
+    return parts;
+  }
+
+  /**
+   * Shared Gemini API call + response parsing for both generate and edit operations.
+   * Handles token counting, API call, response validation, and image extraction.
+   */
+  private async callGeminiImageAPI(params: {
+    parts: any[];
+    aspectRatio?: string;
+    systemInstruction?: string;
+    personGeneration?: string;
+    promptLength: number;
+    referenceCount: number;
+    operationType: 'generate' | 'edit';
+  }): Promise<GeneratedImage> {
+    const { parts, aspectRatio, systemInstruction, personGeneration, promptLength, referenceCount, operationType } = params;
+
+    // Log full request structure (untruncated for debugging)
+    logger.info({
+      partsCount: parts.length,
+      hasSystemInstruction: !!systemInstruction,
+      systemInstructionLength: systemInstruction?.length || 0,
+      systemInstruction: systemInstruction || null,
+      partsStructure: parts.map((p, idx) => {
+        if (p.inlineData) {
           return {
             index: idx,
-            type: 'text',
-            textLength: p.text?.length || 0,
-            textPreview: p.text?.substring(0, 100),
+            type: 'inlineImage',
+            mimeType: p.inlineData.mimeType,
+            dataLength: p.inlineData.data.length,
           };
-        }),
-        generationConfig,
+        }
+        if (p.fileData) {
+          return {
+            index: idx,
+            type: 'fileUri',
+            mimeType: p.fileData.mimeType,
+            fileUri: p.fileData.fileUri,
+          };
+        }
+        return {
+          index: idx,
+          type: 'text',
+          textLength: p.text?.length || 0,
+          text: p.text,
+        };
+      }),
+      aspectRatio,
+      model: this.model,
+      operationType,
+    }, `Calling Gemini API for image ${operationType}`);
+
+    // Count tokens before generation (optional but helpful for diagnostics)
+    try {
+      const tokenCountResult = await this.client.models.countTokens({
         model: this.model,
-      }, 'Calling Gemini API with full request details');
-      
-      // Count tokens before generation (optional but helpful for diagnostics)
-      try {
-        const tokenCountResult = await model.countTokens({ 
-          contents: [{ role: 'user', parts }] 
-        });
-
-        logger.info({
-          promptLength: request.prompt.length,
-          totalTokens: tokenCountResult.totalTokens,
-          maxInputTokens: 32768,
-          tokenUtilization: `${((tokenCountResult.totalTokens / 32768) * 100).toFixed(1)}%`
-        }, 'Token count for image generation');
-
-        if (tokenCountResult.totalTokens > 30000) {
-          logger.warn({
-            totalTokens: tokenCountResult.totalTokens,
-            limit: 32768,
-            excess: tokenCountResult.totalTokens - 30000
-          }, 'Prompt approaching token limit (>90%)');
-        }
-      } catch (tokenError) {
-        logger.debug({ error: tokenError }, 'Could not count tokens (non-critical)');
-      }
-      
-      const result = await model.generateContent({
         contents: [{ role: 'user', parts }],
-        generationConfig
       });
-      
-      const response = result.response;
-      
-      // Log complete response structure
+
       logger.info({
-        hasCandidates: !!response.candidates,
-        candidateCount: response.candidates?.length || 0,
-        hasPromptFeedback: !!response.promptFeedback,
-        promptFeedbackBlockReason: response.promptFeedback?.blockReason,
-        usageMetadata: response.usageMetadata,
-        candidatesSummary: response.candidates?.map(c => ({
-          finishReason: c.finishReason,
-          hasContent: !!c.content,
-          hasSafetyRatings: !!c.safetyRatings,
-          safetyRatingsCount: c.safetyRatings?.length || 0,
-        })),
-      }, 'Received response from Gemini API');
-      
-      // Check if prompt was blocked (before candidates)
-      if (response.promptFeedback?.blockReason) {
-        const blockReason = response.promptFeedback.blockReason;
-        const safetyRatings = response.promptFeedback?.safetyRatings || [];
-        
-        logger.error({ 
-          blockReason,
-          safetyRatings: safetyRatings.map(r => ({
-            category: r.category,
-            probability: r.probability,
-          })),
-          promptLength: request.prompt.length,
-          promptPreview: request.prompt.substring(0, 200),
-          hasReferences: !!request.referenceImages,
-          referenceCount: request.referenceImages?.length || 0
-        }, 'Gemini blocked image generation prompt');
-        
-        const safetyDetails = safetyRatings
-          .filter(r => r.probability !== 'NEGLIGIBLE')
-          .map(r => `${r.category}: ${r.probability}`)
-          .join(', ');
-        
-        throw new Error(`Image generation blocked by Gemini: ${blockReason}. Details: ${safetyDetails || 'none'}`);
+        promptLength,
+        totalTokens: tokenCountResult.totalTokens,
+        maxInputTokens: 32768,
+        tokenUtilization: `${(((tokenCountResult.totalTokens || 0) / 32768) * 100).toFixed(1)}%`,
+        operationType,
+      }, `Token count for image ${operationType}`);
+
+      if ((tokenCountResult.totalTokens || 0) > 30000) {
+        logger.warn({
+          totalTokens: tokenCountResult.totalTokens,
+          limit: 32768,
+          excess: (tokenCountResult.totalTokens || 0) - 30000,
+        }, 'Prompt approaching token limit (>90%)');
       }
-      
-      // Check for candidates
-      if (!response.candidates || response.candidates.length === 0) {
-        logger.error({ 
-          response,
-          promptLength: request.prompt.length,
-          hasReferences: !!request.referenceImages
-        }, 'No candidates in Gemini response');
-        throw new Error('No image generated - no candidates in response');
-      }
-      
-      // Find image part in response
-      const candidate = response.candidates[0];
-      
-      // Validate candidate structure
-      if (!candidate.content) {
-        logger.error({ 
-          candidate,
-          finishReason: candidate.finishReason,
-          safetyRatings: candidate.safetyRatings,
-          promptLength: request.prompt.length,
-          hasReferences: !!request.referenceImages,
-          referenceCount: request.referenceImages?.length || 0
-        }, 'Candidate has no content - likely blocked or filtered');
-        
-        // Special handling for NO_IMAGE
-        if (candidate.finishReason === 'NO_IMAGE') {
-          throw new Error(
-            `Gemini 2.5 Flash Image could not generate an image. ` +
-            `This may occur due to: ` +
-            `1) Prompt too long (current: ${request.prompt.length} chars), ` +
-            `2) Too many reference images (current: ${request.referenceImages?.length || 0}, max: 3), ` +
-            `3) Unsupported content in prompt. ` +
-            `Try simplifying the prompt or reducing reference images.`
-          );
-        }
-        
-        throw new Error(`No image content in candidate. Finish reason: ${candidate.finishReason || 'unknown'}`);
-      }
-      
-      if (!candidate.content.parts || !Array.isArray(candidate.content.parts)) {
-        logger.error({ 
-          candidate,
-          contentType: typeof candidate.content
-        }, 'Candidate content has no parts array');
-        
-        throw new Error('Invalid candidate structure - no parts array in content');
-      }
-      
-      const imagePart = candidate.content.parts.find(p => p.inlineData);
-      
-      if (!imagePart?.inlineData) {
-        logger.error({ 
-          candidate,
-          partsCount: candidate.content.parts.length,
-          partTypes: candidate.content.parts.map(p => Object.keys(p))
-        }, 'No image data in response parts');
-        
-        throw new Error('No image data in response - parts array contains no inlineData');
-      }
-      
-      // Decode base64 image
-      const imageData = Buffer.from(imagePart.inlineData.data, 'base64');
-      
-      // Calculate dimensions from aspect ratio
-      const dimensions = this.calculateDimensions(request.aspectRatio);
-      
-      // Determine format from mime type
-      const mimeType = imagePart.inlineData.mimeType || 'image/png';
-      const format = this.getFormatFromMimeType(mimeType);
-      
-      logger.info({ 
-        imageSize: imageData.length,
-        mimeType,
-        width: dimensions.width,
-        height: dimensions.height
-      }, 'Image generated successfully');
-      
-      return {
-        imageData,
-        mimeType,
-        width: dimensions.width,
-        height: dimensions.height,
-        format
-      };
-    } catch (error) {
-      logger.error({ error }, 'Failed to generate image with Nano Banana Pro');
-      throw new Error(`Nano Banana Pro generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } catch (tokenError) {
+      logger.debug({ error: tokenError }, 'Could not count tokens (non-critical)');
     }
+
+    const response = await this.client.models.generateContent({
+      model: this.model,
+      contents: [{ role: 'user', parts }],
+      config: {
+        ...(systemInstruction && { systemInstruction }),
+        responseModalities: [Modality.IMAGE, Modality.TEXT],
+        imageConfig: {
+          ...(aspectRatio && { aspectRatio }),
+          imageSize: config.nanoBanana?.imageSize || '1K',
+          ...(personGeneration && this.supportsPersonGeneration() && {
+            personGeneration: this.mapPersonGeneration(personGeneration),
+          }),
+        },
+      },
+    });
+
+    // Log complete response structure
+    logger.info({
+      hasCandidates: !!response.candidates,
+      candidateCount: response.candidates?.length || 0,
+      hasPromptFeedback: !!response.promptFeedback,
+      promptFeedbackBlockReason: response.promptFeedback?.blockReason,
+      usageMetadata: response.usageMetadata,
+      candidatesSummary: response.candidates?.map(c => ({
+        finishReason: c.finishReason,
+        hasContent: !!c.content,
+        hasSafetyRatings: !!c.safetyRatings,
+        safetyRatingsCount: c.safetyRatings?.length || 0,
+      })),
+      operationType,
+    }, `Received response from Gemini API (${operationType})`);
+
+    // Check if prompt was blocked
+    if (response.promptFeedback?.blockReason) {
+      const blockReason = response.promptFeedback.blockReason;
+      const safetyRatings = response.promptFeedback?.safetyRatings || [];
+
+      logger.error({
+        blockReason,
+        safetyRatings: safetyRatings.map(r => ({
+          category: r.category,
+          probability: r.probability,
+        })),
+        promptLength,
+        referenceCount,
+        operationType,
+      }, `Gemini blocked image ${operationType} prompt`);
+
+      const safetyDetails = safetyRatings
+        .filter(r => r.probability !== 'NEGLIGIBLE')
+        .map(r => `${r.category}: ${r.probability}`)
+        .join(', ');
+
+      throw new Error(`Image ${operationType} blocked by Gemini: ${blockReason}. Details: ${safetyDetails || 'none'}`);
+    }
+
+    // Check for candidates
+    if (!response.candidates || response.candidates.length === 0) {
+      logger.error({ promptLength, referenceCount, operationType }, 'No candidates in Gemini response');
+      throw new Error(`No image ${operationType === 'edit' ? 'edited' : 'generated'} - no candidates in response`);
+    }
+
+    // Find image part in response
+    const candidate = response.candidates[0];
+
+    // Validate candidate structure
+    if (!candidate.content) {
+      // Log full raw response for debugging (Google returns minimal info for IMAGE_OTHER)
+      logger.error({
+        candidate: JSON.parse(JSON.stringify(candidate)),
+        finishReason: candidate.finishReason,
+        finishMessage: candidate.finishMessage,
+        safetyRatings: candidate.safetyRatings,
+        promptFeedback: response.promptFeedback,
+        modelVersion: (response as unknown as Record<string, unknown>).modelVersion,
+        responseId: (response as unknown as Record<string, unknown>).responseId,
+        rawResponseKeys: Object.keys(response),
+        rawCandidateKeys: Object.keys(candidate),
+        promptLength,
+        referenceCount,
+        operationType,
+      }, 'Candidate has no content - likely blocked or filtered');
+
+      // Log any reasoning/explanation from model (may help diagnose IMAGE_OTHER)
+      if (candidate.finishMessage || response.promptFeedback) {
+        logger.warn({
+          finishMessage: candidate.finishMessage,
+          promptFeedbackFull: response.promptFeedback
+            ? JSON.stringify(response.promptFeedback)
+            : null,
+          finishReason: candidate.finishReason,
+          operationType,
+        }, 'IMAGE_OTHER — model reasoning/explanation (if any)');
+      }
+
+      if (candidate.finishReason === 'NO_IMAGE') {
+        throw new Error(
+          `Gemini could not ${operationType === 'edit' ? 'edit' : 'generate'} an image. ` +
+          `This may occur due to: ` +
+          `1) Prompt too long (current: ${promptLength} chars), ` +
+          `2) Too many reference images (current: ${referenceCount}, max: 3), ` +
+          `3) Unsupported content in prompt. ` +
+          `Try simplifying the prompt or reducing reference images.`
+        );
+      }
+
+      const reason = candidate.finishReason || 'unknown';
+      throw new Error(
+        `No image content in candidate. Finish reason: ${reason}. ` +
+        `Candidate keys: [${Object.keys(candidate).join(', ')}]. ` +
+        `Response keys: [${Object.keys(response).join(', ')}]`,
+      );
+    }
+
+    if (!candidate.content.parts || !Array.isArray(candidate.content.parts)) {
+      logger.error({
+        candidate,
+        contentType: typeof candidate.content,
+      }, 'Candidate content has no parts array');
+      throw new Error('Invalid candidate structure - no parts array in content');
+    }
+
+    // Log any text parts from the model (reasoning/thinking)
+    const textParts = candidate.content.parts.filter(p => p.text);
+    if (textParts.length > 0) {
+      const modelText = textParts.map(p => p.text).join('\n');
+      logger.info({
+        textPartsCount: textParts.length,
+        modelText: modelText.substring(0, 500),
+        fullLength: modelText.length,
+        operationType,
+      }, `Model returned text reasoning alongside ${operationType === 'edit' ? 'edited' : 'generated'} image`);
+    }
+
+    const imagePart = candidate.content.parts.find(p => p.inlineData);
+
+    if (!imagePart?.inlineData) {
+      // Log any text/reasoning from parts — model may have returned text instead of image
+      const textPartsNoImage = candidate.content.parts.filter(p => p.text);
+      if (textPartsNoImage.length > 0) {
+        const modelReasoning = textPartsNoImage.map(p => p.text).join('\n');
+        logger.warn({
+          textPartsCount: textPartsNoImage.length,
+          modelReasoning: modelReasoning.substring(0, 1000),
+          fullLength: modelReasoning.length,
+          operationType,
+        }, 'Model returned reasoning instead of image — may explain refusal');
+      }
+
+      logger.error({
+        candidate,
+        partsCount: candidate.content.parts.length,
+        partTypes: candidate.content.parts.map(p => Object.keys(p)),
+        operationType,
+      }, 'No image data in response parts');
+      throw new Error('No image data in response - parts array contains no inlineData');
+    }
+
+    // Decode base64 image
+    const imageData = Buffer.from(imagePart.inlineData.data!, 'base64');
+
+    // Calculate dimensions from aspect ratio
+    const dimensions = this.calculateDimensions(aspectRatio);
+
+    // Determine format from mime type
+    const mimeType = imagePart.inlineData.mimeType || 'image/png';
+    const format = this.getFormatFromMimeType(mimeType);
+
+    logger.info({
+      imageSize: imageData.length,
+      mimeType,
+      width: dimensions.width,
+      height: dimensions.height,
+      operationType,
+    }, `Image ${operationType === 'edit' ? 'edited' : 'generated'} successfully`);
+
+    return {
+      imageData,
+      mimeType,
+      width: dimensions.width,
+      height: dimensions.height,
+      format,
+    };
   }
   
   /**
@@ -338,6 +495,27 @@ export class NanoBananaProProvider implements IImageProvider {
       return 'webp';
     }
     return 'png'; // Default
+  }
+  
+  /**
+   * Check if the current model supports the personGeneration config parameter.
+   * Some models (e.g. gemini-3-pro-image-preview) reject it with a 400 error.
+   */
+  private supportsPersonGeneration(): boolean {
+    const unsupportedModels = ['gemini-3-pro-image-preview'];
+    return !unsupportedModels.some(m => this.model.includes(m));
+  }
+
+  /**
+   * Map provider-agnostic personGeneration values to Gemini SDK format
+   */
+  private mapPersonGeneration(value: string): string {
+    const mapping: Record<string, string> = {
+      'allow_all': 'ALLOW_ALL',
+      'allow_adult': 'ALLOW_ADULT',
+      'dont_allow': 'ALLOW_NONE',
+    };
+    return mapping[value] || 'ALLOW_ALL';
   }
   
   /**

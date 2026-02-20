@@ -14,9 +14,7 @@ import type { IAudioProvider, Voice, SynthesizeRequest } from '../../providers/b
 import type { IAlignmentProvider, AlignmentResult } from '../../providers/base/IAlignmentProvider';
 import type { Story } from '../../db/schema';
 import type { AudioMetadata } from '@kazka/shared';
-import { db } from '../../db';
-import { audioAssets, assets, ttsVoices, stories } from '../../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { getAssetRepository, getVoiceRepository, getStoryRepository } from '../../repositories';
 import { logger } from '../../utils/logger';
 import { getTTSCacheService } from '../../services/ttsCacheService';
 import { getAssetStorageService } from '../../services/assetStorageService';
@@ -494,7 +492,7 @@ export class AudioDomainService {
 
     // 8. Create assets table record
     logger.info({ storyId: story.id }, 'Step 8/8: Saving final audio record to DB');
-    const [assetRecord] = await db.insert(assets).values({
+    const assetRecord = await getAssetRepository().create({
       storyId: story.id,
       sceneId: null,
       assetType: 'audio',
@@ -512,12 +510,10 @@ export class AudioDomainService {
         duration: totalDuration,
       },
       status: 'completed',
-    }).returning();
+    });
 
     // 9. Create audio_assets record (TTS metadata)
-    await db
-      .insert(audioAssets)
-      .values({
+    await getAssetRepository().createAudioAssetIgnoreConflict({
         storyId: story.id,
         assetId: assetRecord.id,
         voiceId: (voice as any).dbId || null, // Use DB UUID for cache
@@ -533,8 +529,7 @@ export class AudioDomainService {
         sceneGroupIndex: null, // ✅ NULL = final concatenated audio
         isFinal: true, // ✅ Explicitly mark as final
         retryCount: 0,
-      })
-      .onConflictDoNothing();
+      });
 
     // 11. Update story metadata with final concatenated asset ID (M5.1)
     await this.updateStoryAudioMetadata(story.id, {
@@ -643,7 +638,7 @@ export class AudioDomainService {
     });
 
     // 6. Create assets table record
-    const [assetRecord] = await db.insert(assets).values({
+    const assetRecord = await getAssetRepository().create({
       storyId: story.id,
       sceneId: null,
       assetType: 'audio',
@@ -661,14 +656,12 @@ export class AudioDomainService {
         ...result.metadata,
       },
       status: 'completed',
-    }).returning();
+    });
 
     // 7. Create audio_asset record
     const textHash = this.cacheService.generateTextHash(normalizedText);
 
-    const [audioAsset] = await db
-      .insert(audioAssets)
-      .values({
+    const audioAsset = await getAssetRepository().createAudioAsset({
         storyId: story.id,
         assetId: assetRecord.id,
         voiceId: (voice as any).dbId || null, // Use DB UUID for cache
@@ -682,8 +675,7 @@ export class AudioDomainService {
         provider: 'elevenlabs',
         providerRequestId: result.providerRequestId,
         status: 'completed',
-      })
-      .returning();
+      });
 
     logger.info(
       {
@@ -836,7 +828,7 @@ export class AudioDomainService {
     });
 
     // Create assets record
-    const [assetRecord] = await db.insert(assets).values({
+    const assetRecord = await getAssetRepository().create({
       storyId: story.id,
       sceneId: null,
       assetType: 'audio',
@@ -854,21 +846,17 @@ export class AudioDomainService {
         isPartial: true,
       },
       status: 'completed',
-    }).returning();
+    });
 
-    // Get voice UUID from database (voiceId is ElevenLabs provider ID)
-    const [voiceRecord] = await db
-      .select({ id: ttsVoices.id })
-      .from(ttsVoices)
-      .where(eq(ttsVoices.providerVoiceId, voiceId))
-      .limit(1);
+    // Get voice record from database by UUID
+    const voiceRecord = await getVoiceRepository().findById(voiceId);
     
     if (!voiceRecord) {
       logger.warn({ voiceId }, 'Voice not found in database, saving without voice reference');
     }
 
     // Create audio_assets record for tracking
-    await db.insert(audioAssets).values({
+    await getAssetRepository().createAudioAsset({
       storyId: story.id,
       assetId: assetRecord.id,
       voiceId: voiceRecord?.id || null, // Use database UUID, not provider ID
@@ -907,13 +895,10 @@ export class AudioDomainService {
     storyId: string,
     audioMetadata: AudioMetadata
   ): Promise<void> {
-    await db
-      .update(stories)
-      .set({
-        audioMetadata: audioMetadata as any, // jsonb field accepts any object
-        updatedAt: new Date(),
-      })
-      .where(eq(stories.id, storyId));
+    await getStoryRepository().updateStory(storyId, {
+      audioMetadata: audioMetadata as any, // jsonb field accepts any object
+      updatedAt: new Date(),
+    });
 
     logger.debug(
       { 
@@ -935,11 +920,7 @@ export class AudioDomainService {
     logger.info({ storyId, newVoiceId }, 'Regenerating audio');
 
     // Load story
-    const [story] = await db
-      .select()
-      .from(stories)
-      .where(eq(stories.id, storyId))
-      .limit(1);
+    const story = await getStoryRepository().findById(storyId);
 
     if (!story) {
       throw new Error('Story not found');
@@ -963,11 +944,7 @@ export class AudioDomainService {
     // If explicit voice ID provided, use it
     if (explicitVoiceId) {
       // Get voice from database instead of ElevenLabs API
-      const [dbVoice] = await db
-        .select()
-        .from(ttsVoices)
-        .where(eq(ttsVoices.providerVoiceId, explicitVoiceId))
-        .limit(1);
+      const dbVoice = await getVoiceRepository().findById(explicitVoiceId);
       
       if (dbVoice && dbVoice.language === story.language) {
         logger.info({ voiceId: explicitVoiceId, provider: dbVoice.provider }, 'Using explicit voice from database');
@@ -1028,60 +1005,17 @@ export class AudioDomainService {
     characterGender?: 'male' | 'female' | 'neutral',
     ageGroupId?: string
   ): Promise<Voice | null> {
-    const { ttsVoices, voiceAgeGroups } = await import('../../db/schema');
-    const { eq, and, or, inArray } = await import('drizzle-orm');
+    const voiceRepo = getVoiceRepository();
     
     logger.debug({ language, role, gender: characterGender, ageGroupId }, 'Selecting voice for role');
     
-    // Build base filters
-    const filters = [
-      eq(ttsVoices.language, language),
-      eq(ttsVoices.isActive, true),
-    ];
-    
-    // Role type: must support the requested role
-    filters.push(
-      or(
-        eq(ttsVoices.roleType, role),
-        eq(ttsVoices.roleType, 'both')
-      )!
-    );
-    
-    // Gender match for characters
-    if (role === 'character' && characterGender) {
-      filters.push(eq(ttsVoices.gender, characterGender));
-    }
-    
-    // Query with optional age group filtering
-    let query = db
-      .select({
-        id: ttsVoices.id,
-        providerVoiceId: ttsVoices.providerVoiceId,
-        name: ttsVoices.name,
-        language: ttsVoices.language,
-        gender: ttsVoices.gender,
-        ageCategory: ttsVoices.ageCategory,
-        voiceTags: ttsVoices.voiceTags,
-        description: ttsVoices.description,
-        providerPreviewUrl: ttsVoices.providerPreviewUrl,
-        isPremium: ttsVoices.isPremium,
-        roleType: ttsVoices.roleType,
-      })
-      .from(ttsVoices);
-    
-    // If age group specified, join with voice_age_groups
-    if (ageGroupId) {
-      query = query
-        .innerJoin(voiceAgeGroups, eq(voiceAgeGroups.voiceId, ttsVoices.id))
-        .where(and(
-          ...filters,
-          eq(voiceAgeGroups.ageGroupId, ageGroupId)
-        )) as any;
-    } else {
-      query = query.where(and(...filters)) as any;
-    }
-    
-    const voices = await query;
+    // Query with optional age group filtering via repository
+    const voices = await voiceRepo.findForSelection({
+      language,
+      role,
+      characterGender,
+      ageGroupId,
+    });
     
     if (voices.length === 0) {
       logger.warn(
@@ -1090,20 +1024,13 @@ export class AudioDomainService {
       );
       
       // Fallback: any active voice for language (ignore age group)
-      const fallback = await db
-        .select()
-        .from(ttsVoices)
-        .where(and(
-          eq(ttsVoices.language, language),
-          eq(ttsVoices.isActive, true)
-        ))
-        .limit(1);
+      const fallback = await voiceRepo.findFallbackByLanguage(language);
       
-      if (fallback.length === 0) {
+      if (!fallback) {
         return null;
       }
       
-      return this.mapDbVoiceToProvider(fallback[0]);
+      return this.mapDbVoiceToProvider(fallback);
     }
     
     // Prefer non-premium voices
@@ -1216,37 +1143,20 @@ export class AudioDomainService {
     
     try {
       // 1. Fetch story full text from DB
-      const [story] = await db
-        .select()
-        .from(stories)
-        .where(eq(stories.id, storyId))
-        .limit(1);
+      const story = await getStoryRepository().findById(storyId);
       
       if (!story) {
         throw new Error(`Story not found: ${storyId}`);
       }
       
       // 2. Fetch audio asset metadata with JOIN to assets table
-      const audioAssetResults = await db
-        .select({
-          audioAsset: audioAssets,
-          asset: assets,
-        })
-        .from(audioAssets)
-        .innerJoin(assets, eq(audioAssets.assetId, assets.id))
-        .where(
-          and(
-            eq(audioAssets.id, audioAssetId),
-            eq(audioAssets.isFinal, true)
-          )
-        )
-        .limit(1);
+      const audioAssetResult = await getAssetRepository().findFinalAudioAssetWithAsset(audioAssetId);
       
-      if (audioAssetResults.length === 0) {
+      if (!audioAssetResult) {
         throw new Error(`Audio asset not found or not final: ${audioAssetId}`);
       }
       
-      const { audioAsset, asset } = audioAssetResults[0];
+      const { audioAsset, asset } = audioAssetResult;
       
       // 3. Fetch audio buffer from storage (works for any audio provider)
       logger.info({

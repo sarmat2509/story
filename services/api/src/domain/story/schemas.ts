@@ -9,61 +9,6 @@
 import type { JsonSchema } from '../../providers/base/JsonSchema';
 
 /**
- * Schema for story outline generation
- * Defines the structure of EpisodeOutline
- */
-export const OUTLINE_SCHEMA: JsonSchema = {
-  type: 'object',
-  properties: {
-    title: { type: 'string', description: 'Story title in target language' },
-    language: { type: 'string', description: 'Language code (uk/ru/en/es/de/fr)' },
-    moral: { type: 'string', description: 'The moral or lesson of the story' },
-    environments: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Short unique identifier for this environment (e.g. "bedroom", "forest_clearing")' },
-          name: { type: 'string', description: 'Human-readable name of the location' },
-          visualDescription: { type: 'string', description: 'Rich visual description of the location in English: layout, furniture, objects, colors, baseline lighting, atmosphere. This is used for image generation.' }
-        },
-        required: ['id', 'name', 'visualDescription']
-      },
-      description: 'All distinct physical locations/settings in the story. Multiple scenes can share the same environment.'
-    },
-    scenes: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          sceneId: { type: 'number', description: 'Sequential scene number starting from 1' },
-          setting: { type: 'string', description: 'Where this scene takes place' },
-          environmentId: { type: 'string', description: 'ID of the environment where this scene takes place (from environments array)' },
-          goal: { type: 'string', description: 'What should happen in this scene' },
-          emotion: { type: 'string', description: 'Primary emotion (calm/happy/curious/concerned/excited)' },
-          beats: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Story beats (3-5 key moments in this scene)'
-          },
-          visualPrompt: {
-            type: 'string',
-            description: 'Action-focused visual description: character poses, expressions, interactions, transient changes (weather, lighting shifts). Do NOT repeat the environment/setting here.'
-          }
-        },
-        required: ['sceneId', 'setting', 'environmentId', 'goal', 'emotion', 'beats', 'visualPrompt']
-      }
-    },
-    safetyNotes: {
-      type: 'array',
-      items: { type: 'string' },
-      description: 'Any safety or content policy considerations'
-    }
-  },
-  required: ['title', 'language', 'moral', 'environments', 'scenes', 'safetyNotes']
-};
-
-/**
  * Schema for full story text generation
  * Defines the structure of EpisodeText
  */
@@ -79,11 +24,11 @@ export const TEXT_SCHEMA: JsonSchema = {
         properties: {
           id: { type: 'string', description: 'Short unique identifier for this environment (e.g. "bedroom", "forest_clearing")' },
           name: { type: 'string', description: 'Human-readable name of the location' },
-          visualDescription: { type: 'string', description: 'Rich visual description of the location in English: layout, furniture, objects, colors, baseline lighting, atmosphere. Used for image generation.' }
+          description: { type: 'string', description: 'BASE visual description IN ENGLISH: fixed layout, permanent furniture, walls, floor, windows, key objects that DO NOT change between scenes. This is the foundation - scene-specific details will be added separately.' },
         },
-        required: ['id', 'name', 'visualDescription']
+        required: ['id', 'name', 'description']
       },
-      description: 'All distinct physical locations/settings in the story. Multiple scenes can share the same environment.'
+      description: 'All distinct physical locations in the story. Each has base description - scene variations go in sceneVisual.setting. Multiple scenes can share the same environmentId.'
     },
     characters: {
       type: 'array',
@@ -114,22 +59,51 @@ export const TEXT_SCHEMA: JsonSchema = {
             type: 'string',
             description: 'Complete text for this scene (1-3 paragraphs depending on age)'
           },
-          visualPrompt: {
-            type: 'string',
-            description: 'Action-focused visual description: character poses, expressions, interactions, transient changes (weather, lighting). Do NOT repeat the environment/setting here.'
+          sceneVisual: {
+            type: 'object',
+            properties: {
+              setting: {
+                type: 'string',
+                description: 'DELTA: Scene-specific additions IN ENGLISH. Describe ONLY what is NEW or CHANGED in this scene compared to the base environment: temporary objects (books on table, food on counter), scene-specific details (open/closed doors, items being used), transient elements. DO NOT repeat base environment structure - it will be added automatically. If nothing changes from base, write minimal additions or time-of-day details.'
+              },
+              cameraComposition: {
+                type: 'object',
+                properties: {
+                  shot: {
+                    type: 'string',
+                    description: 'Camera angle IN ENGLISH: shot type (wide/medium/close-up), eye level, focal point.'
+                  },
+                  characters: {
+                    type: 'array',
+                    maxItems: 2,
+                    items: {
+                      type: 'object',
+                      properties: {
+                        name: { type: 'string', description: 'EXACT character name from the story character list' },
+                        description: { type: 'string', description: 'Position in frame, body posture, action, facial expression, gaze direction. IN ENGLISH.' }
+                      },
+                      required: ['name', 'description']
+                    },
+                    description: 'Per-character composition. MUST list ALL characters physically present in this scene and ONLY those characters. Maximum 2.'
+                  }
+                },
+                required: ['shot', 'characters']
+              },
+              lighting: {
+                type: 'string',
+                description: 'Lighting conditions IN ENGLISH. Light source, direction, intensity, shadows, color temperature, atmosphere.'
+              },
+            },
+            required: ['setting', 'cameraComposition', 'lighting']
           },
-          characters: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Names of characters appearing or mentioned in this scene text (EXACT names from character list or SUPPORTING CHARACTERS section)'
-          },
-          visualCharacters: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Characters that should be VISUALLY DRAWN in this scene illustration. Only characters physically present in the scene location. Exclude characters merely mentioned in dialogue or memories. Use EXACT names from character list or SUPPORTING CHARACTERS section.'
+          characterOutfits: {
+            type: 'object',
+            description: 'REQUIRED: Mapping of EACH character from cameraComposition.characters to their scene-appropriate outfit. For every character in the scene, describe their attire. For animals/creatures, use "natural appearance". Example: { "Emilia": "cozy sweater, leggings", "Rabbit": "natural appearance" }. NEVER leave empty.',
+            additionalProperties: { type: 'string' },
+            minProperties: 1
           }
         },
-        required: ['sceneId', 'environmentId', 'text', 'visualPrompt', 'characters', 'visualCharacters']
+        required: ['sceneId', 'environmentId', 'text', 'sceneVisual']
       }
     }
   },
@@ -169,6 +143,40 @@ export const VALIDATION_SCHEMA: JsonSchema = {
 };
 
 /**
+ * Schema for image validation results (post-generation Vision check).
+ * Detects character hallucinations, duplicates, missing/extra characters, reference fidelity.
+ */
+export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
+  type: 'object',
+  properties: {
+    isValid: { type: 'boolean', description: 'True if image passes all validation checks' },
+    characterCount: { type: 'number', description: 'Total number of distinct characters/creatures visible in the image' },
+    expectedCharacterCount: { type: 'number', description: 'Number of characters expected based on the prompt' },
+    characters: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Character name from the expected list' },
+          found: { type: 'boolean', description: 'Whether this character is present in the image' },
+          duplicated: { type: 'boolean', description: 'Whether this character appears more than once (duplicated/cloned)' },
+          recognizable: { type: 'boolean', description: 'Overall: would someone familiar with the description recognize this character in the image? Covers species, silhouette, proportions, distinctive features.' },
+          matchesColors: { type: 'boolean', description: 'Whether the character color palette matches the description (fur/skin color, eye color, distinctive markings).' },
+          matchesOutfit: { type: 'boolean', description: 'Whether clothing and accessories match the description (hat, bow, dress). Set to true if no outfit is described.' },
+          issue: { type: 'string', nullable: true, description: 'ALL problems for this character in one string, separated by semicolons' },
+        },
+        required: ['name', 'found', 'duplicated', 'recognizable', 'matchesColors', 'matchesOutfit'],
+      },
+    },
+    hasUnexpectedCharacters: { type: 'boolean', description: 'Whether there are extra characters not in the expected list' },
+    hasTextOrLetters: { type: 'boolean', description: 'Whether the image contains any text, letters, words, or writing' },
+    hasRenderingArtifacts: { type: 'boolean', description: 'Whether the image has visual artifacts at character boundaries: body parts showing through other characters, merged limbs, transparency errors.' },
+    overallFeedback: { type: 'string', description: 'Human-readable summary of all issues found' },
+  },
+  required: ['isValid', 'characterCount', 'expectedCharacterCount', 'characters', 'hasUnexpectedCharacters', 'hasTextOrLetters', 'hasRenderingArtifacts', 'overallFeedback'],
+};
+
+/**
  * Schema for single scene regeneration
  * Defines the structure of a regenerated scene
  */
@@ -181,20 +189,49 @@ export const SCENE_SCHEMA: JsonSchema = {
       description: 'ID of the environment where this scene takes place (from environments array)'
     },
     text: { type: 'string' },
-    visualPrompt: {
-      type: 'string',
-      description: 'Action-focused visual description: character poses, expressions, interactions, transient changes. Do NOT repeat the environment/setting.'
+    sceneVisual: {
+      type: 'object',
+      properties: {
+        setting: {
+          type: 'string',
+          description: 'DELTA: Scene-specific additions IN ENGLISH. Describe ONLY what is NEW or CHANGED in this scene compared to the base environment: temporary objects (books on table, food on counter), scene-specific details (open/closed doors, items being used), transient elements. DO NOT repeat base environment structure - it will be added automatically. If nothing changes from base, write minimal additions or time-of-day details.'
+        },
+        cameraComposition: {
+          type: 'object',
+          properties: {
+            shot: {
+              type: 'string',
+              description: 'Camera angle IN ENGLISH: shot type (wide/medium/close-up), eye level, focal point.'
+            },
+            characters: {
+              type: 'array',
+              maxItems: 2,
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', description: 'EXACT character name from the story character list' },
+                  description: { type: 'string', description: 'Position in frame, body posture, action, facial expression, gaze direction. IN ENGLISH.' }
+                },
+                required: ['name', 'description']
+              },
+              description: 'Per-character composition. MUST list ALL characters physically present in this scene and ONLY those characters. Maximum 2.'
+            }
+          },
+          required: ['shot', 'characters']
+        },
+        lighting: {
+          type: 'string',
+          description: 'Lighting conditions IN ENGLISH. Light source, direction, intensity, shadows.'
+        },
+      },
+      required: ['setting', 'cameraComposition', 'lighting']
     },
-    characters: {
-      type: 'array',
-      items: { type: 'string' },
-      description: 'Names of characters appearing in this scene'
-    },
-    visualCharacters: {
-      type: 'array',
-      items: { type: 'string' },
-      description: 'Characters that should be VISUALLY DRAWN in this scene illustration. Only characters physically present in the scene location.'
+    characterOutfits: {
+      type: 'object',
+      description: 'REQUIRED: Mapping of EACH character from cameraComposition.characters to their scene-appropriate outfit. For every character in the scene, describe their attire. For animals/creatures, use "natural appearance". Example: { "Emilia": "cozy sweater, leggings", "Rabbit": "natural appearance" }. NEVER leave empty.',
+      additionalProperties: { type: 'string' },
+      minProperties: 1
     }
   },
-  required: ['sceneId', 'environmentId', 'text', 'visualPrompt', 'characters', 'visualCharacters']
+  required: ['sceneId', 'environmentId', 'text', 'sceneVisual']
 };

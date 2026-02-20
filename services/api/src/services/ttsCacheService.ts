@@ -12,9 +12,7 @@
  */
 
 import crypto from 'crypto';
-import { db } from '../db';
-import { audioAssets } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { getAssetRepository } from '../repositories';
 import { logger } from '../utils/logger';
 
 /**
@@ -76,24 +74,12 @@ export class TTSCacheService {
         'Checking audio cache'
       );
 
-      // Query DB for cached audio
-      const [cached] = await db
-        .select({
-          audioUrl: audioAssets.assetId,
-          assetId: audioAssets.assetId,
-          duration: audioAssets.durationSeconds,
-          voiceName: audioAssets.voiceName,
-        })
-        .from(audioAssets)
-        .where(
-          and(
-            eq(audioAssets.textHash, textHash),
-            eq(audioAssets.voiceId, voiceId),
-            eq(audioAssets.speed, speed.toString() as any),
-            eq(audioAssets.status, 'completed')
-          )
-        )
-        .limit(1);
+      // Query DB for cached audio via repository
+      const cached = await getAssetRepository().findCachedAudio(
+        textHash,
+        voiceId,
+        speed.toString()
+      );
 
       if (cached) {
         this.stats.hits++;
@@ -104,9 +90,9 @@ export class TTSCacheService {
         );
 
         return {
-          audioUrl: cached.audioUrl,
+          audioUrl: cached.assetId,
           assetId: cached.assetId,
-          duration: cached.duration ? parseFloat(cached.duration.toString()) : 0,
+          duration: cached.durationSeconds ? parseFloat(cached.durationSeconds.toString()) : 0,
           voiceName: cached.voiceName,
           cached: true,
         };

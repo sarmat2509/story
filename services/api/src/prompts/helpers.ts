@@ -8,6 +8,7 @@
 
 import type { StorySpec, PolicyProfile } from '../ai/types';
 import { getLanguageFullDisplay } from '@kazka/shared';
+import { getTextStyleGuidance } from './image/styles';
 
 /**
  * Get full language display name from code
@@ -116,8 +117,10 @@ Characters should enhance the story and support the narrative goals.`;
       charParts.push(`(${char.type})`);
     }
     
-    // Add AI-generated description if available
-    if ((char as any).aiGeneratedDescription) {
+    // Add character description — prefer English translation for better LLM visual output
+    if ((char as any).descriptionEn) {
+      charParts.push(`- Description: ${(char as any).descriptionEn}`);
+    } else if ((char as any).aiGeneratedDescription) {
       charParts.push(`- Description: ${(char as any).aiGeneratedDescription}`);
     } else if (char.description) {
       charParts.push(`- Description: ${char.description}`);
@@ -169,7 +172,7 @@ export function formatStoryRequirements(params: {
   if (params.spec.scenarioCard) {
     parts.push(`- Theme/Scenario: ${params.spec.scenarioCard.name} - ${params.spec.scenarioCard.description}`);
     if (params.spec.scenarioGuidance) {
-      parts.push(`  Plot Guidance: ${params.spec.scenarioGuidance}`);
+      parts.push(`  Setting & Premise: ${params.spec.scenarioGuidance}`);
     }
   }
   
@@ -377,6 +380,220 @@ export function formatWritingStyle(spec: StorySpec, vocabLevel: string): string 
   ];
 
   return sections.join('\n');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared visual story rules — used by TextPrompt, DirectTextPrompt,
+// ContinuationPrompt (via composite), and RegenerationPrompt (individual).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Environment definition rules with good/bad examples.
+ */
+export function formatEnvironmentRules(): string {
+  return [
+    'CRITICAL - Environments (Base Descriptions):',
+    '- Define ALL distinct physical locations in "environments" array',
+    '- Each environment has THREE fields:',
+    '  - "id": Short identifier (e.g. "bedroom", "forest_clearing")',
+    '  - "name": Human-readable name',
+    '  - "description": BASE visual description IN ENGLISH of the fixed, permanent elements:',
+    '    * Room structure: layout, shape, dimensions',
+    '    * Permanent furniture: beds, tables, shelves, cabinets',
+    '    * Fixed features: walls, floor, ceiling, windows, doors',
+    '    * Key permanent objects: decorations, fixtures, large items',
+    '    * Materials and colors of permanent elements',
+    '- Base description should work for ALL scenes in this location',
+    '- DO NOT include temporary/transient elements (those go in sceneVisual.setting)',
+    '- Example: "A cozy circular living room with panoramic windows on north wall showing space. Plush beige armchairs around low round coffee table. Warm beige walls, polished dark grey floor with light rug, ambient ceiling lights."',
+    '- Multiple scenes share same environmentId when location is same',
+  ].join('\n');
+}
+
+/**
+ * Scene visual description rules (setting + cameraComposition + lighting).
+ * Full version includes synchronization rules and good/bad examples.
+ * Compact version (for RegenerationPrompt) has only field descriptions.
+ */
+export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: string | null }): string {
+  const styleGuidance = getTextStyleGuidance(opts?.imageStyle);
+  
+  // Helper to add style hint to field description
+  const withStyleHint = (baseDesc: string, styleDesc?: string) => {
+    if (!styleDesc) return baseDesc;
+    return `${baseDesc} [STYLE: ${styleDesc}]`;
+  };
+  
+  if (opts?.compact) {
+    return [
+      'CRITICAL - sceneVisual:',
+      withStyleHint(
+        '- "setting": DELTA ONLY - Scene-specific additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific state (door open/closed, curtains drawn/open), items being actively used, lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. If minimal changes, describe time-of-day atmosphere or specific focus. Write IN ENGLISH.',
+        styleGuidance?.setting
+      ),
+      withStyleHint(
+        '- "cameraComposition": An OBJECT with two fields:',
+        styleGuidance?.composition
+      ),
+      '  - "shot": Camera angle and shot type IN ENGLISH (e.g. "Medium-wide shot at child eye-level").',
+      '  - "characters": Array of objects, one per character physically present in the scene. Each has "name" (EXACT from character list) and "description" (position in frame, posture, action, expression IN ENGLISH). Maximum 2 characters.',
+      withStyleHint(
+        '- "lighting": Light source, direction, intensity, shadows, color temperature, atmosphere. Write IN ENGLISH.',
+        styleGuidance?.lighting
+      ),
+      '- ALL sceneVisual fields MUST be written in ENGLISH regardless of story language.',
+      '',
+      'CRITICAL - characterOutfits:',
+      '- REQUIRED object mapping EACH character from cameraComposition.characters to their outfit.',
+      '- You MUST provide outfit for EVERY character in the scene.',
+      '- Describe scene-appropriate attire (indoor: casual/pajamas, outdoor: coats/boots, etc).',
+      '- For animals/creatures without clothes, write "natural appearance".',
+      '- Example: { "Emilia": "cozy sweater, leggings", "Dad": "grey space farmer coveralls", "Rabbit": "natural appearance" }',
+      '- NEVER return empty {} - always fill with character names from cameraComposition.',
+    ].join('\n');
+  }
+
+  return [
+    'CRITICAL - sceneVisual (structured visual description for image generation):',
+    '- "sceneVisual" is an object with three fields, ALL IN ENGLISH:',
+    withStyleHint(
+      '  - "setting": DELTA ONLY - Scene-specific additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific state (door open/closed, curtains drawn/open), items being actively used, lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. If minimal changes, describe time-of-day atmosphere or specific focus. Write IN ENGLISH.',
+      styleGuidance?.setting
+    ),
+    withStyleHint(
+      '  - "cameraComposition": An OBJECT with two fields:',
+      styleGuidance?.composition
+    ),
+    '    - "shot": Camera angle (wide/medium/close-up), eye level, focal point. IN ENGLISH.',
+    '    - "characters": Array of objects — one entry per character physically present in the scene. Maximum 2 characters. Each entry has:',
+    '      - "name": EXACT character name from the story character list',
+    '      - "description": Position in frame (foreground/background, left/right/center, on what object), body posture, action (sitting, flying, running, hugging, sleeping, eating), facial expression, gaze direction. IN ENGLISH.',
+    withStyleHint(
+      '  - "lighting": Light source, direction, intensity, shadow style, color temperature, atmosphere.',
+      styleGuidance?.lighting
+    ),
+    '- Each field MUST be in English for image generation',
+    '- cameraComposition.characters is the SINGLE SOURCE OF TRUTH for which characters are drawn in the scene illustration',
+    '- The base environment structure comes from environment.description - sceneVisual.setting should only add scene-specific deltas.',
+    '- Example good setting delta: "Two books and telescope on coffee table. Windows show morning stars. Dad holding glowing seed in open palm."',
+    '- Example bad setting: "A cozy circular living room with panoramic windows..." (this duplicates base environment - only write what\'s new)',
+    '- Example good cameraComposition: { "shot": "Medium-wide shot at child eye-level", "characters": [{ "name": "Emilia", "description": "foreground center at workbench, sitting, examining a blueprint with magnifying glass, focused expression" }, { "name": "Rabbit", "description": "right side perched on workbench edge, ears perked up, looking curiously at Emilia" }] }',
+    '- Example bad cameraComposition: "Characters in a workshop" (too vague, not structured, no per-character entries)',
+    '',
+    'CRITICAL - characterOutfits (scene-appropriate attire):',
+    '- "characterOutfits" is an object mapping each character from cameraComposition.characters to their attire description for THIS scene.',
+    '- characterOutfits is MANDATORY - you must describe outfit for each character present in the scene',
+    '- Match character names EXACTLY as they appear in cameraComposition.characters array',
+    '- Outfit descriptions help maintain visual consistency and scene appropriateness',
+    '- Describe attire appropriate to the scene location and activity.',
+    '- Adapt outfits to the scene context — indoor scenes may use casual/comfortable attire instead of outdoor wear.',
+    '- For animals or creatures without attire, use "natural appearance".',
+    '- Example: { "Emilia": "cozy sweater, leggings", "Binbon": "natural appearance" }',
+    '',
+    'EXAMPLE - Base+Delta Pattern:',
+    'Environment (moon_farm_living_room):',
+    '  description: "Circular living room with panoramic windows on north wall, plush beige armchairs around low coffee table, warm beige walls, dark grey floor with light rug, ceiling lights"',
+    '',
+    'Scene 1 setting (delta): "Two books and telescope on coffee table. Windows show morning stars. Dad holding glowing seed in open palm."',
+    'Scene 9 setting (delta): "Two steaming mugs on coffee table. Evening starlight through windows. Cozy blanket draped over one armchair."',
+    '',
+    '→ Image prompt receives: base + delta combined',
+  ].join('\n');
+}
+
+/**
+ * Max 2 active characters per scene constraint (Gemini 3-image limit, 2-image safety margin).
+ */
+export function formatCharactersPerSceneRules(): string {
+  return [
+    'CRITICAL - Characters Per Scene (max 2 active):',
+    '- Each scene should have AT MOST 2 characters physically present and actively participating in the action.',
+    '- If the story has more than 2 characters, rotate them: some characters go to another room, leave on an errand, stay behind, or arrive later. Write the plot so that each scene naturally focuses on 1-2 characters.',
+    '- The protagonist (main child character) should be in almost every scene.',
+    '- Other characters can be briefly MENTIONED (heard from another room, just left, remembered in dialogue) but should NOT be described as physically present and performing actions in the scene.',
+    '- "cameraComposition.characters": list ONLY the characters who are physically present and actively participating in the scene (same characters who perform actions in the text). Maximum 2.',
+    '- Use EXACT character names as defined in the story',
+    '- If scene has no characters (e.g., pure description), use an empty array for cameraComposition.characters',
+  ].join('\n');
+}
+
+/**
+ * Text-visual consistency rules — text and illustration must match.
+ */
+export function formatTextVisualConsistencyRules(): string {
+  return [
+    'CRITICAL - Text-Visual Consistency:',
+    '- The scene "text" and "sceneVisual" MUST describe the SAME moment. The illustration is a snapshot of what happens in the text.',
+    '- Every character in cameraComposition.characters MUST be performing a visible action described in the scene text. If the text says "Rabbit sat on the rug", the cameraComposition must show Rabbit sitting on the rug.',
+    '- Do NOT include characters in cameraComposition.characters if they are only mentioned in passing, heard off-screen, or remembered in the text.',
+    '- The setting in "sceneVisual.setting" must match the location described in the text.',
+    '- Think of it as: text = the full story of the scene, sceneVisual = a single illustration capturing the key moment of that text.',
+  ].join('\n');
+}
+
+/**
+ * ElevenLabs v3 audio tags rules — full version with format rules, examples, and safety.
+ */
+export function formatAudioTagsRules(): string {
+  return [
+    'AUDIO TAGS USAGE:',
+    'Integrate audio tags in square brackets [tag] to enhance emotional delivery for text-to-speech.',
+    'Use EXACTLY the official ElevenLabs v3 formats below (case-sensitive, lowercase only).',
+    '',
+    'OFFICIAL SUPPORTED TAGS:',
+    'Emotions: [happy], [sad], [excited], [angry], [thoughtful], [curious], [surprised], [annoyed]',
+    'Delivery: [whisper], [shouting], [sarcastic], [mischievously]',
+    'Non-verbal: [laughing], [chuckles], [sighs], [clears throat], [exhales sharply], [inhales deeply]',
+    'Timing: [short pause], [long pause]',
+    '',
+    'CRITICAL - Tag Format Rules:',
+    '- Use EXACT formats above (NOT [whispers], [giggles], [gasps] - these will be spoken literally!)',
+    '- Lowercase only (NOT [WHISPER] or [Whisper])',
+    '- Place tags before/after dialogue segments or at natural pauses',
+    '- Use 2-3 tags per scene maximum for natural flow',
+    '',
+    'Examples:',
+    '- \'[excited] Look at that beautiful sunset!\'',
+    '- \'She opened the door slowly. [exhales sharply] The room was filled with treasure!\'',
+    '- \'[laughing] This is so much fun! [excited] Let\\\'s try again!\'',
+    '',
+    'SAFETY: Only use child-appropriate audio tags from approved list above. Avoid scary sounds ([gunshot], [explosion]), aggressive emotions. Prefer gentle, playful tags like [chuckles], [laughing], [excited], [whisper], [curious].',
+    '',
+    'Use tags naturally to enhance storytelling emotion without overusing them.',
+  ].join('\n');
+}
+
+/**
+ * Scene text boundary rules — sentences must not split across scenes.
+ */
+export function formatSceneTextBoundaryRules(): string {
+  return [
+    'CRITICAL - Scene Text Boundaries:',
+    '- Each scene\'s "text" MUST end at a complete sentence boundary (period, exclamation mark, or question mark followed by any closing quotes)',
+    '- NEVER split a sentence across two scenes — every sentence must belong entirely to one scene',
+    '- Do NOT start a new sentence at the end of a scene that continues in the next scene',
+  ].join('\n');
+}
+
+/**
+ * Art style visual guidance for text generation.
+ * Tells the text model how to describe settings/characters for the chosen image style,
+ * so sceneVisual is style-aware (e.g. "clay walls" for clay, not generic "painted walls").
+ */
+/**
+ * Composite function: all shared visual story rules in one call.
+ * Used by TextPrompt, DirectTextPrompt, and ContinuationPrompt.
+ */
+export function formatVisualStoryRules(opts?: { imageStyle?: string | null }): string {
+  const parts = [
+    formatEnvironmentRules(),
+    formatSceneVisualRules({ imageStyle: opts?.imageStyle }),
+    formatCharactersPerSceneRules(),
+    formatTextVisualConsistencyRules(),
+    formatAudioTagsRules(),
+    formatSceneTextBoundaryRules(),
+  ];
+  return parts.filter(Boolean).join('\n\n');
 }
 
 /**

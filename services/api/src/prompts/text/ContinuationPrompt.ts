@@ -120,27 +120,7 @@ ${helpers.formatWritingStyle(spec, vocabLevel)}
 
 OUTPUT FORMAT: Same as DirectTextPrompt (JSON with title, environments, characters, moral, scenes)
 
-CRITICAL - Environments:
-- Define ALL distinct physical locations in "environments" array with "id", "name", "visualDescription"
-- "visualDescription" MUST be in English: room layout, furniture, objects, colors, baseline lighting, atmosphere
-- Be DETAILED and SPECIFIC - this is the only source of setting details for image generation
-- Multiple scenes can share the same environmentId. Only create a new environment when the physical location changes.
-- Each scene MUST have an "environmentId" referencing an environment from the array
-
-CRITICAL - visualPrompt vs environment:
-- "visualPrompt" describes ONLY the ACTION: character poses, expressions, interactions, transient changes (weather, lighting)
-- "visualPrompt" MUST be in English for image generation
-- Do NOT repeat the room/location in visualPrompt — that comes from the environment
-
-CRITICAL - Characters Per Scene:
-- "characters": list ALL character names that appear or are mentioned in that scene's text
-- "visualCharacters": list ONLY characters who are PHYSICALLY PRESENT in the scene and should be DRAWN in the illustration
-  - Include characters who are in the scene location, performing actions, interacting
-  - EXCLUDE characters merely mentioned in dialogue, thoughts, or memories
-- Use EXACT names from required/optional characters lists above AND any new characters you create
-- Example: { "sceneId": 1, "environmentId": "bedroom", "text": "...", "visualPrompt": "...", "characters": ["Char1", "Char2"], "visualCharacters": ["Char1"] }
-- If scene has no characters, use empty arrays
-- These lists are critical for visual consistency in image generation
+${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle })}
 
 IMPORTANT - Character Descriptions:
 - Return ALL new characters you create in the story in "characters" array
@@ -149,18 +129,6 @@ ${validRequiredChars.length > 0 || validOptionalChars.length > 0
   : ''}
 - Provide DETAILED visual descriptions (appearance, colors, size, distinctive features, clothing)
 - Be SPECIFIC and CONSISTENT for image generation
-
-IMPORTANT - Audio Tags:
-Include audio tags in square brackets [tag] for expressive narration:
-- Emotions: [happy], [sad], [excited], [angry], [thoughtful], [curious], [surprised], [annoyed]
-- Delivery: [whisper], [shouting], [sarcastic], [mischievously]
-- Non-verbal: [laughing], [chuckles], [sighs], [clears throat], [exhales sharply], [inhales deeply]
-- Timing: [short pause], [long pause]
-
-CRITICAL - Scene Text Boundaries:
-- Each scene's "text" MUST end at a complete sentence boundary (period, exclamation mark, or question mark followed by any closing quotes)
-- NEVER split a sentence across two scenes — every sentence must belong entirely to one scene
-- Do NOT start a new sentence at the end of a scene that continues in the next scene
 
 TITLE FORMAT: "${spec.childName ? `Пригоди ${spec.childName}` : 'Казка'} - Частина ${partNumber}"
 `;

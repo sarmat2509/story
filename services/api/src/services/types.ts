@@ -41,11 +41,54 @@ export interface StoryRequestData {
   updatedAt: Date;
 }
 
+/**
+ * Per-character composition entry inside the structured cameraComposition.
+ */
+export interface CameraCharacterComposition {
+  name: string;        // Character name (EXACT from the story character list)
+  description: string; // Position, posture, action, expression, gaze
+}
+
+/**
+ * Structured visual description for image generation.
+ * Replaces the old single-string `visualPrompt`.
+ *
+ * `cameraComposition` can be:
+ *   - A structured object (new stories) with shot + characters array
+ *   - A plain string (backward compatibility with old stories)
+ */
+export interface SceneVisual {
+  setting: string;
+  cameraComposition: string | {
+    shot: string;
+    characters: CameraCharacterComposition[];
+  };
+  lighting: string;
+}
+
+/**
+ * Flatten a structured or string cameraComposition into a text string
+ * and extract character names (if structured).
+ * Used by image prompt builders and validation to get a consumable text form.
+ */
+export function flattenCameraComposition(
+  cam: SceneVisual['cameraComposition']
+): { text: string; characterNames: string[] } {
+  if (typeof cam === 'string') {
+    // Backward compatibility with old string format
+    return { text: cam, characterNames: [] };
+  }
+  const text = `${cam.shot}. ${cam.characters.map(c => `${c.name}: ${c.description}`).join(' ')}.`;
+  const characterNames = cam.characters.map(c => c.name);
+  return { text, characterNames };
+}
+
 export interface SceneData {
   sceneId: number;
   text: string;
-  visualPrompt: string;
-  characters?: string[]; // NEW: Character names appearing in this scene
+  sceneVisual?: SceneVisual; // Structured visual description for image generation
+  visualPrompt?: string; // Deprecated: kept for backward compatibility with old stories
+  characterOutfits?: Record<string, string>; // Per-scene outfit override: charName -> outfit description
 }
 
 export interface StoryTextData {
@@ -61,7 +104,8 @@ export interface OutlineData {
   characters?: LLMCharacter[];
   scenes: Array<{
     sceneId: number;
-    visualPrompt: string;
+    sceneVisual?: SceneVisual;
+    visualPrompt?: string; // Deprecated: kept for backward compatibility
     setting?: string;
   }>;
 }
@@ -84,17 +128,12 @@ export interface ImageGenerationContext {
     imageQuality: string;
     imageRegenerationPerDay: number;
     allowReferencePhotos: boolean;
-    allowGeneratedReferences: boolean;
     storiesPerMonth: number;
     audioMinutesPerMonth: number;
   };
   userId: string;
   assetStorage: any; // Keep as any for now to avoid circular deps
   imageDomain: any; // Keep as any for now to avoid circular deps
-  // NEW: Scene context from outline
-  sceneGoal?: string;
-  sceneBeats?: string[];
-  sceneEmotion?: string;
 }
 
 export interface PlanFeatures {
@@ -102,7 +141,6 @@ export interface PlanFeatures {
   imageQuality: string;
   imageRegenerationPerDay: number;
   allowReferencePhotos: boolean;
-  allowGeneratedReferences: boolean;
   storiesPerMonth: number;
   audioMinutesPerMonth: number;
 }
@@ -115,6 +153,5 @@ export interface AssetStorageService {
 
 export interface ImageDomainService {
   generateSceneIllustration(request: any): Promise<any>;
-  generateCharacterPortrait(request: any): Promise<any>;
   buildImageStyle(ageGroup: string, userStyle?: string): string;
 }

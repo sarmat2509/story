@@ -1,9 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/authMiddleware';
 import { logger } from '../utils/logger';
-import { db } from '../db';
-import { ttsVoices } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { getVoiceRepository } from '../repositories';
 import { getUserSubscription, hasFeature, getPlanById } from '../services/planService';
 
 const router = Router();
@@ -37,25 +35,8 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       userPlan = plan?.slug || 'free';
     }
     
-    // Fetch all voices from database (including premium)
-    const voices = await db
-      .select({
-        id: ttsVoices.providerVoiceId,
-        name: ttsVoices.name,
-        displayName: ttsVoices.displayName,
-        gender: ttsVoices.gender,
-        description: ttsVoices.description,
-        previewUrl: ttsVoices.providerPreviewUrl,
-        sampleAudioUrl: ttsVoices.sampleAudioUrl,
-        isPremium: ttsVoices.isPremium,
-        provider: ttsVoices.provider,
-      })
-      .from(ttsVoices)
-      .where(and(
-        eq(ttsVoices.language, language),
-        eq(ttsVoices.isActive, true)
-      ))
-      .orderBy(ttsVoices.isPremium, ttsVoices.name); // Free voices first, then premium
+    // Fetch all voices from database via repository
+    const voices = await getVoiceRepository().findActiveByLanguage(language);
     
     // Mark which voices are locked for this user
     const voicesWithAccess = voices.map(voice => ({

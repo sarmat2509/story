@@ -5,6 +5,9 @@
 
 import { stripAudioTags } from '../../utils/audioTags';
 import { logger } from '../../utils/logger';
+import { flattenCameraComposition, type SceneVisual } from '../../services/types';
+import type { StoryEnvironment } from '../../ai/types';
+import { getImageStylePrefix } from './styles';
 
 export interface CharacterReference {
   name: string;
@@ -15,77 +18,199 @@ export interface CharacterReference {
 }
 
 /**
- * Build complete image prompt for a scene
- * Includes style, characters, scene description, safety additions, and negative prompt
+ * Build complete image prompt for a scene.
+ *
+ * New structured format (Google Asset Graph pattern):
+ *   Image labels + SETTING + CAMERA (with Image N refs) + CHARACTERS (with Image N refs) + LIGHTING
+ *   STYLE, FORMAT, and QUALITY are in systemInstruction (not repeated here).
+ *
+ * Supports two character types:
+ *   - Real-world characters (people, animals): text description from Gemini Vision
+ *   - Imaginary creatures (child's drawings): reference drawing attached as image
  */
 export function buildSceneImagePrompt(params: {
-  visualPrompt: string;
+  sceneVisual?: SceneVisual; // New structured visual (preferred)
+  visualPrompt?: string; // Deprecated fallback for old stories
   ageGroup: string;
   style: string;
+  // Imaginary creatures with reference drawings attached as images
+  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean }>;
+  // Real-world characters (people, animals) with text descriptions from Gemini Vision
+  realWorldCharacters?: Array<{ name: string; description: string }>;
+  hasReferences?: boolean;
+  // Google Asset Graph pattern: maps normalized character name -> Image index
+  imageIndexMap?: Map<string, number>;
+  // Current scene's environment (moved from system instruction to user prompt)
+  currentEnvironment?: StoryEnvironment;
+  // Scene-specific outfit overrides from text generation
+  characterOutfits?: Record<string, string>;
+  // Legacy params kept for non-reference (Imagen 3) path
   characters?: CharacterReference[];
-  hasReferences?: boolean; // Flag indicating reference photos are available
-  negativePrompt?: string; // Negative prompt to include as text
-  // NEW: Scene context for action/situation depiction
-  sceneGoal?: string; // What happens in this scene
-  sceneBeats?: string[]; // Key moments/actions
-  sceneEmotion?: string; // Primary emotion
+  negativePrompt?: string;
 }): string {
-  // Strip audio tags from visualPrompt for clean image generation
-  const cleanVisualPrompt = stripAudioTags(params.visualPrompt);
-  
-  const stylePrefix = getStylePrefix(params.style, params.ageGroup);
+  const stylePrefix = getImageStylePrefix(params.style, params.ageGroup);
   const safetyAdditions = getSafetyPromptAdditions(params.ageGroup);
-  
-  // Build character descriptions (ALWAYS include, even with references)
+
+  // --- New structured path (sceneVisual available) ---
+  if (params.sceneVisual) {
+    return buildStructuredPrompt({
+      sceneVisual: params.sceneVisual,
+      stylePrefix,
+      safetyAdditions,
+      referenceCharacterNames: params.referenceCharacterNames,
+      realWorldCharacters: params.realWorldCharacters,
+      hasReferences: params.hasReferences,
+      imageIndexMap: params.imageIndexMap,
+      currentEnvironment: params.currentEnvironment,
+      characterOutfits: params.characterOutfits,
+    });
+  }
+
+  // --- Legacy fallback (old stories with string visualPrompt) ---
+  const cleanVisualPrompt = stripAudioTags(params.visualPrompt || '');
+
+  if (params.hasReferences) {
+    const characterLines = buildCharacterSection(
+      params.realWorldCharacters,
+      params.referenceCharacterNames,
+      true,
+      params.imageIndexMap,
+    );
+    const charSection = characterLines ? `\n\n${characterLines}` : '';
+    return `${stylePrefix}, ${cleanVisualPrompt}${charSection}, ${safetyAdditions}. Do not include any text or letters in the image.`;
+  }
+
+  // Non-reference legacy path (Imagen 3)
   let characterPart = '';
   if (params.characters && params.characters.length > 0) {
     const characterDescriptions = buildCharacterDescriptions(params.characters);
-    if (characterDescriptions) {
-      if (params.hasReferences) {
-        // With references: traits are supplementary details to guide the stylization
-        characterPart = `. Character appearance details: ${characterDescriptions}`;
+    if (characterDescriptions) characterPart = `, ${characterDescriptions}`;
+  }
+  const noTextPrefix = 'CRITICAL RULE: ABSOLUTELY NO TEXT OR LETTERS anywhere on the image. ';
+  const noTextSuffix = '. STRICTLY FORBIDDEN: No text, no letters, no words, no numbers, no symbols, no writing, no typography, no captions, no subtitles, no labels, no signs, no banners, no speech bubbles, no thought bubbles, no text on screens, no text on objects, no text on clothing, no text on buildings, no text on vehicles, no text anywhere. Pure visual storytelling ONLY';
+  const negativeGuidance = params.negativePrompt ? `, avoid: ${params.negativePrompt}` : '';
+  const aggressiveTextBlocking = ', NO TEXT, NO LETTERS, NO WORDS, NO WRITING, NO TYPOGRAPHY, NO CAPTIONS, NO LABELS, NO SIGNS';
+
+  const fullPrompt = `${noTextPrefix}${stylePrefix}${characterPart}, ${cleanVisualPrompt}, ${safetyAdditions}${noTextSuffix}${aggressiveTextBlocking}${negativeGuidance}`;
+  return optimizePromptLength(fullPrompt, 2000);
+}
+
+/**
+ * Build new structured prompt from sceneVisual fields.
+ * Google Asset Graph pattern: scene-specific SETTING, CAMERA, CHARACTERS, LIGHTING.
+ * Also includes per-scene CHARACTER ROSTER and ENVIRONMENT (moved from system instruction
+ * to reduce token overhead — each API call is independent, no multi-turn context).
+ */
+function buildStructuredPrompt(params: {
+  sceneVisual: SceneVisual;
+  stylePrefix: string;
+  safetyAdditions: string;
+  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean }>;
+  realWorldCharacters?: Array<{ name: string; description: string }>;
+  hasReferences?: boolean;
+  imageIndexMap?: Map<string, number>;
+  currentEnvironment?: StoryEnvironment;
+  characterOutfits?: Record<string, string>;
+}): string {
+  const { sceneVisual } = params;
+
+  const sections: string[] = [];
+
+  // SETTING (scene-specific)
+  if (sceneVisual.setting) {
+    sections.push(`- Scene: ${sceneVisual.setting}`);
+  }
+
+  // CHARACTERS — with Image N back-references and inline descriptions
+  const characterLines = buildCharacterSection(
+    params.realWorldCharacters,
+    params.referenceCharacterNames,
+    params.hasReferences,
+    params.imageIndexMap,
+    params.characterOutfits,
+  );
+  if (characterLines) {
+    sections.push(characterLines);
+  }
+
+  // CAMERA / COMPOSITION (may contain character positions with Image N refs)
+  if (sceneVisual.cameraComposition) {
+    // Flatten structured cameraComposition to text string
+    const { text: compositionText } = flattenCameraComposition(sceneVisual.cameraComposition);
+    let composition = compositionText;
+    if (params.imageIndexMap) {
+      for (const [charName, imgIdx] of params.imageIndexMap) {
+        // Add (Image N) after character name if not already present
+        const namePattern = new RegExp(`(${escapeRegExp(charName)})(?!\\s*\\(Image)`, 'gi');
+        composition = composition.replace(namePattern, `$1 (Image ${imgIdx})`);
+      }
+    }
+    sections.push(`- Composition: ${composition}`);
+  }
+
+  // LIGHTING (scene-specific)
+  if (sceneVisual.lighting) {
+    sections.push(`- Lighting: ${sceneVisual.lighting}`);
+  }
+
+  return sections.join('\n');
+}
+
+/**
+ * Escape special regex characters in a string.
+ */
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Build unified CHARACTERS section with per-character instructions.
+ * Uses Google's "Image N" back-references for characters with visual references.
+ * Real-world characters get their description inline (no longer in system instruction).
+ * If characterOutfits are provided, appends scene-specific outfit to the description.
+ */
+function buildCharacterSection(
+  realWorldCharacters?: Array<{ name: string; description: string }>,
+  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean }>,
+  _hasReferences?: boolean,
+  imageIndexMap?: Map<string, number>,
+  characterOutfits?: Record<string, string>,
+): string {
+  const lines: string[] = [];
+
+  // Imaginary creatures: short back-reference with Image N
+  if (referenceCharacterNames) {
+    for (const entry of referenceCharacterNames) {
+      const name = typeof entry === 'string' ? entry : entry.name;
+      const imgIdx = imageIndexMap?.get(name);
+      const outfitOverride = characterOutfits?.[name];
+      const outfitSuffix = outfitOverride ? `. Outfit in this scene: ${outfitOverride}` : '';
+      if (imgIdx) {
+        const sheetType = (typeof entry !== 'string' && entry.isTurnaround) ? 'character design from the sheet' : 'reference photo';
+        lines.push(`- ${name} (Image ${imgIdx}): match the ${sheetType}${outfitSuffix}`);
       } else {
-        // Without references: traits are primary description
-        characterPart = `, ${characterDescriptions}`;
+        lines.push(`- ${name}: match the attached reference image${outfitSuffix}`);
       }
     }
   }
-  
-  // Build scene action/situation context (CRITICAL for showing WHAT IS HAPPENING)
-  let situationContext = '';
-  if (params.sceneGoal) {
-    situationContext += `. ACTION/SITUATION: ${params.sceneGoal}`;
+
+  // Real-world characters: inline description (moved from system instruction)
+  if (realWorldCharacters) {
+    for (const char of realWorldCharacters) {
+      const imgIdx = imageIndexMap?.get(char.name);
+      const outfitOverride = characterOutfits?.[char.name];
+      const desc = outfitOverride
+        ? `${char.description}. Outfit in this scene: ${outfitOverride}`
+        : char.description;
+      if (imgIdx) {
+        lines.push(`- ${char.name} (Image ${imgIdx}): ${desc}`);
+      } else {
+        lines.push(`- ${char.name}: ${desc}`);
+      }
+    }
   }
-  if (params.sceneBeats && params.sceneBeats.length > 0) {
-    situationContext += `. Key moments: ${params.sceneBeats.join(', ')}`;
-  }
-  if (params.sceneEmotion) {
-    situationContext += `. Emotion: ${params.sceneEmotion}`;
-  }
-  
-  // Build strong style enforcement for reference photos (CRITICAL)
-  const referenceStyleEnforcement = params.hasReferences
-    ? '. CRITICAL INSTRUCTION: Transform reference photos into CARTOON/ILLUSTRATION style matching the art style above. Create a STYLIZED CARTOON VERSION of the real person, NOT a photorealistic image, NOT a realistic photo. Apply the illustration art style specified: simplified cartoon features, illustrated faces, cartoon stylization. The reference photo shows WHO the character is (their appearance), but you must draw them as a CARTOON CHARACTER in the specified illustration style, NOT as a realistic photograph.'
-    : '';
-  
-  // ULTRA-STRONG no text instruction (place at start for maximum weight)
-  const noTextPrefixInstruction = 'CRITICAL RULE: ABSOLUTELY NO TEXT OR LETTERS anywhere on the image. ';
-  
-  // No text instruction (CRITICAL for clean visual storytelling) - repeated for emphasis
-  const noTextSuffixInstruction = '. STRICTLY FORBIDDEN: No text, no letters, no words, no numbers, no symbols, no writing, no typography, no captions, no subtitles, no labels, no signs, no banners, no speech bubbles, no thought bubbles, no text on screens, no text on objects, no text on clothing, no text on buildings, no text on vehicles, no text anywhere. Pure visual storytelling ONLY - use images and colors to tell the story, NOT WORDS';
-  
-  // Build negative guidance as text (since API doesn't support negativePrompt parameter)
-  const negativeGuidance = params.negativePrompt 
-    ? `, avoid: ${params.negativePrompt}` 
-    : '';
-  
-  // Aggressive text blocking in negative prompt
-  const aggressiveTextBlocking = ', NO TEXT, NO LETTERS, NO WORDS, NO WRITING, NO TYPOGRAPHY, NO CAPTIONS, NO LABELS, NO SIGNS';
-  
-  const fullPrompt = `${noTextPrefixInstruction}${stylePrefix}${characterPart}, ${cleanVisualPrompt}${situationContext}, ${safetyAdditions}${referenceStyleEnforcement}${noTextSuffixInstruction}${aggressiveTextBlocking}${negativeGuidance}`;
-  
-  // Optimize prompt length to stay within limits
-  return optimizePromptLength(fullPrompt, 2000);
+
+  return lines.join('\n');
 }
 
 /**
@@ -157,49 +282,6 @@ export function buildNegativePrompt(ageGroup: string): string {
   return baseNegative.join(', ');
 }
 
-/**
- * Get style prefix for prompt based on selected art style and age group
- */
-function getStylePrefix(style: string, ageGroup: string): string {
-  const presets: Record<string, string> = {
-    // Стиль: Прозрачность и подтеки. Никаких черных контуров.
-    'soft_watercolor': 'ethereal watercolor painting, wet-on-wet technique, soft bleeding edges, no outlines, transparent layered washes, visible cold-press paper grain, delicate pastel palette, classic storybook aesthetics, Beatrix Potter style',
-    
-    // Стиль: Текстура и штрих. Максимальная имитация «ручной» работы.
-    'colored_pencil': 'heavy-textured colored pencil drawing, visible wax strokes, cross-hatching technique, layered colors on grainy paper, soft sketchy outlines, handcrafted tactile feel, warm and nostalgic, Maurice Sendak inspired',
-    
-    // Стиль: Графика и контраст. Акцент на жирную черную тушь.
-    'comic_line': 'bold ink-line comic art, clean black outlines, flat vibrant colors, halftone dot patterns in shadows, expressive cartoon gestures, Tintin and Hergé aesthetic, high contrast, graphic vector-like clarity',
-    
-    // Стиль: Свет и градиенты. Атмосфера японской анимации.
-    'anime_light': 'classic 1990s hand-drawn cel animation aesthetic, authentic anime cel painting style, bold black outlines, hard-edged cel-shading with distinct shadow layers (no soft gradients on characters), flat saturated colors, detailed hand-painted watercolor backgrounds with visible brushstrokes, film grain texture, retro anime screen capture look',
-    
-    'retro_magical_shojo': 'hyper-cute retro 90s "magical girl" shojo anime aesthetic, resembling a vintage anime screenshot with film grain. Human characters must have enormous, highly expressive, "watery" sparkling anime eyes with multiple starburst highlights and glossy hair. Any animal or creature subjects must be rendered as tiny, exaggerated "chibi mascots" with oversized heads and massive sparkling eyes matching the humans. The entire scene is bathed in intense magical atmosphere: dramatic sunbeams (god rays), lens flares, floating cherry blossom petals, and excessive sparkling glitter effects covering everything. Bright, highly saturated color palette with distinct hard-edged cel-shading.',
-
-    // Стиль: Объем и лоск. Ощущение дорогого мультфильма.
-    'warm_3d': 'modern 3D CGI animation style, Pixar-like character design, soft subsurface scattering on skin, volumetric warm lighting, rounded glossy shapes, highly detailed fabric textures, ray-traced shadows, cinematic 4k render',
-    
-    // Стиль: Глубокие тени и свет. Ограниченная палитра.
-    'night_calm': 'nocturnal atmospheric illustration, deep indigo and violet tones, glowing warm highlights, soft blurred edges, peaceful silence, stippling texture, magical night vibe, inspired by Goodnight Moon, high contrast between dark and light',
-    
-    // Стиль: Ткань и швы. Игрушечный, тактильный мир.
-    'felt_craft': 'stop-motion felted wool aesthetic, handmade fabric collage, visible embroidery stitches and seams, fuzzy fiber textures, soft shadows between layers, craft material appearance, 3D felt puppets',
-    
-    // Стиль: Пластичность и отпечатки. Ощущение лепки.
-    'clay': 'plasticine claymation style, hand-molded clay textures, visible fingerprints, soft matte finish, chunky solid shapes, Aardman animations look (Wallace & Gromit), playful stop-motion studio lighting',
-  };
-  
-  const baseStyle = presets[style] || presets['soft_watercolor'];
-  
-  // Add age-appropriate enhancements
-  if (ageGroup === '0-1' || ageGroup === '1y') {
-    return `${baseStyle}, very simple shapes, minimal details, extremely soft and gentle`;
-  } else if (ageGroup === '2-3' || ageGroup === '4-5') {
-    return `${baseStyle}, simple clear shapes, bright friendly colors, child-friendly`;
-  }
-  
-  return baseStyle;
-}
 
 /**
  * Get safety prompt additions based on age group
@@ -230,7 +312,7 @@ export function buildCharacterPortraitPrompt(params: {
   characterType?: string;
   negativePrompt?: string; // Negative prompt to include as text
 }): string {
-  const stylePrefix = getStylePrefix(params.style, params.ageGroup);
+  const stylePrefix = getImageStylePrefix(params.style, params.ageGroup);
   const safetyAdditions = getSafetyPromptAdditions(params.ageGroup);
   
   // ULTRA-STRONG no text instruction for portraits
@@ -248,27 +330,58 @@ export function buildCharacterPortraitPrompt(params: {
   return `${noTextPrefixInstruction}${stylePrefix}, character portrait, close-up view, ${params.description}, clear details, front-facing${noTextSuffixInstruction}, ${safetyAdditions}${aggressiveTextBlocking}${negativeGuidance}`;
 }
 
+// buildReferenceInstruction() removed — per-character instructions are now part of buildCharacterSection()
+
 /**
- * Build reference instruction for character consistency (Nano Banana Pro)
- * Based on official Google Cloud workflow for generating consistent imagery
- * 
- * @returns Instruction text to prepend to the prompt
+ * Build a system instruction that contains the static parts of the image
+ * generation context (style, character descriptions, quality rules).
+ *
+ * This is set once per story and reused across all scenes via the
+ * `systemInstruction` field in GenerateContentConfig, keeping the per-scene
+ * user prompt lean (only dynamic scene-specific content).
+ *
+ * The model treats system instructions as persistent context with higher
+ * priority than user messages, and Google may cache repeated system
+ * instructions internally for reduced latency / cost.
  */
-export function buildReferenceInstruction(): string {
-  // Format based on official Nano Banana workflow from Google Cloud
-  // Source: "Generating Consistent Imagery with Gemini" by Laurent Picard
-  return `- Image 1: Reference image with all characters.
+export function buildImageSystemInstruction(params: {
+  style: string;
+  ageGroup: string;
+  hasReferences?: boolean;
+}): string {
+  const stylePrefix = getImageStylePrefix(params.style, params.ageGroup);
+  const safetyAdditions = getSafetyPromptAdditions(params.ageGroup);
 
-IMPORTANT! Use the attached reference image to keep the same appearance of all people, animals, and creatures:
-- Preserve ALL character faces, facial features, and expressions
-- Keep clothing details, colors, patterns, and accessories IDENTICAL
-- Maintain character body proportions and sizes
-- Preserve hair styles, colors, and details
-- Keep any distinctive features (glasses, jewelry, scars, etc.)
-- Maintain the same illustration style and art quality
+  const sections: string[] = [];
 
-CHANGE ONLY: scene background, character poses/positions, actions as described below.
-NEVER add facial features or body parts that are not present in the reference image. Reproduce characters EXACTLY — no invented eyes, ears, or other features.`;
+  // Role
+  sections.push('You are a professional children\'s book illustrator.');
+
+  // Art style
+  sections.push(`ART STYLE: ${stylePrefix}`);
+
+  // Format rules
+  sections.push(
+    'FORMAT: Single full-bleed illustration filling the frame edge-to-edge. No text, no speech bubbles.',
+  );
+
+  // Reference image rules (only when turnaround sheets are attached)
+  if (params.hasReferences) {
+    sections.push(
+      'REFERENCES: Keep the exact proportions, silhouette, colors, and distinctive features from the provided character sheets. ' +
+      'Re-draw them in the scene\'s art style (the sheets are for design reference only).',
+    );
+  }
+
+  // Clothing adaptation rule
+  sections.push(
+    'CLOTHING: Scene-appropriate outfit while keeping each character recognizable.',
+  );
+
+  // Tone / safety
+  sections.push(`TONE: ${safetyAdditions}.`);
+
+  return sections.join('\n\n');
 }
 
 /**

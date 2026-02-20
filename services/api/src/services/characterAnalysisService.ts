@@ -284,7 +284,7 @@ export class CharacterAnalysisService {
       ? `A flowing, narrative description of the character's appearance (2-3 sentences) in ${languageName}. Describe from top to bottom: hair/head first, then face features (eyes, nose, mouth), skin details (freckles, moles, birthmarks, dimples), body build, and clothing. Mention specific jewelry, hair accessories, and glasses if visible.`
       : characterType === 'animal'
       ? `A flowing, narrative description of the animal's appearance (2-3 sentences) in ${languageName}. Start with species/breed, then describe fur/feathers (color, pattern, length, texture), body shape and size, distinctive markings (spots, patches, stripes with locations), and any accessories (collar, bandana).`
-      : `A detailed, comprehensive description of the imaginary creature's appearance (3-5 sentences) in ${languageName}. Start with overall shape and size. Then describe EVERY body part with EXACT COUNTS (e.g. "three large blue eyes", "four small wings", "two curled horns"). Describe body texture, all colors and patterns, limbs and extremities. Mention any drawn accessories or magical elements.`;
+      : `A detailed, comprehensive description of the imaginary creature's appearance (3-5 sentences) in ${languageName}. Start with overall shape and size. Then describe EVERY body part with EXACT COUNTS (e.g. "three large blue eyes", "four small wings", "two curled horns"). Describe body texture, all colors and patterns, limbs and extremities. ANTHROPOMORPHIC LIMB RULE: AI illustration renders creatures in an anthropomorphic style — the front/upper pair of appendages becomes arms, the rest stay as legs. Describe limbs accordingly: 4 appendages = "two arms and two legs" (NOT "four legs"); 6 appendages = "two arms and four legs" (NOT "six legs"); 8 appendages = "two arms and six legs" (NOT "eight legs"). Exception: if ALL appendages are clearly legs (all in shoes/boots, creature walks on all fours like an animal, no grasping limbs), describe them all as legs and note "quadrupedal" or "multi-legged" explicitly. Mention any drawn accessories or magical elements.`;
 
     // Fully type-specific visual analysis guidance — each type gets ONLY its relevant sections
     const traitGuidance = characterType === 'person' ? `
@@ -381,8 +381,8 @@ export class CharacterAnalysisService {
      WARNING: Do NOT count the nose as an eye! A large teardrop/triangle/blob shape centered on the face above the mouth is a NOSE, even if it looks dark or has dots inside (those are nostrils). Only count clearly separate round shapes with a single distinct pupil as eyes.
    - Has nose: (yes/no?) — a teardrop, triangle, or blob centered above the mouth = nose. Two dots inside = nostrils.
    - Number of ears: (0? 2? 4? shape?) - Only count if clearly ear-shaped WITHOUT pupils inside
-   - Number of arms/hands: (0? 2? 4? tentacles instead?)
-   - Number of legs/feet: (0? 2? 4? 6? 8? none?) - count carefully even if legs overlap or are close together
+   - Number of arms/hands: (0? 2? 4? tentacles instead?) — for creatures with 4+ similar appendages, count the FRONT/UPPER pair as arms
+   - Number of legs/feet: (0? 2? 4? 6? 8? none?) — count the remaining appendages as legs. Exception: if ALL appendages are clearly legs (all in shoes, quadrupedal stance), count all as legs
    - Number of wings: (0? 2? 4? type?)
    - Number of tails: (0? 1? 2? many?)
    - Number of heads: (1? 2? 3?)
@@ -716,15 +716,24 @@ Return ONLY valid JSON matching this structure. Prefer null over guessing.`;
    * Uses native fetch (Node 18+)
    */
   private async downloadImage(url: string): Promise<Buffer> {
+    // Detect local asset URLs and read directly from storage
+    const assetPrefix = '/api/v1/assets/';
+    const assetIdx = url.indexOf(assetPrefix);
+    if (assetIdx !== -1) {
+      const pathWithQuery = url.substring(assetIdx + assetPrefix.length);
+      const storagePath = pathWithQuery.split('?')[0];
+      logger.debug({ storagePath }, 'Reading image directly from storage (local asset)');
+      const { getAssetStorageService } = await import('./assetStorageService');
+      return getAssetStorageService().getAssetByPath(storagePath);
+    }
+
+    // External URL — use HTTP fetch
     try {
       logger.debug({ url }, 'Downloading image for analysis');
-      
       const response = await fetch(url);
-      
       if (!response.ok) {
         throw new Error(`Failed to download image: ${response.statusText}`);
       }
-      
       const arrayBuffer = await response.arrayBuffer();
       return Buffer.from(arrayBuffer);
     } catch (error) {

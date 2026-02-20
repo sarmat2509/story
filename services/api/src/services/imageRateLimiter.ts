@@ -40,6 +40,7 @@ export class ImageRateLimiter {
   private processedCount: number = 0;
   private isProcessingQueue: boolean = false;
   private quotaProvider: IQuotaProvider;
+  private quotaRefreshIntervalId: NodeJS.Timeout | null = null;
 
   constructor(quotaProvider: IQuotaProvider) {
     this.quotaProvider = quotaProvider;
@@ -312,12 +313,30 @@ export class ImageRateLimiter {
   /**
    * Start periodic quota refresh
    */
+  /**
+   * Stop the rate limiter: clear intervals and reject pending tasks
+   */
+  stop(): void {
+    if (this.quotaRefreshIntervalId) {
+      clearInterval(this.quotaRefreshIntervalId);
+      this.quotaRefreshIntervalId = null;
+    }
+    // Reject all pending queue tasks
+    while (this.queue.length > 0) {
+      const task = this.queue.shift();
+      if (task) {
+        task.reject(new Error('ImageRateLimiter shutting down'));
+      }
+    }
+    logger.info('ImageRateLimiter stopped');
+  }
+
   private startQuotaRefresh(): void {
     // Initial fetch
     this.refreshQuota();
 
     // Periodic refresh
-    setInterval(() => {
+    this.quotaRefreshIntervalId = setInterval(() => {
       this.refreshQuota();
     }, config.image.rpmQuotaRefreshIntervalMs);
   }

@@ -5,7 +5,6 @@
 
 import * as helpers from '../helpers';
 import type { StorySpec, EpisodeOutline } from '../../ai/types';
-import { AUDIO_TAGS } from '../../constants/audioTags';
 
 export interface TextPromptParams {
   spec: StorySpec;
@@ -52,8 +51,7 @@ OUTPUT FORMAT (JSON):
   "environments": [
     {
       "id": "short_id",
-      "name": "Human-readable location name",
-      "visualDescription": "Rich visual description of the location IN ENGLISH: layout, furniture, objects, colors, baseline lighting, atmosphere."
+      "name": "Human-readable location name"
     }
   ],
   "scenes": [
@@ -61,67 +59,26 @@ OUTPUT FORMAT (JSON):
       "sceneId": 1,
       "environmentId": "short_id",
       "text": "Full scene text (1-3 paragraphs) with embedded ElevenLabs v3 audio tags for expressive narration.",
-      "visualPrompt": "Action-focused description IN ENGLISH: character poses, expressions, interactions, transient changes. Do NOT describe the room/location here.",
-      "characters": ["Character Name 1", "Character Name 2"],
-      "visualCharacters": ["Character Name 1"]
+      "sceneVisual": {
+        "setting": "Complete physical setting for this scene IN ENGLISH: room layout, furniture, objects, wall decorations, floor material, materials, textures, colors, weather, time of day.",
+        "cameraComposition": {
+          "shot": "Medium shot at child eye-level, focal point on Character1",
+          "characters": [
+            { "name": "Character Name 1", "description": "foreground left on chair, sitting, smiling, looking at Character Name 2" },
+            { "name": "Character Name 2", "description": "background right near window, standing, waving" }
+          ]
+        },
+        "lighting": "Lighting conditions IN ENGLISH: warm golden sunlight from left window, soft shadows on floor."
+      },
+      "characterOutfits": { "Character Name 1": "scene-appropriate outfit description" }
     }
   ]
 }
 
-CRITICAL - Environments:
-- Define ALL distinct physical locations in "environments" array
-- "visualDescription" MUST be in English: describe room layout, furniture, objects, colors, baseline lighting, atmosphere
-- Be DETAILED and SPECIFIC - this is the only source of setting details for image generation
-- Multiple scenes can share the same environmentId. Only create a new environment when the physical location changes.
-
-CRITICAL - visualPrompt vs environment:
-- "visualPrompt" describes ONLY the ACTION: character poses, expressions, interactions, transient changes (weather, lighting, new objects)
-- "visualPrompt" MUST be in English for image generation
-- Do NOT repeat the room/location in visualPrompt — that comes from the environment
-
-CRITICAL - Characters Per Scene:
-- "characters": list ALL character names that appear or are mentioned in that scene's text
-- "visualCharacters": list ONLY characters who are PHYSICALLY PRESENT in the scene and should be DRAWN in the illustration
-  - Include characters who are in the scene location, performing actions, interacting
-  - EXCLUDE characters merely mentioned in dialogue, thoughts, or memories (e.g. if a character says "Remember what Grandma told us?" — Grandma is NOT a visual character unless she is physically in the scene)
-- Use EXACT names from the SUPPORTING CHARACTERS section above (if any)
-- If scene has no characters (e.g., pure description), use empty arrays
-- These lists are used for visual consistency in image generation, so accuracy is critical
-
-AUDIO TAGS USAGE:
-Integrate audio tags in square brackets [tag] to enhance emotional delivery for text-to-speech.
-Use EXACTLY the official ElevenLabs v3 formats below (case-sensitive, lowercase only).
-
-OFFICIAL SUPPORTED TAGS:
-Emotions: [happy], [sad], [excited], [angry], [thoughtful], [curious], [surprised], [annoyed]
-Delivery: [whisper], [shouting], [sarcastic], [mischievously]
-Non-verbal: [laughing], [chuckles], [sighs], [clears throat], [exhales sharply], [inhales deeply]
-Timing: [short pause], [long pause]
-
-CRITICAL - Tag Format Rules:
-- Use EXACT formats above (NOT [whispers], [giggles], [gasps] - these will be spoken literally!)
-- Lowercase only (NOT [WHISPER] or [Whisper])
-- Place tags before/after dialogue segments or at natural pauses
-- Use 2-3 tags per scene maximum for natural flow
-
-Examples:
-- '[excited] Look at that beautiful sunset!'
-- 'She opened the door slowly. [exhales sharply] The room was filled with treasure!'
-- '[laughing] This is so much fun! [excited] Let\'s try again!'
-
-SAFETY: Only use child-appropriate audio tags from approved list above. Avoid scary sounds ([gunshot], [explosion]), aggressive emotions. Prefer gentle, playful tags like [chuckles], [laughing], [excited], [whisper], [curious].
-
-Use tags naturally to enhance storytelling emotion without overusing them.
+${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle })}
 
 IMPORTANT - Scene Structure:
 - Write complete, standalone text for EACH scene with audio tags embedded
 - Each scene should be 1-3 paragraphs depending on age
-- Visual prompts describe ACTIONS and transient changes (not the setting — that comes from environment)
-- Environment visualDescription describes the PERSISTENT SETTING of each location
-
-CRITICAL - Scene Text Boundaries:
-- Each scene's "text" MUST end at a complete sentence boundary (period, exclamation mark, or question mark followed by any closing quotes)
-- NEVER split a sentence across two scenes — every sentence must belong entirely to one scene
-- Do NOT start a new sentence at the end of a scene that continues in the next scene
 `;
 }

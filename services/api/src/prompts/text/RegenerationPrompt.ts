@@ -82,11 +82,24 @@ CRITICAL INSTRUCTIONS:
 - If this is the last scene: MUST end with clear positive resolution
 - Keep the same sceneId: ${sceneId}
 
+${helpers.formatSceneVisualRules({ compact: true, imageStyle: spec.imageStyle })}
+
 OUTPUT FORMAT (JSON):
 {
   "sceneId": ${sceneId},
+  "environmentId": "environment_id_matching_outline",
   "text": "Complete regenerated text for this scene...",
-  "visualPrompt": "Enhanced visual description for image generation..."
+  "sceneVisual": {
+    "setting": "Complete physical setting for this scene IN ENGLISH: room layout, furniture, objects, materials, textures, colors, weather, time of day.",
+    "cameraComposition": {
+      "shot": "Camera angle and shot type IN ENGLISH...",
+      "characters": [
+        { "name": "Character1", "description": "exact position, action, expression IN ENGLISH..." }
+      ]
+    },
+    "lighting": "Lighting conditions IN ENGLISH..."
+  },
+  "characterOutfits": { "Character1": "scene-appropriate outfit description" }
 }
 `;
 }

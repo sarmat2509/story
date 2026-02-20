@@ -164,15 +164,16 @@ export default function PlansScreen() {
           const audioFeature = plan.features['audio_stories_per_month']; // CHANGED from audio_minutes_per_month
           
           // Determine button type
-          let buttonType: 'subscribe' | 'upgrade' | 'current' = 'subscribe';
+          let buttonType: 'subscribe' | 'upgrade' | 'downgrade' | 'current' = 'subscribe';
           if (isAuthenticated && 'isCurrent' in plan) {
             if (plan.isCurrent) {
               buttonType = 'current';
-            } else if (plan.priceMonthly > 0) {
-              // Find current plan to compare
+            } else {
               const currentPlan = plans.find((p: any) => 'isCurrent' in p && p.isCurrent);
               if (currentPlan && plan.sortOrder > (currentPlan as any).sortOrder) {
                 buttonType = 'upgrade';
+              } else if (currentPlan) {
+                buttonType = 'downgrade';
               }
             }
           }
@@ -272,18 +273,22 @@ export default function PlansScreen() {
                     {t('plans.upgrade_button')}
                   </Text>
                 </TouchableOpacity>
-              ) : (
+              ) : buttonType === 'downgrade' ? (
                 <TouchableOpacity 
                   style={styles.subscribeButton}
                   onPress={() => {
-                    if (!isAuthenticated) {
-                      // Navigate to login for guest users
-                      navigation.navigate('Login' as any);
-                    } else {
-                      // TODO: Navigate to payment flow for downgrade/subscribe
-                      console.log('Subscribe to', plan.slug);
-                    }
+                    setSelectedPlan(plan);
+                    setShowUpgradeModal(true);
                   }}
+                >
+                  <Text style={styles.subscribeButtonText}>
+                    {t('plans.subscribe_button')}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity 
+                  style={styles.subscribeButton}
+                  onPress={() => navigation.navigate('Login' as any)}
                 >
                   <Text style={styles.subscribeButtonText}>
                     {t('plans.subscribe_button')}

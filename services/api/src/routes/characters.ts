@@ -3,9 +3,12 @@ import { requireAuth } from '../middleware/authMiddleware';
 import * as characterService from '../services/characterService';
 import { CreateCharacterSchema, UpdateCharacterSchema } from '@kazka/shared';
 import { logger } from '../utils/logger';
+import { signReferencePhotoUrls, signReferencePhotoUrlsBatch } from '../utils/signPhotoUrls';
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
+import { generateTurnaroundSheet, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
+import { getAssetStorageService } from '../services/assetStorageService';
 
 const router = Router();
 
@@ -161,9 +164,12 @@ router.get('/', requireAuth, async (req, res) => {
     
     const characters = await characterService.getCharacters(userId, type);
     
+    // Sign photo URLs so <Image> can load them without auth headers
+    const signedCharacters = await signReferencePhotoUrlsBatch(characters);
+    
     res.json({
       status: 'success',
-      characters
+      characters: signedCharacters
     });
   } catch (error) {
     logger.error({ error, userId: req.user?.id }, 'Error fetching characters');
@@ -216,15 +222,114 @@ router.post('/', requireAuth, async (req, res) => {
     // Create character
     const character = await characterService.createCharacter(userId, data);
     
+    // Sign photo URLs in the response
+    const signedCharacter = await signReferencePhotoUrls(character);
+    
     res.status(201).json({
       status: 'success',
-      character
+      character: signedCharacter
     });
   } catch (error) {
     logger.error({ error, userId: req.user?.id }, 'Error creating character');
     res.status(500).json({
       status: 'error',
       error: 'Failed to create character'
+    });
+  }
+});
+
+// POST /api/v1/characters/:id/turnaround - Generate turnaround model sheet
+router.post('/:id/turnaround', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    // Check feature flag
+    if (!isTurnaroundSheetEnabled()) {
+      return res.status(501).json({
+        status: 'error',
+        error: 'Turnaround sheet generation is not enabled',
+      });
+    }
+
+    // Ownership + existence check
+    const character = await characterService.getCharacterById(id, userId);
+    if (!character) {
+      return res.status(404).json({
+        status: 'error',
+        error: 'Character not found',
+      });
+    }
+
+    // Must be imaginary_friend
+    if (character.type !== 'imaginary_friend') {
+      return res.status(400).json({
+        status: 'error',
+        error: 'Turnaround sheets can only be generated for imaginary characters',
+      });
+    }
+
+    // Must have at least one reference photo
+    const referencePhotos = character.referencePhotos as Array<{ url?: string }> | undefined;
+    if (!referencePhotos || !Array.isArray(referencePhotos) || referencePhotos.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'Character must have at least one reference photo',
+      });
+    }
+
+    const firstPhoto = referencePhotos.find(p => p && p.url);
+    if (!firstPhoto?.url) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'No valid reference photo found',
+      });
+    }
+
+    // Use description from request body (possibly unsaved edits) or fall back to DB
+    const aiDescription = req.body.description
+      || (character as any).descriptionEn
+      || character.aiGeneratedDescription
+      || undefined;
+
+    logger.info({
+      userId,
+      characterId: id,
+      characterName: character.name,
+      hasBodyDescription: !!req.body.description,
+    }, 'Generating turnaround sheet on demand');
+
+    // Generate synchronously (awaited)
+    const result = await generateTurnaroundSheet({
+      characterId: id,
+      userId,
+      referencePhotoUrl: firstPhoto.url,
+      characterName: character.name,
+      aiDescription,
+    });
+
+    // Sign the turnaround URL so the frontend can load it
+    const storageService = getAssetStorageService();
+    const { signedUrl } = await storageService.generateSignedUrl(result.url, 24);
+
+    res.json({
+      status: 'success',
+      turnaroundSheet: {
+        url: signedUrl,
+        generatedAt: result.generatedAt,
+      },
+    });
+  } catch (error) {
+    logger.error({
+      err: error instanceof Error
+        ? { message: error.message, name: error.name, stack: error.stack }
+        : String(error),
+      userId: req.user?.id,
+      characterId: req.params.id,
+    }, 'Error generating turnaround sheet');
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to generate turnaround model sheet',
     });
   }
 });
@@ -244,9 +349,12 @@ router.get('/:id', requireAuth, async (req, res) => {
       });
     }
     
+    // Sign photo URLs so <Image> can load them without auth headers
+    const signedCharacter = await signReferencePhotoUrls(character);
+    
     res.json({
       status: 'success',
-      character
+      character: signedCharacter
     });
   } catch (error) {
     logger.error({ error, userId: req.user?.id, characterId: req.params.id }, 'Error fetching character');
@@ -263,7 +371,14 @@ router.patch('/:id', requireAuth, async (req, res) => {
     const userId = req.user!.id;
     const { id } = req.params;
     
-    // Validate input
+    // Support simple isHidden toggle (e.g. from "Save to my characters" button)
+    if (Object.keys(req.body).length === 1 && typeof req.body.isHidden === 'boolean') {
+      const character = await characterService.updateCharacter(id, userId, { isHidden: req.body.isHidden } as any);
+      const signedCharacter = await signReferencePhotoUrls(character);
+      return res.json({ status: 'success', character: signedCharacter });
+    }
+    
+    // Validate input for full character updates
     const validation = UpdateCharacterSchema.safeParse(req.body);
     if (!validation.success) {
       return res.status(400).json({
@@ -278,9 +393,12 @@ router.patch('/:id', requireAuth, async (req, res) => {
     // Update character (ownership check happens in service)
     const character = await characterService.updateCharacter(id, userId, data);
     
+    // Sign photo URLs in the response
+    const signedCharacter = await signReferencePhotoUrls(character);
+    
     res.json({
       status: 'success',
-      character
+      character: signedCharacter
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);

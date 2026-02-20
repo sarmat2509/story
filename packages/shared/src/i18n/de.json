@@ -90,7 +90,9 @@
     "all_stories": "Alle Geschichten",
     "audio_only": "Audiogeschichten",
     "show_all": "Alle anzeigen",
-    "delete_confirm_message": "Bist du sicher, dass du \"{{title}}\" löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden."
+    "delete_confirm_message": "Bist du sicher, dass du \"{{title}}\" löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden.",
+    "filter_scenario": "Szenario:",
+    "all_scenarios": "Alle Szenarien"
   },
   "series": {
     "title": "Serien",
@@ -141,6 +143,7 @@
     "free_theme": "Freies Thema",
     "free_theme_desc": "Eine Geschichte ohne ein bestimmtes Thema generieren",
     "language_title": "Sprache der Geschichte",
+    "language_required": "Bitte wählen Sie die Sprache der Geschichte",
     "story_for": "Geschichte für",
     "no_profile": "Kein Profil",
     "goal_label": "Moral der Geschichte (optional)",
@@ -160,6 +163,8 @@
     "notes_placeholder": "Z.B.: hatte heute einen Streit mit einem Freund",
     "generate_button": "Geschichte erstellen",
     "generating": "Erstellt...",
+    "create_error": "Beim Erstellen der Geschichte ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.",
+    "retry_error": "Illustrationen konnten nicht erneut generiert werden. Bitte versuchen Sie es erneut.",
     "advanced_settings": "Erweiterte Einstellungen",
     "add_characters": "Charaktere hinzufügen"
   },
@@ -184,6 +189,10 @@
     "voices_error": "Fehler beim Laden der Stimmen",
     "no_voices": "Keine verfügbaren Stimmen gefunden",
     "audio_queued": "In Warteschlange...",
+    "audio_queue_position": "Sie sind {{position}}. in der Warteschlange",
+    "audio_queue_wait": "Geschätzte Wartezeit: {{time}}",
+    "audio_generating_remaining": "Noch etwa {{minutes}} Min {{seconds}} Sek",
+    "audio_generating_almost_done": "Fast fertig...",
     "audio_title": "Audiogeschichte",
     "audio_limit_reached": "Audiogeschichten-Limit Erreicht",
     "audio_limit_message": "Diese Audiogeschichte benötigt {{minutes}} Minuten, aber das Limit Ihres Tarifs ist erschöpft.",
@@ -213,7 +222,16 @@
     "series_locked_description": "Erstellen Sie mehrteilige Geschichten und setzen Sie die Abenteuer Ihrer Charaktere fort",
     "upgrade_to_unlock": "Plan upgraden",
     "highlight_toggle": "Mitlesen",
-    "highlight_toggle_description": "Folge dem Erzähler"
+    "highlight_toggle_description": "Folge dem Erzähler",
+    "characters_title": "Charaktere",
+    "save_character": "Zu meinen Charakteren speichern",
+    "character_saved": "Charakter gespeichert!",
+    "character_type_pet": "Tier",
+    "character_type_friend": "Freund",
+    "character_type_imaginary_friend": "Fantasiefreund",
+    "character_type_child": "Kind",
+    "image_preparing": "Bild wird vorbereitet",
+    "image_failed": "Bild konnte nicht generiert werden"
   },
   "dashboard": {
     "welcome_back": "Willkommen zurück, {{name}}!",
@@ -312,7 +330,29 @@
     "loading_sample": "Lädt...",
     "sample_error": "Beispiel konnte nicht geladen werden"
   },
+  "child_form": {
+    "generate_description": "Beschreibung generieren",
+    "regenerate_description": "Beschreibung neu generieren",
+    "description_upload_photos_first": "Laden Sie Fotos im vorherigen Schritt hoch, um eine Beschreibung zu generieren",
+    "turnaround_sheet": "3D-Modellblatt",
+    "generate_turnaround": "3D-Modell generieren",
+    "regenerate_turnaround": "3D-Modell neu generieren",
+    "generating_turnaround": "3D-Modell wird generiert...",
+    "turnaround_error": "Modellblatt konnte nicht generiert werden",
+    "turnaround_save_first": "Speichern Sie das Profil zuerst, um ein 3D-Modellblatt zu generieren",
+    "validation_error": "Validierungsfehler",
+    "validation_error_message": "Bitte überprüfen Sie die eingegebenen Daten"
+  },
   "character_form": {
+    "turnaround_sheet": "Charaktermodellblatt",
+    "generate_turnaround": "Modellblatt generieren",
+    "regenerate_turnaround": "Modellblatt neu generieren",
+    "generating_turnaround": "Modellblatt wird generiert...",
+    "turnaround_error": "Modellblatt konnte nicht generiert werden",
+    "turnaround_save_first": "Speichern Sie den Charakter zuerst, um ein Modellblatt zu generieren",
+    "generate_description": "Beschreibung generieren",
+    "regenerate_description": "Beschreibung neu generieren",
+    "description_upload_photos_first": "Laden Sie Fotos im vorherigen Schritt hoch, um eine Beschreibung zu generieren",
     "breed_placeholder": "z.B. Golden Retriever, Perser",
     "species_placeholder": "z.B. Drache, Einhorn, Wolkenwesen",
     "primary_color_placeholder": "z.B. Regenbogen, Funkelndes Gold",

@@ -93,13 +93,44 @@ export const config = {
     rpmDefaultLimit: parseInt(process.env.IMAGE_RPM_DEFAULT_LIMIT || '150', 10), // Default RPM for Tier 1
     rpmSafetyMargin: parseFloat(process.env.IMAGE_RPM_SAFETY_MARGIN || '0.9'), // Use 90% of limit
     queueTimeoutMs: parseInt(process.env.IMAGE_QUEUE_TIMEOUT_MS || '300000', 10), // 5 minutes max wait in queue
+    // Post-generation validation (Gemini Vision)
+    enableValidation: process.env.ENABLE_IMAGE_VALIDATION === 'true',
+    validationMaxRetries: parseInt(process.env.IMAGE_VALIDATION_MAX_RETRIES || '2', 10),
+    // Max total reference images per API call (turnarounds + scene refs)
+    // Gemini hard limit is 3 images per prompt, but 3 refs triggers IMAGE_OTHER consistently.
+    // 2 refs works reliably even under 8x concurrency.
+    maxReferenceImages: parseInt(process.env.IMAGE_MAX_REFERENCE_IMAGES || '2', 10),
+    // Validation scoring weights (for best-image selection when all attempts fail)
+    validationScoring: {
+      // Per-character weights (must sum to 1.0)
+      found: parseFloat(process.env.IMAGE_SCORE_WEIGHT_FOUND || '0.35'),
+      recognizable: parseFloat(process.env.IMAGE_SCORE_WEIGHT_RECOGNIZABLE || '0.25'),
+      notDuplicated: parseFloat(process.env.IMAGE_SCORE_WEIGHT_NOT_DUPLICATED || '0.15'),
+      matchesColors: parseFloat(process.env.IMAGE_SCORE_WEIGHT_MATCHES_COLORS || '0.15'),
+      matchesOutfit: parseFloat(process.env.IMAGE_SCORE_WEIGHT_MATCHES_OUTFIT || '0.10'),
+      // Global penalties (subtracted from 0-100 score)
+      textPenalty: parseFloat(process.env.IMAGE_SCORE_PENALTY_TEXT || '5'),
+      unexpectedCharsPenalty: parseFloat(process.env.IMAGE_SCORE_PENALTY_UNEXPECTED || '3'),
+      artifactsPenalty: parseFloat(process.env.IMAGE_SCORE_PENALTY_ARTIFACTS || '10'),
+    },
+    // Turnaround sheet generation for imaginary characters
+    enableTurnaroundSheet: process.env.ENABLE_TURNAROUND_SHEET === 'true',
+    turnaroundModel: process.env.TURNAROUND_MODEL || 'gemini-3-pro-image-preview',
   },
   
-  // Nano Banana Pro (Gemini 2.5 Flash Image) - for cartoon/illustration with character consistency
+  // OpenAI Image (GPT Image via Responses API) - for character consistency with input_fidelity
+  openaiImage: {
+    mainlineModel: process.env.OPENAI_IMAGE_MAINLINE_MODEL || 'gpt-4.1',
+    quality: process.env.OPENAI_IMAGE_QUALITY || 'medium', // low | medium | high | auto
+  },
+  
+  // Nano Banana Pro (Gemini 3 Pro Image) - for cartoon/illustration with character consistency
   nanoBanana: {
-    model: process.env.NANO_BANANA_MODEL || 'gemini-2.5-flash-image', // or 'gemini-3.0-pro-image' for better quality
+    model: process.env.NANO_BANANA_MODEL || 'gemini-3-pro-image-preview', // Upgraded from gemini-2.5-flash-image for better character consistency
     aspectRatio: process.env.NANO_BANANA_ASPECT_RATIO || '16:9',
+    imageSize: process.env.NANO_BANANA_IMAGE_SIZE || '1K', // Output resolution: 1K | 2K | 4K
     enableReferenceImages: process.env.ENABLE_FIRST_IMAGE_REFERENCE !== 'false', // Enabled by default
+    enableFilesApi: process.env.NANO_BANANA_ENABLE_FILES_API === 'true', // Off by default — upload turnarounds to Google Files API
     maxPromptLength: parseInt(process.env.NANO_BANANA_MAX_PROMPT_LENGTH || '2000', 10), // Max chars before truncation
   },
   
@@ -219,9 +250,20 @@ export const config = {
     enableCharacterAnalysis: process.env.ENABLE_CHARACTER_ANALYSIS !== 'false', // Enabled by default
   },
   
-  // Story Generation
-  storyGeneration: {
-    useDirectTextGeneration: process.env.USE_DIRECT_TEXT_GENERATION === 'true', // false = outline->text, true = direct text
+  // Job Queue Concurrency (fallbacks if rate limiter unavailable)
+  queue: {
+    textConcurrency: parseInt(process.env.TEXT_QUEUE_CONCURRENCY || '3', 10),
+    imageConcurrency: parseInt(process.env.IMAGE_QUEUE_CONCURRENCY || '10', 10),
+    audioConcurrency: parseInt(process.env.AUDIO_QUEUE_CONCURRENCY || '2', 10),
+    pollIntervalMs: parseInt(process.env.QUEUE_POLL_INTERVAL_MS || '1000', 10),
+  },
+  
+  // Text Generation Rate Limiting
+  text: {
+    rpmDefaultLimit: parseInt(process.env.TEXT_RPM_DEFAULT_LIMIT || '10', 10),
+    rpmQuotaRefreshIntervalMs: parseInt(process.env.TEXT_RPM_QUOTA_REFRESH_INTERVAL_MS || '300000', 10),
+    rpmSafetyMargin: parseFloat(process.env.TEXT_RPM_SAFETY_MARGIN || '0.9'),
+    queueTimeoutMs: parseInt(process.env.TEXT_QUEUE_TIMEOUT_MS || '300000', 10),
   },
 };
 

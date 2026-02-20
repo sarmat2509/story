@@ -4,6 +4,7 @@ import { useRoute, RouteProp, useNavigation, NavigationProp, useFocusEffect } fr
 import { useQueryClient } from '@tanstack/react-query';
 import { useStory, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useAudioUsage, useDeleteStory, useGenerateContinuation, useSeriesInfo, useStoryStatus } from '@/api/stories';
 import { useVoices } from '@/api/voices';
+import { useUpdateCharacter } from '@/api/characters';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -28,15 +29,28 @@ const removeAudioTags = (text: string): string => {
   return text.replace(/\[[\w\s]+\]/g, '');
 };
 
+// Format wait time using i18n translations
+const formatWaitTime = (ms: number, t: (key: string, opts?: Record<string, any>) => string): string => {
+  const totalSeconds = Math.ceil(ms / 1000);
+  if (totalSeconds <= 5) {
+    return t('story_viewer.audio_generating_almost_done');
+  }
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return t('story_viewer.audio_generating_remaining', { minutes, seconds });
+};
+
 export default function StoryViewerScreen() {
   const route = useRoute<StoryViewerRouteProp>();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
-  const { storyId } = route.params;
-  const { data: story, isLoading, error } = useStory(storyId);
+  const storyId = route.params?.storyId;
+  const { data: story, isLoading, error } = useStory(storyId!);
   const generateAudio = useGenerateAudio();
   const generateAlignment = useGenerateAlignment();
+  const updateCharacterMutation = useUpdateCharacter();
+  const [savedCharacterIds, setSavedCharacterIds] = useState<Set<string>>(new Set());
   
   // M6: Text highlighting state
   const [isHighlightEnabled, setIsHighlightEnabled] = useState(false);
@@ -80,19 +94,33 @@ export default function StoryViewerScreen() {
   const setViewingStoryId = useAudioPlayerStore((s) => s.setViewingStoryId);
   useFocusEffect(
     useCallback(() => {
-      setViewingStoryId(storyId);
+      if (storyId) setViewingStoryId(storyId);
       return () => setViewingStoryId(null);
     }, [storyId, setViewingStoryId])
   );
   
-  // Set header title from database after story loads
+  // Set header title from database after story loads (with scenario breadcrumb)
   useEffect(() => {
     if (story?.title) {
-      navigation.setOptions({
-        title: story.title,
-      });
+      if (story.scenarioCardName) {
+        navigation.setOptions({
+          headerTitle: () => (
+            <View style={styles.headerBreadcrumb}>
+              <TouchableOpacity onPress={() => navigation.navigate('Library', { scenarioCardId: story.scenarioCardId })}>
+                <Text style={styles.headerBreadcrumbLink}>{story.scenarioCardName}</Text>
+              </TouchableOpacity>
+              <Ionicons name="chevron-forward" size={14} color={theme.colors.text.tertiary} style={styles.headerBreadcrumbSeparator} />
+              <Text style={styles.headerBreadcrumbCurrent} numberOfLines={1}>{story.title}</Text>
+            </View>
+          ),
+        });
+      } else {
+        navigation.setOptions({
+          title: story.title,
+        });
+      }
     }
-  }, [story?.title, navigation]);
+  }, [story?.title, story?.scenarioCardName, story?.scenarioCardId, navigation]);
   
   // Delete story mutation
   const deleteStory = useDeleteStory();
@@ -126,10 +154,17 @@ export default function StoryViewerScreen() {
     }
   }, [voices, selectedVoiceId]);
   
-  // Use lightweight polling for audio status
+  // Use lightweight polling for audio status (with queue info)
   const { data: audioStatus } = useAudioStatus(storyId, true);
-  const jobStatus = (audioStatus as any)?.jobStatus as 'queued' | 'processing' | null | undefined; // 'queued' | 'processing' | null
+  const jobStatus = audioStatus?.jobStatus ?? null;
+  const queuePosition = audioStatus?.queuePosition ?? null;
+  const estimatedWaitMs = audioStatus?.estimatedWaitMs ?? null;
+  const processingStartedAt = audioStatus?.processingStartedAt ?? null;
+  const estimatedProcessingMs = audioStatus?.estimatedProcessingMs ?? null;
   const isGenerating = jobStatus !== null && jobStatus !== undefined;
+  
+  // Tick counter for live countdown during processing
+  const [, setCountdownTick] = useState(0);
   
   // Fetch audio URL when audio is ready
   const { data: audioData } = useAudioUrl(
@@ -182,6 +217,13 @@ export default function StoryViewerScreen() {
     
     checkAndShowNotification();
   }, [isGenerating, (audioStatus as any)?.audioMetadata, storyId, navigation, queryClient]);
+  
+  // Tick every 1s during processing for live countdown
+  useEffect(() => {
+    if (jobStatus !== 'processing') return;
+    const id = setInterval(() => setCountdownTick(prev => prev + 1), 1000);
+    return () => clearInterval(id);
+  }, [jobStatus]);
   
   // M6: Proactive alignment generation
   // Automatically generate alignment if audio exists but alignment is missing
@@ -580,7 +622,7 @@ export default function StoryViewerScreen() {
     }
   };
 
-  if (isLoading) {
+  if (!storyId || isLoading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
@@ -767,16 +809,28 @@ export default function StoryViewerScreen() {
             </Text>
           </View>
         ) : hasGenerationInProgress ? (
-          // Show loading state during generation
+          // Show loading state during generation with queue info
           <View style={styles.generatingContainer}>
             <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
             <Text style={styles.generatingText}>
               {jobStatus === 'queued' 
-                ? t('story_viewer.audio_queued') 
+                ? (queuePosition && queuePosition > 0
+                    ? t('story_viewer.audio_queue_position', { position: queuePosition })
+                    : t('story_viewer.audio_queued'))
                 : t('story_viewer.audio_generating')}
             </Text>
+            {jobStatus === 'queued' && estimatedWaitMs && estimatedWaitMs > 0 && (
+              <Text style={styles.generatingHint}>
+                {t('story_viewer.audio_queue_wait', { time: formatWaitTime(estimatedWaitMs, t) })}
+              </Text>
+            )}
             <Text style={styles.generatingHint}>
-              {t('toast.audio_generating_message')}
+              {jobStatus === 'processing' && processingStartedAt && estimatedProcessingMs
+                ? formatWaitTime(
+                    Math.max(0, estimatedProcessingMs - (Date.now() - processingStartedAt)),
+                    t
+                  )
+                : t('toast.audio_generating_message')}
             </Text>
           </View>
         ) : (
@@ -1027,6 +1081,68 @@ export default function StoryViewerScreen() {
     effectiveHighlightEnabled,
   });
 
+  // Render characters section (sidebar on web, above scenes on mobile)
+  const renderCharactersSection = () => {
+    const characters = (story as any)?.characters;
+    if (!characters || characters.length === 0) return null;
+
+    const handleSaveCharacter = async (characterId: string) => {
+      try {
+        await updateCharacterMutation.mutateAsync({ id: characterId, data: { isHidden: false } as any });
+        setSavedCharacterIds(prev => new Set(prev).add(characterId));
+        toastService.success(t('story_viewer.character_saved'));
+      } catch {
+        toastService.error('Error');
+      }
+    };
+
+    const getCharacterTypeLabel = (type: string) => {
+      switch (type) {
+        case 'child': return t('story_viewer.character_type_child');
+        case 'pet': return t('story_viewer.character_type_pet');
+        case 'friend': return t('story_viewer.character_type_friend');
+        case 'imaginary_friend': return t('story_viewer.character_type_imaginary_friend');
+        default: return type;
+      }
+    };
+
+    return (
+      <View style={styles.charactersSection}>
+        <Text style={styles.charactersSectionTitle}>{t('story_viewer.characters_title')}</Text>
+        {characters.map((char: any) => {
+          const isEffectivelyHidden = char.isHidden && !savedCharacterIds.has(char.id);
+          return (
+            <View key={char.id} style={styles.characterCard}>
+              <View style={styles.characterCardRow}>
+                {char.referencePhotoUrl ? (
+                  <Image source={{ uri: char.referencePhotoUrl }} style={styles.characterAvatar as ImageStyle} />
+                ) : (
+                  <View style={[styles.characterAvatar, styles.characterAvatarPlaceholder]}>
+                    <Ionicons name="person-outline" size={20} color={theme.colors.text.tertiary} />
+                  </View>
+                )}
+                <View style={styles.characterInfo}>
+                  <Text style={styles.characterName}>{char.name}</Text>
+                  <Text style={styles.characterType}>{getCharacterTypeLabel(char.type)}</Text>
+                </View>
+              </View>
+              {isEffectivelyHidden && (
+                <TouchableOpacity
+                  style={styles.saveCharacterButton}
+                  onPress={() => handleSaveCharacter(char.id)}
+                  disabled={updateCharacterMutation.isPending}
+                >
+                  <Ionicons name="bookmark-outline" size={16} color={theme.colors.interactive.primary} />
+                  <Text style={styles.saveCharacterText}>{t('story_viewer.save_character')}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
   // M6: Render story scenes with optional highlighting
   const renderScenesWithHighlight = () => {
     return story.scenes?.map((scene: any, sceneIndex: number) => {
@@ -1049,13 +1165,24 @@ export default function StoryViewerScreen() {
           ref={(ref: View | null) => { sceneRefs.current[sceneIndex] = ref; }}
           style={styles.scene}
         >
-          {scene.image?.url && (
+          {scene.image?.url && scene.image?.status !== 'failed' ? (
             <Image 
               source={{ uri: scene.image.url }} 
               style={styles.sceneImage as ImageStyle}
               resizeMode="cover"
             />
-          )}
+          ) : (story?.sceneIdsWithImages as number[] | undefined)?.includes(scene.sceneId) ? (
+            <View style={styles.sceneImagePlaceholder}>
+              <Text style={[
+                styles.sceneImagePlaceholderText,
+                (story?.failedScenes as Array<{ sceneId: number }> | undefined)?.some(f => f.sceneId === scene.sceneId) && styles.sceneImagePlaceholderTextError,
+              ]}>
+                {(story?.failedScenes as Array<{ sceneId: number }> | undefined)?.some(f => f.sceneId === scene.sceneId)
+                  ? t('story_viewer.image_failed')
+                  : t('story_viewer.image_preparing')}
+              </Text>
+            </View>
+          ) : null}
           
           {renderSceneTextWithHighlight(scene.text, sceneIndex)}
           
@@ -1089,7 +1216,6 @@ export default function StoryViewerScreen() {
             style={styles.leftColumn}
           >
             
-            
             {/* Story Scenes */}
             {renderScenesWithHighlight()}
             
@@ -1117,6 +1243,9 @@ export default function StoryViewerScreen() {
                     onActivate={handleActivateAudio}
                   />
                 </View>)}
+                
+                {/* Characters Section */}
+                {renderCharactersSection()}
                 
                 {/* Delete Story Button */}
                 <TouchableOpacity 
@@ -1161,6 +1290,9 @@ export default function StoryViewerScreen() {
               />
             </View>
           )}
+          
+          {/* Characters Section (mobile) */}
+          {renderCharactersSection()}
           
           {/* Story Scenes */}
           {renderScenesWithHighlight()}
@@ -1368,6 +1500,22 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[4],
     marginHorizontal: -theme.spacing[6], // Extend image to full width
   },
+  sceneImagePlaceholder: {
+    aspectRatio: 16 / 9,
+    marginBottom: theme.spacing[4],
+    marginHorizontal: -theme.spacing[6],
+    backgroundColor: theme.colors.background.tertiary,
+    borderRadius: theme.borders.radius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sceneImagePlaceholderText: {
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.tertiary,
+  },
+  sceneImagePlaceholderTextError: {
+    color: theme.colors.status.error,
+  },
   sceneText: {
     fontSize: theme.typography.fontSize.lg,
     lineHeight: theme.typography.fontSize.lg * 1.6,
@@ -1539,5 +1687,85 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     textAlign: 'center',
     marginVertical: theme.spacing[3],
+  },
+  charactersSection: {
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.lg,
+    padding: theme.spacing[4],
+    marginBottom: theme.spacing[4],
+  },
+  charactersSectionTitle: {
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing[3],
+  },
+  characterCard: {
+    flexDirection: 'column',
+    paddingVertical: theme.spacing[2],
+    borderBottomWidth: theme.borders.width.thin,
+    borderBottomColor: theme.colors.border.light,
+  },
+  characterCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  characterAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.borders.radius.full,
+    marginRight: theme.spacing[3],
+  },
+  characterAvatarPlaceholder: {
+    backgroundColor: theme.colors.background.tertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  characterInfo: {
+    flex: 1,
+  },
+  characterName: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.text.primary,
+  },
+  characterType: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
+  },
+  saveCharacterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginTop: theme.spacing[2],
+    marginLeft: 52,
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[2],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.interactive.primary,
+  },
+  saveCharacterText: {
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.interactive.primary,
+    marginLeft: theme.spacing[1],
+  },
+  headerBreadcrumb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  headerBreadcrumbLink: {
+    fontSize: theme.typography.fontSize.lg,
+    color: theme.colors.interactive.primary,
+  },
+  headerBreadcrumbSeparator: {
+    marginHorizontal: theme.spacing[1],
+  },
+  headerBreadcrumbCurrent: {
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    flexShrink: 1,
   },
 });

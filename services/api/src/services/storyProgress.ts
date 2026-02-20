@@ -1,13 +1,10 @@
-import { db } from '../db';
-import { storyRequests } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { getStoryRepository } from '../repositories';
 import { logger } from '../utils/logger';
 
 /**
  * Story tasks that can run in parallel
  */
 export const STORY_TASKS = {
-  GENERATING_OUTLINE: 'generating_outline',
   GENERATING_TEXT: 'generating_text',
   VALIDATING: 'validating',
   GENERATING_PORTRAITS: 'generating_portraits',
@@ -19,14 +16,14 @@ export type StoryTask = typeof STORY_TASKS[keyof typeof STORY_TASKS];
 
 /**
  * Weights for calculating overall progress
+ * Text: 30%, Validation: 20%, Images: 50%
+ * Audio and portraits are excluded — audio runs as a separate user-triggered flow,
+ * portraits were removed in favor of scene-to-scene reference propagation.
  */
-const TASK_WEIGHTS: Record<StoryTask, number> = {
-  [STORY_TASKS.GENERATING_OUTLINE]: 10,
-  [STORY_TASKS.GENERATING_TEXT]: 20,
-  [STORY_TASKS.VALIDATING]: 5,
-  [STORY_TASKS.GENERATING_PORTRAITS]: 5,
-  [STORY_TASKS.GENERATING_IMAGES]: 40,
-  [STORY_TASKS.GENERATING_AUDIO]: 20,
+const TASK_WEIGHTS: Partial<Record<StoryTask, number>> = {
+  [STORY_TASKS.GENERATING_TEXT]: 30,
+  [STORY_TASKS.VALIDATING]: 20,
+  [STORY_TASKS.GENERATING_IMAGES]: 50,
 };
 
 export interface ActiveTask {
@@ -55,15 +52,9 @@ export async function updateTaskProgress(
   progress: number, // 0-1
   details?: Record<string, any>
 ): Promise<void> {
-  // Use transaction to prevent race conditions
-  await db.transaction(async (tx) => {
-    const [request] = await tx
-      .select()
-      .from(storyRequests)
-      .where(eq(storyRequests.id, requestId))
-      .limit(1)
-      .for('update'); // Row-level lock
-    
+  const storyRepo = getStoryRepository();
+  await storyRepo.transaction(async (tx) => {
+    const request = await storyRepo.findRequestForUpdate(requestId, tx);
     if (!request) {
       throw new Error(`Story request not found: ${requestId}`);
     }
@@ -76,7 +67,7 @@ export async function updateTaskProgress(
     };
     
     // DEBUG LOG - Before update
-    logger.info({
+    logger.debug({
       requestId,
       task,
       newProgress: Math.round(progress * 100),
@@ -97,7 +88,9 @@ export async function updateTaskProgress(
     
     // Update progress
     activeTask.progress = Math.round(progress * 100);
-    activeTask.details = details;
+    activeTask.details = details
+      ? { ...activeTask.details, ...details }
+      : activeTask.details;
     
     // If completed (100%), move to completed tasks
     if (activeTask.progress >= 100) {
@@ -117,7 +110,7 @@ export async function updateTaskProgress(
     currentProgress.overallProgress = overallProgress;
     
     // DEBUG LOG - After update
-    logger.info({
+    logger.debug({
       requestId,
       task,
       afterUpdate: {
@@ -128,14 +121,15 @@ export async function updateTaskProgress(
     }, '[PROGRESS DEBUG] After update');
     
     // Save with atomic update
-    await tx
-      .update(storyRequests)
-      .set({
+    await storyRepo.updateRequest(
+      requestId,
+      {
         progressData: currentProgress,
         progress: overallProgress,
         updatedAt: new Date(),
-      })
-      .where(eq(storyRequests.id, requestId));
+      },
+      tx
+    );
     
     logger.info(
       { requestId, task, progress: activeTask.progress, overallProgress },
@@ -143,11 +137,7 @@ export async function updateTaskProgress(
     );
     
     // Verify update by re-reading
-    const [updated] = await tx
-      .select()
-      .from(storyRequests)
-      .where(eq(storyRequests.id, requestId))
-      .limit(1);
+    const updated = await storyRepo.findRequestForUpdate(requestId, tx);
     
     logger.debug(
       { requestId, dbProgress: updated?.progress, expectedProgress: overallProgress },
@@ -158,9 +148,14 @@ export async function updateTaskProgress(
 
 /**
  * Helper to start a task (progress = 0)
+ * @param details - Optional details including estimatedMs for time-based progress
  */
-export async function startTask(requestId: string, task: StoryTask): Promise<void> {
-  await updateTaskProgress(requestId, task, 0);
+export async function startTask(requestId: string, task: StoryTask, details?: Record<string, any>): Promise<void> {
+  const taskDetails = {
+    ...details,
+    startedAt: Date.now(),
+  };
+  await updateTaskProgress(requestId, task, 0, taskDetails);
 }
 
 /**
@@ -174,12 +169,8 @@ export async function completeTask(requestId: string, task: StoryTask): Promise<
  * Get current progress for a story request
  */
 export async function getCurrentProgress(requestId: string): Promise<StoryProgress> {
-  const [request] = await db
-    .select()
-    .from(storyRequests)
-    .where(eq(storyRequests.id, requestId))
-    .limit(1);
-  
+  const storyRepo = getStoryRepository();
+  const request = await storyRepo.findRequestById(requestId);
   if (!request) {
     throw new Error(`Story request not found: ${requestId}`);
   }
@@ -200,14 +191,12 @@ export async function getCurrentProgress(requestId: string): Promise<StoryProgre
  * Save progress to database
  */
 async function saveProgress(requestId: string, progress: StoryProgress): Promise<void> {
-  await db
-    .update(storyRequests)
-    .set({
-      progressData: progress,
-      progress: progress.overallProgress,
-      updatedAt: new Date(),
-    })
-    .where(eq(storyRequests.id, requestId));
+  const storyRepo = getStoryRepository();
+  await storyRepo.updateRequest(requestId, {
+    progressData: progress,
+    progress: progress.overallProgress,
+    updatedAt: new Date(),
+  });
 }
 
 /**
@@ -222,14 +211,14 @@ function calculateOverallProgress(
   
   // Completed tasks contribute full weight
   for (const task of completed) {
-    const weight = TASK_WEIGHTS[task];
+    const weight = TASK_WEIGHTS[task] ?? 0;
     totalWeight += weight;
     achievedWeight += weight;
   }
   
   // Active tasks contribute partial weight based on progress
   for (const activeTask of active) {
-    const weight = TASK_WEIGHTS[activeTask.task];
+    const weight = TASK_WEIGHTS[activeTask.task] ?? 0;
     totalWeight += weight;
     achievedWeight += weight * (activeTask.progress / 100);
   }

@@ -27,6 +27,7 @@ function TabNavigator() {
   
   return (
     <Tab.Navigator
+      backBehavior="history"
       screenOptions={{
         headerShown: true,
         tabBarActiveTintColor: theme.colors.interactive.primary,
@@ -73,7 +74,7 @@ function TabNavigator() {
         name="Story" 
         component={StoryViewerScreen}
         options={{ 
-          title: 'Story', // Will be updated dynamically by StoryViewerScreen
+          title: 'Story',
           tabBarButton: () => null,
         }}
       />
@@ -122,7 +123,7 @@ function TabNavigator() {
         component={LanguageSettingsScreen}
         options={{ 
           title: t('profile.language_settings'),
-          tabBarButton: () => null, // Hide from tab bar
+          tabBarButton: () => null,
         }}
       />
     </Tab.Navigator>
@@ -134,13 +135,14 @@ function DrawerNavigator() {
   
   return (
     <Drawer.Navigator
+      backBehavior="history"
       screenOptions={{
         headerShown: true,
         drawerType: 'permanent',
         drawerActiveTintColor: theme.colors.interactive.primary,
         drawerInactiveTintColor: theme.colors.text.tertiary,
-        headerLeft: () => null, // Hide hamburger menu on permanent drawer
-        headerRight: () => <LanguageDropdown />, // Language dropdown for web
+        headerLeft: () => null,
+        headerRight: () => <LanguageDropdown />,
       }}
     >
       <Drawer.Screen 
@@ -177,7 +179,7 @@ function DrawerNavigator() {
         name="Story" 
         component={StoryViewerScreen}
         options={{ 
-          title: 'Story', // Will be updated dynamically by StoryViewerScreen
+          title: 'Story',
           drawerItemStyle: { display: 'none' },
         }}
       />
@@ -226,7 +228,7 @@ function DrawerNavigator() {
         component={LanguageSettingsScreen}
         options={{ 
           title: t('profile.language_settings'),
-          drawerItemStyle: { display: 'none' }, // Hide from drawer menu
+          drawerItemStyle: { display: 'none' },
         }}
       />
     </Drawer.Navigator>
@@ -237,7 +239,6 @@ export default function MainNavigator() {
   const { isDesktop } = useResponsive();
 
   if (isDesktop) {
-    // Drawer for web/desktop with MiniAudioPlayer at the bottom
     return (
       <View style={{ flex: 1 }}>
         <DrawerNavigator />
@@ -246,6 +247,5 @@ export default function MainNavigator() {
     );
   }
 
-  // Tabs for mobile (MiniAudioPlayer is rendered above tab bar via tabBar prop)
   return <TabNavigator />;
 }

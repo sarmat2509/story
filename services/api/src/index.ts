@@ -19,7 +19,7 @@ import uploadRoutes from './routes/upload';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { globalLimiter, authLimiter, apiLimiter } from './middleware/rateLimiter';
 import { startSessionCleanupJob } from './services/sessionService';
-import { storyJobQueue } from './jobs/storyJobProcessor';
+import { startAllQueues } from './jobs/storyJobProcessor';
 import { checkDatabaseHealth } from './db';
 import { logger } from './utils/logger';
 
@@ -69,7 +69,7 @@ app.use(errorHandler);
 // Start server
 const PORT = config.port;
 
-app.listen(PORT, async () => {
+const server = app.listen(PORT, async () => {
   logger.info({ port: PORT, env: config.nodeEnv }, 'Kazka+ API server started');
   logger.info({ url: `http://localhost:${PORT}/health` }, 'Health check available');
   
@@ -84,9 +84,31 @@ app.listen(PORT, async () => {
   // Start session cleanup job
   startSessionCleanupJob();
   
-  // Start story job queue
-  storyJobQueue.start();
-  logger.info('Story job queue started');
+  // Start all job queues (text, image, audio + legacy)
+  startAllQueues();
+  logger.info('All job queues started');
 });
+
+/**
+ * Close the HTTP server gracefully (stops accepting new connections).
+ * Called during graceful shutdown before closing the DB pool.
+ */
+export function closeServer(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!server || !server.listening) {
+      resolve();
+      return;
+    }
+    server.close((err) => {
+      if (err) {
+        logger.error({ err }, 'Error closing HTTP server');
+        reject(err);
+      } else {
+        logger.info('HTTP server closed');
+        resolve();
+      }
+    });
+  });
+}
 
 export default app;

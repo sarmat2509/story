@@ -206,7 +206,13 @@ export const CreateChildProfileSchema = z.object({
   }).optional(),
   
   // Family cast (free text names)
-  familyCast: z.record(z.string().max(100)).optional()
+  familyCast: z.record(z.string().max(100)).optional(),
+
+  // AI-generated description (in UI language)
+  aiGeneratedDescription: z.string().max(5000).optional(),
+
+  // Language code of the description (from analysis or UI language)
+  descriptionLanguage: z.string().max(10).optional()
 });
 
 export const UpdateChildProfileSchema = CreateChildProfileSchema.partial();
@@ -225,7 +231,10 @@ const BaseCharacterSchema = z.object({
   })).max(5).optional(),
   
   // Optional free text description
-  description: z.string().max(500).optional()
+  description: z.string().max(5000).optional(),
+  
+  // Language code of the description (from analysis or UI language)
+  descriptionLanguage: z.string().max(10).optional()
 });
 
 // Pet-specific appearance traits

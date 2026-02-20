@@ -1,11 +1,8 @@
-import { eq, and } from 'drizzle-orm';
-import db from '../db';
-import { childProfiles, type ChildProfile, type NewChildProfile } from '../db/schema';
+import { getChildProfileRepository } from '../repositories';
+import type { ChildProfile, NewChildProfile } from '../db/schema';
 import { logger } from '../utils/logger';
 import * as planService from './planService';
-import { CharacterAnalysisService } from './characterAnalysisService';
-import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
-import { config } from '../config';
+import { translateChildDescription } from './translationService';
 
 // Age calculation helpers
 export interface AgeData {
@@ -64,84 +61,20 @@ export function calculateAgeGroup(ageMonths: number): string {
   return '9-12';
 }
 
-// Initialize character analysis service (lazy)
-let characterAnalysisService: CharacterAnalysisService | null = null;
-
-function getCharacterAnalysisService(): CharacterAnalysisService {
-  if (!characterAnalysisService) {
-    const textProvider = new GeminiTextProvider(config.google.apiKey);
-    characterAnalysisService = new CharacterAnalysisService(textProvider);
-  }
-  return characterAnalysisService;
-}
-
 /**
- * Analyze child profile photos and update with AI-generated description
- * Called after create/update if reference photos exist
+ * Trigger async translation of child description to English.
+ * Non-blocking: if it fails, image generation falls back to the original description.
  */
-async function analyzeChildPhotos(profile: ChildProfile): Promise<void> {
-  // Skip if no reference photos
-  const referencePhotos = profile.referencePhotos as any;
-  if (!referencePhotos || !Array.isArray(referencePhotos) || referencePhotos.length === 0) {
-    logger.debug({ profileId: profile.id }, 'No reference photos to analyze');
-    return;
-  }
-  
-  // Extract photo URLs
-  const photoUrls = referencePhotos
-    .filter((photo: any) => photo && photo.url)
-    .map((photo: any) => photo.url);
-  
-  if (photoUrls.length === 0) {
-    logger.debug({ profileId: profile.id }, 'No valid photo URLs');
-    return;
-  }
-  
-  try {
-    logger.info({ 
-      profileId: profile.id, 
-      photoCount: photoUrls.length 
-    }, 'Starting character analysis for child profile');
-    
-    const analysisService = getCharacterAnalysisService();
-    const analysis = await analysisService.analyzeCharacter({
-      photos: photoUrls,
-      characterType: 'person',
-      existingTraits: profile.appearanceTraits as Record<string, any> | undefined
-    });
-    
-    // Update profile with AI-generated fields
-    await db
-      .update(childProfiles)
-      .set({
-        aiGeneratedDescription: analysis.detailedDescription,
-        clothing: analysis.clothing as any,
-        distinctiveFeatures: analysis.distinctiveFeatures as any,
-        // Optionally merge AI analysis into existing appearanceTraits
-        appearanceTraits: analysis.appearanceTraits ? {
-          ...(profile.appearanceTraits as any || {}),
-          ...analysis.appearanceTraits
-        } as any : profile.appearanceTraits
-      })
-      .where(eq(childProfiles.id, profile.id));
-    
-    logger.info({ 
-      profileId: profile.id,
-      hasDescription: !!analysis.detailedDescription,
-      hasClothing: !!analysis.clothing,
-      featuresCount: analysis.distinctiveFeatures?.length || 0
-    }, 'Character analysis completed for child profile');
-  } catch (error) {
-    // Log error but don't fail the profile creation/update
-    logger.error({ 
-      error: error instanceof Error ? {
-        message: error.message,
-        name: error.name,
-        stack: error.stack
-      } : String(error),
-      profileId: profile.id 
-    }, 'Failed to analyze child profile photos - continuing without analysis');
-  }
+function triggerDescriptionTranslation(profile: ChildProfile): void {
+  const description = profile.aiGeneratedDescription;
+  if (!description) return;
+
+  translateChildDescription(profile).catch(err => {
+    logger.error(
+      { err, childId: profile.id, childName: profile.name },
+      'Child description translation failed — will use original description in prompts',
+    );
+  });
 }
 
 // Child profile CRUD
@@ -149,6 +82,8 @@ export async function createChildProfile(
   userId: string,
   data: Omit<NewChildProfile, 'userId'>
 ): Promise<ChildProfile> {
+  const childProfileRepo = getChildProfileRepository();
+
   // Check child_profiles_limit feature before creating
   const existingProfiles = await getChildProfiles(userId);
   const limit = await planService.getFeatureLimit(userId, 'child_profiles_limit');
@@ -163,32 +98,18 @@ export async function createChildProfile(
     userId
   };
   
-  const [profile] = await db
-    .insert(childProfiles)
-    .values(newProfile)
-    .returning();
+  const profile = await childProfileRepo.create(newProfile);
   
   logger.info({ userId, profileId: profile.id, name: profile.name }, 'Created child profile');
   
-  // Trigger character analysis asynchronously (don't wait for it)
-  if (config.features?.enableCharacterAnalysis !== false) {
-    analyzeChildPhotos(profile).catch(err => {
-      logger.error({ error: err, profileId: profile.id }, 'Background character analysis failed');
-    });
-  }
+  // Trigger async translation of description to English
+  triggerDescriptionTranslation(profile);
   
   return profile;
 }
 
 export async function getChildProfiles(userId: string): Promise<ChildProfile[]> {
-  const profiles = await db
-    .select()
-    .from(childProfiles)
-    .where(and(
-      eq(childProfiles.userId, userId),
-      eq(childProfiles.isActive, true)
-    ));
-  
+  const profiles = await getChildProfileRepository().findByUserId(userId);
   logger.debug({ userId, count: profiles.length }, 'Fetched child profiles');
   return profiles;
 }
@@ -197,17 +118,7 @@ export async function getChildProfileById(
   id: string,
   userId: string
 ): Promise<ChildProfile | null> {
-  const [profile] = await db
-    .select()
-    .from(childProfiles)
-    .where(and(
-      eq(childProfiles.id, id),
-      eq(childProfiles.userId, userId),
-      eq(childProfiles.isActive, true)
-    ))
-    .limit(1);
-  
-  return profile || null;
+  return getChildProfileRepository().findById(id, userId);
 }
 
 export async function updateChildProfile(
@@ -215,20 +126,15 @@ export async function updateChildProfile(
   userId: string,
   data: Partial<Omit<NewChildProfile, 'userId'>>
 ): Promise<ChildProfile> {
+  const childProfileRepo = getChildProfileRepository();
+
   // Ownership check
-  const existing = await getChildProfileById(id, userId);
+  const existing = await childProfileRepo.findById(id, userId);
   if (!existing) {
     throw new Error('Child profile not found');
   }
   
-  const [updated] = await db
-    .update(childProfiles)
-    .set(data)
-    .where(and(
-      eq(childProfiles.id, id),
-      eq(childProfiles.userId, userId)
-    ))
-    .returning();
+  const updated = await childProfileRepo.update(id, userId, data);
   
   if (!updated) {
     throw new Error('Failed to update child profile');
@@ -236,31 +142,25 @@ export async function updateChildProfile(
   
   logger.info({ userId, profileId: id }, 'Updated child profile');
   
-  // Trigger character analysis if reference photos changed
-  if (config.features?.enableCharacterAnalysis !== false && data.referencePhotos) {
-    analyzeChildPhotos(updated).catch(err => {
-      logger.error({ error: err, profileId: id }, 'Background character analysis failed');
-    });
+  // Re-translate description if it changed
+  if (data.aiGeneratedDescription) {
+    triggerDescriptionTranslation(updated);
   }
   
   return updated;
 }
 
 export async function deleteChildProfile(id: string, userId: string): Promise<void> {
+  const childProfileRepo = getChildProfileRepository();
+
   // Ownership check
-  const existing = await getChildProfileById(id, userId);
+  const existing = await childProfileRepo.findById(id, userId);
   if (!existing) {
     throw new Error('Child profile not found');
   }
   
-  // Soft delete: set isActive = false
-  await db
-    .update(childProfiles)
-    .set({ isActive: false })
-    .where(and(
-      eq(childProfiles.id, id),
-      eq(childProfiles.userId, userId)
-    ));
+  // Soft delete
+  await childProfileRepo.softDelete(id, userId);
   
   logger.info({ userId, profileId: id }, 'Deleted (soft) child profile');
 }

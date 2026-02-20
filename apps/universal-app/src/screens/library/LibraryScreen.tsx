@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, useWindowDimensions, ActivityIndicator } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NavigationProp } from '@react-navigation/native';
+import { View, Text, StyleSheet, FlatList, ScrollView, useWindowDimensions, ActivityIndicator, Platform } from 'react-native';
+import { useNavigation, useRoute, RouteProp, NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useStories, useDeleteStory } from '@/api/stories';
+import { useStoryThemes } from '@/api/dictionaries';
 import { theme } from '@/theme';
 import { StoryCard } from '@/components/StoryCard';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -19,15 +19,29 @@ export default function LibraryScreen() {
   
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const route = useRoute<RouteProp<MainDrawerParamList, 'Library'>>();
   const { width } = useWindowDimensions();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [audioFilter, setAudioFilter] = useState(false);
+  const [scenarioFilter, setScenarioFilter] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [storyToDelete, setStoryToDelete] = useState<{ id: string; title: string } | null>(null);
   
   // Ref to AudioFilterToggle for imperative control
   const audioToggleRef = useRef<AudioFilterToggleRef>(null);
+  
+  const { data: themesData } = useStoryThemes();
+  const scenarioCards = useMemo(() => themesData?.scenarioCards || [], [themesData?.scenarioCards]);
+  
+  // Apply scenario filter from route params (breadcrumb navigation)
+  useEffect(() => {
+    const paramScenarioId = route.params?.scenarioCardId;
+    if (paramScenarioId) {
+      setScenarioFilter(paramScenarioId);
+      setCurrentPage(1);
+    }
+  }, [route.params?.scenarioCardId]);
   
   console.log('[LibraryScreen] State:', { viewMode, audioFilter, currentPage });
   
@@ -71,11 +85,18 @@ export default function LibraryScreen() {
   // Calculate offset
   const offset = useMemo(() => (currentPage - 1) * ITEMS_PER_PAGE, [currentPage]);
   
+  // Handle scenario filter change
+  const handleScenarioFilterChange = useCallback((cardId: string | null) => {
+    setScenarioFilter(cardId);
+    setCurrentPage(1);
+  }, []);
+
   // Fetch stories with pagination
   const { data, isLoading, error } = useStories({
     limit: ITEMS_PER_PAGE,
     offset,
     hasAudio: audioFilter,
+    scenarioCardId: scenarioFilter,
   });
   
   console.log('[LibraryScreen] useStories result:', { 
@@ -117,20 +138,6 @@ export default function LibraryScreen() {
   const handleStoryPress = useCallback((storyId: string) => {
     navigation.navigate('Story', { storyId });
   }, [navigation]);
-  
-  const renderGridItem = useCallback(({ item }: { item: any }) => {
-    console.log('[LibraryScreen] renderGridItem called for:', item.id);
-    return (
-      <View style={{ width: `${100 / numColumns - 2}%`, marginBottom: theme.spacing[3] }}>
-        <StoryCard 
-          story={item}
-          onPress={handleStoryPress}
-          onDelete={handleDelete}
-          variant="grid"
-        />
-      </View>
-    );
-  }, [numColumns, handleStoryPress, handleDelete]);
   
   const renderListItem = useCallback(({ item }: { item: any }) => {
     console.log('[LibraryScreen] renderListItem called for:', item.id);
@@ -175,6 +182,9 @@ export default function LibraryScreen() {
           onToggleAudioFilter={handleAudioFilterToggle}
           onPageChange={handlePageChange}
           t={t}
+          scenarioCards={scenarioCards}
+          selectedScenarioId={scenarioFilter}
+          onScenarioChange={handleScenarioFilterChange}
         />
         <View style={styles.centerContainer}>
           <Text style={styles.emptyText}>No stories yet</Text>
@@ -184,7 +194,7 @@ export default function LibraryScreen() {
     );
   }
 
-  // Grid view with numColumns
+  // Grid view with CSS Grid (web) or FlatList (native)
   if (viewMode === 'grid') {
     return (
       <View style={styles.container}>
@@ -198,21 +208,28 @@ export default function LibraryScreen() {
           onToggleAudioFilter={handleAudioFilterToggle}
           onPageChange={handlePageChange}
           t={t}
+          scenarioCards={scenarioCards}
+          selectedScenarioId={scenarioFilter}
+          onScenarioChange={handleScenarioFilterChange}
         />
-      <FlatList
-        data={stories}
-        keyExtractor={(item) => item.id}
-        numColumns={numColumns}
-        key={`grid-${numColumns}`}
-        renderItem={renderGridItem}
-        contentContainerStyle={styles.grid}
-        columnWrapperStyle={styles.columnWrapper}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={10}
-        updateCellsBatchingPeriod={50}
-        windowSize={7}
-        initialNumToRender={12}
-      />
+        <ScrollView contentContainerStyle={styles.grid}>
+          <View
+            style={[
+              styles.gridContainer,
+              Platform.OS === 'web' && { gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any,
+            ]}
+          >
+            {stories.map((story) => (
+              <StoryCard
+                key={story.id}
+                story={story}
+                onPress={handleStoryPress}
+                onDelete={handleDelete}
+                variant="grid"
+              />
+            ))}
+          </View>
+        </ScrollView>
         
         {/* Confirm Delete Dialog */}
         <ConfirmDialog
@@ -242,6 +259,9 @@ export default function LibraryScreen() {
         onToggleAudioFilter={handleAudioFilterToggle}
         onPageChange={handlePageChange}
         t={t}
+        scenarioCards={scenarioCards}
+        selectedScenarioId={scenarioFilter}
+        onScenarioChange={handleScenarioFilterChange}
       />
       <FlatList
         data={stories}
@@ -278,12 +298,19 @@ const styles = StyleSheet.create({
   grid: {
     padding: theme.spacing[4],
   },
+  gridContainer: Platform.select({
+    web: {
+      display: 'grid' as any,
+      gap: theme.spacing[4],
+    },
+    default: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      gap: theme.spacing[4],
+    },
+  }),
   list: {
     padding: theme.spacing[4],
-  },
-  columnWrapper: {
-    justifyContent: 'flex-start',
-    gap: theme.spacing[3],
   },
   centerContainer: {
     flex: 1,

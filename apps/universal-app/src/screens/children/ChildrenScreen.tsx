@@ -22,6 +22,9 @@ export default function ChildrenScreen() {
     interests?: any;
     sensitivities?: any;
     familyCast?: Record<string, string>;
+    aiGeneratedDescription?: string;
+    descriptionLanguage?: string;
+    turnaroundSheet?: { url: string; generatedAt: string };
   } | undefined>();
 
   if (isLoading) {
@@ -100,6 +103,9 @@ export default function ChildrenScreen() {
                     interests: child.interests,
                     sensitivities: child.sensitivities,
                     familyCast: child.familyCast,
+                    aiGeneratedDescription: child.aiGeneratedDescription,
+                    descriptionLanguage: child.descriptionLanguage,
+                    turnaroundSheet: child.turnaroundSheet,
                   };
                   console.log('[ChildrenScreen] Opening edit for child:', {
                     id: child.id,

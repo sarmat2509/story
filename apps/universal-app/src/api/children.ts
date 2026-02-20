@@ -103,3 +103,22 @@ export const useAnalyzeChild = () => {
     },
   });
 };
+
+// Generate turnaround model sheet for child profile
+export const useGenerateChildTurnaround = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { childId: string; description?: string }) => {
+      const response = await apiClient.post<{
+        status: string;
+        turnaroundSheet: { url: string; generatedAt: string };
+      }>(`/api/v1/children/${params.childId}/turnaround`, {
+        description: params.description,
+      });
+      return response.data.turnaroundSheet;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['children'] });
+    },
+  });
+};

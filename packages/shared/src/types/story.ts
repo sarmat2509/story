@@ -66,13 +66,23 @@ export interface ScenarioCard {
 }
 
 /**
+ * Structured visual description for image generation
+ */
+export interface SceneVisual {
+  setting: string;
+  cameraComposition: string;
+  lighting: string;
+}
+
+/**
  * Story Scene structure for database storage
  * Prepared for M4 image generation
  */
 export interface StoryScene {
   sceneId: number;
   text: string;
-  visualPrompt: string;
+  sceneVisual?: SceneVisual; // Structured visual description for image generation
+  visualPrompt?: string; // Deprecated: kept for backward compatibility with old stories
   imageUrl?: string | null;
   imageGeneratedAt?: string | null;
 }

@@ -2,12 +2,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CreateCharacterInput } from '@kazka/shared';
 import apiClient from './client';
 
-interface Character {
+export interface Character {
   id: string;
   name: string;
   type: 'pet' | 'family' | 'friend' | 'imaginary_friend';
   appearance: any;
   createdAt: string;
+  referencePhotos?: Array<{ url: string; uploadedAt: string }>;
+  turnaroundSheet?: {
+    url: string;
+    generatedAt: string;
+    sourcePhotoUrl: string;
+  };
 }
 
 interface AnalysisResult {
@@ -92,6 +98,25 @@ export const useDeleteCharacter = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       await apiClient.delete(`/api/v1/characters/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['characters'] });
+    },
+  });
+};
+
+// Generate turnaround model sheet for imaginary character
+export const useGenerateTurnaround = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { characterId: string; description?: string }) => {
+      const response = await apiClient.post<{
+        status: string;
+        turnaroundSheet: { url: string; generatedAt: string };
+      }>(`/api/v1/characters/${params.characterId}/turnaround`, {
+        description: params.description,
+      });
+      return response.data.turnaroundSheet;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['characters'] });

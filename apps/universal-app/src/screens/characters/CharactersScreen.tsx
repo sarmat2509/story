@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
@@ -8,9 +8,17 @@ import { CharacterCard } from './components/CharacterCard';
 import { CharacterFormModal } from '@/components/CharacterFormModal';
 import { ReferencePhoto } from '@kazka/shared';
 
+function useColumns(): number {
+  const { width } = useWindowDimensions();
+  if (width >= 1024) return 4;
+  if (width >= 768) return 3;
+  return 2;
+}
+
 export default function CharactersScreen() {
   const { t } = useTranslation();
   const { data: characters, isLoading, error } = useCharacters();
+  const columns = useColumns();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<{
     id: string;
@@ -20,6 +28,7 @@ export default function CharactersScreen() {
     referencePhotos?: ReferencePhoto[];
     appearanceTraits?: any;
     personality?: any;
+    turnaroundSheet?: { url: string; generatedAt: string };
   } | undefined>();
   
   const handleAddCharacter = () => {
@@ -36,6 +45,7 @@ export default function CharactersScreen() {
       referencePhotos: character.referencePhotos || [],
       appearanceTraits: character.appearanceTraits,
       personality: character.personality,
+      turnaroundSheet: character.turnaroundSheet || undefined,
     });
     setIsModalVisible(true);
   };
@@ -65,7 +75,7 @@ export default function CharactersScreen() {
         {/* Characters Grid */}
         {characters && characters.length > 0 ? (
           <>
-            <View style={styles.grid}>
+            <View style={[styles.grid, Platform.OS === 'web' && { gridTemplateColumns: `repeat(${columns}, 1fr)` } as any]}>
               {characters.map((character) => (
                 <CharacterCard 
                   key={character.id}
@@ -146,11 +156,17 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.inverse,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing[4],
-  },
+  grid: Platform.select({
+    web: {
+      display: 'grid' as any,
+      gap: theme.spacing[4],
+    },
+    default: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      gap: theme.spacing[4],
+    },
+  }),
   emptyState: {
     flex: 1,
     justifyContent: 'center',

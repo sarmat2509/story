@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -17,7 +17,7 @@ import { CharactersForm } from './components/CharactersForm';
 import { useStoryThemes } from '@/api/dictionaries';
 import { useChildren } from '@/api/children';
 import { useCharacters } from '@/api/characters';
-import { useCreateStory, useStoryStatus } from '@/api/stories';
+import { useCreateStory, useStoryStatus, useRetryStoryImages } from '@/api/stories';
 
 export default function WizardScreen() {
   const { t } = useTranslation();
@@ -47,6 +47,7 @@ export default function WizardScreen() {
   const { data: children, isLoading: childrenLoading } = useChildren();
   const { data: characters, isLoading: charactersLoading } = useCharacters();
   const createStory = useCreateStory();
+  const retryStoryImages = useRetryStoryImages();
   const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
   
   // Set default language from i18n
@@ -60,7 +61,7 @@ export default function WizardScreen() {
   
   const handleGenerate = async () => {
     if (!storyLanguage) {
-      alert('Будь ласка, оберіть мову історії');
+      Alert.alert(t('common.error') || 'Error', t('wizard.language_required'));
       return;
     }
     
@@ -85,14 +86,26 @@ export default function WizardScreen() {
     } catch (error) {
       console.error('Failed to create story:', error);
       setIsGenerating(false);
-      alert('Виникла помилка при створенні історії. Спробуйте ще раз.');
+      Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
     }
   };
   
-  const handleRetry = () => {
-    setRequestId(null);
-    setIsGenerating(false);
-    handleGenerate();
+  const handleRetry = async () => {
+    if (storyStatus?.storyId && requestId) {
+      try {
+        setIsGenerating(true);
+        await retryStoryImages.mutateAsync(requestId);
+        // Modal stays open, requestId unchanged — useStoryStatus continues polling
+      } catch (error) {
+        console.error('Retry images failed:', error);
+        setIsGenerating(false);
+        Alert.alert(t('common.error') || 'Error', t('wizard.retry_error'));
+      }
+    } else {
+      setRequestId(null);
+      setIsGenerating(false);
+      handleGenerate();
+    }
   };
   
   const handleCloseModal = () => {
@@ -104,7 +117,6 @@ export default function WizardScreen() {
       // Navigate to the newly created story
       navigation.navigate('Story', { storyId });
     } else {
-      // Fallback to Library if no storyId
       navigation.navigate('Library');
     }
   };

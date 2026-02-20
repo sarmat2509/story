@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Platform, Switch, Alert, ActivityIndicator } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Platform, Switch, Alert, ActivityIndicator, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
-import { useCreateChild, useUpdateChild, useAnalyzeChild } from '@/api/children';
+import { useCreateChild, useUpdateChild, useAnalyzeChild, useGenerateChildTurnaround } from '@/api/children';
 import { CreateChildProfileSchema, LOCALE_IDS, ReferencePhoto } from '@kazka/shared';
 import { UploadPhotoResult } from '@/utils/uploadPhoto';
 import { storage } from '@/utils/storage';
@@ -51,6 +51,9 @@ interface Props {
     interests?: Interest[];
     sensitivities?: any;
     familyCast?: Record<string, string>;
+    aiGeneratedDescription?: string;
+    descriptionLanguage?: string;
+    turnaroundSheet?: { url: string; generatedAt: string };
   };
 }
 
@@ -59,10 +62,13 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
   const createChild = useCreateChild();
   const updateChild = useUpdateChild();
   const analyzeChild = useAnalyzeChild();
+  const generateTurnaround = useGenerateChildTurnaround();
   
   // Wizard state
   const [currentStep, setCurrentStep] = useState(1);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  // Turnaround sheet (read-only, from backend)
+  const [turnaroundSheetUrl, setTurnaroundSheetUrl] = useState<string | undefined>(undefined);
   
   // Basic fields
   const [name, setName] = useState('');
@@ -75,8 +81,9 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
   // Photos
   const [photos, setPhotos] = useState<UploadPhotoResult[]>([]);
 
-  // Description (AI-generated)
+  // Description (AI-generated, in UI language)
   const [description, setDescription] = useState('');
+  const [descriptionLanguage, setDescriptionLanguage] = useState<string | undefined>(undefined);
 
   // Appearance
   const [appearance, setAppearance] = useState({
@@ -111,7 +118,6 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
   useEffect(() => {
     if (visible) {
       setCurrentStep(1);
-      setIsAnalyzing(false);
       
       console.log('[ChildFormModal] initialData:', {
         hasInitialData: !!initialData,
@@ -147,6 +153,7 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
         } else {
           setDescription('');
         }
+        setDescriptionLanguage((initialData as any).descriptionLanguage || undefined);
         
         // Load appearance traits
         if (initialData.appearanceTraits) {
@@ -210,6 +217,9 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
         } else {
           setFamilyCast({});
         }
+
+        // Load turnaround sheet URL if available
+        setTurnaroundSheetUrl(initialData.turnaroundSheet?.url || undefined);
         
         // Skip to step 2 if editing and has description/appearance
         if (childId && (initialData.appearanceTraits || initialData.personality)) {
@@ -223,6 +233,7 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
         setLanguages([]);
         setPhotos([]);
         setDescription('');
+        setDescriptionLanguage(undefined);
         setAppearance({
           hairColor: undefined,
           hairLength: undefined,
@@ -242,6 +253,7 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
           avoidTopics: []
         });
         setFamilyCast({});
+        setTurnaroundSheetUrl(undefined);
       }
       setErrors({});
     }
@@ -258,7 +270,7 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
   };
 
   // Handler for Step 1 "Continue" button
-  const handleContinue = async () => {
+  const handleContinue = () => {
     // Basic validation
     if (!name.trim()) {
       Alert.alert(t('error') || 'Error', t('child_form.name_required') || 'Name is required');
@@ -283,43 +295,34 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
       return;
     }
 
-    // If no photos, just move to step 2
-    const uploadedPhotoUrls = photos
-      .filter(photo => !photo.isUploading && photo.url && photo.url.startsWith('http'))
-      .map(photo => photo.url);
+    // Move to step 2
+    setCurrentStep(2);
+  };
 
-    if (uploadedPhotoUrls.length === 0) {
-      setCurrentStep(2);
-      return;
-    }
+  // Handler for "Generate Description" button on Step 2
+  const handleAnalyzePhotos = async () => {
+    const uploadedPhotos = photos
+      .filter(p => !p.isUploading && p.url && p.url.startsWith('http'))
+      .map(p => p.url);
 
-    // Analyze photos
+    if (uploadedPhotos.length === 0) return;
+
     try {
-      setIsAnalyzing(true);
-
-      // Get user language with fallback
+      // Get user's language
       let userLanguage = i18n.language;
-      if (!userLanguage) {
-        try {
-          userLanguage = await storage.getLanguage() || 'uk';
-        } catch {
-          userLanguage = 'uk';
-        }
+      if (!userLanguage || userLanguage === 'en-US') {
+        const savedLanguage = await storage.getLanguage();
+        userLanguage = savedLanguage || 'uk';
       }
-
-      console.log('[ChildFormModal] Analyzing with language:', userLanguage);
 
       const result = await analyzeChild.mutateAsync({
-        photos: uploadedPhotoUrls,
-        language: userLanguage
+        photos: uploadedPhotos,
+        language: userLanguage,
       });
 
-      console.log('[ChildFormModal] Analysis result:', result);
-
-      // Populate description if present
-      if (result.description) {
-        setDescription(result.description);
-      }
+      // Populate description and remember analysis language
+      setDescription(result.description || '');
+      setDescriptionLanguage(userLanguage);
 
       // Populate appearance fields if present
       if (result.appearance) {
@@ -332,17 +335,12 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
           distinctiveFeatures: (result.appearance.distinctiveFeatures || []) as DistinctiveFeature[]
         });
       }
-
-      setIsAnalyzing(false);
-      setCurrentStep(2);
     } catch (error) {
-      console.error('[ChildFormModal] Analysis failed:', error);
-      setIsAnalyzing(false);
+      console.error('[ChildFormModal] Photo analysis failed:', error);
       Alert.alert(
         t('child_form.analysis_failed_title') || 'Analysis Failed',
-        t('child_form.analysis_failed_message') || 'Could not analyze photos. You can still fill in details manually.'
+        t('child_form.analysis_failed_message') || 'Could not analyze photos. You can fill in details manually.'
       );
-      setCurrentStep(2);
     }
   };
 
@@ -398,6 +396,7 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
         languages,
         referencePhotos: uploadedPhotos.length > 0 ? uploadedPhotos : undefined,
         aiGeneratedDescription: description || undefined,
+        descriptionLanguage: descriptionLanguage || undefined,
         appearanceTraits: Object.keys(appearanceData).length > 0 ? appearanceData : undefined,
         personality: personalityData,
         interests: interests.length > 0 ? interests : undefined,
@@ -461,16 +460,6 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
               <Ionicons name="close" size={24} color={theme.colors.text.primary} />
             </TouchableOpacity>
           </View>
-
-          {/* Loading overlay for analysis */}
-          {isAnalyzing && (
-            <View style={styles.analyzingOverlay}>
-              <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
-              <Text style={styles.analyzingText}>
-                {t('child_form.analyzing_photos')}
-              </Text>
-            </View>
-          )}
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {/* STEP 1: Basic Information + Photos */}
@@ -621,12 +610,118 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
                 value={description}
                 onChangeText={setDescription}
                 placeholder={t('child_form.description_placeholder')}
+                placeholderTextColor={theme.colors.text.disabled}
                 multiline
-                numberOfLines={3}
+                numberOfLines={4}
+                textAlignVertical="top"
               />
               {description && (
                 <Text style={styles.hint}>
                   {t('child_form.generated_by_ai_hint')}
+                </Text>
+              )}
+              {/* Generate / Regenerate Description button */}
+              {photos.some(p => !p.isUploading && p.url?.startsWith('http')) ? (
+                analyzeChild.isPending ? (
+                  <View style={styles.turnaroundGenerating}>
+                    <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+                    <Text style={styles.turnaroundGeneratingText}>
+                      {t('child_form.analyzing_photos')}
+                    </Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[
+                      styles.turnaroundButton,
+                      description ? styles.turnaroundButtonSecondary : undefined,
+                    ]}
+                    onPress={handleAnalyzePhotos}
+                  >
+                    <Ionicons
+                      name={description ? 'refresh-outline' : 'sparkles-outline'}
+                      size={18}
+                      color={description ? theme.colors.interactive.primary : theme.colors.text.inverse}
+                    />
+                    <Text
+                      style={[
+                        styles.turnaroundButtonText,
+                        description ? styles.turnaroundButtonTextSecondary : undefined,
+                      ]}
+                    >
+                      {description
+                        ? t('child_form.regenerate_description')
+                        : t('child_form.generate_description')}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              ) : (
+                <Text style={styles.hint}>
+                  {t('child_form.description_upload_photos_first')}
+                </Text>
+              )}
+            </View>
+
+            {/* Turnaround Sheet */}
+            <View style={styles.field}>
+              <Text style={styles.label}>{t('child_form.turnaround_sheet') || '3D Model Sheet'}</Text>
+              {turnaroundSheetUrl && (
+                <View style={styles.turnaroundContainer}>
+                  <Image
+                    source={{ uri: turnaroundSheetUrl }}
+                    style={styles.turnaroundImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              )}
+              {childId ? (
+                generateTurnaround.isPending ? (
+                  <View style={styles.turnaroundGenerating}>
+                    <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+                    <Text style={styles.turnaroundGeneratingText}>
+                      {t('child_form.generating_turnaround') || 'Generating 3D model...'}
+                    </Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[
+                      styles.turnaroundButton,
+                      turnaroundSheetUrl && styles.turnaroundButtonSecondary,
+                    ]}
+                    onPress={async () => {
+                      try {
+                        const result = await generateTurnaround.mutateAsync({
+                          childId,
+                          description: description || undefined,
+                        });
+                        setTurnaroundSheetUrl(result.url);
+                      } catch (error) {
+                        Alert.alert(
+                          t('error') || 'Error',
+                          t('child_form.turnaround_error') || 'Failed to generate model sheet',
+                        );
+                      }
+                    }}
+                  >
+                    <Ionicons
+                      name={turnaroundSheetUrl ? 'refresh-outline' : 'image-outline'}
+                      size={18}
+                      color={turnaroundSheetUrl ? theme.colors.interactive.primary : theme.colors.text.inverse}
+                    />
+                    <Text
+                      style={[
+                        styles.turnaroundButtonText,
+                        turnaroundSheetUrl && styles.turnaroundButtonTextSecondary,
+                      ]}
+                    >
+                      {turnaroundSheetUrl
+                        ? (t('child_form.regenerate_turnaround') || 'Regenerate 3D Model')
+                        : (t('child_form.generate_turnaround') || 'Generate 3D Model')}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              ) : (
+                <Text style={styles.hint}>
+                  {t('child_form.turnaround_save_first') || 'Save the profile first to generate a 3D model sheet'}
                 </Text>
               )}
             </View>
@@ -799,7 +894,7 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
             <TouchableOpacity
               style={[styles.button, styles.saveButton]}
               onPress={handleContinue}
-              disabled={isAnalyzing}
+              disabled={!name.trim() || photos.some(p => p.isUploading)}
             >
               <Text style={styles.saveButtonText}>
                 {t('child_form.continue_button') || 'Continue'}
@@ -866,24 +961,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
     marginTop: theme.spacing[1],
-  },
-  analyzingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-    borderRadius: theme.borders.radius.lg,
-  },
-  analyzingText: {
-    marginTop: theme.spacing[3],
-    fontSize: theme.typography.fontSize.base,
-    color: theme.colors.text.inverse,
-    fontWeight: theme.typography.fontWeight.medium,
   },
   closeButton: {
     padding: theme.spacing[1],
@@ -1033,5 +1110,52 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     marginTop: theme.spacing[2],
     fontStyle: 'italic',
+  },
+  turnaroundContainer: {
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    borderRadius: theme.borders.radius.md,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.background.secondary,
+    marginBottom: theme.spacing[3],
+  },
+  turnaroundImage: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+  },
+  turnaroundButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  turnaroundButtonSecondary: {
+    backgroundColor: theme.colors.background.secondary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.interactive.primary,
+  },
+  turnaroundButtonText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
+  },
+  turnaroundButtonTextSecondary: {
+    color: theme.colors.interactive.primary,
+  },
+  turnaroundGenerating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[3],
+  },
+  turnaroundGeneratingText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    fontWeight: theme.typography.fontWeight.medium,
   },
 });

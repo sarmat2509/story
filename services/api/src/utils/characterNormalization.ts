@@ -1,8 +1,11 @@
 /**
  * Character Name Normalization Utilities
- * Ensures consistent character names across LLM outputs and database
+ * Ensures consistent character names across LLM outputs and database.
+ * Supports cross-script matching (e.g. Ukrainian "Емілія" <-> Latin "Emilia")
+ * using universal transliteration via any-ascii.
  */
 
+import anyAscii from 'any-ascii';
 import type { CharacterData, ChildProfileData } from './types';
 
 export interface NormalizedCharacter {
@@ -28,8 +31,21 @@ export function normalizeCharacterName(name: string): string {
 }
 
 /**
+ * Convert any name to a script-independent ASCII phonetic key.
+ * Uses any-ascii for universal transliteration (Ukrainian, Russian, French, etc.).
+ * Collapses repeated chars so "Емілія" -> "emiliia" -> "emilia" matches "Emilia" -> "emilia".
+ */
+export function toPhoneticKey(name: string): string {
+  const ascii = anyAscii(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, ''); // strip non-alphanumeric
+  return ascii.replace(/(.)\1+/g, '$1'); // collapse repeated chars
+}
+
+/**
  * Build character registry from all sources (user + child + LLM)
- * Returns Map: normalizedName -> full character data
+ * Returns Map: normalizedName -> full character data.
+ * Also stores phonetic key aliases for cross-script matching.
  */
 export function buildCharacterRegistry(
   userCharacters: CharacterData[],
@@ -37,11 +53,22 @@ export function buildCharacterRegistry(
   llmCharacters: any[]
 ): Map<string, NormalizedCharacter> {
   const registry = new Map<string, NormalizedCharacter>();
+
+  function addEntry(name: string, entry: NormalizedCharacter) {
+    const normalized = entry.normalizedName;
+    registry.set(normalized, entry);
+
+    // Also store phonetic key alias for cross-script matching
+    const phoneticKey = toPhoneticKey(name);
+    if (phoneticKey && phoneticKey !== normalized && !registry.has(phoneticKey)) {
+      registry.set(phoneticKey, { ...entry });
+    }
+  }
   
   // Add user-provided characters
   for (const char of userCharacters) {
     const normalized = normalizeCharacterName(char.name);
-    registry.set(normalized, {
+    addEntry(char.name, {
       originalName: char.name,
       normalizedName: normalized,
       description: char.description,
@@ -53,7 +80,7 @@ export function buildCharacterRegistry(
   // Add child profile
   if (childProfile) {
     const normalized = normalizeCharacterName(childProfile.name);
-    registry.set(normalized, {
+    addEntry(childProfile.name, {
       originalName: childProfile.name,
       normalizedName: normalized,
       description: (childProfile as any).aiGeneratedDescription,
@@ -65,7 +92,7 @@ export function buildCharacterRegistry(
   for (const char of llmCharacters) {
     const normalized = normalizeCharacterName(char.name);
     if (!registry.has(normalized)) { // Don't override user characters
-      registry.set(normalized, {
+      addEntry(char.name, {
         originalName: char.name,
         normalizedName: normalized,
         description: char.description,
@@ -79,8 +106,9 @@ export function buildCharacterRegistry(
 }
 
 /**
- * Match LLM character names to registry (fuzzy matching)
- * Returns normalized names for consistent storage
+ * Match LLM character names to registry.
+ * First tries exact normalized match, then falls back to phonetic key
+ * for cross-script matching (e.g. "Emilia" matching "Емілія" in registry).
  */
 export function matchCharacterNames(
   llmNames: string[],
@@ -89,7 +117,12 @@ export function matchCharacterNames(
   return llmNames
     .map(name => {
       const normalized = normalizeCharacterName(name);
-      const match = registry.get(normalized);
-      return match ? match.normalizedName : normalized; // Return normalized form
+      let match = registry.get(normalized);
+      if (!match) {
+        // Phonetic fallback for cross-script matching
+        const phonetic = toPhoneticKey(name);
+        match = registry.get(phonetic);
+      }
+      return match ? match.normalizedName : normalized;
     });
 }

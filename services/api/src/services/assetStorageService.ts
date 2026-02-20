@@ -18,7 +18,7 @@ interface UploadUserPhotoParams {
   buffer: Buffer;
   mimeType: string;
   userId: string;
-  photoType: 'profile' | 'character' | 'child';
+  photoType: 'profile' | 'character' | 'child' | 'character_turnaround';
 }
 
 interface AssetStorageResult {
@@ -352,16 +352,10 @@ export class AssetStorageService {
   async getAssetBuffer(assetId: string): Promise<Buffer> {
     await this.ensureInitialized();
     
-    const { assets } = await import('../db/schema');
-    const { eq } = await import('drizzle-orm');
-    const { db } = await import('../db');
+    const { getAssetRepository } = await import('../repositories');
     
-    // Get asset metadata from database
-    const [asset] = await db
-      .select()
-      .from(assets)
-      .where(eq(assets.id, assetId))
-      .limit(1);
+    // Get asset metadata from database via repository
+    const asset = await getAssetRepository().findById(assetId);
 
     if (!asset) {
       throw new Error(`Asset not found: ${assetId}`);
@@ -440,12 +434,13 @@ export class AssetStorageService {
     // which proxies to API server: http://localhost:3000/api/v1/assets/development/...
     const storageUrl = `/api/v1/assets/${storagePath}`;
     
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    // Generate a properly signed URL (with HMAC token + expiry)
+    const { signedUrl, expiresAt } = this.generateLocalUrl(storagePath, 24);
     
     return {
       storagePath,
       storageUrl,
-      signedUrl: storageUrl,
+      signedUrl,
       signedUrlExpiresAt: expiresAt,
       fileSizeBytes: buffer.length,
     };
@@ -457,9 +452,17 @@ export class AssetStorageService {
     
     // Generate HMAC signature
     const crypto = require('crypto');
-    const secret = process.env.JWT_SECRET || 'dev-secret-key';
+    const secret = process.env.JWT_SECRET;
+    if (!secret || secret.length < 32) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('JWT_SECRET must be set and at least 32 characters in production');
+      }
+      // In development, use a deterministic dev-only key with a warning
+      logger.warn('JWT_SECRET is missing or too short — using dev-only fallback. Never use this in production.');
+    }
+    const signingKey = secret && secret.length >= 32 ? secret : 'dev-secret-key-do-not-use-in-production!';
     const token = crypto
-      .createHmac('sha256', secret)
+      .createHmac('sha256', signingKey)
       .update(`${storagePath}:${expiresTimestamp}`)
       .digest('hex');
     

@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
+import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
 import { usePlansWithAuth } from '@/api/plans';
@@ -9,7 +10,7 @@ import { usePlansWithAuth } from '@/api/plans';
 export default function ProfileScreen() {
   const { t } = useTranslation();
   const { user, logout } = useAuthStore();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { data: plans, isLoading: plansLoading } = usePlansWithAuth();
 
   // Get current subscription plan
@@ -74,7 +75,7 @@ export default function ProfileScreen() {
         {Platform.OS !== 'web' && (
           <TouchableOpacity 
             style={styles.settingButton}
-            onPress={() => navigation.navigate('LanguageSettings' as any)}
+            onPress={() => navigation.navigate('LanguageSettings')}
           >
             <Text style={styles.settingText}>{t('profile.language_settings')}</Text>
             <Text style={styles.settingArrow}>›</Text>

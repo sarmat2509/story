@@ -4,9 +4,12 @@ import * as childProfileService from '../services/childProfileService';
 import * as planService from '../services/planService';
 import { CreateChildProfileSchema, UpdateChildProfileSchema } from '@kazka/shared';
 import { logger } from '../utils/logger';
+import { signReferencePhotoUrls, signReferencePhotoUrlsBatch } from '../utils/signPhotoUrls';
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
+import { generateChildTurnaroundSheet, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
+import { getAssetStorageService } from '../services/assetStorageService';
 
 const router = Router();
 
@@ -87,8 +90,11 @@ router.get('/', requireAuth, async (req, res) => {
     const limit = await planService.getFeatureLimit(userId, 'child_profiles_limit');
     const canCreateMore = limit === null || profiles.length < limit;
     
+    // Sign photo URLs so <Image> can load them without auth headers
+    const signedProfiles = await signReferencePhotoUrlsBatch(profiles);
+    
     // Add computed age data to each profile
-    const profilesWithAge = profiles.map(profile => {
+    const profilesWithAge = signedProfiles.map(profile => {
       const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
       return {
         ...profile,
@@ -138,10 +144,13 @@ router.post('/', requireAuth, async (req, res) => {
     // Create profile (feature check happens in service)
     const profile = await childProfileService.createChildProfile(userId, data);
     
+    // Sign photo URLs in the response
+    const signedProfile = await signReferencePhotoUrls(profile);
+    
     // Add computed age data
-    const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
+    const ageData = childProfileService.getAgeData(new Date(signedProfile.birthDate));
     const profileWithAge = {
-      ...profile,
+      ...signedProfile,
       age: {
         years: ageData.ageYears,
         months: ageData.remainingMonths,
@@ -194,10 +203,13 @@ router.patch('/:id', requireAuth, async (req, res) => {
     // Update profile (ownership check happens in service)
     const profile = await childProfileService.updateChildProfile(id, userId, data);
     
+    // Sign photo URLs in the response
+    const signedProfile = await signReferencePhotoUrls(profile);
+    
     // Add computed age data
-    const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
+    const ageData = childProfileService.getAgeData(new Date(signedProfile.birthDate));
     const profileWithAge = {
-      ...profile,
+      ...signedProfile,
       age: {
         years: ageData.ageYears,
         months: ageData.remainingMonths,
@@ -225,6 +237,93 @@ router.patch('/:id', requireAuth, async (req, res) => {
     res.status(500).json({
       status: 'error',
       error: 'Failed to update child profile'
+    });
+  }
+});
+
+// POST /api/v1/children/:id/turnaround - Generate turnaround model sheet for child
+router.post('/:id/turnaround', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    // Check feature flag
+    if (!isTurnaroundSheetEnabled()) {
+      return res.status(501).json({
+        status: 'error',
+        error: 'Turnaround sheet generation is not enabled',
+      });
+    }
+
+    // Ownership + existence check
+    const child = await childProfileService.getChildProfileById(id, userId);
+    if (!child) {
+      return res.status(404).json({
+        status: 'error',
+        error: 'Child profile not found',
+      });
+    }
+
+    // Must have at least one reference photo
+    const referencePhotos = child.referencePhotos as Array<{ url?: string }> | undefined;
+    if (!referencePhotos || !Array.isArray(referencePhotos) || referencePhotos.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'Child profile must have at least one reference photo',
+      });
+    }
+
+    const firstPhoto = referencePhotos.find(p => p && p.url);
+    if (!firstPhoto?.url) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'No valid reference photo found',
+      });
+    }
+
+    // Use description from request body (possibly unsaved edits) or fall back to DB
+    const aiDescription = req.body.description
+      || child.aiGeneratedDescription
+      || undefined;
+
+    logger.info({
+      userId,
+      childId: id,
+      childName: child.name,
+      hasBodyDescription: !!req.body.description,
+    }, 'Generating child turnaround sheet on demand');
+
+    // Generate synchronously (awaited)
+    const result = await generateChildTurnaroundSheet({
+      childId: id,
+      userId,
+      referencePhotoUrl: firstPhoto.url,
+      childName: child.name,
+      aiDescription,
+    });
+
+    // Sign the turnaround URL so the frontend can load it
+    const storageService = getAssetStorageService();
+    const { signedUrl } = await storageService.generateSignedUrl(result.url, 24);
+
+    res.json({
+      status: 'success',
+      turnaroundSheet: {
+        url: signedUrl,
+        generatedAt: result.generatedAt,
+      },
+    });
+  } catch (error) {
+    logger.error({
+      err: error instanceof Error
+        ? { message: error.message, name: error.name, stack: error.stack }
+        : String(error),
+      userId: req.user?.id,
+      childId: req.params.id,
+    }, 'Error generating child turnaround sheet');
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to generate turnaround model sheet',
     });
   }
 });

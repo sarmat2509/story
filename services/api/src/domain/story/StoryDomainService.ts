@@ -12,62 +12,26 @@
 
 import type { StorySpec, EpisodeOutline, EpisodeText, PolicyProfile, SceneValidationResult } from '../../ai/types';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
-import { buildOutlinePrompt, buildTextPrompt, buildValidationPrompt, buildRegenerationPrompt, buildContinuationPrompt } from '../../prompts/text';
-import { buildDirectTextPrompt } from '../../prompts/text/DirectTextPrompt';
+import { buildDirectTextPrompt, buildTextPrompt, buildValidationPrompt, buildRegenerationPrompt, buildContinuationPrompt } from '../../prompts/text';
 import { logger } from '../../utils/logger';
-import { OUTLINE_SCHEMA, TEXT_SCHEMA, VALIDATION_SCHEMA, SCENE_SCHEMA } from './schemas';
+import { TEXT_SCHEMA, VALIDATION_SCHEMA, SCENE_SCHEMA } from './schemas';
 
 export class StoryDomainService {
   constructor(private textProvider: ITextProvider) {}
 
   /**
-   * Generate story outline (structure + scene planning)
-   * Business logic: determines scene count based on age group
+   * Generate story text directly (1-step process)
+   * Business logic: determines scene count and vocabulary level based on age group
    */
-  async generateOutline(spec: StorySpec): Promise<EpisodeOutline> {
-    logger.info({ ageGroup: spec.ageGroup, language: spec.language }, 'Generating story outline');
+  async generateText(spec: StorySpec): Promise<EpisodeText> {
+    logger.info({ ageGroup: spec.ageGroup, language: spec.language }, 'Generating story text');
 
-    // Business logic: determine scene count for age group
+    // Business logic: determine scene count and vocabulary level
     const sceneCount = this.getSceneCount(spec.ageGroup);
-
-    // Build prompt using prompt function
-    const prompt = buildOutlinePrompt({ spec, sceneCount });
-    
-    // Log the FULL prompt being sent
-    logger.debug({ 
-      promptLength: prompt.length,
-      prompt: prompt // Full prompt for debugging
-    }, 'Outline generation prompt');
-
-    try {
-      // Call provider with provider-agnostic request
-      const outline = await this.textProvider.generateStructured<EpisodeOutline>({
-        prompt,
-        schema: OUTLINE_SCHEMA,
-        temperature: 0.9,
-        // No maxTokens limit - let the model generate as much as needed
-      });
-
-      logger.info({ sceneCount: outline.scenes.length }, 'Outline generated successfully');
-      return outline;
-    } catch (error) {
-      logger.error({ error }, 'Failed to generate outline');
-      throw new Error(`Outline generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Generate full story text from outline (2-step process)
-   * Business logic: determines vocabulary level based on age group
-   */
-  async generateText(spec: StorySpec, outline: EpisodeOutline): Promise<EpisodeText> {
-    logger.info({ title: outline.title, sceneCount: outline.scenes.length }, 'Generating story text');
-
-    // Business logic: determine vocabulary level for age group
     const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
 
-    // Build prompt using prompt function
-    const prompt = buildTextPrompt({ spec, outline, vocabLevel });
+    // Build text generation prompt
+    const prompt = buildDirectTextPrompt({ spec, sceneCount, vocabLevel });
     
     // Log the FULL prompt being sent
     logger.debug({ 
@@ -80,7 +44,7 @@ export class StoryDomainService {
       const text = await this.textProvider.generateStructured<EpisodeText>({
         prompt,
         schema: TEXT_SCHEMA,
-        temperature: 0.8,
+        temperature: 0.9,
         // No maxTokens limit - let the model generate as much as needed
       });
 
@@ -93,47 +57,6 @@ export class StoryDomainService {
     } catch (error) {
       logger.error({ error }, 'Failed to generate text');
       throw new Error(`Text generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Generate story text directly (1-step process, no outline)
-   * Business logic: determines scene count and vocabulary level based on age group
-   */
-  async generateTextDirect(spec: StorySpec): Promise<EpisodeText> {
-    logger.info({ ageGroup: spec.ageGroup, language: spec.language }, 'Generating story text directly');
-
-    // Business logic: determine scene count and vocabulary level
-    const sceneCount = this.getSceneCount(spec.ageGroup);
-    const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
-
-    // Build direct text generation prompt
-    const prompt = buildDirectTextPrompt({ spec, sceneCount, vocabLevel });
-    
-    // Log the FULL prompt being sent
-    logger.debug({ 
-      promptLength: prompt.length,
-      prompt: prompt // Full prompt for debugging
-    }, 'Direct text generation prompt');
-
-    try {
-      // Call provider with provider-agnostic request
-      const text = await this.textProvider.generateStructured<EpisodeText>({
-        prompt,
-        schema: TEXT_SCHEMA,
-        temperature: 0.9,
-        // No maxTokens limit - let the model generate as much as needed
-      });
-
-      // Compute fullText and wordCount server-side for consistency
-      text.fullText = text.scenes.map(s => s.text).join('\n\n');
-      text.wordCount = text.fullText.split(/\s+/).length;
-
-      logger.info({ wordCount: text.wordCount, sceneCount: text.scenes.length }, 'Story text generated directly');
-      return text;
-    } catch (error) {
-      logger.error({ error }, 'Failed to generate text directly');
-      throw new Error(`Direct text generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

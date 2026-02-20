@@ -1,8 +1,6 @@
-import { db } from '../db';
-import { contentPolicyRules, ageEngineRules } from '../db/schema';
+import { getPolicyRepository } from '../repositories';
 import { buildPolicyPromptSection } from '@kazka/shared';
 import type { EpisodeOutline, EpisodeText, PolicyProfile } from '../ai/types';
-import { eq } from 'drizzle-orm';
 import { logger } from '../utils/logger';
 
 /**
@@ -18,22 +16,17 @@ export async function buildPolicyProfile(ageGroup: string, language: string): Pr
   try {
     logger.info({ ageGroup, language }, 'Building policy profile');
     
+    const policyRepo = getPolicyRepository();
+
     // Fetch age engine rules
-    const [ageRules] = await db
-      .select()
-      .from(ageEngineRules)
-      .where(eq(ageEngineRules.ageGroup, ageGroup))
-      .limit(1);
+    const ageRules = await policyRepo.findAgeEngineRules(ageGroup);
     
     if (!ageRules) {
       throw new Error(`Age group ${ageGroup} not found in age_engine_rules`);
     }
     
     // Fetch all content policy rules
-    const policyRulesData = await db
-      .select()
-      .from(contentPolicyRules)
-      .orderBy(contentPolicyRules.sortOrder);
+    const policyRulesData = await policyRepo.findContentPolicyRules();
     
     // Transform DB rows to PolicyProfile format
     const disallowedRules = policyRulesData.map(row => ({
@@ -94,11 +87,7 @@ export async function buildPolicyProfile(ageGroup: string, language: string): Pr
  * Get age engine rules from database
  */
 export async function getAgeEngineRules(ageGroup: string) {
-  const [rules] = await db
-    .select()
-    .from(ageEngineRules)
-    .where(eq(ageEngineRules.ageGroup, ageGroup))
-    .limit(1);
+  const rules = await getPolicyRepository().findAgeEngineRules(ageGroup);
     
   if (!rules) {
     throw new Error(`Age group ${ageGroup} not found`);

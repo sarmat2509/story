@@ -1,8 +1,8 @@
-import { eq, and } from 'drizzle-orm';
-import db from '../db';
-import { oauthIdentities, type User, type OAuthIdentity, type NewOAuthIdentity } from '../db/schema';
+import { getOAuthRepository } from '../repositories';
+import type { User, OAuthIdentity, NewOAuthIdentity } from '../db/schema';
 import { getUserByEmail, createUser } from './userService';
 import { encryptToken, decryptToken } from '../utils/encryption';
+import { logger } from '../utils/logger';
 
 export interface GoogleProfile {
   id: string;
@@ -45,19 +45,8 @@ interface OAuthTokens {
 async function findOAuthIdentity(
   provider: 'google' | 'apple',
   providerId: string
-): Promise<any | null> {
-  const [identity] = await db
-    .select()
-    .from(oauthIdentities)
-    .where(
-      and(
-        eq(oauthIdentities.provider, provider),
-        eq(oauthIdentities.providerUserId, providerId)
-      )
-    )
-    .limit(1);
-  
-  return identity || null;
+): Promise<OAuthIdentity | null> {
+  return getOAuthRepository().findByProvider(provider, providerId);
 }
 
 // Update OAuth tokens for existing identity
@@ -66,26 +55,18 @@ async function updateOAuthTokens(
   tokens: OAuthTokens,
   rawUserInfo: any
 ): Promise<void> {
-  await db
-    .update(oauthIdentities)
-    .set({
-      accessToken: encryptToken(tokens.accessToken)!,
-      refreshToken: tokens.refreshToken ? encryptToken(tokens.refreshToken)! : undefined,
-      tokenExpiresAt: tokens.expiresAt || undefined,
-      rawUserInfo,
-      updatedAt: new Date(),
-    })
-    .where(eq(oauthIdentities.id, identityId));
+  await getOAuthRepository().updateTokens(identityId, {
+    accessToken: encryptToken(tokens.accessToken)!,
+    refreshToken: tokens.refreshToken ? encryptToken(tokens.refreshToken)! : undefined,
+    tokenExpiresAt: tokens.expiresAt || undefined,
+    rawUserInfo,
+  });
 }
 
 // Get user by identity's userId
 async function getUserByIdentityUserId(userId: string): Promise<User | null> {
-  const [user] = await db.query.users.findMany({
-    where: (users, { eq }) => eq(users.id, userId),
-    limit: 1,
-  });
-  
-  return user || null;
+  const { getUserById } = await import('./userService');
+  return getUserById(userId);
 }
 
 // Link or create user for OAuth profile
@@ -127,7 +108,7 @@ async function createOAuthIdentity(
     rawUserInfo,
   };
   
-  await db.insert(oauthIdentities).values(newIdentity);
+  await getOAuthRepository().create(newIdentity);
 }
 
 // Generic OAuth handler (orchestrates sub-functions)
@@ -233,17 +214,10 @@ export async function linkOAuthProvider(
   refreshToken: string | null,
   rawUserInfo: any
 ): Promise<OAuthIdentity> {
+  const oauthRepo = getOAuthRepository();
+
   // Check if this provider is already linked
-  const [existing] = await db
-    .select()
-    .from(oauthIdentities)
-    .where(
-      and(
-        eq(oauthIdentities.provider, provider),
-        eq(oauthIdentities.providerUserId, providerUserId)
-      )
-    )
-    .limit(1);
+  const existing = await oauthRepo.findByProvider(provider, providerUserId);
   
   if (existing) {
     throw new Error('This OAuth provider is already linked to another account');
@@ -260,8 +234,7 @@ export async function linkOAuthProvider(
     rawUserInfo,
   };
   
-  const [identity] = await db.insert(oauthIdentities).values(newIdentity).returning();
-  return identity;
+  return oauthRepo.create(newIdentity);
 }
 
 // Unlink OAuth provider from user
@@ -269,22 +242,14 @@ export async function unlinkOAuthProvider(
   userId: string,
   provider: 'google' | 'apple'
 ): Promise<void> {
+  const oauthRepo = getOAuthRepository();
+
   // Check if user has other OAuth providers
-  const identities = await db
-    .select()
-    .from(oauthIdentities)
-    .where(eq(oauthIdentities.userId, userId));
+  const identities = await oauthRepo.findByUserId(userId);
   
   if (identities.length <= 1) {
     throw new Error('Cannot unlink the only authentication method');
   }
   
-  await db
-    .delete(oauthIdentities)
-    .where(
-      and(
-        eq(oauthIdentities.userId, userId),
-        eq(oauthIdentities.provider, provider)
-      )
-    );
+  await oauthRepo.deleteByUserAndProvider(userId, provider);
 }

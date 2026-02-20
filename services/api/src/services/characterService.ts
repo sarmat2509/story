@@ -1,10 +1,10 @@
-import { eq, and } from 'drizzle-orm';
-import db from '../db';
-import { characters, type Character, type NewCharacter } from '../db/schema';
+import { getCharacterRepository } from '../repositories';
+import type { Character, NewCharacter } from '../db/schema';
 import { logger } from '../utils/logger';
 import { CharacterAnalysisService } from './characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
+import { translateCharacterDescription } from './translationService';
 
 // Character type for filtering
 export type CharacterType = 'pet' | 'family_member' | 'friend' | 'neighbor' | 'imaginary_friend';
@@ -70,20 +70,17 @@ async function analyzeCharacterPhotos(character: Character): Promise<void> {
       existingTraits: character.appearanceTraits as Record<string, any> | undefined
     });
     
-    // Update character with AI-generated fields
-    await db
-      .update(characters)
-      .set({
-        aiGeneratedDescription: analysis.detailedDescription,
-        clothing: analysis.clothing as any,
-        distinctiveFeatures: analysis.distinctiveFeatures as any,
-        // Optionally merge AI analysis into existing appearanceTraits
-        appearanceTraits: analysis.appearanceTraits ? {
-          ...(character.appearanceTraits as any || {}),
-          ...analysis.appearanceTraits
-        } as any : character.appearanceTraits
-      })
-      .where(eq(characters.id, character.id));
+    // Update character with AI-generated fields via repository
+    await getCharacterRepository().updateAnalysis(character.id, {
+      aiGeneratedDescription: analysis.detailedDescription,
+      clothing: analysis.clothing as any,
+      distinctiveFeatures: analysis.distinctiveFeatures as any,
+      // Optionally merge AI analysis into existing appearanceTraits
+      appearanceTraits: analysis.appearanceTraits ? {
+        ...(character.appearanceTraits as any || {}),
+        ...analysis.appearanceTraits
+      } as any : character.appearanceTraits
+    });
     
     logger.info({ 
       characterId: character.id,
@@ -104,6 +101,22 @@ async function analyzeCharacterPhotos(character: Character): Promise<void> {
   }
 }
 
+/**
+ * Trigger async translation of character description to English.
+ * Non-blocking: if it fails, image generation falls back to the original description.
+ */
+function triggerDescriptionTranslation(character: Character): void {
+  const description = character.aiGeneratedDescription || character.description;
+  if (!description) return;
+
+  translateCharacterDescription(character).catch(err => {
+    logger.error(
+      { err, characterId: character.id, characterName: character.name },
+      'Description translation failed — will use original description in prompts',
+    );
+  });
+}
+
 // Character CRUD
 export async function createCharacter(
   userId: string,
@@ -114,20 +127,12 @@ export async function createCharacter(
     userId
   };
   
-  const [character] = await db
-    .insert(characters)
-    .values(newCharacter)
-    .returning();
+  const character = await getCharacterRepository().create(newCharacter);
   
   logger.info({ userId, characterId: character.id, name: character.name, type: character.type }, 'Created character');
   
-  // Analysis is now handled by frontend before save, so skip automatic analysis
-  // Trigger character analysis asynchronously (don't wait for it)
-  // if (config.features?.enableCharacterAnalysis !== false) {
-  //   analyzeCharacterPhotos(character).catch(err => {
-  //     logger.error({ error: err, characterId: character.id }, 'Background character analysis failed');
-  //   });
-  // }
+  // Trigger async translation of description to English
+  triggerDescriptionTranslation(character);
   
   return character;
 }
@@ -136,45 +141,18 @@ export async function getCharacters(
   userId: string,
   type?: CharacterType
 ): Promise<Character[]> {
-  let query = db
-    .select()
-    .from(characters)
-    .where(and(
-      eq(characters.userId, userId),
-      eq(characters.isActive, true)
-    ));
-  
-  if (type) {
-    query = db
-      .select()
-      .from(characters)
-      .where(and(
-        eq(characters.userId, userId),
-        eq(characters.type, type),
-        eq(characters.isActive, true)
-      ));
-  }
-  
-  const results = await query;
-  logger.debug({ userId, type, count: results.length }, 'Fetched characters');
-  return results;
+  const results = await getCharacterRepository().findByUserId(userId, type);
+  // Filter out hidden LLM-generated characters from the user-facing list
+  const visible = results.filter(c => !c.isHidden);
+  logger.debug({ userId, type, total: results.length, visible: visible.length }, 'Fetched characters');
+  return visible;
 }
 
 export async function getCharacterById(
   id: string,
   userId: string
 ): Promise<Character | null> {
-  const [character] = await db
-    .select()
-    .from(characters)
-    .where(and(
-      eq(characters.id, id),
-      eq(characters.userId, userId),
-      eq(characters.isActive, true)
-    ))
-    .limit(1);
-  
-  return character || null;
+  return getCharacterRepository().findById(id, userId);
 }
 
 export async function updateCharacter(
@@ -182,20 +160,15 @@ export async function updateCharacter(
   userId: string,
   data: Partial<Omit<NewCharacter, 'userId'>>
 ): Promise<Character> {
+  const characterRepo = getCharacterRepository();
+
   // Ownership check
-  const existing = await getCharacterById(id, userId);
+  const existing = await characterRepo.findById(id, userId);
   if (!existing) {
     throw new Error('Character not found');
   }
   
-  const [updated] = await db
-    .update(characters)
-    .set(data)
-    .where(and(
-      eq(characters.id, id),
-      eq(characters.userId, userId)
-    ))
-    .returning();
+  const updated = await characterRepo.update(id, userId, data);
   
   if (!updated) {
     throw new Error('Failed to update character');
@@ -203,66 +176,47 @@ export async function updateCharacter(
   
   logger.info({ userId, characterId: id, type: updated.type }, 'Updated character');
   
-  // Analysis is now handled by frontend before save, so skip automatic analysis
-  // Trigger character analysis if reference photos changed
-  // if (config.features?.enableCharacterAnalysis !== false && data.referencePhotos) {
-  //   analyzeCharacterPhotos(updated).catch(err => {
-  //     logger.error({ error: err, characterId: id }, 'Background character analysis failed');
-  //   });
-  // }
+  // Re-translate description if it changed
+  if (data.description || data.aiGeneratedDescription) {
+    triggerDescriptionTranslation(updated);
+  }
   
   return updated;
 }
 
 export async function deleteCharacter(id: string, userId: string): Promise<void> {
+  const characterRepo = getCharacterRepository();
+
   // Ownership check
-  const existing = await getCharacterById(id, userId);
+  const existing = await characterRepo.findById(id, userId);
   if (!existing) {
     throw new Error('Character not found');
   }
   
-  // Soft delete: set isActive = false
-  await db
-    .update(characters)
-    .set({ isActive: false })
-    .where(and(
-      eq(characters.id, id),
-      eq(characters.userId, userId)
-    ));
+  // Soft delete
+  await characterRepo.softDelete(id, userId);
   
   logger.info({ userId, characterId: id }, 'Deleted (soft) character');
 }
 
 // Type-specific validation helpers (these can be expanded as needed)
 export function validatePetTraits(traits: unknown): boolean {
-  // Basic validation - can be expanded with more specific checks
   if (!traits || typeof traits !== 'object') return true;
-  
-  // Check required fields exist
   const validFields = ['breed', 'furColor', 'furPattern', 'furLength', 'size', 'eyeColor', 'distinctiveFeatures'];
   const hasValidFields = Object.keys(traits).every(key => validFields.includes(key));
-  
   return hasValidFields;
 }
 
 export function validateHumanTraits(traits: unknown): boolean {
-  // Basic validation - can be expanded with more specific checks
   if (!traits || typeof traits !== 'object') return true;
-  
-  // Check required fields exist
   const validFields = ['ageRange', 'hairColor', 'hairStyle', 'eyeColor', 'skinTone', 'height', 'build', 'clothing', 'distinctiveFeatures'];
   const hasValidFields = Object.keys(traits).every(key => validFields.includes(key));
-  
   return hasValidFields;
 }
 
 export function validateImaginaryTraits(traits: unknown): boolean {
-  // For imaginary friends, all traits are free text - just check structure
   if (!traits || typeof traits !== 'object') return true;
-  
-  // Check that fields are strings or arrays of strings
   const validFields = ['species', 'primaryColor', 'secondaryColor', 'size', 'magicalFeatures', 'customDescription'];
   const hasValidFields = Object.keys(traits).every(key => validFields.includes(key));
-  
   return hasValidFields;
 }

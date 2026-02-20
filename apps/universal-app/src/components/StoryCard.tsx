@@ -9,7 +9,9 @@ interface Props {
     title: string;
     language: string;
     status: string;
+    coverImageUrl?: string | null;
     scenes?: Array<{ image?: { url?: string } }>;
+    hasAudio?: boolean;
     audioMetadata?: { finalAssetId?: string };
   };
   onPress: (id: string) => void;
@@ -18,11 +20,11 @@ interface Props {
 }
 
 const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Props) => {
-  console.log('[StoryCard] RENDER', story.id, variant);
-  
-  // Get first scene with an image as thumbnail
-  const thumbnail = story.scenes?.find(scene => scene.image?.url)?.image?.url;
-  const hasAudio = story.audioMetadata?.finalAssetId;
+  // Use coverImageUrl from summary view, or fall back to scenes-based lookup
+  const thumbnail = story.coverImageUrl
+    || story.scenes?.find(scene => scene.image?.url)?.image?.url
+    || null;
+  const hasAudio = story.hasAudio || !!story.audioMetadata?.finalAssetId;
   
   // Grid variant: compact card with image on top
   if (variant === 'grid') {
@@ -101,10 +103,12 @@ const areEqual = (prevProps: Props, nextProps: Props) => {
     prevProps.story.id === nextProps.story.id &&
     prevProps.story.title === nextProps.story.title &&
     prevProps.story.status === nextProps.story.status &&
+    prevProps.story.coverImageUrl === nextProps.story.coverImageUrl &&
     prevProps.variant === nextProps.variant &&
     prevProps.onPress === nextProps.onPress &&
     prevProps.onDelete === nextProps.onDelete &&
-    // Check if audio metadata changed
+    // Check if audio status changed
+    prevProps.story.hasAudio === nextProps.story.hasAudio &&
     prevProps.story.audioMetadata?.finalAssetId === nextProps.story.audioMetadata?.finalAssetId
   );
 };

@@ -3,9 +3,7 @@
  * Business logic for managing story series and continuations
  */
 
-import { db } from '../db';
-import { stories, storySeries } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { getStoryRepository } from '../repositories';
 import type { Story } from '../db/schema';
 import logger from '../utils/logger';
 
@@ -18,7 +16,7 @@ export async function getOrCreateSeries(storyId: string): Promise<{
   continuationContext: any;
 }> {
   // 1. Get the original story
-  const [story] = await db.select().from(stories).where(eq(stories.id, storyId));
+  const story = await getStoryRepository().findById(storyId);
   
   if (!story) {
     throw new Error(`Story not found: ${storyId}`);
@@ -26,7 +24,7 @@ export async function getOrCreateSeries(storyId: string): Promise<{
   
   // 2. Check if story already belongs to a series
   if (story.seriesId) {
-    const [series] = await db.select().from(storySeries).where(eq(storySeries.id, story.seriesId));
+    const series = await getStoryRepository().findSeriesById(story.seriesId);
     
     if (!series) {
       throw new Error(`Series not found: ${story.seriesId}`);
@@ -46,7 +44,7 @@ export async function getOrCreateSeries(storyId: string): Promise<{
   
   logger.info({ storyId, baseTitle }, 'Creating new series');
   
-  const [newSeries] = await db.insert(storySeries).values({
+  const newSeries = await getStoryRepository().createSeries({
     userId: story.userId,
     childProfileId: story.childProfileId,
     baseTitle,
@@ -57,12 +55,10 @@ export async function getOrCreateSeries(storyId: string): Promise<{
     totalParts: 1,
     storyIds: [storyId],
     continuationContext: buildInitialContext(story),
-  }).returning();
+  });
   
   // 4. Update original story with series_id
-  await db.update(stories)
-    .set({ seriesId: newSeries.id, partNumber: 1 })
-    .where(eq(stories.id, storyId));
+  await getStoryRepository().updateStory(storyId, { seriesId: newSeries.id, partNumber: 1 });
   
   logger.info({ seriesId: newSeries.id }, 'Created new series');
   
@@ -114,8 +110,8 @@ function buildInitialContext(story: Story): any {
       const outlineScene = outline.scenes[i];
       const actualScene = scenes?.[i]; // Match by index
       
-      // Priority order: goal -> setting -> visualPrompt -> first 200 chars of actual scene text
-      let summary = outlineScene.goal || outlineScene.setting || outlineScene.visualPrompt;
+      // Priority order: goal -> setting -> sceneVisual.setting -> visualPrompt -> first 200 chars of actual scene text
+      let summary = outlineScene.goal || outlineScene.setting || outlineScene.sceneVisual?.setting || outlineScene.visualPrompt;
       
       // If no summary fields, use beginning of actual scene text
       if ((!summary || !summary.trim()) && actualScene?.text) {
@@ -201,7 +197,7 @@ export async function addContinuationToSeries(
   newStoryId: string,
   newStory: Story
 ): Promise<void> {
-  const [series] = await db.select().from(storySeries).where(eq(storySeries.id, seriesId));
+  const series = await getStoryRepository().findSeriesById(seriesId);
   
   if (!series) {
     throw new Error(`Series not found: ${seriesId}`);
@@ -219,8 +215,8 @@ export async function addContinuationToSeries(
       const outlineScene = outline.scenes[i];
       const actualScene = scenes?.[i]; // Match by index
       
-      // Priority order: goal -> setting -> visualPrompt -> first 200 chars of actual scene text
-      let summary = outlineScene.goal || outlineScene.setting || outlineScene.visualPrompt;
+      // Priority order: goal -> setting -> sceneVisual.setting -> visualPrompt -> first 200 chars of actual scene text
+      let summary = outlineScene.goal || outlineScene.setting || outlineScene.sceneVisual?.setting || outlineScene.visualPrompt;
       
       // If no summary fields, use beginning of actual scene text
       if ((!summary || !summary.trim()) && actualScene?.text) {
@@ -298,14 +294,12 @@ export async function addContinuationToSeries(
     totalOptionalChars: updatedContext.optionalCharacters.length,
   }, 'Adding continuation to series');
   
-  await db.update(storySeries)
-    .set({
-      totalParts: series.totalParts + 1,
-      storyIds: [...(series.storyIds as string[]), newStoryId],
-      continuationContext: updatedContext,
-      updatedAt: new Date(),
-    })
-    .where(eq(storySeries.id, seriesId));
+  await getStoryRepository().updateSeries(seriesId, {
+    totalParts: series.totalParts + 1,
+    storyIds: [...(series.storyIds as string[]), newStoryId],
+    continuationContext: updatedContext,
+    updatedAt: new Date(),
+  });
 }
 
 /**
@@ -333,7 +327,7 @@ export async function getSeriesInfo(storyId: string): Promise<{
   partNumber: number;
   storyIds: string[];
 } | null> {
-  const [story] = await db.select().from(stories).where(eq(stories.id, storyId));
+  const story = await getStoryRepository().findById(storyId);
   
   logger.debug({ 
     storyId, 
@@ -347,7 +341,7 @@ export async function getSeriesInfo(storyId: string): Promise<{
     return null;
   }
   
-  const [series] = await db.select().from(storySeries).where(eq(storySeries.id, story.seriesId));
+  const series = await getStoryRepository().findSeriesById(story.seriesId);
   
   logger.debug({
     storyId,
@@ -385,7 +379,7 @@ export async function removeStoryFromSeries(
   storyId: string,
   seriesId: string
 ): Promise<void> {
-  const [series] = await db.select().from(storySeries).where(eq(storySeries.id, seriesId));
+  const series = await getStoryRepository().findSeriesById(seriesId);
   
   if (!series) {
     logger.warn({ seriesId, storyId }, 'Series not found when removing story');
@@ -412,35 +406,29 @@ export async function removeStoryFromSeries(
     }, 'Only one story remains, deleting series');
     
     // Remove series_id and part_number from remaining story
-    await db.update(stories)
-      .set({ 
-        seriesId: null, 
-        partNumber: null 
-      })
-      .where(eq(stories.id, updatedStoryIds[0]));
+    await getStoryRepository().updateStory(updatedStoryIds[0], {
+      seriesId: null,
+      partNumber: null,
+    });
     
     // Delete the series
-    await db.delete(storySeries).where(eq(storySeries.id, seriesId));
+    await getStoryRepository().deleteSeries(seriesId);
     
     logger.info({ seriesId }, 'Series deleted - only one story remained');
     return;
   }
   
   // Update series
-  await db.update(storySeries)
-    .set({
-      totalParts: series.totalParts - 1,
-      storyIds: updatedStoryIds,
-      updatedAt: new Date(),
-    })
-    .where(eq(storySeries.id, seriesId));
+  await getStoryRepository().updateSeries(seriesId, {
+    totalParts: series.totalParts - 1,
+    storyIds: updatedStoryIds,
+    updatedAt: new Date(),
+  });
   
   // Update part_number for remaining stories
   // Stories after the deleted one need their part_number decremented
   for (let i = deletedIndex; i < updatedStoryIds.length; i++) {
-    await db.update(stories)
-      .set({ partNumber: i + 1 })
-      .where(eq(stories.id, updatedStoryIds[i]));
+    await getStoryRepository().updateStory(updatedStoryIds[i], { partNumber: i + 1 });
   }
   
   logger.info({

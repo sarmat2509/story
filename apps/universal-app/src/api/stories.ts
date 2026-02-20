@@ -37,16 +37,32 @@ interface CreateStoryRequest {
   scenarioCardId?: string;
 }
 
-// List stories
-export const useStories = (params?: { limit?: number; offset?: number; hasAudio?: boolean } = {}) => {
-  const { limit = 20, offset = 0, hasAudio } = params;
+// Lightweight story summary for library grid
+export interface StorySummary {
+  id: string;
+  title: string;
+  language: string;
+  status: string;
+  coverImageUrl: string | null;
+  hasAudio: boolean;
+  scenarioCardId: string | null;
+  createdAt: string;
+}
+
+// List stories (summary view for library - lightweight payload)
+export const useStories = (params?: { limit?: number; offset?: number; hasAudio?: boolean; scenarioCardId?: string | null } = {}) => {
+  const { limit = 20, offset = 0, hasAudio, scenarioCardId } = params;
   
   return useQuery({
-    queryKey: ['stories', limit, offset, hasAudio],
+    queryKey: ['stories', limit, offset, hasAudio, scenarioCardId],
     queryFn: async () => {
-      const response = await apiClient.get<{ status: string; stories: Story[]; pagination: any }>(
+      const queryParams: Record<string, any> = { limit, offset, has_audio: hasAudio, view: 'summary' };
+      if (scenarioCardId) {
+        queryParams.scenario_card_id = scenarioCardId;
+      }
+      const response = await apiClient.get<{ status: string; stories: StorySummary[]; pagination: any }>(
         '/api/v1/stories',
-        { params: { limit, offset, has_audio: hasAudio } }
+        { params: queryParams }
       );
       return {
         stories: response.data.stories,
@@ -57,6 +73,7 @@ export const useStories = (params?: { limit?: number; offset?: number; hasAudio?
 };
 
 // Get story detail with scenes and assets
+// Polls every 3s when image generation is incomplete
 export const useStory = (id: string) => {
   return useQuery({
     queryKey: ['story', id],
@@ -67,6 +84,7 @@ export const useStory = (id: string) => {
       return response.data.manifest;
     },
     enabled: !!id,
+    refetchInterval: (query) => (query.state.data?.imageGenerationComplete === false ? 3000 : false),
   });
 };
 
@@ -81,7 +99,8 @@ export const useStoryStatus = (requestId: string, enabled: boolean = true) => {
       return response.data.request;
     },
     enabled: enabled && !!requestId,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
+      const data = query.state.data;
       // Stop polling if completed or failed
       if (!data) return 2000;
       if (data.status === 'completed' || data.status === 'failed') {
@@ -106,6 +125,22 @@ export const useCreateStory = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stories'] });
+    },
+  });
+};
+
+// Retry image generation only (for failed requests where text succeeded)
+export const useRetryStoryImages = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      const response = await apiClient.post<{ status: string; request: { id: string; status: string } }>(
+        `/api/v1/stories/requests/${requestId}/retry-images`
+      );
+      return response.data;
+    },
+    onSuccess: (_, requestId) => {
+      queryClient.invalidateQueries({ queryKey: ['story-status', requestId] });
     },
   });
 };
@@ -140,7 +175,7 @@ export const useGenerateAudio = () => {
   });
 };
 
-// Poll audio status (lightweight - only checks audioMetadata + job status)
+// Poll audio status (lightweight - only checks audioMetadata + job status + queue info)
 // Note: cache sync moved to StoryViewerScreen useEffect (onSuccess removed in TanStack Query v5)
 export const useAudioStatus = (storyId: string, enabled: boolean = false) => {
   return useQuery({
@@ -150,10 +185,22 @@ export const useAudioStatus = (storyId: string, enabled: boolean = false) => {
         status: string; 
         audioMetadata: any | null;
         jobStatus: 'queued' | 'processing' | null;
+        queuePosition: number | null;
+        estimatedWaitMs: number | null;
+        processingStartedAt: number | null;
+        estimatedProcessingMs: number | null;
+        activeJobsCount: number;
+        maxConcurrency: number;
       }>(`/api/v1/stories/${storyId}/audio-status`);
       return {
         audioMetadata: response.data.audioMetadata,
-        jobStatus: response.data.jobStatus
+        jobStatus: response.data.jobStatus,
+        queuePosition: response.data.queuePosition ?? null,
+        estimatedWaitMs: response.data.estimatedWaitMs ?? null,
+        processingStartedAt: response.data.processingStartedAt ?? null,
+        estimatedProcessingMs: response.data.estimatedProcessingMs ?? null,
+        activeJobsCount: response.data.activeJobsCount ?? 0,
+        maxConcurrency: response.data.maxConcurrency ?? 0,
       };
     },
     enabled: enabled && !!storyId,

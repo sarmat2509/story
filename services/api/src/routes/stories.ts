@@ -1,19 +1,55 @@
 import { Router, Request, Response } from 'express';
+import { z } from 'zod';
 import { requireAuth } from '../middleware/authMiddleware';
 import { CreateStoryRequestSchema } from '@kazka/shared';
 import { 
   createStoryRequest, 
   getStoryRequestStatus,
+  retryStoryImages,
   getStory,
   listUserStories,
+  listUserStorySummaries,
   getTotalUserStoriesCount,
-  deleteStory
+  deleteStory,
+  enforceUserJobLimit,
 } from '../services/storyOrchestrationService';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
 import { logger } from '../utils/logger';
 import { stripAudioTags } from '../utils/audioTags';
 
+/**
+ * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
+ * otherwise return cleaned string.
+ */
+function parseSceneVisual(scene: any): { sceneVisual?: any; visualPrompt?: string } {
+  const vp = scene.visualPrompt;
+  if (!vp) return {};
+  if (typeof vp === 'string' && vp.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(vp);
+      if (parsed && typeof parsed.setting === 'string' && parsed.cameraComposition !== undefined) {
+        return { sceneVisual: parsed };
+      }
+    } catch (_) {
+      // Not valid JSON — fall through to legacy
+    }
+  }
+  return { visualPrompt: stripAudioTags(vp) };
+}
+
 const router = Router();
+
+// ── Input Validation Schemas ──
+
+const AudioGenerationSchema = z.object({
+  voiceId: z.string().uuid().optional(),
+  speed: z.number().min(0.5).max(2.0).optional(),
+  nightMode: z.boolean().optional(),
+});
+
+const RegenerateSceneSchema = z.object({
+  visualPrompt: z.string().max(2000).optional(),
+});
 
 /**
  * POST /api/v1/stories
@@ -24,11 +60,21 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     // Validate request body
     const validatedData = CreateStoryRequestSchema.parse(req.body);
     
+    // Enforce per-user concurrent job limit
+    try {
+      await enforceUserJobLimit(req.user!.id);
+    } catch (limitError) {
+      return res.status(429).json({
+        status: 'error',
+        message: (limitError as Error).message,
+      });
+    }
+    
     // Create story request
     const requestId = await createStoryRequest(req.user!.id, validatedData);
     
     // Add job to queue for async processing
-    const jobId = storyJobQueue.addJob(requestId);
+    const jobId = await storyJobQueue.addJob(requestId);
     
     logger.info({ 
       userId: req.user!.id, 
@@ -91,6 +137,43 @@ router.get('/requests/:id/status', requireAuth, async (req: Request, res: Respon
     res.status(500).json({
       status: 'error',
       message: 'Failed to get request status'
+    });
+  }
+});
+
+/**
+ * POST /api/v1/stories/requests/:id/retry-images
+ * Retry image generation only (for requests that failed at image phase, e.g. IMAGE_OTHER)
+ */
+router.post('/requests/:id/retry-images', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const status = await retryStoryImages(id, req.user!.id);
+    res.json({
+      status: 'success',
+      request: {
+        id: status.id,
+        status: status.status,
+      },
+    });
+  } catch (error) {
+    const err = error as Error;
+    if (err.message === 'Story request not found') {
+      return res.status(404).json({
+        status: 'error',
+        message: err.message,
+      });
+    }
+    if (err.message === 'Request is not in failed state' || err.message === 'Cannot retry images: story data missing') {
+      return res.status(400).json({
+        status: 'error',
+        message: err.message,
+      });
+    }
+    logger.error({ err: error, userId: req.user?.id, requestId: req.params.id }, 'Retry images failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to retry image generation',
     });
   }
 });
@@ -177,13 +260,13 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
       });
     }
     
-    // Strip audio tags from text for UI display
+    // Strip audio tags from text and parse sceneVisual for UI display
     const storyForClient = {
       ...story,
       scenes: Array.isArray(story.scenes) ? story.scenes.map((scene: any) => ({
         ...scene,
         text: stripAudioTags(scene.text || ''),
-        visualPrompt: stripAudioTags(scene.visualPrompt || ''),
+        ...parseSceneVisual(scene),
       })) : story.scenes,
       fullText: stripAudioTags(story.fullText || ''),
     };
@@ -212,65 +295,58 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       language, 
       limit = '20', 
       offset = '0',
-      has_audio
+      has_audio,
+      view,
+      scenario_card_id,
     } = req.query;
-    
-    const stories = await listUserStories(req.user!.id, {
-      childProfileId: child_profile_id as string,
-      language: language as string,
-      limit: parseInt(limit as string, 10),
-      offset: parseInt(offset as string, 10),
-      hasAudio: has_audio === 'true'
-    });
-    
-    // Debug logging for first story
-    if (stories.length > 0) {
-      const firstStory = stories[0];
-      const firstSceneWithImage = Array.isArray(firstStory.scenes) 
-        ? firstStory.scenes.find((scene: any) => scene.image?.url)
-        : null;
-      
-      logger.debug({
-        storyId: firstStory.id,
-        title: firstStory.title,
-        hasScenes: !!firstStory.scenes,
-        scenesType: Array.isArray(firstStory.scenes) ? 'array' : typeof firstStory.scenes,
-        scenesCount: Array.isArray(firstStory.scenes) ? firstStory.scenes.length : 0,
-        firstScene: Array.isArray(firstStory.scenes) && firstStory.scenes.length > 0 
-          ? {
-              sceneId: firstStory.scenes[0].sceneId,
-              hasImage: !!firstStory.scenes[0].image,
-              imageUrl: firstStory.scenes[0].image?.url,
-              hasText: !!firstStory.scenes[0].text,
-            }
-          : null,
-        firstSceneWithImage: firstSceneWithImage ? {
-          sceneId: firstSceneWithImage.sceneId,
-          imageUrl: firstSceneWithImage.image?.url,
-        } : null,
-        scenesWithImages: Array.isArray(firstStory.scenes)
-          ? firstStory.scenes.filter((s: any) => s.image?.url).map((s: any) => ({
-              sceneId: s.sceneId,
-              hasUrl: !!s.image?.url,
-            }))
-          : [],
-      }, 'List stories - first story debug');
-    }
-    
-    // Get total count for pagination
+
+    const parsedLimit = parseInt(limit as string, 10);
+    const parsedOffset = parseInt(offset as string, 10);
+    const hasAudio = has_audio === 'true';
+    const scenarioCardId = scenario_card_id as string | undefined;
+
+    // Get total count for pagination (shared by both views)
     const totalCount = await getTotalUserStoriesCount(req.user!.id, {
       childProfileId: child_profile_id as string,
       language: language as string,
-      hasAudio: has_audio === 'true'
+      hasAudio,
+      scenarioCardId,
+    });
+
+    // Summary view: lightweight payload for library grid
+    if (view === 'summary') {
+      const summaries = await listUserStorySummaries(req.user!.id, {
+        childProfileId: child_profile_id as string,
+        language: language as string,
+        limit: parsedLimit,
+        offset: parsedOffset,
+        hasAudio,
+        scenarioCardId,
+      });
+
+      return res.json({
+        status: 'success',
+        stories: summaries,
+        pagination: { limit: parsedLimit, offset: parsedOffset, total: totalCount },
+      });
+    }
+
+    // Full view: complete story objects (default)
+    const stories = await listUserStories(req.user!.id, {
+      childProfileId: child_profile_id as string,
+      language: language as string,
+      limit: parsedLimit,
+      offset: parsedOffset,
+      hasAudio,
     });
     
-    // Strip audio tags from all stories for UI display
+    // Strip audio tags and parse sceneVisual from all stories for UI display
     const storiesForClient = stories.map(story => ({
       ...story,
       scenes: Array.isArray(story.scenes) ? story.scenes.map((scene: any) => ({
         ...scene,
         text: stripAudioTags(scene.text || ''),
-        visualPrompt: stripAudioTags(scene.visualPrompt || ''),
+        ...parseSceneVisual(scene),
       })) : story.scenes,
       fullText: stripAudioTags(story.fullText || ''),
     }));
@@ -278,11 +354,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     res.json({
       status: 'success',
       stories: storiesForClient,
-      pagination: {
-        limit: parseInt(limit as string, 10),
-        offset: parseInt(offset as string, 10),
-        total: totalCount
-      }
+      pagination: { limit: parsedLimit, offset: parsedOffset, total: totalCount },
     });
   } catch (error) {
     logger.error({ err: error, userId: req.user?.id }, 'List stories failed');
@@ -326,6 +398,16 @@ router.post('/:id/continue', requireAuth, async (req: Request, res: Response) =>
   try {
     const { id: storyId } = req.params;
     const userId = req.user!.id;
+    
+    // Enforce per-user concurrent job limit
+    try {
+      await enforceUserJobLimit(userId);
+    } catch (limitError) {
+      return res.status(429).json({
+        status: 'error',
+        message: (limitError as Error).message,
+      });
+    }
     
     // Check if user has series feature enabled
     const { hasFeature } = await import('../services/planService');
@@ -393,7 +475,7 @@ router.post('/:id/continue', requireAuth, async (req: Request, res: Response) =>
     });
     
     // 5. Queue job
-    const jobId = storyJobQueue.addJob(requestId);
+    const jobId = await storyJobQueue.addJob(requestId);
     
     logger.info({ 
       userId, 
@@ -490,7 +572,17 @@ router.get('/:id/series', requireAuth, async (req: Request, res: Response) => {
 router.post('/:id/audio', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id: storyId } = req.params;
-    const { voiceId, speed, nightMode } = req.body;
+    
+    // Validate input
+    const parseResult = AudioGenerationSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid audio parameters',
+        details: parseResult.error.flatten().fieldErrors,
+      });
+    }
+    const { voiceId, speed, nightMode } = parseResult.data;
     
     logger.info({ 
       storyId, 
@@ -580,8 +672,18 @@ router.post('/:id/audio', requireAuth, async (req: Request, res: Response) => {
       });
     }
     
+    // Enforce per-user concurrent job limit
+    try {
+      await enforceUserJobLimit(req.user!.id);
+    } catch (limitError) {
+      return res.status(429).json({
+        status: 'error',
+        message: (limitError as Error).message,
+      });
+    }
+    
     // Add job to queue
-    const jobId = storyJobQueue.addJob({
+    const jobId = await storyJobQueue.addJob({
       type: 'audio_generation',
       storyId,
       userId: req.user!.id,
@@ -640,13 +742,20 @@ router.get('/:id/audio-status', requireAuth, async (req: Request, res: Response)
       });
     }
     
-    // Check if there's an active audio generation job
-    const jobStatus = storyJobQueue.getAudioJobStatus(storyId);
+    // Check audio job status with concurrency-aware queue info
+    const { audioQueue } = await import('../jobs/storyJobProcessor');
+    const queueInfo = audioQueue.getQueueInfo(j => j.storyId === storyId);
     
     res.json({ 
       status: 'success', 
       audioMetadata: story.audioMetadata,
-      jobStatus // 'queued' | 'processing' | null
+      jobStatus: queueInfo.jobStatus,           // 'queued' | 'processing' | null
+      queuePosition: queueInfo.queuePosition,   // 1-based among queued jobs
+      estimatedWaitMs: queueInfo.estimatedWaitMs, // wait before job starts
+      processingStartedAt: queueInfo.processingStartedAt,     // timestamp when processing began
+      estimatedProcessingMs: queueInfo.estimatedProcessingMs, // estimated total processing time
+      activeJobsCount: queueInfo.activeJobsCount,
+      maxConcurrency: queueInfo.maxConcurrency,
     });
   } catch (error) {
     logger.error({ err: error, userId: req.user?.id, storyId: req.params.id }, 'Audio status check failed');
@@ -884,7 +993,17 @@ router.get('/:id/manifest', requireAuth, async (req: Request, res: Response) => 
 router.post('/:id/scenes/:sceneId/regenerate', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id, sceneId } = req.params;
-    const { visualPrompt } = req.body;
+    
+    // Validate input
+    const parseResult = RegenerateSceneSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid regeneration parameters',
+        details: parseResult.error.flatten().fieldErrors,
+      });
+    }
+    const { visualPrompt } = parseResult.data;
     
     const story = await getStory(id, req.user!.id);
     
@@ -907,8 +1026,18 @@ router.post('/:id/scenes/:sceneId/regenerate', requireAuth, async (req: Request,
       });
     }
     
+    // Enforce per-user concurrent job limit
+    try {
+      await enforceUserJobLimit(req.user!.id);
+    } catch (limitError) {
+      return res.status(429).json({
+        status: 'error',
+        message: (limitError as Error).message,
+      });
+    }
+    
     // Add job to queue for regeneration
-    const jobId = storyJobQueue.addJob({
+    const jobId = await storyJobQueue.addJob({
       type: 'regenerate_scene_image',
       storyId: id,
       sceneId: parseInt(sceneId, 10),
@@ -949,6 +1078,15 @@ router.post('/:id/tts', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id: storyId } = req.params;
     const { voiceId, speed, nightMode } = req.body;
+    
+    // Ownership check: verify the story belongs to the requesting user
+    const story = await getStory(storyId, req.user!.id);
+    if (!story) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Story not found'
+      });
+    }
     
     // Validate inputs
     if (speed && (typeof speed !== 'number' || speed < 0.5 || speed > 2.0)) {
@@ -1042,17 +1180,14 @@ router.get('/:id/audio', requireAuth, async (req: Request, res: Response) => {
       });
     }
     
-    // Generate fresh signed URL
-    const { getAssetStorageService } = await import('../services/assetStorageService');
-    const assetStorage = getAssetStorageService();
-    const { signedUrl } = await assetStorage.generateSignedUrl(audioAsset.asset.storagePath, 24);
+    const audioUrl = `/api/v1/assets/${audioAsset.asset.storagePath}`;
     
     const audioMetadata = story.audioMetadata as any;
     
     res.json({
       status: 'success',
       data: {
-        audioUrl: signedUrl,
+        audioUrl,
         duration: audioAsset.audioAsset.durationSeconds ? parseFloat(audioAsset.audioAsset.durationSeconds.toString()) : 0,
         voice: {
           id: audioAsset.audioAsset.voiceId,

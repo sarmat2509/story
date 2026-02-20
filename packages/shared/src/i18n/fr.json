@@ -90,7 +90,9 @@
     "all_stories": "Toutes les histoires",
     "audio_only": "Histoires audio",
     "show_all": "Tout afficher",
-    "delete_confirm_message": "Êtes-vous sûr de vouloir supprimer \"{{title}}\"? Cette action est irréversible."
+    "delete_confirm_message": "Êtes-vous sûr de vouloir supprimer \"{{title}}\"? Cette action est irréversible.",
+    "filter_scenario": "Scénario :",
+    "all_scenarios": "Tous les scénarios"
   },
   "series": {
     "title": "Séries",
@@ -141,6 +143,7 @@
     "free_theme": "Thème libre",
     "free_theme_desc": "Générer une histoire sans thème spécifique",
     "language_title": "Langue de l'histoire",
+    "language_required": "Veuillez sélectionner la langue de l'histoire",
     "story_for": "Histoire pour",
     "no_profile": "Sans profil",
     "goal_label": "Morale de l'histoire (optionnel)",
@@ -160,6 +163,8 @@
     "notes_placeholder": "Ex.: s'est disputé avec un ami aujourd'hui",
     "generate_button": "Créer l'histoire",
     "generating": "Création...",
+    "create_error": "Une erreur s'est produite lors de la création de l'histoire. Veuillez réessayer.",
+    "retry_error": "Impossible de réessayer la génération des illustrations. Veuillez réessayer.",
     "advanced_settings": "Paramètres avancés",
     "add_characters": "Ajouter des personnages"
   },
@@ -184,6 +189,10 @@
     "voices_error": "Erreur lors du chargement des voix",
     "no_voices": "Aucune voix disponible trouvée",
     "audio_queued": "En file d'attente...",
+    "audio_queue_position": "Vous êtes {{position}}e dans la file",
+    "audio_queue_wait": "Attente estimée : {{time}}",
+    "audio_generating_remaining": "Environ {{minutes}} min {{seconds}} s restantes",
+    "audio_generating_almost_done": "Presque terminé...",
     "audio_title": "Histoire Audio",
     "audio_limit_reached": "Limite d'Histoire Audio Atteinte",
     "audio_limit_message": "Cette histoire audio nécessite {{minutes}} minutes, mais la limite de votre forfait est épuisée.",
@@ -213,7 +222,16 @@
     "series_locked_description": "Créez des histoires en plusieurs parties et continuez les aventures de vos personnages",
     "upgrade_to_unlock": "Mettre à niveau le plan",
     "highlight_toggle": "Lire ensemble",
-    "highlight_toggle_description": "Suivez le narrateur"
+    "highlight_toggle_description": "Suivez le narrateur",
+    "characters_title": "Personnages",
+    "save_character": "Sauvegarder dans mes personnages",
+    "character_saved": "Personnage sauvegardé !",
+    "character_type_pet": "Animal",
+    "character_type_friend": "Ami",
+    "character_type_imaginary_friend": "Ami imaginaire",
+    "character_type_child": "Enfant",
+    "image_preparing": "préparation de l'image",
+    "image_failed": "échec de la génération de l'image"
   },
   "dashboard": {
     "welcome_back": "Bienvenue, {{name}}!",
@@ -312,7 +330,29 @@
     "loading_sample": "Chargement...",
     "sample_error": "Échec du chargement de l'échantillon"
   },
+  "child_form": {
+    "generate_description": "Générer la description",
+    "regenerate_description": "Régénérer la description",
+    "description_upload_photos_first": "Téléchargez des photos à l'étape précédente pour générer une description",
+    "turnaround_sheet": "Fiche modèle 3D",
+    "generate_turnaround": "Générer le modèle 3D",
+    "regenerate_turnaround": "Régénérer le modèle 3D",
+    "generating_turnaround": "Génération du modèle 3D...",
+    "turnaround_error": "Impossible de générer la fiche modèle",
+    "turnaround_save_first": "Enregistrez d'abord le profil pour générer une fiche modèle 3D",
+    "validation_error": "Erreur de validation",
+    "validation_error_message": "Veuillez vérifier les données saisies"
+  },
   "character_form": {
+    "turnaround_sheet": "Fiche modèle du personnage",
+    "generate_turnaround": "Générer la fiche modèle",
+    "regenerate_turnaround": "Régénérer la fiche modèle",
+    "generating_turnaround": "Génération de la fiche modèle...",
+    "turnaround_error": "Impossible de générer la fiche modèle",
+    "turnaround_save_first": "Enregistrez d'abord le personnage pour générer une fiche modèle",
+    "generate_description": "Générer la description",
+    "regenerate_description": "Régénérer la description",
+    "description_upload_photos_first": "Téléchargez des photos à l'étape précédente pour générer une description",
     "breed_placeholder": "ex. Golden Retriever, Persan",
     "species_placeholder": "ex. Dragon, Licorne, Créature nuageuse",
     "primary_color_placeholder": "ex. Arc-en-ciel, Or scintillant",

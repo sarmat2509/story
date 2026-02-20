@@ -162,8 +162,11 @@ export const childProfiles = pgTable('child_profiles', {
   familyCast: jsonb('family_cast'), // family member names
   // AI-generated fields from Gemini Vision analysis
   aiGeneratedDescription: text('ai_generated_description'), // Detailed narrative description
+  descriptionEn: text('description_en'), // English translation of description for image prompts
+  descriptionLanguage: varchar('description_language', { length: 10 }), // Language code of original description (e.g. 'uk', 'en', 'fr')
   clothing: jsonb('clothing'), // Structured clothing data
   distinctiveFeatures: jsonb('distinctive_features'), // Array of distinctive features
+  turnaroundSheet: jsonb('turnaround_sheet'), // { url, generatedAt, sourcePhotoUrl } for 3D turnaround model sheet
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -189,6 +192,11 @@ export const characters = pgTable('characters', {
   aiGeneratedDescription: text('ai_generated_description'), // Detailed narrative description
   clothing: jsonb('clothing'), // Structured clothing data
   distinctiveFeatures: jsonb('distinctive_features'), // Array of distinctive features
+  turnaroundSheet: jsonb('turnaround_sheet'), // { url, generatedAt, sourcePhotoUrl } for imaginary characters
+  descriptionEn: text('description_en'), // English translation of description for image prompts
+  descriptionLanguage: varchar('description_language', { length: 10 }), // Language code of original description (e.g. 'uk', 'en', 'fr')
+  isHidden: boolean('is_hidden').notNull().default(false), // LLM-generated characters hidden from UI
+  descriptionEmbedding: jsonb('description_embedding'), // Gemini text-embedding-004 vector (number[]) for similarity matching
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -301,6 +309,17 @@ export const scenarioCards = pgTable('scenario_cards', {
   ageGroups: text('age_groups').notNull(), // JSON array
   sortOrder: integer('sort_order').notNull().default(0),
   isActive: boolean('is_active').notNull().default(true),
+});
+
+// Scenario plot examples table (diverse settings per scenario card)
+export const scenarioPlotExamples = pgTable('scenario_plot_examples', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  scenarioCardId: varchar('scenario_card_id', { length: 100 })
+    .references(() => scenarioCards.id, { onDelete: 'cascade' }).notNull(),
+  setting: text('setting').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 // Translations table (M6)
@@ -467,6 +486,9 @@ export type NewAgeEngineRule = typeof ageEngineRules.$inferInsert;
 
 export type ScenarioCard = typeof scenarioCards.$inferSelect;
 export type NewScenarioCard = typeof scenarioCards.$inferInsert;
+
+export type ScenarioPlotExample = typeof scenarioPlotExamples.$inferSelect;
+export type NewScenarioPlotExample = typeof scenarioPlotExamples.$inferInsert;
 
 export type Translation = typeof translations.$inferSelect;
 export type NewTranslation = typeof translations.$inferInsert;

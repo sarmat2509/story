@@ -4,9 +4,7 @@
  * Selects optimal reference images for new scene generation
  */
 
-import { db } from '../db';
-import { scenes as scenesTable } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { getSceneRepository } from '../repositories';
 import { logger } from '../utils/logger';
 
 export interface ReferenceImageInfo {
@@ -26,16 +24,7 @@ export interface ReferenceSelection {
  * Get all reference images for a story (sorted by sceneId)
  */
 export async function getStoryReferenceImages(storyId: string): Promise<ReferenceImageInfo[]> {
-  const referenceScenes = await db
-    .select()
-    .from(scenesTable)
-    .where(
-      and(
-        eq(scenesTable.storyId, storyId),
-        eq(scenesTable.isReferenceImage, true)
-      )
-    )
-    .orderBy(scenesTable.sceneId);
+  const referenceScenes = await getSceneRepository().findReferenceImages(storyId);
   
   return referenceScenes
     .filter(scene => scene.imageUrl && scene.charactersPresent)
@@ -50,10 +39,11 @@ export async function getStoryReferenceImages(storyId: string): Promise<Referenc
 /**
  * Select optimal reference images for a scene based on character needs
  * 
- * Strategy:
- * 1. Try to find a single reference with ALL needed characters
- * 2. If not found, combine multiple references (max 3 for performance)
- * 3. Prioritize earlier scenes (more likely to be consistent)
+ * Hybrid strategy (Google Asset Graph pattern):
+ * 1. Find the LATEST scene with ALL needed characters (recency > earliest)
+ * 2. If no perfect match, greedy coverage preferring most recent scenes
+ * 3. Add previous scene for style/environment continuity (if slot available)
+ * 4. Up to 2 scene references total (alongside turnaround sheets)
  */
 export async function selectReferencesForScene(
   storyId: string,
@@ -61,7 +51,22 @@ export async function selectReferencesForScene(
   currentSceneId: number
 ): Promise<ReferenceSelection> {
   const availableReferences = await getStoryReferenceImages(storyId);
-  
+  return selectReferencesFromPreloaded(availableReferences, requiredCharacters, currentSceneId);
+}
+
+/**
+ * Select optimal reference images from a pre-loaded set.
+ * Use this overload inside per-scene loops to avoid N+1 DB queries.
+ *
+ * Returns up to 2 scene references:
+ *   - Slot 1: latest character-matching scene (best validated version of characters)
+ *   - Slot 2: previous scene (style/environment continuity), if different from slot 1
+ */
+export function selectReferencesFromPreloaded(
+  availableReferences: ReferenceImageInfo[],
+  requiredCharacters: string[], // Normalized names
+  currentSceneId: number
+): ReferenceSelection {
   // Filter only references generated BEFORE current scene
   const previousReferences = availableReferences.filter(ref => ref.sceneId < currentSceneId);
   
@@ -73,60 +78,79 @@ export async function selectReferencesForScene(
     };
   }
   
-  // Track which characters we've seen
+  // Track which characters we've seen in any previous reference
   const seenCharacters = new Set<string>();
   previousReferences.forEach(ref => {
     ref.charactersPresent.forEach(char => seenCharacters.add(char));
   });
   
-  // Find new characters
   const newCharacters = requiredCharacters.filter(char => !seenCharacters.has(char));
-  
-  // Strategy 1: Try to find single reference with ALL characters
-  const perfectMatch = previousReferences.find(ref =>
-    requiredCharacters.every(char => ref.charactersPresent.includes(char))
-  );
-  
-  if (perfectMatch) {
+
+  const selectedRefs: ReferenceImageInfo[] = [];
+
+  // Strategy 1: Find LATEST perfect match (all required characters in one scene)
+  // Reverse iteration: most recent first (previousReferences is sorted by sceneId ASC)
+  let latestPerfectMatch: ReferenceImageInfo | undefined;
+  for (let i = previousReferences.length - 1; i >= 0; i--) {
+    const ref = previousReferences[i];
+    if (requiredCharacters.every(char => ref.charactersPresent.includes(char))) {
+      latestPerfectMatch = ref;
+      break;
+    }
+  }
+
+  if (latestPerfectMatch) {
+    selectedRefs.push(latestPerfectMatch);
     logger.info({
       sceneId: currentSceneId,
       requiredCharacters,
-      selectedReference: perfectMatch.sceneId,
-    }, 'Found perfect reference match');
-    
-    return {
-      referenceImages: [perfectMatch],
-      newCharactersIntroduced: newCharacters,
-      shouldMarkAsReference: newCharacters.length > 0,
-    };
-  }
-  
-  // Strategy 2: Combine multiple references (greedy algorithm)
-  const selectedRefs: ReferenceImageInfo[] = [];
-  const coveredCharacters = new Set<string>();
-  
-  for (const char of requiredCharacters) {
-    if (coveredCharacters.has(char)) continue;
-    
-    // Find best reference for this character
-    const bestRef = previousReferences.find(ref => ref.charactersPresent.includes(char));
-    
-    if (bestRef && !selectedRefs.includes(bestRef)) {
-      selectedRefs.push(bestRef);
-      bestRef.charactersPresent.forEach(c => coveredCharacters.add(c));
+      selectedReference: latestPerfectMatch.sceneId,
+    }, 'Found latest perfect reference match');
+  } else {
+    // Strategy 2: Greedy coverage preferring most recent scenes
+    const coveredCharacters = new Set<string>();
+    for (const char of requiredCharacters) {
+      if (coveredCharacters.has(char)) continue;
+
+      // Reverse search: prefer most recent scene containing this character
+      let bestRef: ReferenceImageInfo | undefined;
+      for (let i = previousReferences.length - 1; i >= 0; i--) {
+        if (previousReferences[i].charactersPresent.includes(char)) {
+          bestRef = previousReferences[i];
+          break;
+        }
+      }
+
+      if (bestRef && !selectedRefs.includes(bestRef)) {
+        selectedRefs.push(bestRef);
+        bestRef.charactersPresent.forEach(c => coveredCharacters.add(c));
+      }
+
+      if (selectedRefs.length >= 2) break;
     }
-    
-    // Limit to 3 references for performance
-    if (selectedRefs.length >= 3) break;
+
+    logger.info({
+      sceneId: currentSceneId,
+      requiredCharacters,
+      selectedReferences: selectedRefs.map(r => r.sceneId),
+      coverage: `${coveredCharacters.size}/${requiredCharacters.length}`,
+      newCharacters,
+    }, 'Selected character-matching references (recency-biased)');
   }
-  
-  logger.info({
-    sceneId: currentSceneId,
-    requiredCharacters,
-    selectedReferences: selectedRefs.map(r => r.sceneId),
-    coverage: `${coveredCharacters.size}/${requiredCharacters.length}`,
-    newCharacters,
-  }, 'Selected multiple references');
+
+  // Strategy 3: Add previous scene for style/environment continuity
+  const previousScene = previousReferences[previousReferences.length - 1];
+  if (
+    previousScene &&
+    !selectedRefs.some(r => r.sceneId === previousScene.sceneId) &&
+    selectedRefs.length < 2
+  ) {
+    selectedRefs.push(previousScene);
+    logger.info({
+      sceneId: currentSceneId,
+      addedPreviousScene: previousScene.sceneId,
+    }, 'Added previous scene for style/environment continuity');
+  }
   
   return {
     referenceImages: selectedRefs,
@@ -143,14 +167,7 @@ export async function markSceneAsReference(
   charactersPresent: string[],
   imageUrl: string
 ): Promise<void> {
-  await db
-    .update(scenesTable)
-    .set({
-      isReferenceImage: true,
-      charactersPresent: charactersPresent,
-      imageUrl: imageUrl,
-    })
-    .where(eq(scenesTable.id, sceneDbId));
+  await getSceneRepository().markAsReference(sceneDbId, charactersPresent, imageUrl);
   
   logger.info({
     sceneDbId,
@@ -166,7 +183,9 @@ export async function loadReferenceImageData(
   imageUrl: string,
   assetStorage: any
 ): Promise<{ base64: string; mimeType: string }> {
-  const imageBuffer = await assetStorage.getAssetByPath(imageUrl);
+  // Strip query parameters (signed URLs contain ?token=...&expires=...)
+  const cleanUrl = imageUrl.split('?')[0];
+  const imageBuffer = await assetStorage.getAssetByPath(cleanUrl);
   
   if (!imageBuffer) {
     throw new Error(`Failed to load reference image: ${imageUrl}`);

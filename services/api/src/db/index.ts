@@ -27,7 +27,7 @@ pool.on('connect', (client) => {
 });
 
 pool.on('remove', (client) => {
-  logger.warn('Database connection removed from pool');
+  logger.debug('Database connection removed from pool (idle timeout)');
 });
 
 pool.on('acquire', (client) => {
@@ -135,6 +135,39 @@ async function gracefulShutdown(signal: string) {
   logger.info(`${signal} received, starting graceful shutdown...`);
   
   try {
+    // Close HTTP server first (stop accepting new requests)
+    try {
+      const { closeServer } = await import('../index');
+      await closeServer();
+    } catch (err) {
+      logger.warn({ err }, 'Failed to close HTTP server during shutdown');
+    }
+
+    // Stop job queues (prevents new jobs from starting)
+    try {
+      const { stopAllQueues } = await import('../jobs/storyJobProcessor');
+      stopAllQueues();
+      logger.info('All job queues stopped');
+    } catch (err) {
+      logger.warn({ err }, 'Failed to stop job queues during shutdown');
+    }
+
+    // Stop rate limiter intervals
+    try {
+      const { stopAllRateLimiters } = await import('../services/aiService');
+      stopAllRateLimiters();
+    } catch (err) {
+      logger.warn({ err }, 'Failed to stop rate limiters during shutdown');
+    }
+
+    // Stop session cleanup job
+    try {
+      const { stopSessionCleanupJob } = await import('../services/sessionService');
+      stopSessionCleanupJob();
+    } catch (err) {
+      logger.warn({ err }, 'Failed to stop session cleanup during shutdown');
+    }
+
     await closeDatabaseConnection();
     logger.info('Graceful shutdown completed');
     process.exit(0);

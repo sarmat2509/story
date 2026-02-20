@@ -3,7 +3,7 @@
  * These interfaces abstract AI providers for text generation
  */
 
-import type { CharacterData } from '../services/types';
+import type { CharacterData, SceneVisual } from '../services/types';
 
 /**
  * Scene validation result - for parallel scene-by-scene validation
@@ -17,6 +17,29 @@ export interface SceneValidationResult {
     message: string;
     suggestion?: string;
   }>;
+}
+
+/**
+ * Image validation result - for post-generation image quality checks using Vision model.
+ * Detects character hallucinations, duplicates, missing characters, reference fidelity issues.
+ */
+export interface ImageValidationResult {
+  isValid: boolean;
+  characterCount: number;
+  expectedCharacterCount: number;
+  characters: Array<{
+    name: string;
+    found: boolean;
+    duplicated: boolean;
+    recognizable: boolean;     // Overall: is this recognizably the described character? (covers species, silhouette, proportions)
+    matchesColors: boolean;    // Correct color palette (fur, eyes, skin)
+    matchesOutfit: boolean;    // Correct clothing/accessories (true if none described)
+    issue?: string;
+  }>;
+  hasUnexpectedCharacters: boolean;
+  hasTextOrLetters: boolean;
+  hasRenderingArtifacts: boolean;
+  overallFeedback: string; // Human-readable summary for logging
 }
 
 /**
@@ -78,12 +101,12 @@ export interface StorySpec {
 export interface StoryEnvironment {
   id: string;
   name: string;
-  visualDescription: string; // Rich English description of the location for image generation
+  description: string; // Base visual description (English)
 }
 
 /**
  * Episode outline - high-level story structure
- * Each scene includes visualPrompt for future image generation (M4)
+ * Each scene includes sceneVisual for future image generation (M4)
  */
 export interface EpisodeOutline {
   title: string;
@@ -96,7 +119,8 @@ export interface EpisodeOutline {
     goal: string;
     emotion: string;
     beats: string[];
-    visualPrompt: string; // Description for image generation (M4)
+    sceneVisual?: SceneVisual; // Structured visual description for image generation
+    visualPrompt?: string; // Deprecated: kept for backward compatibility with old outlines
     environmentId?: string; // Reference to environment where this scene takes place
   }>;
   safetyNotes: string[];
@@ -120,9 +144,10 @@ export interface EpisodeText {
   scenes: Array<{
     sceneId: number;
     text: string; // Text for this specific scene
-    visualPrompt: string; // Visual description for image generation (action/composition only)
+    sceneVisual?: SceneVisual; // Structured visual description for image generation
+    visualPrompt?: string; // Deprecated: kept for backward compatibility with old stories
     environmentId?: string; // Reference to environment where this scene takes place
-    characters?: string[]; // NEW: Character names appearing in this scene (optional for backward compatibility)
+    characters?: string[]; // Character names appearing in this scene (optional for backward compatibility)
   }>;
   fullText: string; // Concatenated full story for reading
   wordCount: number;
@@ -133,8 +158,7 @@ export interface EpisodeText {
  * Text provider interface - abstracts AI text generation
  */
 export interface TextProvider {
-  generateOutline(spec: StorySpec): Promise<EpisodeOutline>;
-  generateText(spec: StorySpec, outline: EpisodeOutline): Promise<EpisodeText>;
+  generateText(spec: StorySpec): Promise<EpisodeText>;
   
   /**
    * Validate a single scene for content safety and age-appropriateness

@@ -9,29 +9,19 @@ import {
   CLOTHING_STYLES, HUMAN_DISTINCTIVE_FEATURES,
   IMAGINARY_SPECIES_SUGGESTIONS, COLOR_SUGGESTIONS, SIZE_SUGGESTIONS, MAGICAL_FEATURES_SUGGESTIONS
 } from '@kazka/shared';
-import { db } from '../db';
-import { storyGoals, storyTones, scenarioCards, translations } from '../db/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { getDictionaryRepository } from '../repositories';
 import { logger } from '../utils/logger';
 
 const router = Router();
 
-// Helper function to get translations
+// Helper function to get translations via repository
 async function getTranslations(
   entityType: string,
   entityIds: string[],
   locale: string
 ): Promise<Map<string, Map<string, string>>> {
-  const translationsData = await db
-    .select()
-    .from(translations)
-    .where(
-      and(
-        eq(translations.entityType, entityType),
-        inArray(translations.entityId, entityIds),
-        eq(translations.locale, locale)
-      )
-    );
+  const dictionaryRepo = getDictionaryRepository();
+  const translationsData = await dictionaryRepo.findTranslations(entityType, entityIds, locale);
   
   // Build map: entityId -> fieldName -> value
   const translationsMap = new Map<string, Map<string, string>>();
@@ -129,12 +119,13 @@ router.get('/character-traits', async (req, res) => {
 router.get('/story-themes', async (req, res) => {
   try {
     const locale = (req.query.locale as string) || 'uk';
+    const dictionaryRepo = getDictionaryRepository();
     
-    // Fetch all data from DB
+    // Fetch all data from DB via repository
     const [goalsData, tonesData, scenarioCardsData] = await Promise.all([
-      db.select().from(storyGoals).orderBy(storyGoals.sortOrder),
-      db.select().from(storyTones).orderBy(storyTones.sortOrder),
-      db.select().from(scenarioCards).where(eq(scenarioCards.isActive, true)).orderBy(scenarioCards.sortOrder)
+      dictionaryRepo.findAllGoals(),
+      dictionaryRepo.findAllTones(),
+      dictionaryRepo.findActiveScenarioCards()
     ]);
     
     // Fetch translations

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
 
@@ -7,6 +7,7 @@ interface Character {
   id: string;
   name: string;
   type: string;
+  referencePhotos?: Array<{ url: string }>;
 }
 
 interface Props {
@@ -41,7 +42,15 @@ export function CharacterCard({ character, onPress }: Props) {
       activeOpacity={0.7}
     >
       <View style={styles.iconContainer}>
-        <Text style={styles.icon}>{getCharacterIcon(character.type)}</Text>
+        {character.referencePhotos?.[0]?.url ? (
+          <Image
+            source={{ uri: character.referencePhotos[0].url }}
+            style={styles.avatar}
+            resizeMode="cover"
+          />
+        ) : (
+          <Text style={styles.icon}>{getCharacterIcon(character.type)}</Text>
+        )}
       </View>
       <Text style={styles.name} numberOfLines={2}>
         {character.name}
@@ -55,7 +64,6 @@ export function CharacterCard({ character, onPress }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    width: '48%',
     backgroundColor: theme.colors.background.secondary,
     borderRadius: theme.borders.radius.lg,
     padding: theme.spacing[4],
@@ -71,6 +79,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: theme.spacing[3],
+  },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
   },
   icon: {
     fontSize: 32,

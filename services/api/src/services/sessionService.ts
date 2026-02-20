@@ -1,7 +1,6 @@
-import { eq, and, lt, gt } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
-import db from '../db';
-import { sessions, users, type Session, type NewSession, type User } from '../db/schema';
+import { getSessionRepository } from '../repositories';
+import type { Session, User, NewSession } from '../db/schema';
 import config from '../config';
 import { logger } from '../utils/logger';
 
@@ -62,35 +61,19 @@ export async function createSession(input: CreateSessionInput): Promise<SessionD
     expiresAt,
   };
   
-  const [session] = await db.insert(sessions).values(newSession).returning();
-  
+  const session = await getSessionRepository().create(newSession);
   return session as SessionData;
 }
 
 // Get session by token
 export async function getSession(token: string): Promise<SessionData | null> {
-  const [session] = await db
-    .select()
-    .from(sessions)
-    .where(eq(sessions.token, token))
-    .limit(1);
-  
+  const session = await getSessionRepository().findByToken(token);
   return (session as SessionData) || null;
 }
 
 // Validate session (check existence and expiry)
 export async function validateSession(token: string): Promise<boolean> {
-  const [session] = await db
-    .select()
-    .from(sessions)
-    .where(
-      and(
-        eq(sessions.token, token),
-        gt(sessions.expiresAt, new Date()) // FIX: gt = greater than (valid session)
-      )
-    )
-    .limit(1);
-  
+  const session = await getSessionRepository().findValidByToken(token);
   return !!session;
 }
 
@@ -98,50 +81,27 @@ export async function validateSession(token: string): Promise<boolean> {
 export async function getSessionWithUser(
   sessionId: string
 ): Promise<{ session: Session; user: User } | null> {
-  const [result] = await db
-    .select({
-      session: sessions,
-      user: users,
-    })
-    .from(sessions)
-    .innerJoin(users, eq(sessions.userId, users.id))
-    .where(
-      and(
-        eq(sessions.id, sessionId),
-        gt(sessions.expiresAt, new Date())
-      )
-    )
-    .limit(1);
-  
-  return result || null;
+  return getSessionRepository().findValidByIdWithUser(sessionId);
 }
 
 // Update last active timestamp
 export async function updateLastActive(token: string): Promise<void> {
-  await db
-    .update(sessions)
-    .set({ lastActiveAt: new Date() })
-    .where(eq(sessions.token, token));
+  await getSessionRepository().updateLastActive(token);
 }
 
 // Delete session (logout)
 export async function deleteSession(token: string): Promise<void> {
-  await db.delete(sessions).where(eq(sessions.token, token));
+  await getSessionRepository().deleteByToken(token);
 }
 
 // Delete all user sessions (force logout all devices)
 export async function deleteAllUserSessions(userId: string): Promise<number> {
-  const result = await db.delete(sessions).where(eq(sessions.userId, userId));
-  return result.rowCount || 0;
+  return getSessionRepository().deleteByUserId(userId);
 }
 
 // Get all active sessions for a user
 export async function getUserSessions(userId: string): Promise<SessionData[]> {
-  const userSessions = await db
-    .select()
-    .from(sessions)
-    .where(eq(sessions.userId, userId))
-    .orderBy(sessions.lastActiveAt);
+  const userSessions = await getSessionRepository().findByUserId(userId);
   
   // Filter out expired sessions
   const now = new Date();
@@ -150,8 +110,7 @@ export async function getUserSessions(userId: string): Promise<SessionData[]> {
 
 // Cleanup expired sessions (cron job)
 export async function cleanupExpiredSessions(): Promise<number> {
-  const result = await db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
-  return result.rowCount || 0;
+  return getSessionRepository().deleteExpired();
 }
 
 // Cleanup interval ID for proper cleanup
@@ -190,13 +149,4 @@ export function stopSessionCleanupJob(): void {
   }
 }
 
-// Handle process termination
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, stopping cleanup job...');
-  stopSessionCleanupJob();
-});
-
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, stopping cleanup job...');
-  stopSessionCleanupJob();
-});
+// Session cleanup is stopped centrally via gracefulShutdown in db/index.ts

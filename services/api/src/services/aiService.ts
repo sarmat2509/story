@@ -13,6 +13,7 @@ import { OpenAITextProvider } from '../providers/text/openai';
 import { GeminiImageProvider } from '../providers/image/gemini';
 import { GeminiQuotaProvider } from '../providers/image/gemini/GeminiQuotaProvider';
 import { NanoBananaProProvider } from '../providers/image/nanobananapro';
+import { OpenAIImageProvider } from '../providers/image/openai';
 import { ElevenLabsProvider } from '../providers/audio/elevenlabs';
 import { GoogleTTSProvider } from '../providers/audio/google/GoogleTTSProvider';
 import { OpenAITTSProvider } from '../providers/audio/openai/OpenAITTSProvider';
@@ -21,6 +22,9 @@ import { StoryDomainService } from '../domain/story';
 import { ImageDomainService } from '../domain/image';
 import { AudioDomainService } from '../domain/audio';
 import { ImageRateLimiter } from './imageRateLimiter';
+import { TextRateLimiter } from './textRateLimiter';
+import { stopAudioRateLimiter } from './audioRateLimiter';
+import { GeminiTextQuotaProvider } from '../providers/text/gemini/GeminiTextQuotaProvider';
 import type { ITextProvider } from '../providers/base/ITextProvider';
 import type { IImageProvider } from '../providers/base/IImageProvider';
 import type { IAudioProvider } from '../providers/base/IAudioProvider';
@@ -42,7 +46,9 @@ let alignmentProvider: IAlignmentProvider | null = null;
 
 // Rate limiting instances
 let imageRateLimiter: ImageRateLimiter | null = null;
+let textRateLimiter: TextRateLimiter | null = null;
 let quotaProvider: IQuotaProvider | null = null;
+let textQuotaProvider: IQuotaProvider | null = null;
 
 /**
  * Get Story Domain Service instance
@@ -73,11 +79,17 @@ export function getImageDomainService(): ImageDomainService {
     // Initialize rate limiter (singleton)
     getImageRateLimiter();
     
-    // Create provider (hidden from orchestration)
+    // Create image provider (hidden from orchestration)
     const provider = getImageProvider();
     
-    // Create domain service with provider
-    imageDomainService = new ImageDomainService(provider);
+    // Inject text provider for Vision-based image validation (only when enabled)
+    const validationTextProvider = config.image.enableValidation ? getTextProvider() : undefined;
+    if (validationTextProvider) {
+      logger.info('Image validation enabled — injecting text provider for Gemini Vision');
+    }
+    
+    // Create domain service with both providers
+    imageDomainService = new ImageDomainService(provider, validationTextProvider);
   }
   
   return imageDomainService;
@@ -102,10 +114,10 @@ export function getAudioDomainService(): AudioDomainService {
 }
 
 /**
- * Get text provider instance (private)
- * Only called by getStoryDomainService()
+ * Get text provider instance
+ * Used by getStoryDomainService() and translation services
  */
-function getTextProvider(): ITextProvider {
+export function getTextProvider(): ITextProvider {
   if (!textProvider) {
     const vendor = config.ai.textVendor;
     
@@ -130,7 +142,8 @@ function getTextProvider(): ITextProvider {
  * Get image provider instance (private)
  * Only called by getImageDomainService()
  * Supports:
- * - 'nanobananapro': Gemini 2.5 Flash Image (for cartoon/illustration with character consistency)
+ * - 'nanobananapro': Gemini Flash/Pro Image (for cartoon/illustration with character consistency)
+ * - 'openai': GPT Image via Responses API (for character consistency with input_fidelity)
  * - 'gemini': Imagen 3 (legacy, for photorealistic images)
  */
 function getImageProvider(): IImageProvider {
@@ -141,8 +154,12 @@ function getImageProvider(): IImageProvider {
     
     switch (provider) {
       case 'nanobananapro':
-        // Nano Banana Pro (Gemini 2.5 Flash Image) - for cartoon/illustration
+        // Nano Banana Pro (Gemini Flash/Pro Image) - for cartoon/illustration
         imageProvider = new NanoBananaProProvider(config.google.apiKey);
+        break;
+      case 'openai':
+        // OpenAI GPT Image via Responses API
+        imageProvider = new OpenAIImageProvider(config.ai.openaiApiKey);
         break;
       case 'gemini':
         // Legacy Imagen 3 provider
@@ -344,6 +361,54 @@ export function getAlignmentProvider(): IAlignmentProvider {
 }
 
 /**
+ * Get Text Quota Provider instance (vendor-specific)
+ * Private - used only by getTextRateLimiter()
+ */
+function getTextQuotaProvider(): IQuotaProvider {
+  if (!textQuotaProvider) {
+    const vendor = config.ai.textVendor || 'gemini';
+    
+    switch (vendor) {
+      case 'gemini':
+        textQuotaProvider = new GeminiTextQuotaProvider();
+        break;
+      // Future: case 'openai': textQuotaProvider = new OpenAITextQuotaProvider(); break;
+      default:
+        logger.warn({ vendor }, 'No text quota provider for vendor, using Gemini default');
+        textQuotaProvider = new GeminiTextQuotaProvider();
+    }
+  }
+  return textQuotaProvider;
+}
+
+/**
+ * Get Text Rate Limiter instance
+ * Global singleton with vendor-specific quota provider injected
+ */
+export function getTextRateLimiter(): TextRateLimiter {
+  if (!textRateLimiter) {
+    logger.info('Initializing Text Rate Limiter with quota provider');
+    const provider = getTextQuotaProvider();
+    textRateLimiter = new TextRateLimiter(provider);
+  }
+  return textRateLimiter;
+}
+
+/**
+ * Stop all rate limiter intervals for graceful shutdown
+ */
+export function stopAllRateLimiters(): void {
+  if (imageRateLimiter) {
+    imageRateLimiter.stop();
+  }
+  if (textRateLimiter) {
+    textRateLimiter.stop();
+  }
+  stopAudioRateLimiter();
+  logger.info('All rate limiters stopped');
+}
+
+/**
  * Reset all domain services and providers (useful for testing)
  */
 export function resetServices(): void {
@@ -355,6 +420,8 @@ export function resetServices(): void {
   audioProvider = null;
   alignmentProvider = null;
   imageRateLimiter = null;
+  textRateLimiter = null;
   quotaProvider = null;
+  textQuotaProvider = null;
   logger.info('AI services reset');
 }

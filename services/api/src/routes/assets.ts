@@ -1,38 +1,118 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/authMiddleware';
-import { getAssetStorageService } from '../services/assetStorageService';
-import { db } from '../db';
-import { assets } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { getAssetRepository } from '../repositories';
 import { logger } from '../utils/logger';
 import fs from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
 import { validate as isUUID } from 'uuid';
 
 const router = Router();
 
+// ── Security: Path Containment Helper ──
+
+const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads');
+
+/**
+ * Validates that a resolved file path stays within the uploads directory.
+ * Prevents path traversal attacks (e.g., ../../etc/passwd).
+ */
+function isPathSafe(requestedPath: string): boolean {
+  const resolved = path.resolve(UPLOADS_DIR, requestedPath);
+  // Ensure the resolved path starts with the uploads dir + separator
+  // to prevent partial prefix matches (e.g., /uploads-evil)
+  return resolved.startsWith(UPLOADS_DIR + path.sep) || resolved === UPLOADS_DIR;
+}
+
+/**
+ * Verify HMAC signed URL token.
+ * Returns true if the token + expires params are valid.
+ */
+function verifySignedUrl(assetPath: string, token: string, expires: string): boolean {
+  // Check expiry
+  const expiresAt = parseInt(expires, 10);
+  if (isNaN(expiresAt) || Date.now() > expiresAt) {
+    return false;
+  }
+  
+  // Verify HMAC signature
+  const secret = process.env.JWT_SECRET;
+  const signingKey = secret && secret.length >= 32
+    ? secret
+    : 'dev-secret-key-do-not-use-in-production!';
+  const expectedToken = crypto
+    .createHmac('sha256', signingKey)
+    .update(`${assetPath}:${expires}`)
+    .digest('hex');
+  
+  return token === expectedToken;
+}
+
 /**
  * GET /api/v1/assets/{env}/{userId}/photos/{photoType}/{filename}
  * Serve user photos (character, child, profile reference photos)
- * Public in dev mode with local storage (no auth required)
- * In production with S3, use signed URLs
+ * Supports dual auth: HMAC signed URL (token+expires) OR Bearer auth with ownership check.
+ *
+ * Middleware chain:
+ * 1. First middleware: check for signed URL params → if valid, mark auth and call next();
+ *    if no signed URL params, delegate to requireAuth.
+ * 2. Final handler: serve the file (with ownership check for Bearer auth).
  */
-router.get('/:env/:userId/photos/:photoType/:filename', async (req: Request, res: Response) => {
+router.get('/:env/:userId/photos/:photoType/:filename',
+  // Auth middleware: signed URL OR Bearer token
+  (req: Request, res: Response, next) => {
+    const { token, expires } = req.query;
+    if (token && expires) {
+      // Signed URL auth — verify HMAC token
+      const { env, userId, photoType, filename } = req.params;
+      const relativePath = `${env}/${userId}/photos/${photoType}/${filename}`;
+      if (verifySignedUrl(relativePath, token as string, expires as string)) {
+        (req as any).authMethod = 'signed_url';
+        return next();
+      }
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid or expired signature'
+      });
+    }
+    // No signed URL params — fall through to Bearer auth
+    return requireAuth(req, res, next);
+  },
+  // Handler: validate and serve photo
+  async (req: Request, res: Response) => {
   try {
     const { env, userId, photoType, filename } = req.params;
     
     // Validate photo type
-    if (!['character', 'child', 'profile'].includes(photoType)) {
+    if (!['character', 'child', 'profile', 'character_turnaround', 'child_turnaround'].includes(photoType)) {
       return res.status(400).json({
         status: 'error',
         message: 'Invalid photo type'
       });
     }
     
-    // Build path
-    const sanitizedPath = `${env}/${userId}/photos/${photoType}/${filename}`;
-    const uploadsDir = path.join(process.cwd(), 'uploads');
-    const fullPath = path.join(uploadsDir, sanitizedPath);
+    // Build path and validate containment
+    const relativePath = `${env}/${userId}/photos/${photoType}/${filename}`;
+    if (!isPathSafe(relativePath)) {
+      logger.warn({ userId, relativePath }, 'Path traversal attempt in photos route');
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid file path'
+      });
+    }
+    
+    // Ownership check only for Bearer auth (signed URLs are self-validating)
+    if ((req as any).authMethod !== 'signed_url') {
+      if (userId !== req.user!.id) {
+        logger.warn({ requestingUser: req.user!.id, targetUser: userId }, 'Unauthorized photo access attempt');
+        return res.status(403).json({
+          status: 'error',
+          message: 'You can only access your own photos'
+        });
+      }
+    }
+    
+    const fullPath = path.resolve(UPLOADS_DIR, relativePath);
     
     // Check file exists
     try {
@@ -57,7 +137,7 @@ router.get('/:env/:userId/photos/:photoType/:filename', async (req: Request, res
     
     // Set appropriate headers
     res.setHeader('Content-Type', mimeType);
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // 24 hours
+    res.setHeader('Cache-Control', 'private, max-age=86400'); // Private cache, 24 hours
     res.setHeader('Access-Control-Allow-Origin', '*'); // Allow CORS for images
     
     // Send file
@@ -89,10 +169,17 @@ router.get('/voice-samples/:language/:filename', async (req: Request, res: Respo
       });
     }
     
-    // Build path
-    const sanitizedPath = `voice-samples/${language}/${filename}`;
-    const uploadsDir = path.join(process.cwd(), 'uploads');
-    const fullPath = path.join(uploadsDir, sanitizedPath);
+    // Build path and validate containment
+    const relativePath = `voice-samples/${language}/${filename}`;
+    if (!isPathSafe(relativePath)) {
+      logger.warn({ relativePath }, 'Path traversal attempt in voice-samples route');
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid file path'
+      });
+    }
+    
+    const fullPath = path.resolve(UPLOADS_DIR, relativePath);
     
     // Check file exists
     try {
@@ -124,7 +211,7 @@ router.get('/voice-samples/:language/:filename', async (req: Request, res: Respo
 /**
  * GET /api/v1/assets/*
  * Serve story assets (images, audio from generated stories)
- * Security: Uses signed URLs with expiring tokens
+ * Public access — no auth required. Signed URLs accepted for backward compat.
  */
 router.get('/*', async (req: Request, res: Response) => {
   try {
@@ -138,41 +225,26 @@ router.get('/*', async (req: Request, res: Response) => {
       });
     }
     
-    // Verify signed URL token
-    if (!token || !expires) {
-      return res.status(401).json({
+    // Optional: verify signed URL if present (backward compat with cached URLs)
+    if (token && expires) {
+      if (!verifySignedUrl(assetPath, token as string, expires as string)) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Invalid or expired signature'
+        });
+      }
+    }
+    
+    // Path containment check to prevent directory traversal
+    if (!isPathSafe(assetPath)) {
+      logger.warn({ assetPath }, 'Path traversal attempt in catch-all asset route');
+      return res.status(400).json({
         status: 'error',
-        message: 'Missing signature parameters'
+        message: 'Invalid file path'
       });
     }
     
-    // Check if token expired
-    const expiresAt = parseInt(expires as string, 10);
-    if (Date.now() > expiresAt) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Signed URL has expired'
-      });
-    }
-    
-    // Verify token signature
-    const crypto = require('crypto');
-    const secret = process.env.JWT_SECRET || 'dev-secret-key';
-    const expectedToken = crypto
-      .createHmac('sha256', secret)
-      .update(`${assetPath}:${expires}`)
-      .digest('hex');
-    
-    if (token !== expectedToken) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Invalid signature'
-      });
-    }
-    
-    // Sanitize path to prevent directory traversal
-    const sanitizedPath = assetPath.replace(/\.\./g, '');
-    const pathParts = sanitizedPath.split('/');
+    const pathParts = assetPath.split('/');
     
     // Expected format: {env}/{userId}/{storyId}/{assetType}/{filename}
     if (pathParts.length < 5) {
@@ -193,16 +265,7 @@ router.get('/*', async (req: Request, res: Response) => {
     }
     
     // Check that asset exists
-    const [asset] = await db
-      .select({
-        id: assets.id,
-        storagePath: assets.storagePath,
-        mimeType: assets.mimeType,
-        storyId: assets.storyId,
-      })
-      .from(assets)
-      .where(eq(assets.storagePath, sanitizedPath))
-      .limit(1);
+    const asset = await getAssetRepository().findByStoragePath(assetPath);
     
     if (!asset) {
       return res.status(404).json({
@@ -212,8 +275,7 @@ router.get('/*', async (req: Request, res: Response) => {
     }
     
     // Serve file
-    const uploadsDir = path.join(process.cwd(), 'uploads');
-    const fullPath = path.join(uploadsDir, sanitizedPath);
+    const fullPath = path.resolve(UPLOADS_DIR, assetPath);
     
     // Check file exists
     try {
@@ -227,8 +289,8 @@ router.get('/*', async (req: Request, res: Response) => {
     
     // Set appropriate headers
     res.setHeader('Content-Type', asset.mimeType);
-    res.setHeader('Cache-Control', 'private, max-age=86400'); // Private cache for 24h
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Allow CORS for images
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Access-Control-Allow-Origin', '*');
     
     // Send file
     res.sendFile(fullPath);

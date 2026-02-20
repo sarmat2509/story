@@ -45,6 +45,7 @@ export class AudioRateLimiter {
   private processedCount: number = 0;
   private isProcessingQueue: boolean = false;
   private quotaProvider: IQuotaProvider;
+  private quotaRefreshIntervalId: NodeJS.Timeout | null = null;
 
   constructor(quotaProvider: IQuotaProvider) {
     this.quotaProvider = quotaProvider;
@@ -357,12 +358,30 @@ export class AudioRateLimiter {
   /**
    * Start periodic quota refresh
    */
+  /**
+   * Stop the rate limiter: clear intervals and reject pending tasks
+   */
+  stop(): void {
+    if (this.quotaRefreshIntervalId) {
+      clearInterval(this.quotaRefreshIntervalId);
+      this.quotaRefreshIntervalId = null;
+    }
+    // Reject all pending queue tasks
+    while (this.queue.length > 0) {
+      const task = this.queue.shift();
+      if (task) {
+        task.reject(new Error('AudioRateLimiter shutting down'));
+      }
+    }
+    logger.info('AudioRateLimiter stopped');
+  }
+
   private startQuotaRefresh(): void {
     // Initial fetch
     this.refreshQuota();
 
     // Periodic refresh
-    setInterval(() => {
+    this.quotaRefreshIntervalId = setInterval(() => {
       this.refreshQuota();
     }, config.audio.quotaRefreshIntervalMs);
   }
@@ -457,8 +476,20 @@ export function getAudioRateLimiter(): AudioRateLimiter {
 }
 
 /**
+ * Stop audio rate limiter: clear intervals and reject pending tasks
+ */
+export function stopAudioRateLimiter(): void {
+  if (audioRateLimiterInstance) {
+    audioRateLimiterInstance.stop();
+  }
+}
+
+/**
  * Reset singleton (for testing)
  */
 export function resetAudioRateLimiter(): void {
+  if (audioRateLimiterInstance) {
+    audioRateLimiterInstance.stop();
+  }
   audioRateLimiterInstance = null;
 }
