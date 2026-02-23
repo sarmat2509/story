@@ -11,7 +11,14 @@ export const oauth = {
    */
   async handleGoogleSignIn(): Promise<string | null> {
     try {
-      const GoogleSignin = require('@react-native-google-signin/google-signin').default;
+      // Check if native module is available
+      const GoogleSigninModule = require('@react-native-google-signin/google-signin');
+      if (!GoogleSigninModule || !GoogleSigninModule.default) {
+        console.warn('⚠️  Google Sign In requires Custom Dev Client (expo-dev-client). Falling back to web flow.');
+        throw new Error('Google Sign In native module not available. Please use web version or build with expo-dev-client.');
+      }
+      
+      const GoogleSignin = GoogleSigninModule.default;
       
       // Configure
       await GoogleSignin.configure({
@@ -39,7 +46,14 @@ export const oauth = {
     try {
       if (Platform.OS === 'ios') {
         // iOS: Use native Apple Authentication
-        const AppleAuthentication = require('@invertase/react-native-apple-authentication');
+        const AppleAuthenticationModule = require('@invertase/react-native-apple-authentication');
+        
+        if (!AppleAuthenticationModule || !AppleAuthenticationModule.appleAuth) {
+          console.warn('⚠️  Apple Sign In requires Custom Dev Client (expo-dev-client). Falling back to web flow.');
+          throw new Error('Apple Sign In native module not available. Please use web version or build with expo-dev-client.');
+        }
+        
+        const AppleAuthentication = AppleAuthenticationModule;
         
         const appleAuthRequestResponse = await AppleAuthentication.appleAuth.performRequest({
           requestedOperation: AppleAuthentication.appleAuth.Operation.LOGIN,

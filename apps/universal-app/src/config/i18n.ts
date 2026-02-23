@@ -1,3 +1,6 @@
+// Polyfill for Intl.PluralRules (required for React Native)
+import 'intl-pluralrules';
+
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { storage } from '@/utils/storage';

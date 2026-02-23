@@ -1,9 +1,10 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator, BottomTabBar } from '@react-navigation/bottom-tabs';
-import { createDrawerNavigator } from '@react-navigation/drawer';
+import { createDrawerNavigator, DrawerActions } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
 import { useResponsive } from '@/hooks/useResponsive';
 import { theme } from '@/theme';
 import DashboardScreen from '@/screens/dashboard/DashboardScreen';
@@ -132,16 +133,28 @@ function TabNavigator() {
 
 function DrawerNavigator() {
   const { t } = useTranslation();
+  const { isTablet, isDesktop } = useResponsive();
+  const navigation = useNavigation();
   
   return (
     <Drawer.Navigator
       backBehavior="history"
       screenOptions={{
         headerShown: true,
-        drawerType: 'permanent',
+        drawerType: isDesktop ? 'permanent' : 'front',
         drawerActiveTintColor: theme.colors.interactive.primary,
         drawerInactiveTintColor: theme.colors.text.tertiary,
-        headerLeft: () => null,
+        drawerStyle: {
+          width: isDesktop ? theme.layout.drawer.widthDesktop : theme.layout.drawer.widthTablet,
+        },
+        headerLeft: (isTablet || isDesktop) ? (props) => (
+          <TouchableOpacity
+            onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
+            style={{ paddingHorizontal: 16 }}
+          >
+            <Ionicons name="menu" size={24} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+        ) : undefined,
         headerRight: () => <LanguageDropdown />,
       }}
     >

@@ -6,26 +6,40 @@ import { theme } from '@/theme';
 export default function LoginScreen() {
   const { signInWithGoogle, signInWithApple, isLoading } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [showSkipOption, setShowSkipOption] = useState(false);
+
+  // Show skip option after error (for testing UI without OAuth)
+  const handleError = (message: string, err: any) => {
+    setError(message);
+    setShowSkipOption(true);
+    console.error(err);
+  };
 
   const handleGoogleLogin = async () => {
     try {
       setError(null);
+      setShowSkipOption(false);
       await signInWithGoogle();
       // For web, page will redirect. For mobile, success handled by RootNavigator
-    } catch (err) {
-      setError('Google Sign In failed. Please try again.');
-      console.error('Google login error:', err);
+    } catch (err: any) {
+      const message = err?.message?.includes('expo-dev-client') 
+        ? 'Native OAuth requires Custom Dev Client. Please use web version or run: npx expo run:ios'
+        : 'Google Sign In failed. Please try again.';
+      handleError(message, err);
     }
   };
 
   const handleAppleLogin = async () => {
     try {
       setError(null);
+      setShowSkipOption(false);
       await signInWithApple();
       // For web, page will redirect. For mobile, success handled by RootNavigator
-    } catch (err) {
-      setError('Apple Sign In failed. Please try again.');
-      console.error('Apple login error:', err);
+    } catch (err: any) {
+      const message = err?.message?.includes('expo-dev-client') 
+        ? 'Native OAuth requires Custom Dev Client. Please use web version or run: npx expo run:ios'
+        : 'Apple Sign In failed. Please try again.';
+      handleError(message, err);
     }
   };
 
@@ -70,6 +84,12 @@ export default function LoginScreen() {
         {Platform.OS === 'web' && (
           <Text style={styles.noteText}>
             Note: Web OAuth will open in the same window
+          </Text>
+        )}
+        
+        {showSkipOption && Platform.OS !== 'web' && (
+          <Text style={styles.devNoteText}>
+            💡 Dev Tip: Test UI layout on web version, or build with expo-dev-client for native OAuth
           </Text>
         )}
       </View>
@@ -137,5 +157,12 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.xs,
     textAlign: 'center',
     color: theme.colors.neutral[400],
+  },
+  devNoteText: {
+    marginTop: theme.spacing[4],
+    fontSize: theme.typography.fontSize.xs,
+    textAlign: 'center',
+    color: theme.colors.interactive.primary,
+    fontStyle: 'italic',
   },
 });

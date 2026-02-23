@@ -1,0 +1,8 @@
+{
+  "android": {
+    "package": "com.anonymous.kazkaplus"
+  },
+  "ios": {
+    "bundleIdentifier": "com.anonymous.kazkaplus"
+  }
+}

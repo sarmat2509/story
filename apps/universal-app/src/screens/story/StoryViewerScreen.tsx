@@ -7,18 +7,22 @@ import { useVoices } from '@/api/voices';
 import { useUpdateCharacter } from '@/api/characters';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import BottomSheet from '@gorhom/bottom-sheet';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { toastService } from '@/services/toastService';
 import { audioNotificationService } from '@/services/audioNotificationService';
 import { audioPlaybackService } from '@/services/audioPlaybackService';
 import { globalAudioService } from '@/services/globalAudioService';
 import { useAudioPlayerStore } from '@/store/audioPlayerStore';
+import { useResponsive } from '@/hooks/useResponsive';
 import { theme } from '@/theme';
 import type { MainDrawerParamList } from '@/types/navigation';
 import AudioPlayer from '@/components/AudioPlayer';
 import VoiceSelector from '@/components/VoiceSelector';
 import { useAlignmentSync } from '@/hooks/useAlignmentSync';
 import { GenerationProgressModal } from '@/components/GenerationProgressModal';
+import { StoryBottomSheet } from '@/components/StoryBottomSheet';
+import { FloatingActionButton } from '@/components/FloatingActionButton';
 
 type StoryViewerRouteProp = RouteProp<MainDrawerParamList, 'Story'>;
 
@@ -45,12 +49,20 @@ export default function StoryViewerScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
+  const { isTabletPortrait, isTabletLandscape, isDesktop, isMobile } = useResponsive();
   const storyId = route.params?.storyId;
   const { data: story, isLoading, error } = useStory(storyId!);
   const generateAudio = useGenerateAudio();
   const generateAlignment = useGenerateAlignment();
   const updateCharacterMutation = useUpdateCharacter();
   const [savedCharacterIds, setSavedCharacterIds] = useState<Set<string>>(new Set());
+  
+  // Bottom sheet for tablet portrait
+  const bottomSheetRef = useRef<BottomSheet>(null);
+  
+  const openBottomSheet = useCallback(() => {
+    bottomSheetRef.current?.expand();
+  }, []);
   
   // M6: Text highlighting state
   const [isHighlightEnabled, setIsHighlightEnabled] = useState(false);
@@ -1207,14 +1219,36 @@ export default function StoryViewerScreen() {
 
   return (
     <View style={styles.container}>
-      {isWeb ? (
-        // Desktop: Two Column Layout
-        <View style={styles.desktopLayout}>
-          {/* Left Column: Story Content */}
+      {/* Layout decision based on breakpoint */}
+      {isMobile || isTabletPortrait ? (
+        // Mobile + Tablet Portrait: Single Column with FAB
+        <>
           <ScrollView 
             ref={scrollViewRef}
-            style={styles.leftColumn}
+            style={styles.container}
           >
+            {/* Audio Generation Section */}
+            {renderAudioGenerationSection()}
+            
+            {/* Show audio player if audio exists (mobile only) */}
+            {isMobile && story.audioMetadata && audioData && (
+              <View style={styles.audioPlayerContainer}>
+                <AudioPlayer
+                  storyId={storyId}
+                  audioUrl={audioData.audioUrl}
+                  duration={audioData.duration}
+                  title={`🎧 ${t('story_viewer.audio_title')}`}
+                  hasAlignment={!!(story.audioMetadata as any)?.alignment}
+                  onHighlightToggle={handleHighlightToggle}
+                  onPositionChange={handlePositionChangeWrapper}
+                  onFinish={handleAudioFinish}
+                  onActivate={handleActivateAudio}
+                />
+              </View>
+            )}
+            
+            {/* Characters Section (mobile) */}
+            {isMobile && renderCharactersSection()}
             
             {/* Story Scenes */}
             {renderScenesWithHighlight()}
@@ -1223,14 +1257,58 @@ export default function StoryViewerScreen() {
             {renderContinueButton()}
           </ScrollView>
           
-          {/* Right Column: Sidebar (sticky) */}
+          {/* FAB for Tablet Portrait only */}
+          {isTabletPortrait && (story.audioMetadata || (story as any)?.characters?.length > 0) && (
+            <FloatingActionButton onPress={openBottomSheet} icon="musical-notes" />
+          )}
           
+          {/* Bottom Sheet for Tablet Portrait */}
+          {isTabletPortrait && (
+            <StoryBottomSheet
+              bottomSheetRef={bottomSheetRef}
+              audioData={audioData}
+              story={story}
+              storyId={storyId}
+              hasAlignment={!!(story.audioMetadata as any)?.alignment}
+              onHighlightToggle={handleHighlightToggle}
+              onPositionChange={handlePositionChangeWrapper}
+              onFinish={handleAudioFinish}
+              onActivateAudio={handleActivateAudio}
+              onDeleteStory={handleDeleteStory}
+              characters={(story as any)?.characters || []}
+              onSaveCharacter={async (characterId) => {
+                await updateCharacterMutation.mutateAsync({ id: characterId, data: { isHidden: false } as any });
+                setSavedCharacterIds(prev => new Set(prev).add(characterId));
+                toastService.success(t('story_viewer.character_saved'));
+              }}
+              savedCharacterIds={savedCharacterIds}
+            />
+          )}
+        </>
+      ) : (
+        // Tablet Landscape + Desktop: Two Column Layout
+        <View style={styles.desktopLayout}>
+          {/* Left Column: Story Content */}
+          <ScrollView 
+            ref={scrollViewRef}
+            style={styles.leftColumn}
+          >
+            {/* Story Scenes */}
+            {renderScenesWithHighlight()}
+            
+            {/* Continue Story Button */}
+            {renderContinueButton()}
+          </ScrollView>
+          
+          {/* Right Column: Sidebar (sticky) */}
           <View style={styles.rightColumn}>
-              <View style={styles.sidebar}>
-                {/* Audio Generation Section (if audio not ready) */}
-                {renderAudioGenerationSection()}
-                {/* Audio Widget */}
-                {story.audioMetadata && audioData && (<View style={styles.sidebarWidget}>
+            <View style={styles.sidebar}>
+              {/* Audio Generation Section (if audio not ready) */}
+              {renderAudioGenerationSection()}
+              
+              {/* Audio Widget */}
+              {story.audioMetadata && audioData && (
+                <View style={styles.sidebarWidget}>
                   <Text style={styles.sidebarWidgetTitle}>{t('story_viewer.audio_title')}</Text>
                   <AudioPlayer
                     storyId={storyId}
@@ -1242,64 +1320,26 @@ export default function StoryViewerScreen() {
                     onFinish={handleAudioFinish}
                     onActivate={handleActivateAudio}
                   />
-                </View>)}
-                
-                {/* Characters Section */}
-                {renderCharactersSection()}
-                
-                {/* Delete Story Button */}
-                <TouchableOpacity 
-                  style={styles.deleteButton}
-                  onPress={handleDeleteStory}
-                >
-                  <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
-                  <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
-                </TouchableOpacity>
-                
-                {/* Series Navigation */}
-                {renderSeriesNavigation()}
-                
-                {/* Future widgets can be added here:
-                    - Story metadata
-                    - Share buttons
-                    - Related stories
-                    - etc.
-                */}
-              </View>
+                </View>
+              )}
+              
+              {/* Characters Section */}
+              {renderCharactersSection()}
+              
+              {/* Delete Story Button */}
+              <TouchableOpacity 
+                style={styles.deleteButton}
+                onPress={handleDeleteStory}
+              >
+                <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
+                <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
+              </TouchableOpacity>
+              
+              {/* Series Navigation */}
+              {renderSeriesNavigation()}
             </View>
+          </View>
         </View>
-      ) : (
-        // Mobile: Single Column ScrollView (existing layout)
-        <ScrollView style={styles.container}>
-          {/* Audio Generation Section */}
-          {renderAudioGenerationSection()}
-          
-          {/* Show audio player if audio exists */}
-          {story.audioMetadata && audioData && (
-            <View style={styles.audioPlayerContainer}>
-              <AudioPlayer
-                storyId={storyId}
-                audioUrl={audioData.audioUrl}
-                duration={audioData.duration}
-                title={`🎧 ${t('story_viewer.audio_title')}`}
-                hasAlignment={!!(story.audioMetadata as any)?.alignment}
-                onHighlightToggle={handleHighlightToggle}
-                onPositionChange={handlePositionChangeWrapper}
-                onFinish={handleAudioFinish}
-                onActivate={handleActivateAudio}
-              />
-            </View>
-          )}
-          
-          {/* Characters Section (mobile) */}
-          {renderCharactersSection()}
-          
-          {/* Story Scenes */}
-          {renderScenesWithHighlight()}
-          
-          {/* Continue Story Button */}
-          {renderContinueButton()}
-        </ScrollView>
       )}
       
       {/* M8: Continuation Progress Modal */}
@@ -1364,7 +1404,7 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing[6],
   },
   rightColumn: {
-    width: 360,
+    width: theme.layout.sidebar.widthFixed,
     paddingLeft: theme.spacing[6],
     paddingRight: theme.spacing[6],
     paddingVertical: theme.spacing[6],

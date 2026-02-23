@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { FetchClient } from './fetchClient';
 import { Platform } from 'react-native';
 import { API_BASE_URL } from '@/config/constants';
 import { useAuthStore } from '@/store/authStore';
@@ -8,8 +8,8 @@ import { storage } from '@/utils/storage';
 // For native: use full API URL
 const baseURL = Platform.OS === 'web' ? '' : API_BASE_URL;
 
-// Create axios instance
-const apiClient: AxiosInstance = axios.create({
+// Create fetch-based client instance
+const apiClient = FetchClient.create({
   baseURL,
   timeout: 30000,
   headers: {
@@ -19,22 +19,20 @@ const apiClient: AxiosInstance = axios.create({
 
 // Request interceptor - add auth token
 apiClient.interceptors.request.use(
-  async (config: InternalAxiosRequestConfig) => {
+  async (config) => {
     const token = await storage.getAuthToken();
-    if (token && config.headers) {
+    if (token) {
+      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
-  },
-  (error) => {
-    return Promise.reject(error);
   }
 );
 
 // Response interceptor - handle 401 errors
 apiClient.interceptors.response.use(
-  (response) => response,
-  async (error: AxiosError) => {
+  undefined,
+  async (error: any) => {
     if (error.response?.status === 401) {
       // Token expired or invalid - logout user
       const { logout } = useAuthStore.getState();

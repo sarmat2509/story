@@ -10,6 +10,9 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useAuthStore } from '@/store/authStore';
 import RootNavigator from '@/navigation/RootNavigator';
 
+import interopRequireDefault from '@babel/runtime/helpers/interopRequireDefault';
+console.log('interopRequireDefault OK', typeof interopRequireDefault);
+
 // Suppress React Navigation deprecation warnings (from library, not our code)
 LogBox.ignoreLogs([
   'props.pointerEvents is deprecated',
