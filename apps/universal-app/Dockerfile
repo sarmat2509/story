@@ -12,9 +12,8 @@ COPY tsconfig.base.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/universal-app/package.json ./apps/universal-app/
 
-# Install dependencies (production only to reduce size)
-RUN pnpm install --frozen-lockfile --prod --filter universal-app --filter @kazka/shared || \
-    pnpm install --frozen-lockfile --filter universal-app --filter @kazka/shared
+# Install dependencies
+RUN pnpm install --frozen-lockfile --filter universal-app --filter @kazka/shared
 
 # Copy source files
 COPY packages/shared ./packages/shared
