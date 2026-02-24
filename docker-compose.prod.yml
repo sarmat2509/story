@@ -54,6 +54,17 @@ services:
     depends_on:
       - api
 
+  webapp:
+    build:
+      context: .
+      dockerfile: apps/universal-app/Dockerfile
+    container_name: kazka-webapp-prod
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      NODE_ENV: production
+
 volumes:
   postgres_data:
     driver: local
