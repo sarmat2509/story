@@ -38,6 +38,7 @@ services:
     volumes:
       - api_uploads:/app/services/api/uploads
       - api_logs:/app/services/api/logs
+      - ./secrets:/app/secrets:ro
 
   nginx:
     image: nginx:alpine
