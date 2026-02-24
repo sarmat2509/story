@@ -14,7 +14,8 @@ COPY packages/shared/package.json ./packages/shared/package.json
 COPY services/api/package.json ./services/api/package.json
 
 # Install all dependencies (workspace style)
-RUN pnpm install --no-frozen-lockfile --filter @kazka/shared --filter api
+# Skip postinstall scripts as ffmpeg is already installed via apk
+RUN pnpm install --no-frozen-lockfile --filter @kazka/shared --filter api --ignore-scripts
 
 # Copy TypeScript configs
 COPY tsconfig.base.json ./
