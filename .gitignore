@@ -79,3 +79,8 @@ apps/web-landing/out/
 *.sqlite3
 /.pnpm-store
 /.cursor
+
+# Deployment
+backups/
+certbot/
+nginx/nginx.conf
