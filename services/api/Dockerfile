@@ -6,23 +6,23 @@ WORKDIR /app
 # Install pnpm globally
 RUN npm install -g pnpm
 
-# Copy and install shared package dependencies
+# Copy workspace config
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+
+# Copy package.json files
 COPY packages/shared/package.json ./packages/shared/package.json
-WORKDIR /app/packages/shared
-RUN pnpm install --no-frozen-lockfile
-
-# Copy and install API dependencies
-WORKDIR /app
 COPY services/api/package.json ./services/api/package.json
-WORKDIR /app/services/api
-RUN pnpm install --no-frozen-lockfile
 
-# Copy TypeScript configs and source
-WORKDIR /app
+# Install all dependencies (workspace style)
+RUN pnpm install --frozen-lockfile --filter @kazka/shared --filter api
+
+# Copy TypeScript configs
 COPY tsconfig.base.json ./
 COPY packages/shared/tsconfig.json ./packages/shared/
-COPY packages/shared/src ./packages/shared/src
 COPY services/api/tsconfig.json ./services/api/
+
+# Copy source code
+COPY packages/shared/src ./packages/shared/src
 COPY services/api/src ./services/api/src
 COPY services/api/drizzle ./services/api/drizzle
 COPY services/api/drizzle.config.ts ./services/api/
@@ -47,6 +47,7 @@ RUN apk add --no-cache ffmpeg postgresql-client
 RUN npm install -g pnpm
 
 # Copy node_modules from builder
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=builder /app/services/api/node_modules ./services/api/node_modules
 
@@ -55,8 +56,9 @@ COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/services/api/dist ./services/api/dist
 
 # Copy package.json files (needed for module resolution)
-COPY packages/shared/package.json ./packages/shared/
-COPY services/api/package.json ./services/api/
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/
+COPY --from=builder /app/services/api/package.json ./services/api/
 
 # Copy migrations
 COPY services/api/drizzle ./services/api/drizzle
