@@ -7,12 +7,13 @@ WORKDIR /app
 RUN npm install -g pnpm
 
 # Copy and install shared package dependencies
-COPY packages/shared/package.json ./packages/shared/
+COPY packages/shared/package.json ./packages/shared/package.json
 WORKDIR /app/packages/shared
 RUN pnpm install --no-frozen-lockfile
 
 # Copy and install API dependencies
-COPY services/api/package.json ./services/api/
+WORKDIR /app
+COPY services/api/package.json ./services/api/package.json
 WORKDIR /app/services/api
 RUN pnpm install --no-frozen-lockfile
 
