@@ -14,7 +14,7 @@ COPY packages/shared/package.json ./packages/shared/package.json
 COPY services/api/package.json ./services/api/package.json
 
 # Install all dependencies (workspace style)
-RUN pnpm install --frozen-lockfile --filter @kazka/shared --filter api
+RUN pnpm install --no-frozen-lockfile --filter @kazka/shared --filter api
 
 # Copy TypeScript configs
 COPY tsconfig.base.json ./
