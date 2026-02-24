@@ -2,6 +2,7 @@ import React from 'react';
 import { TouchableOpacity, View, Text, Image, StyleSheet, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
+import { formatAssetUrl } from '@/utils/assetUrl';
 
 interface Props {
   story: {
@@ -21,9 +22,10 @@ interface Props {
 
 const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Props) => {
   // Use coverImageUrl from summary view, or fall back to scenes-based lookup
-  const thumbnail = story.coverImageUrl
+  const thumbnailRaw = story.coverImageUrl
     || story.scenes?.find(scene => scene.image?.url)?.image?.url
     || null;
+  const thumbnail = formatAssetUrl(thumbnailRaw);
   const hasAudio = story.hasAudio || !!story.audioMetadata?.finalAssetId;
   
   // Grid variant: compact card with image on top

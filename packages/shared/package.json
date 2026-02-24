@@ -16,5 +16,12 @@
   },
   "devDependencies": {
     "typescript": "^5.3.3"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./i18n/*.json": "./src/i18n/*.json"
   }
 }

@@ -4,6 +4,7 @@ import { useNavigation, useRoute, RouteProp, NavigationProp } from '@react-navig
 import { useTranslation } from 'react-i18next';
 import { useStories, useDeleteStory } from '@/api/stories';
 import { useStoryThemes } from '@/api/dictionaries';
+import { navigateToStory } from '@/navigation/navigationRef';
 import { theme } from '@/theme';
 import { StoryCard } from '@/components/StoryCard';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -131,13 +132,18 @@ export default function LibraryScreen() {
     setStoryToDelete(null);
   }, []);
   
-  // Responsive columns (grid mode only): 2 on mobile, 3 on tablet, 4 on desktop
-  const numColumns = useMemo(() => width < 768 ? 2 : width < 1024 ? 3 : 4, [width]);
+  // Grid columns: 2 on mobile/tablet (portrait and landscape), 4 on desktop
+  const numColumns = useMemo(() => (width < 1024 ? 2 : 4), [width]);
+  const gridCardWidth = useMemo(() => {
+    const paddingHorizontal = theme.spacing[4] * 2;
+    const gap = theme.spacing[4];
+    return (width - paddingHorizontal - gap * (numColumns - 1)) / numColumns;
+  }, [width, numColumns]);
   
   // Memoized render functions for FlatList items
   const handleStoryPress = useCallback((storyId: string) => {
-    navigation.navigate('Story', { storyId });
-  }, [navigation]);
+    navigateToStory(storyId);
+  }, []);
   
   const renderListItem = useCallback(({ item }: { item: any }) => {
     console.log('[LibraryScreen] renderListItem called for:', item.id);
@@ -219,15 +225,26 @@ export default function LibraryScreen() {
               Platform.OS === 'web' && { gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any,
             ]}
           >
-            {stories.map((story) => (
-              <StoryCard
-                key={story.id}
-                story={story}
-                onPress={handleStoryPress}
-                onDelete={handleDelete}
-                variant="grid"
-              />
-            ))}
+            {stories.map((story) =>
+              Platform.OS === 'web' ? (
+                <StoryCard
+                  key={story.id}
+                  story={story}
+                  onPress={handleStoryPress}
+                  onDelete={handleDelete}
+                  variant="grid"
+                />
+              ) : (
+                <View key={story.id} style={{ width: gridCardWidth }}>
+                  <StoryCard
+                    story={story}
+                    onPress={handleStoryPress}
+                    onDelete={handleDelete}
+                    variant="grid"
+                  />
+                </View>
+              )
+            )}
           </View>
         </ScrollView>
         

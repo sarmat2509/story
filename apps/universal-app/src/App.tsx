@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LogBox } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -8,7 +9,11 @@ import { initI18n } from '@/config/i18n';
 import { NavigationContainer } from '@react-navigation/native';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useAuthStore } from '@/store/authStore';
+import { useMainNavigationStore } from '@/store/mainNavigationStore';
+import { navigationRef } from '@/navigation/navigationRef';
+import { pushNotificationService } from '@/services/pushNotificationService';
 import RootNavigator from '@/navigation/RootNavigator';
+import type { MainTabParamList } from '@/types/navigation';
 
 import interopRequireDefault from '@babel/runtime/helpers/interopRequireDefault';
 console.log('interopRequireDefault OK', typeof interopRequireDefault);
@@ -29,8 +34,9 @@ const queryClient = new QueryClient({
     mutations: {
       onError: (error: any) => {
         console.error('Query error:', error);
-        // Don't show error for 401/403 (user not authenticated)
-        if (error?.response?.status === 401 || error?.response?.status === 403) {
+        // 401 = not authenticated (handled by api client interceptor → logout)
+        // 403 = forbidden (rate limit, permission denied, etc.) - not auth
+        if (error?.response?.status === 401) {
           console.log('Authentication required - redirecting to login');
         }
       },
@@ -39,6 +45,18 @@ const queryClient = new QueryClient({
 });
 
 // Linking configuration for deep links and OAuth callbacks
+/** Extract active route (name + params) inside Main from root navigation state for persistence across Tab/Drawer switch. */
+function getActiveMainRouteFromState(state: { routes?: { name: string; params?: object; state?: { routes?: { name: string; params?: object }[]; index?: number } }[]; index?: number } | undefined): { name: keyof MainTabParamList; params?: object } | null {
+  if (!state?.routes?.length) return null;
+  const main = state.routes[state.index ?? 0];
+  if (!main || main.name !== 'Main' || !main.state) return null;
+  const nested = main.state;
+  const idx = nested.index ?? 0;
+  const route = nested.routes?.[idx];
+  if (!route?.name) return null;
+  return { name: route.name as keyof MainTabParamList, params: route.params };
+}
+
 const linking: any = {
   prefixes: ['kazka://', 'http://localhost:8081'],
   config: {
@@ -92,22 +110,43 @@ export default function App() {
     prepare();
   }, [setAuthLoading]);
 
+  // Setup push notifications
+  useEffect(() => {
+    // Request permissions on app start
+    pushNotificationService.requestPermissions();
+
+    // Setup notification tap handler
+    const unsubscribe = pushNotificationService.setupNotificationListeners();
+
+    return unsubscribe;
+  }, []);
+
   if (!isReady) {
     // TODO: Replace with proper splash screen
     return null;
   }
 
   return (
-    <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <QueryClientProvider client={queryClient}>
-          <NavigationContainer linking={linking}>
-            <StatusBar style="auto" />
-            <RootNavigator />
-          </NavigationContainer>
-        </QueryClientProvider>
-      </GestureHandlerRootView>
-      <Toast />
-    </ErrorBoundary>
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <QueryClientProvider client={queryClient}>
+            <NavigationContainer
+              ref={navigationRef}
+              linking={linking}
+              onStateChange={(state) => {
+                if (useMainNavigationStore.getState().isLayoutTransitionInProgress) return;
+                const route = getActiveMainRouteFromState(state);
+                useMainNavigationStore.getState().setLastMainRoute(route);
+              }}
+            >
+              <StatusBar style="auto" />
+              <RootNavigator />
+            </NavigationContainer>
+          </QueryClientProvider>
+        </GestureHandlerRootView>
+        <Toast />
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }

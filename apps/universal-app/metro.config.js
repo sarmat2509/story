@@ -1,31 +1,30 @@
-console.log('*** METRO CONFIG LOADED ***', __dirname);
 const { getDefaultConfig } = require('expo/metro-config');
-const path = require('path');
 
-const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, '../..');
+// Expo SDK 52+ automatically configures Metro for monorepos.
+// Manual nodeModulesPaths/watchFolders can break resolution with pnpm.
+const config = getDefaultConfig(__dirname);
 
-const config = getDefaultConfig(projectRoot);
-
-// Watch all files in the monorepo
-config.watchFolders = [workspaceRoot];
-
-// Let Metro resolve packages from local node_modules first, then workspace root
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
-  path.resolve(workspaceRoot, 'node_modules'),
-];
-
-// Resolve shared package alias
-config.resolver.extraNodeModules = {
-  '@kazka/shared': path.resolve(workspaceRoot, 'packages/shared/src'),
+// Workaround: Zustand ESM uses import.meta.env which fails in web bundle.
+// Only for zustand: disable package exports so Metro uses main field (CJS).
+// Other packages (e.g. @kazka/shared) keep exports for subpath resolution.
+const defaultResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (
+    platform === 'web' &&
+    (moduleName === 'zustand' || moduleName.startsWith('zustand/'))
+  ) {
+    return context.resolveRequest(
+      {
+        ...context,
+        unstable_enablePackageExports: false,
+      },
+      moduleName,
+      platform
+    );
+  }
+  return defaultResolveRequest
+    ? defaultResolveRequest(context, moduleName, platform)
+    : context.resolveRequest(context, moduleName, platform);
 };
-
-console.log('📦 Metro config for monorepo with hoisted node_modules');
-
-console.log('projectRoot', projectRoot);
-console.log('watchFolders', config.watchFolders);
-console.log('nodeModulesPaths', config.resolver?.nodeModulesPaths);
-console.log('disableHierarchicalLookup', config.resolver?.disableHierarchicalLookup);
 
 module.exports = config;

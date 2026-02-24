@@ -11,19 +11,25 @@ export const oauth = {
    */
   async handleGoogleSignIn(): Promise<string | null> {
     try {
-      // Check if native module is available
-      const GoogleSigninModule = require('@react-native-google-signin/google-signin');
-      if (!GoogleSigninModule || !GoogleSigninModule.default) {
+      // Native module: named export GoogleSignin (not default)
+      const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+      if (!GoogleSignin) {
         console.warn('⚠️  Google Sign In requires Custom Dev Client (expo-dev-client). Falling back to web flow.');
         throw new Error('Google Sign In native module not available. Please use web version or build with expo-dev-client.');
       }
       
-      const GoogleSignin = GoogleSigninModule.default;
-      
-      // Configure
+      // Configure - GIDConfiguration requires non-empty clientID
+      const iosClientId = OAUTH_CONFIG.google.iosClientId;
+      const webClientId = OAUTH_CONFIG.google.webClientId;
+      if (!iosClientId || !iosClientId.includes('.apps.googleusercontent.com')) {
+        throw new Error(
+          'Google Sign In: EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS is not set. Add it to .env in apps/universal-app/.env (see .env.example). Get the iOS OAuth Client ID from Google Cloud Console.'
+        );
+      }
+
       await GoogleSignin.configure({
-        webClientId: OAUTH_CONFIG.google.webClientId, // Backend client ID
-        iosClientId: OAUTH_CONFIG.google.iosClientId, // iOS-specific
+        webClientId: webClientId || undefined, // Backend client ID for server auth code
+        iosClientId, // Required for iOS - maps to GIDConfiguration clientID
         offlineAccess: false,
       });
       

@@ -223,8 +223,8 @@ export const config = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
       callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback',
       // Mobile client IDs for token verification
-      iosClientId: process.env.GOOGLE_IOS_CLIENT_ID || '',
-      androidClientId: process.env.GOOGLE_ANDROID_CLIENT_ID || '',
+      iosClientId: process.env.GOOGLE_IOS_CLIENT_ID || process.env.GOOGLE_CLIENT_ID_IOS || '',
+      androidClientId: process.env.GOOGLE_ANDROID_CLIENT_ID || process.env.GOOGLE_CLIENT_ID_ANDROID || '',
     },
     apple: {
       clientId: process.env.APPLE_CLIENT_ID || '',

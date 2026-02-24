@@ -8,9 +8,11 @@ export const layout = {
   drawer: {
     widthDesktop: 240,
     widthTablet: 280,
+    widthCollapsed: 73,
   },
   sidebar: {
     widthFixed: 360, // StoryViewer right column
+    widthTablet: 300,
   },
   content: {
     maxWidthReading: undefined, // No limit - full width

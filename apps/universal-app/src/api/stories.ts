@@ -1,27 +1,15 @@
-import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { StoryManifestStatus, StoryRequestStatusResponse } from '@kazka/shared';
 import apiClient from './client';
 
-interface Story {
+export interface Story {
   id: string;
   title: string;
   description: string | null;
   language: string;
-  status: 'pending' | 'generating' | 'completed' | 'failed';
+  status: StoryManifestStatus;
   createdAt: string;
   scenes: any[];
-}
-
-interface StoryStatus {
-  status: string;
-  progress: number;
-  progressData?: {
-    activeTasks: Array<{ task: string; progress: number; details?: any }>;
-    completedTasks: string[];
-    overallProgress: number;
-  };
-  storyId?: string | null;
-  errorMessage?: string | null;
-  createdAt?: string;
 }
 
 interface CreateStoryRequest {
@@ -42,7 +30,7 @@ export interface StorySummary {
   id: string;
   title: string;
   language: string;
-  status: string;
+  status: StoryManifestStatus;
   coverImageUrl: string | null;
   hasAudio: boolean;
   scenarioCardId: string | null;
@@ -93,7 +81,7 @@ export const useStoryStatus = (requestId: string, enabled: boolean = true) => {
   return useQuery({
     queryKey: ['story-status', requestId],
     queryFn: async () => {
-      const response = await apiClient.get<{ status: string; request: StoryStatus }>(
+      const response = await apiClient.get<{ status: string; request: StoryRequestStatusResponse }>(
         `/api/v1/stories/requests/${requestId}/status`
       );
       return response.data.request;

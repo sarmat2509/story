@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { View, Text, ScrollView, Image, StyleSheet, ActivityIndicator, TouchableOpacity, Platform, ImageStyle } from 'react-native';
 import { useRoute, RouteProp, useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
+import Toast from 'react-native-toast-message';
 import { useStory, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useAudioUsage, useDeleteStory, useGenerateContinuation, useSeriesInfo, useStoryStatus } from '@/api/stories';
 import { useVoices } from '@/api/voices';
 import { useUpdateCharacter } from '@/api/characters';
@@ -13,9 +14,12 @@ import { toastService } from '@/services/toastService';
 import { audioNotificationService } from '@/services/audioNotificationService';
 import { audioPlaybackService } from '@/services/audioPlaybackService';
 import { globalAudioService } from '@/services/globalAudioService';
+import { pushNotificationService } from '@/services/pushNotificationService';
+import { navigateToStory } from '@/navigation/navigationRef';
 import { useAudioPlayerStore } from '@/store/audioPlayerStore';
 import { useResponsive } from '@/hooks/useResponsive';
 import { theme } from '@/theme';
+import { formatAssetUrl } from '@/utils/assetUrl';
 import type { MainDrawerParamList } from '@/types/navigation';
 import AudioPlayer from '@/components/AudioPlayer';
 import VoiceSelector from '@/components/VoiceSelector';
@@ -49,8 +53,10 @@ export default function StoryViewerScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
-  const { isTabletPortrait, isTabletLandscape, isDesktop, isMobile } = useResponsive();
+  const { isTabletPortrait, isMobile } = useResponsive();
   const storyId = route.params?.storyId;
+  const autoPlay = route.params?.autoPlay;
+  const hadAudioGenerationRef = useRef(false);
   const { data: story, isLoading, error } = useStory(storyId!);
   const generateAudio = useGenerateAudio();
   const generateAlignment = useGenerateAlignment();
@@ -77,11 +83,7 @@ export default function StoryViewerScreen() {
   }, [effectiveHighlightEnabled]);
   const [currentPosition, setCurrentPosition] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
-  const activeWordRef = useRef<Text>(null);
-  const sceneRefs = useRef<(View | null)[]>([]);
-  const wordPositions = useRef<Record<string, { x: number; y: number; width: number; top: number }>>({});
-  const [underlineStyle, setUnderlineStyle] = useState<{ left: number; top: number; width: number } | null>(null);
-  const [remountKey, setRemountKey] = useState(0);
+  const sceneRefs = useRef<Record<number, View | null>>({});
   const lastPositionUpdateTime = useRef(0);
   
   // M7: Audio playback state persistence (global service handles saving/restoring)
@@ -104,6 +106,7 @@ export default function StoryViewerScreen() {
   // useFocusEffect (not useEffect) because Drawer/Tab navigators keep screens
   // mounted when navigating away — cleanup must fire on blur, not just unmount.
   const setViewingStoryId = useAudioPlayerStore((s) => s.setViewingStoryId);
+  const viewingStoryId = useAudioPlayerStore((s) => s.viewingStoryId);
   useFocusEffect(
     useCallback(() => {
       if (storyId) setViewingStoryId(storyId);
@@ -165,7 +168,20 @@ export default function StoryViewerScreen() {
       setSelectedVoice(firstAvailable);
     }
   }, [voices, selectedVoiceId]);
-  
+
+  // Proactive limit check: show limit message when audioUsage indicates limit reached
+  useEffect(() => {
+    if (!audioUsage || audioUsage.used == null || audioUsage.limit == null) return;
+    if (audioUsage.used >= audioUsage.limit) {
+      setAudioLimitExceeded(true);
+      setLimitInfo({
+        limit: audioUsage.limit,
+        used: audioUsage.used,
+        resetsAt: audioUsage.resetsAt ?? '',
+      });
+    }
+  }, [audioUsage]);
+
   // Use lightweight polling for audio status (with queue info)
   const { data: audioStatus } = useAudioStatus(storyId, true);
   const jobStatus = audioStatus?.jobStatus ?? null;
@@ -198,37 +214,57 @@ export default function StoryViewerScreen() {
   
   // Show toast when audio completes (using AsyncStorage to show only once)
   useEffect(() => {
+    // Track when generation is active
+    if (isGenerating) {
+      hadAudioGenerationRef.current = true;
+    }
+
     const checkAndShowNotification = async () => {
-      // Show only if:
-      // 1. Generation completed (isGenerating = false)
-      // 2. Audio exists (audioStatus?.audioMetadata)
-      // 3. Notification not shown yet
+      // Don't show for pre-existing audio (only when we transitioned from generating to ready)
+      if (!hadAudioGenerationRef.current) return;
+      
+      // Show only after generation completed
       if (!isGenerating && (audioStatus as any)?.audioMetadata) {
         // CRITICAL: Refetch story to update audioMetadata in UI
-        // This ensures the audio generation section hides immediately
         queryClient.invalidateQueries({ queryKey: ['story', storyId] });
         
         const wasShown = await audioNotificationService.wasShown(storyId);
         
         if (!wasShown) {
-          toastService.success(
-            'Аудіосказка готова!',
-            'Натисніть для перегляду',
-            {
-              visibilityTime: 20000, // 20 seconds
-              onPress: () => {
-                navigation.navigate('Story', { storyId });
-              },
-            }
-          );
+          const storyTitle = story?.title || t('story_viewer.untitled_story');
+          const isViewingStory = viewingStoryId === storyId;
+          
+          if (isViewingStory) {
+            // User is on story page - show in-app toast only
+            toastService.success(
+              t('toast.audio_ready_title'),
+              storyTitle,
+              {
+                visibilityTime: 20000,
+                actionText: t('toast.audio_play'),
+                onPress: () => {
+                  Toast.hide();
+                  navigateToStory(storyId!, { autoPlay: true });
+                },
+              }
+            );
+          } else {
+            // User is NOT on story page - send push notification
+            await pushNotificationService.sendAudioReadyNotification(
+              storyId!,
+              storyTitle,
+              `🎧 ${t('toast.audio_ready_title')}`
+            );
+          }
           
           await audioNotificationService.markAsShown(storyId);
+          hadAudioGenerationRef.current = false;
         }
       }
     };
     
     checkAndShowNotification();
-  }, [isGenerating, (audioStatus as any)?.audioMetadata, storyId, navigation, queryClient]);
+  }, [isGenerating, (audioStatus as any)?.audioMetadata, storyId, viewingStoryId, story?.title, t, queryClient]);
   
   // Tick every 1s during processing for live countdown
   useEffect(() => {
@@ -322,17 +358,17 @@ export default function StoryViewerScreen() {
       await globalAudioService.loadAndPlay({
         storyId,
         storyTitle: story.title || 'Story',
-        audioUrl: audioData.audioUrl,
+        audioUrl: formatAssetUrl(audioData.audioUrl) ?? audioData.audioUrl,
         duration: audioData.duration,
         hasAlignment: !!(story.audioMetadata as any)?.alignment,
         initialPosition,
         initialHighlightEnabled: initialHighlight,
-        autoPlay: false, // Don't auto-play, let user press play
+        autoPlay: autoPlay ?? false,
       });
     };
 
     loadAudio();
-  }, [audioData, storyId, story]);
+  }, [audioData, storyId, story, autoPlay]);
   
   // Called when user presses play on a story that isn't the currently active one
   const handleActivateAudio = useCallback(async () => {
@@ -358,7 +394,7 @@ export default function StoryViewerScreen() {
     await globalAudioService.loadAndPlay({
       storyId,
       storyTitle: story.title || 'Story',
-      audioUrl: audioData.audioUrl,
+      audioUrl: formatAssetUrl(audioData.audioUrl) ?? audioData.audioUrl,
       duration: audioData.duration,
       hasAlignment: !!(story.audioMetadata as any)?.alignment,
       initialPosition,
@@ -368,19 +404,6 @@ export default function StoryViewerScreen() {
   }, [audioData, storyId, story]);
   
   // M6: Alignment sync hook - maps audio position to sentences and words
-  console.log('[StoryViewer] Before useAlignmentSync:', {
-    hasStory: !!story,
-    fullTextLength: story?.fullText?.length || 0,
-    hasAudioMetadata: !!story?.audioMetadata,
-    audioMetadata: story?.audioMetadata,
-    alignmentType: typeof (story?.audioMetadata as any)?.alignment,
-    hasAlignment: !!(story?.audioMetadata as any)?.alignment,
-    wordCount: ((story?.audioMetadata as any)?.alignment?.words?.length) || 0,
-    currentPosition: currentPosition.toFixed(3),
-    isHighlightEnabled,
-    effectiveHighlightEnabled,
-  });
-  
   // Precompute cleaned scene texts for sentence-to-scene mapping
   const sceneTexts = useMemo(() => {
     if (!story?.scenes) return [];
@@ -398,21 +421,10 @@ export default function StoryViewerScreen() {
   useEffect(() => {
     if (!effectiveHighlightEnabled) return;
     if (activeSentenceIndex === null) return;
-    const sentence = sentences[activeSentenceIndex];
-    if (!sentence) return;
-    const wordText = activeWordIndex !== null ? sentence.words[activeWordIndex]?.text : null;
-    console.log('[StoryViewer] Highlight:', {
-      pos: currentPosition.toFixed(3),
-      sentIdx: activeSentenceIndex,
-      sentSnippet: sentence.text.substring(0, 50),
-      wordIdx: activeWordIndex,
-      word: wordText || '(none)',
-    });
   }, [effectiveHighlightEnabled, activeSentenceIndex, activeWordIndex, sentences, currentPosition]);
   
   // M6: Callback from AudioPlayer - toggle highlight on/off
   const handleHighlightToggle = useCallback(async (enabled: boolean) => {
-    console.log('[StoryViewer] Highlight toggle:', enabled);
     setIsHighlightEnabled(enabled);
     // Ref is synced automatically via useEffect on effectiveHighlightEnabled
     
@@ -495,73 +507,50 @@ export default function StoryViewerScreen() {
     
     if (newStoryId) {
       // Navigate to the continuation story
-      navigation.navigate('Story', { storyId: newStoryId });
+      navigateToStory(newStoryId);
     }
-  }, [continuationStatus, navigation]);
+  }, [continuationStatus]);
   
-  // M6: Auto-scroll to active word when it changes (web only)
+  // M6: Get active scene index from sentence metadata
+  const activeSceneIndex = activeSentenceIndex !== null
+    ? (sentences[activeSentenceIndex]?.sceneIndex ?? null)
+    : null;
+  
+  // M6: Auto-scroll active scene to center of viewport
   useEffect(() => {
-    if (!isWeb || !effectiveHighlightEnabled || activeWordIndex === null || !activeWordRef.current) {
+    if (!effectiveHighlightEnabled || activeSceneIndex === null) {
       return;
     }
     
-    // Use native scrollIntoView on web
-    const wordElement = activeWordRef.current as any;
-    if (wordElement && wordElement.scrollIntoView) {
-      wordElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'nearest',
-      });
+    const sceneElement = sceneRefs.current[activeSceneIndex];
+    if (!sceneElement) return;
+    
+    // Use scrollIntoView on web, measureLayout on native
+    if (Platform.OS === 'web') {
+      const element = sceneElement as any;
+      if (element?.scrollIntoView) {
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest',
+        });
+      }
+    } else {
+      // Native: measure and scroll using ScrollView ref
+      sceneElement.measureLayout(
+        scrollViewRef.current as any,
+        (_x, y, _width, _height) => {
+          scrollViewRef.current?.scrollTo({
+            y: y - 100, // Offset to center approximately
+            animated: true,
+          });
+        },
+        () => {
+          // Measurement failed, ignore
+        }
+      );
     }
-  }, [activeSentenceIndex, effectiveHighlightEnabled, activeWordIndex]);
-  
-  // M6: Handle window resize - clear cached positions and remount
-  useEffect(() => {
-    if (!isWeb) return;
-    
-    let resizeTimeout: NodeJS.Timeout;
-    const handleResize = () => {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => {
-        console.log('[StoryViewer] Window resized, clearing word positions and remounting');
-        wordPositions.current = {};
-        setUnderlineStyle(null);
-        setRemountKey((prev: number) => prev + 1); // Force remount to trigger onLayout
-      }, 300); // Debounce resize events
-    };
-    
-    window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      clearTimeout(resizeTimeout);
-    };
-  }, [isWeb]);
-
-  // M6: Update underline position when active word changes
-  useEffect(() => {
-    if (!effectiveHighlightEnabled || activeWordIndex === null || activeSentenceIndex === null) {
-      setUnderlineStyle(null);
-      return;
-    }
-    
-    const wordKey = `${activeSentenceIndex}-${activeWordIndex}`;
-    const wordLayout = wordPositions.current[wordKey];
-    
-    console.log('[StoryViewer] Update underline:', {
-      wordKey,
-      wordLayout,
-      hasLayout: !!wordLayout,
-    });
-    
-    if (wordLayout) {
-      setUnderlineStyle({
-        left: wordLayout.x,
-        top: wordLayout.top,
-        width: wordLayout.width,
-      });
-    }
-  }, [activeSentenceIndex, activeWordIndex, effectiveHighlightEnabled]);
+  }, [activeSceneIndex, effectiveHighlightEnabled]);
   
   const handleGenerateAudio = async () => {
     console.log('[handleGenerateAudio] Called with:', {
@@ -650,9 +639,6 @@ export default function StoryViewerScreen() {
       </View>
     );
   }
-
-  // Check if web platform
-  const isWeb = Platform.OS === 'web';
 
   // Check if audio generation failed
   const audioFailed = (story.audioMetadata as any)?.error === true;
@@ -756,9 +742,7 @@ export default function StoryViewerScreen() {
         {currentIndex > 0 && (
           <TouchableOpacity
             style={styles.navButton}
-            onPress={() => navigation.navigate('Story', { 
-              storyId: storyIds[currentIndex - 1]
-            })}
+            onPress={() => navigateToStory(storyIds[currentIndex - 1])}
           >
             <Ionicons name="arrow-back" size={20} color={theme.colors.interactive.primary} />
             <Text style={styles.navButtonText}>
@@ -775,9 +759,7 @@ export default function StoryViewerScreen() {
         {currentIndex < totalParts - 1 && (
           <TouchableOpacity
             style={styles.navButton}
-            onPress={() => navigation.navigate('Story', { 
-              storyId: storyIds[currentIndex + 1]
-            })}
+            onPress={() => navigateToStory(storyIds[currentIndex + 1])}
           >
             <Text style={styles.navButtonText}>
               {t('series.part_number', { number: currentIndex + 2 })}
@@ -958,33 +940,24 @@ export default function StoryViewerScreen() {
   const renderSceneTextWithHighlight = (sceneText: string, sceneIndex: number) => {
     const cleanedSceneText = removeAudioTags(sceneText);
     
-    // Debug: Check if newlines are preserved
-    if (sceneIndex === 0) {
-      console.log('[renderSceneText] First scene text (first 200 chars):', 
-        JSON.stringify(cleanedSceneText.substring(0, 200))
-      );
-    }
-    
     // If no alignment, render plain text
     if (!story.audioMetadata?.alignment || sentences.length === 0) {
       return <Text style={styles.sceneText}>{cleanedSceneText}</Text>;
     }
     
-    // Find sentences that belong to this scene using stored sceneIndex
+    // Find sentences that belong to this scene
     const sceneSentences = sentences.filter(s => s.sceneIndex === sceneIndex);
     
     if (sceneSentences.length === 0) {
-      // No matching sentences for this scene
       return <Text style={styles.sceneText}>{cleanedSceneText}</Text>;
     }
     
-    // Render text with wrapped sentences/words
     let renderedText: any[] = [];
     let lastIndex = 0;
     
-    sceneSentences.forEach((sentence) => {
+    sceneSentences.forEach((sentence, sentenceLocalIndex) => {
       const sentenceIndex = sentences.indexOf(sentence);
-      const isActive = effectiveHighlightEnabled && sentenceIndex === activeSentenceIndex;
+      const isSentenceActive = effectiveHighlightEnabled && sentenceIndex === activeSentenceIndex;
       
       // Find sentence position in scene text
       const sentencePos = cleanedSceneText.indexOf(sentence.text, lastIndex);
@@ -995,79 +968,56 @@ export default function StoryViewerScreen() {
         renderedText.push(cleanedSceneText.substring(lastIndex, sentencePos));
       }
       
-      // Add wrapped sentence with words
-      renderedText.push(
-        <Text
-          key={`s-${sentenceIndex}`}
-          style={[
-            styles.sentenceText,
-            isActive && styles.highlightedSentence,
-          ]}
-        >
-          {sentence.words.map((word, wordIndex) => (
-            <React.Fragment key={`${sentenceIndex}-${wordIndex}`}>
-              <Text
-                ref={
-                  effectiveHighlightEnabled &&
-                  sentenceIndex === activeSentenceIndex &&
-                  wordIndex === activeWordIndex
-                    ? activeWordRef
-                    : undefined
-                }
-                onLayout={(event: any) => {
-                  // Measure word position using DOM API (web only)
-                  const wordElement = event.nativeEvent.target as any;
-                  const wordKey = `${sentenceIndex}-${wordIndex}`;
-                  
-                  // Use sceneIndex from parent scope (passed to renderSceneTextWithHighlight)
-                  const containerRef = sceneRefs.current[sceneIndex];
-                  
-                  if (wordIndex < 3 && sentenceIndex === 7) {
-                    console.log('[onLayout] Called:', {
-                      wordKey,
-                      word: word.text,
-                      sceneIndex,
-                      hasElement: !!wordElement,
-                      hasBoundingClientRect: wordElement && !!wordElement.getBoundingClientRect,
-                      hasRef: !!containerRef,
-                    });
-                  }
-                  
-                  if (wordElement && wordElement.getBoundingClientRect && containerRef) {
-                    const wordRect = wordElement.getBoundingClientRect();
-                    const containerElement = containerRef as any;
-                    const containerRect = containerElement.getBoundingClientRect();
-                    
-                    const position = {
-                      x: wordRect.left - containerRect.left,
-                      y: wordRect.top - containerRect.top,
-                      width: wordRect.width,
-                      top: wordRect.bottom - containerRect.top + 2, // Add 2px offset
-                    };
-                    
-                    // Calculate position relative to scene container
-                    wordPositions.current[wordKey] = position;
-                    
-                    // Log first few words for debugging
-                    if (wordIndex < 3 && sentenceIndex === 7) {
-                      console.log('[onLayout] Word measured:', {
-                        wordKey,
-                        word: word.text,
-                        sceneIndex,
-                        position,
-                      });
-                    }
-                  }
-                }}
-                style={styles.wordText}
-              >
-                {word.text}
-              </Text>
-              {wordIndex < sentence.words.length - 1 ? ' ' : ''}
+      // When highlight is ON: render individual words with color styles
+      // When highlight is OFF: render plain sentence text without word wrappers
+      if (effectiveHighlightEnabled) {
+        // Render sentence wrapper with individual words
+        const sentenceWords = sentence.words.map((word, wordIndex) => {
+          const wordKey = `${sentenceIndex}-${wordIndex}`;
+          const isActiveWord = isSentenceActive && wordIndex === activeWordIndex;
+          
+          // Color logic:
+          // - Active sentence + active word → black (activeWordColor)
+          // - Active sentence + inactive word → gray (inactiveWordColor)
+          // - Inactive sentence → gray (grayTextColor) applied to sentence wrapper
+          const wordStyle = isSentenceActive
+            ? (isActiveWord ? styles.activeWordColor : styles.inactiveWordColor)
+            : undefined; // Gray applied at sentence level for inactive sentences
+          
+          return (
+            <React.Fragment key={wordKey}>
+              <Text style={wordStyle}>{word.text}</Text>
+              {wordIndex < sentence.words.length - 1 && ' '}
             </React.Fragment>
-          ))}
-        </Text>
-      );
+          );
+        });
+        
+        // Wrap sentence with background (if active) and gray color (if inactive)
+        renderedText.push(
+          <Text 
+            key={`sentence-${sentenceIndex}`}
+            style={[
+              styles.sentenceText,
+              isSentenceActive && styles.activeSentenceBackground,
+              !isSentenceActive && styles.grayTextColor, // Gray for inactive sentences
+            ]}
+          >
+            {sentenceWords}
+          </Text>
+        );
+      } else {
+        // Highlight OFF: render plain sentence text (no word wrappers, black color)
+        renderedText.push(
+          <Text key={`sentence-${sentenceIndex}`} style={styles.sentenceText}>
+            {sentence.text}
+          </Text>
+        );
+      }
+      
+      // Add space after sentence (unless it's the last sentence)
+      if (sentenceLocalIndex < sceneSentences.length - 1) {
+        renderedText.push(' ');
+      }
       
       lastIndex = sentencePos + sentence.text.length;
     });
@@ -1079,19 +1029,6 @@ export default function StoryViewerScreen() {
     
     return <Text style={styles.sceneText}>{renderedText}</Text>;
   };
-
-  // M6: Get scene index directly from sentence metadata (no substring matching needed)
-  const activeSceneIndex = activeSentenceIndex !== null
-    ? (sentences[activeSentenceIndex]?.sceneIndex ?? null)
-    : null;
-  
-  console.log('[StoryViewer] Render state:', {
-    activeSceneIndex,
-    activeSentenceIndex,
-    activeWordIndex,
-    hasUnderlineStyle: !!underlineStyle,
-    effectiveHighlightEnabled,
-  });
 
   // Render characters section (sidebar on web, above scenes on mobile)
   const renderCharactersSection = () => {
@@ -1127,7 +1064,7 @@ export default function StoryViewerScreen() {
             <View key={char.id} style={styles.characterCard}>
               <View style={styles.characterCardRow}>
                 {char.referencePhotoUrl ? (
-                  <Image source={{ uri: char.referencePhotoUrl }} style={styles.characterAvatar as ImageStyle} />
+                  <Image source={{ uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl }} style={styles.characterAvatar as ImageStyle} />
                 ) : (
                   <View style={[styles.characterAvatar, styles.characterAvatarPlaceholder]}>
                     <Ionicons name="person-outline" size={20} color={theme.colors.text.tertiary} />
@@ -1158,28 +1095,15 @@ export default function StoryViewerScreen() {
   // M6: Render story scenes with optional highlighting
   const renderScenesWithHighlight = () => {
     return story.scenes?.map((scene: any, sceneIndex: number) => {
-      // Check if this is the scene with active sentence
-      const isActiveScene = sceneIndex === activeSceneIndex;
-      
-      const shouldRenderUnderline = effectiveHighlightEnabled && isActiveScene && underlineStyle;
-      
-      if (shouldRenderUnderline) {
-        console.log('[Scene] Rendering underline for scene:', {
-          sceneIndex,
-          isActiveScene,
-          underlineStyle,
-        });
-      }
-      
       return (
         <View 
-          key={`${scene.sceneId || sceneIndex}-${remountKey}`}
+          key={scene.sceneId || sceneIndex}
           ref={(ref: View | null) => { sceneRefs.current[sceneIndex] = ref; }}
           style={styles.scene}
         >
           {scene.image?.url && scene.image?.status !== 'failed' ? (
             <Image 
-              source={{ uri: scene.image.url }} 
+              source={{ uri: formatAssetUrl(scene.image.url) ?? scene.image.url }} 
               style={styles.sceneImage as ImageStyle}
               resizeMode="cover"
             />
@@ -1196,21 +1120,9 @@ export default function StoryViewerScreen() {
             </View>
           ) : null}
           
-          {renderSceneTextWithHighlight(scene.text, sceneIndex)}
-          
-          {/* Animated underline only for active scene */}
-          {shouldRenderUnderline && (
-            <View
-              style={[
-                styles.wordUnderline,
-                {
-                  left: underlineStyle.left,
-                  top: underlineStyle.top,
-                  width: underlineStyle.width,
-                },
-              ]}
-            />
-          )}
+          <View style={styles.sceneTextWrapper}>
+            {renderSceneTextWithHighlight(scene.text, sceneIndex)}
+          </View>
         </View>
       );
     });
@@ -1228,7 +1140,9 @@ export default function StoryViewerScreen() {
             style={styles.container}
           >
             {/* Audio Generation Section */}
-            {renderAudioGenerationSection()}
+            <View style={styles.mobileSectionWrapper}>
+              {renderAudioGenerationSection()}
+            </View>
             
             {/* Show audio player if audio exists (mobile only) */}
             {isMobile && story.audioMetadata && audioData && (
@@ -1248,7 +1162,11 @@ export default function StoryViewerScreen() {
             )}
             
             {/* Characters Section (mobile) */}
-            {isMobile && renderCharactersSection()}
+            {isMobile && (
+              <View style={styles.mobileSectionWrapper}>
+                {renderCharactersSection()}
+              </View>
+            )}
             
             {/* Story Scenes */}
             {renderScenesWithHighlight()}
@@ -1345,10 +1263,10 @@ export default function StoryViewerScreen() {
       {/* M8: Continuation Progress Modal */}
       <GenerationProgressModal
         visible={isContinuationGenerating}
-        status={continuationStatus?.status || 'pending'}
+        status={continuationStatus?.status ?? 'pending'}
         progress={continuationStatus?.progress || 0}
         progressData={continuationStatus?.progressData}
-        errorMessage={continuationStatus?.errorMessage}
+        errorMessage={continuationStatus?.errorMessage ?? undefined}
         onClose={continuationStatus?.status === 'completed' ? handleCloseContinuationModal : undefined}
         onRetry={continuationStatus?.status === 'failed' ? handleContinue : undefined}
         allowManualClose={true}
@@ -1395,12 +1313,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     maxWidth: 1400,
     alignSelf: 'center',
-    width: '100%',
-    paddingHorizontal: theme.spacing[6], // 24px margin from screen edges
+    width: '100%'
   },
   leftColumn: {
     flex: 1,
-    paddingRight: theme.spacing[6],
+    paddingHorizontal: theme.spacing[6],
     paddingTop: theme.spacing[6],
   },
   rightColumn: {
@@ -1454,12 +1371,15 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing[4],
   },
   audioGenerationSection: {
-    marginVertical: theme.spacing[4],
+    marginBottom: theme.spacing[4],
     padding: theme.spacing[5],
     borderWidth: 2,
     borderColor: theme.colors.interactive.primary,
     borderRadius: theme.spacing[4],
     backgroundColor: theme.colors.background.secondary,
+  },
+  mobileSectionWrapper: {
+    marginHorizontal: theme.spacing[6],
   },
   generatingContainer: {
     padding: theme.spacing[6],
@@ -1532,18 +1452,16 @@ const styles = StyleSheet.create({
   scene: {
     position: 'relative',
     marginBottom: theme.spacing[8],
-    paddingHorizontal: theme.spacing[6],
   },
   sceneImage: {
     height: undefined,
     aspectRatio: 16 / 9,
     marginBottom: theme.spacing[4],
-    marginHorizontal: -theme.spacing[6], // Extend image to full width
+    width: '100%',
   },
   sceneImagePlaceholder: {
     aspectRatio: 16 / 9,
     marginBottom: theme.spacing[4],
-    marginHorizontal: -theme.spacing[6],
     backgroundColor: theme.colors.background.tertiary,
     borderRadius: theme.borders.radius.md,
     justifyContent: 'center',
@@ -1556,15 +1474,17 @@ const styles = StyleSheet.create({
   sceneImagePlaceholderTextError: {
     color: theme.colors.status.error,
   },
+  sceneTextWrapper: {
+    paddingHorizontal: theme.spacing[6],
+  },
   sceneText: {
     fontSize: theme.typography.fontSize.lg,
     lineHeight: theme.typography.fontSize.lg * 1.6,
     color: theme.colors.text.primary,
   },
   limitExceededContainer: {
-    padding: theme.spacing[6],
     backgroundColor: theme.colors.background.secondary,
-    borderRadius: theme.borders.radius.lg,
+    borderRadius: theme.borders.radius.lg, 
     alignItems: 'center',
   },
   limitExceededIcon: {
@@ -1629,28 +1549,21 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     lineHeight: theme.typography.fontSize.sm * 1.5,
   },
-  // M6: Sentence/word highlighting styles
+  // M6: Word highlighting styles (sentence wrappers with color-based highlighting)
   sentenceText: {
-    // Inline sentence span - no additional styles, just for structure
+    // Wrapper for sentence - no additional styles by default
   },
-  highlightedSentence: {
-    backgroundColor: 'rgb(218, 239, 253)', // Light blue background
-    borderRadius: theme.borders.radius.sm,
-    // @ts-ignore - boxDecorationBreak works on web
-    boxDecorationBreak: 'clone',
-    WebkitBoxDecorationBreak: 'clone',
-    paddingVertical: 2,
+  activeSentenceBackground: {
+    backgroundColor: 'rgb(218, 239, 253)', // Light blue background for active sentence
   },
-  wordText: {
-    // Inline word span - no additional styles
+  grayTextColor: {
+    color: '#6d6d6d', // Gray for inactive sentences when highlight is ON
   },
-  wordUnderline: {
-    position: 'absolute',
-    height: 3,
-    backgroundColor: theme.colors.interactive.primary,
-    borderRadius: 2,
-    // @ts-ignore - CSS transition for smooth animation
-    transition: 'left 0.15s ease-out, width 0.15s ease-out, top 0.15s ease-out',
+  inactiveWordColor: {
+    color: '#6d6d6d', // Gray for non-active words in active sentence
+  },
+  activeWordColor: {
+    color: '#000000', // Black for active word in active sentence
   },
   // M8: Continue button styles
   continueContainer: {

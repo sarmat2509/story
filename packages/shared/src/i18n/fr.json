@@ -175,7 +175,15 @@
     "children": "Enfants",
     "characters": "Personnages",
     "plans": "Plans",
-    "profile": "Profil"
+    "profile": "Profil",
+    "tab_dashboard": "Accueil",
+    "tab_create_story": "Créer",
+    "tab_library": "Bibliothèque",
+    "tab_children": "Enfants",
+    "tab_characters": "Personnages",
+    "tab_plans": "Plans",
+    "tab_profile": "Profil",
+    "tab_more": "Plus"
   },
   "story_viewer": {
     "create_audio": "Créer une Histoire Audio",

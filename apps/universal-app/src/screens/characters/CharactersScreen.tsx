@@ -17,8 +17,12 @@ function useColumns(): number {
 
 export default function CharactersScreen() {
   const { t } = useTranslation();
+  const { width } = useWindowDimensions();
   const { data: characters, isLoading, error } = useCharacters();
   const columns = useColumns();
+  const paddingHorizontal = theme.spacing[6] * 2;
+  const gap = theme.spacing[4];
+  const cardWidth = (width - paddingHorizontal - gap * (columns - 1)) / columns;
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<{
     id: string;
@@ -76,13 +80,22 @@ export default function CharactersScreen() {
         {characters && characters.length > 0 ? (
           <>
             <View style={[styles.grid, Platform.OS === 'web' && { gridTemplateColumns: `repeat(${columns}, 1fr)` } as any]}>
-              {characters.map((character) => (
-                <CharacterCard 
-                  key={character.id}
-                  character={character}
-                  onPress={() => handleEditCharacter(character)}
-                />
-              ))}
+              {characters.map((character) =>
+                Platform.OS === 'web' ? (
+                  <CharacterCard
+                    key={character.id}
+                    character={character}
+                    onPress={() => handleEditCharacter(character)}
+                  />
+                ) : (
+                  <View key={character.id} style={{ width: cardWidth }}>
+                    <CharacterCard
+                      character={character}
+                      onPress={() => handleEditCharacter(character)}
+                    />
+                  </View>
+                )
+              )}
             </View>
             
             {/* Add Character Button */}

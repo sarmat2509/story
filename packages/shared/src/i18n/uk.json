@@ -625,6 +625,7 @@
     "favorite_activity_placeholder": "Додати улюблене заняття..."
   },
   "story_viewer": {
+    "untitled_story": "Історія",
     "create_audio": "Створити аудіоказку",
     "audio_generating": "Готуємо аудіоказку...",
     "audio_ready": "Аудіоказка готова!",
@@ -682,6 +683,7 @@
   },
   "toast": {
     "audio_ready_title": "Аудіоказка готова!",
+    "audio_play": "Відтворити",
     "audio_ready_message": "Тепер ви можете прослухати історію",
     "audio_generating_title": "Готуємо аудіоказку",
     "audio_generating_message": "Це може зайняти кілька хвилин",
@@ -722,7 +724,15 @@
     "children": "Діти",
     "characters": "Персонажі",
     "plans": "Тарифи",
-    "profile": "Профіль"
+    "profile": "Профіль",
+    "tab_dashboard": "Головна",
+    "tab_create_story": "Створити",
+    "tab_library": "Бібліотека",
+    "tab_children": "Діти",
+    "tab_characters": "Персонажі",
+    "tab_plans": "Тарифи",
+    "tab_profile": "Профіль",
+    "tab_more": "Ще"
   },
   "dashboard": {
     "welcome_back": "Ласкаво просимо назад, {{name}}!",

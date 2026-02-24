@@ -438,6 +438,7 @@
     "favorite_activity_placeholder": "Add activity..."
   },
   "story_viewer": {
+    "untitled_story": "Story",
     "create_audio": "Create Audio Story",
     "audio_generating": "Preparing audio story...",
     "audio_ready": "Audio story is ready!",
@@ -495,6 +496,7 @@
   },
   "toast": {
     "audio_ready_title": "Audio story is ready!",
+    "audio_play": "Play",
     "audio_ready_message": "You can now listen to the story",
     "audio_generating_title": "Preparing audio story",
     "audio_generating_message": "This may take a few minutes",
@@ -535,7 +537,15 @@
     "children": "Children",
     "characters": "Characters",
     "plans": "Plans",
-    "profile": "Profile"
+    "profile": "Profile",
+    "tab_dashboard": "Home",
+    "tab_create_story": "Create",
+    "tab_library": "Library",
+    "tab_children": "Children",
+    "tab_characters": "Characters",
+    "tab_plans": "Plans",
+    "tab_profile": "Profile",
+    "tab_more": "More"
   },
   "dashboard": {
     "welcome_back": "Welcome back, {{name}}!",

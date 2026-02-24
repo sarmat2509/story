@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     top: '100%',
     left: 0,
     marginTop: theme.spacing[1],
-    minWidth: 200,
+    minWidth: 220,
     backgroundColor: theme.colors.background.primary,
     borderRadius: theme.borders.radius.md,
     borderWidth: theme.borders.width.thin,

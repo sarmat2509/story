@@ -1,6 +1,8 @@
+import type { NavigatorScreenParams } from '@react-navigation/native';
+
 export type RootStackParamList = {
   Public: undefined;
-  Main: undefined;
+  Main: NavigatorScreenParams<MainTabParamList> | undefined;
 };
 
 export type PublicStackParamList = {
@@ -14,7 +16,7 @@ export type MainDrawerParamList = {
   Dashboard: undefined;
   Wizard: undefined;
   Library: { scenarioCardId?: string } | undefined;
-  Story: { storyId: string };
+  Story: { storyId: string; autoPlay?: boolean };
   Children: undefined;
   Characters: undefined;
   Plans: undefined;

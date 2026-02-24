@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
 import { useStories } from '@/api/stories';
 import { useChildren } from '@/api/children';
+import { navigateToStory } from '@/navigation/navigationRef';
 import { StoryCard } from '@/components/StoryCard';
 import { theme } from '@/theme';
 
@@ -117,7 +118,7 @@ export default function DashboardScreen() {
               <View style={{ width: `${100 / numColumns - 2}%`, marginBottom: theme.spacing[3] }}>
                 <StoryCard 
                   story={item}
-                  onPress={() => navigation.navigate('Story', { storyId: item.id })}
+                  onPress={() => navigateToStory(item.id)}
                   variant="grid"
                 />
               </View>

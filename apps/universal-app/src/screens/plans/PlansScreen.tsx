@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Modal } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList, PublicStackParamList } from '@/types/navigation';
 import { usePlans, usePlansWithAuth, useUpgradePlan } from '@/api/plans';
@@ -12,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 export default function PlansScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList | PublicStackParamList>>();
+  const insets = useSafeAreaInsets();
   const { isAuthenticated } = useAuthStore();
   
   // Modal state for upgrade flow
@@ -127,20 +129,20 @@ export default function PlansScreen() {
   
   if (isLoading) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={[styles.centerContainer, { paddingTop: theme.spacing[6] + insets.top }]}>
         <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
         <Text style={styles.loadingText}>{t('plans.loading')}</Text>
       </View>
     );
   }
-  
+
   if (error) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={[styles.centerContainer, { paddingTop: theme.spacing[6] + insets.top }]}>
         <Text style={styles.errorTitle}>{t('plans.error_title')}</Text>
         <Text style={styles.errorMessage}>{t('plans.error_message')}</Text>
-        <TouchableOpacity 
-          style={styles.retryButton} 
+        <TouchableOpacity
+          style={styles.retryButton}
           onPress={() => navigation.goBack()}
         >
           <Text style={styles.retryButtonText}>{t('common.back')}</Text>
@@ -150,9 +152,15 @@ export default function PlansScreen() {
   }
   
   const isWeb = Platform.OS === 'web';
-  
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.scrollContent,
+        { paddingTop: theme.spacing[6] + insets.top },
+      ]}
+    >
       <View style={styles.header}>
         <Text style={styles.title}>{t('plans.title')}</Text>
         <Text style={styles.subtitle}>{t('plans.subtitle')}</Text>
@@ -179,11 +187,12 @@ export default function PlansScreen() {
           }
           
           return (
-            <View 
-              key={plan.id} 
+            <View
+              key={plan.id}
               style={[
                 styles.planCard,
-                isCurrent && styles.planCardCurrent
+                isWeb ? styles.planCardWeb : styles.planCardNative,
+                isCurrent && styles.planCardCurrent,
               ]}
             >
               {isCurrent && (
@@ -413,7 +422,8 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background.primary,
   },
   scrollContent: {
-    padding: theme.spacing[6],
+    paddingHorizontal: theme.spacing[6],
+    paddingBottom: theme.spacing[6],
   },
   centerContainer: {
     flex: 1,
@@ -451,9 +461,15 @@ const styles = StyleSheet.create({
     padding: theme.spacing[6],
     borderWidth: theme.borders.width.medium,
     borderColor: theme.colors.border.light,
+    position: 'relative',
+  },
+  planCardNative: {
+    width: '100%',
+    maxWidth: 400,
+  },
+  planCardWeb: {
     minWidth: 280,
     maxWidth: 320,
-    position: 'relative',
   },
   planCardCurrent: {
     borderColor: theme.colors.interactive.primary,

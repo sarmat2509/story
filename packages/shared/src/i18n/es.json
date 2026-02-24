@@ -432,7 +432,15 @@
     "children": "Niños",
     "characters": "Personajes",
     "plans": "Planes",
-    "profile": "Perfil"
+    "profile": "Perfil",
+    "tab_dashboard": "Inicio",
+    "tab_create_story": "Crear",
+    "tab_library": "Biblioteca",
+    "tab_children": "Niños",
+    "tab_characters": "Personajes",
+    "tab_plans": "Planes",
+    "tab_profile": "Perfil",
+    "tab_more": "Más"
   },
   "story_viewer": {
     "create_audio": "Crear Audiocuento",

@@ -4,11 +4,12 @@ import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
+import { formatAssetUrl } from '@/utils/assetUrl';
 import AudioPlayer from '@/components/AudioPlayer';
 import VoiceSelector from '@/components/VoiceSelector';
 
 interface StoryBottomSheetProps {
-  bottomSheetRef: React.RefObject<BottomSheet>;
+  bottomSheetRef: React.RefObject<BottomSheet | null>;
   audioData?: {
     audioUrl: string;
     duration: number;
@@ -85,7 +86,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
               <Text style={styles.sectionTitle}>{t('story_viewer.audio_title')}</Text>
               <AudioPlayer
                 storyId={storyId}
-                audioUrl={audioData.audioUrl}
+                audioUrl={formatAssetUrl(audioData.audioUrl) ?? audioData.audioUrl}
                 duration={audioData.duration}
                 hasAlignment={hasAlignment}
                 onHighlightToggle={onHighlightToggle}

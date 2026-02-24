@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
+import { formatAssetUrl } from '@/utils/assetUrl';
 
 interface Character {
   id: string;
@@ -44,7 +45,7 @@ export function CharacterCard({ character, onPress }: Props) {
       <View style={styles.iconContainer}>
         {character.referencePhotos?.[0]?.url ? (
           <Image
-            source={{ uri: character.referencePhotos[0].url }}
+            source={{ uri: formatAssetUrl(character.referencePhotos[0].url) ?? character.referencePhotos[0].url }}
             style={styles.avatar}
             resizeMode="cover"
           />

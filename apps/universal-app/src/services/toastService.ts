@@ -3,6 +3,7 @@ import Toast from 'react-native-toast-message';
 interface ToastOptions {
   visibilityTime?: number;
   onPress?: () => void;
+  actionText?: string;
 }
 
 export const toastService = {
@@ -16,6 +17,9 @@ export const toastService = {
       autoHide: true,
       topOffset: 60,
       onPress: options?.onPress,
+      props: {
+        actionText: options?.actionText,
+      },
     });
   },
   

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal, View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
+import type { RequestStatus, StoryRequestProgressData } from '@kazka/shared';
 import { theme } from '@/theme';
 
 // Phase weights for overall progress calculation
@@ -11,13 +12,9 @@ const PHASE_WEIGHTS: Record<string, number> = {
 
 interface Props {
   visible: boolean;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: RequestStatus;
   progress: number;
-  progressData?: {
-    activeTasks: Array<{ task: string; progress: number; details?: Record<string, any> }>;
-    completedTasks: string[];
-    overallProgress: number;
-  };
+  progressData?: StoryRequestProgressData;
   errorMessage?: string;
   onClose?: () => void;
   onRetry?: () => void;

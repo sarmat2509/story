@@ -430,6 +430,7 @@
     "favorite_activity_placeholder": "Добавить любимое занятие..."
   },
   "story_viewer": {
+    "untitled_story": "История",
     "create_audio": "Создать аудиосказку",
     "audio_generating": "Готовим аудиосказку...",
     "audio_ready": "Аудиосказка готова!",
@@ -493,6 +494,7 @@
   },
   "toast": {
     "audio_ready_title": "Аудиосказка готова!",
+    "audio_play": "Воспроизвести",
     "audio_ready_message": "Теперь вы можете прослушать историю",
     "audio_generating_title": "Готовим аудиосказку",
     "audio_generating_message": "Это может занять несколько минут",
@@ -533,7 +535,15 @@
     "children": "Дети",
     "characters": "Персонажи",
     "plans": "Тарифы",
-    "profile": "Профиль"
+    "profile": "Профиль",
+    "tab_dashboard": "Главная",
+    "tab_create_story": "Создать",
+    "tab_library": "Библиотека",
+    "tab_children": "Дети",
+    "tab_characters": "Персонажи",
+    "tab_plans": "Тарифы",
+    "tab_profile": "Профиль",
+    "tab_more": "Ещё"
   },
   "dashboard": {
     "welcome_back": "С возвращением, {{name}}!",

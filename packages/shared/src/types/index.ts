@@ -340,3 +340,26 @@ export interface AudioMetadata {
   provider?: string;           // Audio generation provider ('elevenlabs' | 'google' | 'openai' | 'azure')
   alignment?: AlignmentData;   // M6: Forced alignment data (works with audio from any provider)
 }
+
+// Async request status (story creation, continuation, audio generation)
+export type RequestStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+// Story manifest status (entity state)
+export type StoryManifestStatus = 'pending' | 'generating' | 'completed' | 'failed';
+
+// Progress data shape for async requests (used in polling responses)
+export interface StoryRequestProgressData {
+  activeTasks: Array<{ task: string; progress: number; details?: Record<string, any> }>;
+  completedTasks: string[];
+  overallProgress: number;
+}
+
+// Story request status response (polling endpoint)
+export interface StoryRequestStatusResponse {
+  status: RequestStatus;
+  progress: number;
+  progressData?: StoryRequestProgressData;
+  storyId?: string | null;
+  errorMessage?: string | null;
+  createdAt?: string;
+}

@@ -48,6 +48,24 @@ lerna-debug.log*
 apps/mobile/.expo/
 apps/mobile/.expo-shared/
 
+# iOS temporary files (bare workflow)
+apps/universal-app/ios/Pods/
+apps/universal-app/ios/build/
+apps/universal-app/ios/*.xcworkspace/xcuserdata/
+apps/universal-app/ios/*.xcodeproj/xcuserdata/
+apps/universal-app/ios/*.xcodeproj/project.xcworkspace/xcuserdata/
+apps/universal-app/ios/DerivedData/
+
+# Android temporary files (bare workflow)
+apps/universal-app/android/app/build/
+apps/universal-app/android/build/
+apps/universal-app/android/.gradle/
+apps/universal-app/android/local.properties
+
+# Expo
+apps/universal-app/.expo/
+apps/universal-app/.expo-shared/
+
 # Next.js
 apps/web-landing/.next/
 apps/web-landing/out/
@@ -60,3 +78,4 @@ apps/web-landing/out/
 *.sqlite
 *.sqlite3
 /.pnpm-store
+/.cursor

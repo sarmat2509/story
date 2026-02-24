@@ -1,12 +1,11 @@
 import React, { useContext } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { NavigationContext, useNavigation } from '@react-navigation/native';
-import type { NavigationProp } from '@react-navigation/native';
+import { NavigationContext } from '@react-navigation/native';
 import { useAudioPlayerStore } from '@/store/audioPlayerStore';
 import { globalAudioService } from '@/services/globalAudioService';
+import { navigateToStory } from '@/navigation/navigationRef';
 import { theme } from '@/theme';
-import type { MainDrawerParamList } from '@/types/navigation';
 
 /**
  * Thin bottom bar (Spotify-style) showing the currently playing story audio.
@@ -94,12 +93,10 @@ function MiniAudioPlayerInner({ activeStoryId }: { activeStoryId: string }) {
  * useNavigation is only called inside a valid NavigationContext.
  */
 function GoToStoryButton({ activeStoryId }: { activeStoryId: string }) {
-  const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
-
   return (
     <TouchableOpacity
       style={styles.goButton}
-      onPress={() => navigation.navigate('Story', { storyId: activeStoryId })}
+      onPress={() => navigateToStory(activeStoryId)}
     >
       <Ionicons name="chevron-up-outline" size={22} color={theme.colors.text.inverse} />
     </TouchableOpacity>

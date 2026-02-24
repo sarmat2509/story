@@ -5,6 +5,7 @@ import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/config/i18n';
+import { navigateToStory } from '@/navigation/navigationRef';
 import { theme } from '@/theme';
 import { ExpandableCard } from '@/components/ExpandableCard';
 import { GenerationProgressModal } from '@/components/GenerationProgressModal';
@@ -115,7 +116,7 @@ export default function WizardScreen() {
     
     if (storyId) {
       // Navigate to the newly created story
-      navigation.navigate('Story', { storyId });
+      navigateToStory(storyId);
     } else {
       navigation.navigate('Library');
     }
@@ -196,10 +197,10 @@ export default function WizardScreen() {
       {/* Generation Progress Modal */}
       <GenerationProgressModal
         visible={isGenerating}
-        status={storyStatus?.status || 'pending'}
+        status={storyStatus?.status ?? 'pending'}
         progress={storyStatus?.progress || 0}
         progressData={storyStatus?.progressData}
-        errorMessage={storyStatus?.errorMessage}
+        errorMessage={storyStatus?.errorMessage ?? undefined}
         onClose={storyStatus?.status === 'completed' ? handleCloseModal : undefined}
         onRetry={storyStatus?.status === 'failed' ? handleRetry : undefined}
         allowManualClose={true}
