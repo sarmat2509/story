@@ -28,9 +28,9 @@ COPY services/api/src ./services/api/src
 COPY services/api/drizzle ./services/api/drizzle
 COPY services/api/drizzle.config.ts ./services/api/
 
-# Build shared package
+# Build shared package with esbuild (fast)
 WORKDIR /app/packages/shared
-RUN pnpm build
+RUN pnpm run build:fast
 
 # Build API with esbuild (fast, no type checking)
 WORKDIR /app/services/api

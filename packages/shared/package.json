@@ -7,6 +7,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "build:fast": "esbuild src/index.ts --bundle --platform=node --outfile=dist/index.js --external:zod --external:i18next --minify && tsc --emitDeclarationOnly --declaration",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist"
   },
@@ -15,6 +16,7 @@
     "i18next": "^23.7.16"
   },
   "devDependencies": {
+    "esbuild": "^0.19.0",
     "typescript": "^5.3.3"
   },
   "exports": {
