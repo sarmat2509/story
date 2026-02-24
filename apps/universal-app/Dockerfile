@@ -21,7 +21,7 @@ COPY .env.production ./.env.production
 
 # Build shared package
 WORKDIR /app/packages/shared
-RUN pnpm build
+RUN pnpm build:fast
 
 # Build web app
 WORKDIR /app/apps/universal-app
