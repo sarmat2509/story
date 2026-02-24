@@ -61,9 +61,10 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
 COPY --from=builder /app/services/api/package.json ./services/api/
 
-# Copy migrations
+# Copy migrations and schema (needed for drizzle-kit)
 COPY services/api/drizzle ./services/api/drizzle
 COPY services/api/drizzle.config.ts ./services/api/
+COPY services/api/src/db ./services/api/src/db
 
 WORKDIR /app/services/api
 
