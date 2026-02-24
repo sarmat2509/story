@@ -8,6 +8,7 @@ RUN npm install -g pnpm
 
 # Copy workspace files
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY tsconfig.base.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/universal-app/package.json ./apps/universal-app/
 
@@ -18,6 +19,7 @@ RUN pnpm install --frozen-lockfile --filter universal-app --filter @kazka/shared
 COPY packages/shared ./packages/shared
 COPY apps/universal-app ./apps/universal-app
 COPY .env.production ./.env.production
+COPY tsconfig.base.json ./tsconfig.base.json
 
 # Build shared package
 WORKDIR /app/packages/shared
