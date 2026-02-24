@@ -17,6 +17,7 @@ RUN pnpm install --frozen-lockfile --filter universal-app --filter @kazka/shared
 # Copy source files
 COPY packages/shared ./packages/shared
 COPY apps/universal-app ./apps/universal-app
+COPY .env.production ./.env.production
 
 # Build shared package
 WORKDIR /app/packages/shared

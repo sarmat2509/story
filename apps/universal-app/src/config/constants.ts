@@ -1,4 +1,4 @@
-export const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000';
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3000';
 
 // Use EXPO_PUBLIC_ prefix - Expo inlines only these into the client bundle
 export const OAUTH_CONFIG = {
