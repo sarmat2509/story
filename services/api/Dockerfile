@@ -8,6 +8,9 @@ COPY package.json pnpm-lock.yaml ./
 COPY services/api/package.json ./services/api/
 COPY packages/shared/package.json ./packages/shared/
 
+# Copy TypeScript configs
+COPY tsconfig.base.json ./
+
 # Install pnpm
 RUN npm install -g pnpm
 
@@ -18,7 +21,11 @@ RUN pnpm install --frozen-lockfile
 COPY services/api ./services/api
 COPY packages/shared ./packages/shared
 
-# Build
+# Build shared package first
+WORKDIR /app/packages/shared
+RUN pnpm build
+
+# Build API
 WORKDIR /app/services/api
 RUN pnpm build
 
