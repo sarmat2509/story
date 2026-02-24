@@ -12,8 +12,9 @@ COPY tsconfig.base.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/universal-app/package.json ./apps/universal-app/
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile --filter universal-app --filter @kazka/shared
+# Install dependencies (production only to reduce size)
+RUN pnpm install --frozen-lockfile --prod --filter universal-app --filter @kazka/shared || \
+    pnpm install --frozen-lockfile --filter universal-app --filter @kazka/shared
 
 # Copy source files
 COPY packages/shared ./packages/shared
@@ -28,7 +29,9 @@ RUN pnpm build:fast
 # Build web app
 WORKDIR /app/apps/universal-app
 ENV NODE_ENV=production
-RUN pnpm build:web
+ENV NODE_OPTIONS=--max-old-space-size=2048
+ENV EXPO_NO_DOTENV=1
+RUN pnpm build:web --max-workers 1
 
 # Production stage - serve with nginx
 FROM nginx:alpine
