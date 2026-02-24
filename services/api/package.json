@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
-    "build:fast": "esbuild src/index.ts --bundle --platform=node --outfile=dist/index.js --external:@kazka/shared --external:pg-native --external:sharp --external:fluent-ffmpeg --minify",
+    "build:fast": "esbuild src/index.ts --bundle --platform=node --outfile=dist/index.js --external:@kazka/shared --external:pg-native --external:sharp --external:fluent-ffmpeg --external:@aws-sdk/client-s3 --minify",
     "start": "node dist/index.js",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist",
