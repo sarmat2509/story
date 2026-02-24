@@ -4,7 +4,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY services/api/package.json ./services/api/
 COPY packages/shared/package.json ./packages/shared/
 
@@ -16,7 +16,8 @@ COPY services/api/tsconfig.json ./services/api/
 # Install pnpm
 RUN npm install -g pnpm
 
-# Install dependencies
+# Install all workspace dependencies
+WORKDIR /app
 RUN pnpm install --frozen-lockfile
 
 # Copy source code
@@ -42,7 +43,7 @@ WORKDIR /app
 RUN apk add --no-cache ffmpeg
 
 # Copy package files
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY services/api/package.json ./services/api/
 COPY packages/shared/package.json ./packages/shared/
 
