@@ -83,4 +83,3 @@ apps/web-landing/out/
 # Deployment
 backups/
 certbot/
-nginx/nginx.conf
