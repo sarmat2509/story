@@ -8,6 +8,11 @@ COPY package.json pnpm-lock.yaml ./
 COPY services/api/package.json ./services/api/
 COPY packages/shared/package.json ./packages/shared/
 
+# Copy TypeScript configs
+COPY tsconfig.base.json ./
+COPY packages/shared/tsconfig.json ./packages/shared/
+COPY services/api/tsconfig.json ./services/api/
+
 # Install pnpm
 RUN npm install -g pnpm
 
@@ -15,10 +20,16 @@ RUN npm install -g pnpm
 RUN pnpm install --frozen-lockfile
 
 # Copy source code
-COPY services/api ./services/api
-COPY packages/shared ./packages/shared
+COPY packages/shared/src ./packages/shared/src
+COPY services/api/src ./services/api/src
+COPY services/api/drizzle ./services/api/drizzle
+COPY services/api/drizzle.config.ts ./services/api/
 
-# Build
+# Build shared package first
+WORKDIR /app/packages/shared
+RUN pnpm build
+
+# Build API
 WORKDIR /app/services/api
 RUN pnpm build
 
@@ -45,6 +56,7 @@ COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
 # Copy migrations
 COPY services/api/drizzle ./services/api/drizzle
+COPY services/api/drizzle.config.ts ./services/api/
 
 WORKDIR /app/services/api
 
