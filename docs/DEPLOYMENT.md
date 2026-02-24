@@ -52,10 +52,10 @@ cd kazka
 
 ```bash
 # Copy environment template
-cp services/api/.env.example .env
+cp .env.example .env.production
 
-# Edit with your values
-nano .env
+# Edit with your production values
+nano .env.production
 ```
 
 **IMPORTANT Environment Variables to Update:**
