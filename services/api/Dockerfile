@@ -47,9 +47,13 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY services/api/package.json ./services/api/
 COPY packages/shared/package.json ./packages/shared/
 
-# Install pnpm and production dependencies
-RUN npm install -g pnpm && \
-    pnpm install --prod --frozen-lockfile
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy node_modules from builder (already has all deps)
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/services/api/node_modules ./services/api/node_modules
+COPY --from=builder /app/packages/shared/node_modules ./packages/shared/node_modules
 
 # Copy built files
 COPY --from=builder /app/services/api/dist ./services/api/dist
