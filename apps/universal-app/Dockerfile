@@ -24,13 +24,14 @@ RUN pnpm build
 
 # Build web app
 WORKDIR /app/apps/universal-app
+ENV NODE_ENV=production
 RUN pnpm build:web
 
 # Production stage - serve with nginx
 FROM nginx:alpine
 
-# Copy built files
-COPY --from=builder /app/apps/universal-app/web-build /usr/share/nginx/html
+# Copy built files (expo export создаёт папку dist/)
+COPY --from=builder /app/apps/universal-app/dist /usr/share/nginx/html
 
 # Copy custom nginx config
 COPY apps/universal-app/nginx.conf /etc/nginx/conf.d/default.conf
