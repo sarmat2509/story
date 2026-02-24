@@ -32,9 +32,9 @@ COPY services/api/drizzle.config.ts ./services/api/
 WORKDIR /app/packages/shared
 RUN pnpm build
 
-# Build API
+# Build API with esbuild (fast, no type checking)
 WORKDIR /app/services/api
-RUN pnpm build
+RUN pnpm run build:fast
 
 # Production stage
 FROM node:20-alpine
