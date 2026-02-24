@@ -50,9 +50,6 @@ COPY package.json pnpm-lock.yaml ./
 COPY services/api/package.json ./services/api/
 COPY packages/shared/package.json ./packages/shared/
 
-# Create minimal pnpm-workspace.yaml for Docker
-RUN echo 'packages:\n  - "services/api"\n  - "packages/shared"' > pnpm-workspace.yaml
-
 # Install pnpm
 RUN npm install -g pnpm
 
