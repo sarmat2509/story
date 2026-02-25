@@ -3,6 +3,10 @@
 dist/
 web-build/
 
+# Build artifacts
+*.tar.gz
+webapp-dist.tar.gz
+
 # Native
 *.orig.*
 *.jks

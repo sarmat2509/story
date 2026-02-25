@@ -3,6 +3,14 @@
     "package": "com.anonymous.kazkaplus"
   },
   "ios": {
-    "bundleIdentifier": "com.anonymous.kazkaplus"
+    "bundleIdentifier": "com.anonymous.kazkaplus",
+    "infoPlist": {
+      "ITSAppUsesNonExemptEncryption": false
+    }
+  },
+  "extra": {
+    "eas": {
+      "projectId": "f96175da-3327-4a98-ba09-90ed92e7e668"
+    }
   }
 }

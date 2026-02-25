@@ -38,7 +38,7 @@ module.exports = {
         '@react-native-google-signin/google-signin',
         { iosUrlScheme: getGoogleIosUrlScheme() },
       ],
-      'expo-notifications',
+      // 'expo-notifications', - Disabled for Personal Team (free Apple account)
     ],
   },
 };

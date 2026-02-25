@@ -29,6 +29,10 @@ const app: Application = express();
 app.use(helmet());
 app.use(cors());
 
+// Trust proxy - required for rate limiting behind Nginx reverse proxy
+// Express will trust X-Forwarded-For headers from Nginx
+app.set('trust proxy', true);
+
 // Rate limiting
 app.use(globalLimiter); // Apply global rate limit to all requests
 
