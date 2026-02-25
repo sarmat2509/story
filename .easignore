@@ -1,0 +1,45 @@
+# === EXCLUDE HEAVY FOLDERS ===
+# PNPM store (592 MB!)
+.pnpm-store
+
+# iOS/Android native (EAS rebuilds)
+/ios
+/android
+apps/universal-app/ios
+apps/universal-app/android
+
+# Services folder (API not needed for mobile)
+/services
+
+# Backups
+/backups
+
+# === STANDARD EXCLUSIONS ===
+# Node modules
+/node_modules
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+.expo/
+**/dist/
+**/build/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.github/

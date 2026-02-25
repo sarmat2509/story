@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "scheme": "kazka",
     "userInterfaceStyle": "automatic",
+    "main": "index.js",
     "assetBundlePatterns": [
       "**/*"
     ],
