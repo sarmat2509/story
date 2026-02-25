@@ -21,6 +21,12 @@ dist/
 # Secrets
 secrets/
 *.json
+# Except config files
+!eas.json
+!app.json
+!app.config.js
+!package.json
+!tsconfig*.json
 
 # Logs
 npm-debug.log*

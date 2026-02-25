@@ -24,6 +24,11 @@ function getGoogleIosUrlScheme() {
 module.exports = {
   expo: {
     ...base.expo,
+    extra: {
+      eas: {
+        projectId: "f96175da-3327-4a98-ba09-90ed92e7e668"
+      }
+    },
     plugins: [
       ...base.expo.plugins,
       [
