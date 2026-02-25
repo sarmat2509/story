@@ -13,7 +13,10 @@ const base = require('./app.json');
  * Scheme: com.googleusercontent.apps.123456789-xxx
  */
 function getGoogleIosUrlScheme() {
-  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS || process.env.GOOGLE_CLIENT_ID_IOS || '';
+  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS || 
+                      process.env.GOOGLE_CLIENT_ID_IOS || 
+                      '151914486575-4ekba7gcqcbc6joqahhaigs7v97qjdoo.apps.googleusercontent.com'; // Fallback
+  
   if (!iosClientId || !iosClientId.includes('.apps.googleusercontent.com')) {
     return 'com.googleusercontent.apps.placeholder';
   }
