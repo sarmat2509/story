@@ -182,8 +182,12 @@ export default function StoryViewerScreen() {
     }
   }, [audioUsage]);
 
+  // Poll audio status ONLY when user explicitly triggered generation
+  // This prevents unnecessary polling when audio doesn't exist or is already ready
+  const shouldPollAudio = generateAudio.isPending;
+  
   // Use lightweight polling for audio status (with queue info)
-  const { data: audioStatus } = useAudioStatus(storyId, true);
+  const { data: audioStatus } = useAudioStatus(storyId, shouldPollAudio);
   const jobStatus = audioStatus?.jobStatus ?? null;
   const queuePosition = audioStatus?.queuePosition ?? null;
   const estimatedWaitMs = audioStatus?.estimatedWaitMs ?? null;
