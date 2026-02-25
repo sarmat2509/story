@@ -12,7 +12,16 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.kazkaplus.app"
+      "bundleIdentifier": "com.kazkaplus.app",
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.151914486575-4ekba7gcqcbc6joqahhaigs7v97qjdoo"
+            ]
+          }
+        ]
+      }
     },
     "android": {
       "package": "com.kazkaplus.app"
