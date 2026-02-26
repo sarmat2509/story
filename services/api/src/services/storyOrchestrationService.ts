@@ -15,6 +15,7 @@ import {
   startTask,
   completeTask,
   updateTaskProgress,
+  calculateOverallProgress,
   StoryProgress,
 } from './storyProgress';
 import { buildPolicyProfile } from './policyService';
@@ -629,7 +630,7 @@ function getImaginaryFriendReferencePaths(
     const charNormalized = normalizeCharacterName(char.name);
     if (
       normalizedCharacters.includes(charNormalized) &&
-      (char as any).type === 'imaginary_friend'
+      (char as any).type === 'imaginary'
     ) {
       const turnaroundSheet = (char as any).turnaroundSheet as
         | { url?: string }
@@ -763,8 +764,8 @@ async function prepareFilesApiAndSystemInstruction(params: {
 
     for (const char of characterDescriptionMap.values()) {
       const charType = (char as any).type;
-      // Pre-upload turnarounds for imaginary friends AND child profiles
-      if (charType !== 'imaginary_friend' && charType !== 'child') continue;
+      // Pre-upload turnarounds for imaginary AND child profiles
+      if (charType !== 'imaginary' && charType !== 'child') continue;
 
       const turnaround = (char as any).turnaroundSheet as { url?: string } | null | undefined;
       const storagePath = turnaround?.url
@@ -809,7 +810,7 @@ async function prepareFilesApiAndSystemInstruction(params: {
   const allCharacters = Array.from(characterDescriptionMap.values());
   const hasReferenceImage = (c: CharacterData) => {
     const charType = (c as any).type;
-    return charType === 'imaginary_friend' || (charType === 'child' && (
+    return charType === 'imaginary' || (charType === 'child' && (
       !!(c as any).turnaroundSheet?.url || (c.referencePhotos && c.referencePhotos.length > 0)
     ));
   };
@@ -956,7 +957,7 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
               fileUri: uploaded.uri,
               source: 'imaginary_friend',
               characterName: charName,
-              type: 'imaginary_friend',
+              type: 'imaginary',
               isTurnaround,
               url,
               index: index + 1,
@@ -969,7 +970,7 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
             ...data,
             source: 'imaginary_friend',
             characterName: charName,
-            type: 'imaginary_friend',
+            type: 'imaginary',
             isTurnaround,
             url,
             index: index + 1,
@@ -1128,7 +1129,7 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
     const imageIndexMap = new Map<string, number>();
     let imageIndex = 1;
     for (const ref of referenceImageDataArray) {
-      if (ref.type === 'imaginary_friend' || ref.type === 'child_reference') {
+      if (ref.type === 'imaginary' || ref.type === 'child_reference') {
         if (ref.characterName && !imageIndexMap.has(ref.characterName)) {
           imageIndexMap.set(ref.characterName, imageIndex);
         }
@@ -1287,8 +1288,9 @@ export async function processStoryImages(requestId: string): Promise<void> {
     const userPlan = await getPlanFeatures(request.userId);
     
     // Task: Generate Scene Images (Sequential for character-aware reference tracking - M9)
+    // Note: Only first image is tracked in progress, rest continue in background after story is marked complete
     await startTask(requestId, STORY_TASKS.GENERATING_IMAGES, {
-      estimatedMs: coefficients.avgMsPerImage * (userPlan.imagesPerStory || 0),
+      estimatedMs: coefficients.avgMsPerImage, // Only first image counts toward progress
     });
     
     let scenesToGenerate: any[] = [];
@@ -1506,7 +1508,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
         const imageIndexMap = new Map<string, number>();
         let imageIndex = 1;
         for (const ref of referenceImageDataArray) {
-          if (ref.type === 'imaginary_friend' || ref.type === 'child_reference') {
+          if (ref.type === 'imaginary' || ref.type === 'child_reference') {
             if (ref.characterName && !imageIndexMap.has(ref.characterName)) {
               imageIndexMap.set(ref.characterName, imageIndex);
             }
@@ -1582,6 +1584,15 @@ export async function processStoryImages(requestId: string): Promise<void> {
     if (config.image.skipGeneration || scenesToGenerate.length === 0) {
       await completeTask(requestId, STORY_TASKS.GENERATING_IMAGES);
       await getStoryRepository().updateRequest(requestId, { status: 'completed', storyId });
+      
+      // Mark image generation as complete even when skipped/no scenes
+      const finalMetadata = (await getStoryRepository().findById(storyId))?.metadata as Record<string, unknown> | null;
+      await getStoryRepository().updateStory(storyId, {
+        metadata: {
+          ...(finalMetadata || {}),
+          imageGenerationComplete: true,
+        },
+      });
     }
 
     // Clear intermediate data now that all images are generated (or skipped)
@@ -1885,6 +1896,15 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
       scenarioGuidance: scenarioCard?.promptGuidance, // NEW: Detailed plot guidance
     };
     
+    // Verify characters are included (especially for instant mode)
+    logger.debug({
+      requestId: request.id,
+      specCharacterCount: allCharacters.length,
+      characterNames: allCharacters.map(c => c.name),
+      isInstantMode: request.selectedCharacters?.length > 0 && !request.selectedChildren?.length,
+      imageStyle: spec.imageStyle
+    }, 'Story spec created with characters');
+    
     return { spec, selectedCharacters: allCharacters, chosenPlotExampleId };
   } catch (error) {
     logger.error({ 
@@ -1971,11 +1991,11 @@ const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
  */
 function mapLlmTypeToCharacterType(llmType: string): string {
   switch (llmType) {
-    case 'human': return 'friend';
-    case 'animal': return 'pet';
-    case 'creature': return 'imaginary_friend';
-    case 'object': return 'imaginary_friend';
-    default: return 'imaginary_friend';
+    case 'human': return 'person';
+    case 'animal': return 'animal';
+    case 'creature': return 'imaginary';
+    case 'object': return 'imaginary';
+    default: return 'imaginary';
   }
 }
 
@@ -2511,7 +2531,7 @@ async function generateSceneImageWithReference(
         currentEnvironmentId: context.currentEnvironmentId,
       };
 
-      if ((ref as any).type === 'imaginary_friend' || (ref as any).type === 'child_reference') {
+      if ((ref as any).type === 'imaginary' || (ref as any).type === 'child_reference') {
         meta.isTurnaround = !!(ref as any).isTurnaround;
       } else {
         // Scene reference — carry characters present and environment info
@@ -2533,7 +2553,7 @@ async function generateSceneImageWithReference(
     const imaginaryCharNameSet = new Set<string>();
     const imaginaryCharacters: Array<{ name: string; isTurnaround?: boolean }> = [];
     for (const ref of context.referenceImageDataArray || []) {
-      if ((ref.type === 'imaginary_friend' || ref.type === 'child_reference') && ref.characterName && !imaginaryCharNameSet.has(ref.characterName)) {
+      if ((ref.type === 'imaginary' || ref.type === 'child_reference') && ref.characterName && !imaginaryCharNameSet.has(ref.characterName)) {
         imaginaryCharNameSet.add(ref.characterName);
         imaginaryCharacters.push({
           name: ref.characterName,
@@ -2898,7 +2918,7 @@ function buildExpectedCharactersForValidation(
       c => c.name.toLowerCase() === name.toLowerCase(),
     );
     const isImaginary = imaginaryNameSet.has(name.toLowerCase())
-      || charData?.type === 'imaginary_friend';
+      || charData?.type === 'imaginary';
 
     // All characters (imaginary and real-world) get text descriptions for validation.
     // Validation is text-description-based — no reference images are sent.
@@ -3390,8 +3410,9 @@ export async function processContinuationImages(requestId: string): Promise<void
     const userPlan = await getPlanFeatures(request.userId);
     
     // Task: Generate Scene Images (using reference-based approach from FIRST PART)
+    // Note: Only first image is tracked in progress, rest continue in background after story is marked complete
     await startTask(requestId, STORY_TASKS.GENERATING_IMAGES, {
-      estimatedMs: coefficients.avgMsPerImage * (userPlan.imagesPerStory || 0),
+      estimatedMs: coefficients.avgMsPerImage, // Only first image counts toward progress
     });
     
     if (config.image.skipGeneration) {
@@ -3652,6 +3673,47 @@ export async function getStoryRequestStatus(
   
   if (!request) {
     return null;
+  }
+  
+  // Recalculate progress for active tasks based on current time (read-only, no DB save)
+  if (request.progressData) {
+    const progressData = request.progressData as StoryProgress;
+    
+    // Update active tasks with current time-based progress
+    for (const activeTask of progressData.activeTasks) {
+      if (activeTask.details?.startedAt && activeTask.details?.estimatedMs) {
+        const elapsed = Date.now() - activeTask.details.startedAt;
+        const estimatedMs = activeTask.details.estimatedMs;
+        const ratio = elapsed / estimatedMs;
+        
+        // Cap at 99% if elapsed exceeds estimated time
+        if (ratio >= 1) {
+          activeTask.progress = 99;
+        } else {
+          activeTask.progress = Math.round(0.99 * ratio * 100);
+        }
+      }
+    }
+    
+    // Recalculate overall progress with updated active task progress
+    const overallProgress = calculateOverallProgress(
+      progressData.completedTasks,
+      progressData.activeTasks
+    );
+    
+    // Return updated data (NOT saving to DB - this is read-only recalculation)
+    return {
+      id: request.id,
+      status: request.status,
+      progress: overallProgress,
+      progressData: {
+        ...progressData,
+        overallProgress,
+      },
+      storyId: request.storyId,
+      errorMessage: request.errorMessage,
+      createdAt: request.createdAt
+    };
   }
   
   return {
@@ -4146,6 +4208,26 @@ export async function getStoryManifest(storyId: string) {
   };
   
   return manifest;
+}
+
+/**
+ * Get lightweight generation status for polling (metadata only, no JOINs)
+ */
+export async function getStoryGenerationStatus(storyId: string, userId: string) {
+  const story = await getStoryRepository().findById(storyId);
+  
+  if (!story || story.userId !== userId) {
+    return null;
+  }
+  
+  const metadata = (story.metadata as Record<string, unknown>) || {};
+  
+  return {
+    storyId: story.id,
+    imageGenerationComplete: (metadata.imageGenerationComplete as boolean | undefined) ?? true,
+    sceneIdsWithImages: (metadata.sceneIdsWithImages as number[] | undefined) ?? [],
+    failedScenes: (metadata.failedScenes as Array<{ sceneId: number; errorMessage: string }> | undefined) ?? [],
+  };
 }
 
 /**

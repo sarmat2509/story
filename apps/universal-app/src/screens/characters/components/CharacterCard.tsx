@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 
@@ -14,22 +15,19 @@ interface Character {
 interface Props {
   character: Character;
   onPress: () => void;
+  onDelete?: (characterId: string, characterName: string) => void;
 }
 
-export function CharacterCard({ character, onPress }: Props) {
+export function CharacterCard({ character, onPress, onDelete }: Props) {
   const { t } = useTranslation();
   
   const getCharacterIcon = (type: string): string => {
     switch (type) {
-      case 'pet':
+      case 'person':
+        return '👤';
+      case 'animal':
         return '🐾';
-      case 'family_member':
-        return '👨‍👩‍👧';
-      case 'friend':
-        return '👫';
-      case 'neighbor':
-        return '🏘️';
-      case 'imaginary_friend':
+      case 'imaginary':
         return '🦄';
       default:
         return '👤';
@@ -37,33 +35,50 @@ export function CharacterCard({ character, onPress }: Props) {
   };
   
   return (
-    <TouchableOpacity 
-      style={styles.card}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.iconContainer}>
-        {character.referencePhotos?.[0]?.url ? (
-          <Image
-            source={{ uri: formatAssetUrl(character.referencePhotos[0].url) ?? character.referencePhotos[0].url }}
-            style={styles.avatar}
-            resizeMode="cover"
-          />
-        ) : (
-          <Text style={styles.icon}>{getCharacterIcon(character.type)}</Text>
-        )}
-      </View>
-      <Text style={styles.name} numberOfLines={2}>
-        {character.name}
-      </Text>
-      <Text style={styles.type}>
-        {t(`characters.character_types.${character.type}`)}
-      </Text>
-    </TouchableOpacity>
+    <View style={styles.cardWrapper}>
+      <TouchableOpacity 
+        style={styles.card}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.iconContainer}>
+          {character.referencePhotos?.[0]?.url ? (
+            <Image
+              source={{ uri: formatAssetUrl(character.referencePhotos[0].url) ?? character.referencePhotos[0].url }}
+              style={styles.avatar}
+              resizeMode="cover"
+            />
+          ) : (
+            <Text style={styles.icon}>{getCharacterIcon(character.type)}</Text>
+          )}
+        </View>
+        <Text style={styles.name} numberOfLines={2}>
+          {character.name}
+        </Text>
+        <Text style={styles.type}>
+          {t(`characters.character_types.${character.type}`)}
+        </Text>
+      </TouchableOpacity>
+      
+      {onDelete && (
+        <Pressable 
+          style={(state: { pressed: boolean }) => [
+            styles.deleteButton,
+            state.pressed && styles.deleteButtonPressed
+          ]}
+          onPress={() => onDelete(character.id, character.name)}
+        >
+          <Ionicons name="trash-outline" size={18} color="#fff" />
+        </Pressable>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  cardWrapper: {
+    position: 'relative',
+  },
   card: {
     backgroundColor: theme.colors.background.secondary,
     borderRadius: theme.borders.radius.lg,
@@ -100,5 +115,22 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
     textAlign: 'center',
+  },
+  deleteButton: {
+    position: 'absolute',
+    top: theme.spacing[2],
+    right: theme.spacing[2],
+    backgroundColor: 'rgba(220, 38, 38, 0.9)',
+    borderRadius: theme.borders.radius.full,
+    padding: theme.spacing[2],
+    zIndex: 10,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  deleteButtonPressed: {
+    backgroundColor: 'rgba(185, 28, 28, 0.9)',
   },
 });

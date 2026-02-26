@@ -1,40 +1,22 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { StoryManifestStatus, StoryRequestStatusResponse } from '@kazka/shared';
+import { useQuery, useMutation, useQueryClient, QueryClient } from '@tanstack/react-query';
+import type { 
+  StoryRequestStatusResponse,
+  StoryApi,
+  StorySummaryApi,
+  CreateStoryRequestInput
+} from '@kazka/shared';
 import apiClient from './client';
 
-export interface Story {
-  id: string;
-  title: string;
-  description: string | null;
-  language: string;
-  status: StoryManifestStatus;
-  createdAt: string;
-  scenes: any[];
-}
+// Use shared types
+export type Story = StoryApi;
+export type StorySummary = StorySummaryApi;
+export type CreateStoryRequest = CreateStoryRequestInput;
 
-interface CreateStoryRequest {
-  childProfileId?: string;
-  uiLocale: string;
-  storyLanguage: string;
-  goal?: string;
-  tone?: string;
-  imageStyle?: string;
-  selectedCharacters?: string[];
-  selectedChildren?: string[]; // NEW: Selected child profiles to include in story
-  userNotes?: string;
-  scenarioCardId?: string;
-}
-
-// Lightweight story summary for library grid
-export interface StorySummary {
-  id: string;
-  title: string;
+interface CreateStoryFromPhotosRequest {
+  photos: string[];
+  ageGroup: '2-3' | '4-5' | '6-7' | '8-9' | '10-12';
+  scenario: string;
   language: string;
-  status: StoryManifestStatus;
-  coverImageUrl: string | null;
-  hasAudio: boolean;
-  scenarioCardId: string | null;
-  createdAt: string;
 }
 
 // List stories (summary view for library - lightweight payload)
@@ -60,8 +42,23 @@ export const useStories = (params?: { limit?: number; offset?: number; hasAudio?
   });
 };
 
+// Prefetch story data (fire-and-forget)
+// Used to preload story before navigation for instant rendering
+export const prefetchStory = (queryClient: QueryClient, storyId: string) => {
+  return queryClient.prefetchQuery({
+    queryKey: ['story', storyId],
+    queryFn: async () => {
+      const response = await apiClient.get<{ status: string; manifest: any }>(
+        `/api/v1/stories/${storyId}/manifest`
+      );
+      return response.data.manifest;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
 // Get story detail with scenes and assets
-// Polls every 3s when image generation is incomplete
+// No longer polls - use useStoryGenerationStatus for polling instead
 export const useStory = (id: string) => {
   return useQuery({
     queryKey: ['story', id],
@@ -72,7 +69,39 @@ export const useStory = (id: string) => {
       return response.data.manifest;
     },
     enabled: !!id,
-    refetchInterval: (query) => (query.state.data?.imageGenerationComplete === false ? 3000 : false),
+    // Remove polling - handled by useStoryGenerationStatus
+    refetchInterval: false,
+    staleTime: 5 * 60 * 1000, // Keep data fresh for 5 minutes
+    gcTime: 10 * 60 * 1000,   // Cache for 10 minutes (renamed from cacheTime in v5)
+  });
+};
+
+// Get lightweight generation status for polling (no scenes/assets)
+export const useStoryGenerationStatus = (id: string) => {
+  return useQuery({
+    queryKey: ['story-generation-status', id],
+    queryFn: async () => {
+      const response = await apiClient.get<{ 
+        status: string; 
+        generationStatus: {
+          storyId: string;
+          imageGenerationComplete: boolean;
+          sceneIdsWithImages: number[];
+          failedScenes: Array<{ sceneId: number; errorMessage: string }>;
+        }
+      }>(`/api/v1/stories/${id}/generation-status`);
+      return response.data.generationStatus;
+    },
+    enabled: !!id,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      // Stop polling if generation is complete
+      if (!data || data.imageGenerationComplete) {
+        return false;
+      }
+      return 3000; // Poll every 3 seconds
+    },
+    staleTime: 1000, // Keep fresh for only 1 second (we want real-time updates)
   });
 };
 
@@ -107,6 +136,24 @@ export const useCreateStory = () => {
     mutationFn: async (data: CreateStoryRequest) => {
       const response = await apiClient.post<{ status: string; request: { id: string } }>(
         '/api/v1/stories',
+        data
+      );
+      return response.data.request;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+    },
+  });
+};
+
+// Create story from photos (Instant Mode)
+export const useCreateStoryFromPhotos = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (data: CreateStoryFromPhotosRequest) => {
+      const response = await apiClient.post<{ status: string; request: { id: string } }>(
+        '/api/v1/stories/instant',
         data
       );
       return response.data.request;

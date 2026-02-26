@@ -38,7 +38,7 @@ const userCharacters: CharacterData[] = [
   {
     id: '456',
     name: 'Котик Мурчик',
-    type: 'pet',
+    type: 'animal',
     description: 'A fluffy orange cat',
   } as CharacterData,
 ];

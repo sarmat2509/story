@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { z } from 'zod';
 import { requireAuth } from '../middleware/authMiddleware';
 import { getUserWithOAuth, updateUser, deleteUser, countUserOAuthIdentities } from '../services/userService';
 import { getUserSessions, deleteSession } from '../services/sessionService';
@@ -6,6 +7,13 @@ import { unlinkOAuthProvider } from '../services/oauthService';
 import { logger } from '../utils/logger';
 
 const router = Router();
+
+// Validation schema for user update
+const updateUserSchema = z.object({
+  displayName: z.string().optional(),
+  preferredLocale: z.string().optional(),
+  mode: z.enum(['instant', 'artisan']).optional(),
+});
 
 // Get current user
 router.get('/', requireAuth, async (req: Request, res: Response) => {
@@ -28,14 +36,27 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
 // Update current user
 router.patch('/', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { displayName, preferredLocale } = req.body;
+    // Validate request body
+    const validationResult = updateUserSchema.safeParse(req.body);
+    
+    if (!validationResult.success) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Invalid request data',
+        details: validationResult.error.errors,
+      });
+      return;
+    }
+    
+    const { displayName, preferredLocale, mode } = validationResult.data;
     
     const updatedUser = await updateUser(req.user!.id, {
       displayName,
       preferredLocale,
+      mode,
     });
     
-    logger.info({ userId: req.user!.id, updates: { displayName, preferredLocale } }, 'User profile updated');
+    logger.info({ userId: req.user!.id, updates: { displayName, preferredLocale, mode } }, 'User profile updated');
     
     res.json({
       status: 'success',

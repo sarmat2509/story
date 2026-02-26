@@ -8,6 +8,7 @@ interface User {
   displayName: string | null;
   avatarUrl: string | null;
   preferredLocale: string;
+  mode?: 'instant' | 'artisan';
 }
 
 interface AuthState {

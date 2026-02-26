@@ -17,7 +17,7 @@ import { logger } from '../utils/logger';
 const DEFAULTS = {
   textGenerationMs: 30000,        // 30s
   validationMsPerScene: 2000,     // 2s per scene
-  imageGenerationMs: 20000,       // 20s per image
+  imageGenerationMs: 15000,       // 15s per image
   audioMsPerChar: 5,              // 5ms per character
 };
 

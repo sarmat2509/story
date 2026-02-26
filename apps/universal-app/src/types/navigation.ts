@@ -2,6 +2,7 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
   Public: undefined;
+  ModeSelection: undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
 };
 
@@ -22,6 +23,7 @@ export type MainDrawerParamList = {
   Plans: undefined;
   Profile: undefined;
   LanguageSettings: undefined;
+  ModeSelection: undefined;
 };
 
 export type MainTabParamList = MainDrawerParamList;

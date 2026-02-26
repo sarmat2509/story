@@ -7,6 +7,7 @@ export const users = pgTable('users', {
   displayName: varchar('display_name', { length: 255 }),
   avatarUrl: text('avatar_url'),
   preferredLocale: varchar('preferred_locale', { length: 5 }).default('uk').notNull(),
+  mode: varchar('mode', { length: 20 }).default('instant').notNull(), // 'instant' | 'artisan'
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {
@@ -178,12 +179,13 @@ export const childProfiles = pgTable('child_profiles', {
   };
 });
 
-// Characters table (pets, family members, imaginary friends)
+// Characters table (people, pets, imaginary creatures)
 export const characters = pgTable('characters', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   name: varchar('name', { length: 100 }).notNull(),
-  type: varchar('type', { length: 50 }).notNull(), // 'pet' | 'family_member' | 'friend' | 'neighbor' | 'imaginary_friend'
+  type: varchar('type', { length: 50 }).notNull(), // 'person' | 'animal' | 'imaginary'
+  subtype: varchar('subtype', { length: 50 }), // 'mother', 'dog', 'dragon', etc.
   referencePhotos: jsonb('reference_photos'), // array of photo objects
   appearanceTraits: jsonb('appearance_traits'), // type-specific structured data
   personality: jsonb('personality'), // traits and activities

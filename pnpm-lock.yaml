@@ -150,6 +150,9 @@ importers:
       http-proxy-middleware:
         specifier: ^3.0.5
         version: 3.0.5
+      humps:
+        specifier: ^2.0.1
+        version: 2.0.1
       i18next:
         specifier: ^23.7.16
         version: 23.16.8
@@ -199,6 +202,9 @@ importers:
       '@babel/core':
         specifier: ^7.24.0
         version: 7.29.0
+      '@types/humps':
+        specifier: ^2.0.6
+        version: 2.0.6
       '@types/react':
         specifier: ~19.1.10
         version: 19.1.17
@@ -214,6 +220,9 @@ importers:
       dotenv:
         specifier: ^16.4.1
         version: 16.6.1
+      sharp:
+        specifier: ^0.33.0
+        version: 0.33.5
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
@@ -287,6 +296,9 @@ importers:
       helmet:
         specifier: ^7.1.0
         version: 7.2.0
+      humps:
+        specifier: ^2.0.1
+        version: 2.0.1
       iconv-lite:
         specifier: ^0.6.3
         version: 0.6.3
@@ -336,6 +348,9 @@ importers:
       '@types/fluent-ffmpeg':
         specifier: ^2.1.24
         version: 2.1.28
+      '@types/humps':
+        specifier: ^2.0.6
+        version: 2.0.6
       '@types/jsonwebtoken':
         specifier: ^9.0.5
         version: 9.0.10
@@ -1860,6 +1875,9 @@ packages:
 
   '@types/http-proxy@1.17.17':
     resolution: {integrity: sha512-ED6LB+Z1AVylNTu7hdzuBqOgMnvG/ld6wGCG8wFnAzKX5uyW2K3WD52v0gnLCTK/VLpXtKckgWuyScYK6cSPaw==}
+
+  '@types/humps@2.0.6':
+    resolution: {integrity: sha512-Fagm1/a/1J9gDKzGdtlPmmTN5eSw/aaTzHtj740oSfo+MODsSY2WglxMmhTdOglC8nxqUhGGQ+5HfVtBvxo3Kg==}
 
   '@types/istanbul-lib-coverage@2.0.6':
     resolution: {integrity: sha512-2QF/t/auWm0lsy8XtKVPG19v3sSOQlJe/YHZgfjb/KBBHOGSV+J2q/S671rcq9uTBrLAXmZpqJiaQbMT+zNU1w==}
@@ -3484,6 +3502,9 @@ packages:
   https-proxy-agent@7.0.6:
     resolution: {integrity: sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==}
     engines: {node: '>= 14'}
+
+  humps@2.0.1:
+    resolution: {integrity: sha512-E0eIbrFWUhwfXJmsbdjRQFQPrl5pTEoKlz163j1mTqqUnU9PgR4AgB8AIITzuB3vLBdxZXyZ9TDIrwB2OASz4g==}
 
   hyphenate-style-name@1.1.0:
     resolution: {integrity: sha512-WDC/ui2VVRrz3jOVi+XtjqkDjiVjTtFaAGiW37k6b+ohyQ5wYDOGkvCZa8+H0nx3gyvv0+BST9xuOgIyGQ00gw==}
@@ -7434,6 +7455,8 @@ snapshots:
     dependencies:
       '@types/node': 20.19.33
 
+  '@types/humps@2.0.6': {}
+
   '@types/istanbul-lib-coverage@2.0.6': {}
 
   '@types/istanbul-lib-report@3.0.3':
@@ -9305,6 +9328,8 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
+
+  humps@2.0.1: {}
 
   hyphenate-style-name@1.1.0: {}
 

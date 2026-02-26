@@ -5,9 +5,10 @@ import { CharacterAnalysisService } from './characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
 import { translateCharacterDescription } from './translationService';
+import type { CharacterType } from '@kazka/shared';
 
-// Character type for filtering
-export type CharacterType = 'pet' | 'family_member' | 'friend' | 'neighbor' | 'imaginary_friend';
+// Re-export CharacterType for use in routes
+export type { CharacterType };
 
 // Initialize character analysis service (lazy)
 let characterAnalysisService: CharacterAnalysisService | null = null;
@@ -24,12 +25,8 @@ function getCharacterAnalysisService(): CharacterAnalysisService {
  * Determine character type for analysis based on character type
  */
 function getAnalysisCharacterType(characterType: CharacterType): 'person' | 'animal' | 'imaginary' {
-  if (characterType === 'pet') {
-    return 'animal';
-  } else if (characterType === 'imaginary_friend') {
-    return 'imaginary';
-  }
-  return 'person'; // family_member, friend, neighbor
+  // Types now match directly, no mapping needed
+  return characterType as 'person' | 'animal' | 'imaginary';
 }
 
 /**
@@ -146,6 +143,23 @@ export async function getCharacters(
   const visible = results.filter(c => !c.isHidden);
   logger.debug({ userId, type, total: results.length, visible: visible.length }, 'Fetched characters');
   return visible;
+}
+
+/**
+ * Count how many stories use this character
+ */
+export async function countStoriesByCharacter(
+  characterId: string,
+  userId: string
+): Promise<number> {
+  // Verify ownership first
+  const character = await getCharacterRepository().findById(characterId, userId);
+  if (!character) {
+    throw new Error('Character not found');
+  }
+  
+  // Use repository method instead of direct db access
+  return await getCharacterRepository().countStoriesUsingCharacter(characterId);
 }
 
 export async function getCharacterById(

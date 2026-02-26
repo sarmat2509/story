@@ -79,16 +79,12 @@ export function CharactersForm({
     switch (type) {
       case 'child':
         return '👶';
-      case 'pet':
+      case 'person':
+        return '👤';
+      case 'animal':
         return '🐾';
-      case 'family_member':
-        return '👨‍👩‍👧';
-      case 'imaginary_friend':
+      case 'imaginary':
         return '🦄';
-      case 'friend':
-        return '👫';
-      case 'neighbor':
-        return '🏘️';
       default:
         return '👤';
     }
@@ -98,16 +94,12 @@ export function CharactersForm({
     switch (type) {
       case 'child':
         return t('wizard.child_badge') || 'Дитина';
-      case 'pet':
-        return 'Вихованець';
-      case 'family_member':
-        return 'Родич';
-      case 'imaginary_friend':
-        return 'Уявний друг';
-      case 'friend':
-        return 'Друг';
-      case 'neighbor':
-        return 'Сусід';
+      case 'person':
+        return 'Людина';
+      case 'animal':
+        return 'Тварина';
+      case 'imaginary':
+        return 'Вигаданий';
       default:
         return 'Персонаж';
     }

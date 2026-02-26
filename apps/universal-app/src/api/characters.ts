@@ -1,44 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CreateCharacterInput } from '@kazka/shared';
+import { 
+  CreateCharacterInput, 
+  Character,
+  PetAppearance,
+  HumanAppearance
+} from '@kazka/shared';
 import apiClient from './client';
 
-export interface Character {
-  id: string;
-  name: string;
-  type: 'pet' | 'family' | 'friend' | 'imaginary_friend';
-  appearance: any;
-  createdAt: string;
-  referencePhotos?: Array<{ url: string; uploadedAt: string }>;
-  turnaroundSheet?: {
-    url: string;
-    generatedAt: string;
-    sourcePhotoUrl: string;
-  };
-}
-
+// Analysis Result (specific to character analysis endpoint)
 interface AnalysisResult {
   description: string;
-  petAppearance?: {
-    breed?: string;
-    furColor?: string;
-    furPattern?: string;
-    furLength?: string;
-    size?: string;
-    eyeColor?: string;
-    distinctiveFeatures?: string[];
-  };
-  humanAppearance?: {
-    ageRange?: string;
-    hairColor?: string;
-    hairLength?: string;
-    hairStyle?: string;
-    eyeColor?: string;
-    skinTone?: string;
-    height?: string;
-    build?: string;
-    clothingStyle?: string;
-    distinctiveFeatures?: string[];
-  };
+  petAppearance?: PetAppearance;
+  humanAppearance?: HumanAppearance;
 }
 
 // Get all characters for the current user

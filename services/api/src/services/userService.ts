@@ -12,6 +12,7 @@ export interface UpdateUserInput {
   displayName?: string;
   avatarUrl?: string;
   preferredLocale?: string;
+  mode?: 'instant' | 'artisan';
 }
 
 export interface UserWithOAuth extends User {

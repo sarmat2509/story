@@ -71,6 +71,20 @@ export default function ProfileScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('profile.preferences')}</Text>
         
+        {/* Mode Settings */}
+        <TouchableOpacity 
+          style={styles.settingButton}
+          onPress={() => navigation.navigate('ModeSelection' as any)}
+        >
+          <View style={styles.settingLeft}>
+            <Text style={styles.settingText}>{t('profile.mode')}</Text>
+            <Text style={styles.settingValue}>
+              {user?.mode === 'instant' ? t('mode_selection.instant_mode') : t('mode_selection.artisan_mode')}
+            </Text>
+          </View>
+          <Text style={styles.settingArrow}>›</Text>
+        </TouchableOpacity>
+        
         {/* Only show Language Settings on native platforms */}
         {Platform.OS !== 'web' && (
           <TouchableOpacity 
@@ -220,9 +234,17 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border.light,
     marginBottom: theme.spacing[2],
   },
+  settingLeft: {
+    flex: 1,
+  },
   settingText: {
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.primary,
+  },
+  settingValue: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
+    marginTop: theme.spacing[1],
   },
   settingArrow: {
     fontSize: theme.typography.fontSize['2xl'],

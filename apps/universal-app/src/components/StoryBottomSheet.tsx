@@ -25,6 +25,7 @@ interface StoryBottomSheetProps {
   characters?: any[];
   onSaveCharacter?: (characterId: string) => Promise<void>;
   savedCharacterIds?: Set<string>;
+  userMode?: 'instant' | 'artisan';
 }
 
 export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
@@ -42,6 +43,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
     characters = [],
     onSaveCharacter,
     savedCharacterIds = new Set(),
+    userMode,
   }, ref) => {
     const { t } = useTranslation();
     
@@ -62,9 +64,9 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
     const getCharacterTypeLabel = (type: string) => {
       switch (type) {
         case 'child': return t('story_viewer.character_type_child');
-        case 'pet': return t('story_viewer.character_type_pet');
-        case 'friend': return t('story_viewer.character_type_friend');
-        case 'imaginary_friend': return t('story_viewer.character_type_imaginary_friend');
+        case 'person': return t('story_viewer.character_type_person');
+        case 'animal': return t('story_viewer.character_type_animal');
+        case 'imaginary': return t('story_viewer.character_type_imaginary');
         default: return type;
       }
     };
@@ -103,6 +105,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
               <Text style={styles.sectionTitle}>{t('story_viewer.characters_title')}</Text>
               {characters.map((char: any) => {
                 const isEffectivelyHidden = char.isHidden && !savedCharacterIds.has(char.id);
+                const canSaveCharacter = isEffectivelyHidden && userMode === 'artisan' && onSaveCharacter;
                 return (
                   <View key={char.id} style={styles.characterCard}>
                     <View style={styles.characterCardRow}>
@@ -120,7 +123,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
                         <Text style={styles.characterType}>{getCharacterTypeLabel(char.type)}</Text>
                       </View>
                     </View>
-                    {isEffectivelyHidden && onSaveCharacter && (
+                    {canSaveCharacter && (
                       <TouchableOpacity
                         style={styles.saveCharacterButton}
                         onPress={() => onSaveCharacter(char.id)}

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { LOCALE_IDS } from '../config/languages';
-import { CHARACTER_TYPES } from '../constants/characterTypes';
+import { CHARACTER_TYPES, PERSON_SUBTYPES, ANIMAL_SUBTYPES, IMAGINARY_SUBTYPES } from '../constants/characterTypes';
 import { IMAGE_STYLES } from '../constants/imageStyles';
 
 // ==========================================
@@ -176,7 +176,7 @@ export const CreateChildProfileSchema = z.object({
   // Reference photos (optional)
   referencePhotos: z.array(z.object({
     url: z.string().url(),
-    uploadedAt: z.coerce.date()
+    uploadedAt: z.union([z.coerce.date(), z.string().datetime()]).optional()
   })).max(5).optional(),
   
   // Appearance traits (select from enums)
@@ -223,11 +223,12 @@ export const UpdateChildProfileSchema = CreateChildProfileSchema.partial();
 const BaseCharacterSchema = z.object({
   name: z.string().min(1).max(100),
   type: z.enum(CHARACTER_TYPES),
+  subtype: z.string().optional(), // Will be refined in discriminated union
   
   // Reference photos (optional, not for imaginary)
   referencePhotos: z.array(z.object({
     url: z.string().url(),
-    uploadedAt: z.coerce.date()
+    uploadedAt: z.union([z.coerce.date(), z.string().datetime()]).optional()
   })).max(5).optional(),
   
   // Optional free text description
@@ -291,21 +292,24 @@ const ImaginaryPersonalitySchema = z.object({
 export const CreateCharacterSchema = BaseCharacterSchema.and(
   z.discriminatedUnion('type', [
     z.object({
-      type: z.literal('pet'),
+      type: z.literal('animal'),
+      subtype: z.enum(ANIMAL_SUBTYPES).optional(),
       appearanceTraits: PetAppearanceSchema.optional(),
       personality: PetPersonalitySchema.optional()
     }),
     z.object({
-      type: z.enum(['family_member', 'friend', 'neighbor']),
+      type: z.literal('person'),
+      subtype: z.enum(PERSON_SUBTYPES).optional(),
       appearanceTraits: HumanAppearanceSchema.optional(),
       personality: HumanPersonalitySchema.optional()
     }),
     z.object({
-      type: z.literal('imaginary_friend'),
+      type: z.literal('imaginary'),
+      subtype: z.enum(IMAGINARY_SUBTYPES).optional(),
       referencePhotos: z.array(z.object({
         url: z.string().url(),
-        uploadedAt: z.coerce.date()
-      })).max(5).optional(), // Explicitly allow photos for imaginary friends (drawings, etc.)
+        uploadedAt: z.union([z.coerce.date(), z.string().datetime()]).optional()
+      })).max(5).optional(),
       appearanceTraits: ImaginaryAppearanceSchema.optional(),
       personality: ImaginaryPersonalitySchema.optional()
     })
@@ -315,21 +319,24 @@ export const CreateCharacterSchema = BaseCharacterSchema.and(
 export const UpdateCharacterSchema = BaseCharacterSchema.partial().and(
   z.discriminatedUnion('type', [
     z.object({
-      type: z.literal('pet'),
+      type: z.literal('animal'),
+      subtype: z.enum(ANIMAL_SUBTYPES).optional(),
       appearanceTraits: PetAppearanceSchema.optional(),
       personality: PetPersonalitySchema.optional()
     }),
     z.object({
-      type: z.enum(['family_member', 'friend', 'neighbor']),
+      type: z.literal('person'),
+      subtype: z.enum(PERSON_SUBTYPES).optional(),
       appearanceTraits: HumanAppearanceSchema.optional(),
       personality: HumanPersonalitySchema.optional()
     }),
     z.object({
-      type: z.literal('imaginary_friend'),
+      type: z.literal('imaginary'),
+      subtype: z.enum(IMAGINARY_SUBTYPES).optional(),
       referencePhotos: z.array(z.object({
         url: z.string().url(),
-        uploadedAt: z.coerce.date()
-      })).max(5).optional(), // Explicitly allow photos for imaginary friends (drawings, etc.)
+        uploadedAt: z.union([z.coerce.date(), z.string().datetime()]).optional()
+      })).max(5).optional(),
       appearanceTraits: ImaginaryAppearanceSchema.optional(),
       personality: ImaginaryPersonalitySchema.optional()
     })

@@ -255,6 +255,7 @@ export const config = {
     textConcurrency: parseInt(process.env.TEXT_QUEUE_CONCURRENCY || '3', 10),
     imageConcurrency: parseInt(process.env.IMAGE_QUEUE_CONCURRENCY || '10', 10),
     audioConcurrency: parseInt(process.env.AUDIO_QUEUE_CONCURRENCY || '2', 10),
+    instantConcurrency: parseInt(process.env.INSTANT_QUEUE_CONCURRENCY || '3', 10),
     pollIntervalMs: parseInt(process.env.QUEUE_POLL_INTERVAL_MS || '1000', 10),
   },
   

@@ -1,0 +1,269 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
+import type { MainDrawerParamList } from '@/types/navigation';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/config/i18n';
+import { navigateToStory } from '@/navigation/navigationRef';
+import { theme } from '@/theme';
+import { PhotoUploadGrid } from '@/components/form/PhotoUploadGrid';
+import { GenerationProgressModal } from '@/components/GenerationProgressModal';
+import { ScenarioCardsGrid } from './components/ScenarioCardsGrid';
+import { LanguageSelector } from './components/LanguageSelector';
+import { useStoryThemes } from '@/api/dictionaries';
+import { useCreateStoryFromPhotos, useStoryStatus, useRetryStoryImages } from '@/api/stories';
+
+type AgeGroup = '2-3' | '4-5' | '6-7' | '8-9' | '10-12';
+
+interface PhotoObject {
+  url: string;
+  fileKey: string;
+  [key: string]: any;
+}
+
+export default function InstantWizardScreen() {
+  const { t } = useTranslation();
+  const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+
+  // Form state
+  const [photos, setPhotos] = useState<PhotoObject[]>([]);
+  const [ageGroup, setAgeGroup] = useState<AgeGroup>('4-5');
+  const [storyLanguage, setStoryLanguage] = useState('');
+  const [scenarioCardId, setScenarioCardId] = useState<string | null>(null);
+
+  // Generation state
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
+
+  // API hooks
+  const { data: themesData, isLoading: themesLoading } = useStoryThemes();
+  const createStoryFromPhotos = useCreateStoryFromPhotos();
+  const retryStoryImages = useRetryStoryImages();
+  const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
+
+  // Set default language from i18n
+  useEffect(() => {
+    if (!storyLanguage && i18n.language) {
+      setStoryLanguage(i18n.language);
+    }
+  }, [i18n.language]);
+
+  const handleGenerate = async () => {
+    if (!storyLanguage) {
+      Alert.alert(t('common.error') || 'Error', t('wizard.language_required'));
+      return;
+    }
+
+    try {
+      setIsGenerating(true);
+
+      // Extract URLs from photo objects
+      const photoUrls = photos.map(photo => photo.url || photo);
+
+      const payload = {
+        photos: photoUrls,
+        ageGroup,
+        language: storyLanguage || i18n.language,
+        scenario: scenarioCardId || 'default',
+      };
+
+      const result = await createStoryFromPhotos.mutateAsync(payload);
+      setRequestId(result.id);
+      // Keep modal open - polling will track progress
+    } catch (error) {
+      console.error('Failed to create story from photos:', error);
+      // Don't close modal on initial request error - show error in modal instead
+      Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
+      setIsGenerating(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    if (storyStatus?.storyId && requestId) {
+      try {
+        setIsGenerating(true);
+        await retryStoryImages.mutateAsync(requestId);
+      } catch (error) {
+        console.error('Retry failed:', error);
+        Alert.alert(t('common.error') || 'Error', t('wizard.retry_error'));
+        setIsGenerating(false);
+      }
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsGenerating(false);
+    setRequestId(null);
+
+    if (storyStatus?.storyId) {
+      navigateToStory(storyStatus.storyId);
+    }
+  };
+
+  const canGenerate = storyLanguage;
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      {/* Photo Upload */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('instant_wizard.upload_photos')}</Text>
+        <Text style={styles.sectionDescription}>{t('instant_wizard.photos_description')}</Text>
+        <PhotoUploadGrid
+          photos={photos}
+          onPhotosChange={setPhotos}
+          maxPhotos={5}
+          photoType="character"
+        />
+      </View>
+
+      {/* Age Group Selector */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('instant_wizard.age_group')}</Text>
+        <Text style={styles.sectionDescription}>{t('instant_wizard.age_group_description')}</Text>
+        <View style={styles.ageGroupContainer}>
+          {(['2-3', '4-5', '6-7', '8-9', '10-12'] as AgeGroup[]).map((age) => (
+            <TouchableOpacity
+              key={age}
+              style={[
+                styles.ageGroupButton,
+                ageGroup === age && styles.ageGroupButtonSelected,
+              ]}
+              onPress={() => setAgeGroup(age)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.ageGroupText,
+                  ageGroup === age && styles.ageGroupTextSelected,
+                ]}
+              >
+                {age} {t('instant_wizard.years')}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Scenario Selection */}
+      <View style={styles.section}>
+        {themesLoading ? (
+          <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+        ) : (
+          <ScenarioCardsGrid
+            scenarios={themesData?.scenarioCards || []}
+            selected={scenarioCardId}
+            onSelect={setScenarioCardId}
+          />
+        )}
+      </View>
+
+      {/* Language Selection */}
+      <View style={styles.section}>
+        <LanguageSelector 
+          selected={storyLanguage} 
+          onSelect={setStoryLanguage}
+          defaultLanguage={i18n.language}
+        />
+      </View>
+
+      {/* Generate Button */}
+      <TouchableOpacity
+        style={[styles.generateButton, !canGenerate && styles.generateButtonDisabled]}
+        onPress={handleGenerate}
+        disabled={!canGenerate || isGenerating}
+        activeOpacity={0.8}
+      >
+        {isGenerating ? (
+          <ActivityIndicator color={theme.colors.text.inverse} />
+        ) : (
+          <Text style={styles.generateButtonText}>{t('instant_wizard.generate_story')}</Text>
+        )}
+      </TouchableOpacity>
+
+      {/* Generation Progress Modal */}
+      <GenerationProgressModal
+        visible={isGenerating}
+        status={storyStatus?.status || 'pending'}
+        progress={storyStatus?.progress || 0}
+        progressData={storyStatus?.progressData}
+        errorMessage={storyStatus?.errorMessage}
+        onRetry={handleRetry}
+        onClose={handleCloseModal}
+      />
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    padding: theme.spacing[6],
+    backgroundColor: theme.colors.background.primary,
+  },
+  section: {
+    marginBottom: theme.spacing[6],
+  },
+  sectionTitle: {
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing[2],
+  },
+  sectionDescription: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
+    marginBottom: theme.spacing[4],
+    lineHeight: theme.typography.lineHeight.normal * theme.typography.fontSize.sm,
+  },
+  ageGroupContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[2],
+  },
+  ageGroupButton: {
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  ageGroupButtonSelected: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  ageGroupText: {
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.primary,
+  },
+  ageGroupTextSelected: {
+    color: theme.colors.text.inverse,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  generateButton: {
+    paddingVertical: theme.spacing[4],
+    paddingHorizontal: theme.spacing[6],
+    backgroundColor: theme.colors.interactive.primary,
+    borderRadius: theme.borders.radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: theme.spacing[6],
+    minHeight: 48,
+  },
+  generateButtonDisabled: {
+    backgroundColor: theme.colors.background.tertiary,
+  },
+  generateButtonText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
+  },
+});

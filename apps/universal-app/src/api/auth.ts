@@ -1,22 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { UserApi, AuthResponseApi } from '@kazka/shared';
 import apiClient from './client';
 import { useAuthStore } from '@/store/authStore';
 import { storage } from '@/utils/storage';
 
-interface User {
-  id: string;
-  email: string;
-  displayName: string | null;
-  avatarUrl: string | null;
-  preferredLocale: string;
-}
-
-interface AuthResponse {
-  token: string;
-  user: User;
-  expiresAt: number;
-  isNewUser?: boolean;
-}
+// Use shared types
+type User = UserApi;
+type AuthResponse = AuthResponseApi;
 
 // OAuth mutations
 export const useGoogleLogin = () => {

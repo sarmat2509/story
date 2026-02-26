@@ -18,6 +18,7 @@ import voicesRoutes from './routes/voices';
 import uploadRoutes from './routes/upload';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { globalLimiter, authLimiter, apiLimiter } from './middleware/rateLimiter';
+import { caseTransformMiddleware } from './middleware/caseTransform';
 import { startSessionCleanupJob } from './services/sessionService';
 import { startAllQueues } from './jobs/storyJobProcessor';
 import { checkDatabaseHealth } from './db';
@@ -30,8 +31,8 @@ app.use(helmet());
 app.use(cors());
 
 // Trust proxy - required for rate limiting behind Nginx reverse proxy
-// Express will trust X-Forwarded-For headers from Nginx
-app.set('trust proxy', true);
+// Trust only the first proxy (Nginx) to prevent X-Forwarded-For spoofing
+app.set('trust proxy', 1);
 
 // Rate limiting
 app.use(globalLimiter); // Apply global rate limit to all requests
@@ -39,6 +40,9 @@ app.use(globalLimiter); // Apply global rate limit to all requests
 // Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Case transformation (snake_case ↔ camelCase)
+app.use(caseTransformMiddleware);
 
 // Initialize passport
 app.use(passport.initialize());

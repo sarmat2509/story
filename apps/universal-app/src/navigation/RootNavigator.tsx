@@ -5,12 +5,16 @@ import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
 import PublicNavigator from './PublicNavigator';
 import MainNavigator from './MainNavigator';
+import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
 import type { RootStackParamList } from '@/types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, user } = useAuthStore();
+  
+  // Check if user needs to select a mode
+  const needsModeSelection = isAuthenticated && !user?.mode;
 
   // Show loading while auth state is being restored from storage
   if (isLoading) {
@@ -25,6 +29,8 @@ export default function RootNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!isAuthenticated ? (
         <Stack.Screen name="Public" component={PublicNavigator} />
+      ) : needsModeSelection ? (
+        <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
       ) : (
         <Stack.Screen name="Main" component={MainNavigator} />
       )}

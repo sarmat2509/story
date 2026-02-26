@@ -1,14 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { Modal, View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import type { RequestStatus, StoryRequestProgressData } from '@kazka/shared';
 import { theme } from '@/theme';
-
-// Phase weights for overall progress calculation
-const PHASE_WEIGHTS: Record<string, number> = {
-  'generating_text': 0.30,
-  'validating': 0.20,
-  'generating_images': 0.50,
-};
 
 interface Props {
   visible: boolean;
@@ -31,59 +24,9 @@ export function GenerationProgressModal({
   onRetry,
   allowManualClose = false,
 }: Props) {
-  const [smoothProgress, setSmoothProgress] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const imageTimerRef = useRef<number>(Date.now());
-  const prevImageCountRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (visible) {
-      setSmoothProgress(0);
-      prevImageCountRef.current = 0;
-      imageTimerRef.current = Date.now();
-    }
-  }, [visible]);
-
-  // Smooth time-based progress animation
-  useEffect(() => {
-    if (status !== 'processing' || !progressData) {
-      if (status === 'completed') {
-        setSmoothProgress(100);
-      }
-      return;
-    }
-
-    // Detect when a new image completes and reset the sub-image timer
-    const activeDetails = progressData?.activeTasks?.[0]?.details;
-    const currentImages = activeDetails?.current ?? 0;
-    if (currentImages !== prevImageCountRef.current) {
-      prevImageCountRef.current = currentImages;
-      imageTimerRef.current = Date.now();
-    }
-
-    // Start interval for smooth progress updates
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-
-    const compute = () => {
-      const computed = computeTimeBasedProgress(progressData, imageTimerRef.current);
-      setSmoothProgress(computed);
-    };
-
-    compute(); // Initial compute
-    intervalRef.current = setInterval(compute, 200); // Update every 200ms
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [status, progressData]);
-
   const getTaskLabel = (task: string) => {
     const labels: Record<string, string> = {
+      'analyzing_photos': 'Аналізуємо фотографії...',
       'generating_text': 'Пишемо текст...',
       'validating': 'Перевіряємо безпечність контенту...',
       'generating_images': 'Створюємо ілюстрації...',
@@ -111,8 +54,8 @@ export function GenerationProgressModal({
   const getProgressPercentage = () => {
     if (status === 'completed') return 100;
     if (status === 'failed') return 0;
-    // Use smooth time-based progress if available, fallback to server progress
-    return smoothProgress || progressData?.overallProgress || progress;
+    // Use backend-calculated progress directly
+    return progressData?.overallProgress ?? progress ?? 0;
   };
 
   return (
@@ -197,71 +140,6 @@ export function GenerationProgressModal({
       </View>
     </Modal>
   );
-}
-
-/**
- * Asymptotic easing: linear to 90% at ratio=1, then slowly approaches 99%.
- * Never truly reaches 100% — that only happens when completeTask fires.
- */
-function asymptoticEase(ratio: number): number {
-  if (ratio <= 1) {
-    return 0.9 * ratio;
-  }
-  return 0.9 + 0.09 * (1 - 1 / (1 + (ratio - 1) * 3));
-}
-
-/**
- * Compute smooth time-based progress across 3 phases.
- * Uses elapsed time vs estimatedMs per phase for smooth animation.
- * Falls back to server-reported progress if timing data is unavailable.
- */
-function computeTimeBasedProgress(progressData: {
-  activeTasks: Array<{ task: string; progress: number; details?: Record<string, any> }>;
-  completedTasks: string[];
-  overallProgress: number;
-}, imageStartTime: number): number {
-  const { activeTasks, completedTasks } = progressData;
-
-  let progress = 0;
-
-  // Add completed phases' weights
-  for (const task of completedTasks) {
-    progress += PHASE_WEIGHTS[task] ?? 0;
-  }
-
-  // Add time-based progress for the active phase
-  const active = activeTasks[0];
-  if (active) {
-    const weight = PHASE_WEIGHTS[active.task] ?? 0;
-    const details = active.details;
-
-    if (details?.estimatedMs && details?.startedAt) {
-      const elapsed = Date.now() - details.startedAt;
-
-      // For images: smooth per-image interpolation using tracked image timer
-      if (active.task === 'generating_images' && details.total) {
-        const current = details.current ?? 0;
-        // Use observed average rate when images have completed, else use estimate
-        const perImageMs = current > 0
-          ? elapsed / current
-          : details.estimatedMs / details.total;
-        const timeSinceLastImage = Date.now() - imageStartTime;
-        const subRatio = timeSinceLastImage / perImageMs;
-        const subFraction = asymptoticEase(subRatio);
-        const smoothPhaseProgress = (current + subFraction) / details.total;
-        progress += smoothPhaseProgress * weight;
-      } else {
-        // Text / validation: asymptotic curve instead of hard 0.95 cap
-        const ratio = elapsed / details.estimatedMs;
-        progress += asymptoticEase(ratio) * weight;
-      }
-    } else {
-      // Fallback: use server-reported task progress
-      progress += (active.progress / 100) * weight;
-    }
-  }
-
-  return Math.round(progress * 100);
 }
 
 const styles = StyleSheet.create({

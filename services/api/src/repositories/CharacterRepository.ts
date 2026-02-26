@@ -1,4 +1,4 @@
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, count } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -122,5 +122,17 @@ export class CharacterRepository {
         eq(schema.characters.isHidden, true),
         eq(schema.characters.isActive, true),
       ));
+  }
+
+  /**
+   * Count how many stories use this character via storyCharacters junction table
+   */
+  async countStoriesUsingCharacter(characterId: string): Promise<number> {
+    const result = await this.db
+      .select({ count: count() })
+      .from(schema.storyCharacters)
+      .where(eq(schema.storyCharacters.characterId, characterId));
+    
+    return Number(result[0]?.count) || 0;
   }
 }

@@ -129,7 +129,7 @@ export interface ImageGenerationContext {
     imageRegenerationPerDay: number;
     allowReferencePhotos: boolean;
     storiesPerMonth: number;
-    audioMinutesPerMonth: number;
+    audioStoriesPerMonth: number;
   };
   userId: string;
   assetStorage: any; // Keep as any for now to avoid circular deps
@@ -142,7 +142,7 @@ export interface PlanFeatures {
   imageRegenerationPerDay: number;
   allowReferencePhotos: boolean;
   storiesPerMonth: number;
-  audioMinutesPerMonth: number;
+  audioStoriesPerMonth: number;
 }
 
 export interface AssetStorageService {

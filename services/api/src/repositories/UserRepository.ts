@@ -39,7 +39,7 @@ export class UserRepository {
     return user;
   }
 
-  async update(id: string, data: Partial<Pick<schema.NewUser, 'displayName' | 'avatarUrl' | 'preferredLocale'>>): Promise<schema.User> {
+  async update(id: string, data: Partial<Pick<schema.NewUser, 'displayName' | 'avatarUrl' | 'preferredLocale' | 'mode'>>): Promise<schema.User> {
     const [user] = await this.db
       .update(schema.users)
       .set({ ...data, updatedAt: new Date() })

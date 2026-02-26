@@ -3,9 +3,10 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
-import { useCharacters } from '@/api/characters';
+import { useCharacters, useDeleteCharacter } from '@/api/characters';
 import { CharacterCard } from './components/CharacterCard';
 import { CharacterFormModal } from '@/components/CharacterFormModal';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ReferencePhoto } from '@kazka/shared';
 
 function useColumns(): number {
@@ -27,13 +28,18 @@ export default function CharactersScreen() {
   const [editingCharacter, setEditingCharacter] = useState<{
     id: string;
     name: string;
-    type: 'pet' | 'family_member' | 'friend' | 'neighbor' | 'imaginary_friend';
+    type: 'person' | 'animal' | 'imaginary';
+    subtype?: string;
     description?: string;
     referencePhotos?: ReferencePhoto[];
     appearanceTraits?: any;
     personality?: any;
     turnaroundSheet?: { url: string; generatedAt: string };
   } | undefined>();
+  
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [characterToDelete, setCharacterToDelete] = useState<{ id: string; name: string } | null>(null);
+  const deleteCharacter = useDeleteCharacter();
   
   const handleAddCharacter = () => {
     setEditingCharacter(undefined);
@@ -52,6 +58,24 @@ export default function CharactersScreen() {
       turnaroundSheet: character.turnaroundSheet || undefined,
     });
     setIsModalVisible(true);
+  };
+  
+  const handleDelete = (characterId: string, characterName: string) => {
+    setCharacterToDelete({ id: characterId, name: characterName });
+    setDeleteDialogVisible(true);
+  };
+  
+  const confirmDelete = () => {
+    if (characterToDelete) {
+      deleteCharacter.mutate(characterToDelete.id);
+      setDeleteDialogVisible(false);
+      setCharacterToDelete(null);
+    }
+  };
+  
+  const cancelDelete = () => {
+    setDeleteDialogVisible(false);
+    setCharacterToDelete(null);
   };
   
   if (isLoading) {
@@ -86,12 +110,14 @@ export default function CharactersScreen() {
                     key={character.id}
                     character={character}
                     onPress={() => handleEditCharacter(character)}
+                    onDelete={handleDelete}
                   />
                 ) : (
                   <View key={character.id} style={{ width: cardWidth }}>
                     <CharacterCard
                       character={character}
                       onPress={() => handleEditCharacter(character)}
+                      onDelete={handleDelete}
                     />
                   </View>
                 )
@@ -133,6 +159,18 @@ export default function CharactersScreen() {
         }}
         characterId={editingCharacter?.id}
         initialData={editingCharacter}
+      />
+      
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        visible={deleteDialogVisible}
+        title={t('characters.delete_confirm_title')}
+        message={t('characters.delete_confirm_message', { name: characterToDelete?.name || '' })}
+        confirmText={t('characters.delete')}
+        cancelText={t('common.cancel')}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+        variant="danger"
       />
     </View>
   );

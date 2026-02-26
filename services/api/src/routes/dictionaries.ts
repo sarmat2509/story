@@ -59,10 +59,10 @@ router.get('/character-traits', async (req, res) => {
     });
   }
   
-  if (type === 'pet') {
+  if (type === 'animal') {
     return res.json({
       status: 'success',
-      type: 'pet',
+      type: 'animal',
       dictionaries: {
         petTypes: PET_TYPES,
         sizes: PET_SIZES,
@@ -79,10 +79,10 @@ router.get('/character-traits', async (req, res) => {
     });
   }
   
-  if (type === 'family_member' || type === 'friend' || type === 'neighbor') {
+  if (type === 'person') {
     return res.json({
       status: 'success',
-      type,
+      type: 'person',
       dictionaries: {
         ageRanges: AGE_RANGES,
         hairColors: HUMAN_HAIR_COLORS,
@@ -95,10 +95,10 @@ router.get('/character-traits', async (req, res) => {
     });
   }
   
-  if (type === 'imaginary_friend') {
+  if (type === 'imaginary') {
     return res.json({
       status: 'success',
-      type: 'imaginary_friend',
+      type: 'imaginary',
       note: 'These are suggestions only - all fields accept free text',
       dictionaries: {
         speciesSuggestions: IMAGINARY_SPECIES_SUGGESTIONS,
@@ -111,7 +111,7 @@ router.get('/character-traits', async (req, res) => {
   
   return res.status(400).json({
     status: 'error',
-    message: 'Invalid type parameter. Must be one of: child, pet, family_member, friend, neighbor, imaginary_friend'
+    message: 'Invalid type parameter. Must be one of: child, person, animal, imaginary'
   });
 });
 

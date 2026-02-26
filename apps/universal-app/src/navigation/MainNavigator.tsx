@@ -8,8 +8,10 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
 import { useResponsive } from '@/hooks/useResponsive';
 import { theme } from '@/theme';
+import { useAuthStore } from '@/store/authStore';
 import DashboardScreen from '@/screens/dashboard/DashboardScreen';
 import WizardScreen from '@/screens/wizard/WizardScreen';
+import InstantWizardScreen from '@/screens/wizard/InstantWizardScreen';
 import LibraryScreen from '@/screens/library/LibraryScreen';
 import StoryViewerScreen from '@/screens/story/StoryViewerScreen';
 import ChildrenScreen from '@/screens/children/ChildrenScreen';
@@ -17,6 +19,7 @@ import CharactersScreen from '@/screens/characters/CharactersScreen';
 import PlansScreen from '@/screens/plans/PlansScreen';
 import ProfileScreen from '@/screens/profile/ProfileScreen';
 import LanguageSettingsScreen from '@/screens/profile/LanguageSettingsScreen';
+import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
 import { LanguageDropdown } from '@/components/LanguageDropdown';
 import { MiniAudioPlayer } from '@/components/MiniAudioPlayer';
 import { useMainNavigationStore } from '@/store/mainNavigationStore';
@@ -223,6 +226,8 @@ const mobileTabBarStyles = StyleSheet.create({
 
 function TabNavigator() {
   const { t } = useTranslation();
+  const { user } = useAuthStore();
+  const isInstantMode = user?.mode === 'instant';
 
   return (
     <Tab.Navigator
@@ -252,7 +257,7 @@ function TabNavigator() {
       />
       <Tab.Screen 
         name="Wizard" 
-        component={WizardScreen}
+        component={isInstantMode ? InstantWizardScreen : WizardScreen}
         options={{ 
           title: t('navigation.create_story'),
           tabBarLabel: t('navigation.tab_create_story'),
@@ -280,28 +285,32 @@ function TabNavigator() {
           tabBarButton: () => null,
         }}
       />
-      <Tab.Screen 
-        name="Children" 
-        component={ChildrenScreen}
-        options={{ 
-          title: t('navigation.children'),
-          tabBarLabel: t('navigation.tab_children'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen 
-        name="Characters" 
-        component={CharactersScreen}
-        options={{ 
-          title: t('navigation.characters'),
-          tabBarLabel: t('navigation.tab_characters'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="body-outline" size={size} color={color} />
-          ),
-        }}
-      />
+      {!isInstantMode && (
+        <Tab.Screen 
+          name="Children" 
+          component={ChildrenScreen}
+          options={{ 
+            title: t('navigation.children'),
+            tabBarLabel: t('navigation.tab_children'),
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="people-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
+      {!isInstantMode && (
+        <Tab.Screen 
+          name="Characters" 
+          component={CharactersScreen}
+          options={{ 
+            title: t('navigation.characters'),
+            tabBarLabel: t('navigation.tab_characters'),
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="body-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
       <Tab.Screen 
         name="Plans" 
         component={PlansScreen}
@@ -356,7 +365,9 @@ function DrawerBurgerButton() {
 function DrawerNavigator() {
   const { t } = useTranslation();
   const { isTablet, isDesktop } = useResponsive();
+  const { user } = useAuthStore();
   const collapsed = useDrawerCollapsedStore((s) => s.collapsed);
+  const isInstantMode = user?.mode === 'instant';
 
   const drawerWidth = collapsed
     ? theme.layout.drawer.widthCollapsed
@@ -390,7 +401,7 @@ function DrawerNavigator() {
       />
       <Drawer.Screen 
         name="Wizard" 
-        component={WizardScreen}
+        component={isInstantMode ? InstantWizardScreen : WizardScreen}
         options={{ 
           title: t('navigation.create_story'),
           drawerIcon: ({ color, size }) => (
@@ -416,26 +427,30 @@ function DrawerNavigator() {
           drawerItemStyle: { display: 'none' },
         }}
       />
-      <Drawer.Screen 
-        name="Children" 
-        component={ChildrenScreen}
-        options={{ 
-          title: t('navigation.children'),
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Drawer.Screen 
-        name="Characters" 
-        component={CharactersScreen}
-        options={{ 
-          title: t('navigation.characters'),
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="body-outline" size={size} color={color} />
-          ),
-        }}
-      />
+      {!isInstantMode && (
+        <Drawer.Screen 
+          name="Children" 
+          component={ChildrenScreen}
+          options={{ 
+            title: t('navigation.children'),
+            drawerIcon: ({ color, size }) => (
+              <Ionicons name="people-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
+      {!isInstantMode && (
+        <Drawer.Screen 
+          name="Characters" 
+          component={CharactersScreen}
+          options={{ 
+            title: t('navigation.characters'),
+            drawerIcon: ({ color, size }) => (
+              <Ionicons name="body-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
       <Drawer.Screen 
         name="Plans" 
         component={PlansScreen}
@@ -461,6 +476,14 @@ function DrawerNavigator() {
         component={LanguageSettingsScreen}
         options={{ 
           title: t('profile.language_settings'),
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
+      <Drawer.Screen 
+        name="ModeSelection" 
+        component={ModeSelectionScreen}
+        options={{ 
+          title: t('mode_selection.title'),
           drawerItemStyle: { display: 'none' },
         }}
       />

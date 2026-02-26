@@ -1,14 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CreateChildProfileInput } from '@kazka/shared';
+import { CreateChildProfileInput, ChildProfileApi } from '@kazka/shared';
 import apiClient from './client';
 
-interface ChildProfile {
-  id: string;
-  name: string;
-  birthDate: string;
-  gender?: string;
-  languages: string[];
-}
+// Use shared type
+type ChildProfile = ChildProfileApi;
 
 // List child profiles
 export const useChildren = () => {

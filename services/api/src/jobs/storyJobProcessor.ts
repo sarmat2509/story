@@ -45,6 +45,11 @@ export interface AudioGenerationJob extends BaseJob {
   };
 }
 
+export interface InstantCharacterSetupJob extends BaseJob {
+  type: 'instant_character_setup';
+  requestId: string;
+}
+
 // Legacy job types (for backwards compatibility during migration)
 interface LegacyBaseJob {
   id: string;
@@ -145,6 +150,18 @@ export const audioQueue = new ConcurrentJobQueue<AudioGenerationJob>({
   name: 'audio',
   maxConcurrency: () => config.queue.audioConcurrency,
   processor: processAudioGeneration,
+  pollIntervalMs: config.queue.pollIntervalMs,
+});
+
+/**
+ * Instant character setup queue
+ * For photo analysis, character creation, and turnaround generation in instant mode
+ * Concurrency controlled by config (default: 3)
+ */
+export const instantQueue = new ConcurrentJobQueue<InstantCharacterSetupJob>({
+  name: 'instant-character-setup',
+  maxConcurrency: () => config.queue.instantConcurrency || 3,
+  processor: processInstantCharacterSetup,
   pollIntervalMs: config.queue.pollIntervalMs,
 });
 
@@ -382,6 +399,230 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
   }
 }
 
+/**
+ * Process instant character setup job
+ * Handles photo deduplication, character analysis, creation, and turnaround generation
+ * Then enqueues text generation job
+ */
+async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Promise<void> {
+  const { requestId } = job;
+  
+  try {
+    logger.info({ requestId, jobId: job.id }, 'Starting instant character setup');
+    
+    // Load request with intermediate data
+    const request = await getStoryRepository().findRequestById(requestId);
+    if (!request) {
+      throw new Error(`Story request ${requestId} not found`);
+    }
+    
+    const intermediateData = (request.intermediateData as any) || {};
+    const photos: string[] = intermediateData.photos || [];
+    
+    if (photos.length === 0) {
+      throw new Error('No photos found in intermediate data');
+    }
+    
+    // Check if already processed (idempotency)
+    if (intermediateData.characterSetupComplete === true) {
+      logger.info({ requestId }, 'Character setup already complete, skipping to story generation');
+      await textQueue.addJob({
+        type: 'text_generation',
+        requestId,
+        isContinuation: false,
+      });
+      return;
+    }
+    
+    const language = request.storyLanguage || 'uk';
+    
+    // Step 1: Face deduplication (with progress tracking)
+    const { startTask, completeTask, STORY_TASKS } = await import('../services/storyProgress');
+    await startTask(requestId, STORY_TASKS.ANALYZING_PHOTOS, {
+      estimatedMs: 30000,
+    });
+    
+    const { getFaceDeduplicationService } = await import('../services/faceDeduplicationService');
+    const faceDeduplicationService = getFaceDeduplicationService();
+    const photoGroups = await faceDeduplicationService.groupPhotosByIdentity(photos);
+    
+    logger.info({
+      requestId,
+      totalPhotos: photos.length,
+      groupsFound: photoGroups.length
+    }, 'Photos deduplicated into groups');
+    
+    // Save photo groups for potential retry
+    await getStoryRepository().updateRequest(requestId, {
+      intermediateData: {
+        ...intermediateData,
+        photoGroups,
+      }
+    });
+    
+    // Step 2: Create characters from photo groups
+    const createdCharacterIds: string[] = [];
+    
+    const { CharacterAnalysisService } = await import('../services/characterAnalysisService');
+    const { GeminiTextProvider } = await import('../providers/text/gemini/GeminiTextProvider');
+    const { generateTurnaroundSheet, isTurnaroundSheetEnabled } = await import('../services/turnaroundSheetService');
+    const { getCharacterRepository } = await import('../repositories');
+    
+    const geminiProvider = new GeminiTextProvider(config.google.apiKey);
+    const analysisService = new CharacterAnalysisService(geminiProvider);
+    
+    for (const group of photoGroups) {
+      try {
+        // 2.1: Analyze photos
+        const analysisType = group.characterType === 'animal' ? 'animal' :
+                            group.characterType === 'imaginary' ? 'imaginary' :
+                            'person';
+        
+        logger.info({
+          requestId,
+          groupName: group.name,
+          photoCount: group.photoUrls.length,
+          characterType: analysisType
+        }, 'Analyzing character from photos (instant mode)');
+        
+        const analysis = await analysisService.analyzeCharacter({
+          photos: group.photoUrls,
+          characterType: analysisType,
+          language
+        });
+        
+        const characterName = analysis.suggestedName || group.name;
+        
+        // 2.2: Map face deduplication type to DB schema with default subtypes
+        const typeMapping: Record<'person' | 'animal' | 'imaginary', { type: string; subtype: string }> = {
+          person: { type: 'person', subtype: 'other_adult' },
+          animal: { type: 'animal', subtype: 'other_animal' },
+          imaginary: { type: 'imaginary', subtype: 'imaginary_friend' }
+        };
+        
+        const { type, subtype } = typeMapping[group.characterType];
+        
+        // 2.3: Create character record
+        const character = await getCharacterRepository().create({
+          userId: request.userId,
+          name: characterName,
+          type,
+          subtype,
+          description: analysis.detailedDescription,
+          aiGeneratedDescription: analysis.detailedDescription,
+          referencePhotos: group.photoUrls.map(url => ({ url })),
+          appearanceTraits: analysis.appearanceTraits,
+          isHidden: false,
+        } as any);
+        
+        logger.info({
+          requestId,
+          characterId: character.id,
+          characterName: character.name,
+          characterType: character.type,
+          characterSubtype: character.subtype,
+          detectedFrom: group.characterType
+        }, 'Character created from photos (instant mode)');
+        
+        // 2.3: Generate turnaround sheet for ALL character types (person, animal, imaginary)
+        if (isTurnaroundSheetEnabled() && group.photoUrls.length > 0) {
+          try {
+            logger.info({
+              characterId: character.id,
+              characterName: character.name,
+              characterType: group.characterType,
+              requestId
+            }, 'Generating turnaround sheet (instant mode)');
+            
+            const turnaroundResult = await generateTurnaroundSheet({
+              characterId: character.id,
+              userId: request.userId,
+              referencePhotoUrl: group.photoUrls[0],
+              characterName: character.name,
+              aiDescription: analysis.detailedDescription
+            });
+            
+            logger.info({
+              characterId: character.id,
+              turnaroundUrl: turnaroundResult.url,
+              characterType: group.characterType,
+              requestId
+            }, 'Turnaround sheet generated (instant mode)');
+          } catch (turnaroundError) {
+            logger.error({
+              error: turnaroundError,
+              characterId: character.id,
+              characterType: group.characterType,
+              requestId
+            }, 'Turnaround generation failed (continuing without it)');
+          }
+        }
+        
+        createdCharacterIds.push(character.id);
+        
+      } catch (error) {
+        logger.error({
+          error,
+          groupName: group.name,
+          requestId
+        }, 'Failed to create character from photo group');
+      }
+    }
+    
+    await completeTask(requestId, STORY_TASKS.ANALYZING_PHOTOS);
+    
+    if (createdCharacterIds.length === 0) {
+      throw new Error('Failed to create any characters from photos');
+    }
+    
+    logger.info({
+      requestId,
+      charactersCreated: createdCharacterIds.length
+    }, 'Characters created successfully');
+    
+    // Step 3: Update story request with character IDs and mark setup complete
+    await getStoryRepository().updateRequest(requestId, {
+      selectedCharacters: createdCharacterIds,
+      intermediateData: {
+        ...intermediateData,
+        photoGroups,
+        createdCharacterIds,
+        characterSetupComplete: true,
+      }
+    });
+    
+    logger.info({
+      requestId,
+      selectedCharacters: createdCharacterIds,
+      characterCount: createdCharacterIds.length,
+    }, 'Story request updated with auto-selected characters');
+    
+    // Step 4: Enqueue text generation job
+    await textQueue.addJob({
+      type: 'text_generation',
+      requestId,
+      isContinuation: false,
+    });
+    
+    logger.info({ requestId }, 'Text generation job enqueued after character setup');
+    
+  } catch (error) {
+    logger.error({
+      error,
+      requestId,
+      jobId: job.id
+    }, 'Instant character setup failed');
+    
+    await getStoryRepository().updateRequest(requestId, {
+      status: 'failed',
+      errorMessage: error instanceof Error ? error.message : 'Character setup failed',
+      updatedAt: new Date(),
+    });
+    
+    throw error;
+  }
+}
+
 // ── Legacy StoryJobQueue (for scene image regeneration only) ──
 
 class StoryJobQueue {
@@ -408,10 +649,21 @@ class StoryJobQueue {
     let job: LegacyJob;
 
     if (typeof requestIdOrJobData === 'string') {
-      // Story generation -- redirect to textQueue
-      // Check if this is a continuation by reading intermediateData from DB
+      // Story generation -- redirect to appropriate queue based on request type
+      // Check if this is instant mode or continuation by reading intermediateData from DB
       const request = await getStoryRepository().findRequestById(requestIdOrJobData);
       const intermediateData = request?.intermediateData as Record<string, unknown> | null;
+      
+      // Check if instant mode
+      if (intermediateData?.instantMode === true) {
+        const actualJobId = instantQueue.addJob({
+          type: 'instant_character_setup',
+          requestId: requestIdOrJobData,
+        });
+        return actualJobId;
+      }
+      
+      // Check if continuation
       const isContinuation = !!intermediateData?.isContinuation;
 
       const actualJobId = textQueue.addJob({

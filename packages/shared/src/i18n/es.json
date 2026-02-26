@@ -177,12 +177,12 @@
     "select_characters": "Seleccionar personajes (hasta 5)",
     "edit": "Editar",
     "delete": "Eliminar",
+    "delete_confirm_title": "¿Eliminar personaje?",
+    "delete_confirm_message": "¿Estás seguro de que quieres eliminar a {{name}}? Si se usa en historias, se ocultará.",
     "character_types": {
-      "pet": "Mascota",
-      "family_member": "Miembro de la familia",
-      "friend": "Amigo",
-      "neighbor": "Vecino",
-      "imaginary_friend": "Amigo imaginario"
+      "person": "Persona",
+      "animal": "Animal",
+      "imaginary": "Imaginario"
     }
   },
   "child_form": {
@@ -491,9 +491,10 @@
     "characters_title": "Personajes",
     "save_character": "Guardar en mis personajes",
     "character_saved": "¡Personaje guardado!",
+    "character_type_person": "Persona",
+    "character_type_animal": "Animal",
     "character_type_pet": "Animal",
-    "character_type_friend": "Amigo",
-    "character_type_imaginary_friend": "Amigo imaginario",
+    "character_type_imaginary": "Imaginario",
     "character_type_child": "Niño",
     "image_preparing": "preparando imagen",
     "image_failed": "no se pudo generar la imagen"

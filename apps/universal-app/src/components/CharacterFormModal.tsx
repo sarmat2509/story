@@ -11,7 +11,14 @@ import {
   ReferencePhoto,
   CHARACTER_TYPES as CHAR_TYPES,
   CharacterType,
-  isPetType,
+  PERSON_SUBTYPES,
+  ANIMAL_SUBTYPES,
+  IMAGINARY_SUBTYPES,
+  PersonSubtype,
+  AnimalSubtype,
+  ImaginarySubtype,
+  CharacterSubtype,
+  isAnimalType,
   isHumanType,
   isImaginaryType,
   FUR_COLORS,
@@ -74,13 +81,79 @@ interface Props {
   };
 }
 
-const CHARACTER_TYPES = [
-  { value: 'pet' as CharacterType, icon: '🐾', key: 'pet' },
-  { value: 'family_member' as CharacterType, icon: '👨‍👩‍👧', key: 'family_member' },
-  { value: 'friend' as CharacterType, icon: '👫', key: 'friend' },
-  { value: 'neighbor' as CharacterType, icon: '🏘️', key: 'neighbor' },
-  { value: 'imaginary_friend' as CharacterType, icon: '🦄', key: 'imaginary_friend' },
+const CATEGORY_TYPES = [
+  { value: 'person' as CharacterType, icon: '👤', key: 'person' },
+  { value: 'animal' as CharacterType, icon: '🐾', key: 'animal' },
+  { value: 'imaginary' as CharacterType, icon: '🦄', key: 'imaginary' },
 ] as const;
+
+type SubtypeOption = { value: string; key: string };
+type SubtypeSection = { section?: string; items?: SubtypeOption[] } & Partial<SubtypeOption>;
+
+const SUBTYPE_OPTIONS: Record<CharacterType, SubtypeSection[]> = {
+  person: [
+    { section: 'family', items: [
+      { value: 'mother', key: 'mother' },
+      { value: 'father', key: 'father' },
+      { value: 'grandmother', key: 'grandmother' },
+      { value: 'grandfather', key: 'grandfather' },
+      { value: 'brother', key: 'brother' },
+      { value: 'sister', key: 'sister' },
+      { value: 'aunt', key: 'aunt' },
+      { value: 'uncle', key: 'uncle' },
+      { value: 'cousin_brother', key: 'cousin_brother' },
+      { value: 'cousin_sister', key: 'cousin_sister' },
+    ]},
+    { section: 'friends', items: [
+      { value: 'best_friend', key: 'best_friend' },
+      { value: 'classmate', key: 'classmate' },
+      { value: 'neighbor', key: 'neighbor' },
+      { value: 'teacher', key: 'teacher' },
+      { value: 'godparent', key: 'godparent' },
+      { value: 'nanny', key: 'nanny' },
+    ]},
+    { section: 'other', items: [
+      { value: 'doctor', key: 'doctor' },
+      { value: 'other_adult', key: 'other_adult' },
+      { value: 'other_child', key: 'other_child' },
+    ]},
+  ],
+  animal: [
+    { value: 'dog', key: 'dog' },
+    { value: 'cat', key: 'cat' },
+    { value: 'hamster', key: 'hamster' },
+    { value: 'parrot', key: 'parrot' },
+    { value: 'rabbit', key: 'rabbit' },
+    { value: 'turtle', key: 'turtle' },
+    { value: 'fish', key: 'fish' },
+    { value: 'goat', key: 'goat' },
+    { value: 'cow', key: 'cow' },
+    { value: 'horse', key: 'horse' },
+    { value: 'other_animal', key: 'other_animal' },
+  ],
+  imaginary: [
+    { section: 'mythical', items: [
+      { value: 'dragon', key: 'dragon' },
+      { value: 'unicorn', key: 'unicorn' },
+      { value: 'fairy', key: 'fairy' },
+      { value: 'elf', key: 'elf' },
+      { value: 'gnome', key: 'gnome' },
+    ]},
+    { section: 'magical', items: [
+      { value: 'wizard', key: 'wizard' },
+      { value: 'witch', key: 'witch' },
+      { value: 'ghost', key: 'ghost' },
+      { value: 'robot', key: 'robot' },
+      { value: 'alien', key: 'alien' },
+    ]},
+    { section: 'animated', items: [
+      { value: 'toy', key: 'toy' },
+      { value: 'drawing', key: 'drawing' },
+      { value: 'imaginary_friend', key: 'imaginary_friend' },
+      { value: 'other_creature', key: 'other_creature' },
+    ]},
+  ],
+};
 
 export function CharacterFormModal({ visible, onClose, characterId, initialData }: Props) {
   const { t, i18n } = useTranslation();
@@ -94,7 +167,8 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   
   // Basic fields
   const [name, setName] = useState('');
-  const [type, setType] = useState<CharacterType>('pet');
+  const [type, setType] = useState<CharacterType>('person');
+  const [subtype, setSubtype] = useState<CharacterSubtype | null>(null);
   const [description, setDescription] = useState('');
   const [descriptionLanguage, setDescriptionLanguage] = useState<string | undefined>(undefined);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -184,7 +258,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
         
         // Load appearance traits based on character type
         if (initialData.appearanceTraits) {
-          if (isPetType(initialData.type)) {
+          if (isAnimalType(initialData.type)) {
             setPetAppearance({
               breed: initialData.appearanceTraits.breed || undefined,
               furColor: initialData.appearanceTraits.furColor as FurColor | undefined,
@@ -270,7 +344,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
         }
       } else {
         setName('');
-        setType('pet');
+        setType('animal');
         setDescription('');
         setDescriptionLanguage(undefined);
         setTurnaroundSheetUrl(undefined);
@@ -314,7 +388,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
 
   // Helper function to map character type to analysis type
   function getAnalysisCharacterType(type: CharacterType): 'person' | 'animal' | 'imaginary' {
-    if (isPetType(type)) return 'animal';
+    if (isAnimalType(type)) return 'animal';
     if (isImaginaryType(type)) return 'imaginary';
     return 'person';
   }
@@ -370,7 +444,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
       setDescriptionLanguage(userLanguage);
 
       // Populate appearance fields based on type
-      if (analysis.petAppearance && isPetType(type)) {
+      if (analysis.petAppearance && isAnimalType(type)) {
         setPetAppearance({
           breed: analysis.petAppearance.breed || undefined,
           furColor: analysis.petAppearance.furColor as FurColor || undefined,
@@ -415,7 +489,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
     try {
       // Prepare appearance traits based on type
       let appearanceTraits;
-      if (isPetType(type)) {
+      if (isAnimalType(type)) {
         // Only include defined fields
         const petData: any = {};
         if (petAppearance.breed) petData.breed = petAppearance.breed;
@@ -483,6 +557,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
       const data = {
         name,
         type,
+        subtype: subtype || undefined,
         description: description || undefined,
         descriptionLanguage: descriptionLanguage || undefined,
         referencePhotos: uploadedPhotos,
@@ -564,25 +639,28 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                   {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
                 </View>
 
-                {/* Type */}
+                {/* Category */}
                 <View style={styles.field}>
-                  <Text style={styles.label}>{t('character_form.type_label')}</Text>
+                  <Text style={styles.label}>{t('character_form.category_label')}</Text>
                   <View style={styles.typeGrid}>
-                    {CHARACTER_TYPES.map((charType) => (
+                    {CATEGORY_TYPES.map((category) => (
                       <TouchableOpacity
-                        key={charType.value}
+                        key={category.value}
                         style={[
                           styles.typeButton,
-                          type === charType.value && styles.typeButtonSelected
+                          type === category.value && styles.typeButtonSelected
                         ]}
-                        onPress={() => setType(charType.value)}
+                        onPress={() => {
+                          setType(category.value);
+                          setSubtype(null); // Reset subtype when category changes
+                        }}
                       >
-                        <Text style={styles.typeIcon}>{charType.icon}</Text>
+                        <Text style={styles.typeIcon}>{category.icon}</Text>
                         <Text style={[
                           styles.typeText,
-                          type === charType.value && styles.typeTextSelected
+                          type === category.value && styles.typeTextSelected
                         ]}>
-                          {t(`characters.character_types.${charType.key}`)}
+                          {t(`characters.categories.${category.key}`)}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -619,6 +697,46 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                   <Ionicons name="arrow-back" size={20} color={theme.colors.interactive.primary} />
                   <Text style={styles.backButtonText}>{t('character_form.back')}</Text>
                 </TouchableOpacity>
+
+                {/* Subtype selection */}
+                <View style={styles.field}>
+                  <Text style={styles.label}>{t('character_form.subtype_label')}</Text>
+                  <ScrollView style={styles.subtypeList} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+                    {SUBTYPE_OPTIONS[type].map((section, index) => (
+                      <View key={section.section || `section-${index}`}>
+                        {section.section && (
+                          <Text style={styles.subtypeSection}>
+                            {t(`characters.subtype_sections.${section.section}`)}
+                          </Text>
+                        )}
+                        <View style={styles.subtypeGrid}>
+                          {(section.items || [section]).map((item) => {
+                            const itemValue = item.value || section.value;
+                            const itemKey = item.key || section.key;
+                            if (!itemValue || !itemKey) return null;
+                            return (
+                              <TouchableOpacity
+                                key={itemValue}
+                                style={[
+                                  styles.subtypeButton,
+                                  subtype === itemValue && styles.subtypeButtonSelected
+                                ]}
+                                onPress={() => setSubtype(itemValue as CharacterSubtype)}
+                              >
+                                <Text style={[
+                                  styles.subtypeText,
+                                  subtype === itemValue && styles.subtypeTextSelected
+                                ]}>
+                                  {t(`characters.subtypes.${itemKey}`)}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
 
                 {/* Description */}
                 <View style={styles.field}>
@@ -747,7 +865,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                 {/* Appearance Section */}
                 <ExpandableCard title={t('character_form.appearance_title')} defaultExpanded={true}>
                   {/* Pet Appearance */}
-                  {isPetType(type) && (
+                  {isAnimalType(type) && (
                 <View>
                   {/* Breed - free text input */}
                   <View style={styles.field}>
@@ -975,7 +1093,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
 
             {/* Personality Section */}
             <ExpandableCard title={t('character_form.personality_title')} defaultExpanded={false}>
-              {isPetType(type) ? (
+              {isAnimalType(type) ? (
                 <View>
                   <ChipSelector
                     label={t('character_form.personality_traits')}
@@ -1274,5 +1392,41 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
     fontWeight: theme.typography.fontWeight.medium,
+  },
+  subtypeList: {
+    maxHeight: 200,
+  },
+  subtypeSection: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing[3],
+    marginBottom: theme.spacing[2],
+    textTransform: 'uppercase',
+  },
+  subtypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[2],
+  },
+  subtypeButton: {
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  subtypeButtonSelected: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.primary[50],
+  },
+  subtypeText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+  },
+  subtypeTextSelected: {
+    color: theme.colors.interactive.primary,
+    fontWeight: theme.typography.fontWeight.semibold,
   },
 });

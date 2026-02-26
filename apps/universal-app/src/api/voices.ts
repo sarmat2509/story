@@ -1,18 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
+import { VoiceApi } from '@kazka/shared';
 import { apiClient } from './client';
 
-export interface Voice {
-  id: string;
-  name: string;
-  displayName: string;
-  gender: 'male' | 'female';
-  description: string;
-  previewUrl?: string;
-  sampleAudioUrl?: string;
-  isPremium: boolean;
-  isLocked: boolean;
-  provider: string;
-}
+// Use shared type
+export type Voice = VoiceApi;
 
 export interface VoicesResponse {
   status: 'success';

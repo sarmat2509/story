@@ -3,14 +3,21 @@ import type { Locale } from '../config/languages';
 // Re-export common types
 export * from './common';
 
+// Re-export type utilities
+export * from './utils';
+
+// Import for internal use
+import type { ReferencePhoto, ChildProfileData } from './common';
+import type { CamelizeKeys } from './utils';
+
 // Age groups
 export type AgeGroup = '1y' | '2-3' | '4-5' | '6-8' | '9-12';
 
 // Re-export Locale from centralized config
 export type { Locale };
 
-// Story goals/themes
-export type StoryGoal =
+// Story goals/themes (union type for validation)
+export type StoryGoalSlug =
   | 'friendship'
   | 'kindness'
   | 'empathy'
@@ -20,8 +27,27 @@ export type StoryGoal =
   | 'sharing'
   | 'safety';
 
-// Story tone
-export type StoryTone = 'calm' | 'adventure' | 'humor' | 'lullaby' | 'educational';
+// Story Goal (complete type for API/DB)
+export interface StoryGoalData {
+  slug: string;
+  name: string;
+  description: string;
+  min_age: number;
+}
+
+// Story tone (union type for validation)
+export type StoryToneSlug = 'calm' | 'adventure' | 'humor' | 'lullaby' | 'educational';
+
+// Story Tone (complete type for API/DB)
+export interface StoryToneData {
+  slug: string;
+  name: string;
+  description: string;
+}
+
+// Backward compatibility aliases
+export type StoryGoal = StoryGoalSlug;
+export type StoryTone = StoryToneSlug;
 
 // Art styles
 import { IMAGE_STYLES } from '../constants/imageStyles';
@@ -35,6 +61,7 @@ export interface User {
   display_name: string | null;
   avatar_url: string | null;
   preferred_locale: Locale;
+  mode?: 'instant' | 'artisan';
   created_at: string;
   updated_at: string;
 }
@@ -68,16 +95,6 @@ export interface Session {
   expires_at: string;
 }
 
-export interface SessionListItem {
-  id: string;
-  device_name: string | null;
-  device_type: 'ios' | 'android' | 'web' | null;
-  ip_address: string | null;
-  created_at: string;
-  last_active_at: string;
-  is_current: boolean;
-}
-
 export interface AuthResponse {
   token: string;
   user: User;
@@ -90,38 +107,6 @@ export interface TokenPayload {
   sessionId: string;
   iat: number;
   exp: number;
-}
-
-// User preferences
-export interface UserPreferences {
-  user_id: string;
-  preferred_locale: Locale;
-  ui_locale: Locale;
-  default_story_language: Locale;
-  allow_language_override: boolean;
-  timezone: string;
-}
-
-// Child profile
-export interface ChildProfile {
-  child_id: string;
-  name: string;
-  age_months: number;
-  age_group: AgeGroup;
-  language: Locale;
-  interests: string[];
-  sensitivities: {
-    fear: 'none' | 'low' | 'medium';
-    avoid_topics: string[];
-  };
-  family_cast?: {
-    mom_name?: string;
-    dad_name?: string;
-  };
-  pet?: {
-    type: string;
-    name: string;
-  };
 }
 
 // Story request
@@ -196,114 +181,107 @@ export interface SceneAnchor {
   end_char: number;
 }
 
-// Character sheet
-export interface CharacterSheet {
-  character_id: string;
+// ==========================================
+// Character Types (DB Entity)
+// ==========================================
+
+// Character Types are imported from constants
+import type { CharacterType, CharacterSubtype } from '../constants/characterTypes';
+
+// Appearance Interfaces
+export interface PetAppearance {
+  breed?: string;
+  furColor?: string;
+  furPattern?: string;
+  furLength?: string;
+  size?: string;
+  eyeColor?: string;
+  distinctiveFeatures?: string[];
+}
+
+export interface HumanAppearance {
+  ageRange?: string;
+  hairColor?: string;
+  hairLength?: string;
+  hairStyle?: string;
+  eyeColor?: string;
+  skinTone?: string;
+  height?: string;
+  build?: string;
+  clothingStyle?: string;
+  distinctiveFeatures?: string[];
+}
+
+export interface ImaginaryAppearance {
+  species?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  size?: string;
+  magicalFeatures?: string[];
+  customDescription?: string;
+}
+
+export type AppearanceTraits = PetAppearance | HumanAppearance | ImaginaryAppearance;
+
+// Personality Interfaces
+export interface PetPersonality {
+  traits?: string[];
+  activities?: string[];
+}
+
+export interface HumanPersonality {
+  traits?: string[];
+  interests?: string[];
+  fears?: string[];
+}
+
+export interface ImaginaryPersonality {
+  traits?: string[];
+  favoriteActivities?: string[];
+}
+
+export type PersonalityTraits = PetPersonality | HumanPersonality | ImaginaryPersonality;
+
+// Turnaround Sheet
+export interface TurnaroundSheet {
+  url: string;
+  generatedAt: string;
+  sourcePhotoUrl?: string;
+}
+
+// Main Character Interface (matches DB schema)
+export interface Character {
+  id: string;
+  userId: string;
   name: string;
-  role: 'protagonist' | 'companion' | 'helper' | 'family';
-  canonical_description: string;
-  do_not_change: string[];
-  reference_image_ids: string[];
+  type: CharacterType; // 'person' | 'animal' | 'imaginary'
+  subtype?: CharacterSubtype; // 'mother', 'dog', 'dragon', etc.
+  referencePhotos?: ReferencePhoto[];
+  appearanceTraits?: AppearanceTraits;
+  personality?: PersonalityTraits;
+  description?: string;
+  aiGeneratedDescription?: string;
+  clothing?: any;
+  distinctiveFeatures?: string[];
+  turnaroundSheet?: TurnaroundSheet;
+  descriptionEn?: string;
+  descriptionLanguage?: string;
+  isHidden: boolean;
+  descriptionEmbedding?: number[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
-// Illustration plan
-export interface IllustrationPlan {
-  episode_id: string;
-  language: Locale;
-  style: ArtStyle;
-  image_quality: 'low' | 'medium' | 'high';
-  scenes: SceneIllustration[];
-}
-
-export interface SceneIllustration {
-  scene_id: number;
-  prompt: string;
-  negative: string;
-  references: {
-    characters: string[];
-    input_images: string[];
-  };
-  composition?: {
-    control: 'sketch' | 'pose' | 'depth';
-    guidance: 'low' | 'medium' | 'high';
-  };
-  output: {
-    aspect: string;
-    size: string;
-  };
-}
-
-// TTS plan
-export interface TTSPlan {
-  episode_id: string;
-  language: Locale;
-  voice: {
-    provider: string;
-    voice_id: string;
-  };
-  prosody: {
-    speed: number;
-    pauses: 'gentle' | 'normal' | 'rapid';
-    night_mode: boolean;
-  };
-  chapters: TTSChapter[];
-}
-
-export interface TTSChapter {
-  scene_id: number;
-  text_ref: {
-    start: number;
-    end: number;
-  };
-}
-
-// Series bible
-export interface SeriesBible {
-  series_id: string;
-  child_id: string;
-  language: Locale;
-  ui_locale: Locale;
-  theme_arc: string;
-  characters: string[];
-  world_rules: string[];
-  forbidden_repeats: {
-    plot_twists: string[];
-    morals: string[];
-    settings: string[];
-  };
-  safety_profile: AgeGroup;
-  style: ArtStyle;
-}
-
-// Season arc
-export interface SeasonArc {
-  series_id: string;
-  language: Locale;
-  episodes: EpisodeArc[];
-  finale: {
-    ep: number;
-    must_close: string[];
-    ending: string;
-  };
-}
-
-export interface EpisodeArc {
-  ep: number;
-  goal: string;
-  unique_hook: string;
-  cliffhanger?: string;
-}
-
-// Continuity state
-export interface ContinuityState {
-  series_id: string;
-  language: Locale;
-  current_ep: number;
-  facts: string[];
-  open_threads: string[];
-  used_morals: string[];
-  used_hooks: string[];
-  embedding_fingerprints: string[];
+// Lightweight Character (for lists, minimal data)
+export interface CharacterListItem {
+  id: string;
+  name: string;
+  type: CharacterType;
+  subtype?: CharacterSubtype;
+  referencePhotos?: ReferencePhoto[];
+  turnaroundSheet?: TurnaroundSheet;
+  createdAt: string;
 }
 
 // Audio Alignment (M6) - Forced alignment for text-audio synchronization
@@ -341,6 +319,100 @@ export interface AudioMetadata {
   alignment?: AlignmentData;   // M6: Forced alignment data (works with audio from any provider)
 }
 
+// ==========================================
+// Additional API/DB Types (snake_case)
+// ==========================================
+
+// Plan (subscription plan entity)
+export interface Plan {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string;
+  price_monthly: number;
+  pricing_currency: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Plan Feature (join table)
+export interface PlanFeature {
+  id: string;
+  plan_id: string;
+  feature_id: string;
+  value: any;
+  created_at: string;
+}
+
+// Plan Feature Denormalized (API response format)
+export interface PlanFeatureDenormalized {
+  name: string;
+  value: any;
+  category: string;
+}
+
+// Plan with Features (API response format)
+export interface PlanWithFeatures extends Plan {
+  features: PlanFeatureDenormalized[];
+}
+
+// Plan Public (unauthenticated view)
+export interface PlanPublic extends PlanWithFeatures {}
+
+// Plan Authenticated (includes current subscription status)
+export interface PlanAuthenticated extends PlanWithFeatures {
+  is_current: boolean;
+}
+
+// Scenario Card
+export interface ScenarioCard {
+  id: string;
+  name: string;
+  description: string;
+  icon?: string;
+  suggested_goals: string[];
+  age_groups: AgeGroup[];
+}
+
+// Voice (TTS voice entity)
+export interface Voice {
+  id: string;
+  name: string;
+  display_name: string;
+  gender: 'male' | 'female' | 'neutral';
+  description: string;
+  preview_url?: string;
+  sample_audio_url?: string;
+  is_premium: boolean;
+  is_locked: boolean;
+  provider: string;
+}
+
+// Story Summary (lightweight for lists)
+export interface StorySummary {
+  id: string;
+  title: string;
+  language: string;
+  status: 'draft' | 'generating' | 'ready' | 'failed';
+  cover_image_url?: string;
+  has_audio: boolean;
+  scenario_card_id?: string;
+  created_at: string;
+}
+
+// Story (full story entity)
+export interface Story extends StorySummary {
+  description?: string;
+  scenes: Array<{
+    id: string;
+    scene_id: number;
+    text: string;
+    image_url?: string;
+  }>;
+}
+
 // Async request status (story creation, continuation, audio generation)
 export type RequestStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
@@ -363,3 +435,20 @@ export interface StoryRequestStatusResponse {
   errorMessage?: string | null;
   createdAt?: string;
 }
+
+// ==========================================
+// API Types (camelCase - auto-generated from snake_case)
+// ==========================================
+
+export type UserApi = CamelizeKeys<User>;
+export type AuthResponseApi = CamelizeKeys<AuthResponse>;
+export type ChildProfileApi = CamelizeKeys<ChildProfileData>;
+export type PlanFeatureDenormalizedApi = CamelizeKeys<PlanFeatureDenormalized>;
+export type PlanPublicApi = CamelizeKeys<PlanPublic>;
+export type PlanAuthenticatedApi = CamelizeKeys<PlanAuthenticated>;
+export type StoryGoalApi = CamelizeKeys<StoryGoalData>;
+export type StoryToneApi = CamelizeKeys<StoryToneData>;
+export type ScenarioCardApi = CamelizeKeys<ScenarioCard>;
+export type VoiceApi = CamelizeKeys<Voice>;
+export type StorySummaryApi = CamelizeKeys<StorySummary>;
+export type StoryApi = CamelizeKeys<Story>;

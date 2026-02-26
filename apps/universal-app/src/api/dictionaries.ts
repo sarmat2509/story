@@ -1,28 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
+import { 
+  StoryGoalApi, 
+  StoryToneApi, 
+  ScenarioCardApi 
+} from '@kazka/shared';
 import apiClient from './client';
 import i18n from '@/config/i18n';
 
-interface StoryGoal {
-  slug: string;
-  name: string;
-  description: string;
-  minAge: number;
-}
-
-interface StoryTone {
-  slug: string;
-  name: string;
-  description: string;
-}
-
-interface ScenarioCard {
-  id: string;
-  name: string;
-  description: string;
-  icon?: string;
-  suggestedGoals: string[];
-  ageGroups: string[];
-}
+// Use shared types
+type StoryGoal = StoryGoalApi;
+type StoryTone = StoryToneApi;
+type ScenarioCard = ScenarioCardApi;
 
 // Get story themes (goals, tones, scenarios)
 export const useStoryThemes = () => {

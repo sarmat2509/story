@@ -12,6 +12,7 @@
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { logger } from '../utils/logger';
 import { config } from '../config';
+import type { CharacterType } from '@kazka/shared';
 import { 
   FUR_COLORS, 
   FUR_PATTERNS, 
@@ -79,7 +80,7 @@ type PetEyeColorType = ExtractType<typeof PET_EYE_COLORS>;
  */
 export interface AnalyzeCharacterRequest {
   photos: string[]; // URLs of reference photos
-  characterType: 'person' | 'animal' | 'imaginary';
+  characterType: CharacterType;
   language?: string; // User's preferred language for description (e.g., 'uk', 'en', 'ru')
   existingTraits?: Record<string, any>; // Optional: existing appearance traits to refine
 }
@@ -88,6 +89,9 @@ export interface AnalyzeCharacterRequest {
  * Structured result from character analysis
  */
 export interface CharacterAnalysisResult {
+  // Suggested character name (for instant mode)
+  suggestedName: string;
+  
   // Flowing narrative description (always required)
   detailedDescription: string;
   
@@ -457,10 +461,24 @@ IMPORTANT: Return null for ANY field that you cannot confidently determine from 
 
 Please provide a comprehensive JSON response with the following structure:
 
-1. DETAILED_DESCRIPTION: ${descriptionGuidance}
+1. SUGGESTED_NAME: A creative, fictional name for this character (1-3 words).
+   - IMPORTANT: The name MUST be in ${languageName} language
+   - For people: Invent a name that fits their age and personality
+     Examples for Ukrainian: "Софійка", "Максимко", "Олівія", "Лео"
+     Examples for English: "Sophie", "Max", "Olivia", "Leo"
+   - For animals: Use breed-inspired or characteristic-based names
+     Examples for Ukrainian: "Рижик", "Барсик", "Снігурка"
+     Examples for English: "Ginger", "Buddy", "Snowball"
+   - For imaginary creatures: Create a fantasy name matching their appearance
+     Examples for Ukrainian: "Блакитко", "Зірочка", "Фіолетик"
+     Examples for English: "Bluey", "Starlight", "Violet"
+   - Make it sound natural, like a real storybook character name
+   - Avoid generic descriptive labels like "Girl with Hair" or "Blue Dragon"
+
+2. DETAILED_DESCRIPTION: ${descriptionGuidance}
    This should be based ONLY on what is visible in the photos. If photos are very unclear, describe what you CAN see.
 
-2. VISUAL ANALYSIS (use null for any unclear/invisible features):
+3. VISUAL ANALYSIS (use null for any unclear/invisible features):
 ${traitGuidance}
 
 Important guidelines:
@@ -497,6 +515,10 @@ Return ONLY valid JSON matching this structure. Prefer null over guessing.`;
     return {
       type: 'object' as const,
       properties: {
+        suggestedName: {
+          type: 'string',
+          description: 'A short descriptive name for the character (1-3 words)'
+        },
         detailedDescription: { 
           type: 'string',
           description: 'A flowing narrative description of the character\'s appearance (2-3 sentences)'
@@ -707,7 +729,7 @@ Return ONLY valid JSON matching this structure. Prefer null over guessing.`;
           description: 'Notable marks, expressions, or characteristics - max 5 items (null if none)'
         }
       },
-      required: ['detailedDescription'] // Only description is required
+      required: ['suggestedName', 'detailedDescription'] // Name and description are required
     };
   }
   

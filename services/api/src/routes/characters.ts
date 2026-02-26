@@ -261,8 +261,8 @@ router.post('/:id/turnaround', requireAuth, async (req, res) => {
       });
     }
 
-    // Must be imaginary_friend
-    if (character.type !== 'imaginary_friend') {
+    // Must be imaginary
+    if (character.type !== 'imaginary') {
       return res.status(400).json({
         status: 'error',
         error: 'Turnaround sheets can only be generated for imaginary characters',
@@ -361,6 +361,49 @@ router.get('/:id', requireAuth, async (req, res) => {
     res.status(500).json({
       status: 'error',
       error: 'Failed to fetch character'
+    });
+  }
+});
+
+// DELETE /api/v1/characters/:id - Delete or hide character
+router.delete('/:id', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    
+    // Check if character is used in any stories
+    const usageCount = await characterService.countStoriesByCharacter(id, userId);
+    
+    if (usageCount > 0) {
+      // Soft delete: mark as hidden
+      await characterService.updateCharacter(id, userId, { isHidden: true } as any);
+      logger.info({ userId, characterId: id, storiesCount: usageCount }, 'Character soft deleted (hidden)');
+      
+      res.json({
+        status: 'success',
+        message: 'Character hidden (used in stories)',
+        isHidden: true
+      });
+    } else {
+      // Hard delete: remove completely
+      await characterService.deleteCharacter(id, userId);
+      logger.info({ userId, characterId: id }, 'Character hard deleted');
+      
+      res.status(204).send();
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('not found')) {
+      return res.status(404).json({
+        status: 'error',
+        error: 'Character not found'
+      });
+    }
+    
+    logger.error({ error, userId: req.user?.id, characterId: req.params.id }, 'Error deleting character');
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to delete character'
     });
   }
 });

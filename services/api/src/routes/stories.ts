@@ -12,10 +12,16 @@ import {
   getTotalUserStoriesCount,
   deleteStory,
   enforceUserJobLimit,
+  getStoryGenerationStatus,
 } from '../services/storyOrchestrationService';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
 import { logger } from '../utils/logger';
 import { stripAudioTags } from '../utils/audioTags';
+import { getFaceDeduplicationService } from '../services/faceDeduplicationService';
+import { createCharacter } from '../services/characterService';
+import { config } from '../config';
+import { startTask, completeTask, STORY_TASKS } from '../services/storyProgress';
+import { getStoryRepository } from '../repositories';
 
 /**
  * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
@@ -45,6 +51,17 @@ const AudioGenerationSchema = z.object({
   voiceId: z.string().uuid().optional(),
   speed: z.number().min(0.5).max(2.0).optional(),
   nightMode: z.boolean().optional(),
+});
+
+const GenerateFromPhotosSchema = z.object({
+  photos: z.array(z.string().url()).min(1).max(5),
+  ageGroup: z.enum(['2-3', '4-5', '6-7', '8-9', '10-12']),
+  scenario: z.string(),
+  language: z.enum(['uk', 'en', 'ru', 'es']),
+  goals: z.array(z.string()).optional(),
+  tone: z.string().optional(),
+  imageStyle: z.string().optional(),
+  notes: z.string().max(1000).optional(),
 });
 
 const RegenerateSceneSchema = z.object({
@@ -107,6 +124,120 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to create story request'
+    });
+  }
+});
+
+/**
+ * Select appropriate default image style based on age group (for instant mode)
+ * Styles defined in prompts/image/styles.ts with full textGuidance
+ */
+function selectDefaultImageStyle(ageGroup: string): string {
+  const ageMap: Record<string, string> = {
+    '2-3': 'soft_watercolor', // Soft, gentle, wet washes
+    '4-5': 'felt_craft',      // Tactile, friendly, handmade
+    '6-7': 'warm_3d',         // Modern, appealing, cinematic
+    '8-9': 'warm_3d',         // Detailed 3D, polished
+    '10-12': 'comic_line',    // Dynamic, engaging, graphic
+  };
+  
+  return ageMap[ageGroup] || 'warm_3d'; // Default to 3D
+}
+
+/**
+ * POST /api/v1/stories/instant
+ * Create a story from uploaded photos (Instant Mode)
+ * Auto-creates hidden characters from photos and generates story
+ */
+router.post('/instant', requireAuth, async (req: Request, res: Response) => {
+  try {
+    // Validate request body
+    const validatedData = GenerateFromPhotosSchema.parse(req.body);
+    
+    // Enforce per-user concurrent job limit
+    try {
+      await enforceUserJobLimit(req.user!.id);
+    } catch (limitError) {
+      return res.status(429).json({
+        status: 'error',
+        message: (limitError as Error).message,
+      });
+    }
+    
+    logger.info({ 
+      userId: req.user!.id, 
+      photoCount: validatedData.photos.length,
+      ageGroup: validatedData.ageGroup 
+    }, 'Starting photo-based story generation (async mode)');
+    
+    // Create story request with photos stored in intermediate_data
+    const storyRequestData = {
+      uiLocale: validatedData.language,
+      storyLanguage: validatedData.language,
+      ageGroup: validatedData.ageGroup,
+      scenario: validatedData.scenario === 'free' ? undefined : validatedData.scenario,
+      goals: validatedData.goals || [],
+      tone: validatedData.tone,
+      imageStyle: validatedData.imageStyle || selectDefaultImageStyle(validatedData.ageGroup),
+      notes: validatedData.notes,
+      selectedCharacters: [], // Will be populated by async job
+      selectedChildren: [],
+      childProfileId: undefined,
+    };
+    
+    const requestId = await createStoryRequest(req.user!.id, storyRequestData);
+    
+    // Store photos and instant mode flag in intermediate_data
+    await getStoryRepository().updateRequest(requestId, {
+      intermediateData: {
+        instantMode: true,
+        photos: validatedData.photos,
+        characterSetupComplete: false,
+      }
+    });
+    
+    logger.info({ 
+      userId: req.user!.id, 
+      requestId,
+      imageStyle: storyRequestData.imageStyle
+    }, 'Story request created for instant mode (async)');
+    
+    // Add job to queue (will be routed to instantQueue)
+    const jobId = await storyJobQueue.addJob(requestId);
+    
+    logger.info({ 
+      userId: req.user!.id, 
+      requestId, 
+      jobId,
+      photoCount: validatedData.photos.length,
+      language: validatedData.language 
+    }, 'Instant story request queued for async processing');
+    
+    // Return immediately with requestId
+    res.status(201).json({
+      status: 'success',
+      request: {
+        id: requestId,
+        status: 'pending',
+        progress: 0,
+        createdAt: new Date().toISOString(),
+      }
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Generate from photos failed');
+    
+    if (error instanceof Error && 'issues' in error) {
+      // Zod validation error
+      return res.status(400).json({
+        status: 'error',
+        message: 'Validation failed',
+        errors: (error as any).issues
+      });
+    }
+    
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to generate story from photos'
     });
   }
 });
@@ -982,6 +1113,36 @@ router.get('/:id/manifest', requireAuth, async (req: Request, res: Response) => 
     res.status(500).json({
       status: 'error',
       message: 'Failed to get story manifest'
+    });
+  }
+});
+
+/**
+ * GET /api/v1/stories/:id/generation-status
+ * Get lightweight generation status for polling (no scenes, no assets)
+ */
+router.get('/:id/generation-status', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const status = await getStoryGenerationStatus(id, req.user!.id);
+    
+    if (!status) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Story not found'
+      });
+    }
+    
+    res.json({
+      status: 'success',
+      generationStatus: status
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id, storyId: req.params.id }, 'Get generation status failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get generation status'
     });
   }
 });

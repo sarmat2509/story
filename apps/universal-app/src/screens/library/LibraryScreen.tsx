@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { View, Text, StyleSheet, FlatList, ScrollView, useWindowDimensions, ActivityIndicator, Platform } from 'react-native';
 import { useNavigation, useRoute, RouteProp, NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { useStories, useDeleteStory } from '@/api/stories';
+import { useQueryClient } from '@tanstack/react-query';
+import { useStories, useDeleteStory, prefetchStory } from '@/api/stories';
 import { useStoryThemes } from '@/api/dictionaries';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { theme } from '@/theme';
@@ -21,6 +22,7 @@ export default function LibraryScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const route = useRoute<RouteProp<MainDrawerParamList, 'Library'>>();
+  const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [audioFilter, setAudioFilter] = useState(false);
@@ -142,8 +144,11 @@ export default function LibraryScreen() {
   
   // Memoized render functions for FlatList items
   const handleStoryPress = useCallback((storyId: string) => {
+    // Prefetch story data before navigation (non-blocking)
+    prefetchStory(queryClient, storyId);
+    // Navigate immediately (don't wait for prefetch)
     navigateToStory(storyId);
-  }, []);
+  }, [queryClient]);
   
   const renderListItem = useCallback(({ item }: { item: any }) => {
     console.log('[LibraryScreen] renderListItem called for:', item.id);

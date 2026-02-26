@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Image, StyleSheet, ActivityIndicator, Touchable
 import { useRoute, RouteProp, useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
-import { useStory, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useAudioUsage, useDeleteStory, useGenerateContinuation, useSeriesInfo, useStoryStatus } from '@/api/stories';
+import { useStory, useStoryGenerationStatus, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useAudioUsage, useDeleteStory, useGenerateContinuation, useSeriesInfo, useStoryStatus } from '@/api/stories';
 import { useVoices } from '@/api/voices';
 import { useUpdateCharacter } from '@/api/characters';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +17,7 @@ import { globalAudioService } from '@/services/globalAudioService';
 import { pushNotificationService } from '@/services/pushNotificationService';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { useAudioPlayerStore } from '@/store/audioPlayerStore';
+import { useAuthStore } from '@/store/authStore';
 import { useResponsive } from '@/hooks/useResponsive';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
@@ -27,6 +28,7 @@ import { useAlignmentSync } from '@/hooks/useAlignmentSync';
 import { GenerationProgressModal } from '@/components/GenerationProgressModal';
 import { StoryBottomSheet } from '@/components/StoryBottomSheet';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
+import { StoryViewerSkeleton } from '@/components/StoryViewerSkeleton';
 
 type StoryViewerRouteProp = RouteProp<MainDrawerParamList, 'Story'>;
 
@@ -54,10 +56,23 @@ export default function StoryViewerScreen() {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   const { isTabletPortrait, isMobile } = useResponsive();
+  const { user } = useAuthStore();
+  const isArtisanMode = user?.mode === 'artisan';
   const storyId = route.params?.storyId;
   const autoPlay = route.params?.autoPlay;
   const hadAudioGenerationRef = useRef(false);
-  const { data: story, isLoading, error } = useStory(storyId!);
+  const { data: story, isLoading, error, refetch } = useStory(storyId!);
+  
+  // Use lightweight status polling for image generation
+  const { data: generationStatus } = useStoryGenerationStatus(storyId!);
+  
+  // When generation completes, reload manifest once to get new images
+  useEffect(() => {
+    if (generationStatus?.imageGenerationComplete && story && !story.imageGenerationComplete) {
+      refetch();
+    }
+  }, [generationStatus?.imageGenerationComplete, story?.imageGenerationComplete, refetch]);
+  
   const generateAudio = useGenerateAudio();
   const generateAlignment = useGenerateAlignment();
   const updateCharacterMutation = useUpdateCharacter();
@@ -628,12 +643,7 @@ export default function StoryViewerScreen() {
   };
 
   if (!storyId || isLoading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
-        <Text style={styles.loadingText}>Завантажуємо історію...</Text>
-      </View>
-    );
+    return <StoryViewerSkeleton />;
   }
 
   if (error || !story) {
@@ -1052,9 +1062,9 @@ export default function StoryViewerScreen() {
     const getCharacterTypeLabel = (type: string) => {
       switch (type) {
         case 'child': return t('story_viewer.character_type_child');
-        case 'pet': return t('story_viewer.character_type_pet');
-        case 'friend': return t('story_viewer.character_type_friend');
-        case 'imaginary_friend': return t('story_viewer.character_type_imaginary_friend');
+        case 'person': return t('story_viewer.character_type_person');
+        case 'animal': return t('story_viewer.character_type_animal');
+        case 'imaginary': return t('story_viewer.character_type_imaginary');
         default: return type;
       }
     };
@@ -1064,6 +1074,7 @@ export default function StoryViewerScreen() {
         <Text style={styles.charactersSectionTitle}>{t('story_viewer.characters_title')}</Text>
         {characters.map((char: any) => {
           const isEffectivelyHidden = char.isHidden && !savedCharacterIds.has(char.id);
+          const canSaveCharacter = isEffectivelyHidden && isArtisanMode;
           return (
             <View key={char.id} style={styles.characterCard}>
               <View style={styles.characterCardRow}>
@@ -1079,7 +1090,7 @@ export default function StoryViewerScreen() {
                   <Text style={styles.characterType}>{getCharacterTypeLabel(char.type)}</Text>
                 </View>
               </View>
-              {isEffectivelyHidden && (
+              {canSaveCharacter && (
                 <TouchableOpacity
                   style={styles.saveCharacterButton}
                   onPress={() => handleSaveCharacter(char.id)}
@@ -1198,12 +1209,13 @@ export default function StoryViewerScreen() {
               onActivateAudio={handleActivateAudio}
               onDeleteStory={handleDeleteStory}
               characters={(story as any)?.characters || []}
-              onSaveCharacter={async (characterId) => {
+              onSaveCharacter={isArtisanMode ? async (characterId) => {
                 await updateCharacterMutation.mutateAsync({ id: characterId, data: { isHidden: false } as any });
                 setSavedCharacterIds(prev => new Set(prev).add(characterId));
                 toastService.success(t('story_viewer.character_saved'));
-              }}
+              } : undefined}
               savedCharacterIds={savedCharacterIds}
+              userMode={user?.mode}
             />
           )}
         </>

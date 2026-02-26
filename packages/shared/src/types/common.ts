@@ -1,5 +1,8 @@
 /**
  * Common shared types used across the application
+ * 
+ * Note: CharacterData is for internal story generation context.
+ * For DB entity Character, use Character from './index'
  */
 
 export interface ReferencePhoto {
@@ -9,7 +12,12 @@ export interface ReferencePhoto {
   description?: string;
 }
 
-export interface AppearanceTraits {
+/**
+ * Basic appearance traits for internal use (child profiles).
+ * Note: For Character DB entity, use AppearanceTraits union type from index.ts
+ * (PetAppearance | HumanAppearance | ImaginaryAppearance)
+ */
+export interface BasicAppearanceTraits {
   hairColor?: string;
   hairStyle?: string;
   eyeColor?: string;
@@ -28,7 +36,7 @@ export interface ChildProfileData {
   languages: any;
   referencePhotos?: ReferencePhoto[];
   aiGeneratedDescription?: string; // AI-generated narrative description
-  appearanceTraits?: AppearanceTraits;
+  appearanceTraits?: BasicAppearanceTraits;
   personality?: any;
   interests?: any;
   sensitivities?: any;
@@ -36,12 +44,17 @@ export interface ChildProfileData {
   isActive: boolean;
 }
 
+/**
+ * Character data for internal story generation context.
+ * Note: This is NOT the DB entity. For DB Character, use Character from './index'.
+ * appearanceTraits here can be any format (simple object, or full AppearanceTraits union).
+ */
 export interface CharacterData {
   id?: string;
   name: string;
   type: string;
   referencePhotos?: ReferencePhoto[];
-  appearanceTraits?: AppearanceTraits;
+  appearanceTraits?: any; // Flexible - can be BasicAppearanceTraits or full union type
   description?: string;
   appearance?: string; // LLM-generated detailed description
   role?: string;

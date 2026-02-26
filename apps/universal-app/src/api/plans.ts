@@ -1,28 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { 
+  PlanFeatureDenormalizedApi,
+  PlanPublicApi,
+  PlanAuthenticatedApi 
+} from '@kazka/shared';
 import apiClient from './client';
 
-interface PlanFeature {
-  name: string;
-  value: any;
-  category: string;
-}
-
-interface PlanBase {
-  id: string;
-  slug: string;
-  name: string;
-  description?: string;
-  priceMonthly: number;
-  pricingCurrency: string;
-  sortOrder: number;
-  features: Record<string, PlanFeature>;
-}
-
-interface PlanPublic extends PlanBase {}
-
-interface PlanAuthenticated extends PlanBase {
-  isCurrent: boolean;
-}
+// Use shared types - renamed for clarity
+type PlanFeature = PlanFeatureDenormalizedApi;
+type PlanPublic = PlanPublicApi;
+type PlanAuthenticated = PlanAuthenticatedApi;
 
 // Get plans with features (public, works for all users)
 export const usePlans = () => {
