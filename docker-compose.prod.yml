@@ -22,6 +22,9 @@ services:
     build:
       context: .
       dockerfile: services/api/Dockerfile
+      target: production
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     container_name: kazka-api-prod
     restart: always
     ports:

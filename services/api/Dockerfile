@@ -13,26 +13,30 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/shared/package.json ./packages/shared/package.json
 COPY services/api/package.json ./services/api/package.json
 
-# Install all dependencies (workspace style)
+# Install all dependencies (workspace style) with cache mount for speed
 # Skip postinstall scripts as ffmpeg is already installed via apk
-RUN pnpm install --no-frozen-lockfile --filter @kazka/shared --filter api --ignore-scripts
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --no-frozen-lockfile --filter @kazka/shared --filter api --ignore-scripts
 
 # Copy TypeScript configs
 COPY tsconfig.base.json ./
 COPY packages/shared/tsconfig.json ./packages/shared/
 COPY services/api/tsconfig.json ./services/api/
 
-# Copy source code
+# Copy source code (separate layers for better caching)
 COPY packages/shared/src ./packages/shared/src
-COPY services/api/src ./services/api/src
-COPY services/api/drizzle ./services/api/drizzle
-COPY services/api/drizzle.config.ts ./services/api/
 
 # Build shared package with esbuild (fast)
 WORKDIR /app/packages/shared
 RUN pnpm run build:fast
 
-# Build API with esbuild (fast, no type checking)
+# Copy API source AFTER shared is built (better layer caching)
+WORKDIR /app
+COPY services/api/src ./services/api/src
+COPY services/api/drizzle ./services/api/drizzle
+COPY services/api/drizzle.config.ts ./services/api/
+
+# Build API with esbuild (fast, no type checking, parallel mode)
 WORKDIR /app/services/api
 RUN pnpm run build:fast
 
