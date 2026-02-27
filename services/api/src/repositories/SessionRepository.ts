@@ -39,10 +39,10 @@ export class SessionRepository {
   async findValidByIdWithUser(
     sessionId: string
   ): Promise<{ session: schema.Session; user: schema.User } | null> {
-    const [result] = await this.db
+    // First, find the valid session
+    const [session] = await this.db
       .select()
       .from(schema.sessions)
-      .innerJoin(schema.users, eq(schema.sessions.userId, schema.users.id))
       .where(
         and(
           eq(schema.sessions.id, sessionId),
@@ -51,12 +51,18 @@ export class SessionRepository {
       )
       .limit(1);
     
-    if (!result) return null;
+    if (!session) return null;
     
-    return {
-      session: result.sessions,
-      user: result.users,
-    };
+    // Then, fetch the associated user
+    const [user] = await this.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, session.userId))
+      .limit(1);
+    
+    if (!user) return null;
+    
+    return { session, user };
   }
 
   async findByUserId(userId: string): Promise<schema.Session[]> {
