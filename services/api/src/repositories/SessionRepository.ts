@@ -1,4 +1,4 @@
-import { eq, and, lt, gt } from 'drizzle-orm';
+import { eq, and, lt, gt, desc } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -61,7 +61,7 @@ export class SessionRepository {
       .select()
       .from(schema.sessions)
       .where(eq(schema.sessions.userId, userId))
-      .orderBy(schema.sessions.lastActiveAt);
+      .orderBy(desc(schema.sessions.lastActiveAt));
   }
 
   async updateLastActive(token: string): Promise<void> {
