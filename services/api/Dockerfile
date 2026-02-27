@@ -106,7 +106,9 @@ COPY services/api/drizzle ./services/api/drizzle
 COPY services/api/drizzle.config.ts ./services/api/
 COPY services/api/src/db ./services/api/src/db
 COPY services/api/src/scripts ./services/api/src/scripts
-COPY services/api/src/utils/logger.ts ./services/api/src/utils/logger.ts
+COPY services/api/src/config.ts ./services/api/src/config.ts
+COPY services/api/src/utils ./services/api/src/utils
+COPY services/api/src/services/assetStorageService.ts ./services/api/src/services/assetStorageService.ts
 
 WORKDIR /app/services/api
 
