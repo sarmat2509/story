@@ -22,6 +22,7 @@ const apiClient = FetchClient.create({
 apiClient.interceptors.request.use(
   async (config) => {
     const token = await storage.getAuthToken();
+    
     if (token) {
       config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;

@@ -25,8 +25,13 @@ export default function RootNavigator() {
     );
   }
 
+  const navigatorKey = needsModeSelection ? 'mode-selection' : 'main';
+
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator 
+      key={navigatorKey}
+      screenOptions={{ headerShown: false }}
+    >
       {!isAuthenticated ? (
         <Stack.Screen name="Public" component={PublicNavigator} />
       ) : needsModeSelection ? (

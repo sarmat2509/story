@@ -8,7 +8,7 @@ import {
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
-import { useNavigation, CommonActions } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
@@ -103,14 +103,8 @@ export default function ModeSelectionScreen() {
 
       if (response.data.user) {
         setUser(response.data.user);
-        
-        // Reset navigation stack to Main screen
-        navigation.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'Main' }],
-          })
-        );
+        // Navigation will happen automatically via RootNavigator's conditional rendering
+        // when user.mode is set, needsModeSelection becomes false
       }
     } catch (error) {
       console.error('Failed to save mode:', error);

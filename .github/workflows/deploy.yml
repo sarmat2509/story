@@ -26,9 +26,10 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${DROPLET_USER}@${DROPLET_IP} << 'EOF'
             cd /var/www/kazka
             git pull origin main
-            docker-compose -f docker-compose.prod.yml down
-            docker-compose -f docker-compose.prod.yml build
-            docker-compose -f docker-compose.prod.yml up -d
+            docker compose -f docker-compose.prod.yml build api
+            docker compose -f docker-compose.prod.yml up -d api
+            echo "Running database migrations..."
+            docker exec kazka-api-prod sh -c 'cd /app/services/api && npx drizzle-kit push:pg --force'
             echo "Deployment completed!"
           EOF
       

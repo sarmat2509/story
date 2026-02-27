@@ -65,6 +65,8 @@ COPY --from=builder /app/services/api/package.json ./services/api/
 COPY services/api/drizzle ./services/api/drizzle
 COPY services/api/drizzle.config.ts ./services/api/
 COPY services/api/src/db ./services/api/src/db
+COPY services/api/src/scripts ./services/api/src/scripts
+COPY services/api/src/utils/logger.ts ./services/api/src/utils/logger.ts
 
 WORKDIR /app/services/api
 
