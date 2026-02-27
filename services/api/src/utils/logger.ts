@@ -11,8 +11,9 @@ if (!fs.existsSync(logsDir)) {
 // Define streams
 const streams: pino.StreamEntry[] = [];
 
-// Stream 1: Pretty print to console (only development)
+// Stream 1: Console output
 if (process.env.NODE_ENV === 'development') {
+  // Pretty print in development
   streams.push({
     level: 'debug',
     stream: pino.transport({
@@ -23,6 +24,12 @@ if (process.env.NODE_ENV === 'development') {
         ignore: 'pid,hostname',
       },
     }),
+  });
+} else {
+  // JSON to stdout in production (for docker logs)
+  streams.push({
+    level: process.env.LOG_LEVEL || 'info',
+    stream: process.stdout,
   });
 }
 
