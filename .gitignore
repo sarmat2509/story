@@ -94,3 +94,5 @@ apps/web-landing/out/
 # Deployment
 backups/
 certbot/
+/.expo
+/.expo

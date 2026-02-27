@@ -34,6 +34,26 @@ app.use(cors());
 // Trust only the first proxy (Nginx) to prevent X-Forwarded-For spoofing
 app.set('trust proxy', 1);
 
+// Request logging middleware (log client IP for debugging rate limiting)
+app.use((req, res, next) => {
+  const forwarded = req.headers['x-forwarded-for'];
+  const realIp = req.headers['x-real-ip'];
+  const clientIp = forwarded 
+    ? (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : forwarded[0])
+    : (realIp || req.ip);
+  
+  logger.debug({
+    method: req.method,
+    path: req.path,
+    clientIp,
+    forwardedFor: forwarded,
+    realIp,
+    reqIp: req.ip,
+  }, 'Incoming request');
+  
+  next();
+});
+
 // Rate limiting
 app.use(globalLimiter); // Apply global rate limit to all requests
 

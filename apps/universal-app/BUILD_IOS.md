@@ -294,24 +294,32 @@ curl http://localhost:3000/health/health
 #### Method A: Using Xcode GUI
 
 1. Select your iPad in the device dropdown
-2. Click the **Play** button (▶️) or press `Cmd + R`
-3. Xcode will:
+2. **IMPORTANT:** Make sure you're building in **Debug** mode (not Release)
+   - Click on scheme dropdown (next to device dropdown)
+   - Select **Edit Scheme...**
+   - Under **Run** → **Build Configuration** → Select **Debug**
+3. Click the **Play** button (▶️) or press `Cmd + R`
+4. Xcode will:
    - Compile the app
    - Sign the app with your certificate
    - Install it on your iPad
    - Launch the app
 
+**Note:** Debug mode enables Developer Menu, Hot Reload, and better debugging. Use Release mode only for production testing.
+
 #### Method B: Using Expo CLI
 
 ```bash
 # From apps/universal-app directory
-npx expo run:ios --device
+
+# For development/debugging (Debug mode - recommended)
+npx expo run:ios --device --configuration Debug
+
+# For production testing (Release mode)
+npx expo run:ios --device --configuration Release
 ```
 
-This will:
-- Show a list of connected devices
-- Select your iPad
-- Build and install the app
+**Use Debug mode for development:** It enables Developer Menu, Hot Reload, and better error messages.
 
 ### 6.3 First Time Installation
 

@@ -1,4 +1,31 @@
 import rateLimit from 'express-rate-limit';
+import { Request } from 'express';
+
+/**
+ * Extract real client IP from proxy headers.
+ * When behind Nginx reverse proxy, the actual client IP is in X-Forwarded-For or X-Real-IP headers.
+ * This prevents all requests from being treated as coming from the Nginx container IP.
+ */
+const getClientIp = (req: Request): string => {
+  // Check X-Forwarded-For header (set by Nginx)
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    // X-Forwarded-For can be comma-separated list, get first (original client)
+    const ip = typeof forwarded === 'string' 
+      ? forwarded.split(',')[0].trim()
+      : forwarded[0];
+    return ip;
+  }
+  
+  // Fallback to X-Real-IP header
+  const realIp = req.headers['x-real-ip'];
+  if (realIp) {
+    return typeof realIp === 'string' ? realIp : realIp[0];
+  }
+  
+  // Fallback to req.ip (Express with trust proxy)
+  return req.ip || 'unknown';
+};
 
 // Global rate limiter for all endpoints
 export const globalLimiter = rateLimit({
@@ -6,6 +33,7 @@ export const globalLimiter = rateLimit({
   max: 1000, // Increased for production (was 100) - allows ~66 req/min
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  keyGenerator: (req) => getClientIp(req), // Use real client IP for rate limiting
   message: {
     status: 'error',
     message: 'Too many requests from this IP, please try again later',
@@ -20,6 +48,7 @@ export const authLimiter = rateLimit({
   max: 10, // Limit each IP to 10 auth attempts per windowMs
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req), // Use real client IP for rate limiting
   message: {
     status: 'error',
     message: 'Too many authentication attempts from this IP, please try again later',
@@ -33,6 +62,7 @@ export const oauthLimiter = rateLimit({
   max: 5, // Limit each IP to 5 OAuth attempts per hour
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req), // Use real client IP for rate limiting
   message: {
     status: 'error',
     message: 'Too many OAuth attempts from this IP, please try again in an hour',
@@ -46,6 +76,7 @@ export const apiLimiter = rateLimit({
   max: 500, // Higher limit for authenticated users
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req), // Use real client IP for rate limiting
   message: {
     status: 'error',
     message: 'API rate limit exceeded',

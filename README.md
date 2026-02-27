@@ -277,6 +277,37 @@ expo export:web
 # Deploy dist/ to Vercel/Netlify
 ```
 
+## Deployment & Operations
+
+### View Production Logs
+
+```bash
+# Quick logs view
+./scripts/view-logs.sh
+
+# Follow logs in real-time
+./scripts/view-logs.sh -f
+
+# Last 200 lines
+./scripts/view-logs.sh -n 200
+
+# Show only errors
+./scripts/view-logs.sh -e
+```
+
+### Documentation
+
+- **[Droplet Logs Guide](./docs/DROPLET_LOGS_GUIDE.md)** - Complete guide for viewing API logs
+- **[Logs Cheat Sheet](./docs/LOGS_CHEATSHEET.md)** - Quick reference commands
+- **[iOS Build Guide](./apps/universal-app/BUILD_IOS.md)** - Building for iPad/iPhone
+- **[Environment Setup](./apps/universal-app/ENV_QUICK_REFERENCE.md)** - Production vs Local config
+
+### Deployment Scripts
+
+- `./scripts/deploy-api.sh` - Deploy API to production
+- `./scripts/deploy-webapp.sh` - Deploy web app
+- `./scripts/view-logs.sh` - View production logs
+
 ## Key Design Decisions
 
 1. **Single Codebase:** 95% code reuse across platforms

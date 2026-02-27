@@ -8,11 +8,15 @@ import {
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
 import apiClient from '@/api/client';
+import type { RootStackParamList } from '@/types/navigation';
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ModeSelection'>;
 
 interface ModeCardProps {
   mode: 'instant' | 'artisan';
@@ -79,7 +83,7 @@ const ModeCard: React.FC<ModeCardProps> = ({
 );
 
 export default function ModeSelectionScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp>();
   const { user, setUser } = useAuthStore();
   const { width } = useWindowDimensions();
   const { t } = useTranslation();
@@ -87,7 +91,6 @@ export default function ModeSelectionScreen() {
   const [isSaving, setIsSaving] = useState(false);
 
   const isTablet = width >= 768;
-  const isFromProfile = user?.mode !== undefined; // If user already has mode, they came from profile
 
   const handleSave = async () => {
     if (!selectedMode || isSaving) return;
@@ -101,12 +104,13 @@ export default function ModeSelectionScreen() {
       if (response.data.user) {
         setUser(response.data.user);
         
-        // If from profile, go back. If first time, navigate to Main
-        if (isFromProfile) {
-          navigation.goBack();
-        } else {
-          navigation.replace('Main');
-        }
+        // Reset navigation stack to Main screen
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'Main' }],
+          })
+        );
       }
     } catch (error) {
       console.error('Failed to save mode:', error);
