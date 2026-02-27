@@ -40,10 +40,7 @@ export class SessionRepository {
     sessionId: string
   ): Promise<{ session: schema.Session; user: schema.User } | null> {
     const [result] = await this.db
-      .select({
-        session: schema.sessions,
-        user: schema.users,
-      })
+      .select()
       .from(schema.sessions)
       .innerJoin(schema.users, eq(schema.sessions.userId, schema.users.id))
       .where(
@@ -53,7 +50,13 @@ export class SessionRepository {
         )
       )
       .limit(1);
-    return result || null;
+    
+    if (!result) return null;
+    
+    return {
+      session: result.sessions,
+      user: result.users,
+    };
   }
 
   async findByUserId(userId: string): Promise<schema.Session[]> {
