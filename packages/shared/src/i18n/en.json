@@ -568,6 +568,7 @@
     "character_type_pet": "Animal",
     "character_type_imaginary": "Imaginary",
     "character_type_child": "Child",
+    "character_type_friend": "Friend",
     "image_preparing": "preparing image",
     "image_failed": "failed to generate image"
   },

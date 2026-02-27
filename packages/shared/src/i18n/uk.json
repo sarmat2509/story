@@ -755,6 +755,7 @@
     "character_type_pet": "Тваринка",
     "character_type_imaginary": "Вигаданий",
     "character_type_child": "Дитина",
+    "character_type_friend": "Друг",
     "image_preparing": "готуємо зображення",
     "image_failed": "не вдалося згенерувати зображення"
   },

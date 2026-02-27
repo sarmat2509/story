@@ -1064,6 +1064,8 @@ export default function StoryViewerScreen() {
         case 'child': return t('story_viewer.character_type_child');
         case 'person': return t('story_viewer.character_type_person');
         case 'animal': return t('story_viewer.character_type_animal');
+        case 'pet': return t('story_viewer.character_type_pet');
+        case 'friend': return t('story_viewer.character_type_friend');
         case 'imaginary': return t('story_viewer.character_type_imaginary');
         default: return type;
       }

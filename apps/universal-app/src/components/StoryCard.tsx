@@ -11,6 +11,7 @@ interface Props {
     language: string;
     status: string;
     coverImageUrl?: string | null;
+    coverThumbnailUrl?: string | null;
     scenes?: Array<{ image?: { url?: string } }>;
     hasAudio?: boolean;
     audioMetadata?: { finalAssetId?: string };
@@ -21,8 +22,9 @@ interface Props {
 }
 
 const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Props) => {
-  // Use coverImageUrl from summary view, or fall back to scenes-based lookup
-  const thumbnailRaw = story.coverImageUrl
+  // Prefer thumbnail for library (smaller, faster loading), fallback to full image
+  const thumbnailRaw = story.coverThumbnailUrl
+    || story.coverImageUrl
     || story.scenes?.find(scene => scene.image?.url)?.image?.url
     || null;
   const thumbnail = formatAssetUrl(thumbnailRaw);
@@ -106,6 +108,7 @@ const areEqual = (prevProps: Props, nextProps: Props) => {
     prevProps.story.title === nextProps.story.title &&
     prevProps.story.status === nextProps.story.status &&
     prevProps.story.coverImageUrl === nextProps.story.coverImageUrl &&
+    prevProps.story.coverThumbnailUrl === nextProps.story.coverThumbnailUrl &&
     prevProps.variant === nextProps.variant &&
     prevProps.onPress === nextProps.onPress &&
     prevProps.onDelete === nextProps.onDelete &&

@@ -2164,7 +2164,7 @@ async function generateSceneImage(
       mode: generationMode,
     });
     
-    // Upload to storage
+    // Upload original image to storage
     const uploadResult = await context.assetStorage.uploadAsset({
       data: image.imageData,
       mimeType: image.mimeType,
@@ -2174,7 +2174,42 @@ async function generateSceneImage(
       assetType: 'image',
     });
     
-    // Save asset to database
+    // Generate and upload thumbnail (672×384px JPEG)
+    let thumbnailPath: string | null = null;
+    let thumbnailUrl: string | null = null;
+    
+    try {
+      // Convert image data to buffer if needed
+      const imageBuffer = Buffer.isBuffer(image.imageData) 
+        ? image.imageData 
+        : Buffer.from(image.imageData, 'base64');
+      
+      // Generate thumbnail
+      const thumbnailBuffer = await context.assetStorage.generateThumbnail(imageBuffer);
+      
+      // Create thumbnail path (same directory, add _thumb suffix before extension)
+      thumbnailPath = uploadResult.storagePath.replace(/(\.[^.]+)$/, '_thumb.jpg');
+      
+      // Write thumbnail file directly to local storage
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const fullPath = path.join(process.cwd(), 'uploads', thumbnailPath);
+      await fs.mkdir(path.dirname(fullPath), { recursive: true });
+      await fs.writeFile(fullPath, thumbnailBuffer);
+      
+      thumbnailUrl = `/api/v1/assets/${thumbnailPath}`;
+      
+      logger.debug({ 
+        originalPath: uploadResult.storagePath, 
+        thumbnailPath,
+        thumbnailSize: thumbnailBuffer.length,
+      }, 'Thumbnail generated and saved');
+    } catch (error) {
+      logger.error({ err: error, storyId, sceneId: scene.sceneId }, 'Failed to generate thumbnail, continuing without it');
+      // Continue without thumbnail - not a critical failure
+    }
+    
+    // Save asset to database with thumbnail paths
     await getAssetRepository().create({
       storyId: storyId,
       sceneId: sceneRecord.id,
@@ -2183,6 +2218,8 @@ async function generateSceneImage(
       storageUrl: uploadResult.storageUrl,
       signedUrl: uploadResult.signedUrl,
       signedUrlExpiresAt: uploadResult.signedUrlExpiresAt,
+      thumbnailPath: thumbnailPath,
+      thumbnailUrl: thumbnailUrl,
       mimeType: image.mimeType,
       fileSizeBytes: uploadResult.fileSizeBytes,
       generationParams: {
@@ -2800,7 +2837,7 @@ async function generateSceneImageWithReference(
       }
     }
 
-    // Upload to storage
+    // Upload original image to storage
     const uploadResult = await context.assetStorage.uploadAsset({
       data: image.imageData,
       mimeType: image.mimeType,
@@ -2810,7 +2847,42 @@ async function generateSceneImageWithReference(
       assetType: 'image',
     });
     
-    // Save asset to database
+    // Generate and upload thumbnail (672×384px JPEG)
+    let thumbnailPath: string | null = null;
+    let thumbnailUrl: string | null = null;
+    
+    try {
+      // Convert image data to buffer if needed
+      const imageBuffer = Buffer.isBuffer(image.imageData) 
+        ? image.imageData 
+        : Buffer.from(image.imageData, 'base64');
+      
+      // Generate thumbnail
+      const thumbnailBuffer = await context.assetStorage.generateThumbnail(imageBuffer);
+      
+      // Create thumbnail path (same directory, add _thumb suffix before extension)
+      thumbnailPath = uploadResult.storagePath.replace(/(\.[^.]+)$/, '_thumb.jpg');
+      
+      // Write thumbnail file directly to local storage
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const fullPath = path.join(process.cwd(), 'uploads', thumbnailPath);
+      await fs.mkdir(path.dirname(fullPath), { recursive: true });
+      await fs.writeFile(fullPath, thumbnailBuffer);
+      
+      thumbnailUrl = `/api/v1/assets/${thumbnailPath}`;
+      
+      logger.debug({ 
+        originalPath: uploadResult.storagePath, 
+        thumbnailPath,
+        thumbnailSize: thumbnailBuffer.length,
+      }, 'Thumbnail generated and saved');
+    } catch (error) {
+      logger.error({ err: error, storyId, sceneId: scene.sceneId }, 'Failed to generate thumbnail, continuing without it');
+      // Continue without thumbnail - not a critical failure
+    }
+    
+    // Save asset to database with thumbnail paths
     await getAssetRepository().create({
       storyId: storyId,
       sceneId: sceneRecord.id,
@@ -2819,6 +2891,8 @@ async function generateSceneImageWithReference(
       storageUrl: uploadResult.storageUrl,
       signedUrl: uploadResult.signedUrl,
       signedUrlExpiresAt: uploadResult.signedUrlExpiresAt,
+      thumbnailPath: thumbnailPath,
+      thumbnailUrl: thumbnailUrl,
       mimeType: image.mimeType,
       fileSizeBytes: uploadResult.fileSizeBytes,
       generationParams: {
@@ -3925,6 +3999,9 @@ async function enrichAllStoriesWithImages(
         ...scene,
         image: matchingAsset?.storagePath ? {
           url: `/api/v1/assets/${matchingAsset.storagePath}`,
+          thumbnailUrl: matchingAsset.thumbnailPath 
+            ? `/api/v1/assets/${matchingAsset.thumbnailPath}` 
+            : null,
         } : null,
       };
     });
@@ -4017,6 +4094,7 @@ export async function listUserStorySummaries(
       language: story.language,
       status: story.isPublished ? 'completed' : 'draft',
       coverImageUrl: firstSceneWithImage?.image?.url ?? null,
+      coverThumbnailUrl: firstSceneWithImage?.image?.thumbnailUrl ?? null,
       hasAudio: !!(story.audioMetadata as any)?.finalAssetId,
       scenarioCardId: story.scenarioCardId ?? null,
       createdAt: story.createdAt,

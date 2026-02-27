@@ -1,259 +1,219 @@
 {
-    "title": "Зоряне Насіння Місячної Ферми",
+    "title": "Зоряна Колискова",
     "language": "uk",
     "environments": [
         {
-            "id": "moon_farm_living_room",
-            "name": "Вітальня на Місячній Фермі"
-        },
-        {
-            "id": "moon_farm_greenhouse",
-            "name": "Оранжерея на Місячній Фермі"
-        },
-        {
-            "id": "moon_surface",
-            "name": "Місячна поверхня"
-        },
-        {
-            "id": "crystal_cave",
-            "name": "Кришталева печера"
+            "id": "space_station_main_room",
+            "name": "Головна кімната космічної станції",
+            "description": "A cozy circular living room combined with a control center, featuring panoramic windows on the north wall offering views of a ringed planet and stars. Plush beige armchairs are arranged around a low, round coffee table. The walls are a warm beige, and the polished dark grey floor is partially covered by a soft, light rug. Ambient ceiling lights provide gentle illumination. A control panel with various buttons and screens is integrated into one curved wall."
         }
     ],
-    "characters": [
-        {
-            "name": "Емілія",
-            "type": "human",
-            "description": "Молода дівчинка з доброю посмішкою та яскравими темно-карими очима. У неї світла шкіра з розсипом ластовиння на носі та щоках. Її дуже довге волосся — грайливе поєднання світло-коричневого, рожевого та синього кольорів, укладене в косички спереду, які ведуть у високий хвіст. Вона носить темну квітчасту куртку-бомбер поверх чорного кроп-топу, у поєднанні з чорно-білими візерунчастими штанами та білими кросівками.",
-            "personality": "Допитлива, добра, пригодницька",
-            "role": "protagonist"
-        },
-        {
-            "name": "Шелестик",
-            "type": "creature",
-            "description": "Маленька, ефірна істота з м'яким, прозорим, сяючим виглядом. Її тіло аморфне, хмароподібне, звужується до закручених, тонких пасм знизу. У неї кругла голова з двома великими, виразними помаранчевими очима та рожевими щічками, що надає їй дуже дружнього вигляду. Дві маленькі, ніжні ручки складені перед її грудьми.",
-            "personality": "Грайливий, підтримуючий, ніжний",
-            "role": "friend"
-        },
-        {
-            "name": "Тато",
-            "type": "human",
-            "description": "Батько Емілії, дорослий чоловік з добрими зморшками навколо очей, що свідчать про часті посмішки. У нього коротке каштанове волосся та охайна борода. Він носить зручний комбінезон космічного фермера сірого кольору з нашивками на рукавах, що свідчать про його досвід у вирощуванні рослин на Місяці.",
-            "personality": "Мудрий, підтримуючий, спокійний, пригодницький",
-            "role": "mentor"
-        },
-        {
-            "name": "Мама",
-            "type": "human",
-            "description": "Мати Емілії, доросла жінка з теплим, привітним обличчям та світлим волоссям, зібраним у пучок. Її очі випромінюють турботу та спокій. Вона носить практичний синій комбінезон, схожий на батьків, але з квітковими візерунками на кишенях, що відображає її любов до рослин.",
-            "personality": "Турботлива, практична, ніжна, заохочуюча",
-            "role": "helper"
-        }
-    ],
+    "characters": [],
     "scenes": [
         {
             "sceneId": 1,
-            "environmentId": "moon_farm_living_room",
-            "text": "На далекій Місячній Фермі, де зорі світили так яскраво, Емілія сиділа поруч зі своїм Татом. Їхня вітальня була затишною, а крісла м'якими. Тато, космічний фермер, тримав у руці щось маленьке та дивне. [curious] «Поглянь, Еміліє, що я знайшов під час роботи сьогодні», – сказав він, розкриваючи долоню. На ній лежало маленьке, блискуче насіння, що переливалося усіма кольорами.",
+            "environmentId": "space_station_main_room",
+            "text": "На борту затишної космічної станції, що оберталася навколо планети з дивовижними кільцями, Емілія та її найкращий друг Міка розпочали свій день. [happy] Сонячне світло пробивалося крізь великі вікна, висвітлюючи їхню головну кімнату. Міка, її пухнастий фіолетовий друг з ніжними блакитними крильцями, весело кружляв навколо. [chuckles] Емілія мріяла, дивлячись на величні кільця планети, що виблискували у космічній темряві.",
             "sceneVisual": {
-                "setting": "A cozy, circular living room on a moon farm, with large panoramic windows showing a starry night sky and a distant planet. Soft, plush armchairs are arranged around a low, round coffee table. Walls are a warm beige with simple, futuristic patterns. The floor is made of polished dark grey material with a soft, round, light-colored rug. Warm, glowing ambient lights are embedded in the ceiling. Visible strokes of colored pencil create a tactile sketch quality.",
+                "setting": "Morning light filtering through the panoramic windows, illuminating specks of space dust. A few breakfast crumbs are scattered on the low round coffee table. The ringed planet is prominently visible outside.",
                 "cameraComposition": {
-                    "shot": "Medium shot at child eye-level, focusing on Emilia and her Dad's hands.",
+                    "shot": "Medium-wide shot at child eye-level, focusing on Emilia and Mika.",
                     "characters": [
                         {
                             "name": "Емілія",
-                            "description": "Sitting comfortably in a plush armchair on the left, leaning slightly forward, eyes wide with curiosity, looking intently at the seed in her Dad's hand."
+                            "description": "Sitting comfortably in a plush beige armchair, gazing out the panoramic window with a thoughtful, dreamy expression, hands resting on her lap."
                         },
                         {
-                            "name": "Тато",
-                            "description": "Sitting next to Emilia in a matching armchair on the right, gently holding out his open hand with the glowing seed, a kind smile on his face, looking at Emilia."
+                            "name": "Міка",
+                            "description": "Hovering playfully near Emilia's shoulder, facing the window as well, with wide, curious eyes and a soft, happy smile."
                         }
                     ]
                 },
-                "lighting": "Soft, warm, golden light coming from the ceiling and embedded wall panels, casting gentle shadows. The room feels calm and inviting, with a subtle glow from the seed itself. Cross-hatching and shading strokes define the light and shadow."
+                "lighting": "Soft, warm morning light streams in from the panoramic windows, casting gentle, diffused highlights across the room. Shadows are long and very soft, with a delicate pastel quality."
             },
             "characterOutfits": {}
         },
         {
             "sceneId": 2,
-            "environmentId": "moon_farm_greenhouse",
-            "text": "Наступного ранку Емілія та її Мама були в яскравій оранжереї. Сонячні промені проникали крізь скляний купол. Мама ніжно тримала маленьке насіння. [happy] «Давай посадимо його, Еміліє, і подивимося, що з нього виросте», — запропонувала Мама. Емілія обережно взяла лопатку, її серце радісно стукотіло. Вона уявляла, як дивне насіння перетвориться на щось особливе. Разом вони посадили насіння в горщик із місячним ґрунтом.",
+            "environmentId": "space_station_main_room",
+            "text": "Раптом тишу розірвав ніжний, але дивний звук. З головних динаміків космічної станції почулася мелодія. [curious] Вона була несхожа на жодну відому Емілії пісню чи мову. Міка здивовано нахилив голівку, а його вушка нашорошилися. Емілія підвелася і підійшла до центрального пульта управління, її серце забилося швидше від цікавості.",
             "sceneVisual": {
-                "setting": "A spacious, domed greenhouse on the moon farm. The translucent dome ceiling allows bright sunlight to stream in, illuminating rows of exotic, colorful moon plants in various pots and raised beds. The floor is covered with light grey, textured moon soil paths. Tools hang neatly on a sturdy, metallic wall. A small potting bench with gardening tools is on the right. Visible strokes create a sense of texture and depth.",
+                "setting": "The central control panel integrated into the curved wall is now softly glowing with an unusual, unknown symbol displayed on its main screen. The ringed planet is still visible outside, now illuminated by a slightly different angle of starlight.",
                 "cameraComposition": {
-                    "shot": "Medium shot at child eye-level, focusing on the potting bench where they are working.",
+                    "shot": "Medium shot at child eye-level, focused on Emilia and the control panel.",
                     "characters": [
                         {
                             "name": "Емілія",
-                            "description": "Standing at a potting bench on the left, holding a small trowel, with a focused yet excited expression, carefully pushing soil over the planted seed. Her gaze is on the pot."
+                            "description": "Standing in front of the control panel, leaning slightly forward, with a curious and slightly puzzled expression, one hand reaching towards a glowing screen."
                         },
                         {
-                            "name": "Мама",
-                            "description": "Standing next to Emilia on the right, her hand gently resting on Emilia's shoulder, smiling encouragingly, looking at Emilia."
+                            "name": "Міка",
+                            "description": "Floating just beside Emilia's head, looking at the glowing screen with wide, surprised eyes, ears perked up in attention."
                         }
                     ]
                 },
-                "lighting": "Bright, even sunlight streaming from the greenhouse dome above, creating soft, diffused light across the plants and characters. Shadows are minimal and light, typical of a sunny day. Cross-hatching suggests the play of light."
+                "lighting": "The room is dimly lit by the ambient ceiling lights, with a soft, mysterious glow emanating from the control panel's screen. The light from the ringed planet outside is a cool, distant blue."
             },
             "characterOutfits": {}
         },
         {
             "sceneId": 3,
-            "environmentId": "moon_farm_greenhouse",
-            "text": "Коли Емілія прокинулася наступного ранку, вона відразу побігла до оранжереї, а її друг Шелестик летів поруч. [excited] «Шелестику, поглянь!» — вигукнула Емілія, її очі були широкі від подиву. За одну ніч насіння виросло у високу, сяючу рослину з великими листками, що світилися м'яким синім світлом. Рослина таємничо вказувала одним зі своїх гілок на невеликі дверцята, що вели назовні, на місячну поверхню.",
+            "environmentId": "space_station_main_room",
+            "text": "Емілія спробувала перекласти повідомлення за допомогою бортового комп'ютера. «Невідомий сигнал, нерозпізнана мова», – пролунав голос комп'ютера. [thoughtful] Міка тихенько приземлився поруч, його рожеве сердечко-ніс тремтіло. [short pause] Вони слухали мелодію знову і знову. Вона була повільною, ритмічною і дуже заспокійливою, немов колискова.",
             "sceneVisual": {
-                "setting": "The spacious, domed greenhouse on the moon farm, filled with exotic, colorful moon plants. The glowing plant stands tall and central, its blue light illuminating the surrounding area. The floor is light grey, textured moon soil. A small, sturdy metallic door, partially obscured by other plants, is visible in the background on the far wall. The atmosphere is filled with a soft, ethereal glow. Visible colored pencil strokes create a sense of magic.",
+                "setting": "The control panel's screen displays a complex array of wavy lines and symbols, indicating an untranslatable signal. A small, glowing data pad rests on the coffee table.",
                 "cameraComposition": {
-                    "shot": "Medium-wide shot at child eye-level, capturing Emilia and Шелестик marveling at the plant.",
+                    "shot": "Close-up shot at child eye-level, focusing on Emilia's thoughtful face and Mika.",
                     "characters": [
                         {
                             "name": "Емілія",
-                            "description": "Standing in the foreground left, hands clasped together in astonishment, mouth slightly open, looking up at the glowing plant with wide, amazed eyes."
+                            "description": "Sitting on the floor near the control panel, head tilted, eyes closed slightly as she listens intently to the melody, a thoughtful expression on her face."
                         },
                         {
-                            "name": "Шелестик",
-                            "description": "Floating gently above Emilia's right shoulder, its orange eyes sparkling, looking at the glowing plant with a curious, happy expression, its wispy body shimmering."
+                            "name": "Міка",
+                            "description": "Sitting on the floor next to Emilia, mirroring her posture, with his ears slightly drooped and a pensive look in his large black eyes."
                         }
                     ]
                 },
-                "lighting": "The primary light source is the glowing blue plant itself, casting a soft, ethereal blue light over the scene. Additionally, diffused sunlight from the dome provides a general brightness. Shadows are soft and elongated, tinged with blue. Layered pencil marks define the glowing effect."
+                "lighting": "Soft, even lighting from the ceiling. A gentle, ambient blue light from the control panel casts a subtle glow on their faces, creating a calm atmosphere."
             },
             "characterOutfits": {}
         },
         {
             "sceneId": 4,
-            "environmentId": "moon_surface",
-            "text": "Емілія та Тато одягли свої космічні скафандри. Зовні Місячної Ферми було тихо та просторо. Вони ступили на порох Місяця, слідуючи за м'яким блакитним світлом, що виходило з оранжереї. [thoughtful] «Куди ж веде нас ця дивовижна рослина, тату?» — запитала Емілія. «Ми скоро дізнаємося, моя маленька досліднице», — відповів Тато, міцно тримаючи її за руку, їхній шлях був освітлений далеким сяйвом.",
+            "environmentId": "space_station_main_room",
+            "text": "«Міка, це ж колискова!» — [excited] вигукнула Емілія, її очі засяяли. Вона впізнала ніжну, заспокійливу мелодію, яка нагадувала їй рідний дім. [happy] Міка радісно закружляв, його крильця затріпотіли, і він почав тихенько муркотіти у такт. Вони вирішили відповісти! Адже це був дуже добрий знак, можливо, запрошення до дружби.",
             "sceneVisual": {
-                "setting": "A vast, grey, rocky moon surface under a dark, star-filled sky. The distant moon farm dome glows softly in the background. Small craters and scattered moon rocks cover the ground. A gentle blue glow emanates from the direction of the farm, indicating the plant's light. The horizon shows the curve of the moon. Colored pencil texture emphasizes the lunar dust and rocks.",
+                "setting": "A small, colorful toy xylophone with wooden mallets is now placed on the low round coffee table. The control panel's screen still shows the unknown signal but with less intensity. The panoramic window shows the ringed planet bathed in a soft, ethereal light.",
                 "cameraComposition": {
-                    "shot": "Wide shot at eye-level, showing Emilia and her Dad in their space suits, dwarfed by the moon's expanse.",
+                    "shot": "Medium shot at child eye-level, capturing Emilia's joyful reaction.",
                     "characters": [
                         {
                             "name": "Емілія",
-                            "description": "Standing in the foreground left, wearing a white space suit with a clear helmet, looking forward with a determined expression, holding her Dad's gloved hand."
+                            "description": "Sitting on the floor, facing Mika, with a wide, happy smile and bright, excited eyes, hands clasped together in delight."
                         },
                         {
-                            "name": "Тато",
-                            "description": "Standing next to Emilia on the right, also in a white space suit, looking ahead, a reassuring presence, holding Emilia's hand securely."
+                            "name": "Міка",
+                            "description": "Floating above the coffee table, facing Emilia, with its translucent blue wings spread wide in a joyful flutter, a happy, knowing look on its face."
                         }
                     ]
                 },
-                "lighting": "Harsh, stark moonlight from an unseen sun, creating sharp, contrasting shadows across the lunar surface. The blue glow from the farm provides a subtle, directional light source. The overall atmosphere is crisp and clear, with deep black shadows. Cross-hatching defines the starkness of the light."
+                "lighting": "Bright and cheerful, with soft, ambient light filling the room. A gentle, warm glow comes from the window, highlighting Emilia's joyful expression."
             },
             "characterOutfits": {}
         },
         {
             "sceneId": 5,
-            "environmentId": "moon_surface",
-            "text": "Вони йшли вперед, аж поки рослина не привела їх до невеликої розколини в місячній скелі. Вхід до печери мерехтів, наче запрошуючи їх увійти. Шелестик, який летів попереду, повернувся до Емілії. [excited] «Шшшш!» — прошепотів він, його помаранчеві очі сяяли. Емілія відчула легкий трепет, але цікавість була сильнішою. Вона знала, що з Шелестиком поруч нічого не страшно. «Ходімо, Шелестику», — впевнено сказала вона.",
+            "environmentId": "space_station_main_room",
+            "text": "Емілія обережно взяла дерев'яну паличку від ксилофона. [thoughtful] «Я зіграю щось просте, але дуже привітне», – прошепотіла вона Міці. Міка кивнув, його золоті обручки на ріжках м'яко погойдувалися. Емілія почала обережно вистукувати мелодію, схожу на веселий дзвіночок. [happy] Міка допомагав, наспівуючи ідеї своїм м'яким, булькаючим голосом.",
             "sceneVisual": {
-                "setting": "A rugged moon surface with jagged grey rocks and small craters. In the center, a hidden cave entrance is revealed, shimmering with a soft, internal light. The cave mouth is framed by dark, ancient-looking rocks. The vast, dark, star-filled sky looms above. The ground is dusty and uneven. Visible pencil strokes give the rocks a weathered, ancient feel.",
+                "setting": "The colorful toy xylophone is positioned centrally on the low round coffee table, with two small mallets beside it. A few loose papers with simple musical notes are scattered around it. The panoramic window shows the planet's rings, now with a slightly darker, more purple hue of space.",
                 "cameraComposition": {
-                    "shot": "Medium close-up at child eye-level, focusing on Emilia and the cave entrance.",
+                    "shot": "Close-up medium shot at child eye-level, focusing on Emilia's hands and Mika.",
                     "characters": [
                         {
                             "name": "Емілія",
-                            "description": "Standing in the foreground left, wearing her space suit, one hand slightly extended towards the shimmering cave entrance, a mix of awe and determination on her face as she looks at the cave."
+                            "description": "Leaning over the coffee table, holding a xylophone mallet, gently tapping the colorful bars with a focused and creative expression. Her braids are slightly in motion."
                         },
                         {
-                            "name": "Шелестик",
-                            "description": "Floating just in front of Emilia, near the cave entrance, its transparent body glowing softly, looking back at Emilia with an encouraging expression, its delicate hands folded."
+                            "name": "Міка",
+                            "description": "Floating beside Emilia's head, looking down at the xylophone with an encouraging and engaged expression, his pink heart-nose twitching slightly."
                         }
                     ]
                 },
-                "lighting": "The scene is primarily lit by the internal shimmering light from the cave entrance, casting a gentle, mysterious glow on the surrounding rocks and characters. The moon's surface is otherwise dim, with only faint starlight. Shadows are soft but defined by the cave's light. Layered pencil marks enhance the glowing effect and textured shadows."
+                "lighting": "Soft, focused light directly above the coffee table, highlighting the xylophone and their hands. The rest of the room is in gentle shadow, creating an intimate, creative atmosphere."
             },
             "characterOutfits": {}
         },
         {
             "sceneId": 6,
-            "environmentId": "crystal_cave",
-            "text": "Увійшовши в печеру, Емілія та Тато зняли свої шоломи, адже повітря всередині було свіжим і теплим. Печера була наповнена сяючими кристалами, що виблискували всіма кольорами веселки. [surprised] «Ого! Це ж чарівно!» — прошепотіла Емілія, її голос відлунював від кришталевих стін. Тато посміхнувся, його обличчя освітлювалося м'яким світлом. «Це дійсно неймовірно, Еміліє. Але будь обережна», — сказав він, тримаючи її за руку.",
+            "environmentId": "space_station_main_room",
+            "text": "Зробивши глибокий вдих, Емілія притиснула кнопку передачі на пульті управління. [nervous] Їхня маленька пісенька-привітання полетіла у великий, безмежний космос. Міка стояв поруч, його очі були широко розплющені, а крильця застигли. Вони обидва відчували легке хвилювання, але також і велику надію. [long pause] Тепер залишалося лише чекати.",
             "sceneVisual": {
-                "setting": "A breathtaking crystal cave interior, with walls, ceiling, and floor composed entirely of large, multifaceted, naturally glowing crystals in shades of purple, blue, green, and pink. The floor is smooth, crystalline. Small, clear pools of water reflect the light, creating dazzling patterns. The air is clear and slightly humid. The overall impression is one of natural wonder and beauty. Visible colored pencil strokes capture the facets and glow of the crystals.",
+                "setting": "The central control panel now shows a pulsating light, indicating an outgoing transmission. The main screen displays a visual representation of sound waves traveling outwards into space. The toy xylophone is still on the coffee table, but slightly to the side.",
                 "cameraComposition": {
-                    "shot": "Wide shot at child eye-level, showing the vastness and beauty of the crystal cave, with Emilia and her Dad in the foreground.",
+                    "shot": "Medium shot at child eye-level, capturing Emilia's decisive action.",
                     "characters": [
                         {
                             "name": "Емілія",
-                            "description": "Standing in the foreground left, looking up and around with an expression of pure wonder and awe, hands slightly outstretched as if to touch the sparkling crystals. Her helmet is off, held in her other hand."
+                            "description": "Standing at the control panel, her finger just lifted from a glowing button, a hopeful yet slightly nervous expression on her face, gazing at the screen."
                         },
                         {
-                            "name": "Тато",
-                            "description": "Standing slightly behind and to the right of Emilia, also looking around with a calm, appreciative smile, his hand gently on Emilia's shoulder, providing a sense of safety."
+                            "name": "Міка",
+                            "description": "Hovering silently beside Emilia, looking intently at the control panel's screen, his body slightly tensed in anticipation, wings held still."
                         }
                     ]
                 },
-                "lighting": "The entire cave is self-illuminated by the gentle, multicolored glow of the crystals themselves. The light is soft, diffused, and casts complex, overlapping colored shadows. The atmosphere is magical and serene. Layered pencil marks define the internal light and crystal reflections."
+                "lighting": "The room is bathed in the cool, soft glow of the control panel, with blue and green light reflecting on their faces. The general lighting is subdued, emphasizing the glowing panel."
             },
             "characterOutfits": {}
         },
         {
             "sceneId": 7,
-            "environmentId": "crystal_cave",
-            "text": "Глибше в печері, де кристали світилися ще яскравіше, вони знайшли величезну, ніжно пульсуючу кулю світла. Вона випромінювала тепле, заспокійливе сяйво. [curious] Шелестик радісно літав навколо кулі, його маленькі ручки були розкриті. Емілія відчула тепло, що розходилося від кулі. «Це джерело енергії для рослини, Шелестику! Воно живить її світлом», — здогадалася Емілія, дивлячись на кулю.",
+            "environmentId": "space_station_main_room",
+            "text": "Хвилини тяглися повільно, немов космічні години. Емілія та Міка сиділи біля вікна, дивлячись на величні кільця планети, що повільно оберталися. [thoughtful] Вони уявляли, як їхня пісенька подорожує між зірками. [long pause] Чи досягне вона когось? Чи зрозуміє хтось їхнє повідомлення про дружбу? Безмежна тиша космосу здавалася ще більшою і загадковішою.",
             "sceneVisual": {
-                "setting": "The deeper part of the crystal cave, even more brilliant with glowing crystals in vibrant hues of purple, blue, and gold. In the center of the cavern, a large, gently pulsing, spherical orb of pure golden light hovers just above the crystalline floor. The air shimmers around it. Small, iridescent dust particles float in the air. Visible colored pencil strokes highlight the intense glow of the orb and crystals.",
+                "setting": "The panoramic windows show the ringed planet and distant stars in full glory, with the planet's shadow beginning to fall across its rings. The room is quiet and reflective. The coffee table is clear.",
                 "cameraComposition": {
-                    "shot": "Medium close-up at child eye-level, focused on Emilia and the glowing orb, with Шелестик nearby.",
+                    "shot": "Wide shot at child eye-level, showing Emilia and Mika silhouetted against the vastness of space.",
                     "characters": [
                         {
                             "name": "Емілія",
-                            "description": "Standing in the foreground left, gazing at the glowing orb with a thoughtful, understanding expression, one hand gently placed over her heart as if feeling its warmth."
+                            "description": "Sitting in one of the plush armchairs, leaning slightly forward, with a pensive expression, looking out the panoramic window at the ringed planet."
                         },
                         {
-                            "name": "Шелестик",
-                            "description": "Floating gracefully in front of the golden orb, slightly to the right, its transparent body shimmering intensely from the orb's light, looking at the orb with wide, amazed orange eyes, its wisps gently swirling."
+                            "name": "Міка",
+                            "description": "Perched gently on the armrest of Emilia's chair, also looking out the window, with a thoughtful, almost longing expression in its big eyes."
                         }
                     ]
                 },
-                "lighting": "The central glowing orb is the dominant light source, casting a warm, golden, pulsating light throughout the cavern. The surrounding crystals reflect and amplify this light, creating a dazzling, ever-changing play of colors and shadows. The atmosphere is mystical and serene. Layered pencil marks create the pulsating glow and soft, shifting shadows."
+                "lighting": "Soft, ethereal light from the distant stars and the glow of the ringed planet outside. The interior of the room is in soft, deep shadows, creating a contemplative and vast atmosphere."
             },
             "characterOutfits": {}
         },
         {
             "sceneId": 8,
-            "environmentId": "crystal_cave",
-            "text": "Мама також приєдналася до них у печері, її очі були сповнені здивування. Вона підійшла до Емілії та Шелестика. [thoughtful] «Це не просто куля енергії, Еміліє. Я відчуваю, що вона ніби співає тиху мелодію», — сказала Мама, прислухаючись. Емілія кивнула. «Можливо, це послання про мир і ріст, мамо? Як та рослина, що вказує нам шлях», — припустила Емілія. Мама ніжно обійняла її. [happy] «Ти маєш рацію, моя розумнице. Це справді схоже на послання надії»",
+            "environmentId": "space_station_main_room",
+            "text": "Раптом головний екран пульта спалахнув! [surprised] Це була нова передача, але цього разу не колискова. Емілія та Міка побачили на екрані ігрові, булькаючі мелодії, що супроводжувалися візуалізацією вихору яскравих, дружніх кольорів. [excited] Вони зрозуміли: це була відповідь! Це було привітне «Дякую» без слів, лише музикою та світлом.",
             "sceneVisual": {
-                "setting": "The illuminated crystal cave interior, with the large, gently pulsing golden orb still at its center. The crystals on the walls, ceiling, and floor continue to glow in vibrant shades of purple, blue, and gold. The air is calm and filled with a soft, warm light. The crystalline floor reflects the light beautifully. Visible colored pencil strokes emphasize the depth and luminosity of the cave.",
+                "setting": "The main screen on the control panel is vibrant with swirling, abstract patterns of bright, friendly colors – pinks, blues, and golds – resembling a playful light show. Small, bubbly musical notes appear to float around the screen. The ringed planet is now partially visible, bathed in the soft glow of the station's interior.",
                 "cameraComposition": {
-                    "shot": "Medium shot at child eye-level, showing Emilia and her Mom near the glowing orb.",
+                    "shot": "Medium close-up shot at child eye-level, focused on the screen and the characters' reactions.",
                     "characters": [
                         {
                             "name": "Емілія",
-                            "description": "Standing in the foreground left, looking up at her Mom with a thoughtful and happy expression, a hint of pride in her eyes for her idea."
+                            "description": "Standing in front of the control panel, looking at the screen with wide, surprised, and then delighted eyes, a joyous smile spreading across her face."
                         },
                         {
-                            "name": "Мама",
-                            "description": "Standing next to Emilia on the right, gently embracing her, a warm and proud smile on her face, looking down at Emilia with affection."
+                            "name": "Міка",
+                            "description": "Floating excitedly beside Emilia, its translucent blue wings fluttering rapidly, large eyes sparkling as it watches the colorful patterns on the screen."
                         }
                     ]
                 },
-                "lighting": "The golden orb provides a warm, central glow, complemented by the ambient, multicolored light from the surrounding crystals. The light is soft and inviting, creating gentle, diffused shadows. The atmosphere is peaceful and filled with wonder. Cross-hatching and shading strokes convey the warmth and depth of the light."
+                "lighting": "The room is now dramatically illuminated by the pulsating, colorful light from the main screen, casting vibrant hues onto Emilia and Mika. The ambient ceiling lights are minimal, letting the screen be the primary light source."
             },
             "characterOutfits": {}
         },
         {
             "sceneId": 9,
-            "environmentId": "moon_farm_living_room",
-            "text": "Повернувшись до затишної вітальні на Місячній Фермі, Емілія та Тато пили теплий місячний чай. Рослина в оранжереї все ще світилася, але тепер вони розуміли її значення. [happy] «Ми знайшли не просто печеру, тату. Ми знайшли послання», — сказала Емілія, усміхаючись. Тато кивнув, його очі сяяли гордістю. «Так, Еміліє. Послання про те, що навіть у найтемнішому куточку космосу є краса, ріст і надія. Ми будемо берегти це таємниче місце, і воно завжди нагадуватиме нам про дивовижні відкриття. Ми вирощуватимемо більше таких рослин, щоб дарувати їхній світ іншим, хто їх потребує».",
+            "environmentId": "space_station_main_room",
+            "text": "Емілія та Міка обмінялися щасливими поглядами. [happy] Вони зрозуміли, що навіть без спільних слів, музика та доброта можуть з'єднати кого завгодно крізь безмежні простори зірок. [long pause] Вони відчували тепло і безпеку, знаючи, що десь там, у величезному космосі, у них з'явилися нові друзі. [excited] Космічна одіссея принесла їм не лише пригоди, а й велику радість універсальної дружби.",
             "sceneVisual": {
-                "setting": "The cozy, circular living room on the moon farm, illuminated by soft indoor lighting. Plush armchairs are arranged around a low, round coffee table with two steaming mugs. The panoramic windows still show the starry night sky. The walls are warm beige, and the floor is polished dark grey with a soft, light-colored rug. A comfortable and peaceful atmosphere. Visible strokes give the room a comforting, hand-drawn feel.",
+                "setting": "The main screen on the control panel shows a calm, consistent pattern of gentle, swirling lights. Evening light filters through the panoramic windows, revealing countless twinkling stars and the softly glowing ringed planet. A cozy blanket is draped over one of the plush armchairs.",
                 "cameraComposition": {
-                    "shot": "Medium shot at child eye-level, focusing on Emilia and her Dad, sharing a quiet moment.",
+                    "shot": "Wide shot at child eye-level, capturing the peaceful, happy scene.",
                     "characters": [
                         {
                             "name": "Емілія",
-                            "description": "Sitting comfortably in an armchair on the left, holding a warm mug, smiling serenely, looking at her Dad with contentment."
+                            "description": "Sitting back comfortably in a plush armchair, with a contented smile on her face, looking out the panoramic window at the stars, one hand gently resting on Mika."
                         },
                         {
-                            "name": "Тато",
-                            "description": "Sitting in an armchair opposite Emilia on the right, also holding a mug, a gentle, proud smile on his face, looking warmly at Emilia."
+                            "name": "Міка",
+                            "description": "Cuddled closely beside Emilia in the armchair, its fluffy purple body radiating comfort, eyes half-closed in happiness, leaning into Emilia's touch."
                         }
                     ]
                 },
-                "lighting": "Soft, warm, ambient light from ceiling fixtures and lamps, creating a cozy and inviting atmosphere. Gentle shadows fall from the furniture, adding depth. The overall color temperature is warm and comforting. Cross-hatching and shading strokes convey the soft glow and comfortable ambiance."
+                "lighting": "Soft, warm evening light fills the room, emanating from the distant stars and the gentle glow of the ringed planet. The lighting is diffused and peaceful, creating a cozy and secure atmosphere with very soft, subtle shadows."
             },
             "characterOutfits": {}
         }

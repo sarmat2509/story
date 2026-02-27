@@ -109,6 +109,44 @@ export class AssetStorageService {
   }
 
   /**
+   * Generate thumbnail from image buffer
+   * Creates a 672×384px JPEG thumbnail (2× smaller than 1344×768 original)
+   * 
+   * @param imageBuffer - Original image buffer
+   * @param width - Thumbnail width (default: 672px)
+   * @param height - Thumbnail height (default: 384px)
+   * @returns Thumbnail buffer as JPEG with 80% quality
+   */
+  async generateThumbnail(
+    imageBuffer: Buffer,
+    width: number = 672,
+    height: number = 384
+  ): Promise<Buffer> {
+    try {
+      const thumbnail = await sharp(imageBuffer)
+        .resize(width, height, {
+          fit: 'cover',
+          position: 'center',
+        })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+
+      logger.debug({
+        originalSize: imageBuffer.length,
+        thumbnailSize: thumbnail.length,
+        width,
+        height,
+        compressionRatio: `${Math.round((1 - thumbnail.length / imageBuffer.length) * 100)}%`,
+      }, 'Thumbnail generated');
+
+      return thumbnail;
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to generate thumbnail');
+      throw new Error(`Thumbnail generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Preprocess user photo before storage.
    * Auto-orients, resizes if too large, conditionally enhances exposure, converts to JPEG.
    * Returns optimized buffer ready for storage and Gemini Vision analysis.

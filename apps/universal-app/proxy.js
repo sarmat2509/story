@@ -3,8 +3,8 @@ const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
-const PORT = 8081;
-const API_URL = process.env.API_BASE_URL || 'http://localhost:3000';
+const PORT = process.env.PORT || 8081;
+const API_URL = process.env.API_BASE_URL || 'http://localhost:8001';
 const METRO_PORT = process.env.METRO_PORT || 8082;
 
 console.log('🔧 Starting development proxy server...');

@@ -565,6 +565,7 @@
     "character_type_pet": "Животное",
     "character_type_imaginary": "Выдуманный",
     "character_type_child": "Ребёнок",
+    "character_type_friend": "Друг",
     "image_preparing": "готовим изображение",
     "image_failed": "не удалось сгенерировать изображение"
   },

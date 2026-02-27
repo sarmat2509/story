@@ -264,8 +264,8 @@ router.get('/*', async (req: Request, res: Response) => {
       });
     }
     
-    // Check that asset exists
-    const asset = await getAssetRepository().findByStoragePath(assetPath);
+    // Check that asset exists (by original storage path OR thumbnail path)
+    const asset = await getAssetRepository().findByStorageOrThumbnailPath(assetPath);
     
     if (!asset) {
       return res.status(404).json({

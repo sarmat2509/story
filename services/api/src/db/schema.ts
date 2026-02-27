@@ -552,6 +552,10 @@ export const assets = pgTable('assets', {
   signedUrl: text('signed_url'),
   signedUrlExpiresAt: timestamp('signed_url_expires_at'),
   
+  // Thumbnail (for optimized library preview - 672×384px JPEG)
+  thumbnailPath: text('thumbnail_path'),
+  thumbnailUrl: text('thumbnail_url'),
+  
   mimeType: varchar('mime_type', { length: 100 }).notNull(),
   fileSizeBytes: integer('file_size_bytes'),
   

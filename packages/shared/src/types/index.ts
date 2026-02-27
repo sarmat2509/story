@@ -397,6 +397,7 @@ export interface StorySummary {
   language: string;
   status: 'draft' | 'generating' | 'ready' | 'failed';
   cover_image_url?: string;
+  cover_thumbnail_url?: string;
   has_audio: boolean;
   scenario_card_id?: string;
   created_at: string;

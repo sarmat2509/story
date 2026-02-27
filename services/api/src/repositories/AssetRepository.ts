@@ -34,6 +34,7 @@ export class AssetRepository {
     signedUrl: string | null;
     signedUrlExpiresAt: Date | null;
     storagePath: string;
+    thumbnailPath: string | null;
     generationParams: unknown;
     visualPrompt: string | null;
   }>> {
@@ -47,6 +48,7 @@ export class AssetRepository {
         signedUrl: schema.assets.signedUrl,
         signedUrlExpiresAt: schema.assets.signedUrlExpiresAt,
         storagePath: schema.assets.storagePath,
+        thumbnailPath: schema.assets.thumbnailPath,
         generationParams: schema.assets.generationParams,
         visualPrompt: sql<string | null>`${schema.assets.generationParams}->>'visualPrompt'`,
       })
@@ -64,6 +66,19 @@ export class AssetRepository {
       .select()
       .from(schema.assets)
       .where(eq(schema.assets.storagePath, storagePath))
+      .limit(1);
+    return asset || null;
+  }
+
+  async findByStorageOrThumbnailPath(path: string): Promise<schema.Asset | null> {
+    const { or } = await import('drizzle-orm');
+    const [asset] = await this.db
+      .select()
+      .from(schema.assets)
+      .where(or(
+        eq(schema.assets.storagePath, path),
+        eq(schema.assets.thumbnailPath, path)
+      ))
       .limit(1);
     return asset || null;
   }

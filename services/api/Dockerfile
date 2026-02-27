@@ -36,8 +36,44 @@ RUN pnpm run build:fast
 WORKDIR /app/services/api
 RUN pnpm run build:fast
 
+# Development stage (hot reload with source mounted)
+FROM node:20-alpine AS development
+
+WORKDIR /app
+
+# Install ffmpeg, postgresql-client, and pnpm
+RUN apk add --no-cache ffmpeg postgresql-client && \
+    npm install -g pnpm
+
+# Copy workspace config
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+
+# Copy package.json files
+COPY packages/shared/package.json ./packages/shared/package.json
+COPY services/api/package.json ./services/api/package.json
+
+# Install all dependencies
+RUN pnpm install --no-frozen-lockfile --filter @kazka/shared --filter api --ignore-scripts
+
+# Copy TypeScript configs
+COPY tsconfig.base.json ./
+COPY packages/shared/tsconfig.json ./packages/shared/
+COPY services/api/tsconfig.json ./services/api/
+
+# Copy drizzle config and migrations
+COPY services/api/drizzle ./services/api/drizzle
+COPY services/api/drizzle.config.ts ./services/api/
+
+WORKDIR /app/services/api
+
+ENV NODE_ENV=development
+EXPOSE 3000
+
+# Source code is mounted via volumes for hot reload
+CMD ["pnpm", "dev"]
+
 # Production stage
-FROM node:20-alpine
+FROM node:20-alpine AS production
 
 WORKDIR /app
 
