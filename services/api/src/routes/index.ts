@@ -5,7 +5,7 @@ const router = Router();
 
 router.get('/', (req: Request, res: Response) => {
   res.json({
-    name: 'Kazka+ API',
+    name: 'WonderTales API',
     version: 'v1',
     description: 'Personalized illustrated fairy tales with pedagogy and premium voice',
     documentation: '/api/v1/docs',

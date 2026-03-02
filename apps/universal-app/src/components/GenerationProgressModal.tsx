@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
-import type { RequestStatus, StoryRequestProgressData } from '@kazka/shared';
+import type { RequestStatus, StoryRequestProgressData } from '@wondertales/shared';
 import { theme } from '@/theme';
 
 interface Props {
@@ -204,11 +204,18 @@ const styles = StyleSheet.create({
     borderRadius: theme.borders.radius.full,
     overflow: 'hidden',
     marginBottom: theme.spacing[3],
+    // iOS-specific fixes
+    minHeight: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
   },
   progressBar: {
     height: '100%',
     backgroundColor: theme.colors.interactive.primary,
     borderRadius: theme.borders.radius.full,
+    // iOS-specific fixes
+    minHeight: 8,
+    minWidth: 4, // Ensure bar is visible even at 0%
   },
   progressText: {
     fontSize: theme.typography.fontSize.sm,

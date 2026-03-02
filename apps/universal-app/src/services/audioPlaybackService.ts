@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY_PREFIX = '@kazka/audio_playback';
-const HIGHLIGHT_KEY = '@kazka/highlight_enabled';
+const STORAGE_KEY_PREFIX = '@wondertales/audio_playback';
+const HIGHLIGHT_KEY = '@wondertales/highlight_enabled';
 const STATE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export interface AudioPlaybackState {

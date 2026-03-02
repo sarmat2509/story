@@ -15,6 +15,7 @@ import { ScenarioCardsGrid } from './components/ScenarioCardsGrid';
 import { LanguageSelector } from './components/LanguageSelector';
 import { AdvancedSettingsForm } from './components/AdvancedSettingsForm';
 import { CharactersForm } from './components/CharactersForm';
+import { useQueryClient } from '@tanstack/react-query';
 import { useStoryThemes } from '@/api/dictionaries';
 import { useChildren } from '@/api/children';
 import { useCharacters } from '@/api/characters';
@@ -23,6 +24,7 @@ import { useCreateStory, useStoryStatus, useRetryStoryImages } from '@/api/stori
 export default function WizardScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const queryClient = useQueryClient();
   
   // Form state
   const [storyLanguage, setStoryLanguage] = useState('');
@@ -111,6 +113,7 @@ export default function WizardScreen() {
   
   const handleCloseModal = () => {
     const storyId = storyStatus?.storyId;
+    queryClient.invalidateQueries({ queryKey: ['stories'] });
     setIsGenerating(false);
     setRequestId(null);
     

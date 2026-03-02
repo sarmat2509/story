@@ -5,6 +5,7 @@
 import { getStoryRepository, getSceneRepository } from '../../repositories';
 import { logger } from '../../utils/logger';
 import { normalizeCharacterName } from '../../utils/characterNormalization';
+import { stripCharacterIds } from '../../utils/audioTags';
 import { flattenCameraComposition } from '../types';
 
 /**
@@ -32,17 +33,35 @@ export function buildOutlineFromText(
 }
 
 /**
+ * Extract character ID from name string like "Mokhovyk [ID: uuid]"
+ */
+function extractCharacterId(name: string): { name: string; id: string | null } {
+  const idMatch = name.match(/^(.+?)\s*\[ID:\s*([a-f0-9-]+)\]\s*$/i);
+  if (idMatch) {
+    return {
+      name: idMatch[1].trim(),
+      id: idMatch[2].trim(),
+    };
+  }
+  return { name, id: null };
+}
+
+/**
  * Extract LLM-generated characters from text
  */
 export function extractLlmCharactersFromText(text: any): any[] {
-  return (text.characters || []).map((char: any) => ({
-    name: char.name,
-    type: char.type,
-    description: char.description,
-    role: char.role,
-    personality: char.personality,
-    appearance: char.description,
-  }));
+  return (text.characters || []).map((char: any) => {
+    const { name, id } = extractCharacterId(char.name);
+    return {
+      name,
+      originalCharacterId: id, // Extracted ID for matching
+      type: char.type,
+      description: char.description,
+      role: char.role,
+      personality: char.personality,
+      appearance: char.description,
+    };
+  });
 }
 
 /**
@@ -58,16 +77,25 @@ export async function createSceneRecords(
 ): Promise<void> {
   await Promise.all(
     text.scenes.map(scene => {
+      // Strip [ID: uuid] from cameraComposition character names before normalization
       const cam = scene.sceneVisual?.cameraComposition;
+      if (cam && typeof cam !== 'string' && Array.isArray(cam.characters)) {
+        for (const ch of cam.characters) {
+          if (ch.name) ch.name = stripCharacterIds(ch.name);
+        }
+      }
+
       const charNames = (cam && typeof cam !== 'string')
         ? flattenCameraComposition(cam).characterNames
         : (scene as any).characters || [];
       const normalizedCharacters = charNames.map((name: string) => normalizeCharacterName(name));
       
+      const cleanText = stripCharacterIds(scene.text);
+
       const sceneData: any = {
         storyId,
         sceneId: scene.sceneId,
-        text: scene.text,
+        text: cleanText,
         visualPrompt: scene.sceneVisual 
           ? JSON.stringify(scene.sceneVisual) 
           : scene.visualPrompt,
@@ -76,7 +104,7 @@ export async function createSceneRecords(
       
       if (options?.includeWordCount) {
         sceneData.generationParams = {
-          wordCount: scene.text.split(/\s+/).length,
+          wordCount: cleanText.split(/\s+/).length,
         };
       }
       

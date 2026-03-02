@@ -1,6 +1,7 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import passport from 'passport';
 import config from './config';
 import healthRoutes from './routes/health';
@@ -28,7 +29,10 @@ const app: Application = express();
 
 // Security middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
 
 // Trust proxy - required for rate limiting behind Nginx reverse proxy
 // Trust only the first proxy (Nginx) to prevent X-Forwarded-For spoofing
@@ -40,6 +44,7 @@ app.use(globalLimiter); // Apply global rate limit to all requests
 // Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Case transformation (snake_case ↔ camelCase)
 app.use(caseTransformMiddleware);
@@ -78,7 +83,7 @@ app.use(errorHandler);
 const PORT = config.port;
 
 const server = app.listen(PORT, async () => {
-  logger.info({ port: PORT, env: config.nodeEnv }, 'Kazka+ API server started');
+  logger.info({ port: PORT, env: config.nodeEnv }, 'WonderTales API server started');
   logger.info({ url: `http://localhost:${PORT}/health` }, 'Health check available');
   
   // Check database connection

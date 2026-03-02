@@ -2,7 +2,7 @@
 
 ## Summary
 
-Created comprehensive coding standards documentation to prevent architectural issues and ensure code consistency across the Kazka+ project.
+Created comprehensive coding standards documentation to prevent architectural issues and ensure code consistency across the WonderTales project.
 
 ## Created Files
 

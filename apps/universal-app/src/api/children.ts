@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CreateChildProfileInput, ChildProfileApi } from '@kazka/shared';
+import { CreateChildProfileInput, ChildProfileApi } from '@wondertales/shared';
 import apiClient from './client';
 
 // Use shared type

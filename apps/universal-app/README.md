@@ -1,4 +1,4 @@
-# Kazka+ Universal App
+# WonderTales Universal App
 
 Cross-platform application for creating personalized illustrated fairy tales.
 
@@ -66,7 +66,7 @@ API_BASE_URL=http://localhost:3000
 GOOGLE_CLIENT_ID_WEB=your-google-client-id
 GOOGLE_CLIENT_ID_IOS=your-ios-client-id
 GOOGLE_CLIENT_ID_ANDROID=your-android-client-id
-APPLE_CLIENT_ID=com.kazkaplus.app
+APPLE_CLIENT_ID=com.wondertales.app
 ```
 
 ## Project Structure

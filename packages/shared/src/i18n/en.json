@@ -440,6 +440,7 @@
     "generating_turnaround": "Generating model sheet...",
     "turnaround_error": "Failed to generate model sheet",
     "turnaround_save_first": "Save the character first to generate a model sheet",
+    "turnaround_add_photo_or_description": "Add photo or drawing (for imaginary) or description",
     "generate_description": "Generate Description",
     "regenerate_description": "Regenerate Description",
     "description_upload_photos_first": "Upload photos on the previous step to generate a description",

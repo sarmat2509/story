@@ -46,7 +46,7 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Kazka+</Text>
+        <Text style={styles.title}>WonderTales</Text>
         <Text style={styles.subtitle}>Personalized illustrated fairy tales</Text>
         
         {error && (

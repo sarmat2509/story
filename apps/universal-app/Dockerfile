@@ -13,7 +13,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY apps/universal-app/package.json ./apps/universal-app/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile --filter universal-app --filter @kazka/shared
+RUN pnpm install --frozen-lockfile --filter universal-app --filter @wondertales/shared
 
 # Copy source files
 COPY packages/shared ./packages/shared

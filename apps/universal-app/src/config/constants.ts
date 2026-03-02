@@ -17,8 +17,8 @@ export const OAUTH_CONFIG = {
 };
 
 export const APP_CONFIG = {
-  name: 'Kazka+',
-  scheme: 'kazka',
+  name: 'WonderTales',
+  scheme: 'wondertales',
   supportedLanguages: ['uk', 'ru', 'en', 'es', 'fr', 'de'] as const,
   defaultLanguage: 'uk' as const,
 };

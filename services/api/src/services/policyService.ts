@@ -1,5 +1,5 @@
 import { getPolicyRepository } from '../repositories';
-import { buildPolicyPromptSection } from '@kazka/shared';
+import { buildPolicyPromptSection } from '@wondertales/shared';
 import type { EpisodeOutline, EpisodeText, PolicyProfile } from '../ai/types';
 import { logger } from '../utils/logger';
 

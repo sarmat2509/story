@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY = '@kazka/audio_notifications_shown';
+const STORAGE_KEY = '@wondertales/audio_notifications_shown';
 
 interface AudioNotificationState {
   [storyId: string]: boolean;

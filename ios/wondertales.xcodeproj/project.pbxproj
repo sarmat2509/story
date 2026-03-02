@@ -7,29 +7,29 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0A9C9B2E77139ECE4FDEFED3 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C604FD32A4A09FCEAF75E44D /* ExpoModulesProvider.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		15C966F0FE1C9CBBECA334A0 /* libPods-wondertalesplus.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F14DDE78AABB79333314AA52 /* libPods-wondertalesplus.a */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		5150A18C6C1340775EB4536B /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEDCF1F934542614A325D9FC /* ExpoModulesProvider.swift */; };
-		6709518629877598C50A4C7D /* libPods-kazkaplus.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5122DB8348045955FF12BFA6 /* libPods-kazkaplus.a */; };
+		46EA6BB64BB0C9B820112483 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = CAB847A62E50B5DA549CE19C /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		D41314F3552BD9BBF6114214 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 93AD54A31E8DDBB91E829725 /* PrivacyInfo.xcprivacy */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		13B07F961A680F5B00A75B9A /* kazkaplus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = kazkaplus.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = kazkaplus/Images.xcassets; sourceTree = "<group>"; };
-		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = kazkaplus/Info.plist; sourceTree = "<group>"; };
-		26C21468CE1A18FEF4387DBB /* Pods-kazkaplus.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-kazkaplus.debug.xcconfig"; path = "Target Support Files/Pods-kazkaplus/Pods-kazkaplus.debug.xcconfig"; sourceTree = "<group>"; };
-		5122DB8348045955FF12BFA6 /* libPods-kazkaplus.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-kazkaplus.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		890A5687B29F868E458355A9 /* Pods-kazkaplus.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-kazkaplus.release.xcconfig"; path = "Target Support Files/Pods-kazkaplus/Pods-kazkaplus.release.xcconfig"; sourceTree = "<group>"; };
-		93AD54A31E8DDBB91E829725 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = kazkaplus/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = kazkaplus/SplashScreen.storyboard; sourceTree = "<group>"; };
+		13B07F961A680F5B00A75B9A /* wondertalesplus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = wondertalesplus.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = wondertalesplus/Images.xcassets; sourceTree = "<group>"; };
+		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = wondertalesplus/Info.plist; sourceTree = "<group>"; };
+		16E6BF5ADE25624246E9E720 /* Pods-wondertalesplus.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-wondertalesplus.release.xcconfig"; path = "Target Support Files/Pods-wondertalesplus/Pods-wondertalesplus.release.xcconfig"; sourceTree = "<group>"; };
+		426F4FA167DD6F914A8BA149 /* Pods-wondertalesplus.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-wondertalesplus.debug.xcconfig"; path = "Target Support Files/Pods-wondertalesplus/Pods-wondertalesplus.debug.xcconfig"; sourceTree = "<group>"; };
+		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = wondertalesplus/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		BEDCF1F934542614A325D9FC /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-kazkaplus/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		C604FD32A4A09FCEAF75E44D /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-wondertalesplus/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		CAB847A62E50B5DA549CE19C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = wondertalesplus/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
-		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = kazkaplus/AppDelegate.swift; sourceTree = "<group>"; };
-		F11748442D0722820044C1D9 /* kazkaplus-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "kazkaplus-Bridging-Header.h"; path = "kazkaplus/kazkaplus-Bridging-Header.h"; sourceTree = "<group>"; };
+		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = wondertalesplus/AppDelegate.swift; sourceTree = "<group>"; };
+		F11748442D0722820044C1D9 /* wondertalesplus-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "wondertalesplus-Bridging-Header.h"; path = "wondertalesplus/wondertalesplus-Bridging-Header.h"; sourceTree = "<group>"; };
+		F14DDE78AABB79333314AA52 /* libPods-wondertalesplus.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-wondertalesplus.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -37,44 +37,42 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6709518629877598C50A4C7D /* libPods-kazkaplus.a in Frameworks */,
+				15C966F0FE1C9CBBECA334A0 /* libPods-wondertalesplus.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		13B07FAE1A68108700A75B9A /* kazkaplus */ = {
+		13B07FAE1A68108700A75B9A /* wondertalesplus */ = {
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
-				F11748442D0722820044C1D9 /* kazkaplus-Bridging-Header.h */,
+				F11748442D0722820044C1D9 /* wondertalesplus-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				93AD54A31E8DDBB91E829725 /* PrivacyInfo.xcprivacy */,
+				CAB847A62E50B5DA549CE19C /* PrivacyInfo.xcprivacy */,
 			);
-			name = kazkaplus;
+			name = wondertalesplus;
+			sourceTree = "<group>";
+		};
+		21990D4E172C238E2B57FFB4 /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				912D85FA978E7EBFFBBCFD76 /* wondertalesplus */,
+			);
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				5122DB8348045955FF12BFA6 /* libPods-kazkaplus.a */,
+				F14DDE78AABB79333314AA52 /* libPods-wondertalesplus.a */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		5AAB9A1C814D177ABACE76FC /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				26C21468CE1A18FEF4387DBB /* Pods-kazkaplus.debug.xcconfig */,
-				890A5687B29F868E458355A9 /* Pods-kazkaplus.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -87,12 +85,12 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
-				13B07FAE1A68108700A75B9A /* kazkaplus */,
+				13B07FAE1A68108700A75B9A /* wondertalesplus */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				5AAB9A1C814D177ABACE76FC /* Pods */,
-				D4DE046E4F6B8F3BEFF941B1 /* ExpoModulesProviders */,
+				DC1303F8649B5AAD484818FA /* Pods */,
+				21990D4E172C238E2B57FFB4 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -102,17 +100,17 @@
 		83CBBA001A601CBA00E9B192 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				13B07F961A680F5B00A75B9A /* kazkaplus.app */,
+				13B07F961A680F5B00A75B9A /* wondertalesplus.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		AB4FCD658C74B69D3EF71440 /* kazkaplus */ = {
+		912D85FA978E7EBFFBBCFD76 /* wondertalesplus */ = {
 			isa = PBXGroup;
 			children = (
-				BEDCF1F934542614A325D9FC /* ExpoModulesProvider.swift */,
+				C604FD32A4A09FCEAF75E44D /* ExpoModulesProvider.swift */,
 			);
-			name = kazkaplus;
+			name = wondertalesplus;
 			sourceTree = "<group>";
 		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
@@ -121,40 +119,42 @@
 				BB2F792C24A3F905000567C9 /* Expo.plist */,
 			);
 			name = Supporting;
-			path = kazkaplus/Supporting;
+			path = wondertalesplus/Supporting;
 			sourceTree = "<group>";
 		};
-		D4DE046E4F6B8F3BEFF941B1 /* ExpoModulesProviders */ = {
+		DC1303F8649B5AAD484818FA /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				AB4FCD658C74B69D3EF71440 /* kazkaplus */,
+				426F4FA167DD6F914A8BA149 /* Pods-wondertalesplus.debug.xcconfig */,
+				16E6BF5ADE25624246E9E720 /* Pods-wondertalesplus.release.xcconfig */,
 			);
-			name = ExpoModulesProviders;
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		13B07F861A680F5B00A75B9A /* kazkaplus */ = {
+		13B07F861A680F5B00A75B9A /* wondertalesplus */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "kazkaplus" */;
+			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "wondertalesplus" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				4D8728AAEBA5CBDACD70AFF3 /* [Expo] Configure project */,
+				9FC4366B09CE2A630B10C720 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				A59E71A24813284BAC0EBA53 /* [CP] Embed Pods Frameworks */,
+				A7115EE5E4EC1BF0AE7AB057 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = kazkaplus;
-			productName = kazkaplus;
-			productReference = 13B07F961A680F5B00A75B9A /* kazkaplus.app */;
+			name = wondertalesplus;
+			productName = wondertalesplus;
+			productReference = 13B07F961A680F5B00A75B9A /* wondertalesplus.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -167,12 +167,10 @@
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
-						DevelopmentTeam = "34P9MRC977";
-						ProvisioningStyle = Automatic;
 					};
 				};
 			};
-			buildConfigurationList = 83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "kazkaplus" */;
+			buildConfigurationList = 83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "wondertalesplus" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -185,7 +183,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				13B07F861A680F5B00A75B9A /* kazkaplus */,
+				13B07F861A680F5B00A75B9A /* wondertalesplus */,
 			);
 		};
 /* End PBXProject section */
@@ -198,7 +196,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				D41314F3552BD9BBF6114214 /* PrivacyInfo.xcprivacy in Resources */,
+				46EA6BB64BB0C9B820112483 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -237,36 +235,12 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-kazkaplus-checkManifestLockResult.txt",
+				"$(DERIVED_FILE_DIR)/Pods-wondertalesplus-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
-		};
-		4D8728AAEBA5CBDACD70AFF3 /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/kazkaplus/kazkaplus.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-kazkaplus/expo-configure-project.sh",
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-kazkaplus/ExpoModulesProvider.swift",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-kazkaplus/expo-configure-project.sh\"\n";
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -274,7 +248,7 @@
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-kazkaplus/Pods-kazkaplus-resources.sh",
+				"${PODS_ROOT}/Target Support Files/Pods-wondertalesplus/Pods-wondertalesplus-resources.sh",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
@@ -291,16 +265,40 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-kazkaplus/Pods-kazkaplus-resources.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-wondertalesplus/Pods-wondertalesplus-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		A59E71A24813284BAC0EBA53 /* [CP] Embed Pods Frameworks */ = {
+		9FC4366B09CE2A630B10C720 /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/wondertalesplus/wondertalesplus.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-wondertalesplus/expo-configure-project.sh",
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Pods/Target Support Files/Pods-wondertalesplus/ExpoModulesProvider.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-wondertalesplus/expo-configure-project.sh\"\n";
+		};
+		A7115EE5E4EC1BF0AE7AB057 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-kazkaplus/Pods-kazkaplus-frameworks.sh",
+				"${PODS_ROOT}/Target Support Files/Pods-wondertalesplus/Pods-wondertalesplus-frameworks.sh",
 				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
 				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
 				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
@@ -313,7 +311,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-kazkaplus/Pods-kazkaplus-frameworks.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-wondertalesplus/Pods-wondertalesplus-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -324,7 +322,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				5150A18C6C1340775EB4536B /* ExpoModulesProvider.swift in Sources */,
+				0A9C9B2E77139ECE4FDEFED3 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -333,18 +331,18 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 26C21468CE1A18FEF4387DBB /* Pods-kazkaplus.debug.xcconfig */;
+			baseConfigurationReference = 426F4FA167DD6F914A8BA149 /* Pods-wondertalesplus.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = kazkaplus/kazkaplus.entitlements;
+				CODE_SIGN_ENTITLEMENTS = wondertalesplus/wondertalesplus.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
 				);
-				INFOPLIST_FILE = kazkaplus/Info.plist;
+				INFOPLIST_FILE = wondertalesplus/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -357,28 +355,25 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.anonymous.kazkaplus;
-				PRODUCT_NAME = kazkaplus;
-				SWIFT_OBJC_BRIDGING_HEADER = "kazkaplus/kazkaplus-Bridging-Header.h";
+				PRODUCT_BUNDLE_IDENTIFIER = com.anonymous.wondertalesplus;
+				PRODUCT_NAME = wondertalesplus;
+				SWIFT_OBJC_BRIDGING_HEADER = "wondertalesplus/wondertalesplus-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
-				DEVELOPMENT_TEAM = "34P9MRC977";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 			};
 			name = Debug;
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 890A5687B29F868E458355A9 /* Pods-kazkaplus.release.xcconfig */;
+			baseConfigurationReference = 16E6BF5ADE25624246E9E720 /* Pods-wondertalesplus.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = kazkaplus/kazkaplus.entitlements;
+				CODE_SIGN_ENTITLEMENTS = wondertalesplus/wondertalesplus.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				INFOPLIST_FILE = kazkaplus/Info.plist;
+				INFOPLIST_FILE = wondertalesplus/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -391,15 +386,12 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.anonymous.kazkaplus;
-				PRODUCT_NAME = kazkaplus;
-				SWIFT_OBJC_BRIDGING_HEADER = "kazkaplus/kazkaplus-Bridging-Header.h";
+				PRODUCT_BUNDLE_IDENTIFIER = com.anonymous.wondertalesplus;
+				PRODUCT_NAME = wondertalesplus;
+				SWIFT_OBJC_BRIDGING_HEADER = "wondertalesplus/wondertalesplus-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
-				DEVELOPMENT_TEAM = "34P9MRC977";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 			};
 			name = Release;
 		};
@@ -524,7 +516,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "kazkaplus" */ = {
+		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "wondertalesplus" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				13B07F941A680F5B00A75B9A /* Debug */,
@@ -533,7 +525,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "kazkaplus" */ = {
+		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "wondertalesplus" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,

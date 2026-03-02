@@ -358,6 +358,7 @@
     "generating_turnaround": "Génération de la fiche modèle...",
     "turnaround_error": "Impossible de générer la fiche modèle",
     "turnaround_save_first": "Enregistrez d'abord le personnage pour générer une fiche modèle",
+    "turnaround_add_photo_or_description": "Ajoutez une photo ou un dessin (pour imaginaire) ou une description",
     "generate_description": "Générer la description",
     "regenerate_description": "Régénérer la description",
     "description_upload_photos_first": "Téléchargez des photos à l'étape précédente pour générer une description",

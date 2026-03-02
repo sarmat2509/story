@@ -1,4 +1,4 @@
-# Kazka+ Coding Standards & Architecture Rules
+# WonderTales Coding Standards & Architecture Rules
 
 > These rules prevent architectural issues and ensure code consistency.
 > **MUST** be followed in all new code and refactoring.
@@ -479,7 +479,7 @@ All other code (services, domain, orchestration) remains unchanged.
 - **MUST** define shared devDependencies in root `package.json`
 - **MUST** use exact versions for security-critical packages
 - **NEVER** install packages without checking existing alternatives
-- **MUST** use `pnpm add` with workspace filter: `pnpm --filter @kazka-plus/api add <package>`
+- **MUST** use `pnpm add` with workspace filter: `pnpm --filter @wondertales-plus/api add <package>`
 
 ## 🗄️ Database & ORM
 

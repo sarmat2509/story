@@ -7,7 +7,7 @@
  */
 
 import type { StorySpec, PolicyProfile } from '../ai/types';
-import { getLanguageFullDisplay } from '@kazka/shared';
+import { getLanguageFullDisplay } from '@wondertales/shared';
 import { getTextStyleGuidance } from './image/styles';
 
 /**
@@ -106,11 +106,14 @@ Characters should enhance the story and support the narrative goals.`;
   const parts = [
     'SUPPORTING CHARACTERS:',
     'IMPORTANT: Include ALL these characters in the story. They should participate in scenes, interact with the main character, and be part of the plot.',
+    'When referencing these characters in your response, include their ID in square brackets after the name (e.g., "Mokhovyk [ID: abc-123]").',
     ''
   ];
 
   spec.characters.forEach((char, index) => {
-    const charParts = [`${index + 1}. ${char.name}`];
+    // Include character ID for cross-language matching
+    const nameWithId = char.id ? `${char.name} [ID: ${char.id}]` : char.name;
+    const charParts = [`${index + 1}. ${nameWithId}`];
     
     // Add type
     if (char.type) {
@@ -436,7 +439,7 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
         styleGuidance?.composition
       ),
       '  - "shot": Camera angle and shot type IN ENGLISH (e.g. "Medium-wide shot at child eye-level").',
-      '  - "characters": Array of objects, one per character physically present in the scene. Each has "name" (EXACT from character list) and "description" (position in frame, posture, action, expression IN ENGLISH). Maximum 2 characters.',
+      '  - "characters": Array of objects, one per character physically present in the scene. Each has "name" (EXACT from character list) and "description" (position in frame, posture, action, expression IN ENGLISH). Maximum 3 characters.',
       withStyleHint(
         '- "lighting": Light source, direction, intensity, shadows, color temperature, atmosphere. Write IN ENGLISH.',
         styleGuidance?.lighting
@@ -465,7 +468,7 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
       styleGuidance?.composition
     ),
     '    - "shot": Camera angle (wide/medium/close-up), eye level, focal point. IN ENGLISH.',
-    '    - "characters": Array of objects — one entry per character physically present in the scene. Maximum 2 characters. Each entry has:',
+    '    - "characters": Array of objects — one entry per character physically present in the scene. Maximum 3 characters. Each entry has:',
     '      - "name": EXACT character name from the story character list',
     '      - "description": Position in frame (foreground/background, left/right/center, on what object), body posture, action (sitting, flying, running, hugging, sleeping, eating), facial expression, gaze direction. IN ENGLISH.',
     withStyleHint(
@@ -502,16 +505,16 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
 }
 
 /**
- * Max 2 active characters per scene constraint (Gemini 3-image limit, 2-image safety margin).
+ * Max 3 active characters per scene constraint.
  */
 export function formatCharactersPerSceneRules(): string {
   return [
-    'CRITICAL - Characters Per Scene (max 2 active):',
-    '- Each scene should have AT MOST 2 characters physically present and actively participating in the action.',
-    '- If the story has more than 2 characters, rotate them: some characters go to another room, leave on an errand, stay behind, or arrive later. Write the plot so that each scene naturally focuses on 1-2 characters.',
+    'CRITICAL - Characters Per Scene (max 3 active):',
+    '- Each scene should have AT MOST 3 characters physically present and actively participating in the action.',
+    '- If the story has more than 3 characters, rotate them: some characters go to another room, leave on an errand, stay behind, or arrive later. Write the plot so that each scene naturally focuses on 1-3 characters.',
     '- The protagonist (main child character) should be in almost every scene.',
     '- Other characters can be briefly MENTIONED (heard from another room, just left, remembered in dialogue) but should NOT be described as physically present and performing actions in the scene.',
-    '- "cameraComposition.characters": list ONLY the characters who are physically present and actively participating in the scene (same characters who perform actions in the text). Maximum 2.',
+    '- "cameraComposition.characters": list ONLY the characters who are physically present and actively participating in the scene (same characters who perform actions in the text). Maximum 3.',
     '- Use EXACT character names as defined in the story',
     '- If scene has no characters (e.g., pure description), use an empty array for cameraComposition.characters',
   ].join('\n');

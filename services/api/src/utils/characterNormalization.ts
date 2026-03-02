@@ -26,6 +26,7 @@ export interface NormalizedCharacter {
 export function normalizeCharacterName(name: string): string {
   return name
     .trim()
+    .replace(/\s*\[(?:ID:\s*)?[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\]\s*$/i, '')
     .toLowerCase()
     .replace(/[^a-z0-9а-яёіїєґ\s-]/gi, ''); // Keep letters (including Ukrainian), numbers, spaces, hyphens
 }

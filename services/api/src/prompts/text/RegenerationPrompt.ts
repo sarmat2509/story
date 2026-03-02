@@ -5,7 +5,7 @@
 
 import * as helpers from '../helpers';
 import type { StorySpec, EpisodeOutline } from '../../ai/types';
-import { getLanguageFullDisplay } from '@kazka/shared';
+import { getLanguageFullDisplay } from '@wondertales/shared';
 
 export interface RegenerationPromptParams {
   spec: StorySpec;

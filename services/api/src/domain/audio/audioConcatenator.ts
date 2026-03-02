@@ -8,17 +8,22 @@
  * to avoid system dependency issues.
  */
 
+import { existsSync } from 'fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import ffmpeg from 'fluent-ffmpeg';
 import { logger } from '../../utils/logger';
 
-// Set path to bundled FFmpeg binary
-const ffmpegPath = path.join(__dirname, '../../../bin/ffmpeg');
-ffmpeg.setFfmpegPath(ffmpegPath);
-
-logger.info({ ffmpegPath }, 'FFmpeg path configured');
+// Use bundled ffmpeg if present; otherwise use system ffmpeg from PATH (Docker, etc.)
+const bundledFfmpegPath = path.join(__dirname, '../../../bin/ffmpeg');
+if (existsSync(bundledFfmpegPath)) {
+  ffmpeg.setFfmpegPath(bundledFfmpegPath);
+  logger.info({ ffmpegPath: bundledFfmpegPath }, 'FFmpeg path configured (bundled)');
+} else {
+  ffmpeg.setFfmpegPath('ffmpeg');
+  logger.info({ ffmpegPath: 'ffmpeg' }, 'FFmpeg path configured (system PATH)');
+}
 
 /**
  * Probe audio file duration using ffprobe

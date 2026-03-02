@@ -97,21 +97,18 @@ export const config = {
     enableValidation: process.env.ENABLE_IMAGE_VALIDATION === 'true',
     validationMaxRetries: parseInt(process.env.IMAGE_VALIDATION_MAX_RETRIES || '2', 10),
     // Max total reference images per API call (turnarounds + scene refs)
-    // Gemini hard limit is 3 images per prompt, but 3 refs triggers IMAGE_OTHER consistently.
-    // 2 refs works reliably even under 8x concurrency.
-    maxReferenceImages: parseInt(process.env.IMAGE_MAX_REFERENCE_IMAGES || '2', 10),
-    // Validation scoring weights (for best-image selection when all attempts fail)
+    maxReferenceImages: parseInt(process.env.IMAGE_MAX_REFERENCE_IMAGES || '3', 10),
+    // Validation scoring: absolute penalties (subtracted from 100)
     validationScoring: {
-      // Per-character weights (must sum to 1.0)
-      found: parseFloat(process.env.IMAGE_SCORE_WEIGHT_FOUND || '0.35'),
-      recognizable: parseFloat(process.env.IMAGE_SCORE_WEIGHT_RECOGNIZABLE || '0.25'),
-      notDuplicated: parseFloat(process.env.IMAGE_SCORE_WEIGHT_NOT_DUPLICATED || '0.15'),
-      matchesColors: parseFloat(process.env.IMAGE_SCORE_WEIGHT_MATCHES_COLORS || '0.15'),
-      matchesOutfit: parseFloat(process.env.IMAGE_SCORE_WEIGHT_MATCHES_OUTFIT || '0.10'),
-      // Global penalties (subtracted from 0-100 score)
-      textPenalty: parseFloat(process.env.IMAGE_SCORE_PENALTY_TEXT || '5'),
-      unexpectedCharsPenalty: parseFloat(process.env.IMAGE_SCORE_PENALTY_UNEXPECTED || '3'),
-      artifactsPenalty: parseFloat(process.env.IMAGE_SCORE_PENALTY_ARTIFACTS || '10'),
+      // Per-character penalties (subtracted from 100)
+      recognizablePenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_RECOGNIZABLE || '20', 10),
+      duplicatedPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_DUPLICATED || '15', 10),
+      matchesColorsPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_MATCHES_COLORS || '10', 10),
+      matchesOutfitPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_MATCHES_OUTFIT || '10', 10),
+      // Global penalties
+      textPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_TEXT || '5', 10),
+      unexpectedCharsPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_UNEXPECTED || '3', 10),
+      artifactsPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_ARTIFACTS || '10', 10),
     },
     // Turnaround sheet generation for imaginary characters
     enableTurnaroundSheet: process.env.ENABLE_TURNAROUND_SHEET === 'true',
@@ -202,7 +199,7 @@ export const config = {
   
   // JWT
   jwt: {
-    secret: process.env.JWT_SECRET || 'kazka_plus_super_secret_key_change_in_production_2026',
+    secret: process.env.JWT_SECRET || 'wondertales_super_secret_key_change_in_production_2026',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
   

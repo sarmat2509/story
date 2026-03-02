@@ -1,4 +1,4 @@
-package com.anonymous.kazkaplus
+package com.anonymous.wondertalesplus
 
 import android.os.Build
 import android.os.Bundle

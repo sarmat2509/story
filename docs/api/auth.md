@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Kazka+ API uses OAuth 2.0 for authentication with support for Google and Apple Sign In. Sessions are stored in PostgreSQL with JWT tokens for API access.
+The WonderTales API uses OAuth 2.0 for authentication with support for Google and Apple Sign In. Sessions are stored in PostgreSQL with JWT tokens for API access.
 
 ## Authentication Flow
 
@@ -425,7 +425,7 @@ async function signInWithGoogle() {
     const userInfo = await GoogleSignin.signIn();
     
     // Exchange ID token with your backend
-    const response = await fetch('https://api.kazkaplus.com/auth/google/token', {
+    const response = await fetch('https://api.wondertales.com/auth/google/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -455,7 +455,7 @@ async function signInWithApple() {
     });
     
     // Exchange with backend
-    const response = await fetch('https://api.kazkaplus.com/auth/apple/token', {
+    const response = await fetch('https://api.wondertales.com/auth/apple/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -488,7 +488,7 @@ async function fetchUserProfile() {
     throw new Error('Not authenticated');
   }
   
-  const response = await fetch('https://api.kazkaplus.com/me', {
+  const response = await fetch('https://api.wondertales.com/me', {
     headers: {
       'Authorization': `Bearer ${jwt}`,
     },

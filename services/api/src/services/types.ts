@@ -8,7 +8,7 @@ import {
   AppearanceTraits, 
   ChildProfileData, 
   CharacterData 
-} from '@kazka/shared';
+} from '@wondertales/shared';
 
 // Re-export for convenience
 export type { 

@@ -29,7 +29,7 @@ jobs:
             docker compose -f docker-compose.prod.yml build api
             docker compose -f docker-compose.prod.yml up -d api
             echo "Running database migrations..."
-            docker exec kazka-api-prod sh -c 'cd /app/services/api && npx drizzle-kit push:pg --force'
+            docker exec wondertales-api-prod sh -c 'cd /app/services/api && npx drizzle-kit push:pg --force'
             echo "Deployment completed!"
           EOF
       

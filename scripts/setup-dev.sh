@@ -2,7 +2,7 @@
 
 set -e
 
-echo "🚀 Setting up Kazka+ development environment..."
+echo "🚀 Setting up WonderTales development environment..."
 
 # Check if Docker is running
 if ! docker info > /dev/null 2>&1; then
@@ -21,7 +21,7 @@ echo "⏳ Waiting for PostgreSQL to be ready..."
 sleep 10
 
 # Check if PostgreSQL is ready
-until docker exec kazka-postgres pg_isready -U kazka > /dev/null 2>&1; do
+until docker exec wondertales-postgres pg_isready -U kazka > /dev/null 2>&1; do
     echo "⏳ Still waiting for PostgreSQL..."
     sleep 2
 done

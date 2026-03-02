@@ -11,7 +11,7 @@ export default function LandingScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.hero}>
-        <Text style={styles.title}>Kazka+</Text>
+        <Text style={styles.title}>WonderTales</Text>
         <Text style={styles.subtitle}>
           Personalized Illustrated Fairy Tales for Your Children
         </Text>

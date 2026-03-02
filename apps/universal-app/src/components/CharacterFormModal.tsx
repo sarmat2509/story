@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 import { useCreateCharacter, useUpdateCharacter, useAnalyzeCharacter, useGenerateTurnaround } from '@/api/characters';
 import { UploadPhotoResult, deletePhoto } from '@/utils/uploadPhoto';
+import { formatAssetUrl } from '@/utils/assetUrl';
 import { storage } from '@/utils/storage';
 import { 
   CreateCharacterSchema,
@@ -60,7 +61,7 @@ import {
   Build,
   ClothingStyle,
   HumanDistinctiveFeature
-} from '@kazka/shared';
+} from '@wondertales/shared';
 import { ChipSelector } from './form/ChipSelector';
 import { TagsInput } from './form/TagsInput';
 import { PhotoUploadGrid } from './form/PhotoUploadGrid';
@@ -418,8 +419,8 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   // Handler for "Generate Description" button on Step 2
   const handleAnalyzePhotos = async () => {
     const uploadedPhotos = photos
-      .filter(p => !p.isUploading && p.url && p.url.startsWith('http'))
-      .map(p => p.url);
+      .filter(p => !p.isUploading && p.url && formatAssetUrl(p.url) !== null)
+      .map(p => formatAssetUrl(p.url)!);
 
     if (uploadedPhotos.length === 0) return;
 
@@ -681,6 +682,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                     onPhotosChange={setPhotos}
                     maxPhotos={5}
                     photoType="character"
+                    formatUrl={formatAssetUrl}
                   />
                 </View>
               </>
@@ -700,41 +702,32 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
 
                 {/* Subtype selection */}
                 <View style={styles.field}>
-                  <Text style={styles.label}>{t('character_form.subtype_label')}</Text>
                   <ScrollView style={styles.subtypeList} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-                    {SUBTYPE_OPTIONS[type].map((section, index) => (
-                      <View key={section.section || `section-${index}`}>
-                        {section.section && (
-                          <Text style={styles.subtypeSection}>
-                            {t(`characters.subtype_sections.${section.section}`)}
-                          </Text>
-                        )}
-                        <View style={styles.subtypeGrid}>
-                          {(section.items || [section]).map((item) => {
-                            const itemValue = item.value || section.value;
-                            const itemKey = item.key || section.key;
-                            if (!itemValue || !itemKey) return null;
-                            return (
-                              <TouchableOpacity
-                                key={itemValue}
-                                style={[
-                                  styles.subtypeButton,
-                                  subtype === itemValue && styles.subtypeButtonSelected
-                                ]}
-                                onPress={() => setSubtype(itemValue as CharacterSubtype)}
-                              >
-                                <Text style={[
-                                  styles.subtypeText,
-                                  subtype === itemValue && styles.subtypeTextSelected
-                                ]}>
-                                  {t(`characters.subtypes.${itemKey}`)}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
+                    {SUBTYPE_OPTIONS[type].map((section, index) => {
+                      // Extract options for this section
+                      const sectionItems = section.items || [section];
+                      const options = sectionItems
+                        .filter(item => item.value && item.key)
+                        .map(item => item.value!);
+                      
+                      // Create label with section prefix if exists
+                      const label = section.section 
+                        ? `${t('character_form.subtype_label')} (${t(`characters.subtype_sections.${section.section}`)})`
+                        : t('character_form.subtype_label');
+
+                      return (
+                        <View key={section.section || `section-${index}`} style={styles.subtypeChipGroup}>
+                          <ChipSelector
+                            label={label}
+                            options={options}
+                            selected={subtype || ''}
+                            onSelect={(val) => setSubtype(val as CharacterSubtype)}
+                            translationPrefix="characters.subtypes"
+                            getTranslation={t}
+                          />
                         </View>
-                      </View>
-                    ))}
+                      );
+                    })}
                   </ScrollView>
                 </View>
 
@@ -758,7 +751,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                   )}
                   {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
                   {/* Generate / Regenerate Description button */}
-                  {photos.some(p => !p.isUploading && p.url?.startsWith('http')) ? (
+                  {photos.some(p => !p.isUploading && p.url && formatAssetUrl(p.url) !== null) ? (
                     analyzeCharacter.isPending ? (
                       <View style={styles.turnaroundGenerating}>
                         <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
@@ -805,7 +798,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                     {turnaroundSheetUrl && (
                       <View style={styles.turnaroundContainer}>
                         <Image
-                          source={{ uri: turnaroundSheetUrl }}
+                          source={{ uri: formatAssetUrl(turnaroundSheetUrl) || turnaroundSheetUrl }}
                           style={styles.turnaroundImage}
                           resizeMode="contain"
                         />
@@ -819,41 +812,60 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                             {t('character_form.generating_turnaround')}
                           </Text>
                         </View>
-                      ) : (
-                        <TouchableOpacity
-                          style={[
-                            styles.turnaroundButton,
-                            turnaroundSheetUrl && styles.turnaroundButtonSecondary,
-                          ]}
-                          onPress={async () => {
-                            try {
-                              const result = await generateTurnaround.mutateAsync({ characterId, description: description || undefined });
-                              setTurnaroundSheetUrl(result.url);
-                            } catch (error) {
-                              Alert.alert(
-                                t('error') || 'Error',
-                                t('character_form.turnaround_error'),
-                              );
-                            }
-                          }}
-                        >
-                          <Ionicons
-                            name={turnaroundSheetUrl ? 'refresh-outline' : 'image-outline'}
-                            size={18}
-                            color={turnaroundSheetUrl ? theme.colors.interactive.primary : theme.colors.text.inverse}
-                          />
-                          <Text
+                      ) : (() => {
+                        const hasReferencePhotos = photos.some(p => !p.isUploading && p.url);
+                        const hasDescription = !!description?.trim();
+                        const canGenerateTurnaround = hasReferencePhotos || hasDescription;
+                        return canGenerateTurnaround ? (
+                          <TouchableOpacity
                             style={[
-                              styles.turnaroundButtonText,
-                              turnaroundSheetUrl && styles.turnaroundButtonTextSecondary,
+                              styles.turnaroundButton,
+                              turnaroundSheetUrl && styles.turnaroundButtonSecondary,
                             ]}
+                            onPress={async () => {
+                              try {
+                                const result = await generateTurnaround.mutateAsync({ characterId, description: description || undefined });
+                                setTurnaroundSheetUrl(result.url);
+                              } catch (error) {
+                                Alert.alert(
+                                  t('error') || 'Error',
+                                  t('character_form.turnaround_error'),
+                                );
+                              }
+                            }}
                           >
-                            {turnaroundSheetUrl
-                              ? t('character_form.regenerate_turnaround')
-                              : t('character_form.generate_turnaround')}
-                          </Text>
-                        </TouchableOpacity>
-                      )
+                            <Ionicons
+                              name={turnaroundSheetUrl ? 'refresh-outline' : 'image-outline'}
+                              size={18}
+                              color={turnaroundSheetUrl ? theme.colors.interactive.primary : theme.colors.text.inverse}
+                            />
+                            <Text
+                              style={[
+                                styles.turnaroundButtonText,
+                                turnaroundSheetUrl && styles.turnaroundButtonTextSecondary,
+                              ]}
+                            >
+                              {turnaroundSheetUrl
+                                ? t('character_form.regenerate_turnaround')
+                                : t('character_form.generate_turnaround')}
+                            </Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            style={[styles.turnaroundButton, styles.turnaroundButtonDisabled]}
+                            disabled
+                          >
+                            <Ionicons
+                              name="image-outline"
+                              size={18}
+                              color={theme.colors.text.disabled}
+                            />
+                            <Text style={[styles.turnaroundButtonText, styles.turnaroundButtonTextDisabled]}>
+                              {t('character_form.turnaround_add_photo_or_description')}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })()
                     ) : (
                       <Text style={styles.hint}>
                         {t('character_form.turnaround_save_first')}
@@ -1373,6 +1385,10 @@ const styles = StyleSheet.create({
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.interactive.primary,
   },
+  turnaroundButtonDisabled: {
+    backgroundColor: theme.colors.background.tertiary,
+    opacity: 0.8,
+  },
   turnaroundButtonText: {
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.semibold,
@@ -1380,6 +1396,9 @@ const styles = StyleSheet.create({
   },
   turnaroundButtonTextSecondary: {
     color: theme.colors.interactive.primary,
+  },
+  turnaroundButtonTextDisabled: {
+    color: theme.colors.text.disabled,
   },
   turnaroundGenerating: {
     flexDirection: 'row',
@@ -1396,37 +1415,7 @@ const styles = StyleSheet.create({
   subtypeList: {
     maxHeight: 200,
   },
-  subtypeSection: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.secondary,
-    marginTop: theme.spacing[3],
-    marginBottom: theme.spacing[2],
-    textTransform: 'uppercase',
-  },
-  subtypeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing[2],
-  },
-  subtypeButton: {
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.background.secondary,
-  },
-  subtypeButtonSelected: {
-    borderColor: theme.colors.interactive.primary,
-    backgroundColor: theme.colors.primary[50],
-  },
-  subtypeText: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.secondary,
-  },
-  subtypeTextSelected: {
-    color: theme.colors.interactive.primary,
-    fontWeight: theme.typography.fontWeight.semibold,
+  subtypeChipGroup: {
+    marginBottom: theme.spacing[3],
   },
 });

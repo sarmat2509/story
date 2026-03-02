@@ -127,6 +127,7 @@ export class FetchClient {
         headers,
         body,
         signal: controller.signal,
+        credentials: 'include',
       });
 
       clearTimeout(timeoutId);

@@ -396,13 +396,11 @@ export class ImageDomainService {
   /**
    * Validate a generated image using Gemini Vision.
    * Checks for character hallucinations, duplicates, missing/extra characters,
-   * text-description fidelity for imaginary creatures, and unwanted text.
+   * reference-image fidelity (colors, outfit, recognizability), and unwanted text.
    *
-   * Character matching is text-description-based: only the generated image is
-   * sent to the vision model, with character descriptions in the prompt.
-   * No reference turnaround sheets are needed for validation.
-   *
-   * Requires textProvider to be injected (controlled by ENABLE_IMAGE_VALIDATION).
+   * Validation is reference-based: the generated image is compared against
+   * character reference images (turnaround sheets). References are passed as
+   * base64 or fileUri (Files API). Requires textProvider (ENABLE_IMAGE_VALIDATION).
    */
   async validateGeneratedImage(params: {
     imageData: Buffer;
@@ -415,7 +413,8 @@ export class ImageDomainService {
     sceneVisual: SceneVisual;
     referenceImages?: Array<{
       characterName: string;
-      imageData: string; // base64
+      imageData?: string; // base64 (optional when fileUri provided)
+      fileUri?: string; // Files API URI — when present, used instead of inline data
       mimeType: string;
     }>;
   }): Promise<ImageValidationResult> {
@@ -425,13 +424,15 @@ export class ImageDomainService {
 
     logger.info({
       expectedCharacterCount: params.expectedCharacters.length,
+      referenceCount: params.referenceImages?.length ?? 0,
       imaginaryCharacters: params.expectedCharacters.filter(c => c.isImaginary).map(c => c.name),
-    }, 'Validating generated image with Vision model (text-description-based)');
+    }, 'Validating generated image with Vision model (reference-based)');
 
     // Generated image is always the first image; reference images follow
     const imageDataArray: Array<{
       mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
       data: string;
+      fileUri?: string;
     }> = [{
       mimeType: params.mimeType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
       data: params.imageData.toString('base64'),
@@ -442,7 +443,8 @@ export class ImageDomainService {
       for (const ref of params.referenceImages) {
         imageDataArray.push({
           mimeType: ref.mimeType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
-          data: ref.imageData,
+          data: ref.imageData || '',
+          fileUri: ref.fileUri,
         });
       }
       logger.debug({
@@ -481,7 +483,7 @@ export class ImageDomainService {
         expectedCharacterCount: result.expectedCharacterCount,
         hasUnexpected: result.hasUnexpectedCharacters,
         hasText: result.hasTextOrLetters,
-        issues: result.characters.filter(c => !c.found || c.duplicated || !c.recognizable)
+        issues: result.characters.filter(c => !c.found || c.duplicated || (c.recognizableScore ?? 1) < 0.5)
           .map(c => `${c.name}: ${c.issue || 'issue'}`),
       }, 'Image validation result');
 
@@ -503,7 +505,7 @@ export class ImageDomainService {
             name: c.name,
             found: true,
             duplicated: false,
-            recognizable: true,
+            recognizableScore: 1,
             matchesColors: true,
             matchesOutfit: true,
           })),

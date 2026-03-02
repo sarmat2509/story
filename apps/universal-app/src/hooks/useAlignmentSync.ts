@@ -10,7 +10,7 @@
  */
 
 import { useMemo } from 'react';
-import type { AlignmentData } from '@kazka/shared';
+import type { AlignmentData } from '@wondertales/shared';
 
 // Lead time in seconds - highlight text 100ms before audio reaches it
 // This improves UX by anticipating the audio and avoiding lag perception

@@ -431,6 +431,7 @@
     "generating_turnaround": "Генерация модельного листа...",
     "turnaround_error": "Не удалось сгенерировать модельный лист",
     "turnaround_save_first": "Сначала сохраните персонажа, чтобы сгенерировать модельный лист",
+    "turnaround_add_photo_or_description": "Добавьте фото или рисунок (для воображаемого) или описание",
     "generate_description": "Сгенерировать описание",
     "regenerate_description": "Перегенерировать описание",
     "description_upload_photos_first": "Загрузите фото на предыдущем шаге, чтобы сгенерировать описание",

@@ -7,7 +7,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
-    <string>Kazka+</string>
+    <string>WonderTales</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -27,15 +27,15 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>kazka</string>
-          <string>com.kazkaplus.app</string>
+          <string>wondertales</string>
+          <string>com.wondertales.app</string>
           <string>com.googleusercontent.apps.151914486575-4ekba7gcqcbc6joqahhaigs7v97qjdoo</string>
         </array>
       </dict>
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>exp+kazka-plus</string>
+          <string>exp+wondertales</string>
         </array>
       </dict>
     </array>

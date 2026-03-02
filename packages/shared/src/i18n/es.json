@@ -338,6 +338,7 @@
     "generating_turnaround": "Generando hoja de modelo...",
     "turnaround_error": "No se pudo generar la hoja de modelo",
     "turnaround_save_first": "Guarda el personaje primero para generar una hoja de modelo",
+    "turnaround_add_photo_or_description": "Añade foto o dibujo (para imaginario) o descripción",
     "generate_description": "Generar descripción",
     "regenerate_description": "Regenerar descripción",
     "description_upload_photos_first": "Sube fotos en el paso anterior para generar una descripción",

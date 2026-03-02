@@ -3,7 +3,7 @@ import {
   PlanFeatureDenormalizedApi,
   PlanPublicApi,
   PlanAuthenticatedApi 
-} from '@kazka/shared';
+} from '@wondertales/shared';
 import apiClient from './client';
 
 // Use shared types - renamed for clarity
@@ -55,6 +55,7 @@ export const useUpgradePlan = () => {
       // Invalidate plans cache to refetch with new current plan
       queryClient.invalidateQueries({ queryKey: ['plans'] });
       queryClient.invalidateQueries({ queryKey: ['plans', 'with-auth'] });
+      queryClient.invalidateQueries({ queryKey: ['audio-usage'] });
     },
   });
 };

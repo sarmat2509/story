@@ -2,12 +2,12 @@
 
 ## Overview
 
-Kazka+ uses OAuth 2.0 for authentication with support for Google and Apple Sign-In. Different platforms require **different OAuth clients**.
+WonderTales uses OAuth 2.0 for authentication with support for Google and Apple Sign-In. Different platforms require **different OAuth clients**.
 
 ## Architecture
 
 ```
-Google Cloud Project: "Kazka Plus"
+Google Cloud Project: "WonderTales Plus"
 ├── Web Application Client (for web/testing)
 │   └── Client ID + Secret → Backend API
 ├── Android Client (for React Native Android)
@@ -25,7 +25,7 @@ Apple Developer Account
 ### Step 1: Create Google Cloud Project
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create new project: "Kazka Plus"
+2. Create new project: "WonderTales Plus"
 3. Note the Project ID
 
 ### Step 2: Enable APIs
@@ -40,7 +40,7 @@ Apple Developer Account
 1. Go to "APIs & Services" → "OAuth consent screen"
 2. Choose **External** (for testing) or **Internal** (for organization)
 3. Fill in:
-   - App name: **Kazka+**
+   - App name: **WonderTales**
    - User support email: your email
    - Developer contact: your email
 4. Scopes: Add `email`, `profile`, `openid`
@@ -51,16 +51,16 @@ Apple Developer Account
 
 1. Go to "Credentials" → "Create Credentials" → "OAuth 2.0 Client ID"
 2. Application type: **Web application**
-3. Name: **Kazka+ Web**
+3. Name: **WonderTales Web**
 4. Authorized JavaScript origins:
    ```
    http://localhost:3000
-   https://kazkaplus.com
+   https://wondertales.com
    ```
 5. Authorized redirect URIs:
    ```
    http://localhost:3000/auth/google/callback
-   https://api.kazkaplus.com/auth/google/callback
+   https://api.wondertales.com/auth/google/callback
    ```
 6. Click "Create"
 7. **Copy Client ID and Client Secret** → Add to `.env`:
@@ -73,8 +73,8 @@ Apple Developer Account
 
 1. Same project → Create Credentials → OAuth 2.0 Client ID
 2. Application type: **Android**
-3. Name: **Kazka+ Android**
-4. Package name: `com.kazkaplus` (or your app package)
+3. Name: **WonderTales Android**
+4. Package name: `com.wondertales` (or your app package)
 5. Get SHA-1 certificate fingerprint:
    
    **Debug keystore:**
@@ -99,8 +99,8 @@ Apple Developer Account
 
 1. Same project → Create Credentials → OAuth 2.0 Client ID
 2. Application type: **iOS**
-3. Name: **Kazka+ iOS**
-4. Bundle ID: `com.kazkaplus` (must match Xcode project)
+3. Name: **WonderTales iOS**
+4. Bundle ID: `com.wondertales` (must match Xcode project)
 5. Click "Create"
 6. **Copy Client ID** → Use in React Native app
 7. Download `GoogleService-Info.plist` → Add to Xcode project
@@ -125,8 +125,8 @@ Go to "Credentials" and you should see **3 OAuth clients**:
 
 1. Go to **Identifiers** → Click **+**
 2. Select **App IDs** → Continue
-3. Description: **Kazka+**
-4. Bundle ID: `com.kazkaplus` (Explicit)
+3. Description: **WonderTales**
+4. Bundle ID: `com.wondertales` (Explicit)
 5. Capabilities: Check **Sign In with Apple**
 6. Register
 
@@ -134,23 +134,23 @@ Go to "Credentials" and you should see **3 OAuth clients**:
 
 1. Go to **Identifiers** → Click **+**
 2. Select **Services IDs** → Continue
-3. Description: **Kazka+ Backend**
-4. Identifier: `com.kazkaplus.service`
+3. Description: **WonderTales Backend**
+4. Identifier: `com.wondertales.service`
 5. Check **Sign In with Apple**
 6. Click **Configure**:
-   - Primary App ID: Select `com.kazkaplus`
-   - Domains: `kazkaplus.com`, `localhost` (for testing)
+   - Primary App ID: Select `com.wondertales`
+   - Domains: `wondertales.com`, `localhost` (for testing)
    - Return URLs: 
      ```
      http://localhost:3000/auth/apple/callback
-     https://api.kazkaplus.com/auth/apple/callback
+     https://api.wondertales.com/auth/apple/callback
      ```
 7. Save and Register
 
 ### Step 4: Create Key (.p8)
 
 1. Go to **Keys** → Click **+**
-2. Key Name: **Kazka+ Sign In Key**
+2. Key Name: **WonderTales Sign In Key**
 3. Check **Sign In with Apple**
 4. Click **Configure** → Select primary App ID
 5. Register
@@ -165,7 +165,7 @@ Go to "Credentials" and you should see **3 OAuth clients**:
 ### Step 6: Add to Backend `.env`
 
 ```bash
-APPLE_CLIENT_ID=com.kazkaplus.service
+APPLE_CLIENT_ID=com.wondertales.service
 APPLE_TEAM_ID=XYZ987TEAM
 APPLE_KEY_ID=ABC123DEFG
 APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
@@ -201,7 +201,7 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxx
 GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
 
 # Apple OAuth
-APPLE_CLIENT_ID=com.kazkaplus.service
+APPLE_CLIENT_ID=com.wondertales.service
 APPLE_TEAM_ID=XYZ987TEAM
 APPLE_KEY_ID=ABC123DEFG
 APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
@@ -216,10 +216,10 @@ APPLE_CALLBACK_URL=http://localhost:3000/auth/apple/callback
   "expo": {
     "ios": {
       "googleServicesFile": "./GoogleService-Info.plist",
-      "bundleIdentifier": "com.kazkaplus"
+      "bundleIdentifier": "com.wondertales"
     },
     "android": {
-      "package": "com.kazkaplus",
+      "package": "com.wondertales",
       "googleServicesFile": "./google-services.json"
     }
   }

@@ -5,6 +5,7 @@
 import { getStoryRepository, getCharacterRepository } from '../../repositories';
 import { logger } from '../../utils/logger';
 import { normalizeCharacterName, toPhoneticKey } from '../../utils/characterNormalization';
+import { stripCharacterIds } from '../../utils/audioTags';
 import { generateEmbedding, cosineSimilarity } from '../embeddingService';
 import { createSceneRecords } from './utilities';
 import type { CreateStoryParams } from './types';
@@ -27,14 +28,14 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
         userId: params.userId,
         childProfileId: params.childProfileId,
         storyRequestId: params.storyRequestId,
-        title: params.text.title,
+        title: stripCharacterIds(params.text.title),
         language: params.text.language,
         ageGroup: params.spec.ageGroup,
         moralTheme: params.goal,
         tone: params.tone,
         outline: params.outline,
         scenes: params.text.scenes,
-        fullText: params.text.fullText,
+        fullText: stripCharacterIds(params.text.fullText),
         wordCount: params.text.wordCount,
         estimatedReadMinutes,
         modelVersion: 'gemini-2.5-flash',
@@ -169,25 +170,82 @@ export function mergeCharacters(
       continue;
     }
     
-    const existingChar = merged.find(
-      c => c.name && typeof c.name === 'string' && c.name.toLowerCase() === llmChar.name.toLowerCase()
+    let existingChar: CharacterData | undefined;
+    
+    // Tier 1: ID match (100% accuracy, language-independent)
+    if (llmChar.originalCharacterId) {
+      existingChar = merged.find(c => c.id === llmChar.originalCharacterId);
+      if (existingChar) {
+        logger.debug({ 
+          llmName: llmChar.name, 
+          userName: existingChar.name, 
+          id: llmChar.originalCharacterId 
+        }, 'Character matched by ID (tier 1)');
+        
+        // Store LLM's translated name for reference
+        (existingChar as any).nameInStory = llmChar.name;
+        
+        // Enrich if no photos
+        if (!existingChar.referencePhotos || existingChar.referencePhotos.length === 0) {
+          existingChar.appearance = llmChar.appearance;
+          existingChar.source = 'user_enriched_by_llm';
+        }
+        continue;
+      }
+    }
+    
+    // Tier 2: Phonetic match (handles transliteration across scripts)
+    const phoneticKey = toPhoneticKey(llmChar.name);
+    existingChar = merged.find(c => 
+      c.name && typeof c.name === 'string' && toPhoneticKey(c.name) === phoneticKey
     );
     
-    if (!existingChar) {
-      // LLM added a new character
-      merged.push({
-        name: llmChar.name,
-        type: mapLlmTypeToCharacterType(llmChar.type || 'unknown'),
-        appearance: llmChar.appearance,
-        personality: llmChar.personality,
-        role: llmChar.role,
-        source: 'llm_generated',
-      } as CharacterData);
-    } else if (!existingChar.referencePhotos || existingChar.referencePhotos.length === 0) {
-      // User specified character but without photos - enrich with LLM description
-      existingChar.appearance = llmChar.appearance;
-      existingChar.source = 'user_enriched_by_llm';
+    if (existingChar) {
+      logger.debug({ 
+        llmName: llmChar.name, 
+        userName: existingChar.name, 
+        phoneticKey 
+      }, 'Character matched by phonetic key (tier 2)');
+      
+      (existingChar as any).nameInStory = llmChar.name;
+      
+      if (!existingChar.referencePhotos || existingChar.referencePhotos.length === 0) {
+        existingChar.appearance = llmChar.appearance;
+        existingChar.source = 'user_enriched_by_llm';
+      }
+      continue;
     }
+    
+    // Tier 3: Normalized match (same language, case-insensitive)
+    const normalizedName = normalizeCharacterName(llmChar.name);
+    existingChar = merged.find(c =>
+      c.name && typeof c.name === 'string' && normalizeCharacterName(c.name) === normalizedName
+    );
+    
+    if (existingChar) {
+      logger.debug({ 
+        llmName: llmChar.name, 
+        userName: existingChar.name, 
+        normalizedName 
+      }, 'Character matched by normalized name (tier 3)');
+      
+      if (!existingChar.referencePhotos || existingChar.referencePhotos.length === 0) {
+        existingChar.appearance = llmChar.appearance;
+        existingChar.source = 'user_enriched_by_llm';
+      }
+      continue;
+    }
+    
+    // No match found - add as new LLM-generated character
+    logger.debug({ llmName: llmChar.name }, 'No match found, adding as new LLM character');
+    merged.push({
+      name: llmChar.name,
+      type: mapLlmTypeToCharacterType(llmChar.type || 'unknown'),
+      appearance: llmChar.appearance,
+      personality: llmChar.personality,
+      role: llmChar.role,
+      source: 'llm_generated',
+    } as CharacterData);
   }
   
   return merged;

@@ -3,10 +3,10 @@
 ## The Error
 
 ```
-❌ Cannot create a iOS App Development provisioning profile for "com.kazkaplus.app".
+❌ Cannot create a iOS App Development provisioning profile for "com.wondertales.app".
 ❌ Personal development teams, including "Ivan Ryzhenko", do not support the Push Notifications capability.
-❌ Provisioning profile "iOS Team Provisioning Profile: com.kazkaplus.app" doesn't include the Push Notifications capability.
-❌ Provisioning profile "iOS Team Provisioning Profile: com.kazkaplus.app" doesn't include the aps-environment entitlement.
+❌ Provisioning profile "iOS Team Provisioning Profile: com.wondertales.app" doesn't include the Push Notifications capability.
+❌ Provisioning profile "iOS Team Provisioning Profile: com.wondertales.app" doesn't include the aps-environment entitlement.
 ```
 
 ## Why This Happens
@@ -31,13 +31,13 @@
 
 ```bash
 cd apps/universal-app
-open ios/Kazka.xcworkspace
+open ios/WonderTales.xcworkspace
 ```
 
 ### Step 2: Remove the Capability
 
-1. In Xcode's left sidebar, click on **Kazka** (blue project icon at top)
-2. Under **TARGETS**, select **Kazka**
+1. In Xcode's left sidebar, click on **WonderTales** (blue project icon at top)
+2. Under **TARGETS**, select **WonderTales**
 3. Click the **Signing & Capabilities** tab
 4. Look for **Push Notifications** section
 5. Click the **🗑️ trash icon** in the top-right corner of the Push Notifications section
@@ -70,13 +70,13 @@ pod install
 cd ..
 
 # 4. Open in Xcode
-open ios/Kazka.xcworkspace
+open ios/WonderTales.xcworkspace
 
 # 5. Configure signing:
-#    - Select Kazka target
+#    - Select WonderTales target
 #    - Go to Signing & Capabilities
 #    - Select your Apple ID in Team dropdown
-#    - Change Bundle Identifier if needed (e.g., com.yourname.kazkaplus)
+#    - Change Bundle Identifier if needed (e.g., com.yourname.wondertales)
 
 # 6. Build and run
 # Press ▶️ or Cmd + R
@@ -115,7 +115,7 @@ After fixing, verify no Push Notifications references exist:
 ### Check Entitlements File
 
 ```bash
-cat ios/Kazka/Kazka.entitlements
+cat ios/WonderTales/WonderTales.entitlements
 ```
 
 Should show:
@@ -157,7 +157,7 @@ When you upgrade to a paid Apple Developer account:
 
 1. **Change Bundle Identifier:**
    ```
-   com.kazkaplus.app → com.yourname.kazkaplus
+   com.wondertales.app → com.yourname.wondertales
    ```
 
 2. **Clean Derived Data:**

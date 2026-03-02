@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/authMiddleware';
-import { CreateStoryRequestSchema } from '@kazka/shared';
+import { CreateStoryRequestSchema } from '@wondertales/shared';
 import { 
   createStoryRequest, 
   getStoryRequestStatus,
@@ -16,7 +16,7 @@ import {
 } from '../services/storyOrchestrationService';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
 import { logger } from '../utils/logger';
-import { stripAudioTags } from '../utils/audioTags';
+import { stripAudioTags, stripCharacterIds } from '../utils/audioTags';
 import { getFaceDeduplicationService } from '../services/faceDeduplicationService';
 import { createCharacter } from '../services/characterService';
 import { config } from '../config';
@@ -391,15 +391,15 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
       });
     }
     
-    // Strip audio tags from text and parse sceneVisual for UI display
+    // Strip audio tags and character IDs from text for UI display
     const storyForClient = {
       ...story,
       scenes: Array.isArray(story.scenes) ? story.scenes.map((scene: any) => ({
         ...scene,
-        text: stripAudioTags(scene.text || ''),
+        text: stripCharacterIds(stripAudioTags(scene.text || '')),
         ...parseSceneVisual(scene),
       })) : story.scenes,
-      fullText: stripAudioTags(story.fullText || ''),
+      fullText: stripCharacterIds(stripAudioTags(story.fullText || '')),
     };
     
     res.json({
@@ -471,15 +471,15 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       hasAudio,
     });
     
-    // Strip audio tags and parse sceneVisual from all stories for UI display
+    // Strip audio tags and character IDs from all stories for UI display
     const storiesForClient = stories.map(story => ({
       ...story,
       scenes: Array.isArray(story.scenes) ? story.scenes.map((scene: any) => ({
         ...scene,
-        text: stripAudioTags(scene.text || ''),
+        text: stripCharacterIds(stripAudioTags(scene.text || '')),
         ...parseSceneVisual(scene),
       })) : story.scenes,
-      fullText: stripAudioTags(story.fullText || ''),
+      fullText: stripCharacterIds(stripAudioTags(story.fullText || '')),
     }));
     
     res.json({

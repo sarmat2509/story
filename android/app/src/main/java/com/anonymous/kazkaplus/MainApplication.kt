@@ -1,4 +1,4 @@
-package com.anonymous.kazkaplus
+package com.anonymous.wondertalesplus
 
 import android.app.Application
 import android.content.res.Configuration

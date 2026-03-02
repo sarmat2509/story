@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
-import { IMAGE_STYLES, IMAGE_STYLE_METADATA } from '@kazka/shared';
+import { IMAGE_STYLES, IMAGE_STYLE_METADATA } from '@wondertales/shared';
 
 interface Goal {
   slug: string;

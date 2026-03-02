@@ -180,10 +180,10 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ```bash
 # Push schema + apply triggers
-pnpm --filter @kazka-plus/api db:migrate
+pnpm --filter @wondertales/api db:migrate
 
 # Or manually:
-pnpm --filter @kazka-plus/api db:push
+pnpm --filter @wondertales/api db:push
 psql $DATABASE_URL -f services/api/drizzle/add_updated_at_triggers.sql
 ```
 
@@ -251,7 +251,7 @@ psql $DATABASE_URL -f services/api/drizzle/add_updated_at_triggers.sql
 
 2. **Run Migrations**:
    ```bash
-   pnpm --filter @kazka-plus/api db:migrate
+   pnpm --filter @wondertales/api db:migrate
    ```
 
 3. **Update Environment**:

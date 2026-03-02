@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Kazka+",
-    "slug": "kazka-plus",
+    "name": "WonderTales",
+    "slug": "wondertales",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "kazka",
+    "scheme": "wondertales",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/images/icon.png",
     "splash": {
@@ -18,14 +18,14 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.kazkaplus.app",
+      "bundleIdentifier": "com.wondertales.app",
       "icon": "./assets/images/icon.png",
       "infoPlist": {
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
-              "kazka",
-              "com.kazkaplus.app",
+              "wondertales",
+              "com.wondertales.app",
               "com.googleusercontent.apps.151914486575-4ekba7gcqcbc6joqahhaigs7v97qjdoo"
             ]
           }
@@ -33,7 +33,7 @@
       }
     },
     "android": {
-      "package": "com.kazkaplus.app",
+      "package": "com.wondertales.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0ea5e9"

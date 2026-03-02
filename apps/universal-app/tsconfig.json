@@ -4,7 +4,7 @@
     "strict": true,
     "paths": {
       "@/*": ["./src/*"],
-      "@kazka/shared": ["../../packages/shared/src"]
+      "@wondertales/shared": ["../../packages/shared/src"]
     },
     "jsx": "react-native"
   },

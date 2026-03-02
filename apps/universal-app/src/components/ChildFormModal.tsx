@@ -5,8 +5,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 import { useCreateChild, useUpdateChild, useAnalyzeChild, useGenerateChildTurnaround } from '@/api/children';
-import { CreateChildProfileSchema, LOCALE_IDS, ReferencePhoto } from '@kazka/shared';
+import { CreateChildProfileSchema, LOCALE_IDS, ReferencePhoto } from '@wondertales/shared';
 import { UploadPhotoResult } from '@/utils/uploadPhoto';
+import { formatAssetUrl } from '@/utils/assetUrl';
 import { storage } from '@/utils/storage';
 import { 
   HAIR_COLORS,
@@ -31,7 +32,7 @@ import {
   Interest,
   CommonFear,
   AvoidTopic
-} from '@kazka/shared';
+} from '@wondertales/shared';
 import { ChipSelector } from './form/ChipSelector';
 import { PhotoUploadGrid } from './form/PhotoUploadGrid';
 import { ExpandableCard } from './ExpandableCard';
@@ -592,6 +593,7 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
                 onPhotosChange={setPhotos}
                 maxPhotos={5}
                 photoType="child"
+                formatUrl={formatAssetUrl}
               />
             </View>
           </>
@@ -667,7 +669,7 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
               {turnaroundSheetUrl && (
                 <View style={styles.turnaroundContainer}>
                   <Image
-                    source={{ uri: turnaroundSheetUrl }}
+                    source={{ uri: formatAssetUrl(turnaroundSheetUrl) || turnaroundSheetUrl }}
                     style={styles.turnaroundImage}
                     resizeMode="contain"
                   />

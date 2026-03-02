@@ -12,7 +12,7 @@
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { logger } from '../utils/logger';
 import { config } from '../config';
-import type { CharacterType } from '@kazka/shared';
+import type { CharacterType } from '@wondertales/shared';
 import { 
   FUR_COLORS, 
   FUR_PATTERNS, 
@@ -35,7 +35,7 @@ import {
   AGE_RANGES,
   HUMAN_DISTINCTIVE_FEATURES,
   DISTINCTIVE_FEATURES as CHILD_DISTINCTIVE_FEATURES // ✅ Добавлен импорт для детей
-} from '@kazka/shared';
+} from '@wondertales/shared';
 
 /**
  * Helper to convert readonly array to enum with null

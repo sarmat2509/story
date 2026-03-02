@@ -125,14 +125,14 @@ January 27, 2026
 ### Google Cloud Console
 1. Create OAuth 2.0 Client IDs for:
    - Web Application
-   - iOS Application (Bundle ID: `com.kazkaplus.app`)
-   - Android Application (Package: `com.kazkaplus.app`, SHA-1 certificate)
+   - iOS Application (Bundle ID: `com.wondertales.app`)
+   - Android Application (Package: `com.wondertales.app`, SHA-1 certificate)
 2. Configure OAuth Consent Screen
 3. Add client IDs to `.env` files
 
 ### Apple Developer Console
 1. Create App ID with "Sign in with Apple" capability
-2. Create Service ID for web (Identifier: `com.kazkaplus.app.service`)
+2. Create Service ID for web (Identifier: `com.wondertales.app.service`)
 3. Create Private Key (.p8 file)
 4. Add configuration to `.env`:
    - `APPLE_CLIENT_ID`

@@ -228,7 +228,7 @@ pnpm start
 1. **Backend Required:** API server must be running at `http://localhost:3000`
 2. **OAuth:** Fully functional on Web. Native requires EAS Build (Phase 2)
 3. **Expo Go:** Works for development but has limitations (no native OAuth)
-4. **pnpm Workspaces:** Automatically resolves `@kazka/shared` package
+4. **pnpm Workspaces:** Automatically resolves `@wondertales/shared` package
 
 ## Testing
 

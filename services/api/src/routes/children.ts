@@ -2,14 +2,13 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/authMiddleware';
 import * as childProfileService from '../services/childProfileService';
 import * as planService from '../services/planService';
-import { CreateChildProfileSchema, UpdateChildProfileSchema } from '@kazka/shared';
+import { CreateChildProfileSchema, UpdateChildProfileSchema } from '@wondertales/shared';
 import { logger } from '../utils/logger';
-import { signReferencePhotoUrls, signReferencePhotoUrlsBatch } from '../utils/signPhotoUrls';
+
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
 import { generateChildTurnaroundSheet, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
-import { getAssetStorageService } from '../services/assetStorageService';
 
 const router = Router();
 
@@ -90,11 +89,7 @@ router.get('/', requireAuth, async (req, res) => {
     const limit = await planService.getFeatureLimit(userId, 'child_profiles_limit');
     const canCreateMore = limit === null || profiles.length < limit;
     
-    // Sign photo URLs so <Image> can load them without auth headers
-    const signedProfiles = await signReferencePhotoUrlsBatch(profiles);
-    
-    // Add computed age data to each profile
-    const profilesWithAge = signedProfiles.map(profile => {
+    const profilesWithAge = profiles.map(profile => {
       const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
       return {
         ...profile,
@@ -144,13 +139,9 @@ router.post('/', requireAuth, async (req, res) => {
     // Create profile (feature check happens in service)
     const profile = await childProfileService.createChildProfile(userId, data);
     
-    // Sign photo URLs in the response
-    const signedProfile = await signReferencePhotoUrls(profile);
-    
-    // Add computed age data
-    const ageData = childProfileService.getAgeData(new Date(signedProfile.birthDate));
+    const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
     const profileWithAge = {
-      ...signedProfile,
+      ...profile,
       age: {
         years: ageData.ageYears,
         months: ageData.remainingMonths,
@@ -203,13 +194,9 @@ router.patch('/:id', requireAuth, async (req, res) => {
     // Update profile (ownership check happens in service)
     const profile = await childProfileService.updateChildProfile(id, userId, data);
     
-    // Sign photo URLs in the response
-    const signedProfile = await signReferencePhotoUrls(profile);
-    
-    // Add computed age data
-    const ageData = childProfileService.getAgeData(new Date(signedProfile.birthDate));
+    const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
     const profileWithAge = {
-      ...signedProfile,
+      ...profile,
       age: {
         years: ageData.ageYears,
         months: ageData.remainingMonths,
@@ -302,14 +289,10 @@ router.post('/:id/turnaround', requireAuth, async (req, res) => {
       aiDescription,
     });
 
-    // Sign the turnaround URL so the frontend can load it
-    const storageService = getAssetStorageService();
-    const { signedUrl } = await storageService.generateSignedUrl(result.url, 24);
-
     res.json({
       status: 'success',
       turnaroundSheet: {
-        url: signedUrl,
+        url: `/api/v1/assets/${result.url}`,
         generatedAt: result.generatedAt,
       },
     });

@@ -13,7 +13,7 @@
 import type { IAudioProvider, Voice, SynthesizeRequest } from '../../providers/base/IAudioProvider';
 import type { IAlignmentProvider, AlignmentResult } from '../../providers/base/IAlignmentProvider';
 import type { Story } from '../../db/schema';
-import type { AudioMetadata } from '@kazka/shared';
+import type { AudioMetadata } from '@wondertales/shared';
 import { getAssetRepository, getVoiceRepository, getStoryRepository } from '../../repositories';
 import { logger } from '../../utils/logger';
 import { getTTSCacheService } from '../../services/ttsCacheService';

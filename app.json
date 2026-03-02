@@ -1,9 +1,9 @@
 {
   "android": {
-    "package": "com.anonymous.kazkaplus"
+    "package": "com.wondertales.app"
   },
   "ios": {
-    "bundleIdentifier": "com.anonymous.kazkaplus",
+    "bundleIdentifier": "com.wondertales.app",
     "infoPlist": {
       "ITSAppUsesNonExemptEncryption": false
     }

@@ -1,13 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEYS = {
-  AUTH_TOKEN: '@kazka/auth_token',
-  USER: '@kazka/user',
-  LANGUAGE: '@kazka/language',
-  WIZARD_STATE: '@kazka/wizard_state',
-  AUDIO_NOTIFICATIONS: '@kazka/audio_notifications_shown',
-  LIBRARY_VIEW_MODE: '@kazka/library_view_mode',
-  AUDIO_FILTER: '@kazka/audio_filter',
+  AUTH_TOKEN: '@wondertales/auth_token',
+  USER: '@wondertales/user',
+  LANGUAGE: '@wondertales/language',
+  WIZARD_STATE: '@wondertales/wizard_state',
+  AUDIO_NOTIFICATIONS: '@wondertales/audio_notifications_shown',
+  LIBRARY_VIEW_MODE: '@wondertales/library_view_mode',
+  AUDIO_FILTER: '@wondertales/audio_filter',
 } as const;
 
 export const storage = {

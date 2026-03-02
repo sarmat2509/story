@@ -3,7 +3,7 @@ import {
   StoryGoalApi, 
   StoryToneApi, 
   ScenarioCardApi 
-} from '@kazka/shared';
+} from '@wondertales/shared';
 import apiClient from './client';
 import i18n from '@/config/i18n';
 

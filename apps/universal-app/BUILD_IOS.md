@@ -1,6 +1,6 @@
 # Building iOS App for iPad Device Using Xcode
 
-This guide will walk you through the process of building and deploying the Kazka+ iOS app to your iPad device using Xcode.
+This guide will walk you through the process of building and deploying the WonderTales iOS app to your iPad device using Xcode.
 
 > **📚 Quick Access:**
 > - 🏃 **[Commands Cheat Sheet](./IOS_BUILD_CHEATSHEET.md)** - Copy-paste commands
@@ -132,7 +132,7 @@ EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB=151914486575-1kpc8ot6kdhjho9hbm7tbqmtgqv7tk60.a
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID=151914486575-9tqc0a0ksjl6hhokoevcek809bkgve9r.apps.googleusercontent.com
 
 # Apple OAuth
-APPLE_CLIENT_ID=com.anonymous.kazkaplus
+APPLE_CLIENT_ID=com.anonymous.wondertales
 EOF
 ```
 
@@ -158,7 +158,7 @@ EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB=151914486575-1kpc8ot6kdhjho9hbm7tbqmtgqv7tk60.a
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID=151914486575-9tqc0a0ksjl6hhokoevcek809bkgve9r.apps.googleusercontent.com
 
 # Apple OAuth
-APPLE_CLIENT_ID=com.anonymous.kazkaplus
+APPLE_CLIENT_ID=com.anonymous.wondertales
 EOF
 ```
 
@@ -217,22 +217,22 @@ Developer Mode is automatically enabled when you build to the device.
 
 ```bash
 # From apps/universal-app directory
-open ios/Kazka.xcworkspace
+open ios/WonderTales.xcworkspace
 ```
 
 **Important**: Always open `.xcworkspace`, NOT `.xcodeproj` (required for CocoaPods).
 
 ### 4.2 Configure Signing & Capabilities
 
-1. In Xcode, select the **Kazka** project in the navigator (left sidebar)
-2. Select the **Kazka** target
+1. In Xcode, select the **WonderTales** project in the navigator (left sidebar)
+2. Select the **WonderTales** target
 3. Go to **Signing & Capabilities** tab
 
 #### Set Team & Bundle Identifier
 
 - **Team**: Select your Apple Developer account from dropdown
   - If not listed, click "Add Account" and sign in with your Apple ID
-- **Bundle Identifier**: Keep `com.anonymous.kazkaplus` or change to your own (e.g., `com.yourcompany.kazkaplus`)
+- **Bundle Identifier**: Keep `com.anonymous.wondertales` or change to your own (e.g., `com.yourcompany.wondertales`)
   - Must be unique if publishing to App Store
   - Free accounts: Change it to something unique to avoid conflicts
 
@@ -263,7 +263,7 @@ open ios/Kazka.xcworkspace
 
 ### 5.2 Verify Connection in Xcode
 
-1. In Xcode, check the device dropdown (top toolbar, next to "Kazka")
+1. In Xcode, check the device dropdown (top toolbar, next to "WonderTales")
 2. Your iPad should appear in the list (e.g., "Ivan's iPad")
 3. Select your iPad as the build destination
 
@@ -333,7 +333,7 @@ If this is your first time installing an app from your Apple ID:
 ### 6.4 Launch the App
 
 - The app should launch automatically after installation
-- If not, find "Kazka+" icon on your iPad home screen and tap it
+- If not, find "WonderTales" icon on your iPad home screen and tap it
 
 ---
 
@@ -424,7 +424,7 @@ In Xcode:
 
 **Error Message:**
 ```
-Cannot create a iOS App Development provisioning profile for "com.kazkaplus.app".
+Cannot create a iOS App Development provisioning profile for "com.wondertales.app".
 Personal development teams, including "Your Name", do not support the Push Notifications capability.
 ```
 
@@ -432,8 +432,8 @@ Personal development teams, including "Your Name", do not support the Push Notif
 
 **Solution:**
 
-1. In Xcode, select the **Kazka** project in the left sidebar
-2. Select the **Kazka** target
+1. In Xcode, select the **WonderTales** project in the left sidebar
+2. Select the **WonderTales** target
 3. Go to **Signing & Capabilities** tab
 4. Find **Push Notifications** capability
 5. Click the **trash icon (🗑️)** next to "Push Notifications" to remove it
@@ -454,7 +454,7 @@ npx expo prebuild --platform ios --clean
 cd ios && pod install && cd ..
 
 # 4. Open in Xcode
-open ios/Kazka.xcworkspace
+open ios/WonderTales.xcworkspace
 
 # 5. Configure signing and build
 ```
@@ -468,17 +468,17 @@ open ios/Kazka.xcworkspace
 2. Delete `ios/build` folder manually
 3. Rebuild
 
-### Issue: "No profiles for 'com.anonymous.kazkaplus' were found"
+### Issue: "No profiles for 'com.anonymous.wondertales' were found"
 
 **Solution**:
 1. Go to **Signing & Capabilities**
-2. Change Bundle Identifier to something unique (e.g., `com.yourname.kazkaplus`)
+2. Change Bundle Identifier to something unique (e.g., `com.yourname.wondertales`)
 3. Ensure "Automatically manage signing" is checked
 
 ### Issue: "Unable to install app"
 
 **Solution**:
-1. On iPad: Delete existing Kazka+ app if present
+1. On iPad: Delete existing WonderTales app if present
 2. Go to **Settings → General → VPN & Device Management**
 3. Remove old certificates
 4. Rebuild and reinstall
@@ -602,7 +602,7 @@ npx expo run:ios --device
 
 ```bash
 # From apps/universal-app/ios directory
-grep -A1 "PRODUCT_BUNDLE_IDENTIFIER" Kazka.xcodeproj/project.pbxproj
+grep -A1 "PRODUCT_BUNDLE_IDENTIFIER" WonderTales.xcodeproj/project.pbxproj
 ```
 
 ### View Device Logs
@@ -631,7 +631,7 @@ idevicesyslog
 ### Production Environment
 
 - **API URL**: `https://magic-sleep-time.duckdns.org`
-- **Bundle Identifier**: `com.anonymous.kazkaplus`
+- **Bundle Identifier**: `com.anonymous.wondertales`
 - **EAS Project ID**: `f96175da-3327-4a98-ba09-90ed92e7e668`
 - **Minimum iOS Version**: iOS 13.4+
 - **Supported Devices**: iPhone, iPad
@@ -645,7 +645,7 @@ idevicesyslog
 - Android Client ID: `151914486575-9tqc0a0ksjl6hhokoevcek809bkgve9r.apps.googleusercontent.com`
 
 **Apple OAuth:**
-- Client ID: `com.anonymous.kazkaplus`
+- Client ID: `com.anonymous.wondertales`
 
 ---
 
@@ -702,14 +702,14 @@ EXPO_PUBLIC_API_BASE_URL=https://magic-sleep-time.duckdns.org
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS=151914486575-4ekba7gcqcbc6joqahhaigs7v97qjdoo.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB=151914486575-1kpc8ot6kdhjho9hbm7tbqmtgqv7tk60.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID=151914486575-9tqc0a0ksjl6hhokoevcek809bkgve9r.apps.googleusercontent.com
-APPLE_CLIENT_ID=com.anonymous.kazkaplus
+APPLE_CLIENT_ID=com.anonymous.wondertales
 EOF
 
 # 3. Enable Developer Mode on iPad
 # Settings → Privacy & Security → Developer Mode → ON
 
 # 4. Open Xcode and configure signing
-open ios/Kazka.xcworkspace
+open ios/WonderTales.xcworkspace
 # Select your Apple ID in Signing & Capabilities
 
 # ⚠️ IMPORTANT: If using FREE Apple account:
@@ -741,11 +741,11 @@ EXPO_PUBLIC_API_BASE_URL=http://192.168.1.100:3000
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS=151914486575-4ekba7gcqcbc6joqahhaigs7v97qjdoo.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB=151914486575-1kpc8ot6kdhjho9hbm7tbqmtgqv7tk60.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID=151914486575-9tqc0a0ksjl6hhokoevcek809bkgve9r.apps.googleusercontent.com
-APPLE_CLIENT_ID=com.anonymous.kazkaplus
+APPLE_CLIENT_ID=com.anonymous.wondertales
 EOF
 
 # Start local API
 pnpm dev:api  # From project root in separate terminal
 ```
 
-That's it! Your Kazka+ app should now be running on your iPad. Happy coding! 🚀
+That's it! Your WonderTales app should now be running on your iPad. Happy coding! 🚀

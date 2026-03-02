@@ -3,7 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: kazka-postgres
+    container_name: wondertales-postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -21,7 +21,7 @@ services:
 
   adminer:
     image: adminer:latest
-    container_name: kazka-adminer
+    container_name: wondertales-adminer
     restart: unless-stopped
     ports:
       - "8080:8080"

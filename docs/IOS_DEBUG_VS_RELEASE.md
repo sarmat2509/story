@@ -39,12 +39,12 @@
 1. **Открой Xcode:**
    ```bash
    cd apps/universal-app
-   open ios/Kazka.xcworkspace
+   open ios/WonderTales.xcworkspace
    ```
 
 2. **Выбери Debug схему:**
-   - В Xcode сверху слева: **Kazka > [Your iPad]**
-   - Нажми на "Kazka" (рядом с кнопкой Play)
+   - В Xcode сверху слева: **WonderTales > [Your iPad]**
+   - Нажми на "WonderTales" (рядом с кнопкой Play)
    - Выбери **Edit Scheme...**
    - Слева: **Run**
    - **Build Configuration:** выбери **Debug** (не Release!)
@@ -200,9 +200,9 @@ npx expo run:ios --device --configuration Debug
 
 ## Проверь Build Configuration в Xcode
 
-1. Открой **Kazka.xcworkspace** в Xcode
-2. Нажми на **Kazka** (слева, синяя иконка проекта)
-3. Выбери target **Kazka**
+1. Открой **WonderTales.xcworkspace** в Xcode
+2. Нажми на **WonderTales** (слева, синяя иконка проекта)
+3. Выбери target **WonderTales**
 4. Вкладка **Build Settings**
 5. Поиск: "Configuration"
 6. Проверь что **Debug** выбран для "Run"

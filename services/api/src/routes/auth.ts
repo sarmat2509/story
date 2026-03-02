@@ -7,6 +7,7 @@ import { createSession, deleteSession, deleteAllUserSessions } from '../services
 import { generateToken } from '../services/jwtService';
 import { requireAuth } from '../middleware/authMiddleware';
 import { logger } from '../utils/logger';
+import { setSessionCookie, clearSessionCookie } from '../utils/sessionCookie';
 
 const router = Router();
 
@@ -70,13 +71,9 @@ function extractDeviceInfo(req: Request) {
 
 // Google OAuth - Start
 router.get('/google/start', (req: Request, res: Response, next) => {
-  // Preserve redirect_uri in state for callback
-  const redirectUri = req.query.redirect_uri as string;
-  
   passport.authenticate('google', {
     scope: ['profile', 'email'],
     session: false,
-    state: redirectUri ? JSON.stringify({ redirect_uri: redirectUri }) : undefined,
   })(req, res, next);
 });
 
@@ -106,20 +103,21 @@ router.get(
         sessionId: session.id, // Use session.id (UUID), not session.token
       });
       
-      // Parse state for redirect_uri
-      const state = req.query.state ? JSON.parse(req.query.state as string) : {};
-      const redirectUri = state.redirect_uri || 'kazka://auth/google/callback';
+      // Derive web origin from the configured callback URL
+      const cbUrl = new URL(config.oauth.google.callbackUrl);
+      const origin = cbUrl.origin;
       
-      // For web flow: redirect with token in URL
-      const callbackUrl = new URL(redirectUri);
+      const callbackUrl = new URL(`${origin}/auth/google/callback`);
       callbackUrl.searchParams.set('token', token);
       callbackUrl.searchParams.set('isNewUser', result.isNewUser.toString());
       
-      logger.info({ userId: result.user.id, redirectUri }, 'OAuth callback - redirecting with token');
+      logger.info({ userId: result.user.id, redirectTo: callbackUrl.toString() }, 'OAuth callback - redirecting with token');
+      setSessionCookie(res, token);
       res.redirect(callbackUrl.toString());
     } catch (error) {
       logger.error({ err: error }, 'Google OAuth callback failed');
-      const errorUrl = new URL('kazka://auth/error');
+      const cbUrl = new URL(config.oauth.google.callbackUrl);
+      const errorUrl = new URL(`${cbUrl.origin}/auth/error`);
       errorUrl.searchParams.set('message', 'Authentication failed');
       res.redirect(errorUrl.toString());
     }
@@ -203,6 +201,7 @@ router.post('/google/token', async (req: Request, res: Response) => {
     }, 'Mobile Google OAuth successful');
     
     // Return token and user info (JSON response for mobile)
+    setSessionCookie(res, token);
     res.json({
       token,
       user: result.user,
@@ -300,17 +299,18 @@ router.post('/apple/callback', async (req: Request, res: Response) => {
     
     // Parse state for redirect_uri
     const stateObj = state ? JSON.parse(state) : {};
-    const redirectUri = stateObj.redirect_uri || 'kazka://auth/apple/callback';
+    const redirectUri = stateObj.redirect_uri || 'wondertales://auth/apple/callback';
     
     // Redirect with token
     const callbackUrl = new URL(redirectUri);
     callbackUrl.searchParams.set('token', token);
     callbackUrl.searchParams.set('isNewUser', result.isNewUser.toString());
     
+    setSessionCookie(res, token);
     res.redirect(callbackUrl.toString());
   } catch (error) {
     logger.error({ err: error }, 'Apple OAuth callback failed');
-    const errorUrl = new URL('kazka://auth/error');
+    const errorUrl = new URL('wondertales://auth/error');
     errorUrl.searchParams.set('message', 'Apple authentication failed');
     res.redirect(errorUrl.toString());
   }
@@ -398,6 +398,7 @@ router.post('/apple/token', async (req: Request, res: Response) => {
     }, 'Mobile Apple OAuth successful');
     
     // Return token and user info
+    setSessionCookie(res, token);
     res.json({
       token,
       user: result.user,
@@ -429,6 +430,7 @@ router.delete('/sessions', requireAuth, async (req: Request, res: Response) => {
     
     logger.info({ userId: req.user.id, deletedCount }, 'User logged out from all devices');
     
+    clearSessionCookie(res);
     res.json({
       status: 'success',
       message: `Logged out from ${deletedCount} device(s)`,
@@ -458,6 +460,7 @@ router.delete('/sessions/current', requireAuth, async (req: Request, res: Respon
     
     logger.info({ userId: req.user?.id, sessionId: req.sessionId }, 'User logged out from current device');
     
+    clearSessionCookie(res);
     res.json({
       status: 'success',
       message: 'Logged out successfully',
@@ -486,6 +489,7 @@ router.post('/logout', requireAuth, async (req: Request, res: Response) => {
     
     logger.warn({ userId: req.user?.id }, 'Used deprecated POST /logout endpoint');
     
+    clearSessionCookie(res);
     res.json({
       status: 'success',
       message: 'Logged out successfully',
@@ -519,6 +523,7 @@ router.put('/sessions/current', requireAuth, async (req: Request, res: Response)
     
     logger.info({ userId: req.user.id, sessionId: req.sessionId }, 'Session token refreshed');
     
+    setSessionCookie(res, token);
     res.json({
       token,
       expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
@@ -550,6 +555,7 @@ router.post('/refresh', requireAuth, async (req: Request, res: Response) => {
     
     logger.warn({ userId: req.user.id }, 'Used deprecated POST /refresh endpoint');
     
+    setSessionCookie(res, token);
     res.json({
       token,
       expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,

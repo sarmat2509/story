@@ -8,7 +8,7 @@ import {
   AGE_RANGES, HUMAN_HAIR_COLORS, HUMAN_HAIR_STYLES, HEIGHTS, BUILDS,
   CLOTHING_STYLES, HUMAN_DISTINCTIVE_FEATURES,
   IMAGINARY_SPECIES_SUGGESTIONS, COLOR_SUGGESTIONS, SIZE_SUGGESTIONS, MAGICAL_FEATURES_SUGGESTIONS
-} from '@kazka/shared';
+} from '@wondertales/shared';
 import { getDictionaryRepository } from '../repositories';
 import { logger } from '../utils/logger';
 

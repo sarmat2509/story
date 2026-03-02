@@ -163,8 +163,22 @@ export default function VoiceSelector({
                 })}
               </Text>
             )}
+            
+            {/* Empty state */}
+            {voices.length === 0 && (
+              <View style={styles.emptyState}>
+                <Ionicons name="volume-mute-outline" size={48} color={theme.colors.text.tertiary} />
+                <Text style={styles.emptyStateText}>
+                  No voices available
+                </Text>
+                <Text style={styles.emptyStateHint}>
+                  Please check your internet connection and try again
+                </Text>
+              </View>
+            )}
 
             {/* Voice List */}
+            {voices.length > 0 && (
             <FlatList
               data={voices}
               keyExtractor={(item) => item.id}
@@ -265,6 +279,7 @@ export default function VoiceSelector({
                 );
               }}
             />
+            )}
 
             {/* Close Button */}
             <TouchableOpacity 
@@ -430,5 +445,26 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
+  },
+  
+  // Empty State
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing[8],
+  },
+  emptyStateText: {
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing[4],
+    textAlign: 'center',
+  },
+  emptyStateHint: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
+    marginTop: theme.spacing[2],
+    textAlign: 'center',
   },
 });

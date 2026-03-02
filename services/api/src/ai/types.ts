@@ -31,7 +31,7 @@ export interface ImageValidationResult {
     name: string;
     found: boolean;
     duplicated: boolean;
-    recognizable: boolean;     // Overall: is this recognizably the described character? (covers species, silhouette, proportions)
+    recognizableScore: number;  // 0-1. 1=fully recognizable, 0.9=1 feature wrong, 0=completely different. Penalty=(1-score)*20.
     matchesColors: boolean;    // Correct color palette (fur, eyes, skin)
     matchesOutfit: boolean;    // Correct clothing/accessories (true if none described)
     issue?: string;

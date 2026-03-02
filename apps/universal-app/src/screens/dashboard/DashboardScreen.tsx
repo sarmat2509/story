@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, FlatList, useWindowDimensions } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { useStories } from '@/api/stories';
 import { useChildren } from '@/api/children';
@@ -14,8 +15,16 @@ import { theme } from '@/theme';
 export default function DashboardScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const { data: storiesData, isLoading: storiesLoading, error: storiesError } = useStories();
+
+  // Invalidate stories cache when screen gains focus (e.g. after creating a story)
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+    }, [queryClient])
+  );
   const { data: childrenData, isLoading: childrenLoading, error: childrenError } = useChildren();
 
   const stories = storiesData?.stories || [];

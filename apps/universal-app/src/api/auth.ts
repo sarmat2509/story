@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { UserApi, AuthResponseApi } from '@kazka/shared';
+import { UserApi, AuthResponseApi } from '@wondertales/shared';
 import apiClient from './client';
 import { useAuthStore } from '@/store/authStore';
 import { storage } from '@/utils/storage';

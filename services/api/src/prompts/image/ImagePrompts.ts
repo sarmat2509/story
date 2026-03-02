@@ -3,7 +3,7 @@
  * Functions for building prompts for image generation with character consistency
  */
 
-import { stripAudioTags } from '../../utils/audioTags';
+import { stripAudioTags, stripCharacterIds } from '../../utils/audioTags';
 import { logger } from '../../utils/logger';
 import { flattenCameraComposition, type SceneVisual } from '../../services/types';
 import type { StoryEnvironment } from '../../ai/types';
@@ -67,7 +67,7 @@ export function buildSceneImagePrompt(params: {
   }
 
   // --- Legacy fallback (old stories with string visualPrompt) ---
-  const cleanVisualPrompt = stripAudioTags(params.visualPrompt || '');
+  const cleanVisualPrompt = stripCharacterIds(stripAudioTags(params.visualPrompt || ''));
 
   if (params.hasReferences) {
     const characterLines = buildCharacterSection(

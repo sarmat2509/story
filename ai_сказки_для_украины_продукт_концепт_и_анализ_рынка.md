@@ -62,7 +62,7 @@
 - Сильный генератор иллюстрированных «storybook» (для вдохновения по качеству и консистентности).
 
 ### 4.2 Украинские / локальные продукты (как минимум для сравнения)
-#### Kazka.fun
+#### WonderTales.fun
 - Плюсы: украинский язык, простой вход.
 - Минусы (ваши наблюдения):
   - нет персонализированных картинок,
@@ -505,7 +505,7 @@
 - Storytime AI pricing: https://storytimeaiapp.com/pricing/
 
 ### Украинские/локальные
-- Kazka.fun: https://kazka.fun/
+- WonderTales.fun: https://kazka.fun/
 
 ### Нормативные/стандартные документы (для возраста/безопасности)
 - Стандарт по детским изданиям (архив): https://archive.chytomo.com/standards/vydannya-dlya-ditey-polihrafichne-vykonannya-hstu29-62002

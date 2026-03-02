@@ -7,7 +7,7 @@ import { useCharacters, useDeleteCharacter } from '@/api/characters';
 import { CharacterCard } from './components/CharacterCard';
 import { CharacterFormModal } from '@/components/CharacterFormModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { ReferencePhoto } from '@kazka/shared';
+import { ReferencePhoto } from '@wondertales/shared';
 
 function useColumns(): number {
   const { width } = useWindowDimensions();

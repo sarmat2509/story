@@ -358,6 +358,7 @@
     "generating_turnaround": "Modellblatt wird generiert...",
     "turnaround_error": "Modellblatt konnte nicht generiert werden",
     "turnaround_save_first": "Speichern Sie den Charakter zuerst, um ein Modellblatt zu generieren",
+    "turnaround_add_photo_or_description": "Foto oder Zeichnung (für imaginär) oder Beschreibung hinzufügen",
     "generate_description": "Beschreibung generieren",
     "regenerate_description": "Beschreibung neu generieren",
     "description_upload_photos_first": "Laden Sie Fotos im vorherigen Schritt hoch, um eine Beschreibung zu generieren",

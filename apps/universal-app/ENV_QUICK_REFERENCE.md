@@ -9,7 +9,7 @@ EXPO_PUBLIC_API_BASE_URL=https://magic-sleep-time.duckdns.org
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS=151914486575-4ekba7gcqcbc6joqahhaigs7v97qjdoo.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB=151914486575-1kpc8ot6kdhjho9hbm7tbqmtgqv7tk60.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID=151914486575-9tqc0a0ksjl6hhokoevcek809bkgve9r.apps.googleusercontent.com
-APPLE_CLIENT_ID=com.anonymous.kazkaplus
+APPLE_CLIENT_ID=com.anonymous.wondertales
 EOF
 
 # Build for iPad
@@ -37,7 +37,7 @@ EXPO_PUBLIC_API_BASE_URL=http://192.168.1.100:3000
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS=151914486575-4ekba7gcqcbc6joqahhaigs7v97qjdoo.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB=151914486575-1kpc8ot6kdhjho9hbm7tbqmtgqv7tk60.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID=151914486575-9tqc0a0ksjl6hhokoevcek809bkgve9r.apps.googleusercontent.com
-APPLE_CLIENT_ID=com.anonymous.kazkaplus
+APPLE_CLIENT_ID=com.anonymous.wondertales
 EOF
 
 # 3. Start local API (in separate terminal from project root)

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Kazka+ implements a flexible, database-driven plans and features system that enables:
+WonderTales implements a flexible, database-driven plans and features system that enables:
 - Dynamic pricing tiers without code deployment
 - Granular feature control per plan
 - Usage tracking and limits

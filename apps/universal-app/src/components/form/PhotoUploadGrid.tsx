@@ -15,6 +15,7 @@ interface PhotoUploadGridProps {
   maxPhotos?: number;
   disabled?: boolean;
   photoType?: 'profile' | 'character' | 'child';
+  formatUrl?: (url: string) => string | null; // Optional URL formatter for native platforms
 }
 
 export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
@@ -22,7 +23,8 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
   onPhotosChange,
   maxPhotos = 5,
   disabled = false,
-  photoType = 'character'
+  photoType = 'character',
+  formatUrl,
 }) => {
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const requestPermission = async () => {
@@ -105,7 +107,10 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
       <View style={styles.grid}>
         {photos.map((photo, index) => (
           <View key={index} style={styles.photoItem}>
-            <Image source={{ uri: photo.url }} style={styles.image} />
+            <Image 
+              source={{ uri: formatUrl ? formatUrl(photo.url) : photo.url }} 
+              style={styles.image} 
+            />
             
             {/* Upload spinner */}
             {photo.isUploading && (

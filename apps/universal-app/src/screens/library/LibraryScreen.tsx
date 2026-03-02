@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, ScrollView, useWindowDimensions, ActivityIndicator, Platform } from 'react-native';
-import { useNavigation, useRoute, RouteProp, NavigationProp } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect, RouteProp, NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useStories, useDeleteStory, prefetchStory } from '@/api/stories';
@@ -36,6 +36,13 @@ export default function LibraryScreen() {
   
   const { data: themesData } = useStoryThemes();
   const scenarioCards = useMemo(() => themesData?.scenarioCards || [], [themesData?.scenarioCards]);
+  
+  // Invalidate stories cache when screen gains focus (e.g. after creating a story)
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+    }, [queryClient])
+  );
   
   // Apply scenario filter from route params (breadcrumb navigation)
   useEffect(() => {

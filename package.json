@@ -1,8 +1,8 @@
 {
-  "name": "kazka-plus",
+  "name": "wondertales",
   "version": "1.0.0",
   "private": true,
-  "description": "Personalized illustrated fairy tales with pedagogy and premium voice",
+  "description": "Personalized illustrated fairy tales with AI-powered storytelling and premium narration",
   "author": "",
   "license": "ISC",
   "scripts": {

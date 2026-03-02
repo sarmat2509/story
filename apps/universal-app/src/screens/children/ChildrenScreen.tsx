@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useChildren } from '@/api/children';
 import { ChildFormModal } from '@/components/ChildFormModal';
 import { theme } from '@/theme';
-import { ReferencePhoto } from '@kazka/shared';
+import { ReferencePhoto } from '@wondertales/shared';
 
 export default function ChildrenScreen() {
   const { t } = useTranslation();

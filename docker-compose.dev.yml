@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: kazka-postgres-dev
+    container_name: wondertales-postgres-dev
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -23,7 +23,7 @@ services:
       context: .
       dockerfile: services/api/Dockerfile
       target: development
-    container_name: kazka-api-dev
+    container_name: wondertales-api-dev
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -49,7 +49,7 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: kazka-nginx-dev
+    container_name: wondertales-nginx-dev
     restart: unless-stopped
     ports:
       - "8001:80"
@@ -61,7 +61,7 @@ services:
 
   adminer:
     image: adminer:latest
-    container_name: kazka-adminer-dev
+    container_name: wondertales-adminer-dev
     restart: unless-stopped
     ports:
       - "8083:8080"

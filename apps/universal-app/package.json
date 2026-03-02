@@ -1,5 +1,5 @@
 {
-  "name": "universal-app",
+  "name": "wondertales-universal-app",
   "version": "1.0.0",
   "private": true,
   "main": "index.js",
@@ -21,7 +21,7 @@
     "@expo/vector-icons": "^15.1.1",
     "@gorhom/bottom-sheet": "^5.0.0",
     "@invertase/react-native-apple-authentication": "^2.3.0",
-    "@kazka/shared": "workspace:*",
+    "@wondertales/shared": "workspace:*",
     "@react-native-async-storage/async-storage": "~2.2.0",
     "@react-native-community/datetimepicker": "~8.4.4",
     "@react-native-google-signin/google-signin": "^11.0.0",

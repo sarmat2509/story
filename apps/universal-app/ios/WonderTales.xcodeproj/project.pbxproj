@@ -7,29 +7,29 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0488588A9C5B946C56C22391 /* Pods_Kazka.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0809033C4A89127A8113322 /* Pods_Kazka.framework */; };
+		09C70DDA5B9EF8A3ADD088B0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = CEB46BF37C441B6F3A532C2E /* PrivacyInfo.xcprivacy */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		B4EB8B60ABC92F604F45109E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 498ED0A05CF4B554F1667C92 /* PrivacyInfo.xcprivacy */; };
+		759C7E1784C624381A5F337A /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4248855F52A59AC95C94660 /* ExpoModulesProvider.swift */; };
+		B0E380591E35A5E3E4A8157D /* Pods_WonderTales.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F61B0779385C50062E180D85 /* Pods_WonderTales.framework */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		D1D62A033D1B6575A72CDBD5 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ED3F87BFB7680CADC595AD0 /* ExpoModulesProvider.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		13B07F961A680F5B00A75B9A /* Kazka.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kazka.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Kazka/Images.xcassets; sourceTree = "<group>"; };
-		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Kazka/Info.plist; sourceTree = "<group>"; };
-		3696E99A4B4936F791F1265C /* Pods-Kazka.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Kazka.debug.xcconfig"; path = "Target Support Files/Pods-Kazka/Pods-Kazka.debug.xcconfig"; sourceTree = "<group>"; };
-		3ED3F87BFB7680CADC595AD0 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Kazka/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		498ED0A05CF4B554F1667C92 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Kazka/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Kazka/SplashScreen.storyboard; sourceTree = "<group>"; };
+		13B07F961A680F5B00A75B9A /* WonderTales.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WonderTales.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = WonderTales/Images.xcassets; sourceTree = "<group>"; };
+		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = WonderTales/Info.plist; sourceTree = "<group>"; };
+		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = WonderTales/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		C0809033C4A89127A8113322 /* Pods_Kazka.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Kazka.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		EC9DF1C8021CFC0997A30A08 /* Pods-Kazka.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Kazka.release.xcconfig"; path = "Target Support Files/Pods-Kazka/Pods-Kazka.release.xcconfig"; sourceTree = "<group>"; };
+		CEB46BF37C441B6F3A532C2E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = WonderTales/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		DC3A235F6CF7F5C041941E16 /* Pods-WonderTales.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WonderTales.release.xcconfig"; path = "Target Support Files/Pods-WonderTales/Pods-WonderTales.release.xcconfig"; sourceTree = "<group>"; };
+		E4248855F52A59AC95C94660 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-WonderTales/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		E83A15050FC01ECAE53F6A9D /* Pods-WonderTales.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WonderTales.debug.xcconfig"; path = "Target Support Files/Pods-WonderTales/Pods-WonderTales.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
-		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Kazka/AppDelegate.swift; sourceTree = "<group>"; };
-		F11748442D0722820044C1D9 /* Kazka-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Kazka-Bridging-Header.h"; path = "Kazka/Kazka-Bridging-Header.h"; sourceTree = "<group>"; };
+		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = WonderTales/AppDelegate.swift; sourceTree = "<group>"; };
+		F11748442D0722820044C1D9 /* WonderTales-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "WonderTales-Bridging-Header.h"; path = "WonderTales/WonderTales-Bridging-Header.h"; sourceTree = "<group>"; };
+		F61B0779385C50062E180D85 /* Pods_WonderTales.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_WonderTales.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -37,40 +37,50 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0488588A9C5B946C56C22391 /* Pods_Kazka.framework in Frameworks */,
+				B0E380591E35A5E3E4A8157D /* Pods_WonderTales.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		13B07FAE1A68108700A75B9A /* Kazka */ = {
+		00FA4904471A1F80AE450E29 /* WonderTales */ = {
+			isa = PBXGroup;
+			children = (
+				E4248855F52A59AC95C94660 /* ExpoModulesProvider.swift */,
+			);
+			name = WonderTales;
+			sourceTree = "<group>";
+		};
+		10D8123C6B4BA3C717FEE601 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				E83A15050FC01ECAE53F6A9D /* Pods-WonderTales.debug.xcconfig */,
+				DC3A235F6CF7F5C041941E16 /* Pods-WonderTales.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		13B07FAE1A68108700A75B9A /* WonderTales */ = {
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
-				F11748442D0722820044C1D9 /* Kazka-Bridging-Header.h */,
+				F11748442D0722820044C1D9 /* WonderTales-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				498ED0A05CF4B554F1667C92 /* PrivacyInfo.xcprivacy */,
+				CEB46BF37C441B6F3A532C2E /* PrivacyInfo.xcprivacy */,
 			);
-			name = Kazka;
-			sourceTree = "<group>";
-		};
-		1FF0AADD29AB9684D355EC68 /* Kazka */ = {
-			isa = PBXGroup;
-			children = (
-				3ED3F87BFB7680CADC595AD0 /* ExpoModulesProvider.swift */,
-			);
-			name = Kazka;
+			name = WonderTales;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				C0809033C4A89127A8113322 /* Pods_Kazka.framework */,
+				F61B0779385C50062E180D85 /* Pods_WonderTales.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -85,12 +95,12 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
-				13B07FAE1A68108700A75B9A /* Kazka */,
+				13B07FAE1A68108700A75B9A /* WonderTales */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				F8EFF4E3E8FE47BA01918AF2 /* Pods */,
-				F3D855EB1E68E575287F47B3 /* ExpoModulesProviders */,
+				10D8123C6B4BA3C717FEE601 /* Pods */,
+				C4A59CF1D183805BB6D49D01 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -100,7 +110,7 @@
 		83CBBA001A601CBA00E9B192 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				13B07F961A680F5B00A75B9A /* Kazka.app */,
+				13B07F961A680F5B00A75B9A /* WonderTales.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -111,50 +121,40 @@
 				BB2F792C24A3F905000567C9 /* Expo.plist */,
 			);
 			name = Supporting;
-			path = Kazka/Supporting;
+			path = WonderTales/Supporting;
 			sourceTree = "<group>";
 		};
-		F3D855EB1E68E575287F47B3 /* ExpoModulesProviders */ = {
+		C4A59CF1D183805BB6D49D01 /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				1FF0AADD29AB9684D355EC68 /* Kazka */,
+				00FA4904471A1F80AE450E29 /* WonderTales */,
 			);
 			name = ExpoModulesProviders;
-			sourceTree = "<group>";
-		};
-		F8EFF4E3E8FE47BA01918AF2 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				3696E99A4B4936F791F1265C /* Pods-Kazka.debug.xcconfig */,
-				EC9DF1C8021CFC0997A30A08 /* Pods-Kazka.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		13B07F861A680F5B00A75B9A /* Kazka */ = {
+		13B07F861A680F5B00A75B9A /* WonderTales */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Kazka" */;
+			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "WonderTales" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				A8DA39A54086BB026B822FEE /* [Expo] Configure project */,
+				2EE3440B8D7F2DD56C6534A6 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				3457336654D476E2BB209A23 /* [CP] Embed Pods Frameworks */,
+				D6280C49CAFFA8F78E968FB8 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = Kazka;
-			productName = Kazka;
-			productReference = 13B07F961A680F5B00A75B9A /* Kazka.app */;
+			name = WonderTales;
+			productName = WonderTales;
+			productReference = 13B07F961A680F5B00A75B9A /* WonderTales.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -170,7 +170,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "Kazka" */;
+			buildConfigurationList = 83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "WonderTales" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -183,7 +183,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				13B07F861A680F5B00A75B9A /* Kazka */,
+				13B07F861A680F5B00A75B9A /* WonderTales */,
 			);
 		};
 /* End PBXProject section */
@@ -196,7 +196,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				B4EB8B60ABC92F604F45109E /* PrivacyInfo.xcprivacy in Resources */,
+				09C70DDA5B9EF8A3ADD088B0 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -235,34 +235,36 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-Kazka-checkManifestLockResult.txt",
+				"$(DERIVED_FILE_DIR)/Pods-WonderTales-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		3457336654D476E2BB209A23 /* [CP] Embed Pods Frameworks */ = {
+		2EE3440B8D7F2DD56C6534A6 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Kazka/Pods-Kazka-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+			inputFileListPaths = (
 			);
-			name = "[CP] Embed Pods Frameworks";
+			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/WonderTales/WonderTales.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-WonderTales/expo-configure-project.sh",
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
 			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-WonderTales/ExpoModulesProvider.swift",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Kazka/Pods-Kazka-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-WonderTales/expo-configure-project.sh\"\n";
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -270,7 +272,7 @@
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Kazka/Pods-Kazka-resources.sh",
+				"${PODS_ROOT}/Target Support Files/Pods-WonderTales/Pods-WonderTales-resources.sh",
 				"${PODS_CONFIGURATION_BUILD_DIR}/AppAuth/AppAuthCore_Privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXApplication/ExpoApplication_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
@@ -303,32 +305,30 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Kazka/Pods-Kazka-resources.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-WonderTales/Pods-WonderTales-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		A8DA39A54086BB026B822FEE /* [Expo] Configure project */ = {
+		D6280C49CAFFA8F78E968FB8 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
-			inputFileListPaths = (
-			);
 			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/Kazka/Kazka.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-Kazka/expo-configure-project.sh",
+				"${PODS_ROOT}/Target Support Files/Pods-WonderTales/Pods-WonderTales-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
 			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
+			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-Kazka/ExpoModulesProvider.swift",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-Kazka/expo-configure-project.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-WonderTales/Pods-WonderTales-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -338,7 +338,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				D1D62A033D1B6575A72CDBD5 /* ExpoModulesProvider.swift in Sources */,
+				759C7E1784C624381A5F337A /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -347,19 +347,18 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 3696E99A4B4936F791F1265C /* Pods-Kazka.debug.xcconfig */;
+			baseConfigurationReference = E83A15050FC01ECAE53F6A9D /* Pods-WonderTales.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = Kazka/Kazka.entitlements;
+				CODE_SIGN_ENTITLEMENTS = WonderTales/WonderTales.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 34P9MRC977;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
 				);
-				INFOPLIST_FILE = Kazka/Info.plist;
+				INFOPLIST_FILE = WonderTales/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -372,9 +371,9 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.kazkaplus.app;
-				PRODUCT_NAME = Kazka;
-				SWIFT_OBJC_BRIDGING_HEADER = "Kazka/Kazka-Bridging-Header.h";
+				PRODUCT_BUNDLE_IDENTIFIER = com.wondertales.app;
+				PRODUCT_NAME = WonderTales;
+				SWIFT_OBJC_BRIDGING_HEADER = "WonderTales/WonderTales-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -384,14 +383,13 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = EC9DF1C8021CFC0997A30A08 /* Pods-Kazka.release.xcconfig */;
+			baseConfigurationReference = DC3A235F6CF7F5C041941E16 /* Pods-WonderTales.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = Kazka/Kazka.entitlements;
+				CODE_SIGN_ENTITLEMENTS = WonderTales/WonderTales.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 34P9MRC977;
-				INFOPLIST_FILE = Kazka/Info.plist;
+				INFOPLIST_FILE = WonderTales/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -404,9 +402,9 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.kazkaplus.app;
-				PRODUCT_NAME = Kazka;
-				SWIFT_OBJC_BRIDGING_HEADER = "Kazka/Kazka-Bridging-Header.h";
+				PRODUCT_BUNDLE_IDENTIFIER = com.wondertales.app;
+				PRODUCT_NAME = WonderTales;
+				SWIFT_OBJC_BRIDGING_HEADER = "WonderTales/WonderTales-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
@@ -560,7 +558,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Kazka" */ = {
+		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "WonderTales" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				13B07F941A680F5B00A75B9A /* Debug */,
@@ -569,7 +567,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "Kazka" */ = {
+		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "WonderTales" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,

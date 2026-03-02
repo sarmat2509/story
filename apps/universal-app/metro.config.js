@@ -6,7 +6,7 @@ const config = getDefaultConfig(__dirname);
 
 // Workaround: Zustand ESM uses import.meta.env which fails in web bundle.
 // Only for zustand: disable package exports so Metro uses main field (CJS).
-// Other packages (e.g. @kazka/shared) keep exports for subpath resolution.
+// Other packages (e.g. @wondertales/shared) keep exports for subpath resolution.
 const defaultResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (

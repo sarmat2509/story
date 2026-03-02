@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import apiClient from '@/api/client';
+import { API_BASE_URL } from '@/config/constants';
 
 export interface UploadPhotoResult {
   url: string;
@@ -63,8 +64,8 @@ export async function uploadPhoto(
           photoUrl = `${(globalThis as any).location.origin}${photoUrl}`;
         }
       } else {
-        // Native: use API base URL
-        const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3000';
+        // Native: use API base URL from config
+        const apiBaseUrl = API_BASE_URL.replace(/\/$/, '');
         photoUrl = `${apiBaseUrl}${photoUrl.replace('/uploads/', '/api/v1/assets/')}`;
       }
     }

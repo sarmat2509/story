@@ -1,4 +1,4 @@
-# Kazka+ Assets
+# WonderTales Assets
 
 This directory contains app assets.
 

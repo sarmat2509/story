@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide explains how rate limiting works in Kazka+ and how to troubleshoot common 429 (Too Many Requests) errors.
+This guide explains how rate limiting works in WonderTales and how to troubleshoot common 429 (Too Many Requests) errors.
 
 ## Architecture
 

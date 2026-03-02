@@ -1,6 +1,6 @@
 # Quick Reference: Critical Rules
 
-> Essential rules for Kazka+ development. See `.cursorrules` for full details.
+> Essential rules for WonderTales development. See `.cursorrules` for full details.
 
 ## 🚨 Critical "NEVER" Rules
 

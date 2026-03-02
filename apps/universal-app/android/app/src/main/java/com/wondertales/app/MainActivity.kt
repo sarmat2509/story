@@ -1,4 +1,4 @@
-package com.kazkaplus.app
+package com.wondertales.app
 
 import android.os.Build
 import android.os.Bundle

@@ -58,7 +58,7 @@ function getActiveMainRouteFromState(state: { routes?: { name: string; params?: 
 }
 
 const linking: any = {
-  prefixes: ['kazka://', 'http://localhost:8081'],
+  prefixes: ['wondertales://', 'http://localhost:8081'],
   config: {
     screens: {
       Public: {

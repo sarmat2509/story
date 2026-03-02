@@ -16,7 +16,7 @@
 
 ```bash
 cd /Users/ivanryzhenko/Documents/Repository/story/apps/universal-app
-open ios/Kazka.xcworkspace
+open ios/WonderTales.xcworkspace
 ```
 
 **Important:** Open `.xcworkspace`, NOT `.xcodeproj`
@@ -27,9 +27,9 @@ open ios/Kazka.xcworkspace
 
 ### Visual Guide:
 
-1. **Click on "Kazka" (blue icon) in left sidebar** - This is the project file at the very top
+1. **Click on "WonderTales" (blue icon) in left sidebar** - This is the project file at the very top
    
-2. **Under TARGETS, select "Kazka"** (with the app icon)
+2. **Under TARGETS, select "WonderTales"** (with the app icon)
 
 3. **Click "Signing & Capabilities" tab** (second tab from left)
 
@@ -38,7 +38,7 @@ open ios/Kazka.xcworkspace
    ┌─────────────────────────────────────┐
    │ Signing (Automatically Managed)     │
    │ Team: Ivan Ryzhenko (Personal Team) │
-   │ Bundle Identifier: com.kazkaplus.app│
+   │ Bundle Identifier: com.wondertales.app│
    └─────────────────────────────────────┘
    
    ┌─────────────────────────────────────┐
@@ -91,11 +91,11 @@ Sometimes the old provisioning profile is cached. Change the Bundle Identifier:
 1. In Xcode, under **Signing & Capabilities**
 2. Change **Bundle Identifier** from:
    ```
-   com.kazkaplus.app
+   com.wondertales.app
    ```
    to something unique:
    ```
-   com.yourname.kazkaplus
+   com.yourname.wondertales
    ```
 
 3. Build again
@@ -115,7 +115,7 @@ npx expo prebuild --platform ios --clean
 cd ios && pod install && cd ..
 
 # Open in Xcode
-open ios/Kazka.xcworkspace
+open ios/WonderTales.xcworkspace
 
 # Configure signing and remove Push Notifications capability
 # Then build

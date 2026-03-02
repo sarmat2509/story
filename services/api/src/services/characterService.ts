@@ -5,7 +5,7 @@ import { CharacterAnalysisService } from './characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
 import { translateCharacterDescription } from './translationService';
-import type { CharacterType } from '@kazka/shared';
+import type { CharacterType } from '@wondertales/shared';
 
 // Re-export CharacterType for use in routes
 export type { CharacterType };

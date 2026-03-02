@@ -4,7 +4,7 @@ import {
   Character,
   PetAppearance,
   HumanAppearance
-} from '@kazka/shared';
+} from '@wondertales/shared';
 import apiClient from './client';
 
 // Analysis Result (specific to character analysis endpoint)

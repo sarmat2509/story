@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: kazka-postgres-prod
+    container_name: wondertales-postgres-prod
     restart: always
     ports:
       - "5432:5432"
@@ -25,7 +25,7 @@ services:
       target: production
       args:
         BUILDKIT_INLINE_CACHE: 1
-    container_name: kazka-api-prod
+    container_name: wondertales-api-prod
     restart: always
     ports:
       - "3000:3000"
@@ -45,7 +45,7 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: kazka-nginx
+    container_name: wondertales-nginx
     restart: always
     ports:
       - "80:80"
@@ -60,7 +60,7 @@ services:
 
   webapp:
     image: nginx:alpine
-    container_name: kazka-webapp-prod
+    container_name: wondertales-webapp-prod
     restart: always
     ports:
       - "8080:80"

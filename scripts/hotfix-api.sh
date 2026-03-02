@@ -19,7 +19,7 @@ scp ${LOCAL_DIST} ${DROPLET_USER}@${DROPLET_IP}:/tmp/api-index.js
 echo "🚀 Deploying on droplet..."
 ssh ${DROPLET_USER}@${DROPLET_IP} << 'EOF'
 cd /var/www/kazka
-docker cp /tmp/api-index.js kazka-api-prod:/app/services/api/dist/index.js
+docker cp /tmp/api-index.js wondertales-api-prod:/app/services/api/dist/index.js
 docker compose -f docker-compose.prod.yml restart api
 echo "📋 Latest logs:"
 docker compose -f docker-compose.prod.yml logs api --tail 20

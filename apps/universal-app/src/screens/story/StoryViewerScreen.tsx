@@ -66,12 +66,36 @@ export default function StoryViewerScreen() {
   // Use lightweight status polling for image generation
   const { data: generationStatus } = useStoryGenerationStatus(storyId!);
   
-  // When generation completes, reload manifest once to get new images
+  // Progressive image loading: update story cache as images are generated
   useEffect(() => {
-    if (generationStatus?.imageGenerationComplete && story && !story.imageGenerationComplete) {
+    if (!generationStatus || !story) return;
+    
+    if (generationStatus.imageGenerationComplete && !story.imageGenerationComplete) {
+      // Final refetch when generation is complete
       refetch();
+    } else if (generationStatus.scenesWithImages && generationStatus.scenesWithImages.length > 0) {
+      // Progressive update: add imageUrl to scenes that are already generated
+      const updatedScenes = story.scenes.map(scene => {
+        const generated = generationStatus.scenesWithImages?.find(s => s.sceneId === scene.sceneId);
+        if (generated && !scene.image) {
+          return {
+            ...scene,
+            image: {
+              url: generated.imageUrl,
+              thumbnailUrl: generated.imageUrl.replace(/(\.[^.]+)$/, '_thumb.jpg'),
+            },
+          };
+        }
+        return scene;
+      });
+      
+      // Update local cache (without refetch)
+      queryClient.setQueryData(['story', storyId], {
+        ...story,
+        scenes: updatedScenes,
+      });
     }
-  }, [generationStatus?.imageGenerationComplete, story?.imageGenerationComplete, refetch]);
+  }, [generationStatus, story, refetch, storyId, queryClient]);
   
   const generateAudio = useGenerateAudio();
   const generateAlignment = useGenerateAlignment();
@@ -194,6 +218,9 @@ export default function StoryViewerScreen() {
         used: audioUsage.used,
         resetsAt: audioUsage.resetsAt ?? '',
       });
+    } else {
+      setAudioLimitExceeded(false);
+      setLimitInfo(null);
     }
   }, [audioUsage]);
 

@@ -4,7 +4,7 @@ import type {
   StoryApi,
   StorySummaryApi,
   CreateStoryRequestInput
-} from '@kazka/shared';
+} from '@wondertales/shared';
 import apiClient from './client';
 
 // Use shared types
@@ -88,6 +88,7 @@ export const useStoryGenerationStatus = (id: string) => {
           imageGenerationComplete: boolean;
           sceneIdsWithImages: number[];
           failedScenes: Array<{ sceneId: number; errorMessage: string }>;
+          scenesWithImages?: Array<{ sceneId: number; imageUrl: string }>; // NEW
         }
       }>(`/api/v1/stories/${id}/generation-status`);
       return response.data.generationStatus;

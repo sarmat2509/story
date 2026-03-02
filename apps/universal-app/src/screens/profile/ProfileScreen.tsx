@@ -159,7 +159,7 @@ export default function ProfileScreen() {
       </TouchableOpacity>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Kazka+ v1.0.0</Text>
+        <Text style={styles.footerText}>WonderTales v1.0.0</Text>
       </View>
     </ScrollView>
   );

@@ -16,7 +16,7 @@ COPY services/api/package.json ./services/api/package.json
 # Install all dependencies (workspace style) with cache mount for speed
 # Skip postinstall scripts as ffmpeg is already installed via apk
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    pnpm install --no-frozen-lockfile --filter @kazka/shared --filter api --ignore-scripts
+    pnpm install --no-frozen-lockfile --filter @wondertales/shared --filter wondertales-api --ignore-scripts
 
 # Copy TypeScript configs
 COPY tsconfig.base.json ./
@@ -57,7 +57,7 @@ COPY packages/shared/package.json ./packages/shared/package.json
 COPY services/api/package.json ./services/api/package.json
 
 # Install all dependencies
-RUN pnpm install --no-frozen-lockfile --filter @kazka/shared --filter api --ignore-scripts
+RUN pnpm install --no-frozen-lockfile --filter @wondertales/shared --filter wondertales-api --ignore-scripts
 
 # Copy TypeScript configs
 COPY tsconfig.base.json ./

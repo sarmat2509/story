@@ -6,7 +6,7 @@ import {
   getCharacterRepository,
   getDictionaryRepository,
 } from '../repositories';
-import type { CreateStoryRequestInput } from '@kazka/shared';
+import type { CreateStoryRequestInput } from '@wondertales/shared';
 import { getStoryDomainService, getImageDomainService, getAudioDomainService } from './aiService';
 import { getAssetStorageService } from './assetStorageService';
 import { getPlanFeatures } from './planService';
@@ -22,6 +22,7 @@ import { buildPolicyProfile } from './policyService';
 import { getGenerationCoefficients } from './generationTimeService';
 import type { StorySpec, StoryEnvironment, ImageValidationResult } from '../ai/types';
 import { logger } from '../utils/logger';
+import { stripCharacterIds, stripAudioTags } from '../utils/audioTags';
 import type { CharacterReference } from '../prompts/image';
 import { buildImageSystemInstruction } from '../prompts/image';
 import type { UploadedFile } from '../providers/base/IFileManager';
@@ -1095,33 +1096,9 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
         })
       );
 
-      // Turnaround sheets have priority; scene references fill remaining slots
-      const maxRefs = config.image.maxReferenceImages;
-      let turnaroundData = [...imaginaryFriendData, ...childReferenceData];
-      if (turnaroundData.length > maxRefs) {
-        logger.warn({
-          sceneId: scene.sceneId,
-          total: turnaroundData.length,
-          max: maxRefs,
-          dropped: turnaroundData.length - maxRefs,
-        }, 'Capping turnaround references to maxReferenceImages');
-        turnaroundData = turnaroundData.slice(0, maxRefs);
-      }
-      const sceneRefSlots = Math.max(0, maxRefs - turnaroundData.length);
-
-      if (sceneReferenceData.length > 0 && sceneRefSlots === 0) {
-        logger.info({
-          sceneId: scene.sceneId,
-          turnaroundCount: turnaroundData.length,
-          maxReferenceImages: maxRefs,
-          droppedSceneRefs: sceneReferenceData.length,
-        }, 'Dropping scene references — turnaround sheets fill all reference slots');
-      }
-
-      referenceImageDataArray = [
-        ...turnaroundData,
-        ...sceneReferenceData.slice(0, sceneRefSlots),
-      ];
+      // Include all turnaround and scene references (no cap — all characters get their refs)
+      const turnaroundData = [...imaginaryFriendData, ...childReferenceData];
+      referenceImageDataArray = [...turnaroundData, ...sceneReferenceData];
     }
 
     // Build imageIndexMap: sequential 1-based index for each reference image
@@ -1385,6 +1362,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
 
       const failedScenes: Array<{ sceneId: number; errorMessage: string }> = [];
       let firstImageDone = false;
+      let imagesCompletedCount = 0; // Track completed images for 2-image threshold
 
       // 4. Sequential loop: generate turnarounds on-demand, then image
       for (let i = 0; i < scenesToGenerate.length; i++) {
@@ -1468,10 +1446,10 @@ export async function processStoryImages(requestId: string): Promise<void> {
             const charName = char?.name || 'unknown';
             const uploaded = uploadedFileMap?.get(charName);
             if (uploaded) {
-              return { base64: '', mimeType: uploaded.mimeType, fileUri: uploaded.uri, source: 'imaginary_friend', characterName: charName, type: 'imaginary_friend', isTurnaround, url, index: index + 1 };
+              return { base64: '', mimeType: uploaded.mimeType, fileUri: uploaded.uri, source: 'imaginary_friend', characterName: charName, type: 'imaginary', isTurnaround, url, index: index + 1 };
             }
             const data = await loadReferenceImageData(url, assetStorage);
-            return { ...data, source: 'imaginary_friend', characterName: charName, type: 'imaginary_friend', isTurnaround, url, index: index + 1 };
+            return { ...data, source: 'imaginary_friend', characterName: charName, type: 'imaginary', isTurnaround, url, index: index + 1 };
           })
         );
 
@@ -1493,16 +1471,8 @@ export async function processStoryImages(requestId: string): Promise<void> {
           })
         );
 
-        let referenceImageDataArray = [...imaginaryFriendData, ...childReferenceData];
-        if (referenceImageDataArray.length > config.image.maxReferenceImages) {
-          logger.warn({
-            storyId, sceneId: scene.sceneId,
-            total: referenceImageDataArray.length,
-            max: config.image.maxReferenceImages,
-            dropped: referenceImageDataArray.length - config.image.maxReferenceImages,
-          }, 'Capping turnaround references to maxReferenceImages');
-          referenceImageDataArray = referenceImageDataArray.slice(0, config.image.maxReferenceImages);
-        }
+        // Child references (real photos) have higher priority than LLM-generated turnarounds
+        const referenceImageDataArray = [...childReferenceData, ...imaginaryFriendData];
 
         // Build imageIndexMap
         const imageIndexMap = new Map<string, number>();
@@ -1534,7 +1504,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
           });
           const enrichedScene: SceneData = { ...scene, sceneVisual: composedSceneVisual };
 
-          await generateSceneImageWithReference(storyId, enrichedScene, {
+          const imageResult = await generateSceneImageWithReference(storyId, enrichedScene, {
             childProfile: spec.childProfile,
             characters: sceneCharacterDescriptions,
             userStyle: (spec as any).imageStyle,
@@ -1544,14 +1514,27 @@ export async function processStoryImages(requestId: string): Promise<void> {
             currentEnvironmentId, currentEnvironment,
           });
 
-          if (!firstImageDone) {
+          // Update imageUrl in scenes table for progressive loading
+          const sceneRecord = await getSceneRepository().findByStoryAndSceneId(storyId, scene.sceneId);
+          if (sceneRecord && imageResult.imageUrl) {
+            await getSceneRepository().update(sceneRecord.id, {
+              imageUrl: imageResult.imageUrl,
+            });
+          }
+
+          // Count completed images
+          imagesCompletedCount++;
+
+          // Mark request as completed after 2 images (instead of 1)
+          if (!firstImageDone && imagesCompletedCount >= 2) {
             firstImageDone = true;
             await completeTask(requestId, STORY_TASKS.GENERATING_IMAGES);
             await getStoryRepository().updateRequest(requestId, {
               status: 'completed',
               storyId,
             });
-            logger.info({ requestId, storyId, sceneId: scene.sceneId }, 'First image done — request marked completed, continuing in background');
+            logger.info({ requestId, storyId, sceneId: scene.sceneId, imagesCompletedCount }, 
+              'First two images done — request marked completed, continuing in background');
           }
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -2394,30 +2377,28 @@ function isEditableValidationFailure(validation: ImageValidationResult): boolean
   if (validation.hasRenderingArtifacts) return false;
   for (const c of validation.characters) {
     if (!c.found) return false;
-    if (!c.recognizable) return false;
+    if ((c.recognizableScore ?? 1) < 0.5) return false;
   }
   return true;
 }
 
 /**
  * Compute a 0-100 quality score from image validation results.
- * Higher = better. Used to pick the best image when all attempts fail.
+ * Higher = better. Score = 100 minus penalties per character and global penalties.
  */
 function computeValidationScore(validation: ImageValidationResult): number {
-  const w = config.image.validationScoring;
-  const expected = validation.expectedCharacterCount || validation.characters.length || 1;
-  let charScore = 0;
+  const p = config.image.validationScoring;
+  let score = 100;
   for (const c of validation.characters) {
-    charScore += (c.found ? w.found : 0)
-      + (c.recognizable ? w.recognizable : 0)
-      + (!c.duplicated ? w.notDuplicated : 0)
-      + (c.matchesColors ? w.matchesColors : 0)
-      + (c.matchesOutfit ? w.matchesOutfit : 0);
+    const recScore = c.recognizableScore ?? 1;
+    score -= (1 - recScore) * p.recognizablePenalty;
+    if (c.duplicated) score -= p.duplicatedPenalty;
+    if (!c.matchesColors) score -= p.matchesColorsPenalty;
+    if (!c.matchesOutfit) score -= p.matchesOutfitPenalty;
   }
-  let score = (charScore / expected) * 100;
-  if (validation.hasTextOrLetters) score -= w.textPenalty;
-  if (validation.hasUnexpectedCharacters) score -= w.unexpectedCharsPenalty;
-  if (validation.hasRenderingArtifacts) score -= w.artifactsPenalty;
+  if (validation.hasTextOrLetters) score -= p.textPenalty;
+  if (validation.hasUnexpectedCharacters) score -= p.unexpectedCharsPenalty;
+  if (validation.hasRenderingArtifacts) score -= p.artifactsPenalty;
   return Math.max(0, Math.min(100, Math.round(score * 10) / 10));
 }
 
@@ -2642,15 +2623,21 @@ async function generateSceneImageWithReference(
 
         // Collect turnaround sheet references for visual comparison during validation
         // Only turnaround sheets (not scene references) to keep token cost reasonable
-        const validationReferenceImages: Array<{ characterName: string; imageData: string; mimeType: string }> = [];
+        // Use base64 when available; use fileUri when Files API is on (same as image generation)
+        const validationReferenceImages: Array<{ characterName: string; imageData?: string; fileUri?: string; mimeType: string }> = [];
         if (context.referenceImageDataArray) {
           for (const ref of context.referenceImageDataArray) {
             if ((ref as any).isTurnaround && (ref as any).characterName && ((ref as any).base64 || (ref as any).fileUri)) {
-              // Only include refs with actual image data (base64)
               if ((ref as any).base64) {
                 validationReferenceImages.push({
                   characterName: (ref as any).characterName,
                   imageData: (ref as any).base64,
+                  mimeType: (ref as any).mimeType || 'image/jpeg',
+                });
+              } else if ((ref as any).fileUri) {
+                validationReferenceImages.push({
+                  characterName: (ref as any).characterName,
+                  fileUri: (ref as any).fileUri,
                   mimeType: (ref as any).mimeType || 'image/jpeg',
                 });
               }
@@ -2719,7 +2706,7 @@ async function generateSceneImageWithReference(
           logger.info({
             storyId, sceneId: scene.sceneId, attempt, score,
             characterScores: validation.characters.map((c: ImageValidationResult['characters'][0]) => ({
-              name: c.name, found: c.found, recognizable: c.recognizable,
+              name: c.name, found: c.found, recognizableScore: c.recognizableScore,
               duplicated: c.duplicated, matchesColors: c.matchesColors, matchesOutfit: c.matchesOutfit,
             })),
             hasTextOrLetters: validation.hasTextOrLetters,
@@ -2782,7 +2769,7 @@ async function generateSceneImageWithReference(
                   .filter((c: ImageValidationResult['characters'][0]) => !c.found)
                   .map((c: ImageValidationResult['characters'][0]) => c.name),
                 unrecognizable: validation.characters
-                  .filter((c: ImageValidationResult['characters'][0]) => !c.recognizable)
+                  .filter((c: ImageValidationResult['characters'][0]) => (c.recognizableScore ?? 1) < 0.5)
                   .map((c: ImageValidationResult['characters'][0]) => c.name),
               }, 'Issues require full regeneration (missing or unrecognizable character)');
 
@@ -2827,7 +2814,7 @@ async function generateSceneImageWithReference(
             attempt: a.attempt,
             score: a.score,
             characters: a.validation.characters.map(c => ({
-              name: c.name, found: c.found, recognizable: c.recognizable,
+              name: c.name, found: c.found, recognizableScore: c.recognizableScore,
               duplicated: c.duplicated, matchesColors: c.matchesColors, matchesOutfit: c.matchesOutfit,
             })),
           })),
@@ -4192,10 +4179,10 @@ export async function getStoryManifest(storyId: string) {
   // Build manifest
   const manifest = {
     storyId: story.id,
-    title: story.title,
+    title: stripCharacterIds(story.title),
     language: story.language,
     ageGroup: story.ageGroup,
-    fullText: story.fullText, // M6: Add fullText for alignment sync
+    fullText: stripCharacterIds(stripAudioTags(story.fullText || '')),
     audioMetadata: story.audioMetadata,
     // M8: Series fields
     seriesId: story.seriesId,
@@ -4230,7 +4217,7 @@ export async function getStoryManifest(storyId: string) {
 
       return {
         sceneId: scene.sceneId,
-        text: scene.text,
+        text: stripCharacterIds(stripAudioTags(scene.text || '')),
         // Return structured sceneVisual when available, otherwise legacy visualPrompt
         ...(sceneVisual
           ? { sceneVisual, visualPrompt: undefined }
@@ -4299,12 +4286,26 @@ export async function getStoryGenerationStatus(storyId: string, userId: string) 
   }
   
   const metadata = (story.metadata as Record<string, unknown>) || {};
+  const imageGenerationComplete = (metadata.imageGenerationComplete as boolean | undefined) ?? true;
+  
+  // If generation is still in progress - load scenes with imageUrl
+  let scenesWithImages: Array<{ sceneId: number; imageUrl: string }> = [];
+  if (!imageGenerationComplete) {
+    const sceneRecords = await getSceneRepository().findByStoryId(storyId);
+    scenesWithImages = sceneRecords
+      .filter(s => s.imageUrl != null)
+      .map(s => ({
+        sceneId: s.sceneId,
+        imageUrl: `/api/v1/assets/${s.imageUrl!}`,
+      }));
+  }
   
   return {
     storyId: story.id,
-    imageGenerationComplete: (metadata.imageGenerationComplete as boolean | undefined) ?? true,
+    imageGenerationComplete,
     sceneIdsWithImages: (metadata.sceneIdsWithImages as number[] | undefined) ?? [],
     failedScenes: (metadata.failedScenes as Array<{ sceneId: number; errorMessage: string }> | undefined) ?? [],
+    scenesWithImages, // NEW: array of {sceneId, imageUrl}
   };
 }
 

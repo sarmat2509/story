@@ -84,7 +84,7 @@ export const TEXT_SCHEMA: JsonSchema = {
                       },
                       required: ['name', 'description']
                     },
-                    description: 'Per-character composition. MUST list ALL characters physically present in this scene and ONLY those characters. Maximum 2.'
+                    description: 'Per-character composition. MUST list ALL characters physically present in this scene and ONLY those characters. Maximum 3.'
                   }
                 },
                 required: ['shot', 'characters']
@@ -159,13 +159,13 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
         properties: {
           name: { type: 'string', description: 'Character name from the expected list' },
           found: { type: 'boolean', description: 'Whether this character is present in the image' },
-          duplicated: { type: 'boolean', description: 'Whether this character appears more than once (duplicated/cloned)' },
-          recognizable: { type: 'boolean', description: 'Overall: would someone familiar with the description recognize this character in the image? Covers species, silhouette, proportions, distinctive features.' },
-          matchesColors: { type: 'boolean', description: 'Whether the character color palette matches the description (fur/skin color, eye color, distinctive markings).' },
-          matchesOutfit: { type: 'boolean', description: 'Whether clothing and accessories match the description (hat, bow, dress). Set to true if no outfit is described.' },
+          duplicated: { type: 'boolean', description: 'Whether this character appears more than once without scene justification. Only true when duplicate is NOT scene-justified (mirror, reflection, portrait = false).' },
+          recognizableScore: { type: 'number', description: '0-1. 1=all distinctive features present. 0.9=exactly 1 feature wrong/missing (antennae not glowing, flowers on wings missing). 0.8=2 features. 0.7=3+. 0.5=wrong colors/species. 0=completely different creature. Penalty=(1-score)*20.' },
+          matchesColors: { type: 'boolean', description: 'Whether the character color palette matches the reference image (fur/skin color, eye color, distinctive markings).' },
+          matchesOutfit: { type: 'boolean', description: 'Whether clothing and accessories match the reference image (hat, bow, dress). Set to true if no outfit is described.' },
           issue: { type: 'string', nullable: true, description: 'ALL problems for this character in one string, separated by semicolons' },
         },
-        required: ['name', 'found', 'duplicated', 'recognizable', 'matchesColors', 'matchesOutfit'],
+        required: ['name', 'found', 'duplicated', 'recognizableScore', 'matchesColors', 'matchesOutfit'],
       },
     },
     hasUnexpectedCharacters: { type: 'boolean', description: 'Whether there are extra characters not in the expected list' },
@@ -214,7 +214,7 @@ export const SCENE_SCHEMA: JsonSchema = {
                 },
                 required: ['name', 'description']
               },
-              description: 'Per-character composition. MUST list ALL characters physically present in this scene and ONLY those characters. Maximum 2.'
+              description: 'Per-character composition. MUST list ALL characters physically present in this scene and ONLY those characters. Maximum 3.'
             }
           },
           required: ['shot', 'characters']

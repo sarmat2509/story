@@ -19,6 +19,7 @@ import { PhotoUploadGrid } from '@/components/form/PhotoUploadGrid';
 import { GenerationProgressModal } from '@/components/GenerationProgressModal';
 import { ScenarioCardsGrid } from './components/ScenarioCardsGrid';
 import { LanguageSelector } from './components/LanguageSelector';
+import { useQueryClient } from '@tanstack/react-query';
 import { useStoryThemes } from '@/api/dictionaries';
 import { useCreateStoryFromPhotos, useStoryStatus, useRetryStoryImages } from '@/api/stories';
 
@@ -33,6 +34,7 @@ interface PhotoObject {
 export default function InstantWizardScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const queryClient = useQueryClient();
 
   // Form state
   const [photos, setPhotos] = useState<PhotoObject[]>([]);
@@ -101,6 +103,7 @@ export default function InstantWizardScreen() {
   };
 
   const handleCloseModal = () => {
+    queryClient.invalidateQueries({ queryKey: ['stories'] });
     setIsGenerating(false);
     setRequestId(null);
 

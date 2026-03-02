@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { requireAuth } from '../middleware/authMiddleware';
 import { getAssetRepository } from '../repositories';
+import { verifyToken } from '../services/jwtService';
+import { getSessionWithUser } from '../services/sessionService';
 import { logger } from '../utils/logger';
 import fs from 'fs/promises';
 import path from 'path';
@@ -50,36 +51,11 @@ function verifySignedUrl(assetPath: string, token: string, expires: string): boo
 
 /**
  * GET /api/v1/assets/{env}/{userId}/photos/{photoType}/{filename}
- * Serve user photos (character, child, profile reference photos)
- * Supports dual auth: HMAC signed URL (token+expires) OR Bearer auth with ownership check.
- *
- * Middleware chain:
- * 1. First middleware: check for signed URL params → if valid, mark auth and call next();
- *    if no signed URL params, delegate to requireAuth.
- * 2. Final handler: serve the file (with ownership check for Bearer auth).
+ * Serve user photos (character, child, profile reference photos).
+ * Auth: wt_session cookie (automatic from <img>) OR Bearer header (API clients).
+ * Ownership check: session userId must match the userId in the URL path.
  */
-router.get('/:env/:userId/photos/:photoType/:filename',
-  // Auth middleware: signed URL OR Bearer token
-  (req: Request, res: Response, next) => {
-    const { token, expires } = req.query;
-    if (token && expires) {
-      // Signed URL auth — verify HMAC token
-      const { env, userId, photoType, filename } = req.params;
-      const relativePath = `${env}/${userId}/photos/${photoType}/${filename}`;
-      if (verifySignedUrl(relativePath, token as string, expires as string)) {
-        (req as any).authMethod = 'signed_url';
-        return next();
-      }
-      return res.status(401).json({
-        status: 'error',
-        message: 'Invalid or expired signature'
-      });
-    }
-    // No signed URL params — fall through to Bearer auth
-    return requireAuth(req, res, next);
-  },
-  // Handler: validate and serve photo
-  async (req: Request, res: Response) => {
+router.get('/:env/:userId/photos/:photoType/:filename', async (req: Request, res: Response) => {
   try {
     const { env, userId, photoType, filename } = req.params;
     
@@ -91,6 +67,32 @@ router.get('/:env/:userId/photos/:photoType/:filename',
       });
     }
     
+    // --- Auth: cookie OR Bearer header ---
+    const cookieToken = req.cookies?.wt_session as string | undefined;
+    const bearerToken = req.headers.authorization?.startsWith('Bearer ')
+      ? req.headers.authorization.slice(7)
+      : undefined;
+    const jwt = cookieToken || bearerToken;
+
+    if (!jwt) {
+      return res.status(401).json({ status: 'error', message: 'Authentication required' });
+    }
+
+    const decoded = verifyToken(jwt);
+    if (!decoded) {
+      return res.status(401).json({ status: 'error', message: 'Invalid or expired token' });
+    }
+
+    const session = await getSessionWithUser(decoded.sessionId);
+    if (!session) {
+      return res.status(401).json({ status: 'error', message: 'Session expired' });
+    }
+
+    // Ownership check: URL userId must match authenticated user
+    if (userId !== session.user.id) {
+      return res.status(403).json({ status: 'error', message: 'Access denied' });
+    }
+    
     // Build path and validate containment
     const relativePath = `${env}/${userId}/photos/${photoType}/${filename}`;
     if (!isPathSafe(relativePath)) {
@@ -99,17 +101,6 @@ router.get('/:env/:userId/photos/:photoType/:filename',
         status: 'error',
         message: 'Invalid file path'
       });
-    }
-    
-    // Ownership check only for Bearer auth (signed URLs are self-validating)
-    if ((req as any).authMethod !== 'signed_url') {
-      if (userId !== req.user!.id) {
-        logger.warn({ requestingUser: req.user!.id, targetUser: userId }, 'Unauthorized photo access attempt');
-        return res.status(403).json({
-          status: 'error',
-          message: 'You can only access your own photos'
-        });
-      }
     }
     
     const fullPath = path.resolve(UPLOADS_DIR, relativePath);
@@ -137,8 +128,7 @@ router.get('/:env/:userId/photos/:photoType/:filename',
     
     // Set appropriate headers
     res.setHeader('Content-Type', mimeType);
-    res.setHeader('Cache-Control', 'private, max-age=86400'); // Private cache, 24 hours
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Allow CORS for images
+    res.setHeader('Cache-Control', 'private, max-age=86400');
     
     // Send file
     res.sendFile(fullPath);

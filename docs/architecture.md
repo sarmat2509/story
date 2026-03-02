@@ -1,8 +1,8 @@
-# Kazka+ Architecture
+# WonderTales Architecture
 
 ## System Overview
 
-Kazka+ is a multi-tier SaaS application for generating personalized illustrated fairy tales with voice narration.
+WonderTales is a multi-tier SaaS application for generating personalized illustrated fairy tales with voice narration.
 
 ## High-Level Architecture
 

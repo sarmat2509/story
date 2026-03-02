@@ -83,7 +83,7 @@ export const oauth = {
       } else {
         // Android: Use web flow (fallback)
         const redirectUri = makeRedirectUri({
-          scheme: 'kazka',
+          scheme: 'wondertales',
           path: 'auth/apple/callback',
         });
         

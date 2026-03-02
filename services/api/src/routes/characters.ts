@@ -1,14 +1,13 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/authMiddleware';
 import * as characterService from '../services/characterService';
-import { CreateCharacterSchema, UpdateCharacterSchema } from '@kazka/shared';
+import { CreateCharacterSchema, UpdateCharacterSchema } from '@wondertales/shared';
 import { logger } from '../utils/logger';
-import { signReferencePhotoUrls, signReferencePhotoUrlsBatch } from '../utils/signPhotoUrls';
+
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
-import { generateTurnaroundSheet, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
-import { getAssetStorageService } from '../services/assetStorageService';
+import { generateTurnaroundSheet, generateLlmCharacterTurnaround, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
 
 const router = Router();
 
@@ -164,12 +163,9 @@ router.get('/', requireAuth, async (req, res) => {
     
     const characters = await characterService.getCharacters(userId, type);
     
-    // Sign photo URLs so <Image> can load them without auth headers
-    const signedCharacters = await signReferencePhotoUrlsBatch(characters);
-    
     res.json({
       status: 'success',
-      characters: signedCharacters
+      characters,
     });
   } catch (error) {
     logger.error({ error, userId: req.user?.id }, 'Error fetching characters');
@@ -222,12 +218,9 @@ router.post('/', requireAuth, async (req, res) => {
     // Create character
     const character = await characterService.createCharacter(userId, data);
     
-    // Sign photo URLs in the response
-    const signedCharacter = await signReferencePhotoUrls(character);
-    
     res.status(201).json({
       status: 'success',
-      character: signedCharacter
+      character,
     });
   } catch (error) {
     logger.error({ error, userId: req.user?.id }, 'Error creating character');
@@ -269,55 +262,74 @@ router.post('/:id/turnaround', requireAuth, async (req, res) => {
       });
     }
 
-    // Must have at least one reference photo
-    const referencePhotos = character.referencePhotos as Array<{ url?: string }> | undefined;
-    if (!referencePhotos || !Array.isArray(referencePhotos) || referencePhotos.length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        error: 'Character must have at least one reference photo',
-      });
-    }
-
-    const firstPhoto = referencePhotos.find(p => p && p.url);
-    if (!firstPhoto?.url) {
-      return res.status(400).json({
-        status: 'error',
-        error: 'No valid reference photo found',
-      });
-    }
-
     // Use description from request body (possibly unsaved edits) or fall back to DB
     const aiDescription = req.body.description
       || (character as any).descriptionEn
       || character.aiGeneratedDescription
+      || (character as any).appearance
+      || character.description
       || undefined;
 
-    logger.info({
-      userId,
-      characterId: id,
-      characterName: character.name,
-      hasBodyDescription: !!req.body.description,
-    }, 'Generating turnaround sheet on demand');
+    const referencePhotos = character.referencePhotos as Array<{ url?: string }> | undefined;
+    const firstPhoto = referencePhotos && Array.isArray(referencePhotos)
+      ? referencePhotos.find(p => p && p.url)
+      : undefined;
 
-    // Generate synchronously (awaited)
-    const result = await generateTurnaroundSheet({
-      characterId: id,
-      userId,
-      referencePhotoUrl: firstPhoto.url,
-      characterName: character.name,
-      aiDescription,
-    });
+    // Need either reference photo OR description
+    if (firstPhoto?.url) {
+      // Photo-based generation
+      logger.info({
+        userId,
+        characterId: id,
+        characterName: character.name,
+        hasBodyDescription: !!req.body.description,
+      }, 'Generating turnaround sheet on demand (photo-based)');
 
-    // Sign the turnaround URL so the frontend can load it
-    const storageService = getAssetStorageService();
-    const { signedUrl } = await storageService.generateSignedUrl(result.url, 24);
+      const result = await generateTurnaroundSheet({
+        characterId: id,
+        userId,
+        referencePhotoUrl: firstPhoto.url,
+        characterName: character.name,
+        aiDescription,
+      });
 
-    res.json({
-      status: 'success',
-      turnaroundSheet: {
-        url: signedUrl,
-        generatedAt: result.generatedAt,
-      },
+      return res.json({
+        status: 'success',
+        turnaroundSheet: {
+          url: `/api/v1/assets/${result.url}`,
+          generatedAt: result.generatedAt,
+        },
+      });
+    }
+
+    if (aiDescription && aiDescription.trim().length > 0) {
+      // Description-only generation (no photo)
+      logger.info({
+        userId,
+        characterId: id,
+        characterName: character.name,
+      }, 'Generating turnaround sheet on demand (description-only)');
+
+      const result = await generateLlmCharacterTurnaround({
+        characterId: id,
+        userId,
+        characterName: character.name,
+        characterDescription: aiDescription.trim(),
+        imageStyle: (req.body.imageStyle as string) || undefined,
+      });
+
+      return res.json({
+        status: 'success',
+        turnaroundSheet: {
+          url: `/api/v1/assets/${result.url}`,
+          generatedAt: result.generatedAt,
+        },
+      });
+    }
+
+    return res.status(400).json({
+      status: 'error',
+      error: 'Add a photo/drawing or description to generate the model sheet',
     });
   } catch (error) {
     logger.error({
@@ -349,12 +361,9 @@ router.get('/:id', requireAuth, async (req, res) => {
       });
     }
     
-    // Sign photo URLs so <Image> can load them without auth headers
-    const signedCharacter = await signReferencePhotoUrls(character);
-    
     res.json({
       status: 'success',
-      character: signedCharacter
+      character,
     });
   } catch (error) {
     logger.error({ error, userId: req.user?.id, characterId: req.params.id }, 'Error fetching character');
@@ -417,8 +426,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
     // Support simple isHidden toggle (e.g. from "Save to my characters" button)
     if (Object.keys(req.body).length === 1 && typeof req.body.isHidden === 'boolean') {
       const character = await characterService.updateCharacter(id, userId, { isHidden: req.body.isHidden } as any);
-      const signedCharacter = await signReferencePhotoUrls(character);
-      return res.json({ status: 'success', character: signedCharacter });
+      return res.json({ status: 'success', character });
     }
     
     // Validate input for full character updates
@@ -436,12 +444,9 @@ router.patch('/:id', requireAuth, async (req, res) => {
     // Update character (ownership check happens in service)
     const character = await characterService.updateCharacter(id, userId, data);
     
-    // Sign photo URLs in the response
-    const signedCharacter = await signReferencePhotoUrls(character);
-    
     res.json({
       status: 'success',
-      character: signedCharacter
+      character,
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);

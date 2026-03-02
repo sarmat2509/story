@@ -224,7 +224,7 @@ GoogleSignin.configure({
 const userInfo = await GoogleSignin.signIn();
 
 // Send to backend
-const response = await fetch('https://api.kazkaplus.com/auth/google/token', {
+const response = await fetch('https://api.wondertales.com/auth/google/token', {
   method: 'POST',
   body: JSON.stringify({ idToken: userInfo.idToken })
 });
