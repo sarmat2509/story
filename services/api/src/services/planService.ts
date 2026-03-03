@@ -294,13 +294,15 @@ export async function resetUsageCounters(userId: string): Promise<void> {
   const now = new Date();
   const oneMonthLater = new Date(now);
   oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
-  
+
   await getPlanRepository().updateSubscription(userId, {
     storiesUsed: 0,
     audioMinutesUsed: 0,
     resetAt: oneMonthLater,
+    currentPeriodStart: now,
+    currentPeriodEnd: oneMonthLater,
   });
-  
+
   logger.info({ userId }, 'Reset usage counters');
 }
 
@@ -311,13 +313,15 @@ export async function changePlan(userId: string, newPlanSlug: string): Promise<U
   if (!newPlan) {
     throw new Error(`Plan with slug '${newPlanSlug}' not found`);
   }
-  
+
+  await resetUsageCounters(userId);
+
   const updatedSubscription = await planRepo.updateSubscription(userId, { planId: newPlan.id });
-  
+
   if (!updatedSubscription) {
     throw new Error('Subscription not found');
   }
-  
-  logger.info({ userId, newPlanId: newPlan.id }, 'Changed user plan');
+
+  logger.info({ userId, newPlanId: newPlan.id }, 'Changed user plan, reset usage counters');
   return updatedSubscription;
 }
