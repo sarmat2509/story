@@ -301,6 +301,36 @@ export class OutlinePromptBuilder {
 }
 ```
 
+#### Content Policy (Single Source of Truth)
+
+**Location:** `services/api/src/prompts/contentPolicy.ts`
+
+**MUST** host and edit all content filters, safety rules, and scenario-specific overrides in this single file.
+
+**Exports:** `getContentPolicy()`, `getImageContentPolicy()`, `SCARY_STORIES_SCENARIO_ID`
+
+**Outputs:**
+
+- `textPromptSection` — text prompts (safety, DB rules, scary_stories overrides)
+- `imageNegativePrompt`, `imageSafetyAdditions`, `imageStyleNightModifier` — image prompts
+- `audioTagsRules` — audio TTS guidance
+- `validationRules` — ValidationPrompt rules
+
+**Rules:**
+
+- **MUST** edit content policy only in `contentPolicy.ts`
+- **NEVER** add safety, scary story, image negative/safety, audio rules, or validation rules in other files (helpers, ImagePrompts, styles, or prompt builders)
+- **MUST** use `getContentPolicy()` for text/audio/validation prompts (when `policyProfile` available)
+- **MUST** use `getImageContentPolicy()` for image prompts when `policyProfile` not available (e.g. ImageDomainService)
+- **MUST** pass `scenarioCardId` through the chain for scenario-specific overrides (e.g. scary_stories)
+
+**Consumers:**
+
+- Text: `TextPrompt.ts`, `DirectTextPrompt.ts`, `RegenerationPrompt.ts` → `textPromptSection`
+- Audio: `helpers.formatVisualStoryRules()` → `audioTagsRules`
+- Validation: `ValidationPrompt.ts` → `validationRules`
+- Images: `ImagePrompts.ts`, `styles.ts` → `getImageContentPolicy` for negative/safety/style modifiers
+
 #### Layer 4: Provider Implementation
 
 **Location:** `providers/base/`, `providers/text/gemini/`, `providers/image/gemini/`, `providers/audio/elevenlabs/`

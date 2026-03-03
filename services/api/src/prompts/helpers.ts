@@ -9,6 +9,7 @@
 import type { StorySpec, PolicyProfile } from '../ai/types';
 import { getLanguageFullDisplay } from '@wondertales/shared';
 import { getTextStyleGuidance } from './image/styles';
+import { getContentPolicy } from './contentPolicy';
 
 /**
  * Get full language display name from code
@@ -290,82 +291,6 @@ export function formatAgeRequirements(ageGroup: string): string {
 }
 
 /**
- * Format scary story specific requirements based on age
- * Only call this if the scenario is 'scary_stories'
- * @param ageGroup - Age group (0-1, 1y, 2-3, 4-5, 6-8, 9-12)
- * @returns Formatted scary story requirements for specific age
- */
-export function formatScaryStoryRequirements(ageGroup: string): string {
-  const requirements: Record<string, string[]> = {
-    '4-5': [
-      'SCARY STORY REQUIREMENTS (Ages 4-5: Silly & Friendly Spooks):',
-      '- Tone: Humorous and playful, NOT frightening',
-      '- Characters: Friendly ghosts, goofy monsters, silly witches, clumsy vampires',
-      '- Situations: Funny misunderstandings, silly problems (monster afraid of dark, ghost can\'t scare)',
-      '- Tension: Minimal - brief "uh-oh" moments quickly resolved with humor',
-      '- Resolution: FAST positive ending within 1-2 scenes of any tension',
-      '- Emphasis: Friendship, laughter, monsters are friends not threats',
-      '- Style examples: Hotel Transylvania, Room on the Broom, Vampirina',
-      '- CRITICAL: More silly than scary - kids should laugh, not worry'
-    ],
-    '6-8': [
-      'SCARY STORY REQUIREMENTS (Ages 6-8: Gentle Goosebumps):',
-      '- Tone: Mild mystery with safe, positive outcomes',
-      '- Elements: Strange noises, mysterious shadows, "haunted" places, hidden secrets',
-      '- Characters: Misunderstood creatures, friendly ghosts needing help, mysterious but kind beings',
-      '- Tension: Moderate buildup allowed, but always explained logically or resolved positively',
-      '- Problem-solving: Child uses bravery and cleverness to solve the mystery',
-      '- Resolution: Clear explanation (wasn\'t actually scary, just misunderstood), friendship formed',
-      '- Lessons: Facing small fears with courage, things aren\'t always as scary as they seem',
-      '- Style examples: Friendly monster stories, mystery-adventure hybrids, cozy spooky',
-      '- IMPORTANT: Spooky atmosphere YES, genuine fear NO - always safe feeling'
-    ],
-    '9-12': [
-      'SCARY STORY REQUIREMENTS (Ages 9-12: Classic Kid Horror):',
-      '- Tone: Suspenseful with sustained tension, but age-appropriate',
-      '- Elements: Creepy settings, mysterious creatures, unexplained phenomena, detective work',
-      '- Plot: Mystery that needs solving, clues to piece together, building suspense',
-      '- Tension: Can build across multiple scenes, keeps reader guessing',
-      '- Scary elements: Strange occurrences, eerie atmospheres, unknown threats (but NOT graphic/gory)',
-      '- Problem-solving: Main character uses intelligence, courage, and persistence',
-      '- Resolution: Mystery solved through cleverness, threats overcome, positive ending with accomplishment',
-      '- Character growth: Overcoming significant fears, becoming braver and more confident',
-      '- Style examples: Goosebumps series, Coraline, Scary Stories to Tell in the Dark (age-adapted)',
-      '- BALANCE: Real suspense and "shivers" YES, nightmares and trauma NO'
-    ]
-  };
-
-  // Default to 6-8 for unlisted age groups (0-1, 1y, 2-3 shouldn't use scary stories theme)
-  const ageReqs = requirements[ageGroup] || requirements['6-8'];
-  
-  return ageReqs.join('\n');
-}
-
-/**
- * Format content safety policy section for prompts
- * @param policy - Policy profile
- * @returns Formatted safety policy text
- */
-export function formatSafetyPolicy(policy: PolicyProfile): string {
-  const sections = [
-    'POSITIVE REQUIREMENTS:',
-    '- MUST have happy, safe ending',
-    '- Show problem-solving through: communication, kindness, asking for help',
-    '- Include emotional validation (feelings are real and OK)',
-    '- Characters learn and grow from experiences',
-    '- Family/friends provide support when needed',
-    '',
-    'SAFETY GUIDELINES:',
-    '- All content must be age-appropriate and safe',
-    '- Conflicts resolve peacefully through communication',
-    '- Focus on friendship, family love, and kindness',
-    '- Include adult support when characters face challenges'
-  ];
-
-  return sections.join('\n');
-}
-
-/**
  * Format writing style guidelines for text generation
  * @param spec - Story specification
  * @param vocabLevel - Vocabulary level (simple, basic, intermediate, advanced)
@@ -534,37 +459,6 @@ export function formatTextVisualConsistencyRules(): string {
   ].join('\n');
 }
 
-/**
- * ElevenLabs v3 audio tags rules — full version with format rules, examples, and safety.
- */
-export function formatAudioTagsRules(): string {
-  return [
-    'AUDIO TAGS USAGE:',
-    'Integrate audio tags in square brackets [tag] to enhance emotional delivery for text-to-speech.',
-    'Use EXACTLY the official ElevenLabs v3 formats below (case-sensitive, lowercase only).',
-    '',
-    'OFFICIAL SUPPORTED TAGS:',
-    'Emotions: [happy], [sad], [excited], [angry], [thoughtful], [curious], [surprised], [annoyed]',
-    'Delivery: [whisper], [shouting], [sarcastic], [mischievously]',
-    'Non-verbal: [laughing], [chuckles], [sighs], [clears throat], [exhales sharply], [inhales deeply]',
-    'Timing: [short pause], [long pause]',
-    '',
-    'CRITICAL - Tag Format Rules:',
-    '- Use EXACT formats above (NOT [whispers], [giggles], [gasps] - these will be spoken literally!)',
-    '- Lowercase only (NOT [WHISPER] or [Whisper])',
-    '- Place tags before/after dialogue segments or at natural pauses',
-    '- Use 2-3 tags per scene maximum for natural flow',
-    '',
-    'Examples:',
-    '- \'[excited] Look at that beautiful sunset!\'',
-    '- \'She opened the door slowly. [exhales sharply] The room was filled with treasure!\'',
-    '- \'[laughing] This is so much fun! [excited] Let\\\'s try again!\'',
-    '',
-    'SAFETY: Only use child-appropriate audio tags from approved list above. Avoid scary sounds ([gunshot], [explosion]), aggressive emotions. Prefer gentle, playful tags like [chuckles], [laughing], [excited], [whisper], [curious].',
-    '',
-    'Use tags naturally to enhance storytelling emotion without overusing them.',
-  ].join('\n');
-}
 
 /**
  * Scene text boundary rules — sentences must not split across scenes.
@@ -586,14 +480,34 @@ export function formatSceneTextBoundaryRules(): string {
 /**
  * Composite function: all shared visual story rules in one call.
  * Used by TextPrompt, DirectTextPrompt, and ContinuationPrompt.
+ * Uses getContentPolicy for audio tags when policyProfile provided.
  */
-export function formatVisualStoryRules(opts?: { imageStyle?: string | null }): string {
+export function formatVisualStoryRules(opts?: {
+  imageStyle?: string | null;
+  scenarioCardId?: string;
+  policyProfile?: PolicyProfile;
+}): string {
+  const policyProfile = opts?.policyProfile ?? {
+    ageGroup: '6-8',
+    language: 'en',
+    disallowedRules: [],
+    fearLevelMax: 2,
+    allowedConflicts: [],
+    constraints: { mustHaveHappyEnding: true, noShamingLanguage: true },
+    readability: { maxSentenceLen: 18, targetWordsRange: [500, 800], dialogRatio: 0.5 },
+    promptGuidelines: '',
+  };
+  const audioTagsRules = getContentPolicy({
+    policyProfile,
+    scenarioCardId: opts?.scenarioCardId,
+  }).audioTagsRules;
+
   const parts = [
     formatEnvironmentRules(),
     formatSceneVisualRules({ imageStyle: opts?.imageStyle }),
     formatCharactersPerSceneRules(),
     formatTextVisualConsistencyRules(),
-    formatAudioTagsRules(),
+    audioTagsRules,
     formatSceneTextBoundaryRules(),
   ];
   return parts.filter(Boolean).join('\n\n');

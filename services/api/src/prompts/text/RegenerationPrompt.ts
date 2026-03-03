@@ -4,6 +4,7 @@
  */
 
 import * as helpers from '../helpers';
+import { getContentPolicy } from '../contentPolicy';
 import type { StorySpec, EpisodeOutline } from '../../ai/types';
 import { getLanguageFullDisplay } from '@wondertales/shared';
 
@@ -73,7 +74,7 @@ WRITING REQUIREMENTS:
 - Vocabulary level: ${vocabLevel}
 - Target word count for this scene: ${minWords}-${maxWords} words
 
-${helpers.formatSafetyPolicy(spec.policyProfile)}
+${getContentPolicy({ policyProfile: spec.policyProfile, scenarioCardId: spec.scenarioCard?.id }).textPromptSection}
 
 CRITICAL INSTRUCTIONS:
 - FIX all issues mentioned in validation feedback to ensure CHILD SAFETY

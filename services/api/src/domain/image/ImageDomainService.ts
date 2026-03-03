@@ -10,7 +10,6 @@ import { logger } from '../../utils/logger';
 import {
   buildSceneImagePrompt,
   buildImageSystemInstruction,
-  buildNegativePrompt,
   extractSceneCharacters,
   type CharacterReference,
 } from '../../prompts/image';
@@ -35,6 +34,7 @@ export interface SceneImageRequest {
   characters?: CharacterReference[];
   referenceImages?: ReferenceImage[];
   mode?: 'with_references' | 'without_references';
+  scenarioCardId?: string;
 }
 
 /**
@@ -75,6 +75,8 @@ export interface SceneImageWithReferenceRequest {
 
   // Scene-specific outfit overrides from text generation
   characterOutfits?: Record<string, string>;
+
+  scenarioCardId?: string;
 }
 
 /**
@@ -118,10 +120,7 @@ export class ImageDomainService {
                                request.referenceImages && 
                                request.referenceImages.length > 0;
     
-    // Build negative prompt for safety (will be included in main prompt)
-    const negativePrompt = buildNegativePrompt(request.ageGroup);
-    
-    // Build enhanced prompt with characters, style, and safety guidelines
+    // Build enhanced prompt with characters, style, and safety guidelines (contentPolicy handles negative prompt internally)
     const enhancedPrompt = buildSceneImagePrompt({
       sceneVisual: request.sceneVisual,
       visualPrompt: request.visualPrompt,
@@ -129,7 +128,7 @@ export class ImageDomainService {
       style: request.style || 'soft_watercolor',
       characters: sceneCharacters,
       hasReferences: useCapabilityModel,
-      negativePrompt, // Include negative prompt in text
+      scenarioCardId: request.scenarioCardId,
     });
     
     // Create provider request
@@ -176,6 +175,7 @@ export class ImageDomainService {
       imageIndexMap: request.imageIndexMap,
       currentEnvironment: request.currentEnvironment,
       characterOutfits: request.characterOutfits,
+      scenarioCardId: request.scenarioCardId,
     });
 
     // Build system instruction: use pre-built one from orchestration, or build here
@@ -183,6 +183,7 @@ export class ImageDomainService {
       style: request.style,
       ageGroup: request.ageGroup,
       hasReferences: hasRefs,
+      scenarioCardId: request.scenarioCardId,
     });
 
     logger.info({

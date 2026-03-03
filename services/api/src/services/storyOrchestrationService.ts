@@ -823,6 +823,7 @@ async function prepareFilesApiAndSystemInstruction(params: {
     style,
     ageGroup: spec.ageGroup,
     hasReferences: hasAnyReferences,
+    scenarioCardId: spec.scenarioCard?.id,
   });
 
   logger.info({
@@ -1170,6 +1171,7 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
         characters: sceneCharacterDescriptions,
         userStyle: (spec as any).imageStyle,
         ageGroup: spec.ageGroup,
+        scenarioCardId: spec.scenarioCard?.id,
         userPlan,
         userId,
         assetStorage,
@@ -1509,6 +1511,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
             characters: sceneCharacterDescriptions,
             userStyle: (spec as any).imageStyle,
             ageGroup: spec.ageGroup,
+            scenarioCardId: spec.scenarioCard?.id,
             userPlan, userId: request.userId, assetStorage, imageDomain,
             referenceImageDataArray, imageSystemInstruction, imageIndexMap,
             currentEnvironmentId, currentEnvironment,
@@ -2600,6 +2603,7 @@ async function generateSceneImageWithReference(
       imageIndexMap: context.imageIndexMap, // Google Asset Graph: character name -> Image N
       currentEnvironment: context.currentEnvironment, // Per-scene environment for user prompt
       characterOutfits: scene.characterOutfits, // Scene-specific outfit overrides from text generation
+      scenarioCardId: context.scenarioCardId,
     };
 
     const maxAttempts = config.image.enableValidation

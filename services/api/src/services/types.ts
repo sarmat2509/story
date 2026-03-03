@@ -123,6 +123,7 @@ export interface ImageGenerationContext {
   characters: CharacterData[];
   userStyle?: string;
   ageGroup: string;
+  scenarioCardId?: string;
   userPlan: {
     imagesPerStory: number;
     imageQuality: string;

@@ -26,12 +26,13 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
   logger.info({ requestId, sceneCount: text.scenes.length }, 'Starting parallel scene validation');
 
   const validations = await Promise.all(
-    text.scenes.map((scene: any, idx: number) => 
+    text.scenes.map((scene: any, idx: number) =>
       storyDomain.validateScene(
         outline.scenes[idx],
         scene,
         spec.policyProfile,
-        idx === text.scenes.length - 1 // isLastScene
+        idx === text.scenes.length - 1, // isLastScene
+        spec.scenarioCard?.id
       )
     )
   );
@@ -83,7 +84,8 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
             outline.scenes[sceneIdx],
             scene,
             spec.policyProfile,
-            sceneIdx === text.scenes.length - 1
+            sceneIdx === text.scenes.length - 1,
+            spec.scenarioCard?.id
           );
         })
       );

@@ -3,6 +3,8 @@
  * Single source of truth for all style-related prompts.
  */
 
+import { getImageContentPolicy } from '../contentPolicy';
+
 export interface StyleDefinition {
   /** Image generation: Full style prefix for image model */
   imagePrefix: string[];
@@ -169,18 +171,27 @@ export const ART_STYLES: Record<string, StyleDefinition> = {
 };
 
 /**
- * Get image style prefix with age-appropriate enhancements
+ * Get image style prefix with age-appropriate enhancements.
+ * For night_calm style, uses imageStyleNightModifier from contentPolicy when scenarioCardId provided.
  */
-export function getImageStylePrefix(style: string, ageGroup: string): string {
+export function getImageStylePrefix(style: string, ageGroup: string, scenarioCardId?: string): string {
   const styleDef = ART_STYLES[style] || ART_STYLES['soft_watercolor'];
-  const baseStyle = styleDef.imagePrefix.join(', ');
-  
+  let baseStyle = styleDef.imagePrefix.join(', ');
+
+  // For night_calm: replace "but not scary" with scenario-aware modifier when scenarioCardId provided
+  if (style === 'night_calm' && scenarioCardId != null) {
+    const { imageStyleNightModifier } = getImageContentPolicy({ ageGroup, scenarioCardId });
+    if (imageStyleNightModifier) {
+      baseStyle = baseStyle.replace('high contrast between light and dark, but not scary', `high contrast between light and dark, ${imageStyleNightModifier}`);
+    }
+  }
+
   if (ageGroup === '0-1' || ageGroup === '1y') {
     return `${baseStyle}, very simple shapes, minimal details, extremely soft and gentle`;
   } else if (ageGroup === '2-3' || ageGroup === '4-5') {
     return `${baseStyle}, simple clear shapes, bright friendly colors, child-friendly`;
   }
-  
+
   return baseStyle;
 }
 

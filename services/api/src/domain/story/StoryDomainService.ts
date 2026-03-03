@@ -68,7 +68,8 @@ export class StoryDomainService {
     sceneOutline: EpisodeOutline['scenes'][0],
     sceneText: EpisodeText['scenes'][0],
     policy: PolicyProfile,
-    isLastScene: boolean
+    isLastScene: boolean,
+    scenarioCardId?: string
   ): Promise<SceneValidationResult> {
     logger.info({ sceneId: sceneText.sceneId, isLastScene }, 'Validating scene');
 
@@ -77,7 +78,8 @@ export class StoryDomainService {
       sceneOutline,
       sceneText,
       policy,
-      isLastScene
+      isLastScene,
+      scenarioCardId,
     });
     
     // Log FULL validation prompt and scene text for debugging

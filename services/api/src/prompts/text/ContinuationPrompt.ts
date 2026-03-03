@@ -120,7 +120,7 @@ ${helpers.formatWritingStyle(spec, vocabLevel)}
 
 OUTPUT FORMAT: Same as DirectTextPrompt (JSON with title, environments, characters, moral, scenes)
 
-${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle })}
+${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle, scenarioCardId: spec.scenarioCard?.id, policyProfile: spec.policyProfile })}
 
 IMPORTANT - Character Descriptions:
 - Return ALL new characters you create in the story in "characters" array

@@ -8,6 +8,7 @@ import { logger } from '../../utils/logger';
 import { flattenCameraComposition, type SceneVisual } from '../../services/types';
 import type { StoryEnvironment } from '../../ai/types';
 import { getImageStylePrefix } from './styles';
+import { getImageContentPolicy } from '../contentPolicy';
 
 export interface CharacterReference {
   name: string;
@@ -47,9 +48,11 @@ export function buildSceneImagePrompt(params: {
   // Legacy params kept for non-reference (Imagen 3) path
   characters?: CharacterReference[];
   negativePrompt?: string;
+  scenarioCardId?: string;
 }): string {
-  const stylePrefix = getImageStylePrefix(params.style, params.ageGroup);
-  const safetyAdditions = getSafetyPromptAdditions(params.ageGroup);
+  const imagePolicy = getImageContentPolicy({ ageGroup: params.ageGroup, scenarioCardId: params.scenarioCardId });
+  const stylePrefix = getImageStylePrefix(params.style, params.ageGroup, params.scenarioCardId);
+  const safetyAdditions = imagePolicy.imageSafetyAdditions;
 
   // --- New structured path (sceneVisual available) ---
   if (params.sceneVisual) {
@@ -88,7 +91,8 @@ export function buildSceneImagePrompt(params: {
   }
   const noTextPrefix = 'CRITICAL RULE: ABSOLUTELY NO TEXT OR LETTERS anywhere on the image. ';
   const noTextSuffix = '. STRICTLY FORBIDDEN: No text, no letters, no words, no numbers, no symbols, no writing, no typography, no captions, no subtitles, no labels, no signs, no banners, no speech bubbles, no thought bubbles, no text on screens, no text on objects, no text on clothing, no text on buildings, no text on vehicles, no text anywhere. Pure visual storytelling ONLY';
-  const negativeGuidance = params.negativePrompt ? `, avoid: ${params.negativePrompt}` : '';
+  const negativeToUse = params.negativePrompt ?? imagePolicy.imageNegativePrompt;
+  const negativeGuidance = negativeToUse ? `, avoid: ${negativeToUse}` : '';
   const aggressiveTextBlocking = ', NO TEXT, NO LETTERS, NO WORDS, NO WRITING, NO TYPOGRAPHY, NO CAPTIONS, NO LABELS, NO SIGNS';
 
   const fullPrompt = `${noTextPrefix}${stylePrefix}${characterPart}, ${cleanVisualPrompt}, ${safetyAdditions}${noTextSuffix}${aggressiveTextBlocking}${negativeGuidance}`;
@@ -252,55 +256,6 @@ function buildCharacterDescriptions(characters?: CharacterReference[]): string {
 }
 
 /**
- * Build negative prompt for image generation
- * Excludes inappropriate content based on age group
- */
-export function buildNegativePrompt(ageGroup: string): string {
-  const baseNegative = [
-    'scary', 'horror', 'violent', 'gore', 'blood',
-    'sexual', 'nude', 'inappropriate',
-    // ULTRA-AGGRESSIVE text blocking
-    'text', 'letters', 'words', 'writing', 'typography', 'font',
-    'watermark', 'logo', 'signature', 'label', 'sign', 'banner',
-    'speech bubbles', 'dialogue bubbles', 'text bubbles', 'captions',
-    'subtitles', 'written text', 'words on image', 'text on screen',
-    'text on objects', 'text on clothing', 'text on buildings',
-    'numbers', 'digits', 'symbols on image', 'written symbols',
-    'alphabet', 'characters', 'glyphs', 'inscriptions',
-    'photorealistic', 'photo', 'photograph', 'realistic photo',
-    'real person', 'camera', 'photography', 'stock photo', 'selfie',
-    'realistic photograph', 'photographic', 'real life photo',
-    'deformed', 'ugly', 'blurry', 'low quality',
-    'extra limbs', 'distorted face', 'bad anatomy',
-  ];
-  
-  // Add age-specific exclusions
-  if (ageGroup === '0-1' || ageGroup === '1y' || ageGroup === '2-3') {
-    baseNegative.push('darkness', 'shadows', 'monsters', 'scary faces');
-  }
-  
-  return baseNegative.join(', ');
-}
-
-
-/**
- * Get safety prompt additions based on age group
- */
-function getSafetyPromptAdditions(ageGroup: string): string {
-  const baseSafety = 'safe for children, friendly, positive, age-appropriate';
-  
-  if (ageGroup === '0-1' || ageGroup === '1y') {
-    return `${baseSafety}, no scary elements, pure comfort and safety`;
-  } else if (ageGroup === '2-3') {
-    return `${baseSafety}, no frightening imagery, gentle and reassuring`;
-  } else if (ageGroup === '4-5' || ageGroup === '6-8') {
-    return `${baseSafety}, friendly atmosphere, no scary or threatening elements`;
-  }
-  
-  return baseSafety;
-}
-
-/**
  * Build prompt for generating a character portrait
  * Used for creating reference images when user hasn't provided any
  */
@@ -311,17 +266,19 @@ export function buildCharacterPortraitPrompt(params: {
   ageGroup: string;
   characterType?: string;
   negativePrompt?: string; // Negative prompt to include as text
+  scenarioCardId?: string;
 }): string {
-  const stylePrefix = getImageStylePrefix(params.style, params.ageGroup);
-  const safetyAdditions = getSafetyPromptAdditions(params.ageGroup);
+  const imagePolicy = getImageContentPolicy({ ageGroup: params.ageGroup, scenarioCardId: params.scenarioCardId });
+  const stylePrefix = getImageStylePrefix(params.style, params.ageGroup, params.scenarioCardId);
+  const safetyAdditions = imagePolicy.imageSafetyAdditions;
   
   // ULTRA-STRONG no text instruction for portraits
   const noTextPrefixInstruction = 'CRITICAL: ABSOLUTELY NO TEXT OR LETTERS. ';
   const noTextSuffixInstruction = ', STRICTLY NO text, NO letters, NO words, NO writing, NO speech bubbles, NO captions, NO labels, NO text on clothing';
   
   // Build negative guidance as text (since API doesn't support negativePrompt parameter)
-  const negativeGuidance = params.negativePrompt 
-    ? `, avoid: ${params.negativePrompt}` 
+  const negativeGuidance = (params.negativePrompt ?? imagePolicy.imageNegativePrompt)
+    ? `, avoid: ${params.negativePrompt ?? imagePolicy.imageNegativePrompt}`
     : '';
   
   // Aggressive text blocking
@@ -348,9 +305,11 @@ export function buildImageSystemInstruction(params: {
   style: string;
   ageGroup: string;
   hasReferences?: boolean;
+  scenarioCardId?: string;
 }): string {
-  const stylePrefix = getImageStylePrefix(params.style, params.ageGroup);
-  const safetyAdditions = getSafetyPromptAdditions(params.ageGroup);
+  const imagePolicy = getImageContentPolicy({ ageGroup: params.ageGroup, scenarioCardId: params.scenarioCardId });
+  const stylePrefix = getImageStylePrefix(params.style, params.ageGroup, params.scenarioCardId);
+  const safetyAdditions = imagePolicy.imageSafetyAdditions;
 
   const sections: string[] = [];
 

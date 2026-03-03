@@ -4,6 +4,7 @@
  */
 
 import * as helpers from '../helpers';
+import { getContentPolicy } from '../contentPolicy';
 import type { StorySpec } from '../../ai/types';
 
 export interface DirectTextPromptParams {
@@ -34,9 +35,7 @@ ${helpers.formatStoryRequirements({ spec, sceneCount })}
 
 ${helpers.formatAgeRequirements(spec.ageGroup)}
 
-${spec.scenarioCard?.id === 'scary_stories' ? helpers.formatScaryStoryRequirements(spec.ageGroup) : ''}
-
-${helpers.formatSafetyPolicy(spec.policyProfile)}
+${getContentPolicy({ policyProfile: spec.policyProfile, scenarioCardId: spec.scenarioCard?.id }).textPromptSection}
 
 ${helpers.formatWritingStyle(spec, vocabLevel)}
 
@@ -81,7 +80,7 @@ OUTPUT FORMAT (JSON):
   ]
 }
 
-${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle })}
+${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle, scenarioCardId: spec.scenarioCard?.id, policyProfile: spec.policyProfile })}
 
 IMPORTANT - Character Descriptions:
 - Return ALL characters you create in the story (do NOT include user-provided characters from SUPPORTING CHARACTERS section above)

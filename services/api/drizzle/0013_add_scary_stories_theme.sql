@@ -3,7 +3,7 @@
 -- ==========================================
 -- This migration adds a new scenario card theme "Scary Stories"
 -- with age-appropriate scary content for children 4-12 years.
--- Detailed age-specific requirements are handled by formatScaryStoryRequirements() helper.
+-- Detailed age-specific requirements are handled by contentPolicy.ts (getContentPolicy / buildTextPromptSection).
 
 -- Add scary stories scenario card
 INSERT INTO scenario_cards (id, name_key, description_key, icon, prompt_guidance, suggested_goals, age_groups, sort_order, is_active) 

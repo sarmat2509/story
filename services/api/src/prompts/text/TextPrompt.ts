@@ -4,6 +4,7 @@
  */
 
 import * as helpers from '../helpers';
+import { getContentPolicy } from '../contentPolicy';
 import type { StorySpec, EpisodeOutline } from '../../ai/types';
 
 export interface TextPromptParams {
@@ -38,9 +39,7 @@ WRITING REQUIREMENTS:
 
 ${helpers.formatAgeRequirements(spec.ageGroup)}
 
-${spec.scenarioCard?.id === 'scary_stories' ? helpers.formatScaryStoryRequirements(spec.ageGroup) : ''}
-
-${helpers.formatSafetyPolicy(spec.policyProfile)}
+${getContentPolicy({ policyProfile: spec.policyProfile, scenarioCardId: spec.scenarioCard?.id }).textPromptSection}
 
 ${helpers.formatWritingStyle(spec, vocabLevel)}
 
@@ -75,7 +74,7 @@ OUTPUT FORMAT (JSON):
   ]
 }
 
-${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle })}
+${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle, scenarioCardId: spec.scenarioCard?.id, policyProfile: spec.policyProfile })}
 
 IMPORTANT - Scene Structure:
 - Write complete, standalone text for EACH scene with audio tags embedded

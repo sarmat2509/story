@@ -34,8 +34,7 @@ Currently, age groups are hardcoded as strings ('1y', '2-3', '4-5', '6-8', '9-12
 
 5. **`services/api/src/prompts/image/ImagePrompts.ts`** (lines 90-140)
    - `getStylePrefix()` - string comparisons
-   - `getSafetyPromptAdditions()` - string comparisons
-   - **Action**: Create helper service for age-group-based prompt building
+   - **Action**: Create helper service for age-group-based prompt building (safety/negative prompts now in `contentPolicy.ts`)
 
 ### Low Priority (Already using string references)
 
