@@ -1,12 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import type { NavigationProp } from '@react-navigation/native';
-import type { PublicStackParamList } from '@/types/navigation';
+import type { MainDrawerParamList } from '@/types/navigation';
+import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
 
 export default function LandingScreen() {
-  const navigation = useNavigation<NavigationProp<PublicStackParamList>>();
+  const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const { t } = useTranslation();
+  const { isAuthenticated } = useAuthStore();
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -54,11 +58,20 @@ export default function LandingScreen() {
       </View>
 
       <View style={styles.actions}>
+        {!isAuthenticated && (
+          <TouchableOpacity
+            style={[styles.button, styles.primaryButton]}
+            onPress={() => navigation.navigate('Login')}
+          >
+            <Text style={styles.primaryButtonText}>Get Started</Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity
-          style={[styles.button, styles.primaryButton]}
-          onPress={() => navigation.navigate('Login')}
+          style={[styles.button, styles.secondaryButton]}
+          onPress={() => navigation.navigate('Stories')}
         >
-          <Text style={styles.primaryButtonText}>Get Started</Text>
+          <Text style={styles.secondaryButtonText}>{t('navigation.published_stories')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

@@ -64,6 +64,24 @@ export const useUser = () => {
   });
 };
 
+// Update current user (profile)
+export const useUpdateMe = () => {
+  const queryClient = useQueryClient();
+  const { setUser } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async (data: { displayName?: string; preferredLocale?: string; mode?: string; pseudonym?: string | null }) => {
+      const response = await apiClient.patch<{ status: string; user: User }>('/api/v1/me', data);
+      return response.data.user;
+    },
+    onSuccess: (user) => {
+      setUser(user);
+      storage.setUser(user);
+      queryClient.setQueryData(['user'], user);
+    },
+  });
+};
+
 // Logout
 export const useLogout = () => {
   const queryClient = useQueryClient();

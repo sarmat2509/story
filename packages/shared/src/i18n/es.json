@@ -429,7 +429,11 @@
     "tab_characters": "Personajes",
     "tab_plans": "Planes",
     "tab_profile": "Perfil",
-    "tab_more": "Más"
+    "tab_more": "Más",
+    "published_stories": "Historias publicadas",
+    "page_not_found": "Página no encontrada",
+    "page_not_found_message": "La página que buscas no existe o ha sido movida.",
+    "go_home": "Ir al inicio"
   },
   "story_viewer": {
     "create_audio": "Crear Audiocuento",

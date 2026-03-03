@@ -746,7 +746,17 @@
     "character_type_child": "Дитина",
     "character_type_friend": "Друг",
     "image_preparing": "готуємо зображення",
-    "image_failed": "не вдалося згенерувати зображення"
+    "image_failed": "не вдалося згенерувати зображення",
+    "share_title": "Поділитися історією",
+    "share_message": "Читай мою історію «{{title}}» в WonderTales! Твоя дитина — герой власної казки 🎭",
+    "publish_share_dialog_title": "Опублікувати історію",
+    "publish_share_dialog_message": "Щоб поділитися історією, її потрібно опублікувати. Вона стане доступна всім користувачам.",
+    "publish_share_dialog_published": "Опубліковано",
+    "publish_and_share": "Опублікувати і поділитися",
+    "url_copied": "URL скопійовано",
+    "copy": "Копіювати",
+    "publish": "Опублікувати",
+    "cancel": "Скасувати"
   },
   "toast": {
     "audio_ready_title": "Аудіоказка готова!",
@@ -783,7 +793,13 @@
     "logout": "Вийти",
     "logout_confirm_title": "Вийти з акаунту?",
     "logout_confirm_message": "Ви впевнені, що хочете вийти?",
-    "cancel": "Скасувати"
+    "cancel": "Скасувати",
+    "pseudonym": "Псевдоним (для публікацій)"
+  },
+  "published_story": {
+    "cta_title": "Твоя дитина — герой власної казки",
+    "cta_description": "Створи історію, де твоя дитина стане персонажем. Картинки та озвучка — за кілька хвилин.",
+    "cta_button": "Увійти та створити"
   },
   "mode_selection": {
     "title": "Оберіть свій досвід",
@@ -813,7 +829,11 @@
     "tab_characters": "Персонажі",
     "tab_plans": "Тарифи",
     "tab_profile": "Профіль",
-    "tab_more": "Ще"
+    "tab_more": "Ще",
+    "published_stories": "Опубліковані історії",
+    "page_not_found": "Сторінку не знайдено",
+    "page_not_found_message": "Сторінка, яку ви шукаєте, не існує або була переміщена.",
+    "go_home": "На головну"
   },
   "dashboard": {
     "welcome_back": "Ласкаво просимо назад, {{name}}!",

@@ -1,23 +1,21 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
-  Public: undefined;
   ModeSelection: undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
 };
 
-export type PublicStackParamList = {
-  Landing: undefined;
-  Plans: undefined;
-  Login: undefined;
-  OAuthCallback: { provider: 'google' | 'apple' };
-};
-
 export type MainDrawerParamList = {
+  Landing: undefined;
+  Login: undefined;
+  NotFound: undefined;
+  OAuthCallback: { provider: 'google' | 'apple' };
   Dashboard: undefined;
   Wizard: undefined;
   Library: { scenarioCardId?: string } | undefined;
   Story: { storyId: string; autoPlay?: boolean };
+  Stories: undefined;
+  PublishedStory: { slug: string };
   Children: undefined;
   Characters: undefined;
   Plans: undefined;

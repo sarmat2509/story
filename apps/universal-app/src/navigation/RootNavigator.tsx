@@ -3,7 +3,6 @@ import { View, ActivityIndicator } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
-import PublicNavigator from './PublicNavigator';
 import MainNavigator from './MainNavigator';
 import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
 import type { RootStackParamList } from '@/types/navigation';
@@ -27,18 +26,16 @@ export default function RootNavigator() {
 
   const navigatorKey = needsModeSelection ? 'mode-selection' : 'main';
 
+  const initialRoute = needsModeSelection ? 'ModeSelection' : 'Main';
+
   return (
-    <Stack.Navigator 
+    <Stack.Navigator
       key={navigatorKey}
       screenOptions={{ headerShown: false }}
+      initialRouteName={initialRoute}
     >
-      {!isAuthenticated ? (
-        <Stack.Screen name="Public" component={PublicNavigator} />
-      ) : needsModeSelection ? (
-        <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
-      ) : (
-        <Stack.Screen name="Main" component={MainNavigator} />
-      )}
+      <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
+      <Stack.Screen name="Main" component={MainNavigator} />
     </Stack.Navigator>
   );
 }

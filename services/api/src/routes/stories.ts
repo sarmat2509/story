@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireAuth, optionalAuth } from '../middleware/authMiddleware';
 import { CreateStoryRequestSchema } from '@wondertales/shared';
 import { 
   createStoryRequest, 
@@ -13,7 +13,9 @@ import {
   deleteStory,
   enforceUserJobLimit,
   getStoryGenerationStatus,
+  enrichAllStoriesWithImages,
 } from '../services/storyOrchestrationService';
+import { publishStory, unpublishStory } from '../services/publishStoryService';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
 import { logger } from '../utils/logger';
 import { stripAudioTags, stripCharacterIds } from '../utils/audioTags';
@@ -174,10 +176,10 @@ router.post('/instant', requireAuth, async (req: Request, res: Response) => {
       uiLocale: validatedData.language,
       storyLanguage: validatedData.language,
       ageGroup: validatedData.ageGroup,
-      scenario: validatedData.scenario === 'free' ? undefined : validatedData.scenario,
-      goals: validatedData.goals || [],
+      scenarioCardId: validatedData.scenario === 'free' ? undefined : validatedData.scenario,
+      goal: validatedData.goals?.[0],
       imageStyle: validatedData.imageStyle || selectDefaultImageStyle(validatedData.ageGroup),
-      notes: validatedData.notes,
+      userNotes: validatedData.notes,
       selectedCharacters: [], // Will be populated by async job
       selectedChildren: [],
       childProfileId: undefined,
@@ -185,11 +187,12 @@ router.post('/instant', requireAuth, async (req: Request, res: Response) => {
     
     const requestId = await createStoryRequest(req.user!.id, storyRequestData);
     
-    // Store photos and instant mode flag in intermediate_data
+    // Store photos, ageGroup and instant mode flag in intermediate_data
     await getStoryRepository().updateRequest(requestId, {
       intermediateData: {
         instantMode: true,
         photos: validatedData.photos,
+        ageGroup: validatedData.ageGroup,
         characterSetupComplete: false,
       }
     });
@@ -373,6 +376,167 @@ router.get('/audio-usage', requireAuth, async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/v1/stories/published
+ * List published stories (public, no auth)
+ */
+router.get('/published', async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
+    const offset = parseInt(String(req.query.offset || '0'), 10) || 0;
+
+    const storyRepo = getStoryRepository();
+    const [stories, total] = await Promise.all([
+      storyRepo.listPublished({ limit, offset }),
+      storyRepo.countPublished(),
+    ]);
+
+    // Enrich scenes with image URLs from assets table (same as listUserStories)
+    const enrichedScenesMap = await enrichAllStoriesWithImages(
+      stories.map(s => ({ id: s.id, scenes: (s.scenes as any[]) || [] }))
+    );
+
+    // Use relative URLs for images — frontend handles base (proxy on web, API_BASE_URL on native)
+    const strip = (s: any) => ({
+      ...s,
+      scenes: Array.isArray(s.scenes) ? s.scenes.map((scene: any) => ({
+        ...scene,
+        text: stripCharacterIds(stripAudioTags(scene.text || '')),
+        ...parseSceneVisual(scene),
+      })) : s.scenes,
+      fullText: stripCharacterIds(stripAudioTags(s.fullText || '')),
+    });
+
+    const items = stories.map((s) => {
+      const enrichedScenes = enrichedScenesMap.get(s.id) || s.scenes || [];
+      const story = strip({ ...s, scenes: enrichedScenes });
+      const scenes = Array.isArray(story.scenes) ? story.scenes : [];
+      return {
+        id: story.id,
+        title: story.title,
+        language: story.language,
+        ageGroup: story.ageGroup,
+        authorDisplayName: story.authorDisplayName || 'Anonymous',
+        publishedAt: story.publishedAt,
+        publishedSlug: story.publishedSlug,
+        scenes: scenes.map((sc: any) => {
+          const imgPath = sc.imageUrl ?? sc.image?.url;
+          const imageUrl = imgPath
+            ? (String(imgPath).startsWith('http') ? imgPath : `/api/v1/assets/${String(imgPath).replace(/^\/api\/v1\/assets\//, '')}`)
+            : null;
+          return {
+            sceneId: sc.sceneId,
+            text: sc.text,
+            imageUrl,
+          };
+        }),
+        audioMetadata: story.audioMetadata,
+      };
+    });
+
+    res.json({
+      status: 'success',
+      stories: items,
+      pagination: { limit, offset, total },
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'List published stories failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to list published stories',
+    });
+  }
+});
+
+/**
+ * GET /api/v1/stories/published/:slug
+ * Get a published story by slug (public, optional auth for isOwner)
+ */
+router.get('/published/:slug', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const storyRepo = getStoryRepository();
+    const story = await storyRepo.findByPublishedSlug(slug);
+
+    if (!story) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Story not found',
+      });
+    }
+
+    const isOwner = !!req.user && req.user.id === story.userId;
+    const webAppUrl = config.web?.webAppUrl || '';
+
+    // Enrich scenes with image URLs from assets table (same as list published)
+    const enrichedScenesMap = await enrichAllStoriesWithImages([
+      { id: story.id, scenes: (story.scenes as any[]) || [] },
+    ]);
+    const scenesWithImages = enrichedScenesMap.get(story.id) || story.scenes || [];
+
+    const scenes = Array.isArray(scenesWithImages) ? scenesWithImages : [];
+    const enrichedScenes = scenes.map((scene: any) => {
+      const imgPath = scene.image?.url ?? scene.imageUrl;
+      const imageUrl = imgPath
+        ? (String(imgPath).startsWith('http') ? imgPath : `/api/v1/assets/${String(imgPath).replace(/^\/api\/v1\/assets\//, '')}`)
+        : null;
+      return {
+        ...scene,
+        text: stripCharacterIds(stripAudioTags(scene.text || '')),
+        ...parseSceneVisual(scene),
+        imageUrl,
+      };
+    });
+
+    let audioUrl: string | null = null;
+    if (story.audioMetadata) {
+      const { db } = await import('../db');
+      const { audioAssets, assets } = await import('../db/schema');
+      const { eq, and, desc, isNull } = await import('drizzle-orm');
+      const [audioAsset] = await db
+        .select({ audioAsset: audioAssets, asset: assets })
+        .from(audioAssets)
+        .innerJoin(assets, eq(audioAssets.assetId, assets.id))
+        .where(and(
+          eq(audioAssets.storyId, story.id),
+          eq(audioAssets.status, 'completed'),
+          eq(audioAssets.isFinal, true),
+          isNull(audioAssets.sceneGroupIndex)
+        ))
+        .orderBy(desc(audioAssets.createdAt))
+        .limit(1);
+      if (audioAsset) {
+        audioUrl = `/api/v1/assets/${audioAsset.asset.storagePath}`;
+      }
+    }
+
+    res.json({
+      status: 'success',
+      story: {
+        id: story.id,
+        title: story.title,
+        language: story.language,
+        ageGroup: story.ageGroup,
+        authorDisplayName: story.authorDisplayName || 'Anonymous',
+        publishedAt: story.publishedAt,
+        publishedSlug: story.publishedSlug,
+        scenes: enrichedScenes,
+        fullText: stripCharacterIds(stripAudioTags(story.fullText || '')),
+        audioMetadata: story.audioMetadata,
+        audioUrl,
+        isOwner,
+        shareUrl: `${webAppUrl.replace(/\/$/, '')}/stories/${slug}`,
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error, slug: req.params.slug }, 'Get published story failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get published story',
+    });
+  }
+});
+
+/**
  * GET /api/v1/stories/:id
  * Get a completed story
  */
@@ -413,30 +577,87 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+// Body is already camelCase via caseTransformMiddleware
+const PublishStorySchema = z.object({
+  isPublished: z.boolean(),
+});
+
+/**
+ * PATCH /api/v1/stories/:id
+ * Publish or unpublish a story
+ */
+router.patch('/:id', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const body = PublishStorySchema.parse(req.body);
+
+    if (body.isPublished) {
+      const result = await publishStory(id, req.user!.id);
+      if (!result) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Story not found',
+        });
+      }
+      return res.json({
+        status: 'success',
+        slug: result.slug,
+        shareUrl: result.shareUrl,
+      });
+    } else {
+      const ok = await unpublishStory(id, req.user!.id);
+      if (!ok) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Story not found',
+        });
+      }
+      return res.json({
+        status: 'success',
+        message: 'Story unpublished',
+      });
+    }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Validation failed',
+        errors: error.issues,
+      });
+    }
+    logger.error({ err: error, userId: req.user?.id, storyId: req.params.id }, 'Publish story failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get story'
+    });
+  }
+});
+
 /**
  * GET /api/v1/stories
  * List user's stories
  */
 router.get('/', requireAuth, async (req: Request, res: Response) => {
   try {
+    // caseTransformMiddleware converts query params to camelCase (scenario_card_id → scenarioCardId, has_audio → hasAudio)
     const { 
-      child_profile_id, 
+      childProfileId, 
       language, 
       limit = '20', 
       offset = '0',
-      has_audio,
+      hasAudio: hasAudioParam,
       view,
-      scenario_card_id,
+      scenarioCardId: scenarioCardIdParam,
     } = req.query;
 
     const parsedLimit = parseInt(limit as string, 10);
     const parsedOffset = parseInt(offset as string, 10);
-    const hasAudio = has_audio === 'true';
-    const scenarioCardId = scenario_card_id as string | undefined;
+    const hasAudio = hasAudioParam === 'true';
+    const scenarioCardId = scenarioCardIdParam as string | undefined;
 
     // Get total count for pagination (shared by both views)
     const totalCount = await getTotalUserStoriesCount(req.user!.id, {
-      childProfileId: child_profile_id as string,
+      childProfileId: childProfileId as string,
       language: language as string,
       hasAudio,
       scenarioCardId,
@@ -445,7 +666,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     // Summary view: lightweight payload for library grid
     if (view === 'summary') {
       const summaries = await listUserStorySummaries(req.user!.id, {
-        childProfileId: child_profile_id as string,
+        childProfileId: childProfileId as string,
         language: language as string,
         limit: parsedLimit,
         offset: parsedOffset,
@@ -462,11 +683,12 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
 
     // Full view: complete story objects (default)
     const stories = await listUserStories(req.user!.id, {
-      childProfileId: child_profile_id as string,
+      childProfileId: childProfileId as string,
       language: language as string,
       limit: parsedLimit,
       offset: parsedOffset,
       hasAudio,
+      scenarioCardId,
     });
     
     // Strip audio tags and character IDs from all stories for UI display

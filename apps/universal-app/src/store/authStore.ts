@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CommonActions } from '@react-navigation/native';
+import { navigationRef } from '@/navigation/navigationRef';
 
 interface User {
   id: string;
@@ -9,6 +11,7 @@ interface User {
   avatarUrl: string | null;
   preferredLocale: string;
   mode?: 'instant' | 'artisan';
+  pseudonym?: string | null;
 }
 
 interface AuthState {
@@ -45,11 +48,17 @@ export const useAuthStore = create<AuthState>()(
         isLoading: false 
       }),
       
-      logout: () => set({ 
-        user: null, 
-        token: null, 
-        isAuthenticated: false 
-      }),
+      logout: () => {
+        set({ user: null, token: null, isAuthenticated: false });
+        if (navigationRef.isReady()) {
+          navigationRef.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: 'Main', state: { routes: [{ name: 'Landing' }], index: 0 } }],
+            })
+          );
+        }
+      },
       
       setLoading: (loading) => set({ isLoading: loading }),
       

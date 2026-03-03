@@ -171,7 +171,11 @@
     "tab_characters": "Personnages",
     "tab_plans": "Plans",
     "tab_profile": "Profil",
-    "tab_more": "Plus"
+    "tab_more": "Plus",
+    "published_stories": "Histoires publiées",
+    "page_not_found": "Page non trouvée",
+    "page_not_found_message": "La page que vous recherchez n'existe pas ou a été déplacée.",
+    "go_home": "Retour à l'accueil"
   },
   "story_viewer": {
     "create_audio": "Créer une Histoire Audio",

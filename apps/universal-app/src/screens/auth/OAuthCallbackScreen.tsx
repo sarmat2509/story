@@ -1,8 +1,10 @@
 import React, { useEffect } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, Platform } from 'react-native';
+import { CommonActions } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
 import { storage } from '@/utils/storage';
 import apiClient from '@/api/client';
+import { navigationRef } from '@/navigation/navigationRef';
 
 export default function OAuthCallbackScreen() {
   const { login } = useAuthStore();
@@ -57,12 +59,25 @@ export default function OAuthCallbackScreen() {
           window.sessionStorage.removeItem('oauth_redirect');
         }
 
-        // Success - RootNavigator will automatically redirect to Main (Dashboard)
+        // Replace URL to remove token from address bar (security)
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && window.history?.replaceState) {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+
+        // Explicitly navigate to Dashboard (HP for authenticated users)
+        if (navigationRef.isReady()) {
+          navigationRef.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: 'Main', state: { routes: [{ name: 'Dashboard' }], index: 0 } }],
+            })
+          );
+        }
       } catch (error) {
         console.error('OAuth callback error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('Error details:', errorMessage);
-        // On error, show alert but let RootNavigator handle redirect to Public/Login
+        // On error, show alert; user can navigate back to Login from drawer/tabs
         alert('Authentication failed. Please try again.');
       }
     }

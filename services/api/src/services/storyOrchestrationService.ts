@@ -4249,7 +4249,7 @@ export async function getStory(storyId: string, userId: string) {
  * Uses a single SELECT to load all image assets for all stories
  * and builds plain public URLs from storagePath.
  */
-async function enrichAllStoriesWithImages(
+export async function enrichAllStoriesWithImages(
   storyRows: Array<{ id: string; scenes: any[] }>
 ): Promise<Map<string, any[]>> {
   const storyIds = storyRows.map(s => s.id);
@@ -4325,14 +4325,16 @@ export async function listUserStories(
     limit?: number;
     offset?: number;
     hasAudio?: boolean;
+    scenarioCardId?: string;
   } = {}
 ) {
-  const { childProfileId: _childProfileId, language: _language, limit = 20, offset = 0, hasAudio } = options;
+  const { childProfileId: _childProfileId, language: _language, limit = 20, offset = 0, hasAudio, scenarioCardId } = options;
   
   const results = await getStoryRepository().findByUser(userId, {
     limit,
     offset,
     hasAudio,
+    scenarioCardId,
   });
   
   // Batch-enrich all stories with images in a single DB query
@@ -4485,12 +4487,18 @@ export async function getStoryManifest(storyId: string) {
   const imageGenerationComplete = storyMeta.imageGenerationComplete as boolean | undefined;
   const failedScenes = (storyMeta.failedScenes as Array<{ sceneId: number; errorMessage: string }> | undefined) ?? [];
 
+  const config = (await import('../config')).config;
+  const webAppUrl = config.web?.webAppUrl || 'https://app.wondertales.com';
+
   // Build manifest
   const manifest = {
     storyId: story.id,
     title: stripCharacterIds(story.title),
     language: story.language,
     ageGroup: story.ageGroup,
+    isPublished: !!story.isPublished,
+    publishedSlug: story.publishedSlug ?? null,
+    shareUrl: story.publishedSlug ? `${webAppUrl.replace(/\/$/, '')}/stories/${story.publishedSlug}` : null,
     fullText: stripCharacterIds(stripAudioTags(story.fullText || '')),
     audioMetadata: story.audioMetadata,
     // M8: Series fields

@@ -34,6 +34,43 @@ export class StoryRepository {
     return story || null;
   }
 
+  async findByPublishedSlug(slug: string): Promise<schema.Story | null> {
+    const [story] = await this.db
+      .select()
+      .from(schema.stories)
+      .where(and(
+        eq(schema.stories.publishedSlug, slug),
+        eq(schema.stories.isPublished, true)
+      ))
+      .limit(1);
+    return story || null;
+  }
+
+  async listPublished(options: { limit?: number; offset?: number } = {}): Promise<schema.Story[]> {
+    const { limit = 20, offset = 0 } = options;
+    return this.db
+      .select()
+      .from(schema.stories)
+      .where(and(
+        eq(schema.stories.isPublished, true),
+        isNotNull(schema.stories.publishedSlug)
+      ))
+      .orderBy(desc(schema.stories.publishedAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async countPublished(): Promise<number> {
+    const result = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.stories)
+      .where(and(
+        eq(schema.stories.isPublished, true),
+        isNotNull(schema.stories.publishedSlug)
+      ));
+    return Number(result[0]?.count ?? 0);
+  }
+
   async findByUser(
     userId: string,
     options: { limit?: number; offset?: number; hasAudio?: boolean; scenarioCardId?: string } = {}
@@ -82,9 +119,6 @@ export class StoryRepository {
     if (hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
     }
-    if (scenarioCardId) {
-      conditions.push(eq(schema.storyRequests.scenarioCardId, scenarioCardId));
-    }
     const selectFields = {
       id: schema.stories.id,
       title: schema.stories.title,
@@ -95,6 +129,17 @@ export class StoryRepository {
       createdAt: schema.stories.createdAt,
       scenarioCardId: schema.storyRequests.scenarioCardId,
     };
+    if (scenarioCardId) {
+      conditions.push(eq(schema.storyRequests.scenarioCardId, scenarioCardId));
+      return this.db
+        .select(selectFields)
+        .from(schema.stories)
+        .innerJoin(schema.storyRequests, eq(schema.stories.storyRequestId, schema.storyRequests.id))
+        .where(and(...conditions))
+        .orderBy(desc(schema.stories.createdAt))
+        .limit(limit)
+        .offset(offset);
+    }
     return this.db
       .select(selectFields)
       .from(schema.stories)

@@ -1,39 +1,35 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform, TextInput } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuthStore } from '@/store/authStore';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { theme } from '@/theme';
 import { usePlansWithAuth } from '@/api/plans';
+import { useUpdateMe } from '@/api/auth';
 
 export default function ProfileScreen() {
   const { t } = useTranslation();
   const { user, logout } = useAuthStore();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { data: plans, isLoading: plansLoading } = usePlansWithAuth();
+  const updateMe = useUpdateMe();
+  const [pseudonym, setPseudonym] = useState(user?.pseudonym ?? '');
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  useEffect(() => {
+    setPseudonym(user?.pseudonym ?? '');
+  }, [user?.pseudonym]);
 
   // Get current subscription plan
   const currentPlan = plans?.find(plan => plan.isCurrent);
   const storiesLimit = currentPlan?.features?.stories_per_month?.value?.limit || 5;
 
-  const handleLogout = () => {
-    Alert.alert(
-      t('profile.logout_confirm_title'),
-      t('profile.logout_confirm_message'),
-      [
-        { text: t('profile.cancel'), style: 'cancel' },
-        {
-          text: t('profile.logout'),
-          style: 'destructive',
-          onPress: () => logout(),
-        },
-      ],
-      { cancelable: true }
-    );
-  };
+  const handleLogout = () => setShowLogoutConfirm(true);
 
   return (
+    <>
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Text style={styles.title}>{t('profile.title')}</Text>
@@ -64,6 +60,29 @@ export default function ProfileScreen() {
           <View style={styles.infoRow}>
             <Text style={styles.label}>{t('profile.language')}</Text>
             <Text style={styles.value}>{user?.preferredLocale || 'en'}</Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>{t('profile.pseudonym')}</Text>
+            <TextInput
+              style={styles.pseudonymInput}
+              value={pseudonym}
+              onChangeText={setPseudonym}
+              placeholder={t('profile.pseudonym')}
+              placeholderTextColor={theme.colors.text.tertiary}
+              maxLength={100}
+            />
+            <TouchableOpacity
+              style={styles.savePseudonymButton}
+              onPress={() => updateMe.mutate({ pseudonym: pseudonym.trim() || null })}
+              disabled={updateMe.isPending}
+            >
+              {updateMe.isPending ? (
+                <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+              ) : (
+                <Text style={styles.savePseudonymText}>{t('common.save')}</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -162,6 +181,18 @@ export default function ProfileScreen() {
         <Text style={styles.footerText}>WonderTales v1.0.0</Text>
       </View>
     </ScrollView>
+
+    <ConfirmDialog
+      visible={showLogoutConfirm}
+      title={t('profile.logout_confirm_title')}
+      message={t('profile.logout_confirm_message')}
+      confirmText={t('profile.logout')}
+      cancelText={t('profile.cancel')}
+      onConfirm={() => { logout(); setShowLogoutConfirm(false); }}
+      onCancel={() => setShowLogoutConfirm(false)}
+      variant="danger"
+    />
+    </>
   );
 }
 
@@ -222,6 +253,31 @@ const styles = StyleSheet.create({
   value: {
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.primary,
+  },
+  pseudonymInput: {
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.primary,
+    backgroundColor: theme.colors.background.primary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    borderRadius: theme.borders.radius.md,
+    padding: theme.spacing[3],
+    marginTop: theme.spacing[1],
+  },
+  savePseudonymButton: {
+    alignSelf: 'flex-start',
+    marginTop: theme.spacing[2],
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[4],
+    backgroundColor: theme.colors.interactive.primary,
+    borderRadius: theme.borders.radius.md,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  savePseudonymText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
   },
   settingButton: {
     flexDirection: 'row',

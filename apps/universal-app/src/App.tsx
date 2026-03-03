@@ -61,24 +61,24 @@ const linking: any = {
   prefixes: ['wondertales://', 'http://localhost:8081'],
   config: {
     screens: {
-      Public: {
+      ModeSelection: 'mode-selection',
+      Main: {
+        path: '',
         screens: {
           Landing: '',
-          Plans: 'pricing',
           Login: 'login',
           OAuthCallback: 'auth/:provider/callback',
-        },
-      },
-      Main: {
-        screens: {
           Dashboard: 'dashboard',
           Wizard: 'wizard',
           Library: 'library',
           Story: 'story/:storyId',
+          Stories: 'stories',
+          PublishedStory: 'stories/:slug',
           Children: 'children',
           Characters: 'characters',
-          Plans: 'plans',
+          Plans: 'pricing',
           Profile: 'profile',
+          NotFound: '404',
         },
       },
     },

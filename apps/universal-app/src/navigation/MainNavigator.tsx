@@ -9,11 +9,17 @@ import { useTranslation } from 'react-i18next';
 import { useResponsive } from '@/hooks/useResponsive';
 import { theme } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
+import LandingScreen from '@/screens/public/LandingScreen';
+import NotFoundScreen from '@/screens/public/NotFoundScreen';
+import LoginScreen from '@/screens/auth/LoginScreen';
+import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
 import DashboardScreen from '@/screens/dashboard/DashboardScreen';
 import WizardScreen from '@/screens/wizard/WizardScreen';
 import InstantWizardScreen from '@/screens/wizard/InstantWizardScreen';
 import LibraryScreen from '@/screens/library/LibraryScreen';
 import StoryViewerScreen from '@/screens/story/StoryViewerScreen';
+import PublishedStoriesScreen from '@/screens/published/PublishedStoriesScreen';
+import PublishedStoryScreen from '@/screens/published/PublishedStoryScreen';
 import ChildrenScreen from '@/screens/children/ChildrenScreen';
 import CharactersScreen from '@/screens/characters/CharactersScreen';
 import PlansScreen from '@/screens/plans/PlansScreen';
@@ -25,6 +31,7 @@ import { MiniAudioPlayer } from '@/components/MiniAudioPlayer';
 import { useMainNavigationStore } from '@/store/mainNavigationStore';
 import { useDrawerCollapsedStore } from '@/store/drawerCollapsedStore';
 import { CollapsibleDrawerContent } from '@/navigation/CollapsibleDrawerContent';
+import { AuthGuard } from '@/components/AuthGuard';
 import { navigationRef, navigateToMainRoute } from '@/navigation/navigationRef';
 import type { MainDrawerParamList, MainTabParamList } from '@/types/navigation';
 
@@ -41,9 +48,15 @@ const TABLET_TAB_ORDER: (keyof MainTabParamList)[] = [
   'Plans',
   'Profile',
 ];
-const MORE_MENU_ROUTES: (keyof MainTabParamList)[] = ['Children', 'Plans', 'Profile'];
+const MORE_MENU_ROUTES: (keyof MainTabParamList)[] = ['Stories', 'Children', 'Plans', 'Profile'];
+
+const MOBILE_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Landing', 'Stories', 'Plans', 'Login'];
+const TABLET_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Landing', 'Stories', 'Plans', 'Login'];
+const MORE_MENU_ROUTES_PUBLIC: (keyof MainTabParamList)[] = [];
 
 const TAB_LABELS: Record<string, string> = {
+  Landing: 'navigation.tab_dashboard',
+  Login: 'auth.login',
   Dashboard: 'navigation.tab_dashboard',
   Wizard: 'navigation.tab_create_story',
   Library: 'navigation.tab_library',
@@ -51,8 +64,11 @@ const TAB_LABELS: Record<string, string> = {
   Children: 'navigation.tab_children',
   Plans: 'navigation.tab_plans',
   Profile: 'navigation.tab_profile',
+  Stories: 'navigation.published_stories',
 };
 const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  Landing: 'home-outline',
+  Login: 'log-in-outline',
   Dashboard: 'home-outline',
   Wizard: 'create-outline',
   Library: 'library-outline',
@@ -60,17 +76,23 @@ const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Children: 'people-outline',
   Plans: 'diamond-outline',
   Profile: 'person-outline',
+  Stories: 'newspaper-outline',
 };
 
-function MobileTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+type MobileTabBarProps = BottomTabBarProps & { isAuthenticated: boolean };
+
+function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: MobileTabBarProps) {
   const { t } = useTranslation();
   const { isTablet } = useResponsive();
   const [moreVisible, setMoreVisible] = useState(false);
   const activeRouteName = state.routes[state.index]?.name;
-  const isMoreActive = MORE_MENU_ROUTES.includes(activeRouteName as keyof MainTabParamList);
+  const moreMenuRoutes = isAuthenticated ? MORE_MENU_ROUTES : MORE_MENU_ROUTES_PUBLIC;
+  const isMoreActive = moreMenuRoutes.includes(activeRouteName as keyof MainTabParamList);
 
-  const tabOrder = isTablet ? TABLET_TAB_ORDER : MOBILE_TAB_ORDER;
-  const showMoreButton = !isTablet;
+  const tabOrder = isAuthenticated
+    ? (isTablet ? TABLET_TAB_ORDER : MOBILE_TAB_ORDER)
+    : (isTablet ? TABLET_TAB_ORDER_PUBLIC : MOBILE_TAB_ORDER_PUBLIC);
+  const showMoreButton = isAuthenticated && !isTablet;
 
   const handleTabPress = (name: keyof MainTabParamList) => {
     const event = navigation.emit({
@@ -88,11 +110,14 @@ function MobileTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     setMoreVisible(false);
   };
 
-  const moreMenuItems: { name: keyof MainTabParamList; icon: keyof typeof Ionicons.glyphMap; labelKey: string }[] = [
-    { name: 'Children', icon: 'people-outline', labelKey: 'navigation.tab_children' },
-    { name: 'Plans', icon: 'diamond-outline', labelKey: 'navigation.tab_plans' },
-    { name: 'Profile', icon: 'person-outline', labelKey: 'navigation.tab_profile' },
-  ];
+  const moreMenuItems: { name: keyof MainTabParamList; icon: keyof typeof Ionicons.glyphMap; labelKey: string }[] = isAuthenticated
+    ? [
+        { name: 'Stories', icon: 'newspaper-outline', labelKey: 'navigation.published_stories' },
+        { name: 'Children', icon: 'people-outline', labelKey: 'navigation.tab_children' },
+        { name: 'Plans', icon: 'diamond-outline', labelKey: 'navigation.tab_plans' },
+        { name: 'Profile', icon: 'person-outline', labelKey: 'navigation.tab_profile' },
+      ]
+    : [];
 
   return (
     <View style={mobileTabBarStyles.container}>
@@ -226,11 +251,13 @@ const mobileTabBarStyles = StyleSheet.create({
 
 function TabNavigator() {
   const { t } = useTranslation();
-  const { user } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
   const isInstantMode = user?.mode === 'instant';
 
   return (
     <Tab.Navigator
+      key={isAuthenticated ? 'auth' : 'public'}
+      initialRouteName={isAuthenticated ? 'Dashboard' : 'Landing'}
       backBehavior="history"
       screenOptions={{
         headerShown: true,
@@ -240,46 +267,113 @@ function TabNavigator() {
       tabBar={(props) => (
         <View>
           <MiniAudioPlayer />
-          <MobileTabBar {...props} />
+          <MobileTabBar {...props} isAuthenticated={!!isAuthenticated} />
         </View>
       )}
     >
+      <Tab.Screen
+        name="Landing"
+        component={LandingScreen}
+        options={{
+          title: 'WonderTales',
+          tabBarLabel: t('navigation.tab_dashboard'),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
+          ),
+          tabBarButton: isAuthenticated ? () => null : undefined,
+        }}
+      />
+      <Tab.Screen
+        name="Login"
+        component={LoginScreen}
+        options={{
+          title: t('auth.login'),
+          tabBarLabel: t('auth.login'),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="log-in-outline" size={size} color={color} />
+          ),
+          tabBarButton: isAuthenticated ? () => null : undefined,
+        }}
+      />
+      <Tab.Screen
+        name="OAuthCallback"
+        component={OAuthCallbackScreen}
+        options={{
+          title: t('common.loading'),
+          tabBarButton: () => null,
+        }}
+      />
       <Tab.Screen 
         name="Dashboard" 
-        component={DashboardScreen}
+        component={() => (
+          <AuthGuard>
+            <DashboardScreen />
+          </AuthGuard>
+        )}
         options={{ 
           title: t('navigation.dashboard'),
           tabBarLabel: t('navigation.tab_dashboard'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
+          tabBarButton: !isAuthenticated ? () => null : undefined,
         }}
       />
       <Tab.Screen 
         name="Wizard" 
-        component={isInstantMode ? InstantWizardScreen : WizardScreen}
+        component={() => (
+          <AuthGuard>
+            {isInstantMode ? <InstantWizardScreen /> : <WizardScreen />}
+          </AuthGuard>
+        )}
         options={{ 
           title: t('navigation.create_story'),
           tabBarLabel: t('navigation.tab_create_story'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="create-outline" size={size} color={color} />
           ),
+          tabBarButton: !isAuthenticated ? () => null : undefined,
         }}
       />
       <Tab.Screen 
         name="Library" 
-        component={LibraryScreen}
+        component={() => (
+          <AuthGuard>
+            <LibraryScreen />
+          </AuthGuard>
+        )}
         options={{ 
           title: t('navigation.library'),
           tabBarLabel: t('navigation.tab_library'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="library-outline" size={size} color={color} />
           ),
+          tabBarButton: !isAuthenticated ? () => null : undefined,
         }}
       />
       <Tab.Screen 
         name="Story" 
-        component={StoryViewerScreen}
+        component={() => (
+          <AuthGuard>
+            <StoryViewerScreen />
+          </AuthGuard>
+        )}
+        options={{ 
+          title: 'Story',
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen 
+        name="Stories" 
+        component={PublishedStoriesScreen}
+        options={{ 
+          title: t('navigation.published_stories'),
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen 
+        name="PublishedStory" 
+        component={PublishedStoryScreen}
         options={{ 
           title: 'Story',
           tabBarButton: () => null,
@@ -288,26 +382,36 @@ function TabNavigator() {
       {!isInstantMode && (
         <Tab.Screen 
           name="Children" 
-          component={ChildrenScreen}
+          component={() => (
+            <AuthGuard>
+              <ChildrenScreen />
+            </AuthGuard>
+          )}
           options={{ 
             title: t('navigation.children'),
             tabBarLabel: t('navigation.tab_children'),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="people-outline" size={size} color={color} />
             ),
+            tabBarButton: !isAuthenticated ? () => null : undefined,
           }}
         />
       )}
       {!isInstantMode && (
         <Tab.Screen 
           name="Characters" 
-          component={CharactersScreen}
+          component={() => (
+            <AuthGuard>
+              <CharactersScreen />
+            </AuthGuard>
+          )}
           options={{ 
             title: t('navigation.characters'),
             tabBarLabel: t('navigation.tab_characters'),
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="body-outline" size={size} color={color} />
             ),
+            tabBarButton: !isAuthenticated ? () => null : undefined,
           }}
         />
       )}
@@ -324,20 +428,37 @@ function TabNavigator() {
       />
       <Tab.Screen 
         name="Profile" 
-        component={ProfileScreen}
+        component={() => (
+          <AuthGuard>
+            <ProfileScreen />
+          </AuthGuard>
+        )}
         options={{ 
           title: t('navigation.profile'),
           tabBarLabel: t('navigation.tab_profile'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),
+          tabBarButton: !isAuthenticated ? () => null : undefined,
         }}
       />
-      <Tab.Screen 
+<Tab.Screen 
         name="LanguageSettings" 
-        component={LanguageSettingsScreen}
+        component={() => (
+          <AuthGuard>
+            <LanguageSettingsScreen />
+          </AuthGuard>
+        )}
         options={{ 
           title: t('profile.language_settings'),
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen
+        name="NotFound"
+        component={NotFoundScreen}
+        options={{
+          title: '404',
           tabBarButton: () => null,
         }}
       />
@@ -365,7 +486,7 @@ function DrawerBurgerButton() {
 function DrawerNavigator() {
   const { t } = useTranslation();
   const { isTablet, isDesktop } = useResponsive();
-  const { user } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
   const collapsed = useDrawerCollapsedStore((s) => s.collapsed);
   const isInstantMode = user?.mode === 'instant';
 
@@ -377,6 +498,8 @@ function DrawerNavigator() {
 
   return (
     <Drawer.Navigator
+      key={isAuthenticated ? 'auth' : 'public'}
+      initialRouteName={isAuthenticated ? 'Dashboard' : 'Landing'}
       backBehavior="history"
       drawerContent={(props) => <CollapsibleDrawerContent {...props} />}
       screenOptions={{
@@ -389,39 +512,106 @@ function DrawerNavigator() {
         headerRight: () => <LanguageDropdown />,
       }}
     >
+      <Drawer.Screen
+        name="Landing"
+        component={LandingScreen}
+        options={{
+          title: 'WonderTales',
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
+          ),
+          drawerItemStyle: isAuthenticated ? { display: 'none' } : undefined,
+        }}
+      />
+      <Drawer.Screen
+        name="Login"
+        component={LoginScreen}
+        options={{
+          title: t('auth.login'),
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="log-in-outline" size={size} color={color} />
+          ),
+          drawerItemStyle: isAuthenticated ? { display: 'none' } : undefined,
+        }}
+      />
+      <Drawer.Screen
+        name="OAuthCallback"
+        component={OAuthCallbackScreen}
+        options={{
+          title: t('common.loading'),
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
       <Drawer.Screen 
         name="Dashboard" 
-        component={DashboardScreen}
+        component={() => (
+          <AuthGuard>
+            <DashboardScreen />
+          </AuthGuard>
+        )}
         options={{ 
           title: t('navigation.dashboard'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
+          drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
         }}
       />
       <Drawer.Screen 
         name="Wizard" 
-        component={isInstantMode ? InstantWizardScreen : WizardScreen}
+        component={() => (
+          <AuthGuard>
+            {isInstantMode ? <InstantWizardScreen /> : <WizardScreen />}
+          </AuthGuard>
+        )}
         options={{ 
           title: t('navigation.create_story'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="create-outline" size={size} color={color} />
           ),
+          drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
         }}
       />
       <Drawer.Screen 
         name="Library" 
-        component={LibraryScreen}
+        component={() => (
+          <AuthGuard>
+            <LibraryScreen />
+          </AuthGuard>
+        )}
         options={{ 
           title: t('navigation.library'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="library-outline" size={size} color={color} />
           ),
+          drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
         }}
       />
       <Drawer.Screen 
         name="Story" 
-        component={StoryViewerScreen}
+        component={() => (
+          <AuthGuard>
+            <StoryViewerScreen />
+          </AuthGuard>
+        )}
+        options={{ 
+          title: 'Story',
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
+      <Drawer.Screen 
+        name="Stories" 
+        component={PublishedStoriesScreen}
+        options={{ 
+          title: t('navigation.published_stories'),
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="newspaper-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen 
+        name="PublishedStory" 
+        component={PublishedStoryScreen}
         options={{ 
           title: 'Story',
           drawerItemStyle: { display: 'none' },
@@ -430,24 +620,34 @@ function DrawerNavigator() {
       {!isInstantMode && (
         <Drawer.Screen 
           name="Children" 
-          component={ChildrenScreen}
+          component={() => (
+            <AuthGuard>
+              <ChildrenScreen />
+            </AuthGuard>
+          )}
           options={{ 
             title: t('navigation.children'),
             drawerIcon: ({ color, size }) => (
               <Ionicons name="people-outline" size={size} color={color} />
             ),
+            drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
           }}
         />
       )}
       {!isInstantMode && (
         <Drawer.Screen 
           name="Characters" 
-          component={CharactersScreen}
+          component={() => (
+            <AuthGuard>
+              <CharactersScreen />
+            </AuthGuard>
+          )}
           options={{ 
             title: t('navigation.characters'),
             drawerIcon: ({ color, size }) => (
               <Ionicons name="body-outline" size={size} color={color} />
             ),
+            drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
           }}
         />
       )}
@@ -463,17 +663,26 @@ function DrawerNavigator() {
       />
       <Drawer.Screen 
         name="Profile" 
-        component={ProfileScreen}
+        component={() => (
+          <AuthGuard>
+            <ProfileScreen />
+          </AuthGuard>
+        )}
         options={{ 
           title: t('navigation.profile'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),
+          drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
         }}
       />
       <Drawer.Screen 
         name="LanguageSettings" 
-        component={LanguageSettingsScreen}
+        component={() => (
+          <AuthGuard>
+            <LanguageSettingsScreen />
+          </AuthGuard>
+        )}
         options={{ 
           title: t('profile.language_settings'),
           drawerItemStyle: { display: 'none' },
@@ -487,12 +696,20 @@ function DrawerNavigator() {
           drawerItemStyle: { display: 'none' },
         }}
       />
+      <Drawer.Screen 
+        name="NotFound" 
+        component={NotFoundScreen}
+        options={{ 
+          title: '404',
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
     </Drawer.Navigator>
   );
 }
 
 export default function MainNavigator() {
-  const { isDesktop, isTabletLandscape, isMobile, isLandscape } = useResponsive();
+  const { isDesktop, isMobile, isLandscape } = useResponsive();
 
   // Web: Drawer only on desktop. Native: Drawer on tablet/desktop in landscape.
   const useDrawer =

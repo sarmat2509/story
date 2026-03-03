@@ -1,15 +1,16 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { View, Text, ScrollView, Image, StyleSheet, ActivityIndicator, TouchableOpacity, Platform, ImageStyle } from 'react-native';
+import { View, Text, ScrollView, Image, StyleSheet, ActivityIndicator, TouchableOpacity, Platform, ImageStyle, Share } from 'react-native';
 import { useRoute, RouteProp, useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
-import { useStory, useStoryGenerationStatus, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useAudioUsage, useDeleteStory, useGenerateContinuation, useSeriesInfo, useStoryStatus } from '@/api/stories';
+import { useStory, useStoryGenerationStatus, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useAudioUsage, useDeleteStory, useGenerateContinuation, useSeriesInfo, useStoryStatus, usePublishStory } from '@/api/stories';
 import { useVoices } from '@/api/voices';
 import { useUpdateCharacter } from '@/api/characters';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { PublishShareDialog } from '@/components/PublishShareDialog';
 import { toastService } from '@/services/toastService';
 import { audioNotificationService } from '@/services/audioNotificationService';
 import { audioPlaybackService } from '@/services/audioPlaybackService';
@@ -75,7 +76,7 @@ export default function StoryViewerScreen() {
       refetch();
     } else if (generationStatus.scenesWithImages && generationStatus.scenesWithImages.length > 0) {
       // Progressive update: add imageUrl to scenes that are already generated
-      const updatedScenes = story.scenes.map(scene => {
+      const updatedScenes = story.scenes.map((scene: any) => {
         const generated = generationStatus.scenesWithImages?.find(s => s.sceneId === scene.sceneId);
         if (generated && !scene.image) {
           return {
@@ -178,9 +179,12 @@ export default function StoryViewerScreen() {
   
   // Delete story mutation
   const deleteStory = useDeleteStory();
+  const publishStory = usePublishStory();
   
   // Delete dialog state
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [publishShareDialogVisible, setPublishShareDialogVisible] = useState(false);
+  const [publishShareUrl, setPublishShareUrl] = useState<string | null>(null);
   
   // M8: Series continuation
   const generateContinuation = useGenerateContinuation();
@@ -527,6 +531,58 @@ export default function StoryViewerScreen() {
   const cancelDelete = useCallback(() => {
     setDeleteDialogVisible(false);
   }, []);
+
+  // Share: if not published show PublishShareDialog; if published: web -> post-publish popup, native -> Share.share
+  const handleShare = useCallback(async () => {
+    const isPublished = !!(story as any)?.isPublished;
+    const shareUrl = (story as any)?.shareUrl;
+    const title = (story as any)?.title || t('story_viewer.untitled_story');
+
+    if (!isPublished || !shareUrl) {
+      setPublishShareUrl(null);
+      setPublishShareDialogVisible(true);
+      return;
+    }
+
+    if (Platform.OS === 'web') {
+      setPublishShareUrl(shareUrl);
+      setPublishShareDialogVisible(true);
+      return;
+    }
+
+    const message = t('story_viewer.share_message', { title });
+    const shareTitle = t('story_viewer.share_title');
+    try {
+      await Share.share({ url: shareUrl, message, title: shareTitle });
+    } catch (_) {}
+  }, [story, t]);
+
+  const handlePublishAndShare = useCallback(async () => {
+    try {
+      const result = await publishStory.mutateAsync({ storyId, isPublished: true });
+      if (result?.shareUrl) {
+        if (Platform.OS === 'web') {
+          setPublishShareUrl(result.shareUrl);
+          return;
+        }
+        setPublishShareDialogVisible(false);
+        const message = t('story_viewer.share_message', { title: story?.title || t('story_viewer.untitled_story') });
+        const shareTitle = t('story_viewer.share_title');
+        await Share.share({ url: result.shareUrl, message, title: shareTitle });
+      }
+    } catch (_) {}
+  }, [storyId, story?.title, publishStory, t]);
+
+  // Re-publish story (authoring mode)
+  const handlePublish = useCallback(async () => {
+    try {
+      const result = await publishStory.mutateAsync({ storyId, isPublished: true });
+      if (result?.shareUrl) {
+        setPublishShareUrl(result.shareUrl);
+        setPublishShareDialogVisible(true);
+      }
+    } catch (_) {}
+  }, [storyId, publishStory]);
   
   // M8: Handle continue story
   const handleContinue = useCallback(async () => {
@@ -1237,6 +1293,9 @@ export default function StoryViewerScreen() {
               onFinish={handleAudioFinish}
               onActivateAudio={handleActivateAudio}
               onDeleteStory={handleDeleteStory}
+              onPublish={handlePublish}
+              onShare={handleShare}
+              isPublishPending={publishStory.isPending}
               characters={(story as any)?.characters || []}
               onSaveCharacter={isArtisanMode ? async (characterId) => {
                 await updateCharacterMutation.mutateAsync({ id: characterId, data: { isHidden: false } as any });
@@ -1289,6 +1348,25 @@ export default function StoryViewerScreen() {
               {/* Characters Section */}
               {renderCharactersSection()}
               
+              {/* Publish Button (re-publish) */}
+              <TouchableOpacity 
+                style={styles.publishButton}
+                onPress={handlePublish}
+                disabled={publishStory.isPending}
+              >
+                <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.text.inverse} />
+                <Text style={styles.publishButtonText}>{t('story_viewer.publish')}</Text>
+              </TouchableOpacity>
+              
+              {/* Share Button */}
+              <TouchableOpacity 
+                style={styles.shareButton}
+                onPress={handleShare}
+              >
+                <Ionicons name="share-social-outline" size={20} color={theme.colors.interactive.primary} />
+                <Text style={styles.shareButtonText}>{t('story_viewer.share_title')}</Text>
+              </TouchableOpacity>
+              
               {/* Delete Story Button */}
               <TouchableOpacity 
                 style={styles.deleteButton}
@@ -1327,6 +1405,18 @@ export default function StoryViewerScreen() {
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
         variant="danger"
+      />
+
+      {/* Publish & Share Dialog */}
+      <PublishShareDialog
+        visible={publishShareDialogVisible}
+        onPublishAndShare={handlePublishAndShare}
+        onCancel={() => {
+          setPublishShareDialogVisible(false);
+          // Don't clear publishShareUrl — would flash pre-publish during fade-out
+        }}
+        shareUrl={publishShareUrl}
+        isLoading={publishStory.isPending}
       />
     </View>
   );
@@ -1389,6 +1479,38 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[4],
+  },
+  publishButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    padding: theme.spacing[4],
+    marginTop: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  publishButtonText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    padding: theme.spacing[4],
+    marginTop: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.background.primary,
+  },
+  shareButtonText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.interactive.primary,
   },
   deleteButton: {
     flexDirection: 'row',

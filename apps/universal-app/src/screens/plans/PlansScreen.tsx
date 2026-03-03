@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NavigationProp } from '@react-navigation/native';
-import type { MainDrawerParamList, PublicStackParamList } from '@/types/navigation';
+import type { MainDrawerParamList } from '@/types/navigation';
 import { usePlans, usePlansWithAuth, useUpgradePlan } from '@/api/plans';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function PlansScreen() {
   const { t } = useTranslation();
-  const navigation = useNavigation<NavigationProp<MainDrawerParamList | PublicStackParamList>>();
+  const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const insets = useSafeAreaInsets();
   const { isAuthenticated } = useAuthStore();
   
@@ -297,7 +297,7 @@ export default function PlansScreen() {
               ) : (
                 <TouchableOpacity 
                   style={styles.subscribeButton}
-                  onPress={() => navigation.navigate('Login' as any)}
+                  onPress={() => navigation.navigate('Login')}
                 >
                   <Text style={styles.subscribeButtonText}>
                     {t('plans.subscribe_button')}

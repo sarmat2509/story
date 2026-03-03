@@ -21,19 +21,24 @@ interface CreateStoryFromPhotosRequest {
 
 // List stories (summary view for library - lightweight payload)
 export const useStories = (params?: { limit?: number; offset?: number; hasAudio?: boolean; scenarioCardId?: string | null } = {}) => {
-  const { limit = 20, offset = 0, hasAudio, scenarioCardId } = params;
+  const { limit = 20, offset = 0, hasAudio, scenarioCardId } = params ?? {};
   
   return useQuery({
     queryKey: ['stories', limit, offset, hasAudio, scenarioCardId],
     queryFn: async () => {
-      const queryParams: Record<string, any> = { limit, offset, has_audio: hasAudio, view: 'summary' };
-      if (scenarioCardId) {
-        queryParams.scenario_card_id = scenarioCardId;
+      const searchParams = new URLSearchParams();
+      searchParams.set('limit', String(limit));
+      searchParams.set('offset', String(offset));
+      searchParams.set('view', 'summary');
+      if (hasAudio === true) {
+        searchParams.set('has_audio', 'true');
       }
-      const response = await apiClient.get<{ status: string; stories: StorySummary[]; pagination: any }>(
-        '/api/v1/stories',
-        { params: queryParams }
-      );
+      if (scenarioCardId) {
+        searchParams.set('scenario_card_id', scenarioCardId);
+      }
+      const queryString = searchParams.toString();
+      const url = queryString ? `/api/v1/stories?${queryString}` : '/api/v1/stories';
+      const response = await apiClient.get<{ status: string; stories: StorySummary[]; pagination: any }>(url);
       return {
         stories: response.data.stories,
         pagination: response.data.pagination,
@@ -320,6 +325,69 @@ export function useGenerateContinuation() {
       // Invalidate story query to refresh UI
       queryClient.invalidateQueries({ queryKey: ['story', storyId] });
     },
+  });
+}
+
+// Publish or unpublish a story
+export function usePublishStory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      storyId,
+      isPublished,
+    }: {
+      storyId: string;
+      isPublished: boolean;
+    }) => {
+      const response = await apiClient.patch<{
+        status: string;
+        slug?: string;
+        shareUrl?: string;
+        message?: string;
+      }>(`/api/v1/stories/${storyId}`, { isPublished });
+      return response.data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['story', variables.storyId] });
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['published-stories'] });
+    },
+  });
+}
+
+// List published stories (public)
+export function usePublishedStories(params?: { limit?: number; offset?: number }) {
+  const { limit = 20, offset = 0 } = params ?? {};
+
+  return useQuery({
+    queryKey: ['published-stories', limit, offset],
+    queryFn: async () => {
+      const response = await apiClient.get<{
+        status: string;
+        stories: any[];
+        pagination: { limit: number; offset: number; total: number };
+      }>('/api/v1/stories/published', { params: { limit, offset } });
+      return {
+        stories: response.data.stories,
+        pagination: response.data.pagination,
+      };
+    },
+  });
+}
+
+// Get published story by slug (public, optional auth for isOwner)
+export function usePublishedStory(slug: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['published-story', slug],
+    queryFn: async () => {
+      const response = await apiClient.get<{
+        status: string;
+        story: any;
+      }>(`/api/v1/stories/published/${slug}`);
+      return response.data.story;
+    },
+    enabled: !!slug && enabled,
   });
 }
 

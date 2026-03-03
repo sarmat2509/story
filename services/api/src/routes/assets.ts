@@ -281,6 +281,7 @@ router.get('/*', async (req: Request, res: Response) => {
     res.setHeader('Content-Type', asset.mimeType);
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'); // Allow embedding from app (different origin)
     
     // Send file
     res.sendFile(fullPath);

@@ -5,6 +5,7 @@ export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: varchar('email', { length: 255 }).notNull().unique(),
   displayName: varchar('display_name', { length: 255 }),
+  pseudonym: varchar('pseudonym', { length: 100 }),
   avatarUrl: text('avatar_url'),
   preferredLocale: varchar('preferred_locale', { length: 5 }).default('uk').notNull(),
   mode: varchar('mode', { length: 20 }).default('instant').notNull(), // 'instant' | 'artisan'
@@ -443,6 +444,10 @@ export const stories = pgTable('stories', {
   
   isPublished: boolean('is_published').default(true),
   isFavorite: boolean('is_favorite').default(false),
+  
+  publishedAt: timestamp('published_at'),
+  publishedSlug: varchar('published_slug', { length: 100 }),
+  authorDisplayName: varchar('author_display_name', { length: 100 }),
   
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

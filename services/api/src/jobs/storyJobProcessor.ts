@@ -382,6 +382,14 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
     } catch (alignmentError) {
       logger.error({ err: alignmentError, storyId: job.storyId }, 'Alignment failed (audio still OK)');
     }
+
+    // Regenerate published HTML if story is published (for audio player in static HTML)
+    if (story.isPublished && story.publishedSlug) {
+      const { regeneratePublishedHtml } = await import('../services/publishStoryService');
+      regeneratePublishedHtml(story.publishedSlug).catch((err) =>
+        logger.error({ err, slug: story.publishedSlug }, 'Failed to regenerate published HTML after audio')
+      );
+    }
   } catch (error) {
     logger.error({
       storyId: job.storyId,

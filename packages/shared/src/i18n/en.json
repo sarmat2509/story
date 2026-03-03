@@ -559,7 +559,22 @@
     "character_type_child": "Child",
     "character_type_friend": "Friend",
     "image_preparing": "preparing image",
-    "image_failed": "failed to generate image"
+    "image_failed": "failed to generate image",
+    "share_title": "Share story",
+    "share_message": "Read my story \"{{title}}\" on WonderTales! Your child is the hero of their own tale 🎭",
+    "publish_share_dialog_title": "Publish story",
+    "publish_share_dialog_message": "To share the story, it needs to be published. It will become available to all users.",
+    "publish_share_dialog_published": "Published",
+    "publish_and_share": "Publish and share",
+    "url_copied": "URL copied",
+    "copy": "Copy",
+    "publish": "Publish",
+    "cancel": "Cancel"
+  },
+  "published_story": {
+    "cta_title": "Your child is the hero of their own tale",
+    "cta_description": "Create a story where your child becomes the main character. Pictures and audio in minutes.",
+    "cta_button": "Sign in and create"
   },
   "toast": {
     "audio_ready_title": "Audio story is ready!",
@@ -576,6 +591,7 @@
   },
   "profile": {
     "title": "Profile",
+    "pseudonym": "Pseudonym (for publications)",
     "account_info": "Account Information",
     "name": "Name",
     "email": "Email",
@@ -626,7 +642,11 @@
     "tab_characters": "Characters",
     "tab_plans": "Plans",
     "tab_profile": "Profile",
-    "tab_more": "More"
+    "tab_more": "More",
+    "published_stories": "Published stories",
+    "page_not_found": "Page Not Found",
+    "page_not_found_message": "The page you're looking for doesn't exist or has been moved.",
+    "go_home": "Go to Home"
   },
   "dashboard": {
     "welcome_back": "Welcome back, {{name}}!",

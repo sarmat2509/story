@@ -22,6 +22,9 @@ interface StoryBottomSheetProps {
   onFinish: () => void;
   onActivateAudio: () => void;
   onDeleteStory: () => void;
+  onPublish?: () => void;
+  onShare?: () => void;
+  isPublishPending?: boolean;
   characters?: any[];
   onSaveCharacter?: (characterId: string) => Promise<void>;
   savedCharacterIds?: Set<string>;
@@ -40,6 +43,9 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
     onFinish,
     onActivateAudio,
     onDeleteStory,
+    onPublish,
+    onShare,
+    isPublishPending = false,
     characters = [],
     onSaveCharacter,
     savedCharacterIds = new Set(),
@@ -138,6 +144,29 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
             </View>
           )}
           
+          {/* Publish Button */}
+          {onPublish && (
+            <TouchableOpacity
+              style={styles.publishButton}
+              onPress={onPublish}
+              disabled={isPublishPending}
+            >
+              <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.text.inverse} />
+              <Text style={styles.publishButtonText}>{t('story_viewer.publish')}</Text>
+            </TouchableOpacity>
+          )}
+          
+          {/* Share Button */}
+          {onShare && (
+            <TouchableOpacity
+              style={styles.shareButton}
+              onPress={onShare}
+            >
+              <Ionicons name="share-social-outline" size={20} color={theme.colors.interactive.primary} />
+              <Text style={styles.shareButtonText}>{t('story_viewer.share_title')}</Text>
+            </TouchableOpacity>
+          )}
+          
           {/* Delete Story Button */}
           <TouchableOpacity 
             style={styles.deleteButton}
@@ -224,6 +253,38 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.xs,
     color: theme.colors.interactive.primary,
     marginLeft: theme.spacing[1],
+  },
+  publishButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    padding: theme.spacing[4],
+    marginTop: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  publishButtonText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    padding: theme.spacing[4],
+    marginTop: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.background.primary,
+  },
+  shareButtonText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.interactive.primary,
   },
   deleteButton: {
     flexDirection: 'row',
