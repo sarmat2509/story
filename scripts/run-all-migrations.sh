@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 
 if [[ "$1" == "--docker" ]]; then
   echo "🔄 Running migrations inside API container..."
-  docker exec wondertales-api-prod sh -c 'cd /app/services/api && pnpm db:migrate:all'
+  docker compose -f docker-compose.prod.yml exec api sh -c 'cd /app/services/api && pnpm db:migrate:all'
 else
   echo "🔄 Running pending SQL migrations..."
   cd services/api
