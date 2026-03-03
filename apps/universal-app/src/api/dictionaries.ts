@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { 
   StoryGoalApi, 
-  StoryToneApi, 
   ScenarioCardApi 
 } from '@wondertales/shared';
 import apiClient from './client';
@@ -9,10 +8,9 @@ import i18n from '@/config/i18n';
 
 // Use shared types
 type StoryGoal = StoryGoalApi;
-type StoryTone = StoryToneApi;
 type ScenarioCard = ScenarioCardApi;
 
-// Get story themes (goals, tones, scenarios)
+// Get story themes (goals, scenarios)
 export const useStoryThemes = () => {
   const locale = i18n.language || 'uk';
   
@@ -23,7 +21,6 @@ export const useStoryThemes = () => {
         status: string;
         data: {
           goals: StoryGoal[];
-          tones: StoryTone[];
           scenarioCards: ScenarioCard[];
         };
       }>(`/api/v1/dictionaries/story-themes?locale=${locale}`);

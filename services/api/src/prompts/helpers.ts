@@ -191,8 +191,6 @@ export function formatStoryRequirements(params: {
     parts.push(`- Goal/Moral: general positive message`);
   }
   
-  parts.push(`- Tone: ${params.spec.tone || 'calm'}`);
-
   if (params.sceneCount) {
     parts.push(`- Number of scenes: ${params.sceneCount}`);
   }
@@ -311,9 +309,133 @@ export function formatWritingStyle(spec: StorySpec, vocabLevel: string): string 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Core Story Rules — PLOT structure, PACING, HOOKS, VOCAB.
+// Used by DirectTextPrompt, ContinuationPrompt. Scene-level only for RegenerationPrompt.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const YOUNG_AGE_GROUPS = ['0-1', '1y', '2-3'];
+
+/**
+ * Format core story rules (PLOT, PACING, HOOKS, VOCAB) for full story generation.
+ * Formulas: MissionScene = min(2, ceil(N*0.25)), RuleScene = ceil(N*0.45),
+ * ClimaxScene = ceil(N*0.85), ResolutionScene = N.
+ */
+export function formatCoreStoryRules(params: {
+  sceneCount: number;
+  ageGroup: string;
+  hasWorldRule?: boolean;
+  worldRuleText?: string;
+}): string {
+  const { sceneCount, ageGroup, hasWorldRule = false, worldRuleText } = params;
+  const isYoung = YOUNG_AGE_GROUPS.includes(ageGroup);
+  const sections: string[] = [];
+
+  // PLOT structure (formulas) — skip for young ages
+  if (!isYoung && sceneCount > 0) {
+    const N = sceneCount;
+    const missionScene = Math.min(2, Math.ceil(N * 0.25));
+    const ruleScene = Math.ceil(N * 0.45);
+    const climaxScene = Math.ceil(N * 0.85);
+    const resolutionScene = N;
+
+    let plotText = `PLOT STRUCTURE:
+- By end of Scene ${missionScene}: state 1-sentence mission.
+- Scenes ${missionScene + 1}–${climaxScene - 1}: 2–3 escalating obstacles.`;
+
+    if (hasWorldRule && worldRuleText) {
+      plotText += `\n- In Scene ${ruleScene}: introduce the world rule.`;
+    }
+
+    plotText += `
+- Scene ${climaxScene}: decisive brave action solves main problem.
+- Scene ${resolutionScene}: happy return + small tangible token + tiny sequel hint.`;
+
+    sections.push(plotText);
+
+    if (hasWorldRule && worldRuleText) {
+      sections.push(`WORLD RULE: ${worldRuleText}\nIntroduce this rule in Scene ${ruleScene}.`);
+    }
+  }
+
+  // PACING — simplified for young ages
+  if (isYoung) {
+    sections.push(`PACING:
+- Keep paragraphs short (2-3 sentences).
+- Include dialogue for character connection.`);
+  } else {
+    sections.push(`PACING:
+- Max 2 consecutive description sentences.
+- Every scene must include: 1 action beat, >=2 dialogue lines, 1 short punchy sentence (3–7 words).
+- Keep paragraphs 2–4 sentences.`);
+  }
+
+  // HOOKS — simplified for young ages
+  if (isYoung) {
+    sections.push(`HOOKS:
+- End scenes with a small surprise or question when possible.`);
+  } else {
+    sections.push(`HOOKS:
+- End every scene with a micro-hook (question / new clue / small twist). No scene ends flat.`);
+  }
+
+  // VOCAB — for 4-5 and above
+  if (!isYoung) {
+    sections.push(`VOCAB:
+- Challenging words (per age requirements): each immediately clarified by context or dialogue.
+- Avoid rare/archaic words unless explained.`);
+  }
+
+  return 'CORE STORY RULES:\n' + sections.join('\n\n');
+}
+
+/**
+ * Format scene-level rules (PACING, HOOKS, VOCAB) for single-scene regeneration.
+ * No PLOT structure — used when regenerating one scene.
+ */
+export function formatSceneLevelRules(params: { ageGroup: string }): string {
+  const { ageGroup } = params;
+  const isYoung = YOUNG_AGE_GROUPS.includes(ageGroup);
+
+  if (isYoung) {
+    return `SCENE RULES:
+- Keep paragraphs short (2-3 sentences).
+- Include dialogue. End with a small surprise or question when possible.`;
+  }
+
+  return `SCENE RULES:
+- Max 2 consecutive description sentences.
+- Include: 1 action beat, >=2 dialogue lines, 1 short punchy sentence (3–7 words).
+- Paragraphs 2–4 sentences.
+- End scene with micro-hook (question / new clue / small twist). No flat endings.
+- Challenging words: clarify by context or dialogue. Avoid rare/archaic unless explained.`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Shared visual story rules — used by TextPrompt, DirectTextPrompt,
 // ContinuationPrompt (via composite), and RegenerationPrompt (individual).
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Mandatory characterOutfits instruction — short, prominent, impossible to miss.
+ * Call this right before OUTPUT FORMAT so LLM sees it last before generating.
+ */
+export function formatCharacterOutfitsMandatory(): string {
+  return [
+    'CHARACTER OUTFITS — MANDATORY:',
+    'Every environment MUST have "characterOutfits" as a NON-EMPTY string.',
+    'Format: "Char1: outfit1. Char2: outfit2." — one entry per character who appears in that location.',
+    'Outfit must be DETAILED and CONTEXT-APPROPRIATE for the location:',
+    '  - Type of clothing: dress, pajamas, overalls, swimsuit, spacesuit, raincoat, etc.',
+    '  - Colors: "yellow pajamas", "bright blue overalls", "orange t-shirt"',
+    '  - Details: collar, buttons, pockets, patterns (stars, stripes), accessories (hat, scarf, belt)',
+    '  - Match the environment: beach → swimsuit/trunks; space → spacesuit/helmet; winter forest → warm coat, hat, mittens; bedroom → pajamas; kitchen → apron; underwater → diving suit.',
+    'Example: "Emilia: yellow pajamas with star patterns, white collar, bare feet. Mochovyk: natural appearance"',
+    'Example (beach): "Max: red swim trunks, no shirt"',
+    'Example (space): "Luna: white spacesuit with blue stripes, transparent helmet"',
+    'Animals/creatures: use "natural appearance".',
+    'NEVER return empty string — always list all characters who appear in that location.',
+  ].join('\n');
+}
 
 /**
  * Environment definition rules with good/bad examples.
@@ -321,8 +443,8 @@ export function formatWritingStyle(spec: StorySpec, vocabLevel: string): string 
 export function formatEnvironmentRules(): string {
   return [
     'CRITICAL - Environments (Base Descriptions):',
-    '- Define ALL distinct physical locations in "environments" array',
-    '- Each environment has THREE fields:',
+    '- Define environments LAST, after scenes. One entry per unique environmentId used in scenes.',
+    '- Each environment has FOUR fields (all required):',
     '  - "id": Short identifier (e.g. "bedroom", "forest_clearing")',
     '  - "name": Human-readable name',
     '  - "description": BASE visual description IN ENGLISH of the fixed, permanent elements:',
@@ -331,12 +453,30 @@ export function formatEnvironmentRules(): string {
     '    * Fixed features: walls, floor, ceiling, windows, doors',
     '    * Key permanent objects: decorations, fixtures, large items',
     '    * Materials and colors of permanent elements',
+    '  - "characterOutfits": REQUIRED string. Format "Char1: outfit1. Char2: outfit2." — EVERY character who appears in ANY scene in this environment. DETAILED outfit IN ENGLISH. Must match the environment (beach→swimsuit, space→spacesuit, winter→coat+hat, bedroom→pajamas). For animals/creatures: "natural appearance". NEVER omit or return empty string.',
     '- Base description should work for ALL scenes in this location',
     '- DO NOT include temporary/transient elements (those go in sceneVisual.setting)',
-    '- Example: "A cozy circular living room with panoramic windows on north wall showing space. Plush beige armchairs around low round coffee table. Warm beige walls, polished dark grey floor with light rug, ambient ceiling lights."',
-    '- Multiple scenes share same environmentId when location is same',
+    '- Example characterOutfits (bedroom): "Zoryana: yellow pajamas with star patterns, white collar. Flash: natural appearance"',
+    '- Example characterOutfits (beach): "Emilia: turquoise one-piece swimsuit, sun hat"',
+    '- Example characterOutfits (space): "Cosmo: white spacesuit with blue stripes, transparent helmet"',
+    '- Example description: "A cozy circular living room with panoramic windows on north wall showing space. Plush beige armchairs around low round coffee table. Warm beige walls, polished dark grey floor with light rug, ambient ceiling lights."',
+    '- When to REUSE environmentId: Same physical location, minor variations. Examples:',
+    '  * Same bedroom: scene 1 (morning, bed made) and scene 4 (evening, pajamas on) → same "bedroom"',
+    '  * Same beach: scene 2 (building sandcastle) and scene 6 (swimming) → same "beach"',
+    '  * Same kitchen: scene 3 (breakfast) and scene 7 (dinner) → same "kitchen"',
+    '  * Same forest path: scene 2 (walking) and scene 4 (resting on log) → same "forest_path"',
+    '- When to CREATE NEW environmentId: Scene describes a distinctly different physical place. Examples:',
+    '  * Forest path vs forest glade/clearing — different (path: trees around, canopy; glade: open space, sky visible, grass, different composition)',
+    '  * Different rooms (bedroom vs kitchen vs living room)',
+    '  * Cave entrance vs cave interior',
+    '  * Beach vs pier or beach vs underwater',
+    '  * Any sub-location with different visual structure (layout, sky visibility, key landmarks) — use separate environment.',
+    '- Good example: scene 3 "forest path" → environmentId "forest_path"; scene 5 "spacious glade with Silver Tree" → environmentId "silver_tree_glade" (NOT same as forest_path).',
   ].join('\n');
 }
+
+/** Universal rule: avoid ambiguous "at" when standing near furniture (image models may read as "on"). */
+const SPATIAL_POSITION_RULE = 'Position near furniture: use beside, next to, behind, in front of — avoid "at" when standing (read as "on").';
 
 /**
  * Scene visual description rules (setting + cameraComposition + lighting).
@@ -356,7 +496,7 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
     return [
       'CRITICAL - sceneVisual:',
       withStyleHint(
-        '- "setting": DELTA ONLY - Scene-specific additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific state (door open/closed, curtains drawn/open), items being actively used, lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. If minimal changes, describe time-of-day atmosphere or specific focus. Write IN ENGLISH.',
+        '- "setting": DELTA ONLY - Scene-specific additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific state (door open/closed, curtains drawn/open), items being actively used, lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. STANDALONE: never use "the same X", "as before" — each scene is rendered independently; if location unchanged, repeat key visual elements. Write IN ENGLISH.',
         styleGuidance?.setting
       ),
       withStyleHint(
@@ -364,20 +504,12 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
         styleGuidance?.composition
       ),
       '  - "shot": Camera angle and shot type IN ENGLISH (e.g. "Medium-wide shot at child eye-level").',
-      '  - "characters": Array of objects, one per character physically present in the scene. Each has "name" (EXACT from character list) and "description" (position in frame, posture, action, expression IN ENGLISH). Maximum 3 characters.',
+      `  - "characters": Array of objects, one per character. Each has "name" (EXACT from character list) and "description" (position in frame, posture, action, expression IN ENGLISH). ${SPATIAL_POSITION_RULE} Maximum 3 characters.`,
       withStyleHint(
         '- "lighting": Light source, direction, intensity, shadows, color temperature, atmosphere. Write IN ENGLISH.',
         styleGuidance?.lighting
       ),
       '- ALL sceneVisual fields MUST be written in ENGLISH regardless of story language.',
-      '',
-      'CRITICAL - characterOutfits:',
-      '- REQUIRED object mapping EACH character from cameraComposition.characters to their outfit.',
-      '- You MUST provide outfit for EVERY character in the scene.',
-      '- Describe scene-appropriate attire (indoor: casual/pajamas, outdoor: coats/boots, etc).',
-      '- For animals/creatures without clothes, write "natural appearance".',
-      '- Example: { "Emilia": "cozy sweater, leggings", "Dad": "grey space farmer coveralls", "Rabbit": "natural appearance" }',
-      '- NEVER return empty {} - always fill with character names from cameraComposition.',
     ].join('\n');
   }
 
@@ -388,6 +520,7 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
       '  - "setting": DELTA ONLY - Scene-specific additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific state (door open/closed, curtains drawn/open), items being actively used, lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. If minimal changes, describe time-of-day atmosphere or specific focus. Write IN ENGLISH.',
       styleGuidance?.setting
     ),
+    '    - STANDALONE: Each scene is rendered independently. NEVER use "the same X", "as before", "continuing from previous scene". If the location is unchanged, REPEAT the key visual elements (describe the nook, foliage, objects) — do not reference other scenes.',
     withStyleHint(
       '  - "cameraComposition": An OBJECT with two fields:',
       styleGuidance?.composition
@@ -395,7 +528,7 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
     '    - "shot": Camera angle (wide/medium/close-up), eye level, focal point. IN ENGLISH.',
     '    - "characters": Array of objects — one entry per character physically present in the scene. Maximum 3 characters. Each entry has:',
     '      - "name": EXACT character name from the story character list',
-    '      - "description": Position in frame (foreground/background, left/right/center, on what object), body posture, action (sitting, flying, running, hugging, sleeping, eating), facial expression, gaze direction. IN ENGLISH.',
+    `      - "description": Position in frame (foreground/background, left/right/center), body posture, action, facial expression, gaze direction. ${SPATIAL_POSITION_RULE} IN ENGLISH.`,
     withStyleHint(
       '  - "lighting": Light source, direction, intensity, shadow style, color temperature, atmosphere.',
       styleGuidance?.lighting
@@ -405,18 +538,9 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
     '- The base environment structure comes from environment.description - sceneVisual.setting should only add scene-specific deltas.',
     '- Example good setting delta: "Two books and telescope on coffee table. Windows show morning stars. Dad holding glowing seed in open palm."',
     '- Example bad setting: "A cozy circular living room with panoramic windows..." (this duplicates base environment - only write what\'s new)',
-    '- Example good cameraComposition: { "shot": "Medium-wide shot at child eye-level", "characters": [{ "name": "Emilia", "description": "foreground center at workbench, sitting, examining a blueprint with magnifying glass, focused expression" }, { "name": "Rabbit", "description": "right side perched on workbench edge, ears perked up, looking curiously at Emilia" }] }',
+    '- Example bad setting: "The same hidden nook. Branch lowered." (references previous scene — image model has no context). Good: "A hidden nook with lush glowing foliage. The magical bush branch is now lowered. A woven basket on the ground, partially filled with berries."',
+    '- Example good cameraComposition: { "shot": "Medium-wide shot at child eye-level", "characters": [{ "name": "Emilia", "description": "foreground center beside workbench, sitting, examining a blueprint with magnifying glass, focused expression" }, { "name": "Rabbit", "description": "right side perched on workbench edge, ears perked up, looking curiously at Emilia" }] }',
     '- Example bad cameraComposition: "Characters in a workshop" (too vague, not structured, no per-character entries)',
-    '',
-    'CRITICAL - characterOutfits (scene-appropriate attire):',
-    '- "characterOutfits" is an object mapping each character from cameraComposition.characters to their attire description for THIS scene.',
-    '- characterOutfits is MANDATORY - you must describe outfit for each character present in the scene',
-    '- Match character names EXACTLY as they appear in cameraComposition.characters array',
-    '- Outfit descriptions help maintain visual consistency and scene appropriateness',
-    '- Describe attire appropriate to the scene location and activity.',
-    '- Adapt outfits to the scene context — indoor scenes may use casual/comfortable attire instead of outdoor wear.',
-    '- For animals or creatures without attire, use "natural appearance".',
-    '- Example: { "Emilia": "cozy sweater, leggings", "Binbon": "natural appearance" }',
     '',
     'EXAMPLE - Base+Delta Pattern:',
     'Environment (moon_farm_living_room):',
@@ -455,6 +579,7 @@ export function formatTextVisualConsistencyRules(): string {
     '- Every character in cameraComposition.characters MUST be performing a visible action described in the scene text. If the text says "Rabbit sat on the rug", the cameraComposition must show Rabbit sitting on the rug.',
     '- Do NOT include characters in cameraComposition.characters if they are only mentioned in passing, heard off-screen, or remembered in the text.',
     '- The setting in "sceneVisual.setting" must match the location described in the text.',
+    '- sceneVisual.setting must be SELF-CONTAINED — each scene is rendered independently; never use "the same X" or reference other scenes.',
     '- Think of it as: text = the full story of the scene, sceneVisual = a single illustration capturing the key moment of that text.',
   ].join('\n');
 }
@@ -503,6 +628,7 @@ export function formatVisualStoryRules(opts?: {
   }).audioTagsRules;
 
   const parts = [
+    formatCharacterOutfitsMandatory(),
     formatEnvironmentRules(),
     formatSceneVisualRules({ imageStyle: opts?.imageStyle }),
     formatCharactersPerSceneRules(),

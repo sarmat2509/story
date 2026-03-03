@@ -39,16 +39,14 @@ ${getContentPolicy({ policyProfile: spec.policyProfile, scenarioCardId: spec.sce
 
 ${helpers.formatWritingStyle(spec, vocabLevel)}
 
-OUTPUT FORMAT (JSON):
+${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRule: !!spec.worldRule, worldRuleText: spec.worldRule?.description })}
+
+${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle, scenarioCardId: spec.scenarioCard?.id, policyProfile: spec.policyProfile })}
+
+OUTPUT FORMAT (JSON). Generate environments LAST — one entry per unique environmentId used in scenes. characterOutfits must list ALL characters who appear there — never empty string.
 {
   "title": "Story title in ${spec.language}",
   "language": "${spec.language}",
-  "environments": [
-    {
-      "id": "short_id",
-      "name": "Human-readable location name"
-    }
-  ],
   "characters": [
     {
       "name": "Character name",
@@ -74,13 +72,18 @@ OUTPUT FORMAT (JSON):
           ]
         },
         "lighting": "Lighting conditions IN ENGLISH: warm golden sunlight from left window, soft shadows on floor."
-      },
-      "characterOutfits": { "Character Name 1": "scene-appropriate outfit description" }
+      }
+    }
+  ],
+  "environments": [
+    {
+      "id": "short_id",
+      "name": "Human-readable location name",
+      "description": "BASE visual description IN ENGLISH...",
+      "characterOutfits": "ExactCharacterName: detailed outfit (type, colors, elements). CreatureName: natural appearance"
     }
   ]
 }
-
-${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle, scenarioCardId: spec.scenarioCard?.id, policyProfile: spec.policyProfile })}
 
 IMPORTANT - Character Descriptions:
 - Return ALL characters you create in the story (do NOT include user-provided characters from SUPPORTING CHARACTERS section above)

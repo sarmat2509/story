@@ -77,6 +77,9 @@ export interface SceneImageWithReferenceRequest {
   characterOutfits?: Record<string, string>;
 
   scenarioCardId?: string;
+
+  // When true: SETTING uses only scene-specific delta (env image provides layout)
+  hasEnvironmentImageRef?: boolean;
 }
 
 /**
@@ -176,6 +179,7 @@ export class ImageDomainService {
       currentEnvironment: request.currentEnvironment,
       characterOutfits: request.characterOutfits,
       scenarioCardId: request.scenarioCardId,
+      hasEnvironmentImageRef: request.hasEnvironmentImageRef,
     });
 
     // Build system instruction: use pre-built one from orchestration, or build here

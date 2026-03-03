@@ -115,23 +115,21 @@ router.get('/character-traits', async (req, res) => {
   });
 });
 
-// GET /api/v1/dictionaries/story-themes - Get story configuration (goals, tones, scenarios) (public)
+// GET /api/v1/dictionaries/story-themes - Get story configuration (goals, scenarios) (public)
 router.get('/story-themes', async (req, res) => {
   try {
     const locale = (req.query.locale as string) || 'uk';
     const dictionaryRepo = getDictionaryRepository();
     
     // Fetch all data from DB via repository
-    const [goalsData, tonesData, scenarioCardsData] = await Promise.all([
+    const [goalsData, scenarioCardsData] = await Promise.all([
       dictionaryRepo.findAllGoals(),
-      dictionaryRepo.findAllTones(),
       dictionaryRepo.findActiveScenarioCards()
     ]);
     
     // Fetch translations
-    const [goalsTranslations, tonesTranslations, scenariosTranslations] = await Promise.all([
+    const [goalsTranslations, scenariosTranslations] = await Promise.all([
       getTranslations('story_goal', goalsData.map(g => g.slug), locale),
-      getTranslations('story_tone', tonesData.map(t => t.slug), locale),
       getTranslations('scenario_card', scenarioCardsData.map(sc => sc.id), locale)
     ]);
     
@@ -143,16 +141,6 @@ router.get('/story-themes', async (req, res) => {
         name: trans?.get('name') || g.name,
         description: trans?.get('description') || g.description,
         minAge: g.minAge
-      };
-    });
-    
-    const tones = tonesData.map(t => {
-      const trans = tonesTranslations.get(t.slug);
-      return {
-        slug: t.slug,
-        name: trans?.get('name') || t.name,
-        description: trans?.get('description') || t.description,
-        writingStyle: JSON.parse(t.writingStyle)
       };
     });
     
@@ -170,7 +158,7 @@ router.get('/story-themes', async (req, res) => {
     
     return res.json({
       status: 'success',
-      data: { goals, tones, scenarioCards: scenarios }
+      data: { goals, scenarioCards: scenarios }
     });
   } catch (error: unknown) {
     logger.error({ error }, 'Error fetching story themes');

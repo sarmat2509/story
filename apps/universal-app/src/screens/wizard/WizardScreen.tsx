@@ -31,7 +31,6 @@ export default function WizardScreen() {
   const [scenarioCardId, setScenarioCardId] = useState<string | null>(null);
   const [childProfileId, setChildProfileId] = useState<string | undefined>(undefined);
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
-  const [selectedTone, setSelectedTone] = useState<string | undefined>(undefined);
   const [imageStyle, setImageStyle] = useState<string | undefined>(undefined);
   const [userNotes, setUserNotes] = useState('');
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
@@ -77,7 +76,6 @@ export default function WizardScreen() {
         ...(scenarioCardId && { scenarioCardId }),
         ...(childProfileId && { childProfileId }), // Keep for age/sensitivity context
         ...(selectedGoals.length > 0 && { goal: selectedGoals[0] }), // Backend accepts single goal
-        ...(selectedTone && { tone: selectedTone }),
         ...(imageStyle && { imageStyle }),
         ...(userNotes && { userNotes }),
         ...(selectedCharacters.length > 0 && { selectedCharacters }),
@@ -161,9 +159,6 @@ export default function WizardScreen() {
             goals={themesData?.goals || []}
             selectedGoals={selectedGoals}
             onGoalsChange={setSelectedGoals}
-            tones={themesData?.tones || []}
-            selectedTone={selectedTone}
-            onToneChange={setSelectedTone}
             imageStyle={imageStyle}
             onImageStyleChange={setImageStyle}
             userNotes={userNotes}

@@ -25,9 +25,6 @@ export const StoryGoalSchema = z.enum([
   'safety',
 ]);
 
-// Story tone schema
-export const StoryToneSchema = z.enum(['calm', 'adventure', 'humor', 'lullaby', 'educational']);
-
 // Art style schema
 export const ArtStyleSchema = z.enum(IMAGE_STYLES);
 
@@ -65,7 +62,6 @@ export const StoryRequestSchema = z.object({
   ui_locale: LocaleSchema,
   story_language: LocaleSchema,
   goal: StoryGoalSchema,
-  tone: StoryToneSchema,
   length: z.enum(['auto', 'short', 'medium', 'long']).default('auto'),
   image_style: ArtStyleSchema,
   include_family: z.boolean().default(false),
@@ -358,7 +354,6 @@ export const CreateStoryRequestSchema = z.object({
   uiLocale: LocaleSchema,
   storyLanguage: LocaleSchema,
   goal: z.string().max(50).optional(), // DB-driven, slug from story_goals
-  tone: z.string().max(50).optional(), // DB-driven, slug from story_tones
   scenarioCardId: z.string().max(100).optional(), // DB-driven, from scenario_cards
   imageStyle: z.string().max(50).optional(), // Image art style (soft_watercolor, colored_pencil, etc.)
   userNotes: z.string().max(500).optional(),

@@ -11,6 +11,7 @@
 import { GeminiTextProvider } from '../providers/text/gemini';
 import { OpenAITextProvider } from '../providers/text/openai';
 import { GeminiImageProvider } from '../providers/image/gemini';
+import { Imagen4FastProvider } from '../providers/image/gemini/Imagen4FastProvider';
 import { GeminiQuotaProvider } from '../providers/image/gemini/GeminiQuotaProvider';
 import { NanoBananaProProvider } from '../providers/image/nanobananapro';
 import { OpenAIImageProvider } from '../providers/image/openai';
@@ -41,6 +42,7 @@ let audioDomainService: AudioDomainService | null = null;
 // Provider instances (private to this module)
 let textProvider: ITextProvider | null = null;
 let imageProvider: IImageProvider | null = null;
+let environmentImageProvider: IImageProvider | null = null;
 let audioProvider: IAudioProvider | null = null;
 let alignmentProvider: IAlignmentProvider | null = null;
 
@@ -172,6 +174,18 @@ function getImageProvider(): IImageProvider {
   }
   
   return imageProvider;
+}
+
+/**
+ * Get environment image provider (Imagen 4 Fast)
+ * Used for generating environment reference images ($0.02/image)
+ */
+export function getEnvironmentImageProvider(): IImageProvider {
+  if (!environmentImageProvider) {
+    logger.info('Initializing environment image provider (Imagen 4 Fast)');
+    environmentImageProvider = new Imagen4FastProvider();
+  }
+  return environmentImageProvider;
 }
 
 /**
@@ -417,6 +431,7 @@ export function resetServices(): void {
   audioDomainService = null;
   textProvider = null;
   imageProvider = null;
+  environmentImageProvider = null;
   audioProvider = null;
   alignmentProvider = null;
   imageRateLimiter = null;

@@ -19,6 +19,8 @@ import { AssetRepository } from './AssetRepository';
 import { VoiceRepository } from './VoiceRepository';
 import { DictionaryRepository } from './DictionaryRepository';
 import { PolicyRepository } from './PolicyRepository';
+import { EnvironmentImageCacheRepository } from './EnvironmentImageCacheRepository';
+import { StoryEnvironmentCacheRepository } from './StoryEnvironmentCacheRepository';
 
 // Re-export classes for type usage
 export { UserRepository } from './UserRepository';
@@ -33,6 +35,8 @@ export { AssetRepository } from './AssetRepository';
 export { VoiceRepository } from './VoiceRepository';
 export { DictionaryRepository } from './DictionaryRepository';
 export { PolicyRepository } from './PolicyRepository';
+export { EnvironmentImageCacheRepository } from './EnvironmentImageCacheRepository';
+export { StoryEnvironmentCacheRepository } from './StoryEnvironmentCacheRepository';
 
 // Singleton instances
 let userRepo: UserRepository;
@@ -47,6 +51,8 @@ let assetRepo: AssetRepository;
 let voiceRepo: VoiceRepository;
 let dictionaryRepo: DictionaryRepository;
 let policyRepo: PolicyRepository;
+let environmentImageCacheRepo: EnvironmentImageCacheRepository;
+let storyEnvironmentCacheRepo: StoryEnvironmentCacheRepository;
 
 export function getUserRepository(): UserRepository {
   if (!userRepo) userRepo = new UserRepository(db);
@@ -106,4 +112,16 @@ export function getDictionaryRepository(): DictionaryRepository {
 export function getPolicyRepository(): PolicyRepository {
   if (!policyRepo) policyRepo = new PolicyRepository(db);
   return policyRepo;
+}
+
+export function getEnvironmentImageCacheRepository(): EnvironmentImageCacheRepository {
+  if (!environmentImageCacheRepo)
+    environmentImageCacheRepo = new EnvironmentImageCacheRepository(db);
+  return environmentImageCacheRepo;
+}
+
+export function getStoryEnvironmentCacheRepository(): StoryEnvironmentCacheRepository {
+  if (!storyEnvironmentCacheRepo)
+    storyEnvironmentCacheRepo = new StoryEnvironmentCacheRepository(db);
+  return storyEnvironmentCacheRepo;
 }

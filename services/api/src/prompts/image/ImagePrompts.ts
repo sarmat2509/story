@@ -9,6 +9,7 @@ import { flattenCameraComposition, type SceneVisual } from '../../services/types
 import type { StoryEnvironment } from '../../ai/types';
 import { getImageStylePrefix } from './styles';
 import { getImageContentPolicy } from '../contentPolicy';
+import { config } from '../../config';
 
 export interface CharacterReference {
   name: string;
@@ -49,6 +50,8 @@ export function buildSceneImagePrompt(params: {
   characters?: CharacterReference[];
   negativePrompt?: string;
   scenarioCardId?: string;
+  // When true: SETTING uses only scene-specific delta (env image provides layout)
+  hasEnvironmentImageRef?: boolean;
 }): string {
   const imagePolicy = getImageContentPolicy({ ageGroup: params.ageGroup, scenarioCardId: params.scenarioCardId });
   const stylePrefix = getImageStylePrefix(params.style, params.ageGroup, params.scenarioCardId);
@@ -66,6 +69,7 @@ export function buildSceneImagePrompt(params: {
       imageIndexMap: params.imageIndexMap,
       currentEnvironment: params.currentEnvironment,
       characterOutfits: params.characterOutfits,
+      hasEnvironmentImageRef: params.hasEnvironmentImageRef,
     });
   }
 
@@ -115,14 +119,16 @@ function buildStructuredPrompt(params: {
   imageIndexMap?: Map<string, number>;
   currentEnvironment?: StoryEnvironment;
   characterOutfits?: Record<string, string>;
+  hasEnvironmentImageRef?: boolean;
 }): string {
-  const { sceneVisual } = params;
+  const { sceneVisual, hasEnvironmentImageRef } = params;
 
   const sections: string[] = [];
 
-  // SETTING (scene-specific)
+  // SETTING (scene-specific). When env image ref: only delta, labeled "Scene-specific"
   if (sceneVisual.setting) {
-    sections.push(`- Scene: ${sceneVisual.setting}`);
+    const settingLabel = hasEnvironmentImageRef ? 'Scene-specific' : 'Scene';
+    sections.push(`- ${settingLabel}: ${sceneVisual.setting}`);
   }
 
   // CHARACTERS — with Image N back-references and inline descriptions
@@ -256,6 +262,34 @@ function buildCharacterDescriptions(characters?: CharacterReference[]): string {
 }
 
 /**
+ * Build prompt for environment image (Imagen 4 Fast).
+ * Fixed neutral style for easy re-drawing under any scene art style.
+ */
+export function buildEnvironmentImagePrompt(params: {
+  environment: StoryEnvironment;
+  scenarioCardId?: string;
+}): string {
+  const imagePolicy = getImageContentPolicy({
+    ageGroup: '4-5',
+    scenarioCardId: params.scenarioCardId,
+  });
+  const stylePrefix =
+    config.image.environmentImageStyle ||
+    'clean line art, simple shapes, clear spatial layout';
+  const safetyAdditions = imagePolicy.imageSafetyAdditions;
+
+  const parts = [
+    stylePrefix,
+    params.environment.description,
+    'Empty location, no people or animals, wide establishing shot.',
+    safetyAdditions,
+    'No text or letters in the image.',
+  ];
+
+  return parts.filter(Boolean).join('. ');
+}
+
+/**
  * Build prompt for generating a character portrait
  * Used for creating reference images when user hasn't provided any
  */
@@ -305,6 +339,7 @@ export function buildImageSystemInstruction(params: {
   style: string;
   ageGroup: string;
   hasReferences?: boolean;
+  hasEnvironmentReference?: boolean;
   scenarioCardId?: string;
 }): string {
   const imagePolicy = getImageContentPolicy({ ageGroup: params.ageGroup, scenarioCardId: params.scenarioCardId });
@@ -332,9 +367,16 @@ export function buildImageSystemInstruction(params: {
     );
   }
 
-  // Clothing adaptation rule
+  // Environment reference rules (when env image is attached)
+  if (params.hasEnvironmentReference) {
+    sections.push(
+      'ENVIRONMENT REFERENCE: The provided location image is for CONTENT only (layout, spatial structure, composition, objects, furniture, atmosphere) — NOT for style. Re-draw everything in the scene\'s art style. Ignore the reference\'s rendering style completely.',
+    );
+  }
+
+  // Clothing: outfit comes from environment.characterOutfits (per-environment, consistent within location)
   sections.push(
-    'CLOTHING: Scene-appropriate outfit while keeping each character recognizable.',
+    'CLOTHING: Use outfit from character description (per-environment, consistent within location).',
   );
 
   // Tone / safety

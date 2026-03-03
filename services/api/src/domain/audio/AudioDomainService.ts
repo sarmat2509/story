@@ -299,7 +299,6 @@ export class AudioDomainService {
                 prosody: {
                   speed,
                   nightMode: voiceParams.nightMode,
-                  tone: story.tone,
                 },
                 outputFormat: 'mp3',
               });
@@ -621,7 +620,6 @@ export class AudioDomainService {
       prosody: {
         speed,
         nightMode: voiceParams.nightMode,
-        tone: story.tone,
       },
       outputFormat: 'mp3',
     };

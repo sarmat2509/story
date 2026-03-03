@@ -35,19 +35,8 @@ export interface StoryGoalData {
   min_age: number;
 }
 
-// Story tone (union type for validation)
-export type StoryToneSlug = 'calm' | 'adventure' | 'humor' | 'lullaby' | 'educational';
-
-// Story Tone (complete type for API/DB)
-export interface StoryToneData {
-  slug: string;
-  name: string;
-  description: string;
-}
-
 // Backward compatibility aliases
 export type StoryGoal = StoryGoalSlug;
-export type StoryTone = StoryToneSlug;
 
 // Art styles
 import { IMAGE_STYLES } from '../constants/imageStyles';
@@ -117,7 +106,6 @@ export interface StoryRequest {
   ui_locale: Locale;
   story_language: Locale;
   goal: StoryGoal;
-  tone: StoryTone;
   length: 'auto' | 'short' | 'medium' | 'long';
   image_style: ArtStyle;
   include_family: boolean;
@@ -448,7 +436,6 @@ export type PlanFeatureDenormalizedApi = CamelizeKeys<PlanFeatureDenormalized>;
 export type PlanPublicApi = CamelizeKeys<PlanPublic>;
 export type PlanAuthenticatedApi = CamelizeKeys<PlanAuthenticated>;
 export type StoryGoalApi = CamelizeKeys<StoryGoalData>;
-export type StoryToneApi = CamelizeKeys<StoryToneData>;
 export type ScenarioCardApi = CamelizeKeys<ScenarioCard>;
 export type VoiceApi = CamelizeKeys<Voice>;
 export type StorySummaryApi = CamelizeKeys<StorySummary>;

@@ -263,16 +263,6 @@ export const storyGoals = pgTable('story_goals', {
   sortOrder: integer('sort_order').notNull().default(0),
 });
 
-// Story tones table
-export const storyTones = pgTable('story_tones', {
-  slug: varchar('slug', { length: 50 }).primaryKey(),
-  name: varchar('name', { length: 100 }).notNull(),
-  description: text('description').notNull(),
-  promptGuidance: text('prompt_guidance').notNull(),
-  writingStyle: text('writing_style').notNull(), // JSON stringified
-  sortOrder: integer('sort_order').notNull().default(0),
-});
-
 // Content policy rules table
 export const contentPolicyRules = pgTable('content_policy_rules', {
   id: varchar('id', { length: 50 }).primaryKey(),
@@ -324,10 +314,22 @@ export const scenarioPlotExamples = pgTable('scenario_plot_examples', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Scenario world rules table (world rules per scenario card)
+export const scenarioWorldRules = pgTable('scenario_world_rules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  scenarioCardId: varchar('scenario_card_id', { length: 100 })
+    .references(() => scenarioCards.id, { onDelete: 'cascade' }).notNull(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Translations table (M6)
 export const translations = pgTable('translations', {
   id: uuid('id').primaryKey().defaultRandom(),
-  entityType: varchar('entity_type', { length: 50 }).notNull(), // 'story_goal' | 'story_tone' | 'scenario_card'
+  entityType: varchar('entity_type', { length: 50 }).notNull(), // 'story_goal' | 'scenario_card'
   entityId: varchar('entity_id', { length: 100 }).notNull(),
   locale: varchar('locale', { length: 5 }).notNull(), // 'uk' | 'ru' | 'en' | 'es'
   fieldName: varchar('field_name', { length: 50 }).notNull(), // 'name' | 'description'
@@ -361,7 +363,6 @@ export const storyRequests = pgTable('story_requests', {
   uiLocale: varchar('ui_locale', { length: 5 }).notNull(),
   storyLanguage: varchar('story_language', { length: 5 }).notNull(),
   goal: varchar('goal', { length: 50 }).references(() => storyGoals.slug),
-  tone: varchar('tone', { length: 50 }).references(() => storyTones.slug),
   scenarioCardId: varchar('scenario_card_id', { length: 100 }).references(() => scenarioCards.id),
   imageStyle: varchar('image_style', { length: 50 }), // Image art style (soft_watercolor, etc.)
   userNotes: text('user_notes'),
@@ -398,7 +399,6 @@ export const storySeries = pgTable('story_series', {
   language: varchar('language', { length: 5 }).notNull(),
   ageGroup: varchar('age_group', { length: 10 }).notNull(),
   imageStyle: varchar('image_style', { length: 50 }).notNull(),
-  tone: varchar('tone', { length: 50 }),
   
   totalParts: integer('total_parts').notNull().default(1),
   storyIds: jsonb('story_ids').notNull().$type<string[]>().default([]),
@@ -424,7 +424,6 @@ export const stories = pgTable('stories', {
   language: varchar('language', { length: 5 }).notNull(),
   ageGroup: varchar('age_group', { length: 10 }).notNull(),
   moralTheme: varchar('moral_theme', { length: 50 }).references(() => storyGoals.slug),
-  tone: varchar('tone', { length: 50 }).references(() => storyTones.slug),
   
   outline: jsonb('outline'), // EpisodeOutline structure
   scenes: jsonb('scenes').notNull(), // Array of { sceneId, text, visualPrompt, imageUrl } - DEPRECATED, use scenes table
@@ -477,9 +476,6 @@ export const storyCharacters = pgTable('story_characters', {
 export type StoryGoal = typeof storyGoals.$inferSelect;
 export type NewStoryGoal = typeof storyGoals.$inferInsert;
 
-export type StoryTone = typeof storyTones.$inferSelect;
-export type NewStoryTone = typeof storyTones.$inferInsert;
-
 export type ContentPolicyRule = typeof contentPolicyRules.$inferSelect;
 export type NewContentPolicyRule = typeof contentPolicyRules.$inferInsert;
 
@@ -491,6 +487,9 @@ export type NewScenarioCard = typeof scenarioCards.$inferInsert;
 
 export type ScenarioPlotExample = typeof scenarioPlotExamples.$inferSelect;
 export type NewScenarioPlotExample = typeof scenarioPlotExamples.$inferInsert;
+
+export type ScenarioWorldRule = typeof scenarioWorldRules.$inferSelect;
+export type NewScenarioWorldRule = typeof scenarioWorldRules.$inferInsert;
 
 export type Translation = typeof translations.$inferSelect;
 export type NewTranslation = typeof translations.$inferInsert;
@@ -613,6 +612,41 @@ export type NewAsset = typeof assets.$inferInsert;
 
 export type GeneratedReference = typeof generatedReferences.$inferSelect;
 export type NewGeneratedReference = typeof generatedReferences.$inferInsert;
+
+// Environment image cache - global reuse by embedding similarity
+export const environmentImageCache = pgTable('environment_image_cache', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  description: text('description').notNull(),
+  descriptionEmbedding: jsonb('description_embedding').$type<number[]>().notNull(),
+  storagePath: text('storage_path').notNull(),
+  storageUrl: text('storage_url'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Story-environment mapping for continuation (story env id -> cache id)
+export const storyEnvironmentCache = pgTable(
+  'story_environment_cache',
+  {
+    storyId: uuid('story_id')
+      .references(() => stories.id, { onDelete: 'cascade' })
+      .notNull(),
+    storyEnvironmentId: varchar('story_environment_id', { length: 100 }).notNull(),
+    cacheId: uuid('cache_id')
+      .references(() => environmentImageCache.id, { onDelete: 'cascade' })
+      .notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.storyId, table.storyEnvironmentId] }),
+    storyIdx: index('story_env_cache_story_idx').on(table.storyId),
+    cacheIdx: index('story_env_cache_cache_idx').on(table.cacheId),
+  })
+);
+
+export type EnvironmentImageCache = typeof environmentImageCache.$inferSelect;
+export type NewEnvironmentImageCache = typeof environmentImageCache.$inferInsert;
+export type StoryEnvironmentCache = typeof storyEnvironmentCache.$inferSelect;
+export type NewStoryEnvironmentCache = typeof storyEnvironmentCache.$inferInsert;
 
 // ==========================================
 // AUDIO/TTS TABLES (M5)

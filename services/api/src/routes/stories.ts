@@ -59,7 +59,6 @@ const GenerateFromPhotosSchema = z.object({
   scenario: z.string(),
   language: z.enum(['uk', 'en', 'ru', 'es']),
   goals: z.array(z.string()).optional(),
-  tone: z.string().optional(),
   imageStyle: z.string().optional(),
   notes: z.string().max(1000).optional(),
 });
@@ -177,7 +176,6 @@ router.post('/instant', requireAuth, async (req: Request, res: Response) => {
       ageGroup: validatedData.ageGroup,
       scenario: validatedData.scenario === 'free' ? undefined : validatedData.scenario,
       goals: validatedData.goals || [],
-      tone: validatedData.tone,
       imageStyle: validatedData.imageStyle || selectDefaultImageStyle(validatedData.ageGroup),
       notes: validatedData.notes,
       selectedCharacters: [], // Will be populated by async job
@@ -590,7 +588,6 @@ router.post('/:id/continue', requireAuth, async (req: Request, res: Response) =>
     const requestId = await createContinuationRequest(userId, {
       language: story.language,
       ageGroup: story.ageGroup,
-      tone: story.tone,
       childProfileId: story.childProfileId,
       imageStyle: (story.metadata as any)?.imageStyle || 'watercolor',
       moralTheme: story.moralTheme,

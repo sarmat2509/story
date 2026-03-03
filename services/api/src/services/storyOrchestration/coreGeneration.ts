@@ -40,6 +40,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     const spec = specData.spec;
     const selectedCharacters = specData.selectedCharacters;
     const chosenPlotExampleId = specData.chosenPlotExampleId;
+    const chosenWorldRuleId = specData.chosenWorldRuleId;
     
     // Task 1: Generate Text
     const textGenStart = Date.now();
@@ -161,7 +162,6 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       spec,
       characters: mergedCharacters,
       goal: request.goal,
-      tone: request.tone,
       generationTimeMs: Date.now() - startTime,
       metadata: {
         textGenerationTimeMs,
@@ -170,6 +170,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
         fullTextLength: validatedText.fullText?.length || 0,
         modelVersion: 'gemini-2.5-flash',
         plotExampleId: chosenPlotExampleId,
+        worldRuleId: chosenWorldRuleId,
         llmGeneratedCharacters: llmCharacters,
         imageStyle: (spec as any).imageStyle,
       },

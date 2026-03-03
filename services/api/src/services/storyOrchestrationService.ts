@@ -5,9 +5,11 @@ import {
   getChildProfileRepository,
   getCharacterRepository,
   getDictionaryRepository,
+  getEnvironmentImageCacheRepository,
+  getStoryEnvironmentCacheRepository,
 } from '../repositories';
 import type { CreateStoryRequestInput } from '@wondertales/shared';
-import { getStoryDomainService, getImageDomainService, getAudioDomainService } from './aiService';
+import { getStoryDomainService, getImageDomainService, getAudioDomainService, getEnvironmentImageProvider } from './aiService';
 import { getAssetStorageService } from './assetStorageService';
 import { getPlanFeatures } from './planService';
 import {
@@ -23,10 +25,12 @@ import { getGenerationCoefficients } from './generationTimeService';
 import type { StorySpec, StoryEnvironment, ImageValidationResult } from '../ai/types';
 import { logger } from '../utils/logger';
 import { stripCharacterIds, stripAudioTags } from '../utils/audioTags';
+import { parseCharacterOutfitsString, serializeCharacterOutfitsToStr } from '../utils/characterOutfits';
 import type { CharacterReference } from '../prompts/image';
-import { buildImageSystemInstruction } from '../prompts/image';
+import { buildImageSystemInstruction, buildEnvironmentImagePrompt } from '../prompts/image';
 import type { UploadedFile } from '../providers/base/IFileManager';
 import { validate as isUUID } from 'uuid';
+import crypto from 'crypto';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { config } from '../config';
@@ -43,13 +47,7 @@ import {
 } from './types';
 // NEW M9: Character-based reference tracking
 import { buildCharacterRegistry, normalizeCharacterName, matchCharacterNames, toPhoneticKey, type NormalizedCharacter } from '../utils/characterNormalization';
-import {
-  selectReferencesFromPreloaded,
-  getStoryReferenceImages,
-  markSceneAsReference,
-  loadReferenceImageData,
-  type ReferenceImageInfo,
-} from './referenceImageTracker';
+import { loadReferenceImageData } from './referenceImageTracker';
 import { generateEmbedding, cosineSimilarity } from './embeddingService';
 import { generateLlmCharacterTurnaround } from './turnaroundSheetService';
 
@@ -98,6 +96,30 @@ function migrateVisualPrompt(scene: any): SceneVisual {
 }
 
 /**
+ * Run async tasks with concurrency limit (promise pool).
+ */
+async function runWithConcurrencyLimit<T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<void>
+): Promise<void> {
+  if (items.length === 0) return;
+  const limit = Math.max(1, concurrency);
+  const executing: Promise<void>[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const p = fn(item, i).finally(() => {
+      executing.splice(executing.indexOf(p), 1);
+    });
+    executing.push(p);
+    if (executing.length >= limit) {
+      await Promise.race(executing);
+    }
+  }
+  await Promise.all(executing);
+}
+
+/**
  * Calculate age group from birth date
  */
 function calculateAgeGroup(birthDate: Date): string {
@@ -132,7 +154,6 @@ export async function createStoryRequest(
       uiLocale: input.uiLocale,
       storyLanguage: input.storyLanguage,
       goal: input.goal,
-      tone: input.tone,
       scenarioCardId: input.scenarioCardId,
       imageStyle: (input as any).imageStyle || null, // Image art style
       userNotes: input.userNotes,
@@ -159,7 +180,6 @@ export async function createContinuationRequest(
   input: {
     language: string;
     ageGroup: string;
-    tone: string | null;
     childProfileId: string | null;
     imageStyle: string;
     moralTheme: string | null;
@@ -188,7 +208,6 @@ export async function createContinuationRequest(
       uiLocale: 'uk', // Use default, doesn't affect story
       storyLanguage: input.language,
       goal: input.moralTheme, // Use moral theme from original story (can be null)
-      tone: input.tone,
       scenarioCardId: input.scenarioCardId, // Preserve from original
       imageStyle: input.imageStyle,
       userNotes: input.userNotes, // Preserve from original
@@ -255,6 +274,7 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
     let textGenerationTimeMs: number | undefined;
     let validationTimeMs: number | undefined;
     let chosenPlotExampleId: string | undefined;
+    let chosenWorldRuleId: string | undefined;
     
     // Get Domain Services (needed throughout the function)
     const storyDomain = getStoryDomainService();
@@ -277,6 +297,7 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
       spec = specData.spec;
       selectedCharacters = specData.selectedCharacters;
       chosenPlotExampleId = specData.chosenPlotExampleId;
+      chosenWorldRuleId = specData.chosenWorldRuleId;
       
       // Task 1: Generate Text (with timing)
       const textGenStart = Date.now();
@@ -296,6 +317,7 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
           environments: textEnvironments.map((e: any) => ({
             id: e.id,
             name: e.name,
+            characterOutfits: e.characterOutfits ?? null,
           })),
         }, 'LLM generated story environments');
 
@@ -437,40 +459,43 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
           scenesToRegenerate: Array.from(scenesToRegenerate.keys())
         }, 'Regeneration attempt');
         
-        const regenerationPromises = Array.from(scenesToRegenerate.keys()).map(sceneId => {
+        const sceneIds = Array.from(scenesToRegenerate.keys());
+        const regenerationPromises = sceneIds.map(sceneId => {
+          const scene = text.scenes.find(s => s.sceneId === sceneId);
           const validation = validations.find(v => v.sceneId === sceneId);
           const feedback = validation?.violations.map(v => v.message).join('; ') || '';
-          return storyDomain.regenerateScene(spec, outline, sceneId, feedback);
+          return storyDomain.regenerateScene(spec, outline, sceneId, scene?.text ?? '', feedback);
         });
         
-        const newScenes = await Promise.all(regenerationPromises);
+        const newTexts = await Promise.all(regenerationPromises);
         
-        // Replace regenerated scenes
-        newScenes.forEach(newScene => {
-          const idx = text.scenes.findIndex(s => s.sceneId === newScene.sceneId);
+        // Update only scene text (preserve sceneVisual, environmentId, etc.)
+        sceneIds.forEach((sceneId, i) => {
+          const idx = text.scenes.findIndex(s => s.sceneId === sceneId);
           if (idx !== -1) {
-            text.scenes[idx] = newScene;
+            text.scenes[idx].text = newTexts[i];
           }
         });
         
         text.fullText = text.scenes.map(s => s.text).join('\n\n');
         text.wordCount = text.fullText.split(/\s+/).length;
         
-        // Re-validate
+        // Re-validate updated scenes
         const revalidations = await Promise.all(
-          newScenes.map((scene, _idx) => {
-            const sceneIdx = text.scenes.findIndex(s => s.sceneId === scene.sceneId);
+          sceneIds.map((sceneId) => {
+            const idx = text.scenes.findIndex(s => s.sceneId === sceneId);
+            const scene = text.scenes[idx];
             return storyDomain.validateScene(
-              outline.scenes[sceneIdx],
+              outline.scenes[idx],
               scene,
               spec.policyProfile,
-              sceneIdx === text.scenes.length - 1
+              idx === text.scenes.length - 1
             );
           })
         );
         
         revalidations.forEach((validation, idx) => {
-          const sceneId = newScenes[idx].sceneId;
+          const sceneId = sceneIds[idx];
           if (validation.isValid) {
             scenesToRegenerate.delete(sceneId);
           } else {
@@ -523,7 +548,7 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
         validationTimeMs,
         sceneCount: text.scenes.length,
         fullTextLength: text.fullText?.length || 0,
-      }, chosenPlotExampleId);
+      }, chosenPlotExampleId, chosenWorldRuleId);
       
       // Save checkpoint 4
       const currentCheckpoints = checkpoints.validationComplete ? checkpoints : {
@@ -587,11 +612,81 @@ function calculateEvenlyDistributedIndices(totalScenes: number, imagesPerStory: 
 }
 
 /**
+ * Extract outfit from cameraComposition character description.
+ * Looks for "wearing X", "in X", "dressed in X". Returns "natural appearance" if not found (animals/creatures).
+ */
+function extractOutfitFromDescription(desc: string, charType?: string): string {
+  if (!desc || typeof desc !== 'string') return 'natural appearance';
+  const lower = desc.toLowerCase();
+  if (lower.includes('natural appearance')) return 'natural appearance';
+  const wearingMatch = desc.match(/\bwearing\s+([^.,]+?)(?:\.|,|$)/i);
+  if (wearingMatch) return wearingMatch[1].trim();
+  const inMatch = desc.match(/\bin\s+([^.,]+?)(?:\.|,|$)/i);
+  if (inMatch) return inMatch[1].trim();
+  const dressedMatch = desc.match(/\bdressed\s+in\s+([^.,]+?)(?:\.|,|$)/i);
+  if (dressedMatch) return dressedMatch[1].trim();
+  if (charType === 'animal' || charType === 'creature' || charType === 'object') return 'natural appearance';
+  return 'natural appearance';
+}
+
+/**
+ * Check if characterOutfits has content (string or legacy Record).
+ */
+function hasCharacterOutfits(co: string | Record<string, string> | undefined): boolean {
+  if (!co) return false;
+  if (typeof co === 'string') return co.trim().length > 0;
+  return Object.keys(co).length > 0;
+}
+
+/**
+ * Fill empty characterOutfits from scene cameraComposition.
+ * Fallback when LLM returns empty string despite schema/prompt instructions.
+ */
+function fillCharacterOutfitsFromScenes(text: any, requestId: string): void {
+  const environments = (text as any).environments as Array<{ id: string; characterOutfits?: string | Record<string, string> }> | undefined;
+  const scenes = (text as any).scenes as Array<{ environmentId?: string; sceneVisual?: { cameraComposition?: { characters?: Array<{ name: string; description?: string }> } } }> | undefined;
+  const characters = (text as any).characters as Array<{ name: string; type?: string }> | undefined;
+  const charTypeMap = new Map<string, string>();
+  if (characters) {
+    for (const c of characters) {
+      charTypeMap.set(c.name, c.type || 'human');
+      if (c.name.includes(' [ID:')) {
+        charTypeMap.set(c.name.split(' [ID:')[0].trim(), c.type || 'human');
+      }
+    }
+  }
+  if (!environments || !scenes) return;
+  for (const env of environments) {
+    if (hasCharacterOutfits(env.characterOutfits)) continue;
+    const outfits: Record<string, string> = {};
+    for (const scene of scenes) {
+      if (scene.environmentId !== env.id) continue;
+      const chars = scene.sceneVisual?.cameraComposition?.characters;
+      if (!chars) continue;
+      for (const ch of chars) {
+        if (!ch.name || outfits[ch.name]) continue;
+        const charType = charTypeMap.get(ch.name) ?? charTypeMap.get(ch.name.split(' [ID:')[0]?.trim() ?? '') ?? 'human';
+        outfits[ch.name] = extractOutfitFromDescription(ch.description || '', charType);
+      }
+    }
+    if (Object.keys(outfits).length > 0) {
+      (env as any).characterOutfits = serializeCharacterOutfitsToStr(outfits);
+      logger.info({ requestId, envId: env.id, filledOutfits: outfits }, 'Filled characterOutfits from scene descriptions (LLM returned empty)');
+    }
+  }
+}
+
+/**
  * Build environment map from text output.
+ * Fallback: if scenes reference environmentIds not in environments array (LLM schema violation),
+ * create synthetic environments from the first scene's sceneVisual.setting so env images can be generated.
  */
 function buildEnvironmentMapFromText(text: any, requestId: string): Map<string, StoryEnvironment> {
+  fillCharacterOutfitsFromScenes(text, requestId);
   const environmentMap = new Map<string, StoryEnvironment>();
   const environments = (text as any).environments as StoryEnvironment[] | undefined;
+  const scenes = (text as any).scenes as Array<{ environmentId?: string; sceneVisual?: { setting?: string } }> | undefined;
+
   if (environments && environments.length > 0) {
     for (const env of environments) {
       environmentMap.set(env.id, env);
@@ -601,10 +696,41 @@ function buildEnvironmentMapFromText(text: any, requestId: string): Map<string, 
       environmentCount: environments.length,
       environmentIds: environments.map(e => e.id),
       environmentNames: environments.map(e => e.name),
+      environmentOutfits: environments.map(e => {
+        const parsed = typeof e.characterOutfits === 'string'
+          ? parseCharacterOutfitsString(e.characterOutfits)
+          : (e.characterOutfits as Record<string, string> | undefined) ?? {};
+        return { id: e.id, hasCharacterOutfits: hasCharacterOutfits(e.characterOutfits), characterOutfitKeys: Object.keys(parsed) };
+      }),
     }, 'Built environment map from LLM output');
   } else {
     logger.warn({ requestId }, 'No environments found in LLM output — visual prompts will not include environment context');
   }
+
+  // Fallback: add synthetic environments for scene environmentIds missing from LLM output
+  if (scenes && scenes.length > 0) {
+    const envIdsInScenes = new Set(scenes.map(s => s.environmentId).filter(Boolean) as string[]);
+    for (const envId of envIdsInScenes) {
+      if (environmentMap.has(envId)) continue;
+      const firstScene = scenes.find(s => s.environmentId === envId);
+      const setting = firstScene?.sceneVisual?.setting?.trim();
+      const syntheticName = envId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const synthetic: StoryEnvironment = {
+        id: envId,
+        name: syntheticName,
+        description: setting || `A location described in the story (${syntheticName}).`,
+        characterOutfits: '',
+      };
+      environmentMap.set(envId, synthetic);
+      logger.warn({
+        requestId,
+        environmentId: envId,
+        source: 'synthetic',
+        descriptionLength: synthetic.description.length,
+      }, 'Environment missing from LLM output — created synthetic from scene setting for env image generation');
+    }
+  }
+
   return environmentMap;
 }
 
@@ -725,15 +851,12 @@ interface ImageGenerationLoopParams {
   environmentMap: Map<string, StoryEnvironment>;
   characterDescriptionMap: Map<string, CharacterData>;
   characterRegistry: Map<string, NormalizedCharacter>;
-  preloadedReferences: ReferenceImageInfo[];
   spec: any;
   outline?: any;
   userPlan: any;
   userId: string;
   assetStorage: any;
   imageDomain: any;
-  // Continuation-specific: override reference images for first scene
-  firstSceneReferenceOverride?: { base64: string; mimeType: string };
   // Files API: pre-uploaded turnaround sheets (characterName -> UploadedFile)
   uploadedFileMap?: Map<string, UploadedFile>;
   // System instruction for the whole story (built once, reused per scene)
@@ -823,6 +946,7 @@ async function prepareFilesApiAndSystemInstruction(params: {
     style,
     ageGroup: spec.ageGroup,
     hasReferences: hasAnyReferences,
+    hasEnvironmentReference: config.image.enableEnvironmentReference,
     scenarioCardId: spec.scenarioCard?.id,
   });
 
@@ -844,11 +968,13 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
   const {
     storyId, requestId, scenesToGenerate, sceneIndices, allScenes,
     environmentMap, characterDescriptionMap, characterRegistry,
-    preloadedReferences, spec, outline, userPlan, userId,
-    assetStorage, imageDomain, firstSceneReferenceOverride,
+    spec, outline, userPlan, userId,
+    assetStorage, imageDomain,
     uploadedFileMap, imageSystemInstruction,
     enableEarlyCompletion = false,
   } = params;
+
+  const parallelStreams = config.image.parallelStreams;
 
   if (enableEarlyCompletion) {
     const sceneIdsWithImages = scenesToGenerate.map((s: any) => s.sceneId);
@@ -878,12 +1004,15 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
     }, 'Found scenes with existing images — will skip on retry');
   }
 
-  // Mutable copy of references that grows as we mark new scenes
-  const allReferences = [...preloadedReferences];
+  let progressCount = 0;
 
-  for (let i = 0; i < scenesToGenerate.length; i++) {
-    const scene = scenesToGenerate[i];
+  // On-demand environment image map (shared across parallel scene iterations)
+  const environmentImageMap = new Map<string, EnvImageData>();
+  const envImagePending = new Map<string, Promise<EnvImageData | null>>();
+  const envUploadedFileMap = new Map<string, UploadedFile>();
+  const envUploadPending = new Map<string, Promise<UploadedFile | null>>();
 
+  await runWithConcurrencyLimit(scenesToGenerate, parallelStreams, async (scene, i) => {
     // Skip scenes that already have images (retry recovery)
     if (scenesWithImages.has(scene.sceneId)) {
       logger.info({ storyId, sceneId: scene.sceneId }, 'Skipping scene — image already exists');
@@ -892,13 +1021,14 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
         await completeTask(requestId, STORY_TASKS.GENERATING_IMAGES);
         await getStoryRepository().updateRequest(requestId, { status: 'completed', storyId });
       }
+      progressCount++;
       await updateTaskProgress(
         requestId,
         STORY_TASKS.GENERATING_IMAGES,
-        (i + 1) / scenesToGenerate.length,
-        { current: i + 1, total: scenesToGenerate.length },
+        progressCount / scenesToGenerate.length,
+        { current: progressCount, total: scenesToGenerate.length },
       );
-      continue;
+      return;
     }
 
     // Extract character names: prefer structured cameraComposition, fall back to old data
@@ -912,6 +1042,68 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
     }
     const normalizedCharacters = matchCharacterNames(sceneCharacters, characterRegistry);
 
+    const currentEnvironmentId = (scene as any).environmentId as string | undefined;
+    const currentEnvironment = currentEnvironmentId ? environmentMap.get(currentEnvironmentId) : undefined;
+
+    // Get or create environment image (on-demand, with cache and deduplication for parallel scenes)
+    let envImageData: EnvImageData | null = null;
+    if (config.image.enableEnvironmentReference && currentEnvironmentId && currentEnvironment) {
+      const cached = environmentImageMap.get(currentEnvironmentId);
+      if (cached) {
+        envImageData = cached;
+      } else {
+        let pending = envImagePending.get(currentEnvironmentId);
+        if (!pending) {
+          pending = getOrCreateEnvironmentImage({
+            storyId,
+            storyEnvironmentId: currentEnvironmentId,
+            environment: currentEnvironment,
+            assetStorage,
+            scenarioCardId: spec.scenarioCard?.id,
+          });
+          envImagePending.set(currentEnvironmentId, pending);
+        }
+        envImageData = await pending;
+        if (envImageData) {
+          environmentImageMap.set(currentEnvironmentId, envImageData);
+        }
+        envImagePending.delete(currentEnvironmentId);
+      }
+    }
+
+    // Upload env image to Files API when enabled (reuse across scenes)
+    if (envImageData && config.nanoBanana?.enableFilesApi === true) {
+      let uploaded = envUploadedFileMap.get(currentEnvironmentId!);
+      if (!uploaded) {
+        let upPending = envUploadPending.get(currentEnvironmentId!);
+        if (!upPending) {
+          upPending = (async () => {
+            try {
+              const buffer = Buffer.from(envImageData!.base64, 'base64');
+              const result = await imageDomain.uploadReferenceFile(
+                buffer,
+                envImageData!.mimeType,
+                `env_${currentEnvironmentId}`,
+                envImageData!.storagePath,
+              );
+              return result;
+            } catch (err) {
+              logger.warn({ err, storyEnvironmentId: currentEnvironmentId }, 'Failed to upload env image to Files API');
+              return null;
+            }
+          })();
+          envUploadPending.set(currentEnvironmentId!, upPending);
+        }
+        uploaded = await upPending;
+        if (uploaded) envUploadedFileMap.set(currentEnvironmentId!, uploaded);
+        envUploadPending.delete(currentEnvironmentId!);
+      }
+      if (uploaded) {
+        envImageData = { ...envImageData, fileUri: uploaded.uri };
+        environmentImageMap.set(currentEnvironmentId!, envImageData);
+      }
+    }
+
     // Get imaginary friend reference photo paths
     const imaginaryFriendPaths = getImaginaryFriendReferencePaths(
       normalizedCharacters, characterDescriptionMap,
@@ -922,20 +1114,7 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
       normalizedCharacters, characterDescriptionMap,
     );
 
-    // Select references from pre-loaded set (no DB query)
-    const referenceSelection = selectReferencesFromPreloaded(
-      allReferences, normalizedCharacters, scene.sceneId,
-    );
-
-    // Build reference image data array
-    let referenceImageDataArray: any[];
-
-    if (i === 0 && firstSceneReferenceOverride) {
-      // Continuation: use reference from first part for the first scene
-      referenceImageDataArray = [firstSceneReferenceOverride];
-      logger.info({ sceneId: scene.sceneId }, 'Using reference override for first scene');
-    } else {
-      // Load imaginary friend reference photos with metadata
+    // Load imaginary friend reference photos with metadata (turnarounds only — no scene refs)
       // When Files API is enabled, use pre-uploaded fileUri instead of inline base64
       const imaginaryFriendData = await Promise.all(
         imaginaryFriendPaths.map(async (url, index) => {
@@ -1023,116 +1202,45 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
         })
       );
 
-      // Resolve environmentId for each reference scene (for env-aware labels)
-      const getSceneEnvironmentId = (refSceneId: number): string | undefined => {
-        const originalScene = allScenes.find(s => s.sceneId === refSceneId);
-        return originalScene ? (originalScene as any).environmentId as string | undefined : undefined;
-      };
+    // Prepend environment reference when available (content/layout only, not style)
+    const envRefEntry = envImageData
+      ? [{
+          base64: envImageData.base64,
+          mimeType: envImageData.mimeType,
+          fileUri: envImageData.fileUri,
+          source: 'environment',
+          type: 'environment_reference',
+          imageIndex: 1,
+        }]
+      : [];
+    // Only turnarounds + child refs (no scene references)
+    const referenceImageDataArray = [...envRefEntry, ...childReferenceData, ...imaginaryFriendData];
 
-      // Load reference images from previously generated scenes
-      // When Files API is enabled, upload to avoid mixed FileURI+inline delivery (causes IMAGE_OTHER)
-      const filesApiEnabled = config.nanoBanana?.enableFilesApi === true;
-      const sceneReferenceData = await Promise.all(
-        referenceSelection.referenceImages.map(async (ref) => {
-          let characterName = 'unknown';
-          if (ref.charactersPresent && ref.charactersPresent.length > 0) {
-            const matchingChar = normalizedCharacters.find(nc =>
-              ref.charactersPresent.includes(nc)
-            );
-            if (matchingChar) {
-              const charData = characterDescriptionMap.get(matchingChar);
-              characterName = charData?.name || matchingChar;
-            } else {
-              const firstCharNormalized = ref.charactersPresent[0];
-              const charData = characterDescriptionMap.get(firstCharNormalized);
-              characterName = charData?.name || firstCharNormalized;
-            }
-          }
-
-          const cleanUrl = ref.imageUrl.split('?')[0];
-          const imageBuffer = await assetStorage.getAssetByPath(cleanUrl);
-          let fileUri: string | undefined;
-          let base64 = '';
-          let mimeType = cleanUrl.endsWith('.jpg') || cleanUrl.endsWith('.jpeg')
-            ? 'image/jpeg' : 'image/png';
-
-          // Prefer Files API upload to keep all references as FileData (same as turnarounds)
-          if (filesApiEnabled && imageBuffer) {
-            try {
-              const uploaded = await imageDomain.uploadReferenceFile(
-                imageBuffer, mimeType,
-                `scene_ref_${ref.sceneId}`,
-                ref.imageUrl, // cacheKey — avoids re-upload on validation retries
-              );
-              if (uploaded) {
-                fileUri = uploaded.uri;
-                mimeType = uploaded.mimeType;
-              }
-            } catch (uploadErr) {
-              logger.warn({ err: uploadErr, sceneId: ref.sceneId },
-                'Failed to upload scene reference to Files API, falling back to inline base64');
-            }
-          }
-
-          // Fallback to inline base64 if Files API upload failed or is disabled
-          if (!fileUri) {
-            if (!imageBuffer) {
-              throw new Error(`Failed to load reference image: ${ref.imageUrl}`);
-            }
-            base64 = imageBuffer.toString('base64');
-          }
-
-          return {
-            base64,
-            mimeType,
-            fileUri,
-            source: 'previous_scene',
-            characterName,
-            type: 'scene_reference',
-            sceneId: ref.sceneId,
-            url: ref.imageUrl,
-            charactersPresent: ref.charactersPresent,
-            referenceEnvironmentId: getSceneEnvironmentId(ref.sceneId),
-          };
-        })
-      );
-
-      // Include all turnaround and scene references (no cap — all characters get their refs)
-      const turnaroundData = [...imaginaryFriendData, ...childReferenceData];
-      referenceImageDataArray = [...turnaroundData, ...sceneReferenceData];
-    }
-
-    // Build imageIndexMap: sequential 1-based index for each reference image
-    // Turnaround sheets get indices 1..N, scene references get N+1..N+M
+    // Build imageIndexMap (env ref = 1, then characters)
     const imageIndexMap = new Map<string, number>();
     let imageIndex = 1;
     for (const ref of referenceImageDataArray) {
-      if (ref.type === 'imaginary' || ref.type === 'child_reference') {
-        if (ref.characterName && !imageIndexMap.has(ref.characterName)) {
-          imageIndexMap.set(ref.characterName, imageIndex);
+      if ((ref as any).source === 'environment') {
+        (ref as any).imageIndex = imageIndex;
+        imageIndex++;
+        continue;
+      }
+      if ((ref as any).type === 'imaginary' || (ref as any).type === 'child_reference') {
+        if ((ref as any).characterName && !imageIndexMap.has((ref as any).characterName)) {
+          imageIndexMap.set((ref as any).characterName, imageIndex);
         }
       }
       (ref as any).imageIndex = imageIndex;
       imageIndex++;
     }
-    // Scene references: map characters that appear in scene refs but NOT yet mapped
-    // (e.g., real-world characters visible in scene reference images)
-    for (const ref of referenceImageDataArray) {
-      if (ref.type === 'scene_reference' && (ref as any).charactersPresent) {
-        for (const charNormalized of (ref as any).charactersPresent as string[]) {
-          const charData = characterDescriptionMap.get(charNormalized);
-          const charName = charData?.name || charNormalized;
-          if (!imageIndexMap.has(charName)) {
-            imageIndexMap.set(charName, (ref as any).imageIndex);
-          }
-        }
-      }
-    }
 
-    // Resolve current scene's environmentId
-    const currentEnvironmentId = referenceImageDataArray.length > 0
-      ? (scene as any).environmentId as string | undefined
-      : undefined;
+    const currentEnvironmentForLog = currentEnvironmentId ? environmentMap.get(currentEnvironmentId) : undefined;
+    const characterOutfitsForLog = currentEnvironmentForLog?.characterOutfits;
+    const characterOutfitKeysForLog = characterOutfitsForLog
+      ? (typeof characterOutfitsForLog === 'string'
+          ? Object.keys(parseCharacterOutfitsString(characterOutfitsForLog))
+          : Object.keys(characterOutfitsForLog))
+      : [];
 
     // Filter character descriptions to only include characters in THIS scene
     const sceneCharacterDescriptions = normalizedCharacters
@@ -1144,8 +1252,9 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
       sceneId: scene.sceneId,
       normalizedCharacters,
       totalReferenceCount: referenceImageDataArray.length,
-      newCharacters: referenceSelection.newCharactersIntroduced,
       imageIndexMap: Object.fromEntries(imageIndexMap),
+      hasCharacterOutfits: !!characterOutfitsForLog,
+      characterOutfitKeys: characterOutfitKeysForLog,
     }, 'Generating scene image with references');
 
     try {
@@ -1157,14 +1266,10 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
         generatedIndices: sceneIndices,
         allScenes,
         environmentMap,
+        hasEnvironmentImageRef: !!envImageData,
       });
 
       const enrichedScene: SceneData = { ...scene, sceneVisual: composedSceneVisual };
-
-      // Resolve current scene's environment for the user prompt
-      const currentEnvironment = currentEnvironmentId
-        ? environmentMap.get(currentEnvironmentId)
-        : undefined;
 
       const imageResult = await generateSceneImageWithReference(storyId, enrichedScene, {
         childProfile: spec.childProfile,
@@ -1183,22 +1288,6 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
         currentEnvironment,
       });
 
-      // Mark as reference if it introduces new characters
-      if (referenceSelection.shouldMarkAsReference) {
-        await markSceneAsReference(
-          imageResult.sceneDbId,
-          normalizedCharacters,
-          imageResult.imageUrl,
-        );
-        // Update in-memory reference list for subsequent loop iterations
-        allReferences.push({
-          sceneId: scene.sceneId,
-          sceneDbId: imageResult.sceneDbId,
-          imageUrl: imageResult.imageUrl,
-          charactersPresent: normalizedCharacters,
-        });
-      }
-
       if (enableEarlyCompletion && !firstImageDone) {
         firstImageDone = true;
         await completeTask(requestId, STORY_TASKS.GENERATING_IMAGES);
@@ -1206,21 +1295,31 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
         logger.info({ requestId, storyId, sceneId: scene.sceneId }, 'First image done — request marked completed, continuing in background');
       }
 
+      progressCount++;
       await updateTaskProgress(
         requestId,
         STORY_TASKS.GENERATING_IMAGES,
-        (i + 1) / scenesToGenerate.length,
-        { current: i + 1, total: scenesToGenerate.length },
+        progressCount / scenesToGenerate.length,
+        { current: progressCount, total: scenesToGenerate.length },
       );
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error';
       logger.error({ err: error, storyId, sceneId: scene.sceneId }, 'Failed to generate scene image');
       failedScenes.push({ sceneId: scene.sceneId, errorMessage: errMsg });
+      progressCount++;
+
       if (enableEarlyCompletion && !firstImageDone && i === 0) {
         throw error;
       }
+
+      await updateTaskProgress(
+        requestId,
+        STORY_TASKS.GENERATING_IMAGES,
+        progressCount / scenesToGenerate.length,
+        { current: progressCount, total: scenesToGenerate.length },
+      );
     }
-  }
+  });
 
   if (enableEarlyCompletion) {
     const finalMetadata = (await getStoryRepository().findById(storyId))?.metadata as Record<string, unknown> | null;
@@ -1355,6 +1454,48 @@ export async function processStoryImages(requestId: string): Promise<void> {
         userStyle: (spec as any).imageStyle,
       });
 
+      // 3.1. Pre-generate all LLM turnarounds in parallel (before scene loop)
+      const parallelStreams = config.image.parallelStreams;
+      await runWithConcurrencyLimit(llmCharsNeedingTurnaround, parallelStreams, async (llmChar) => {
+        if (llmTurnaroundReady.has(llmChar.normalizedName)) return;
+        try {
+          logger.info({ characterId: llmChar.charId, name: llmChar.name }, 'Generating turnaround (pre-phase)');
+          const result = await generateLlmCharacterTurnaround({
+            characterId: llmChar.charId,
+            userId: request.userId,
+            characterName: llmChar.name,
+            characterDescription: llmChar.description,
+            imageStyle: (spec as any).imageStyle,
+          });
+
+          const charData = characterDescriptionMap.get(llmChar.normalizedName);
+          if (charData) {
+            (charData as any).turnaroundSheet = { url: result.url, generatedAt: result.generatedAt, sourcePhotoUrl: result.sourcePhotoUrl };
+          }
+
+          if (config.nanoBanana?.enableFilesApi === true && charData) {
+            try {
+              const turnaroundPath = extractStoragePath(result.url);
+              const buffer = await assetStorage.getAssetByPath(turnaroundPath);
+              if (buffer) {
+                const mimeType = turnaroundPath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+                const uploaded = await imageDomain.uploadReferenceFile(buffer, mimeType, `turnaround_${llmChar.name}`, turnaroundPath);
+                if (uploaded) {
+                  uploadedFileMap.set(llmChar.name, uploaded);
+                }
+              }
+            } catch (uploadErr) {
+              logger.warn({ err: uploadErr, characterName: llmChar.name }, 'Failed to upload LLM turnaround to Files API');
+            }
+          }
+
+          llmTurnaroundReady.add(llmChar.normalizedName);
+          logger.info({ characterId: llmChar.charId, name: llmChar.name }, 'Turnaround complete');
+        } catch (err) {
+          logger.error({ err, characterId: llmChar.charId, name: llmChar.name }, 'Failed to generate turnaround');
+        }
+      });
+
       const existingScenes = await getSceneRepository().findByStoryId(storyId);
       const scenesWithImages = new Set(
         existingScenes
@@ -1362,20 +1503,27 @@ export async function processStoryImages(requestId: string): Promise<void> {
           .map(s => s.sceneId)
       );
 
+      // On-demand environment image map (shared across parallel scene iterations)
+      const environmentImageMap = new Map<string, EnvImageData>();
+      const envImagePending = new Map<string, Promise<EnvImageData | null>>();
+      const envUploadedFileMap = new Map<string, UploadedFile>();
+      const envUploadPending = new Map<string, Promise<UploadedFile | null>>();
+
       const failedScenes: Array<{ sceneId: number; errorMessage: string }> = [];
       let firstImageDone = false;
-      let imagesCompletedCount = 0; // Track completed images for 2-image threshold
+      let imagesCompletedCount = 0; // Track generated images for 2-image early completion threshold
+      let progressCount = 0; // Track processed scenes for progress (including skipped)
 
-      // 4. Sequential loop: generate turnarounds on-demand, then image
-      for (let i = 0; i < scenesToGenerate.length; i++) {
-        const scene = scenesToGenerate[i];
+      // 4. Parallel loop: generate scene images (turnarounds already done)
+      await runWithConcurrencyLimit(scenesToGenerate, parallelStreams, async (scene, i) => {
         const sceneIndex = sceneIndices[i];
 
         if (scenesWithImages.has(scene.sceneId)) {
           logger.info({ storyId, sceneId: scene.sceneId }, 'Skipping scene — image already exists');
-          await updateTaskProgress(requestId, STORY_TASKS.GENERATING_IMAGES, (i + 1) / scenesToGenerate.length, { current: i + 1, total: scenesToGenerate.length });
+          progressCount++;
+          await updateTaskProgress(requestId, STORY_TASKS.GENERATING_IMAGES, progressCount / scenesToGenerate.length, { current: progressCount, total: scenesToGenerate.length });
           if (!firstImageDone) firstImageDone = true;
-          continue;
+          return;
         }
 
         const sceneVisualRaw = scene.sceneVisual || migrateVisualPrompt(scene);
@@ -1387,53 +1535,69 @@ export async function processStoryImages(requestId: string): Promise<void> {
         }
         const normalizedCharacters = matchCharacterNames(sceneCharNames, characterRegistry);
 
-        // On-demand turnarounds: generate for LLM chars in THIS scene that need one
-        const waitingFor = normalizedCharacters.filter(nc =>
-          llmCharsNeedingTurnaround.some(lc => lc.normalizedName === nc)
-        );
-        for (const nc of waitingFor) {
-          const llmChar = llmCharsNeedingTurnaround.find(lc => lc.normalizedName === nc);
-          if (!llmChar || llmTurnaroundReady.has(nc)) continue;
+        const currentEnvironmentId = (scene as any).environmentId as string | undefined;
+        const currentEnvironment = currentEnvironmentId ? environmentMap.get(currentEnvironmentId) : undefined;
 
-          try {
-            logger.info({ characterId: llmChar.charId, name: llmChar.name, sceneId: scene.sceneId }, 'Generating turnaround (first appearance in scene)');
-            const result = await generateLlmCharacterTurnaround({
-              characterId: llmChar.charId,
-              userId: request.userId,
-              characterName: llmChar.name,
-              characterDescription: llmChar.description,
-              imageStyle: (spec as any).imageStyle,
-            });
-
-            const charData = characterDescriptionMap.get(llmChar.normalizedName);
-            if (charData) {
-              (charData as any).turnaroundSheet = { url: result.url, generatedAt: result.generatedAt, sourcePhotoUrl: result.sourcePhotoUrl };
+        // Get or create environment image (on-demand, with cache and deduplication for parallel scenes)
+        let envImageData: EnvImageData | null = null;
+        if (config.image.enableEnvironmentReference && currentEnvironmentId && currentEnvironment) {
+          const cached = environmentImageMap.get(currentEnvironmentId);
+          if (cached) {
+            envImageData = cached;
+          } else {
+            let pending = envImagePending.get(currentEnvironmentId);
+            if (!pending) {
+              pending = getOrCreateEnvironmentImage({
+                storyId,
+                storyEnvironmentId: currentEnvironmentId,
+                environment: currentEnvironment,
+                assetStorage,
+                scenarioCardId: spec.scenarioCard?.id,
+              });
+              envImagePending.set(currentEnvironmentId, pending);
             }
-
-            if (config.nanoBanana?.enableFilesApi === true && charData) {
-              try {
-                const turnaroundPath = extractStoragePath(result.url);
-                const buffer = await assetStorage.getAssetByPath(turnaroundPath);
-                if (buffer) {
-                  const mimeType = turnaroundPath.endsWith('.png') ? 'image/png' : 'image/jpeg';
-                  const uploaded = await imageDomain.uploadReferenceFile(buffer, mimeType, `turnaround_${llmChar.name}`, turnaroundPath);
-                  if (uploaded) {
-                    uploadedFileMap.set(llmChar.name, uploaded);
-                  }
-                }
-              } catch (uploadErr) {
-                logger.warn({ err: uploadErr, characterName: llmChar.name }, 'Failed to upload LLM turnaround to Files API');
-              }
+            envImageData = await pending;
+            if (envImageData) {
+              environmentImageMap.set(currentEnvironmentId, envImageData);
             }
-
-            llmTurnaroundReady.add(nc);
-            logger.info({ characterId: llmChar.charId, name: llmChar.name }, 'Turnaround complete');
-          } catch (err) {
-            logger.error({ err, characterId: llmChar.charId, name: llmChar.name }, 'Failed to generate turnaround');
+            envImagePending.delete(currentEnvironmentId);
           }
         }
 
-        // Build reference image data (turnarounds only)
+        // Upload env image to Files API when enabled (reuse across scenes)
+        if (envImageData && config.nanoBanana?.enableFilesApi === true) {
+          let uploaded = envUploadedFileMap.get(currentEnvironmentId!);
+          if (!uploaded) {
+            let upPending = envUploadPending.get(currentEnvironmentId!);
+            if (!upPending) {
+              upPending = (async () => {
+                try {
+                  const buffer = Buffer.from(envImageData!.base64, 'base64');
+                  const result = await imageDomain.uploadReferenceFile(
+                    buffer,
+                    envImageData!.mimeType,
+                    `env_${currentEnvironmentId}`,
+                    envImageData!.storagePath,
+                  );
+                  return result;
+                } catch (err) {
+                  logger.warn({ err, storyEnvironmentId: currentEnvironmentId }, 'Failed to upload env image to Files API');
+                  return null;
+                }
+              })();
+              envUploadPending.set(currentEnvironmentId!, upPending);
+            }
+            uploaded = await upPending;
+            if (uploaded) envUploadedFileMap.set(currentEnvironmentId!, uploaded);
+            envUploadPending.delete(currentEnvironmentId!);
+          }
+          if (uploaded) {
+            envImageData = { ...envImageData, fileUri: uploaded.uri };
+            environmentImageMap.set(currentEnvironmentId!, envImageData);
+          }
+        }
+
+        // Build reference image data (env ref first, then turnarounds)
         const imaginaryFriendPaths = getImaginaryFriendReferencePaths(normalizedCharacters, characterDescriptionMap);
         const childReferencePaths = getChildReferencePaths(normalizedCharacters, characterDescriptionMap);
 
@@ -1474,15 +1638,31 @@ export async function processStoryImages(requestId: string): Promise<void> {
         );
 
         // Child references (real photos) have higher priority than LLM-generated turnarounds
-        const referenceImageDataArray = [...childReferenceData, ...imaginaryFriendData];
+        // Prepend environment reference when available (content/layout only, not style)
+        const envRefEntry = envImageData
+          ? [{
+              base64: envImageData.base64,
+              mimeType: envImageData.mimeType,
+              fileUri: envImageData.fileUri,
+              source: 'environment',
+              type: 'environment_reference',
+              imageIndex: 1,
+            }]
+          : [];
+        const referenceImageDataArray = [...envRefEntry, ...childReferenceData, ...imaginaryFriendData];
 
-        // Build imageIndexMap
+        // Build imageIndexMap (env ref = 1, then characters)
         const imageIndexMap = new Map<string, number>();
         let imageIndex = 1;
         for (const ref of referenceImageDataArray) {
-          if (ref.type === 'imaginary' || ref.type === 'child_reference') {
-            if (ref.characterName && !imageIndexMap.has(ref.characterName)) {
-              imageIndexMap.set(ref.characterName, imageIndex);
+          if ((ref as any).source === 'environment') {
+            (ref as any).imageIndex = imageIndex;
+            imageIndex++;
+            continue;
+          }
+          if ((ref as any).type === 'imaginary' || (ref as any).type === 'child_reference') {
+            if ((ref as any).characterName && !imageIndexMap.has((ref as any).characterName)) {
+              imageIndexMap.set((ref as any).characterName, imageIndex);
             }
           }
           (ref as any).imageIndex = imageIndex;
@@ -1493,16 +1673,28 @@ export async function processStoryImages(requestId: string): Promise<void> {
           .map(normalized => characterDescriptionMap.get(normalized))
           .filter(Boolean) as CharacterData[];
 
-        const currentEnvironmentId = (scene as any).environmentId as string | undefined;
-        const currentEnvironment = currentEnvironmentId ? environmentMap.get(currentEnvironmentId) : undefined;
+        const characterOutfitsRaw = currentEnvironment?.characterOutfits;
+        const characterOutfits = characterOutfitsRaw
+          ? (typeof characterOutfitsRaw === 'string'
+              ? parseCharacterOutfitsString(characterOutfitsRaw)
+              : characterOutfitsRaw)
+          : undefined;
 
-        logger.info({ storyId, sceneId: scene.sceneId, index: i + 1, total: scenesToGenerate.length }, 'Generating scene image (sequential)');
+        logger.info({
+          storyId,
+          sceneId: scene.sceneId,
+          index: i + 1,
+          total: scenesToGenerate.length,
+          hasCharacterOutfits: !!characterOutfits,
+          characterOutfitKeys: characterOutfits ? Object.keys(characterOutfits) : [],
+        }, 'Generating scene image (sequential)');
 
         try {
           const composedSceneVisual = buildComposedSceneVisual({
             storyId, scene, sceneIndexInAll: sceneIndex,
             generatedIndices: sceneIndices, allScenes: text.scenes as SceneData[],
             environmentMap,
+            hasEnvironmentImageRef: !!envImageData,
           });
           const enrichedScene: SceneData = { ...scene, sceneVisual: composedSceneVisual };
 
@@ -1527,6 +1719,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
 
           // Count completed images
           imagesCompletedCount++;
+          progressCount++;
 
           // Mark request as completed after 2 images (instead of 1)
           if (!firstImageDone && imagesCompletedCount >= 2) {
@@ -1536,21 +1729,24 @@ export async function processStoryImages(requestId: string): Promise<void> {
               status: 'completed',
               storyId,
             });
-            logger.info({ requestId, storyId, sceneId: scene.sceneId, imagesCompletedCount }, 
+            logger.info({ requestId, storyId, sceneId: scene.sceneId, imagesCompletedCount },
               'First two images done — request marked completed, continuing in background');
           }
+
+          await updateTaskProgress(requestId, STORY_TASKS.GENERATING_IMAGES, progressCount / scenesToGenerate.length, { current: progressCount, total: scenesToGenerate.length });
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : 'Unknown error';
           logger.error({ err: error, storyId, sceneId: scene.sceneId }, 'Failed to generate scene image');
           failedScenes.push({ sceneId: scene.sceneId, errorMessage: errMsg });
+          progressCount++;
 
           if (!firstImageDone && i === 0) {
             throw error;
           }
-        }
 
-        await updateTaskProgress(requestId, STORY_TASKS.GENERATING_IMAGES, (i + 1) / scenesToGenerate.length, { current: i + 1, total: scenesToGenerate.length });
-      }
+          await updateTaskProgress(requestId, STORY_TASKS.GENERATING_IMAGES, progressCount / scenesToGenerate.length, { current: progressCount, total: scenesToGenerate.length });
+        }
+      });
 
       // 5. Mark image generation complete, persist failed scenes
       const finalMetadata = (await getStoryRepository().findById(storyId))?.metadata as Record<string, unknown> | null;
@@ -1562,7 +1758,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
         },
       });
 
-      logger.info({ storyId, totalGenerated: scenesToGenerate.length - failedScenes.length, failedCount: failedScenes.length }, 'Sequential image pipeline complete');
+      logger.info({ storyId, totalGenerated: scenesToGenerate.length - failedScenes.length, failedCount: failedScenes.length }, 'Parallel image pipeline complete');
     }
     
     } // end if !skipGeneration
@@ -1629,12 +1825,33 @@ async function getUsedPlotExampleIds(seriesId: string): Promise<Set<string>> {
 }
 
 /**
+ * Collect world rule IDs already used in a series to avoid repetition.
+ */
+async function getUsedWorldRuleIds(seriesId: string): Promise<Set<string>> {
+  const series = await getStoryRepository().findSeriesById(seriesId);
+  if (!series || !series.storyIds || (series.storyIds as string[]).length === 0) {
+    return new Set();
+  }
+
+  const ids = new Set<string>();
+  for (const storyId of series.storyIds as string[]) {
+    const story = await getStoryRepository().findById(storyId);
+    if (story) {
+      const meta = story.metadata as Record<string, any> | null;
+      if (meta?.worldRuleId) ids.add(meta.worldRuleId);
+    }
+  }
+  return ids;
+}
+
+/**
  * Build story spec from request data
  */
 async function buildStorySpec(request: StoryRequestData): Promise<{ 
   spec: StorySpec & { childProfile?: ChildProfileData }; 
   selectedCharacters: CharacterData[];
   chosenPlotExampleId?: string;
+  chosenWorldRuleId?: string;
 }> {
   try {
     // Get child profile if specified
@@ -1807,6 +2024,8 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
     
     // Select a random plot example to replace generic promptGuidance
     let chosenPlotExampleId: string | undefined;
+    let chosenWorldRuleId: string | undefined;
+    let worldRule: { name: string; description: string } | undefined;
     if (scenarioCard) {
       const plotExamples = await getDictionaryRepository().findActivePlotExamples(scenarioCard.id);
       if (plotExamples.length > 0) {
@@ -1836,6 +2055,33 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
           plotExampleId: picked.id,
           setting: picked.setting.substring(0, 80) + '...',
         }, 'Selected plot example for story generation');
+      }
+
+      // Select a random world rule for the scenario
+      const worldRules = await getDictionaryRepository().findActiveWorldRules(scenarioCard.id);
+      if (worldRules.length > 0) {
+        let availableRules = worldRules;
+        const intermediateData = (request as any).intermediateData as Record<string, any> | undefined;
+        const seriesId = intermediateData?.seriesId as string | undefined;
+        if (seriesId) {
+          const usedWorldRuleIds = await getUsedWorldRuleIds(seriesId);
+          const filtered = worldRules.filter(r => !usedWorldRuleIds.has(r.id));
+          if (filtered.length > 0) availableRules = filtered;
+          logger.info({
+            seriesId,
+            totalRules: worldRules.length,
+            usedCount: usedWorldRuleIds.size,
+            availableAfterDedup: availableRules.length,
+          }, 'World rule series dedup');
+        }
+        const pickedRule = availableRules[Math.floor(Math.random() * availableRules.length)];
+        chosenWorldRuleId = pickedRule.id;
+        worldRule = { name: pickedRule.name, description: pickedRule.description };
+        logger.info({
+          scenarioCardId: scenarioCard.id,
+          worldRuleId: pickedRule.id,
+          worldRuleName: pickedRule.name,
+        }, 'Selected world rule for story generation');
       }
     }
     
@@ -1873,13 +2119,13 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
       goal: goalWithGuidance?.slug || request.goal || undefined,
       goalName: goalWithGuidance?.name, // NEW: Translated goal name for prompts
       goalGuidance: goalWithGuidance?.promptGuidance, // NEW: Detailed goal guidance
-      tone: request.tone || undefined,
       imageStyle: (request as any).imageStyle || undefined, // Image art style
       characters: allCharacters as any, // Merged: user characters + selected children
       userNotes: request.userNotes || undefined,
       policyProfile,
       scenarioCard, // NEW: Add scenario card to spec
       scenarioGuidance: scenarioCard?.promptGuidance, // NEW: Detailed plot guidance
+      worldRule,
     };
     
     // Verify characters are included (especially for instant mode)
@@ -1891,7 +2137,7 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
       imageStyle: spec.imageStyle
     }, 'Story spec created with characters');
     
-    return { spec, selectedCharacters: allCharacters, chosenPlotExampleId };
+    return { spec, selectedCharacters: allCharacters, chosenPlotExampleId, chosenWorldRuleId };
   } catch (error) {
     logger.error({ 
       error,
@@ -2235,10 +2481,97 @@ async function generateSceneImage(
   }
 }
 
+export interface EnvImageData {
+  base64: string;
+  mimeType: string;
+  fileUri?: string;
+  storagePath: string;
+}
+
+/**
+ * Get or create environment image (on-demand, with cache and story mapping).
+ * Uses embedding similarity for global reuse; story_environment_cache for continuation.
+ */
+async function getOrCreateEnvironmentImage(params: {
+  storyId: string;
+  storyEnvironmentId: string;
+  environment: StoryEnvironment;
+  assetStorage: ReturnType<typeof getAssetStorageService>;
+  scenarioCardId?: string;
+}): Promise<EnvImageData | null> {
+  if (!config.image.enableEnvironmentReference) return null;
+
+  const { storyId, storyEnvironmentId, environment, assetStorage, scenarioCardId } = params;
+  const envCacheRepo = getEnvironmentImageCacheRepository();
+  const storyEnvRepo = getStoryEnvironmentCacheRepository();
+  const threshold = config.image.environmentEmbeddingSimilarityThreshold;
+
+  // 1. Check story_environment_cache (continuation)
+  const existing = await storyEnvRepo.getByStoryAndEnvId(storyId, storyEnvironmentId);
+  if (existing) {
+    const cached = await envCacheRepo.getById(existing.cacheId);
+    if (cached) {
+      const buffer = await assetStorage.getAssetByPath(cached.storagePath);
+      return {
+        base64: buffer.toString('base64'),
+        mimeType: 'image/png',
+        storagePath: cached.storagePath,
+      };
+    }
+  }
+
+  // 2. Embedding search
+  const embedding = await generateEmbedding(environment.description);
+  const similar = await envCacheRepo.findSimilar(embedding, threshold);
+  if (similar) {
+    const buffer = await assetStorage.getAssetByPath(similar.storagePath);
+    await storyEnvRepo.upsert(storyId, storyEnvironmentId, similar.id);
+    return {
+      base64: buffer.toString('base64'),
+      mimeType: 'image/png',
+      storagePath: similar.storagePath,
+    };
+  }
+
+  // 3. Generate with Imagen 4 Fast
+  try {
+    const envProvider = getEnvironmentImageProvider();
+    const prompt = buildEnvironmentImagePrompt({ environment, scenarioCardId });
+    const result = await envProvider.generateImage({
+      prompt,
+      aspectRatio: '16:9',
+    });
+
+    const buffer = Buffer.isBuffer(result.imageData) ? result.imageData : Buffer.from(result.imageData as string, 'base64');
+    const cacheId = crypto.randomUUID();
+    const { storagePath } = await assetStorage.saveEnvironmentCacheImage(cacheId, buffer, result.mimeType);
+
+    await envCacheRepo.create({
+      id: cacheId,
+      description: environment.description,
+      descriptionEmbedding: embedding,
+      storagePath,
+      storageUrl: `/api/v1/assets/${storagePath}`,
+    });
+
+    await storyEnvRepo.upsert(storyId, storyEnvironmentId, cacheId);
+
+    return {
+      base64: buffer.toString('base64'),
+      mimeType: result.mimeType,
+      storagePath,
+    };
+  } catch (err) {
+    logger.warn({ err, storyEnvironmentId }, 'Environment image generation failed, falling back to text');
+    return null;
+  }
+}
+
 /**
  * Build a composed SceneVisual that enriches the scene's sceneVisual with:
  * 1. Environment description (if sceneVisual.setting is empty, use environment)
  * 2. Transient context from non-generated neighboring scenes (appended to setting)
+ * When hasEnvironmentImageRef=true: use only delta (scene-specific) in setting.
  *
  * Returns a SceneVisual object that can be passed directly to buildSceneImagePrompt.
  */
@@ -2249,17 +2582,27 @@ function buildComposedSceneVisual(params: {
   generatedIndices: number[];
   allScenes: SceneData[];
   environmentMap: Map<string, StoryEnvironment>;
+  hasEnvironmentImageRef?: boolean;
 }): SceneVisual {
-  const { storyId, scene, environmentMap } = params;
+  const { storyId, scene, environmentMap, hasEnvironmentImageRef } = params;
 
   const sceneVisual = migrateVisualPrompt(scene);
   const environmentId = (scene as any).environmentId as string | undefined;
   const environment = environmentId ? environmentMap.get(environmentId) : undefined;
 
-  // COMPOSE: base environment + scene delta
+  // COMPOSE: base environment + scene delta (or delta only when env image ref is used)
   let composedSetting = sceneVisual.setting || '';
   
-  if (environment?.description) {
+  if (hasEnvironmentImageRef) {
+    // Env image provides layout/content — use only scene-specific delta
+    composedSetting = composedSetting.trim() || 'Same location as reference.';
+    logger.info({
+      storyId,
+      sceneId: scene.sceneId,
+      environmentId,
+      deltaOnly: true,
+    }, 'Composed setting: delta only (env image reference)');
+  } else if (environment?.description) {
     // Merge: base description + scene-specific delta
     const basePart = environment.description.trim();
     const deltaPart = composedSetting.trim();
@@ -2471,6 +2814,23 @@ async function saveRejectedImage(params: {
 }
 
 /**
+ * Resolve character outfits for image generation.
+ * New: outfit from environment.characterOutfits (per-environment, string or legacy Record).
+ * Fallback: old stories with scene.characterOutfits or scene.sceneVisual.characterOutfits.
+ */
+function resolveCharacterOutfits(
+  scene: SceneData,
+  context: { currentEnvironment?: { id: string; characterOutfits?: string | Record<string, string> } }
+): Record<string, string> | undefined {
+  const co = context.currentEnvironment?.characterOutfits;
+  if (co) {
+    if (typeof co === 'string') return parseCharacterOutfitsString(co);
+    return co;
+  }
+  return (scene.sceneVisual as any)?.characterOutfits ?? (scene as any).characterOutfits;
+}
+
+/**
  * Supports multiple reference images for better character consistency (M9)
  * Returns image data plus scene DB ID and URL for reference tracking
  */
@@ -2493,7 +2853,7 @@ async function generateSceneImageWithReference(
     imageSystemInstruction?: string;
     imageIndexMap?: Map<string, number>;
     currentEnvironmentId?: string;
-    currentEnvironment?: { id: string; name: string; description: string };
+    currentEnvironment?: StoryEnvironment;
   }
 ): Promise<{ base64: string; mimeType: string; sceneDbId: string; imageUrl: string }> {
   const startTime = Date.now();
@@ -2547,12 +2907,14 @@ async function generateSceneImageWithReference(
       const meta: ReferenceMetadata = {
         imageNumber: index + 1,
         imageIndex: refImageIndex,
-        source: (refSource === 'imaginary_friend' || refSource === 'child_reference') ? refSource : 'previous_scene',
+        source: refSource === 'environment' ? 'environment' : (refSource === 'imaginary_friend' || refSource === 'child_reference') ? refSource : 'previous_scene',
         characterName: (ref as any).characterName || 'unknown',
         currentEnvironmentId: context.currentEnvironmentId,
       };
 
-      if ((ref as any).type === 'imaginary' || (ref as any).type === 'child_reference') {
+      if (refSource === 'environment') {
+        // No extra meta for env ref
+      } else if ((ref as any).type === 'imaginary' || (ref as any).type === 'child_reference') {
         meta.isTurnaround = !!(ref as any).isTurnaround;
       } else {
         // Scene reference — carry characters present and environment info
@@ -2589,6 +2951,10 @@ async function generateSceneImageWithReference(
       .map(c => ({ name: c.name, description: c.detailedDescription }));
 
     // Generate scene image with optional validation + retry loop
+    const hasEnvironmentImageRef = context.referenceImageDataArray?.some(
+      (r: any) => r.source === 'environment'
+    ) ?? false;
+
     const generateRequest = {
       sceneVisual: scene.sceneVisual,
       visualPrompt: scene.visualPrompt, // Fallback for old stories
@@ -2602,8 +2968,9 @@ async function generateSceneImageWithReference(
       systemInstruction: context.imageSystemInstruction, // Static: role, art style, format, quality
       imageIndexMap: context.imageIndexMap, // Google Asset Graph: character name -> Image N
       currentEnvironment: context.currentEnvironment, // Per-scene environment for user prompt
-      characterOutfits: scene.characterOutfits, // Scene-specific outfit overrides from text generation
+      characterOutfits: resolveCharacterOutfits(scene, context), // Per-environment outfit; fallback to scene for old stories
       scenarioCardId: context.scenarioCardId,
+      hasEnvironmentImageRef,
     };
 
     const maxAttempts = config.image.enableValidation
@@ -2938,7 +3305,7 @@ async function generateSceneImageWithReference(
  */
 interface ReferenceMetadata {
   imageNumber: number;
-  source: 'imaginary_friend' | 'child_reference' | 'previous_scene';
+  source: 'imaginary_friend' | 'child_reference' | 'previous_scene' | 'environment';
   characterName: string;
   characterDescription?: string;
   isTurnaround?: boolean; // True when reference is a turnaround sheet (4 views: FRONT, 3/4, SIDE, BACK)
@@ -3006,6 +3373,10 @@ function buildExpectedCharactersForValidation(
  */
 function buildReferenceInstructionText(meta: ReferenceMetadata): string {
   const imgLabel = `Image ${meta.imageIndex}`;
+
+  if (meta.source === 'environment') {
+    return `${imgLabel}: Environment reference — content/layout only, not style. Re-draw in scene art style.`;
+  }
 
   if (meta.source === 'imaginary_friend' || meta.source === 'child_reference') {
     const sheetType = meta.isTurnaround ? 'Character sheet' : 'Reference photo';
@@ -3088,7 +3459,7 @@ async function extractReferenceImagesForScene(
  * Uses transaction for atomic operations
  */
 async function saveStory(
-  request: { id: string; userId: string; childProfileId?: string | null; goal?: string | null; tone?: string | null },
+  request: { id: string; userId: string; childProfileId?: string | null; goal?: string | null },
   spec: StorySpec,
   outline: any,
   text: { title: string; language: string; scenes: any[]; fullText: string; wordCount: number },
@@ -3101,6 +3472,7 @@ async function saveStory(
     fullTextLength?: number;
   },
   chosenPlotExampleId?: string,
+  chosenWorldRuleId?: string,
 ): Promise<string> {
   try {
     // Calculate estimated read time (average 200 words per minute)
@@ -3120,7 +3492,6 @@ async function saveStory(
         language: text.language,
         ageGroup: spec.ageGroup,
         moralTheme: request.goal,
-        tone: request.tone,
         outline: outline,
         scenes: text.scenes, // Keep for backward compatibility
         fullText: text.fullText,
@@ -3133,6 +3504,7 @@ async function saveStory(
           imageStyle: (spec as any).imageStyle,
           mergedCharacters: mergedCharacters,
           ...(chosenPlotExampleId && { plotExampleId: chosenPlotExampleId }),
+          ...(chosenWorldRuleId && { worldRuleId: chosenWorldRuleId }),
           // Generation timing data for coefficient calculation
           ...(timingData && {
             textGenerationTimeMs: timingData.textGenerationTimeMs,
@@ -3279,6 +3651,7 @@ export async function processContinuationRequest(requestId: string): Promise<{ s
     const specData = await buildStorySpec(request);
     const spec = specData.spec;
     const continuationPlotExampleId = specData.chosenPlotExampleId;
+    const continuationWorldRuleId = specData.chosenWorldRuleId;
     
     // DEBUG: Log language values
     logger.info({
@@ -3349,7 +3722,6 @@ export async function processContinuationRequest(requestId: string): Promise<{ s
       title: text.title,
       language: request.storyLanguage || 'uk', // Use storyLanguage field from request, fallback to 'uk'
       ageGroup: spec.ageGroup,
-      tone: request.tone,
       moralTheme: request.goal,
       outline: outline as any,
       scenes: text.scenes.map((scene) => ({
@@ -3367,6 +3739,7 @@ export async function processContinuationRequest(requestId: string): Promise<{ s
         mergedCharacters: allCharacters, // Store all characters
         imageStyle: request.imageStyle,
         ...(continuationPlotExampleId && { plotExampleId: continuationPlotExampleId }),
+        ...(continuationWorldRuleId && { worldRuleId: continuationWorldRuleId }),
         generatedAt: new Date().toISOString(),
         textGenerationTimeMs,
         sceneCount: text.scenes.length,
@@ -3496,65 +3869,6 @@ export async function processContinuationImages(requestId: string): Promise<void
 
     const continuationEnvironmentMap = buildEnvironmentMapFromText(text, requestId);
 
-    // CRITICAL: Get reference image from FIRST PART of series for visual consistency
-    let referenceImageFromFirstPart: { base64: string; mimeType: string } | undefined = undefined;
-    
-    try {
-      // Get the first story ID from series
-      const series = await getStoryRepository().findSeriesById(seriesId);
-      
-      if (series && series.storyIds && (series.storyIds as string[]).length > 0) {
-        const firstStoryId = (series.storyIds as string[])[0];
-        logger.info({ firstStoryId, seriesId }, 'Loading reference image from first part of series');
-        
-        // Get first story's scenes
-        const firstStoryScenes = await getSceneRepository().findByStoryId(firstStoryId);
-        
-        logger.debug({ 
-          scenesCount: firstStoryScenes.length,
-          firstSceneHasImageUrl: !!firstStoryScenes[0]?.imageUrl
-        }, 'Loaded scenes from first story');
-        
-        // Find first scene with an image (check both imageUrl field and assets table)
-        let imageStoragePath: string | null = null;
-        
-        for (const scene of firstStoryScenes) {
-          if (scene.imageUrl) {
-            imageStoragePath = scene.imageUrl;
-            logger.info({ sceneId: scene.sceneId, imageUrl: scene.imageUrl }, 'Found reference image URL from first part');
-            break;
-          }
-          
-          // Fallback: check assets table (older stories before M9)
-          const sceneAssets = await getAssetRepository().findBySceneId(scene.id, 'image');
-          const asset = sceneAssets[0] || null;
-          
-          if (asset && asset.storagePath) {
-            imageStoragePath = asset.storagePath;
-            logger.info({ sceneId: scene.sceneId, storagePath: asset.storagePath }, 'Found reference image from first part (assets table)');
-            break;
-          }
-        }
-        
-        if (imageStoragePath) {
-          const imageBuffer = await assetStorage.getAssetByPath(imageStoragePath);
-          if (imageBuffer) {
-            referenceImageFromFirstPart = {
-              base64: imageBuffer.toString('base64'),
-              mimeType: 'image/png',
-            };
-            logger.info({ base64Length: referenceImageFromFirstPart.base64.length, storagePath: imageStoragePath }, 'Loaded reference image from first part');
-          } else {
-            logger.warn({ imageStoragePath }, 'Image file not found in storage');
-          }
-        } else {
-          logger.warn({ firstStoryId, scenesCount: firstStoryScenes.length }, 'No images found in first part');
-        }
-      }
-    } catch (error) {
-      logger.error({ error, seriesId }, 'Failed to load reference image from first part - continuing without reference');
-    }
-    
     if (scenesToGenerate.length > 0) {
       // Build character registry and description map
       const characterRegistry = buildCharacterRegistry(allCharacters, spec.childProfile, []);
@@ -3565,8 +3879,6 @@ export async function processContinuationImages(requestId: string): Promise<void
         characterDescriptionMap.set(normalized, char);
       }
       
-      const preloadedReferences = await getStoryReferenceImages(storyId);
-
       // Pre-upload turnarounds to Files API & build system instruction
       const { uploadedFileMap: contUploadedFileMap, imageSystemInstruction: contSystemInstruction } =
         await prepareFilesApiAndSystemInstruction({
@@ -3586,14 +3898,12 @@ export async function processContinuationImages(requestId: string): Promise<void
         environmentMap: continuationEnvironmentMap,
         characterDescriptionMap,
         characterRegistry,
-        preloadedReferences,
         spec,
         outline,
         userPlan,
         userId: request.userId,
         assetStorage,
         imageDomain,
-        firstSceneReferenceOverride: referenceImageFromFirstPart,
         uploadedFileMap: contUploadedFileMap,
         imageSystemInstruction: contSystemInstruction,
         enableEarlyCompletion: true,
@@ -3794,7 +4104,7 @@ export async function getStoryRequestStatus(
 
 /**
  * Fetch child profiles associated with a story and map them to the same shape as character objects.
- * Resolves children from story_requests.selected_children, falling back to stories.childProfileId.
+ * Returns only children explicitly selected in story_requests.selected_children.
  */
 async function fetchStoryChildren(
   storyRequestId: string | null,
@@ -3817,10 +4127,6 @@ async function fetchStoryChildren(
     if (selected && selected.length > 0) {
       childIds = selected;
     }
-  }
-
-  if (childIds.length === 0 && childProfileId) {
-    childIds = [childProfileId];
   }
 
   if (childIds.length === 0) return [];
@@ -3924,7 +4230,6 @@ export async function getStory(storyId: string, userId: string) {
     language: story.language,
     ageGroup: story.ageGroup,
     moralTheme: story.moralTheme,
-    tone: story.tone,
     scenes: story.scenes,
     fullText: story.fullText,
     wordCount: story.wordCount,

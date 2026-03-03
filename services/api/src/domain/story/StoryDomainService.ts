@@ -14,7 +14,7 @@ import type { StorySpec, EpisodeOutline, EpisodeText, PolicyProfile, SceneValida
 import type { ITextProvider } from '../../providers/base/ITextProvider';
 import { buildDirectTextPrompt, buildTextPrompt, buildValidationPrompt, buildRegenerationPrompt, buildContinuationPrompt } from '../../prompts/text';
 import { logger } from '../../utils/logger';
-import { TEXT_SCHEMA, VALIDATION_SCHEMA, SCENE_SCHEMA } from './schemas';
+import { TEXT_SCHEMA, VALIDATION_SCHEMA } from './schemas';
 
 export class StoryDomainService {
   constructor(private textProvider: ITextProvider) {}
@@ -121,8 +121,6 @@ export class StoryDomainService {
           sceneId: sceneText.sceneId,
           isValid: true,
           violations: [],
-          feedback: `Auto-approved (safety filter false positive): ${errorMsg}`,
-          hasHappyEnding: isLastScene
         };
       }
       
@@ -136,40 +134,37 @@ export class StoryDomainService {
   }
 
   /**
-   * Regenerate a single scene with validation feedback
-   * Business logic: determines vocabulary level, coordinates regeneration
+   * Regenerate scene text based on validation feedback.
+   * Returns plain text only. Fixes only policy violations, keeps same plot/characters/events.
    */
   async regenerateScene(
     spec: StorySpec,
     outline: EpisodeOutline,
     sceneId: number,
+    originalSceneText: string,
     validationFeedback: string
-  ): Promise<EpisodeText['scenes'][0]> {
-    logger.info({ sceneId, feedback: validationFeedback }, 'Regenerating scene');
+  ): Promise<string> {
+    logger.info({ sceneId, feedback: validationFeedback }, 'Regenerating scene text');
 
-    // Business logic: determine vocabulary level for age group
     const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
 
-    // Build prompt using prompt function
     const prompt = buildRegenerationPrompt({
       spec,
       outline,
       sceneId,
+      originalSceneText,
       validationFeedback,
-      vocabLevel
+      vocabLevel,
     });
 
     try {
-      // Call provider with higher temperature for creative regeneration
-      const scene = await this.textProvider.generateStructured<EpisodeText['scenes'][0]>({
+      const text = await this.textProvider.generateText({
         prompt,
-        schema: SCENE_SCHEMA,
         temperature: 0.9,
-        // No maxTokens limit - let the model generate as much as needed
       });
 
-      logger.info({ sceneId: scene.sceneId }, 'Scene regenerated successfully');
-      return scene;
+      logger.info({ sceneId }, 'Scene text regenerated successfully');
+      return text;
     } catch (error) {
       logger.error({ error, sceneId }, 'Scene regeneration failed');
       throw new Error(`Scene regeneration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);

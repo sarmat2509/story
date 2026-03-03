@@ -25,7 +25,6 @@ export interface StoryRequestData {
   uiLocale: string;
   storyLanguage: string;
   goal?: string | null;
-  tone?: string | null;
   scenarioCardId?: string | null;
   imageStyle?: string | null; // Image art style
   userNotes?: string | null;

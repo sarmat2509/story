@@ -10,11 +10,6 @@ interface Goal {
   name: string;
 }
 
-interface Tone {
-  slug: string;
-  name: string;
-}
-
 interface ChildProfile {
   id: string;
   name: string;
@@ -29,10 +24,6 @@ interface Props {
   goals?: Goal[];
   selectedGoals?: string[];
   onGoalsChange: (goals: string[]) => void;
-  
-  tones?: Tone[];
-  selectedTone?: string;
-  onToneChange: (tone: string | undefined) => void;
   
   imageStyle?: string;
   onImageStyleChange: (style: string | undefined) => void;
@@ -49,9 +40,6 @@ export function AdvancedSettingsForm({
   goals = [],
   selectedGoals = [],
   onGoalsChange,
-  tones = [],
-  selectedTone,
-  onToneChange,
   imageStyle,
   onImageStyleChange,
   userNotes = '',
@@ -142,32 +130,6 @@ export function AdvancedSettingsForm({
                   selectedGoals.includes(goal.slug) && styles.chipTextSelected
                 ]}>
                   {goal.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {/* Tone Selector */}
-      {tones.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>{t('wizard.tone_label')}</Text>
-          <View style={styles.chipsContainer}>
-            {tones.map((tone) => (
-              <TouchableOpacity
-                key={tone.slug}
-                style={[
-                  styles.chip,
-                  selectedTone === tone.slug && styles.chipSelected
-                ]}
-                onPress={() => onToneChange(selectedTone === tone.slug ? undefined : tone.slug)}
-              >
-                <Text style={[
-                  styles.chipText,
-                  selectedTone === tone.slug && styles.chipTextSelected
-                ]}>
-                  {tone.name}
                 </Text>
               </TouchableOpacity>
             ))}

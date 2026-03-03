@@ -37,8 +37,26 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
     )
   );
 
-  // Check which scenes failed
-  const failedScenes = validations.filter(v => !v.isValid);
+  // Apply correctedCameraComposition directly (no regeneration needed)
+  for (const validation of validations) {
+    if (validation.correctedCameraComposition) {
+      const scene = text.scenes.find((s: any) => s.sceneId === validation.sceneId);
+      if (scene?.sceneVisual) {
+        scene.sceneVisual.cameraComposition = validation.correctedCameraComposition;
+        logger.info(
+          { requestId, sceneId: validation.sceneId, characterCount: validation.correctedCameraComposition.characters.length },
+          'Applied correctedCameraComposition to scene'
+        );
+      }
+    }
+  }
+
+  // failedScenes: exclude scenes that only had camera_composition_incomplete and we fixed it
+  const hasOtherViolations = (v: (typeof validations)[0]) =>
+    v.violations.some((viol: any) => viol.category !== 'camera_composition_incomplete');
+  const failedScenes = validations.filter(
+    v => !v.isValid && (!v.correctedCameraComposition || hasOtherViolations(v))
+  );
 
   if (failedScenes.length > 0) {
     logger.info({ 
@@ -57,45 +75,66 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
         scenesToRegenerate: Array.from(scenesToRegenerate.keys())
       }, 'Regeneration attempt');
 
-      const regenerationPromises = Array.from(scenesToRegenerate.keys()).map(sceneId => {
+      const sceneIds = Array.from(scenesToRegenerate.keys());
+      const regenerationPromises = sceneIds.map(sceneId => {
+        const scene = text.scenes.find((s: any) => s.sceneId === sceneId);
         const validation = validations.find(v => v.sceneId === sceneId);
         const feedback = validation?.violations.map((v: any) => v.message).join('; ') || '';
-        return storyDomain.regenerateScene(spec, outline, sceneId, feedback);
+        return storyDomain.regenerateScene(spec, outline, sceneId, scene?.text ?? '', feedback);
       });
 
-      const newScenes = await Promise.all(regenerationPromises);
+      const newTexts = await Promise.all(regenerationPromises);
 
-      // Replace regenerated scenes
-      newScenes.forEach(newScene => {
-        const idx = text.scenes.findIndex((s: any) => s.sceneId === newScene.sceneId);
+      // Update only scene text (preserve sceneVisual, environmentId, etc.)
+      sceneIds.forEach((sceneId, i) => {
+        const idx = text.scenes.findIndex((s: any) => s.sceneId === sceneId);
         if (idx !== -1) {
-          text.scenes[idx] = newScene;
+          text.scenes[idx].text = newTexts[i];
         }
       });
 
       text.fullText = text.scenes.map((s: any) => s.text).join('\n\n');
       text.wordCount = text.fullText.split(/\s+/).length;
 
-      // Re-validate
+      // Re-validate updated scenes
       const revalidations = await Promise.all(
-        newScenes.map((scene, _idx) => {
-          const sceneIdx = text.scenes.findIndex((s: any) => s.sceneId === scene.sceneId);
+        sceneIds.map((sceneId) => {
+          const idx = text.scenes.findIndex((s: any) => s.sceneId === sceneId);
+          const scene = text.scenes[idx];
           return storyDomain.validateScene(
-            outline.scenes[sceneIdx],
+            outline.scenes[idx],
             scene,
             spec.policyProfile,
-            sceneIdx === text.scenes.length - 1,
+            idx === text.scenes.length - 1,
             spec.scenarioCard?.id
           );
         })
       );
 
+      // Apply correctedCameraComposition from revalidation if present
       revalidations.forEach((validation, idx) => {
-        const sceneId = newScenes[idx].sceneId;
+        const sceneId = sceneIds[idx];
+        const scene = text.scenes.find((s: any) => s.sceneId === sceneId);
+        if (validation.correctedCameraComposition && scene?.sceneVisual) {
+          scene.sceneVisual.cameraComposition = validation.correctedCameraComposition;
+          logger.info(
+            { requestId, sceneId },
+            'Applied correctedCameraComposition after revalidation'
+          );
+        }
+      });
+
+      revalidations.forEach((validation, idx) => {
+        const sceneId = sceneIds[idx];
         if (validation.isValid) {
           scenesToRegenerate.delete(sceneId);
         } else {
-          scenesToRegenerate.set(sceneId, (scenesToRegenerate.get(sceneId) || 0) + 1);
+          const hasOther = validation.violations.some((viol: any) => viol.category !== 'camera_composition_incomplete');
+          if (validation.correctedCameraComposition && !hasOther) {
+            scenesToRegenerate.delete(sceneId); // Fixed by correctedCameraComposition
+          } else {
+            scenesToRegenerate.set(sceneId, (scenesToRegenerate.get(sceneId) || 0) + 1);
+          }
         }
       });
     }

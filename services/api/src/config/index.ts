@@ -113,8 +113,22 @@ export const config = {
     // Turnaround sheet generation for imaginary characters
     enableTurnaroundSheet: process.env.ENABLE_TURNAROUND_SHEET === 'true',
     turnaroundModel: process.env.TURNAROUND_MODEL || 'gemini-3-pro-image-preview',
+    // Parallel streams for image generation within a single story (turnarounds + scene images)
+    parallelStreams: parseInt(process.env.IMAGE_PARALLEL_STREAMS || '2', 10),
+    // Environment image reference (Imagen 4 Fast)
+    enableEnvironmentReference: process.env.ENABLE_ENVIRONMENT_REFERENCE === 'true',
+    imagen4Fast: {
+      projectId: process.env.GOOGLE_CLOUD_PROJECT || '',
+      location: process.env.GOOGLE_CLOUD_LOCATION || 'us-central1',
+    },
+    environmentEmbeddingSimilarityThreshold: parseFloat(
+      process.env.ENVIRONMENT_EMBEDDING_SIMILARITY_THRESHOLD || '0.95'
+    ),
+    environmentImageStyle:
+      process.env.ENVIRONMENT_IMAGE_STYLE ||
+      'clean line art, simple shapes, clear spatial layout',
   },
-  
+
   // OpenAI Image (GPT Image via Responses API) - for character consistency with input_fidelity
   openaiImage: {
     mainlineModel: process.env.OPENAI_IMAGE_MAINLINE_MODEL || 'gpt-4.1',

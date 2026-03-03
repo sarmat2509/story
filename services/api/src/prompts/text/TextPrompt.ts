@@ -43,16 +43,12 @@ ${getContentPolicy({ policyProfile: spec.policyProfile, scenarioCardId: spec.sce
 
 ${helpers.formatWritingStyle(spec, vocabLevel)}
 
-OUTPUT FORMAT (JSON):
+${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle, scenarioCardId: spec.scenarioCard?.id, policyProfile: spec.policyProfile })}
+
+OUTPUT FORMAT (JSON). Generate environments LAST — one entry per unique environmentId used in scenes. characterOutfits must list ALL characters who appear there — never empty string.
 {
   "title": "${outline.title}",
   "language": "${spec.language}",
-  "environments": [
-    {
-      "id": "short_id",
-      "name": "Human-readable location name"
-    }
-  ],
   "scenes": [
     {
       "sceneId": 1,
@@ -68,13 +64,18 @@ OUTPUT FORMAT (JSON):
           ]
         },
         "lighting": "Lighting conditions IN ENGLISH: warm golden sunlight from left window, soft shadows on floor."
-      },
-      "characterOutfits": { "Character Name 1": "scene-appropriate outfit description" }
+      }
+    }
+  ],
+  "environments": [
+    {
+      "id": "short_id",
+      "name": "Human-readable location name",
+      "description": "BASE visual description IN ENGLISH...",
+      "characterOutfits": "ExactCharacterName: detailed outfit. CreatureName: natural appearance"
     }
   ]
 }
-
-${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle, scenarioCardId: spec.scenarioCard?.id, policyProfile: spec.policyProfile })}
 
 IMPORTANT - Scene Structure:
 - Write complete, standalone text for EACH scene with audio tags embedded

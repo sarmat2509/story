@@ -9,7 +9,6 @@ interface WizardState {
   // Form data
   childProfileId: string | null;
   theme: string | null;
-  tone: string | null;
   language: string;
   imageStyle: string | null;
   includeFamily: boolean;
@@ -35,7 +34,6 @@ const initialState = {
   currentStep: 0,
   childProfileId: null,
   theme: null,
-  tone: null,
   language: 'uk',
   imageStyle: null,
   includeFamily: false,

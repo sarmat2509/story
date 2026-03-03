@@ -273,9 +273,13 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
     throw new Error('Story not found');
   }
 
-  // Load scenes ordered by sceneId
+  // Load scenes ordered by sceneId; strip character IDs but keep allowed audio tags
+  const { stripForAudio } = await import('../utils/audioTags');
   const storyScenes = await getSceneRepository().findByStoryId(job.storyId);
-  const scenesForAudio = storyScenes.map((s) => ({ sceneId: s.sceneId, text: s.text }));
+  const scenesForAudio = storyScenes.map((s) => ({
+    sceneId: s.sceneId,
+    text: stripForAudio(s.text || ''),
+  }));
 
   logger.info({
     storyId: job.storyId,

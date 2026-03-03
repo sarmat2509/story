@@ -102,6 +102,7 @@ ${helpers.formatChildProfile(spec)}
 
 STORY CONTINUATION REQUIREMENTS:
 - This is Part ${partNumber} of the series
+- The story MUST connect to the previous episode. Reference events, characters, or outcomes from Part ${partNumber - 1}. Maintain narrative continuity while introducing a NEW world rule and NEW setting.
 ${validRequiredChars.length > 0 ? '- MUST feature all REQUIRED characters from above\n' : ''}
 ${validOptionalChars.length > 0 ? '- MAY feature OPTIONAL characters if they fit the story (not required)\n' : ''}
 - Create NEW events and challenges (not covered in previous episodes)
@@ -118,9 +119,11 @@ ${helpers.formatAgeRequirements(spec.ageGroup)}
 
 ${helpers.formatWritingStyle(spec, vocabLevel)}
 
-OUTPUT FORMAT: Same as DirectTextPrompt (JSON with title, environments, characters, moral, scenes)
+${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRule: !!spec.worldRule, worldRuleText: spec.worldRule?.description })}
 
 ${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle, scenarioCardId: spec.scenarioCard?.id, policyProfile: spec.policyProfile })}
+
+OUTPUT FORMAT: Same as DirectTextPrompt (JSON with title, language, characters, moral, scenes, environments). Generate environments LAST. Each environment MUST have characterOutfits as string "Char1: outfit1. Char2: outfit2." with all characters who appear there.
 
 IMPORTANT - Character Descriptions:
 - Return ALL new characters you create in the story in "characters" array

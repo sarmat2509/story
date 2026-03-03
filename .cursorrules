@@ -533,6 +533,8 @@ All other code (services, domain, orchestration) remains unchanged.
 
 ### Migrations
 
+**CRITICAL:** All migrations **MUST** be run **ONLY** through `services/api/src/scripts/runMigration.ts`. Never use `psql`, `db:push`, or direct SQL execution.
+
 **MUST** follow this workflow for database schema changes:
 
 #### Migration File Creation
@@ -1920,6 +1922,22 @@ Before submitting code, verify:
 - [ ] TypeScript strict mode passes
 - [ ] Health checks updated if needed
 
+## 📜 API Diagnostic Scripts (services/api/src/scripts/)
+
+Run from `services/api/` with `npx tsx src/scripts/<name>.ts [args]`.
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| **diagnoseEnvImages** | Why a story has no environment images | `npx tsx src/scripts/diagnoseEnvImages.ts <storyId>` |
+| **checkEnvOutfits** | Environments + characterOutfits for a story (from DB; intermediateData cleared after completion) | `npx tsx src/scripts/checkEnvOutfits.ts <storyId>` |
+| **showSceneImagePrompt** | Raw sceneVisual, composed sceneVisual, and final image prompt for a scene | `npx tsx src/scripts/showSceneImagePrompt.ts <storyId> <sceneId>` or `--json path/to/llm_response.json <sceneId>` |
+| **dumpSceneVisuals** | Full sceneVisual (setting, cameraComposition, lighting) for all scenes | `npx tsx src/scripts/dumpSceneVisuals.ts <storyId>` |
+| **parseEnvFromLog** | Extract LLM environments + characterOutfits from app.log | `npx tsx src/scripts/parseEnvFromLog.ts [storyId]` — without storyId shows recent entries |
+
+**Logs location:**
+- Host: `services/api/logs/app.log` (if API runs locally)
+- Docker: `docker exec wondertales-api-dev grep "<storyId>" /app/services/api/logs/app.log` — logs are in the container volume
+
 ## 🔄 When to Update These Rules
 
 - **MUST** update after finding new architectural issues
@@ -1929,6 +1947,6 @@ Before submitting code, verify:
 
 ---
 
-**Last Updated**: 2026-01-25 (after Architecture Review Fixes)  
+**Last Updated**: 2026-03-03 (added API diagnostic scripts)  
 **Version**: 1.0.0  
 **Status**: Active

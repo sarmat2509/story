@@ -51,7 +51,6 @@ export async function getOrCreateSeries(storyId: string): Promise<{
     language: story.language,
     ageGroup: story.ageGroup,
     imageStyle: (story.metadata as any)?.imageStyle || 'watercolor',
-    tone: story.tone,
     totalParts: 1,
     storyIds: [storyId],
     continuationContext: buildInitialContext(story),

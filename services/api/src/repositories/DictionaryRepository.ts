@@ -12,13 +12,6 @@ export class DictionaryRepository {
       .orderBy(schema.storyGoals.sortOrder);
   }
 
-  async findAllTones(): Promise<schema.StoryTone[]> {
-    return this.db
-      .select()
-      .from(schema.storyTones)
-      .orderBy(schema.storyTones.sortOrder);
-  }
-
   async findActiveScenarioCards(): Promise<schema.ScenarioCard[]> {
     return this.db
       .select()
@@ -53,6 +46,16 @@ export class DictionaryRepository {
         eq(schema.scenarioPlotExamples.isActive, true),
       ))
       .orderBy(schema.scenarioPlotExamples.sortOrder);
+  }
+
+  async findActiveWorldRules(scenarioCardId: string): Promise<schema.ScenarioWorldRule[]> {
+    return this.db.select()
+      .from(schema.scenarioWorldRules)
+      .where(and(
+        eq(schema.scenarioWorldRules.scenarioCardId, scenarioCardId),
+        eq(schema.scenarioWorldRules.isActive, true),
+      ))
+      .orderBy(schema.scenarioWorldRules.sortOrder);
   }
 
   async findTranslations(

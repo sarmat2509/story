@@ -12,11 +12,13 @@ export interface SceneValidationResult {
   sceneId: number;
   isValid: boolean;
   violations: Array<{
-    category: 'content_policy' | 'age_inappropriate' | 'fear_level' | 'emotional_tone' | 'vocabulary';
+    category: 'content_policy' | 'age_inappropriate' | 'fear_level' | 'emotional_tone' | 'vocabulary' | 'camera_composition_incomplete';
     severity: 'critical' | 'high' | 'medium';
     message: string;
     suggestion?: string;
   }>;
+  /** When cameraComposition has issues (missing/extra characters), the corrected version. Applied directly without scene regeneration. */
+  correctedCameraComposition?: { shot: string; characters: Array<{ name: string; description: string }> };
 }
 
 /**
@@ -79,7 +81,6 @@ export interface StorySpec {
   goal?: string;
   goalName?: string; // NEW: Translated goal name for prompts
   goalGuidance?: string; // NEW: Detailed guidance for the moral/goal (30-50 words)
-  tone?: string;
   characters: CharacterData[];
   userNotes?: string;
   imageStyle?: string; // Image art style (soft_watercolor, colored_pencil, etc.)
@@ -92,6 +93,7 @@ export interface StorySpec {
     promptGuidance?: string; // NEW: Detailed plot guidance
   };
   scenarioGuidance?: string; // NEW: Detailed plot guidance (30-50 words)
+  worldRule?: { name: string; description: string }; // World rule for scenario (randomly selected)
 }
 
 /**
@@ -102,6 +104,7 @@ export interface StoryEnvironment {
   id: string;
   name: string;
   description: string; // Base visual description (English)
+  characterOutfits?: string; // "Char1: outfit1. Char2: outfit2." — parsed to Record for image gen
 }
 
 /**
@@ -172,13 +175,14 @@ export interface TextProvider {
   ): Promise<SceneValidationResult>;
   
   /**
-   * Regenerate a single scene with validation feedback
-   * Used for selective scene regeneration
+   * Regenerate scene text based on validation feedback.
+   * Returns plain text only. Fixes only policy violations.
    */
   regenerateScene(
     spec: StorySpec,
     outline: EpisodeOutline,
     sceneId: number,
+    originalSceneText: string,
     validationFeedback: string
-  ): Promise<EpisodeText['scenes'][0]>;
+  ): Promise<string>;
 }

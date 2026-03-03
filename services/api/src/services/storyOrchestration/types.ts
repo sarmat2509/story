@@ -56,7 +56,6 @@ export interface CreateStoryParams {
   spec: StorySpec;
   characters: CharacterData[];
   goal?: string | null;
-  tone?: string | null;
   generationTimeMs: number;
   metadata: {
     textGenerationTimeMs?: number;
@@ -65,6 +64,7 @@ export interface CreateStoryParams {
     fullTextLength: number;
     modelVersion: string;
     plotExampleId?: string;
+    worldRuleId?: string;
     llmGeneratedCharacters?: any[];
     imageStyle?: string;
   };

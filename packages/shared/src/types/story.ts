@@ -12,20 +12,6 @@ export interface StoryGoal {
   sortOrder: number;
 }
 
-export interface StoryTone {
-  slug: string;
-  name: string;
-  description: string;
-  promptGuidance: string;
-  writingStyle: {
-    pacing: string;
-    emotionalIntensity: string;
-    sensoryFocus: string;
-    sentenceRhythm: string;
-  };
-  sortOrder: number;
-}
-
 export interface ContentPolicyRule {
   id: string;
   category: string;

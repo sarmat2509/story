@@ -17,19 +17,6 @@ export const TEXT_SCHEMA: JsonSchema = {
   properties: {
     title: { type: 'string' },
     language: { type: 'string' },
-    environments: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Short unique identifier for this environment (e.g. "bedroom", "forest_clearing")' },
-          name: { type: 'string', description: 'Human-readable name of the location' },
-          description: { type: 'string', description: 'BASE visual description IN ENGLISH: fixed layout, permanent furniture, walls, floor, windows, key objects that DO NOT change between scenes. This is the foundation - scene-specific details will be added separately.' },
-        },
-        required: ['id', 'name', 'description']
-      },
-      description: 'All distinct physical locations in the story. Each has base description - scene variations go in sceneVisual.setting. Multiple scenes can share the same environmentId.'
-    },
     characters: {
       type: 'array',
       items: {
@@ -45,6 +32,7 @@ export const TEXT_SCHEMA: JsonSchema = {
       },
       description: 'All characters created in the story (excluding user-provided characters from SUPPORTING CHARACTERS section)'
     },
+    moral: { type: 'string', description: 'The moral/lesson of the story' },
     scenes: {
       type: 'array',
       items: {
@@ -53,7 +41,7 @@ export const TEXT_SCHEMA: JsonSchema = {
           sceneId: { type: 'number' },
           environmentId: {
             type: 'string',
-            description: 'ID of the environment where this scene takes place (from environments array)'
+            description: 'ID of the environment where this scene takes place (from environments array). Use a DIFFERENT environmentId when the scene describes a distinctly different physical place (e.g. forest path vs glade/clearing, different room, cave entrance vs interior).'
           },
           text: {
             type: 'string',
@@ -64,7 +52,7 @@ export const TEXT_SCHEMA: JsonSchema = {
             properties: {
               setting: {
                 type: 'string',
-                description: 'DELTA: Scene-specific additions IN ENGLISH. Describe ONLY what is NEW or CHANGED in this scene compared to the base environment: temporary objects (books on table, food on counter), scene-specific details (open/closed doors, items being used), transient elements. DO NOT repeat base environment structure - it will be added automatically. If nothing changes from base, write minimal additions or time-of-day details.'
+                description: 'DELTA: Scene-specific additions IN ENGLISH. Describe ONLY what is NEW or CHANGED in this scene compared to the base environment: temporary objects (books on table, food on counter), scene-specific details (open/closed doors, items being used), transient elements. DO NOT repeat base environment structure - it will be added automatically. Must be SELF-CONTAINED — never reference previous scenes ("the same X", "as before"). If location unchanged, repeat key visual elements. If nothing changes from base, write minimal additions or time-of-day details.'
               },
               cameraComposition: {
                 type: 'object',
@@ -75,16 +63,15 @@ export const TEXT_SCHEMA: JsonSchema = {
                   },
                   characters: {
                     type: 'array',
-                    maxItems: 2,
                     items: {
                       type: 'object',
                       properties: {
                         name: { type: 'string', description: 'EXACT character name from the story character list' },
-                        description: { type: 'string', description: 'Position in frame, body posture, action, facial expression, gaze direction. IN ENGLISH.' }
+                        description: { type: 'string', description: 'Position in frame, posture, action, expression. Use beside/next to/behind — avoid "at" when standing. IN ENGLISH.' }
                       },
                       required: ['name', 'description']
                     },
-                    description: 'Per-character composition. MUST list ALL characters physically present in this scene and ONLY those characters. Maximum 3.'
+                    description: 'Per-character composition. MUST list ALL characters physically present in this scene and ONLY those characters.'
                   }
                 },
                 required: ['shot', 'characters']
@@ -96,18 +83,29 @@ export const TEXT_SCHEMA: JsonSchema = {
             },
             required: ['setting', 'cameraComposition', 'lighting']
           },
-          characterOutfits: {
-            type: 'object',
-            description: 'REQUIRED: Mapping of EACH character from cameraComposition.characters to their scene-appropriate outfit. For every character in the scene, describe their attire. For animals/creatures, use "natural appearance". Example: { "Emilia": "cozy sweater, leggings", "Rabbit": "natural appearance" }. NEVER leave empty.',
-            additionalProperties: { type: 'string' },
-            minProperties: 1
-          }
         },
         required: ['sceneId', 'environmentId', 'text', 'sceneVisual']
       }
-    }
+    },
+    environments: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Short unique identifier (e.g. "bedroom", "forest_path", "silver_tree_glade" — use distinct ids for different places like path vs glade)' },
+          name: { type: 'string', description: 'Human-readable name of the location' },
+          description: { type: 'string', description: 'BASE visual description IN ENGLISH: fixed layout, permanent furniture, walls, floor, windows, key objects that DO NOT change between scenes. This is the foundation - scene-specific details will be added separately.' },
+          characterOutfits: {
+            type: 'string',
+            description: 'REQUIRED. One entry per character who appears in this environment. Format: "Char1: outfit1. Char2: outfit2." Outfit = DETAILED IN ENGLISH: type of clothing, colors, elements. Must match environment. For animals/creatures use "natural appearance". NEVER return empty string.'
+          },
+        },
+        required: ['id', 'name', 'description', 'characterOutfits']
+      },
+      description: 'All distinct physical locations in the story. Generate LAST — one entry per unique environmentId used in scenes. Create separate entries for distinctly different places (forest path vs glade, different rooms, cave vs clearing).'
+    },
   },
-  required: ['title', 'language', 'environments', 'characters', 'scenes']
+  required: ['title', 'language', 'characters', 'scenes', 'environments']
 };
 
 /**
@@ -126,7 +124,7 @@ export const VALIDATION_SCHEMA: JsonSchema = {
         properties: {
           category: {
             type: 'string',
-            description: 'One of: content_policy, age_inappropriate, fear_level, emotional_tone, vocabulary'
+            description: 'One of: content_policy, age_inappropriate, fear_level, emotional_tone, vocabulary, camera_composition_incomplete'
           },
           severity: {
             type: 'string',
@@ -137,6 +135,26 @@ export const VALIDATION_SCHEMA: JsonSchema = {
         },
         required: ['category', 'severity', 'message']
       }
+    },
+    correctedCameraComposition: {
+      type: 'object',
+      nullable: true,
+      description: 'When cameraComposition has issues (missing/extra characters), the corrected version. Omit if cameraComposition is already correct.',
+      properties: {
+        shot: { type: 'string', description: 'Camera angle IN ENGLISH' },
+        characters: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'EXACT character name from the story' },
+              description: { type: 'string', description: 'Position in frame, posture, action. Use beside/next to/behind — avoid "at" when standing. IN ENGLISH.' }
+            },
+            required: ['name', 'description']
+          }
+        }
+      },
+      required: ['shot', 'characters']
     }
   },
   required: ['sceneId', 'isValid', 'violations']
@@ -194,7 +212,7 @@ export const SCENE_SCHEMA: JsonSchema = {
       properties: {
         setting: {
           type: 'string',
-          description: 'DELTA: Scene-specific additions IN ENGLISH. Describe ONLY what is NEW or CHANGED in this scene compared to the base environment: temporary objects (books on table, food on counter), scene-specific details (open/closed doors, items being used), transient elements. DO NOT repeat base environment structure - it will be added automatically. If nothing changes from base, write minimal additions or time-of-day details.'
+          description: 'DELTA: Scene-specific additions IN ENGLISH. Describe ONLY what is NEW or CHANGED in this scene compared to the base environment: temporary objects (books on table, food on counter), scene-specific details (open/closed doors, items being used), transient elements. DO NOT repeat base environment structure - it will be added automatically. Must be SELF-CONTAINED — never reference previous scenes ("the same X", "as before"). If location unchanged, repeat key visual elements. If nothing changes from base, write minimal additions or time-of-day details.'
         },
         cameraComposition: {
           type: 'object',
@@ -205,16 +223,15 @@ export const SCENE_SCHEMA: JsonSchema = {
             },
             characters: {
               type: 'array',
-              maxItems: 2,
               items: {
                 type: 'object',
                 properties: {
                   name: { type: 'string', description: 'EXACT character name from the story character list' },
-                  description: { type: 'string', description: 'Position in frame, body posture, action, facial expression, gaze direction. IN ENGLISH.' }
+                  description: { type: 'string', description: 'Position in frame, posture, action, expression. Use beside/next to/behind — avoid "at" when standing. IN ENGLISH.' }
                 },
                 required: ['name', 'description']
               },
-              description: 'Per-character composition. MUST list ALL characters physically present in this scene and ONLY those characters. Maximum 3.'
+              description: 'Per-character composition. MUST list ALL characters physically present in this scene and ONLY those characters.'
             }
           },
           required: ['shot', 'characters']
@@ -226,12 +243,6 @@ export const SCENE_SCHEMA: JsonSchema = {
       },
       required: ['setting', 'cameraComposition', 'lighting']
     },
-    characterOutfits: {
-      type: 'object',
-      description: 'REQUIRED: Mapping of EACH character from cameraComposition.characters to their scene-appropriate outfit. For every character in the scene, describe their attire. For animals/creatures, use "natural appearance". Example: { "Emilia": "cozy sweater, leggings", "Rabbit": "natural appearance" }. NEVER leave empty.',
-      additionalProperties: { type: 'string' },
-      minProperties: 1
-    }
   },
   required: ['sceneId', 'environmentId', 'text', 'sceneVisual']
 };

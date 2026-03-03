@@ -2,7 +2,8 @@ import { GoogleGenAI } from '@google/genai';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
-const EMBEDDING_MODEL = 'text-embedding-004';
+// text-embedding-004 deprecated Jan 2026; use gemini-embedding-001
+const EMBEDDING_MODEL = 'gemini-embedding-001';
 
 let genaiInstance: GoogleGenAI | null = null;
 
@@ -23,6 +24,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     const result = await ai.models.embedContent({
       model: EMBEDDING_MODEL,
       contents: text,
+      config: { outputDimensionality: 768 }, // Match legacy text-embedding-004 dims for cosineSimilarity with existing DB embeddings
     });
     if (!result.embeddings || result.embeddings.length === 0) {
       throw new Error('No embeddings returned from Gemini API');

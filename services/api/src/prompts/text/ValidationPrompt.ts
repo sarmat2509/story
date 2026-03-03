@@ -27,6 +27,19 @@ export function buildValidationPrompt(params: ValidationPromptParams): string {
     scenarioCardId: params.scenarioCardId,
   });
 
+  const sceneVisual = (sceneText as any).sceneVisual;
+  const cameraCompositionSection =
+    sceneVisual?.cameraComposition && typeof sceneVisual.cameraComposition === 'object'
+      ? `
+CAMERA COMPOSITION (for illustration):
+${JSON.stringify(sceneVisual.cameraComposition, null, 2)}
+
+CAMERA COMPOSITION CHECK:
+- cameraComposition.characters MUST list ALL characters/creatures/objects physically present and visible in the scene (performing actions, being looked at, in frame).
+- If the scene text describes someone/something as physically present (e.g. "Софія peered at the robot", "a robot lay behind the chest") but they are NOT in cameraComposition.characters, you MUST provide correctedCameraComposition.
+- correctedCameraComposition: add missing characters, remove extras, fix descriptions. Use EXACT character names from the story.`
+      : '';
+
   return `Validate this children's story scene for age-appropriateness.
 
 AGE GROUP: ${policy.ageGroup}
@@ -34,6 +47,7 @@ IS LAST SCENE: ${isLastScene}
 
 SCENE TEXT:
 ${sceneText.text}
+${cameraCompositionSection}
 
 VALIDATION RULES:
 ${validationRules}
@@ -47,13 +61,17 @@ RETURN JSON:
   "isValid": true/false,
   "violations": [
     {
-      "category": "content_policy" | "age_inappropriate" | "emotional_tone",
+      "category": "content_policy" | "age_inappropriate" | "emotional_tone" | "camera_composition_incomplete",
       "severity": "critical" | "high" | "medium",
       "message": "Clear explanation",
       "suggestion": "How to fix (optional)"
     }
-  ]
+  ],
+  "correctedCameraComposition": null or { "shot": "...", "characters": [{ "name": "...", "description": "..." }] }
 }
+
+- correctedCameraComposition: ONLY when cameraComposition has issues — provide the full corrected object (shot + characters). Omit or set to null if cameraComposition is already correct.
+- Use EXACT character names from the story in correctedCameraComposition.characters.
 
 IMPORTANT: Be fair. Only flag real safety issues, not minor style choices.`;
 }
