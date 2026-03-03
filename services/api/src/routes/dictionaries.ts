@@ -121,17 +121,34 @@ router.get('/story-themes', async (req, res) => {
     const locale = (req.query.locale as string) || 'uk';
     const dictionaryRepo = getDictionaryRepository();
     
-    // Fetch all data from DB via repository
-    const [goalsData, scenarioCardsData] = await Promise.all([
-      dictionaryRepo.findAllGoals(),
-      dictionaryRepo.findActiveScenarioCards()
-    ]);
+    // Fetch sequentially to isolate 42P01 errors (table not found)
+    let goalsData: Awaited<ReturnType<typeof dictionaryRepo.findAllGoals>>;
+    let scenarioCardsData: Awaited<ReturnType<typeof dictionaryRepo.findActiveScenarioCards>>;
+    try {
+      goalsData = await dictionaryRepo.findAllGoals();
+    } catch (e) {
+      logger.error({ err: e, msg: (e as Error).message }, 'story-themes: findAllGoals failed');
+      throw e;
+    }
+    try {
+      scenarioCardsData = await dictionaryRepo.findActiveScenarioCards();
+    } catch (e) {
+      logger.error({ err: e, msg: (e as Error).message }, 'story-themes: findActiveScenarioCards failed');
+      throw e;
+    }
     
     // Fetch translations
-    const [goalsTranslations, scenariosTranslations] = await Promise.all([
-      getTranslations('story_goal', goalsData.map(g => g.slug), locale),
-      getTranslations('scenario_card', scenarioCardsData.map(sc => sc.id), locale)
-    ]);
+    let goalsTranslations: Awaited<ReturnType<typeof getTranslations>>;
+    let scenariosTranslations: Awaited<ReturnType<typeof getTranslations>>;
+    try {
+      [goalsTranslations, scenariosTranslations] = await Promise.all([
+        getTranslations('story_goal', goalsData.map(g => g.slug), locale),
+        getTranslations('scenario_card', scenarioCardsData.map(sc => sc.id), locale)
+      ]);
+    } catch (e) {
+      logger.error({ err: e, msg: (e as Error).message }, 'story-themes: getTranslations failed');
+      throw e;
+    }
     
     // Map with translations, fallback to English if not available
     const goals = goalsData.map(g => {
