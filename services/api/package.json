@@ -21,6 +21,7 @@
     "db:migrate:metadata": "npx tsx src/scripts/runMigration.ts 0011_add_stories_metadata.sql",
     "db:migrate:audio": "npx tsx src/scripts/runMigration.ts 0012_add_stories_audio_metadata.sql",
     "db:migrate:intermediate": "npx tsx src/scripts/runMigration.ts 0013_add_story_request_intermediate_data.sql",
+    "db:migrate:all": "npx tsx src/scripts/runAllMigrations.ts",
     "seed:voices": "tsx src/scripts/seedVoices.ts",
     "test:imagen": "npx tsx src/scripts/testImagenAPI.ts"
   },

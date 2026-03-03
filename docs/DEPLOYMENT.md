@@ -300,11 +300,19 @@ curl http://localhost/api/v1/health/ready
 curl https://your-domain.com/health
 ```
 
+### Run Pending SQL Migrations
+
+Run all migrations that haven't been applied yet (tracked in `schema_migrations` table):
+
+```bash
+docker exec wondertales-api-prod sh -c 'cd /app/services/api && pnpm db:migrate:all'
+```
+
 ### Database Management
 
 ```bash
 # Connect to database
-docker exec -it kazka-postgres-prod psql -U kazka -d kazka_prod
+docker exec -it wondertales-postgres-prod psql -U kazka -d kazka_prod
 
 # Create backup
 ./scripts/db-backup.sh
