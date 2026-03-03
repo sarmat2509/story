@@ -10,10 +10,10 @@ cd "$(dirname "$0")/.."
 
 if [[ "$1" == "--docker" ]]; then
   echo "🔄 Running migrations inside API container..."
-  docker compose -f docker-compose.prod.yml exec api sh -c 'cd /app/services/api && pnpm db:migrate:all'
+  docker compose -f docker-compose.prod.yml exec api sh -c 'cd /app/services/api && npx tsx src/scripts/runAllMigrations.ts'
 else
   echo "🔄 Running pending SQL migrations..."
   cd services/api
-  pnpm db:migrate:all
+  npx tsx src/scripts/runAllMigrations.ts
 fi
 echo "✅ Done"
