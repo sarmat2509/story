@@ -13,12 +13,13 @@ if [[ "$1" == "--docker" ]]; then
   echo "🔄 Running migrations inside API container..."
   docker compose -f docker-compose.prod.yml exec api sh -c 'cd /app/services/api && npx tsx src/scripts/runAllMigrations.ts'
 elif [[ "$1" == "--host" ]]; then
+  shift
   echo "🔄 Running migrations from host (postgres via localhost:5432)..."
   if [[ -f .env.production ]]; then
     export DATABASE_URL=$(grep '^DATABASE_URL=' .env.production | cut -d= -f2- | sed 's/postgres:5432/localhost:5432/')
   fi
   cd services/api
-  npx tsx src/scripts/runAllMigrations.ts
+  npx tsx src/scripts/runAllMigrations.ts "$@"
 else
   echo "🔄 Running pending SQL migrations..."
   cd services/api

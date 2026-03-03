@@ -4,8 +4,7 @@
  *
  * Usage:
  *   npx tsx src/scripts/runAllMigrations.ts
- *   # Or with explicit env:
- *   DATABASE_URL=... npx tsx src/scripts/runAllMigrations.ts
+ *   npx tsx src/scripts/runAllMigrations.ts 0040_add_scenario_world_rules.sql 0041_add_expeditions_and_macro_scifi.sql ...
  *
  * Excludes: add_updated_at_triggers.sql (run separately after db:push)
  */
@@ -62,7 +61,8 @@ async function runAllMigrations(): Promise<void> {
   try {
     await ensureJournalTable(pool);
     const applied = await getAppliedMigrations(pool);
-    const allFiles = getMigrationFiles();
+    const onlyFiles = process.argv.slice(2).filter((a) => a.endsWith('.sql'));
+    const allFiles = onlyFiles.length > 0 ? onlyFiles : getMigrationFiles();
     const pending = allFiles.filter((f) => !applied.has(f));
 
     if (pending.length === 0) {
