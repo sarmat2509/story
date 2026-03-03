@@ -162,7 +162,7 @@ router.get('/story-themes', async (req, res) => {
     });
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));
-    logger.error({ err, message: err.message, stack: err.stack }, 'Error fetching story themes');
+    logger.error({ err, message: err.message, stack: err.stack }, `Error fetching story themes: ${err.message}`);
     return res.status(500).json({
       status: 'error',
       message: 'Failed to fetch story themes'
