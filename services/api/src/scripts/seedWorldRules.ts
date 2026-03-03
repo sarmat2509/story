@@ -3,12 +3,28 @@
  * Run after migration 0040_add_scenario_world_rules.sql.
  * Note: New scenarios (expeditions_world_travel, macro_scifi) are added via migration 0041.
  *
- * Usage: npx tsx src/scripts/seedWorldRules.ts
+ * Usage:
+ *   npx tsx src/scripts/seedWorldRules.ts
+ *   # On droplet host (postgres via localhost):
+ *   DATABASE_URL=$(grep '^DATABASE_URL=' ../../.env.production | cut -d= -f2- | sed 's/postgres:5432/localhost:5432/') npx tsx src/scripts/seedWorldRules.ts
  */
 
 import { config } from 'dotenv';
-import { resolve } from 'path';
-config({ path: resolve(__dirname, '../../../../.env') });
+import { resolve, join } from 'path';
+import { existsSync } from 'fs';
+
+const projectRoot = resolve(__dirname, '../../../../');
+for (const name of ['.env.production', '.env']) {
+  const p = join(projectRoot, name);
+  if (existsSync(p)) {
+    config({ path: p });
+    break;
+  }
+}
+// When running from host, postgres hostname doesn't resolve - use localhost
+if (process.env.DATABASE_URL?.includes('postgres:5432')) {
+  process.env.DATABASE_URL = process.env.DATABASE_URL.replace('postgres:5432', 'localhost:5432');
+}
 
 import { db } from '../db';
 import { scenarioWorldRules } from '../db/schema';

@@ -161,7 +161,8 @@ router.get('/story-themes', async (req, res) => {
       data: { goals, scenarioCards: scenarios }
     });
   } catch (error: unknown) {
-    logger.error({ error }, 'Error fetching story themes');
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error({ err, message: err.message, stack: err.stack }, 'Error fetching story themes');
     return res.status(500).json({
       status: 'error',
       message: 'Failed to fetch story themes'
