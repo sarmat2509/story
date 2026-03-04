@@ -15,6 +15,8 @@ COPY services/api/package.json ./services/api/package.json
 
 # Install all dependencies (workspace style) with cache mount for speed
 # Skip postinstall scripts as ffmpeg is already installed via apk
+# NODE_OPTIONS limits heap to avoid OOM on 1GB droplets
+ENV NODE_OPTIONS="--max-old-space-size=512"
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --no-frozen-lockfile --filter @wondertales/shared --filter wondertales-api --ignore-scripts
 
@@ -56,7 +58,7 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/shared/package.json ./packages/shared/package.json
 COPY services/api/package.json ./services/api/package.json
 
-# Install all dependencies
+# Install all dependencies (NODE_OPTIONS from builder stage limits heap for low-memory hosts)
 RUN pnpm install --no-frozen-lockfile --filter @wondertales/shared --filter wondertales-api --ignore-scripts
 
 # Copy TypeScript configs
