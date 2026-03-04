@@ -1322,9 +1322,14 @@ export default function StoryViewerScreen() {
             {renderContinueButton()}
           </ScrollView>
           
-          {/* Right Column: Sidebar (sticky) */}
-          <View style={styles.rightColumn}>
-            <View style={styles.sidebar}>
+          {/* Right Column: Sidebar (scrollable) */}
+          <View style={styles.rightColumnWrapper}>
+            <ScrollView
+              style={styles.rightColumn}
+              contentContainerStyle={styles.rightColumnContent}
+              showsVerticalScrollIndicator={true}
+            >
+              <View style={styles.sidebar}>
               {/* Audio Generation Section (if audio not ready) */}
               {renderAudioGenerationSection()}
               
@@ -1379,6 +1384,7 @@ export default function StoryViewerScreen() {
               {/* Series Navigation */}
               {renderSeriesNavigation()}
             </View>
+          </ScrollView>
           </View>
         </View>
       )}
@@ -1455,18 +1461,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing[6],
     paddingTop: theme.spacing[6],
   },
-  rightColumn: {
+  rightColumnWrapper: {
     width: theme.layout.sidebar.widthFixed,
-    paddingLeft: theme.spacing[6],
-    paddingRight: theme.spacing[6],
-    paddingVertical: theme.spacing[6],
+    minWidth: theme.layout.sidebar.widthFixed,
+    maxWidth: theme.layout.sidebar.widthFixed,
+    flexShrink: 0,
     borderLeftWidth: 1,
     borderLeftColor: theme.colors.border.light,
   },
+  rightColumn: {
+    flex: 1,
+  },
+  rightColumnContent: {
+    paddingLeft: theme.spacing[6],
+    paddingRight: theme.spacing[6],
+    paddingVertical: theme.spacing[6],
+    paddingBottom: theme.spacing[12],
+  },
   sidebar: {
-    // @ts-ignore - position: sticky is web-only
-    position: 'sticky',
-    top: theme.spacing[6],
+    // No sticky - column scrolls when content overflows
   },
   sidebarWidget: {
     backgroundColor: theme.colors.background.secondary,
