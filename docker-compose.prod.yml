@@ -19,6 +19,7 @@ services:
       retries: 5
 
   api:
+    image: kazka-api:latest
     build:
       context: .
       dockerfile: services/api/Dockerfile

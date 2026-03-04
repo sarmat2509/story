@@ -284,9 +284,30 @@ docker-compose -f docker-compose.prod.yml up -d
 ```bash
 cd /var/www/kazka
 git pull origin main
-docker-compose -f docker-compose.prod.yml down
-docker-compose -f docker-compose.prod.yml build
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml build api
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### 1GB Droplet: Build API Locally (avoids OOM)
+
+On 1GB droplets, `docker compose build` often fails with `signal: killed` (OOM). Two options:
+
+**Option A: Build locally and deploy** (recommended)
+
+```bash
+# From your machine (with more RAM)
+./scripts/deploy-api-local.sh
+```
+
+**Option B: Add swap on droplet, then build there**
+
+```bash
+# On droplet (one-time setup)
+scp scripts/setup-swap.sh root@167.172.102.75:/tmp/
+ssh root@167.172.102.75 "sudo /tmp/setup-swap.sh"
+
+# Then deploy as usual
+./scripts/deploy-api.sh
 ```
 
 ### Health Checks
@@ -357,11 +378,12 @@ docker system prune -a --volumes
 2. Verify DNS is pointing to droplet: `dig your-domain.com`
 3. Test certificate renewal: `certbot renew --dry-run`
 
-### Out of memory
+### Out of memory (signal: killed during build)
 
-1. Check memory usage: `free -h`
-2. Check Docker container stats: `docker stats`
-3. Consider upgrading droplet size or optimizing AI service usage
+1. **Build locally**: Use `./scripts/deploy-api-local.sh` instead of building on droplet
+2. **Add swap**: Run `scripts/setup-swap.sh` on droplet (see "1GB Droplet" section above)
+3. Check memory: `free -h` and `docker stats`
+4. Consider upgrading to 2GB+ droplet
 
 ## Security Best Practices
 

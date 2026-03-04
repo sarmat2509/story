@@ -58,7 +58,7 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/shared/package.json ./packages/shared/package.json
 COPY services/api/package.json ./services/api/package.json
 
-# Install all dependencies (NODE_OPTIONS from builder stage limits heap for low-memory hosts)
+# Install all dependencies
 RUN pnpm install --no-frozen-lockfile --filter @wondertales/shared --filter wondertales-api --ignore-scripts
 
 # Copy TypeScript configs
