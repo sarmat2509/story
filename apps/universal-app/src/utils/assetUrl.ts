@@ -3,6 +3,11 @@ import { API_BASE_URL } from '@/config/constants';
 
 const ASSETS_PREFIX = '/api/v1/assets/';
 
+/** True if URL is a server asset (relative or absolute) - for cleanup/delete checks */
+export function isServerAssetUrl(url: string | null | undefined): boolean {
+  return !!url && (url.startsWith(ASSETS_PREFIX) || url.startsWith('http'));
+}
+
 /**
  * Single place to format asset/image URLs for display.
  * Handles three input formats:

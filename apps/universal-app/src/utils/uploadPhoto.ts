@@ -1,6 +1,5 @@
 import { Platform } from 'react-native';
 import apiClient from '@/api/client';
-import { API_BASE_URL } from '@/config/constants';
 
 export interface UploadPhotoResult {
   url: string;
@@ -53,21 +52,11 @@ export async function uploadPhoto(
       }
     );
 
-    // URL comes as /uploads/development/userId/photos/...
-    // Convert relative URL to full URL for Zod .url() validation
+    // API returns relative path: /api/v1/assets/... or /api/v1/assets/...?token=...
+    // Keep relative - display layer (formatAssetUrl) resolves to current origin
     let photoUrl = response.data.photo.url;
-    
-    if (photoUrl.startsWith('/')) {
-      if (Platform.OS === 'web') {
-        // Web: use browser origin
-        if (typeof globalThis !== 'undefined' && (globalThis as any).location) {
-          photoUrl = `${(globalThis as any).location.origin}${photoUrl}`;
-        }
-      } else {
-        // Native: use API base URL from config
-        const apiBaseUrl = API_BASE_URL.replace(/\/$/, '');
-        photoUrl = `${apiBaseUrl}${photoUrl.replace('/uploads/', '/api/v1/assets/')}`;
-      }
+    if (photoUrl.startsWith('/uploads/')) {
+      photoUrl = photoUrl.replace('/uploads/', '/api/v1/assets/');
     }
 
     return {

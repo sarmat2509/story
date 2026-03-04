@@ -19,9 +19,9 @@ echo "🚀 Deploying API (build on local machine, deploy to droplet)..."
 echo "   Project root: $PROJECT_ROOT"
 echo ""
 
-# 1. Build image locally
-echo "📦 Building API image locally..."
-docker build -t ${IMAGE_NAME}:${IMAGE_TAG} \
+# 1. Build image locally for linux/amd64 (droplet platform)
+echo "📦 Building API image locally (linux/amd64)..."
+docker build --platform linux/amd64 -t ${IMAGE_NAME}:${IMAGE_TAG} \
   -f services/api/Dockerfile \
   --target production \
   .
@@ -41,6 +41,7 @@ cd ${DROPLET_PATH}
 docker load < ${IMAGE_NAME}.tar.gz
 rm -f ${IMAGE_NAME}.tar.gz
 docker compose -f docker-compose.prod.yml up -d api
+docker compose -f docker-compose.prod.yml restart nginx
 docker compose -f docker-compose.prod.yml logs api --tail 20
 EOF
 

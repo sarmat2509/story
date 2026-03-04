@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 import { useCreateCharacter, useUpdateCharacter, useAnalyzeCharacter, useGenerateTurnaround } from '@/api/characters';
 import { UploadPhotoResult, deletePhoto } from '@/utils/uploadPhoto';
-import { formatAssetUrl } from '@/utils/assetUrl';
+import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
 import { storage } from '@/utils/storage';
 import { 
   CreateCharacterSchema,
@@ -224,7 +224,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   const handleClose = async () => {
     // Only cleanup uploaded photos for NEW characters (not when editing existing ones)
     if (!characterId) {
-      const uploadedPhotos = photos.filter(p => !p.isUploading && p.url?.startsWith('http'));
+      const uploadedPhotos = photos.filter(p => !p.isUploading && isServerAssetUrl(p.url));
       if (uploadedPhotos.length > 0) {
         // Best-effort: delete in parallel, don't block UI on failures
         await Promise.allSettled(
@@ -549,8 +549,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
       const uploadedPhotos = photos
         .filter(photo => 
           !photo.isUploading && 
-          photo.url && 
-          photo.url.startsWith('http')
+          isServerAssetUrl(photo.url)
         )
         .map(({ url, uploadedAt }) => ({ url, uploadedAt })); // Strip UI-only fields
 

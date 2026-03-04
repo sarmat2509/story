@@ -7,7 +7,7 @@ import { theme } from '@/theme';
 import { useCreateChild, useUpdateChild, useAnalyzeChild, useGenerateChildTurnaround } from '@/api/children';
 import { CreateChildProfileSchema, LOCALE_IDS, ReferencePhoto } from '@wondertales/shared';
 import { UploadPhotoResult } from '@/utils/uploadPhoto';
-import { formatAssetUrl } from '@/utils/assetUrl';
+import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
 import { storage } from '@/utils/storage';
 import { 
   HAIR_COLORS,
@@ -303,8 +303,8 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
   // Handler for "Generate Description" button on Step 2
   const handleAnalyzePhotos = async () => {
     const uploadedPhotos = photos
-      .filter(p => !p.isUploading && p.url && p.url.startsWith('http'))
-      .map(p => p.url);
+      .filter(p => !p.isUploading && isServerAssetUrl(p.url))
+      .map(p => p.url!);
 
     if (uploadedPhotos.length === 0) return;
 
@@ -384,8 +384,7 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
       const uploadedPhotos = photos
         .filter(photo => 
           !photo.isUploading && 
-          photo.url && 
-          photo.url.startsWith('http')
+          isServerAssetUrl(photo.url)
         )
         .map(({ url, uploadedAt }) => ({ url, uploadedAt })); // Strip UI-only fields
 
@@ -623,7 +622,7 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
                 </Text>
               )}
               {/* Generate / Regenerate Description button */}
-              {photos.some(p => !p.isUploading && p.url?.startsWith('http')) ? (
+              {photos.some(p => !p.isUploading && isServerAssetUrl(p.url)) ? (
                 analyzeChild.isPending ? (
                   <View style={styles.turnaroundGenerating}>
                     <ActivityIndicator size="small" color={theme.colors.interactive.primary} />

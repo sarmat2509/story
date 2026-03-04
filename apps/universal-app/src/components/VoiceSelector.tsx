@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Audio } from 'expo-av';
 import { theme } from '@/theme';
-import { API_BASE_URL } from '@/config/constants';
+import { formatAssetUrl } from '@/utils/assetUrl';
 import type { Voice } from '@/api/voices';
 
 interface Props {
@@ -84,14 +84,8 @@ export default function VoiceSelector({
       setLoadingVoiceId(voice.id);
       setPlayingVoiceId(null);
       
-      // Construct URL for sample
-      // On web: use relative path (proxied to API server)
-      // On native: use full API URL
-      const sampleUrl = voice.sampleAudioUrl.startsWith('http') 
-        ? voice.sampleAudioUrl 
-        : Platform.OS === 'web'
-          ? `/api/v1/assets/${voice.sampleAudioUrl}`
-          : `${API_BASE_URL}/api/v1/assets/${voice.sampleAudioUrl}`;
+      // Use formatAssetUrl for consistent relative (web) / full (native) URLs
+      const sampleUrl = formatAssetUrl(voice.sampleAudioUrl) ?? voice.sampleAudioUrl;
       
       // Load and play new audio
       const { sound } = await Audio.Sound.createAsync(
