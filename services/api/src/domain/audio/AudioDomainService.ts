@@ -1128,13 +1128,13 @@ export class AudioDomainService {
    * Works with audio from ANY provider (ElevenLabs, Google, OpenAI, Azure)
    * 
    * @param storyId - Story ID
-   * @param audioAssetId - Audio asset ID (must be final concatenated audio)
+   * @param id - Either audio_assets.id (from on-demand route) or assets.id (from job processor)
    * @param alignmentProvider - Alignment provider instance (injected)
    * @returns Alignment result with word/character timestamps
    */
   async generateAlignmentForStory(
     storyId: string,
-    audioAssetId: string,
+    id: string,
     alignmentProvider: IAlignmentProvider
   ): Promise<AlignmentResult> {
     const startTime = Date.now();
@@ -1147,11 +1147,14 @@ export class AudioDomainService {
         throw new Error(`Story not found: ${storyId}`);
       }
       
-      // 2. Fetch audio asset metadata with JOIN to assets table
-      const audioAssetResult = await getAssetRepository().findFinalAudioAssetWithAsset(audioAssetId);
+      // 2. Fetch audio asset metadata - try audio_assets.id first, then assets.id (job passes assetId)
+      let audioAssetResult = await getAssetRepository().findFinalAudioAssetWithAsset(id);
+      if (!audioAssetResult) {
+        audioAssetResult = await getAssetRepository().findFinalAudioAssetWithAssetByAssetId(id);
+      }
       
       if (!audioAssetResult) {
-        throw new Error(`Audio asset not found or not final: ${audioAssetId}`);
+        throw new Error(`Audio asset not found or not final: ${id}`);
       }
       
       const { audioAsset, asset } = audioAssetResult;
@@ -1159,7 +1162,7 @@ export class AudioDomainService {
       // 3. Fetch audio buffer from storage (works for any audio provider)
       logger.info({
         storyId,
-        audioAssetId,
+        audioAssetId: audioAsset.id,
         audioProvider: audioAsset.provider,
         assetId: asset.id,
       }, 'Fetching audio buffer for alignment generation');
@@ -1199,7 +1202,7 @@ export class AudioDomainService {
       logger.error({
         err: error,
         storyId,
-        audioAssetId,
+        id,
         durationMs: Date.now() - startTime,
       }, 'Failed to generate alignment for story');
       throw error;

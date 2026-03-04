@@ -70,7 +70,20 @@ nano .env.production
 - `GEMINI_API_KEY`: From Google AI Studio
 - `ELEVENLABS_API_KEY`: From ElevenLabs dashboard
 - `GOOGLE_CLOUD_PROJECT`: Your GCP project ID
+- `GOOGLE_APPLICATION_CREDENTIALS`: Path inside container (`/app/secrets/gen-lang-client-*.json`) — see below
 - Update nginx config: `nano nginx/conf.d/kazka.conf` - change `your-domain.com` to your actual domain
+
+**Google Cloud Service Account (for environment image generation):**
+
+If you use Vertex AI / Imagen for environment images, place the service account JSON on the droplet:
+
+```bash
+mkdir -p /var/www/kazka/secrets
+# Copy your gen-lang-client-*.json from local machine to droplet
+scp services/api/gen-lang-client-0122295568-9f0522a53e33.json root@your-droplet-ip:/var/www/kazka/secrets/
+```
+
+Ensure `GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/gen-lang-client-0122295568-9f0522a53e33.json` in `.env.production` (path is inside the container; `secrets/` is mounted at `/app/secrets`).
 
 **Generate Secure Secrets:**
 
@@ -326,7 +339,11 @@ curl https://your-domain.com/health
 Run all migrations that haven't been applied yet (tracked in `schema_migrations` table):
 
 ```bash
-docker exec wondertales-api-prod sh -c 'cd /app/services/api && pnpm db:migrate:all'
+# On droplet (runs on host, connects via localhost:5432)
+./scripts/run-all-migrations.sh --host
+
+# Run specific migration only
+./scripts/run-all-migrations.sh --host 0046_normalize_asset_urls_to_relative.sql
 ```
 
 ### Database Management

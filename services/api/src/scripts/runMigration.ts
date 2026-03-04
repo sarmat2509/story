@@ -11,7 +11,9 @@ import { logger } from '../utils/logger';
 
 async function runMigration() {
   // Get migration file from command line argument or default to 0011
-  const migrationFile = process.argv[2] || '0011_add_stories_metadata.sql';
+  // Accept filename only (e.g. 0046_normalize_asset_urls_to_relative.sql) - path is resolved relative to drizzle/
+  const arg = process.argv[2] || '0011_add_stories_metadata.sql';
+  const migrationFile = arg.includes('/') ? arg.split('/').pop()! : arg;
   
   // Check if DATABASE_URL is set
   if (!process.env.DATABASE_URL) {

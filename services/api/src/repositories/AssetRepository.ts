@@ -190,6 +190,27 @@ export class AssetRepository {
     return result || null;
   }
 
+  /** Find final audio asset by assets.id (used when job has assetId from synthesizeSceneGroups) */
+  async findFinalAudioAssetWithAssetByAssetId(
+    assetId: string
+  ): Promise<{ audioAsset: schema.AudioAsset; asset: schema.Asset } | null> {
+    const [result] = await this.db
+      .select({
+        audioAsset: schema.audioAssets,
+        asset: schema.assets,
+      })
+      .from(schema.audioAssets)
+      .innerJoin(schema.assets, eq(schema.audioAssets.assetId, schema.assets.id))
+      .where(
+        and(
+          eq(schema.audioAssets.assetId, assetId),
+          eq(schema.audioAssets.isFinal, true)
+        )
+      )
+      .limit(1);
+    return result || null;
+  }
+
   // Generated references
   async createGeneratedReference(data: schema.NewGeneratedReference): Promise<schema.GeneratedReference> {
     const [ref] = await this.db
