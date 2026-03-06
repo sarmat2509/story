@@ -4,13 +4,14 @@ import { useRoute, RouteProp, useNavigation, NavigationProp, useFocusEffect } fr
 import { useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
 import { useStory, useStoryGenerationStatus, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useAudioUsage, useDeleteStory, useGenerateContinuation, useSeriesInfo, useStoryStatus, usePublishStory } from '@/api/stories';
+import { useUpdateMe } from '@/api/auth';
 import { useVoices } from '@/api/voices';
 import { useUpdateCharacter } from '@/api/characters';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { PublishShareDialog } from '@/components/PublishShareDialog';
+import { PublishShareDialog, type ShareCardScene } from '@/components/PublishShareDialog';
 import { toastService } from '@/services/toastService';
 import { audioNotificationService } from '@/services/audioNotificationService';
 import { audioPlaybackService } from '@/services/audioPlaybackService';
@@ -22,6 +23,8 @@ import { useAuthStore } from '@/store/authStore';
 import { useResponsive } from '@/hooks/useResponsive';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
+import { getOrdinal } from '@/utils/ordinal';
+import i18n from '@/config/i18n';
 import type { MainDrawerParamList } from '@/types/navigation';
 import AudioPlayer from '@/components/AudioPlayer';
 import VoiceSelector from '@/components/VoiceSelector';
@@ -180,11 +183,14 @@ export default function StoryViewerScreen() {
   // Delete story mutation
   const deleteStory = useDeleteStory();
   const publishStory = usePublishStory();
+  const updateMe = useUpdateMe();
   
   // Delete dialog state
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [publishShareDialogVisible, setPublishShareDialogVisible] = useState(false);
   const [publishShareUrl, setPublishShareUrl] = useState<string | null>(null);
+  const [publishDialogOpenedFromShare, setPublishDialogOpenedFromShare] = useState(false);
+  const [unpublishDialogVisible, setUnpublishDialogVisible] = useState(false);
   
   // M8: Series continuation
   const generateContinuation = useGenerateContinuation();
@@ -534,12 +540,13 @@ export default function StoryViewerScreen() {
 
   // Share: if not published show PublishShareDialog; if published: web -> post-publish popup, native -> Share.share
   const handleShare = useCallback(async () => {
-    const isPublished = !!(story as any)?.isPublished;
-    const shareUrl = (story as any)?.shareUrl;
-    const title = (story as any)?.title || t('story_viewer.untitled_story');
+    const isPublished = !!story?.isPublished;
+    const shareUrl = story?.shareUrl;
+    const title = story?.title || t('story_viewer.untitled_story');
 
     if (!isPublished || !shareUrl) {
       setPublishShareUrl(null);
+      setPublishDialogOpenedFromShare(true);
       setPublishShareDialogVisible(true);
       return;
     }
@@ -557,31 +564,58 @@ export default function StoryViewerScreen() {
     } catch (_) {}
   }, [story, t]);
 
-  const handlePublishAndShare = useCallback(async () => {
-    try {
-      const result = await publishStory.mutateAsync({ storyId, isPublished: true });
-      if (result?.shareUrl) {
-        if (Platform.OS === 'web') {
-          setPublishShareUrl(result.shareUrl);
-          return;
+  const handlePublishAndShare = useCallback(
+    async (visibility: 'public' | 'unlisted' = 'public', shareCardSceneId?: number, pseudonym?: string) => {
+      try {
+        if (!user?.pseudonym && pseudonym) {
+          await updateMe.mutateAsync({ pseudonym });
         }
-        setPublishShareDialogVisible(false);
-        const message = t('story_viewer.share_message', { title: story?.title || t('story_viewer.untitled_story') });
-        const shareTitle = t('story_viewer.share_title');
-        await Share.share({ url: result.shareUrl, message, title: shareTitle });
-      }
-    } catch (_) {}
-  }, [storyId, story?.title, publishStory, t]);
+        const result = await publishStory.mutateAsync({
+          storyId,
+          isPublished: true,
+          visibility,
+          shareCardSceneId,
+        });
+        if (result?.shareUrl) {
+          const count = result.publishedStoriesCount ?? 0;
+          if (count > 0) {
+            const ordinal = getOrdinal(count, i18n.language);
+            toastService.success(
+              (t as (k: string, o?: Record<string, unknown>) => string)('story_viewer.publish_success_ordinal', { ordinal })
+            );
+          }
+          if (Platform.OS === 'web') {
+            setPublishShareUrl(result.shareUrl);
+            return;
+          }
+          setPublishShareDialogVisible(false);
+          const message = t('story_viewer.share_message', {
+            title: story?.title || t('story_viewer.untitled_story'),
+          });
+          const shareTitle = t('story_viewer.share_title');
+          await Share.share({ url: result.shareUrl, message, title: shareTitle });
+        }
+      } catch (_) {}
+    },
+    [storyId, story?.title, user?.pseudonym, publishStory, updateMe, t]
+  );
 
-  // Re-publish story (authoring mode)
-  const handlePublish = useCallback(async () => {
-    try {
-      const result = await publishStory.mutateAsync({ storyId, isPublished: true });
-      if (result?.shareUrl) {
-        setPublishShareUrl(result.shareUrl);
-        setPublishShareDialogVisible(true);
-      }
-    } catch (_) {}
+  // Open PublishShareDialog (pre-publish or update visibility)
+  const handleOpenPublishDialog = useCallback(() => {
+    setPublishShareUrl(null);
+    setPublishDialogOpenedFromShare(false);
+    setPublishShareDialogVisible(true);
+  }, []);
+
+  const handleUnpublish = useCallback(() => {
+    setUnpublishDialogVisible(true);
+  }, []);
+
+  const confirmUnpublish = useCallback(async () => {
+    await publishStory.mutateAsync({ storyId, isPublished: false });
+    setUnpublishDialogVisible(false);
+    setPublishShareDialogVisible(false);
+    setPublishShareUrl(null);
   }, [storyId, publishStory]);
   
   // M8: Handle continue story
@@ -1129,7 +1163,7 @@ export default function StoryViewerScreen() {
 
   // Render characters section (sidebar on web, above scenes on mobile)
   const renderCharactersSection = () => {
-    const characters = (story as any)?.characters;
+    const characters = story?.characters;
     if (!characters || characters.length === 0) return null;
 
     const handleSaveCharacter = async (characterId: string) => {
@@ -1276,7 +1310,7 @@ export default function StoryViewerScreen() {
           </ScrollView>
           
           {/* FAB for Tablet Portrait only */}
-          {isTabletPortrait && (story.audioMetadata || (story as any)?.characters?.length > 0) && (
+          {isTabletPortrait && (story.audioMetadata || (story?.characters?.length ?? 0) > 0) && (
             <FloatingActionButton onPress={openBottomSheet} icon="musical-notes" />
           )}
           
@@ -1293,10 +1327,11 @@ export default function StoryViewerScreen() {
               onFinish={handleAudioFinish}
               onActivateAudio={handleActivateAudio}
               onDeleteStory={handleDeleteStory}
-              onPublish={handlePublish}
+              onPublish={handleOpenPublishDialog}
               onShare={handleShare}
+              onUnpublish={handleUnpublish}
               isPublishPending={publishStory.isPending}
-              characters={(story as any)?.characters || []}
+              characters={story?.characters ?? []}
               onSaveCharacter={isArtisanMode ? async (characterId) => {
                 await updateCharacterMutation.mutateAsync({ id: characterId, data: { isHidden: false } as any });
                 setSavedCharacterIds(prev => new Set(prev).add(characterId));
@@ -1336,7 +1371,6 @@ export default function StoryViewerScreen() {
               {/* Audio Widget */}
               {story.audioMetadata && audioData && (
                 <View style={styles.sidebarWidget}>
-                  <Text style={styles.sidebarWidgetTitle}>{t('story_viewer.audio_title')}</Text>
                   <AudioPlayer
                     storyId={storyId}
                     audioUrl={audioData.audioUrl}
@@ -1353,24 +1387,52 @@ export default function StoryViewerScreen() {
               {/* Characters Section */}
               {renderCharactersSection()}
               
-              {/* Publish Button (re-publish) */}
-              <TouchableOpacity 
-                style={styles.publishButton}
-                onPress={handlePublish}
-                disabled={publishStory.isPending}
-              >
-                <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.text.inverse} />
-                <Text style={styles.publishButtonText}>{t('story_viewer.publish')}</Text>
-              </TouchableOpacity>
-              
-              {/* Share Button */}
-              <TouchableOpacity 
-                style={styles.shareButton}
-                onPress={handleShare}
-              >
-                <Ionicons name="share-social-outline" size={20} color={theme.colors.interactive.primary} />
-                <Text style={styles.shareButtonText}>{t('story_viewer.share_title')}</Text>
-              </TouchableOpacity>
+              {/* Publication block */}
+              <View style={styles.publicationSection}>
+                <Text style={styles.publicationSectionTitle}>{t('story_viewer.publication_title')}</Text>
+                {!story?.isPublished ? (
+                  <TouchableOpacity
+                    style={styles.publishButton}
+                    onPress={handleOpenPublishDialog}
+                    disabled={publishStory.isPending}
+                  >
+                    <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.text.inverse} />
+                    <Text style={styles.publishButtonText}>{t('story_viewer.publish')}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <View style={styles.publicationBadge}>
+                      <Ionicons
+                        name={story?.visibility === 'unlisted' ? 'link-outline' : 'globe-outline'}
+                        size={18}
+                        color={theme.colors.text.secondary}
+                      />
+                      <Text style={styles.publicationBadgeText}>
+                        {story?.visibility === 'unlisted'
+                          ? t('story_viewer.publication_badge_unlisted')
+                          : t('story_viewer.publication_badge_catalog')}
+                      </Text>
+                    </View>
+                    <View style={styles.publicationButtonsRow}>
+                      <TouchableOpacity style={[styles.shareButton, styles.publicationButtonFlex]} onPress={handleShare}>
+                        <Ionicons name="share-social-outline" size={20} color={theme.colors.interactive.primary} />
+                        <Text style={styles.shareButtonText}>{t('story_viewer.share_title')}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.updatePublicationButton, styles.publicationButtonFlex]}
+                        onPress={handleOpenPublishDialog}
+                        disabled={publishStory.isPending}
+                      >
+                        <Ionicons name="create-outline" size={20} color={theme.colors.interactive.primary} />
+                        <Text style={styles.updatePublicationButtonText}>{t('story_viewer.update_publication')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <TouchableOpacity style={styles.unpublishLink} onPress={handleUnpublish}>
+                      <Text style={styles.unpublishLinkText}>{t('story_viewer.unpublish')}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
               
               {/* Delete Story Button */}
               <TouchableOpacity 
@@ -1413,6 +1475,18 @@ export default function StoryViewerScreen() {
         variant="danger"
       />
 
+      {/* Unpublish Confirmation Dialog */}
+      <ConfirmDialog
+        visible={unpublishDialogVisible}
+        title={t('story_viewer.unpublish_confirm_title')}
+        message={t('story_viewer.unpublish_confirm_message')}
+        confirmText={t('story_viewer.unpublish')}
+        cancelText={t('common.cancel')}
+        onConfirm={confirmUnpublish}
+        onCancel={() => setUnpublishDialogVisible(false)}
+        variant="danger"
+      />
+
       {/* Publish & Share Dialog */}
       <PublishShareDialog
         visible={publishShareDialogVisible}
@@ -1423,6 +1497,17 @@ export default function StoryViewerScreen() {
         }}
         shareUrl={publishShareUrl}
         isLoading={publishStory.isPending}
+        userPseudonym={user?.pseudonym}
+        onUnpublish={handleUnpublish}
+        scenes={
+          story?.scenes?.map((s: { image?: { url?: string }; imageUrl?: string | null }, i: number): ShareCardScene => ({
+            index: i,
+            imageUrl: s.image?.url ?? s.imageUrl ?? null,
+          }))
+        }
+        shareCardSceneId={story?.shareCardSceneId ?? null}
+        initialVisibility={story?.visibility === 'unlisted' ? 'unlisted' : 'public'}
+        openedFromShare={publishDialogOpenedFromShare}
       />
     </View>
   );
@@ -1487,11 +1572,64 @@ const styles = StyleSheet.create({
     borderRadius: theme.spacing[4],
     marginBottom: theme.spacing[4],
   },
-  sidebarWidgetTitle: {
-    fontSize: theme.typography.fontSize.xl,
-    fontWeight: theme.typography.fontWeight.bold,
+  publicationSection: {
+    marginBottom: theme.spacing[4],
+  },
+  publicationSectionTitle: {
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[4],
+  },
+  publicationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.md,
+    marginBottom: theme.spacing[4],
+    alignSelf: 'flex-start',
+  },
+  publicationBadgeText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+  },
+  publicationButtonsRow: {
+    flexDirection: 'row',
+    gap: theme.spacing[3],
+    marginBottom: theme.spacing[2],
+  },
+  publicationButtonFlex: {
+    flex: 1,
+    marginTop: 0,
+  },
+  updatePublicationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    flex: 1,
+    padding: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.background.primary,
+  },
+  updatePublicationButtonText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.interactive.primary,
+  },
+  unpublishLink: {
+    paddingVertical: theme.spacing[2],
+    alignSelf: 'flex-start',
+  },
+  unpublishLinkText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.status.error,
+    textDecorationLine: 'underline',
   },
   publishButton: {
     flexDirection: 'row',

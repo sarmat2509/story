@@ -46,27 +46,85 @@ export class StoryRepository {
     return story || null;
   }
 
-  async listPublished(options: { limit?: number; offset?: number } = {}): Promise<schema.Story[]> {
-    const { limit = 20, offset = 0 } = options;
-    return this.db
+  async findByShareToken(token: string): Promise<schema.Story | null> {
+    const [story] = await this.db
       .select()
       .from(schema.stories)
       .where(and(
-        eq(schema.stories.isPublished, true),
-        isNotNull(schema.stories.publishedSlug)
+        eq(schema.stories.shareToken, token),
+        eq(schema.stories.isPublished, true)
       ))
+      .limit(1);
+    return story || null;
+  }
+
+  async listPublished(options: {
+    limit?: number;
+    offset?: number;
+    hasAudio?: boolean;
+    scenarioCardId?: string;
+  } = {}): Promise<schema.Story[]> {
+    const { limit = 20, offset = 0, hasAudio, scenarioCardId } = options;
+    const conditions = [
+      eq(schema.stories.isPublished, true),
+      isNotNull(schema.stories.publishedSlug),
+    ];
+    if (hasAudio) {
+      conditions.push(isNotNull(schema.stories.audioMetadata));
+    }
+    if (scenarioCardId) {
+      const rows = await this.db
+        .select({ story: schema.stories, scenarioCardId: schema.storyRequests.scenarioCardId })
+        .from(schema.stories)
+        .innerJoin(schema.storyRequests, eq(schema.stories.storyRequestId, schema.storyRequests.id))
+        .where(and(...conditions, eq(schema.storyRequests.scenarioCardId, scenarioCardId)))
+        .orderBy(desc(schema.stories.publishedAt))
+        .limit(limit)
+        .offset(offset);
+      return rows.map(r => ({ ...r.story, scenarioCardId: r.scenarioCardId }));
+    }
+    const rows = await this.db
+      .select({ story: schema.stories, scenarioCardId: schema.storyRequests.scenarioCardId })
+      .from(schema.stories)
+      .leftJoin(schema.storyRequests, eq(schema.stories.storyRequestId, schema.storyRequests.id))
+      .where(and(...conditions))
       .orderBy(desc(schema.stories.publishedAt))
       .limit(limit)
       .offset(offset);
+    return rows.map(r => ({ ...r.story, scenarioCardId: r.scenarioCardId ?? null }));
   }
 
-  async countPublished(): Promise<number> {
+  async countPublished(options: { hasAudio?: boolean; scenarioCardId?: string } = {}): Promise<number> {
+    const { hasAudio, scenarioCardId } = options;
+    const conditions = [
+      eq(schema.stories.isPublished, true),
+      isNotNull(schema.stories.publishedSlug),
+    ];
+    if (hasAudio) {
+      conditions.push(isNotNull(schema.stories.audioMetadata));
+    }
+    if (scenarioCardId) {
+      const result = await this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(schema.stories)
+        .innerJoin(schema.storyRequests, eq(schema.stories.storyRequestId, schema.storyRequests.id))
+        .where(and(...conditions, eq(schema.storyRequests.scenarioCardId, scenarioCardId)));
+      return Number(result[0]?.count ?? 0);
+    }
+    const result = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.stories)
+      .where(and(...conditions));
+    return Number(result[0]?.count ?? 0);
+  }
+
+  async countPublishedByUser(userId: string): Promise<number> {
     const result = await this.db
       .select({ count: sql<number>`count(*)` })
       .from(schema.stories)
       .where(and(
-        eq(schema.stories.isPublished, true),
-        isNotNull(schema.stories.publishedSlug)
+        eq(schema.stories.userId, userId),
+        eq(schema.stories.isPublished, true)
       ));
     return Number(result[0]?.count ?? 0);
   }
@@ -192,6 +250,17 @@ export class StoryRepository {
     await conn
       .update(schema.stories)
       .set(data)
+      .where(eq(schema.stories.id, id));
+  }
+
+  /** Increment public_render_version (for SSR cache invalidation on audio/alignment/publish) */
+  async incrementPublicRenderVersion(id: string): Promise<void> {
+    await this.db
+      .update(schema.stories)
+      .set({
+        publicRenderVersion: sql`COALESCE(${schema.stories.publicRenderVersion}, 1) + 1`,
+        updatedAt: new Date(),
+      })
       .where(eq(schema.stories.id, id));
   }
 

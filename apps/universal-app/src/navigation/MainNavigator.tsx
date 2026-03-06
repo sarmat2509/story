@@ -17,9 +17,9 @@ import DashboardScreen from '@/screens/dashboard/DashboardScreen';
 import WizardScreen from '@/screens/wizard/WizardScreen';
 import InstantWizardScreen from '@/screens/wizard/InstantWizardScreen';
 import LibraryScreen from '@/screens/library/LibraryScreen';
-import StoryViewerScreen from '@/screens/story/StoryViewerScreen';
+import LegacyRedirectScreen from '@/screens/LegacyRedirectScreen';
+import StoryReaderScreen from '@/screens/StoryReaderScreen';
 import PublishedStoriesScreen from '@/screens/published/PublishedStoriesScreen';
-import PublishedStoryScreen from '@/screens/published/PublishedStoryScreen';
 import ChildrenScreen from '@/screens/children/ChildrenScreen';
 import CharactersScreen from '@/screens/characters/CharactersScreen';
 import PlansScreen from '@/screens/plans/PlansScreen';
@@ -352,10 +352,20 @@ function TabNavigator() {
         }}
       />
       <Tab.Screen 
+        name="LibraryRedirect" 
+        component={LegacyRedirectScreen}
+        options={{ tabBarButton: () => null }}
+      />
+      <Tab.Screen 
+        name="StoryRedirect" 
+        component={LegacyRedirectScreen}
+        options={{ tabBarButton: () => null }}
+      />
+      <Tab.Screen 
         name="Story" 
         component={() => (
           <AuthGuard>
-            <StoryViewerScreen />
+            <StoryReaderScreen />
           </AuthGuard>
         )}
         options={{ 
@@ -373,7 +383,15 @@ function TabNavigator() {
       />
       <Tab.Screen 
         name="PublishedStory" 
-        component={PublishedStoryScreen}
+        component={StoryReaderScreen}
+        options={{ 
+          title: 'Story',
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen 
+        name="UnlistedStory" 
+        component={StoryReaderScreen}
         options={{ 
           title: 'Story',
           tabBarButton: () => null,
@@ -588,10 +606,20 @@ function DrawerNavigator() {
         }}
       />
       <Drawer.Screen 
+        name="LibraryRedirect" 
+        component={LegacyRedirectScreen}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
+      <Drawer.Screen 
+        name="StoryRedirect" 
+        component={LegacyRedirectScreen}
+        options={{ drawerItemStyle: { display: 'none' } }}
+      />
+      <Drawer.Screen 
         name="Story" 
         component={() => (
           <AuthGuard>
-            <StoryViewerScreen />
+            <StoryReaderScreen />
           </AuthGuard>
         )}
         options={{ 
@@ -611,7 +639,15 @@ function DrawerNavigator() {
       />
       <Drawer.Screen 
         name="PublishedStory" 
-        component={PublishedStoryScreen}
+        component={StoryReaderScreen}
+        options={{ 
+          title: 'Story',
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
+      <Drawer.Screen 
+        name="UnlistedStory" 
+        component={StoryReaderScreen}
         options={{ 
           title: 'Story',
           drawerItemStyle: { display: 'none' },

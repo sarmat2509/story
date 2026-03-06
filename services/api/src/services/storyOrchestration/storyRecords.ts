@@ -55,7 +55,7 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
           textValidated: true,
           timestamp: new Date().toISOString()
         },
-        isPublished: true,
+        isPublished: false,
         isFavorite: false,
         // Series fields (only for continuation)
         ...(params.seriesData && {

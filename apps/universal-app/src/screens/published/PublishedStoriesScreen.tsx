@@ -1,19 +1,23 @@
-import React, { useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
+  ScrollView,
   useWindowDimensions,
-  Image,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { usePublishedStories } from '@/api/stories';
+import { useStoryThemes } from '@/api/dictionaries';
 import { theme } from '@/theme';
-import { formatAssetUrl } from '@/utils/assetUrl';
+import { LibraryHeader } from '@/components/LibraryHeader';
+import { PublishedStoryCard } from '@/components/PublishedStoryCard';
+import { AudioFilterToggleRef } from '@/components/AudioFilterToggle';
+import { storage } from '@/utils/storage';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 
@@ -23,17 +27,66 @@ export default function PublishedStoriesScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { width } = useWindowDimensions();
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [audioFilter, setAudioFilter] = useState(false);
+  const [scenarioFilter, setScenarioFilter] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const audioToggleRef = useRef<AudioFilterToggleRef>(null);
+
+  const { data: themesData } = useStoryThemes();
+  const scenarioCards = useMemo(() => themesData?.scenarioCards || [], [themesData?.scenarioCards]);
+
+  useEffect(() => {
+    storage.getLibraryViewMode().then((mode) => {
+      if (mode) setViewMode(mode);
+    });
+    storage.getAudioFilter().then((filter) => {
+      if (filter !== null) setAudioFilter(filter);
+    });
+  }, []);
+
+  const toggleViewMode = useCallback(async () => {
+    setViewMode((prev) => {
+      const newValue = prev === 'grid' ? 'list' : 'grid';
+      storage.setLibraryViewMode(newValue);
+      return newValue;
+    });
+  }, []);
+
+  const handleAudioFilterToggle = useCallback((newValue: boolean) => {
+    setAudioFilter(newValue);
+    setCurrentPage(1);
+    storage.setAudioFilter(newValue);
+  }, []);
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+  }, []);
+
+  const handleScenarioFilterChange = useCallback((cardId: string | null) => {
+    setScenarioFilter(cardId);
+    setCurrentPage(1);
+  }, []);
+
+  const offset = useMemo(() => (currentPage - 1) * ITEMS_PER_PAGE, [currentPage]);
 
   const { data, isLoading, error } = usePublishedStories({
     limit: ITEMS_PER_PAGE,
-    offset: 0,
+    offset,
+    hasAudio: audioFilter,
+    scenarioCardId: scenarioFilter,
   });
 
   const stories = data?.stories ?? [];
-  const numColumns = width < 1024 ? 2 : 4;
-  const paddingHorizontal = theme.spacing[4] * 2;
-  const gap = theme.spacing[4];
-  const cardWidth = (width - paddingHorizontal - gap * (numColumns - 1)) / numColumns;
+  const totalStories = data?.pagination?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalStories / ITEMS_PER_PAGE));
+
+  const numColumns = useMemo(() => (width < 1024 ? 2 : 4), [width]);
+  const gridCardWidth = useMemo(() => {
+    const paddingHorizontal = theme.spacing[4] * 2;
+    const gap = theme.spacing[4];
+    return (width - paddingHorizontal - gap * (numColumns - 1)) / numColumns;
+  }, [width, numColumns]);
 
   const handlePress = useCallback(
     (slug: string) => {
@@ -60,59 +113,67 @@ export default function PublishedStoriesScreen() {
     );
   }
 
-  if (!stories.length) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.emptyIcon}>📚</Text>
-        <Text style={styles.emptyTitle}>{t('library.empty')}</Text>
-        <Text style={styles.emptyMessage}>{t('library.create_first')}</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <FlatList
-        data={stories}
-        keyExtractor={(item) => item.id}
-        numColumns={numColumns}
-        key={numColumns}
-        contentContainerStyle={styles.listContent}
-        columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : undefined}
-        renderItem={({ item }) => {
-          const coverUrl =
-            item.scenes?.[0]?.imageUrl ?? item.scenes?.find((s: any) => s.imageUrl)?.imageUrl ?? null;
-          const thumbnail = coverUrl ? formatAssetUrl(coverUrl) : null;
+      <LibraryHeader
+        viewMode={viewMode}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        initialAudioFilter={audioFilter}
+        audioToggleRef={audioToggleRef}
+        onToggleViewMode={toggleViewMode}
+        onToggleAudioFilter={handleAudioFilterToggle}
+        onPageChange={handlePageChange}
+        t={t}
+        scenarioCards={scenarioCards.map((c) => ({ id: c.id, name: c.name, icon: c.icon }))}
+        selectedScenarioId={scenarioFilter}
+        onScenarioChange={handleScenarioFilterChange}
+      />
 
-          return (
-            <TouchableOpacity
-              style={[styles.card, { width: cardWidth }]}
-              onPress={() => handlePress(item.publishedSlug)}
-              activeOpacity={0.7}
-            >
-              {thumbnail ? (
-                <Image
-                  source={{ uri: thumbnail }}
-                  style={styles.coverImage}
-                  resizeMode="cover"
+      {!stories.length ? (
+        <View style={styles.centerContainer}>
+          <Text style={styles.emptyIcon}>📚</Text>
+          <Text style={styles.emptyTitle}>{t('library.empty')}</Text>
+          <Text style={styles.emptyMessage}>{t('library.create_first')}</Text>
+        </View>
+      ) : viewMode === 'grid' ? (
+        <ScrollView contentContainerStyle={styles.grid}>
+          <View
+            style={[
+              styles.gridContainer,
+              Platform.OS === 'web' && { gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any,
+            ]}
+          >
+            {stories.map((story) =>
+              Platform.OS === 'web' ? (
+                <PublishedStoryCard
+                  key={story.id}
+                  story={story}
+                  onPress={handlePress}
+                  variant="grid"
                 />
               ) : (
-                <View style={styles.placeholder}>
-                  <Text style={styles.placeholderIcon}>📖</Text>
+                <View key={story.id} style={{ width: gridCardWidth }}>
+                  <PublishedStoryCard
+                    story={story}
+                    onPress={handlePress}
+                    variant="grid"
+                  />
                 </View>
-              )}
-              <View style={styles.cardContent}>
-                <Text style={styles.title} numberOfLines={2}>
-                  {item.title}
-                </Text>
-                <Text style={styles.author} numberOfLines={1}>
-                  {item.authorDisplayName || 'Anonymous'}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          );
-        }}
-      />
+              )
+            )}
+          </View>
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={stories}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => (
+            <PublishedStoryCard story={item} onPress={handlePress} variant="list" />
+          )}
+        />
+      )}
     </View>
   );
 }
@@ -164,41 +225,18 @@ const styles = StyleSheet.create({
     padding: theme.spacing[4],
     paddingBottom: theme.spacing[8],
   },
-  columnWrapper: {
-    gap: theme.spacing[4],
-    marginBottom: theme.spacing[4],
+  grid: {
+    padding: theme.spacing[4],
   },
-  card: {
-    backgroundColor: theme.colors.background.secondary,
-    borderRadius: theme.borders.radius.lg,
-    overflow: 'hidden',
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-  },
-  coverImage: {
-    aspectRatio: 16 / 9,
-    width: '100%',
-  },
-  placeholder: {
-    aspectRatio: 16 / 9,
-    backgroundColor: theme.colors.background.tertiary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  placeholderIcon: {
-    fontSize: 32,
-  },
-  cardContent: {
-    padding: theme.spacing[3],
-  },
-  title: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing[1],
-  },
-  author: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
-  },
+  gridContainer: Platform.select({
+    web: {
+      display: 'grid' as any,
+      gap: theme.spacing[4],
+    },
+    default: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      gap: theme.spacing[4],
+    },
+  }),
 });

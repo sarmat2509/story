@@ -24,6 +24,7 @@ interface StoryBottomSheetProps {
   onDeleteStory: () => void;
   onPublish?: () => void;
   onShare?: () => void;
+  onUnpublish?: () => void;
   isPublishPending?: boolean;
   characters?: any[];
   onSaveCharacter?: (characterId: string) => Promise<void>;
@@ -45,6 +46,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
     onDeleteStory,
     onPublish,
     onShare,
+    onUnpublish,
     isPublishPending = false,
     characters = [],
     onSaveCharacter,
@@ -144,27 +146,59 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
             </View>
           )}
           
-          {/* Publish Button */}
-          {onPublish && (
-            <TouchableOpacity
-              style={styles.publishButton}
-              onPress={onPublish}
-              disabled={isPublishPending}
-            >
-              <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.text.inverse} />
-              <Text style={styles.publishButtonText}>{t('story_viewer.publish')}</Text>
-            </TouchableOpacity>
-          )}
-          
-          {/* Share Button */}
-          {onShare && (
-            <TouchableOpacity
-              style={styles.shareButton}
-              onPress={onShare}
-            >
-              <Ionicons name="share-social-outline" size={20} color={theme.colors.interactive.primary} />
-              <Text style={styles.shareButtonText}>{t('story_viewer.share_title')}</Text>
-            </TouchableOpacity>
+          {/* Publication block */}
+          {(onPublish || onShare) && (
+            <View style={styles.publicationSection}>
+              <Text style={styles.sectionTitle}>{t('story_viewer.publication_title')}</Text>
+              {!story?.isPublished ? (
+                onPublish && (
+                  <TouchableOpacity
+                    style={styles.publishButton}
+                    onPress={onPublish}
+                    disabled={isPublishPending}
+                  >
+                    <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.text.inverse} />
+                    <Text style={styles.publishButtonText}>{t('story_viewer.publish')}</Text>
+                  </TouchableOpacity>
+                )
+              ) : (
+                <>
+                  <View style={styles.publicationBadge}>
+                    <Ionicons
+                      name={story?.visibility === 'unlisted' ? 'link-outline' : 'globe-outline'}
+                      size={18}
+                      color={theme.colors.text.secondary}
+                    />
+                    <Text style={styles.publicationBadgeText}>
+                      {story?.visibility === 'unlisted'
+                        ? t('story_viewer.publication_badge_unlisted')
+                        : t('story_viewer.publication_badge_catalog')}
+                    </Text>
+                  </View>
+                  {onShare && (
+                    <TouchableOpacity style={styles.shareButton} onPress={onShare}>
+                      <Ionicons name="share-social-outline" size={20} color={theme.colors.interactive.primary} />
+                      <Text style={styles.shareButtonText}>{t('story_viewer.share_title')}</Text>
+                    </TouchableOpacity>
+                  )}
+                  {onPublish && (
+                    <TouchableOpacity
+                      style={styles.updatePublicationButton}
+                      onPress={onPublish}
+                      disabled={isPublishPending}
+                    >
+                      <Ionicons name="create-outline" size={20} color={theme.colors.interactive.primary} />
+                      <Text style={styles.updatePublicationButtonText}>{t('story_viewer.update_publication')}</Text>
+                    </TouchableOpacity>
+                  )}
+                  {onUnpublish && (
+                    <TouchableOpacity style={styles.unpublishLink} onPress={onUnpublish}>
+                      <Text style={styles.unpublishLinkText}>{t('story_viewer.unpublish')}</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </View>
           )}
           
           {/* Delete Story Button */}
@@ -285,6 +319,51 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.interactive.primary,
+  },
+  publicationSection: {
+    marginBottom: theme.spacing[6],
+  },
+  publicationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.md,
+    marginBottom: theme.spacing[4],
+    alignSelf: 'flex-start',
+  },
+  publicationBadgeText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+  },
+  updatePublicationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    padding: theme.spacing[4],
+    marginTop: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.background.primary,
+  },
+  updatePublicationButtonText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.interactive.primary,
+  },
+  unpublishLink: {
+    paddingVertical: theme.spacing[2],
+    marginTop: theme.spacing[2],
+    alignSelf: 'flex-start',
+  },
+  unpublishLinkText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.status.error,
+    textDecorationLine: 'underline',
   },
   deleteButton: {
     flexDirection: 'row',

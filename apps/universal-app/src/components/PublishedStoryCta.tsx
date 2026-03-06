@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native'
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
-import { WEB_APP_URL } from '@/config/constants';
 
 interface PublishedStoryCtaProps {
   slug: string;
@@ -23,9 +22,7 @@ export function PublishedStoryCta({ slug, isAuthenticated, inSidebar }: Publishe
     return null;
   }
 
-  const loginUrl = `${WEB_APP_URL.replace(/\/$/, '')}/login?redirect=${encodeURIComponent(
-    `${WEB_APP_URL.replace(/\/$/, '')}/stories/${slug}`
-  )}`;
+  const loginUrl = `/login?redirect=${encodeURIComponent(`/stories/${slug}`)}`;
 
   const handlePress = () => {
     Linking.openURL(loginUrl);

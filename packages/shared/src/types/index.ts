@@ -440,3 +440,21 @@ export type ScenarioCardApi = CamelizeKeys<ScenarioCard>;
 export type VoiceApi = CamelizeKeys<Voice>;
 export type StorySummaryApi = CamelizeKeys<StorySummary>;
 export type StoryApi = CamelizeKeys<Story>;
+
+/** Story manifest from GET /api/v1/me/stories/:id - full viewer payload */
+export interface StoryManifestApi extends StoryApi {
+  storyId: string;
+  isPublished: boolean;
+  shareUrl: string | null;
+  visibility: 'public' | 'unlisted' | null;
+  shareCardSceneId: number | null;
+  characters?: unknown[];
+  audioMetadata?: unknown;
+  fullText?: string;
+  scenarioCardName?: string | null;
+  imageGenerationComplete?: boolean;
+  sceneIdsWithImages?: number[];
+  failedScenes?: Array<{ sceneId: number; errorMessage: string }>;
+  seriesId?: string | null;
+  partNumber?: number | null;
+}

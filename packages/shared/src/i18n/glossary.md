@@ -11,7 +11,7 @@
 | Series | Серія | Серия | Serie | Collection of episodes |
 | Scene | Сцена | Сцена | Escena | Illustration unit |
 | Character | Персонаж | Персонаж | Personaje | Story character |
-| Library | Бібліотека | Библиотека | Biblioteca | User's collection |
+| Library (My stories) | Мої історії | Мои истории | Mis historias | User's story collection |
 | Profile | Профіль | Профиль | Perfil | Child/user profile |
 
 ## Story Elements / Елементи казки

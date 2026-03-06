@@ -31,10 +31,13 @@ services:
       NODE_ENV: development
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-kazka}:${POSTGRES_PASSWORD:-devpass}@postgres:5432/${POSTGRES_DB:-kazka_dev}
+      REDIS_URL: redis://redis:6379
     env_file:
       - .env.local
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       # Development mode: mount source code for hot reload
@@ -47,17 +50,34 @@ services:
       - /app/node_modules
       - /app/services/api/node_modules
 
+  redis:
+    image: redis:7-alpine
+    container_name: wondertales-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   nginx:
     image: nginx:alpine
     container_name: wondertales-nginx-dev
     restart: unless-stopped
     ports:
-      - "8001:80"
+      - "8081:80"
     volumes:
       - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d.dev:/etc/nginx/conf.d:ro
     depends_on:
       - api
+    # Allows nginx container to reach Metro server running on the host (port 8081)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   adminer:
     image: adminer:latest
@@ -72,6 +92,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
     driver: local
   api_logs:
     driver: local

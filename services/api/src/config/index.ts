@@ -256,11 +256,12 @@ export const config = {
     cdnUrl: process.env.STORAGE_CDN_URL || '',
   },
   
-  // Published stories (static HTML output)
+  // Published stories (static HTML output + SSR)
   web: {
     webAppUrl: process.env.WEB_APP_URL || process.env.EXPO_PUBLIC_WEB_APP_URL || 'https://app.wondertales.com',
     apiPublicUrl: process.env.API_PUBLIC_URL || process.env.WEB_APP_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.wondertales.com',
-    publishedStoriesOutputDir: process.env.PUBLISHED_STORIES_OUTPUT_DIR || '', // When set, write static HTML here
+    webBundleUrl: process.env.WEB_BUNDLE_URL || '/static/js/bundle.js', // SPA bundle for SSR hydration
+    webBuildId: process.env.WEB_BUILD_ID || 'dev', // For cache key versioning
   },
 
   // Feature Flags

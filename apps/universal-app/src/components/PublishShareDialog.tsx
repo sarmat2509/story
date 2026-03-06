@@ -8,19 +8,45 @@ import {
   ActivityIndicator,
   TextInput,
   Platform,
+  ScrollView,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 import { useTranslation } from 'react-i18next';
 import { toastService } from '@/services/toastService';
+import { formatAssetUrl } from '@/utils/assetUrl';
+
+export type PublishVisibility = 'public' | 'unlisted';
+
+export interface ShareCardScene {
+  index: number;
+  imageUrl: string | null;
+}
 
 interface PublishShareDialogProps {
   visible: boolean;
-  onPublishAndShare: () => void;
+  onPublishAndShare: (visibility: PublishVisibility, shareCardSceneId?: number, pseudonym?: string) => void;
   onCancel: () => void;
   shareUrl?: string | null;
   isLoading?: boolean;
+  /** User's pseudonym from profile. If set, show read-only text; if not, show input. */
+  userPseudonym?: string | null;
+  /** Scenes with images for share-card cover selection (0-based index) */
+  scenes?: ShareCardScene[];
+  /** Currently selected share-card scene index. Default 0. */
+  shareCardSceneId?: number | null;
+  /** Called when user taps "Unpublish" link (when shareUrl is shown) */
+  onUnpublish?: () => void;
+  /** Current story visibility when opening for update (pre-select in dialog) */
+  initialVisibility?: PublishVisibility;
+  /** True when opened from Share button (unpublished story). Shows "must publish to share" message. */
+  openedFromShare?: boolean;
 }
+
+const THUMB_HEIGHT = 90;
+const THUMB_WIDTH = Math.round(90 * (16 / 9)); // 160, preserves 16:9 scene ratio
+const THUMB_GAP = theme.spacing[2];
 
 export function PublishShareDialog({
   visible,
@@ -28,9 +54,38 @@ export function PublishShareDialog({
   onCancel,
   shareUrl,
   isLoading = false,
+  userPseudonym = null,
+  scenes = [],
+  shareCardSceneId: initialShareCardSceneId = null,
+  onUnpublish,
+  initialVisibility = 'public',
+  openedFromShare = false,
 }: PublishShareDialogProps) {
   const { t } = useTranslation();
+  const [selectedVisibility, setSelectedVisibility] = React.useState<PublishVisibility>('public');
+  const [selectedShareCardIndex, setSelectedShareCardIndex] = React.useState<number>(0);
+  const [pseudonymInput, setPseudonymInput] = React.useState('');
   const isPostPublish = !!shareUrl;
+
+  const scenesWithImages = useMemo(
+    () => scenes.filter((s): s is ShareCardScene & { imageUrl: string } => !!s.imageUrl),
+    [scenes]
+  );
+
+  const validInitialIndex = useMemo(() => {
+    const idx = initialShareCardSceneId ?? 0;
+    if (scenesWithImages.some((s) => s.index === idx)) return idx;
+    return scenesWithImages[0]?.index ?? 0;
+  }, [initialShareCardSceneId, scenesWithImages]);
+
+  // Sync when dialog opens with new initial value
+  React.useEffect(() => {
+    if (visible) {
+      setSelectedShareCardIndex(validInitialIndex);
+      setPseudonymInput('');
+      setSelectedVisibility(initialVisibility);
+    }
+  }, [visible, validInitialIndex, initialVisibility]);
 
   const displayUrl = useMemo(() => {
     if (!shareUrl) return '';
@@ -79,7 +134,13 @@ export function PublishShareDialog({
 
           <View style={[styles.iconContainer, { backgroundColor: `${theme.colors.interactive.primary}15` }]}>
             <Ionicons
-              name={isPostPublish ? 'checkmark-circle-outline' : 'share-social-outline'}
+              name={
+                isPostPublish
+                  ? 'checkmark-circle-outline'
+                  : openedFromShare
+                    ? 'share-social-outline'
+                    : 'create-outline'
+              }
               size={48}
               color={theme.colors.interactive.primary}
             />
@@ -108,6 +169,12 @@ export function PublishShareDialog({
                   <Ionicons name="copy-outline" size={22} color={theme.colors.interactive.primary} />
                 </TouchableOpacity>
               </View>
+
+              {onUnpublish && (
+                <TouchableOpacity style={styles.unpublishLink} onPress={onUnpublish} disabled={isLoading}>
+                  <Text style={styles.unpublishLinkText}>{t('story_viewer.unpublish', 'Зняти з публікації')}</Text>
+                </TouchableOpacity>
+              )}
             </>
           ) : (
             <>
@@ -115,13 +182,126 @@ export function PublishShareDialog({
                 {t('story_viewer.publish_share_dialog_title', 'Опублікувати історію')}
               </Text>
 
-              <Text style={styles.message}>
-                {t('story_viewer.publish_share_dialog_message', 'Щоб поділитися історією, її потрібно опублікувати. Вона стане доступна всім користувачам.')}
-              </Text>
+              {openedFromShare && (
+                <Text style={styles.message}>
+                  {t('story_viewer.publish_share_dialog_message', 'Щоб поділитися історією, її потрібно опублікувати. Вона стане доступна всім користувачам.')}
+                </Text>
+              )}
+
+              {userPseudonym ? (
+                <Text style={styles.pseudonymText}>
+                  {t('story_viewer.publishing_under_pseudonym', 'Публікуємо під псевдонімом')} {userPseudonym}
+                </Text>
+              ) : (
+                <View style={styles.pseudonymRow}>
+                  <Text style={styles.pseudonymLabel}>{t('profile.pseudonym', 'Псевдоним')}</Text>
+                  <TextInput
+                    style={styles.pseudonymInput}
+                    value={pseudonymInput}
+                    onChangeText={setPseudonymInput}
+                    maxLength={100}
+                  />
+                </View>
+              )}
+
+              {scenesWithImages.length > 0 && (
+                <>
+                  <Text style={styles.carouselLabel}>
+                    {t('story_viewer.share_card_cover', 'Обкладинка для поширення')}
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.carouselContent}
+                    style={styles.carousel}
+                  >
+                    {scenesWithImages.map((scene) => {
+                      const isSelected = selectedShareCardIndex === scene.index;
+                      return (
+                        <TouchableOpacity
+                          key={scene.index}
+                          style={[
+                            styles.thumbWrapper,
+                            isSelected && styles.thumbWrapperSelected,
+                          ]}
+                          onPress={() => setSelectedShareCardIndex(scene.index)}
+                          activeOpacity={0.8}
+                        >
+                          <Image
+                            source={{ uri: formatAssetUrl(scene.imageUrl) ?? '' }}
+                            style={styles.thumb}
+                            resizeMode="cover"
+                          />
+                          {isSelected && (
+                            <View style={styles.thumbCheck}>
+                              <Ionicons name="checkmark-circle" size={24} color={theme.colors.text.inverse} />
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </>
+              )}
+
+              <View style={styles.visibilityOptions}>
+                <TouchableOpacity
+                  style={[
+                    styles.visibilityOption,
+                    selectedVisibility === 'public' && styles.visibilityOptionSelected,
+                  ]}
+                  onPress={() => setSelectedVisibility('public')}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="globe-outline"
+                    size={24}
+                    color={selectedVisibility === 'public' ? theme.colors.interactive.primary : theme.colors.text.secondary}
+                  />
+                  <Text style={[
+                    styles.visibilityLabel,
+                    selectedVisibility === 'public' && styles.visibilityLabelSelected,
+                  ]}>
+                    {t('story_viewer.visibility_public', 'Для всіх')}
+                  </Text>
+                  <Text style={styles.visibilityHint}>
+                    {t('story_viewer.visibility_public_hint', 'У каталозі')}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.visibilityOption,
+                    selectedVisibility === 'unlisted' && styles.visibilityOptionSelected,
+                  ]}
+                  onPress={() => setSelectedVisibility('unlisted')}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="link-outline"
+                    size={24}
+                    color={selectedVisibility === 'unlisted' ? theme.colors.interactive.primary : theme.colors.text.secondary}
+                  />
+                  <Text style={[
+                    styles.visibilityLabel,
+                    selectedVisibility === 'unlisted' && styles.visibilityLabelSelected,
+                  ]}>
+                    {t('story_viewer.visibility_unlisted', 'По посиланню')}
+                  </Text>
+                  <Text style={styles.visibilityHint}>
+                    {t('story_viewer.visibility_unlisted_hint', 'Тільки хто має лінк')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
               <TouchableOpacity
                 style={styles.confirmButton}
-                onPress={onPublishAndShare}
+                onPress={() =>
+                  onPublishAndShare(
+                    selectedVisibility,
+                    scenesWithImages.length > 0 ? selectedShareCardIndex : undefined,
+                    !userPseudonym && pseudonymInput.trim() ? pseudonymInput.trim() : undefined
+                  )
+                }
                 activeOpacity={0.7}
                 disabled={isLoading}
               >
@@ -129,7 +309,9 @@ export function PublishShareDialog({
                   <ActivityIndicator size="small" color={theme.colors.text.inverse} />
                 ) : (
                   <Text style={styles.confirmButtonText}>
-                    {t('story_viewer.publish_and_share', 'Опублікувати і поділитися')}
+                    {openedFromShare
+                      ? t('story_viewer.publish_and_share', 'Опублікувати і поділитися')
+                      : t('story_viewer.publish', 'Опублікувати')}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -226,5 +408,106 @@ const styles = StyleSheet.create({
     padding: theme.spacing[3],
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  visibilityOptions: {
+    flexDirection: 'row',
+    gap: theme.spacing[4],
+    marginBottom: theme.spacing[6],
+  },
+  visibilityOption: {
+    flex: 1,
+    padding: theme.spacing[4],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.medium,
+    borderColor: theme.colors.border.light,
+    alignItems: 'center',
+  },
+  visibilityOptionSelected: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: `${theme.colors.interactive.primary}10`,
+  },
+  visibilityLabel: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    marginTop: theme.spacing[2],
+  },
+  visibilityLabelSelected: {
+    color: theme.colors.interactive.primary,
+  },
+  visibilityHint: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
+    marginTop: theme.spacing[1],
+  },
+  pseudonymText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing[4],
+  },
+  pseudonymRow: {
+    marginBottom: theme.spacing[4],
+  },
+  pseudonymLabel: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.text.tertiary,
+    marginBottom: theme.spacing[1],
+  },
+  pseudonymInput: {
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.primary,
+    backgroundColor: theme.colors.background.secondary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    borderRadius: theme.borders.radius.md,
+    padding: theme.spacing[3],
+  },
+  carouselLabel: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing[2],
+  },
+  carousel: {
+    marginBottom: theme.spacing[4],
+    maxHeight: THUMB_HEIGHT + theme.spacing[2],
+  },
+  carouselContent: {
+    flexDirection: 'row',
+    gap: THUMB_GAP,
+    paddingVertical: theme.spacing[1],
+  },
+  thumbWrapper: {
+    width: THUMB_WIDTH,
+    height: THUMB_HEIGHT,
+    borderRadius: theme.borders.radius.md,
+    overflow: 'hidden',
+    borderWidth: theme.borders.width.medium,
+    borderColor: theme.colors.border.light,
+  },
+  thumbWrapperSelected: {
+    borderColor: theme.colors.interactive.primary,
+    borderWidth: theme.borders.width.thick,
+  },
+  thumb: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbCheck: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  unpublishLink: {
+    marginTop: theme.spacing[4],
+    alignSelf: 'center',
+  },
+  unpublishLinkText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.status.error,
+    textDecorationLine: 'underline',
   },
 });

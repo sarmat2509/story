@@ -58,7 +58,7 @@ function getActiveMainRouteFromState(state: { routes?: { name: string; params?: 
 }
 
 const linking: any = {
-  prefixes: ['wondertales://', 'http://localhost:8081'],
+  prefixes: ['wondertales://', 'http://localhost:8081', 'https://app.wondertales.com'],
   config: {
     screens: {
       ModeSelection: 'mode-selection',
@@ -70,10 +70,13 @@ const linking: any = {
           OAuthCallback: 'auth/:provider/callback',
           Dashboard: 'dashboard',
           Wizard: 'wizard',
-          Library: 'library',
-          Story: 'story/:storyId',
+          Library: 'me/stories',
+          LibraryRedirect: 'library',
+          Story: 'me/stories/:storyId',
+          StoryRedirect: 'story/:storyId',
           Stories: 'stories',
           PublishedStory: 'stories/:slug',
+          UnlistedStory: 'u/:token',
           Children: 'children',
           Characters: 'characters',
           Plans: 'pricing',

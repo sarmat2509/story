@@ -1,8 +1,10 @@
+import React from 'react';
 import { useQuery, useMutation, useQueryClient, QueryClient } from '@tanstack/react-query';
 import type { 
   StoryRequestStatusResponse,
   StoryApi,
   StorySummaryApi,
+  StoryManifestApi,
   CreateStoryRequestInput
 } from '@wondertales/shared';
 import apiClient from './client';
@@ -20,7 +22,7 @@ interface CreateStoryFromPhotosRequest {
 }
 
 // List stories (summary view for library - lightweight payload)
-export const useStories = (params?: { limit?: number; offset?: number; hasAudio?: boolean; scenarioCardId?: string | null } = {}) => {
+export const useStories = (params: { limit?: number; offset?: number; hasAudio?: boolean; scenarioCardId?: string | null } = {}) => {
   const { limit = 20, offset = 0, hasAudio, scenarioCardId } = params ?? {};
   
   return useQuery({
@@ -37,11 +39,11 @@ export const useStories = (params?: { limit?: number; offset?: number; hasAudio?
         searchParams.set('scenario_card_id', scenarioCardId);
       }
       const queryString = searchParams.toString();
-      const url = queryString ? `/api/v1/stories?${queryString}` : '/api/v1/stories';
-      const response = await apiClient.get<{ status: string; stories: StorySummary[]; pagination: any }>(url);
+      const url = queryString ? `/api/v1/me/stories?${queryString}` : '/api/v1/me/stories';
+      const response = await apiClient.get<{ status: string; stories: StorySummary[]; pagination?: any }>(url);
       return {
         stories: response.data.stories,
-        pagination: response.data.pagination,
+        pagination: response.data.pagination ?? { limit, offset, total: response.data.stories?.length ?? 0 },
       };
     },
   });
@@ -62,24 +64,28 @@ export const prefetchStory = (queryClient: QueryClient, storyId: string) => {
   });
 };
 
-// Get story detail with scenes and assets
-// No longer polls - use useStoryGenerationStatus for polling instead
+// Get story detail with scenes and assets (auth, owner only)
 export const useStory = (id: string) => {
   return useQuery({
     queryKey: ['story', id],
-    queryFn: async () => {
-      const response = await apiClient.get<{ status: string; manifest: any }>(
-        `/api/v1/stories/${id}/manifest`
+    queryFn: async (): Promise<StoryManifestApi> => {
+      const response = await apiClient.get<{ status: string; manifest: StoryManifestApi }>(
+        `/api/v1/me/stories/${id}`
       );
       return response.data.manifest;
     },
     enabled: !!id,
-    // Remove polling - handled by useStoryGenerationStatus
     refetchInterval: false,
-    staleTime: 5 * 60 * 1000, // Keep data fresh for 5 minutes
-    gcTime: 10 * 60 * 1000,   // Cache for 10 minutes (renamed from cacheTime in v5)
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 };
+
+/** Alias for useStory */
+export const useMyStory = useStory;
+
+/** Alias for useStories (list of current user's stories) */
+export const useMyStories = useStories;
 
 // Get lightweight generation status for polling (no scenes/assets)
 export const useStoryGenerationStatus = (id: string) => {
@@ -336,16 +342,24 @@ export function usePublishStory() {
     mutationFn: async ({
       storyId,
       isPublished,
+      visibility = 'public',
+      shareCardSceneId,
     }: {
       storyId: string;
       isPublished: boolean;
+      visibility?: 'public' | 'unlisted';
+      shareCardSceneId?: number;
     }) => {
+      const body: Record<string, unknown> = { isPublished, visibility };
+      if (shareCardSceneId != null) body.shareCardSceneId = shareCardSceneId;
       const response = await apiClient.patch<{
         status: string;
         slug?: string;
+        shareToken?: string;
         shareUrl?: string;
         message?: string;
-      }>(`/api/v1/stories/${storyId}`, { isPublished });
+        publishedStoriesCount?: number;
+      }>(`/api/v1/stories/${storyId}`, body);
       return response.data;
     },
     onSuccess: (data, variables) => {
@@ -356,18 +370,27 @@ export function usePublishStory() {
   });
 }
 
-// List published stories (public)
-export function usePublishedStories(params?: { limit?: number; offset?: number }) {
-  const { limit = 20, offset = 0 } = params ?? {};
+// List published stories (public catalog)
+export function usePublishedStories(params?: {
+  limit?: number;
+  offset?: number;
+  hasAudio?: boolean;
+  scenarioCardId?: string | null;
+}) {
+  const { limit = 20, offset = 0, hasAudio, scenarioCardId } = params ?? {};
+
+  const searchParams: Record<string, string | number> = { limit, offset };
+  if (hasAudio === true) searchParams.has_audio = 'true';
+  if (scenarioCardId) searchParams.scenario_card_id = scenarioCardId;
 
   return useQuery({
-    queryKey: ['published-stories', limit, offset],
+    queryKey: ['published-stories', limit, offset, hasAudio, scenarioCardId],
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
         stories: any[];
         pagination: { limit: number; offset: number; total: number };
-      }>('/api/v1/stories/published', { params: { limit, offset } });
+      }>('/api/v1/public/stories', { params: searchParams });
       return {
         stories: response.data.stories,
         pagination: response.data.pagination,
@@ -376,19 +399,76 @@ export function usePublishedStories(params?: { limit?: number; offset?: number }
   });
 }
 
-// Get published story by slug (public, optional auth for isOwner)
-export function usePublishedStory(slug: string | undefined, enabled = true) {
-  return useQuery({
-    queryKey: ['published-story', slug],
+// Get published story by slug (public). On web, may use __INITIAL_STORY__ from SSR.
+export function usePublicStory(slug: string | undefined, enabled = true) {
+  const initialStoryRef = React.useRef<any>(null);
+  if (
+    typeof window !== 'undefined' &&
+    slug &&
+    (window as any).__INITIAL_STORY__ &&
+    !initialStoryRef.current
+  ) {
+    initialStoryRef.current = (window as any).__INITIAL_STORY__;
+    delete (window as any).__INITIAL_STORY__;
+  }
+  const hasInitialStory = !!initialStoryRef.current;
+
+  const query = useQuery({
+    queryKey: ['public-story', slug],
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
         story: any;
-      }>(`/api/v1/stories/published/${slug}`);
+      }>(`/api/v1/public/stories/${slug}`);
       return response.data.story;
     },
-    enabled: !!slug && enabled,
+    enabled: !!slug && enabled && !hasInitialStory,
   });
+
+  if (hasInitialStory && slug) {
+    return {
+      ...query,
+      data: initialStoryRef.current,
+      isLoading: false,
+      error: null,
+      isFetching: false,
+    };
+  }
+  return query;
+}
+
+/** @deprecated Use usePublicStory */
+export const usePublishedStory = usePublicStory;
+
+/**
+ * Fetch public story by share token (unlisted). No __INITIAL_STORY__ (SSR uses different path).
+ */
+export function usePublicStoryByToken(token: string, enabled = true) {
+  return useQuery({
+    queryKey: ['public-story-token', token],
+    queryFn: async () => {
+      const response = await apiClient.get<{
+        status: string;
+        story: any;
+      }>(`/api/v1/public/u/${token}`);
+      return response.data.story;
+    },
+    enabled: !!token && enabled,
+  });
+}
+
+/**
+ * Unified hook for story reader. Use slug for public, storyId for auth.
+ * On web with slug, uses __INITIAL_STORY__ from SSR when available.
+ */
+export function useStoryForReader(slug?: string, storyId?: string) {
+  const publicQuery = usePublicStory(slug, !!slug);
+  const myStoryQuery = useStory(storyId ?? '', !!storyId);
+
+  if (slug) {
+    return { ...publicQuery, mode: 'public' as const };
+  }
+  return { ...myStoryQuery, mode: 'auth' as const };
 }
 
 // Get series info for a story

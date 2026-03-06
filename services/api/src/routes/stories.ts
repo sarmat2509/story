@@ -580,6 +580,8 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
 // Body is already camelCase via caseTransformMiddleware
 const PublishStorySchema = z.object({
   isPublished: z.boolean(),
+  visibility: z.enum(['public', 'unlisted']).optional().default('public'),
+  shareCardSceneId: z.number().int().min(0).optional(),
 });
 
 /**
@@ -588,11 +590,14 @@ const PublishStorySchema = z.object({
  */
 router.patch('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params['id'];
+    if (typeof id !== 'string' || !id) {
+      return res.status(400).json({ status: 'error', message: 'Invalid story ID' });
+    }
     const body = PublishStorySchema.parse(req.body);
 
     if (body.isPublished) {
-      const result = await publishStory(id, req.user!.id);
+      const result = await publishStory(id, req.user!.id, body.visibility, body.shareCardSceneId);
       if (!result) {
         return res.status(404).json({
           status: 'error',
@@ -603,6 +608,7 @@ router.patch('/:id', requireAuth, async (req: Request, res: Response) => {
         status: 'success',
         slug: result.slug,
         shareUrl: result.shareUrl,
+        publishedStoriesCount: result.publishedStoriesCount,
       });
     } else {
       const ok = await unpublishStory(id, req.user!.id);
@@ -1149,13 +1155,17 @@ router.post('/:id/alignment', requireAuth, async (req: Request, res: Response) =
       });
     }
     
-    // 3. Check if alignment already exists
+    // 3. Check if alignment already exists (Phase 2: alignments table + fallback)
+    const { getAlignmentRepository } = await import('../repositories');
+    const existingAlignment = await getAlignmentRepository().findByStoryId(storyId);
     const audioMetadata = story.audioMetadata as any;
-    if (audioMetadata?.alignment) {
+    const alignmentFromMetadata = audioMetadata?.alignment;
+    if (existingAlignment ?? alignmentFromMetadata) {
+      const alignment = existingAlignment?.data ?? alignmentFromMetadata;
       return res.status(200).json({
         status: 'success',
         message: 'Alignment already exists',
-        alignment: audioMetadata.alignment
+        alignment,
       });
     }
     
@@ -1194,7 +1204,8 @@ router.post('/:id/alignment', requireAuth, async (req: Request, res: Response) =
     }
     
     const audioAssetId = finalAudioAssets[0].audioAsset.id;
-    
+    const assetId = finalAudioAssets[0].audioAsset.assetId;
+
     // 5. Generate alignment
     const { getAlignmentProvider } = await import('../services/aiService');
     const { getAudioDomainService } = await import('../domain/audio/AudioDomainService');
@@ -1215,25 +1226,22 @@ router.post('/:id/alignment', requireAuth, async (req: Request, res: Response) =
       alignmentProvider
     );
     
-    // 6. Update story metadata
-    const { stories } = await import('../db/schema');
-    await db.update(stories)
-      .set({
-        audioMetadata: {
-          ...audioMetadata,
-          alignment: {
-            characters: alignmentResult.characters,
-            words: alignmentResult.words,
-            averageConfidence: alignmentResult.averageConfidence,
-            provider: alignmentProvider.getProviderName().toLowerCase(),
-            language: alignmentResult.language,
-            generatedAt: new Date().toISOString(),
-          },
-        },
-        updatedAt: new Date(),
-      })
-      .where(eq(stories.id, storyId));
-    
+    // 6. Store alignment in alignments table (Phase 2)
+    const alignmentData = {
+      characters: alignmentResult.characters,
+      words: alignmentResult.words,
+      averageConfidence: alignmentResult.averageConfidence,
+      provider: alignmentProvider.getProviderName().toLowerCase(),
+      language: alignmentResult.language,
+      generatedAt: new Date().toISOString(),
+    };
+    await getAlignmentRepository().upsert(storyId, alignmentData, assetId);
+
+    if (story.isPublished && story.publishedSlug) {
+      const { getStoryRepository } = await import('../repositories');
+      await getStoryRepository().incrementPublicRenderVersion(storyId);
+    }
+
     logger.info({
       storyId,
       wordCount: alignmentResult.words.length,

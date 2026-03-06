@@ -442,13 +442,17 @@ export const stories = pgTable('stories', {
   seriesId: uuid('series_id').references(() => storySeries.id, { onDelete: 'set null' }),
   partNumber: integer('part_number'),
   
-  isPublished: boolean('is_published').default(true),
+  isPublished: boolean('is_published').default(false),
   isFavorite: boolean('is_favorite').default(false),
   
   publishedAt: timestamp('published_at'),
   publishedSlug: varchar('published_slug', { length: 100 }),
   authorDisplayName: varchar('author_display_name', { length: 100 }),
-  
+  visibility: varchar('visibility', { length: 20 }).default('public'), // 'public' | 'unlisted'
+  shareToken: varchar('share_token', { length: 64 }), // For unlisted: token for /u/:token URL
+  shareCardSceneId: integer('share_card_scene_id'), // 0-based scene index for og:image. NULL = first
+  publicRenderVersion: integer('public_render_version').default(1), // Bump on publish/unpublish/audio/alignment/theme
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {
@@ -459,6 +463,7 @@ export const stories = pgTable('stories', {
     ageGroupIdx: index('stories_age_group_idx').on(table.ageGroup),
     createdAtIdx: index('stories_created_at_idx').on(table.createdAt),
     seriesIdIdx: index('stories_series_id_idx').on(table.seriesId),
+    shareTokenIdx: index('stories_share_token_idx').on(table.shareToken),
   };
 });
 
@@ -787,6 +792,25 @@ export type NewAgeGroup = typeof ageGroups.$inferInsert;
 
 export type VoiceAgeGroup = typeof voiceAgeGroups.$inferSelect;
 export type NewVoiceAgeGroup = typeof voiceAgeGroups.$inferInsert;
+
+// Alignments table - forced alignment per story (Phase 2)
+export const alignments = pgTable('alignments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  storyId: uuid('story_id').references(() => stories.id, { onDelete: 'cascade' }).notNull(),
+  assetId: uuid('asset_id').references(() => assets.id, { onDelete: 'set null' }),
+  data: jsonb('data').notNull(), // AlignmentData: characters, words, provider, etc.
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    storyIdIdx: index('alignments_story_id_idx').on(table.storyId),
+    assetIdIdx: index('alignments_asset_id_idx').on(table.assetId),
+    uniqueStoryIdx: uniqueIndex('alignments_story_unique_idx').on(table.storyId),
+  };
+});
+
+export type Alignment = typeof alignments.$inferSelect;
+export type NewAlignment = typeof alignments.$inferInsert;
 
 export type AudioAsset = typeof audioAssets.$inferSelect;
 export type NewAudioAsset = typeof audioAssets.$inferInsert;

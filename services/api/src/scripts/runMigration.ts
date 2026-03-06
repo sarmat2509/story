@@ -12,7 +12,8 @@ import { logger } from '../utils/logger';
 async function runMigration() {
   // Get migration file from command line argument or default to 0011
   // Accept filename only (e.g. 0046_normalize_asset_urls_to_relative.sql) - path is resolved relative to drizzle/
-  const arg = process.argv[2] || '0011_add_stories_metadata.sql';
+  // Skip '--' (pnpm run db:migrate -- 0048_xxx.sql passes -- as first arg)
+  const arg = process.argv.slice(2).find(a => a !== '--') || '0011_add_stories_metadata.sql';
   const migrationFile = arg.includes('/') ? arg.split('/').pop()! : arg;
   
   // Check if DATABASE_URL is set

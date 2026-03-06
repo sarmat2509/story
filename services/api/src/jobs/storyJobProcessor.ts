@@ -354,6 +354,19 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
         alignmentProvider,
       );
 
+      const alignmentData = {
+        characters: alignmentResult.characters,
+        words: alignmentResult.words,
+        averageConfidence: alignmentResult.averageConfidence,
+        provider: alignmentProvider.getProviderName().toLowerCase(),
+        language: alignmentResult.language,
+        generatedAt: new Date().toISOString(),
+      };
+
+      // Phase 2: Store alignment in dedicated table
+      const { getAlignmentRepository } = await import('../repositories');
+      await getAlignmentRepository().upsert(job.storyId, alignmentData, finalAssetId);
+
       const currentAudioMetadata = (story.audioMetadata as Record<string, unknown>) || {};
       await getStoryRepository().updateStory(job.storyId, {
         audioMetadata: {
@@ -363,14 +376,6 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
           totalDuration: result.duration,
           generatedAt: new Date().toISOString(),
           nightMode: job.voiceParams?.nightMode || false,
-          alignment: {
-            characters: alignmentResult.characters,
-            words: alignmentResult.words,
-            averageConfidence: alignmentResult.averageConfidence,
-            provider: alignmentProvider.getProviderName().toLowerCase(),
-            language: alignmentResult.language,
-            generatedAt: new Date().toISOString(),
-          },
         },
         updatedAt: new Date(),
       });
@@ -383,12 +388,9 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
       logger.error({ err: alignmentError, storyId: job.storyId }, 'Alignment failed (audio still OK)');
     }
 
-    // Regenerate published HTML if story is published (for audio player in static HTML)
+    // Bump public_render_version for published stories (SSR cache invalidation)
     if (story.isPublished && story.publishedSlug) {
-      const { regeneratePublishedHtml } = await import('../services/publishStoryService');
-      regeneratePublishedHtml(story.publishedSlug).catch((err) =>
-        logger.error({ err, slug: story.publishedSlug }, 'Failed to regenerate published HTML after audio')
-      );
+      await getStoryRepository().incrementPublicRenderVersion(job.storyId);
     }
   } catch (error) {
     logger.error({

@@ -4498,7 +4498,13 @@ export async function getStoryManifest(storyId: string) {
     ageGroup: story.ageGroup,
     isPublished: !!story.isPublished,
     publishedSlug: story.publishedSlug ?? null,
-    shareUrl: story.publishedSlug ? `${webAppUrl.replace(/\/$/, '')}/stories/${story.publishedSlug}` : null,
+    visibility: story.visibility || (story.publishedSlug ? 'public' : story.shareToken ? 'unlisted' : null),
+    shareUrl: story.publishedSlug
+      ? `${webAppUrl.replace(/\/$/, '')}/stories/${story.publishedSlug}`
+      : story.shareToken
+        ? `${webAppUrl.replace(/\/$/, '')}/u/${story.shareToken}`
+        : null,
+    shareCardSceneId: story.shareCardSceneId ?? null,
     fullText: stripCharacterIds(stripAudioTags(story.fullText || '')),
     audioMetadata: story.audioMetadata,
     // M8: Series fields
