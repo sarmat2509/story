@@ -6,6 +6,7 @@
 
 import { getStoryRepository, getUserRepository } from '../repositories';
 import { addPublishedSlug, removePublishedSlug } from '../ssr/storyCache';
+import { invalidateSitemapCache } from './sitemapService';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import crypto from 'crypto';
@@ -146,6 +147,7 @@ export async function publishStory(
   });
   await storyRepo.incrementPublicRenderVersion(storyId);
   await addPublishedSlug(slug);
+  await invalidateSitemapCache();
 
   logger.info({ storyId, slug, userId }, 'Story published (public)');
 
@@ -182,6 +184,7 @@ export async function unpublishStory(storyId: string, userId: string): Promise<b
   if (slug) {
     await storyRepo.incrementPublicRenderVersion(storyId);
     await removePublishedSlug(slug);
+    await invalidateSitemapCache();
   }
 
   logger.info({ storyId, slug, userId }, 'Story unpublished');

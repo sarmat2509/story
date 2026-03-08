@@ -20,6 +20,7 @@ import meStoriesRoutes from './routes/meStories';
 import ssrStoriesRoutes from './routes/ssrStories';
 import ssrUnlistedRoutes from './routes/ssrUnlisted';
 import shareCardRoutes from './routes/shareCard';
+import sitemapRoute from './routes/sitemap';
 import assetsRoutes from './routes/assets';
 import voicesRoutes from './routes/voices';
 import uploadRoutes from './routes/upload';
@@ -88,6 +89,9 @@ app.use(passport.initialize());
 // Routes
 // Health checks - no versioning (infrastructure)
 app.use('/health', healthRoutes);
+
+// Sitemap - public, no auth, no rate limit
+app.use('/sitemap.xml', sitemapRoute);
 
 // API v1 routes
 app.use('/api/v1/auth', authLimiter, authRoutes);

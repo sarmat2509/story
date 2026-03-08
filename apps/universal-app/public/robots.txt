@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://magic-sleep-time.duckdns.org/sitemap.xml
