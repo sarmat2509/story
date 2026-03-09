@@ -10,11 +10,24 @@
  * - MUST work with provider-agnostic interfaces (ITextProvider)
  */
 
-import type { StorySpec, EpisodeText, PolicyProfile, SceneValidationResult } from '../../ai/types';
+import type { StorySpec, EpisodeText, PolicyProfile } from '../../ai/types';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
-import { buildDirectTextPrompt, buildValidationPrompt, buildRegenerationPrompt, buildContinuationPrompt } from '../../prompts/text';
+import type { UsageMetadata } from '../../providers/base/UsageMetadata';
+
+export interface StoryDomainOptions {
+  onUsage?: (usage: UsageMetadata) => void;
+}
+import { buildDirectTextPrompt, buildBatchValidationPrompt, buildBatchRegenerationPrompt, buildContinuationPrompt } from '../../prompts/text';
 import { logger } from '../../utils/logger';
-import { TEXT_SCHEMA, VALIDATION_SCHEMA } from './schemas';
+import { TEXT_SCHEMA, BATCH_VALIDATION_SCHEMA, BATCH_REGENERATION_SCHEMA } from './schemas';
+
+export interface BatchValidationResult {
+  failedScenes: Array<{
+    sceneId: number;
+    violations: Array<{ category: string; severity: string; message: string; suggestion?: string }>;
+    correctedCameraComposition?: { shot: string; characters: Array<{ name: string; description: string }> };
+  }>;
+}
 
 export class StoryDomainService {
   constructor(private textProvider: ITextProvider) {}
@@ -23,7 +36,7 @@ export class StoryDomainService {
    * Generate story text directly (1-step process)
    * Business logic: determines scene count and vocabulary level based on age group
    */
-  async generateText(spec: StorySpec): Promise<EpisodeText> {
+  async generateText(spec: StorySpec, options?: StoryDomainOptions): Promise<EpisodeText> {
     logger.info({ ageGroup: spec.ageGroup, language: spec.language }, 'Generating story text');
 
     // Business logic: determine scene count and vocabulary level
@@ -45,7 +58,8 @@ export class StoryDomainService {
         prompt,
         schema: TEXT_SCHEMA,
         temperature: 0.9,
-        // No maxTokens limit - let the model generate as much as needed
+        onUsage: options?.onUsage,
+        operation: 'text_structured',
       });
 
       // Compute fullText and wordCount server-side for consistency
@@ -61,111 +75,131 @@ export class StoryDomainService {
   }
 
   /**
-   * Validate a single scene for content safety and age-appropriateness
-   * AI-powered validation using text provider
+   * Validate all scenes in one batch request.
+   * Returns only failed scenes (minimal info).
    */
-  async validateScene(
-    sceneText: EpisodeText['scenes'][0],
+  async validateScenesBatch(
+    scenes: EpisodeText['scenes'],
     policy: PolicyProfile,
-    isLastScene: boolean,
-    scenarioCardId?: string
-  ): Promise<SceneValidationResult> {
-    logger.info({ sceneId: sceneText.sceneId, isLastScene }, 'Validating scene');
+    scenarioCardId?: string,
+    options?: StoryDomainOptions
+  ): Promise<BatchValidationResult> {
+    const prompt = buildBatchValidationPrompt({ scenes, policy, scenarioCardId });
+    logger.info({ sceneCount: scenes.length, promptLength: prompt.length }, 'Batch validating scenes');
 
-    // Build prompt using prompt function
-    const prompt = buildValidationPrompt({
-      sceneText,
-      policy,
-      isLastScene,
-      scenarioCardId,
-    });
-    
-    // Log FULL validation prompt and scene text for debugging
-    logger.debug({ 
-      sceneId: sceneText.sceneId,
-      promptLength: prompt.length,
-      fullPrompt: prompt, // Log FULL prompt to see what triggers block
-      sceneText: sceneText.text, // Log FULL scene text
-      sceneTextLength: sceneText.text.length
-    }, 'Validation prompt (FULL)');
+    logger.debug(
+      {
+        sceneCount: scenes.length,
+        promptLength: prompt.length,
+        promptPreview: prompt.slice(0, 500),
+        fullPrompt: prompt,
+      },
+      'Batch validation prompt'
+    );
 
     try {
-      // Call provider with lower temperature for consistent validation
-      const validation = await this.textProvider.generateStructured<SceneValidationResult>({
+      const result = await this.textProvider.generateStructured<BatchValidationResult>({
         prompt,
-        schema: VALIDATION_SCHEMA,
-        temperature: 0.3
+        schema: BATCH_VALIDATION_SCHEMA,
+        temperature: 0.3,
+        onUsage: options?.onUsage,
+        operation: 'validateScene',
       });
 
-      logger.info({
-        sceneId: validation.sceneId,
-        isValid: validation.isValid,
-        violationCount: validation.violations.length
-      }, 'Scene validation complete');
+      const failedCount = result.failedScenes?.length ?? 0;
+      logger.info(
+        {
+          sceneCount: scenes.length,
+          failedCount,
+          ...(failedCount > 0 && { failedSceneIds: result.failedScenes!.map((f) => f.sceneId) }),
+        },
+        'Batch validation complete'
+      );
 
-      return validation;
+      logger.debug(
+        {
+          failedCount,
+          responseSummary: { failedScenes: result.failedScenes ?? [] },
+          rawResponse: JSON.stringify(result),
+        },
+        'Batch validation response'
+      );
+
+      return { failedScenes: result.failedScenes ?? [] };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      
-      // If Gemini blocks content, auto-pass (false positive for children's stories)
       if (errorMsg.includes('PROHIBITED_CONTENT') || errorMsg.includes('blocked')) {
-        logger.warn({ 
-          sceneId: sceneText.sceneId,
-          error: errorMsg,
-          sceneTextPreview: sceneText.text.substring(0, 200)
-        }, 'Validation blocked by safety filter - auto-passing as children story is safe');
-        
-        return {
-          sceneId: sceneText.sceneId,
-          isValid: true,
-          violations: [],
-        };
+        logger.warn({ error: errorMsg }, 'Batch validation blocked - auto-passing all scenes');
+        return { failedScenes: [] };
       }
-      
-      logger.error({ 
-        error, 
-        sceneId: sceneText.sceneId,
-        sceneTextPreview: sceneText.text.substring(0, 200)
-      }, 'Scene validation failed');
-      throw new Error(`Scene validation failed: ${errorMsg}`);
+      logger.error({ error }, 'Batch validation failed');
+      throw new Error(`Batch validation failed: ${errorMsg}`);
     }
   }
 
   /**
-   * Regenerate scene text based on validation feedback.
-   * Returns plain text only. Fixes only policy violations, keeps same plot/characters/events.
+   * Regenerate all failed scenes in one batch request.
+   * Returns all corrected scene texts.
    */
-  async regenerateScene(
+  async regenerateScenesBatch(
     spec: StorySpec,
     sceneCount: number,
-    sceneId: number,
-    originalSceneText: string,
-    validationFeedback: string
-  ): Promise<string> {
-    logger.info({ sceneId, feedback: validationFeedback }, 'Regenerating scene text');
-
+    failedScenes: Array<{ sceneId: number; originalText: string; feedback: string }>,
+    options?: StoryDomainOptions
+  ): Promise<Array<{ sceneId: number; text: string }>> {
     const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
+    const prompt = buildBatchRegenerationPrompt({ spec, sceneCount, failedScenes, vocabLevel });
+    logger.info(
+      { failedCount: failedScenes.length, sceneIds: failedScenes.map((f) => f.sceneId), promptLength: prompt.length },
+      'Batch regenerating scenes'
+    );
 
-    const prompt = buildRegenerationPrompt({
-      spec,
-      sceneCount,
-      sceneId,
-      originalSceneText,
-      validationFeedback,
-      vocabLevel,
-    });
+    logger.debug(
+      {
+        failedCount: failedScenes.length,
+        promptLength: prompt.length,
+        promptPreview: prompt.slice(0, 500),
+        fullPrompt: prompt,
+      },
+      'Batch regeneration prompt'
+    );
 
     try {
-      const text = await this.textProvider.generateText({
+      const result = await this.textProvider.generateStructured<{ scenes: Array<{ sceneId: number; text: string }> }>({
         prompt,
+        schema: BATCH_REGENERATION_SCHEMA,
         temperature: 0.9,
+        onUsage: options?.onUsage,
+        operation: 'regenerateScene',
       });
 
-      logger.info({ sceneId }, 'Scene text regenerated successfully');
-      return text;
+      const scenes = result.scenes ?? [];
+      if (scenes.length !== failedScenes.length) {
+        logger.warn(
+          { expected: failedScenes.length, received: scenes.length },
+          'Batch regeneration returned wrong scene count'
+        );
+      }
+      logger.info(
+        { sceneCount: scenes.length, receivedSceneIds: scenes.map((s) => s.sceneId) },
+        'Batch regeneration complete'
+      );
+
+      logger.debug(
+        {
+          responseSummary: {
+            sceneIds: scenes.map((s) => s.sceneId),
+            textLengths: scenes.map((s) => s.text.length),
+          },
+          rawResponse: JSON.stringify(result),
+        },
+        'Batch regeneration response'
+      );
+
+      return scenes;
     } catch (error) {
-      logger.error({ error, sceneId }, 'Scene regeneration failed');
-      throw new Error(`Scene regeneration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logger.error({ error }, 'Batch regeneration failed');
+      throw new Error(`Batch regeneration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -173,13 +207,16 @@ export class StoryDomainService {
    * Generate continuation for an existing story series
    * Business logic: determines scene count and vocabulary level based on age group
    */
-  async generateContinuation(params: {
-    spec: StorySpec;
-    previousOutlines: any[];
-    requiredCharacters: any[];
-    optionalCharacters: any[];
-    usedPlots: string[];
-  }): Promise<EpisodeText> {
+  async generateContinuation(
+    params: {
+      spec: StorySpec;
+      previousOutlines: any[];
+      requiredCharacters: any[];
+      optionalCharacters: any[];
+      usedPlots: string[];
+    },
+    options?: StoryDomainOptions
+  ): Promise<EpisodeText> {
     logger.info({
       ageGroup: params.spec.ageGroup,
       language: params.spec.language,
@@ -214,7 +251,8 @@ export class StoryDomainService {
         prompt,
         schema: TEXT_SCHEMA,
         temperature: 0.9,
-        // No maxTokens limit - let the model generate as much as needed
+        onUsage: options?.onUsage,
+        operation: 'text_continuation',
       });
 
       // Compute fullText and wordCount server-side for consistency

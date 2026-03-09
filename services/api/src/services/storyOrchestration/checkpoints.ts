@@ -6,6 +6,18 @@ import { getStoryRepository } from '../../repositories';
 import { logger } from '../../utils/logger';
 
 /**
+ * Save story stub checkpoint (storyId for retry/restore)
+ */
+export async function saveStoryStubCheckpoint(requestId: string, storyId: string): Promise<void> {
+  const request = await getStoryRepository().findRequestById(requestId);
+  const current = (request?.intermediateData as Record<string, unknown>) || {};
+  await getStoryRepository().updateRequest(requestId, {
+    intermediateData: { ...current, storyId },
+  });
+  logger.info({ requestId, storyId }, 'Story stub checkpoint saved');
+}
+
+/**
  * Save text generation checkpoint
  */
 export async function saveTextGenerationCheckpoint(

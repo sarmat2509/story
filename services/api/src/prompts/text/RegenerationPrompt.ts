@@ -9,50 +9,67 @@ import { getContentPolicy } from '../contentPolicy';
 import type { StorySpec } from '../../ai/types';
 import { getLanguageFullDisplay } from '@wondertales/shared';
 
-export interface RegenerationPromptParams {
+export interface BatchRegenerationPromptParams {
   spec: StorySpec;
   sceneCount: number;
-  sceneId: number;
-  originalSceneText: string;
-  validationFeedback: string;
-  vocabLevel: string; // simple, basic, intermediate, advanced
+  failedScenes: Array<{
+    sceneId: number;
+    originalText: string;
+    feedback: string;
+  }>;
+  vocabLevel: string;
 }
 
 /**
- * Build scene regeneration prompt
- *
- * Fixes ONLY policy violations in the scene text. Keeps same plot, characters, location, events.
- * The scene illustration will NOT change — regenerated text must match it.
+ * Build batch regeneration prompt - fix ALL failed scenes in one request.
+ * Returns JSON with all corrected scenes.
  */
-export function buildRegenerationPrompt(params: RegenerationPromptParams): string {
-  const { spec, sceneId, originalSceneText, validationFeedback, vocabLevel } = params;
-
-  const totalScenes = params.sceneCount;
+export function buildBatchRegenerationPrompt(params: BatchRegenerationPromptParams): string {
+  const { spec, sceneCount, failedScenes, vocabLevel } = params;
+  const totalScenes = sceneCount;
   const minWords = Math.floor(spec.policyProfile.readability.targetWordsRange[0] / totalScenes);
   const maxWords = Math.ceil(spec.policyProfile.readability.targetWordsRange[1] / totalScenes);
+  const { textPromptSection } = getContentPolicy({
+    policyProfile: spec.policyProfile,
+    scenarioCardId: spec.scenarioCard?.id,
+  });
 
-  return helpers.cleanTemplate`
-Fix policy violations in ONE scene. Fix ONLY what the validation flags. Keep plot, characters, location, events unchanged. The illustration will NOT change — your text must describe the same scene.
+  const scenesBlock = failedScenes
+    .map(
+      (f) => `--- SCENE ${f.sceneId} ---
+VALIDATION FEEDBACK (ISSUES TO FIX):
+${f.feedback}
+
+ORIGINAL TEXT:
+${f.originalText}`
+    )
+    .join('\n\n');
+
+  return `Fix policy violations in ALL scenes below. Fix ONLY what the validation flags. Keep plot, characters, location, events unchanged. The illustration will NOT change — your text must describe the same scene.
 
 LANGUAGE: Write entirely in ${getLanguageFullDisplay(spec.language as any)}.
 
-VALIDATION FEEDBACK (ISSUES TO FIX):
-${validationFeedback}
+SCENES TO FIX:
+${scenesBlock}
 
-ORIGINAL SCENE TEXT:
-${originalSceneText}
-
-${getContentPolicy({ policyProfile: spec.policyProfile, scenarioCardId: spec.scenarioCard?.id }).textPromptSection}
+${textPromptSection}
 
 REQUIREMENTS:
 - Age group: ${spec.ageGroup}
 - Vocabulary level: ${vocabLevel}
-- Target word count: ${minWords}-${maxWords} words
+- Target word count per scene: ${minWords}-${maxWords} words
 
 ${helpers.formatChildProfile(spec)}
 
 ${helpers.formatSceneLevelRules({ ageGroup: spec.ageGroup })}
 
-OUTPUT: Output ONLY the regenerated scene text. No JSON, no metadata, no sceneId. Plain text only.
-`;
+RETURN JSON with ALL corrected scenes in the same order:
+{
+  "scenes": [
+    { "sceneId": <number>, "text": "<regenerated scene text>" }
+  ]
+}
+
+- Include exactly ${failedScenes.length} entries, one per scene above.
+- sceneId must match the scene number. text = regenerated scene text only.`;
 }

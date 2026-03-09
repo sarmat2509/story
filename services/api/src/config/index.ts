@@ -124,6 +124,8 @@ export const config = {
     environmentEmbeddingSimilarityThreshold: parseFloat(
       process.env.ENVIRONMENT_EMBEDDING_SIMILARITY_THRESHOLD || '0.95'
     ),
+    // Skip Imagen 4 for environments with only 1 scene (among scenes with images) — cost optimization
+    skipEnvImageForSingleScene: process.env.SKIP_ENV_IMAGE_FOR_SINGLE_SCENE !== 'false',
     environmentImageStyle:
       process.env.ENVIRONMENT_IMAGE_STYLE ||
       'clean line art, simple shapes, clear spatial layout',

@@ -43,11 +43,16 @@ router.post('/analyze', requireAuth, async (req, res) => {
     }, 'Analyzing character photos');
     
     // Call analysis service
-    const result = await analysisService.analyzeCharacter({
-      photos,
-      characterType,
-      language: language || 'en'
-    });
+    const { recordUsage } = await import('../services/aiUsageService');
+    const usageContext = { userId: req.user!.id };
+    const result = await analysisService.analyzeCharacter(
+      {
+        photos,
+        characterType,
+        language: language || 'en'
+      },
+      { onUsage: (u) => recordUsage(u, usageContext) }
+    );
     
     // Map result to frontend-friendly format
     const analysis: any = {

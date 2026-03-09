@@ -8,10 +8,133 @@ import { normalizeCharacterName, toPhoneticKey } from '../../utils/characterNorm
 import { stripCharacterIds } from '../../utils/audioTags';
 import { generateEmbedding, cosineSimilarity } from '../embeddingService';
 import { createSceneRecords } from './utilities';
-import type { CreateStoryParams } from './types';
+import type { CreateStoryParams, CreateStoryStubParams } from './types';
 import type { CharacterData } from '../types';
 
 const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
+
+/**
+ * Create minimal story stub before text generation.
+ * Returns storyId for AI usage tracking. On success, call enrichStoryRecord to fill content.
+ */
+export async function createStoryStub(params: CreateStoryStubParams): Promise<string> {
+  const story = await getStoryRepository().createStory({
+    userId: params.userId,
+    childProfileId: params.childProfileId,
+    storyRequestId: params.storyRequestId,
+    title: 'Generating...',
+    language: params.spec.language,
+    ageGroup: params.spec.ageGroup,
+    moralTheme: null,
+    outline: null,
+    scenes: [],
+    fullText: '',
+    wordCount: 0,
+    estimatedReadMinutes: 0,
+    modelVersion: null,
+    generationTimeMs: null,
+    metadata: null,
+    policyChecks: null,
+    isPublished: false,
+    isFavorite: false,
+    ...(params.seriesData && {
+      seriesId: params.seriesData.seriesId,
+      partNumber: params.seriesData.partNumber,
+    }),
+  });
+  logger.info({ storyId: story.id }, 'Story stub created');
+  return story.id;
+}
+
+/**
+ * Enrich story stub with full content (update story, create scenes, link characters).
+ * Call after text generation and validation succeed.
+ */
+export async function enrichStoryRecord(storyId: string, params: CreateStoryParams): Promise<void> {
+  try {
+    const estimatedReadMinutes = Math.ceil(params.text.wordCount / 200);
+    const llmCharacters = (params.text as any).characters || [];
+
+    await getStoryRepository().transaction(async (tx) => {
+      await getStoryRepository().updateStory(
+        storyId,
+        {
+          title: stripCharacterIds(params.text.title),
+          moralTheme: params.goal,
+          scenes: params.text.scenes,
+          fullText: stripCharacterIds(params.text.fullText),
+          wordCount: params.text.wordCount,
+          estimatedReadMinutes,
+          modelVersion: (params.metadata as any).modelVersion || 'gemini-2.5-flash',
+          generationTimeMs: params.generationTimeMs,
+          isPublished: !!params.seriesData,
+          metadata: {
+            llmGeneratedCharacters: llmCharacters,
+            imageStyle: (params.spec as any).imageStyle,
+            mergedCharacters: params.characters,
+            ...(params.metadata.plotExampleId && { plotExampleId: params.metadata.plotExampleId }),
+            ...(params.metadata.worldRuleId && { worldRuleId: params.metadata.worldRuleId }),
+            textGenerationTimeMs: params.metadata.textGenerationTimeMs,
+            validationTimeMs: params.metadata.validationTimeMs,
+            sceneCount: params.metadata.sceneCount,
+            fullTextLength: params.metadata.fullTextLength,
+          },
+          policyChecks: {
+            outlineValidated: true,
+            textValidated: true,
+            timestamp: new Date().toISOString(),
+          },
+        },
+        tx
+      );
+
+      await createSceneRecords(storyId, params.text, { tx, includeWordCount: true });
+
+      const characterIdsToLink = new Set<string>();
+      const characterRoles = new Map<string, string>();
+
+      for (const character of params.spec.characters) {
+        if (character.id && character.type !== 'child') {
+          characterIdsToLink.add(character.id);
+          characterRoles.set(character.id, character.role || 'supporting');
+        }
+      }
+      for (const mc of params.characters as any[]) {
+        if (mc.id && mc.source === 'llm_generated') {
+          characterIdsToLink.add(mc.id);
+          characterRoles.set(mc.id, mc.role || 'supporting');
+        }
+      }
+
+      if (characterIdsToLink.size > 0) {
+        await Promise.all(
+          Array.from(characterIdsToLink).map((characterId) =>
+            getStoryRepository()
+              .createStoryCharacter(
+                {
+                  storyId,
+                  characterId,
+                  role: characterRoles.get(characterId) || 'supporting',
+                },
+                tx
+              )
+              .catch((err) => {
+                if (!err.message.includes('duplicate')) {
+                  logger.error({ error: err, characterId }, 'Failed to link character');
+                  throw err;
+                }
+              })
+          )
+        );
+      }
+
+      logger.info({ storyId, sceneCount: params.text.scenes.length, characterCount: characterIdsToLink.size }, 'Story enriched with content');
+    });
+  } catch (error) {
+    logger.error({ error, storyId, storyRequestId: params.storyRequestId }, 'Failed to enrich story');
+    throw error;
+  }
+}
 
 /**
  * Create story record with scenes and character linking

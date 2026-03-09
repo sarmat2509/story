@@ -36,11 +36,16 @@ router.post('/analyze', requireAuth, async (req, res) => {
     }, 'Analyzing child photos');
     
     // Call analysis service (always 'person' for children)
-    const result = await analysisService.analyzeCharacter({
-      photos,
-      characterType: 'person',
-      language: language || 'en'
-    });
+    const { recordUsage } = await import('../services/aiUsageService');
+    const usageContext = { userId: req.user!.id };
+    const result = await analysisService.analyzeCharacter(
+      {
+        photos,
+        characterType: 'person',
+        language: language || 'en'
+      },
+      { onUsage: (u) => recordUsage(u, usageContext) }
+    );
     
     // Map result to child-specific format
     const analysis: any = {

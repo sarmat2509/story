@@ -2,6 +2,11 @@ import { logger } from '../utils/logger';
 import { getTextProvider } from './aiService';
 import { getCharacterRepository, getChildProfileRepository } from '../repositories';
 import type { Character, ChildProfile } from '../db/schema';
+import type { UsageMetadata } from '../providers/base/UsageMetadata';
+
+export interface TranslationOptions {
+  onUsage?: (usage: UsageMetadata) => void;
+}
 
 /**
  * Translate character description to English and persist.
@@ -12,7 +17,7 @@ import type { Character, ChildProfile } from '../db/schema';
  * - Otherwise, send the description text to the LLM for translation
  * - Store the English version in description_en column
  */
-export async function translateCharacterDescription(character: Character): Promise<void> {
+export async function translateCharacterDescription(character: Character, options?: TranslationOptions): Promise<void> {
   const descriptionLanguage = (character as any).descriptionLanguage as string | null | undefined;
   const description = character.aiGeneratedDescription || character.description;
 
@@ -45,6 +50,8 @@ export async function translateCharacterDescription(character: Character): Promi
       prompt,
       temperature: 0.1, // Low temperature for accurate translation
       maxTokens: 4096,
+      onUsage: options?.onUsage,
+      operation: 'translation',
     });
 
     const trimmed = translatedText.trim();
@@ -80,7 +87,7 @@ export async function translateCharacterDescription(character: Character): Promi
  * - Otherwise, send the description text to the LLM for translation
  * - Store the English version in description_en column
  */
-export async function translateChildDescription(childProfile: ChildProfile): Promise<void> {
+export async function translateChildDescription(childProfile: ChildProfile, options?: TranslationOptions): Promise<void> {
   const descriptionLanguage = (childProfile as any).descriptionLanguage as string | null | undefined;
   const description = childProfile.aiGeneratedDescription;
 
@@ -113,6 +120,8 @@ export async function translateChildDescription(childProfile: ChildProfile): Pro
       prompt,
       temperature: 0.1,
       maxTokens: 4096,
+      onUsage: options?.onUsage,
+      operation: 'translation',
     });
 
     const trimmed = translatedText.trim();

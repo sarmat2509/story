@@ -3,6 +3,8 @@
  * These types can be adapted to any LLM provider's schema format
  */
 
+import type { UsageMetadata } from './UsageMetadata';
+
 export type JsonSchemaType = 
   | 'string'
   | 'number'
@@ -62,6 +64,8 @@ export interface GenerateStructuredRequest<T = any> {
   topK?: number;
   imageData?: ImageData[]; // For vision models (Gemini Vision, GPT-4 Vision, etc.)
   relaxedSafety?: boolean; // Use ultra-relaxed safety settings (for photo analysis)
+  onUsage?: (usage: UsageMetadata) => void; // Optional callback for cost tracking
+  operation?: string; // Operation name for usage callback (e.g. 'text_structured', 'validateScene')
 }
 
 /**
@@ -74,6 +78,8 @@ export interface GenerateTextRequest {
   topP?: number;
   topK?: number;
   stopSequences?: string[];
+  onUsage?: (usage: UsageMetadata) => void; // Optional callback for cost tracking
+  operation?: string; // Operation name for usage callback (e.g. 'text_free', 'text_continuation')
 }
 
 /**

@@ -10,6 +10,7 @@ import {
 } from '../repositories';
 import type { CreateStoryRequestInput } from '@wondertales/shared';
 import { getStoryDomainService, getImageDomainService, getAudioDomainService, getEnvironmentImageProvider } from './aiService';
+import { recordUsage } from './aiUsageService';
 import { getAssetStorageService } from './assetStorageService';
 import { getPlanFeatures } from './planService';
 import {
@@ -50,6 +51,8 @@ import { buildCharacterRegistry, normalizeCharacterName, matchCharacterNames, to
 import { loadReferenceImageData } from './referenceImageTracker';
 import { generateEmbedding, cosineSimilarity } from './embeddingService';
 import { generateLlmCharacterTurnaround } from './turnaroundSheetService';
+import { createStoryStub, enrichStoryRecord } from './storyOrchestration/storyRecords';
+import { validateStoryScenes } from './storyOrchestration/validation';
 
 /**
  * Story Orchestration Service (Milestone 3)
@@ -269,6 +272,7 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
     
     // Check for existing checkpoints (from previous failed attempt)
     const checkpoints = (request.intermediateData as any) || {};
+    let storyId: string | undefined = checkpoints.storyId;
     
     let text, mergedCharacters, spec, selectedCharacters;
     let textGenerationTimeMs: number | undefined;
@@ -298,11 +302,31 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
       selectedCharacters = specData.selectedCharacters;
       chosenPlotExampleId = specData.chosenPlotExampleId;
       chosenWorldRuleId = specData.chosenWorldRuleId;
+
+      // Create story stub before text generation for AI usage tracking
+      if (checkpoints.storyId) {
+        storyId = checkpoints.storyId;
+        logger.info({ requestId, storyId }, 'Reusing story stub from checkpoint');
+      } else {
+        storyId = await createStoryStub({
+          userId: request.userId,
+          storyRequestId: request.id,
+          childProfileId: request.childProfileId,
+          spec,
+        });
+        Object.assign(checkpoints, { storyId });
+        await getStoryRepository().updateRequest(requestId, {
+          intermediateData: { ...checkpoints, storyId },
+        });
+      }
+      const usageContext = { userId: request.userId, storyId };
       
       // Task 1: Generate Text (with timing)
       const textGenStart = Date.now();
       await startTask(requestId, STORY_TASKS.GENERATING_TEXT, { estimatedMs: coefficients.avgTextMs });
-      text = await storyDomain.generateText(spec);
+      text = await storyDomain.generateText(spec, {
+        onUsage: (u) => recordUsage(u, usageContext),
+      });
       textGenerationTimeMs = Date.now() - textGenStart;
       await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
       
@@ -382,15 +406,11 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
         })),
       }, 'LLM characters persisted and enriched');
       
-      // Save checkpoint
+      // Save checkpoint (preserve storyId from stub)
       const specForCheckpoint = { ...spec, policyProfile: undefined };
+      Object.assign(checkpoints, { text, mergedCharacters, spec: specForCheckpoint, selectedCharacters });
       await getStoryRepository().updateRequest(requestId, {
-        intermediateData: { 
-          text,
-          mergedCharacters,
-          spec: specForCheckpoint,
-          selectedCharacters 
-        }
+        intermediateData: { ...checkpoints, text, mergedCharacters, spec: specForCheckpoint, selectedCharacters },
       });
       
       logger.info({ requestId, checkpoint: 'text' }, 'Checkpoint saved');
@@ -401,153 +421,78 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
       logger.info({ requestId }, 'Reusing validated text from checkpoint');
       text = checkpoints.validatedText;
     } else {
-      // Task 3: Validation with parallel scene validation (with timing)
-      let validationStart = Date.now();
-      await startTask(requestId, STORY_TASKS.VALIDATING, {
-        estimatedMs: coefficients.avgValidationMsPerScene * (text?.scenes?.length || 6),
+      const validationResult = await validateStoryScenes({
+        requestId,
+        userId: request.userId,
+        storyId,
+        text,
+        spec,
+        maxRetries: 2,
       });
+      text = validationResult.validatedText;
+      validationTimeMs = validationResult.validationTimeMs;
     
-    logger.info({ requestId, sceneCount: text.scenes.length }, 'Starting parallel scene validation');
-    
-    const validations = await Promise.all(
-      text.scenes.map((scene, idx) => 
-        storyDomain.validateScene(
-          scene,
-          spec.policyProfile,
-          idx === text.scenes.length - 1 // isLastScene
-        )
-      )
-    );
-    
-    // Check which scenes failed
-    const failedScenes = validations.filter(v => !v.isValid);
-    
-    if (failedScenes.length > 0) {
-      logger.info({ 
-        requestId, 
-        failedCount: failedScenes.length,
-        sceneIds: failedScenes.map(f => f.sceneId)
-      }, 'Some scenes failed validation, starting regeneration');
-      
-      // SELECTIVE REGENERATION WITH RETRY LOOP
-      const MAX_RETRIES = 2;
-      const scenesToRegenerate = new Map(failedScenes.map(f => [f.sceneId, 0]));
-      
-      for (let attempt = 0; attempt < MAX_RETRIES && scenesToRegenerate.size > 0; attempt++) {
-        logger.info({ 
-          requestId, 
-          attempt: attempt + 1, 
-          scenesToRegenerate: Array.from(scenesToRegenerate.keys())
-        }, 'Regeneration attempt');
-        
-        const sceneIds = Array.from(scenesToRegenerate.keys());
-        const regenerationPromises = sceneIds.map(sceneId => {
-          const scene = text.scenes.find(s => s.sceneId === sceneId);
-          const validation = validations.find(v => v.sceneId === sceneId);
-          const feedback = validation?.violations.map(v => v.message).join('; ') || '';
-          return storyDomain.regenerateScene(spec, text.scenes.length, sceneId, scene?.text ?? '', feedback);
-        });
-        
-        const newTexts = await Promise.all(regenerationPromises);
-        
-        // Update only scene text (preserve sceneVisual, environmentId, etc.)
-        sceneIds.forEach((sceneId, i) => {
-          const idx = text.scenes.findIndex(s => s.sceneId === sceneId);
-          if (idx !== -1) {
-            text.scenes[idx].text = newTexts[i];
-          }
-        });
-        
-        text.fullText = text.scenes.map(s => s.text).join('\n\n');
-        text.wordCount = text.fullText.split(/\s+/).length;
-        
-        // Re-validate updated scenes
-        const revalidations = await Promise.all(
-          sceneIds.map((sceneId) => {
-            const idx = text.scenes.findIndex(s => s.sceneId === sceneId);
-            const scene = text.scenes[idx];
-            return storyDomain.validateScene(
-              scene,
-              spec.policyProfile,
-              idx === text.scenes.length - 1
-            );
-          })
-        );
-        
-        revalidations.forEach((validation, idx) => {
-          const sceneId = sceneIds[idx];
-          if (validation.isValid) {
-            scenesToRegenerate.delete(sceneId);
-          } else {
-            scenesToRegenerate.set(sceneId, (scenesToRegenerate.get(sceneId) || 0) + 1);
-          }
-        });
-      }
-      
-      if (scenesToRegenerate.size > 0) {
-        logger.warn({ 
-          requestId, 
-          failedSceneIds: Array.from(scenesToRegenerate.keys())
-        }, 'Some scenes still failing validation after max retries');
-      }
-    }
-    
-    validationTimeMs = Date.now() - validationStart;
-    await completeTask(requestId, STORY_TASKS.VALIDATING);
-    
-    logger.info({ requestId, validationTimeMs, sceneCount: text.scenes.length }, 'Validation completed');
-    
-    // Save validation checkpoint
-    const currentCheckpoints = checkpoints.text ? checkpoints : { 
-      spec: { ...spec, policyProfile: undefined }, 
-      selectedCharacters,
+    // Save validation checkpoint (preserve storyId, text, spec, mergedCharacters)
+    const specForValidation = { ...spec, policyProfile: undefined };
+    Object.assign(checkpoints, {
+      validationComplete: true,
+      validatedText: text,
       text,
-      mergedCharacters
-    };
+      spec: specForValidation,
+      selectedCharacters,
+      mergedCharacters,
+    });
     await getStoryRepository().updateRequest(requestId, {
-      intermediateData: { 
-        ...currentCheckpoints,
-        validationComplete: true,
-        validatedText: text
-      }
+      intermediateData: { ...checkpoints, validationComplete: true, validatedText: text },
     });
     
     logger.info({ requestId, checkpoint: 'validation' }, 'Checkpoint saved');
     }
     
-    // CHECKPOINT 4: Story already saved?
-    let storyId: string;
-    if (checkpoints.storyId) {
-      logger.info({ requestId, storyId: checkpoints.storyId }, 'Reusing existing saved story from checkpoint');
-      storyId = checkpoints.storyId;
-    } else {
-      // Save story with scenes (include generation timing data)
-      storyId = await saveStory(request, spec, text, mergedCharacters, Date.now() - startTime, {
-        textGenerationTimeMs,
-        validationTimeMs,
-        sceneCount: text.scenes.length,
-        fullTextLength: text.fullText?.length || 0,
-      }, chosenPlotExampleId, chosenWorldRuleId);
-      
-      // Save checkpoint 4
-      const currentCheckpoints = checkpoints.validationComplete ? checkpoints : {
-        spec: { ...spec, policyProfile: undefined },
-        selectedCharacters,
-        text,
-        mergedCharacters,
-        validationComplete: true,
-        validatedText: text
-      };
-      
-      await getStoryRepository().updateRequest(requestId, {
-        intermediateData: { 
-          ...currentCheckpoints,
-          storyId
-        }
-      });
-      
-      logger.info({ requestId, storyId, checkpoint: 'story_saved' }, 'Checkpoint 4 saved');
+    // CHECKPOINT 4: Enrich stub or reuse already-enriched story
+    if (!storyId) {
+      throw new Error('Story stub should exist before checkpoint 4');
     }
+    const existingStory = await getStoryRepository().findById(storyId);
+    const needsEnrich = !existingStory || existingStory.title === 'Generating...';
+    if (needsEnrich) {
+      await enrichStoryRecord(storyId, {
+        userId: request.userId,
+        storyRequestId: request.id,
+        childProfileId: request.childProfileId,
+        text,
+        spec,
+        characters: mergedCharacters,
+        goal: request.goal,
+        generationTimeMs: Date.now() - startTime,
+        metadata: {
+          textGenerationTimeMs: textGenerationTimeMs ?? 0,
+          validationTimeMs: validationTimeMs ?? 0,
+          sceneCount: text.scenes.length,
+          fullTextLength: text.fullText?.length || 0,
+          modelVersion: 'gemini-2.5-flash',
+          plotExampleId: chosenPlotExampleId,
+          worldRuleId: chosenWorldRuleId,
+          llmGeneratedCharacters: (text as any).characters || [],
+          imageStyle: (spec as any).imageStyle,
+        },
+      });
+
+    }
+    // Save checkpoint 4: ensure processStoryImages has storyId, validatedText, spec, mergedCharacters
+    Object.assign(checkpoints, { storyId, validatedText: text, text });
+    await getStoryRepository().updateRequest(requestId, {
+      intermediateData: {
+        ...checkpoints,
+        storyId,
+        validatedText: text,
+        text,
+        spec: { ...spec, policyProfile: undefined },
+        mergedCharacters,
+        selectedCharacters,
+      },
+    });
+    logger.info({ requestId, storyId, checkpoint: 'story_saved' }, 'Checkpoint 4 saved');
     
     // Text + validation + save complete. Return storyId for image queue.
     logger.info({ requestId, storyId, duration: Date.now() - startTime }, 'Text+validation phase completed, handing off to image queue');
@@ -555,19 +500,29 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
     return { storyId };
     
   } catch (error) {
-    logger.error({ 
-      error, 
+    logger.error({
+      error,
       requestId,
       errorMessage: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      errorName: error instanceof Error ? error.name : undefined
+      errorName: error instanceof Error ? error.name : undefined,
     }, 'Story text generation failed');
-    
+
+    const checkpointsOnError = (await getStoryRepository().findRequestById(requestId))?.intermediateData as Record<string, unknown> | null;
+    const stubStoryId = checkpointsOnError?.storyId as string | undefined;
+    if (stubStoryId) {
+      const existingStory = await getStoryRepository().findById(stubStoryId);
+      if (existingStory?.title === 'Generating...') {
+        await getStoryRepository().deleteStory(stubStoryId, (await getStoryRepository().findRequestById(requestId))!.userId);
+        logger.info({ requestId, storyId: stubStoryId }, 'Deleted story stub after failure');
+      }
+    }
+
     await getStoryRepository().updateRequest(requestId, {
       status: 'failed',
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
     });
-    
+
     throw error;
   }
 }
@@ -983,6 +938,15 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
 
   let progressCount = 0;
 
+  // Pre-compute scenes per environment (for single-scene skip optimization)
+  const scenesPerEnvironment = new Map<string, number>();
+  for (const scene of scenesToGenerate) {
+    const envId = (scene as any).environmentId;
+    if (envId) {
+      scenesPerEnvironment.set(envId, (scenesPerEnvironment.get(envId) || 0) + 1);
+    }
+  }
+
   // On-demand environment image map (shared across parallel scene iterations)
   const environmentImageMap = new Map<string, EnvImageData>();
   const envImagePending = new Map<string, Promise<EnvImageData | null>>();
@@ -1033,10 +997,12 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
         if (!pending) {
           pending = getOrCreateEnvironmentImage({
             storyId,
+            userId,
             storyEnvironmentId: currentEnvironmentId,
             environment: currentEnvironment,
             assetStorage,
             scenarioCardId: spec.scenarioCard?.id,
+            scenesUsingThisEnv: scenesPerEnvironment.get(currentEnvironmentId) ?? 0,
           });
           envImagePending.set(currentEnvironmentId, pending);
         }
@@ -1442,6 +1408,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
             characterName: llmChar.name,
             characterDescription: llmChar.description,
             imageStyle: (spec as any).imageStyle,
+            storyId,
           });
 
           const charData = characterDescriptionMap.get(llmChar.normalizedName);
@@ -1478,6 +1445,15 @@ export async function processStoryImages(requestId: string): Promise<void> {
           .filter(s => s.imageUrl != null && s.imageUrl !== '')
           .map(s => s.sceneId)
       );
+
+      // Pre-compute scenes per environment (for single-scene skip optimization)
+      const scenesPerEnvironment = new Map<string, number>();
+      for (const s of scenesToGenerate) {
+        const envId = (s as any).environmentId;
+        if (envId) {
+          scenesPerEnvironment.set(envId, (scenesPerEnvironment.get(envId) || 0) + 1);
+        }
+      }
 
       // On-demand environment image map (shared across parallel scene iterations)
       const environmentImageMap = new Map<string, EnvImageData>();
@@ -1525,10 +1501,12 @@ export async function processStoryImages(requestId: string): Promise<void> {
             if (!pending) {
               pending = getOrCreateEnvironmentImage({
                 storyId,
+                userId: request.userId,
                 storyEnvironmentId: currentEnvironmentId,
                 environment: currentEnvironment,
                 assetStorage,
                 scenarioCardId: spec.scenarioCard?.id,
+                scenesUsingThisEnv: scenesPerEnvironment.get(currentEnvironmentId) ?? 0,
               });
               envImagePending.set(currentEnvironmentId, pending);
             }
@@ -2360,17 +2338,21 @@ async function generateSceneImage(
     }
     
     // Generate scene illustration
-    const image = await context.imageDomain.generateSceneIllustration({
-      sceneVisual: scene.sceneVisual,
-      visualPrompt: scene.visualPrompt, // Fallback for old stories
-      sceneId: scene.sceneId,
-      sceneText: scene.text,
-      ageGroup: context.ageGroup,
-      style: context.userStyle || context.imageDomain.buildImageStyle(context.ageGroup),
-      characters: context.characters,
-      referenceImages: referenceImages,
-      mode: generationMode,
-    });
+    const usageContext = { userId: context.userId, storyId };
+    const image = await context.imageDomain.generateSceneIllustration(
+      {
+        sceneVisual: scene.sceneVisual,
+        visualPrompt: scene.visualPrompt, // Fallback for old stories
+        sceneId: scene.sceneId,
+        sceneText: scene.text,
+        ageGroup: context.ageGroup,
+        style: context.userStyle || context.imageDomain.buildImageStyle(context.ageGroup),
+        characters: context.characters,
+        referenceImages: referenceImages,
+        mode: generationMode,
+      },
+      { onUsage: (u) => recordUsage(u, usageContext) }
+    );
     
     // Upload original image to storage
     const uploadResult = await context.assetStorage.uploadAsset({
@@ -2470,14 +2452,16 @@ export interface EnvImageData {
  */
 async function getOrCreateEnvironmentImage(params: {
   storyId: string;
+  userId?: string;
   storyEnvironmentId: string;
   environment: StoryEnvironment;
   assetStorage: ReturnType<typeof getAssetStorageService>;
   scenarioCardId?: string;
+  scenesUsingThisEnv?: number;
 }): Promise<EnvImageData | null> {
   if (!config.image.enableEnvironmentReference) return null;
 
-  const { storyId, storyEnvironmentId, environment, assetStorage, scenarioCardId } = params;
+  const { storyId, userId, storyEnvironmentId, environment, assetStorage, scenarioCardId, scenesUsingThisEnv } = params;
   const envCacheRepo = getEnvironmentImageCacheRepository();
   const storyEnvRepo = getStoryEnvironmentCacheRepository();
   const threshold = config.image.environmentEmbeddingSimilarityThreshold;
@@ -2509,13 +2493,28 @@ async function getOrCreateEnvironmentImage(params: {
     };
   }
 
+  // 2.5. Skip Imagen 4 for single-scene environments (cost optimization)
+  if (
+    config.image.skipEnvImageForSingleScene &&
+    scenesUsingThisEnv === 1
+  ) {
+    logger.info(
+      { storyEnvironmentId, scenesUsingThisEnv },
+      'Skipping Imagen 4 for single-scene environment'
+    );
+    return null;
+  }
+
   // 3. Generate with Imagen 4 Fast
   try {
     const envProvider = getEnvironmentImageProvider();
     const prompt = buildEnvironmentImagePrompt({ environment, scenarioCardId });
+    const usageContext = { userId: userId ?? null, storyId };
     const result = await envProvider.generateImage({
       prompt,
       aspectRatio: '16:9',
+      onUsage: (u) => recordUsage(u, usageContext),
+      operation: 'image_generate',
     });
 
     const buffer = Buffer.isBuffer(result.imageData) ? result.imageData : Buffer.from(result.imageData as string, 'base64');
@@ -2656,12 +2655,14 @@ function isRetryableGenerationError(error: unknown): boolean {
 async function generateWithRetry(
   imageDomain: ReturnType<typeof getImageDomainService>,
   generateRequest: Parameters<ReturnType<typeof getImageDomainService>['generateSceneWithReference']>[0],
-  context: { storyId: string; sceneId: number },
+  context: { storyId: string; sceneId: number; userId?: string },
 ): Promise<ReturnType<ReturnType<typeof getImageDomainService>['generateSceneWithReference']>> {
+  const usageContext = { userId: context.userId ?? null, storyId: context.storyId };
+  const onUsage = (u: import('../providers/base/UsageMetadata').UsageMetadata) => recordUsage(u, usageContext);
   let lastError: unknown;
   for (let retry = 0; retry <= MAX_GENERATION_RETRIES; retry++) {
     try {
-      return await imageDomain.generateSceneWithReference(generateRequest);
+      return await imageDomain.generateSceneWithReference(generateRequest, { onUsage });
     } catch (error) {
       lastError = error;
       if (isRetryableGenerationError(error) && retry < MAX_GENERATION_RETRIES) {
@@ -2954,7 +2955,7 @@ async function generateSceneImageWithReference(
       : 1;
 
     let image = await generateWithRetry(
-      context.imageDomain, generateRequest, { storyId, sceneId: scene.sceneId },
+      context.imageDomain, generateRequest, { storyId, sceneId: scene.sceneId, userId: context.userId },
     );
     let lastValidation: ImageValidationResult | null = null;
 
@@ -2993,12 +2994,14 @@ async function generateSceneImageWithReference(
         }
 
         try {
+          const imgUsageContext = { userId: context.userId, storyId };
           const validation = await context.imageDomain.validateGeneratedImage({
             imageData: image.imageData,
             mimeType: image.mimeType,
             expectedCharacters,
             sceneVisual: scene.sceneVisual || migrateVisualPrompt(scene),
             referenceImages: validationReferenceImages.length > 0 ? validationReferenceImages : undefined,
+            onUsage: (u) => recordUsage(u, imgUsageContext),
           });
 
           lastValidation = validation;
@@ -3091,6 +3094,7 @@ async function generateSceneImageWithReference(
                   aspectRatio: '16:9',
                   referenceImages: generateRequest.referenceImages,
                   systemInstruction: generateRequest.systemInstruction,
+                  onUsage: (u) => recordUsage(u, imgUsageContext),
                 });
 
                 logger.info({
@@ -3105,7 +3109,7 @@ async function generateSceneImageWithReference(
                 }, 'Image edit failed, falling back to full regeneration');
 
                 image = await generateWithRetry(
-                  context.imageDomain, generateRequest, { storyId, sceneId: scene.sceneId },
+                  context.imageDomain, generateRequest, { storyId, sceneId: scene.sceneId, userId: context.userId },
                 );
               }
             } else {
@@ -3121,7 +3125,7 @@ async function generateSceneImageWithReference(
               }, 'Issues require full regeneration (missing or unrecognizable character)');
 
               image = await generateWithRetry(
-                context.imageDomain, generateRequest, { storyId, sceneId: scene.sceneId },
+                context.imageDomain, generateRequest, { storyId, sceneId: scene.sceneId, userId: context.userId },
               );
             }
           }
@@ -3634,17 +3638,33 @@ export async function processContinuationRequest(requestId: string): Promise<{ s
       requestStoryLanguage: request.storyLanguage,
       specLanguage: spec.language,
     }, 'Language values before story creation');
+
+    // Create story stub before text generation for AI usage tracking
+    const storyId = await createStoryStub({
+      userId: request.userId,
+      storyRequestId: request.id,
+      childProfileId: request.childProfileId,
+      spec,
+      seriesData: { seriesId, partNumber },
+    });
+    await getStoryRepository().updateRequest(requestId, {
+      intermediateData: { ...intermediateData, storyId },
+    });
+    const usageContext = { userId: request.userId, storyId };
     
     // Task 1: Generate Continuation Text (with timing)
     const textGenStart = Date.now();
     await startTask(requestId, STORY_TASKS.GENERATING_TEXT, { estimatedMs: coefficients.avgTextMs });
-    const text = await storyDomain.generateContinuation({
-      spec,
-      previousOutlines: continuationContext.previousOutlines,
-      requiredCharacters: continuationContext.requiredCharacters,
-      optionalCharacters: continuationContext.optionalCharacters,
-      usedPlots: continuationContext.usedPlots,
-    });
+    const text = await storyDomain.generateContinuation(
+      {
+        spec,
+        previousOutlines: continuationContext.previousOutlines,
+        requiredCharacters: continuationContext.requiredCharacters,
+        optionalCharacters: continuationContext.optionalCharacters,
+        usedPlots: continuationContext.usedPlots,
+      },
+      { onUsage: (u) => recordUsage(u, usageContext) }
+    );
     const textGenerationTimeMs = Date.now() - textGenStart;
     await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
     
@@ -3672,71 +3692,33 @@ export async function processContinuationRequest(requestId: string): Promise<{ s
       ...llmCharacters,
     ];
     
-    // Create continuation story in database FIRST (to get storyId for scenes and images)
-    const createdStory = await getStoryRepository().createStory({
+    // Enrich stub with full continuation content
+    await enrichStoryRecord(storyId, {
       userId: request.userId,
-      childProfileId: request.childProfileId,
       storyRequestId: request.id,
-      title: text.title,
-      language: request.storyLanguage || 'uk', // Use storyLanguage field from request, fallback to 'uk'
-      ageGroup: spec.ageGroup,
-      moralTheme: request.goal,
-      outline: null,
-      scenes: text.scenes.map((scene) => ({
-        sceneId: scene.sceneId,
-        text: scene.text,
-        sceneVisual: scene.sceneVisual,
-        visualPrompt: scene.visualPrompt, // Keep for backward compat
-        imageUrl: null, // Will be updated after image generation
-      })),
-      fullText: text.fullText,
-      wordCount: text.wordCount,
-      estimatedReadMinutes: Math.ceil(text.wordCount / 200),
+      childProfileId: request.childProfileId,
+      text: {
+        ...text,
+        language: request.storyLanguage || 'uk',
+      },
+      spec,
+      characters: allCharacters,
+      goal: request.goal,
+      generationTimeMs: Date.now() - startTime,
       metadata: {
-        llmGeneratedCharacters: llmCharacters,
-        mergedCharacters: allCharacters, // Store all characters
-        imageStyle: request.imageStyle,
-        ...(continuationPlotExampleId && { plotExampleId: continuationPlotExampleId }),
-        ...(continuationWorldRuleId && { worldRuleId: continuationWorldRuleId }),
-        generatedAt: new Date().toISOString(),
         textGenerationTimeMs,
+        validationTimeMs: 0,
         sceneCount: text.scenes.length,
         fullTextLength: text.fullText?.length || 0,
+        modelVersion: 'gemini-2.0-flash-exp',
+        plotExampleId: continuationPlotExampleId,
+        worldRuleId: continuationWorldRuleId,
+        llmGeneratedCharacters: llmCharacters,
+        imageStyle: request.imageStyle,
       },
-      modelVersion: 'gemini-2.0-flash-exp',
-      generationTimeMs: Date.now() - startTime,
-      isPublished: true,
-      // Series fields
-      seriesId: seriesId,
-      partNumber: partNumber,
+      seriesData: { seriesId, partNumber },
     });
-    
-    const storyId = createdStory.id;
-    logger.info({ storyId, seriesId, partNumber }, 'Continuation story created');
-    
-    // Create scene records in database
-    await Promise.all(
-      text.scenes.map(async (scene) => {
-        // Derive charactersPresent from cameraComposition.characters (single source of truth)
-        const cam = scene.sceneVisual?.cameraComposition;
-        const charNames = (cam && typeof cam !== 'string')
-          ? flattenCameraComposition(cam).characterNames
-          : (scene as any).characters || [];
-        const normalizedCharacters = charNames.map((name: string) => normalizeCharacterName(name));
-        
-        await getSceneRepository().create({
-          storyId: storyId,
-          sceneId: scene.sceneId,
-          text: scene.text,
-          visualPrompt: scene.sceneVisual
-            ? JSON.stringify(scene.sceneVisual)
-            : scene.visualPrompt,
-          charactersPresent: normalizedCharacters,
-        });
-      })
-    );
-    
-    logger.info({ storyId, sceneCount: text.scenes.length }, 'Continuation scenes saved to DB');
+    logger.info({ storyId, seriesId, partNumber }, 'Continuation story enriched');
     
     // Save image generation context to intermediateData for the image queue
     await getStoryRepository().updateRequest(requestId, {
@@ -3750,7 +3732,7 @@ export async function processContinuationRequest(requestId: string): Promise<{ s
         validatedText: text,
         seriesId,
         partNumber,
-        createdStory: { id: createdStory.id },
+        createdStory: { id: storyId },
       }
     });
     
@@ -3760,13 +3742,23 @@ export async function processContinuationRequest(requestId: string): Promise<{ s
     
   } catch (error) {
     logger.error({ error, requestId }, 'Continuation text generation failed');
-    
+
+    const req = await getStoryRepository().findRequestById(requestId);
+    const stubStoryId = (req?.intermediateData as Record<string, unknown> | null)?.storyId as string | undefined;
+    if (stubStoryId && req) {
+      const existingStory = await getStoryRepository().findById(stubStoryId);
+      if (existingStory?.title === 'Generating...') {
+        await getStoryRepository().deleteStory(stubStoryId, req.userId);
+        logger.info({ requestId, storyId: stubStoryId }, 'Deleted continuation story stub after failure');
+      }
+    }
+
     await getStoryRepository().updateRequest(requestId, {
       status: 'failed',
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
       updatedAt: new Date(),
     });
-    
+
     throw error;
   }
 }
@@ -4747,14 +4739,16 @@ export async function generateStoryAudio(
     }
 
     // Generate audio with plan type
+    const usageContext = { userId: story.userId, storyId };
     const result = await audioDomain.synthesizeStory(
-      story, 
+      story,
       {
         voiceId,
         speed: options?.speed,
         nightMode: options?.nightMode,
       },
-      planType // Pass plan type for voice selection logic
+      planType, // Pass plan type for voice selection logic
+      { onUsage: (u) => recordUsage(u, usageContext) }
     );
 
     // Update story metadata

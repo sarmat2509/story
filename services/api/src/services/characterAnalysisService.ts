@@ -85,6 +85,10 @@ export interface AnalyzeCharacterRequest {
   existingTraits?: Record<string, any>; // Optional: existing appearance traits to refine
 }
 
+export interface CharacterAnalysisOptions {
+  onUsage?: (usage: import('../providers/base/UsageMetadata').UsageMetadata) => void;
+}
+
 /**
  * Structured result from character analysis
  */
@@ -162,7 +166,7 @@ export class CharacterAnalysisService {
    * Analyze character from reference photos
    * Returns structured description and appearance data
    */
-  async analyzeCharacter(request: AnalyzeCharacterRequest): Promise<CharacterAnalysisResult> {
+  async analyzeCharacter(request: AnalyzeCharacterRequest, options?: CharacterAnalysisOptions): Promise<CharacterAnalysisResult> {
     logger.info({ 
       photoCount: request.photos.length, 
       characterType: request.characterType 
@@ -193,6 +197,8 @@ export class CharacterAnalysisService {
       schema: this.getCharacterAnalysisSchema(request.characterType), // Pass characterType for proper enum
       temperature: 0.3, // Lower temperature for consistent analysis
       relaxedSafety: true, // ✅ Use ultra-relaxed safety for photo analysis
+      onUsage: options?.onUsage,
+      operation: 'character_analysis',
     });
       
       // Enforce array limits (in case AI returns more than allowed)

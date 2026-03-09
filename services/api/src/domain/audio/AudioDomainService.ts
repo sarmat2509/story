@@ -12,6 +12,11 @@
 
 import type { IAudioProvider, Voice, SynthesizeRequest } from '../../providers/base/IAudioProvider';
 import type { IAlignmentProvider, AlignmentResult } from '../../providers/base/IAlignmentProvider';
+import type { UsageMetadata } from '../../providers/base/UsageMetadata';
+
+export interface AudioDomainOptions {
+  onUsage?: (usage: UsageMetadata) => void;
+}
 import type { Story } from '../../db/schema';
 import type { AudioMetadata } from '@wondertales/shared';
 import { getAssetRepository, getVoiceRepository, getStoryRepository } from '../../repositories';
@@ -60,7 +65,8 @@ export class AudioDomainService {
   async synthesizeStory(
     story: Story,
     voiceParams: VoiceParams,
-    userPlanType?: 'free' | 'premium' // NEW: plan type for freemium logic
+    userPlanType?: 'free' | 'premium', // NEW: plan type for freemium logic
+    options?: AudioDomainOptions
   ): Promise<AudioResult> {
     logger.info(
       {
@@ -75,7 +81,7 @@ export class AudioDomainService {
     // Execute with rate limiting (concurrency + character quota control)
     const textLength = story.fullText.length;
     return await this.rateLimiter.execute(async () => {
-      return await this.synthesizeStoryInternal(story, voiceParams, userPlanType);
+      return await this.synthesizeStoryInternal(story, voiceParams, userPlanType, options);
     }, textLength);
   }
 
@@ -97,7 +103,8 @@ export class AudioDomainService {
     sceneGroups: Array<{ scenes: any[]; text: string; totalChars: number }>,
     voiceParams: VoiceParams,
     userPlanType?: 'free' | 'premium',
-    concurrencyLimit: number = 2
+    concurrencyLimit: number = 2,
+    options?: AudioDomainOptions
   ): Promise<AudioResult> {
     // 1. Select voice FIRST to determine provider
     logger.info({ storyId: story.id }, 'Step 1/7: Selecting voice');
@@ -303,6 +310,10 @@ export class AudioDomainService {
                 outputFormat: 'mp3',
               });
               const generationTime = Date.now() - startTime;
+
+              if (options?.onUsage) {
+                this.reportAudioUsage(options.onUsage, voice, group.text.length, result.durationSeconds);
+              }
 
               logger.info(
                 {
@@ -570,7 +581,8 @@ export class AudioDomainService {
   private async synthesizeStoryInternal(
     story: Story,
     voiceParams: VoiceParams,
-    userPlanType?: 'free' | 'premium'
+    userPlanType?: 'free' | 'premium',
+    options?: AudioDomainOptions
   ): Promise<AudioResult> {
     // 1. Get or select voice
     const voice = await this.selectVoiceForStory(
@@ -625,6 +637,10 @@ export class AudioDomainService {
     };
 
     const result = await this.audioProvider.synthesize(synthesizeRequest);
+
+    if (options?.onUsage) {
+      this.reportAudioUsage(options.onUsage, voice, normalizedText.length, result.durationSeconds);
+    }
 
     // 5. Upload to storage
     const uploadResult = await this.storageService.uploadAsset({
@@ -692,6 +708,37 @@ export class AudioDomainService {
       voiceName: voice.name,
       cached: false,
     };
+  }
+
+  /**
+   * Report audio usage for cost tracking.
+   * ElevenLabs: inputUnits = chars.
+   * Google TTS: inputUnits ≈ chars/4, outputUnits = durationSec * 25.
+   */
+  private reportAudioUsage(
+    onUsage: (u: UsageMetadata) => void,
+    voice: Voice,
+    charCount: number,
+    durationSeconds: number
+  ): void {
+    const provider = (voice.provider || 'elevenlabs') as string;
+    if (provider === 'google-tts' || provider === 'google') {
+      onUsage({
+        provider: 'google-tts',
+        operation: 'audio_synthesize',
+        model: 'gemini-2.5-flash-tts',
+        inputUnits: Math.ceil(charCount / 4),
+        outputUnits: Math.round(durationSeconds * 25),
+        durationSeconds,
+      });
+    } else {
+      onUsage({
+        provider: 'elevenlabs',
+        operation: 'audio_synthesize',
+        model: (voice as any).modelId || 'elevenlabs-eleven_v3',
+        inputUnits: charCount,
+      });
+    }
   }
 
   /**

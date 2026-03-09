@@ -71,8 +71,21 @@ export interface CreateStoryParams {
   };
 }
 
+export interface CreateStoryStubParams {
+  userId: string;
+  storyRequestId: string;
+  childProfileId?: string | null;
+  spec: StorySpec;
+  seriesData?: {
+    seriesId: string;
+    partNumber: number;
+  };
+}
+
 export interface ValidateParams {
   requestId: string;
+  userId: string;
+  storyId?: string;
   text: any;
   spec: StorySpec;
   maxRetries?: number;

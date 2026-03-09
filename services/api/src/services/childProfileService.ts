@@ -1,6 +1,7 @@
 import { getChildProfileRepository } from '../repositories';
 import type { ChildProfile, NewChildProfile } from '../db/schema';
 import { logger } from '../utils/logger';
+import { recordUsage } from './aiUsageService';
 import * as planService from './planService';
 import { translateChildDescription } from './translationService';
 
@@ -69,7 +70,8 @@ function triggerDescriptionTranslation(profile: ChildProfile): void {
   const description = profile.aiGeneratedDescription;
   if (!description) return;
 
-  translateChildDescription(profile).catch(err => {
+  const usageContext = { userId: profile.userId, childProfileId: profile.id };
+  translateChildDescription(profile, { onUsage: (u) => recordUsage(u, usageContext) }).catch(err => {
     logger.error(
       { err, childId: profile.id, childName: profile.name },
       'Child description translation failed — will use original description in prompts',

@@ -6,6 +6,7 @@
  */
 
 import { getAssetStorageService } from './assetStorageService';
+import { recordUsage } from './aiUsageService';
 import { getCharacterRepository, getChildProfileRepository } from '../repositories';
 import { NanoBananaProProvider } from '../providers/image/nanobananapro';
 import { ImageDomainService } from '../domain/image';
@@ -31,6 +32,7 @@ export interface TurnaroundSheetParams {
   referencePhotoUrl: string; // Storage path to the child's drawing
   characterName: string;
   aiDescription?: string; // From Gemini Vision analysis
+  storyId?: string;
 }
 
 export interface TurnaroundSheetResult {
@@ -61,7 +63,7 @@ function extractStoragePath(url: string): string {
 export async function generateTurnaroundSheet(
   params: TurnaroundSheetParams,
 ): Promise<TurnaroundSheetResult> {
-  const { characterId, userId, referencePhotoUrl, characterName, aiDescription } = params;
+  const { characterId, userId, referencePhotoUrl, characterName, aiDescription, storyId } = params;
 
   logger.info({
     characterId,
@@ -87,12 +89,16 @@ export async function generateTurnaroundSheet(
 
   // 2. Generate the turnaround sheet via dedicated pro model provider
   const imageDomain = getTurnaroundImageDomain();
-  const generated = await imageDomain.generateTurnaroundSheet({
-    referenceImageBase64: drawingBuffer.toString('base64'),
-    referenceMimeType: mimeType,
-    characterName,
-    characterDescription: aiDescription,
-  });
+  const usageContext = { userId, characterId, storyId };
+  const generated = await imageDomain.generateTurnaroundSheet(
+    {
+      referenceImageBase64: drawingBuffer.toString('base64'),
+      referenceMimeType: mimeType,
+      characterName,
+      characterDescription: aiDescription,
+    },
+    { onUsage: (u) => recordUsage(u, usageContext) }
+  );
 
   // 3. Upload the turnaround sheet
   const uploadResult = await assetStorage.uploadUserPhoto({
@@ -127,6 +133,7 @@ export interface ChildTurnaroundSheetParams {
   referencePhotoUrl: string; // Storage path to the child's photo
   childName: string;
   aiDescription?: string; // From Gemini Vision analysis
+  storyId?: string;
 }
 
 /**
@@ -140,7 +147,7 @@ export interface ChildTurnaroundSheetParams {
 export async function generateChildTurnaroundSheet(
   params: ChildTurnaroundSheetParams,
 ): Promise<TurnaroundSheetResult> {
-  const { childId, userId, referencePhotoUrl, childName, aiDescription } = params;
+  const { childId, userId, referencePhotoUrl, childName, aiDescription, storyId } = params;
 
   logger.info({
     childId,
@@ -165,12 +172,16 @@ export async function generateChildTurnaroundSheet(
 
   // 2. Generate the turnaround sheet via dedicated pro model provider
   const imageDomain = getTurnaroundImageDomain();
-  const generated = await imageDomain.generateTurnaroundSheet({
-    referenceImageBase64: photoBuffer.toString('base64'),
-    referenceMimeType: mimeType,
-    characterName: childName,
-    characterDescription: aiDescription,
-  });
+  const usageContext = { userId, childProfileId: childId, storyId };
+  const generated = await imageDomain.generateTurnaroundSheet(
+    {
+      referenceImageBase64: photoBuffer.toString('base64'),
+      referenceMimeType: mimeType,
+      characterName: childName,
+      characterDescription: aiDescription,
+    },
+    { onUsage: (u) => recordUsage(u, usageContext) }
+  );
 
   // 3. Upload the turnaround sheet
   const uploadResult = await assetStorage.uploadUserPhoto({
@@ -218,6 +229,7 @@ export interface LlmCharacterTurnaroundParams {
   characterName: string;
   characterDescription: string;
   imageStyle?: string;
+  storyId?: string;
 }
 
 /**
@@ -227,7 +239,7 @@ export interface LlmCharacterTurnaroundParams {
 export async function generateLlmCharacterTurnaround(
   params: LlmCharacterTurnaroundParams,
 ): Promise<TurnaroundSheetResult> {
-  const { characterId, userId, characterName, characterDescription, imageStyle } = params;
+  const { characterId, userId, characterName, characterDescription, imageStyle, storyId } = params;
 
   logger.info({
     characterId,
@@ -238,11 +250,15 @@ export async function generateLlmCharacterTurnaround(
   }, 'Starting text-only turnaround sheet generation for LLM character');
 
   const imageDomain = getTurnaroundImageDomain();
-  const generated = await imageDomain.generateTurnaroundSheetFromDescription({
-    characterName,
-    characterDescription,
-    imageStyle,
-  });
+  const usageContext = { userId, characterId, storyId };
+  const generated = await imageDomain.generateTurnaroundSheetFromDescription(
+    {
+      characterName,
+      characterDescription,
+      imageStyle,
+    },
+    { onUsage: (u) => recordUsage(u, usageContext) }
+  );
 
   const assetStorage = getAssetStorageService();
   const uploadResult = await assetStorage.uploadUserPhoto({

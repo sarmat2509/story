@@ -1,6 +1,7 @@
 import { getCharacterRepository } from '../repositories';
 import type { Character, NewCharacter } from '../db/schema';
 import { logger } from '../utils/logger';
+import { recordUsage } from './aiUsageService';
 import { CharacterAnalysisService } from './characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
@@ -61,11 +62,15 @@ async function analyzeCharacterPhotos(character: Character): Promise<void> {
     const analysisService = getCharacterAnalysisService();
     const analysisType = getAnalysisCharacterType(character.type as CharacterType);
     
-    const analysis = await analysisService.analyzeCharacter({
-      photos: photoUrls,
-      characterType: analysisType,
-      existingTraits: character.appearanceTraits as Record<string, any> | undefined
-    });
+    const usageContext = { userId: character.userId, characterId: character.id };
+    const analysis = await analysisService.analyzeCharacter(
+      {
+        photos: photoUrls,
+        characterType: analysisType,
+        existingTraits: character.appearanceTraits as Record<string, any> | undefined
+      },
+      { onUsage: (u) => recordUsage(u, usageContext) }
+    );
     
     // Update character with AI-generated fields via repository
     await getCharacterRepository().updateAnalysis(character.id, {
@@ -106,7 +111,8 @@ function triggerDescriptionTranslation(character: Character): void {
   const description = character.aiGeneratedDescription || character.description;
   if (!description) return;
 
-  translateCharacterDescription(character).catch(err => {
+  const usageContext = { userId: character.userId, characterId: character.id };
+  translateCharacterDescription(character, { onUsage: (u) => recordUsage(u, usageContext) }).catch(err => {
     logger.error(
       { err, characterId: character.id, characterName: character.name },
       'Description translation failed — will use original description in prompts',

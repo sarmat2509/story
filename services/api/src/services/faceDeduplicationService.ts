@@ -29,6 +29,10 @@ interface GeminiDeduplicationResponse {
   }>;
 }
 
+export interface FaceDeduplicationOptions {
+  onUsage?: (usage: import('../providers/base/UsageMetadata').UsageMetadata) => void;
+}
+
 export class FaceDeduplicationService {
   constructor(private textProvider: GeminiTextProvider) {}
 
@@ -36,7 +40,7 @@ export class FaceDeduplicationService {
    * Group photos by individual identity
    * Uses Gemini Vision to compare faces/features across photos
    */
-  async groupPhotosByIdentity(photoUrls: string[]): Promise<PhotoGroup[]> {
+  async groupPhotosByIdentity(photoUrls: string[], options?: FaceDeduplicationOptions): Promise<PhotoGroup[]> {
     if (photoUrls.length === 0) {
       return [];
     }
@@ -68,6 +72,8 @@ export class FaceDeduplicationService {
         schema: this.getDeduplicationSchema(),
         temperature: 0.3,
         relaxedSafety: true,
+        onUsage: options?.onUsage,
+        operation: 'face_dedup',
       });
 
       // Map Gemini response to PhotoGroups

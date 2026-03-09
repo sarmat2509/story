@@ -114,6 +114,16 @@ export class OpenAITextProvider implements ITextProvider {
         model: modelName,
       }, 'OpenAI structured response received');
 
+      if (request.onUsage && usage) {
+        request.onUsage({
+          provider: 'openai',
+          operation: request.operation ?? 'text_structured',
+          model: modelName,
+          inputUnits: usage.prompt_tokens ?? 0,
+          outputUnits: usage.completion_tokens ?? 0,
+        });
+      }
+
       // Parse JSON response
       try {
         const parsed = JSON.parse(responseText) as T;
@@ -170,6 +180,17 @@ export class OpenAITextProvider implements ITextProvider {
           ...(request.stopSequences && { stop: request.stopSequences }),
         });
       });
+
+      const usage = response.usage;
+      if (request.onUsage && usage) {
+        request.onUsage({
+          provider: 'openai',
+          operation: request.operation ?? 'text_free',
+          model: this.model,
+          inputUnits: usage.prompt_tokens ?? 0,
+          outputUnits: usage.completion_tokens ?? 0,
+        });
+      }
 
       return response.choices[0]?.message?.content || '';
     } catch (error) {

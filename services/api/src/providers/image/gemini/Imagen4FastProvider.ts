@@ -62,6 +62,15 @@ export class Imagen4FastProvider implements IImageProvider {
 
         const result = await this.generateImageInternal(request);
 
+        if (request.onUsage) {
+          request.onUsage({
+            provider: 'vertex-imagen',
+            operation: request.operation ?? 'image_generate',
+            model: MODEL_ID,
+            inputUnits: 1,
+          });
+        }
+
         logger.info(
           { size: result.imageData.length, format: result.format },
           'Environment image generated successfully'

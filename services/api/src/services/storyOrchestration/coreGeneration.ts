@@ -5,13 +5,14 @@
 import { logger } from '../../utils/logger';
 import { getStoryRepository } from '../../repositories';
 import { getStoryDomainService } from '../aiService';
+import { recordUsage } from '../aiUsageService';
 import { startTask, completeTask, STORY_TASKS } from '../storyProgress';
 import { getGenerationCoefficients } from '../generationTimeService';
 import { normalizeCharacterName } from '../../utils/characterNormalization';
 import { extractLlmCharactersFromText, handleRequestError } from './utilities';
-import { mergeCharacters, persistLlmCharacters, createStoryRecord } from './storyRecords';
+import { mergeCharacters, persistLlmCharacters, createStoryStub, enrichStoryRecord } from './storyRecords';
 import { validateStoryScenes } from './validation';
-import { saveTextGenerationCheckpoint, saveValidationCheckpoint, saveStoryCreationCheckpoint } from './checkpoints';
+import { saveStoryStubCheckpoint, saveTextGenerationCheckpoint, saveValidationCheckpoint, saveStoryCreationCheckpoint } from './checkpoints';
 import type { GenerateTextParams, GenerateTextResult } from './types';
 import type { CharacterData } from '../types';
 
@@ -41,23 +42,44 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     const selectedCharacters = specData.selectedCharacters;
     const chosenPlotExampleId = specData.chosenPlotExampleId;
     const chosenWorldRuleId = specData.chosenWorldRuleId;
-    
+
+    // Create story stub before text generation for AI usage tracking
+    const storyId = await createStoryStub({
+      userId: request.userId,
+      storyRequestId: request.id,
+      childProfileId: request.childProfileId,
+      spec,
+      ...(generationType === 'continuation' && continuationContext && {
+        seriesData: {
+          seriesId: continuationContext.seriesId,
+          partNumber: continuationContext.partNumber,
+        },
+      }),
+    });
+    await saveStoryStubCheckpoint(requestId, storyId);
+
     // Task 1: Generate Text
     const textGenStart = Date.now();
     await startTask(requestId, STORY_TASKS.GENERATING_TEXT, { estimatedMs: coefficients.avgTextMs });
-    
+
+    const usageContext = { userId: request.userId, storyId };
     let text: any;
     if (generationType === 'standard') {
-      text = await storyDomain.generateText(spec);
+      text = await storyDomain.generateText(spec, {
+        onUsage: (u) => recordUsage(u, usageContext),
+      });
     } else {
       // Continuation
-      text = await storyDomain.generateContinuation({
-        spec,
-        previousOutlines: continuationContext!.previousOutlines,
-        requiredCharacters: continuationContext!.requiredCharacters,
-        optionalCharacters: continuationContext!.optionalCharacters,
-        usedPlots: continuationContext!.usedPlots,
-      });
+      text = await storyDomain.generateContinuation(
+        {
+          spec,
+          previousOutlines: continuationContext!.previousOutlines,
+          requiredCharacters: continuationContext!.requiredCharacters,
+          optionalCharacters: continuationContext!.optionalCharacters,
+          usedPlots: continuationContext!.usedPlots,
+        },
+        { onUsage: (u) => recordUsage(u, usageContext) }
+      );
     }
     
     const textGenerationTimeMs = Date.now() - textGenStart;
@@ -127,6 +149,8 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     // Validation (unified for both flows)
     const validationResult = await validateStoryScenes({
       requestId,
+      userId: request.userId,
+      storyId,
       text,
       spec,
       maxRetries: 2,
@@ -145,8 +169,8 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       });
     }
     
-    // Create story record (unified for both flows)
-    const storyId = await createStoryRecord({
+    // Enrich story stub with full content (unified for both flows)
+    await enrichStoryRecord(storyId, {
       userId: request.userId,
       storyRequestId: request.id,
       childProfileId: request.childProfileId,
@@ -199,6 +223,15 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     };
     
   } catch (error) {
+    const checkpoints = (await getStoryRepository().findRequestById(requestId))?.intermediateData as Record<string, unknown> | null;
+    const stubStoryId = checkpoints?.storyId as string | undefined;
+    if (stubStoryId) {
+      const existingStory = await getStoryRepository().findById(stubStoryId);
+      if (existingStory?.title === 'Generating...') {
+        await getStoryRepository().deleteStory(stubStoryId, request.userId);
+        logger.info({ requestId, storyId: stubStoryId }, 'Deleted story stub after text generation failure');
+      }
+    }
     await handleRequestError(requestId, error, {
       logMessage: 'Story text generation failed',
       extraFields: { generationType },

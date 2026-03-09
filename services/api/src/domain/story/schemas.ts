@@ -109,55 +109,56 @@ export const TEXT_SCHEMA: JsonSchema = {
 };
 
 /**
- * Schema for scene validation results
- * Defines the structure of SceneValidationResult
+ * Schema for batch validation - returns only failed scenes
  */
-export const VALIDATION_SCHEMA: JsonSchema = {
+export const BATCH_VALIDATION_SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
-    sceneId: { type: 'number' },
-    isValid: { type: 'boolean' },
-    violations: {
+    failedScenes: {
       type: 'array',
+      description: 'Only scenes that failed validation. Empty if all pass.',
       items: {
         type: 'object',
         properties: {
-          category: {
-            type: 'string',
-            description: 'One of: content_policy, age_inappropriate, fear_level, emotional_tone, vocabulary, camera_composition_incomplete'
+          sceneId: { type: 'number' },
+          violations: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                category: { type: 'string' },
+                severity: { type: 'string' },
+                message: { type: 'string' },
+                suggestion: { type: 'string', nullable: true }
+              },
+              required: ['category', 'severity', 'message']
+            }
           },
-          severity: {
-            type: 'string',
-            description: 'One of: critical, high, medium'
-          },
-          message: { type: 'string' },
-          suggestion: { type: 'string', nullable: true }
-        },
-        required: ['category', 'severity', 'message']
-      }
-    },
-    correctedCameraComposition: {
-      type: 'object',
-      nullable: true,
-      description: 'When cameraComposition has issues (missing/extra characters), the corrected version. Omit if cameraComposition is already correct.',
-      properties: {
-        shot: { type: 'string', description: 'Camera angle IN ENGLISH' },
-        characters: {
-          type: 'array',
-          items: {
+          correctedCameraComposition: {
             type: 'object',
+            nullable: true,
             properties: {
-              name: { type: 'string', description: 'EXACT character name from the story' },
-              description: { type: 'string', description: 'Position in frame, posture, action. Use beside/next to/behind — avoid "at" when standing. IN ENGLISH.' }
+              shot: { type: 'string' },
+              characters: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    description: { type: 'string' }
+                  },
+                  required: ['name', 'description']
+                }
+              }
             },
-            required: ['name', 'description']
+            required: ['shot', 'characters']
           }
-        }
-      },
-      required: ['shot', 'characters']
+        },
+        required: ['sceneId', 'violations']
+      }
     }
   },
-  required: ['sceneId', 'isValid', 'violations']
+  required: ['failedScenes']
 };
 
 /**
@@ -192,6 +193,28 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
     overallFeedback: { type: 'string', description: 'Human-readable summary of all issues found' },
   },
   required: ['isValid', 'characterCount', 'expectedCharacterCount', 'characters', 'hasUnexpectedCharacters', 'hasTextOrLetters', 'hasRenderingArtifacts', 'overallFeedback'],
+};
+
+/**
+ * Schema for batch regeneration - returns all corrected scenes
+ */
+export const BATCH_REGENERATION_SCHEMA: JsonSchema = {
+  type: 'object',
+  properties: {
+    scenes: {
+      type: 'array',
+      description: 'All corrected scene texts',
+      items: {
+        type: 'object',
+        properties: {
+          sceneId: { type: 'number' },
+          text: { type: 'string', description: 'Regenerated scene text' }
+        },
+        required: ['sceneId', 'text']
+      }
+    }
+  },
+  required: ['scenes']
 };
 
 /**

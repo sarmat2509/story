@@ -6,71 +6,75 @@
 import type { EpisodeText, PolicyProfile } from '../../ai/types';
 import { getContentPolicy } from '../contentPolicy';
 
-export interface ValidationPromptParams {
-  sceneText: EpisodeText['scenes'][0];
+export interface BatchValidationPromptParams {
+  scenes: EpisodeText['scenes'];
   policy: PolicyProfile;
-  isLastScene: boolean;
   scenarioCardId?: string;
 }
 
 /**
- * Build scene validation prompt
- *
- * IMPORTANT: Uses minimal prompt to avoid triggering AI safety filters
- * Only includes scene text and basic validation criteria
+ * Build batch validation prompt - validate ALL scenes in one request.
+ * Returns only failed scenes (minimal info) to save tokens.
  */
-export function buildValidationPrompt(params: ValidationPromptParams): string {
-  const { sceneText, policy, isLastScene } = params;
+export function buildBatchValidationPrompt(params: BatchValidationPromptParams): string {
+  const { scenes, policy, scenarioCardId } = params;
   const { validationRules } = getContentPolicy({
     policyProfile: policy,
-    scenarioCardId: params.scenarioCardId,
+    scenarioCardId,
   });
 
-  const sceneVisual = (sceneText as any).sceneVisual;
-  const cameraCompositionSection =
-    sceneVisual?.cameraComposition && typeof sceneVisual.cameraComposition === 'object'
-      ? `
-CAMERA COMPOSITION (for illustration):
-${JSON.stringify(sceneVisual.cameraComposition, null, 2)}
+  const scenesBlock = scenes
+    .map((scene, idx) => {
+      const isLastScene = idx === scenes.length - 1;
+      const sceneVisual = (scene as any).sceneVisual;
+      const cameraPart =
+        sceneVisual?.cameraComposition && typeof sceneVisual.cameraComposition === 'object'
+          ? `\nCAMERA COMPOSITION:\n${JSON.stringify(sceneVisual.cameraComposition, null, 2)}`
+          : '';
+      return `--- SCENE ${scene.sceneId} (isLastScene: ${isLastScene}) ---
+TEXT:
+${scene.text}
+${cameraPart}`;
+    })
+    .join('\n\n');
 
-CAMERA COMPOSITION CHECK:
-- cameraComposition.characters MUST list ALL characters/creatures/objects physically present and visible in the scene (performing actions, being looked at, in frame).
-- If the scene text describes someone/something as physically present (e.g. "Софія peered at the robot", "a robot lay behind the chest") but they are NOT in cameraComposition.characters, you MUST provide correctedCameraComposition.
-- correctedCameraComposition: add missing characters, remove extras, fix descriptions. Use EXACT character names from the story.`
-      : '';
-
-  return `Validate this children's story scene for age-appropriateness.
+  return `Validate ALL scenes of this children's story for age-appropriateness.
+Return JSON ONLY for scenes that FAIL validation. Scenes that pass need NO entry.
 
 AGE GROUP: ${policy.ageGroup}
-IS LAST SCENE: ${isLastScene}
+TOTAL SCENES: ${scenes.length}
 
-SCENE TEXT:
-${sceneText.text}
-${cameraCompositionSection}
+SCENES:
+${scenesBlock}
 
 VALIDATION RULES:
 ${validationRules}
-${isLastScene
-    ? '4. Last scene MUST end positively with hope and resolution'
-    : '4. Scene should progress the story appropriately'}
+- Last scene (sceneId ${scenes.length > 0 ? scenes[scenes.length - 1].sceneId : '?'}) MUST end positively with hope and resolution.
+- Other scenes should progress the story appropriately.
 
-RETURN JSON:
+CAMERA COMPOSITION CHECK (when present):
+- cameraComposition.characters MUST list ALL characters physically present in the scene.
+- If scene text describes someone present but they are NOT in cameraComposition.characters, provide correctedCameraComposition.
+
+RETURN JSON (only failed scenes; empty array if all pass):
 {
-  "sceneId": ${sceneText.sceneId},
-  "isValid": true/false,
-  "violations": [
+  "failedScenes": [
     {
-      "category": "content_policy" | "age_inappropriate" | "emotional_tone" | "camera_composition_incomplete",
-      "severity": "critical" | "high" | "medium",
-      "message": "Clear explanation",
-      "suggestion": "How to fix (optional)"
+      "sceneId": <number>,
+      "violations": [
+        {
+          "category": "content_policy" | "age_inappropriate" | "emotional_tone" | "camera_composition_incomplete",
+          "severity": "critical" | "high" | "medium",
+          "message": "Clear explanation",
+          "suggestion": "How to fix (optional)"
+        }
+      ],
+      "correctedCameraComposition": null or { "shot": "...", "characters": [{ "name": "...", "description": "..." }] }
     }
-  ],
-  "correctedCameraComposition": null or { "shot": "...", "characters": [{ "name": "...", "description": "..." }] }
+  ]
 }
 
-- correctedCameraComposition: ONLY when cameraComposition has issues — provide the full corrected object (shot + characters). Omit or set to null if cameraComposition is already correct.
-- Use EXACT character names from the story in correctedCameraComposition.characters.
-
-IMPORTANT: Be fair. Only flag real safety issues, not minor style choices.`;
+- Include ONLY scenes that failed. Omit scenes that pass.
+- correctedCameraComposition: ONLY when cameraComposition has issues. Use EXACT character names.
+- Be fair. Only flag real safety issues.`;
 }

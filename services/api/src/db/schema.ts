@@ -483,6 +483,33 @@ export const storyCharacters = pgTable('story_characters', {
   };
 });
 
+// AI usage events table (cost tracking)
+export const aiUsageEvents = pgTable('ai_usage_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  storyId: uuid('story_id').references(() => stories.id, { onDelete: 'set null' }),
+  characterId: uuid('character_id').references(() => characters.id, { onDelete: 'set null' }),
+  childProfileId: uuid('child_profile_id').references(() => childProfiles.id, { onDelete: 'set null' }),
+
+  provider: varchar('provider', { length: 50 }).notNull(),
+  operation: varchar('operation', { length: 80 }).notNull(),
+  model: varchar('model', { length: 100 }),
+
+  inputUnits: integer('input_units'),
+  outputUnits: integer('output_units'),
+  costUsd: decimal('cost_usd', { precision: 12, scale: 8 }),
+  durationMs: integer('duration_ms'),
+
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdCreatedAtIdx: index('idx_ai_usage_user_created').on(table.userId, table.createdAt),
+    storyIdIdx: index('idx_ai_usage_story').on(table.storyId),
+    providerOpIdx: index('idx_ai_usage_provider_op').on(table.provider, table.operation),
+  };
+});
+
 export type StoryGoal = typeof storyGoals.$inferSelect;
 export type NewStoryGoal = typeof storyGoals.$inferInsert;
 
@@ -515,6 +542,9 @@ export type NewStory = typeof stories.$inferInsert;
 
 export type StoryCharacter = typeof storyCharacters.$inferSelect;
 export type NewStoryCharacter = typeof storyCharacters.$inferInsert;
+
+export type AiUsageEvent = typeof aiUsageEvents.$inferSelect;
+export type NewAiUsageEvent = typeof aiUsageEvents.$inferInsert;
 
 // ==========================================
 // IMAGE GENERATION TABLES (M4)

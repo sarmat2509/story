@@ -4,6 +4,7 @@
  */
 
 import type { IFileManager } from './IFileManager';
+import type { UsageMetadata } from './UsageMetadata';
 
 /**
  * Reference image for character consistency
@@ -31,6 +32,8 @@ export interface GenerateImageRequest {
   referenceImages?: ReferenceImage[]; // For character consistency (capability model only)
   personGeneration?: 'allow_adult' | 'allow_all' | 'dont_allow'; // Control person generation (lowercase as per API)
   systemInstruction?: string; // Static context (style, characters) set once per story, separate from per-scene prompt
+  onUsage?: (usage: UsageMetadata) => void; // Optional callback for cost tracking
+  operation?: string; // Operation name for usage callback (e.g. 'image_generate', 'image_edit')
   // REMOVED (not supported by Imagen 3):
   // - negativePrompt (include in prompt text instead)
   // - width, height (use aspectRatio)
@@ -65,6 +68,8 @@ export interface EditImageRequest {
   referenceImages?: ReferenceImage[]; // Character references for consistency
   systemInstruction?: string;      // Static context (style, characters)
   personGeneration?: 'allow_adult' | 'allow_all' | 'dont_allow';
+  onUsage?: (usage: UsageMetadata) => void; // Optional callback for cost tracking
+  operation?: string; // Operation name for usage callback (e.g. 'image_edit')
 }
 
 /**

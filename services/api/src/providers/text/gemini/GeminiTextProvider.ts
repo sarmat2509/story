@@ -183,6 +183,20 @@ export class GeminiTextProvider implements ITextProvider {
         response: responseText,
       }, 'Gemini structured response JSON');
 
+      // Report usage for cost tracking
+      const usage = (result as { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number } }).usageMetadata;
+      if (request.onUsage && usage) {
+        const inputUnits = usage.promptTokenCount ?? 0;
+        const outputUnits = usage.candidatesTokenCount ?? usage.totalTokenCount ? (usage.totalTokenCount - inputUnits) : 0;
+        request.onUsage({
+          provider: 'gemini',
+          operation: request.operation ?? 'text_structured',
+          model: modelName,
+          inputUnits,
+          outputUnits,
+        });
+      }
+
       // Parse JSON response with fallback for markdown-wrapped responses
       try {
         const parsed = JSON.parse(responseText) as T;
@@ -245,6 +259,20 @@ export class GeminiTextProvider implements ITextProvider {
           },
         })
       );
+
+      const usage = (result as { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number } }).usageMetadata;
+      if (request.onUsage && usage) {
+        const inputUnits = usage.promptTokenCount ?? 0;
+        const outputUnits = usage.candidatesTokenCount ?? usage.totalTokenCount ? (usage.totalTokenCount - inputUnits) : 0;
+        request.onUsage({
+          provider: 'gemini',
+          operation: request.operation ?? 'text_free',
+          model: this.model,
+          inputUnits,
+          outputUnits,
+        });
+      }
+
       return result.text || '';
     } catch (error) {
       logger.error({ error }, 'Gemini text generation failed');

@@ -11,6 +11,7 @@
  */
 
 import { logger } from '../utils/logger';
+import { recordUsage } from '../services/aiUsageService';
 import { ConcurrentJobQueue, type BaseJob } from './ConcurrentJobQueue';
 import { config } from '../config';
 import { getStoryRepository, getSceneRepository } from '../repositories';
@@ -305,6 +306,7 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
 
   const audioDomain = getAudioDomainService();
   const audioGenStart = Date.now();
+  const usageContext = { userId: job.userId, storyId: job.storyId };
 
   try {
     const result = await audioDomain.synthesizeSceneGroups(
@@ -313,6 +315,7 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
       job.voiceParams || {},
       planType,
       concurrencyLimit,
+      { onUsage: (u) => recordUsage(u, usageContext) },
     );
 
     const audioGenerationTimeMs = Date.now() - audioGenStart;
@@ -449,6 +452,31 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     }
     
     const language = request.storyLanguage || 'uk';
+
+    // Create story stub at start for AI usage tracking (face dedup, character analysis, turnaround)
+    const { createStoryStub } = await import('../services/storyOrchestration/storyRecords');
+    const { getChildProfileRepository } = await import('../repositories');
+    let storyId: string | undefined = intermediateData.storyId;
+    if (!storyId) {
+      let ageGroup = '4-5';
+      if (request.childProfileId) {
+        const profile = await getChildProfileRepository().findById(request.childProfileId, request.userId);
+        if (profile?.birthDate) {
+          const { calculateAgeGroup } = await import('../services/childProfileService');
+          const ageMonths = Math.floor((Date.now() - new Date(profile.birthDate).getTime()) / (30.44 * 24 * 60 * 60 * 1000));
+          ageGroup = calculateAgeGroup(ageMonths);
+        }
+      }
+      storyId = await createStoryStub({
+        userId: request.userId,
+        storyRequestId: request.id,
+        childProfileId: request.childProfileId,
+        spec: { language: request.storyLanguage || 'uk', ageGroup, characters: [] } as any,
+      });
+      await getStoryRepository().updateRequest(requestId, {
+        intermediateData: { ...intermediateData, storyId },
+      });
+    }
     
     // Step 1: Face deduplication (with progress tracking)
     const { startTask, completeTask, STORY_TASKS } = await import('../services/storyProgress');
@@ -458,7 +486,10 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     
     const { getFaceDeduplicationService } = await import('../services/faceDeduplicationService');
     const faceDeduplicationService = getFaceDeduplicationService();
-    const photoGroups = await faceDeduplicationService.groupPhotosByIdentity(photos);
+    const faceDedupUsageContext = { userId: request.userId, storyId };
+    const photoGroups = await faceDeduplicationService.groupPhotosByIdentity(photos, {
+      onUsage: (u) => recordUsage(u, faceDedupUsageContext),
+    });
     
     logger.info({
       requestId,
@@ -499,11 +530,15 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
           characterType: analysisType
         }, 'Analyzing character from photos (instant mode)');
         
-        const analysis = await analysisService.analyzeCharacter({
-          photos: group.photoUrls,
-          characterType: analysisType,
-          language
-        });
+        const charAnalysisUsageContext = { userId: request.userId, storyId };
+        const analysis = await analysisService.analyzeCharacter(
+          {
+            photos: group.photoUrls,
+            characterType: analysisType,
+            language
+          },
+          { onUsage: (u) => recordUsage(u, charAnalysisUsageContext) }
+        );
         
         const characterName = analysis.suggestedName || group.name;
         
@@ -553,7 +588,8 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
               userId: request.userId,
               referencePhotoUrl: group.photoUrls[0],
               characterName: character.name,
-              aiDescription: analysis.detailedDescription
+              aiDescription: analysis.detailedDescription,
+              storyId,
             });
             
             logger.info({
@@ -626,13 +662,23 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
       requestId,
       jobId: job.id
     }, 'Instant character setup failed');
-    
+
+    const req = await getStoryRepository().findRequestById(requestId);
+    const stubStoryId = (req?.intermediateData as Record<string, unknown> | null)?.storyId as string | undefined;
+    if (stubStoryId && req) {
+      const existingStory = await getStoryRepository().findById(stubStoryId);
+      if (existingStory?.title === 'Generating...') {
+        await getStoryRepository().deleteStory(stubStoryId, req.userId);
+        logger.info({ requestId, storyId: stubStoryId }, 'Deleted story stub after instant setup failure');
+      }
+    }
+
     await getStoryRepository().updateRequest(requestId, {
       status: 'failed',
       errorMessage: error instanceof Error ? error.message : 'Character setup failed',
       updatedAt: new Date(),
     });
-    
+
     throw error;
   }
 }

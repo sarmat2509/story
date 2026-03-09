@@ -81,6 +81,8 @@ export class NanoBananaProProvider implements IImageProvider {
         promptLength: request.prompt.length,
         referenceCount: request.referenceImages?.length || 0,
         operationType: 'generate',
+        onUsage: request.onUsage,
+        operation: request.operation ?? 'image_generate',
       });
     } catch (error) {
       logger.error({ err: error }, 'Failed to generate image with Nano Banana Pro');
@@ -127,6 +129,8 @@ export class NanoBananaProProvider implements IImageProvider {
         promptLength: request.editInstructions.length,
         referenceCount: request.referenceImages?.length || 0,
         operationType: 'edit',
+        onUsage: request.onUsage,
+        operation: request.operation ?? 'image_edit',
       });
     } catch (error) {
       logger.error({ err: error }, 'Failed to edit image with Nano Banana Pro');
@@ -215,8 +219,10 @@ export class NanoBananaProProvider implements IImageProvider {
     promptLength: number;
     referenceCount: number;
     operationType: 'generate' | 'edit';
+    onUsage?: (u: import('../../base/UsageMetadata').UsageMetadata) => void;
+    operation?: string;
   }): Promise<GeneratedImage> {
-    const { parts, aspectRatio, systemInstruction, personGeneration, promptLength, referenceCount, operationType } = params;
+    const { parts, aspectRatio, systemInstruction, personGeneration, promptLength, referenceCount, operationType, onUsage, operation: op } = params;
 
     // Log full request structure (untruncated for debugging)
     logger.info({
@@ -454,6 +460,28 @@ export class NanoBananaProProvider implements IImageProvider {
       height: dimensions.height,
       operationType,
     }, `Image ${operationType === 'edit' ? 'edited' : 'generated'} successfully`);
+
+    // Report usage for cost tracking
+    const usageMeta = response.usageMetadata as {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      totalTokenCount?: number;
+      thoughtsTokenCount?: number;
+      candidatesTokenCountDetails?: { thoughtTokenCount?: number };
+    } | undefined;
+    if (onUsage && usageMeta) {
+      const inputUnits = usageMeta.promptTokenCount ?? 0;
+      const thoughtTokens = usageMeta.thoughtsTokenCount ?? usageMeta.candidatesTokenCountDetails?.thoughtTokenCount ?? 0;
+      const imageTokens = 1290; // gemini-2.5-flash-image 1K default per costConfig
+      onUsage({
+        provider: 'gemini',
+        operation: op ?? (operationType === 'edit' ? 'image_edit' : 'image_generate'),
+        model: this.model,
+        inputUnits,
+        thoughtTokens,
+        imageTokens,
+      });
+    }
 
     return {
       imageData,

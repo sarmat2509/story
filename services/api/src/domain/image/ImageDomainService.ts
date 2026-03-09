@@ -5,6 +5,11 @@
 
 import type { IImageProvider, GenerateImageRequest, GeneratedImage, ReferenceImage } from '../../providers/base/IImageProvider';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
+import type { UsageMetadata } from '../../providers/base/UsageMetadata';
+
+export interface ImageDomainOptions {
+  onUsage?: (usage: UsageMetadata) => void;
+}
 import type { UploadedFile } from '../../providers/base/IFileManager';
 import { logger } from '../../utils/logger';
 import {
@@ -102,7 +107,7 @@ export class ImageDomainService {
    * Generate illustration for a story scene
    * Main method for scene image generation with full business logic
    */
-  async generateSceneIllustration(request: SceneImageRequest): Promise<GeneratedImage> {
+  async generateSceneIllustration(request: SceneImageRequest, options?: ImageDomainOptions): Promise<GeneratedImage> {
     logger.info(
       { 
         sceneId: request.sceneId,
@@ -142,6 +147,8 @@ export class ImageDomainService {
       referenceImages: request.referenceImages,
       // Use 'allow_all' for children's stories (allows all ages including children)
       personGeneration: 'allow_all',
+      onUsage: options?.onUsage,
+      operation: 'image_generate',
     };
 
     return await this.imageProvider.generateImage(providerRequest);
@@ -155,7 +162,7 @@ export class ImageDomainService {
    * - Scene 1: Generate from text descriptions only (no reference)
    * - Scenes 2-N: Generate using Scene 1 as reference + text descriptions
    */
-  async generateSceneWithReference(request: SceneImageWithReferenceRequest): Promise<GeneratedImage> {
+  async generateSceneWithReference(request: SceneImageWithReferenceRequest, options?: ImageDomainOptions): Promise<GeneratedImage> {
     logger.info({ 
       sceneId: request.sceneId,
       hasReferences: !!request.referenceImages,
@@ -212,6 +219,8 @@ export class ImageDomainService {
         mimeType: ref.mimeType,
         instructionText: ref.instructionText,
       })) || undefined,
+      onUsage: options?.onUsage,
+      operation: 'image_generate',
     };
 
     return await this.imageProvider.generateImage(providerRequest);
@@ -422,6 +431,7 @@ export class ImageDomainService {
       fileUri?: string; // Files API URI — when present, used instead of inline data
       mimeType: string;
     }>;
+    onUsage?: (usage: UsageMetadata) => void;
   }): Promise<ImageValidationResult> {
     if (!this.textProvider) {
       throw new Error('Image validation requires textProvider (ENABLE_IMAGE_VALIDATION=true)');
@@ -480,6 +490,8 @@ export class ImageDomainService {
         schema: IMAGE_VALIDATION_SCHEMA,
         temperature: 0.2, // Low temperature for consistent validation
         relaxedSafety: true, // Avoid false positives on children's content
+        onUsage: params.onUsage,
+        operation: 'image_validation',
       });
 
       logger.info({
@@ -554,6 +566,7 @@ export class ImageDomainService {
     }>;
     systemInstruction?: string;
     personGeneration?: 'allow_adult' | 'allow_all' | 'dont_allow';
+    onUsage?: (usage: UsageMetadata) => void;
   }): Promise<GeneratedImage> {
     if (!this.imageProvider.editImage) {
       throw new Error('Image provider does not support editImage — fallback to full regeneration');
@@ -587,6 +600,8 @@ export class ImageDomainService {
       })) || undefined,
       systemInstruction: params.systemInstruction,
       personGeneration: params.personGeneration,
+      onUsage: params.onUsage,
+      operation: 'image_edit',
     });
   }
 
@@ -600,7 +615,7 @@ export class ImageDomainService {
     referenceMimeType: string;
     characterName: string;
     characterDescription?: string;
-  }): Promise<GeneratedImage> {
+  }, options?: ImageDomainOptions): Promise<GeneratedImage> {
     logger.info({
       characterName: params.characterName,
       hasDescription: !!params.characterDescription,
@@ -624,6 +639,8 @@ export class ImageDomainService {
         },
       ],
       personGeneration: 'allow_all',
+      onUsage: options?.onUsage,
+      operation: 'image_generate',
     };
 
     const result = await this.imageProvider.generateImage(request);
@@ -645,7 +662,7 @@ export class ImageDomainService {
     characterName: string;
     characterDescription: string;
     imageStyle?: string;
-  }): Promise<GeneratedImage> {
+  }, options?: ImageDomainOptions): Promise<GeneratedImage> {
     logger.info({
       characterName: params.characterName,
       descriptionLength: params.characterDescription.length,
@@ -662,6 +679,8 @@ export class ImageDomainService {
       aspectRatio: '16:9',
       referenceImages: [],
       personGeneration: 'allow_all',
+      onUsage: options?.onUsage,
+      operation: 'image_generate',
     };
 
     const result = await this.imageProvider.generateImage(request);
