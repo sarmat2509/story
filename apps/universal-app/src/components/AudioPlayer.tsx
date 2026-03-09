@@ -59,13 +59,17 @@ export default function AudioPlayer({
   // Validate duration prop
   const validDuration = isFinite(duration) && duration > 0 ? duration : 0;
 
-  // Subscribe to position updates for parent callback (outside render cycle, only when connected)
+  // Subscribe to position updates for parent callback (throttled to ~10/sec to avoid re-render storms)
   useEffect(() => {
     if (!onPositionChange || !isConnected) return;
+    let lastCall = 0;
+    const throttleMs = 100;
     const unsub = useAudioPlayerStore.subscribe((state) => {
-      if (state.activeStoryId === storyId) {
-        onPositionChange(state.position);
-      }
+      if (state.activeStoryId !== storyId) return;
+      const now = Date.now();
+      if (now - lastCall < throttleMs) return;
+      lastCall = now;
+      onPositionChange(state.position);
     });
     return unsub;
   }, [onPositionChange, isConnected, storyId]);
