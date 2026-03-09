@@ -1,9 +1,3 @@
-// Load .env from project root FIRST, before any other imports
-import { config } from 'dotenv';
-import { resolve } from 'path';
-// From services/api/src/scripts/ need to go up 4 levels to reach project root
-config({ path: resolve(__dirname, '../../../../.env') });
-
 import { Pool } from 'pg';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -18,8 +12,7 @@ async function runMigration() {
   
   // Check if DATABASE_URL is set
   if (!process.env.DATABASE_URL) {
-    console.error('❌ DATABASE_URL environment variable is not set');
-    console.error('Tried to load from:', resolve(__dirname, '../../../.env'));
+    console.error('❌ DATABASE_URL environment variable is not set. Run via: docker compose -f docker-compose.dev.yml run --rm api npx tsx src/scripts/runMigration.ts <migration.sql>');
     console.error('Current env keys:', Object.keys(process.env).filter(k => k.includes('DATABASE')));
     process.exit(1);
   }

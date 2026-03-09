@@ -15,7 +15,6 @@
  *   --cooldown N       Seconds between requests (default: 15)
  */
 
-import 'dotenv/config';
 import { GoogleGenAI } from '@google/genai';
 import * as fs from 'fs';
 import * as path from 'path';

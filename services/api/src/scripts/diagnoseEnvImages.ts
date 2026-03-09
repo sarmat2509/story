@@ -10,10 +10,6 @@
  * 4. ENABLE_ENVIRONMENT_REFERENCE config
  */
 
-import path from 'path';
-import dotenv from 'dotenv';
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 import { db } from '../db';
 import { stories, storyRequests, storyEnvironmentCache, environmentImageCache, scenes as scenesTable, assets } from '../db/schema';
 import { eq } from 'drizzle-orm';

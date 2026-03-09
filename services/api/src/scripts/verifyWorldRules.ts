@@ -7,10 +7,6 @@
  * Usage: npx tsx src/scripts/verifyWorldRules.ts
  */
 
-import { config } from 'dotenv';
-import { resolve } from 'path';
-config({ path: resolve(__dirname, '../../../../.env') });
-
 import { db } from '../db';
 import { scenarioWorldRules, scenarioCards } from '../db/schema';
 import { eq, sql } from 'drizzle-orm';

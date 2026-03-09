@@ -7,7 +7,6 @@
  * Run: npx tsx src/scripts/testEmbeddingSimilarity.ts
  */
 
-import 'dotenv/config';
 import { generateEmbedding, cosineSimilarity } from '../services/embeddingService';
 
 interface TestPair {

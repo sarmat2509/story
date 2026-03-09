@@ -4,24 +4,6 @@
  */
 
 import { Pool } from 'pg';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-// Get __dirname equivalent in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Load .env from workspace root
-const envPath = path.resolve(__dirname, '../../../../../.env');
-const result = dotenv.config({ path: envPath });
-
-if (result.error) {
-  console.error('Failed to load .env:', result.error);
-}
-
-console.log('Database URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://kazka:devpass@localhost:5432/kazka_dev',

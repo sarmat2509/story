@@ -8,7 +8,6 @@
  * Run: cd services/api && npx tsx src/scripts/backfillAssetSceneIds.ts
  */
 
-import 'dotenv/config';
 import { db } from '../db/index';
 import { assets, scenes } from '../db/schema';
 import { eq, and, isNull, sql } from 'drizzle-orm';

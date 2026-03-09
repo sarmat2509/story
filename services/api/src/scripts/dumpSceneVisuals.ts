@@ -4,10 +4,6 @@
  */
 
 import path from 'path';
-import dotenv from 'dotenv';
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
-
 import { db } from '../db';
 import { stories } from '../db/schema';
 import { eq } from 'drizzle-orm';

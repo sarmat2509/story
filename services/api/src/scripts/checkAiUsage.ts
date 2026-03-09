@@ -1,11 +1,8 @@
 /**
  * Check ai_usage_events table - recent records and optionally by story_id
- * Run: npx tsx src/scripts/checkAiUsage.ts [storyId]
+ * Run: cd services/api && npx tsx src/scripts/checkAiUsage.ts [storyId]
+ * With Docker: pnpm api:script npx tsx src/scripts/checkAiUsage.ts d837a4c5-5f5d-4b29-86b4-e4f35f1ac5cb
  */
-
-import { config } from 'dotenv';
-import { resolve } from 'path';
-config({ path: resolve(__dirname, '../../../../.env') });
 
 import { Pool } from 'pg';
 

@@ -14,9 +14,6 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import dotenvPkg from 'dotenv';
-dotenvPkg.config({ path: path.resolve(__dirname, '../../../../.env') });
-
 import { GoogleGenAI, Modality } from '@google/genai';
 import { Pool } from 'pg';
 

@@ -9,21 +9,10 @@
  * Excludes: add_updated_at_triggers.sql (run separately after db:push)
  */
 
-import { config } from 'dotenv';
-import { resolve, join } from 'path';
-import { readdirSync, readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+import { readdirSync, readFileSync } from 'fs';
 import { Pool } from 'pg';
 import { logger } from '../utils/logger';
-
-// Load .env from project root - try .env.production first (for droplet), then .env
-const projectRoot = resolve(__dirname, '../../../../');
-for (const name of ['.env.production', '.env']) {
-  const p = join(projectRoot, name);
-  if (existsSync(p)) {
-    config({ path: p });
-    break;
-  }
-}
 
 const MIGRATIONS_DIR = join(__dirname, '../../drizzle');
 const EXCLUDED = ['add_updated_at_triggers.sql'];
@@ -52,7 +41,7 @@ async function getAppliedMigrations(pool: Pool): Promise<Set<string>> {
 async function runAllMigrations(): Promise<void> {
   if (!process.env.DATABASE_URL) {
     console.error('❌ DATABASE_URL is not set');
-    console.error('Set it in .env, .env.production, or pass as env var');
+    console.error('Run via: docker compose -f docker-compose.dev.yml run --rm api npx tsx src/scripts/runAllMigrations.ts');
     process.exit(1);
   }
 

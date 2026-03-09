@@ -6,20 +6,10 @@
  *   cd services/api && npx tsx src/scripts/markExistingMigrationsAsApplied.ts
  */
 
-import { config } from 'dotenv';
-import { resolve, join } from 'path';
-import { readdirSync, existsSync } from 'fs';
+import { join } from 'path';
+import { readdirSync } from 'fs';
 import { Pool } from 'pg';
 import { logger } from '../utils/logger';
-
-const projectRoot = resolve(__dirname, '../../../../');
-for (const name of ['.env.production', '.env']) {
-  const p = join(projectRoot, name);
-  if (existsSync(p)) {
-    config({ path: p });
-    break;
-  }
-}
 
 const MIGRATIONS_DIR = join(__dirname, '../../drizzle');
 const EXCLUDED = ['add_updated_at_triggers.sql'];

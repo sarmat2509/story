@@ -11,7 +11,6 @@
  *   --model <model-name>    Override model (e.g. gemini-3-pro-image-preview)
  */
 
-import 'dotenv/config';
 import { GoogleGenAI } from '@google/genai';
 import * as fs from 'fs';
 import * as path from 'path';

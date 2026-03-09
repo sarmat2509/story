@@ -8,10 +8,6 @@
 
 import path from 'path';
 import fs from 'fs';
-import dotenv from 'dotenv';
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
-
 import { buildSceneImagePrompt } from '../prompts/image/ImagePrompts';
 import { buildImageSystemInstruction } from '../prompts/image/ImagePrompts';
 import type { SceneVisual } from '../services/types';
