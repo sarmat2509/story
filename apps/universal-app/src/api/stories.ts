@@ -5,6 +5,7 @@ import type {
   StoryApi,
   StorySummaryApi,
   StoryManifestApi,
+  StoryAudioMetadata,
   CreateStoryRequestInput
 } from '@wondertales/shared';
 import apiClient from './client';
@@ -228,9 +229,11 @@ export const useAudioStatus = (storyId: string, enabled: boolean = false) => {
   return useQuery({
     queryKey: ['audio-status', storyId],
     queryFn: async () => {
-      const response = await apiClient.get<{ 
-        status: string; 
-        audioMetadata: any | null;
+      const response = await apiClient.get<{
+        status: string;
+        audioMetadata: StoryAudioMetadata | null;
+        audioUrl: string | null;
+        duration: number | null;
         jobStatus: 'queued' | 'processing' | null;
         queuePosition: number | null;
         estimatedWaitMs: number | null;
@@ -241,6 +244,8 @@ export const useAudioStatus = (storyId: string, enabled: boolean = false) => {
       }>(`/api/v1/stories/${storyId}/audio-status`);
       return {
         audioMetadata: response.data.audioMetadata,
+        audioUrl: response.data.audioUrl ?? null,
+        duration: response.data.duration ?? null,
         jobStatus: response.data.jobStatus,
         queuePosition: response.data.queuePosition ?? null,
         estimatedWaitMs: response.data.estimatedWaitMs ?? null,

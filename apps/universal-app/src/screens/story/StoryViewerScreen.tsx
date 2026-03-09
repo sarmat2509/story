@@ -31,6 +31,7 @@ import VoiceSelector from '@/components/VoiceSelector';
 import { useAlignmentSync } from '@/hooks/useAlignmentSync';
 import { GenerationProgressModal } from '@/components/GenerationProgressModal';
 import { StoryBottomSheet } from '@/components/StoryBottomSheet';
+import { StoryCharactersSection, type StoryCharacter } from '@/components/StoryCharactersSection';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { StoryViewerSkeleton } from '@/components/StoryViewerSkeleton';
 import { getReadingTimeMinutes } from '@wondertales/shared';
@@ -47,11 +48,14 @@ const removeAudioTags = (text: string): string => {
 // Format wait time using i18n translations
 const formatWaitTime = (ms: number, t: (key: string, opts?: Record<string, any>) => string): string => {
   const totalSeconds = Math.ceil(ms / 1000);
-  if (totalSeconds <= 5) {
+  if (totalSeconds < 5) {
     return t('story_viewer.audio_generating_almost_done');
   }
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
+  if (minutes === 0) {
+    return t('story_viewer.audio_generating_remaining_seconds', { seconds });
+  }
   return t('story_viewer.audio_generating_remaining', { minutes, seconds });
 };
 
@@ -135,6 +139,9 @@ export default function StoryViewerScreen() {
   // Voice selection state
   const [selectedVoiceId, setSelectedVoiceId] = useState<string | undefined>(undefined);
   const [selectedVoice, setSelectedVoice] = useState<any>(undefined);
+  // Keep polling after retry until we get jobStatus (mutation completes before first poll)
+  const [audioGenerationRequested, setAudioGenerationRequested] = useState(false);
+  const hasAudioJobRef = useRef(false);
   
   // Use story language for voice selection (not UI language)
   const storyLanguage = story?.language || 'uk';
@@ -235,9 +242,8 @@ export default function StoryViewerScreen() {
     }
   }, [audioUsage]);
 
-  // Poll audio status ONLY when user explicitly triggered generation
-  // This prevents unnecessary polling when audio doesn't exist or is already ready
-  const shouldPollAudio = generateAudio.isPending;
+  // Poll audio status when: mutation in flight, we just requested (waiting for jobStatus), or job is running
+  const shouldPollAudio = generateAudio.isPending || audioGenerationRequested || hasAudioJobRef.current;
   
   // Use lightweight polling for audio status (with queue info)
   const { data: audioStatus } = useAudioStatus(storyId, shouldPollAudio);
@@ -251,23 +257,39 @@ export default function StoryViewerScreen() {
   // Tick counter for live countdown during processing
   const [, setCountdownTick] = useState(0);
   
-  // Fetch audio URL when audio is ready
-  const { data: audioData } = useAudioUrl(
-    storyId,
-    !!story?.audioMetadata // Only fetch if audio exists
-  );
+  // Fetch audio URL only when audio exists and is not in error state (fallback when not polling)
+  const audioReady = !!story?.audioMetadata && !story.audioMetadata?.error;
+  const { data: audioData } = useAudioUrl(storyId, audioReady);
+
+  // Use audio from poll (audio-status) when available — same event as notification, no extra fetch
+  // Fallback to useAudioUrl for stories opened with pre-existing audio (no polling)
+  const playerAudioData = useMemo(() => {
+    if (audioStatus?.audioUrl) {
+      return { audioUrl: audioStatus.audioUrl, duration: audioStatus.duration ?? 0 };
+    }
+    return audioData ?? null;
+  }, [audioStatus?.audioUrl, audioStatus?.duration, audioData]);
   
+  // Clear audioGenerationRequested once we get jobStatus; keep hasAudioJobRef for polling
+  useEffect(() => {
+    const hasJob = jobStatus !== null && jobStatus !== undefined;
+    hasAudioJobRef.current = hasJob;
+    if (hasJob) {
+      setAudioGenerationRequested(false);
+    }
+  }, [jobStatus]);
+
   // Sync audioMetadata from polling into story cache
   // (replaces dead onSuccess in useAudioStatus -- removed in TanStack Query v5)
   useEffect(() => {
-    const polledMetadata = (audioStatus as any)?.audioMetadata;
+    const polledMetadata = audioStatus?.audioMetadata;
     if (polledMetadata) {
       queryClient.setQueryData(['story', storyId], (oldData: any) => {
         if (!oldData) return oldData;
         return { ...oldData, audioMetadata: polledMetadata };
       });
     }
-  }, [(audioStatus as any)?.audioMetadata, storyId, queryClient]);
+  }, [audioStatus?.audioMetadata, storyId, queryClient]);
   
   // Show toast when audio completes (using AsyncStorage to show only once)
   useEffect(() => {
@@ -280,8 +302,9 @@ export default function StoryViewerScreen() {
       // Don't show for pre-existing audio (only when we transitioned from generating to ready)
       if (!hadAudioGenerationRef.current) return;
       
-      // Show only after generation completed
-      if (!isGenerating && (audioStatus as any)?.audioMetadata) {
+      const meta = audioStatus?.audioMetadata;
+      // Show only after generation completed successfully (not when it failed)
+      if (!isGenerating && meta && !meta.error) {
         // CRITICAL: Refetch story to update audioMetadata in UI
         queryClient.invalidateQueries({ queryKey: ['story', storyId] });
         
@@ -321,7 +344,7 @@ export default function StoryViewerScreen() {
     };
     
     checkAndShowNotification();
-  }, [isGenerating, (audioStatus as any)?.audioMetadata, storyId, viewingStoryId, story?.title, t, queryClient]);
+  }, [isGenerating, audioStatus?.audioMetadata, storyId, viewingStoryId, story?.title, t, queryClient]);
   
   // Tick every 1s during processing for live countdown
   useEffect(() => {
@@ -335,7 +358,7 @@ export default function StoryViewerScreen() {
   useEffect(() => {
     if (!story || !story.audioMetadata) return;
     
-    const audioMetadata = story.audioMetadata as any;
+    const audioMetadata = story.audioMetadata;
     
     // Check if audio is valid (not an error state)
     const hasValidAudio = !!audioMetadata && !audioMetadata.error;
@@ -365,9 +388,9 @@ export default function StoryViewerScreen() {
     }
   }, [generateAlignment.isPending, generateAlignment.isSuccess, generateAlignment.isError, generateAlignment.error]);
   
-  // Register audio with global service when audioData becomes available
+  // Register audio with global service when playerAudioData becomes available
   useEffect(() => {
-    if (!audioData || !story) return;
+    if (!playerAudioData || !story) return;
 
     const currentActiveId = useAudioPlayerStore.getState().activeStoryId;
 
@@ -406,8 +429,8 @@ export default function StoryViewerScreen() {
       console.log('[AudioPlayback] Registering with global audio service:', {
         storyId,
         title: story.title,
-        audioUrl: audioData.audioUrl,
-        duration: audioData.duration,
+        audioUrl: playerAudioData.audioUrl,
+        duration: playerAudioData.duration,
         initialPosition: initialPosition.toFixed(3) + 's',
         initialHighlight,
       });
@@ -415,9 +438,9 @@ export default function StoryViewerScreen() {
       await globalAudioService.loadAndPlay({
         storyId,
         storyTitle: story.title || 'Story',
-        audioUrl: formatAssetUrl(audioData.audioUrl) ?? audioData.audioUrl,
-        duration: audioData.duration,
-        hasAlignment: !!(story.audioMetadata as any)?.alignment,
+        audioUrl: formatAssetUrl(playerAudioData.audioUrl) ?? playerAudioData.audioUrl,
+        duration: playerAudioData.duration,
+        hasAlignment: !!story.audioMetadata?.alignment,
         initialPosition,
         initialHighlightEnabled: initialHighlight,
         autoPlay: autoPlay ?? false,
@@ -425,11 +448,11 @@ export default function StoryViewerScreen() {
     };
 
     loadAudio();
-  }, [audioData, storyId, story, autoPlay]);
+  }, [playerAudioData, storyId, story, autoPlay]);
   
   // Called when user presses play on a story that isn't the currently active one
   const handleActivateAudio = useCallback(async () => {
-    if (!audioData || !story) return;
+    if (!playerAudioData || !story) return;
 
     // Restore saved position from AsyncStorage
     const savedState = await audioPlaybackService.getState(storyId);
@@ -451,14 +474,14 @@ export default function StoryViewerScreen() {
     await globalAudioService.loadAndPlay({
       storyId,
       storyTitle: story.title || 'Story',
-      audioUrl: formatAssetUrl(audioData.audioUrl) ?? audioData.audioUrl,
-      duration: audioData.duration,
-      hasAlignment: !!(story.audioMetadata as any)?.alignment,
+      audioUrl: formatAssetUrl(playerAudioData.audioUrl) ?? playerAudioData.audioUrl,
+      duration: playerAudioData.duration,
+      hasAlignment: !!story.audioMetadata?.alignment,
       initialPosition,
       initialHighlightEnabled: initialHighlight,
       autoPlay: true, // User explicitly pressed play
     });
-  }, [audioData, storyId, story]);
+  }, [playerAudioData, storyId, story]);
   
   // M6: Alignment sync hook - maps audio position to sentences and words
   // Precompute cleaned scene texts for sentence-to-scene mapping
@@ -474,7 +497,7 @@ export default function StoryViewerScreen() {
   
   const { activeSentenceIndex, activeWordIndex, sentences } = useAlignmentSync(
     story?.fullText || '',
-    (story?.audioMetadata as any)?.alignment,
+    story?.audioMetadata?.alignment,
     currentPosition,
     sceneTexts
   );
@@ -508,7 +531,6 @@ export default function StoryViewerScreen() {
     }
     
     lastPositionUpdateTime.current = now;
-    console.log('[StoryViewer] Position update:', position.toFixed(2) + 's');
     setCurrentPosition(position);
   }, []); // No dependencies - uses ref
   
@@ -528,6 +550,44 @@ export default function StoryViewerScreen() {
     console.log('[AudioPlayback] Audio finished, clearing saved state');
     await audioPlaybackService.clearState(storyId);
   }, [storyId]);
+
+  const handleSaveCharacter = useCallback(
+    async (characterId: string) => {
+      try {
+        await updateCharacterMutation.mutateAsync({ id: characterId, data: { isHidden: false } as any });
+        setSavedCharacterIds((prev) => new Set(prev).add(characterId));
+        toastService.success(t('story_viewer.character_saved'));
+      } catch {
+        toastService.error('Error');
+      }
+    },
+    [updateCharacterMutation, t]
+  );
+
+  // Stable array ref for memo — only changes when saved ids actually change (MUST be before early returns)
+  const savedIdsKey = [...savedCharacterIds].sort().join(',');
+  const savedCharacterIdsArray = useMemo(() => [...savedCharacterIds], [savedIdsKey]);
+
+  // Memoized characters section — prevents re-renders when parent updates (e.g. audio position)
+  const charactersSection = useMemo(() => {
+    const characters = story?.characters;
+    if (!characters || characters.length === 0) return null;
+    return (
+      <StoryCharactersSection
+        characters={characters as StoryCharacter[]}
+        savedCharacterIds={savedCharacterIdsArray}
+        isArtisanMode={isArtisanMode}
+        onSaveCharacter={handleSaveCharacter}
+        isSavePending={updateCharacterMutation.isPending}
+      />
+    );
+  }, [
+    story?.characters,
+    savedCharacterIdsArray,
+    isArtisanMode,
+    handleSaveCharacter,
+    updateCharacterMutation.isPending,
+  ]);
   
   // Handle delete story with confirmation
   const handleDeleteStory = useCallback(() => {
@@ -708,6 +768,7 @@ export default function StoryViewerScreen() {
       return;
     }
     
+    setAudioGenerationRequested(true);
     try {
       console.log('[handleGenerateAudio] Starting mutation...');
       await generateAudio.mutateAsync({ 
@@ -729,6 +790,7 @@ export default function StoryViewerScreen() {
         'Це може зайняти кілька хвилин'
       );
     } catch (error: any) {
+      setAudioGenerationRequested(false);
       console.log('[handleGenerateAudio] Error:', error);
       console.log('[handleGenerateAudio] Error response:', error?.response);
       
@@ -777,9 +839,10 @@ export default function StoryViewerScreen() {
     );
   }
 
-  // Check if audio generation failed
-  const audioFailed = (story.audioMetadata as any)?.error === true;
-  const hasGenerationInProgress = isGenerating || (audioStatus as any)?.jobStatus === 'processing';
+  // Check if audio generation failed (hide error when we have valid playerAudioData from API)
+  const audioFailed = !playerAudioData && story.audioMetadata?.error === true;
+  const hasGenerationInProgress = isGenerating || audioStatus?.jobStatus === 'processing';
+  const showGeneratingBlock = hasGenerationInProgress || generateAudio.isPending || audioGenerationRequested;
   
   // M8: Render continue button (after story content)
   const renderContinueButton = () => {
@@ -909,8 +972,9 @@ export default function StoryViewerScreen() {
   };
   
   // Render audio generation section (reusable component)
+  // Hide when we have valid playerAudioData (API returned audioUrl) — prevents showing error + player together
   const renderAudioGenerationSection = () => (
-    (!story.audioMetadata || audioFailed || hasGenerationInProgress) && (
+    !playerAudioData && (!story.audioMetadata || audioFailed || showGeneratingBlock) && (
       <View style={styles.audioGenerationSection}>
         {audioLimitExceeded && limitInfo ? (
           // Limit exceeded message with upgrade button
@@ -939,7 +1003,7 @@ export default function StoryViewerScreen() {
               {t('story_viewer.next_plan_benefit')}
             </Text>
           </View>
-        ) : hasGenerationInProgress ? (
+        ) : showGeneratingBlock ? (
           // Show loading state during generation with queue info
           <View style={styles.generatingContainer}>
             <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
@@ -1167,71 +1231,6 @@ export default function StoryViewerScreen() {
     return <Text style={styles.sceneText}>{renderedText}</Text>;
   };
 
-  // Render characters section (sidebar on web, above scenes on mobile)
-  const renderCharactersSection = () => {
-    const characters = story?.characters;
-    if (!characters || characters.length === 0) return null;
-
-    const handleSaveCharacter = async (characterId: string) => {
-      try {
-        await updateCharacterMutation.mutateAsync({ id: characterId, data: { isHidden: false } as any });
-        setSavedCharacterIds(prev => new Set(prev).add(characterId));
-        toastService.success(t('story_viewer.character_saved'));
-      } catch {
-        toastService.error('Error');
-      }
-    };
-
-    const getCharacterTypeLabel = (type: string) => {
-      switch (type) {
-        case 'child': return t('story_viewer.character_type_child');
-        case 'person': return t('story_viewer.character_type_person');
-        case 'animal': return t('story_viewer.character_type_animal');
-        case 'pet': return t('story_viewer.character_type_pet');
-        case 'friend': return t('story_viewer.character_type_friend');
-        case 'imaginary': return t('story_viewer.character_type_imaginary');
-        default: return type;
-      }
-    };
-
-    return (
-      <View style={styles.charactersSection}>
-        <Text style={styles.charactersSectionTitle}>{t('story_viewer.characters_title')}</Text>
-        {characters.map((char: any) => {
-          const isEffectivelyHidden = char.isHidden && !savedCharacterIds.has(char.id);
-          const canSaveCharacter = isEffectivelyHidden && isArtisanMode;
-          return (
-            <View key={char.id} style={styles.characterCard}>
-              <View style={styles.characterCardRow}>
-                {char.referencePhotoUrl ? (
-                  <Image source={{ uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl }} style={styles.characterAvatar as ImageStyle} />
-                ) : (
-                  <View style={[styles.characterAvatar, styles.characterAvatarPlaceholder]}>
-                    <Ionicons name="person-outline" size={20} color={theme.colors.text.tertiary} />
-                  </View>
-                )}
-                <View style={styles.characterInfo}>
-                  <Text style={styles.characterName}>{char.name}</Text>
-                  <Text style={styles.characterType}>{getCharacterTypeLabel(char.type)}</Text>
-                </View>
-              </View>
-              {canSaveCharacter && (
-                <TouchableOpacity
-                  style={styles.saveCharacterButton}
-                  onPress={() => handleSaveCharacter(char.id)}
-                  disabled={updateCharacterMutation.isPending}
-                >
-                  <Ionicons name="bookmark-outline" size={16} color={theme.colors.interactive.primary} />
-                  <Text style={styles.saveCharacterText}>{t('story_viewer.save_character')}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        })}
-      </View>
-    );
-  };
-
   // M6: Render story scenes with optional highlighting
   const renderScenesWithHighlight = () => {
     return story.scenes?.map((scene: any, sceneIndex: number) => {
@@ -1296,14 +1295,14 @@ export default function StoryViewerScreen() {
             </View>
             
             {/* Show audio player if audio exists (mobile only) */}
-            {isMobile && story.audioMetadata && audioData && (
+            {isMobile && story.audioMetadata && playerAudioData && (
               <View style={styles.audioPlayerContainer}>
                 <AudioPlayer
                   storyId={storyId}
-                  audioUrl={audioData.audioUrl}
-                  duration={audioData.duration}
+                  audioUrl={playerAudioData.audioUrl}
+                  duration={playerAudioData.duration}
                   title={`🎧 ${t('story_viewer.audio_title')}`}
-                  hasAlignment={!!(story.audioMetadata as any)?.alignment}
+                  hasAlignment={!!story.audioMetadata?.alignment}
                   onHighlightToggle={handleHighlightToggle}
                   onPositionChange={handlePositionChangeWrapper}
                   onFinish={handleAudioFinish}
@@ -1315,7 +1314,7 @@ export default function StoryViewerScreen() {
             {/* Characters Section (mobile) */}
             {isMobile && (
               <View style={styles.mobileSectionWrapper}>
-                {renderCharactersSection()}
+                {charactersSection}
               </View>
             )}
             
@@ -1335,10 +1334,10 @@ export default function StoryViewerScreen() {
           {isTabletPortrait && (
             <StoryBottomSheet
               bottomSheetRef={bottomSheetRef}
-              audioData={audioData}
+              audioData={playerAudioData}
               story={story}
               storyId={storyId}
-              hasAlignment={!!(story.audioMetadata as any)?.alignment}
+              hasAlignment={!!story.audioMetadata?.alignment}
               onHighlightToggle={handleHighlightToggle}
               onPositionChange={handlePositionChangeWrapper}
               onFinish={handleAudioFinish}
@@ -1349,12 +1348,8 @@ export default function StoryViewerScreen() {
               onUnpublish={handleUnpublish}
               isPublishPending={publishStory.isPending}
               characters={story?.characters ?? []}
-              onSaveCharacter={isArtisanMode ? async (characterId) => {
-                await updateCharacterMutation.mutateAsync({ id: characterId, data: { isHidden: false } as any });
-                setSavedCharacterIds(prev => new Set(prev).add(characterId));
-                toastService.success(t('story_viewer.character_saved'));
-              } : undefined}
-              savedCharacterIds={savedCharacterIds}
+              onSaveCharacter={isArtisanMode ? handleSaveCharacter : undefined}
+              savedCharacterIds={savedCharacterIdsArray}
               userMode={user?.mode}
             />
           )}
@@ -1397,13 +1392,13 @@ export default function StoryViewerScreen() {
               {renderAudioGenerationSection()}
               
               {/* Audio Widget */}
-              {story.audioMetadata && audioData && (
+              {story.audioMetadata && playerAudioData && (
                 <View style={styles.sidebarWidget}>
                   <AudioPlayer
                     storyId={storyId}
-                    audioUrl={audioData.audioUrl}
-                    duration={audioData.duration}
-                    hasAlignment={!!(story.audioMetadata as any)?.alignment}
+                    audioUrl={playerAudioData.audioUrl}
+                    duration={playerAudioData.duration}
+                    hasAlignment={!!story.audioMetadata?.alignment}
                     onHighlightToggle={handleHighlightToggle}
                     onPositionChange={handlePositionChangeWrapper}
                     onFinish={handleAudioFinish}
@@ -1413,7 +1408,7 @@ export default function StoryViewerScreen() {
               )}
               
               {/* Characters Section */}
-              {renderCharactersSection()}
+              {charactersSection}
               
               {/* Publication block */}
               <View style={styles.publicationSection}>
@@ -1995,68 +1990,6 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     textAlign: 'center',
     marginVertical: theme.spacing[3],
-  },
-  charactersSection: {
-    backgroundColor: theme.colors.background.secondary,
-    borderRadius: theme.borders.radius.lg,
-    padding: theme.spacing[4],
-    marginBottom: theme.spacing[4],
-  },
-  charactersSectionTitle: {
-    fontSize: theme.typography.fontSize.lg,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing[3],
-  },
-  characterCard: {
-    flexDirection: 'column',
-    paddingVertical: theme.spacing[2],
-    borderBottomWidth: theme.borders.width.thin,
-    borderBottomColor: theme.colors.border.light,
-  },
-  characterCardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  characterAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.borders.radius.full,
-    marginRight: theme.spacing[3],
-  },
-  characterAvatarPlaceholder: {
-    backgroundColor: theme.colors.background.tertiary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  characterInfo: {
-    flex: 1,
-  },
-  characterName: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.text.primary,
-  },
-  characterType: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
-  },
-  saveCharacterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    marginTop: theme.spacing[2],
-    marginLeft: 52,
-    paddingVertical: theme.spacing[1],
-    paddingHorizontal: theme.spacing[2],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
-  },
-  saveCharacterText: {
-    fontSize: theme.typography.fontSize.xs,
-    color: theme.colors.interactive.primary,
-    marginLeft: theme.spacing[1],
   },
   headerBreadcrumb: {
     flexDirection: 'row',

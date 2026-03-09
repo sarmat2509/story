@@ -1101,15 +1101,45 @@ router.get('/:id/audio-status', requireAuth, async (req: Request, res: Response)
     // Check audio job status with concurrency-aware queue info
     const { audioQueue } = await import('../jobs/storyJobProcessor');
     const queueInfo = audioQueue.getQueueInfo(j => j.storyId === storyId);
-    
-    res.json({ 
-      status: 'success', 
+
+    // When audio is ready (no job, metadata indicates success), include audioUrl and duration
+    // so client can show player immediately without a separate GET /audio request
+    let audioUrl: string | null = null;
+    let duration: number | null = null;
+    const meta = story.audioMetadata as Record<string, unknown> | null;
+    if (!queueInfo.jobStatus && meta && meta.error !== true) {
+      const { audioAssets, assets } = await import('../db/schema');
+      const { eq, and, desc, isNull } = await import('drizzle-orm');
+      const [audioAsset] = await db
+        .select({ audioAsset: audioAssets, asset: assets })
+        .from(audioAssets)
+        .innerJoin(assets, eq(audioAssets.assetId, assets.id))
+        .where(and(
+          eq(audioAssets.storyId, storyId),
+          eq(audioAssets.status, 'completed'),
+          eq(audioAssets.isFinal, true),
+          isNull(audioAssets.sceneGroupIndex)
+        ))
+        .orderBy(desc(audioAssets.createdAt))
+        .limit(1);
+      if (audioAsset) {
+        audioUrl = `/api/v1/assets/${audioAsset.asset.storagePath}`;
+        duration = audioAsset.audioAsset.durationSeconds
+          ? parseFloat(audioAsset.audioAsset.durationSeconds.toString())
+          : 0;
+      }
+    }
+
+    res.json({
+      status: 'success',
       audioMetadata: story.audioMetadata,
-      jobStatus: queueInfo.jobStatus,           // 'queued' | 'processing' | null
-      queuePosition: queueInfo.queuePosition,   // 1-based among queued jobs
-      estimatedWaitMs: queueInfo.estimatedWaitMs, // wait before job starts
-      processingStartedAt: queueInfo.processingStartedAt,     // timestamp when processing began
-      estimatedProcessingMs: queueInfo.estimatedProcessingMs, // estimated total processing time
+      audioUrl,
+      duration,
+      jobStatus: queueInfo.jobStatus,
+      queuePosition: queueInfo.queuePosition,
+      estimatedWaitMs: queueInfo.estimatedWaitMs,
+      processingStartedAt: queueInfo.processingStartedAt,
+      estimatedProcessingMs: queueInfo.estimatedProcessingMs,
       activeJobsCount: queueInfo.activeJobsCount,
       maxConcurrency: queueInfo.maxConcurrency,
     });
