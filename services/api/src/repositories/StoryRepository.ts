@@ -1,3 +1,4 @@
+import type { StoryAudioMetadata } from '@wondertales/shared';
 import { eq, and, desc, sql, isNotNull, inArray } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
@@ -167,7 +168,7 @@ export class StoryRepository {
     title: string;
     language: string;
     isPublished: boolean | null;
-    audioMetadata: unknown;
+    audioMetadata: StoryAudioMetadata | null;
     scenes: unknown;
     createdAt: Date;
     scenarioCardId: string | null;
@@ -463,7 +464,7 @@ export class StoryRepository {
   }
 
   /** Fetch recent stories with audioMetadata for audio coefficient calculation */
-  async findRecentWithAudioMetadata(limit: number): Promise<Array<{ audioMetadata: unknown; metadata: unknown }>> {
+  async findRecentWithAudioMetadata(limit: number): Promise<Array<{ audioMetadata: StoryAudioMetadata | null; metadata: unknown }>> {
     return this.db
       .select({
         audioMetadata: schema.stories.audioMetadata,

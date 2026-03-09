@@ -14,7 +14,7 @@ import { getAssetStorageService } from './assetStorageService';
 import { logger } from '../utils/logger';
 import { stripCharacterIds, stripAudioTags } from '../utils/audioTags';
 import { config } from '../config';
-import type { StoryPublicView } from '@wondertales/shared';
+import type { AlignmentData, StoryPublicView, StoryAudioMetadata } from '@wondertales/shared';
 
 async function getAudioUrlAndAlignment(storyId: string): Promise<{ url: string | null; alignment?: any; duration?: number }> {
   const [row] = await db
@@ -33,7 +33,7 @@ async function getAudioUrlAndAlignment(storyId: string): Promise<{ url: string |
   if (!row) return { url: null };
 
   const audioUrl = `/api/v1/assets/${row.asset.storagePath}`;
-  const metadata = row.audioAsset.audioMetadata as any;
+  const metadata = (row.audioAsset as { audioMetadata?: StoryAudioMetadata | null }).audioMetadata;
   // Prefer the dedicated durationSeconds column; fall back to totalDuration in the JSON metadata
   const durationFromCol = row.audioAsset.durationSeconds != null
     ? parseFloat(row.audioAsset.durationSeconds.toString())
@@ -92,10 +92,12 @@ export async function buildStoryPublicView(
     };
   });
 
+  const metadata = (story.metadata as Record<string, unknown> | null) || {};
   return {
     id: story.id,
     title: story.title,
     fullText: stripCharacterIds(stripAudioTags(story.fullText || '')),
+    ...(metadata.seoDescription && typeof metadata.seoDescription === 'string' && { seoDescription: metadata.seoDescription }),
     scenes: formattedScenes,
     authorDisplayName: story.authorDisplayName || 'Anonymous',
     publishedAt: story.publishedAt ? story.publishedAt.toISOString?.() ?? String(story.publishedAt) : null,
@@ -193,7 +195,7 @@ export async function getPublicStoryByShareToken(token: string): Promise<StoryPu
  * Get alignment for a published story by slug. Returns null if not found, not public, or no alignment.
  * Used by GET /api/v1/public/stories/:slug/alignment.
  */
-export async function getAlignmentForPublicStory(slug: string): Promise<import('@wondertales/shared').AlignmentData | null> {
+export async function getAlignmentForPublicStory(slug: string): Promise<AlignmentData | null> {
   const storyRepo = getStoryRepository();
   const story = await storyRepo.findByPublishedSlug(slug);
   if (!story) return null;
@@ -216,7 +218,7 @@ export interface PublicStoryListItem {
   publishedAt: string | null;
   publishedSlug: string;
   scenes: Array<{ sceneId: number; text: string; imageUrl: string | null }>;
-  audioMetadata?: unknown;
+  audioMetadata?: StoryAudioMetadata | null;
   hasAudio: boolean;
   scenarioCardId: string | null;
   shareUrl: string;

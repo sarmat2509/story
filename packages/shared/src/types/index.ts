@@ -307,6 +307,34 @@ export interface AudioMetadata {
   alignment?: AlignmentData;   // M6: Forced alignment data (works with audio from any provider)
 }
 
+/**
+ * Contract for story.audioMetadata (DB jsonb, API response).
+ * Extends success fields with error state and optional timing fields.
+ */
+export interface StoryAudioMetadata {
+  // Success fields (present when error is false/undefined)
+  voiceId?: string;
+  voiceName?: string;
+  totalDuration?: number;
+  generatedAt?: string;
+  nightMode?: boolean;
+  sceneGroupAssetIds?: (string | null)[];
+  finalAssetId?: string;
+  provider?: string;
+  alignment?: AlignmentData;
+
+  // Error state (present when error === true)
+  error?: boolean;
+  errorMessage?: string;
+  failedAt?: string;
+
+  // Internal/timing (optional, used for generation metrics)
+  audioGenerationTimeMs?: number;
+  fullTextLength?: number;
+  concurrencyLimit?: number;
+  numChunks?: number;
+}
+
 // ==========================================
 // Additional API/DB Types (snake_case)
 // ==========================================
@@ -449,7 +477,7 @@ export interface StoryManifestApi extends StoryApi {
   visibility: 'public' | 'unlisted' | null;
   shareCardSceneId: number | null;
   characters?: unknown[];
-  audioMetadata?: unknown;
+  audioMetadata?: StoryAudioMetadata | null;
   fullText?: string;
   scenarioCardName?: string | null;
   imageGenerationComplete?: boolean;

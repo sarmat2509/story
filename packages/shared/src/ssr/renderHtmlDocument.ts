@@ -30,7 +30,7 @@ export function renderHtmlDocument(params: RenderHtmlDocumentParams): string {
 
   const meta = buildStoryMeta({
     title: story.title,
-    description: (story.fullText || '').slice(0, 200) + (story.fullText?.length > 200 ? '...' : ''),
+    description: story.seoDescription ?? (story.fullText || '').slice(0, 200) + (story.fullText?.length > 200 ? '...' : ''),
     ogImageUrl: story.share.ogImageUrl,
     url: story.share.url,
     robots,

@@ -7,6 +7,8 @@ export interface StoryPublicView {
   id: string;
   title: string;
   fullText: string;
+  /** Short SEO description (1-2 sentences, max 160 chars). Used for og:description, meta name="description". */
+  seoDescription?: string;
   scenes: Array<{
     sceneId: number;
     text: string;
