@@ -95,12 +95,10 @@ export default function PlansScreen() {
   // Helper to format price
   const formatPrice = (priceMonthly: number, currency: string) => {
     if (priceMonthly === 0) return t('plans.free');
-    
-    // Convert UAH kopiykas to hryvnias or use direct EUR
-    const amount = currency === 'UAH' ? priceMonthly / 100 : priceMonthly;
-    const symbol = currency === 'EUR' ? '€' : '₴';
-    
-    return `${symbol}${amount}`;
+    // UAH: kopiykas; USD: cents — both stored as integer, divide by 100
+    const amount = (currency === 'UAH' || currency === 'USD') ? priceMonthly / 100 : priceMonthly;
+    const symbol = currency === 'UAH' ? '₴' : currency === 'USD' ? '$' : '€';
+    return `${symbol}${amount.toFixed(currency === 'USD' ? 2 : 0)}`;
   };
   
   // Helper to render feature value
