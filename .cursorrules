@@ -554,8 +554,9 @@ All other code (services, domain, orchestration) remains unchanged.
 **MUST** use the migration script, NOT direct psql commands:
 
 ```bash
-cd services/api
-npx tsx src/scripts/runMigration.ts NNNN_migration_file.sql
+# Via Docker (single entry point)
+pnpm api:script -- npx tsx src/scripts/runMigration.ts NNNN_migration_file.sql
+# or: docker compose -f docker-compose.dev.yml run --rm api npx tsx src/scripts/runMigration.ts NNNN_migration_file.sql
 ```
 
 **NEVER** run migrations with:
@@ -574,8 +575,8 @@ The script provides:
 
 Example usage:
 ```bash
-# Run specific migration
-npx tsx src/scripts/runMigration.ts 0022_reset_audio_story_limits.sql
+# Run specific migration (via Docker)
+pnpm api:script -- npx tsx src/scripts/runMigration.ts 0022_reset_audio_story_limits.sql
 
 # Output:
 # ✅ DATABASE_URL found
@@ -970,6 +971,24 @@ router.get('/me', requireAuth, async (req, res) => {
 - **MUST** define interfaces for all data structures
 - **MUST** use Zod for runtime validation + type inference
 - **NEVER** use `any` type (use `unknown` if needed)
+
+### Imports
+- **MUST** place all imports at the beginning of the file (top of file, before any other code)
+- **NEVER** use inline imports (e.g. `import('@wondertales/shared').StoryAudioMetadata`) — use top-level imports instead
+- **MUST** group imports: external packages first, then internal/relative imports
+
+```typescript
+// ✅ Good - All imports at top
+import type { StoryAudioMetadata } from '@wondertales/shared';
+import { getStoryRepository } from '../repositories';
+
+export function processStory(meta: StoryAudioMetadata) { ... }
+
+// ❌ Bad - Inline import in the middle of file
+export interface PublicStoryListItem {
+  audioMetadata?: import('@wondertales/shared').StoryAudioMetadata | null;
+}
+```
 
 ### Code Comments
 - **MUST** write all code comments in English
@@ -1924,7 +1943,7 @@ Before submitting code, verify:
 
 ## 📜 API Diagnostic Scripts (services/api/src/scripts/)
 
-Run from `services/api/` with `npx tsx src/scripts/<name>.ts [args]`.
+**Single entry point: Docker.** Run via `pnpm api:script -- npx tsx src/scripts/<name>.ts [args]` (from project root) or `docker compose -f docker-compose.dev.yml run --rm api npx tsx src/scripts/<name>.ts [args]`.
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
@@ -1933,6 +1952,7 @@ Run from `services/api/` with `npx tsx src/scripts/<name>.ts [args]`.
 | **showSceneImagePrompt** | Raw sceneVisual, composed sceneVisual, and final image prompt for a scene | `npx tsx src/scripts/showSceneImagePrompt.ts <storyId> <sceneId>` or `--json path/to/llm_response.json <sceneId>` |
 | **dumpSceneVisuals** | Full sceneVisual (setting, cameraComposition, lighting) for all scenes | `npx tsx src/scripts/dumpSceneVisuals.ts <storyId>` |
 | **parseEnvFromLog** | Extract LLM environments + characterOutfits from app.log | `npx tsx src/scripts/parseEnvFromLog.ts [storyId]` — without storyId shows recent entries |
+| **setImageGenerationComplete** | Set imageGenerationComplete=true for a stuck story (fix polling) | `npx tsx src/scripts/setImageGenerationComplete.ts <storyId>` |
 
 **Logs location:**
 - Host: `services/api/logs/app.log` (if API runs locally)
