@@ -52,7 +52,7 @@ export const TEXT_SCHEMA: JsonSchema = {
             properties: {
               setting: {
                 type: 'string',
-                description: 'DELTA: Scene-specific additions IN ENGLISH. Describe ONLY what is NEW or CHANGED in this scene compared to the base environment: temporary objects (books on table, food on counter), scene-specific details (open/closed doors, items being used), transient elements. DO NOT repeat base environment structure - it will be added automatically. Must be SELF-CONTAINED — never reference previous scenes ("the same X", "as before"). If location unchanged, repeat key visual elements. If nothing changes from base, write minimal additions or time-of-day details.'
+                description: 'DELTA: Scene-specific additions IN ENGLISH. Describe ONLY what is NEW or CHANGED: temporary objects (books on table, food on counter), scene-specific state (open/closed doors), STATE changes to static objects (flower bloomed, tree lit up). DO NOT introduce new static objects — they must be in environment. DO NOT repeat base environment structure. Must be SELF-CONTAINED — never reference previous scenes. If nothing changes, write minimal additions or time-of-day details.'
               },
               cameraComposition: {
                 type: 'object',
@@ -94,7 +94,7 @@ export const TEXT_SCHEMA: JsonSchema = {
         properties: {
           id: { type: 'string', description: 'Short unique identifier (e.g. "bedroom", "forest_path", "silver_tree_glade" — use distinct ids for different places like path vs glade)' },
           name: { type: 'string', description: 'Human-readable name of the location' },
-          description: { type: 'string', description: 'BASE visual description IN ENGLISH: fixed layout, permanent furniture, walls, floor, windows, key objects that DO NOT change between scenes. This is the foundation - scene-specific details will be added separately.' },
+          description: { type: 'string', description: 'BASE visual description IN ENGLISH: fixed layout, permanent furniture, walls, floor, windows. Include ALL static objects that appear in the story (tree, flower, path, bushes, bench) with fixed positions (left/center/right) and relative positions (path beside tree, bushes left of path). Key objects DO NOT change between scenes. Scene delta only adds state changes (flower bloomed), not new objects.' },
           characterOutfits: {
             type: 'string',
             description: 'REQUIRED. One entry per character who appears in this environment. Format: "Char1: outfit1. Char2: outfit2." Outfit = DETAILED IN ENGLISH: type of clothing, colors, elements. Must match environment. For animals/creatures use "natural appearance". NEVER return empty string.'
@@ -235,7 +235,7 @@ export const SCENE_SCHEMA: JsonSchema = {
       properties: {
         setting: {
           type: 'string',
-          description: 'DELTA: Scene-specific additions IN ENGLISH. Describe ONLY what is NEW or CHANGED in this scene compared to the base environment: temporary objects (books on table, food on counter), scene-specific details (open/closed doors, items being used), transient elements. DO NOT repeat base environment structure - it will be added automatically. Must be SELF-CONTAINED — never reference previous scenes ("the same X", "as before"). If location unchanged, repeat key visual elements. If nothing changes from base, write minimal additions or time-of-day details.'
+          description: 'DELTA: Scene-specific additions IN ENGLISH. Describe ONLY what is NEW or CHANGED: temporary objects (books on table, food on counter), scene-specific state (open/closed doors), STATE changes to static objects (flower bloomed, tree lit up). DO NOT introduce new static objects — they must be in environment. DO NOT repeat base environment structure. Must be SELF-CONTAINED — never reference previous scenes. If nothing changes, write minimal additions or time-of-day details.'
         },
         cameraComposition: {
           type: 'object',

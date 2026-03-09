@@ -101,3 +101,52 @@ IMPORTANT:
 - Happy, safe ending required
 `;
 }
+
+/**
+ * Build plain text generation prompt (Director flow)
+ * Output: title, description, scenes separated by --- (no JSON)
+ */
+export function buildDirectTextPromptPlain(params: DirectTextPromptParams): string {
+  const { spec, sceneCount, vocabLevel } = params;
+
+  return helpers.cleanTemplate`
+You are a creative storyteller specializing in children's content with audio narration.
+Generate a complete story in PLAIN TEXT format (no JSON).
+
+LANGUAGE: Write entirely in ${helpers.getLanguageName(spec.language)}.
+
+${helpers.formatChildProfile(spec)}
+
+${helpers.formatSupportingCharacters(spec)}
+
+STORY REQUIREMENTS:
+${helpers.formatStoryRequirements({ spec, sceneCount })}
+
+${helpers.formatAgeRequirements(spec.ageGroup)}
+
+${getContentPolicy({ policyProfile: spec.policyProfile, scenarioCardId: spec.scenarioCard?.id }).textPromptSection}
+
+${helpers.formatWritingStyle(spec, vocabLevel)}
+
+${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRule: !!spec.worldRule, worldRuleText: spec.worldRule?.description })}
+
+OUTPUT FORMAT (plain text only):
+title: Story title in ${spec.language}
+
+description: Short SEO description (1-2 sentences, max 160 characters). Summarize the story for search engines.
+
+---
+Scene 1 text (1-3 paragraphs with ElevenLabs v3 audio tags for expressive narration)...
+---
+Scene 2 text...
+---
+(continue for all ${sceneCount} scenes)
+
+RULES:
+- Write exactly ${sceneCount} scenes, each separated by --- on its own line
+- No JSON, no scene numbers in the text — only the --- delimiter between scenes
+- Each scene: 1-3 paragraphs depending on age group
+- Focus on positive, empowering storytelling
+- Happy, safe ending required
+`;
+}

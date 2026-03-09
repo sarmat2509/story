@@ -281,6 +281,7 @@ export function buildEnvironmentImagePrompt(params: {
   const parts = [
     stylePrefix,
     params.environment.description,
+    'Key objects must be in fixed positions relative to each other. Maintain consistent spatial layout: left, center, right. Describe relationships (path beside tree, bushes left of path, house behind trees).',
     'Empty location, no people or animals, wide establishing shot.',
     safetyAdditions,
     'No text or letters in the image.',
@@ -370,7 +371,7 @@ export function buildImageSystemInstruction(params: {
   // Environment reference rules (when env image is attached)
   if (params.hasEnvironmentReference) {
     sections.push(
-      'ENVIRONMENT REFERENCE: The provided location image is for CONTENT only (layout, spatial structure, composition, objects, furniture, atmosphere) — NOT for style. Re-draw everything in the scene\'s art style. Ignore the reference\'s rendering style completely.',
+      'ENVIRONMENT REFERENCE: The provided location image is for CONTENT only (layout, spatial structure, composition, objects, furniture, atmosphere) — NOT for style. Re-draw everything in the scene\'s art style. Ignore the reference\'s rendering style completely. Key objects (tree, building, furniture) must stay in the SAME positions as in the reference. Character positions are relative to these fixed objects.',
     );
   }
 

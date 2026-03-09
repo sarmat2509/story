@@ -17,9 +17,11 @@ import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 export interface StoryDomainOptions {
   onUsage?: (usage: UsageMetadata) => void;
 }
-import { buildDirectTextPrompt, buildBatchValidationPrompt, buildBatchRegenerationPrompt, buildContinuationPrompt } from '../../prompts/text';
+import { buildDirectTextPrompt, buildDirectTextPromptPlain, buildDirectorPrompt, buildBatchValidationPrompt, buildBatchRegenerationPrompt, buildContinuationPrompt, buildContinuationPromptPlain } from '../../prompts/text';
 import { logger } from '../../utils/logger';
 import { TEXT_SCHEMA, BATCH_VALIDATION_SCHEMA, BATCH_REGENERATION_SCHEMA } from './schemas';
+import { DIRECTOR_SCHEMA } from './directorSchema';
+import { parsePlainTextToScenes } from './parsePlainText';
 
 export interface BatchValidationResult {
   failedScenes: Array<{
@@ -71,6 +73,93 @@ export class StoryDomainService {
     } catch (error) {
       logger.error({ error }, 'Failed to generate text');
       throw new Error(`Text generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Generate story text in plain format (Director flow)
+   * Returns title, description, fullText, scenes — no JSON, no sceneVisual
+   */
+  async generateTextPlain(spec: StorySpec, options?: StoryDomainOptions): Promise<{
+    title: string;
+    description: string;
+    fullText: string;
+    wordCount: number;
+    scenes: Array<{ sceneId: number; text: string }>;
+  }> {
+    logger.info({ ageGroup: spec.ageGroup, language: spec.language }, 'Generating story text (plain)');
+
+    const sceneCount = this.getSceneCount(spec.ageGroup);
+    const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
+    const prompt = buildDirectTextPromptPlain({ spec, sceneCount, vocabLevel });
+
+    try {
+      const rawText = await this.textProvider.generateText({
+        prompt,
+        temperature: 0.9,
+        onUsage: options?.onUsage,
+        operation: 'text_plain',
+      });
+
+      const parsed = parsePlainTextToScenes(rawText);
+      const wordCount = parsed.fullText.split(/\s+/).length;
+
+      logger.info({ wordCount, sceneCount: parsed.scenes.length }, 'Story text (plain) generated successfully');
+      return {
+        ...parsed,
+        wordCount,
+      };
+    } catch (error) {
+      logger.error({ error }, 'Failed to generate plain text');
+      throw new Error(`Plain text generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Director: generate visual descriptions for N illustrations only (one per block)
+   */
+  async callDirector(
+    params: {
+      blocks: Array<{ blockIndex: number; sceneStart: number; sceneEnd: number; blockText: string }>;
+      imagesPerStory: number;
+      spec: StorySpec;
+      /** User characters with IDs — same format as main flow */
+      userCharacters: Array<{ id?: string; name: string }>;
+    },
+    options?: StoryDomainOptions
+  ): Promise<{
+    characters: Array<{ name: string; type: string; description: string; role?: string; personality?: string }>;
+    environments: Array<{ id: string; name: string; description: string; characterOutfits: string }>;
+    illustrations: Array<{ environmentId: string; sceneVisual: { setting: string; cameraComposition: { shot: string; characters: Array<{ name: string; description: string }> }; lighting: string } }>;
+  }> {
+    logger.info({ imagesPerStory: params.imagesPerStory, blockCount: params.blocks.length }, 'Calling Director');
+
+    const prompt = buildDirectorPrompt(params);
+
+    try {
+      const result = await this.textProvider.generateStructured<{
+        characters: any[];
+        environments: any[];
+        illustrations: any[];
+      }>({
+        prompt,
+        schema: DIRECTOR_SCHEMA,
+        temperature: 0.7,
+        onUsage: options?.onUsage,
+        operation: 'director',
+      });
+
+      if (!result.illustrations || result.illustrations.length !== params.imagesPerStory) {
+        logger.warn(
+          { expected: params.imagesPerStory, received: result.illustrations?.length ?? 0 },
+          'Director returned wrong illustration count'
+        );
+      }
+
+      return result as any;
+    } catch (error) {
+      logger.error({ error }, 'Director call failed');
+      throw new Error(`Director failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -270,6 +359,61 @@ export class StoryDomainService {
       logger.error({ error }, 'Failed to generate continuation');
       throw new Error(`Continuation generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * Generate continuation in plain text format (Director flow)
+   * Returns title, description, fullText, scenes — no JSON, no sceneVisual
+   */
+  async generateContinuationPlain(
+    params: {
+      spec: StorySpec;
+      previousOutlines: any[];
+      requiredCharacters: any[];
+      optionalCharacters: any[];
+      usedPlots: string[];
+    },
+    options?: StoryDomainOptions
+  ): Promise<{ title: string; description: string; fullText: string; wordCount: number; scenes: Array<{ sceneId: number; text: string }> }> {
+    logger.info({
+      ageGroup: params.spec.ageGroup,
+      language: params.spec.language,
+      partNumber: params.previousOutlines.length + 1,
+    }, 'Generating story continuation (plain text)');
+
+    const sceneCount = this.getSceneCount(params.spec.ageGroup);
+    const vocabLevel = this.getVocabularyLevel(params.spec.ageGroup);
+
+    const prompt = buildContinuationPromptPlain({
+      spec: params.spec,
+      sceneCount,
+      vocabLevel,
+      previousOutlines: params.previousOutlines,
+      requiredCharacters: params.requiredCharacters,
+      optionalCharacters: params.optionalCharacters,
+      usedPlots: params.usedPlots,
+    });
+
+    // Plain text generation — no schema
+    const rawText = await this.textProvider.generateText({
+      prompt,
+      temperature: 0.9,
+      onUsage: options?.onUsage,
+      operation: 'text_continuation',
+    });
+
+    const parsed = parsePlainTextToScenes(rawText);
+    const wordCount = parsed.fullText.split(/\s+/).length;
+    logger.info({
+      sceneCount: parsed.scenes.length,
+      wordCount,
+      partNumber: params.previousOutlines.length + 1,
+    }, 'Continuation plain text generated');
+
+    return {
+      ...parsed,
+      wordCount,
+    };
   }
 
   /**

@@ -161,6 +161,17 @@ Characters should enhance the story and support the narrative goals.`;
 }
 
 /**
+ * Format user characters with IDs for Director prompt (same format as main flow)
+ * Used so Director can output "Name [ID: uuid]" for reliable matching.
+ */
+export function formatUserCharactersWithIds(characters: Array<{ id?: string; name: string }>): string {
+  if (!characters?.length) return '';
+  return characters
+    .map((c) => (c.id ? `${c.name} [ID: ${c.id}]` : c.name))
+    .join(', ');
+}
+
+/**
  * Format story requirements section for prompts
  * @param params - Story parameters
  * @returns Formatted requirements text
@@ -453,13 +464,18 @@ export function formatEnvironmentRules(): string {
     '    * Fixed features: walls, floor, ceiling, windows, doors',
     '    * Key permanent objects: decorations, fixtures, large items',
     '    * Materials and colors of permanent elements',
+    '    * SPATIAL LAYOUT: describe where key objects are (left/center/right, foreground/background) AND their positions relative to each other (path beside the tree, house behind the bushes, bushes to the left of the path). This layout is reused for ALL scenes in this environment.',
+    '    * Include ALL static objects that appear in the story: flower, tree, rock, bench — everything that has a fixed place. If the story mentions a flower, it must be in environment.description with its position. No static object may appear "new" in sceneVisual — it must already be in the environment. Scene delta can only describe state changes (flower bloomed, tree lit up), not new objects.',
     '  - "characterOutfits": REQUIRED string. Format "Char1: outfit1. Char2: outfit2." — EVERY character who appears in ANY scene in this environment. DETAILED outfit IN ENGLISH. Must match the environment (beach→swimsuit, space→spacesuit, winter→coat+hat, bedroom→pajamas). For animals/creatures: "natural appearance". NEVER omit or return empty string.',
     '- Base description should work for ALL scenes in this location',
+    '- STORY-CRITICAL STATIC OBJECTS (tree, building, monument, rock, path, bushes, flower, bench) MUST be in environment.description with fixed position. For each: position in frame (left/center/right, foreground/background) AND position relative to other objects ("tree to the left of path", "path leads from foreground to tree", "bushes along left side of path", "house behind trees").',
+    '- NO NEW STATIC OBJECTS IN SCENE: If an object appears in the story (flower, tree, rock), it is ALWAYS in environment. In scene delta — only state changes (flower bloomed, tree lit up, leaves rustling), never new objects or new positions. The object must be on the environment image.',
     '- DO NOT include temporary/transient elements (those go in sceneVisual.setting)',
     '- Example characterOutfits (bedroom): "Zoryana: yellow pajamas with star patterns, white collar. Flash: natural appearance"',
     '- Example characterOutfits (beach): "Emilia: turquoise one-piece swimsuit, sun hat"',
     '- Example characterOutfits (space): "Cosmo: white spacesuit with blue stripes, transparent helmet"',
-    '- Example description: "A cozy circular living room with panoramic windows on north wall showing space. Plush beige armchairs around low round coffee table. Warm beige walls, polished dark grey floor with light rug, ambient ceiling lights."',
+    '- Example description (indoor): "A cozy circular living room with panoramic windows on north wall showing space. Plush beige armchairs around low round coffee table. Warm beige walls, polished dark grey floor with light rug, ambient ceiling lights."',
+    '- Example description (outdoor with spatial layout): "Winter park. A path leads from foreground center toward a distinctive green-leaved tree in the center-right. Bushes along the left side of the path. Bare trees along the left and right edges. Snow on the ground. Open sky above."',
     '- When to REUSE environmentId: Same physical location, minor variations. Examples:',
     '  * Same bedroom: scene 1 (morning, bed made) and scene 4 (evening, pajamas on) → same "bedroom"',
     '  * Same beach: scene 2 (building sandcastle) and scene 6 (swimming) → same "beach"',
@@ -496,7 +512,7 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
     return [
       'CRITICAL - sceneVisual:',
       withStyleHint(
-        '- "setting": DELTA ONLY - Scene-specific additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific state (door open/closed, curtains drawn/open), items being actively used, lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. STANDALONE: never use "the same X", "as before" — each scene is rendered independently; if location unchanged, repeat key visual elements. Write IN ENGLISH.',
+        '- "setting": DELTA ONLY - Scene-specific additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific state (door open/closed, curtains drawn/open), items being actively used, lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. STANDALONE: never use "the same X", "as before"; if location unchanged, repeat key visual elements. Write IN ENGLISH.',
         styleGuidance?.setting
       ),
       withStyleHint(
@@ -504,12 +520,13 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
         styleGuidance?.composition
       ),
       '  - "shot": Camera angle and shot type IN ENGLISH (e.g. "Medium-wide shot at child eye-level").',
-      `  - "characters": Array of objects, one per character. Each has "name" (EXACT from character list) and "description" (position in frame, posture, action, expression IN ENGLISH). ${SPATIAL_POSITION_RULE} Maximum 3 characters.`,
+      `  - "characters": Array of objects, one per character. Each has "name" (EXACT from character list) and "description" (position in frame, posture, action, expression IN ENGLISH. Use positions relative to static objects from environment: "beside the tree", "on the path"). ${SPATIAL_POSITION_RULE} Maximum 3 characters.`,
       withStyleHint(
         '- "lighting": Light source, direction, intensity, shadows, color temperature, atmosphere. Write IN ENGLISH.',
         styleGuidance?.lighting
       ),
       '- ALL sceneVisual fields MUST be written in ENGLISH regardless of story language.',
+      '- NO NEW STATIC OBJECTS: Scene delta only STATE changes (flower bloomed, tree lit up). Static objects must be in environment.',
     ].join('\n');
   }
 
@@ -520,7 +537,7 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
       '  - "setting": DELTA ONLY - Scene-specific additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific state (door open/closed, curtains drawn/open), items being actively used, lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. If minimal changes, describe time-of-day atmosphere or specific focus. Write IN ENGLISH.',
       styleGuidance?.setting
     ),
-    '    - STANDALONE: Each scene is rendered independently. NEVER use "the same X", "as before", "continuing from previous scene". If the location is unchanged, REPEAT the key visual elements (describe the nook, foliage, objects) — do not reference other scenes.',
+    '    - STANDALONE: NEVER use "the same X", "as before", "continuing from previous scene". If the location is unchanged, REPEAT the key visual elements (describe the nook, foliage, objects) — do not reference other scenes.',
     withStyleHint(
       '  - "cameraComposition": An OBJECT with two fields:',
       styleGuidance?.composition
@@ -528,7 +545,7 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
     '    - "shot": Camera angle (wide/medium/close-up), eye level, focal point. IN ENGLISH.',
     '    - "characters": Array of objects — one entry per character physically present in the scene. Maximum 3 characters. Each entry has:',
     '      - "name": EXACT character name from the story character list',
-    `      - "description": Position in frame (foreground/background, left/right/center), body posture, action, facial expression, gaze direction. ${SPATIAL_POSITION_RULE} IN ENGLISH.`,
+    `      - "description": Position in frame (foreground/background, left/right/center), body posture, action, facial expression, gaze direction. Use positions relative to static objects from environment (e.g. "beside the tree", "on the path"). ${SPATIAL_POSITION_RULE} IN ENGLISH.`,
     withStyleHint(
       '  - "lighting": Light source, direction, intensity, shadow style, color temperature, atmosphere.',
       styleGuidance?.lighting
@@ -536,6 +553,9 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
     '- Each field MUST be in English for image generation',
     '- cameraComposition.characters is the SINGLE SOURCE OF TRUTH for which characters are drawn in the scene illustration',
     '- The base environment structure comes from environment.description - sceneVisual.setting should only add scene-specific deltas.',
+    '- REFERENCE FIXED LAYOUT: sceneVisual.setting and cameraComposition must reference the fixed layout from environment (e.g. "children gathered around the tree" not "tree on the left"). Character positions relative to static objects from environment (e.g. "foreground center on the path, standing beside the tree", "left of the bushes").',
+    '- NO NEW STATIC OBJECTS: sceneVisual.setting must NOT introduce new static objects (flower, tree, rock, bench). If an object appears in the story, it must be in environment.description. Scene delta can only describe STATE changes (flower bloomed, tree lit up, leaves rustling) — not new objects or new positions. The object is always in the same place and same appearance.',
+    '- Use the SAME spatial references from environment.description (e.g. "beside the tree", "on the path", "in front of the house", "between the bushes"). Never invent new positions for key objects — they are fixed in the environment. Never add new static objects in scene — only state changes (bloomed, lit up) for objects already in environment.',
     '- Example good setting delta: "Two books and telescope on coffee table. Windows show morning stars. Dad holding glowing seed in open palm."',
     '- Example bad setting: "A cozy circular living room with panoramic windows..." (this duplicates base environment - only write what\'s new)',
     '- Example bad setting: "The same hidden nook. Branch lowered." (references previous scene — image model has no context). Good: "A hidden nook with lush glowing foliage. The magical bush branch is now lowered. A woven basket on the ground, partially filled with berries."',
@@ -579,7 +599,8 @@ export function formatTextVisualConsistencyRules(): string {
     '- Every character in cameraComposition.characters MUST be performing a visible action described in the scene text. If the text says "Rabbit sat on the rug", the cameraComposition must show Rabbit sitting on the rug.',
     '- Do NOT include characters in cameraComposition.characters if they are only mentioned in passing, heard off-screen, or remembered in the text.',
     '- The setting in "sceneVisual.setting" must match the location described in the text.',
-    '- sceneVisual.setting must be SELF-CONTAINED — each scene is rendered independently; never use "the same X" or reference other scenes.',
+    '- sceneVisual.setting must be SELF-CONTAINED — never use "the same X" or reference other scenes.',
+    '- INTERNAL CONSISTENCY: setting, cameraComposition.shot, cameraComposition.characters, and lighting must ALL describe the SAME location and moment. If shot says "inside the car", setting must describe the car interior — never mix locations. Before outputting, verify: could a single photograph capture everything described?',
     '- Think of it as: text = the full story of the scene, sceneVisual = a single illustration capturing the key moment of that text.',
   ].join('\n');
 }

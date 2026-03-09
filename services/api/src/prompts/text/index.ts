@@ -3,10 +3,11 @@
  * Provider-agnostic prompt construction for text generation
  */
 
-export { buildDirectTextPrompt } from './DirectTextPrompt';
+export { buildDirectTextPrompt, buildDirectTextPromptPlain } from './DirectTextPrompt';
+export { buildDirectorPrompt } from './DirectorPrompt';
 export { buildBatchValidationPrompt } from './ValidationPrompt';
 export { buildBatchRegenerationPrompt } from './RegenerationPrompt';
-export { buildContinuationPrompt } from './ContinuationPrompt';
+export { buildContinuationPrompt, buildContinuationPromptPlain } from './ContinuationPrompt';
 
 export type { DirectTextPromptParams } from './DirectTextPrompt';
 export type { BatchValidationPromptParams } from './ValidationPrompt';

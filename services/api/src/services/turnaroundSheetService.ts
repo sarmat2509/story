@@ -9,12 +9,16 @@ import { getAssetStorageService } from './assetStorageService';
 import { recordUsage } from './aiUsageService';
 import { getCharacterRepository, getChildProfileRepository } from '../repositories';
 import { NanoBananaProProvider } from '../providers/image/nanobananapro';
+import { Imagen4FastProvider } from '../providers/image/gemini/Imagen4FastProvider';
 import { ImageDomainService } from '../domain/image';
 import { logger } from '../utils/logger';
 import config from '../config';
 
 // Lazy singleton for turnaround-specific image domain (uses pro model)
 let turnaroundImageDomain: ImageDomainService | null = null;
+
+// Lazy singleton for LLM character turnaround (Imagen 4 Fast — text-to-image, $0.02)
+let llmTurnaroundImageDomain: ImageDomainService | null = null;
 
 function getTurnaroundImageDomain(): ImageDomainService {
   if (!turnaroundImageDomain) {
@@ -24,6 +28,15 @@ function getTurnaroundImageDomain(): ImageDomainService {
     turnaroundImageDomain = new ImageDomainService(provider);
   }
   return turnaroundImageDomain;
+}
+
+function getLlmTurnaroundImageDomain(): ImageDomainService {
+  if (!llmTurnaroundImageDomain) {
+    logger.info('Initializing LLM turnaround image provider (Imagen 4 Fast)');
+    const provider = new Imagen4FastProvider();
+    llmTurnaroundImageDomain = new ImageDomainService(provider);
+  }
+  return llmTurnaroundImageDomain;
 }
 
 export interface TurnaroundSheetParams {
@@ -249,7 +262,9 @@ export async function generateLlmCharacterTurnaround(
     imageStyle,
   }, 'Starting text-only turnaround sheet generation for LLM character');
 
-  const imageDomain = getTurnaroundImageDomain();
+  const imageDomain = config.image.llmTurnaroundUseImagen4Fast
+    ? getLlmTurnaroundImageDomain()
+    : getTurnaroundImageDomain();
   const usageContext = { userId, characterId, storyId };
   const generated = await imageDomain.generateTurnaroundSheetFromDescription(
     {

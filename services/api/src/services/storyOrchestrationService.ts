@@ -30,6 +30,7 @@ import { parseCharacterOutfitsString, serializeCharacterOutfitsToStr } from '../
 import type { CharacterReference } from '../prompts/image';
 import { buildImageSystemInstruction, buildEnvironmentImagePrompt } from '../prompts/image';
 import type { UploadedFile } from '../providers/base/IFileManager';
+import type { UsageMetadata } from '../providers/base/UsageMetadata';
 import { validate as isUUID } from 'uuid';
 import crypto from 'crypto';
 import * as path from 'path';
@@ -53,6 +54,7 @@ import { generateEmbedding, cosineSimilarity } from './embeddingService';
 import { generateLlmCharacterTurnaround } from './turnaroundSheetService';
 import { createStoryStub, enrichStoryRecord } from './storyOrchestration/storyRecords';
 import { validateStoryScenes } from './storyOrchestration/validation';
+import { mergeDirectorIntoText, extractLlmCharactersFromText, getIllustrationSceneIds, getIllustrationBlockStartSceneIds, composeScenesIntoBlocks } from './storyOrchestration/utilities';
 
 /**
  * Story Orchestration Service (Milestone 3)
@@ -305,9 +307,13 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
 
       // Create story stub before text generation for AI usage tracking
       if (checkpoints.storyId) {
-        storyId = checkpoints.storyId;
-        logger.info({ requestId, storyId }, 'Reusing story stub from checkpoint');
-      } else {
+        const existingStory = await getStoryRepository().findById(checkpoints.storyId);
+        if (existingStory) {
+          storyId = checkpoints.storyId;
+          logger.info({ requestId, storyId }, 'Reusing story stub from checkpoint');
+        }
+      }
+      if (!storyId) {
         storyId = await createStoryStub({
           userId: request.userId,
           storyRequestId: request.id,
@@ -324,9 +330,28 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
       // Task 1: Generate Text (with timing)
       const textGenStart = Date.now();
       await startTask(requestId, STORY_TASKS.GENERATING_TEXT, { estimatedMs: coefficients.avgTextMs });
-      text = await storyDomain.generateText(spec, {
-        onUsage: (u) => recordUsage(u, usageContext),
-      });
+      if (config.features.useDirectorFlow) {
+        const plainText = await storyDomain.generateTextPlain(spec, {
+          onUsage: (u) => recordUsage(u, usageContext),
+        });
+        const imagesPerStory = userPlan.imagesPerStory || 0;
+        const blocks = composeScenesIntoBlocks(plainText.scenes, imagesPerStory);
+        const directorResult = await storyDomain.callDirector(
+          {
+            blocks,
+            imagesPerStory,
+            spec,
+            userCharacters: selectedCharacters.map((c: any) => ({ id: c.id, name: c.name })),
+          },
+          { onUsage: (u) => recordUsage(u, usageContext) }
+        );
+        text = mergeDirectorIntoText(plainText, directorResult, imagesPerStory);
+        text.language = spec.language;
+      } else {
+        text = await storyDomain.generateText(spec, {
+          onUsage: (u) => recordUsage(u, usageContext),
+        });
+      }
       textGenerationTimeMs = Date.now() - textGenStart;
       await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
       
@@ -360,15 +385,8 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
         logger.warn({ requestId }, 'LLM did not generate environments array — images will use raw visualPrompt without setting context');
       }
 
-      // Extract LLM-generated characters from text if any
-      const llmCharacters = (text.characters || []).map(char => ({
-        name: char.name,
-        type: char.type,
-        description: char.description,
-        role: char.role,
-        personality: char.personality,
-        appearance: char.description, // Map description to appearance for image generation
-      }));
+      // Extract LLM-generated characters (same as main flow — includes originalCharacterId from [ID: uuid])
+      const llmCharacters = extractLlmCharactersFromText(text);
       
       logger.info({ 
         llmCharacterCount: llmCharacters.length,
@@ -475,6 +493,7 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
           worldRuleId: chosenWorldRuleId,
           llmGeneratedCharacters: (text as any).characters || [],
           imageStyle: (spec as any).imageStyle,
+          ...((text as any).description && { seoDescription: (text as any).description }),
         },
       });
 
@@ -528,21 +547,6 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
 }
 
 // ── Shared Image Generation Helpers ──
-
-/**
- * Calculate evenly distributed scene indices for image generation.
- * Given N scenes and M images, distributes M images evenly across N scenes.
- */
-function calculateEvenlyDistributedIndices(totalScenes: number, imagesPerStory: number): number[] {
-  const indices: number[] = [];
-  if (imagesPerStory > 0 && totalScenes > 0) {
-    for (let i = 0; i < imagesPerStory; i++) {
-      const index = Math.floor((i + 0.5) * totalScenes / imagesPerStory);
-      indices.push(Math.min(index, totalScenes - 1));
-    }
-  }
-  return indices;
-}
 
 /**
  * Extract outfit from cameraComposition character description.
@@ -685,11 +689,10 @@ function getImaginaryFriendReferencePaths(
   characterDescriptionMap: Map<string, CharacterData>,
 ): string[] {
   const paths: string[] = [];
-  for (const char of characterDescriptionMap.values()) {
+  for (const [mapKey, char] of characterDescriptionMap.entries()) {
     if (!char.name) continue;
-    const charNormalized = normalizeCharacterName(char.name);
     if (
-      normalizedCharacters.includes(charNormalized) &&
+      normalizedCharacters.includes(mapKey) &&
       (char as any).type === 'imaginary'
     ) {
       const turnaroundSheet = (char as any).turnaroundSheet as
@@ -733,11 +736,10 @@ function getChildReferencePaths(
   characterDescriptionMap: Map<string, CharacterData>,
 ): string[] {
   const paths: string[] = [];
-  for (const char of characterDescriptionMap.values()) {
+  for (const [mapKey, char] of characterDescriptionMap.entries()) {
     if (!char.name) continue;
-    const charNormalized = normalizeCharacterName(char.name);
     if (
-      normalizedCharacters.includes(charNormalized) &&
+      normalizedCharacters.includes(mapKey) &&
       (char as any).type === 'child'
     ) {
       // Prefer turnaround sheet over raw photos for better multi-angle consistency
@@ -1319,13 +1321,24 @@ export async function processStoryImages(requestId: string): Promise<void> {
     } else {
     const imagesPerStory = userPlan.imagesPerStory || 0;
     const totalScenes = text.scenes.length;
-    const sceneIndices = calculateEvenlyDistributedIndices(totalScenes, imagesPerStory);
-    scenesToGenerate = sceneIndices.map(i => text.scenes[i]);
-    
-    logger.info({ 
-      requestId, storyId, totalScenes, imagesPerStory,
-      selectedIndices: sceneIndices, sceneCount: scenesToGenerate.length
-    }, 'Selected scenes for image generation (evenly distributed)');
+    const sceneIds = config.features.useDirectorFlow
+      ? getIllustrationBlockStartSceneIds(totalScenes, imagesPerStory)
+      : getIllustrationSceneIds(totalScenes, imagesPerStory);
+    scenesToGenerate = sceneIds
+      .map((id) => text.scenes.find((s: any) => s.sceneId === id))
+      .filter(Boolean);
+    const sceneIndices = scenesToGenerate.map((s: any) =>
+      text.scenes.findIndex((sc: any) => sc.sceneId === s.sceneId)
+    );
+
+    logger.info({
+      requestId,
+      storyId,
+      totalScenes,
+      imagesPerStory,
+      selectedSceneIds: scenesToGenerate.map((s: any) => s.sceneId),
+      sceneCount: scenesToGenerate.length,
+    }, 'Selected scenes for image generation');
     
     const environmentMap = buildEnvironmentMapFromText(text, requestId);
 
@@ -1339,10 +1352,12 @@ export async function processStoryImages(requestId: string): Promise<void> {
       );
       
       // Build character description map for quick lookup
+      // Use phonetic fallback so user "Emilia" matches Director "Емілія" (turnaround refs preserved)
       const characterDescriptionMap = new Map<string, CharacterData>();
       for (const [normalized, char] of characterRegistry.entries()) {
-        const fullChar = mergedCharacters.find((c: any) => 
-          normalizeCharacterName(c.name) === normalized
+        const fullChar = mergedCharacters.find((c: any) =>
+          normalizeCharacterName(c.name) === normalized ||
+          toPhoneticKey(c.name) === toPhoneticKey(normalized)
         );
         if (fullChar) {
           characterDescriptionMap.set(normalized, fullChar);
@@ -2658,7 +2673,7 @@ async function generateWithRetry(
   context: { storyId: string; sceneId: number; userId?: string },
 ): Promise<ReturnType<ReturnType<typeof getImageDomainService>['generateSceneWithReference']>> {
   const usageContext = { userId: context.userId ?? null, storyId: context.storyId };
-  const onUsage = (u: import('../providers/base/UsageMetadata').UsageMetadata) => recordUsage(u, usageContext);
+  const onUsage = (u: UsageMetadata) => recordUsage(u, usageContext);
   let lastError: unknown;
   for (let retry = 0; retry <= MAX_GENERATION_RETRIES; retry++) {
     try {
@@ -3626,6 +3641,9 @@ export async function processContinuationRequest(requestId: string): Promise<{ s
     // Get generation time coefficients for smooth progress estimation
     const coefficients = await getGenerationCoefficients();
     
+    // Get user plan (needed for Director flow imagesPerStory)
+    const userPlan = await getPlanFeatures(request.userId);
+    
     // Build story spec for continuation
     const specData = await buildStorySpec(request);
     const spec = specData.spec;
@@ -3655,30 +3673,54 @@ export async function processContinuationRequest(requestId: string): Promise<{ s
     // Task 1: Generate Continuation Text (with timing)
     const textGenStart = Date.now();
     await startTask(requestId, STORY_TASKS.GENERATING_TEXT, { estimatedMs: coefficients.avgTextMs });
-    const text = await storyDomain.generateContinuation(
-      {
-        spec,
-        previousOutlines: continuationContext.previousOutlines,
-        requiredCharacters: continuationContext.requiredCharacters,
-        optionalCharacters: continuationContext.optionalCharacters,
-        usedPlots: continuationContext.usedPlots,
-      },
-      { onUsage: (u) => recordUsage(u, usageContext) }
-    );
+    let text: any;
+    if (config.features.useDirectorFlow) {
+      const plainText = await storyDomain.generateContinuationPlain(
+        {
+          spec,
+          previousOutlines: continuationContext.previousOutlines,
+          requiredCharacters: continuationContext.requiredCharacters,
+          optionalCharacters: continuationContext.optionalCharacters,
+          usedPlots: continuationContext.usedPlots,
+        },
+        { onUsage: (u) => recordUsage(u, usageContext) }
+      );
+      const imagesPerStory = userPlan.imagesPerStory || 0;
+      const blocks = composeScenesIntoBlocks(plainText.scenes, imagesPerStory);
+      const userCharacters = [
+        ...(continuationContext.requiredCharacters || []).map((c: any) => ({ id: c.id, name: c.name })),
+        ...(continuationContext.optionalCharacters || []).map((c: any) => ({ id: c.id, name: c.name })),
+      ];
+      const directorResult = await storyDomain.callDirector(
+        {
+          blocks,
+          imagesPerStory,
+          spec,
+          userCharacters,
+        },
+        { onUsage: (u) => recordUsage(u, usageContext) }
+      );
+      text = mergeDirectorIntoText(plainText, directorResult, imagesPerStory);
+      text.language = spec.language;
+    } else {
+      text = await storyDomain.generateContinuation(
+        {
+          spec,
+          previousOutlines: continuationContext.previousOutlines,
+          requiredCharacters: continuationContext.requiredCharacters,
+          optionalCharacters: continuationContext.optionalCharacters,
+          usedPlots: continuationContext.usedPlots,
+        },
+        { onUsage: (u) => recordUsage(u, usageContext) }
+      );
+    }
     const textGenerationTimeMs = Date.now() - textGenStart;
     await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
     
     logger.info({ requestId, title: text.title, wordCount: text.wordCount, textGenerationTimeMs }, 'Continuation text generated');
     
-    // Extract LLM-generated characters (new characters from this episode)
-    const llmCharacters = (text.characters || []).map(char => ({
-      name: char.name,
-      type: char.type,
-      description: char.description,
-      role: char.role,
-      personality: char.personality,
-      appearance: char.description,
-    }));
+    // Extract LLM-generated characters (same as main flow — includes originalCharacterId from [ID: uuid])
+    const llmCharacters = extractLlmCharactersFromText(text);
     
     logger.info({
       llmCharacterCount: llmCharacters.length,
@@ -3715,6 +3757,7 @@ export async function processContinuationRequest(requestId: string): Promise<{ s
         worldRuleId: continuationWorldRuleId,
         llmGeneratedCharacters: llmCharacters,
         imageStyle: request.imageStyle,
+        ...((text as any).description && { seoDescription: (text as any).description }),
       },
       seriesData: { seriesId, partNumber },
     });
@@ -3807,13 +3850,23 @@ export async function processContinuationImages(requestId: string): Promise<void
     
     const imagesPerStory = userPlan.imagesPerStory || 0;
     const totalScenes = text.scenes.length;
-    const sceneIndices = calculateEvenlyDistributedIndices(totalScenes, imagesPerStory);
-    const scenesToGenerate = sceneIndices.map(i => text.scenes[i]);
-    
-    logger.info({ 
-      requestId, totalScenes, imagesPerStory,
-      sceneIndices, sceneCount: scenesToGenerate.length
-    }, 'Selected scenes for continuation image generation (evenly distributed)');
+    const sceneIds = config.features.useDirectorFlow
+      ? getIllustrationBlockStartSceneIds(totalScenes, imagesPerStory)
+      : getIllustrationSceneIds(totalScenes, imagesPerStory);
+    const scenesToGenerate = sceneIds
+      .map((id) => text.scenes.find((s: any) => s.sceneId === id))
+      .filter(Boolean);
+    const sceneIndices = scenesToGenerate.map((s: any) =>
+      text.scenes.findIndex((sc: any) => sc.sceneId === s.sceneId)
+    );
+
+    logger.info({
+      requestId,
+      totalScenes,
+      imagesPerStory,
+      selectedSceneIds: scenesToGenerate.map((s: any) => s.sceneId),
+      sceneCount: scenesToGenerate.length,
+    }, 'Selected scenes for continuation image generation');
 
     const continuationEnvironmentMap = buildEnvironmentMapFromText(text, requestId);
 

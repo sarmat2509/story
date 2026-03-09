@@ -74,7 +74,7 @@ export async function createSceneRecords(
         text: cleanText,
         visualPrompt: scene.sceneVisual 
           ? JSON.stringify(scene.sceneVisual) 
-          : scene.visualPrompt,
+          : (scene.visualPrompt ?? ''),
         charactersPresent: normalizedCharacters,
       };
       
@@ -139,6 +139,91 @@ export function buildInitialContext(
   }
   
   return { storyId, text, spec, mergedCharacters };
+}
+
+export { parsePlainTextToScenes } from '../../domain/story/parsePlainText';
+
+/**
+ * Get scene IDs for illustration placement (Director flow).
+ * First image always before scene 1; rest evenly distributed.
+ * E.g. 3 images in 9 scenes → [1, 4, 7]; 5 images in 9 → [1, 3, 5, 7, 9]
+ */
+export function getIllustrationSceneIds(totalScenes: number, imagesPerStory: number): number[] {
+  if (imagesPerStory <= 0 || totalScenes <= 0) return [];
+  if (imagesPerStory === 1) return [1];
+  const step = Math.floor((totalScenes - 1) / (imagesPerStory - 1));
+  const ids: number[] = [];
+  for (let i = 0; i < imagesPerStory; i++) {
+    ids.push(Math.min(1 + i * step, totalScenes));
+  }
+  return ids;
+}
+
+/**
+ * Block-start placement for Director flow: image i appears before scene (1 + i*blockSize), covers that block.
+ * E.g. 9 scenes, 3 images → [1, 4, 7] (block 1: scenes 1-3, block 2: 4-6, block 3: 7-9).
+ */
+export function getIllustrationBlockStartSceneIds(totalScenes: number, imagesPerStory: number): number[] {
+  if (imagesPerStory <= 0 || totalScenes <= 0) return [];
+  if (imagesPerStory === 1) return [1];
+  const blockSize = Math.ceil(totalScenes / imagesPerStory);
+  return Array.from({ length: imagesPerStory }, (_, i) => Math.min(1 + i * blockSize, totalScenes));
+}
+
+/**
+ * Compose scenes into blocks for Director flow. One block per illustration.
+ */
+export function composeScenesIntoBlocks(
+  scenes: Array<{ sceneId: number; text: string }>,
+  imagesPerStory: number
+): Array<{ blockIndex: number; sceneStart: number; sceneEnd: number; blockText: string }> {
+  const sceneIds = getIllustrationBlockStartSceneIds(scenes.length, imagesPerStory);
+  const blockSize = Math.ceil(scenes.length / imagesPerStory);
+  return sceneIds.map((anchor, i) => {
+    const sceneStart = anchor;
+    const sceneEnd = Math.min(anchor + blockSize - 1, scenes.length);
+    const blockScenes = scenes.filter(s => s.sceneId >= sceneStart && s.sceneId <= sceneEnd);
+    const blockText = blockScenes.map(s => `Scene ${s.sceneId}:\n${s.text}`).join('\n\n');
+    return { blockIndex: i, sceneStart, sceneEnd, blockText };
+  });
+}
+
+/**
+ * Merge Director output into plain text result.
+ * Produces EpisodeText-like structure for downstream pipeline.
+ */
+export function mergeDirectorIntoText(
+  plainText: { title: string; description: string; fullText: string; wordCount: number; scenes: Array<{ sceneId: number; text: string }> },
+  directorResult: {
+    characters: any[];
+    environments: any[];
+    illustrations: Array<{ environmentId: string; sceneVisual: any }>;
+  },
+  imagesPerStory: number
+): any {
+  const sceneIds = getIllustrationBlockStartSceneIds(plainText.scenes.length, imagesPerStory);
+  const sceneMap = new Map(plainText.scenes.map(s => [s.sceneId, { ...s }]));
+
+  for (let i = 0; i < directorResult.illustrations.length && i < sceneIds.length; i++) {
+    const sceneId = sceneIds[i];
+    const scene = sceneMap.get(sceneId);
+    const ill = directorResult.illustrations[i];
+    if (scene && ill) {
+      (scene as any).sceneVisual = ill.sceneVisual;
+      (scene as any).environmentId = ill.environmentId;
+    }
+  }
+
+  return {
+    title: plainText.title,
+    language: '', // Will be set by spec
+    description: plainText.description,
+    characters: directorResult.characters,
+    environments: directorResult.environments,
+    scenes: Array.from(sceneMap.values()).sort((a, b) => a.sceneId - b.sceneId),
+    fullText: plainText.fullText,
+    wordCount: plainText.wordCount,
+  };
 }
 
 /**
