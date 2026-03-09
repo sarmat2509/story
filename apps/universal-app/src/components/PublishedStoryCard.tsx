@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, View, Text, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import type { StoryAudioMetadata } from '@wondertales/shared';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 
@@ -11,7 +12,7 @@ export interface PublicStoryListItem {
   authorDisplayName: string;
   scenes?: Array<{ sceneId: number; imageUrl?: string | null }>;
   hasAudio?: boolean;
-  audioMetadata?: unknown;
+  audioMetadata?: StoryAudioMetadata | null;
 }
 
 interface Props {

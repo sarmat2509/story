@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, View, Text, Image, StyleSheet, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import type { StoryAudioMetadata } from '@wondertales/shared';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 
@@ -14,7 +15,7 @@ interface Props {
     coverThumbnailUrl?: string | null;
     scenes?: Array<{ image?: { url?: string } }>;
     hasAudio?: boolean;
-    audioMetadata?: { finalAssetId?: string };
+    audioMetadata?: StoryAudioMetadata | null;
   };
   onPress: (id: string) => void;
   onDelete?: (storyId: string, title: string) => void;

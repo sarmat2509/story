@@ -184,11 +184,13 @@ export default function WizardScreen() {
         <TouchableOpacity 
           style={[styles.generateButton, (!storyLanguage) && styles.generateButtonDisabled]}
           onPress={handleGenerate}
-          disabled={!storyLanguage || createStory.isPending}
+          disabled={!storyLanguage || isGenerating}
         >
-          <Text style={styles.generateButtonText}>
-            {createStory.isPending ? t('wizard.generating') : t('wizard.generate_button')}
-          </Text>
+          {isGenerating ? (
+            <ActivityIndicator color={theme.colors.text.inverse} />
+          ) : (
+            <Text style={styles.generateButtonText}>{t('wizard.generate_button')}</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
       
