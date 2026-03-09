@@ -1,18 +1,12 @@
-import dotenv from 'dotenv';
-import path from 'path';
-
-// Load .env from workspace root (monorepo structure)
-// When compiled, files are in dist/, so we need to go up 4 levels: dist/config -> dist -> api -> services -> root
-const envPath = path.resolve(__dirname, '../../../../.env');
-dotenv.config({ path: envPath });
+// Single entry point: docker-compose. Env comes from env_file (.env.local or .env.production).
 
 // Debug: Log if OAuth credentials are loaded
 if (process.env.NODE_ENV === 'development') {
   console.log('🔐 OAuth Config Check:');
-  console.log('  ENV path:', envPath);
   console.log('  GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'Set ✓' : 'Missing ✗');
   console.log('  GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'Set ✓' : 'Missing ✗');
   console.log('  ELEVENLABS_API_KEY:', process.env.ELEVENLABS_API_KEY ? `Set ✓ (length: ${process.env.ELEVENLABS_API_KEY.length})` : 'Missing ✗');
+  console.log('  ENABLE_ENVIRONMENT_REFERENCE:', process.env.ENABLE_ENVIRONMENT_REFERENCE === 'true' ? 'true ✓' : 'false');
 }
 
 // Validate required environment variables in production
@@ -113,6 +107,8 @@ export const config = {
     // Turnaround sheet generation for imaginary characters
     enableTurnaroundSheet: process.env.ENABLE_TURNAROUND_SHEET === 'true',
     turnaroundModel: process.env.TURNAROUND_MODEL || 'gemini-3-pro-image-preview',
+    // LLM character turnaround: use Imagen 4 Fast (text-to-image, $0.02) instead of Gemini
+    llmTurnaroundUseImagen4Fast: process.env.LLM_TURNAROUND_USE_IMAGEN_4_FAST !== 'false',
     // Parallel streams for image generation within a single story (turnarounds + scene images)
     parallelStreams: parseInt(process.env.IMAGE_PARALLEL_STREAMS || '2', 10),
     // Environment image reference (Imagen 4 Fast)
@@ -269,6 +265,7 @@ export const config = {
   // Feature Flags
   features: {
     enableCharacterAnalysis: process.env.ENABLE_CHARACTER_ANALYSIS !== 'false', // Enabled by default
+    useDirectorFlow: process.env.USE_DIRECTOR_FLOW === 'true', // Plain text + Director for visuals (N scenes only)
   },
   
   // Job Queue Concurrency (fallbacks if rate limiter unavailable)

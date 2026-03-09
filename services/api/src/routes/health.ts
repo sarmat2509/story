@@ -76,6 +76,36 @@ router.get('/detailed', async (req: Request, res: Response) => {
 });
 
 /**
+ * Job queue statistics (text, image, audio)
+ * Useful for debugging freezes and stuck jobs
+ */
+router.get('/queues', async (req: Request, res: Response) => {
+  try {
+    const { textQueue, imageQueue, audioQueue, storyJobQueue } = await import('../jobs/storyJobProcessor');
+    const textStats = textQueue.getStats();
+    const imageStats = imageQueue.getStats();
+    const audioStats = audioQueue.getStats();
+    const legacyStats = storyJobQueue.getStats();
+
+    res.json({
+      timestamp: new Date().toISOString(),
+      queues: {
+        text: textStats,
+        image: imageStats,
+        audio: audioStats,
+        legacy: legacyStats,
+      },
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to get queue stats');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to retrieve queue statistics',
+    });
+  }
+});
+
+/**
  * Image generation rate limiter statistics
  * Useful for monitoring and debugging
  */
