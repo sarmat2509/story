@@ -120,4 +120,17 @@ export interface IAudioProvider {
    * @returns Array of voice catalog entries
    */
   getDefaultVoices(): VoiceCatalogEntry[];
+
+  /**
+   * Max characters per chunk for scene grouping.
+   * Google TTS: 4000 bytes limit → ~2000 chars (UTF-8).
+   * ElevenLabs/OpenAI: 4500/4096 chars.
+   */
+  getMaxCharsPerChunk(): number;
+
+  /**
+   * Max concurrent synthesis requests.
+   * ElevenLabs uses planSlug; Google/OpenAI ignore and return fixed limit.
+   */
+  getMaxConcurrency(planSlug?: string): number;
 }

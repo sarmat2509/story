@@ -5,7 +5,7 @@
  * - Text generation (per story)
  * - Validation (per scene)
  * - Image generation (per image)
- * - Audio generation (per character of text)
+ * - Audio generation (per batch, accounts for concurrency)
  * 
  * Used by progress tracking and queue wait estimation.
  */
@@ -18,14 +18,14 @@ const DEFAULTS = {
   textGenerationMs: 30000,        // 30s
   validationMsPerScene: 2000,     // 2s per scene
   imageGenerationMs: 15000,       // 15s per image
-  audioMsPerChar: 5,              // 5ms per character
+  avgTimePerBatch: 5000,          // 5s per batch (accounts for concurrency)
 };
 
 export interface GenerationCoefficients {
   avgTextMs: number;
   avgValidationMsPerScene: number;
   avgMsPerImage: number;
-  avgAudioMsPerChar: number;
+  avgTimePerBatch: number;
 }
 
 // In-memory cache with 2-minute TTL to avoid repeated DB queries under load
@@ -71,15 +71,20 @@ export async function getGenerationCoefficients(sampleSize: number = 20): Promis
       .map(a => a.generationTimeMs)
       .filter((t): t is number => t != null && t > 0);
 
-    // Get audio coefficient from stories with audioMetadata
+    // Get audio coefficient from stories with audioMetadata (time per batch, accounts for concurrency)
     const audioStories = await storyRepo.findRecentWithAudioMetadata(sampleSize);
 
-    const audioMsPerCharValues: number[] = [];
+    const audioTimePerBatchValues: number[] = [];
     for (const story of audioStories) {
-      const audioMeta = story.audioMetadata as any;
-      const storyMeta = story.metadata as any;
-      if (audioMeta?.audioGenerationTimeMs && storyMeta?.fullTextLength) {
-        audioMsPerCharValues.push(audioMeta.audioGenerationTimeMs / storyMeta.fullTextLength);
+      const audioMeta = story.audioMetadata;
+      const concurrency = audioMeta?.concurrencyLimit;
+      const numChunks = audioMeta?.numChunks;
+      const totalMs = audioMeta?.audioGenerationTimeMs;
+      if (totalMs != null && totalMs > 0 && concurrency != null && concurrency > 0 && numChunks != null && numChunks > 0) {
+        const numBatches = Math.ceil(numChunks / concurrency);
+        if (numBatches > 0) {
+          audioTimePerBatchValues.push(totalMs / numBatches);
+        }
       }
     }
 
@@ -87,14 +92,14 @@ export async function getGenerationCoefficients(sampleSize: number = 20): Promis
       avgTextMs: avg(textTimes, DEFAULTS.textGenerationMs),
       avgValidationMsPerScene: avg(validationTimesPerScene, DEFAULTS.validationMsPerScene),
       avgMsPerImage: avg(imageTimes, DEFAULTS.imageGenerationMs),
-      avgAudioMsPerChar: avg(audioMsPerCharValues, DEFAULTS.audioMsPerChar),
+      avgTimePerBatch: avg(audioTimePerBatchValues, DEFAULTS.avgTimePerBatch),
     };
 
     logger.debug({
       textSamples: textTimes.length,
       validationSamples: validationTimesPerScene.length,
       imageSamples: imageTimes.length,
-      audioSamples: audioMsPerCharValues.length,
+      audioSamples: audioTimePerBatchValues.length,
       coefficients,
     }, 'Generation coefficients calculated');
 
@@ -108,7 +113,7 @@ export async function getGenerationCoefficients(sampleSize: number = 20): Promis
       avgTextMs: DEFAULTS.textGenerationMs,
       avgValidationMsPerScene: DEFAULTS.validationMsPerScene,
       avgMsPerImage: DEFAULTS.imageGenerationMs,
-      avgAudioMsPerChar: DEFAULTS.audioMsPerChar,
+      avgTimePerBatch: DEFAULTS.avgTimePerBatch,
     };
     // Cache the fallback too to avoid repeated failed queries
     cachedCoefficients = { data: fallback, expiresAt: Date.now() + CACHE_TTL_MS };
@@ -133,13 +138,18 @@ export function estimateStoryGenerationMs(
 }
 
 /**
- * Estimate audio generation time
+ * Estimate audio generation time (accounts for concurrency and maxCharsPerChunk)
+ * Formula: numBatches * avgTimePerBatch, where numBatches = ceil(numChunks / concurrencyLimit)
  */
 export function estimateAudioGenerationMs(
   coefficients: GenerationCoefficients,
   textLength: number,
+  concurrencyLimit: number,
+  maxCharsPerChunk: number,
 ): number {
-  return Math.round(coefficients.avgAudioMsPerChar * textLength);
+  const numChunks = Math.ceil(textLength / maxCharsPerChunk) || 1;
+  const numBatches = Math.ceil(numChunks / concurrencyLimit) || 1;
+  return Math.round(numBatches * coefficients.avgTimePerBatch);
 }
 
 // ── Helpers ──

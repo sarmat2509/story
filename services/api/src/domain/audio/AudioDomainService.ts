@@ -18,7 +18,7 @@ export interface AudioDomainOptions {
   onUsage?: (usage: UsageMetadata) => void;
 }
 import type { Story } from '../../db/schema';
-import type { AudioMetadata } from '@wondertales/shared';
+import type { AudioMetadata, StoryAudioMetadata } from '@wondertales/shared';
 import { getAssetRepository, getVoiceRepository, getStoryRepository } from '../../repositories';
 import { logger } from '../../utils/logger';
 import { getTTSCacheService } from '../../services/ttsCacheService';
@@ -204,8 +204,8 @@ export class AudioDomainService {
     logger.info({ storyId: story.id }, 'Step 3/7: Checking for existing partial chunks');
     const existingAssets = await this.loadExistingSceneGroupAssets(story, sceneGroups);
     
-    const audioMetadata = (story.audioMetadata as AudioMetadata) || {};
-    const sceneGroupAssetIds = audioMetadata.sceneGroupAssetIds || new Array(sceneGroups.length).fill(null);
+    const audioMetadata: StoryAudioMetadata = (story.audioMetadata as StoryAudioMetadata | null) ?? {};
+    const sceneGroupAssetIds = audioMetadata.sceneGroupAssetIds ?? new Array(sceneGroups.length).fill(null);
     
     // Ensure array has correct length (in case story was regenerated with different scene count)
     while (sceneGroupAssetIds.length < sceneGroups.length) {
@@ -938,7 +938,7 @@ export class AudioDomainService {
    */
   private async updateStoryAudioMetadata(
     storyId: string,
-    audioMetadata: AudioMetadata
+    audioMetadata: StoryAudioMetadata
   ): Promise<void> {
     await getStoryRepository().updateStory(storyId, {
       audioMetadata: audioMetadata as any, // jsonb field accepts any object

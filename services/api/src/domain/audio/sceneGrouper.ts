@@ -1,13 +1,14 @@
 /**
  * Scene Grouper for Optimal Parallel Audio Generation
- * 
+ *
  * Groups scenes into optimal number of chunks to maximize parallel generation
- * while respecting ElevenLabs 4500 character limit per request.
- * 
+ * while respecting provider char limit per request.
+ *
  * Algorithm:
- * 1. Calculate optimal chunks = max(concurrencyLimit, ceil(totalChars / 4500))
- * 2. Distribute scenes evenly across chunks
- * 3. Respect scene boundaries (never split a scene)
+ * 1. Expand long scenes into sentence-bounded fragments (never split mid-sentence)
+ * 2. Calculate optimal chunks = max(concurrencyLimit, ceil(totalChars / maxCharsPerChunk))
+ * 3. Distribute scenes/fragments evenly across chunks
+ * 4. Respect scene boundaries for short scenes; split long scenes by sentences
  */
 
 import { logger } from '../../utils/logger';
@@ -18,20 +19,120 @@ export interface SceneGroup {
   totalChars: number;
 }
 
+/** Split text by sentence boundaries (. ! ? … ;) — keeps punctuation with sentence */
+const SENTENCE_END_RE = /(?<=[.!?…;])\s+/;
+
+/**
+ * Split a long scene into sentence-bounded fragments under maxChars.
+ * If a single sentence exceeds max, split by comma/semicolon; last resort: by char count.
+ */
+function splitSceneBySentences(
+  text: string,
+  sceneId: number,
+  maxCharsPerChunk: number
+): Array<{ sceneId: number; text: string }> {
+  if (text.length <= maxCharsPerChunk) {
+    return [{ sceneId, text: text.trim() }];
+  }
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  const sentences = trimmed.split(SENTENCE_END_RE).map((s) => s.trim()).filter(Boolean);
+  const result: Array<{ sceneId: number; text: string }> = [];
+  let current = '';
+
+  for (const sent of sentences) {
+    const withSpace = current ? ' ' + sent : sent;
+    if (current.length + withSpace.length <= maxCharsPerChunk) {
+      current = current ? current + ' ' + sent : sent;
+    } else {
+      if (current) {
+        result.push({ sceneId, text: current });
+      }
+      // Single sentence exceeds max — split by comma or fixed length
+      if (sent.length > maxCharsPerChunk) {
+        const parts = splitLongFragment(sent, maxCharsPerChunk);
+        for (let i = 0; i < parts.length; i++) {
+          result.push({ sceneId, text: parts[i] });
+        }
+        current = '';
+      } else {
+        current = sent;
+      }
+    }
+  }
+  if (current) result.push({ sceneId, text: current });
+  return result;
+}
+
+/** Split a fragment that exceeds maxChars — by comma/semicolon, then by spaces, last resort by char */
+function splitLongFragment(text: string, maxChars: number): string[] {
+  if (text.length <= maxChars) return [text];
+  const byClause = text.split(/(?<=[,;:])\s+/);
+  const result: string[] = [];
+  let current = '';
+  for (const part of byClause) {
+    const withSpace = current ? ' ' + part : part;
+    if (current.length + withSpace.length <= maxChars) {
+      current = current ? current + ' ' + part : part;
+    } else {
+      if (current) result.push(current);
+      if (part.length > maxChars) {
+        const words = part.split(/\s+/);
+        let buf = '';
+        for (const w of words) {
+          const withSpace = buf ? ' ' + w : w;
+          if (buf.length + withSpace.length <= maxChars) {
+            buf = buf ? buf + ' ' + w : w;
+          } else {
+            if (buf) result.push(buf);
+            buf = w.length <= maxChars ? w : '';
+            if (w.length > maxChars) {
+              for (let i = 0; i < w.length; i += maxChars) {
+                result.push(w.slice(i, i + maxChars));
+              }
+            }
+          }
+        }
+        current = buf;
+      } else {
+        current = part;
+      }
+    }
+  }
+  if (current) result.push(current);
+  return result;
+}
+
+/**
+ * Expand scenes into atomic units: whole scene or sentence-bounded fragments for long scenes.
+ */
+function expandScenesToAtomicUnits(
+  scenes: Array<{ sceneId: number; text: string }>,
+  maxCharsPerChunk: number
+): Array<{ sceneId: number; text: string }> {
+  const units: Array<{ sceneId: number; text: string }> = [];
+  for (const scene of scenes) {
+    const fragments = splitSceneBySentences(scene.text, scene.sceneId, maxCharsPerChunk);
+    units.push(...fragments);
+  }
+  return units;
+}
+
 /**
  * Calculate optimal number of chunks for parallel generation
  * @param totalChars - Total character count across all scenes
  * @param concurrencyLimit - User's plan concurrency limit (2-30)
+ * @param maxCharsPerChunk - Max chars per chunk (provider-specific; Google TTS: 4000 bytes ≈ 2000 chars for UTF-8)
  * @returns Optimal number of chunks
  */
 function calculateOptimalChunks(
   totalChars: number,
-  concurrencyLimit: number
+  concurrencyLimit: number,
+  maxCharsPerChunk: number = 4500
 ): number {
-  const MAX_CHARS_PER_CHUNK = 4500; // Safety margin under ElevenLabs 5000 limit
-
   // Minimum chunks needed to stay under char limit
-  const minChunksForCharLimit = Math.ceil(totalChars / MAX_CHARS_PER_CHUNK);
+  const minChunksForCharLimit = Math.ceil(totalChars / maxCharsPerChunk);
 
   // Use at least concurrency limit (to maximize parallelism)
   // But respect char limit if it requires more chunks
@@ -46,6 +147,7 @@ function calculateOptimalChunks(
  * 
  * @param scenes - Array of scene objects with sceneId and text
  * @param concurrencyLimit - User's plan concurrency limit (2-30)
+ * @param maxCharsPerChunk - Max chars per chunk (default 4500 for ElevenLabs; use 2000 for Google TTS 4000-byte limit)
  * @returns Array of scene groups optimized for parallel generation
  * 
  * @example
@@ -60,33 +162,35 @@ function calculateOptimalChunks(
  */
 export function groupScenesIntoChunks(
   scenes: Array<{ sceneId: number; text: string }>,
-  concurrencyLimit: number
+  concurrencyLimit: number,
+  maxCharsPerChunk: number = 4500
 ): SceneGroup[] {
   if (scenes.length === 0) {
     return [];
   }
 
   // CRITICAL: Sort scenes by sceneId to ensure correct narrative order in audio
-  // Without sorting, audio may start from middle of story
   const sortedScenes = [...scenes].sort((a, b) => a.sceneId - b.sceneId);
 
-  // Calculate total characters
-  const totalChars = sortedScenes.reduce((sum, scene) => sum + scene.text.length, 0);
+  // Expand long scenes into sentence-bounded fragments (never split mid-sentence)
+  const atomicUnits = expandScenesToAtomicUnits(sortedScenes, maxCharsPerChunk);
+  const totalChars = atomicUnits.reduce((sum, u) => sum + u.text.length, 0);
 
-  // Calculate optimal number of chunks
-  const targetChunks = calculateOptimalChunks(totalChars, concurrencyLimit);
-  const targetCharsPerChunk = Math.ceil(totalChars / targetChunks);
+  const targetChunks = calculateOptimalChunks(totalChars, concurrencyLimit, maxCharsPerChunk);
+  const targetCharsPerChunk = Math.min(Math.ceil(totalChars / targetChunks), maxCharsPerChunk);
 
+  const splitCount = atomicUnits.length - sortedScenes.length;
   logger.info(
     {
       totalScenes: sortedScenes.length,
-      sceneIds: sortedScenes.map(s => s.sceneId),
+      atomicUnits: atomicUnits.length,
+      scenesSplitBySentences: splitCount > 0 ? splitCount : 0,
       totalChars,
       concurrencyLimit,
       targetChunks,
       targetCharsPerChunk,
     },
-    'Calculating optimal scene groups (sorted by sceneId)'
+    'Calculating optimal scene groups (sentence-bounded)'
   );
 
   const groups: SceneGroup[] = [];
@@ -96,30 +200,22 @@ export function groupScenesIntoChunks(
     totalChars: 0,
   };
 
-  for (const scene of sortedScenes) {
-    const sceneLength = scene.text.length;
+  for (const unit of atomicUnits) {
+    const unitLength = unit.text.length;
 
-    // If adding this scene would exceed target AND we have scenes in current group,
-    // start new group
     if (
       currentGroup.totalChars > 0 &&
-      currentGroup.totalChars + sceneLength > targetCharsPerChunk
+      currentGroup.totalChars + unitLength > targetCharsPerChunk
     ) {
       groups.push(currentGroup);
-      currentGroup = {
-        scenes: [],
-        text: '',
-        totalChars: 0,
-      };
+      currentGroup = { scenes: [], text: '', totalChars: 0 };
     }
 
-    // Add scene to current group
-    currentGroup.scenes.push(scene);
-    currentGroup.text += (currentGroup.text ? ' ' : '') + scene.text;
-    currentGroup.totalChars += sceneLength;
+    currentGroup.scenes.push(unit);
+    currentGroup.text += (currentGroup.text ? ' ' : '') + unit.text;
+    currentGroup.totalChars += unitLength;
   }
 
-  // Add final group if it has content
   if (currentGroup.scenes.length > 0) {
     groups.push(currentGroup);
   }
@@ -128,9 +224,9 @@ export function groupScenesIntoChunks(
     {
       actualGroups: groups.length,
       groupSizes: groups.map((g) => g.totalChars),
-      groupSceneIds: groups.map((g) => g.scenes.map(s => s.sceneId)),
+      maxGroupSize: groups.length > 0 ? Math.max(...groups.map((g) => g.totalChars)) : 0,
     },
-    'Scene groups created with sorted scenes'
+    'Scene groups created (sentence-bounded, under char limit)'
   );
 
   return groups;

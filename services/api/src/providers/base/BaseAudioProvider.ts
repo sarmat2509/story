@@ -1,6 +1,6 @@
 import { IAudioProvider, SynthesizeRequest, SynthesizeResult, Voice, VoiceCatalogEntry } from './IAudioProvider';
 import { logger } from '../../utils/logger';
-import { config } from '../../config';
+import { config, getConcurrencyLimitForPlan } from '../../config';
 
 /**
  * Base Audio Provider with common functionality
@@ -198,5 +198,13 @@ export abstract class BaseAudioProvider implements IAudioProvider {
   protected estimateDuration(text: string, wordsPerMinute: number = 150): number {
     const words = text.split(/\s+/).length;
     return Math.ceil((words / wordsPerMinute) * 60);
+  }
+
+  getMaxCharsPerChunk(): number {
+    return 4500;
+  }
+
+  getMaxConcurrency(planSlug?: string): number {
+    return getConcurrencyLimitForPlan(planSlug);
   }
 }

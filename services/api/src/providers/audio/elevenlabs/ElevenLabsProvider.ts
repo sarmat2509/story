@@ -23,7 +23,7 @@ import type {
 } from '../../base/IAudioProvider';
 import { BaseAudioProvider } from '../../base/BaseAudioProvider';
 import { logger } from '../../../utils/logger';
-import { config } from '../../../config';
+import { config, getConcurrencyLimitForPlan } from '../../../config';
 import { mapToneToVoiceSettings } from '../../../domain/audio/toneVoiceMapper';
 import { ELEVENLABS_VOICE_CATALOG } from './voices';
 
@@ -76,6 +76,14 @@ export class ElevenLabsProvider extends BaseAudioProvider {
 
   protected getProviderName(): string {
     return 'ElevenLabs';
+  }
+
+  getMaxCharsPerChunk(): number {
+    return 4500; // Safety margin under 5000 limit
+  }
+
+  getMaxConcurrency(planSlug?: string): number {
+    return getConcurrencyLimitForPlan(planSlug);
   }
 
   protected isValidVoiceId(voiceId: string): boolean {

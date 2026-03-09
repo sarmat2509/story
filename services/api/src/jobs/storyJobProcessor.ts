@@ -10,6 +10,7 @@
  * (will be migrated to imageQueue in a future step).
  */
 
+import type { StoryAudioMetadata } from '@wondertales/shared';
 import { logger } from '../utils/logger';
 import { recordUsage } from '../services/aiUsageService';
 import { ConcurrentJobQueue, type BaseJob } from './ConcurrentJobQueue';
@@ -265,7 +266,8 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
 
   const { getAudioDomainService } = await import('../domain/audio');
   const { groupScenesIntoChunks } = await import('../domain/audio/sceneGrouper');
-  const { getConcurrencyLimitForPlan } = await import('../config');
+  const { getAudioProviderByName } = await import('../services/aiService');
+  const { getVoiceRepository } = await import('../repositories');
 
   // Load story
   const story = await getStoryRepository().findById(job.storyId);
@@ -288,15 +290,21 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
     totalChars: scenesForAudio.reduce((sum, s) => sum + s.text.length, 0),
   }, 'Loaded scenes for audio generation');
 
-  // Get user's plan and concurrency limit
+  // Get user's plan
   const { getUserSubscription, getPlanById } = await import('../services/planService');
   const subscription = await getUserSubscription(job.userId);
   const plan = subscription ? await getPlanById(subscription.planId) : null;
   const planType = plan?.slug === 'premium' ? 'premium' : 'free';
-  const concurrencyLimit = getConcurrencyLimitForPlan(plan?.slug);
 
-  // Group scenes for parallel generation
-  const sceneGroups = groupScenesIntoChunks(scenesForAudio, concurrencyLimit);
+  // Resolve voice and provider for limits (no conditions — provider returns its own limits)
+  const voiceId = job.voiceParams?.voiceId;
+  const voice = voiceId ? await getVoiceRepository().findById(voiceId) : null;
+  const provider = getAudioProviderByName(voice?.provider ?? 'elevenlabs');
+  const concurrencyLimit = provider.getMaxConcurrency(plan?.slug);
+  const maxCharsPerChunk = provider.getMaxCharsPerChunk();
+
+  // Group scenes for parallel generation (provider-specific char limit)
+  const sceneGroups = groupScenesIntoChunks(scenesForAudio, concurrencyLimit, maxCharsPerChunk);
 
   logger.info({
     storyId: job.storyId,
@@ -331,6 +339,8 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
         nightMode: job.voiceParams?.nightMode || false,
         audioGenerationTimeMs,
         fullTextLength,
+        concurrencyLimit,
+        numChunks: sceneGroups.length,
       },
     });
 
@@ -370,7 +380,7 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
       const { getAlignmentRepository } = await import('../repositories');
       await getAlignmentRepository().upsert(job.storyId, alignmentData, finalAssetId);
 
-      const currentAudioMetadata = (story.audioMetadata as Record<string, unknown>) || {};
+      const currentAudioMetadata = (story.audioMetadata as StoryAudioMetadata | null) || {};
       await getStoryRepository().updateStory(job.storyId, {
         audioMetadata: {
           ...currentAudioMetadata,
@@ -379,6 +389,10 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
           totalDuration: result.duration,
           generatedAt: new Date().toISOString(),
           nightMode: job.voiceParams?.nightMode || false,
+          // Explicitly clear previous error (currentAudioMetadata may have error from stale story load)
+          error: undefined,
+          errorMessage: undefined,
+          failedAt: undefined,
         },
         updatedAt: new Date(),
       });
@@ -402,7 +416,7 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
       error: (error as Error).message,
     }, 'Audio generation failed - user NOT charged');
 
-    const currentMetadata = (story.audioMetadata as Record<string, unknown>) || {};
+    const currentMetadata = (story.audioMetadata as StoryAudioMetadata | null) || {};
     await getStoryRepository().updateStory(job.storyId, {
       audioMetadata: {
         ...currentMetadata,
@@ -737,12 +751,24 @@ class StoryJobQueue {
       let estimatedTotalMs: number | undefined;
       try {
         const { getGenerationCoefficients, estimateAudioGenerationMs } = await import('../services/generationTimeService');
+        const { getAudioProviderByName } = await import('../services/aiService');
+        const { getVoiceRepository } = await import('../repositories');
+        const { getUserSubscription, getPlanById } = await import('../services/planService');
         const story = await getStoryRepository().findById(requestIdOrJobData.storyId);
         if (story) {
-          const val = (story.metadata as Record<string, unknown>)?.fullTextLength;
-          const fullTextLength = typeof val === 'number' ? val : 0;
+          const metaFullTextLength = (story.metadata as Record<string, unknown>)?.fullTextLength;
+          const fullTextLength: number =
+            story.fullText?.length ??
+            (typeof metaFullTextLength === 'number' ? metaFullTextLength : 0);
+          const voiceId = requestIdOrJobData.voiceParams?.voiceId;
+          const voice = voiceId ? await getVoiceRepository().findById(voiceId) : null;
+          const provider = getAudioProviderByName(voice?.provider ?? 'elevenlabs');
+          const subscription = await getUserSubscription(requestIdOrJobData.userId);
+          const plan = subscription ? await getPlanById(subscription.planId) : null;
+          const concurrencyLimit = provider.getMaxConcurrency(plan?.slug);
+          const maxCharsPerChunk = provider.getMaxCharsPerChunk();
           const coefficients = await getGenerationCoefficients();
-          estimatedTotalMs = estimateAudioGenerationMs(coefficients, fullTextLength);
+          estimatedTotalMs = estimateAudioGenerationMs(coefficients, fullTextLength, concurrencyLimit, maxCharsPerChunk);
         }
       } catch (err) {
         logger.warn({ err, storyId: requestIdOrJobData.storyId }, 'Failed to estimate audio time, using default');

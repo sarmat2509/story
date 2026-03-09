@@ -30,6 +30,14 @@ export class OpenAITTSProvider extends BaseAudioProvider {
     return 'OpenAI TTS';
   }
 
+  getMaxCharsPerChunk(): number {
+    return 4000; // OpenAI TTS: 4096 char limit
+  }
+
+  getMaxConcurrency(_planSlug?: string): number {
+    return 10;
+  }
+
   protected isValidVoiceId(voiceId: string): boolean {
     return VALID_OPENAI_VOICES.includes(voiceId as any);
   }

@@ -27,6 +27,14 @@ export class GoogleTTSProvider extends BaseAudioProvider {
     return 'Google TTS';
   }
 
+  getMaxCharsPerChunk(): number {
+    return 2000; // Google TTS: 4000 bytes limit; UTF-8 ~2 bytes/char
+  }
+
+  getMaxConcurrency(_planSlug?: string): number {
+    return 10; // 100 concurrent/project per docs; 10 per user conservative
+  }
+
   protected isValidVoiceId(voiceId: string): boolean {
     // Google TTS accepts any valid voice name
     // Validate against known catalog or allow any string
