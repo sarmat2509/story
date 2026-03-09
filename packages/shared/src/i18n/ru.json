@@ -499,6 +499,7 @@
     "audio_generating": "Готовим аудиосказку...",
     "audio_ready": "Аудиосказка готова!",
     "audio_duration": "Длительность: {{minutes}} мин",
+    "reading_time": "~{{minutes}} мин чтения",
     "audio_limit_exceeded": "Лимит аудиосказок исчерпан",
     "audio_not_available": "Аудиосказки недоступны в вашем тарифе",
     "narrator_voice": "Голос рассказчика",

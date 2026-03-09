@@ -182,6 +182,7 @@
     "audio_generating": "Préparation de l'histoire audio...",
     "audio_ready": "Histoire audio prête!",
     "audio_duration": "Durée: {{minutes}} min",
+    "reading_time": "~{{minutes}} min de lecture",
     "audio_limit_exceeded": "Limite d'histoires audio dépassée",
     "audio_not_available": "Les histoires audio ne sont pas disponibles dans votre forfait",
     "narrator_voice": "Voix du Narrateur",

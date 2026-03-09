@@ -7,6 +7,7 @@
  */
 import type { StoryPublicView } from './types';
 import { escapeHtml } from './escapeHtml';
+import { getReadingTimeMinutes } from '../utils/readingTime';
 
 export interface PublishedStoryLayoutParams {
   story: StoryPublicView;
@@ -46,12 +47,18 @@ export function renderPublishedStoryLayout(params: PublishedStoryLayoutParams): 
 
   const audioUrl = story.audio?.url || '';
 
+  const readingTimeMinutes = getReadingTimeMinutes(scenes);
+  const readingTimeHtml = readingTimeMinutes > 0
+    ? `<div class="sidebar-widget reading-time"><span class="reading-time-text">~${readingTimeMinutes} хв читання</span></div>`
+    : '';
+
   const audioWidget = audioUrl
     ? `<div class="sidebar-widget"><audio controls src="${escapeHtml(audioUrl)}"></audio></div>`
     : '';
 
-  const sidebar = audioWidget
-    ? `<aside class="sidebar"><div class="sidebar-sticky">${audioWidget}</div></aside>`
+  const sidebarContent = [readingTimeHtml, audioWidget].filter(Boolean).join('');
+  const sidebar = sidebarContent
+    ? `<aside class="sidebar"><div class="sidebar-sticky">${sidebarContent}</div></aside>`
     : '';
 
   return `

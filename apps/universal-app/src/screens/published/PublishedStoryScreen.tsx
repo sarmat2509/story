@@ -25,6 +25,7 @@ import { navigateToStory } from '@/navigation/navigationRef';
 import { globalAudioService } from '@/services/globalAudioService';
 import { audioPlaybackService } from '@/services/audioPlaybackService';
 import { useAlignmentSync } from '@/hooks/useAlignmentSync';
+import { getReadingTimeMinutes } from '@wondertales/shared';
 import type { MainDrawerParamList } from '@/types/navigation';
 
 const removeAudioTags = (text: string): string =>
@@ -84,6 +85,11 @@ export default function PublishedStoryScreen() {
 
   const sceneTexts = useMemo(
     () => (story?.scenes ?? []).map((s: any) => removeAudioTags(s.text || '')),
+    [story?.scenes],
+  );
+
+  const readingTimeMinutes = useMemo(
+    () => getReadingTimeMinutes(story?.scenes ?? []),
     [story?.scenes],
   );
 
@@ -210,6 +216,17 @@ export default function PublishedStoryScreen() {
         </View>
       </View>
 
+      {readingTimeMinutes > 0 && !useDesktopLayout && (
+        <View style={styles.readingTimeMobile}>
+          <View style={styles.readingTimeRow}>
+            <Ionicons name="time-outline" size={18} color={theme.colors.text.secondary} />
+            <Text style={styles.readingTimeText}>
+              {t('story_viewer.reading_time', { minutes: readingTimeMinutes })}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {audioUrl && !useDesktopLayout && (
         <View style={styles.audioWidget}>
           <AudioPlayer
@@ -313,6 +330,17 @@ export default function PublishedStoryScreen() {
 
   const renderRightColumn = () => (
     <>
+      {/* Reading Time */}
+      {readingTimeMinutes > 0 && (
+        <View style={styles.sidebarWidget}>
+          <View style={styles.readingTimeRow}>
+            <Ionicons name="time-outline" size={18} color={theme.colors.text.secondary} />
+            <Text style={styles.readingTimeText}>
+              {t('story_viewer.reading_time', { minutes: readingTimeMinutes })}
+            </Text>
+          </View>
+        </View>
+      )}
       {/* Audio widget at top (same styles as StoryViewerScreen sidebar) */}
       {audioUrl && (
         <View style={styles.sidebarWidget}>
@@ -506,6 +534,18 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background.secondary,
     padding: theme.spacing[6],
     borderRadius: theme.spacing[4],
+    marginBottom: theme.spacing[4],
+  },
+  readingTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
+  readingTimeText: {
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.secondary,
+  },
+  readingTimeMobile: {
     marginBottom: theme.spacing[4],
   },
   editButtonSidebar: {

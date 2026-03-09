@@ -508,6 +508,7 @@
     "audio_generating": "Preparing audio story...",
     "audio_ready": "Audio story is ready!",
     "audio_duration": "Duration: {{minutes}} min",
+    "reading_time": "~{{minutes}} min read",
     "audio_limit_exceeded": "Audio story limit exceeded",
     "audio_not_available": "Audio stories are not available in your plan",
     "narrator_voice": "Narrator Voice",

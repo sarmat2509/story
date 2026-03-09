@@ -695,6 +695,7 @@
     "audio_generating": "Готуємо аудіоказку...",
     "audio_ready": "Аудіоказка готова!",
     "audio_duration": "Тривалість: {{minutes}} хв",
+    "reading_time": "~{{minutes}} хв читання",
     "audio_limit_exceeded": "Ліміт аудіоказок вичерпано",
     "audio_not_available": "Аудіоказки недоступні у вашому тарифі",
     "narrator_voice": "Голос оповідача",

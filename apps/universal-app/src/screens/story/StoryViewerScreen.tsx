@@ -33,6 +33,7 @@ import { GenerationProgressModal } from '@/components/GenerationProgressModal';
 import { StoryBottomSheet } from '@/components/StoryBottomSheet';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { StoryViewerSkeleton } from '@/components/StoryViewerSkeleton';
+import { getReadingTimeMinutes } from '@wondertales/shared';
 
 type StoryViewerRouteProp = RouteProp<MainDrawerParamList, 'Story'>;
 
@@ -465,6 +466,11 @@ export default function StoryViewerScreen() {
     if (!story?.scenes) return [];
     return story.scenes.map((s: any) => removeAudioTags(s.text));
   }, [story?.scenes]);
+
+  const readingTimeMinutes = useMemo(
+    () => getReadingTimeMinutes(story?.scenes ?? []),
+    [story?.scenes]
+  );
   
   const { activeSentenceIndex, activeWordIndex, sentences } = useAlignmentSync(
     story?.fullText || '',
@@ -1273,6 +1279,17 @@ export default function StoryViewerScreen() {
             ref={scrollViewRef}
             style={styles.container}
           >
+            {/* Reading Time (mobile) */}
+            {readingTimeMinutes > 0 && (
+              <View style={styles.mobileSectionWrapper}>
+                <View style={styles.readingTimeRow}>
+                  <Ionicons name="time-outline" size={18} color={theme.colors.text.secondary} />
+                  <Text style={styles.readingTimeText}>
+                    {t('story_viewer.reading_time', { minutes: readingTimeMinutes })}
+                  </Text>
+                </View>
+              </View>
+            )}
             {/* Audio Generation Section */}
             <View style={styles.mobileSectionWrapper}>
               {renderAudioGenerationSection()}
@@ -1365,6 +1382,17 @@ export default function StoryViewerScreen() {
               showsVerticalScrollIndicator={true}
             >
               <View style={styles.sidebar}>
+              {/* Reading Time */}
+              {readingTimeMinutes > 0 && (
+                <View style={styles.sidebarWidget}>
+                  <View style={styles.readingTimeRow}>
+                    <Ionicons name="time-outline" size={18} color={theme.colors.text.secondary} />
+                    <Text style={styles.readingTimeText}>
+                      {t('story_viewer.reading_time', { minutes: readingTimeMinutes })}
+                    </Text>
+                  </View>
+                </View>
+              )}
               {/* Audio Generation Section (if audio not ready) */}
               {renderAudioGenerationSection()}
               
@@ -1571,6 +1599,15 @@ const styles = StyleSheet.create({
     padding: theme.spacing[6],
     borderRadius: theme.spacing[4],
     marginBottom: theme.spacing[4],
+  },
+  readingTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
+  readingTimeText: {
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.secondary,
   },
   publicationSection: {
     marginBottom: theme.spacing[4],

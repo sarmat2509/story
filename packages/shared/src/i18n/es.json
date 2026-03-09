@@ -440,6 +440,7 @@
     "audio_generating": "Preparando audiocuento...",
     "audio_ready": "¡Audiocuento listo!",
     "audio_duration": "Duración: {{minutes}} min",
+    "reading_time": "~{{minutes}} min de lectura",
     "audio_limit_exceeded": "Límite de audiocuentos excedido",
     "audio_not_available": "Los audiocuentos no están disponibles en tu plan",
     "narrator_voice": "Voz del Narrador",
