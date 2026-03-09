@@ -30,7 +30,7 @@ function calculateCost(usage: UsageMetadata): number | null {
   const modelKey = getConfigKey(provider, model);
 
   try {
-    if (operation.includes('text') || operation === 'character_analysis' || operation === 'translation' || operation === 'face_dedup' || operation === 'image_validation' || operation === 'validateScene' || operation === 'regenerateScene') {
+    if (operation.includes('text') || operation === 'character_analysis' || operation === 'translation' || operation === 'face_dedup' || operation === 'image_validation' || operation === 'validateScene' || operation === 'regenerateScene' || operation === 'director') {
       const textConfig = AI_COST_CONFIG.text[modelKey] || AI_COST_CONFIG.text['gemini-2.5-flash'];
       if (textConfig && 'inputPer1M' in textConfig) {
         const inputCost = (usage.inputUnits / 1e6) * textConfig.inputPer1M;
@@ -45,14 +45,24 @@ function calculateCost(usage: UsageMetadata): number | null {
         return imageConfig;
       }
       if (imageConfig && typeof imageConfig === 'object') {
-        const imgConfig = imageConfig as { imageRatePer1M: number; thinkingRatePer1M?: number; imageTokens1K?: number; imageTokensPer1K?: number };
+        const imgConfig = imageConfig as {
+          imageRatePer1M: number;
+          inputPer1M?: number;
+          thinkingRatePer1M?: number;
+          imageTokens1K?: number;
+          imageTokensPer1K?: number;
+        };
         const imageTokens = usage.imageTokens ?? imgConfig.imageTokens1K ?? imgConfig.imageTokensPer1K ?? 1120;
         const thoughtTokens = usage.thoughtTokens ?? 0;
+        const inputCost =
+          imgConfig.inputPer1M != null
+            ? (usage.inputUnits / 1e6) * imgConfig.inputPer1M
+            : 0;
         const imageCost = (imageTokens / 1e6) * imgConfig.imageRatePer1M;
         const thinkingCost = imgConfig.thinkingRatePer1M
           ? (thoughtTokens / 1e6) * imgConfig.thinkingRatePer1M
           : 0;
-        return imageCost + thinkingCost;
+        return inputCost + imageCost + thinkingCost;
       }
       return 0.04;
     }
