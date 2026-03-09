@@ -23,7 +23,6 @@ export interface GenerateTextParams {
 
 export interface GenerateTextResult {
   text: any;
-  outline: any;
   llmCharacters: CharacterData[];
   mergedCharacters: CharacterData[];
   spec: StorySpec;
@@ -37,7 +36,6 @@ export interface GenerateImagesParams {
   requestId: string;
   storyId: string;
   text: any;
-  outline: any;
   spec: StorySpec;
   mergedCharacters: CharacterData[];
   generationType: GenerationType;
@@ -52,7 +50,6 @@ export interface CreateStoryParams {
   storyRequestId: string;
   childProfileId?: string | null;
   text: any;
-  outline: any;
   spec: StorySpec;
   characters: CharacterData[];
   goal?: string | null;
@@ -77,7 +74,6 @@ export interface CreateStoryParams {
 export interface ValidateParams {
   requestId: string;
   text: any;
-  outline: any;
   spec: StorySpec;
   maxRetries?: number;
 }

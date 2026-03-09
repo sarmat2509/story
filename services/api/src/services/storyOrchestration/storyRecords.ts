@@ -20,7 +20,7 @@ const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
 export async function createStoryRecord(params: CreateStoryParams): Promise<string> {
   try {
     const estimatedReadMinutes = Math.ceil(params.text.wordCount / 200);
-    const llmCharacters = (params.outline as any).characters || [];
+    const llmCharacters = (params.text as any).characters || [];
     
     const storyId = await getStoryRepository().transaction(async (tx) => {
       // Create story record with metadata
@@ -32,7 +32,7 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
         language: params.text.language,
         ageGroup: params.spec.ageGroup,
         moralTheme: params.goal,
-        outline: params.outline,
+        outline: null,
         scenes: params.text.scenes,
         fullText: stripCharacterIds(params.text.fullText),
         wordCount: params.text.wordCount,

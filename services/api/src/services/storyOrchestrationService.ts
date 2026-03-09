@@ -270,7 +270,7 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
     // Check for existing checkpoints (from previous failed attempt)
     const checkpoints = (request.intermediateData as any) || {};
     
-    let outline, text, mergedCharacters, spec, selectedCharacters;
+    let text, mergedCharacters, spec, selectedCharacters;
     let textGenerationTimeMs: number | undefined;
     let validationTimeMs: number | undefined;
     let chosenPlotExampleId: string | undefined;
@@ -336,23 +336,6 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
         logger.warn({ requestId }, 'LLM did not generate environments array — images will use raw visualPrompt without setting context');
       }
 
-      // Create a minimal outline structure for compatibility (needed for validation and images)
-      outline = {
-        title: text.title,
-        language: text.language,
-        moral: text.moral,
-        scenes: text.scenes.map((scene, idx) => ({
-          sceneId: scene.sceneId,
-          setting: '', // Not generated in direct mode
-          goal: '',
-          emotion: 'neutral' as const,
-          beats: [],
-          sceneVisual: migrateVisualPrompt(scene),
-          visualPrompt: scene.visualPrompt, // Keep for backward compat
-        })),
-        safetyNotes: [],
-      };
-      
       // Extract LLM-generated characters from text if any
       const llmCharacters = (text.characters || []).map(char => ({
         name: char.name,
@@ -403,7 +386,6 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
       const specForCheckpoint = { ...spec, policyProfile: undefined };
       await getStoryRepository().updateRequest(requestId, {
         intermediateData: { 
-          outline, 
           text,
           mergedCharacters,
           spec: specForCheckpoint,
@@ -430,7 +412,6 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
     const validations = await Promise.all(
       text.scenes.map((scene, idx) => 
         storyDomain.validateScene(
-          outline.scenes[idx],
           scene,
           spec.policyProfile,
           idx === text.scenes.length - 1 // isLastScene
@@ -464,7 +445,7 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
           const scene = text.scenes.find(s => s.sceneId === sceneId);
           const validation = validations.find(v => v.sceneId === sceneId);
           const feedback = validation?.violations.map(v => v.message).join('; ') || '';
-          return storyDomain.regenerateScene(spec, outline, sceneId, scene?.text ?? '', feedback);
+          return storyDomain.regenerateScene(spec, text.scenes.length, sceneId, scene?.text ?? '', feedback);
         });
         
         const newTexts = await Promise.all(regenerationPromises);
@@ -486,7 +467,6 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
             const idx = text.scenes.findIndex(s => s.sceneId === sceneId);
             const scene = text.scenes[idx];
             return storyDomain.validateScene(
-              outline.scenes[idx],
               scene,
               spec.policyProfile,
               idx === text.scenes.length - 1
@@ -519,7 +499,6 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
     
     // Save validation checkpoint
     const currentCheckpoints = checkpoints.text ? checkpoints : { 
-      outline, 
       spec: { ...spec, policyProfile: undefined }, 
       selectedCharacters,
       text,
@@ -543,7 +522,7 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
       storyId = checkpoints.storyId;
     } else {
       // Save story with scenes (include generation timing data)
-      storyId = await saveStory(request, spec, outline, text, mergedCharacters, Date.now() - startTime, {
+      storyId = await saveStory(request, spec, text, mergedCharacters, Date.now() - startTime, {
         textGenerationTimeMs,
         validationTimeMs,
         sceneCount: text.scenes.length,
@@ -552,7 +531,6 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
       
       // Save checkpoint 4
       const currentCheckpoints = checkpoints.validationComplete ? checkpoints : {
-        outline,
         spec: { ...spec, policyProfile: undefined },
         selectedCharacters,
         text,
@@ -852,7 +830,6 @@ interface ImageGenerationLoopParams {
   characterDescriptionMap: Map<string, CharacterData>;
   characterRegistry: Map<string, NormalizedCharacter>;
   spec: any;
-  outline?: any;
   userPlan: any;
   userId: string;
   assetStorage: any;
@@ -968,7 +945,7 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
   const {
     storyId, requestId, scenesToGenerate, sceneIndices, allScenes,
     environmentMap, characterDescriptionMap, characterRegistry,
-    spec, outline, userPlan, userId,
+    spec, userPlan, userId,
     assetStorage, imageDomain,
     uploadedFileMap, imageSystemInstruction,
     enableEarlyCompletion = false,
@@ -1351,7 +1328,6 @@ export async function processStoryImages(requestId: string): Promise<void> {
     const checkpoints = (request.intermediateData as any) || {};
     const storyId = checkpoints.storyId;
     const text = checkpoints.validatedText || checkpoints.text;
-    const outline = checkpoints.outline;
     const spec = checkpoints.spec;
     const mergedCharacters = checkpoints.mergedCharacters || [];
     
@@ -1389,7 +1365,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
 
     if (scenesToGenerate.length > 0) {
       // Build character registry for name normalization
-      const llmCharacters = (outline as any)?.characters || (text as any).characters || [];
+      const llmCharacters = (text as any).characters || [];
       const characterRegistry = buildCharacterRegistry(
         spec.characters || [],
         spec.childProfile,
@@ -3461,8 +3437,7 @@ async function extractReferenceImagesForScene(
 async function saveStory(
   request: { id: string; userId: string; childProfileId?: string | null; goal?: string | null },
   spec: StorySpec,
-  outline: any,
-  text: { title: string; language: string; scenes: any[]; fullText: string; wordCount: number },
+  text: { title: string; language: string; scenes: any[]; fullText: string; wordCount: number; characters?: any[] },
   mergedCharacters: CharacterReference[],
   generationTimeMs: number,
   timingData?: {
@@ -3479,7 +3454,7 @@ async function saveStory(
     const estimatedReadMinutes = Math.ceil(text.wordCount / 200);
     
     // Extract LLM-generated characters
-    const llmCharacters = (outline as any).characters || [];
+    const llmCharacters = (text as any).characters || [];
     
     // Use transaction for atomic story creation
     const storyId = await getStoryRepository().transaction(async (tx) => {
@@ -3492,7 +3467,7 @@ async function saveStory(
         language: text.language,
         ageGroup: spec.ageGroup,
         moralTheme: request.goal,
-        outline: outline,
+        outline: null,
         scenes: text.scenes, // Keep for backward compatibility
         fullText: text.fullText,
         wordCount: text.wordCount,
@@ -3675,23 +3650,6 @@ export async function processContinuationRequest(requestId: string): Promise<{ s
     
     logger.info({ requestId, title: text.title, wordCount: text.wordCount, textGenerationTimeMs }, 'Continuation text generated');
     
-    // Create outline structure for compatibility
-    const outline = {
-      title: text.title,
-      language: request.storyLanguage || 'uk', // Use storyLanguage field, not language
-      moral: text.moral,
-      scenes: text.scenes.map((scene, idx) => ({
-        sceneId: scene.sceneId,
-        setting: '',
-        goal: '',
-        emotion: 'neutral' as const,
-        beats: [],
-        sceneVisual: migrateVisualPrompt(scene),
-        visualPrompt: scene.visualPrompt, // Keep for backward compat
-      })),
-      safetyNotes: [],
-    };
-    
     // Extract LLM-generated characters (new characters from this episode)
     const llmCharacters = (text.characters || []).map(char => ({
       name: char.name,
@@ -3723,7 +3681,7 @@ export async function processContinuationRequest(requestId: string): Promise<{ s
       language: request.storyLanguage || 'uk', // Use storyLanguage field from request, fallback to 'uk'
       ageGroup: spec.ageGroup,
       moralTheme: request.goal,
-      outline: outline as any,
+      outline: null,
       scenes: text.scenes.map((scene) => ({
         sceneId: scene.sceneId,
         text: scene.text,
@@ -3787,7 +3745,6 @@ export async function processContinuationRequest(requestId: string): Promise<{ s
         isContinuation: true,
         storyId,
         text,
-        outline,
         spec: { ...spec, policyProfile: undefined },
         mergedCharacters: allCharacters,
         validatedText: text,
@@ -3833,7 +3790,6 @@ export async function processContinuationImages(requestId: string): Promise<void
     const text = checkpoints.validatedText || checkpoints.text;
     const spec = checkpoints.spec;
     const allCharacters = checkpoints.mergedCharacters || [];
-    const outline = checkpoints.outline;
     const seriesId = checkpoints.seriesId;
     const partNumber = checkpoints.partNumber;
     const createdStory = checkpoints.createdStory;
@@ -3899,7 +3855,6 @@ export async function processContinuationImages(requestId: string): Promise<void
         characterDescriptionMap,
         characterRegistry,
         spec,
-        outline,
         userPlan,
         userId: request.userId,
         assetStorage,

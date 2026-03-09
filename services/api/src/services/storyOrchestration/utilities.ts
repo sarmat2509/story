@@ -9,30 +9,6 @@ import { stripCharacterIds } from '../../utils/audioTags';
 import { flattenCameraComposition } from '../types';
 
 /**
- * Build outline structure from text response
- */
-export function buildOutlineFromText(
-  text: { title: string; moral: string; language?: string; scenes: any[] },
-  languageOverride?: string
-): any {
-  return {
-    title: text.title,
-    language: languageOverride ?? text.language,
-    moral: text.moral,
-    scenes: text.scenes.map((scene) => ({
-      sceneId: scene.sceneId,
-      setting: '',
-      goal: '',
-      emotion: 'neutral' as const,
-      beats: [],
-      sceneVisual: scene.sceneVisual || migrateVisualPrompt(scene),
-      visualPrompt: scene.visualPrompt,
-    })),
-    safetyNotes: [],
-  };
-}
-
-/**
  * Extract character ID from name string like "Mokhovyk [ID: uuid]"
  */
 function extractCharacterId(name: string): { name: string; id: string | null } {
@@ -150,13 +126,11 @@ export function buildInitialContext(
 ): {
   storyId: string;
   text: any;
-  outline: any;
   spec: any;
   mergedCharacters: any[];
 } {
   const storyId = checkpoints.storyId;
   const text = checkpoints.validatedText || checkpoints.text;
-  const outline = checkpoints.outline;
   const spec = checkpoints.spec;
   const mergedCharacters = checkpoints.mergedCharacters || [];
   
@@ -164,7 +138,7 @@ export function buildInitialContext(
     throw new Error(`Missing storyId or text in intermediateData for request ${request.id}`);
   }
   
-  return { storyId, text, outline, spec, mergedCharacters };
+  return { storyId, text, spec, mergedCharacters };
 }
 
 /**

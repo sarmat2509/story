@@ -13,7 +13,7 @@ import type { ValidateParams, ValidateResult } from './types';
  * Used by both standard and continuation flows
  */
 export async function validateStoryScenes(params: ValidateParams): Promise<ValidateResult> {
-  const { requestId, text, outline, spec, maxRetries = 2 } = params;
+  const { requestId, text, spec, maxRetries = 2 } = params;
   
   const storyDomain = getStoryDomainService();
   const coefficients = await getGenerationCoefficients();
@@ -28,7 +28,6 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
   const validations = await Promise.all(
     text.scenes.map((scene: any, idx: number) =>
       storyDomain.validateScene(
-        outline.scenes[idx],
         scene,
         spec.policyProfile,
         idx === text.scenes.length - 1, // isLastScene
@@ -80,7 +79,7 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
         const scene = text.scenes.find((s: any) => s.sceneId === sceneId);
         const validation = validations.find(v => v.sceneId === sceneId);
         const feedback = validation?.violations.map((v: any) => v.message).join('; ') || '';
-        return storyDomain.regenerateScene(spec, outline, sceneId, scene?.text ?? '', feedback);
+        return storyDomain.regenerateScene(spec, text.scenes.length, sceneId, scene?.text ?? '', feedback);
       });
 
       const newTexts = await Promise.all(regenerationPromises);
@@ -102,7 +101,6 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
           const idx = text.scenes.findIndex((s: any) => s.sceneId === sceneId);
           const scene = text.scenes[idx];
           return storyDomain.validateScene(
-            outline.scenes[idx],
             scene,
             spec.policyProfile,
             idx === text.scenes.length - 1,

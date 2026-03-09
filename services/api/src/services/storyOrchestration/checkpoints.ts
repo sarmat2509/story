@@ -11,7 +11,6 @@ import { logger } from '../../utils/logger';
 export async function saveTextGenerationCheckpoint(
   requestId: string, 
   data: {
-    outline: any;
     text: any;
     spec: any;
     mergedCharacters: any[];
@@ -24,7 +23,6 @@ export async function saveTextGenerationCheckpoint(
   const specForCheckpoint = { ...data.spec, policyProfile: undefined };
   
   const checkpointData: any = {
-    outline: data.outline,
     text: data.text,
     spec: specForCheckpoint,
     mergedCharacters: data.mergedCharacters,

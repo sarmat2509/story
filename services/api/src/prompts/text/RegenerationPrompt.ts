@@ -6,12 +6,12 @@
 
 import * as helpers from '../helpers';
 import { getContentPolicy } from '../contentPolicy';
-import type { StorySpec, EpisodeOutline } from '../../ai/types';
+import type { StorySpec } from '../../ai/types';
 import { getLanguageFullDisplay } from '@wondertales/shared';
 
 export interface RegenerationPromptParams {
   spec: StorySpec;
-  outline: EpisodeOutline;
+  sceneCount: number;
   sceneId: number;
   originalSceneText: string;
   validationFeedback: string;
@@ -27,7 +27,7 @@ export interface RegenerationPromptParams {
 export function buildRegenerationPrompt(params: RegenerationPromptParams): string {
   const { spec, sceneId, originalSceneText, validationFeedback, vocabLevel } = params;
 
-  const totalScenes = params.outline.scenes.length;
+  const totalScenes = params.sceneCount;
   const minWords = Math.floor(spec.policyProfile.readability.targetWordsRange[0] / totalScenes);
   const maxWords = Math.ceil(spec.policyProfile.readability.targetWordsRange[1] / totalScenes);
 

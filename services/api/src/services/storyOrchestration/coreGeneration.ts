@@ -8,7 +8,7 @@ import { getStoryDomainService } from '../aiService';
 import { startTask, completeTask, STORY_TASKS } from '../storyProgress';
 import { getGenerationCoefficients } from '../generationTimeService';
 import { normalizeCharacterName } from '../../utils/characterNormalization';
-import { buildOutlineFromText, extractLlmCharactersFromText, handleRequestError } from './utilities';
+import { extractLlmCharactersFromText, handleRequestError } from './utilities';
 import { mergeCharacters, persistLlmCharacters, createStoryRecord } from './storyRecords';
 import { validateStoryScenes } from './validation';
 import { saveTextGenerationCheckpoint, saveValidationCheckpoint, saveStoryCreationCheckpoint } from './checkpoints';
@@ -65,10 +65,6 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     
     logger.info({ requestId, title: text.title, wordCount: text.wordCount, textGenerationTimeMs, generationType }, 'Text generated');
     
-    // Build outline
-    const languageOverride = generationType === 'continuation' ? (request.storyLanguage || 'uk') : undefined;
-    const outline = buildOutlineFromText(text, languageOverride);
-    
     // Extract LLM characters
     const llmCharacters = extractLlmCharactersFromText(text);
     
@@ -117,7 +113,6 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     
     // Save text generation checkpoint
     await saveTextGenerationCheckpoint(requestId, {
-      outline,
       text,
       spec,
       mergedCharacters,
@@ -133,7 +128,6 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     const validationResult = await validateStoryScenes({
       requestId,
       text,
-      outline,
       spec,
       maxRetries: 2,
     });
@@ -144,7 +138,6 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     // Save validation checkpoint (standard flow saves it, continuation doesn't need separate checkpoint)
     if (generationType === 'standard') {
       await saveValidationCheckpoint(requestId, validatedText, validationTimeMs, {
-        outline,
         text,
         spec,
         mergedCharacters,
@@ -158,7 +151,6 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       storyRequestId: request.id,
       childProfileId: request.childProfileId,
       text: validatedText,
-      outline,
       spec,
       characters: mergedCharacters,
       goal: request.goal,
@@ -184,7 +176,6 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     
     // Save story creation checkpoint
     await saveStoryCreationCheckpoint(requestId, storyId, {
-      outline,
       text: validatedText,
       spec,
       mergedCharacters,
@@ -198,7 +189,6 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     
     return {
       text: validatedText,
-      outline,
       llmCharacters,
       mergedCharacters,
       spec,

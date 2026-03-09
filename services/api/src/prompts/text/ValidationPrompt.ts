@@ -3,11 +3,10 @@
  * Generates prompts for scene-by-scene content safety validation
  */
 
-import type { EpisodeOutline, EpisodeText, PolicyProfile } from '../../ai/types';
+import type { EpisodeText, PolicyProfile } from '../../ai/types';
 import { getContentPolicy } from '../contentPolicy';
 
 export interface ValidationPromptParams {
-  sceneOutline: EpisodeOutline['scenes'][0];
   sceneText: EpisodeText['scenes'][0];
   policy: PolicyProfile;
   isLastScene: boolean;

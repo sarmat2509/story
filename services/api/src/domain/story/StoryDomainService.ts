@@ -10,9 +10,9 @@
  * - MUST work with provider-agnostic interfaces (ITextProvider)
  */
 
-import type { StorySpec, EpisodeOutline, EpisodeText, PolicyProfile, SceneValidationResult } from '../../ai/types';
+import type { StorySpec, EpisodeText, PolicyProfile, SceneValidationResult } from '../../ai/types';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
-import { buildDirectTextPrompt, buildTextPrompt, buildValidationPrompt, buildRegenerationPrompt, buildContinuationPrompt } from '../../prompts/text';
+import { buildDirectTextPrompt, buildValidationPrompt, buildRegenerationPrompt, buildContinuationPrompt } from '../../prompts/text';
 import { logger } from '../../utils/logger';
 import { TEXT_SCHEMA, VALIDATION_SCHEMA } from './schemas';
 
@@ -65,7 +65,6 @@ export class StoryDomainService {
    * AI-powered validation using text provider
    */
   async validateScene(
-    sceneOutline: EpisodeOutline['scenes'][0],
     sceneText: EpisodeText['scenes'][0],
     policy: PolicyProfile,
     isLastScene: boolean,
@@ -75,7 +74,6 @@ export class StoryDomainService {
 
     // Build prompt using prompt function
     const prompt = buildValidationPrompt({
-      sceneOutline,
       sceneText,
       policy,
       isLastScene,
@@ -139,7 +137,7 @@ export class StoryDomainService {
    */
   async regenerateScene(
     spec: StorySpec,
-    outline: EpisodeOutline,
+    sceneCount: number,
     sceneId: number,
     originalSceneText: string,
     validationFeedback: string
@@ -150,7 +148,7 @@ export class StoryDomainService {
 
     const prompt = buildRegenerationPrompt({
       spec,
-      outline,
+      sceneCount,
       sceneId,
       originalSceneText,
       validationFeedback,

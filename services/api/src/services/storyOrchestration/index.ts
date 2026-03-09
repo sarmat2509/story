@@ -18,7 +18,6 @@ export { generateStoryText, generateStoryImages } from './coreGeneration';
 
 // Export utilities
 export { 
-  buildOutlineFromText,
   extractLlmCharactersFromText,
   createSceneRecords,
   handleRequestError,
