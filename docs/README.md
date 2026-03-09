@@ -2,6 +2,10 @@
 
 ## Operations & Deployment
 
+### Docker (единая точка входа)
+
+- **[DOCKER.md](./DOCKER.md)** — запуск через docker-compose, переменные окружения, скрипты API
+
 ### Production Logs
 
 - **[DROPLET_LOGS_GUIDE.md](./DROPLET_LOGS_GUIDE.md)** - Complete guide for viewing API logs on production
@@ -104,14 +108,12 @@ ssh root@167.172.102.75
 ### Development
 
 ```bash
-# Start local API
-pnpm dev:api
+# Start all services (API, Postgres, Redis, Nginx) — единая точка входа
+pnpm docker:dev
 
-# Start local web app
-cd apps/universal-app && pnpm web
-
-# Run database migrations
-cd services/api && pnpm db:migrate
+# Run API scripts (migrations, diagnostics)
+pnpm api:script -- npx tsx src/scripts/runMigration.ts <migration.sql>
+pnpm api:script -- npx tsx src/scripts/runAllMigrations.ts
 ```
 
 ## Architecture
