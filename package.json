@@ -6,6 +6,9 @@
   "author": "",
   "license": "ISC",
   "scripts": {
+    "docker:dev": "docker compose -f docker-compose.dev.yml up",
+    "docker:prod": "docker compose -f docker-compose.prod.yml up",
+    "api:script": "docker compose -f docker-compose.dev.yml run --rm api",
     "dev": "pnpm --parallel dev",
     "dev:api": "pnpm --filter api dev",
     "dev:app": "pnpm --filter universal-app start",

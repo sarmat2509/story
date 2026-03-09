@@ -9,6 +9,7 @@
  * - Returns character type and suggested name for each group
  */
 
+import type { UsageMetadata } from '../providers/base/UsageMetadata';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { logger } from '../utils/logger';
 import { config } from '../config';
@@ -30,7 +31,7 @@ interface GeminiDeduplicationResponse {
 }
 
 export interface FaceDeduplicationOptions {
-  onUsage?: (usage: import('../providers/base/UsageMetadata').UsageMetadata) => void;
+  onUsage?: (usage: UsageMetadata) => void;
 }
 
 export class FaceDeduplicationService {

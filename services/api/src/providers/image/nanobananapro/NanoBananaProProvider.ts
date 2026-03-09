@@ -11,7 +11,8 @@
  */
 
 import { GoogleGenAI, Modality } from '@google/genai';
-import type { IImageProvider, GenerateImageRequest, EditImageRequest, GeneratedImage } from '../../base/IImageProvider';
+import type { IImageProvider, GenerateImageRequest, EditImageRequest, GeneratedImage, ReferenceImage } from '../../base/IImageProvider';
+import type { UsageMetadata } from '../../base/UsageMetadata';
 import type { IFileManager } from '../../base/IFileManager';
 import { GeminiFileManager } from './GeminiFileManager';
 import { logger } from '../../../utils/logger';
@@ -143,7 +144,7 @@ export class NanoBananaProProvider implements IImageProvider {
    * Each reference image is preceded by its instructionText so the model
    * unambiguously knows which description matches which image.
    */
-  private async buildReferenceParts(referenceImages?: import('../../base/IImageProvider').ReferenceImage[]): Promise<any[]> {
+  private async buildReferenceParts(referenceImages?: ReferenceImage[]): Promise<any[]> {
     const parts: any[] = [];
 
     if (!referenceImages || referenceImages.length === 0) {
@@ -219,7 +220,7 @@ export class NanoBananaProProvider implements IImageProvider {
     promptLength: number;
     referenceCount: number;
     operationType: 'generate' | 'edit';
-    onUsage?: (u: import('../../base/UsageMetadata').UsageMetadata) => void;
+    onUsage?: (u: UsageMetadata) => void;
     operation?: string;
   }): Promise<GeneratedImage> {
     const { parts, aspectRatio, systemInstruction, personGeneration, promptLength, referenceCount, operationType, onUsage, operation: op } = params;
@@ -472,7 +473,7 @@ export class NanoBananaProProvider implements IImageProvider {
     if (onUsage && usageMeta) {
       const inputUnits = usageMeta.promptTokenCount ?? 0;
       const thoughtTokens = usageMeta.thoughtsTokenCount ?? usageMeta.candidatesTokenCountDetails?.thoughtTokenCount ?? 0;
-      const imageTokens = 1290; // gemini-2.5-flash-image 1K default per costConfig
+      const imageTokens = 1120; // Gemini 3.1 Flash Image 1K output per Vertex AI pricing
       onUsage({
         provider: 'gemini',
         operation: op ?? (operationType === 'edit' ? 'image_edit' : 'image_generate'),

@@ -9,6 +9,7 @@
  * - All analysis happens at save time (one-time cost per character)
  */
 
+import type { UsageMetadata } from '../providers/base/UsageMetadata';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { logger } from '../utils/logger';
 import { config } from '../config';
@@ -86,7 +87,7 @@ export interface AnalyzeCharacterRequest {
 }
 
 export interface CharacterAnalysisOptions {
-  onUsage?: (usage: import('../providers/base/UsageMetadata').UsageMetadata) => void;
+  onUsage?: (usage: UsageMetadata) => void;
 }
 
 /**
