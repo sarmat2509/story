@@ -160,6 +160,64 @@ Characters should enhance the story and support the narrative goals.`;
   return parts.join('\n');
 }
 
+/** Character with minimal fields for continuation prompt */
+export interface ContinuationCharacter {
+  name: string;
+  type: string;
+  description: string;
+  role?: string;
+}
+
+/**
+ * Format characters for continuation prompt (required + optional split)
+ * When optionalCharacters is empty, all characters are treated as required
+ */
+export function formatSupportingCharactersContinuation(
+  requiredCharacters: ContinuationCharacter[],
+  optionalCharacters?: ContinuationCharacter[]
+): string {
+  const validRequired = requiredCharacters.filter(
+    (c) => c.description && c.description !== 'undefined' && c.description.trim().length > 0
+  );
+  const validOptional = (optionalCharacters || []).filter(
+    (c) => c.description && c.description !== 'undefined' && c.description.trim().length > 0
+  );
+
+  if (validRequired.length === 0 && validOptional.length === 0) {
+    return `CHARACTERS:
+You have creative freedom to invent supporting characters that fit the story's theme and plot.
+Create diverse, interesting characters appropriate for the age group and scenario.`;
+  }
+
+  const parts: string[] = [];
+
+  if (validRequired.length > 0) {
+    parts.push(
+      'REQUIRED CHARACTERS (MUST USE):',
+      'These characters MUST appear in the story:',
+      ...validRequired.map(
+        (c) => `- ${c.name} (${c.type}): ${c.description}\n  Role: ${c.role || 'character'}`
+      ),
+      ''
+    );
+  }
+
+  if (validOptional.length > 0) {
+    parts.push(
+      'OPTIONAL CHARACTERS (MAY USE):',
+      'You MAY feature these if relevant to the plot, but it is NOT required:',
+      ...validOptional.map(
+        (c) => `- ${c.name} (${c.type}): ${c.description}\n  Role: ${c.role || 'character'}`
+      ),
+      ''
+    );
+  }
+
+  parts.push('Make sure required characters have meaningful interactions. You may add additional characters if needed.');
+
+  return parts.join('\n');
+}
+
 /**
  * Format user characters with IDs for Director prompt (same format as main flow)
  * Used so Director can output "Name [ID: uuid]" for reliable matching.

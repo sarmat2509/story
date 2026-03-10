@@ -33,12 +33,9 @@ export interface ContinuationPromptParams {
 
 /**
  * Build continuation generation prompt
- * 
- * Provides LLM with:
- * - Previous episodes summary
- * - Required characters (user-provided, MUST use)
- * - Optional characters (LLM-generated, MAY use)
- * - Anti-repetition constraints
+ *
+ * @deprecated Use DirectTextPrompt with isContinuation and continuationContext instead.
+ * Continuation logic is now unified in buildDirectTextPrompt.
  */
 export function buildContinuationPrompt(params: ContinuationPromptParams): string {
   const { spec, sceneCount, vocabLevel, previousOutlines, requiredCharacters, optionalCharacters, usedPlots } = params;
@@ -136,13 +133,15 @@ ${validRequiredChars.length > 0 || validOptionalChars.length > 0
   : ''}
 - Be SPECIFIC and CONSISTENT for image generation
 
-TITLE FORMAT: "${spec.childName ? `Пригоди ${spec.childName}` : 'Казка'} - Частина ${partNumber}"
+TITLE: Be creative and imaginative. Reflect the ESSENCE of this story — the main event, conflict, or theme. Do NOT use generic templates like "Пригоди X у Y". Use poetic, intriguing, or whimsical phrasing when it fits. Spark curiosity. Examples: "Таємниця висохлого озера", "Чарівна крапля надії", "Таємниця печери мрій", "Подорож до зірок"
+- TITLE (continuations): Do NOT use "Частина 2/3/N". Each episode gets a unique title.
 `;
 }
 
 /**
  * Build continuation prompt in PLAIN TEXT format (Director flow)
- * Output: title, description, scenes separated by --- (no JSON)
+ *
+ * @deprecated Use DirectTextPrompt with isContinuation and continuationContext instead.
  */
 export function buildContinuationPromptPlain(params: ContinuationPromptParams): string {
   const { spec, sceneCount, vocabLevel, previousOutlines, requiredCharacters, optionalCharacters, usedPlots } = params;
@@ -225,7 +224,7 @@ ${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRu
 OUTPUT FORMAT (plain text only):
 title: Story title in ${spec.language}
 
-description: Short SEO description (1-2 sentences, max 160 characters).
+description: Short SEO description (1-2 sentences, max 160 characters). For continuations, describe THIS episode's adventure. Do not summarize the whole series.
 
 ---
 Scene 1 text (1-3 paragraphs with ElevenLabs v3 audio tags)...
@@ -238,6 +237,7 @@ RULES:
 - Write exactly ${sceneCount} scenes, each separated by --- on its own line
 - No JSON, no scene numbers in the text — only the --- delimiter between scenes
 - Each scene: 1-3 paragraphs depending on age group
-- TITLE FORMAT: "${spec.childName ? `Пригоди ${spec.childName}` : 'Казка'} - Частина ${partNumber}"
+- TITLE: Be creative and imaginative. Reflect the ESSENCE of this story — the main event, conflict, or theme. Do NOT use generic templates like "Пригоди X у Y". Use poetic, intriguing, or whimsical phrasing when it fits. Spark curiosity. Examples: "Таємниця висохлого озера", "Чарівна крапля надії", "Таємниця печери мрій", "Подорож до зірок"
+- TITLE (continuations): Do NOT use "Частина 2/3/N". Each episode gets a unique title.
 `;
 }

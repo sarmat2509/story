@@ -16,8 +16,17 @@ import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 
 export interface StoryDomainOptions {
   onUsage?: (usage: UsageMetadata) => void;
+  /** When true, uses continuation prompt with previousOutlines, usedPlots, required/optional characters */
+  isContinuation?: boolean;
+  continuationContext?: {
+    previousOutlines: Array<{ title: string; moral: string; scenes: Array<{ setting: string; goal: string }> }>;
+    requiredCharacters: Array<{ name: string; type: string; description?: string; appearance?: string; role?: string }>;
+    optionalCharacters: Array<{ name: string; type: string; description?: string; appearance?: string; role?: string }>;
+    usedPlots: string[];
+    previousEnvironments?: Array<{ id: string; name: string; description: string; characterOutfits?: string }>;
+  };
 }
-import { buildDirectTextPrompt, buildDirectTextPromptPlain, buildDirectorPrompt, buildBatchValidationPrompt, buildBatchRegenerationPrompt, buildContinuationPrompt, buildContinuationPromptPlain } from '../../prompts/text';
+import { buildDirectTextPrompt, buildDirectTextPromptPlain, buildDirectorPrompt, buildBatchValidationPrompt, buildBatchRegenerationPrompt } from '../../prompts/text';
 import { logger } from '../../utils/logger';
 import { TEXT_SCHEMA, BATCH_VALIDATION_SCHEMA, BATCH_REGENERATION_SCHEMA } from './schemas';
 import { DIRECTOR_SCHEMA } from './directorSchema';
@@ -37,16 +46,37 @@ export class StoryDomainService {
   /**
    * Generate story text directly (1-step process)
    * Business logic: determines scene count and vocabulary level based on age group
+   * When isContinuation=true, uses continuation-specific prompt sections
    */
   async generateText(spec: StorySpec, options?: StoryDomainOptions): Promise<EpisodeText> {
-    logger.info({ ageGroup: spec.ageGroup, language: spec.language }, 'Generating story text');
+    const isContinuation = options?.isContinuation && options?.continuationContext;
+    logger.info(
+      { ageGroup: spec.ageGroup, language: spec.language, isContinuation },
+      isContinuation ? 'Generating story continuation' : 'Generating story text'
+    );
 
-    // Business logic: determine scene count and vocabulary level
     const sceneCount = this.getSceneCount(spec.ageGroup);
     const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
 
-    // Build text generation prompt
-    const prompt = buildDirectTextPrompt({ spec, sceneCount, vocabLevel });
+    const promptParams: Parameters<typeof buildDirectTextPrompt>[0] = { spec, sceneCount, vocabLevel };
+    if (isContinuation && options?.continuationContext) {
+      const ctx = options.continuationContext;
+      const toContinuationChar = (c: { name: string; type: string; description?: string; appearance?: string; role?: string }) => ({
+        name: c.name,
+        type: c.type,
+        description: c.description || c.appearance || c.name,
+        role: c.role || 'character',
+      });
+      promptParams.isContinuation = true;
+      promptParams.previousOutlines = ctx.previousOutlines;
+      promptParams.usedPlots = ctx.usedPlots;
+      promptParams.requiredCharacters = ctx.requiredCharacters.map(toContinuationChar);
+      promptParams.optionalCharacters =
+        ctx.optionalCharacters?.length > 0 ? ctx.optionalCharacters.map(toContinuationChar) : undefined;
+      promptParams.previousEnvironments = ctx.previousEnvironments;
+    }
+
+    const prompt = buildDirectTextPrompt(promptParams);
     
     // Log the FULL prompt being sent
     logger.debug({ 
@@ -61,7 +91,7 @@ export class StoryDomainService {
         schema: TEXT_SCHEMA,
         temperature: 0.9,
         onUsage: options?.onUsage,
-        operation: 'text_structured',
+        operation: isContinuation ? 'text_continuation' : 'text_structured',
       });
 
       // Compute fullText and wordCount server-side for consistency
@@ -79,6 +109,7 @@ export class StoryDomainService {
   /**
    * Generate story text in plain format (Director flow)
    * Returns title, description, fullText, scenes — no JSON, no sceneVisual
+   * When isContinuation=true, uses continuation-specific prompt sections
    */
   async generateTextPlain(spec: StorySpec, options?: StoryDomainOptions): Promise<{
     title: string;
@@ -87,18 +118,41 @@ export class StoryDomainService {
     wordCount: number;
     scenes: Array<{ sceneId: number; text: string }>;
   }> {
-    logger.info({ ageGroup: spec.ageGroup, language: spec.language }, 'Generating story text (plain)');
+    const isContinuation = options?.isContinuation && options?.continuationContext;
+    logger.info(
+      { ageGroup: spec.ageGroup, language: spec.language, isContinuation },
+      isContinuation ? 'Generating story continuation (plain)' : 'Generating story text (plain)'
+    );
 
     const sceneCount = this.getSceneCount(spec.ageGroup);
     const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
-    const prompt = buildDirectTextPromptPlain({ spec, sceneCount, vocabLevel });
+
+    const promptParams: Parameters<typeof buildDirectTextPromptPlain>[0] = { spec, sceneCount, vocabLevel };
+    if (isContinuation && options?.continuationContext) {
+      const ctx = options.continuationContext;
+      const toContinuationChar = (c: { name: string; type: string; description?: string; appearance?: string; role?: string }) => ({
+        name: c.name,
+        type: c.type,
+        description: c.description || c.appearance || c.name,
+        role: c.role || 'character',
+      });
+      promptParams.isContinuation = true;
+      promptParams.previousOutlines = ctx.previousOutlines;
+      promptParams.usedPlots = ctx.usedPlots;
+      promptParams.requiredCharacters = ctx.requiredCharacters.map(toContinuationChar);
+      promptParams.optionalCharacters =
+        ctx.optionalCharacters?.length > 0 ? ctx.optionalCharacters.map(toContinuationChar) : undefined;
+      promptParams.previousEnvironments = ctx.previousEnvironments;
+    }
+
+    const prompt = buildDirectTextPromptPlain(promptParams);
 
     try {
       const rawText = await this.textProvider.generateText({
         prompt,
         temperature: 0.9,
         onUsage: options?.onUsage,
-        operation: 'text_plain',
+        operation: isContinuation ? 'text_continuation' : 'text_plain',
       });
 
       const parsed = parsePlainTextToScenes(rawText);
@@ -294,7 +348,8 @@ export class StoryDomainService {
 
   /**
    * Generate continuation for an existing story series
-   * Business logic: determines scene count and vocabulary level based on age group
+   * Delegates to generateText with isContinuation and continuationContext
+   * @deprecated Use generateText with isContinuation and continuationContext options
    */
   async generateContinuation(
     params: {
@@ -306,64 +361,22 @@ export class StoryDomainService {
     },
     options?: StoryDomainOptions
   ): Promise<EpisodeText> {
-    logger.info({
-      ageGroup: params.spec.ageGroup,
-      language: params.spec.language,
-      partNumber: params.previousOutlines.length + 1,
-    }, 'Generating story continuation');
-
-    // Business logic: determine scene count and vocabulary level
-    const sceneCount = this.getSceneCount(params.spec.ageGroup);
-    const vocabLevel = this.getVocabularyLevel(params.spec.ageGroup);
-
-    // Build continuation prompt
-    const prompt = buildContinuationPrompt({
-      spec: params.spec,
-      sceneCount,
-      vocabLevel,
-      previousOutlines: params.previousOutlines,
-      requiredCharacters: params.requiredCharacters,
-      optionalCharacters: params.optionalCharacters,
-      usedPlots: params.usedPlots,
+    return this.generateText(params.spec, {
+      ...options,
+      isContinuation: true,
+      continuationContext: {
+        previousOutlines: params.previousOutlines,
+        requiredCharacters: params.requiredCharacters,
+        optionalCharacters: params.optionalCharacters,
+        usedPlots: params.usedPlots,
+      },
     });
-
-    // Log the FULL prompt being sent
-    logger.debug({
-      promptLength: prompt.length,
-      prompt: prompt // Full prompt for debugging
-    }, 'Continuation generation prompt');
-
-    try {
-      // Call provider with provider-agnostic request
-      // Use higher temperature for creativity in continuations
-      const text = await this.textProvider.generateStructured<EpisodeText>({
-        prompt,
-        schema: TEXT_SCHEMA,
-        temperature: 0.9,
-        onUsage: options?.onUsage,
-        operation: 'text_continuation',
-      });
-
-      // Compute fullText and wordCount server-side for consistency
-      text.fullText = text.scenes.map(s => s.text).join('\n\n');
-      text.wordCount = text.fullText.split(/\s+/).length;
-
-      logger.info({
-        wordCount: text.wordCount,
-        sceneCount: text.scenes.length,
-        partNumber: params.previousOutlines.length + 1,
-      }, 'Story continuation generated successfully');
-      
-      return text;
-    } catch (error) {
-      logger.error({ error }, 'Failed to generate continuation');
-      throw new Error(`Continuation generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
   }
 
   /**
    * Generate continuation in plain text format (Director flow)
-   * Returns title, description, fullText, scenes — no JSON, no sceneVisual
+   * Delegates to generateTextPlain with isContinuation and continuationContext
+   * @deprecated Use generateTextPlain with isContinuation and continuationContext options
    */
   async generateContinuationPlain(
     params: {
@@ -375,45 +388,16 @@ export class StoryDomainService {
     },
     options?: StoryDomainOptions
   ): Promise<{ title: string; description: string; fullText: string; wordCount: number; scenes: Array<{ sceneId: number; text: string }> }> {
-    logger.info({
-      ageGroup: params.spec.ageGroup,
-      language: params.spec.language,
-      partNumber: params.previousOutlines.length + 1,
-    }, 'Generating story continuation (plain text)');
-
-    const sceneCount = this.getSceneCount(params.spec.ageGroup);
-    const vocabLevel = this.getVocabularyLevel(params.spec.ageGroup);
-
-    const prompt = buildContinuationPromptPlain({
-      spec: params.spec,
-      sceneCount,
-      vocabLevel,
-      previousOutlines: params.previousOutlines,
-      requiredCharacters: params.requiredCharacters,
-      optionalCharacters: params.optionalCharacters,
-      usedPlots: params.usedPlots,
+    return this.generateTextPlain(params.spec, {
+      ...options,
+      isContinuation: true,
+      continuationContext: {
+        previousOutlines: params.previousOutlines,
+        requiredCharacters: params.requiredCharacters,
+        optionalCharacters: params.optionalCharacters,
+        usedPlots: params.usedPlots,
+      },
     });
-
-    // Plain text generation — no schema
-    const rawText = await this.textProvider.generateText({
-      prompt,
-      temperature: 0.9,
-      onUsage: options?.onUsage,
-      operation: 'text_continuation',
-    });
-
-    const parsed = parsePlainTextToScenes(rawText);
-    const wordCount = parsed.fullText.split(/\s+/).length;
-    logger.info({
-      sceneCount: parsed.scenes.length,
-      wordCount,
-      partNumber: params.previousOutlines.length + 1,
-    }, 'Continuation plain text generated');
-
-    return {
-      ...parsed,
-      wordCount,
-    };
   }
 
   /**

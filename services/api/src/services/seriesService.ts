@@ -131,7 +131,7 @@ function buildInitialContext(story: Story): any {
     }
   }
   
-  // Format character descriptions properly
+  // Format character descriptions while preserving reference images for continuation image generation
   const formatCharacters = (chars: any[]) => {
     return chars.map(char => {
       // Build description from available fields, prioritizing description > appearance > personality > traits
@@ -147,22 +147,55 @@ function buildInitialContext(story: Story): any {
         description = char.traits.trim();
       }
       
-      return {
+      const base = {
         name: char.name || '',
         type: char.type || 'unknown',
         description: description,
         role: char.role || 'character',
       };
+      // Preserve reference images for continuation — required for character consistency across episodes
+      if (char.id) (base as any).id = char.id;
+      if (char.referencePhotos && Array.isArray(char.referencePhotos)) (base as any).referencePhotos = char.referencePhotos;
+      if (char.turnaroundSheet && typeof char.turnaroundSheet === 'object') (base as any).turnaroundSheet = char.turnaroundSheet;
+      if (char.appearance && typeof char.appearance === 'string') (base as any).appearance = char.appearance;
+      return base;
     });
   };
   
+  // Extract environments for continuation (metadata.environments or fallback from scenes)
+  let previousEnvironments: Array<{ id: string; name: string; description: string; characterOutfits?: string }> = [];
+  if (metadata?.environments && Array.isArray(metadata.environments) && metadata.environments.length > 0) {
+    previousEnvironments = metadata.environments.map((e: any) => ({
+      id: e.id || '',
+      name: e.name || e.id || '',
+      description: e.description || '',
+      characterOutfits: typeof e.characterOutfits === 'string' ? e.characterOutfits : undefined,
+    }));
+  } else if (scenes && Array.isArray(scenes)) {
+    const envIds = new Set<string>();
+    for (const scene of scenes) {
+      const envId = (scene as any).environmentId;
+      if (envId && !envIds.has(envId)) {
+        envIds.add(envId);
+        const setting = (scene as any).sceneVisual?.setting?.trim();
+        previousEnvironments.push({
+          id: envId,
+          name: envId.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+          description: setting || `A location described in the story (${envId}).`,
+          characterOutfits: '',
+        });
+      }
+    }
+  }
+
   logger.debug({
     userProvidedCount: userProvidedCharacters.length,
     llmGeneratedCount: llmGeneratedCharacters.length,
     sceneSummariesCount: sceneSummaries.length,
     firstSummaryPreview: sceneSummaries[0]?.slice(0, 50),
+    previousEnvironmentsCount: previousEnvironments.length,
   }, 'Building initial context');
-  
+
   return {
     previousOutlines: [{
       title: story.title,
@@ -175,6 +208,7 @@ function buildInitialContext(story: Story): any {
     requiredCharacters: formatCharacters(userProvidedCharacters), // User-provided = MUST use
     optionalCharacters: formatCharacters(llmGeneratedCharacters), // LLM-generated = MAY use
     usedPlots: sceneSummaries, // Use scene summaries as used plots
+    previousEnvironments,
   };
 }
 
@@ -236,12 +270,10 @@ export async function addContinuationToSeries(
     }
   }
   
-  // Format character descriptions
+  // Format character descriptions while preserving reference images (same as buildInitialContext)
   const formatCharacters = (chars: any[]) => {
     return chars.map((char: any) => {
-      // Build description from available fields, prioritizing description > appearance > personality > traits
       let description = '';
-      
       if (char.description && typeof char.description === 'string' && char.description.trim() && char.description !== 'undefined') {
         description = char.description.trim();
       } else if (char.appearance && typeof char.appearance === 'string' && char.appearance.trim() && char.appearance !== 'undefined') {
@@ -251,20 +283,70 @@ export async function addContinuationToSeries(
       } else if (char.traits && typeof char.traits === 'string' && char.traits.trim() && char.traits !== 'undefined') {
         description = char.traits.trim();
       }
-      
-      return {
+      const base = {
         name: char.name || '',
         type: char.type || 'unknown',
         description: description,
         role: char.role || 'character',
       };
+      if (char.id) (base as any).id = char.id;
+      if (char.referencePhotos && Array.isArray(char.referencePhotos)) (base as any).referencePhotos = char.referencePhotos;
+      if (char.turnaroundSheet && typeof char.turnaroundSheet === 'object') (base as any).turnaroundSheet = char.turnaroundSheet;
+      if (char.appearance && typeof char.appearance === 'string') (base as any).appearance = char.appearance;
+      return base;
     });
   };
   
+  const ctx = (series.continuationContext || {}) as {
+    previousOutlines: Array<{ title: string; moral: string; scenes: Array<{ setting: string; goal: string }> }>;
+    requiredCharacters: any[];
+    optionalCharacters: any[];
+    usedPlots: string[];
+    previousEnvironments?: Array<{ id: string; name: string; description: string; characterOutfits?: string }>;
+  };
+
+  // Extract new environments from this episode (metadata.environments or scenes)
+  const newEnvs: Array<{ id: string; name: string; description: string; characterOutfits?: string }> = [];
+  if (metadata?.environments && Array.isArray(metadata.environments) && metadata.environments.length > 0) {
+    for (const e of metadata.environments) {
+      newEnvs.push({
+        id: e.id || '',
+        name: e.name || e.id || '',
+        description: e.description || '',
+        characterOutfits: typeof e.characterOutfits === 'string' ? e.characterOutfits : undefined,
+      });
+    }
+  } else if (scenes && Array.isArray(scenes)) {
+    const envIds = new Set<string>();
+    for (const scene of scenes) {
+      const envId = (scene as any).environmentId;
+      if (envId && !envIds.has(envId)) {
+        envIds.add(envId);
+        const setting = (scene as any).sceneVisual?.setting?.trim();
+        newEnvs.push({
+          id: envId,
+          name: envId.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+          description: setting || `A location described in the story (${envId}).`,
+          characterOutfits: '',
+        });
+      }
+    }
+  }
+
+  // Merge previousEnvironments: keep existing, add new (dedupe by id)
+  const existingIds = new Set((ctx.previousEnvironments || []).map((e) => e.id));
+  const mergedEnvs = [...(ctx.previousEnvironments || [])];
+  for (const env of newEnvs) {
+    if (env.id && !existingIds.has(env.id)) {
+      existingIds.add(env.id);
+      mergedEnvs.push(env);
+    }
+  }
+
   const updatedContext = {
-    ...series.continuationContext,
+    ...ctx,
     previousOutlines: [
-      ...series.continuationContext.previousOutlines,
+      ...(ctx.previousOutlines || []),
       {
         title: newStory.title,
         moral: outline?.moral || '',
@@ -275,16 +357,17 @@ export async function addContinuationToSeries(
       },
     ],
     // requiredCharacters stay the same (user-provided don't change)
-    requiredCharacters: series.continuationContext.requiredCharacters,
+    requiredCharacters: ctx.requiredCharacters || [],
     // Merge new optional characters (LLM-generated from this episode)
     optionalCharacters: mergeCharacters(
-      series.continuationContext.optionalCharacters,
+      ctx.optionalCharacters || [],
       formatCharacters(llmGeneratedCharacters)
     ),
     usedPlots: [
-      ...series.continuationContext.usedPlots,
+      ...(ctx.usedPlots || []),
       ...sceneSummaries,
     ],
+    previousEnvironments: mergedEnvs,
   };
   
   logger.info({
