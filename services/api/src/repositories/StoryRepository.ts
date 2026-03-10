@@ -1,5 +1,5 @@
 import type { StoryAudioMetadata } from '@wondertales/shared';
-import { eq, and, desc, sql, isNotNull, inArray } from 'drizzle-orm';
+import { eq, and, desc, sql, isNotNull, inArray, gte, lte } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -130,12 +130,27 @@ export class StoryRepository {
     return Number(result[0]?.count ?? 0);
   }
 
+  async countAudioStoriesByUserInPeriod(userId: string, periodStart: Date): Promise<number> {
+    const result = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.stories)
+      .where(and(
+        eq(schema.stories.userId, userId),
+        isNotNull(schema.stories.audioMetadata),
+        gte(schema.stories.createdAt, periodStart)
+      ));
+    return Number(result[0]?.count ?? 0);
+  }
+
   async findByUser(
     userId: string,
     options: { limit?: number; offset?: number; hasAudio?: boolean; scenarioCardId?: string } = {}
   ): Promise<schema.Story[]> {
     const { limit = 20, offset = 0, hasAudio, scenarioCardId } = options;
-    const conditions = [eq(schema.stories.userId, userId)];
+    const conditions = [
+      eq(schema.stories.userId, userId),
+      eq(schema.stories.hidden, false),
+    ];
     if (hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
     }
@@ -174,7 +189,10 @@ export class StoryRepository {
     scenarioCardId: string | null;
   }>> {
     const { limit = 20, offset = 0, hasAudio, scenarioCardId } = options;
-    const conditions = [eq(schema.stories.userId, userId)];
+    const conditions = [
+      eq(schema.stories.userId, userId),
+      eq(schema.stories.hidden, false),
+    ];
     if (hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
     }
@@ -210,7 +228,10 @@ export class StoryRepository {
   }
 
   async countByUser(userId: string, options: { hasAudio?: boolean; scenarioCardId?: string } = {}): Promise<number> {
-    const conditions = [eq(schema.stories.userId, userId)];
+    const conditions = [
+      eq(schema.stories.userId, userId),
+      eq(schema.stories.hidden, false),
+    ];
     if (options.hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
     }
@@ -474,5 +495,193 @@ export class StoryRepository {
       .where(isNotNull(schema.stories.audioMetadata))
       .orderBy(desc(schema.stories.createdAt))
       .limit(limit);
+  }
+
+  /** Insert story into batch_image_pending for scheduled continuation batch image processing */
+  async insertBatchImagePending(params: {
+    storyId: string;
+    requestId: string;
+    scheduleId?: string | null;
+  }): Promise<void> {
+    await this.db.insert(schema.batchImagePending).values({
+      storyId: params.storyId,
+      requestId: params.requestId,
+      scheduleId: params.scheduleId ?? null,
+    });
+  }
+
+  /** Find all batch_image_pending rows (for batch worker) */
+  async findBatchImagePendingAll(): Promise<schema.BatchImagePending[]> {
+    return this.db.select().from(schema.batchImagePending).orderBy(schema.batchImagePending.createdAt);
+  }
+
+  /** Delete batch_image_pending by id (after processing) */
+  async deleteBatchImagePendingById(id: string): Promise<void> {
+    await this.db.delete(schema.batchImagePending).where(eq(schema.batchImagePending.id, id));
+  }
+
+  /** Create batch_image_jobs row */
+  async createBatchImageJob(params: {
+    batchId: string;
+    vendor: string;
+    status: string;
+    pendingIds: string[];
+  }): Promise<schema.BatchImageJob> {
+    const [job] = await this.db
+      .insert(schema.batchImageJobs)
+      .values({
+        batchId: params.batchId,
+        vendor: params.vendor,
+        status: params.status,
+        pendingIds: params.pendingIds,
+      })
+      .returning();
+    return job;
+  }
+
+  /** Find batch_image_jobs by batchId */
+  async findBatchImageJobByBatchId(batchId: string): Promise<schema.BatchImageJob | null> {
+    const [job] = await this.db
+      .select()
+      .from(schema.batchImageJobs)
+      .where(eq(schema.batchImageJobs.batchId, batchId))
+      .limit(1);
+    return job || null;
+  }
+
+  /** Find batch_image_jobs by status */
+  async findBatchImageJobsByStatus(status: string): Promise<schema.BatchImageJob[]> {
+    return this.db
+      .select()
+      .from(schema.batchImageJobs)
+      .where(eq(schema.batchImageJobs.status, status));
+  }
+
+  /** Update batch_image_jobs status */
+  async updateBatchImageJobStatus(id: string, status: string): Promise<void> {
+    await this.db
+      .update(schema.batchImageJobs)
+      .set({ status })
+      .where(eq(schema.batchImageJobs.id, id));
+  }
+
+  /** Find batch_image_pending by id */
+  async findBatchImagePendingById(id: string): Promise<schema.BatchImagePending | null> {
+    const [row] = await this.db
+      .select()
+      .from(schema.batchImagePending)
+      .where(eq(schema.batchImagePending.id, id))
+      .limit(1);
+    return row || null;
+  }
+
+  /** Find series_schedule by seriesId */
+  async findScheduleBySeriesId(seriesId: string): Promise<schema.SeriesSchedule | null> {
+    const [row] = await this.db
+      .select()
+      .from(schema.seriesSchedules)
+      .where(eq(schema.seriesSchedules.seriesId, seriesId))
+      .limit(1);
+    return row || null;
+  }
+
+  /** Create or replace series_schedule (upsert by seriesId) */
+  async upsertSeriesSchedule(params: {
+    seriesId: string;
+    userId: string;
+    cadence: string;
+    runAtTime: string;
+    nextRunAt: Date;
+  }): Promise<schema.SeriesSchedule> {
+    const existing = await this.findScheduleBySeriesId(params.seriesId);
+    if (existing) {
+      await this.db
+        .update(schema.seriesSchedules)
+        .set({
+          cadence: params.cadence,
+          runAtTime: params.runAtTime,
+          nextRunAt: params.nextRunAt,
+        })
+        .where(eq(schema.seriesSchedules.id, existing.id));
+      const [updated] = await this.db
+        .select()
+        .from(schema.seriesSchedules)
+        .where(eq(schema.seriesSchedules.id, existing.id))
+        .limit(1);
+      return updated!;
+    }
+    const [created] = await this.db
+      .insert(schema.seriesSchedules)
+      .values({
+        seriesId: params.seriesId,
+        userId: params.userId,
+        cadence: params.cadence,
+        runAtTime: params.runAtTime,
+        nextRunAt: params.nextRunAt,
+      })
+      .returning();
+    return created!;
+  }
+
+  /** Delete series_schedule by seriesId */
+  async deleteScheduleBySeriesId(seriesId: string): Promise<void> {
+    await this.db
+      .delete(schema.seriesSchedules)
+      .where(eq(schema.seriesSchedules.seriesId, seriesId));
+  }
+
+  /** Check if story has pending batch_image_pending for its series */
+  async hasPendingBatchForSeries(seriesId: string): Promise<boolean> {
+    const series = await this.findSeriesById(seriesId);
+    if (!series?.storyIds?.length) return false;
+    const storyIds = series.storyIds as string[];
+    const rows = await this.db
+      .select({ id: schema.batchImagePending.id })
+      .from(schema.batchImagePending)
+      .where(inArray(schema.batchImagePending.storyId, storyIds))
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  /** Find due series_schedules (next_run_at <= now) */
+  async findDueSeriesSchedules(now: Date): Promise<schema.SeriesSchedule[]> {
+    return this.db
+      .select()
+      .from(schema.seriesSchedules)
+      .where(lte(schema.seriesSchedules.nextRunAt, now))
+      .orderBy(schema.seriesSchedules.nextRunAt);
+  }
+
+  /** Update series_schedules next_run_at by cadence */
+  async updateScheduleNextRunAt(
+    scheduleId: string,
+    nextRunAt: Date
+  ): Promise<void> {
+    await this.db
+      .update(schema.seriesSchedules)
+      .set({ nextRunAt })
+      .where(eq(schema.seriesSchedules.id, scheduleId));
+  }
+
+  /** Find batch_image_pending by id with story and request */
+  async findBatchImagePendingWithDetails(id: string): Promise<{
+    pending: schema.BatchImagePending;
+    story: schema.Story;
+    request: schema.StoryRequest;
+  } | null> {
+    const rows = await this.db
+      .select({
+        pending: schema.batchImagePending,
+        story: schema.stories,
+        request: schema.storyRequests,
+      })
+      .from(schema.batchImagePending)
+      .innerJoin(schema.stories, eq(schema.batchImagePending.storyId, schema.stories.id))
+      .innerJoin(schema.storyRequests, eq(schema.batchImagePending.requestId, schema.storyRequests.id))
+      .where(eq(schema.batchImagePending.id, id))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return { pending: row.pending, story: row.story, request: row.request };
   }
 }

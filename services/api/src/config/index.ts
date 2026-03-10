@@ -77,6 +77,8 @@ export const config = {
       model: process.env.GEMINI_IMAGE_MODEL || 'imagen-3.0-generate-002', // Legacy Imagen 3
       projectId: process.env.GOOGLE_CLOUD_PROJECT || '',
       location: process.env.GOOGLE_CLOUD_LOCATION || 'us-central1',
+      batchGcsBucket: process.env.BATCH_IMAGE_GCS_BUCKET || '', // For scheduled continuation batch (Vertex AI)
+      batchModel: process.env.GEMINI_BATCH_MODEL || 'gemini-2.5-flash-image',
     },
     defaultStyle: 'soft_watercolor',
     defaultAspectRatio: '16:9',

@@ -433,6 +433,29 @@ export const storySeries = pgTable('story_series', {
   };
 });
 
+// Series schedules (scheduled continuations)
+export const seriesSchedules = pgTable(
+  'series_schedules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    seriesId: uuid('series_id')
+      .references(() => storySeries.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    cadence: varchar('cadence', { length: 20 }).notNull(),
+    runAtTime: varchar('run_at_time', { length: 10 }).notNull(),
+    nextRunAt: timestamp('next_run_at', { withTimezone: true }).notNull(),
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    seriesIdUnique: uniqueIndex('series_schedules_series_id_unique').on(table.seriesId),
+    nextRunIdx: index('idx_series_schedules_next_run').on(table.nextRunAt),
+  })
+);
+
 // Stories table
 export const stories = pgTable('stories', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -474,6 +497,8 @@ export const stories = pgTable('stories', {
 
   ratingSum: integer('rating_sum').default(0).notNull(),
   ratingCount: integer('rating_count').default(0).notNull(),
+
+  hidden: boolean('hidden').default(false).notNull(),
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -583,6 +608,43 @@ export type NewStoryCharacter = typeof storyCharacters.$inferInsert;
 
 export type StoryRating = typeof storyRatings.$inferSelect;
 export type NewStoryRating = typeof storyRatings.$inferInsert;
+
+// Batch image pending (stories waiting for batch images)
+export const batchImagePending = pgTable('batch_image_pending', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  storyId: uuid('story_id')
+    .references(() => stories.id, { onDelete: 'cascade' })
+    .notNull(),
+  requestId: uuid('request_id')
+    .references(() => storyRequests.id)
+    .notNull(),
+  scheduleId: uuid('schedule_id').references(() => seriesSchedules.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  createdIdx: index('idx_batch_image_pending_created').on(table.createdAt),
+  storyIdx: index('idx_batch_image_pending_story').on(table.storyId),
+  scheduleIdx: index('idx_batch_image_pending_schedule').on(table.scheduleId),
+}));
+
+// Batch image jobs (active batch jobs for polling)
+export const batchImageJobs = pgTable('batch_image_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  batchId: varchar('batch_id', { length: 100 }).notNull(),
+  vendor: varchar('vendor', { length: 20 }).notNull(),
+  status: varchar('status', { length: 30 }).notNull(),
+  pendingIds: uuid('pending_ids').array().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  statusIdx: index('idx_batch_image_jobs_status').on(table.status),
+  createdIdx: index('idx_batch_image_jobs_created').on(table.createdAt),
+}));
+
+export type SeriesSchedule = typeof seriesSchedules.$inferSelect;
+export type NewSeriesSchedule = typeof seriesSchedules.$inferInsert;
+export type BatchImagePending = typeof batchImagePending.$inferSelect;
+export type NewBatchImagePending = typeof batchImagePending.$inferInsert;
+export type BatchImageJob = typeof batchImageJobs.$inferSelect;
+export type NewBatchImageJob = typeof batchImageJobs.$inferInsert;
 
 export type AiUsageEvent = typeof aiUsageEvents.$inferSelect;
 export type NewAiUsageEvent = typeof aiUsageEvents.$inferInsert;

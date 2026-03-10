@@ -152,6 +152,22 @@ async function gracefulShutdown(signal: string) {
       logger.warn({ err }, 'Failed to stop job queues during shutdown');
     }
 
+    // Stop batch image worker
+    try {
+      const { stopBatchImageWorker } = await import('../jobs/batchImageWorkerJob');
+      stopBatchImageWorker();
+    } catch (err) {
+      logger.warn({ err }, 'Failed to stop batch image worker during shutdown');
+    }
+
+    // Stop scheduled continuation scheduler
+    try {
+      const { stopScheduledContinuationScheduler } = await import('../jobs/scheduledContinuationSchedulerJob');
+      stopScheduledContinuationScheduler();
+    } catch (err) {
+      logger.warn({ err }, 'Failed to stop scheduled continuation scheduler during shutdown');
+    }
+
     // Stop rate limiter intervals
     try {
       const { stopAllRateLimiters } = await import('../services/aiService');

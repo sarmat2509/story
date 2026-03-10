@@ -6,12 +6,7 @@
  */
 
 // Re-export main orchestration functions (will be implemented in storyOrchestrationService.ts)
-export { 
-  processStoryRequest,
-  processStoryImages,
-  processContinuationRequest,
-  processContinuationImages
-} from '../storyOrchestrationService';
+export { processStoryRequest, processStoryImages } from '../storyOrchestrationService';
 
 // Export core generation functions
 export { generateStoryText, generateStoryImages } from './coreGeneration';

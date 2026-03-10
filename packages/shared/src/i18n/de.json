@@ -219,7 +219,7 @@
     "no_charge_note": "Dieser Versuch wird nicht auf Ihr Limit angerechnet",
     "audio_not_ready": "Das Audio wird noch verarbeitet. Bitte warten Sie...",
     "previous_attempt_failed": "Bei der Generierung ist etwas schief gelaufen",
-    "continue_story": "Geschichte fortsetzen",
+    "continue_story": "Geschichte jetzt fortsetzen",
     "enjoyed_story": "Hat dir die Geschichte gefallen?",
     "series_parts": "Serie mit {{count}} Teilen",
     "continuation_started": "Fortsetzung wird erstellt",
@@ -247,7 +247,17 @@
     "update_publication": "Veröffentlichung aktualisieren",
     "unpublish": "Veröffentlichung aufheben",
     "unpublish_confirm_title": "Veröffentlichung aufheben?",
-    "unpublish_confirm_message": "Die Geschichte wird privat. Der Link funktioniert nicht mehr."
+    "unpublish_confirm_message": "Die Geschichte wird privat. Der Link funktioniert nicht mehr.",
+    "schedule_planned_on": "Nächste Geschichte geplant für {{date}}",
+    "schedule_cancel": "Abbrechen",
+    "schedule_cancel_in_progress": "Der aktuelle Teil wird erstellt. Sie können den nächsten danach planen.",
+    "schedule_or": "oder",
+    "schedule_section_title": "Regelmäßige Fortsetzungen planen",
+    "schedule_cadence_daily": "Täglich",
+    "schedule_cadence_every_2_days": "Alle 2 Tage",
+    "schedule_cadence_twice_weekly": "Zweimal pro Woche",
+    "schedule_cadence_weekly": "Wöchentlich",
+    "schedule_button": "Planen"
   },
   "dashboard": {
     "welcome_back": "Willkommen zurück, {{name}}!",

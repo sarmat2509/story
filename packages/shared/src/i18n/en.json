@@ -575,7 +575,7 @@
     "no_charge_note": "This attempt didn't count towards your limit",
     "audio_not_ready": "Audio is still processing. Please wait...",
     "previous_attempt_failed": "Something went wrong during generation",
-    "continue_story": "Continue the Story",
+    "continue_story": "Continue story now",
     "enjoyed_story": "Did you enjoy the story?",
     "series_parts": "Series with {{count}} parts",
     "continuation_started": "Continuation is being created",
@@ -615,7 +615,17 @@
     "update_publication": "Update publication",
     "unpublish": "Unpublish",
     "unpublish_confirm_title": "Unpublish?",
-    "unpublish_confirm_message": "The story will become private. The link will stop working."
+    "unpublish_confirm_message": "The story will become private. The link will stop working.",
+    "schedule_planned_on": "Next story scheduled for {{date}}",
+    "schedule_cancel": "Cancel",
+    "schedule_cancel_in_progress": "Current part is being created. You can schedule the next one after it's done.",
+    "schedule_or": "or",
+    "schedule_section_title": "Schedule regular continuations",
+    "schedule_cadence_daily": "Daily",
+    "schedule_cadence_every_2_days": "Every 2 days",
+    "schedule_cadence_twice_weekly": "Twice weekly",
+    "schedule_cadence_weekly": "Weekly",
+    "schedule_button": "Schedule"
   },
   "published_story": {
     "cta_title": "Your child is the hero of their own tale",

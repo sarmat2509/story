@@ -477,7 +477,7 @@
     "no_charge_note": "Este intento no cuenta para tu límite",
     "audio_not_ready": "El audio todavía se está procesando. Por favor, espera...",
     "previous_attempt_failed": "Algo salió mal durante la generación",
-    "continue_story": "Quiero continuar la historia",
+    "continue_story": "Continuar la historia ahora",
     "enjoyed_story": "¿Te gustó la historia?",
     "series_parts": "Serie con {{count}} partes",
     "continuation_started": "Se está creando la continuación",
@@ -507,7 +507,17 @@
     "update_publication": "Actualizar publicación",
     "unpublish": "Despublicar",
     "unpublish_confirm_title": "¿Despublicar?",
-    "unpublish_confirm_message": "La historia será privada. El enlace dejará de funcionar."
+    "unpublish_confirm_message": "La historia será privada. El enlace dejará de funcionar.",
+    "schedule_planned_on": "Siguiente historia programada para el {{date}}",
+    "schedule_cancel": "Cancelar",
+    "schedule_cancel_in_progress": "La parte actual se está creando. Podrás programar la siguiente cuando termine.",
+    "schedule_or": "o",
+    "schedule_section_title": "Programar continuaciones regulares",
+    "schedule_cadence_daily": "Diario",
+    "schedule_cadence_every_2_days": "Cada 2 días",
+    "schedule_cadence_twice_weekly": "Dos veces por semana",
+    "schedule_cadence_weekly": "Semanal",
+    "schedule_button": "Programar"
   },
   "dashboard": {
     "welcome_back": "Bienvenido de nuevo, {{name}}!",

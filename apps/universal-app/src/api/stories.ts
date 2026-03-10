@@ -304,6 +304,49 @@ export const useDeleteStory = () => {
   });
 };
 
+// Schedule continuation for a story series
+export function useScheduleStatus(storyId: string | undefined) {
+  return useQuery({
+    queryKey: ['story', storyId, 'schedule'],
+    queryFn: async () => {
+      const response = await apiClient.get<{
+        status: string;
+        data: { cadence: string; nextRunAt: string; inProgress?: boolean } | { inProgress: true } | null;
+      }>(`/api/v1/stories/${storyId}/schedule`);
+      return response.data.data;
+    },
+    enabled: !!storyId,
+  });
+}
+
+export function useScheduleContinuation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ storyId, cadence }: { storyId: string; cadence: 'daily' | 'every_2_days' | 'twice_weekly' | 'weekly' }) => {
+      const response = await apiClient.post<{ status: string; data: { cadence: string; nextRunAt: string } }>(
+        `/api/v1/stories/${storyId}/schedule-continuation`,
+        { cadence }
+      );
+      return response.data.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['story', variables.storyId, 'schedule'] });
+    },
+  });
+}
+
+export function useUnscheduleContinuation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (storyId: string) => {
+      await apiClient.delete(`/api/v1/stories/${storyId}/schedule-continuation`);
+    },
+    onSuccess: (_, storyId) => {
+      queryClient.invalidateQueries({ queryKey: ['story', storyId, 'schedule'] });
+    },
+  });
+}
+
 // Generate continuation for a story
 export function useGenerateContinuation() {
   const queryClient = useQueryClient();

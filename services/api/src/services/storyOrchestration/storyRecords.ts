@@ -34,11 +34,12 @@ export async function createStoryStub(params: CreateStoryStubParams): Promise<st
     modelVersion: null,
     generationTimeMs: null,
     metadata: null,
-        policyChecks: null,
-        isPublished: false,
-        isFavorite: false,
-        visibility: null,
-        ...(params.seriesData && {
+    policyChecks: null,
+    isPublished: false,
+    isFavorite: false,
+    visibility: null,
+    hidden: params.isScheduledContinuation ?? false,
+    ...(params.seriesData && {
       seriesId: params.seriesData.seriesId,
       partNumber: params.seriesData.partNumber,
     }),
@@ -70,6 +71,7 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
           generationTimeMs: params.generationTimeMs,
           isPublished: !!params.seriesData,
           ...(params.seriesData ? {} : { visibility: null }),
+          hidden: params.isScheduledContinuation ?? false,
           metadata: {
             llmGeneratedCharacters: llmCharacters,
             imageStyle: (params.spec as any).imageStyle,

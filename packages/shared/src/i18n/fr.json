@@ -219,7 +219,7 @@
     "no_charge_note": "Cette tentative ne compte pas dans votre limite",
     "audio_not_ready": "L'audio est toujours en cours de traitement. Veuillez patienter...",
     "previous_attempt_failed": "Quelque chose s'est mal passé lors de la génération",
-    "continue_story": "Continuer l'histoire",
+    "continue_story": "Continuer l'histoire maintenant",
     "enjoyed_story": "Avez-vous aimé l'histoire?",
     "series_parts": "Série avec {{count}} parties",
     "continuation_started": "La suite est en cours de création",
@@ -247,7 +247,17 @@
     "update_publication": "Mettre à jour la publication",
     "unpublish": "Dépublier",
     "unpublish_confirm_title": "Dépublier ?",
-    "unpublish_confirm_message": "L'histoire deviendra privée. Le lien ne fonctionnera plus."
+    "unpublish_confirm_message": "L'histoire deviendra privée. Le lien ne fonctionnera plus.",
+    "schedule_planned_on": "Prochaine histoire prévue pour le {{date}}",
+    "schedule_cancel": "Annuler",
+    "schedule_cancel_in_progress": "La partie actuelle est en cours de création. Vous pourrez planifier la suivante après.",
+    "schedule_or": "ou",
+    "schedule_section_title": "Planifier des suites régulières",
+    "schedule_cadence_daily": "Quotidien",
+    "schedule_cadence_every_2_days": "Tous les 2 jours",
+    "schedule_cadence_twice_weekly": "Deux fois par semaine",
+    "schedule_cadence_weekly": "Hebdomadaire",
+    "schedule_button": "Planifier"
   },
   "dashboard": {
     "welcome_back": "Bienvenue, {{name}}!",

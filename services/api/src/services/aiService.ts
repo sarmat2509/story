@@ -43,6 +43,7 @@ let audioDomainService: AudioDomainService | null = null;
 let textProvider: ITextProvider | null = null;
 let imageProvider: IImageProvider | null = null;
 let environmentImageProvider: IImageProvider | null = null;
+let batchImageProvider: IImageProvider | null = null;
 let audioProvider: IAudioProvider | null = null;
 let alignmentProvider: IAlignmentProvider | null = null;
 
@@ -186,6 +187,22 @@ export function getEnvironmentImageProvider(): IImageProvider {
     environmentImageProvider = new Imagen4FastProvider();
   }
   return environmentImageProvider;
+}
+
+/**
+ * Get batch image provider (GeminiBatchImageProvider) for scheduled continuations.
+ * Returns null if BATCH_IMAGE_GCS_BUCKET is not set.
+ */
+export function getBatchImageProvider(): IImageProvider | null {
+  if (!config.image.gemini.batchGcsBucket) {
+    return null;
+  }
+  if (!batchImageProvider) {
+    logger.info('Initializing batch image provider (Gemini Batch)');
+    const { GeminiBatchImageProvider } = require('../providers/image/gemini/GeminiBatchImageProvider');
+    batchImageProvider = new GeminiBatchImageProvider();
+  }
+  return batchImageProvider;
 }
 
 /**
@@ -432,6 +449,7 @@ export function resetServices(): void {
   textProvider = null;
   imageProvider = null;
   environmentImageProvider = null;
+  batchImageProvider = null;
   audioProvider = null;
   alignmentProvider = null;
   imageRateLimiter = null;

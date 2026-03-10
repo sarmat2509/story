@@ -108,5 +108,57 @@ export interface IImageProvider {
    * Used to upload reference images once and reuse via file URI.
    */
   getFileManager?(): IFileManager | null;
+
+  /**
+   * Create a batch of image generation requests (optional).
+   * Only providers with batch API (e.g. Gemini Batch) implement this.
+   * Used for scheduled continuations to coalesce scene images.
+   * @param requests - Array of batch requests with customId for result mapping
+   * @returns Batch job info for polling
+   */
+  createImageBatch?(requests: ImageBatchRequest[]): Promise<BatchJob>;
+
+  /**
+   * Get status of a batch job (optional).
+   * @param batchId - Vendor-specific batch identifier
+   * @returns Current batch status
+   */
+  getBatchStatus?(batchId: string): Promise<BatchStatus>;
+
+  /**
+   * Get results of a completed batch job (optional).
+   * @param batchId - Vendor-specific batch identifier
+   * @returns Array of results keyed by customId
+   */
+  getBatchResults?(batchId: string): Promise<BatchResult[]>;
+}
+
+/** Single request in a batch (scene image) */
+export interface ImageBatchRequest {
+  customId: string; // e.g. story_{storyId}_scene_{sceneId} for result mapping
+  prompt: string;
+  systemInstruction?: string;
+  aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+}
+
+/** Batch job created by createImageBatch */
+export interface BatchJob {
+  batchId: string;
+  status: 'validating' | 'in_progress' | 'pending';
+}
+
+/** Batch status from getBatchStatus */
+export interface BatchStatus {
+  batchId: string;
+  status: 'validating' | 'in_progress' | 'completed' | 'failed';
+  errorMessage?: string;
+}
+
+/** Single result from getBatchResults, keyed by customId */
+export interface BatchResult {
+  customId: string;
+  imageData?: Buffer;
+  mimeType?: string;
+  error?: string;
 }
 

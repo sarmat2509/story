@@ -762,7 +762,7 @@
     "no_charge_note": "Ця спроба не зараховується у ваш ліміт",
     "audio_not_ready": "Аудіо все ще обробляється. Будь ласка, зачекайте...",
     "previous_attempt_failed": "Щось пішло не так під час генерації",
-    "continue_story": "Хочу продовження історії",
+    "continue_story": "Продовжити історію зараз",
     "enjoyed_story": "Сподобалася історія?",
     "series_parts": "Серія з {{count}} частин",
     "continuation_started": "Продовження створюється",
@@ -802,7 +802,17 @@
     "update_publication": "Оновити публікацію",
     "unpublish": "Зняти з публікації",
     "unpublish_confirm_title": "Зняти з публікації?",
-    "unpublish_confirm_message": "Історія стане приватним. Посилання перестане працювати."
+    "unpublish_confirm_message": "Історія стане приватним. Посилання перестане працювати.",
+    "schedule_planned_on": "Наступна історія запланована на {{date}}",
+    "schedule_cancel": "Скасувати",
+    "schedule_cancel_in_progress": "Поточна частина вже створюється. Запланувати наступну зможете після завершення.",
+    "schedule_or": "або",
+    "schedule_section_title": "Запланувати регулярні продовження",
+    "schedule_cadence_daily": "Щодня",
+    "schedule_cadence_every_2_days": "Кожні 2 дні",
+    "schedule_cadence_twice_weekly": "Двічі на тиждень",
+    "schedule_cadence_weekly": "Раз на тиждень",
+    "schedule_button": "Запланувати"
   },
   "toast": {
     "audio_ready_title": "Аудіоказка готова!",

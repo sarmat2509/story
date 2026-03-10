@@ -197,6 +197,9 @@ export async function createContinuationRequest(
     seriesId: string;
     partNumber: number;
     continuationContext: any;
+    // Scheduled continuation (from scheduler)
+    isScheduledContinuation?: boolean;
+    scheduleId?: string;
   }
 ): Promise<string> {
   try {
@@ -226,6 +229,10 @@ export async function createContinuationRequest(
         seriesId: input.seriesId,
         partNumber: input.partNumber,
         continuationContext: input.continuationContext,
+        ...(input.isScheduledContinuation && {
+          isScheduledContinuation: true,
+          scheduleId: input.scheduleId,
+        }),
       },
     });
     
@@ -251,7 +258,11 @@ export async function createContinuationRequest(
  * - Scene image generation (parallel for all plans)
  * - Character consistency via scene-to-scene reference propagation
  */
-export async function processStoryRequest(requestId: string): Promise<{ storyId: string }> {
+export async function processStoryRequest(requestId: string): Promise<{
+  storyId: string;
+  isScheduledContinuation?: boolean;
+  scheduleId?: string;
+}> {
   const startTime = Date.now();
 
   try {
@@ -263,6 +274,8 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
 
     const intermediateData = (request.intermediateData as any) || {};
     const isContinuation = !!intermediateData.isContinuation;
+    const isScheduledContinuation = !!intermediateData.isScheduledContinuation;
+    const scheduleId = intermediateData.scheduleId as string | undefined;
     const { seriesId, partNumber, continuationContext } = intermediateData;
 
     if (isContinuation && (!seriesId || !continuationContext)) {
@@ -328,6 +341,7 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
           childProfileId: request.childProfileId,
           spec,
           ...(isContinuation && seriesId && partNumber && { seriesData: { seriesId, partNumber } }),
+          isScheduledContinuation,
         });
         Object.assign(checkpoints, { storyId });
         await getStoryRepository().updateRequest(requestId, {
@@ -518,6 +532,7 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
           ...((text as any).description && { seoDescription: (text as any).description }),
         },
         ...(isContinuation && seriesId && partNumber && { seriesData: { seriesId, partNumber } }),
+        isScheduledContinuation,
       });
     }
 
@@ -536,6 +551,7 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
       validatedText: text,
       text,
       ...(isContinuation && { isContinuation: true, seriesId, partNumber }),
+      ...(isScheduledContinuation && { isScheduledContinuation: true, scheduleId }),
     });
     await getStoryRepository().updateRequest(requestId, {
       intermediateData: {
@@ -552,14 +568,15 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
           partNumber,
           continuationContext: continuationContext || checkpoints.continuationContext,
         }),
+        ...(isScheduledContinuation && { isScheduledContinuation: true, scheduleId }),
       },
     });
     logger.info({ requestId, storyId, checkpoint: 'story_saved' }, 'Checkpoint 4 saved');
     
-    // Text + validation + save complete. Return storyId for image queue.
+    // Text + validation + save complete. Return storyId for image queue (or batch_image_pending if scheduled continuation).
     logger.info({ requestId, storyId, duration: Date.now() - startTime }, 'Text+validation phase completed, handing off to image queue');
     
-    return { storyId };
+    return { storyId, isScheduledContinuation: isScheduledContinuation || undefined, scheduleId };
     
   } catch (error) {
     logger.error({

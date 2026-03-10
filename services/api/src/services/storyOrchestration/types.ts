@@ -69,6 +69,7 @@ export interface CreateStoryParams {
     seriesId: string;
     partNumber: number;
   };
+  isScheduledContinuation?: boolean;
 }
 
 export interface CreateStoryStubParams {
@@ -80,6 +81,7 @@ export interface CreateStoryStubParams {
     seriesId: string;
     partNumber: number;
   };
+  isScheduledContinuation?: boolean;
 }
 
 export interface ValidateParams {

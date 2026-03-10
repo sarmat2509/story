@@ -18,12 +18,12 @@ import {
 import { publishStory, unpublishStory } from '../services/publishStoryService';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
 import { logger } from '../utils/logger';
-import { stripAudioTags, stripCharacterIds } from '../utils/audioTags';
+import { stripAllTags } from '../utils/audioTags';
 import { getFaceDeduplicationService } from '../services/faceDeduplicationService';
 import { createCharacter } from '../services/characterService';
 import { config } from '../config';
 import { startTask, completeTask, STORY_TASKS } from '../services/storyProgress';
-import { getStoryRepository } from '../repositories';
+import { getStoryRepository, getAssetRepository } from '../repositories';
 
 /**
  * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
@@ -42,7 +42,7 @@ function parseSceneVisual(scene: any): { sceneVisual?: any; visualPrompt?: strin
       // Not valid JSON — fall through to legacy
     }
   }
-  return { visualPrompt: stripAudioTags(vp) };
+  return { visualPrompt: stripAllTags(vp) };
 }
 
 const router = Router();
@@ -56,11 +56,11 @@ const AudioGenerationSchema = z.object({
 });
 
 const GenerateFromPhotosSchema = z.object({
-  photos: z.array(z.string().url()).min(1).max(5),
+  photos: z.array(z.string().url().min(1).max(5)),
   ageGroup: z.enum(['2-3', '4-5', '6-7', '8-9', '10-12']),
   scenario: z.string(),
   language: z.enum(['uk', 'en', 'ru', 'es']),
-  goals: z.array(z.string()).optional(),
+  goals: z.array(z.string().optional()),
   imageStyle: z.string().optional(),
   notes: z.string().max(1000).optional(),
 });
@@ -335,10 +335,10 @@ router.get('/published', async (req: Request, res: Response) => {
       ...s,
       scenes: Array.isArray(s.scenes) ? s.scenes.map((scene: any) => ({
         ...scene,
-        text: stripCharacterIds(stripAudioTags(scene.text || '')),
+        text: stripAllTags(scene.text || ''),
         ...parseSceneVisual(scene),
       })) : s.scenes,
-      fullText: stripCharacterIds(stripAudioTags(s.fullText || '')),
+      fullText: stripAllTags(s.fullText || ''),
     });
 
     const items = stories.map((s) => {
@@ -416,7 +416,7 @@ router.get('/published/:slug', optionalAuth, async (req: Request, res: Response)
         : null;
       return {
         ...scene,
-        text: stripCharacterIds(stripAudioTags(scene.text || '')),
+        text: stripAllTags(scene.text || ''),
         ...parseSceneVisual(scene),
         imageUrl,
       };
@@ -424,23 +424,9 @@ router.get('/published/:slug', optionalAuth, async (req: Request, res: Response)
 
     let audioUrl: string | null = null;
     if (story.audioMetadata) {
-      const { db } = await import('../db');
-      const { audioAssets, assets } = await import('../db/schema');
-      const { eq, and, desc, isNull } = await import('drizzle-orm');
-      const [audioAsset] = await db
-        .select({ audioAsset: audioAssets, asset: assets })
-        .from(audioAssets)
-        .innerJoin(assets, eq(audioAssets.assetId, assets.id))
-        .where(and(
-          eq(audioAssets.storyId, story.id),
-          eq(audioAssets.status, 'completed'),
-          eq(audioAssets.isFinal, true),
-          isNull(audioAssets.sceneGroupIndex)
-        ))
-        .orderBy(desc(audioAssets.createdAt))
-        .limit(1);
-      if (audioAsset) {
-        audioUrl = `/api/v1/assets/${audioAsset.asset.storagePath}`;
+      const result = await getAssetRepository().findFinalCompletedAudioByStoryId(story.id);
+      if (result) {
+        audioUrl = `/api/v1/assets/${result.asset.storagePath}`;
       }
     }
 
@@ -455,7 +441,7 @@ router.get('/published/:slug', optionalAuth, async (req: Request, res: Response)
         publishedAt: story.publishedAt,
         publishedSlug: story.publishedSlug,
         scenes: enrichedScenes,
-        fullText: stripCharacterIds(stripAudioTags(story.fullText || '')),
+        fullText: stripAllTags(story.fullText || ''),
         audioMetadata: story.audioMetadata,
         audioUrl,
         isOwner,
@@ -493,10 +479,10 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
       ...story,
       scenes: Array.isArray(story.scenes) ? story.scenes.map((scene: any) => ({
         ...scene,
-        text: stripCharacterIds(stripAudioTags(scene.text || '')),
+        text: stripAllTags(scene.text || ''),
         ...parseSceneVisual(scene),
       })) : story.scenes,
-      fullText: stripCharacterIds(stripAudioTags(story.fullText || '')),
+      fullText: stripAllTags(story.fullText || ''),
     };
     
     res.json({
@@ -637,10 +623,10 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       ...story,
       scenes: Array.isArray(story.scenes) ? story.scenes.map((scene: any) => ({
         ...scene,
-        text: stripCharacterIds(stripAudioTags(scene.text || '')),
+        text: stripAllTags(scene.text || ''),
         ...parseSceneVisual(scene),
       })) : story.scenes,
-      fullText: stripCharacterIds(stripAudioTags(story.fullText || '')),
+      fullText: stripAllTags(story.fullText || ''),
     }));
     
     res.json({
@@ -715,13 +701,10 @@ router.post('/:id/continue', requireAuth, async (req: Request, res: Response) =>
     
     // Import series service
     const { getOrCreateSeries } = await import('../services/seriesService');
-    const { db } = await import('../db');
-    const { stories } = await import('../db/schema');
-    const { eq } = await import('drizzle-orm');
     
     // 1. Verify ownership
-    const [story] = await db.select().from(stories).where(eq(stories.id, storyId));
-    if (!story || story.userId !== userId) {
+    const story = await getStoryRepository().findByIdAndUser(storyId, userId);
+    if (!story) {
       return res.status(404).json({ 
         status: 'error', 
         message: 'Story not found' 
@@ -745,8 +728,9 @@ router.post('/:id/continue', requireAuth, async (req: Request, res: Response) =>
     const { createContinuationRequest } = await import('../services/storyOrchestrationService');
     
     // Get original story request to preserve all settings
-    const { storyRequests } = await import('../db/schema');
-    const [originalRequest] = await db.select().from(storyRequests).where(eq(storyRequests.id, story.storyRequestId));
+    const originalRequest = story.storyRequestId
+      ? await getStoryRepository().findRequestById(story.storyRequestId)
+      : null;
     
     const requestId = await createContinuationRequest(userId, {
       language: story.language,
@@ -796,6 +780,129 @@ router.post('/:id/continue', requireAuth, async (req: Request, res: Response) =>
       status: 'error',
       message: 'Failed to create continuation'
     });
+  }
+});
+
+/**
+ * POST /api/v1/stories/:id/schedule-continuation
+ * Schedule automatic continuation for a story series
+ */
+const ScheduleContinuationSchema = z.object({
+  cadence: z.enum(['daily', 'every_2_days', 'twice_weekly', 'weekly']),
+});
+
+router.post('/:id/schedule-continuation', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { id: storyId } = req.params;
+    const userId = req.user!.id;
+    const body = ScheduleContinuationSchema.parse(req.body);
+
+    const story = await getStoryRepository().findByIdAndUser(storyId, userId);
+    if (!story) {
+      return res.status(404).json({ status: 'error', message: 'Story not found' });
+    }
+
+    const { getOrCreateSeries } = await import('../services/seriesService');
+    const { seriesId } = await getOrCreateSeries(storyId);
+
+    const now = new Date();
+    const runAtTime = `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`;
+    const cadenceDays: Record<string, number> = { daily: 1, every_2_days: 2, twice_weekly: 3, weekly: 7 };
+    const nextRun = new Date(now);
+    nextRun.setDate(nextRun.getDate() + (cadenceDays[body.cadence] ?? 1));
+
+    await getStoryRepository().upsertSeriesSchedule({
+      seriesId,
+      userId,
+      cadence: body.cadence,
+      runAtTime,
+      nextRunAt: nextRun,
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: { cadence: body.cadence, nextRunAt: nextRun.toISOString() },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ status: 'error', message: 'Invalid cadence', details: error.errors });
+    }
+    logger.error({ err: error }, 'Schedule continuation failed');
+    res.status(500).json({ status: 'error', message: 'Failed to schedule continuation' });
+  }
+});
+
+/**
+ * DELETE /api/v1/stories/:id/schedule-continuation
+ * Cancel scheduled continuation
+ */
+router.delete('/:id/schedule-continuation', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { id: storyId } = req.params;
+    const userId = req.user!.id;
+
+    const story = await getStoryRepository().findByIdAndUser(storyId, userId);
+    if (!story) {
+      return res.status(404).json({ status: 'error', message: 'Story not found' });
+    }
+
+    if (!story.seriesId) {
+      return res.status(200).json({ status: 'success', data: null });
+    }
+
+    const inProgress = await getStoryRepository().hasPendingBatchForSeries(story.seriesId);
+    if (inProgress) {
+      return res.status(409).json({
+        status: 'error',
+        message: 'Розклад скасовано. Поточна частина вже створюється і незабаром зʼявиться. Запланувати наступну ви зможете в будь-який момент.',
+        code: 'IN_PROGRESS',
+      });
+    }
+
+    await getStoryRepository().deleteScheduleBySeriesId(story.seriesId);
+    res.status(200).json({ status: 'success', data: null });
+  } catch (error) {
+    logger.error({ err: error }, 'Unschedule continuation failed');
+    res.status(500).json({ status: 'error', message: 'Failed to cancel schedule' });
+  }
+});
+
+/**
+ * GET /api/v1/stories/:id/schedule
+ * Get current schedule status for a story series
+ */
+router.get('/:id/schedule', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { id: storyId } = req.params;
+    const userId = req.user!.id;
+
+    const story = await getStoryRepository().findByIdAndUser(storyId, userId);
+    if (!story) {
+      return res.status(404).json({ status: 'error', message: 'Story not found' });
+    }
+
+    if (!story.seriesId) {
+      return res.json({ status: 'success', data: null });
+    }
+
+    const inProgress = await getStoryRepository().hasPendingBatchForSeries(story.seriesId);
+    const schedule = await getStoryRepository().findScheduleBySeriesId(story.seriesId);
+
+    if (!schedule) {
+      return res.json({ status: 'success', data: inProgress ? { inProgress: true } : null });
+    }
+
+    res.json({
+      status: 'success',
+      data: {
+        cadence: schedule.cadence,
+        nextRunAt: schedule.nextRunAt.toISOString(),
+        inProgress,
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Get schedule failed');
+    res.status(500).json({ status: 'error', message: 'Failed to get schedule' });
   }
 });
 
@@ -925,11 +1032,6 @@ router.post('/:id/audio', requireAuth, async (req: Request, res: Response) => {
       });
     }
     
-    // Count audio stories generated this billing period
-    const { db } = await import('../db');
-    const { stories } = await import('../db/schema');
-    const { eq, and, isNotNull, gte, sql } = await import('drizzle-orm');
-    
     if (!subscription) {
       return res.status(403).json({
         status: 'error',
@@ -939,18 +1041,10 @@ router.post('/:id/audio', requireAuth, async (req: Request, res: Response) => {
     }
     
     const currentPeriodStart = subscription.currentPeriodStart;
-    const audioStoriesThisPeriod = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(stories)
-      .where(
-        and(
-          eq(stories.userId, req.user!.id),
-          isNotNull(stories.audioMetadata),
-          gte(stories.createdAt, currentPeriodStart)
-        )
-      );
-    
-    const storiesGenerated = Number(audioStoriesThisPeriod[0]?.count) || 0;
+    const storiesGenerated = await getStoryRepository().countAudioStoriesByUserInPeriod(
+      req.user!.id,
+      currentPeriodStart
+    );
     
     if (storiesGenerated >= features.audioStoriesPerMonth) {
       return res.status(403).json({
@@ -1011,20 +1105,7 @@ router.get('/:id/audio-status', requireAuth, async (req: Request, res: Response)
   try {
     const { id: storyId } = req.params;
     
-    // Import here to avoid circular dependencies
-    const { db } = await import('../db');
-    const { stories } = await import('../db/schema');
-    const { eq, and } = await import('drizzle-orm');
-    
-    const [story] = await db.select({
-      audioMetadata: stories.audioMetadata
-    })
-      .from(stories)
-      .where(and(
-        eq(stories.id, storyId),
-        eq(stories.userId, req.user!.id)
-      ))
-      .limit(1);
+    const story = await getStoryRepository().findByIdAndUser(storyId, req.user!.id);
     
     if (!story) {
       return res.status(404).json({ 
@@ -1043,24 +1124,11 @@ router.get('/:id/audio-status', requireAuth, async (req: Request, res: Response)
     let duration: number | null = null;
     const meta = story.audioMetadata as Record<string, unknown> | null;
     if (!queueInfo.jobStatus && meta && meta.error !== true) {
-      const { audioAssets, assets } = await import('../db/schema');
-      const { eq, and, desc, isNull } = await import('drizzle-orm');
-      const [audioAsset] = await db
-        .select({ audioAsset: audioAssets, asset: assets })
-        .from(audioAssets)
-        .innerJoin(assets, eq(audioAssets.assetId, assets.id))
-        .where(and(
-          eq(audioAssets.storyId, storyId),
-          eq(audioAssets.status, 'completed'),
-          eq(audioAssets.isFinal, true),
-          isNull(audioAssets.sceneGroupIndex)
-        ))
-        .orderBy(desc(audioAssets.createdAt))
-        .limit(1);
-      if (audioAsset) {
-        audioUrl = `/api/v1/assets/${audioAsset.asset.storagePath}`;
-        duration = audioAsset.audioAsset.durationSeconds
-          ? parseFloat(audioAsset.audioAsset.durationSeconds.toString())
+      const result = await getAssetRepository().findFinalCompletedAudioByStoryId(storyId);
+      if (result) {
+        audioUrl = `/api/v1/assets/${result.asset.storagePath}`;
+        duration = result.audioAsset.durationSeconds
+          ? parseFloat(result.audioAsset.durationSeconds.toString())
           : 0;
       }
     }
@@ -1135,31 +1203,14 @@ router.post('/:id/alignment', requireAuth, async (req: Request, res: Response) =
     }
     
     // 4. Find final audio asset
-    const { audioAssets, assets } = await import('../db/schema');
-    const { eq, and } = await import('drizzle-orm');
-    const { db } = await import('../db');
-    
-    const finalAudioAssets = await db
-      .select({
-        audioAsset: audioAssets,
-        asset: assets,
-      })
-      .from(audioAssets)
-      .innerJoin(assets, eq(audioAssets.assetId, assets.id))
-      .where(
-        and(
-          eq(audioAssets.storyId, storyId),
-          eq(audioAssets.isFinal, true)
-        )
-      )
-      .limit(1);
+    const result = await getAssetRepository().findFinalCompletedAudioByStoryId(storyId);
     
     logger.info({ 
       storyId, 
-      finalAudioAssetsCount: finalAudioAssets.length 
+      found: !!result 
     }, 'Final audio assets found');
     
-    if (finalAudioAssets.length === 0) {
+    if (!result) {
       logger.warn({ storyId }, 'No final audio asset found');
       return res.status(404).json({
         status: 'error',
@@ -1168,8 +1219,8 @@ router.post('/:id/alignment', requireAuth, async (req: Request, res: Response) =
       });
     }
     
-    const audioAssetId = finalAudioAssets[0].audioAsset.id;
-    const assetId = finalAudioAssets[0].audioAsset.assetId;
+    const audioAssetId = result.audioAsset.id;
+    const assetId = result.audioAsset.assetId;
 
     // 5. Generate alignment
     const { getAlignmentProvider } = await import('../services/aiService');
@@ -1202,8 +1253,8 @@ router.post('/:id/alignment', requireAuth, async (req: Request, res: Response) =
     };
     await getAlignmentRepository().upsert(storyId, alignmentData, assetId);
 
-    if (story.isPublished && story.publishedSlug) {
-      const { getStoryRepository } = await import('../repositories');
+    const fullStory = await getStoryRepository().findByIdAndUser(storyId, req.user!.id);
+    if (fullStory?.isPublished && fullStory.publishedSlug) {
       await getStoryRepository().incrementPublicRenderVersion(storyId);
     }
 
@@ -1504,28 +1555,9 @@ router.get('/:id/audio', requireAuth, async (req: Request, res: Response) => {
       });
     }
     
-    // Get audio asset
-    const { db } = await import('../db');
-    const { audioAssets, assets } = await import('../db/schema');
-    const { eq, and, desc, isNull } = await import('drizzle-orm');
+    const result = await getAssetRepository().findFinalCompletedAudioByStoryId(storyId);
     
-    const [audioAsset] = await db
-      .select({
-        audioAsset: audioAssets,
-        asset: assets,
-      })
-      .from(audioAssets)
-      .innerJoin(assets, eq(audioAssets.assetId, assets.id))
-      .where(and(
-        eq(audioAssets.storyId, storyId),
-        eq(audioAssets.status, 'completed'),
-        eq(audioAssets.isFinal, true), // ✅ Only final audio
-        isNull(audioAssets.sceneGroupIndex) // ✅ NULL = final
-      ))
-      .orderBy(desc(audioAssets.createdAt))
-      .limit(1);
-    
-    if (!audioAsset) {
+    if (!result) {
       return res.status(404).json({
         status: 'error',
         message: 'Audio not ready yet. Please try again.',
@@ -1533,23 +1565,22 @@ router.get('/:id/audio', requireAuth, async (req: Request, res: Response) => {
       });
     }
     
-    const audioUrl = `/api/v1/assets/${audioAsset.asset.storagePath}`;
-    
+    const audioUrl = `/api/v1/assets/${result.asset.storagePath}`;
     const audioMetadata = story.audioMetadata as any;
     
     res.json({
       status: 'success',
       data: {
         audioUrl,
-        duration: audioAsset.audioAsset.durationSeconds ? parseFloat(audioAsset.audioAsset.durationSeconds.toString()) : 0,
+        duration: result.audioAsset.durationSeconds ? parseFloat(result.audioAsset.durationSeconds.toString()) : 0,
         voice: {
-          id: audioAsset.audioAsset.voiceId,
-          name: audioAsset.audioAsset.voiceName,
-          language: audioAsset.audioAsset.language,
+          id: result.audioAsset.voiceId,
+          name: result.audioAsset.voiceName,
+          language: result.audioAsset.language,
         },
         metadata: {
           generatedAt: audioMetadata?.generatedAt,
-          nightMode: audioAsset.audioAsset.nightMode,
+          nightMode: result.audioAsset.nightMode,
           cached: false, // TODO: track cache hits
         },
       }

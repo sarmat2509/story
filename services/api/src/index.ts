@@ -29,6 +29,8 @@ import { globalLimiter, authLimiter, apiLimiter } from './middleware/rateLimiter
 import { caseTransformMiddleware } from './middleware/caseTransform';
 import { startSessionCleanupJob } from './services/sessionService';
 import { startAllQueues } from './jobs/storyJobProcessor';
+import { startBatchImageWorker } from './jobs/batchImageWorkerJob';
+import { startScheduledContinuationScheduler } from './jobs/scheduledContinuationSchedulerJob';
 import { checkDatabaseHealth } from './db';
 import { logger } from './utils/logger';
 
@@ -143,6 +145,12 @@ const server = app.listen(PORT, async () => {
   // Start all job queues (text, image, audio + legacy)
   startAllQueues();
   logger.info('All job queues started');
+
+  // Start batch image worker for scheduled continuations
+  startBatchImageWorker();
+
+  // Start scheduled continuation scheduler (hourly)
+  startScheduledContinuationScheduler();
 });
 
 /**

@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Image, StyleSheet, ActivityIndicator, Touchable
 import { useRoute, RouteProp, useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
-import { useStory, useStoryGenerationStatus, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useDeleteStory, useGenerateContinuation, useSeriesInfo, useStoryStatus, usePublishStory } from '@/api/stories';
+import { useStory, useStoryGenerationStatus, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useDeleteStory, useGenerateContinuation, useSeriesInfo, useStoryStatus, usePublishStory, useScheduleStatus, useScheduleContinuation, useUnscheduleContinuation } from '@/api/stories';
 import { useUpdateMe } from '@/api/auth';
 import { useSubscriptionUsage } from '@/api/plans';
 import { useVoices } from '@/api/voices';
@@ -218,6 +218,11 @@ export default function StoryViewerScreen() {
   
   // M8: Series continuation
   const generateContinuation = useGenerateContinuation();
+  const { data: scheduleData } = useScheduleStatus(storyId);
+  const scheduleContinuation = useScheduleContinuation();
+  const unscheduleContinuation = useUnscheduleContinuation();
+  const [selectedCadence, setSelectedCadence] = useState<'daily' | 'every_2_days' | 'twice_weekly' | 'weekly'>('daily');
+  const [cadenceDropdownOpen, setCadenceDropdownOpen] = useState(false);
   
   // M8: Continuation progress tracking
   const [isContinuationGenerating, setIsContinuationGenerating] = useState(false);
@@ -892,6 +897,15 @@ export default function StoryViewerScreen() {
       );
     }
     
+    const hasSchedule = scheduleData && typeof scheduleData === 'object' && 'cadence' in scheduleData && 'nextRunAt' in scheduleData;
+    const inProgressOnly = scheduleData && typeof scheduleData === 'object' && 'inProgress' in scheduleData && (scheduleData as { inProgress?: boolean }).inProgress && !hasSchedule;
+    const cadenceOptions = [
+      { value: 'daily' as const, key: 'schedule_cadence_daily' },
+      { value: 'every_2_days' as const, key: 'schedule_cadence_every_2_days' },
+      { value: 'twice_weekly' as const, key: 'schedule_cadence_twice_weekly' },
+      { value: 'weekly' as const, key: 'schedule_cadence_weekly' },
+    ] as const;
+
     return (
       <View style={styles.continueContainer}>
         <Text style={styles.continueTitle}>
@@ -923,6 +937,124 @@ export default function StoryViewerScreen() {
             </>
           )}
         </TouchableOpacity>
+
+        {/* Schedule continuation block - only when schedule status is loaded */}
+        {scheduleData !== undefined && !inProgressOnly && (
+          <View style={styles.scheduleBlock}>
+            {/* Separator: "or" - makes the either/or choice explicit */}
+            <View style={styles.scheduleOrRow}>
+              <View style={styles.scheduleOrLine} />
+              <Text style={styles.scheduleOrText}>{t('story_viewer.schedule_or')}</Text>
+              <View style={styles.scheduleOrLine} />
+            </View>
+            {hasSchedule ? (
+              <>
+                <Text style={styles.schedulePlannedText}>
+                  {t('story_viewer.schedule_planned_on', {
+                    date: new Date((scheduleData as { nextRunAt: string }).nextRunAt).toLocaleDateString(i18n.language || 'uk', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    }),
+                  })}
+                </Text>
+                <TouchableOpacity
+                  style={styles.scheduleCancelButton}
+                  onPress={() =>
+                    unscheduleContinuation.mutate(storyId, {
+                      onError: (err: any) =>
+                        toastService.error(err?.response?.data?.message || t('story_viewer.audio_error_default')),
+                    })
+                  }
+                  disabled={unscheduleContinuation.isPending}
+                >
+                  {unscheduleContinuation.isPending ? (
+                    <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+                  ) : (
+                    <Text style={styles.scheduleCancelText}>{t('story_viewer.schedule_cancel')}</Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.scheduleSectionTitle}>{t('story_viewer.schedule_section_title')}</Text>
+                <View style={styles.scheduleFormRow}>
+                  <View style={styles.cadenceDropdownWrapper}>
+                    <TouchableOpacity
+                      style={styles.cadenceDropdownButton}
+                      onPress={() => setCadenceDropdownOpen((prev) => !prev)}
+                    >
+                      <Text style={styles.cadenceDropdownText} numberOfLines={1}>
+                        {t(`story_viewer.schedule_cadence_${selectedCadence}`)}
+                      </Text>
+                      <Ionicons
+                        name={cadenceDropdownOpen ? 'chevron-up' : 'chevron-down'}
+                        size={16}
+                        color={theme.colors.text.tertiary}
+                      />
+                    </TouchableOpacity>
+                    {cadenceDropdownOpen && (
+                      <View style={styles.cadenceDropdownMenu}>
+                        {cadenceOptions.map((opt) => (
+                          <TouchableOpacity
+                            key={opt.value}
+                            style={[
+                              styles.cadenceDropdownItem,
+                              selectedCadence === opt.value && styles.cadenceDropdownItemActive,
+                            ]}
+                            onPress={() => {
+                              setSelectedCadence(opt.value);
+                              setCadenceDropdownOpen(false);
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.cadenceDropdownItemText,
+                                selectedCadence === opt.value && styles.cadenceDropdownItemTextActive,
+                              ]}
+                            >
+                              {t(`story_viewer.${opt.key}`)}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.scheduleSubmitButton,
+                      scheduleContinuation.isPending && styles.scheduleSubmitButtonDisabled,
+                    ]}
+                    onPress={() =>
+                      scheduleContinuation.mutate(
+                        { storyId, cadence: selectedCadence },
+                        {
+                          onError: (err: any) =>
+                            toastService.error(err?.response?.data?.message || t('story_viewer.audio_error_default')),
+                        }
+                      )
+                    }
+                    disabled={scheduleContinuation.isPending}
+                  >
+                    {scheduleContinuation.isPending ? (
+                      <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+                    ) : (
+                      <>
+                        <Ionicons name="timer-outline" size={20} color={theme.colors.interactive.primary} />
+                        <Text style={styles.scheduleSubmitButtonText}>{t('story_viewer.schedule_button')}</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        )}
+        {inProgressOnly && (
+          <Text style={styles.scheduleInProgressText}>
+            {t('story_viewer.schedule_cancel_in_progress')}
+          </Text>
+        )}
       </View>
     );
   };
@@ -1974,6 +2106,141 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.lg,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.inverse,
+  },
+  scheduleBlock: {
+    marginTop: theme.spacing[6],
+    alignItems: 'center',
+    gap: theme.spacing[3],
+  },
+  schedulePlannedText: {
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+  },
+  scheduleCancelButton: {
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[4],
+  },
+  scheduleCancelText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.interactive.primary,
+    fontWeight: theme.typography.fontWeight.medium,
+  },
+  scheduleFormRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[3],
+    flexWrap: 'wrap',
+  },
+  cadenceDropdownWrapper: {
+    position: 'relative',
+    zIndex: 10,
+  },
+  cadenceDropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[4],
+    minWidth: 180,
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+  },
+  cadenceDropdownText: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.primary,
+    textAlign: 'left',
+  },
+  cadenceDropdownMenu: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: theme.spacing[1],
+    backgroundColor: theme.colors.background.primary,
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    ...Platform.select({
+      web: { boxShadow: '0 4px 12px rgba(0,0,0,0.1)' },
+      default: {
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+    }),
+  },
+  cadenceDropdownItem: {
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[4],
+    borderBottomWidth: theme.borders.width.thin,
+    borderBottomColor: theme.colors.border.light,
+  },
+  cadenceDropdownItemActive: {
+    backgroundColor: theme.colors.primary[50],
+  },
+  cadenceDropdownItemText: {
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.primary,
+  },
+  cadenceDropdownItemTextActive: {
+    color: theme.colors.interactive.primary,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  scheduleOrRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginVertical: theme.spacing[2],
+    gap: theme.spacing[3],
+  },
+  scheduleOrLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.border.light,
+  },
+  scheduleOrText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
+    fontWeight: theme.typography.fontWeight.medium,
+  },
+  scheduleSectionTitle: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing[2],
+  },
+  scheduleSubmitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[6],
+    backgroundColor: 'transparent',
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.medium,
+    borderColor: theme.colors.interactive.primary,
+  },
+  scheduleSubmitButtonDisabled: {
+    opacity: 0.6,
+  },
+  scheduleSubmitButtonText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.interactive.primary,
+  },
+  scheduleInProgressText: {
+    marginTop: theme.spacing[4],
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
+    textAlign: 'center',
   },
   // M8: Series navigation styles
   seriesNavigation: {

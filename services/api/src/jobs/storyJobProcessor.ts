@@ -178,14 +178,19 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
 
   let storyId: string;
 
-  if (job.isContinuation) {
-    const { processContinuationRequest } = await import('../services/storyOrchestrationService');
-    const result = await processContinuationRequest(job.requestId);
-    storyId = result.storyId;
-  } else {
-    const { processStoryRequest } = await import('../services/storyOrchestrationService');
-    const result = await processStoryRequest(job.requestId);
-    storyId = result.storyId;
+  const { processStoryRequest } = await import('../services/storyOrchestrationService');
+  const result = await processStoryRequest(job.requestId);
+  storyId = result.storyId;
+
+  if (result.isScheduledContinuation) {
+    // Scheduled continuation: add to batch_image_pending for batch worker, skip imageQueue
+    logger.info({ requestId: job.requestId, storyId }, 'Text generation completed, adding to batch_image_pending');
+    await getStoryRepository().insertBatchImagePending({
+      storyId,
+      requestId: job.requestId,
+      scheduleId: result.scheduleId ?? null,
+    });
+    return;
   }
 
   logger.info({ requestId: job.requestId, storyId }, 'Text generation completed, enqueuing image batch');
@@ -232,13 +237,8 @@ async function processImageGeneration(job: ImageGenerationJob): Promise<void> {
       isContinuation: job.isContinuation,
     }, 'Processing image batch');
 
-    if (job.isContinuation) {
-      const { processContinuationImages } = await import('../services/storyOrchestrationService');
-      await processContinuationImages(job.requestId);
-    } else {
-      const { processStoryImages } = await import('../services/storyOrchestrationService');
-      await processStoryImages(job.requestId);
-    }
+    const { processStoryImages } = await import('../services/storyOrchestrationService');
+    await processStoryImages(job.requestId);
 
     logger.info({ storyId: job.storyId, requestId: job.requestId }, 'Image batch completed');
   } else {
