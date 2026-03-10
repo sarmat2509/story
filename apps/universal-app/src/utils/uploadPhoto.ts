@@ -1,3 +1,4 @@
+import type { PhotoTypeUserUpload } from '@wondertales/shared';
 import { Platform } from 'react-native';
 import apiClient from '@/api/client';
 
@@ -14,7 +15,7 @@ export interface UploadPhotoResult {
  */
 export async function uploadPhoto(
   uri: string,
-  photoType: 'profile' | 'character' | 'child' = 'character'
+  photoType: PhotoTypeUserUpload = 'character'
 ): Promise<UploadPhotoResult> {
   try {
     // Create FormData

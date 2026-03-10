@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { isPhotoType } from '@wondertales/shared';
 import { getAssetRepository } from '../repositories';
 import { verifyToken } from '../services/jwtService';
 import { getSessionWithUser } from '../services/sessionService';
@@ -60,7 +61,7 @@ router.get('/:env/:userId/photos/:photoType/:filename', async (req: Request, res
     const { env, userId, photoType, filename } = req.params;
     
     // Validate photo type
-    if (!['character', 'child', 'profile', 'character_turnaround', 'child_turnaround'].includes(photoType)) {
+    if (!isPhotoType(photoType)) {
       return res.status(400).json({
         status: 'error',
         message: 'Invalid photo type'

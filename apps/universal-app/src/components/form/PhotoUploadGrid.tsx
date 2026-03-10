@@ -1,3 +1,4 @@
+import type { PhotoTypeUserUpload } from '@wondertales/shared';
 import React, { useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,7 +16,7 @@ interface PhotoUploadGridProps {
   onPhotosChange: (photos: Photo[]) => void;
   maxPhotos?: number;
   disabled?: boolean;
-  photoType?: 'profile' | 'character' | 'child';
+  photoType?: PhotoTypeUserUpload;
   formatUrl?: (url: string) => string | null; // Optional URL formatter for native platforms
 }
 

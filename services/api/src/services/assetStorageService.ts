@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import type { PhotoType } from '@wondertales/shared';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import crypto from 'crypto';
@@ -18,7 +19,7 @@ interface UploadUserPhotoParams {
   buffer: Buffer;
   mimeType: string;
   userId: string;
-  photoType: 'profile' | 'character' | 'child' | 'character_turnaround';
+  photoType: PhotoType;
 }
 
 interface AssetStorageResult {

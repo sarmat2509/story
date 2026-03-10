@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import { isPhotoTypeUserUpload } from '@wondertales/shared';
 import { requireAuth } from '../middleware/authMiddleware';
 import { getAssetStorageService } from '../services/assetStorageService';
 import { logger } from '../utils/logger';
@@ -38,8 +39,8 @@ router.post('/photo', requireAuth, upload.single('photo'), async (req, res) => {
     const userId = req.user!.id;
     const { photoType = 'character' } = req.body;
     
-    // Validate photoType
-    if (!['profile', 'character', 'child'].includes(photoType)) {
+    // Validate photoType (user upload only - no turnaround types)
+    if (!isPhotoTypeUserUpload(photoType)) {
       return res.status(400).json({
         status: 'error',
         error: 'Invalid photoType. Must be: profile, character, or child'
