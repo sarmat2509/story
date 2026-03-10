@@ -7,6 +7,7 @@ import {
   getDictionaryRepository,
   getEnvironmentImageCacheRepository,
   getStoryEnvironmentCacheRepository,
+  getAlignmentRepository,
 } from '../repositories';
 import type { CreateStoryRequestInput } from '@wondertales/shared';
 import { getStoryDomainService, getImageDomainService, getAudioDomainService, getEnvironmentImageProvider } from './aiService';
@@ -4281,6 +4282,17 @@ export async function getStoryManifest(storyId: string) {
   const config = (await import('../config')).config;
   const webAppUrl = config.web?.webAppUrl || 'https://app.wondertales.com';
 
+  // M6: Merge alignment from alignments table into audioMetadata (Phase 2)
+  // Alignment is stored in alignments table; manifest must include it for highlight toggle
+  let audioMetadata = story.audioMetadata;
+  if (audioMetadata && !(audioMetadata as any).error) {
+    const alignmentRow = await getAlignmentRepository().findByStoryId(storyId);
+    const alignment = alignmentRow?.data ?? (audioMetadata as any)?.alignment;
+    if (alignment) {
+      audioMetadata = { ...audioMetadata, alignment } as typeof audioMetadata;
+    }
+  }
+
   // Build manifest
   const manifest = {
     storyId: story.id,
@@ -4297,7 +4309,7 @@ export async function getStoryManifest(storyId: string) {
         : null,
     shareCardSceneId: story.shareCardSceneId ?? null,
     fullText: stripAllTags(story.fullText || ''),
-    audioMetadata: story.audioMetadata,
+    audioMetadata,
     // M8: Series fields
     seriesId: story.seriesId,
     partNumber: story.partNumber,
