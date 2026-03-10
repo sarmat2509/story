@@ -175,6 +175,7 @@ export default function StoryViewerScreen() {
   );
   
   // Set header title from database after story loads (with scenario breadcrumb)
+  const { data: seriesInfo } = useSeriesInfo(storyId);
   useEffect(() => {
     if (story?.title) {
       if (story.scenarioCardName) {
@@ -184,6 +185,12 @@ export default function StoryViewerScreen() {
               <TouchableOpacity onPress={() => navigation.navigate('Library', { scenarioCardId: story.scenarioCardId })}>
                 <Text style={styles.headerBreadcrumbLink}>{story.scenarioCardName}</Text>
               </TouchableOpacity>
+              {seriesInfo?.baseTitle && (
+                <>
+                  <Ionicons name="chevron-forward" size={14} color={theme.colors.text.tertiary} style={styles.headerBreadcrumbSeparator} />
+                  <Text style={styles.headerBreadcrumbMiddle} numberOfLines={1}>{seriesInfo.baseTitle}</Text>
+                </>
+              )}
               <Ionicons name="chevron-forward" size={14} color={theme.colors.text.tertiary} style={styles.headerBreadcrumbSeparator} />
               <Text style={styles.headerBreadcrumbCurrent} numberOfLines={1}>{story.title}</Text>
             </View>
@@ -195,7 +202,7 @@ export default function StoryViewerScreen() {
         });
       }
     }
-  }, [story?.title, story?.scenarioCardName, story?.scenarioCardId, navigation]);
+  }, [story?.title, story?.scenarioCardName, story?.scenarioCardId, seriesInfo?.baseTitle, navigation]);
   
   // Delete story mutation
   const deleteStory = useDeleteStory();
@@ -211,7 +218,6 @@ export default function StoryViewerScreen() {
   
   // M8: Series continuation
   const generateContinuation = useGenerateContinuation();
-  const { data: seriesInfo } = useSeriesInfo(storyId);
   
   // M8: Continuation progress tracking
   const [isContinuationGenerating, setIsContinuationGenerating] = useState(false);
@@ -1538,7 +1544,7 @@ export default function StoryViewerScreen() {
           }))
         }
         shareCardSceneId={story?.shareCardSceneId ?? null}
-        initialVisibility={story?.visibility === 'unlisted' ? 'unlisted' : 'public'}
+        initialVisibility={story?.visibility === 'unlisted' ? 'unlisted' : (story?.isPublished ? 'public' : 'unlisted')}
         openedFromShare={publishDialogOpenedFromShare}
       />
     </View>
@@ -2011,6 +2017,11 @@ const styles = StyleSheet.create({
   },
   headerBreadcrumbSeparator: {
     marginHorizontal: theme.spacing[1],
+  },
+  headerBreadcrumbMiddle: {
+    fontSize: theme.typography.fontSize.lg,
+    color: theme.colors.text.secondary,
+    flexShrink: 1,
   },
   headerBreadcrumbCurrent: {
     fontSize: theme.typography.fontSize.lg,
