@@ -1337,6 +1337,7 @@ export default function StoryViewerScreen() {
                     storyId={storyId}
                     audioUrl={playerAudioData.audioUrl}
                     duration={playerAudioData.duration}
+                    title={`🎧 ${t('story_viewer.audio_title')}`}
                     hasAlignment={!!story.audioMetadata?.alignment}
                     onHighlightToggle={handleHighlightToggle}
                     onPositionChange={handlePositionChangeWrapper}

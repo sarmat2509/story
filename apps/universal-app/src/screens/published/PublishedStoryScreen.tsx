@@ -235,6 +235,7 @@ export default function PublishedStoryScreen() {
             storyId={story.id}
             audioUrl={audioUrl}
             duration={typeof duration === 'number' ? duration : 0}
+            title={`🎧 ${t('story_viewer.audio_title')}`}
             hasAlignment={hasAlignment}
             onActivate={handleActivate}
             onHighlightToggle={handleHighlightToggle}
@@ -360,6 +361,7 @@ export default function PublishedStoryScreen() {
             storyId={story.id}
             audioUrl={audioUrl}
             duration={typeof duration === 'number' ? duration : 0}
+            title={`🎧 ${t('story_viewer.audio_title')}`}
             hasAlignment={hasAlignment}
             onActivate={handleActivate}
             onHighlightToggle={handleHighlightToggle}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Pressable, StyleSheet, ActivityIndicator, Platform, Switch } from 'react-native';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
 import { useAudioPlayerStore } from '@/store/audioPlayerStore';
 import { globalAudioService } from '@/services/globalAudioService';
@@ -140,7 +141,6 @@ export default function AudioPlayer({
     }
   };
 
-  const formatRate = (rate: number) => (rate === 1 ? '1x' : `${rate.toFixed(2)}x`);
 
   const roundToStep = (value: number) => {
     const steps = Math.round((value - RATE_MIN) / RATE_STEP);
@@ -382,32 +382,37 @@ export default function AudioPlayer({
       </View>
 
       {/* Playback speed slider (0.75–1.25) */}
-      <View style={styles.speedContainer}>
-        <Text style={styles.speedLabel}>{formatRate(playbackRate)}</Text>
-        <Pressable
-          ref={rateSliderRef}
-          style={styles.speedTrack}
-          onPress={handleRateSliderPress}
-        >
-          <View style={styles.speedTrackBg}>
+      <View style={styles.speedSection}>
+        <Text style={styles.speedSectionTitle}>{t('story_viewer.playback_speed')}</Text>
+        <View style={styles.speedContainer}>
+          <MaterialCommunityIcons
+            name="baby"
+            size={22}
+            color={theme.colors.text.tertiary}
+            style={styles.speedIcon}
+          />
+          <Pressable
+            ref={rateSliderRef}
+            style={styles.speedTrack}
+            onPress={handleRateSliderPress}
+          >
+            <View style={styles.speedTrackBg} />
             <View
               style={[
-                styles.speedTrackFill,
+                styles.speedThumb,
                 {
-                  width: `${((playbackRate - RATE_MIN) / (RATE_MAX - RATE_MIN)) * 100}%`,
+                  left: `${((playbackRate - RATE_MIN) / (RATE_MAX - RATE_MIN)) * 100}%`,
                 },
               ]}
             />
-          </View>
-          <View
-            style={[
-              styles.speedThumb,
-              {
-                left: `${((playbackRate - RATE_MIN) / (RATE_MAX - RATE_MIN)) * 100}%`,
-              },
-            ]}
+          </Pressable>
+          <MaterialCommunityIcons
+            name="run-fast"
+            size={22}
+            color={theme.colors.text.tertiary}
+            style={styles.speedIcon}
           />
-        </Pressable>
+        </View>
       </View>
 
       {/* Highlight Toggle (M6) - Show only if alignment data is available */}
@@ -445,10 +450,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.spacing[3],
   },
   title: {
-    fontSize: theme.typography.fontSize.base,
+    fontSize: theme.typography.fontSize.lg,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
-    marginBottom: theme.spacing[3],
+    textAlign: 'center',
+    marginBottom: theme.spacing[5],
   },
   playButton: {
     width: 64,
@@ -523,17 +529,26 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     minWidth: 40,
   },
+  speedSection: {
+    marginTop: theme.spacing[4],
+    paddingTop: theme.spacing[4],
+    borderTopWidth: theme.borders.width.thin,
+    borderTopColor: theme.colors.border.light,
+  },
+  speedSectionTitle: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+    marginBottom: theme.spacing[3],
+  },
   speedContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing[3],
-    marginTop: theme.spacing[4],
   },
-  speedLabel: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.text.secondary,
-    minWidth: 36,
+  speedIcon: {
+    width: 28,
   },
   speedTrack: {
     flex: 1,
@@ -544,12 +559,6 @@ const styles = StyleSheet.create({
   speedTrackBg: {
     height: 6,
     backgroundColor: theme.colors.border.light,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  speedTrackFill: {
-    height: '100%',
-    backgroundColor: theme.colors.interactive.primary,
     borderRadius: 3,
   },
   speedThumb: {
@@ -582,6 +591,7 @@ const styles = StyleSheet.create({
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: theme.spacing[3],
   },
   toggleLabel: {
@@ -593,7 +603,7 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
     marginTop: theme.spacing[2],
-    marginLeft: theme.spacing[11],
+    textAlign: 'center',
     lineHeight: theme.typography.lineHeight.normal * theme.typography.fontSize.sm,
   },
 });
