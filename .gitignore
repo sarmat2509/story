@@ -54,6 +54,7 @@ lerna-debug.log*
 *.tmp
 .cache/
 .temp/
+*.tar
 
 # React Native
 apps/mobile/.expo/
