@@ -289,17 +289,6 @@ export const useGenerateAlignment = () => {
   });
 };
 
-// Get audio usage stats for current user
-export const useAudioUsage = () => {
-  return useQuery({
-    queryKey: ['audio-usage'],
-    queryFn: async () => {
-      const response = await apiClient.get('/api/v1/stories/audio-usage');
-      return response.data.data;
-    },
-  });
-};
-
 // Delete story
 export const useDeleteStory = () => {
   const queryClient = useQueryClient();

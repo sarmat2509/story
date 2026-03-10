@@ -3,8 +3,9 @@ import { View, Text, ScrollView, Image, StyleSheet, ActivityIndicator, Touchable
 import { useRoute, RouteProp, useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
-import { useStory, useStoryGenerationStatus, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useAudioUsage, useDeleteStory, useGenerateContinuation, useSeriesInfo, useStoryStatus, usePublishStory } from '@/api/stories';
+import { useStory, useStoryGenerationStatus, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useDeleteStory, useGenerateContinuation, useSeriesInfo, useStoryStatus, usePublishStory } from '@/api/stories';
 import { useUpdateMe } from '@/api/auth';
+import { useSubscriptionUsage } from '@/api/plans';
 import { useVoices } from '@/api/voices';
 import { useUpdateCharacter } from '@/api/characters';
 import { useTranslation } from 'react-i18next';
@@ -150,8 +151,16 @@ export default function StoryViewerScreen() {
   const userPlan = voicesData?.meta?.userPlan || 'free';
   const hasPremiumAccess = voicesData?.meta?.hasPremiumAccess || false;
   
-  // Audio usage stats
-  const { data: audioUsage } = useAudioUsage();
+  // Audio usage stats (from subscription-usage)
+  const { data: subscriptionUsage } = useSubscriptionUsage();
+  const audioUsage = subscriptionUsage?.audio
+    ? {
+        used: subscriptionUsage.audio.used,
+        limit: subscriptionUsage.audio.limit,
+        remaining: subscriptionUsage.audio.remaining,
+        resetsAt: subscriptionUsage.resetsAt,
+      }
+    : undefined;
   
   // Track which story is currently being viewed so MiniAudioPlayer can hide.
   // useFocusEffect (not useEffect) because Drawer/Tab navigators keep screens
@@ -783,7 +792,7 @@ export default function StoryViewerScreen() {
       setLimitInfo(null);
       
       // Invalidate usage query to show updated counter
-      queryClient.invalidateQueries({ queryKey: ['audio-usage'] });
+      queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
       
       toastService.info(
         'Готуємо аудіосказку',

@@ -24,6 +24,24 @@ export const usePlans = () => {
   });
 };
 
+export interface SubscriptionUsageData {
+  stories: { used: number; limit: number; remaining: number };
+  audio: { used: number; limit: number; remaining: number };
+  resetsAt: string;
+}
+
+export const useSubscriptionUsage = () => {
+  return useQuery({
+    queryKey: ['subscription-usage'],
+    queryFn: async () => {
+      const response = await apiClient.get<{ status: string; data: SubscriptionUsageData }>(
+        '/api/v1/me/subscription-usage'
+      );
+      return response.data.data;
+    },
+  });
+};
+
 // Get plans with current plan info (authenticated only)
 export const usePlansWithAuth = () => {
   return useQuery({
@@ -55,7 +73,7 @@ export const useUpgradePlan = () => {
       // Invalidate plans cache to refetch with new current plan
       queryClient.invalidateQueries({ queryKey: ['plans'] });
       queryClient.invalidateQueries({ queryKey: ['plans', 'with-auth'] });
-      queryClient.invalidateQueries({ queryKey: ['audio-usage'] });
+      queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
     },
   });
 };
