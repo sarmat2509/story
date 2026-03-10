@@ -9,22 +9,74 @@ import { getAllAudioTags } from '../constants/audioTags';
 const ALLOWED_AUDIO_TAGS = new Set(getAllAudioTags().map((t) => t.toLowerCase()));
 
 /**
+ * Remove ALL tags from text (for UI, image generation, storage).
+ * Strips tags but KEEPS the text inside them:
+ *   - <tag>content</tag> → content (remove tags, keep inner text)
+ *   - <tag ... /> → '' (self-closing, nothing to keep)
+ *   - [content] → '' (square brackets: audio tags, character IDs — metadata only)
+ *
+ * Use this when displaying or persisting story text without markup.
+ */
+export function stripAllTags(text: string): string {
+  if (!text) return text;
+
+  let result = text;
+
+  // Replace <tag>content</tag> with content (keep inner text, remove tags)
+  // Use a loop to handle nested tags (innermost first)
+  let prev = '';
+  while (prev !== result) {
+    prev = result;
+    result = result.replace(/<[^>]+>([\s\S]*?)<\/[^>]+>/gi, '$1');
+  }
+
+  // Remove self-closing tags: <tag ... />
+  result = result.replace(/<[^>]+\/>/gi, '');
+
+  // Remove any remaining orphan tags (<tag> or </tag>)
+  result = result.replace(/<\/?[^>]+>/gi, '');
+
+  // Remove [content] in square brackets (metadata: audio tags, character IDs)
+  result = result.replace(/\[[^\]]*\]/g, '');
+
+  return result.replace(/\s{2,}/g, ' ').trim();
+}
+
+/**
+ * Remove HTML <audio> tags from text.
+ * Handles <audio>...</audio> and self-closing <audio ... />.
+ */
+export function stripHtmlAudioTags(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/<audio[^>]*>[\s\S]*?<\/audio>/gi, '')
+    .replace(/<audio[^>]*\/>/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/**
  * Remove all audio tags from text (for UI, image generation).
- * Strips [tag] patterns while preserving text structure.
+ * Strips [tag] patterns (ElevenLabs) and HTML <audio> tags while preserving text structure.
  *
  * Examples:
  *   "[excited] Hello!" => "Hello!"
  *   "She said [whispers] quietly" => "She said quietly"
- *   "[gasps] Oh no! [long pause] What happened?" => "Oh no! What happened?"
+ *   "<audio src='x'>text</audio>Hello" => "Hello"
  */
 export function stripAudioTags(text: string): string {
   if (!text) return text;
 
+  // Remove HTML <audio> tags first
+  let result = stripHtmlAudioTags(text);
+
   // Remove audio tags pattern: [word] or [word word]
-  return text
+  result = result
     .replace(/\[([a-zA-Z\s]+)\]/g, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
+
+  return result;
 }
 
 /**
@@ -49,7 +101,7 @@ export function stripCharacterIds(text: string): string {
 /**
  * Prepare text for audio synthesis: remove all [X] except allowed audio tags.
  *
- * Use this before passing text to TTS. For UI/image use stripCharacterIds(stripAudioTags(text)).
+ * Use this before passing text to TTS. For UI/image use stripAllTags(text).
  */
 export function stripForAudio(text: string): string {
   if (!text) return text;
