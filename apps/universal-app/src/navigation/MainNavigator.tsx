@@ -29,7 +29,6 @@ import PlansScreen from '@/screens/plans/PlansScreen';
 import ProfileScreen from '@/screens/profile/ProfileScreen';
 import LanguageSettingsScreen from '@/screens/profile/LanguageSettingsScreen';
 import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
-import { LanguageDropdown } from '@/components/LanguageDropdown';
 import { MiniAudioPlayer } from '@/components/MiniAudioPlayer';
 import { useMainNavigationStore } from '@/store/mainNavigationStore';
 import { useDrawerCollapsedStore } from '@/store/drawerCollapsedStore';
@@ -554,7 +553,6 @@ function DrawerNavigator() {
         drawerInactiveTintColor: theme.colors.text.tertiary,
         drawerStyle: { width: drawerWidth },
         headerLeft: (isTablet || isDesktop) ? () => <DrawerBurgerButton /> : undefined,
-        headerRight: () => <LanguageDropdown />,
       }}
     >
       <Drawer.Screen
