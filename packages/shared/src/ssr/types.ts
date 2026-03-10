@@ -26,6 +26,8 @@ export interface StoryPublicView {
     ogImageUrl: string;
   };
   publicRenderVersion: number;
+  /** Present when count > 0 */
+  rating?: { avg: number; count: number };
 }
 
 export interface StoryMetaParams {

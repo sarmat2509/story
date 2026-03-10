@@ -177,6 +177,11 @@
     "page_not_found_message": "Die gesuchte Seite existiert nicht oder wurde verschoben.",
     "go_home": "Zur Startseite"
   },
+  "story_rating": {
+    "heading": "Hat Ihnen die Geschichte gefallen?",
+    "thank_you": "Danke, Ihre Stimme wurde angenommen",
+    "already_voted": "Sie haben bereits abgestimmt"
+  },
   "story_viewer": {
     "create_audio": "Audiogeschichte Erstellen",
     "audio_generating": "Audiogeschichte wird vorbereitet...",

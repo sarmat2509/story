@@ -2,6 +2,7 @@ import React from 'react';
 import { TouchableOpacity, View, Text, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { StoryAudioMetadata } from '@wondertales/shared';
+import { emojiForAvg } from '@wondertales/shared';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 
@@ -13,6 +14,7 @@ export interface PublicStoryListItem {
   scenes?: Array<{ sceneId: number; imageUrl?: string | null }>;
   hasAudio?: boolean;
   audioMetadata?: StoryAudioMetadata | null;
+  rating?: { avg: number; count: number };
 }
 
 interface Props {
@@ -50,6 +52,11 @@ export function PublishedStoryCard({ story, onPress, variant, cardWidth }: Props
             <Text style={styles.gridAuthor} numberOfLines={1}>
               {story.authorDisplayName || 'Anonymous'}
             </Text>
+            {story.rating && story.rating.count > 0 && (
+              <Text style={styles.gridRating}>
+                {emojiForAvg(story.rating.avg)} {story.rating.avg.toFixed(1)} ({story.rating.count})
+              </Text>
+            )}
           </View>
         </TouchableOpacity>
         {hasAudio && (
@@ -82,6 +89,11 @@ export function PublishedStoryCard({ story, onPress, variant, cardWidth }: Props
           <Text style={styles.listAuthor} numberOfLines={1}>
             {story.authorDisplayName || 'Anonymous'}
           </Text>
+          {story.rating && story.rating.count > 0 && (
+            <Text style={styles.listRating}>
+              {emojiForAvg(story.rating.avg)} {story.rating.avg.toFixed(1)} ({story.rating.count})
+            </Text>
+          )}
         </View>
         {hasAudio && (
           <View style={styles.audioBadgeList}>
@@ -124,6 +136,11 @@ const styles = StyleSheet.create({
   gridAuthor: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
+  },
+  gridRating: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing[1],
   },
   audioBadge: {
     position: 'absolute',
@@ -169,6 +186,11 @@ const styles = StyleSheet.create({
   listAuthor: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
+  },
+  listRating: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing[1],
   },
   audioBadgeList: {
     marginRight: theme.spacing[4],

@@ -70,6 +70,20 @@ export const oauthLimiter = rateLimit({
   skipSuccessfulRequests: false, // Count all requests
 });
 
+// Rate limiter for public story rating (POST /rating)
+export const ratingLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 rating submissions per IP per 15 min
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req),
+  message: {
+    status: 'error',
+    message: 'Too many rating requests from this IP, please try again later',
+  },
+  skip: () => process.env.NODE_ENV === 'development',
+});
+
 // Rate limiter for API endpoints (after auth)
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

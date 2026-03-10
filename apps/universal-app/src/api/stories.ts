@@ -375,6 +375,23 @@ export function usePublishStory() {
   });
 }
 
+/**
+ * Submit story rating (1-5). Public or unlisted.
+ * @param slugOrToken - published slug or share token
+ * @param isUnlisted - true for unlisted (uses /api/v1/public/u/:token/rating)
+ */
+export async function submitStoryRating(
+  slugOrToken: string,
+  rating: number,
+  voterId: string,
+  isUnlisted: boolean
+): Promise<void> {
+  const url = isUnlisted
+    ? `/api/v1/public/u/${slugOrToken}/rating`
+    : `/api/v1/public/stories/${slugOrToken}/rating`;
+  await apiClient.post(url, { rating, voterId });
+}
+
 // List published stories (public catalog)
 export function usePublishedStories(params?: {
   limit?: number;

@@ -8,6 +8,7 @@
 import type { StoryPublicView } from './types';
 import { escapeHtml } from './escapeHtml';
 import { getReadingTimeMinutes } from '../utils/readingTime';
+import { emojiForAvg } from '../utils/ratingEmojis';
 
 export interface PublishedStoryLayoutParams {
   story: StoryPublicView;
@@ -56,7 +57,12 @@ export function renderPublishedStoryLayout(params: PublishedStoryLayoutParams): 
     ? `<div class="sidebar-widget"><audio controls src="${escapeHtml(audioUrl)}"></audio></div>`
     : '';
 
-  const sidebarContent = [readingTimeHtml, audioWidget].filter(Boolean).join('');
+  const ratingHtml =
+    story.rating && story.rating.count > 0
+      ? `<div class="sidebar-widget rating-display"><span class="rating-text">${emojiForAvg(story.rating.avg)} ${story.rating.avg.toFixed(1)} (${story.rating.count})</span></div>`
+      : '';
+
+  const sidebarContent = [readingTimeHtml, audioWidget, ratingHtml].filter(Boolean).join('');
   const sidebar = sidebarContent
     ? `<aside class="sidebar"><div class="sidebar-sticky">${sidebarContent}</div></aside>`
     : '';

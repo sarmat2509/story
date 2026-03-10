@@ -177,6 +177,11 @@
     "page_not_found_message": "La page que vous recherchez n'existe pas ou a été déplacée.",
     "go_home": "Retour à l'accueil"
   },
+  "story_rating": {
+    "heading": "L'histoire vous a plu ?",
+    "thank_you": "Merci, votre vote a été accepté",
+    "already_voted": "Vous avez déjà voté"
+  },
   "story_viewer": {
     "create_audio": "Créer une Histoire Audio",
     "audio_generating": "Préparation de l'histoire audio...",

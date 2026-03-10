@@ -689,6 +689,11 @@
     "personality_trait_placeholder": "Додати рису характеру...",
     "favorite_activity_placeholder": "Додати улюблене заняття..."
   },
+  "story_rating": {
+    "heading": "Чи сподобалась історія?",
+    "thank_you": "Дякуємо, ваш голос прийнято",
+    "already_voted": "Ви вже проголосували"
+  },
   "story_viewer": {
     "untitled_story": "Історія",
     "create_audio": "Створити аудіоказку",

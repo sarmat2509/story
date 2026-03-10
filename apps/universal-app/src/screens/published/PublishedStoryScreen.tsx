@@ -20,6 +20,7 @@ import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 import { Ionicons } from '@expo/vector-icons';
 import { PublishedStoryCta } from '@/components/PublishedStoryCta';
+import { StoryRatingWidget } from '@/components/StoryRatingWidget';
 import AudioPlayer from '@/components/AudioPlayer';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { globalAudioService } from '@/services/globalAudioService';
@@ -45,7 +46,8 @@ export default function PublishedStoryScreen() {
 
   const publicQuery = usePublicStory(slug, !!slug && !token);
   const tokenQuery = usePublicStoryByToken(token, !!token);
-  const { data: story, isLoading, error } = token ? tokenQuery : publicQuery;
+  const activeQuery = token ? tokenQuery : publicQuery;
+  const { data: story, isLoading, error, refetch } = activeQuery;
 
   useLayoutEffect(() => {
     if (story?.title) {
@@ -241,6 +243,16 @@ export default function PublishedStoryScreen() {
         </View>
       )}
 
+      {!useDesktopLayout && (
+        <StoryRatingWidget
+          storyId={story.id}
+          slugOrToken={token || slug}
+          isUnlisted={!!token}
+          rating={story.rating}
+          onVoted={refetch}
+        />
+      )}
+
       <View style={styles.scenesSection}>
         {(story.scenes ?? []).map((scene: any, index: number) => {
           const imgUrl = scene.imageUrl ? formatAssetUrl(scene.imageUrl) : null;
@@ -355,6 +367,13 @@ export default function PublishedStoryScreen() {
           />
         </View>
       )}
+      <StoryRatingWidget
+        storyId={story.id}
+        slugOrToken={token || slug}
+        isUnlisted={!!token}
+        rating={story.rating}
+        onVoted={refetch}
+      />
       {isAuthenticated && isOwner && (
         <TouchableOpacity
           style={styles.editButtonSidebar}

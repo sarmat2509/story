@@ -113,6 +113,16 @@ export async function buildStoryPublicView(
       ogImageUrl,
     },
     publicRenderVersion: story.publicRenderVersion ?? 1,
+    ...(buildRatingFromStory(story)),
+  };
+}
+
+function buildRatingFromStory(story: { ratingSum?: number | null; ratingCount?: number | null }): { rating?: { avg: number; count: number } } {
+  const count = story.ratingCount ?? 0;
+  if (count === 0) return {};
+  const sum = story.ratingSum ?? 0;
+  return {
+    rating: { avg: sum / count, count },
   };
 }
 
@@ -222,6 +232,7 @@ export interface PublicStoryListItem {
   hasAudio: boolean;
   scenarioCardId: string | null;
   shareUrl: string;
+  rating?: { avg: number; count: number };
 }
 
 export async function listPublicStories(options: {
@@ -273,6 +284,7 @@ export async function listPublicStories(options: {
         hasAudio: !!s.audioMetadata,
         scenarioCardId: scenarioCardId ?? null,
         shareUrl: `${webAppUrl}/stories/${s.publishedSlug}`,
+        ...buildRatingFromStory(s),
       };
     });
 

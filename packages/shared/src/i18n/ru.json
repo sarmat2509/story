@@ -493,6 +493,11 @@
     "personality_trait_placeholder": "Добавить черту характера...",
     "favorite_activity_placeholder": "Добавить любимое занятие..."
   },
+  "story_rating": {
+    "heading": "Понравилась история?",
+    "thank_you": "Спасибо, ваш голос принят",
+    "already_voted": "Вы уже проголосовали"
+  },
   "story_viewer": {
     "untitled_story": "История",
     "create_audio": "Создать аудиосказку",

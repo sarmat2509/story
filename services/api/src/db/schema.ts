@@ -453,6 +453,9 @@ export const stories = pgTable('stories', {
   shareCardSceneId: integer('share_card_scene_id'), // 0-based scene index for og:image. NULL = first
   publicRenderVersion: integer('public_render_version').default(1), // Bump on publish/unpublish/audio/alignment/theme
 
+  ratingSum: integer('rating_sum').default(0).notNull(),
+  ratingCount: integer('rating_count').default(0).notNull(),
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {
@@ -464,6 +467,22 @@ export const stories = pgTable('stories', {
     createdAtIdx: index('stories_created_at_idx').on(table.createdAt),
     seriesIdIdx: index('stories_series_id_idx').on(table.seriesId),
     shareTokenIdx: index('stories_share_token_idx').on(table.shareToken),
+  };
+});
+
+// Story ratings (public voting, 1-5 emoji scale)
+export const storyRatings = pgTable('story_ratings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  storyId: uuid('story_id').references(() => stories.id, { onDelete: 'cascade' }).notNull(),
+  voterId: varchar('voter_id', { length: 64 }).notNull(),
+  ipAddress: inet('ip_address').notNull(),
+  rating: integer('rating').notNull(), // 1-5
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    storyIdIdx: index('idx_story_ratings_story').on(table.storyId),
+    uniqueVoterIdx: uniqueIndex('story_ratings_story_voter_unique').on(table.storyId, table.voterId),
+    uniqueIpIdx: uniqueIndex('story_ratings_story_ip_unique').on(table.storyId, table.ipAddress),
   };
 });
 
@@ -542,6 +561,9 @@ export type NewStory = typeof stories.$inferInsert;
 
 export type StoryCharacter = typeof storyCharacters.$inferSelect;
 export type NewStoryCharacter = typeof storyCharacters.$inferInsert;
+
+export type StoryRating = typeof storyRatings.$inferSelect;
+export type NewStoryRating = typeof storyRatings.$inferInsert;
 
 export type AiUsageEvent = typeof aiUsageEvents.$inferSelect;
 export type NewAiUsageEvent = typeof aiUsageEvents.$inferInsert;

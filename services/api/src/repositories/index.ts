@@ -23,6 +23,7 @@ import { EnvironmentImageCacheRepository } from './EnvironmentImageCacheReposito
 import { StoryEnvironmentCacheRepository } from './StoryEnvironmentCacheRepository';
 import { AlignmentRepository } from './AlignmentRepository';
 import { AiUsageRepository } from './AiUsageRepository';
+import { StoryRatingRepository } from './StoryRatingRepository';
 
 // Re-export classes for type usage
 export { UserRepository } from './UserRepository';
@@ -41,6 +42,7 @@ export { EnvironmentImageCacheRepository } from './EnvironmentImageCacheReposito
 export { StoryEnvironmentCacheRepository } from './StoryEnvironmentCacheRepository';
 export { AlignmentRepository } from './AlignmentRepository';
 export { AiUsageRepository } from './AiUsageRepository';
+export { StoryRatingRepository } from './StoryRatingRepository';
 
 // Singleton instances
 let userRepo: UserRepository;
@@ -59,6 +61,7 @@ let environmentImageCacheRepo: EnvironmentImageCacheRepository;
 let storyEnvironmentCacheRepo: StoryEnvironmentCacheRepository;
 let alignmentRepo: AlignmentRepository;
 let aiUsageRepo: AiUsageRepository;
+let storyRatingRepo: StoryRatingRepository;
 
 export function getUserRepository(): UserRepository {
   if (!userRepo) userRepo = new UserRepository(db);
@@ -140,4 +143,9 @@ export function getAlignmentRepository(): AlignmentRepository {
 export function getAiUsageRepository(): AiUsageRepository {
   if (!aiUsageRepo) aiUsageRepo = new AiUsageRepository(db);
   return aiUsageRepo;
+}
+
+export function getStoryRatingRepository(): StoryRatingRepository {
+  if (!storyRatingRepo) storyRatingRepo = new StoryRatingRepository(db);
+  return storyRatingRepo;
 }

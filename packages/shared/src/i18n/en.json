@@ -502,6 +502,11 @@
     "personality_trait_placeholder": "Add trait...",
     "favorite_activity_placeholder": "Add activity..."
   },
+  "story_rating": {
+    "heading": "Did you like the story?",
+    "thank_you": "Thank you, your vote has been accepted",
+    "already_voted": "You have already voted"
+  },
   "story_viewer": {
     "untitled_story": "Story",
     "create_audio": "Create Audio Story",

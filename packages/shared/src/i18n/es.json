@@ -435,6 +435,11 @@
     "page_not_found_message": "La página que buscas no existe o ha sido movida.",
     "go_home": "Ir al inicio"
   },
+  "story_rating": {
+    "heading": "¿Te gustó la historia?",
+    "thank_you": "Gracias, tu voto ha sido aceptado",
+    "already_voted": "Ya has votado"
+  },
   "story_viewer": {
     "create_audio": "Crear Audiocuento",
     "audio_generating": "Preparando audiocuento...",
