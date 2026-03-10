@@ -3,7 +3,7 @@
  * Functions for building prompts for image generation with character consistency
  */
 
-import { stripAudioTags, stripCharacterIds } from '../../utils/audioTags';
+import { stripAllTags } from '../../utils/audioTags';
 import { logger } from '../../utils/logger';
 import { flattenCameraComposition, type SceneVisual } from '../../services/types';
 import type { StoryEnvironment } from '../../ai/types';
@@ -74,7 +74,7 @@ export function buildSceneImagePrompt(params: {
   }
 
   // --- Legacy fallback (old stories with string visualPrompt) ---
-  const cleanVisualPrompt = stripCharacterIds(stripAudioTags(params.visualPrompt || ''));
+  const cleanVisualPrompt = stripAllTags(params.visualPrompt || '');
 
   if (params.hasReferences) {
     const characterLines = buildCharacterSection(
@@ -84,7 +84,7 @@ export function buildSceneImagePrompt(params: {
       params.imageIndexMap,
     );
     const charSection = characterLines ? `\n\n${characterLines}` : '';
-    return `${stylePrefix}, ${cleanVisualPrompt}${charSection}, ${safetyAdditions}. Do not include any text or letters in the image.`;
+    return `${stylePrefix}, ${cleanVisualPrompt}${charSection}, ${safetyAdditions}. Do not include any text, letters, captions, or character name labels in the image.`;
   }
 
   // Non-reference legacy path (Imagen 3)
@@ -162,6 +162,9 @@ function buildStructuredPrompt(params: {
   if (sceneVisual.lighting) {
     sections.push(`- Lighting: ${sceneVisual.lighting}`);
   }
+
+  // Safety and format: no text, no character captions/labels
+  sections.push(`- CRITICAL: No text, no letters, no words, no character names, no captions, no labels anywhere on the image. Pure visual illustration only. ${params.safetyAdditions}`);
 
   return sections.join('\n');
 }
@@ -357,7 +360,7 @@ export function buildImageSystemInstruction(params: {
 
   // Format rules
   sections.push(
-    'FORMAT: Single full-bleed illustration filling the frame edge-to-edge. No text, no speech bubbles.',
+    'FORMAT: Single full-bleed illustration filling the frame edge-to-edge. No text, no speech bubbles, no character name labels, no captions under characters, no written words anywhere. Pure visual storytelling only.',
   );
 
   // Reference image rules (only when turnaround sheets are attached)

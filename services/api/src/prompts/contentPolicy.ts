@@ -129,6 +129,7 @@ function buildImageNegativePrompt(ageGroup: string, isScaryStory: boolean): stri
     'text', 'letters', 'words', 'writing', 'typography', 'font',
     'watermark', 'logo', 'signature', 'label', 'sign', 'banner',
     'speech bubbles', 'dialogue bubbles', 'text bubbles', 'captions',
+    'character captions', 'character name labels', 'name labels',
     'subtitles', 'written text', 'words on image', 'text on screen',
     'text on objects', 'text on clothing', 'text on buildings',
     'numbers', 'digits', 'symbols on image', 'written symbols',
