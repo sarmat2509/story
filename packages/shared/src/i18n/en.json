@@ -650,6 +650,7 @@
     "privacy_settings": "Privacy Settings",
     "subscription": "Subscription",
     "stories_per_month": "{{count}} stories per month",
+    "usage_remaining": "{{stories}} stories and {{audio}} audio stories left until {{date}}",
     "upgrade_plan": "Upgrade Plan",
     "support": "Support",
     "help_center": "Help Center",

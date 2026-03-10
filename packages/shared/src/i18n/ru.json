@@ -631,6 +631,7 @@
     "privacy_settings": "Настройки приватности",
     "subscription": "Подписка",
     "stories_per_month": "{{count}} историй в месяц",
+    "usage_remaining": "Осталось {{stories}} сказок и {{audio}} аудиосказок до {{date}}",
     "upgrade_plan": "Обновить план",
     "support": "Поддержка",
     "help_center": "Центр помощи",

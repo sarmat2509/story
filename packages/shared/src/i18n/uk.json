@@ -831,6 +831,7 @@
     "privacy_settings": "Налаштування приватності",
     "subscription": "Підписка",
     "stories_per_month": "{{count}} історій на місяць",
+    "usage_remaining": "Залишилось {{stories}} казок та {{audio}} аудіоказок до {{date}}",
     "upgrade_plan": "Оновити план",
     "support": "Підтримка",
     "help_center": "Центр допомоги",
