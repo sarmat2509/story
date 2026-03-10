@@ -34,10 +34,11 @@ export async function createStoryStub(params: CreateStoryStubParams): Promise<st
     modelVersion: null,
     generationTimeMs: null,
     metadata: null,
-    policyChecks: null,
-    isPublished: false,
-    isFavorite: false,
-    ...(params.seriesData && {
+        policyChecks: null,
+        isPublished: false,
+        isFavorite: false,
+        visibility: null,
+        ...(params.seriesData && {
       seriesId: params.seriesData.seriesId,
       partNumber: params.seriesData.partNumber,
     }),
@@ -68,6 +69,7 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
           modelVersion: (params.metadata as any).modelVersion || 'gemini-2.5-flash',
           generationTimeMs: params.generationTimeMs,
           isPublished: !!params.seriesData,
+          ...(params.seriesData ? {} : { visibility: null }),
           metadata: {
             llmGeneratedCharacters: llmCharacters,
             imageStyle: (params.spec as any).imageStyle,
@@ -79,6 +81,11 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
             validationTimeMs: params.metadata.validationTimeMs,
             sceneCount: params.metadata.sceneCount,
             fullTextLength: params.metadata.fullTextLength,
+            ...((params.text as any).environments &&
+              Array.isArray((params.text as any).environments) &&
+              (params.text as any).environments.length > 0 && {
+                environments: (params.text as any).environments,
+              }),
           },
           policyChecks: {
             outlineValidated: true,
@@ -174,6 +181,11 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
           validationTimeMs: params.metadata.validationTimeMs,
           sceneCount: params.metadata.sceneCount,
           fullTextLength: params.metadata.fullTextLength,
+          ...((params.text as any).environments &&
+            Array.isArray((params.text as any).environments) &&
+            (params.text as any).environments.length > 0 && {
+              environments: (params.text as any).environments,
+            }),
         },
         policyChecks: {
           outlineValidated: true,

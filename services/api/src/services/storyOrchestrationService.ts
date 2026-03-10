@@ -25,7 +25,7 @@ import { buildPolicyProfile } from './policyService';
 import { getGenerationCoefficients } from './generationTimeService';
 import type { StorySpec, StoryEnvironment, ImageValidationResult } from '../ai/types';
 import { logger } from '../utils/logger';
-import { stripCharacterIds, stripAudioTags } from '../utils/audioTags';
+import { stripCharacterIds, stripAllTags } from '../utils/audioTags';
 import { parseCharacterOutfitsString, serializeCharacterOutfitsToStr } from '../utils/characterOutfits';
 import type { CharacterReference } from '../prompts/image';
 import { buildImageSystemInstruction, buildEnvironmentImagePrompt } from '../prompts/image';
@@ -253,29 +253,32 @@ export async function createContinuationRequest(
  */
 export async function processStoryRequest(requestId: string): Promise<{ storyId: string }> {
   const startTime = Date.now();
-  
+
   try {
-    logger.info({ requestId }, 'Processing story request');
-    
-    // Get request details with intermediate data
     const request = await getStoryRepository().findRequestById(requestId);
-    
+
     if (!request) {
       throw new Error(`Story request ${requestId} not found`);
     }
-    
-    // Update status to 'processing' at the start
+
+    const intermediateData = (request.intermediateData as any) || {};
+    const isContinuation = !!intermediateData.isContinuation;
+    const { seriesId, partNumber, continuationContext } = intermediateData;
+
+    if (isContinuation && (!seriesId || !continuationContext)) {
+      throw new Error('Invalid continuation request: missing series context');
+    }
+
+    logger.info({ requestId, isContinuation }, 'Processing story request');
+
     await getStoryRepository().updateRequest(requestId, {
       status: 'processing',
       updatedAt: new Date(),
     });
-    
-    logger.info({ requestId }, 'Status updated to processing');
-    
-    // Check for existing checkpoints (from previous failed attempt)
-    const checkpoints = (request.intermediateData as any) || {};
+
+    const checkpoints = intermediateData;
     let storyId: string | undefined = checkpoints.storyId;
-    
+
     let text, mergedCharacters, spec, selectedCharacters;
     let textGenerationTimeMs: number | undefined;
     let validationTimeMs: number | undefined;
@@ -298,8 +301,13 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
       // Text Generation (direct, 1-step)
       // ========================================
       
-      // Build story spec
-      const specData = await buildStorySpec(request);
+      // Build story spec (with continuationContext when continuation)
+      const reqForSpec: StoryRequestData = {
+        ...request,
+        selectedCharacters: Array.isArray(request.selectedCharacters) ? request.selectedCharacters : [],
+        selectedChildren: Array.isArray(request.selectedChildren) ? request.selectedChildren : [],
+      };
+      const specData = await buildStorySpec(reqForSpec, isContinuation ? { continuationContext } : undefined);
       spec = specData.spec;
       selectedCharacters = specData.selectedCharacters;
       chosenPlotExampleId = specData.chosenPlotExampleId;
@@ -319,6 +327,7 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
           storyRequestId: request.id,
           childProfileId: request.childProfileId,
           spec,
+          ...(isContinuation && seriesId && partNumber && { seriesData: { seriesId, partNumber } }),
         });
         Object.assign(checkpoints, { storyId });
         await getStoryRepository().updateRequest(requestId, {
@@ -330,27 +339,40 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
       // Task 1: Generate Text (with timing)
       const textGenStart = Date.now();
       await startTask(requestId, STORY_TASKS.GENERATING_TEXT, { estimatedMs: coefficients.avgTextMs });
+
+      const textGenOptions = {
+        onUsage: (u: any) => recordUsage(u, usageContext),
+        ...(isContinuation &&
+          continuationContext && {
+            isContinuation: true,
+            continuationContext: {
+              previousOutlines: continuationContext.previousOutlines,
+              requiredCharacters: continuationContext.requiredCharacters,
+              optionalCharacters: continuationContext.optionalCharacters || [],
+              usedPlots: continuationContext.usedPlots || [],
+              previousEnvironments: continuationContext.previousEnvironments || [],
+            },
+          }),
+      };
+
       if (config.features.useDirectorFlow) {
-        const plainText = await storyDomain.generateTextPlain(spec, {
-          onUsage: (u) => recordUsage(u, usageContext),
-        });
+        const plainText = await storyDomain.generateTextPlain(spec, textGenOptions);
         const imagesPerStory = userPlan.imagesPerStory || 0;
         const blocks = composeScenesIntoBlocks(plainText.scenes, imagesPerStory);
+        const userCharacters = selectedCharacters.map((c: any) => ({ id: c.id, name: c.name }));
         const directorResult = await storyDomain.callDirector(
           {
             blocks,
             imagesPerStory,
             spec,
-            userCharacters: selectedCharacters.map((c: any) => ({ id: c.id, name: c.name })),
+            userCharacters,
           },
           { onUsage: (u) => recordUsage(u, usageContext) }
         );
         text = mergeDirectorIntoText(plainText, directorResult, imagesPerStory);
         text.language = spec.language;
       } else {
-        text = await storyDomain.generateText(spec, {
-          onUsage: (u) => recordUsage(u, usageContext),
-        });
+        text = await storyDomain.generateText(spec, textGenOptions);
       }
       textGenerationTimeMs = Date.now() - textGenStart;
       await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
@@ -495,11 +517,26 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
           imageStyle: (spec as any).imageStyle,
           ...((text as any).description && { seoDescription: (text as any).description }),
         },
+        ...(isContinuation && seriesId && partNumber && { seriesData: { seriesId, partNumber } }),
       });
-
     }
+
+    if (isContinuation && seriesId && partNumber) {
+      const createdStory = await getStoryRepository().findById(storyId);
+      if (createdStory) {
+        const { addContinuationToSeries } = await import('./seriesService');
+        await addContinuationToSeries(seriesId, storyId, createdStory);
+        logger.info({ requestId, storyId, seriesId, partNumber }, 'Added continuation to series');
+      }
+    }
+
     // Save checkpoint 4: ensure processStoryImages has storyId, validatedText, spec, mergedCharacters
-    Object.assign(checkpoints, { storyId, validatedText: text, text });
+    Object.assign(checkpoints, {
+      storyId,
+      validatedText: text,
+      text,
+      ...(isContinuation && { isContinuation: true, seriesId, partNumber }),
+    });
     await getStoryRepository().updateRequest(requestId, {
       intermediateData: {
         ...checkpoints,
@@ -509,6 +546,12 @@ export async function processStoryRequest(requestId: string): Promise<{ storyId:
         spec: { ...spec, policyProfile: undefined },
         mergedCharacters,
         selectedCharacters,
+        ...(isContinuation && {
+          isContinuation: true,
+          seriesId,
+          partNumber,
+          continuationContext: continuationContext || checkpoints.continuationContext,
+        }),
       },
     });
     logger.info({ requestId, storyId, checkpoint: 'story_saved' }, 'Checkpoint 4 saved');
@@ -615,12 +658,30 @@ function fillCharacterOutfitsFromScenes(text: any, requestId: string): void {
 
 /**
  * Build environment map from text output.
+ * When previousEnvironments provided (continuation), seeds map first so reused env IDs have full description.
  * Fallback: if scenes reference environmentIds not in environments array (LLM schema violation),
  * create synthetic environments from the first scene's sceneVisual.setting so env images can be generated.
  */
-function buildEnvironmentMapFromText(text: any, requestId: string): Map<string, StoryEnvironment> {
+function buildEnvironmentMapFromText(
+  text: any,
+  requestId: string,
+  options?: { previousEnvironments?: StoryEnvironment[] }
+): Map<string, StoryEnvironment> {
   fillCharacterOutfitsFromScenes(text, requestId);
   const environmentMap = new Map<string, StoryEnvironment>();
+
+  // Seed with previous environments (continuation) — reused env IDs get full description from Part 1
+  if (options?.previousEnvironments && options.previousEnvironments.length > 0) {
+    for (const env of options.previousEnvironments) {
+      environmentMap.set(env.id, env);
+    }
+    logger.info({
+      requestId,
+      previousEnvironmentsCount: options.previousEnvironments.length,
+      previousEnvIds: options.previousEnvironments.map((e) => e.id),
+    }, 'Seeded environment map with previous episode environments');
+  }
+
   const environments = (text as any).environments as StoryEnvironment[] | undefined;
   const scenes = (text as any).scenes as Array<{ environmentId?: string; sceneVisual?: { setting?: string } }> | undefined;
 
@@ -896,7 +957,7 @@ async function prepareFilesApiAndSystemInstruction(params: {
 /**
  * Shared image generation loop.
  * Runs sequential image generation with character-aware reference tracking.
- * Used by both processStoryImages and processContinuationImages.
+ * Used by processStoryImages (standard and continuation).
  */
 async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promise<void> {
   const {
@@ -1339,8 +1400,12 @@ export async function processStoryImages(requestId: string): Promise<void> {
       selectedSceneIds: scenesToGenerate.map((s: any) => s.sceneId),
       sceneCount: scenesToGenerate.length,
     }, 'Selected scenes for image generation');
-    
-    const environmentMap = buildEnvironmentMapFromText(text, requestId);
+
+    const isContinuation = !!checkpoints.isContinuation;
+    const previousEnvironments = checkpoints.continuationContext?.previousEnvironments;
+    const environmentMap = buildEnvironmentMapFromText(text, requestId, {
+      ...(isContinuation && previousEnvironments?.length > 0 && { previousEnvironments }),
+    });
 
     if (scenesToGenerate.length > 0) {
       // Build character registry for name normalization
@@ -1470,6 +1535,15 @@ export async function processStoryImages(requestId: string): Promise<void> {
         }
       }
 
+      // For continuation: get previous story IDs in series to reuse env images
+      let previousStoryIds: string[] = [];
+      if (isContinuation && checkpoints.seriesId) {
+        const series = await getStoryRepository().findSeriesById(checkpoints.seriesId);
+        if (series?.storyIds && Array.isArray(series.storyIds)) {
+          previousStoryIds = (series.storyIds as string[]).filter((id) => id !== storyId);
+        }
+      }
+
       // On-demand environment image map (shared across parallel scene iterations)
       const environmentImageMap = new Map<string, EnvImageData>();
       const envImagePending = new Map<string, Promise<EnvImageData | null>>();
@@ -1522,6 +1596,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
                 assetStorage,
                 scenarioCardId: spec.scenarioCard?.id,
                 scenesUsingThisEnv: scenesPerEnvironment.get(currentEnvironmentId) ?? 0,
+                ...(previousStoryIds.length > 0 && { previousStoryIds }),
               });
               envImagePending.set(currentEnvironmentId, pending);
             }
@@ -1813,12 +1888,25 @@ async function getUsedWorldRuleIds(seriesId: string): Promise<Set<string>> {
   return ids;
 }
 
+/** Continuation context passed when generating a series continuation */
+export interface ContinuationContext {
+  previousOutlines: Array<{ title: string; moral: string; scenes: Array<{ setting: string; goal: string }> }>;
+  requiredCharacters: CharacterData[];
+  optionalCharacters: CharacterData[];
+  usedPlots: string[];
+}
+
 /**
  * Build story spec from request data
+ * When continuationContext is provided, uses requiredCharacters + optionalCharacters instead of loading from request
  */
-async function buildStorySpec(request: StoryRequestData): Promise<{ 
-  spec: StorySpec & { childProfile?: ChildProfileData }; 
+async function buildStorySpec(
+  request: StoryRequestData,
+  options?: { continuationContext?: ContinuationContext }
+): Promise<{
+  spec: StorySpec & { childProfile?: ChildProfileData };
   selectedCharacters: CharacterData[];
+  optionalCharacters?: CharacterData[];
   chosenPlotExampleId?: string;
   chosenWorldRuleId?: string;
 }> {
@@ -1828,12 +1916,28 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
     let ageGroup = '4-5'; // Default age group
     let childProfile: ChildProfileData | null = null;
     let selectedCharacters: CharacterData[] = [];
-    
-    // Load selected characters ALWAYS if provided (not dependent on childProfileId)
-    if (request.selectedCharacters && request.selectedCharacters.length > 0) {
-      const userCharacters = await getCharacterRepository().findByIds(request.userId, request.selectedCharacters);
-      
-      selectedCharacters = userCharacters
+    let optionalCharacters: CharacterData[] | undefined;
+
+    let allCharacters: CharacterData[];
+
+    // Continuation mode: use characters from continuationContext
+    if (options?.continuationContext) {
+      const { requiredCharacters, optionalCharacters: optChars } = options.continuationContext;
+      selectedCharacters = [...requiredCharacters];
+      optionalCharacters = optChars && optChars.length > 0 ? optChars : undefined;
+      allCharacters = [...requiredCharacters, ...(optionalCharacters || [])];
+      logger.info({
+        requestId: request.id,
+        requiredCount: requiredCharacters.length,
+        optionalCount: optionalCharacters?.length ?? 0,
+        totalCharacters: allCharacters.length,
+      }, 'Using continuation context characters');
+    } else {
+      // Standard mode: load selected characters from request
+      if (request.selectedCharacters && request.selectedCharacters.length > 0) {
+        const userCharacters = await getCharacterRepository().findByIds(request.userId, request.selectedCharacters);
+
+        selectedCharacters = userCharacters
         .filter(c => c.name) // Only include characters with valid name
         .map(c => ({
           id: c.id,
@@ -1862,8 +1966,9 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
           referencePhotoCount: c.referencePhotos?.length || 0
         }))
       }, 'Loaded selected characters (independent of childProfileId)');
+      }
     }
-    
+
     if (request.childProfileId) {
       const profile = await getChildProfileRepository().findById(request.childProfileId, request.userId);
       
@@ -1912,10 +2017,12 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
         childNames: selectedChildrenData.map(c => c.name)
       }, 'Loaded selected children as characters');
     }
-    
-    // Merge all characters (user characters + selected children)
-    const allCharacters = [...selectedCharacters, ...selectedChildrenData];
-    
+
+    // Merge all characters (user characters + selected children) — only in standard mode
+    if (!options?.continuationContext) {
+      allCharacters = [...selectedCharacters, ...selectedChildrenData];
+    }
+
     // Set childName ONLY if child profile is included as a character in the story
     if (childProfile && request.childProfileId) {
       const isChildInStory = allCharacters.some(
@@ -2106,7 +2213,13 @@ async function buildStorySpec(request: StoryRequestData): Promise<{
       imageStyle: spec.imageStyle
     }, 'Story spec created with characters');
     
-    return { spec, selectedCharacters: allCharacters, chosenPlotExampleId, chosenWorldRuleId };
+    return {
+      spec,
+      selectedCharacters: allCharacters,
+      ...(optionalCharacters !== undefined && { optionalCharacters }),
+      chosenPlotExampleId,
+      chosenWorldRuleId,
+    };
   } catch (error) {
     logger.error({ 
       error,
@@ -2473,15 +2586,17 @@ async function getOrCreateEnvironmentImage(params: {
   assetStorage: ReturnType<typeof getAssetStorageService>;
   scenarioCardId?: string;
   scenesUsingThisEnv?: number;
+  /** For continuation: check previous parts in series for cached env image */
+  previousStoryIds?: string[];
 }): Promise<EnvImageData | null> {
   if (!config.image.enableEnvironmentReference) return null;
 
-  const { storyId, userId, storyEnvironmentId, environment, assetStorage, scenarioCardId, scenesUsingThisEnv } = params;
+  const { storyId, userId, storyEnvironmentId, environment, assetStorage, scenarioCardId, scenesUsingThisEnv, previousStoryIds } = params;
   const envCacheRepo = getEnvironmentImageCacheRepository();
   const storyEnvRepo = getStoryEnvironmentCacheRepository();
   const threshold = config.image.environmentEmbeddingSimilarityThreshold;
 
-  // 1. Check story_environment_cache (continuation)
+  // 1. Check story_environment_cache (current story)
   const existing = await storyEnvRepo.getByStoryAndEnvId(storyId, storyEnvironmentId);
   if (existing) {
     const cached = await envCacheRepo.getById(existing.cacheId);
@@ -2492,6 +2607,29 @@ async function getOrCreateEnvironmentImage(params: {
         mimeType: 'image/png',
         storagePath: cached.storagePath,
       };
+    }
+  }
+
+  // 1.5. For continuation: check previous parts in series for cached env image
+  if (previousStoryIds && previousStoryIds.length > 0) {
+    for (const prevStoryId of previousStoryIds) {
+      const prevExisting = await storyEnvRepo.getByStoryAndEnvId(prevStoryId, storyEnvironmentId);
+      if (prevExisting) {
+        const cached = await envCacheRepo.getById(prevExisting.cacheId);
+        if (cached) {
+          const buffer = await assetStorage.getAssetByPath(cached.storagePath);
+          await storyEnvRepo.upsert(storyId, storyEnvironmentId, prevExisting.cacheId);
+          logger.info(
+            { storyId, storyEnvironmentId, prevStoryId, cacheId: prevExisting.cacheId },
+            'Reused environment image from previous part in series'
+          );
+          return {
+            base64: buffer.toString('base64'),
+            mimeType: 'image/png',
+            storagePath: cached.storagePath,
+          };
+        }
+      }
     }
   }
 
@@ -3512,7 +3650,7 @@ async function saveStory(
           textValidated: true,
           timestamp: new Date().toISOString()
         },
-        isPublished: true,
+        isPublished: false,
         isFavorite: false
       }, tx);
       
@@ -3598,376 +3736,6 @@ async function saveStory(
     return storyId;
   } catch (error) {
     logger.error({ error, requestId: request.id }, 'Failed to save story');
-    throw error;
-  }
-}
-
-/**
- * Process a continuation request (M8)
- * Similar to processStoryRequest but uses existing series context
- */
-export async function processContinuationRequest(requestId: string): Promise<{ storyId: string }> {
-  const startTime = Date.now();
-  
-  try {
-    logger.info({ requestId }, 'Processing continuation request');
-    
-    // Get request details
-    const request = await getStoryRepository().findRequestById(requestId);
-    
-    if (!request) {
-      throw new Error(`Continuation request ${requestId} not found`);
-    }
-    
-    // Extract continuation context from intermediate data
-    const intermediateData = (request.intermediateData as any) || {};
-    const { seriesId, partNumber, continuationContext } = intermediateData;
-    
-    if (!seriesId || !continuationContext) {
-      throw new Error('Invalid continuation request: missing series context');
-    }
-    
-    // Update status to 'processing'
-    await getStoryRepository().updateRequest(requestId, {
-      status: 'processing',
-      updatedAt: new Date(),
-    });
-    
-    logger.info({ requestId, seriesId, partNumber }, 'Processing continuation');
-    
-    // Get Domain Services
-    const storyDomain = getStoryDomainService();
-    
-    // Get generation time coefficients for smooth progress estimation
-    const coefficients = await getGenerationCoefficients();
-    
-    // Get user plan (needed for Director flow imagesPerStory)
-    const userPlan = await getPlanFeatures(request.userId);
-    
-    // Build story spec for continuation
-    const specData = await buildStorySpec(request);
-    const spec = specData.spec;
-    const continuationPlotExampleId = specData.chosenPlotExampleId;
-    const continuationWorldRuleId = specData.chosenWorldRuleId;
-    
-    // DEBUG: Log language values
-    logger.info({
-      requestId,
-      requestStoryLanguage: request.storyLanguage,
-      specLanguage: spec.language,
-    }, 'Language values before story creation');
-
-    // Create story stub before text generation for AI usage tracking
-    const storyId = await createStoryStub({
-      userId: request.userId,
-      storyRequestId: request.id,
-      childProfileId: request.childProfileId,
-      spec,
-      seriesData: { seriesId, partNumber },
-    });
-    await getStoryRepository().updateRequest(requestId, {
-      intermediateData: { ...intermediateData, storyId },
-    });
-    const usageContext = { userId: request.userId, storyId };
-    
-    // Task 1: Generate Continuation Text (with timing)
-    const textGenStart = Date.now();
-    await startTask(requestId, STORY_TASKS.GENERATING_TEXT, { estimatedMs: coefficients.avgTextMs });
-    let text: any;
-    if (config.features.useDirectorFlow) {
-      const plainText = await storyDomain.generateContinuationPlain(
-        {
-          spec,
-          previousOutlines: continuationContext.previousOutlines,
-          requiredCharacters: continuationContext.requiredCharacters,
-          optionalCharacters: continuationContext.optionalCharacters,
-          usedPlots: continuationContext.usedPlots,
-        },
-        { onUsage: (u) => recordUsage(u, usageContext) }
-      );
-      const imagesPerStory = userPlan.imagesPerStory || 0;
-      const blocks = composeScenesIntoBlocks(plainText.scenes, imagesPerStory);
-      const userCharacters = [
-        ...(continuationContext.requiredCharacters || []).map((c: any) => ({ id: c.id, name: c.name })),
-        ...(continuationContext.optionalCharacters || []).map((c: any) => ({ id: c.id, name: c.name })),
-      ];
-      const directorResult = await storyDomain.callDirector(
-        {
-          blocks,
-          imagesPerStory,
-          spec,
-          userCharacters,
-        },
-        { onUsage: (u) => recordUsage(u, usageContext) }
-      );
-      text = mergeDirectorIntoText(plainText, directorResult, imagesPerStory);
-      text.language = spec.language;
-    } else {
-      text = await storyDomain.generateContinuation(
-        {
-          spec,
-          previousOutlines: continuationContext.previousOutlines,
-          requiredCharacters: continuationContext.requiredCharacters,
-          optionalCharacters: continuationContext.optionalCharacters,
-          usedPlots: continuationContext.usedPlots,
-        },
-        { onUsage: (u) => recordUsage(u, usageContext) }
-      );
-    }
-    const textGenerationTimeMs = Date.now() - textGenStart;
-    await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
-    
-    logger.info({ requestId, title: text.title, wordCount: text.wordCount, textGenerationTimeMs }, 'Continuation text generated');
-    
-    // Extract LLM-generated characters (same as main flow — includes originalCharacterId from [ID: uuid])
-    const llmCharacters = extractLlmCharactersFromText(text);
-    
-    logger.info({
-      llmCharacterCount: llmCharacters.length,
-      llmCharacterNames: llmCharacters.map(c => c.name).join(', ')
-    }, 'New characters in continuation');
-    
-    // Merge ALL characters for image generation (required + optional + new)
-    const allCharacters = [
-      ...(continuationContext.requiredCharacters || []),
-      ...(continuationContext.optionalCharacters || []),
-      ...llmCharacters,
-    ];
-    
-    // Enrich stub with full continuation content
-    await enrichStoryRecord(storyId, {
-      userId: request.userId,
-      storyRequestId: request.id,
-      childProfileId: request.childProfileId,
-      text: {
-        ...text,
-        language: request.storyLanguage || 'uk',
-      },
-      spec,
-      characters: allCharacters,
-      goal: request.goal,
-      generationTimeMs: Date.now() - startTime,
-      metadata: {
-        textGenerationTimeMs,
-        validationTimeMs: 0,
-        sceneCount: text.scenes.length,
-        fullTextLength: text.fullText?.length || 0,
-        modelVersion: 'gemini-2.0-flash-exp',
-        plotExampleId: continuationPlotExampleId,
-        worldRuleId: continuationWorldRuleId,
-        llmGeneratedCharacters: llmCharacters,
-        imageStyle: request.imageStyle,
-        ...((text as any).description && { seoDescription: (text as any).description }),
-      },
-      seriesData: { seriesId, partNumber },
-    });
-    logger.info({ storyId, seriesId, partNumber }, 'Continuation story enriched');
-    
-    // Save image generation context to intermediateData for the image queue
-    await getStoryRepository().updateRequest(requestId, {
-      intermediateData: {
-        ...(request.intermediateData as any || {}),
-        isContinuation: true,
-        storyId,
-        text,
-        spec: { ...spec, policyProfile: undefined },
-        mergedCharacters: allCharacters,
-        validatedText: text,
-        seriesId,
-        partNumber,
-        createdStory: { id: storyId },
-      }
-    });
-    
-    logger.info({ requestId, storyId, duration: Date.now() - startTime }, 'Continuation text phase completed, handing off to image queue');
-    
-    return { storyId };
-    
-  } catch (error) {
-    logger.error({ error, requestId }, 'Continuation text generation failed');
-
-    const req = await getStoryRepository().findRequestById(requestId);
-    const stubStoryId = (req?.intermediateData as Record<string, unknown> | null)?.storyId as string | undefined;
-    if (stubStoryId && req) {
-      const existingStory = await getStoryRepository().findById(stubStoryId);
-      if (existingStory?.title === 'Generating...') {
-        await getStoryRepository().deleteStory(stubStoryId, req.userId);
-        logger.info({ requestId, storyId: stubStoryId }, 'Deleted continuation story stub after failure');
-      }
-    }
-
-    await getStoryRepository().updateRequest(requestId, {
-      status: 'failed',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-      updatedAt: new Date(),
-    });
-
-    throw error;
-  }
-}
-
-/**
- * Process continuation images and finalize (runs in image queue)
- * Loads context from intermediateData and generates scene images, then completes the request.
- */
-export async function processContinuationImages(requestId: string): Promise<void> {
-  const startTime = Date.now();
-  
-  try {
-    const request = await getStoryRepository().findRequestById(requestId);
-    
-    if (!request) {
-      throw new Error(`Continuation request ${requestId} not found for image generation`);
-    }
-    
-    const checkpoints = (request.intermediateData as any) || {};
-    const storyId = checkpoints.storyId;
-    const text = checkpoints.validatedText || checkpoints.text;
-    const spec = checkpoints.spec;
-    const allCharacters = checkpoints.mergedCharacters || [];
-    const seriesId = checkpoints.seriesId;
-    const partNumber = checkpoints.partNumber;
-    const createdStory = checkpoints.createdStory;
-    
-    if (!storyId || !text) {
-      throw new Error(`Missing storyId or text in intermediateData for continuation ${requestId}`);
-    }
-    
-    const imageDomain = getImageDomainService();
-    const assetStorage = getAssetStorageService();
-    const coefficients = await getGenerationCoefficients();
-    const userPlan = await getPlanFeatures(request.userId);
-    
-    // Task: Generate Scene Images (using reference-based approach from FIRST PART)
-    // Note: Only first image is tracked in progress, rest continue in background after story is marked complete
-    await startTask(requestId, STORY_TASKS.GENERATING_IMAGES, {
-      estimatedMs: coefficients.avgMsPerImage, // Only first image counts toward progress
-    });
-    
-    if (config.image.skipGeneration) {
-      logger.info({ requestId, storyId }, 'Continuation image generation skipped (SKIP_IMAGE_GENERATION=true)');
-    } else {
-    
-    const imagesPerStory = userPlan.imagesPerStory || 0;
-    const totalScenes = text.scenes.length;
-    const sceneIds = config.features.useDirectorFlow
-      ? getIllustrationBlockStartSceneIds(totalScenes, imagesPerStory)
-      : getIllustrationSceneIds(totalScenes, imagesPerStory);
-    const scenesToGenerate = sceneIds
-      .map((id) => text.scenes.find((s: any) => s.sceneId === id))
-      .filter(Boolean);
-    const sceneIndices = scenesToGenerate.map((s: any) =>
-      text.scenes.findIndex((sc: any) => sc.sceneId === s.sceneId)
-    );
-
-    logger.info({
-      requestId,
-      totalScenes,
-      imagesPerStory,
-      selectedSceneIds: scenesToGenerate.map((s: any) => s.sceneId),
-      sceneCount: scenesToGenerate.length,
-    }, 'Selected scenes for continuation image generation');
-
-    const continuationEnvironmentMap = buildEnvironmentMapFromText(text, requestId);
-
-    if (scenesToGenerate.length > 0) {
-      // Build character registry and description map
-      const characterRegistry = buildCharacterRegistry(allCharacters, spec.childProfile, []);
-      
-      const characterDescriptionMap = new Map<string, CharacterData>();
-      for (const char of allCharacters) {
-        const normalized = normalizeCharacterName(char.name);
-        characterDescriptionMap.set(normalized, char);
-      }
-      
-      // Pre-upload turnarounds to Files API & build system instruction
-      const { uploadedFileMap: contUploadedFileMap, imageSystemInstruction: contSystemInstruction } =
-        await prepareFilesApiAndSystemInstruction({
-          characterDescriptionMap,
-          imageDomain,
-          assetStorage,
-          spec,
-          userStyle: (spec as any).imageStyle,
-        });
-
-      await runImageGenerationLoop({
-        storyId,
-        requestId,
-        scenesToGenerate,
-        sceneIndices,
-        allScenes: text.scenes as SceneData[],
-        environmentMap: continuationEnvironmentMap,
-        characterDescriptionMap,
-        characterRegistry,
-        spec,
-        userPlan,
-        userId: request.userId,
-        assetStorage,
-        imageDomain,
-        uploadedFileMap: contUploadedFileMap,
-        imageSystemInstruction: contSystemInstruction,
-        enableEarlyCompletion: true,
-      });
-      
-      logger.info('All continuation scenes generated');
-    }
-    
-    } // end if !skipGeneration
-    
-    await completeTask(requestId, STORY_TASKS.GENERATING_IMAGES);
-    
-    logger.info({ storyId }, 'Continuation images complete');
-    
-    // Fetch actual image URLs from database (already uploaded by generateSceneImageWithReference)
-    const sceneRecords = await getSceneRepository().findByStoryId(storyId);
-    
-    // Update story with scene image URLs
-    await getStoryRepository().updateStory(storyId, {
-        scenes: text.scenes.map((scene) => {
-          const sceneRecord = sceneRecords.find(r => r.sceneId === scene.sceneId);
-          return {
-            sceneId: scene.sceneId,
-            text: scene.text,
-            sceneVisual: scene.sceneVisual,
-            visualPrompt: scene.visualPrompt,
-            imageUrl: sceneRecord?.imageUrl || null,
-          };
-        }),
-    });
-    
-    logger.info({ storyId }, 'Story updated with image URLs');
-    
-    // Update series with new story
-    const { addContinuationToSeries } = await import('./seriesService');
-    await addContinuationToSeries(seriesId, storyId, createdStory);
-    
-    // Mark request as completed
-    await getStoryRepository().updateRequest(requestId, {
-      status: 'completed',
-      progress: 100,
-      storyId: storyId,
-      updatedAt: new Date(),
-    });
-    
-    const totalTime = Date.now() - startTime;
-    logger.info({
-      requestId,
-      storyId: storyId,
-      seriesId,
-      partNumber,
-      totalTimeMs: totalTime
-    }, 'Continuation request completed successfully');
-    
-  } catch (error) {
-    logger.error({ error, requestId }, 'Continuation request failed');
-    
-    // Mark request as failed
-    await getStoryRepository().updateRequest(requestId, {
-      status: 'failed',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-      updatedAt: new Date(),
-    });
-    
     throw error;
   }
 }
@@ -4505,7 +4273,7 @@ export async function getStoryManifest(storyId: string) {
         ? `${webAppUrl.replace(/\/$/, '')}/u/${story.shareToken}`
         : null,
     shareCardSceneId: story.shareCardSceneId ?? null,
-    fullText: stripCharacterIds(stripAudioTags(story.fullText || '')),
+    fullText: stripAllTags(story.fullText || ''),
     audioMetadata: story.audioMetadata,
     // M8: Series fields
     seriesId: story.seriesId,
@@ -4540,7 +4308,7 @@ export async function getStoryManifest(storyId: string) {
 
       return {
         sceneId: scene.sceneId,
-        text: stripCharacterIds(stripAudioTags(scene.text || '')),
+        text: stripAllTags(scene.text || ''),
         // Return structured sceneVisual when available, otherwise legacy visualPrompt
         ...(sceneVisual
           ? { sceneVisual, visualPrompt: undefined }
@@ -4709,7 +4477,7 @@ export async function regenerateSceneImage(
         personality: uc.characters.personality || undefined,
         turnaroundSheet: (uc.characters as any).turnaroundSheet || undefined,
         descriptionEn: (uc.characters as any).descriptionEn || undefined,
-        aiGeneratedDescription: uc.characters.aiGeneratedDescription || undefined,
+        aiGeneratedDescription: (uc.characters as any).aiGeneratedDescription || undefined,
       })),
     llmCharacters
   );
