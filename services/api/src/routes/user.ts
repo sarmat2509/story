@@ -212,6 +212,37 @@ router.delete('/sessions/:sessionToken', requireAuth, async (req: Request, res: 
   }
 });
 
+// List user's story series (requires series_enabled feature)
+router.get('/series', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { hasFeature } = await import('../services/planService');
+    const hasSeriesAccess = await hasFeature(userId, 'series_enabled');
+
+    if (!hasSeriesAccess) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Story series feature not available in your plan',
+        code: 'SERIES_ACCESS_REQUIRED',
+      });
+    }
+
+    const { listUserSeries } = await import('../services/seriesService');
+    const series = await listUserSeries(userId);
+
+    res.json({
+      status: 'success',
+      series,
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'List series failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to list series',
+    });
+  }
+});
+
 // Get linked OAuth providers
 router.get('/oauth-providers', requireAuth, async (req: Request, res: Response) => {
   try {

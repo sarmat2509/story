@@ -92,7 +92,14 @@
     "part_number": "Partie {{number}}",
     "of_parts": "de {{total}}",
     "in_progress": "En cours",
-    "completed": "Terminé"
+    "completed": "Terminé",
+    "empty_title": "Pas encore de séries",
+    "empty_subtext": "Continuez votre histoire préférée — ouvrez-la dans Mes histoires et appuyez sur « Je veux la suite »",
+    "go_to_library": "Mes histoires",
+    "parts_count_one": "{{count}} partie",
+    "parts_count_other": "{{count}} parties",
+    "expecting_part": "En attente de la partie {{number}}",
+    "detail_title": "Série"
   },
   "profiles": {
     "title": "Profils",
@@ -173,6 +180,7 @@
     "tab_profile": "Profil",
     "tab_more": "Plus",
     "published_stories": "Histoires publiées",
+    "series": "Séries d'histoires",
     "page_not_found": "Page non trouvée",
     "page_not_found_message": "La page que vous recherchez n'existe pas ou a été déplacée.",
     "go_home": "Retour à l'accueil"

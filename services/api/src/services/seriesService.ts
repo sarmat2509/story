@@ -6,6 +6,7 @@
 import { getStoryRepository } from '../repositories';
 import type { Story } from '../db/schema';
 import logger from '../utils/logger';
+import { enrichAllStoriesWithImages } from './storyOrchestrationService';
 
 /**
  * Create or get existing series for a story
@@ -397,6 +398,67 @@ function mergeCharacters(existing: any[], newChars: any[]): any[] {
   }
   
   return merged;
+}
+
+/**
+ * List all series for a user (for series list screen)
+ * Returns series with last 3 stories' cover images
+ */
+export async function listUserSeries(userId: string): Promise<
+  Array<{
+    id: string;
+    baseTitle: string;
+    totalParts: number;
+    storyIds: string[];
+    lastStories: Array<{ id: string; coverImageUrl: string | null; coverThumbnailUrl: string | null }>;
+  }>
+> {
+  const allSeries = await getStoryRepository().findSeriesByUserId(userId);
+  if (allSeries.length === 0) {
+    return [];
+  }
+
+  // Collect all story IDs we need (last 3 per series)
+  const storyIdsToFetch: string[] = [];
+  const seriesToStoryIds = new Map<string, string[]>();
+  for (const series of allSeries) {
+    const ids = (series.storyIds as string[]) || [];
+    const lastThree = ids.slice(-3);
+    seriesToStoryIds.set(series.id, lastThree);
+    storyIdsToFetch.push(...lastThree);
+  }
+
+  const uniqueStoryIds = [...new Set(storyIdsToFetch)];
+  const storyRows = await getStoryRepository().findStoriesByIdsWithScenes(uniqueStoryIds);
+  const enrichedScenesMap = await enrichAllStoriesWithImages(
+    storyRows.map((r) => ({ id: r.id, scenes: (r.scenes as any[]) || [] }))
+  );
+
+  const getCoverForStory = (storyId: string) => {
+    const enrichedScenes = enrichedScenesMap.get(storyId) || [];
+    const firstWithImage = Array.isArray(enrichedScenes)
+      ? enrichedScenes.find((s: any) => s.image?.url)
+      : null;
+    return {
+      coverImageUrl: firstWithImage?.image?.url ?? null,
+      coverThumbnailUrl: firstWithImage?.image?.thumbnailUrl ?? null,
+    };
+  };
+
+  return allSeries.map((series) => {
+    const lastIds = seriesToStoryIds.get(series.id) || [];
+    const lastStories = lastIds.map((id) => ({
+      id,
+      ...getCoverForStory(id),
+    }));
+    return {
+      id: series.id,
+      baseTitle: series.baseTitle,
+      totalParts: series.totalParts,
+      storyIds: series.storyIds as string[],
+      lastStories,
+    };
+  });
 }
 
 /**

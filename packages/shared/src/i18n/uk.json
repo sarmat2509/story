@@ -131,7 +131,16 @@
     "part_number": "Частина {{number}}",
     "of_parts": "з {{total}}",
     "in_progress": "У процесі",
-    "completed": "Завершено"
+    "completed": "Завершено",
+    "empty_title": "Поки немає серій",
+    "empty_subtext": "Продовжте улюблену історію — відкрийте її в Моїх історіях та натисніть «Хочу продовження»",
+    "go_to_library": "Мої історії",
+    "parts_count_one": "{{count}} частина",
+    "parts_count_few": "{{count}} частини",
+    "parts_count_many": "{{count}} частин",
+    "parts_count_other": "{{count}} частин",
+    "expecting_part": "Очікуйте на частину {{number}}",
+    "detail_title": "Серія"
   },
   "profiles": {
     "title": "Профілі",
@@ -888,6 +897,7 @@
     "tab_profile": "Профіль",
     "tab_more": "Ще",
     "published_stories": "Опубліковані історії",
+    "series": "Серії історій",
     "page_not_found": "Сторінку не знайдено",
     "page_not_found_message": "Сторінка, яку ви шукаєте, не існує або була переміщена.",
     "go_home": "На головну"

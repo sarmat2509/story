@@ -4111,15 +4111,17 @@ export async function listUserStories(
     offset?: number;
     hasAudio?: boolean;
     scenarioCardId?: string;
+    seriesId?: string;
   } = {}
 ) {
-  const { childProfileId: _childProfileId, language: _language, limit = 20, offset = 0, hasAudio, scenarioCardId } = options;
+  const { childProfileId: _childProfileId, language: _language, limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId } = options;
   
   const results = await getStoryRepository().findByUser(userId, {
     limit,
     offset,
     hasAudio,
     scenarioCardId,
+    seriesId,
   });
   
   // Batch-enrich all stories with images in a single DB query
@@ -4149,15 +4151,17 @@ export async function listUserStorySummaries(
     offset?: number;
     hasAudio?: boolean;
     scenarioCardId?: string;
+    seriesId?: string;
   } = {}
 ) {
-  const { childProfileId: _childProfileId, language: _language, limit = 20, offset = 0, hasAudio, scenarioCardId } = options;
+  const { childProfileId: _childProfileId, language: _language, limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId } = options;
 
   const results = await getStoryRepository().findSummariesByUser(userId, {
     limit,
     offset,
     hasAudio,
     scenarioCardId,
+    seriesId,
   });
 
   // Batch-enrich with images to extract cover image URL
@@ -4180,6 +4184,7 @@ export async function listUserStorySummaries(
       coverThumbnailUrl: firstSceneWithImage?.image?.thumbnailUrl ?? null,
       hasAudio: !!(story.audioMetadata as any)?.finalAssetId,
       scenarioCardId: story.scenarioCardId ?? null,
+      partNumber: (story as any).partNumber ?? null,
       createdAt: story.createdAt,
     };
   });
@@ -4195,11 +4200,12 @@ export async function getTotalUserStoriesCount(
     language?: string;
     hasAudio?: boolean;
     scenarioCardId?: string;
+    seriesId?: string;
   } = {}
 ): Promise<number> {
-  const { childProfileId: _childProfileId, language: _language, hasAudio, scenarioCardId } = options;
+  const { childProfileId: _childProfileId, language: _language, hasAudio, scenarioCardId, seriesId } = options;
   
-  return getStoryRepository().countByUser(userId, { hasAudio, scenarioCardId });
+  return getStoryRepository().countByUser(userId, { hasAudio, scenarioCardId, seriesId });
 }
 
 /**

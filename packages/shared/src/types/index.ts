@@ -417,6 +417,8 @@ export interface StorySummary {
   has_audio: boolean;
   scenario_card_id?: string;
   created_at: string;
+  series_id?: string | null;
+  part_number?: number | null;
 }
 
 // Story (full story entity)

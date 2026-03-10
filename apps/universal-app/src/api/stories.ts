@@ -23,11 +23,17 @@ interface CreateStoryFromPhotosRequest {
 }
 
 // List stories (summary view for library - lightweight payload)
-export const useStories = (params: { limit?: number; offset?: number; hasAudio?: boolean; scenarioCardId?: string | null } = {}) => {
-  const { limit = 20, offset = 0, hasAudio, scenarioCardId } = params ?? {};
-  
+export const useStories = (params: {
+  limit?: number;
+  offset?: number;
+  hasAudio?: boolean;
+  scenarioCardId?: string | null;
+  seriesId?: string | null;
+} = {}) => {
+  const { limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId } = params ?? {};
+
   return useQuery({
-    queryKey: ['stories', limit, offset, hasAudio, scenarioCardId],
+    queryKey: ['stories', limit, offset, hasAudio, scenarioCardId, seriesId],
     queryFn: async () => {
       const searchParams = new URLSearchParams();
       searchParams.set('limit', String(limit));
@@ -39,6 +45,9 @@ export const useStories = (params: { limit?: number; offset?: number; hasAudio?:
       if (scenarioCardId) {
         searchParams.set('scenario_card_id', scenarioCardId);
       }
+      if (seriesId) {
+        searchParams.set('series_id', seriesId);
+      }
       const queryString = searchParams.toString();
       const url = queryString ? `/api/v1/me/stories?${queryString}` : '/api/v1/me/stories';
       const response = await apiClient.get<{ status: string; stories: StorySummary[]; pagination?: any }>(url);
@@ -49,6 +58,38 @@ export const useStories = (params: { limit?: number; offset?: number; hasAudio?:
     },
   });
 };
+
+// List user's story series (for series list screen)
+export interface SeriesListItem {
+  id: string;
+  baseTitle: string;
+  totalParts: number;
+  storyIds: string[];
+  lastStories: Array<{
+    id: string;
+    coverImageUrl: string | null;
+    coverThumbnailUrl: string | null;
+  }>;
+}
+
+export function useSeriesList() {
+  return useQuery({
+    queryKey: ['series-list'],
+    queryFn: async () => {
+      const response = await apiClient.get<{ status: string; series: SeriesListItem[] }>('/api/v1/me/series');
+      return response.data.series;
+    },
+  });
+}
+
+// List stories in a series (for series detail screen)
+export function useSeriesStories(seriesId: string | undefined) {
+  return useStories({
+    seriesId: seriesId ?? undefined,
+    limit: 100,
+    offset: 0,
+  });
+}
 
 // Prefetch story data (fire-and-forget)
 // Used to preload story before navigation for instant rendering

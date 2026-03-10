@@ -1,5 +1,5 @@
 import type { StoryAudioMetadata } from '@wondertales/shared';
-import { eq, and, desc, sql, isNotNull, inArray, gte, lte } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, isNotNull, inArray, gte, lte } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -144,9 +144,9 @@ export class StoryRepository {
 
   async findByUser(
     userId: string,
-    options: { limit?: number; offset?: number; hasAudio?: boolean; scenarioCardId?: string } = {}
+    options: { limit?: number; offset?: number; hasAudio?: boolean; scenarioCardId?: string; seriesId?: string } = {}
   ): Promise<schema.Story[]> {
-    const { limit = 20, offset = 0, hasAudio, scenarioCardId } = options;
+    const { limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId } = options;
     const conditions = [
       eq(schema.stories.userId, userId),
       eq(schema.stories.hidden, false),
@@ -154,6 +154,10 @@ export class StoryRepository {
     if (hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
     }
+    if (seriesId) {
+      conditions.push(eq(schema.stories.seriesId, seriesId));
+    }
+    const orderBy = seriesId ? asc(schema.stories.partNumber) : desc(schema.stories.createdAt);
     if (scenarioCardId) {
       conditions.push(eq(schema.storyRequests.scenarioCardId, scenarioCardId));
       const rows = await this.db
@@ -161,7 +165,7 @@ export class StoryRepository {
         .from(schema.stories)
         .innerJoin(schema.storyRequests, eq(schema.stories.storyRequestId, schema.storyRequests.id))
         .where(and(...conditions))
-        .orderBy(desc(schema.stories.createdAt))
+        .orderBy(orderBy)
         .limit(limit)
         .offset(offset);
       return rows.map(r => r.story);
@@ -170,14 +174,20 @@ export class StoryRepository {
       .select()
       .from(schema.stories)
       .where(and(...conditions))
-      .orderBy(desc(schema.stories.createdAt))
+      .orderBy(orderBy)
       .limit(limit)
       .offset(offset);
   }
 
   async findSummariesByUser(
     userId: string,
-    options: { limit?: number; offset?: number; hasAudio?: boolean; scenarioCardId?: string } = {}
+    options: {
+      limit?: number;
+      offset?: number;
+      hasAudio?: boolean;
+      scenarioCardId?: string;
+      seriesId?: string;
+    } = {}
   ): Promise<Array<{
     id: string;
     title: string;
@@ -187,14 +197,18 @@ export class StoryRepository {
     scenes: unknown;
     createdAt: Date;
     scenarioCardId: string | null;
+    partNumber: number | null;
   }>> {
-    const { limit = 20, offset = 0, hasAudio, scenarioCardId } = options;
+    const { limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId } = options;
     const conditions = [
       eq(schema.stories.userId, userId),
       eq(schema.stories.hidden, false),
     ];
     if (hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
+    }
+    if (seriesId) {
+      conditions.push(eq(schema.stories.seriesId, seriesId));
     }
     const selectFields = {
       id: schema.stories.id,
@@ -205,7 +219,11 @@ export class StoryRepository {
       scenes: schema.stories.scenes,
       createdAt: schema.stories.createdAt,
       scenarioCardId: schema.storyRequests.scenarioCardId,
+      partNumber: schema.stories.partNumber,
     };
+    const orderBy = seriesId
+      ? asc(schema.stories.partNumber)
+      : desc(schema.stories.createdAt);
     if (scenarioCardId) {
       conditions.push(eq(schema.storyRequests.scenarioCardId, scenarioCardId));
       return this.db
@@ -213,7 +231,7 @@ export class StoryRepository {
         .from(schema.stories)
         .innerJoin(schema.storyRequests, eq(schema.stories.storyRequestId, schema.storyRequests.id))
         .where(and(...conditions))
-        .orderBy(desc(schema.stories.createdAt))
+        .orderBy(orderBy)
         .limit(limit)
         .offset(offset);
     }
@@ -222,18 +240,24 @@ export class StoryRepository {
       .from(schema.stories)
       .leftJoin(schema.storyRequests, eq(schema.stories.storyRequestId, schema.storyRequests.id))
       .where(and(...conditions))
-      .orderBy(desc(schema.stories.createdAt))
+      .orderBy(orderBy)
       .limit(limit)
       .offset(offset);
   }
 
-  async countByUser(userId: string, options: { hasAudio?: boolean; scenarioCardId?: string } = {}): Promise<number> {
+  async countByUser(
+    userId: string,
+    options: { hasAudio?: boolean; scenarioCardId?: string; seriesId?: string } = {}
+  ): Promise<number> {
     const conditions = [
       eq(schema.stories.userId, userId),
       eq(schema.stories.hidden, false),
     ];
     if (options.hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
+    }
+    if (options.seriesId) {
+      conditions.push(eq(schema.stories.seriesId, options.seriesId));
     }
     if (options.scenarioCardId) {
       conditions.push(eq(schema.storyRequests.scenarioCardId, options.scenarioCardId));
@@ -422,6 +446,23 @@ export class StoryRepository {
     await this.db
       .delete(schema.storySeries)
       .where(eq(schema.storySeries.id, id));
+  }
+
+  async findSeriesByUserId(userId: string): Promise<schema.StorySeries[]> {
+    return this.db
+      .select()
+      .from(schema.storySeries)
+      .where(eq(schema.storySeries.userId, userId))
+      .orderBy(desc(schema.storySeries.createdAt));
+  }
+
+  async findStoriesByIdsWithScenes(ids: string[]): Promise<Array<{ id: string; scenes: unknown }>> {
+    if (ids.length === 0) return [];
+    const rows = await this.db
+      .select({ id: schema.stories.id, scenes: schema.stories.scenes })
+      .from(schema.stories)
+      .where(inArray(schema.stories.id, ids));
+    return rows;
   }
 
   // ── Story Characters ──

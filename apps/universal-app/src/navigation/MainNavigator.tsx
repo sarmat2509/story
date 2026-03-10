@@ -20,6 +20,8 @@ import DashboardScreen from '@/screens/dashboard/DashboardScreen';
 import WizardScreen from '@/screens/wizard/WizardScreen';
 import InstantWizardScreen from '@/screens/wizard/InstantWizardScreen';
 import LibraryScreen from '@/screens/library/LibraryScreen';
+import SeriesListScreen from '@/screens/series/SeriesListScreen';
+import SeriesDetailScreen from '@/screens/series/SeriesDetailScreen';
 import LegacyRedirectScreen from '@/screens/LegacyRedirectScreen';
 import StoryReaderScreen from '@/screens/StoryReaderScreen';
 import PublishedStoriesScreen from '@/screens/published/PublishedStoriesScreen';
@@ -50,7 +52,7 @@ const TABLET_TAB_ORDER: (keyof MainTabParamList)[] = [
   'Plans',
   'Profile',
 ];
-const MORE_MENU_ROUTES: (keyof MainTabParamList)[] = ['Stories', 'Children', 'Plans', 'Profile'];
+const MORE_MENU_ROUTES: (keyof MainTabParamList)[] = ['Series', 'Stories', 'Children', 'Plans', 'Profile'];
 
 const MOBILE_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Landing', 'Stories', 'Plans', 'Login'];
 const TABLET_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Landing', 'Stories', 'Plans', 'Login'];
@@ -67,6 +69,7 @@ const TAB_LABELS: Record<string, string> = {
   Plans: 'navigation.tab_plans',
   Profile: 'navigation.tab_profile',
   Stories: 'navigation.published_stories',
+  Series: 'navigation.series',
 };
 const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Landing: 'home-outline',
@@ -79,6 +82,7 @@ const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Plans: 'diamond-outline',
   Profile: 'person-outline',
   Stories: 'newspaper-outline',
+  Series: 'layers-outline',
 };
 
 type MobileTabBarProps = BottomTabBarProps & { isAuthenticated: boolean };
@@ -114,6 +118,7 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
 
   const moreMenuItems: { name: keyof MainTabParamList; icon: keyof typeof Ionicons.glyphMap; labelKey: string }[] = isAuthenticated
     ? [
+        { name: 'Series', icon: 'layers-outline', labelKey: 'navigation.series' },
         { name: 'Stories', icon: 'newspaper-outline', labelKey: 'navigation.published_stories' },
         { name: 'Children', icon: 'people-outline', labelKey: 'navigation.tab_children' },
         { name: 'Plans', icon: 'diamond-outline', labelKey: 'navigation.tab_plans' },
@@ -381,6 +386,30 @@ function TabNavigator() {
         name="LibraryRedirect" 
         component={LegacyRedirectScreen}
         options={{ tabBarButton: () => null }}
+      />
+      <Tab.Screen 
+        name="Series" 
+        component={() => (
+          <AuthGuard>
+            <SeriesListScreen />
+          </AuthGuard>
+        )}
+        options={{ 
+          title: 'Series',
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen 
+        name="SeriesDetail" 
+        component={() => (
+          <AuthGuard>
+            <SeriesDetailScreen />
+          </AuthGuard>
+        )}
+        options={{ 
+          title: 'Series Detail',
+          tabBarButton: () => null,
+        }}
       />
       <Tab.Screen 
         name="StoryRedirect" 
@@ -652,6 +681,33 @@ function DrawerNavigator() {
             <Ionicons name="library-outline" size={size} color={color} />
           ),
           drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
+        }}
+      />
+      <Drawer.Screen 
+        name="Series" 
+        component={() => (
+          <AuthGuard>
+            <SeriesListScreen />
+          </AuthGuard>
+        )}
+        options={{ 
+          title: t('navigation.series'),
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="layers-outline" size={size} color={color} />
+          ),
+          drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
+        }}
+      />
+      <Drawer.Screen 
+        name="SeriesDetail" 
+        component={() => (
+          <AuthGuard>
+            <SeriesDetailScreen />
+          </AuthGuard>
+        )}
+        options={{ 
+          title: 'Series Detail',
+          drawerItemStyle: { display: 'none' },
         }}
       />
       <Drawer.Screen 

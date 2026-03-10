@@ -75,6 +75,8 @@ const linking: any = {
           Wizard: 'wizard',
           Library: 'me/stories',
           LibraryRedirect: 'library',
+          Series: 'me/series',
+          SeriesDetail: 'me/series/:seriesId',
           Story: 'me/stories/:storyId',
           StoryRedirect: 'story/:storyId',
           Stories: 'stories',

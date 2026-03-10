@@ -41,9 +41,10 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     // caseTransformMiddleware converts query params to camelCase (has_audio → hasAudio, scenario_card_id → scenarioCardId)
     const hasAudio = req.query.hasAudio === 'true' || req.query.hasAudio === '1';
     const scenarioCardId = typeof req.query.scenarioCardId === 'string' ? req.query.scenarioCardId : undefined;
+    const seriesId = typeof req.query.seriesId === 'string' ? req.query.seriesId : undefined;
     const view = req.query.view as string | undefined;
 
-    const totalCount = await getTotalUserStoriesCount(req.user!.id, { hasAudio, scenarioCardId });
+    const totalCount = await getTotalUserStoriesCount(req.user!.id, { hasAudio, scenarioCardId, seriesId });
 
     if (view === 'summary') {
       const summaries = await listUserStorySummaries(req.user!.id, {
@@ -51,6 +52,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
         offset,
         hasAudio,
         scenarioCardId,
+        seriesId,
       });
       return res.json({
         status: 'success',
@@ -59,7 +61,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       });
     }
 
-    const stories = await listUserStories(req.user!.id, { limit, offset, hasAudio, scenarioCardId });
+    const stories = await listUserStories(req.user!.id, { limit, offset, hasAudio, scenarioCardId, seriesId });
 
     const storyForClient = stories.map((story: any) => ({
       ...story,

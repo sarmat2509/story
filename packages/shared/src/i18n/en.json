@@ -131,7 +131,14 @@
     "part_number": "Part {{number}}",
     "of_parts": "of {{total}}",
     "in_progress": "In progress",
-    "completed": "Completed"
+    "completed": "Completed",
+    "empty_title": "No series yet",
+    "empty_subtext": "Continue your favorite story — open it in My Stories and tap \"Want continuation\"",
+    "go_to_library": "My Stories",
+    "parts_count_one": "{{count}} part",
+    "parts_count_other": "{{count}} parts",
+    "expecting_part": "Expecting part {{number}}",
+    "detail_title": "Series"
   },
   "profiles": {
     "title": "Profiles",
@@ -701,6 +708,7 @@
     "tab_profile": "Profile",
     "tab_more": "More",
     "published_stories": "Published stories",
+    "series": "Story Series",
     "page_not_found": "Page Not Found",
     "page_not_found_message": "The page you're looking for doesn't exist or has been moved.",
     "go_home": "Go to Home"

@@ -17,6 +17,8 @@ export type MainDrawerParamList = {
   Wizard: undefined;
   Library: { scenarioCardId?: string } | undefined;
   LibraryRedirect: undefined;
+  Series: undefined;
+  SeriesDetail: { seriesId: string };
   Story: { storyId: string; autoPlay?: boolean };
   StoryRedirect: { storyId: string };
   Stories: undefined;
