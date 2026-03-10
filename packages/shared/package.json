@@ -24,6 +24,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./i18n/*.json": "./src/i18n/*.json"
+    "./i18n/uk.json": "./src/i18n/uk.json",
+    "./i18n/ru.json": "./src/i18n/ru.json",
+    "./i18n/en.json": "./src/i18n/en.json",
+    "./i18n/es.json": "./src/i18n/es.json",
+    "./i18n/fr.json": "./src/i18n/fr.json",
+    "./i18n/de.json": "./src/i18n/de.json"
   }
 }

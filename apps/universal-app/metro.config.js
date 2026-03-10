@@ -10,12 +10,19 @@ config.resolver.nodeModulesPaths = [
   path.resolve(__dirname, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
+config.watchFolders = [workspaceRoot];
 
 // Workaround: Zustand ESM uses import.meta.env which fails in web bundle.
 // Only for zustand: disable package exports so Metro uses main field (CJS).
-// Other packages (e.g. @wondertales/shared) keep exports for subpath resolution.
+// Workaround: Metro may not resolve @wondertales/shared/i18n/*.json via package exports;
+// map explicitly to shared package src.
 const defaultResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  const sharedI18nMatch = moduleName && moduleName.match(/^@wondertales\/shared\/i18n\/(\w+)\.json$/);
+  if (sharedI18nMatch) {
+    const filePath = path.resolve(workspaceRoot, 'packages', 'shared', 'src', 'i18n', `${sharedI18nMatch[1]}.json`);
+    return { type: 'sourceFile', filePath };
+  }
   if (
     platform === 'web' &&
     (moduleName === 'zustand' || moduleName.startsWith('zustand/'))

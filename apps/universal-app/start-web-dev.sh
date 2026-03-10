@@ -68,7 +68,7 @@ echo -e "${GREEN}✅ Порт 8082 вільний${NC}"
 # ── 6. Metro bundler ─────────────────────────────────────────────────────────
 echo -e "\n${BLUE}📦 Запуск Metro bundler на порту 8082...${NC}"
 cd "$SCRIPT_DIR"
-BROWSER=none EXPO_DEVTOOLS_LISTEN_ADDRESS=localhost npx expo start --web --port 8082 2>&1 | while IFS= read -r line; do
+BROWSER=none EXPO_DEVTOOLS_LISTEN_ADDRESS=localhost node "$REPO_ROOT/node_modules/expo/bin/cli" start --web --port 8082 2>&1 | while IFS= read -r line; do
   echo -e "${YELLOW}[METRO]${NC} $line"
 done &
 METRO_PID=$!
