@@ -579,6 +579,7 @@ export function useSeriesInfo(storyId: string) {
           totalParts: number;
           partNumber: number;
           storyIds: string[];
+          storyTitles: string[];
         } | null;
       }>(`/api/v1/stories/${storyId}/series`);
       return response.data.data;

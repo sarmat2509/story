@@ -465,6 +465,16 @@ export class StoryRepository {
     return rows;
   }
 
+  /** Fetch id and title for stories by IDs */
+  async findTitlesByIds(ids: string[]): Promise<Array<{ id: string; title: string }>> {
+    if (ids.length === 0) return [];
+    const rows = await this.db
+      .select({ id: schema.stories.id, title: schema.stories.title })
+      .from(schema.stories)
+      .where(inArray(schema.stories.id, ids));
+    return rows;
+  }
+
   // ── Story Characters ──
 
   async createStoryCharacters(

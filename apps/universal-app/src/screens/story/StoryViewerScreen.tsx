@@ -857,7 +857,7 @@ export default function StoryViewerScreen() {
     
     if (!seriesInfo || !story.seriesId) return null;
     
-    const { partNumber, totalParts, storyIds } = seriesInfo;
+    const { partNumber, totalParts, storyIds, storyTitles = [] } = seriesInfo;
     const currentIndex = partNumber - 1;
     
     console.log('[StoryViewer] Rendering series navigation:', {
@@ -871,6 +871,9 @@ export default function StoryViewerScreen() {
     
     return (
       <View style={styles.seriesNavigation}>
+        <Text style={styles.partIndicator}>
+          {t('series.part_number', { number: partNumber })} {t('series.of_parts', { total: totalParts })}
+        </Text>
         {/* Previous part button */}
         {currentIndex > 0 && (
           <TouchableOpacity
@@ -878,15 +881,13 @@ export default function StoryViewerScreen() {
             onPress={() => navigateToStory(storyIds[currentIndex - 1])}
           >
             <Ionicons name="arrow-back" size={20} color={theme.colors.interactive.primary} />
-            <Text style={styles.navButtonText}>
-              {t('series.part_number', { number: currentIndex })}
+            <Text style={styles.navButtonText} numberOfLines={1}>
+              {storyTitles[currentIndex - 1]
+                ? `${t('series.part_number', { number: currentIndex })}: ${storyTitles[currentIndex - 1]}`
+                : t('series.part_number', { number: currentIndex })}
             </Text>
           </TouchableOpacity>
         )}
-        
-        <Text style={styles.partIndicator}>
-          {t('series.part_number', { number: partNumber })} {t('series.of_parts', { total: totalParts })}
-        </Text>
         
         {/* Next part button */}
         {currentIndex < totalParts - 1 && (
@@ -894,8 +895,10 @@ export default function StoryViewerScreen() {
             style={styles.navButton}
             onPress={() => navigateToStory(storyIds[currentIndex + 1])}
           >
-            <Text style={styles.navButtonText}>
-              {t('series.part_number', { number: currentIndex + 2 })}
+            <Text style={styles.navButtonText} numberOfLines={1}>
+              {storyTitles[currentIndex + 1]
+                ? `${t('series.part_number', { number: currentIndex + 2 })}: ${storyTitles[currentIndex + 1]}`
+                : t('series.part_number', { number: currentIndex + 2 })}
             </Text>
             <Ionicons name="arrow-forward" size={20} color={theme.colors.interactive.primary} />
           </TouchableOpacity>
@@ -1300,6 +1303,9 @@ export default function StoryViewerScreen() {
             
             {/* Continue Story Button */}
             {renderContinueButton()}
+              
+            {/* Series Navigation */}
+            {renderSeriesNavigation()}
           </ScrollView>
           
           {/* Right Column: Sidebar (scrollable) */}
@@ -1398,9 +1404,6 @@ export default function StoryViewerScreen() {
                 <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
                 <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
               </TouchableOpacity>
-              
-              {/* Series Navigation */}
-              {renderSeriesNavigation()}
             </View>
           </ScrollView>
           </View>
@@ -1840,13 +1843,16 @@ const styles = StyleSheet.create({
   seriesNavigation: {
     marginTop: theme.spacing[6],
     paddingTop: theme.spacing[6],
+    paddingBottom: theme.spacing[8],
     borderTopWidth: theme.borders.width.thin,
     borderTopColor: theme.colors.border.light,
+    justifyContent: 'center',
   },
   navButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'center',
     paddingVertical: theme.spacing[3],
     paddingHorizontal: theme.spacing[4],
     backgroundColor: theme.colors.background.secondary,

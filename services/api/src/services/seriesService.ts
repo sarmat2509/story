@@ -498,15 +498,21 @@ export async function getSeriesInfo(storyId: string): Promise<{
   if (!series) {
     return null;
   }
-  
+
+  const storyIds = series.storyIds as string[];
+  const titleRows = await getStoryRepository().findTitlesByIds(storyIds);
+  const idToTitle = new Map(titleRows.map((r) => [r.id, r.title]));
+  const storyTitles = storyIds.map((id) => idToTitle.get(id) ?? '');
+
   const result = {
     seriesId: series.id,
     baseTitle: series.baseTitle,
     totalParts: series.totalParts,
     partNumber: story.partNumber || 1,
-    storyIds: series.storyIds as string[],
+    storyIds,
+    storyTitles,
   };
-  
+
   logger.info({
     storyId,
     result,
