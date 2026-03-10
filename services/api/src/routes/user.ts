@@ -93,6 +93,74 @@ router.delete('/', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+// Get subscription usage (stories + audio remaining, resetsAt)
+router.get('/subscription-usage', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { getPlanFeatures, getUserSubscription } = await import('../services/planService');
+    const features = await getPlanFeatures(req.user!.id);
+    const subscription = await getUserSubscription(req.user!.id);
+
+    if (!subscription) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'No active subscription found',
+        code: 'NO_SUBSCRIPTION',
+      });
+    }
+
+    const { db } = await import('../db');
+    const { stories } = await import('../db/schema');
+    const { eq, and, isNotNull, gte, sql } = await import('drizzle-orm');
+
+    const currentPeriodStart = subscription.currentPeriodStart;
+
+    const [storiesCountResult, audioCountResult] = await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(stories)
+        .where(and(eq(stories.userId, req.user!.id), gte(stories.createdAt, currentPeriodStart))),
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(stories)
+        .where(
+          and(
+            eq(stories.userId, req.user!.id),
+            isNotNull(stories.audioMetadata),
+            gte(stories.createdAt, currentPeriodStart)
+          )
+        ),
+    ]);
+
+    const storiesUsed = Number(storiesCountResult[0]?.count) || 0;
+    const audioUsed = Number(audioCountResult[0]?.count) || 0;
+    const storiesLimit = features.storiesPerMonth;
+    const audioLimit = features.audioStoriesPerMonth;
+
+    res.json({
+      status: 'success',
+      data: {
+        stories: {
+          used: storiesUsed,
+          limit: storiesLimit,
+          remaining: Math.max(0, storiesLimit - storiesUsed),
+        },
+        audio: {
+          used: audioUsed,
+          limit: audioLimit,
+          remaining: Math.max(0, audioLimit - audioUsed),
+        },
+        resetsAt: subscription.resetAt,
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Get subscription usage failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch subscription usage',
+    });
+  }
+});
+
 // Get active sessions
 router.get('/sessions', requireAuth, async (req: Request, res: Response) => {
   try {

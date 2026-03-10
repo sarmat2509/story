@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { theme } from '@/theme';
-import { usePlansWithAuth } from '@/api/plans';
+import { usePlansWithAuth, useSubscriptionUsage } from '@/api/plans';
 import { useUpdateMe } from '@/api/auth';
 
 export default function ProfileScreen() {
@@ -14,6 +14,7 @@ export default function ProfileScreen() {
   const { user, logout } = useAuthStore();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { data: plans, isLoading: plansLoading } = usePlansWithAuth();
+  const { data: usage, isLoading: usageLoading } = useSubscriptionUsage();
   const updateMe = useUpdateMe();
   const [pseudonym, setPseudonym] = useState(user?.pseudonym ?? '');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -25,6 +26,10 @@ export default function ProfileScreen() {
   // Get current subscription plan
   const currentPlan = plans?.find(plan => plan.isCurrent);
   const storiesLimit = currentPlan?.features?.stories_per_month?.value?.limit || 5;
+
+  const formattedResetsAt = usage?.resetsAt
+    ? new Date(usage.resetsAt).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : '';
 
   const handleLogout = () => setShowLogoutConfirm(true);
 
@@ -104,16 +109,13 @@ export default function ProfileScreen() {
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
         
-        {/* Only show Language Settings on native platforms */}
-        {Platform.OS !== 'web' && (
-          <TouchableOpacity 
-            style={styles.settingButton}
-            onPress={() => navigation.navigate('LanguageSettings')}
-          >
-            <Text style={styles.settingText}>{t('profile.language_settings')}</Text>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity 
+          style={styles.settingButton}
+          onPress={() => navigation.navigate('LanguageSettings')}
+        >
+          <Text style={styles.settingText}>{t('profile.language_settings')}</Text>
+          <Text style={styles.settingArrow}>›</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.settingButton}>
           <Text style={styles.settingText}>{t('profile.notification_settings')}</Text>
@@ -138,9 +140,21 @@ export default function ProfileScreen() {
             <Text style={styles.subscriptionPlan}>
               {currentPlan?.name || t('plans.free.name')}
             </Text>
-            <Text style={styles.subscriptionDetail}>
-              {t('profile.stories_per_month', { count: storiesLimit })}
-            </Text>
+            {usage && formattedResetsAt ? (
+              <Text style={styles.subscriptionDetail}>
+                {t('profile.usage_remaining', {
+                  stories: usage.stories.remaining,
+                  audio: usage.audio.remaining,
+                  date: formattedResetsAt,
+                })}
+              </Text>
+            ) : usageLoading ? (
+              <Text style={styles.subscriptionDetail}>{t('common.loading')}</Text>
+            ) : (
+              <Text style={styles.subscriptionDetail}>
+                {t('profile.stories_per_month', { count: storiesLimit })}
+              </Text>
+            )}
             <TouchableOpacity 
               style={styles.upgradeButton}
               onPress={() => navigation.navigate('Plans' as any)}
