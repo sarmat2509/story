@@ -1,4 +1,4 @@
-import { eq, and, inArray, sql, desc, isNotNull } from 'drizzle-orm';
+import { eq, and, inArray, sql, desc, isNotNull, isNull } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -186,6 +186,28 @@ export class AssetRepository {
           eq(schema.audioAssets.isFinal, true)
         )
       )
+      .limit(1);
+    return result || null;
+  }
+
+  /** Find final completed audio asset by storyId (status=completed, isFinal=true, sceneGroupIndex=null) */
+  async findFinalCompletedAudioByStoryId(
+    storyId: string
+  ): Promise<{ audioAsset: schema.AudioAsset; asset: schema.Asset } | null> {
+    const [result] = await this.db
+      .select({
+        audioAsset: schema.audioAssets,
+        asset: schema.assets,
+      })
+      .from(schema.audioAssets)
+      .innerJoin(schema.assets, eq(schema.audioAssets.assetId, schema.assets.id))
+      .where(and(
+        eq(schema.audioAssets.storyId, storyId),
+        eq(schema.audioAssets.status, 'completed'),
+        eq(schema.audioAssets.isFinal, true),
+        isNull(schema.audioAssets.sceneGroupIndex)
+      ))
+      .orderBy(desc(schema.audioAssets.createdAt))
       .limit(1);
     return result || null;
   }

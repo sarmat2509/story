@@ -15,7 +15,7 @@ export interface DecodedToken extends TokenPayload {
 export function generateToken(payload: TokenPayload): string {
   const token = jwt.sign(payload, config.jwt.secret, {
     expiresIn: config.jwt.expiresIn,
-  });
+  } as jwt.SignOptions);
   
   return token;
 }

@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { camelizeKeys, decamelizeKeys } from 'humps';
-import { logger } from '../utils/logger';
+import { camelizeKeys } from 'humps';
 
 /**
  * Middleware for automatic case transformation:
@@ -13,9 +12,9 @@ export function caseTransformMiddleware(req: Request, res: Response, next: NextF
     req.body = camelizeKeys(req.body, { separator: '_' });
   }
 
-  // Transform query params: snake_case → camelCase  
+  // Transform query params: snake_case → camelCase
   if (req.query && Object.keys(req.query).length > 0) {
-    req.query = camelizeKeys(req.query, { separator: '_' });
+    req.query = camelizeKeys(req.query, { separator: '_' }) as typeof req.query;
   }
 
   // Don't transform responses - services return camelCase, frontend client handles it

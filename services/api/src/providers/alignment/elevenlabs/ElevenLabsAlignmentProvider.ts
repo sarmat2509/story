@@ -123,7 +123,7 @@ export class ElevenLabsAlignmentProvider implements IAlignmentProvider {
         throw new Error(`ElevenLabs alignment failed: ${response.status} - ${errorText}`);
       }
       
-      const data: ElevenLabsAlignmentResponse = await response.json();
+      const data = (await response.json()) as ElevenLabsAlignmentResponse;
       
       // 4. Convert to provider-agnostic format
       const result: AlignmentResult = {

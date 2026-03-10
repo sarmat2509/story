@@ -6,7 +6,7 @@
  */
 
 import anyAscii from 'any-ascii';
-import type { CharacterData, ChildProfileData } from './types';
+import type { CharacterData, ChildProfileData } from '../services/types';
 
 export interface NormalizedCharacter {
   originalName: string; // From LLM or user

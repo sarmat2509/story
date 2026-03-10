@@ -176,7 +176,7 @@ export class ElevenLabsQuotaProvider implements IQuotaProvider {
           throw new Error(`Failed to fetch subscription: ${response.status}`);
         }
 
-        const data: ElevenLabsSubscription = await response.json();
+        const data = (await response.json()) as ElevenLabsSubscription;
         
         // Parse character quota
         const characterQuota: QuotaInfo = {

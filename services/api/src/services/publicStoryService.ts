@@ -12,7 +12,7 @@ import { getStoryRepository, getAlignmentRepository } from '../repositories';
 import { enrichAllStoriesWithImages } from './storyOrchestrationService';
 import { getAssetStorageService } from './assetStorageService';
 import { logger } from '../utils/logger';
-import { stripCharacterIds, stripAudioTags } from '../utils/audioTags';
+import { stripAllTags } from '../utils/audioTags';
 import { config } from '../config';
 import type { AlignmentData, StoryPublicView, StoryAudioMetadata } from '@wondertales/shared';
 
@@ -87,7 +87,7 @@ export async function buildStoryPublicView(
       : null;
     return {
       sceneId: s.sceneId,
-      text: stripCharacterIds(stripAudioTags(s.text || '')),
+      text: stripAllTags(s.text || ''),
       imageUrl,
     };
   });
@@ -96,7 +96,7 @@ export async function buildStoryPublicView(
   return {
     id: story.id,
     title: story.title,
-    fullText: stripCharacterIds(stripAudioTags(story.fullText || '')),
+    fullText: stripAllTags(story.fullText || ''),
     ...(metadata.seoDescription && typeof metadata.seoDescription === 'string' && { seoDescription: metadata.seoDescription }),
     scenes: formattedScenes,
     authorDisplayName: story.authorDisplayName || 'Anonymous',
@@ -276,7 +276,7 @@ export async function listPublicStories(options: {
             : null;
           return {
             sceneId: sc.sceneId,
-            text: stripCharacterIds(stripAudioTags(sc.text || '')),
+            text: stripAllTags(sc.text || ''),
             imageUrl,
           };
         }),

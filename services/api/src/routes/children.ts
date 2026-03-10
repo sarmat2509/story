@@ -140,9 +140,13 @@ router.post('/', requireAuth, async (req, res) => {
     }
     
     const data = validation.data;
-    
+    const dataForCreate = {
+      ...data,
+      birthDate: data.birthDate instanceof Date ? data.birthDate.toISOString().split('T')[0] : data.birthDate,
+    };
+
     // Create profile (feature check happens in service)
-    const profile = await childProfileService.createChildProfile(userId, data);
+    const profile = await childProfileService.createChildProfile(userId, dataForCreate);
     
     const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
     const profileWithAge = {
@@ -195,9 +199,15 @@ router.patch('/:id', requireAuth, async (req, res) => {
     }
     
     const data = validation.data;
-    
+    const dataForUpdate = {
+      ...data,
+      ...(data.birthDate && {
+        birthDate: data.birthDate instanceof Date ? data.birthDate.toISOString().split('T')[0] : data.birthDate,
+      }),
+    };
+
     // Update profile (ownership check happens in service)
-    const profile = await childProfileService.updateChildProfile(id, userId, data);
+    const profile = await childProfileService.updateChildProfile(id, userId, dataForUpdate);
     
     const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
     const profileWithAge = {

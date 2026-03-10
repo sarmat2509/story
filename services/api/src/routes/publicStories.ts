@@ -131,7 +131,7 @@ router.post('/:slug/rating', ratingLimiter, async (req: Request, res: Response) 
 
     const result = await submitRating(story.id, voterId, rating, ipAddress);
 
-    if (!result.ok && result.alreadyVoted) {
+    if (result.ok === false) {
       return res.status(409).json({
         status: 'error',
         message: 'Already voted',

@@ -63,7 +63,7 @@ if (config.oauth.google.clientId && config.oauth.google.clientSecret) {
             return done(new Error('Email is required from Google profile'));
           }
           
-          done(null, { profile: googleProfile, accessToken, refreshToken });
+          done(null, { profile: googleProfile, accessToken, refreshToken } as unknown as Express.User);
         } catch (error) {
           done(error as Error);
         }

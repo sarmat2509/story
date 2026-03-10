@@ -28,14 +28,14 @@ if (process.env.NODE_ENV === 'development') {
 } else {
   // JSON to stdout in production (for docker logs)
   streams.push({
-    level: process.env.LOG_LEVEL || 'info',
+    level: (process.env.LOG_LEVEL || 'info') as pino.Level,
     stream: process.stdout,
   });
 }
 
 // Stream 2: JSON file with rotation (always)
 streams.push({
-  level: process.env.LOG_LEVEL || 'debug',
+  level: (process.env.LOG_LEVEL || 'debug') as pino.Level,
   stream: pino.destination({
     dest: path.join(logsDir, 'app.log'),
     sync: false, // Async for performance

@@ -44,7 +44,7 @@ export class GoogleTagProcessor implements ITagProcessor {
     const emotions: string[] = [];
     for (const match of matches) {
       const tag = match[1].trim().toLowerCase();
-      if (emotionList.includes(tag)) {
+      if ((emotionList as readonly string[]).includes(tag)) {
         emotions.push(tag);
       }
     }

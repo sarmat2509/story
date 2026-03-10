@@ -9,7 +9,7 @@ import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/authMiddleware';
 import { getStory, getStoryManifest, listUserStories, listUserStorySummaries, getTotalUserStoriesCount } from '../services/storyOrchestrationService';
 import { getAlignmentRepository } from '../repositories';
-import { stripAudioTags, stripCharacterIds } from '../utils/audioTags';
+import { stripAllTags } from '../utils/audioTags';
 import { logger } from '../utils/logger';
 
 function parseSceneVisual(scene: any): { sceneVisual?: any; visualPrompt?: string } {
@@ -25,7 +25,7 @@ function parseSceneVisual(scene: any): { sceneVisual?: any; visualPrompt?: strin
       // Not valid JSON — fall through to legacy
     }
   }
-  return { visualPrompt: stripAudioTags(vp) };
+  return { visualPrompt: stripAllTags(vp) };
 }
 
 const router = Router();
@@ -65,10 +65,10 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       ...story,
       scenes: Array.isArray(story.scenes) ? story.scenes.map((scene: any) => ({
         ...scene,
-        text: stripCharacterIds(stripAudioTags(scene.text || '')),
+        text: stripAllTags(scene.text || ''),
         ...parseSceneVisual(scene),
       })) : story.scenes,
-      fullText: stripCharacterIds(stripAudioTags(story.fullText || '')),
+      fullText: stripAllTags(story.fullText || ''),
     }));
 
     res.json({

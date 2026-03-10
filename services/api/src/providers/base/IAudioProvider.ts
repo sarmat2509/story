@@ -32,7 +32,7 @@ export interface VoiceCatalogEntry {
   name: string;              // Backend DB name: "cassiopeia", "orion"
   displayName: string;       // Frontend display: "Кассіопея", "Оріон"
   language: string;
-  gender: 'male' | 'female';
+  gender: 'male' | 'female' | 'neutral';
   ageCategory: 'child' | 'young_adult' | 'adult' | 'senior';
   roleType: 'narrator' | 'character' | 'both';
   voiceTags: string[];

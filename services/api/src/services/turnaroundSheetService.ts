@@ -118,7 +118,7 @@ export async function generateTurnaroundSheet(
     buffer: generated.imageData,
     mimeType: generated.mimeType,
     userId,
-    photoType: 'character_turnaround',
+    photoType: 'character_turnaround' as const,
   });
 
   const turnaroundSheet: TurnaroundSheetResult = {
@@ -201,7 +201,7 @@ export async function generateChildTurnaroundSheet(
     buffer: generated.imageData,
     mimeType: generated.mimeType,
     userId,
-    photoType: 'child_turnaround',
+    photoType: 'child_turnaround' as const,
   });
 
   const turnaroundSheet: TurnaroundSheetResult = {
@@ -280,7 +280,7 @@ export async function generateLlmCharacterTurnaround(
     buffer: generated.imageData,
     mimeType: generated.mimeType,
     userId,
-    photoType: 'character_turnaround',
+    photoType: 'character_turnaround' as const,
   });
 
   const turnaroundSheet: TurnaroundSheetResult = {
