@@ -554,9 +554,8 @@ All other code (services, domain, orchestration) remains unchanged.
 **MUST** use the migration script, NOT direct psql commands:
 
 ```bash
-# Via Docker (single entry point)
-pnpm api:script -- npx tsx src/scripts/runMigration.ts NNNN_migration_file.sql
-# or: docker compose -f docker-compose.dev.yml run --rm api npx tsx src/scripts/runMigration.ts NNNN_migration_file.sql
+# Via custom script (recommended)
+pnpm run migrate NNNN_migration_file.sql
 ```
 
 **NEVER** run migrations with:
@@ -575,8 +574,8 @@ The script provides:
 
 Example usage:
 ```bash
-# Run specific migration (via Docker)
-pnpm api:script -- npx tsx src/scripts/runMigration.ts 0022_reset_audio_story_limits.sql
+# Run specific migration
+pnpm run migrate 0022_reset_audio_story_limits.sql
 
 # Output:
 # ✅ DATABASE_URL found

@@ -4,6 +4,7 @@ import { pgTable, uuid, varchar, text, timestamp, jsonb, uniqueIndex, index, ine
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: varchar('email', { length: 255 }).notNull().unique(),
+  passwordHash: varchar('password_hash', { length: 255 }),
   displayName: varchar('display_name', { length: 255 }),
   pseudonym: varchar('pseudonym', { length: 100 }),
   avatarUrl: text('avatar_url'),
@@ -57,6 +58,21 @@ export const sessions = pgTable('sessions', {
   };
 });
 
+// Password reset tokens table
+export const passwordResetTokens = pgTable('password_reset_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  token: varchar('token', { length: 255 }).notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    tokenIdx: uniqueIndex('password_reset_tokens_token_idx').on(table.token),
+    userIdIdx: index('password_reset_tokens_user_id_idx').on(table.userId),
+    expiresAtIdx: index('password_reset_tokens_expires_at_idx').on(table.expiresAt),
+  };
+});
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -66,6 +82,9 @@ export type NewOAuthIdentity = typeof oauthIdentities.$inferInsert;
 
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type NewPasswordResetToken = typeof passwordResetTokens.$inferInsert;
 
 // Plans table
 export const plans = pgTable('plans', {

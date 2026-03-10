@@ -8,6 +8,9 @@ export type RootStackParamList = {
 export type MainDrawerParamList = {
   Landing: undefined;
   Login: undefined;
+  Register: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: { token?: string };
   NotFound: undefined;
   OAuthCallback: { provider: 'google' | 'apple' };
   Dashboard: undefined;

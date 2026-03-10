@@ -42,13 +42,12 @@ services:
     volumes:
       # Development mode: mount source code for hot reload
       - ./services/api/src:/app/services/api/src
+      - ./services/api/drizzle:/app/services/api/drizzle
       - ./packages:/app/packages
       - ./services/api/uploads:/app/services/api/uploads  # Mount local uploads directory
       - api_logs:/app/services/api/logs
       - ./secrets:/app/secrets:ro
-      # Exclude node_modules to avoid conflicts
-      - /app/node_modules
-      - /app/services/api/node_modules
+      # Use image's node_modules (anonymous volumes above overwrote with empty dirs → bcryptjs not found)
 
   redis:
     image: redis:7-alpine

@@ -12,6 +12,9 @@ import { useAuthStore } from '@/store/authStore';
 import LandingScreen from '@/screens/public/LandingScreen';
 import NotFoundScreen from '@/screens/public/NotFoundScreen';
 import LoginScreen from '@/screens/auth/LoginScreen';
+import RegisterScreen from '@/screens/auth/RegisterScreen';
+import ForgotPasswordScreen from '@/screens/auth/ForgotPasswordScreen';
+import ResetPasswordScreen from '@/screens/auth/ResetPasswordScreen';
 import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
 import DashboardScreen from '@/screens/dashboard/DashboardScreen';
 import WizardScreen from '@/screens/wizard/WizardScreen';
@@ -296,6 +299,30 @@ function TabNavigator() {
         }}
       />
       <Tab.Screen
+        name="Register"
+        component={RegisterScreen}
+        options={{
+          title: t('auth.register'),
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+        options={{
+          title: t('auth.forgot_password'),
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen
+        name="ResetPassword"
+        component={ResetPasswordScreen}
+        options={{
+          title: t('auth.reset_password'),
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen
         name="OAuthCallback"
         component={OAuthCallbackScreen}
         options={{
@@ -550,6 +577,30 @@ function DrawerNavigator() {
             <Ionicons name="log-in-outline" size={size} color={color} />
           ),
           drawerItemStyle: isAuthenticated ? { display: 'none' } : undefined,
+        }}
+      />
+      <Drawer.Screen
+        name="Register"
+        component={RegisterScreen}
+        options={{
+          title: t('auth.register'),
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
+      <Drawer.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+        options={{
+          title: t('auth.forgot_password'),
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
+      <Drawer.Screen
+        name="ResetPassword"
+        component={ResetPasswordScreen}
+        options={{
+          title: t('auth.reset_password'),
+          drawerItemStyle: { display: 'none' },
         }}
       />
       <Drawer.Screen

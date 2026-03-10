@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { z } from 'zod';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import config from '../config';
@@ -8,8 +9,35 @@ import { generateToken } from '../services/jwtService';
 import { requireAuth } from '../middleware/authMiddleware';
 import { logger } from '../utils/logger';
 import { setSessionCookie, clearSessionCookie } from '../utils/sessionCookie';
+import {
+  loginWithPassword,
+  register,
+  requestPasswordReset,
+  resetPassword,
+} from '../services/authCredentialsService';
+import { getUserByEmail } from '../services/userService';
 
 const router = Router();
+
+// Validation schemas
+const loginSchema = z.object({
+  email: z.string().email().max(255),
+  password: z.string().min(8).max(128),
+});
+
+const registerSchema = z.object({
+  email: z.string().email().max(255),
+  password: z.string().min(8).max(128),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email().max(255),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8).max(128),
+});
 
 // Configure Google OAuth strategy
 if (config.oauth.google.clientId && config.oauth.google.clientSecret) {
@@ -411,6 +439,179 @@ router.post('/apple/token', async (req: Request, res: Response) => {
       status: 'error',
       message: 'Authentication failed',
       details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined,
+    });
+  }
+});
+
+// Create session (email/password login)
+router.post('/sessions', async (req: Request, res: Response) => {
+  try {
+    const validationResult = loginSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid request data',
+        details: validationResult.error.errors,
+      });
+    }
+    const { email, password } = validationResult.data;
+
+    const user = await loginWithPassword(email, password);
+    if (!user) {
+      const existing = await getUserByEmail(email);
+      if (existing && !existing.passwordHash) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Sign in with Google or Apple',
+          code: 'OAUTH_ONLY',
+        });
+      }
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid email or password',
+      });
+    }
+
+    const deviceInfo = extractDeviceInfo(req);
+    const session = await createSession({
+      userId: user.id,
+      ...deviceInfo,
+    });
+    const token = generateToken({
+      userId: user.id,
+      sessionId: session.id,
+    });
+
+    logger.info({ userId: user.id }, 'Email login successful');
+    setSessionCookie(res, token);
+    res.json({
+      token,
+      user,
+      expiresAt: session.expiresAt.getTime(),
+      isNewUser: false,
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Email login failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Authentication failed',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined,
+    });
+  }
+});
+
+// Register (email/password)
+router.post('/register', async (req: Request, res: Response) => {
+  try {
+    const validationResult = registerSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid request data',
+        details: validationResult.error.errors,
+      });
+    }
+    const { email, password } = validationResult.data;
+
+    const { user, isNewUser } = await register(email, password);
+
+    const deviceInfo = extractDeviceInfo(req);
+    const session = await createSession({
+      userId: user.id,
+      ...deviceInfo,
+    });
+    const token = generateToken({
+      userId: user.id,
+      sessionId: session.id,
+    });
+
+    logger.info({ userId: user.id, isNewUser }, 'Registration successful');
+    setSessionCookie(res, token);
+    res.json({
+      token,
+      user,
+      expiresAt: session.expiresAt.getTime(),
+      isNewUser,
+    });
+  } catch (error) {
+    const err = error as Error;
+    if (err.message === 'EMAIL_ALREADY_REGISTERED') {
+      return res.status(409).json({
+        status: 'error',
+        message: 'Email already registered',
+        code: 'EMAIL_ALREADY_REGISTERED',
+      });
+    }
+    logger.error({ err: error }, 'Registration failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Registration failed',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    });
+  }
+});
+
+// Forgot password
+router.post('/forgot-password', async (req: Request, res: Response) => {
+  try {
+    const validationResult = forgotPasswordSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid request data',
+        details: validationResult.error.errors,
+      });
+    }
+    const { email } = validationResult.data;
+
+    await requestPasswordReset(email);
+
+    res.json({
+      status: 'success',
+      message: 'If the email exists, you will receive a reset link',
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Forgot password failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to process request',
+    });
+  }
+});
+
+// Reset password
+router.post('/reset-password', async (req: Request, res: Response) => {
+  try {
+    const validationResult = resetPasswordSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid request data',
+        details: validationResult.error.errors,
+      });
+    }
+    const { token, password } = validationResult.data;
+
+    const user = await resetPassword(token, password);
+
+    logger.info({ userId: user.id }, 'Password reset successful');
+    res.json({
+      status: 'success',
+      message: 'Password reset successfully',
+    });
+  } catch (error) {
+    const err = error as Error;
+    if (err.message === 'INVALID_OR_EXPIRED_TOKEN') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid or expired reset link',
+        code: 'INVALID_OR_EXPIRED_TOKEN',
+      });
+    }
+    logger.error({ err: error }, 'Reset password failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to reset password',
     });
   }
 });

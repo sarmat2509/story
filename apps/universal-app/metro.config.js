@@ -1,8 +1,15 @@
+const path = require('path');
 const { getDefaultConfig } = require('expo/metro-config');
 
 // Expo SDK 52+ automatically configures Metro for monorepos.
-// Manual nodeModulesPaths/watchFolders can break resolution with pnpm.
+// With pnpm + node-linker=hoisted, @tanstack/react-query lives in workspace root
+// node_modules; Metro may not find it without explicit nodeModulesPaths.
+const workspaceRoot = path.resolve(__dirname, '../..');
 const config = getDefaultConfig(__dirname);
+config.resolver.nodeModulesPaths = [
+  path.resolve(__dirname, 'node_modules'),
+  path.resolve(workspaceRoot, 'node_modules'),
+];
 
 // Workaround: Zustand ESM uses import.meta.env which fails in web bundle.
 // Only for zustand: disable package exports so Metro uses main field (CJS).

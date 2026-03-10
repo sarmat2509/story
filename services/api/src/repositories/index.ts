@@ -24,6 +24,7 @@ import { StoryEnvironmentCacheRepository } from './StoryEnvironmentCacheReposito
 import { AlignmentRepository } from './AlignmentRepository';
 import { AiUsageRepository } from './AiUsageRepository';
 import { StoryRatingRepository } from './StoryRatingRepository';
+import { PasswordResetTokenRepository } from './PasswordResetTokenRepository';
 
 // Re-export classes for type usage
 export { UserRepository } from './UserRepository';
@@ -43,6 +44,7 @@ export { StoryEnvironmentCacheRepository } from './StoryEnvironmentCacheReposito
 export { AlignmentRepository } from './AlignmentRepository';
 export { AiUsageRepository } from './AiUsageRepository';
 export { StoryRatingRepository } from './StoryRatingRepository';
+export { PasswordResetTokenRepository } from './PasswordResetTokenRepository';
 
 // Singleton instances
 let userRepo: UserRepository;
@@ -62,6 +64,7 @@ let storyEnvironmentCacheRepo: StoryEnvironmentCacheRepository;
 let alignmentRepo: AlignmentRepository;
 let aiUsageRepo: AiUsageRepository;
 let storyRatingRepo: StoryRatingRepository;
+let passwordResetTokenRepo: PasswordResetTokenRepository;
 
 export function getUserRepository(): UserRepository {
   if (!userRepo) userRepo = new UserRepository(db);
@@ -148,4 +151,10 @@ export function getAiUsageRepository(): AiUsageRepository {
 export function getStoryRatingRepository(): StoryRatingRepository {
   if (!storyRatingRepo) storyRatingRepo = new StoryRatingRepository(db);
   return storyRatingRepo;
+}
+
+export function getPasswordResetTokenRepository(): PasswordResetTokenRepository {
+  if (!passwordResetTokenRepo)
+    passwordResetTokenRepo = new PasswordResetTokenRepository(db);
+  return passwordResetTokenRepo;
 }

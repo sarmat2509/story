@@ -8,6 +8,69 @@ import { storage } from '@/utils/storage';
 type User = UserApi;
 type AuthResponse = AuthResponseApi;
 
+// Email/password mutations
+export const useEmailLogin = () => {
+  const { login } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async (data: { email: string; password: string }) => {
+      const response = await apiClient.post<AuthResponse>(
+        '/api/v1/auth/sessions',
+        data
+      );
+      return response.data;
+    },
+    onSuccess: async (data) => {
+      await storage.setAuthToken(data.token);
+      await storage.setUser(data.user);
+      login(data.user, data.token);
+    },
+  });
+};
+
+export const useRegister = () => {
+  const { login } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async (data: { email: string; password: string }) => {
+      const response = await apiClient.post<AuthResponse>(
+        '/api/v1/auth/register',
+        data
+      );
+      return response.data;
+    },
+    onSuccess: async (data) => {
+      await storage.setAuthToken(data.token);
+      await storage.setUser(data.user);
+      login(data.user, data.token);
+    },
+  });
+};
+
+export const useForgotPassword = () => {
+  return useMutation({
+    mutationFn: async (email: string) => {
+      const response = await apiClient.post<{ status: string; message: string }>(
+        '/api/v1/auth/forgot-password',
+        { email }
+      );
+      return response.data;
+    },
+  });
+};
+
+export const useResetPassword = () => {
+  return useMutation({
+    mutationFn: async (data: { token: string; password: string }) => {
+      const response = await apiClient.post<{ status: string; message: string }>(
+        '/api/v1/auth/reset-password',
+        data
+      );
+      return response.data;
+    },
+  });
+};
+
 // OAuth mutations
 export const useGoogleLogin = () => {
   const { login } = useAuthStore();

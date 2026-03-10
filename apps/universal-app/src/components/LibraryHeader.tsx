@@ -80,18 +80,6 @@ const LibraryHeaderComponent = ({
   return (
     <View style={styles.header}>
       <View style={styles.leftControls}>
-        <TouchableOpacity 
-          style={styles.viewToggle} 
-          onPress={onToggleViewMode}
-          accessibilityLabel={`Switch to ${viewMode === 'grid' ? 'list' : 'grid'} view`}
-        >
-          <Ionicons 
-            name={viewMode === 'grid' ? 'list' : 'grid'} 
-            size={24} 
-            color={theme.colors.text.primary} 
-          />
-        </TouchableOpacity>
-        
         {audioFilterElement}
         
         {scenarioCards.length > 0 && onScenarioChange && (
@@ -138,37 +126,50 @@ const LibraryHeaderComponent = ({
         )}
       </View>
       
-      {totalPages > 1 && (
-        <View style={styles.paginationInHeader}>
-          <TouchableOpacity
-            style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
-            onPress={() => onPageChange(Math.max(1, currentPage - 1))}
-            disabled={currentPage === 1}
+      <View style={styles.rightControls}>
+        {totalPages > 1 && (
+          <View style={styles.paginationInHeader}>
+            <TouchableOpacity
+              style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
+              onPress={() => onPageChange(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+            >
+              <Ionicons 
+                name="chevron-back" 
+                size={20} 
+                color={currentPage === 1 ? theme.colors.text.disabled : theme.colors.interactive.primary} 
+              />
+            </TouchableOpacity>
+            
+            <Text style={styles.paginationText}>
+              {t('library.page')} {currentPage} {t('library.of')} {totalPages}
+            </Text>
+            
+            <TouchableOpacity
+              style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
+              onPress={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <Ionicons 
+                name="chevron-forward" 
+                size={20} 
+                color={currentPage === totalPages ? theme.colors.text.disabled : theme.colors.interactive.primary} 
+              />
+            </TouchableOpacity>
+          </View>
+        )}
+        <TouchableOpacity 
+            style={styles.viewToggle} 
+            onPress={onToggleViewMode}
+            accessibilityLabel={`Switch to ${viewMode === 'grid' ? 'list' : 'grid'} view`}
           >
             <Ionicons 
-              name="chevron-back" 
-              size={20} 
-              color={currentPage === 1 ? theme.colors.text.disabled : theme.colors.interactive.primary} 
+              name={viewMode === 'grid' ? 'list' : 'grid'} 
+              size={24} 
+              color={theme.colors.text.primary} 
             />
-          </TouchableOpacity>
-          
-          <Text style={styles.paginationText}>
-            {t('library.page')} {currentPage} {t('library.of')} {totalPages}
-          </Text>
-          
-          <TouchableOpacity
-            style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
-            onPress={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-            disabled={currentPage === totalPages}
-          >
-            <Ionicons 
-              name="chevron-forward" 
-              size={20} 
-              color={currentPage === totalPages ? theme.colors.text.disabled : theme.colors.interactive.primary} 
-            />
-          </TouchableOpacity>
-        </View>
-      )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -215,6 +216,11 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   leftControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+  },
+  rightControls: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing[3],

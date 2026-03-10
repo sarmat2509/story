@@ -3,6 +3,7 @@ import type { User, OAuthIdentity } from '../db/schema';
 
 export interface CreateUserInput {
   email: string;
+  passwordHash?: string | null;
   displayName?: string;
   avatarUrl?: string;
   preferredLocale?: string;
@@ -35,7 +36,10 @@ export async function getUserByEmail(email: string): Promise<User | null> {
 
 // Create new user
 export async function createUser(data: CreateUserInput): Promise<User> {
-  return getUserRepository().create(data);
+  return getUserRepository().create({
+    ...data,
+    passwordHash: data.passwordHash ?? null,
+  });
 }
 
 // Update user

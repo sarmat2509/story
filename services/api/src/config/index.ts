@@ -254,6 +254,12 @@ export const config = {
     cdnUrl: process.env.STORAGE_CDN_URL || '',
   },
   
+  // Email (Resend)
+  email: {
+    resendApiKey: process.env.RESEND_API_KEY || '',
+    fromEmail: process.env.FROM_EMAIL || 'noreply@wondertales.com',
+  },
+
   // Published stories (static HTML output + SSR)
   web: {
     webAppUrl: process.env.WEB_APP_URL || process.env.EXPO_PUBLIC_WEB_APP_URL || 'https://app.wondertales.com',

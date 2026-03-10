@@ -67,6 +67,9 @@ const linking: any = {
         screens: {
           Landing: '',
           Login: 'login',
+          Register: 'register',
+          ForgotPassword: 'auth/forgot-password',
+          ResetPassword: 'auth/reset-password',
           OAuthCallback: 'auth/:provider/callback',
           Dashboard: 'dashboard',
           Wizard: 'wizard',

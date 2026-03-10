@@ -25,12 +25,14 @@ export class UserRepository {
 
   async create(data: {
     email: string;
+    passwordHash?: string | null;
     displayName?: string | null;
     avatarUrl?: string | null;
     preferredLocale?: string;
   }): Promise<schema.User> {
     const newUser: schema.NewUser = {
       email: data.email,
+      passwordHash: data.passwordHash ?? null,
       displayName: data.displayName || null,
       avatarUrl: data.avatarUrl || null,
       preferredLocale: data.preferredLocale || 'uk',
@@ -39,7 +41,7 @@ export class UserRepository {
     return user;
   }
 
-  async update(id: string, data: Partial<Pick<schema.NewUser, 'displayName' | 'avatarUrl' | 'preferredLocale' | 'mode' | 'pseudonym'>>): Promise<schema.User> {
+  async update(id: string, data: Partial<Pick<schema.NewUser, 'displayName' | 'avatarUrl' | 'preferredLocale' | 'mode' | 'pseudonym' | 'passwordHash'>>): Promise<schema.User> {
     const [user] = await this.db
       .update(schema.users)
       .set({ ...data, updatedAt: new Date() })
