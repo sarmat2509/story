@@ -89,10 +89,10 @@ export function PublishShareDialog({
 
   const displayUrl = useMemo(() => {
     if (!shareUrl) return '';
-    if (Platform.OS === 'web' && typeof location !== 'undefined') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
       try {
         const u = new URL(shareUrl);
-        return `${location.origin}${u.pathname}${u.search}`;
+        return `${window.location.origin}${u.pathname}${u.search}`;
       } catch {
         return shareUrl;
       }

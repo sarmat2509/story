@@ -12,7 +12,7 @@ export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 export function navigateToMainRoute(route: LastMainRoute): void {
   if (route == null) return;
   if (!navigationRef.isReady()) return;
-  navigationRef.navigate('Main', {
+  (navigationRef as any).navigate('Main', {
     screen: route.name,
     params: route.params,
   });

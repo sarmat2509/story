@@ -8,9 +8,6 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { NavigationProp } from '@react-navigation/native';
-import type { MainDrawerParamList } from '@/types/navigation';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/config/i18n';
 import { navigateToStory } from '@/navigation/navigationRef';
@@ -27,13 +24,13 @@ type AgeGroup = '2-3' | '4-5' | '6-7' | '8-9' | '10-12';
 
 interface PhotoObject {
   url: string;
-  fileKey: string;
-  [key: string]: any;
+  uploadedAt: string;
+  fileKey?: string;
+  [key: string]: unknown;
 }
 
 export default function InstantWizardScreen() {
   const { t } = useTranslation();
-  const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
 
   // Form state
@@ -69,13 +66,13 @@ export default function InstantWizardScreen() {
       setIsGenerating(true);
 
       // Extract URLs from photo objects
-      const photoUrls = photos.map(photo => photo.url || photo);
+      const photoUrls = photos.map(photo => (typeof photo === 'string' ? photo : photo.url)).filter((u): u is string => !!u);
 
       const payload = {
         photos: photoUrls,
         ageGroup,
         language: storyLanguage || i18n.language,
-        scenario: scenarioCardId || 'default',
+        scenario: scenarioCardId ?? 'default',
       };
 
       const result = await createStoryFromPhotos.mutateAsync(payload);
@@ -121,8 +118,8 @@ export default function InstantWizardScreen() {
         <Text style={styles.sectionTitle}>{t('instant_wizard.upload_photos')}</Text>
         <Text style={styles.sectionDescription}>{t('instant_wizard.photos_description')}</Text>
         <PhotoUploadGrid
-          photos={photos}
-          onPhotosChange={setPhotos}
+          photos={photos.map((p) => ({ url: p.url, uploadedAt: p.uploadedAt || new Date().toISOString(), isUploading: (p as { isUploading?: boolean }).isUploading }))}
+          onPhotosChange={(newPhotos) => setPhotos(newPhotos.map((p) => ({ url: p.url, uploadedAt: p.uploadedAt })))}
           maxPhotos={5}
           photoType="character"
         />
@@ -198,7 +195,7 @@ export default function InstantWizardScreen() {
         status={storyStatus?.status || 'pending'}
         progress={storyStatus?.progress || 0}
         progressData={storyStatus?.progressData}
-        errorMessage={storyStatus?.errorMessage}
+        errorMessage={storyStatus?.errorMessage ?? undefined}
         onRetry={handleRetry}
         onClose={handleCloseModal}
       />

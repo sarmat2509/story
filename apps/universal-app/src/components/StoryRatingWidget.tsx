@@ -30,7 +30,7 @@ export function StoryRatingWidget({
 }: StoryRatingWidgetProps) {
   const { t } = useTranslation();
   const [viewState, setViewState] = useState<ViewState>('voting');
-  const [ratedStories, setRatedStories] = useState<Set<string>>(new Set());
+  const [, setRatedStories] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     ratingStorage.getRatedStories().then((set) => {
@@ -84,7 +84,6 @@ export function StoryRatingWidget({
               key={idx}
               style={styles.emojiButton}
               onPress={() => handleVote(idx + 1)}
-              disabled={viewState === 'submitting'}
             >
               <Text style={styles.emoji}>{emoji}</Text>
             </TouchableOpacity>

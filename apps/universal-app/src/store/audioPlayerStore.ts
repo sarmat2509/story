@@ -8,6 +8,7 @@ export interface PlayParams {
   hasAlignment?: boolean;
   initialPosition?: number;
   initialHighlightEnabled?: boolean;
+  initialPlaybackRate?: number;
   autoPlay?: boolean;
 }
 
@@ -31,6 +32,9 @@ interface AudioPlayerState {
   // Finish event flag (consumed by AudioPlayer to trigger onFinish callback)
   didJustFinish: boolean;
 
+  // Playback speed (0.75–1.25), persisted globally
+  playbackRate: number;
+
   // The storyId currently being viewed in StoryViewerScreen (set/cleared on mount/unmount).
   // Used by MiniAudioPlayer to hide when the full player is already visible.
   viewingStoryId: string | null;
@@ -48,6 +52,7 @@ interface AudioPlayerState {
   toggleHighlight: (enabled: boolean) => void;
   setDidJustFinish: (value: boolean) => void;
   setViewingStoryId: (storyId: string | null) => void;
+  setPlaybackRate: (rate: number) => void;
 }
 
 export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
@@ -64,6 +69,7 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
   hasAlignment: false,
   isHighlightEnabled: false,
   didJustFinish: false,
+  playbackRate: 1,
   viewingStoryId: null,
 
   play: (params) => {
@@ -76,6 +82,7 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
       duration: params.duration,
       hasAlignment: params.hasAlignment ?? false,
       isHighlightEnabled: params.initialHighlightEnabled ?? false,
+      playbackRate: params.initialPlaybackRate ?? get().playbackRate,
       position: params.initialPosition ?? 0,
       isPlaying: false,
       isLoading: true,
@@ -117,4 +124,6 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
   setDidJustFinish: (value) => set({ didJustFinish: value }),
 
   setViewingStoryId: (storyId) => set({ viewingStoryId: storyId }),
+
+  setPlaybackRate: (rate) => set({ playbackRate: rate }),
 }));

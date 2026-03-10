@@ -25,7 +25,8 @@ export default function ProfileScreen() {
 
   // Get current subscription plan
   const currentPlan = plans?.find(plan => plan.isCurrent);
-  const storiesLimit = currentPlan?.features?.stories_per_month?.value?.limit || 5;
+  const featuresArr = currentPlan?.features as Array<{ name?: string; value?: { limit?: number } }> | undefined;
+  const storiesLimit = featuresArr?.find((f) => f?.name === 'stories_per_month')?.value?.limit ?? 5;
 
   const formattedResetsAt = usage?.resetsAt
     ? new Date(usage.resetsAt).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })

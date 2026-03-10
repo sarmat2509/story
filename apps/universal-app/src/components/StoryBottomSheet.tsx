@@ -1,12 +1,11 @@
 import React, { useCallback, useMemo, forwardRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 import AudioPlayer from '@/components/AudioPlayer';
-import VoiceSelector from '@/components/VoiceSelector';
 import { StoryCharactersSection } from '@/components/StoryCharactersSection';
 
 interface StoryBottomSheetProps {
@@ -21,7 +20,7 @@ interface StoryBottomSheetProps {
   onHighlightToggle: (enabled: boolean) => void;
   onPositionChange: (position: number) => void;
   onFinish: () => void;
-  onActivateAudio: () => void;
+  onActivateAudio: () => void | Promise<void>;
   onDeleteStory: () => void;
   onPublish?: () => void;
   onShare?: () => void;
@@ -53,7 +52,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
     onSaveCharacter,
     savedCharacterIds = [],
     userMode,
-  }, ref) => {
+  }, _ref) => {
     const { t } = useTranslation();
     
     const snapPoints = useMemo(() => ['60%', '90%'], []);
@@ -93,7 +92,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
                 onHighlightToggle={onHighlightToggle}
                 onPositionChange={onPositionChange}
                 onFinish={onFinish}
-                onActivate={onActivateAudio}
+                onActivate={async () => { onActivateAudio(); }}
               />
             </View>
           )}

@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "strict": true,
+    "lib": ["ES2022", "DOM"],
     "paths": {
       "@/*": ["./src/*"],
       "@wondertales/shared": ["../../packages/shared/src"]
@@ -12,7 +13,8 @@
     "src/**/*",
     "index.js",
     "*.ts",
-    "*.tsx"
+    "*.tsx",
+    "../../packages/shared/src/**/*"
   ],
   "exclude": [
     "node_modules",

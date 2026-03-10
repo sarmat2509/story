@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, ScrollView, useWindowDimensions, ActivityIndicator, Platform } from 'react-native';
-import { useNavigation, useRoute, useFocusEffect, RouteProp, NavigationProp } from '@react-navigation/native';
+import { useRoute, useFocusEffect, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useStories, useDeleteStory, prefetchStory } from '@/api/stories';
@@ -20,7 +20,6 @@ export default function LibraryScreen() {
   console.log('[LibraryScreen] RENDER START');
   
   const { t } = useTranslation();
-  const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const route = useRoute<RouteProp<MainDrawerParamList, 'Library'>>();
   const queryClient = useQueryClient();
   const { width } = useWindowDimensions();

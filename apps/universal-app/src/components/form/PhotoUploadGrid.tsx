@@ -28,7 +28,7 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
   photoType = 'character',
   formatUrl,
 }) => {
-  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const [, setUploadingIndex] = useState<number | null>(null);
   const requestPermission = async () => {
     if (Platform.OS !== 'web') {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -110,7 +110,7 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
         {photos.map((photo, index) => (
           <View key={index} style={styles.photoItem}>
             <Image 
-              source={{ uri: formatUrl ? formatUrl(photo.url) : photo.url }} 
+              source={{ uri: (formatUrl ? formatUrl(photo.url) : photo.url) || '' }} 
               style={styles.image} 
             />
             

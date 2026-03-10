@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Modal, FlatList, StyleSheet, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, FlatList, StyleSheet, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Audio } from 'expo-av';
@@ -25,9 +25,9 @@ export default function VoiceSelector({
   voices, 
   selectedVoiceId, 
   onVoiceChange, 
-  language,
-  userPlan,
-  hasPremiumAccess,
+  language: _language,
+  userPlan: _userPlan,
+  hasPremiumAccess: _hasPremiumAccess,
   onUpgrade,
   audioUsage,
 }: Props) {

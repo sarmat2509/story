@@ -38,7 +38,7 @@ interface Props {
 
 export function ContinueSeriesSection({
   storyId,
-  seriesInfo,
+  seriesInfo: _seriesInfo,
   userPlan,
   onNavigateToPlans,
   variant = 'default',
@@ -278,7 +278,7 @@ export function ContinueSeriesSection({
         status={continuationStatus?.status ?? 'pending'}
         progress={continuationStatus?.progress ?? 0}
         progressData={continuationStatus?.progressData}
-        errorMessage={continuationStatus?.errorMessage}
+        errorMessage={continuationStatus?.errorMessage ?? undefined}
         onClose={handleCloseContinuationModal}
         onRetry={
           continuationStatus?.status === 'failed' ? handleContinue : undefined

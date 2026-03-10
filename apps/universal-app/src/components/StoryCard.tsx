@@ -64,7 +64,7 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
         {/* Delete button - top right corner with hover effect */}
         {onDelete && (
           <Pressable 
-            style={({ pressed, hovered }) => [
+            style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
               styles.deleteButtonGrid,
               Platform.OS === 'web' && hovered && styles.deleteButtonGridHover,
               pressed && styles.deleteButtonGridPressed

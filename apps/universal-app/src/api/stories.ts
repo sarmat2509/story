@@ -257,7 +257,7 @@ export const useGenerateAudio = () => {
       });
       return response.data;
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       // Invalidate story query to refetch with audio metadata
       queryClient.invalidateQueries({ queryKey: ['story', variables.storyId] });
     },
@@ -323,7 +323,7 @@ export const useGenerateAlignment = () => {
       const response = await apiClient.post(`/api/v1/stories/${storyId}/alignment`);
       return response.data;
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       // Invalidate story query to refetch with alignment data
       queryClient.invalidateQueries({ queryKey: ['story', variables.storyId] });
     },
@@ -405,7 +405,7 @@ export function useGenerateContinuation() {
       }>(`/api/v1/stories/${storyId}/continue`);
       return response.data.request; // Return just the request object with id
     },
-    onSuccess: (data, storyId) => {
+    onSuccess: (_data, storyId) => {
       // Invalidate story query to refresh UI
       queryClient.invalidateQueries({ queryKey: ['story', storyId] });
     },
@@ -440,7 +440,7 @@ export function usePublishStory() {
       }>(`/api/v1/stories/${storyId}`, body);
       return response.data;
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['story', variables.storyId] });
       queryClient.invalidateQueries({ queryKey: ['stories'] });
       queryClient.invalidateQueries({ queryKey: ['published-stories'] });
@@ -558,7 +558,7 @@ export function usePublicStoryByToken(token: string, enabled = true) {
  */
 export function useStoryForReader(slug?: string, storyId?: string) {
   const publicQuery = usePublicStory(slug, !!slug);
-  const myStoryQuery = useStory(storyId ?? '', !!storyId);
+  const myStoryQuery = useStory(storyId ?? '');
 
   if (slug) {
     return { ...publicQuery, mode: 'public' as const };

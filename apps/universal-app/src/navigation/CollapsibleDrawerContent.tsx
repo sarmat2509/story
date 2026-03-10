@@ -38,6 +38,7 @@ type CollapsibleDrawerItemProps = {
   descriptors: DrawerContentComponentProps['descriptors'];
   state: DrawerContentComponentProps['state'];
   navigation: DrawerContentComponentProps['navigation'];
+  // state and navigation used by parent, passed for type consistency
   onPress: () => void;
   href?: string;
 };
@@ -46,8 +47,8 @@ function CollapsibleDrawerItem({
   route,
   focused,
   descriptors,
-  state,
-  navigation,
+  state: _state,
+  navigation: _navigation,
   onPress,
   href,
 }: CollapsibleDrawerItemProps) {
@@ -166,7 +167,7 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
       contentContainerStyle={drawerContentContainerStyle}
       style={drawerContentStyle}
     >
-      {visibleRoutes.map((route, i) => {
+      {visibleRoutes.map((route) => {
         const focused = state.routes[state.index].key === route.key;
         const onPress = () => {
           const event = navigation.emit({

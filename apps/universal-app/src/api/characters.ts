@@ -3,7 +3,8 @@ import {
   CreateCharacterInput, 
   Character,
   PetAppearance,
-  HumanAppearance
+  HumanAppearance,
+  ImaginaryAppearance
 } from '@wondertales/shared';
 import apiClient from './client';
 
@@ -12,6 +13,7 @@ interface AnalysisResult {
   description: string;
   petAppearance?: PetAppearance;
   humanAppearance?: HumanAppearance;
+  imaginaryAppearance?: ImaginaryAppearance;
 }
 
 // Get all characters for the current user

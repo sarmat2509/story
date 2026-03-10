@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '@/config/constants';
+// API_BASE_URL not used - backend determines redirect from request origin
 
 export const oauth = {
   /**

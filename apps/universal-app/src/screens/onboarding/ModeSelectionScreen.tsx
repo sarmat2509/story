@@ -8,16 +8,10 @@ import {
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
 import apiClient from '@/api/client';
-import type { RootStackParamList } from '@/types/navigation';
-
-type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ModeSelection'>;
-
 interface ModeCardProps {
   mode: 'instant' | 'artisan';
   icon: 'instant' | 'artisan';
@@ -83,7 +77,6 @@ const ModeCard: React.FC<ModeCardProps> = ({
 );
 
 export default function ModeSelectionScreen() {
-  const navigation = useNavigation<NavigationProp>();
   const { user, setUser } = useAuthStore();
   const { width } = useWindowDimensions();
   const { t } = useTranslation();

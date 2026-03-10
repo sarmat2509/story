@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Pressable, StyleSheet, ActivityIndicator,
 import { useTranslation } from 'react-i18next';
 import { useAudioPlayerStore } from '@/store/audioPlayerStore';
 import { globalAudioService } from '@/services/globalAudioService';
+import { audioPlaybackService } from '@/services/audioPlaybackService';
 import { theme } from '@/theme';
 
 interface AudioPlayerProps {
@@ -19,7 +20,7 @@ interface AudioPlayerProps {
 
 export default function AudioPlayer({ 
   storyId,
-  audioUrl, 
+  audioUrl: _audioUrl, 
   duration, 
   title,
   hasAlignment = false,
@@ -37,6 +38,7 @@ export default function AudioPlayer({
   const storeIsLoading = useAudioPlayerStore((s) => s.isLoading);
   const storeIsLoaded = useAudioPlayerStore((s) => s.isLoaded);
   const storeIsHighlightEnabled = useAudioPlayerStore((s) => s.isHighlightEnabled);
+  const storePlaybackRate = useAudioPlayerStore((s) => s.playbackRate);
   const didJustFinish = useAudioPlayerStore((s) => s.didJustFinish);
 
   // Determine if this player is connected to the currently active audio
@@ -48,9 +50,16 @@ export default function AudioPlayer({
   const isLoading = isConnected ? storeIsLoading : false;
   const isLoaded = isConnected ? storeIsLoaded : true; // Show as ready when disconnected
   const isHighlightEnabled = isConnected ? storeIsHighlightEnabled : false;
+  const playbackRate = storePlaybackRate;
+
+  // Playback rate constants
+  const RATE_MIN = 0.75;
+  const RATE_MAX = 1.25;
+  const RATE_STEP = 0.05;
 
   // Local UI state (not related to audio playback)
   const [isDragging, setIsDragging] = useState(false);
+  const rateSliderRef = useRef<View>(null);
   const [dragPosition, setDragPosition] = useState<number | null>(null);
   const [hasDragged, setHasDragged] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +67,13 @@ export default function AudioPlayer({
 
   // Validate duration prop
   const validDuration = isFinite(duration) && duration > 0 ? duration : 0;
+
+  // Hydrate playback rate from AsyncStorage on mount
+  useEffect(() => {
+    audioPlaybackService.getPlaybackRate().then((rate) => {
+      useAudioPlayerStore.getState().setPlaybackRate(rate);
+    });
+  }, []);
 
   // Subscribe to position updates for parent callback (throttled to ~10/sec to avoid re-render storms)
   useEffect(() => {
@@ -124,6 +140,29 @@ export default function AudioPlayer({
     }
   };
 
+  const formatRate = (rate: number) => (rate === 1 ? '1x' : `${rate.toFixed(2)}x`);
+
+  const roundToStep = (value: number) => {
+    const steps = Math.round((value - RATE_MIN) / RATE_STEP);
+    return Math.max(RATE_MIN, Math.min(RATE_MAX, RATE_MIN + steps * RATE_STEP));
+  };
+
+  const handleRateSliderPress = useCallback(async (event: any) => {
+    const nativeEvent = event.nativeEvent;
+    let tapX: number | undefined;
+    if (typeof nativeEvent.locationX === 'number') tapX = nativeEvent.locationX;
+    else if (typeof nativeEvent.offsetX === 'number') tapX = nativeEvent.offsetX;
+    if (typeof tapX !== 'number' || !isFinite(tapX)) return;
+
+    rateSliderRef.current?.measure((_x, _y, width) => {
+      if (!width || width <= 0) return;
+      const ratio = Math.max(0, Math.min(1, tapX! / width));
+      const rawRate = RATE_MIN + ratio * (RATE_MAX - RATE_MIN);
+      const rate = roundToStep(rawRate);
+      globalAudioService.setPlaybackRate(rate);
+    });
+  }, []);
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -151,7 +190,7 @@ export default function AudioPlayer({
       } else if (typeof nativeEvent.offsetX === 'number') {
         tapX = nativeEvent.offsetX;
       } else if (typeof nativeEvent.pageX === 'number' && progressBarRef.current) {
-        progressBarRef.current.measure((x, y, width, height, pageX, pageY) => {
+        progressBarRef.current.measure((_x, _y, width, _height, pageX, _pageY) => {
           const calculatedTapX = nativeEvent.pageX - pageX;
           performSeek(calculatedTapX, width);
         });
@@ -163,7 +202,7 @@ export default function AudioPlayer({
         return;
       }
       
-      progressBarRef.current?.measure((x, y, width, height, pageX, pageY) => {
+      progressBarRef.current?.measure((_x, _y, width) => {
         performSeek(tapX!, width);
       });
     } catch (err) {
@@ -227,7 +266,7 @@ export default function AudioPlayer({
     
     if (typeof tapX !== 'number' || !isFinite(tapX)) return;
     
-    progressBarRef.current?.measure((x, y, width, height, pageX, pageY) => {
+    progressBarRef.current?.measure((_x, _y, width) => {
       performSeek(tapX!, width);
     });
   };
@@ -236,10 +275,10 @@ export default function AudioPlayer({
   useEffect(() => {
     if (Platform.OS !== 'web') return;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = (e: globalThis.MouseEvent) => {
       if (!isDragging || !progressBarRef.current) return;
       
-      const element = progressBarRef.current as any;
+      const element = progressBarRef.current as unknown as HTMLElement;
       const rect = element.getBoundingClientRect?.();
       
       if (rect) {
@@ -264,6 +303,7 @@ export default function AudioPlayer({
         document.removeEventListener('mouseup', handleMouseUp);
       };
     }
+    return undefined;
   }, [isDragging, isLoaded, validDuration]);
 
   if (error) {
@@ -309,6 +349,7 @@ export default function AudioPlayer({
             onPress={handleSeek}
             onPressIn={handleDragStart}
             onPressOut={handleDragEnd}
+            onResponderMove={handleDragMove}
             disabled={!isLoaded}
           >
             <View style={styles.progressBarTrack}>
@@ -338,6 +379,35 @@ export default function AudioPlayer({
           </Pressable>
         </View>
         <Text style={styles.timeText}>{formatTime(validDuration)}</Text>
+      </View>
+
+      {/* Playback speed slider (0.75–1.25) */}
+      <View style={styles.speedContainer}>
+        <Text style={styles.speedLabel}>{formatRate(playbackRate)}</Text>
+        <Pressable
+          ref={rateSliderRef}
+          style={styles.speedTrack}
+          onPress={handleRateSliderPress}
+        >
+          <View style={styles.speedTrackBg}>
+            <View
+              style={[
+                styles.speedTrackFill,
+                {
+                  width: `${((playbackRate - RATE_MIN) / (RATE_MAX - RATE_MIN)) * 100}%`,
+                },
+              ]}
+            />
+          </View>
+          <View
+            style={[
+              styles.speedThumb,
+              {
+                left: `${((playbackRate - RATE_MIN) / (RATE_MAX - RATE_MIN)) * 100}%`,
+              },
+            ]}
+          />
+        </Pressable>
       </View>
 
       {/* Highlight Toggle (M6) - Show only if alignment data is available */}
@@ -452,6 +522,52 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
     minWidth: 40,
+  },
+  speedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    marginTop: theme.spacing[4],
+  },
+  speedLabel: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.text.secondary,
+    minWidth: 36,
+  },
+  speedTrack: {
+    flex: 1,
+    height: 36,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  speedTrackBg: {
+    height: 6,
+    backgroundColor: theme.colors.border.light,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  speedTrackFill: {
+    height: '100%',
+    backgroundColor: theme.colors.interactive.primary,
+    borderRadius: 3,
+  },
+  speedThumb: {
+    position: 'absolute',
+    top: '50%',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: theme.colors.interactive.primary,
+    borderWidth: 2,
+    borderColor: theme.colors.background.primary,
+    marginLeft: -9,
+    marginTop: -9,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
   errorText: {
     color: theme.colors.status.error,

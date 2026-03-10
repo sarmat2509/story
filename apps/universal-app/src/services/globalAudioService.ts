@@ -9,7 +9,6 @@ import { audioPlaybackService } from './audioPlaybackService';
  */
 class GlobalAudioService {
   private sound: Audio.Sound | null = null;
-  private currentAudioUrl: string | null = null;
   private isConfigured = false;
   private lastSaveTime = 0;
   private saveIntervalMs = 5000; // Save position every 5 seconds
@@ -47,8 +46,11 @@ class GlobalAudioService {
     }
     await this.unloadCurrent();
 
+    // Resolve playback rate from params or persisted preference
+    const playbackRate = params.initialPlaybackRate ?? (await audioPlaybackService.getPlaybackRate());
+
     // Now safe to update store — old sound callbacks can no longer fire
-    store.play(params);
+    store.play({ ...params, initialPlaybackRate: playbackRate });
 
     try {
       console.log('[GlobalAudioService] Loading audio:', params.audioUrl);
@@ -60,12 +62,14 @@ class GlobalAudioService {
       );
 
       this.sound = sound;
-      this.currentAudioUrl = params.audioUrl;
 
       if (status.isLoaded) {
         const updatedStore = useAudioPlayerStore.getState();
         updatedStore.setIsLoaded(true);
         updatedStore.setIsLoading(false);
+
+        // Apply playback rate (preserves pitch for natural voice)
+        await sound.setRateAsync(playbackRate, true, Audio.PitchCorrectionQuality.Medium);
 
         // Seek to initial position if provided (resume playback)
         if (params.initialPosition && params.initialPosition > 0) {
@@ -135,6 +139,23 @@ class GlobalAudioService {
   }
 
   /**
+   * Set playback rate (0.75–1.25). Preserves pitch for natural voice.
+   * Updates store and persists even when no sound is loaded (user preference).
+   */
+  async setPlaybackRate(rate: number): Promise<void> {
+    const clamped = Math.max(0.75, Math.min(1.25, rate));
+    try {
+      if (this.sound) {
+        await this.sound.setRateAsync(clamped, true, Audio.PitchCorrectionQuality.Medium);
+      }
+      useAudioPlayerStore.getState().setPlaybackRate(clamped);
+      await audioPlaybackService.savePlaybackRate(clamped);
+    } catch (err) {
+      console.error('[GlobalAudioService] setPlaybackRate error:', err);
+    }
+  }
+
+  /**
    * Seek to a specific position (in milliseconds)
    */
   async seekTo(positionMs: number): Promise<void> {
@@ -192,7 +213,6 @@ class GlobalAudioService {
         console.error('[GlobalAudioService] Unload error:', err);
       }
       this.sound = null;
-      this.currentAudioUrl = null;
     }
   }
 

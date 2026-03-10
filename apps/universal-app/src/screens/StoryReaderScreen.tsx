@@ -9,8 +9,6 @@ import { useRoute } from '@react-navigation/native';
 import PublishedStoryScreen from '@/screens/published/PublishedStoryScreen';
 import StoryViewerScreen from '@/screens/story/StoryViewerScreen';
 import NotFoundScreen from '@/screens/public/NotFoundScreen';
-import type { MainDrawerParamList } from '@/types/navigation';
-
 type StoryReaderParams =
   | { slug: string }
   | { token: string }
@@ -20,10 +18,10 @@ export default function StoryReaderScreen() {
   const route = useRoute();
   const params = route.params as StoryReaderParams | undefined;
 
-  if (params?.slug || params?.token) {
+  if (params && ('slug' in params || 'token' in params)) {
     return <PublishedStoryScreen />;
   }
-  if (params?.storyId) {
+  if (params && 'storyId' in params) {
     return <StoryViewerScreen />;
   }
   return <NotFoundScreen />;

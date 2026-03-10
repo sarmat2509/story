@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Modal } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Modal, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,14 +45,17 @@ export default function PlansScreen() {
   ];
   
   // Sort features: available first, unavailable last, in fixed order
-  const sortFeatures = (features: Record<string, any>) => {
-    const entries = Object.entries(features);
+  const sortFeatures = (features: Record<string, unknown> | Array<{ name?: string; value?: unknown }>) => {
+    const asRecord = Array.isArray(features)
+      ? Object.fromEntries((features as Array<{ name?: string; value?: unknown }>).map((f) => [f.name ?? '', f]))
+      : features as Record<string, unknown>;
+    const entries = Object.entries(asRecord);
     
     // Separate available and unavailable features
     const available: Array<[string, any]> = [];
     const unavailable: Array<[string, any]> = [];
     
-    entries.forEach(([slug, feature]) => {
+    entries.forEach(([slug, feature]: [string, any]) => {
       if (slug === 'audio_stories_per_month') return; // Skip highlighted feature
       
       const isAvailable = feature.value?.enabled !== false && 
@@ -167,7 +170,7 @@ export default function PlansScreen() {
       <View style={[styles.plansGrid, isWeb && styles.plansGridWeb]}>
         {plans?.map((plan) => {
           const isCurrent = isAuthenticated && 'isCurrent' in plan && plan.isCurrent;
-          const audioFeature = plan.features['audio_stories_per_month']; // CHANGED from audio_minutes_per_month
+          const audioFeature = (plan.features as unknown as Record<string, { value?: { limit?: number } }>)['audio_stories_per_month']; // CHANGED from audio_minutes_per_month
           
           // Determine button type
           let buttonType: 'subscribe' | 'upgrade' | 'downgrade' | 'current' = 'subscribe';
@@ -191,15 +194,15 @@ export default function PlansScreen() {
                 styles.planCard,
                 isWeb ? styles.planCardWeb : styles.planCardNative,
                 isCurrent && styles.planCardCurrent,
-              ]}
+              ] as ViewStyle[]}
             >
-              {isCurrent && (
+              {isCurrent ? (
                 <View style={styles.currentBadge}>
                   <Text style={styles.currentBadgeText}>
                     {t('plans.current_plan')}
                   </Text>
                 </View>
-              )}
+              ) : null}
               
               <Text style={styles.planName}>{plan.name}</Text>
               {plan.description && (
@@ -227,7 +230,7 @@ export default function PlansScreen() {
                   />
                   <Text style={styles.highlightFeatureText}>
                     {t('plans.audio_stories', { 
-                      count: audioFeature.value.limit 
+                      count: audioFeature?.value?.limit ?? 0
                     })}
                   </Text>
                 </View>
@@ -235,7 +238,7 @@ export default function PlansScreen() {
               
               {/* Features list */}
               <View style={styles.featuresContainer}>
-                {sortFeatures(plan.features).map(([slug, feature]: [string, any]) => {
+                {sortFeatures(plan.features as Record<string, any>).map(([slug, feature]: [string, any]) => {
                   const available = isFeatureAvailable(feature);
                   
                   return (
@@ -326,7 +329,7 @@ export default function PlansScreen() {
                 <Ionicons name="alert-circle" size={48} color={theme.colors.status.error} />
                 <Text style={styles.modalTitle}>{t('plans.upgrade_error')}</Text>
                 <Text style={styles.modalMessage}>
-                  {upgradePlan.error?.response?.data?.message || t('plans.upgrade_error_message')}
+                  {(upgradePlan.error as { response?: { data?: { message?: string } } })?.response?.data?.message || t('plans.upgrade_error_message')}
                 </Text>
                 <TouchableOpacity 
                   style={styles.modalButton}

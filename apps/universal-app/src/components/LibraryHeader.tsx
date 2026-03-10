@@ -15,7 +15,7 @@ interface Props {
   currentPage: number;
   totalPages: number;
   initialAudioFilter: boolean;
-  audioToggleRef: React.RefObject<AudioFilterToggleRef>;
+  audioToggleRef: React.RefObject<AudioFilterToggleRef | null>;
   onToggleViewMode: () => void;
   onToggleAudioFilter: (newValue: boolean) => void;
   onPageChange: (page: number) => void;

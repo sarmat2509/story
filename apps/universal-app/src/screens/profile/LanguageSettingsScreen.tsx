@@ -18,7 +18,7 @@ const LANGUAGES = [
 
 export default function LanguageSettingsScreen() {
   const { t, i18n } = useTranslation();
-  const { user, setUser } = useAuthStore();
+  const { user: _user, setUser } = useAuthStore();
   const [selectedLanguage, setSelectedLanguage] = useState(i18n.language);
   const [isChanging, setIsChanging] = useState(false);
 

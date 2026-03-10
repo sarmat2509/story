@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY_PREFIX = '@wondertales/audio_playback';
 const HIGHLIGHT_KEY = '@wondertales/highlight_enabled';
+const PLAYBACK_RATE_KEY = '@wondertales/playback_rate';
 const STATE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export interface AudioPlaybackState {
@@ -125,6 +126,34 @@ export const audioPlaybackService = {
     } catch (error) {
       console.error('Error getting highlight state:', error);
       return false;
+    }
+  },
+
+  /**
+   * Save global playback rate (0.75–1.25)
+   */
+  async savePlaybackRate(rate: number): Promise<void> {
+    try {
+      const clamped = Math.max(0.75, Math.min(1.25, rate));
+      await AsyncStorage.setItem(PLAYBACK_RATE_KEY, JSON.stringify(clamped));
+    } catch (error) {
+      console.error('Error saving playback rate:', error);
+    }
+  },
+
+  /**
+   * Get global playback rate
+   * @returns number (defaults to 1.0 if not set)
+   */
+  async getPlaybackRate(): Promise<number> {
+    try {
+      const data = await AsyncStorage.getItem(PLAYBACK_RATE_KEY);
+      if (!data) return 1;
+      const rate = JSON.parse(data);
+      return typeof rate === 'number' && rate >= 0.75 && rate <= 1.25 ? rate : 1;
+    } catch (error) {
+      console.error('Error getting playback rate:', error);
+      return 1;
     }
   },
 };

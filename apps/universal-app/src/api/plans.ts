@@ -1,13 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
-  PlanFeatureDenormalizedApi,
   PlanPublicApi,
   PlanAuthenticatedApi 
 } from '@wondertales/shared';
 import apiClient from './client';
 
 // Use shared types - renamed for clarity
-type PlanFeature = PlanFeatureDenormalizedApi;
 type PlanPublic = PlanPublicApi;
 type PlanAuthenticated = PlanAuthenticatedApi;
 

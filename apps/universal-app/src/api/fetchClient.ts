@@ -54,7 +54,7 @@ export class FetchClient {
       },
       response: {
         use: (
-          onFulfilled: ((response: any) => any) | undefined,
+          _onFulfilled: ((response: any) => any) | undefined,
           onRejected: ResponseInterceptor
         ) => {
           this.responseInterceptor = onRejected;

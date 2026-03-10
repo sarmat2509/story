@@ -44,7 +44,7 @@ const initialState = {
 
 export const useWizardStore = create<WizardState>()(
   persist(
-    (set, get) => ({
+    (set, _get) => ({
       ...initialState,
 
       setStep: (step) => set({ currentStep: step }),

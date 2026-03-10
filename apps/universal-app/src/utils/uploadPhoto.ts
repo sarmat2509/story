@@ -5,6 +5,7 @@ import apiClient from '@/api/client';
 export interface UploadPhotoResult {
   url: string;
   uploadedAt: string;
+  isUploading?: boolean;
 }
 
 /**

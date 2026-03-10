@@ -79,7 +79,7 @@ export default function ChildrenScreen() {
                 )}
                 {child.gender && (
                   <Text style={styles.childDetail}>
-                    {t('children_screen.gender')}: {t(`gender_values.${child.gender}`, child.gender)}
+                    {t('children_screen.gender')}: {String(t(`gender_values.${child.gender}`, child.gender))}
                   </Text>
                 )}
                 {child.languages && child.languages.length > 0 && (

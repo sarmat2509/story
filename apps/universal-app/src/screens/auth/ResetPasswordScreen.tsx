@@ -44,6 +44,7 @@ function useResetToken(): string | null {
       const params = new URLSearchParams(window.location.search);
       const t = params.get('token');
       if (t) setToken(t);
+      return;
     } else {
       Linking.getInitialURL().then((url) => {
         if (url) {
@@ -118,7 +119,7 @@ export default function ResetPasswordScreen() {
           <Text style={styles.subtitle}>{t('auth.invalid_or_expired_token')}</Text>
           <TouchableOpacity
             style={styles.button}
-            onPress={() => navigation.navigate('ForgotPassword')}
+            onPress={() => (navigation as any).navigate('ForgotPassword')}
           >
             <Text style={styles.buttonText}>{t('auth.request_new_link')}</Text>
           </TouchableOpacity>
@@ -134,7 +135,7 @@ export default function ResetPasswordScreen() {
           <Text style={styles.successTitle}>{t('auth.reset_success')}</Text>
           <TouchableOpacity
             style={styles.button}
-            onPress={() => navigation.navigate('Login')}
+            onPress={() => (navigation as any).navigate('Login')}
           >
             <Text style={styles.buttonText}>{t('auth.login')}</Text>
           </TouchableOpacity>
@@ -208,7 +209,7 @@ export default function ResetPasswordScreen() {
 
         <TouchableOpacity
           style={styles.backLink}
-          onPress={() => navigation.navigate('Login')}
+          onPress={() => (navigation as any).navigate('Login')}
         >
           <Text style={styles.backLinkText}>{t('auth.back_to_login')}</Text>
         </TouchableOpacity>

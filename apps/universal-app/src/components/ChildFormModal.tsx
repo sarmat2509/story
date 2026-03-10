@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Platform, Switch, Alert, ActivityIndicator, Image } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Platform, Alert, ActivityIndicator, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -491,7 +491,7 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
                     : ''
                   }
                   onBlur={(e) => {
-                    const newDate = new Date(e.target.value);
+                    const newDate = new Date((e.target as HTMLInputElement).value);
                     if (!isNaN(newDate.getTime())) {
                       setBirthDate(newDate);
                     }
@@ -518,7 +518,7 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
                       value={birthDate}
                       mode="date"
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onChange={(event, selectedDate) => {
+                      onChange={(_event, selectedDate) => {
                         setShowDatePicker(Platform.OS === 'ios');
                         if (selectedDate) {
                           setBirthDate(selectedDate);

@@ -6,11 +6,14 @@ import { navigateToStory } from '@/navigation/navigationRef';
  * Configure notification handler (how notifications appear when app is in foreground)
  */
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async () =>
+    ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    } as Notifications.NotificationBehavior),
 });
 
 export const pushNotificationService = {
@@ -63,10 +66,11 @@ export const pushNotificationService = {
   setupNotificationListeners(): () => void {
     // Handle notification tap when app is in foreground or background
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const { storyId, autoPlay } = response.notification.request.content.data;
+      const data = (response.notification.request.content.data || {}) as { storyId?: string; autoPlay?: boolean };
+      const storyId = typeof data.storyId === 'string' ? data.storyId : undefined;
       
       if (storyId) {
-        navigateToStory(storyId, { autoPlay: autoPlay === true });
+        navigateToStory(storyId, { autoPlay: data.autoPlay === true });
       }
     });
 
