@@ -325,3 +325,106 @@ export async function changePlan(userId: string, newPlanSlug: string): Promise<U
   logger.info({ userId, newPlanId: newPlan.id }, 'Changed user plan, reset usage counters');
   return updatedSubscription;
 }
+
+/**
+ * M1: Update subscription from Stripe webhook (checkout.session.completed, subscription.updated, subscription.deleted).
+ * Resets usage when period changes (renewal).
+ */
+export async function updateSubscriptionFromStripe(
+  userId: string,
+  stripeSubscription: {
+    id: string;
+    current_period_start: number;
+    current_period_end: number;
+    cancel_at_period_end: boolean;
+    status: string;
+  },
+  planSlug: string
+): Promise<UserSubscription | null> {
+  const planRepo = getPlanRepository();
+  const plan = await planRepo.findPlanBySlug(planSlug);
+  if (!plan) {
+    logger.warn({ planSlug }, 'Plan not found for Stripe subscription update');
+    return null;
+  }
+
+  const subscription = await planRepo.findSubscriptionByUserId(userId);
+  if (!subscription) {
+    logger.warn({ userId }, 'Subscription not found for Stripe update');
+    return null;
+  }
+
+  const periodStart = new Date(stripeSubscription.current_period_start * 1000);
+  const periodEnd = new Date(stripeSubscription.current_period_end * 1000);
+  const isNewPeriod = periodStart.getTime() > subscription.currentPeriodStart.getTime();
+
+  const updateData: Partial<{
+    planId: string;
+    stripeSubscriptionId: string;
+    paymentProvider: string;
+    currentPeriodStart: Date;
+    currentPeriodEnd: Date;
+    resetAt: Date;
+    cancelAtPeriodEnd: boolean;
+    status: string;
+    storiesUsed: number;
+    audioMinutesUsed: number;
+  }> = {
+    planId: plan.id,
+    stripeSubscriptionId: stripeSubscription.id,
+    paymentProvider: 'stripe',
+    currentPeriodStart: periodStart,
+    currentPeriodEnd: periodEnd,
+    resetAt: periodEnd,
+    cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+    status: stripeSubscription.status === 'active' || stripeSubscription.status === 'trialing' ? 'active' : stripeSubscription.status,
+  };
+
+  if (isNewPeriod) {
+    updateData.storiesUsed = 0;
+    updateData.audioMinutesUsed = 0;
+    logger.info({ userId, planSlug, periodStart }, 'Stripe subscription renewed, reset usage');
+  }
+
+  const updated = await planRepo.updateSubscription(userId, updateData);
+  logger.info({ userId, planSlug, stripeSubscriptionId: stripeSubscription.id }, 'Updated subscription from Stripe');
+  return updated;
+}
+
+/**
+ * M1: Update subscription from Stripe webhook when subscription is deleted (canceled/expired).
+ * Downgrades to free plan and resets usage.
+ */
+export async function updateSubscriptionDeletedFromStripe(stripeSubscriptionId: string): Promise<boolean> {
+  const planRepo = getPlanRepository();
+  const subscription = await planRepo.findSubscriptionByStripeSubscriptionId(stripeSubscriptionId);
+  if (!subscription) {
+    logger.warn({ stripeSubscriptionId }, 'Subscription not found for Stripe deletion');
+    return false;
+  }
+
+  const freePlan = await planRepo.findPlanBySlug('free');
+  if (!freePlan) {
+    logger.error('Free plan not found');
+    return false;
+  }
+
+  const now = new Date();
+  const oneMonthLater = new Date(now);
+  oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+
+  await planRepo.updateSubscription(subscription.userId, {
+    planId: freePlan.id,
+    status: 'expired',
+    stripeSubscriptionId: null,
+    paymentProvider: null,
+    storiesUsed: 0,
+    audioMinutesUsed: 0,
+    resetAt: oneMonthLater,
+    currentPeriodStart: now,
+    currentPeriodEnd: oneMonthLater,
+    cancelAtPeriodEnd: false,
+  });
+  logger.info({ userId: subscription.userId, stripeSubscriptionId }, 'Subscription downgraded to free from Stripe deletion');
+  return true;
+}

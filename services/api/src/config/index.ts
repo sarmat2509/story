@@ -274,6 +274,20 @@ export const config = {
   features: {
     enableCharacterAnalysis: process.env.ENABLE_CHARACTER_ANALYSIS !== 'false', // Enabled by default
     useDirectorFlow: process.env.USE_DIRECTOR_FLOW === 'true', // Plain text + Director for visuals (N scenes only)
+    enableRealPayments: process.env.ENABLE_REAL_PAYMENTS === 'true', // M1: Stripe/RevenueCat; false = stub (PUT /plans/upgrade)
+  },
+
+  // Stripe (M1 Payment Integration)
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY || '',
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+    priceIds: (process.env.STRIPE_PRICE_IDS || '')
+      .split(',')
+      .reduce<Record<string, string>>((acc, pair) => {
+        const [slug, priceId] = pair.trim().split(':');
+        if (slug && priceId) acc[slug] = priceId;
+        return acc;
+      }, {}),
   },
   
   // Job Queue Concurrency (fallbacks if rate limiter unavailable)

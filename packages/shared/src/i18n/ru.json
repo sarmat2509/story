@@ -644,8 +644,11 @@
     "notification_settings": "Настройки уведомлений",
     "privacy_settings": "Настройки приватности",
     "subscription": "Подписка",
+    "subscription_until": "Подписка до {{date}}",
+    "subscription_canceling": "Подписка отменена, действует до {{date}}",
     "stories_per_month": "{{count}} историй в месяц",
     "usage_remaining": "Осталось {{stories}} сказок и {{audio}} аудиосказок до {{date}}",
+    "usage_remaining_short": "Осталось {{stories}} сказок и {{audio}} аудиосказок",
     "upgrade_plan": "Обновить план",
     "support": "Поддержка",
     "help_center": "Центр помощи",
@@ -787,5 +790,11 @@
     "pause_sample": "Пауза",
     "loading_sample": "Загрузка...",
     "sample_error": "Не удалось загрузить сэмпл"
+  },
+  "paywall": {
+    "stories_limit_title": "Достигнут лимит историй",
+    "stories_limit_message": "Вы использовали {{used}} из {{limit}} историй в этом месяце.",
+    "stories_limit_message_default": "Лимит историй на этот месяц исчерпан.",
+    "upgrade_button": "Обновить план"
   }
 }

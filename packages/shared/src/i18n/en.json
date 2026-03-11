@@ -667,8 +667,11 @@
     "notification_settings": "Notification Settings",
     "privacy_settings": "Privacy Settings",
     "subscription": "Subscription",
+    "subscription_until": "Subscription until {{date}}",
+    "subscription_canceling": "Subscription canceled, active until {{date}}",
     "stories_per_month": "{{count}} stories per month",
     "usage_remaining": "{{stories}} stories and {{audio}} audio stories left until {{date}}",
+    "usage_remaining_short": "{{stories}} stories and {{audio}} audio stories left",
     "upgrade_plan": "Upgrade Plan",
     "support": "Support",
     "help_center": "Help Center",
@@ -810,5 +813,18 @@
     "pause_sample": "Pause",
     "loading_sample": "Loading...",
     "sample_error": "Failed to load sample"
+  },
+  "billing": {
+    "success_title": "Subscription successful!",
+    "success_message": "Thank you! Your plan has been updated. You now have access to all benefits of your new plan.",
+    "go_to_profile": "Go to profile",
+    "view_plans": "View plans",
+    "manage_subscription": "Manage subscription"
+  },
+  "paywall": {
+    "stories_limit_title": "Story limit reached",
+    "stories_limit_message": "You've used {{used}} of {{limit}} stories this month.",
+    "stories_limit_message_default": "Your monthly story limit has been reached.",
+    "upgrade_button": "Upgrade plan"
   }
 }

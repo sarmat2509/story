@@ -411,7 +411,10 @@
     "notification_settings": "Paramètres de notification",
     "privacy_settings": "Paramètres de confidentialité",
     "subscription": "Abonnement",
+    "subscription_until": "Abonnement jusqu'au {{date}}",
+    "subscription_canceling": "Abonnement annulé, actif jusqu'au {{date}}",
     "stories_per_month": "{{count}} histoires par mois",
+    "usage_remaining_short": "{{stories}} histoires et {{audio}} histoires audio restantes",
     "upgrade_plan": "Mettre à niveau le plan",
     "support": "Support",
     "help_center": "Centre d'aide",
@@ -421,5 +424,11 @@
     "logout_confirm_title": "Se déconnecter?",
     "logout_confirm_message": "Êtes-vous sûr de vouloir vous déconnecter?",
     "cancel": "Annuler"
+  },
+  "paywall": {
+    "stories_limit_title": "Limite d'histoires atteint",
+    "stories_limit_message": "Vous avez utilisé {{used}} sur {{limit}} histoires ce mois-ci.",
+    "stories_limit_message_default": "Votre limite mensuelle d'histoires a été atteinte.",
+    "upgrade_button": "Mettre à niveau le plan"
   }
 }

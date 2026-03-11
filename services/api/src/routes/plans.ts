@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as planService from '../services/planService';
 import { logger } from '../utils/logger';
 import { requireAuth } from '../middleware/authMiddleware';
+import config from '../config';
 
 const router = Router();
 
@@ -46,7 +47,8 @@ router.get('/', async (req, res) => {
     
     res.json({
       status: 'success',
-      plans: plansWithFeatures
+      plans: plansWithFeatures,
+      enableRealPayments: config.features.enableRealPayments,
     });
   } catch (error) {
     logger.error({ error }, 'Error fetching plans');
@@ -106,7 +108,8 @@ router.get('/with-features', requireAuth, async (req, res) => {
     
     res.json({
       status: 'success',
-      plans: plansWithFeatures
+      plans: plansWithFeatures,
+      enableRealPayments: config.features.enableRealPayments,
     });
   } catch (error) {
     logger.error({ error, userId: req.user?.id }, 'Error fetching plans with features');
@@ -117,9 +120,17 @@ router.get('/with-features', requireAuth, async (req, res) => {
   }
 });
 
-// PUT /api/v1/plans/upgrade - Upgrade user plan (test mode, no payment)
+// PUT /api/v1/plans/upgrade - Upgrade user plan (stub when enableRealPayments=false; 501 when true)
 router.put('/upgrade', requireAuth, async (req, res) => {
   try {
+    if (config.features.enableRealPayments) {
+      return res.status(501).json({
+        status: 'error',
+        message: 'Use Stripe checkout to upgrade',
+        code: 'USE_STRIPE_CHECKOUT',
+      });
+    }
+
     const userId = req.user!.id;
     const { planSlug } = req.body;
     
@@ -130,7 +141,7 @@ router.put('/upgrade', requireAuth, async (req, res) => {
       });
     }
     
-    // Use existing changePlan function from planService
+    // Use existing changePlan function from planService (stub mode)
     const updatedSubscription = await planService.changePlan(userId, planSlug);
     
     // Get plan details

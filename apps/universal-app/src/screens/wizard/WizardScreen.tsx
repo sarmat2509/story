@@ -20,6 +20,8 @@ import { useStoryThemes } from '@/api/dictionaries';
 import { useChildren } from '@/api/children';
 import { useCharacters } from '@/api/characters';
 import { useCreateStory, useStoryStatus, useRetryStoryImages } from '@/api/stories';
+import { useSubscriptionUsage } from '@/api/plans';
+import { PaywallModal } from '@/components/PaywallModal';
 
 export default function WizardScreen() {
   const { t } = useTranslation();
@@ -51,6 +53,8 @@ export default function WizardScreen() {
   const createStory = useCreateStory();
   const retryStoryImages = useRetryStoryImages();
   const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
+  const { data: usage } = useSubscriptionUsage();
+  const [showPaywall, setShowPaywall] = useState(false);
   
   // Set default language from i18n
   useEffect(() => {
@@ -64,6 +68,11 @@ export default function WizardScreen() {
   const handleGenerate = async () => {
     if (!storyLanguage) {
       Alert.alert(t('common.error') || 'Error', t('wizard.language_required'));
+      return;
+    }
+
+    if (usage && usage.stories.remaining <= 0) {
+      setShowPaywall(true);
       return;
     }
     
@@ -84,10 +93,15 @@ export default function WizardScreen() {
       
       const result = await createStory.mutateAsync(payload);
       setRequestId(result.id);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to create story:', error);
       setIsGenerating(false);
-      Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 429) {
+        setShowPaywall(true);
+      } else {
+        Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
+      }
     }
   };
   
@@ -216,6 +230,12 @@ export default function WizardScreen() {
       <CharacterFormModal
         visible={isCharacterModalVisible}
         onClose={() => setIsCharacterModalVisible(false)}
+      />
+
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        limitInfo={usage ? { used: usage.stories.used, limit: usage.stories.limit } : undefined}
       />
     </>
   );

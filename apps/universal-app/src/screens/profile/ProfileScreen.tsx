@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Platform, Linking } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { theme } from '@/theme';
-import { usePlansWithAuth, useSubscriptionUsage } from '@/api/plans';
+import { usePlansWithAuth, useSubscriptionUsage, useCreatePortalSession } from '@/api/plans';
 import { useUpdateMe } from '@/api/auth';
 
 export default function ProfileScreen() {
   const { t } = useTranslation();
   const { user, logout } = useAuthStore();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
-  const { data: plans, isLoading: plansLoading } = usePlansWithAuth();
+  const { data: plansData, isLoading: plansLoading } = usePlansWithAuth();
   const { data: usage, isLoading: usageLoading } = useSubscriptionUsage();
+  const createPortalSession = useCreatePortalSession();
+  const plans = plansData && 'plans' in plansData ? plansData.plans : plansData;
+  const enableRealPayments = plansData && 'enableRealPayments' in plansData ? plansData.enableRealPayments : false;
   const updateMe = useUpdateMe();
   const [pseudonym, setPseudonym] = useState(user?.pseudonym ?? '');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -25,12 +28,35 @@ export default function ProfileScreen() {
 
   // Get current subscription plan
   const currentPlan = plans?.find(plan => plan.isCurrent);
-  const featuresArr = currentPlan?.features as Array<{ name?: string; value?: { limit?: number } }> | undefined;
-  const storiesLimit = featuresArr?.find((f) => f?.name === 'stories_per_month')?.value?.limit ?? 5;
+  // API returns features as object { stories_per_month: { value: { limit } }, ... }
+  const featuresObj = currentPlan?.features as Record<string, { value?: { limit?: number } }> | undefined;
+  const storiesLimit = featuresObj?.stories_per_month?.value?.limit ?? 5;
 
   const formattedResetsAt = usage?.resetsAt
     ? new Date(usage.resetsAt).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : '';
+  const formattedPeriodEnd = usage?.currentPeriodEnd
+    ? new Date(usage.currentPeriodEnd).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : '';
+  const hasPaidPlan = currentPlan && (currentPlan.priceMonthly ?? 0) > 0;
+  const canManageSubscription = enableRealPayments && usage?.paymentProvider === 'stripe' && hasPaidPlan;
+
+  const handleManageSubscription = async () => {
+    if (!canManageSubscription) {
+      navigation.navigate('Plans' as any);
+      return;
+    }
+    try {
+      const { url } = await createPortalSession.mutateAsync();
+      if (url && Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.location.href = url;
+      } else if (url) {
+        await Linking.openURL(url);
+      }
+    } catch (err) {
+      console.error('Failed to open portal:', err);
+    }
+  };
 
   const handleLogout = () => setShowLogoutConfirm(true);
 
@@ -139,14 +165,22 @@ export default function ProfileScreen() {
         ) : (
           <View style={styles.subscriptionCard}>
             <Text style={styles.subscriptionPlan}>
-              {currentPlan?.name || t('plans.free.name')}
+              {currentPlan?.name || t('plans.free')}
             </Text>
-            {usage && formattedResetsAt ? (
+            {usage?.cancelAtPeriodEnd && formattedPeriodEnd ? (
               <Text style={styles.subscriptionDetail}>
-                {t('profile.usage_remaining', {
+                {t('profile.subscription_canceling', { date: formattedPeriodEnd })}
+              </Text>
+            ) : formattedPeriodEnd ? (
+              <Text style={styles.subscriptionDetail}>
+                {t('profile.subscription_until', { date: formattedPeriodEnd })}
+              </Text>
+            ) : null}
+            {usage ? (
+              <Text style={styles.subscriptionDetail}>
+                {t('profile.usage_remaining_short', {
                   stories: usage.stories.remaining,
                   audio: usage.audio.remaining,
-                  date: formattedResetsAt,
                 })}
               </Text>
             ) : usageLoading ? (
@@ -158,9 +192,16 @@ export default function ProfileScreen() {
             )}
             <TouchableOpacity 
               style={styles.upgradeButton}
-              onPress={() => navigation.navigate('Plans' as any)}
+              onPress={handleManageSubscription}
+              disabled={createPortalSession.isPending}
             >
-              <Text style={styles.upgradeButtonText}>{t('profile.upgrade_plan')}</Text>
+              {createPortalSession.isPending ? (
+                <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+              ) : (
+                <Text style={styles.upgradeButtonText}>
+                  {canManageSubscription ? t('billing.manage_subscription') : t('profile.upgrade_plan')}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         )}

@@ -410,7 +410,10 @@
     "notification_settings": "Configuración de notificaciones",
     "privacy_settings": "Configuración de privacidad",
     "subscription": "Suscripción",
+    "subscription_until": "Suscripción hasta {{date}}",
+    "subscription_canceling": "Suscripción cancelada, activa hasta {{date}}",
     "stories_per_month": "{{count}} historias por mes",
+    "usage_remaining_short": "{{stories}} historias y {{audio}} historias de audio restantes",
     "upgrade_plan": "Actualizar plan",
     "support": "Soporte",
     "help_center": "Centro de ayuda",
@@ -624,5 +627,11 @@
     "pause_sample": "Pausar",
     "loading_sample": "Cargando...",
     "sample_error": "No se pudo cargar la muestra"
+  },
+  "paywall": {
+    "stories_limit_title": "Límite de historias alcanzado",
+    "stories_limit_message": "Has usado {{used}} de {{limit}} historias este mes.",
+    "stories_limit_message_default": "Tu límite mensual de historias ha sido alcanzado.",
+    "upgrade_button": "Actualizar plan"
   }
 }

@@ -86,6 +86,7 @@ const linking: any = {
           Characters: 'characters',
           Plans: 'pricing',
           Profile: 'profile',
+          BillingSuccess: 'billing/success',
           NotFound: '404',
         },
       },

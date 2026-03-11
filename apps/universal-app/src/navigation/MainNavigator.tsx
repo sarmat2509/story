@@ -29,6 +29,7 @@ import ChildrenScreen from '@/screens/children/ChildrenScreen';
 import CharactersScreen from '@/screens/characters/CharactersScreen';
 import PlansScreen from '@/screens/plans/PlansScreen';
 import ProfileScreen from '@/screens/profile/ProfileScreen';
+import BillingSuccessScreen from '@/screens/billing/BillingSuccessScreen';
 import LanguageSettingsScreen from '@/screens/profile/LanguageSettingsScreen';
 import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
 import { MiniAudioPlayer } from '@/components/MiniAudioPlayer';
@@ -489,6 +490,14 @@ function TabNavigator() {
         />
       )}
       <Tab.Screen 
+        name="BillingSuccess" 
+        component={BillingSuccessScreen}
+        options={{ 
+          title: t('billing.success_title'),
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen 
         name="Plans" 
         component={PlansScreen}
         options={{ 
@@ -792,6 +801,14 @@ function DrawerNavigator() {
           }}
         />
       )}
+      <Drawer.Screen 
+        name="BillingSuccess" 
+        component={BillingSuccessScreen}
+        options={{ 
+          title: t('billing.success_title'),
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
       <Drawer.Screen 
         name="Plans" 
         component={PlansScreen}

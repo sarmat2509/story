@@ -850,8 +850,11 @@
     "notification_settings": "Налаштування сповіщень",
     "privacy_settings": "Налаштування приватності",
     "subscription": "Підписка",
+    "subscription_until": "Підписка до {{date}}",
+    "subscription_canceling": "Підписка скасована, діє до {{date}}",
     "stories_per_month": "{{count}} історій на місяць",
     "usage_remaining": "Залишилось {{stories}} казок та {{audio}} аудіоказок до {{date}}",
+    "usage_remaining_short": "Залишилось {{stories}} казок та {{audio}} аудіоказок",
     "upgrade_plan": "Оновити план",
     "support": "Підтримка",
     "help_center": "Центр допомоги",
@@ -999,5 +1002,18 @@
     "pause_sample": "Призупинити",
     "loading_sample": "Завантаження...",
     "sample_error": "Не вдалося завантажити сэмпл"
+  },
+  "billing": {
+    "success_title": "Підписка оформлена!",
+    "success_message": "Дякуємо! Ваш тариф оновлено. Тепер вам доступні всі переваги нового плану.",
+    "go_to_profile": "Перейти в профіль",
+    "view_plans": "Переглянути тарифи",
+    "manage_subscription": "Керувати підпискою"
+  },
+  "paywall": {
+    "stories_limit_title": "Досягнуто ліміту історій",
+    "stories_limit_message": "Ви використали {{used}} з {{limit}} історій цього місяця.",
+    "stories_limit_message_default": "Ліміт історій на цей місяць вичерпано.",
+    "upgrade_button": "Оновити тариф"
   }
 }

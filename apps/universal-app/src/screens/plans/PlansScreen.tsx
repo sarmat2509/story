@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
-import { usePlans, usePlansWithAuth, useUpgradePlan } from '@/api/plans';
+import { usePlans, usePlansWithAuth, useUpgradePlan, useCreateCheckoutSession } from '@/api/plans';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,15 +20,22 @@ export default function PlansScreen() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const upgradePlan = useUpgradePlan();
+  const createCheckoutSession = useCreateCheckoutSession();
   
   // Fetch plans - use authenticated hook if logged in, otherwise public
   const publicPlansQuery = usePlans();
   const authPlansQuery = usePlansWithAuth();
   
   // Select appropriate query based on auth state
-  const { data: plans, isLoading, error } = isAuthenticated 
-    ? authPlansQuery 
-    : publicPlansQuery;
+  const authData = authPlansQuery.data;
+  const plans = isAuthenticated
+    ? (authData && 'plans' in authData ? authData.plans : authData)
+    : publicPlansQuery.data;
+  const enableRealPayments = isAuthenticated && authData && 'enableRealPayments' in authData
+    ? authData.enableRealPayments
+    : false;
+  const isLoading = isAuthenticated ? authPlansQuery.isLoading : publicPlansQuery.isLoading;
+  const error = isAuthenticated ? authPlansQuery.error : publicPlansQuery.error;
   
   // Fixed feature order - same for all plans
   const FEATURE_ORDER = [
@@ -82,16 +89,33 @@ export default function PlansScreen() {
     return [...available, ...unavailable];
   };
   
-  // Handle upgrade confirmation
+  // Handle upgrade: Stripe (web) or stub (mobile / when disabled)
   const handleUpgrade = async () => {
     if (!selectedPlan) return;
     
+    const isWeb = Platform.OS === 'web';
+    if (enableRealPayments && isWeb) {
+      try {
+        const { url } = await createCheckoutSession.mutateAsync(selectedPlan.slug);
+        if (typeof window !== 'undefined' && url) {
+          window.location.href = url;
+        }
+      } catch (err: unknown) {
+        console.error('Checkout failed:', err);
+        // Modal will show error via createCheckoutSession.isError
+      }
+      return;
+    }
+
+    if (enableRealPayments && !isWeb) {
+      // Mobile: RevenueCat not yet implemented - show coming soon
+      return;
+    }
+    
     try {
       await upgradePlan.mutateAsync(selectedPlan.slug);
-      // Keep modal open to show success state
-    } catch (error: any) {
-      console.error('Upgrade failed:', error);
-      // Modal will show error state
+    } catch (err: unknown) {
+      console.error('Upgrade failed:', err);
     }
   };
   
@@ -153,6 +177,16 @@ export default function PlansScreen() {
   }
   
   const isWeb = Platform.OS === 'web';
+  const useStripeFlow = enableRealPayments && isWeb;
+  const modalPending = useStripeFlow ? createCheckoutSession.isPending : upgradePlan.isPending;
+  const modalError = useStripeFlow ? createCheckoutSession.isError : upgradePlan.isError;
+  const modalErrorData = useStripeFlow ? createCheckoutSession.error : upgradePlan.error;
+  const resetModal = () => {
+    setShowUpgradeModal(false);
+    setSelectedPlan(null);
+    upgradePlan.reset();
+    createCheckoutSession.reset();
+  };
 
   return (
     <ScrollView
@@ -319,30 +353,23 @@ export default function PlansScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            {upgradePlan.isPending ? (
+            {modalPending ? (
               <>
                 <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
                 <Text style={styles.modalTitle}>{t('plans.upgrading')}</Text>
               </>
-            ) : upgradePlan.isError ? (
+            ) : modalError ? (
               <>
                 <Ionicons name="alert-circle" size={48} color={theme.colors.status.error} />
                 <Text style={styles.modalTitle}>{t('plans.upgrade_error')}</Text>
                 <Text style={styles.modalMessage}>
-                  {(upgradePlan.error as { response?: { data?: { message?: string } } })?.response?.data?.message || t('plans.upgrade_error_message')}
+                  {(modalErrorData as { response?: { data?: { message?: string } } })?.response?.data?.message || t('plans.upgrade_error_message')}
                 </Text>
-                <TouchableOpacity 
-                  style={styles.modalButton}
-                  onPress={() => {
-                    setShowUpgradeModal(false);
-                    setSelectedPlan(null);
-                    upgradePlan.reset();
-                  }}
-                >
+                <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
                   <Text style={styles.modalButtonText}>{t('common.close')}</Text>
                 </TouchableOpacity>
               </>
-            ) : upgradePlan.isSuccess ? (
+            ) : !useStripeFlow && upgradePlan.isSuccess ? (
               <>
                 <Ionicons name="checkmark-circle" size={48} color={theme.colors.status.success} />
                 <Text style={styles.modalTitle}>{t('plans.upgrade_success')}</Text>
@@ -372,14 +399,7 @@ export default function PlansScreen() {
                     );
                   })}
                 </View>
-                <TouchableOpacity 
-                  style={styles.modalButton}
-                  onPress={() => {
-                    setShowUpgradeModal(false);
-                    setSelectedPlan(null);
-                    upgradePlan.reset();
-                  }}
-                >
+                <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
                   <Text style={styles.modalButtonText}>{t('common.got_it')}</Text>
                 </TouchableOpacity>
               </>

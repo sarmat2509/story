@@ -26,6 +26,10 @@ export interface SubscriptionUsageData {
   stories: { used: number; limit: number; remaining: number };
   audio: { used: number; limit: number; remaining: number };
   resetsAt: string;
+  currentPeriodEnd?: string;
+  cancelAtPeriodEnd?: boolean;
+  paymentProvider?: string | null;
+  enableRealPayments?: boolean;
 }
 
 export const useSubscriptionUsage = () => {
@@ -45,10 +49,50 @@ export const usePlansWithAuth = () => {
   return useQuery({
     queryKey: ['plans', 'with-auth'],
     queryFn: async () => {
-      const response = await apiClient.get<{ status: string; plans: PlanAuthenticated[] }>(
-        '/api/v1/plans/with-features'
+      const response = await apiClient.get<{
+        status: string;
+        plans: PlanAuthenticated[];
+        enableRealPayments?: boolean;
+      }>('/api/v1/plans/with-features');
+      return {
+        plans: response.data.plans,
+        enableRealPayments: response.data.enableRealPayments ?? false,
+      };
+    },
+  });
+};
+
+// Create Stripe Checkout Session (web only, when enableRealPayments)
+export const useCreateCheckoutSession = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (planSlug: string) => {
+      const response = await apiClient.post<{ status: string; sessionId: string; url: string }>(
+        '/api/v1/billing/checkout-session',
+        { planSlug }
       );
-      return response.data.plans;
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+      queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
+    },
+  });
+};
+
+// Create Stripe Portal Session (manage subscription)
+export const useCreatePortalSession = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post<{ status: string; url: string }>(
+        '/api/v1/billing/portal-session'
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+      queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
     },
   });
 };

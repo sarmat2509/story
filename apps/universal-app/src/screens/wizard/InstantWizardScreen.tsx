@@ -19,6 +19,8 @@ import { LanguageSelector } from './components/LanguageSelector';
 import { useQueryClient } from '@tanstack/react-query';
 import { useStoryThemes } from '@/api/dictionaries';
 import { useCreateStoryFromPhotos, useStoryStatus, useRetryStoryImages } from '@/api/stories';
+import { useSubscriptionUsage } from '@/api/plans';
+import { PaywallModal } from '@/components/PaywallModal';
 
 type AgeGroup = '2-3' | '4-5' | '6-7' | '8-9' | '10-12';
 
@@ -42,9 +44,11 @@ export default function InstantWizardScreen() {
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   // API hooks
   const { data: themesData, isLoading: themesLoading } = useStoryThemes();
+  const { data: usage } = useSubscriptionUsage();
   const createStoryFromPhotos = useCreateStoryFromPhotos();
   const retryStoryImages = useRetryStoryImages();
   const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
@@ -59,6 +63,11 @@ export default function InstantWizardScreen() {
   const handleGenerate = async () => {
     if (!storyLanguage) {
       Alert.alert(t('common.error') || 'Error', t('wizard.language_required'));
+      return;
+    }
+
+    if (usage && usage.stories.remaining <= 0) {
+      setShowPaywall(true);
       return;
     }
 
@@ -78,11 +87,15 @@ export default function InstantWizardScreen() {
       const result = await createStoryFromPhotos.mutateAsync(payload);
       setRequestId(result.id);
       // Keep modal open - polling will track progress
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to create story from photos:', error);
-      // Don't close modal on initial request error - show error in modal instead
-      Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
       setIsGenerating(false);
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 429) {
+        setShowPaywall(true);
+      } else {
+        Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
+      }
     }
   };
 
@@ -198,6 +211,12 @@ export default function InstantWizardScreen() {
         errorMessage={storyStatus?.errorMessage ?? undefined}
         onRetry={handleRetry}
         onClose={handleCloseModal}
+      />
+
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        limitInfo={usage ? { used: usage.stories.used, limit: usage.stories.limit } : undefined}
       />
     </ScrollView>
   );

@@ -21,6 +21,8 @@ import ssrStoriesRoutes from './routes/ssrStories';
 import ssrUnlistedRoutes from './routes/ssrUnlisted';
 import shareCardRoutes from './routes/shareCard';
 import sitemapRoute from './routes/sitemap';
+import billingRoutes from './routes/billing';
+import billingWebhookRoutes from './routes/billingWebhook';
 import assetsRoutes from './routes/assets';
 import voicesRoutes from './routes/voices';
 import uploadRoutes from './routes/upload';
@@ -77,6 +79,9 @@ app.set('trust proxy', 1);
 // Rate limiting
 app.use(globalLimiter); // Apply global rate limit to all requests
 
+// Stripe webhook needs raw body for signature verification (before json parser)
+app.use('/api/v1/billing/webhook', express.raw({ type: 'application/json' }), billingWebhookRoutes);
+
 // Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -113,6 +118,7 @@ app.use('/share-card', apiLimiter, shareCardRoutes); // og:image 1200×630
 app.use('/api/v1/assets', apiLimiter, assetsRoutes); // M4: asset serving (local dev)
 app.use('/api/v1/voices', apiLimiter, voicesRoutes); // M5: TTS voices
 app.use('/api/v1/upload', apiLimiter, uploadRoutes); // M6: photo upload
+app.use('/api/v1/billing', apiLimiter, billingRoutes); // M1: Stripe checkout, portal
 app.use('/api/v1', indexRoutes);
 
 // Root redirect to API

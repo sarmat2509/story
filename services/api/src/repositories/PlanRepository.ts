@@ -93,6 +93,15 @@ export class PlanRepository {
     return subscription || null;
   }
 
+  async findSubscriptionByStripeSubscriptionId(stripeSubscriptionId: string): Promise<schema.UserSubscription | null> {
+    const [subscription] = await this.db
+      .select()
+      .from(schema.userSubscriptions)
+      .where(eq(schema.userSubscriptions.stripeSubscriptionId, stripeSubscriptionId))
+      .limit(1);
+    return subscription || null;
+  }
+
   async createSubscription(data: schema.NewUserSubscription): Promise<schema.UserSubscription> {
     const [subscription] = await this.db
       .insert(schema.userSubscriptions)

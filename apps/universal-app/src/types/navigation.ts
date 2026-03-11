@@ -28,6 +28,7 @@ export type MainDrawerParamList = {
   Characters: undefined;
   Plans: undefined;
   Profile: undefined;
+  BillingSuccess: undefined;
   LanguageSettings: undefined;
   ModeSelection: undefined;
 };

@@ -136,6 +136,8 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
     const storiesLimit = features.storiesPerMonth;
     const audioLimit = features.audioStoriesPerMonth;
 
+    const { default: config } = await import('../config');
+
     res.json({
       status: 'success',
       data: {
@@ -150,6 +152,10 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
           remaining: Math.max(0, audioLimit - audioUsed),
         },
         resetsAt: subscription.resetAt,
+        currentPeriodEnd: subscription.currentPeriodEnd,
+        cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+        paymentProvider: subscription.paymentProvider,
+        enableRealPayments: config.features.enableRealPayments,
       },
     });
   } catch (error) {
