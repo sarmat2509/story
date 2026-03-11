@@ -627,7 +627,8 @@ export class ImageDomainService {
       characterDescription: params.characterDescription,
     });
 
-    // Build request with the child's drawing as a reference image
+    // Build request with the child's drawing as a reference image.
+    // Do NOT pass personGeneration: turnaround model (gemini-3-pro-image-preview) does not support it.
     const request: GenerateImageRequest = {
       prompt,
       aspectRatio: '16:9', // Wide format for 4 views side by side
@@ -638,7 +639,6 @@ export class ImageDomainService {
           instructionText: `This is the original drawing of "${params.characterName}". Preserve its exact appearance in all 4 turnaround views.`,
         },
       ],
-      personGeneration: 'allow_all',
       onUsage: options?.onUsage,
       operation: 'image_generate',
     };
@@ -674,11 +674,11 @@ export class ImageDomainService {
       imageStyle: params.imageStyle,
     });
 
+    // Do NOT pass personGeneration: turnaround model (gemini-3-pro-image-preview) does not support it.
     const request: GenerateImageRequest = {
       prompt,
       aspectRatio: '16:9',
       referenceImages: [],
-      personGeneration: 'allow_all',
       onUsage: options?.onUsage,
       operation: 'image_generate',
     };

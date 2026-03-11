@@ -531,7 +531,10 @@ export class NanoBananaProProvider implements IImageProvider {
    * Some models (e.g. gemini-3-pro-image-preview) reject it with a 400 error.
    */
   private supportsPersonGeneration(): boolean {
-    const unsupportedModels = ['gemini-3-pro-image-preview'];
+    const unsupportedModels = [
+      'gemini-3-pro-image-preview',
+      'gemini-3.0-pro-image-preview',
+    ];
     return !unsupportedModels.some(m => this.model.includes(m));
   }
 

@@ -6,6 +6,16 @@ import { theme } from '@/theme';
 import { useCreateCharacter, useUpdateCharacter, useAnalyzeCharacter, useGenerateTurnaround } from '@/api/characters';
 import { UploadPhotoResult, deletePhoto } from '@/utils/uploadPhoto';
 import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
+import { API_BASE_URL } from '@/config/constants';
+
+/** Convert relative asset path to absolute URL for Zod .url() validation */
+function toAbsoluteAssetUrl(url: string): string {
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const base = typeof window !== 'undefined'
+    ? window.location.origin
+    : API_BASE_URL.replace(/\/$/, '');
+  return url.startsWith('/') ? `${base}${url}` : `${base}/${url}`;
+}
 import { storage } from '@/utils/storage';
 import { 
   CreateCharacterSchema,
@@ -537,13 +547,17 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
         return;
       }
 
-      // Filter only uploaded photos with valid URLs (exclude blob/file URIs)
+      // Filter only uploaded photos with valid URLs (exclude blob/file URIs).
+      // Convert to absolute URLs for Zod .url() validation (schema rejects relative paths).
       const uploadedPhotos = photos
         .filter(photo => 
           !photo.isUploading && 
           isServerAssetUrl(photo.url)
         )
-        .map(({ url, uploadedAt }) => ({ url, uploadedAt })); // Strip UI-only fields
+        .map(({ url, uploadedAt }) => ({
+          url: toAbsoluteAssetUrl(url),
+          uploadedAt
+        }));
 
       // Prepare data
       const data = {
@@ -782,9 +796,8 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                   )}
                 </View>
 
-                {/* Turnaround Sheet (imaginary characters only) */}
-                {isImaginaryType(type) && (
-                  <View style={styles.field}>
+                {/* Turnaround Sheet */}
+                <View style={styles.field}>
                     <Text style={styles.label}>{t('character_form.turnaround_sheet')}</Text>
                     {turnaroundSheetUrl && (
                       <View style={styles.turnaroundContainer}>
@@ -863,7 +876,6 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                       </Text>
                     )}
                   </View>
-                )}
 
                 {/* Appearance Section */}
                 <ExpandableCard title={t('character_form.appearance_title')} defaultExpanded={true}>
@@ -1197,11 +1209,13 @@ const styles = StyleSheet.create({
     padding: theme.spacing[4],
   },
   modal: {
+    flex: 1,
     backgroundColor: theme.colors.background.primary,
     borderRadius: theme.borders.radius.lg,
     width: '100%',
     maxWidth: 600,
     maxHeight: '90%',
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -1243,6 +1257,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   content: {
+    flex: 1,
     padding: theme.spacing[5],
   },
   field: {

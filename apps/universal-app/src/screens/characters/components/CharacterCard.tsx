@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
-import { useTranslation } from 'react-i18next';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
@@ -10,6 +9,7 @@ interface Character {
   name: string;
   type: string;
   referencePhotos?: Array<{ url: string }>;
+  turnaroundSheet?: { url: string; frontUrl?: string };
 }
 
 interface Props {
@@ -18,53 +18,49 @@ interface Props {
   onDelete?: (characterId: string, characterName: string) => void;
 }
 
+const getCharacterIcon = (type: string): string => {
+  switch (type) {
+    case 'person':
+      return '👤';
+    case 'animal':
+      return '🐾';
+    case 'imaginary':
+      return '🦄';
+    default:
+      return '👤';
+  }
+};
+
 export function CharacterCard({ character, onPress, onDelete }: Props) {
-  const { t } = useTranslation();
-  
-  const getCharacterIcon = (type: string): string => {
-    switch (type) {
-      case 'person':
-        return '👤';
-      case 'animal':
-        return '🐾';
-      case 'imaginary':
-        return '🦄';
-      default:
-        return '👤';
-    }
-  };
-  
+  const avatarUrl =
+    character.turnaroundSheet?.frontUrl ?? character.turnaroundSheet?.url ?? character.referencePhotos?.[0]?.url;
+
   return (
     <View style={styles.cardWrapper}>
-      <TouchableOpacity 
-        style={styles.card}
-        onPress={onPress}
-        activeOpacity={0.7}
-      >
-        <View style={styles.iconContainer}>
-          {character.referencePhotos?.[0]?.url ? (
+      <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+        <View style={styles.imageContainer}>
+          {avatarUrl ? (
             <Image
-              source={{ uri: formatAssetUrl(character.referencePhotos[0].url) ?? character.referencePhotos[0].url }}
-              style={styles.avatar}
-              resizeMode="cover"
+              source={{ uri: formatAssetUrl(avatarUrl) ?? avatarUrl }}
+              style={styles.image}
+              resizeMode="contain"
             />
           ) : (
-            <Text style={styles.icon}>{getCharacterIcon(character.type)}</Text>
+            <View style={styles.placeholder}>
+              <Text style={styles.placeholderIcon}>{getCharacterIcon(character.type)}</Text>
+            </View>
           )}
         </View>
         <Text style={styles.name} numberOfLines={2}>
           {character.name}
         </Text>
-        <Text style={styles.type}>
-          {t(`characters.character_types.${character.type}`)}
-        </Text>
       </TouchableOpacity>
-      
+
       {onDelete && (
-        <Pressable 
+        <Pressable
           style={(state: { pressed: boolean }) => [
             styles.deleteButton,
-            state.pressed && styles.deleteButtonPressed
+            state.pressed && styles.deleteButtonPressed,
           ]}
           onPress={() => onDelete(character.id, character.name)}
         >
@@ -80,41 +76,40 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   card: {
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: theme.colors.background.primary,
     borderRadius: theme.borders.radius.lg,
-    padding: theme.spacing[4],
-    alignItems: 'center',
+    overflow: 'hidden',
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
+    padding: theme.spacing[6],
   },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  imageContainer: {
+    height: '180px',
+    width: '100%',
+    alignSelf: 'center',
+    backgroundColor: theme.colors.background.primary,
+    ...(Platform.OS === 'web' && { filter: 'contrast(1.05)' }),
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholder: {
+    width: '100%',
+    height: '100%',
     backgroundColor: theme.colors.background.tertiary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: theme.spacing[3],
   },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-  },
-  icon: {
-    fontSize: 32,
+  placeholderIcon: {
+    fontSize: 64,
   },
   name: {
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
     textAlign: 'center',
-    marginBottom: theme.spacing[1],
-  },
-  type: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.secondary,
-    textAlign: 'center',
+    paddingTop: theme.spacing[4],
   },
   deleteButton: {
     position: 'absolute',
