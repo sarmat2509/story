@@ -1511,7 +1511,12 @@ export async function processStoryImages(requestId: string): Promise<void> {
 
           const charData = characterDescriptionMap.get(llmChar.normalizedName);
           if (charData) {
-            (charData as any).turnaroundSheet = { url: result.url, generatedAt: result.generatedAt, sourcePhotoUrl: result.sourcePhotoUrl };
+            (charData as any).turnaroundSheet = {
+              url: result.url,
+              ...(result.frontUrl && { frontUrl: result.frontUrl }),
+              generatedAt: result.generatedAt,
+              sourcePhotoUrl: result.sourcePhotoUrl,
+            };
           }
 
           if (config.nanoBanana?.enableFilesApi === true && charData) {
@@ -3926,10 +3931,11 @@ async function fetchStoryChildren(
     childProfiles.map(async (child) => {
       let referencePhotoUrl: string | null = null;
 
-      const turnaround = child.turnaroundSheet as { url?: string } | null;
+      const turnaround = child.turnaroundSheet as { url?: string; frontUrl?: string } | null;
       const refPhotos = child.referencePhotos as Array<{ url?: string }> | null;
 
-      const rawPath = turnaround?.url
+      const rawPath = turnaround?.frontUrl
+        || turnaround?.url
         || (refPhotos && refPhotos.length > 0 ? refPhotos[0].url : null)
         || null;
 
@@ -3975,10 +3981,11 @@ export async function getStory(storyId: string, userId: string) {
     linkedCharactersRaw.map(async (char) => {
       let referencePhotoUrl: string | null = null;
 
-      const turnaround = char.turnaroundSheet as { url?: string } | null;
+      const turnaround = char.turnaroundSheet as { url?: string; frontUrl?: string } | null;
       const refPhotos = char.referencePhotos as Array<{ url?: string }> | null;
 
-      const rawPath = turnaround?.url
+      const rawPath = turnaround?.frontUrl
+        || turnaround?.url
         || (refPhotos && refPhotos.length > 0 ? refPhotos[0].url : null)
         || null;
 
@@ -4370,9 +4377,10 @@ export async function getStoryManifest(storyId: string) {
       ...(await Promise.all(
         linkedCharactersRaw.map(async (char) => {
           let referencePhotoUrl: string | null = null;
-          const turnaround = char.turnaroundSheet as { url?: string } | null;
+          const turnaround = char.turnaroundSheet as { url?: string; frontUrl?: string } | null;
           const refPhotos = char.referencePhotos as Array<{ url?: string }> | null;
-          const rawPath = turnaround?.url
+          const rawPath = turnaround?.frontUrl
+            || turnaround?.url
             || (refPhotos && refPhotos.length > 0 ? refPhotos[0].url : null)
             || null;
           if (rawPath) {

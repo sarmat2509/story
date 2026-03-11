@@ -1,18 +1,23 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
+import { formatAssetUrl } from '@/utils/assetUrl';
 
 interface Character {
   id: string;
   name: string;
   type: string;
+  turnaroundSheet?: { url: string; frontUrl?: string };
+  referencePhotos?: Array<{ url: string }>;
 }
 
 interface ChildProfile {
   id: string;
   name: string;
+  turnaroundSheet?: { url: string; frontUrl?: string };
+  referencePhotos?: Array<{ url: string }>;
 }
 
 interface DisplayItem {
@@ -22,6 +27,7 @@ interface DisplayItem {
   icon: string;
   badge: string;
   isChild: boolean;
+  avatarUrl?: string;
 }
 
 interface Props {
@@ -114,6 +120,7 @@ export function CharactersForm({
       icon: getCharacterIcon('child'),
       badge: getCharacterTypeName('child'),
       isChild: true,
+      avatarUrl: c.turnaroundSheet?.frontUrl ?? c.turnaroundSheet?.url ?? c.referencePhotos?.[0]?.url,
     })),
     ...characters.map(c => ({
       id: c.id,
@@ -122,6 +129,7 @@ export function CharactersForm({
       icon: getCharacterIcon(c.type),
       badge: getCharacterTypeName(c.type),
       isChild: false,
+      avatarUrl: c.turnaroundSheet?.frontUrl ?? c.turnaroundSheet?.url ?? c.referencePhotos?.[0]?.url,
     }))
   ];
   
@@ -182,9 +190,17 @@ export function CharactersForm({
                   activeOpacity={0.7}
                 >
                   <View style={styles.characterLeft}>
-                    <Text style={styles.characterIcon}>
-                      {item.icon}
-                    </Text>
+                    {item.avatarUrl ? (
+                      <Image
+                        source={{ uri: formatAssetUrl(item.avatarUrl) ?? item.avatarUrl }}
+                        style={styles.characterAvatar}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <Text style={styles.characterIcon}>
+                        {item.icon}
+                      </Text>
+                    )}
                     <View>
                       <Text style={[
                         styles.characterName,
@@ -286,6 +302,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  characterAvatar: {
+    width: 40,
+    height: 40,
+    marginRight: theme.spacing[3],
   },
   characterIcon: {
     fontSize: 32,

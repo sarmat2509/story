@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useChildren } from '@/api/children';
 import { ChildFormModal } from '@/components/ChildFormModal';
 import { theme } from '@/theme';
+import { formatAssetUrl } from '@/utils/assetUrl';
 import { ReferencePhoto } from '@wondertales/shared';
 
 export default function ChildrenScreen() {
@@ -24,7 +25,7 @@ export default function ChildrenScreen() {
     familyCast?: Record<string, string>;
     aiGeneratedDescription?: string;
     descriptionLanguage?: string;
-    turnaroundSheet?: { url: string; generatedAt: string };
+    turnaroundSheet?: { url: string; frontUrl?: string; generatedAt: string };
   } | undefined>();
 
   if (isLoading) {
@@ -63,12 +64,25 @@ export default function ChildrenScreen() {
         </View>
       ) : (
         <View style={styles.childrenList}>
-          {children.map((child: any) => (
+          {children.map((child: any) => {
+            const avatarUrl =
+              child.turnaroundSheet?.frontUrl ??
+              child.turnaroundSheet?.url ??
+              child.referencePhotos?.[0]?.url;
+            return (
             <View key={child.id} style={styles.childCard}>
               <View style={styles.childAvatar}>
-                <Text style={styles.childAvatarText}>
-                  {child.name.charAt(0).toUpperCase()}
-                </Text>
+                {avatarUrl ? (
+                  <Image
+                    source={{ uri: formatAssetUrl(avatarUrl) ?? avatarUrl }}
+                    style={styles.childAvatarImage}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <Text style={styles.childAvatarText}>
+                    {child.name.charAt(0).toUpperCase()}
+                  </Text>
+                )}
               </View>
               <View style={styles.childInfo}>
                 <Text style={styles.childName}>{child.name}</Text>
@@ -120,7 +134,8 @@ export default function ChildrenScreen() {
                 <Text style={styles.editButtonText}>{t('children_screen.edit_button')}</Text>
               </TouchableOpacity>
             </View>
-          ))}
+          );
+          })}
         </View>
       )}
 
@@ -212,11 +227,14 @@ const styles = StyleSheet.create({
   childAvatar: {
     width: 56,
     height: 56,
-    borderRadius: 28,
     backgroundColor: theme.colors.interactive.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: theme.spacing[4],
+  },
+  childAvatarImage: {
+    width: 56,
+    height: 56,
   },
   childAvatarText: {
     fontSize: theme.typography.fontSize['2xl'],

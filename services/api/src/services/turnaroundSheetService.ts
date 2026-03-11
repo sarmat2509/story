@@ -7,6 +7,7 @@
 
 import { getAssetStorageService } from './assetStorageService';
 import { recordUsage } from './aiUsageService';
+import { extractFrontFromTurnaround } from './turnaroundFrontExtractor';
 import { getCharacterRepository, getChildProfileRepository } from '../repositories';
 import { NanoBananaProProvider } from '../providers/image/nanobananapro';
 import { Imagen4FastProvider } from '../providers/image/gemini/Imagen4FastProvider';
@@ -50,6 +51,7 @@ export interface TurnaroundSheetParams {
 
 export interface TurnaroundSheetResult {
   url: string;
+  frontUrl?: string;
   generatedAt: string;
   sourcePhotoUrl: string;
 }
@@ -121,8 +123,25 @@ export async function generateTurnaroundSheet(
     photoType: 'character_turnaround' as const,
   });
 
+  let frontUrl: string | undefined;
+  try {
+    const frontBuffer = await extractFrontFromTurnaround(generated.imageData);
+    if (frontBuffer) {
+      const frontUpload = await assetStorage.uploadUserPhoto({
+        buffer: frontBuffer,
+        mimeType: 'image/png',
+        userId,
+        photoType: 'character_front' as const,
+      });
+      frontUrl = frontUpload.storagePath;
+    }
+  } catch (err) {
+    logger.warn({ err, characterId }, 'Failed to extract front from turnaround, saving without frontUrl');
+  }
+
   const turnaroundSheet: TurnaroundSheetResult = {
     url: uploadResult.storagePath,
+    ...(frontUrl && { frontUrl }),
     generatedAt: new Date().toISOString(),
     sourcePhotoUrl: referencePhotoUrl,
   };
@@ -204,8 +223,25 @@ export async function generateChildTurnaroundSheet(
     photoType: 'child_turnaround' as const,
   });
 
+  let frontUrl: string | undefined;
+  try {
+    const frontBuffer = await extractFrontFromTurnaround(generated.imageData);
+    if (frontBuffer) {
+      const frontUpload = await assetStorage.uploadUserPhoto({
+        buffer: frontBuffer,
+        mimeType: 'image/png',
+        userId,
+        photoType: 'child_front' as const,
+      });
+      frontUrl = frontUpload.storagePath;
+    }
+  } catch (err) {
+    logger.warn({ err, childId }, 'Failed to extract front from turnaround, saving without frontUrl');
+  }
+
   const turnaroundSheet: TurnaroundSheetResult = {
     url: uploadResult.storagePath,
+    ...(frontUrl && { frontUrl }),
     generatedAt: new Date().toISOString(),
     sourcePhotoUrl: referencePhotoUrl,
   };
@@ -283,8 +319,25 @@ export async function generateLlmCharacterTurnaround(
     photoType: 'character_turnaround' as const,
   });
 
+  let frontUrl: string | undefined;
+  try {
+    const frontBuffer = await extractFrontFromTurnaround(generated.imageData);
+    if (frontBuffer) {
+      const frontUpload = await assetStorage.uploadUserPhoto({
+        buffer: frontBuffer,
+        mimeType: 'image/png',
+        userId,
+        photoType: 'character_front' as const,
+      });
+      frontUrl = frontUpload.storagePath;
+    }
+  } catch (err) {
+    logger.warn({ err, characterId }, 'Failed to extract front from turnaround, saving without frontUrl');
+  }
+
   const turnaroundSheet: TurnaroundSheetResult = {
     url: uploadResult.storagePath,
+    ...(frontUrl && { frontUrl }),
     generatedAt: new Date().toISOString(),
     sourcePhotoUrl: 'text-description',
   };

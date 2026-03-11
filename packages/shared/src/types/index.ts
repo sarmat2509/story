@@ -233,6 +233,7 @@ export type PersonalityTraits = PetPersonality | HumanPersonality | ImaginaryPer
 // Turnaround Sheet
 export interface TurnaroundSheet {
   url: string;
+  frontUrl?: string; // Extracted front view for avatars/lists
   generatedAt: string;
   sourcePhotoUrl?: string;
 }

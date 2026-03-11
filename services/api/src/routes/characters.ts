@@ -259,14 +259,6 @@ router.post('/:id/turnaround', requireAuth, async (req, res) => {
       });
     }
 
-    // Must be imaginary
-    if (character.type !== 'imaginary') {
-      return res.status(400).json({
-        status: 'error',
-        error: 'Turnaround sheets can only be generated for imaginary characters',
-      });
-    }
-
     // Use description from request body (possibly unsaved edits) or fall back to DB
     const aiDescription = req.body.description
       || (character as any).descriptionEn

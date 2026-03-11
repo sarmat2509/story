@@ -48,7 +48,6 @@ const styles = StyleSheet.create({
   characterAvatar: {
     width: 40,
     height: 40,
-    borderRadius: theme.borders.radius.full,
     marginRight: theme.spacing[3],
   },
   characterAvatarPlaceholder: {
@@ -129,6 +128,7 @@ function StoryCharactersSectionInner({
                     uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl,
                   }}
                   style={styles.characterAvatar as ImageStyle}
+                  resizeMode="contain"
                 />
               ) : (
                 <View style={[styles.characterAvatar, styles.characterAvatarPlaceholder]}>
