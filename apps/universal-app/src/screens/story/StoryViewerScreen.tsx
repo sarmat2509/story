@@ -1727,10 +1727,10 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[8],
   },
   sceneImage: {
-    height: undefined,
     aspectRatio: 16 / 9,
     marginBottom: theme.spacing[4],
     width: '100%',
+    borderRadius: theme.borders.radius.xl
   },
   sceneImagePlaceholder: {
     aspectRatio: 16 / 9,

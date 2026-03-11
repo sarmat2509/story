@@ -292,7 +292,7 @@ export function ContinueSeriesSection({
 const styles = StyleSheet.create({
   continueContainer: {
     marginTop: theme.spacing[12],
-    marginBottom: theme.spacing[8],
+    marginBottom: theme.spacing[12],
     paddingHorizontal: theme.spacing[6],
     alignItems: 'center',
   },

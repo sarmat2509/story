@@ -186,12 +186,12 @@ const styles = StyleSheet.create({
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.background.primary,
+    alignItems: 'center'
   },
   scrollContent: {
     padding: theme.spacing[6],
     minHeight: '100%',
+    backgroundColor: theme.colors.background.secondary,
   },
   addCharacterButton: {
     flexDirection: 'row',
