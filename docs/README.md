@@ -112,8 +112,8 @@ ssh root@167.172.102.75
 pnpm docker:dev
 
 # Run API scripts (migrations, diagnostics)
-pnpm api:script -- npx tsx src/scripts/runMigration.ts <migration.sql>
-pnpm api:script -- npx tsx src/scripts/runAllMigrations.ts
+pnpm api:script npx tsx src/scripts/runMigration.ts <migration.sql>
+pnpm api:script npx tsx src/scripts/runAllMigrations.ts
 ```
 
 ## Architecture

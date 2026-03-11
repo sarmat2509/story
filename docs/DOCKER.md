@@ -32,8 +32,8 @@ docker compose -f docker-compose.prod.yml up
 pnpm run migrate 0055_story_ratings.sql
 
 # Другие скрипты
-pnpm api:script -- npx tsx src/scripts/checkAiUsage.ts
-pnpm api:script -- npx tsx src/scripts/diagnoseEnvImages.ts <storyId>
+pnpm api:script npx tsx src/scripts/checkAiUsage.ts
+pnpm api:script npx tsx src/scripts/diagnoseEnvImages.ts <storyId>
 ```
 
 ### Примеры скриптов

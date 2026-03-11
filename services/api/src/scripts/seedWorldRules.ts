@@ -4,7 +4,7 @@
  * Note: New scenarios (expeditions_world_travel, macro_scifi) are added via migration 0041.
  *
  * Usage:
- *   pnpm api:script -- npx tsx src/scripts/seedWorldRules.ts
+ *   pnpm api:script npx tsx src/scripts/seedWorldRules.ts
  */
 
 import { db } from '../db';

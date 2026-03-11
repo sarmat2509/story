@@ -3,7 +3,7 @@
  * Sets: isPublished=false, visibility=null (private, only author can see)
  *
  * Usage: npx tsx src/scripts/updateStoryStatus.ts
- * Or via Docker: pnpm api:script -- npx tsx src/scripts/updateStoryStatus.ts
+ * Or via Docker: pnpm api:script npx tsx src/scripts/updateStoryStatus.ts
  */
 
 import path from 'path';

@@ -1942,7 +1942,7 @@ Before submitting code, verify:
 
 ## 📜 API Diagnostic Scripts (services/api/src/scripts/)
 
-**Single entry point: Docker.** Run via `pnpm api:script -- npx tsx src/scripts/<name>.ts [args]` (from project root) or `docker compose -f docker-compose.dev.yml run --rm api npx tsx src/scripts/<name>.ts [args]`.
+**Single entry point: Docker.** Run via `pnpm api:script npx tsx src/scripts/<name>.ts [args]` (from project root) or `docker compose -f docker-compose.dev.yml run --rm --entrypoint="" api npx tsx src/scripts/<name>.ts [args]`. Do NOT use `--` before the script — it gets passed as the executable and breaks Docker.
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
