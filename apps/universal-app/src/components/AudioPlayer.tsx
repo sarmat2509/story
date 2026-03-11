@@ -386,7 +386,7 @@ export default function AudioPlayer({
         <Text style={styles.speedSectionTitle}>{t('story_viewer.playback_speed')}</Text>
         <View style={styles.speedContainer}>
           <MaterialCommunityIcons
-            name="baby"
+            name="snail"
             size={22}
             color={theme.colors.text.tertiary}
             style={styles.speedIcon}

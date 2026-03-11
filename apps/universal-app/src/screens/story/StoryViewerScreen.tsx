@@ -1337,7 +1337,7 @@ export default function StoryViewerScreen() {
                     storyId={storyId}
                     audioUrl={playerAudioData.audioUrl}
                     duration={playerAudioData.duration}
-                    title={`🎧 ${t('story_viewer.audio_title')}`}
+                    title={`${t('story_viewer.audio_title')}`}
                     hasAlignment={!!story.audioMetadata?.alignment}
                     onHighlightToggle={handleHighlightToggle}
                     onPositionChange={handlePositionChangeWrapper}
@@ -1352,7 +1352,6 @@ export default function StoryViewerScreen() {
               
               {/* Publication block */}
               <View style={styles.publicationSection}>
-                <Text style={styles.publicationSectionTitle}>{t('story_viewer.publication_title')}</Text>
                 {!story?.isPublished ? (
                   <TouchableOpacity
                     style={styles.publishButton}
@@ -1364,6 +1363,7 @@ export default function StoryViewerScreen() {
                   </TouchableOpacity>
                 ) : (
                   <>
+                    <Text style={styles.publicationSectionTitle}>{t('story_viewer.publication_title')}</Text>
                     <View style={styles.publicationBadge}>
                       <Ionicons
                         name={story?.visibility === 'unlisted' ? 'link-outline' : 'globe-outline'}
@@ -1594,7 +1594,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: theme.spacing[2],
     padding: theme.spacing[4],
-    marginTop: theme.spacing[4],
     borderRadius: theme.borders.radius.md,
     backgroundColor: theme.colors.interactive.primary,
   },
@@ -1626,7 +1625,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: theme.spacing[2],
     padding: theme.spacing[4],
-    marginTop: theme.spacing[4],
     borderRadius: theme.borders.radius.md,
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.status.error,
