@@ -114,6 +114,8 @@ export default function PlansScreen() {
     
     try {
       await upgradePlan.mutateAsync(selectedPlan.slug);
+      const { getAnalytics } = await import('@/services/analytics');
+      getAnalytics().capture('plan_upgraded', { plan_slug: selectedPlan.slug });
     } catch (err: unknown) {
       console.error('Upgrade failed:', err);
     }

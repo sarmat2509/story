@@ -349,6 +349,12 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
     const durationMinutes = Math.ceil(result.duration / 60);
     await incrementUsage(job.userId, 'audio', durationMinutes);
 
+    // Record usage event for entitlements/analytics
+    const { recordUsageEvent } = await import('../services/usageEventsService');
+    await recordUsageEvent(job.userId, 'audio_synthesized', 1, {
+      metadata: { storyId: job.storyId },
+    });
+
     logger.info({
       storyId: job.storyId,
       duration: result.duration,

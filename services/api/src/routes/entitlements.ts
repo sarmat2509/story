@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/authMiddleware';
 import * as planService from '../services/planService';
+import { getUsageForPeriod } from '../services/usageEventsService';
+import type { UsageEventType } from '../services/usageEventsService';
+import { getPlanRepository } from '../repositories';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -14,11 +17,17 @@ type FeatureValue = NumericFeatureValue | BooleanFeatureValue | EnumFeatureValue
 type FeatureWithUsage = NumericFeatureValue & { used: number; remaining: number };
 type FeatureOutput = FeatureWithUsage | BooleanFeatureValue | EnumFeatureValue;
 
+// Map feature slug to usage_events eventType
+const FEATURE_SLUG_TO_EVENT_TYPE: Record<string, UsageEventType> = {
+  stories_per_month: 'story_created',
+  audio_stories_per_month: 'audio_synthesized',
+};
+
 // GET /api/v1/entitlements - Get current user's subscription, features, and usage
 router.get('/', requireAuth, async (req, res) => {
   try {
     const userId = req.user!.id;
-    
+
     // Get user subscription
     const subscription = await planService.getUserSubscription(userId);
     if (!subscription) {
@@ -27,7 +36,7 @@ router.get('/', requireAuth, async (req, res) => {
         error: 'No subscription found'
       });
     }
-    
+
     // Get plan details
     const plan = await planService.getPlanById(subscription.planId);
     if (!plan) {
@@ -36,24 +45,33 @@ router.get('/', requireAuth, async (req, res) => {
         error: 'Plan not found'
       });
     }
-    
-    // Get plan features
-    const planFeatures = await planService.getPlanFeaturesByPlanId(subscription.planId);
-    
-    // Build features object with usage data
+
+    // Get plan features with slug (from join)
+    const planRepo = getPlanRepository();
+    const allFeatures = await planRepo.findAllFeaturesForPlan(subscription.planId);
+    const periodStart = subscription.currentPeriodStart;
+    const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
+
+    // Build features object with usage data from usage_events
     const features: Record<string, FeatureOutput> = {};
-    for (const pf of planFeatures) {
+    for (const pf of allFeatures) {
       const featureValue = pf.value as FeatureValue;
-      
-      // Add usage data for tracked features
+      const slug = pf.slug;
+
       if ('limit' in featureValue) {
-        features[pf.featureId] = {
-          limit: featureValue.limit,
-          used: 0, // Will be populated from usage_events in real implementation
-          remaining: featureValue.limit
+        const limit = featureValue.limit;
+        let used = 0;
+        const eventType = FEATURE_SLUG_TO_EVENT_TYPE[slug];
+        if (eventType) {
+          used = await getUsageForPeriod(userId, periodStart, periodEnd, eventType);
+        }
+        features[slug] = {
+          limit,
+          used,
+          remaining: Math.max(0, limit - used),
         };
       } else {
-        features[pf.featureId] = featureValue;
+        features[slug] = featureValue;
       }
     }
     

@@ -96,6 +96,8 @@ export default function ModeSelectionScreen() {
 
       if (response.data.user) {
         setUser(response.data.user);
+        const { getAnalytics } = await import('@/services/analytics');
+        getAnalytics().capture('mode_selected', { mode: selectedMode });
         // Navigation will happen automatically via RootNavigator's conditional rendering
         // when user.mode is set, needsModeSelection becomes false
       }

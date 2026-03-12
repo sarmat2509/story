@@ -259,6 +259,12 @@ export async function incrementUsage(
   }
 }
 
+const FEATURE_SLUG_TO_EVENT_TYPE: Record<string, 'story_created' | 'audio_synthesized'> = {
+  stories_per_month: 'story_created',
+  audio_stories_per_month: 'audio_synthesized',
+  audio_minutes_per_month: 'audio_synthesized', // legacy slug, same as audio stories
+};
+
 export async function checkUsageLimit(
   userId: string,
   featureSlug: string,
@@ -269,24 +275,26 @@ export async function checkUsageLimit(
   if (!subscription) {
     return { allowed: false, remaining: 0 };
   }
-  
+
   const limit = await getFeatureLimit(userId, featureSlug);
   if (limit === null) {
     // No limit defined, allow
     return { allowed: true, remaining: Infinity };
   }
-  
-  // Check current usage against limit
+
+  // Get current usage from usage_events
   let currentUsage = 0;
-  if (featureSlug === 'stories_per_month') {
-    currentUsage = subscription.storiesUsed;
-  } else if (featureSlug === 'audio_minutes_per_month') {
-    currentUsage = subscription.audioMinutesUsed;
+  const eventType = FEATURE_SLUG_TO_EVENT_TYPE[featureSlug];
+  if (eventType) {
+    const { getUsageForPeriod } = await import('./usageEventsService');
+    const periodStart = subscription.currentPeriodStart;
+    const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
+    currentUsage = await getUsageForPeriod(userId, periodStart, periodEnd, eventType);
   }
-  
+
   const remaining = limit - currentUsage;
   const allowed = remaining >= requestedQty;
-  
+
   return { allowed, remaining: Math.max(0, remaining) };
 }
 
@@ -321,6 +329,12 @@ export async function changePlan(userId: string, newPlanSlug: string): Promise<U
   if (!updatedSubscription) {
     throw new Error('Subscription not found');
   }
+
+  // Record usage event for analytics
+  const { recordUsageEvent } = await import('./usageEventsService');
+  await recordUsageEvent(userId, 'plan_upgraded', 1, {
+    metadata: { planSlug: newPlanSlug },
+  });
 
   logger.info({ userId, newPlanId: newPlan.id }, 'Changed user plan, reset usage counters');
   return updatedSubscription;

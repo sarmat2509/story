@@ -21,6 +21,7 @@ import { useStoryThemes } from '@/api/dictionaries';
 import { useCreateStoryFromPhotos, useStoryStatus, useRetryStoryImages } from '@/api/stories';
 import { useSubscriptionUsage } from '@/api/plans';
 import { PaywallModal } from '@/components/PaywallModal';
+import { getAnalytics } from '@/services/analytics';
 
 type AgeGroup = '2-3' | '4-5' | '6-7' | '8-9' | '10-12';
 
@@ -60,6 +61,19 @@ export default function InstantWizardScreen() {
     }
   }, [i18n.language]);
 
+  // Track image_generation_failed when modal shows failed state
+  const failedTrackedRef = React.useRef(false);
+  useEffect(() => {
+    if (storyStatus?.status === 'failed' && !failedTrackedRef.current) {
+      failedTrackedRef.current = true;
+      getAnalytics().capture('image_generation_failed', {
+        request_id: requestId ?? undefined,
+        story_id: storyStatus?.storyId,
+        wizard_type: 'instant',
+      });
+    }
+  }, [storyStatus?.status, storyStatus?.storyId, requestId]);
+
   const handleGenerate = async () => {
     if (!storyLanguage) {
       Alert.alert(t('common.error') || 'Error', t('wizard.language_required'));
@@ -73,6 +87,13 @@ export default function InstantWizardScreen() {
 
     try {
       setIsGenerating(true);
+      getAnalytics().capture('story_generation_started', {
+        wizard_type: 'instant',
+        scenario_card_id: scenarioCardId ?? undefined,
+        has_photos: photos.length > 0,
+        age_group: ageGroup ?? undefined,
+        photo_count: photos.length,
+      });
 
       // Extract URLs from photo objects
       const photoUrls = photos.map(photo => (typeof photo === 'string' ? photo : photo.url)).filter((u): u is string => !!u);
@@ -89,6 +110,12 @@ export default function InstantWizardScreen() {
       // Keep modal open - polling will track progress
     } catch (error: unknown) {
       console.error('Failed to create story from photos:', error);
+      getAnalytics().capture('story_generation_failed', {
+        wizard_type: 'instant',
+        scenario_card_id: scenarioCardId ?? undefined,
+        has_photos: photos.length > 0,
+        error_message: error instanceof Error ? error.message : String(error),
+      });
       setIsGenerating(false);
       const status = (error as { response?: { status?: number } })?.response?.status;
       if (status === 429) {
@@ -101,6 +128,10 @@ export default function InstantWizardScreen() {
 
   const handleRetry = async () => {
     if (storyStatus?.storyId && requestId) {
+      getAnalytics().capture('retry_images_clicked', {
+        request_id: requestId,
+        story_id: storyStatus.storyId,
+      });
       try {
         setIsGenerating(true);
         await retryStoryImages.mutateAsync(requestId);
@@ -113,6 +144,12 @@ export default function InstantWizardScreen() {
   };
 
   const handleCloseModal = () => {
+    if (storyStatus?.storyId) {
+      getAnalytics().capture('story_created', {
+        story_id: storyStatus.storyId,
+        wizard_type: 'instant',
+      });
+    }
     queryClient.invalidateQueries({ queryKey: ['stories'] });
     setIsGenerating(false);
     setRequestId(null);

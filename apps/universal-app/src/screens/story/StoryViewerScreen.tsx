@@ -36,6 +36,7 @@ import { StoryCharactersSection, type StoryCharacter } from '@/components/StoryC
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { StoryViewerSkeleton } from '@/components/StoryViewerSkeleton';
 import { getReadingTimeMinutes } from '@wondertales/shared';
+import { getAnalytics } from '@/services/analytics';
 
 type StoryViewerRouteProp = RouteProp<MainDrawerParamList, 'Story'>;
 
@@ -562,13 +563,18 @@ export default function StoryViewerScreen() {
   // M7: Callback when audio finishes - clear saved state
   const handleAudioFinish = useCallback(async () => {
     console.log('[AudioPlayback] Audio finished, clearing saved state');
+    getAnalytics().capture('story_completed', { story_id: storyId });
     await audioPlaybackService.clearState(storyId);
   }, [storyId]);
 
   const handleSaveCharacter = useCallback(
-    async (characterId: string) => {
+    async (characterId: string, description?: string | null) => {
       try {
-        await updateCharacterMutation.mutateAsync({ id: characterId, data: { isHidden: false } as any });
+        const data: { isHidden: false; description?: string } = { isHidden: false };
+        if (description && description.trim()) {
+          data.description = description.trim();
+        }
+        await updateCharacterMutation.mutateAsync({ id: characterId, data });
         setSavedCharacterIds((prev) => new Set(prev).add(characterId));
         toastService.success(t('story_viewer.character_saved'));
       } catch {
@@ -641,8 +647,9 @@ export default function StoryViewerScreen() {
     const shareTitle = t('story_viewer.share_title');
     try {
       await Share.share({ url: shareUrl, message, title: shareTitle });
+      getAnalytics().capture('story_shared', { story_id: storyId, story_title: title });
     } catch (_) {}
-  }, [story, t]);
+  }, [story, storyId, t]);
 
   const handlePublishAndShare = useCallback(
     async (visibility: 'public' | 'unlisted' = 'public', shareCardSceneId?: number, pseudonym?: string) => {
@@ -657,6 +664,10 @@ export default function StoryViewerScreen() {
           shareCardSceneId,
         });
         if (result?.shareUrl) {
+          getAnalytics().capture('story_published', {
+            story_id: storyId,
+            visibility,
+          });
           const count = result.publishedStoriesCount ?? 0;
           if (count > 0) {
             const ordinal = getOrdinal(count, i18n.language);
@@ -674,6 +685,10 @@ export default function StoryViewerScreen() {
           });
           const shareTitle = t('story_viewer.share_title');
           await Share.share({ url: result.shareUrl, message, title: shareTitle });
+          getAnalytics().capture('story_shared', {
+            story_id: storyId,
+            story_title: story?.title || t('story_viewer.untitled_story'),
+          });
         }
       } catch (_) {}
     },
@@ -746,21 +761,33 @@ export default function StoryViewerScreen() {
       isPending: generateAudio.isPending,
       isGenerating,
     });
-    
+
+    const isRetry = !playerAudioData && story?.audioMetadata?.error === true;
+    if (isRetry) {
+      getAnalytics().capture('retry_audio_clicked', { story_id: storyId });
+    }
+
     if (!selectedVoiceId) {
       console.log('[handleGenerateAudio] No voice selected');
       toastService.error(t('toast.audio_error_title'), t('toast.select_voice_first'));
       return;
     }
-    
+
     setAudioGenerationRequested(true);
     try {
       console.log('[handleGenerateAudio] Starting mutation...');
-      await generateAudio.mutateAsync({ 
+      await generateAudio.mutateAsync({
         storyId,
         voiceId: selectedVoiceId
       });
-      
+
+      if (!isRetry) {
+        getAnalytics().capture('audio_generation_requested', {
+          story_id: storyId,
+          voice_id: selectedVoiceId,
+        });
+      }
+
       console.log('[handleGenerateAudio] Mutation succeeded');
       
       // Reset limit state on success
@@ -782,6 +809,7 @@ export default function StoryViewerScreen() {
       // Check if it's a limit exceeded error
       if (error?.response?.data?.code === 'AUDIO_LIMIT_EXCEEDED') {
         console.log('[handleGenerateAudio] Audio limit exceeded');
+        getAnalytics().capture('audio_limit_exceeded', { story_id: storyId });
         setAudioLimitExceeded(true);
         setLimitInfo({
           limit: error.response.data.limit,
@@ -804,6 +832,10 @@ export default function StoryViewerScreen() {
         }
       } else {
         console.log('[handleGenerateAudio] Generic error');
+        getAnalytics().capture('audio_generation_failed', {
+          story_id: storyId,
+          voice_id: selectedVoiceId,
+        });
         toastService.error(
           t('toast.audio_error_title'),
           'Не вдалося створити аудіосказку'
@@ -811,6 +843,17 @@ export default function StoryViewerScreen() {
       }
     }
   };
+
+  // Track audio_generation_failed when user sees failed state (e.g. opened story with failed audio)
+  // MUST be before early returns — hooks must run on every render
+  const audioFailed = !playerAudioData && story?.audioMetadata?.error === true;
+  const audioFailedTrackedRef = useRef(false);
+  useEffect(() => {
+    if (audioFailed && storyId && !audioFailedTrackedRef.current) {
+      audioFailedTrackedRef.current = true;
+      getAnalytics().capture('audio_generation_failed', { story_id: storyId });
+    }
+  }, [audioFailed, storyId]);
 
   if (!storyId || isLoading) {
     return <StoryViewerSkeleton />;
@@ -824,8 +867,6 @@ export default function StoryViewerScreen() {
     );
   }
 
-  // Check if audio generation failed (hide error when we have valid playerAudioData from API)
-  const audioFailed = !playerAudioData && story.audioMetadata?.error === true;
   const hasGenerationInProgress = isGenerating || audioStatus?.jobStatus === 'processing';
   const showGeneratingBlock = hasGenerationInProgress || generateAudio.isPending || audioGenerationRequested;
   

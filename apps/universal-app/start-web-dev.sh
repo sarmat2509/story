@@ -65,7 +65,31 @@ if [ -n "$PORT_8082" ]; then
 fi
 echo -e "${GREEN}✅ Порт 8082 вільний${NC}"
 
-# ── 6. Metro bundler ─────────────────────────────────────────────────────────
+# ── 6. Sync EXPO_PUBLIC_* from repo root .env.local ───────────────────────────
+echo -e "\n${BLUE}📋 Синхронізація EXPO_PUBLIC_* з root .env.local...${NC}"
+if [ -f "$REPO_ROOT/.env.local" ]; then
+  EXPOSED=$(grep -E '^EXPO_PUBLIC_' "$REPO_ROOT/.env.local" 2>/dev/null || true)
+  if [ -n "$EXPOSED" ]; then
+    APP_ENV="$SCRIPT_DIR/.env.local"
+    if [ -f "$APP_ENV" ]; then
+      TEMP=$(mktemp)
+      grep -v -E '^EXPO_PUBLIC_|^# Synced from repo root' "$APP_ENV" > "$TEMP" 2>/dev/null || true
+      mv "$TEMP" "$APP_ENV"
+    else
+      touch "$APP_ENV"
+    fi
+    echo "" >> "$APP_ENV"
+    echo "# Synced from repo root .env.local by start-web-dev.sh" >> "$APP_ENV"
+    echo "$EXPOSED" >> "$APP_ENV"
+    echo -e "${GREEN}✅ EXPO_PUBLIC_* з root .env.local → apps/universal-app/.env.local${NC}"
+  else
+    echo -e "${YELLOW}⚠️  Немає EXPO_PUBLIC_* в root .env.local${NC}"
+  fi
+else
+  echo -e "${YELLOW}⚠️  $REPO_ROOT/.env.local не знайдено${NC}"
+fi
+
+# ── 7. Metro bundler ─────────────────────────────────────────────────────────
 echo -e "\n${BLUE}📦 Запуск Metro bundler на порту 8082...${NC}"
 cd "$SCRIPT_DIR"
 BROWSER=none EXPO_DEVTOOLS_LISTEN_ADDRESS=localhost node "$REPO_ROOT/node_modules/expo/bin/cli" start --web --port 8082 2>&1 | while IFS= read -r line; do
@@ -73,7 +97,7 @@ BROWSER=none EXPO_DEVTOOLS_LISTEN_ADDRESS=localhost node "$REPO_ROOT/node_module
 done &
 METRO_PID=$!
 
-# ── 7. Wait for Metro + open browser ────────────────────────────────────────
+# ── 8. Wait for Metro + open browser ────────────────────────────────────────
 echo -e "\n${BLUE}⏳ Очікування Metro bundler...${NC}"
 MAX_WAIT=60
 WAITED=0
@@ -89,7 +113,7 @@ done
 echo -e "${GREEN}✅ Metro готовий, відкриваємо браузер...${NC}"
 open http://localhost:8081
 
-# ── 8. Cleanup ───────────────────────────────────────────────────────────────
+# ── 9. Cleanup ───────────────────────────────────────────────────────────────
 cleanup() {
   echo -e "\n${BLUE}🛑 Зупинка Metro...${NC}"
   kill $METRO_PID 2>/dev/null

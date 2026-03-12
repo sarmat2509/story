@@ -53,7 +53,7 @@ import { buildCharacterRegistry, normalizeCharacterName, matchCharacterNames, to
 import { loadReferenceImageData } from './referenceImageTracker';
 import { generateEmbedding, cosineSimilarity } from './embeddingService';
 import { generateLlmCharacterTurnaround } from './turnaroundSheetService';
-import { createStoryStub, enrichStoryRecord } from './storyOrchestration/storyRecords';
+import { createStoryStub, enrichStoryRecord, createStoryRecord } from './storyOrchestration/storyRecords';
 import { validateStoryScenes } from './storyOrchestration/validation';
 import { mergeDirectorIntoText, extractLlmCharactersFromText, getIllustrationSceneIds, getIllustrationBlockStartSceneIds, composeScenesIntoBlocks } from './storyOrchestration/utilities';
 
@@ -333,6 +333,10 @@ export async function processStoryRequest(requestId: string): Promise<{
         if (existingStory) {
           storyId = checkpoints.storyId;
           logger.info({ requestId, storyId }, 'Reusing story stub from checkpoint');
+        } else {
+          // Story was deleted or never committed — clear so we create a new one (fixes FK violation on retry)
+          storyId = undefined;
+          logger.warn({ requestId, orphanStoryId: checkpoints.storyId }, 'Story stub from checkpoint not found in DB, creating new');
         }
       }
       if (!storyId) {
@@ -511,7 +515,7 @@ export async function processStoryRequest(requestId: string): Promise<{
     const existingStory = await getStoryRepository().findById(storyId);
     const needsEnrich = !existingStory || existingStory.title === 'Generating...';
     if (needsEnrich) {
-      await enrichStoryRecord(storyId, {
+      const enrichParams = {
         userId: request.userId,
         storyRequestId: request.id,
         childProfileId: request.childProfileId,
@@ -534,7 +538,18 @@ export async function processStoryRequest(requestId: string): Promise<{
         },
         ...(isContinuation && seriesId && partNumber && { seriesData: { seriesId, partNumber } }),
         isScheduledContinuation,
-      });
+      };
+      if (existingStory) {
+        await enrichStoryRecord(storyId, enrichParams);
+      } else {
+        logger.warn({ requestId, storyId }, 'Story not found, creating from scratch');
+        const newStoryId = await createStoryRecord(enrichParams);
+        Object.assign(checkpoints, { storyId: newStoryId });
+        await getStoryRepository().updateRequest(requestId, {
+          intermediateData: { ...checkpoints, storyId: newStoryId },
+        });
+        storyId = newStoryId;
+      }
     }
 
     if (isContinuation && seriesId && partNumber) {
@@ -1355,6 +1370,15 @@ async function runImageGenerationLoop(params: ImageGenerationLoopParams): Promis
       },
     });
   }
+
+  // Record usage event for entitlements/analytics (quantity = scenes generated)
+  const successfulCount = scenesToGenerate.length - failedScenes.length;
+  if (successfulCount > 0) {
+    const { recordUsageEvent } = await import('./usageEventsService');
+    await recordUsageEvent(userId, 'image_generated', successfulCount, {
+      metadata: { storyId },
+    });
+  }
 }
 
 /**
@@ -1466,22 +1490,43 @@ export async function processStoryImages(requestId: string): Promise<void> {
         },
       });
 
-      // 2. Identify LLM characters needing turnarounds (generated on-demand per scene)
+      // 2. Identify LLM characters needing turnarounds (only if they appear in scenes that get images)
       const llmCharsNeedingTurnaround: Array<{ charId: string; name: string; description: string; normalizedName: string }> = [];
       const llmTurnaroundReady = new Set<string>();
+
+      // Build set of character names that appear in scenes that will receive images
+      const characterNamesInIllustratedScenes = new Set<string>();
+      for (const scene of scenesToGenerate) {
+        const sceneVisualRaw = scene.sceneVisual || migrateVisualPrompt(scene);
+        let sceneCharNames: string[];
+        if (sceneVisualRaw?.cameraComposition && typeof sceneVisualRaw.cameraComposition !== 'string') {
+          sceneCharNames = flattenCameraComposition(sceneVisualRaw.cameraComposition).characterNames;
+        } else {
+          sceneCharNames = (scene as any).characters || (scene as any).visualCharacters || [];
+        }
+        const matched = matchCharacterNames(sceneCharNames, characterRegistry);
+        for (const normalizedName of matched) {
+          characterNamesInIllustratedScenes.add(normalizedName);
+        }
+      }
 
       for (const char of mergedCharacters as any[]) {
         if (char.source !== 'llm_generated' || !char.id) continue;
         const normalized = normalizeCharacterName(char.name);
         if (char._llmHasTurnaround) {
           llmTurnaroundReady.add(normalized);
-        } else {
+        } else if (characterNamesInIllustratedScenes.has(normalized)) {
           llmCharsNeedingTurnaround.push({
             charId: char.id,
             name: char.name,
             description: char.appearance || char.description || char.name,
             normalizedName: normalized,
           });
+        } else {
+          logger.debug(
+            { characterName: char.name, normalized, illustratedSceneChars: Array.from(characterNamesInIllustratedScenes) },
+            'Skipping turnaround for LLM character — not in any illustrated scene'
+          );
         }
       }
 

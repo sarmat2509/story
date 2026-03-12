@@ -8,6 +8,8 @@ import Toast from 'react-native-toast-message';
 import { initI18n } from '@/config/i18n';
 import { NavigationContainer } from '@react-navigation/native';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { AnalyticsProvider } from '@/components/AnalyticsProvider';
+import { AnalyticsIdentity } from '@/components/AnalyticsIdentity';
 import { useAuthStore } from '@/store/authStore';
 import { useMainNavigationStore } from '@/store/mainNavigationStore';
 import { navigationRef } from '@/navigation/navigationRef';
@@ -18,7 +20,8 @@ import type { MainTabParamList } from '@/types/navigation';
 import interopRequireDefault from '@babel/runtime/helpers/interopRequireDefault';
 console.log('interopRequireDefault OK', typeof interopRequireDefault);
 
-// Suppress React Navigation deprecation warnings (from library, not our code)
+// Suppress deprecation warnings from React Navigation / RN (library code, not ours)
+// pointerEvents: PR closed - style.pointerEvents breaks react-native-web
 LogBox.ignoreLogs([
   'props.pointerEvents is deprecated',
   '"shadow*" style props are deprecated',
@@ -136,26 +139,29 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <ErrorBoundary>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <QueryClientProvider client={queryClient}>
-            <NavigationContainer
-              ref={navigationRef}
-              linking={linking}
-              onStateChange={(state) => {
-                if (useMainNavigationStore.getState().isLayoutTransitionInProgress) return;
-                const route = getActiveMainRouteFromState(state);
-                useMainNavigationStore.getState().setLastMainRoute(route);
-              }}
-            >
+    <AnalyticsProvider>
+      <SafeAreaProvider>
+        <ErrorBoundary>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <QueryClientProvider client={queryClient}>
+              <NavigationContainer
+                ref={navigationRef}
+                linking={linking}
+                onStateChange={(state) => {
+                  if (useMainNavigationStore.getState().isLayoutTransitionInProgress) return;
+                  const route = getActiveMainRouteFromState(state);
+                  useMainNavigationStore.getState().setLastMainRoute(route);
+                }}
+              >
               <StatusBar style="auto" />
+              <AnalyticsIdentity />
               <RootNavigator />
-            </NavigationContainer>
-          </QueryClientProvider>
-        </GestureHandlerRootView>
-        <Toast />
-      </ErrorBoundary>
-    </SafeAreaProvider>
+              </NavigationContainer>
+            </QueryClientProvider>
+          </GestureHandlerRootView>
+          <Toast />
+        </ErrorBoundary>
+      </SafeAreaProvider>
+    </AnalyticsProvider>
   );
 }

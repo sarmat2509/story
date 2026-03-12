@@ -54,6 +54,12 @@ export async function createStoryStub(params: CreateStoryStubParams): Promise<st
  */
 export async function enrichStoryRecord(storyId: string, params: CreateStoryParams): Promise<void> {
   try {
+    // Ensure story exists before creating scenes (prevents FK violation)
+    const existingStory = await getStoryRepository().findById(storyId);
+    if (!existingStory) {
+      throw new Error(`Story ${storyId} not found. Cannot enrich — story stub may have been deleted or never created.`);
+    }
+
     const estimatedReadMinutes = Math.ceil(params.text.wordCount / 200);
     const llmCharacters = (params.text as any).characters || [];
 
@@ -139,6 +145,12 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
       }
 
       logger.info({ storyId, sceneCount: params.text.scenes.length, characterCount: characterIdsToLink.size }, 'Story enriched with content');
+    });
+
+    const { recordUsageEvent } = await import('../usageEventsService');
+    await recordUsageEvent(params.userId, 'story_created', 1, {
+      childProfileId: params.childProfileId,
+      metadata: { storyId },
     });
   } catch (error) {
     logger.error({ error, storyId, storyRequestId: params.storyRequestId }, 'Failed to enrich story');
@@ -261,7 +273,14 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
       
       return story.id;
     });
-    
+
+    // Record usage event for entitlements/analytics
+    const { recordUsageEvent } = await import('../usageEventsService');
+    await recordUsageEvent(params.userId, 'story_created', 1, {
+      childProfileId: params.childProfileId,
+      metadata: { storyId },
+    });
+
     return storyId;
   } catch (error) {
     logger.error({ error, storyRequestId: params.storyRequestId }, 'Failed to save story');

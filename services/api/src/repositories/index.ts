@@ -21,8 +21,10 @@ import { DictionaryRepository } from './DictionaryRepository';
 import { PolicyRepository } from './PolicyRepository';
 import { EnvironmentImageCacheRepository } from './EnvironmentImageCacheRepository';
 import { StoryEnvironmentCacheRepository } from './StoryEnvironmentCacheRepository';
+import { LlmTurnaroundCacheRepository } from './LlmTurnaroundCacheRepository';
 import { AlignmentRepository } from './AlignmentRepository';
 import { AiUsageRepository } from './AiUsageRepository';
+import { UsageEventsRepository } from './UsageEventsRepository';
 import { StoryRatingRepository } from './StoryRatingRepository';
 import { PasswordResetTokenRepository } from './PasswordResetTokenRepository';
 
@@ -41,8 +43,10 @@ export { DictionaryRepository } from './DictionaryRepository';
 export { PolicyRepository } from './PolicyRepository';
 export { EnvironmentImageCacheRepository } from './EnvironmentImageCacheRepository';
 export { StoryEnvironmentCacheRepository } from './StoryEnvironmentCacheRepository';
+export { LlmTurnaroundCacheRepository } from './LlmTurnaroundCacheRepository';
 export { AlignmentRepository } from './AlignmentRepository';
 export { AiUsageRepository } from './AiUsageRepository';
+export { UsageEventsRepository } from './UsageEventsRepository';
 export { StoryRatingRepository } from './StoryRatingRepository';
 export { PasswordResetTokenRepository } from './PasswordResetTokenRepository';
 
@@ -61,8 +65,10 @@ let dictionaryRepo: DictionaryRepository;
 let policyRepo: PolicyRepository;
 let environmentImageCacheRepo: EnvironmentImageCacheRepository;
 let storyEnvironmentCacheRepo: StoryEnvironmentCacheRepository;
+let llmTurnaroundCacheRepo: LlmTurnaroundCacheRepository;
 let alignmentRepo: AlignmentRepository;
 let aiUsageRepo: AiUsageRepository;
+let usageEventsRepo: UsageEventsRepository;
 let storyRatingRepo: StoryRatingRepository;
 let passwordResetTokenRepo: PasswordResetTokenRepository;
 
@@ -138,6 +144,12 @@ export function getStoryEnvironmentCacheRepository(): StoryEnvironmentCacheRepos
   return storyEnvironmentCacheRepo;
 }
 
+export function getLlmTurnaroundCacheRepository(): LlmTurnaroundCacheRepository {
+  if (!llmTurnaroundCacheRepo)
+    llmTurnaroundCacheRepo = new LlmTurnaroundCacheRepository(db);
+  return llmTurnaroundCacheRepo;
+}
+
 export function getAlignmentRepository(): AlignmentRepository {
   if (!alignmentRepo) alignmentRepo = new AlignmentRepository(db);
   return alignmentRepo;
@@ -146,6 +158,11 @@ export function getAlignmentRepository(): AlignmentRepository {
 export function getAiUsageRepository(): AiUsageRepository {
   if (!aiUsageRepo) aiUsageRepo = new AiUsageRepository(db);
   return aiUsageRepo;
+}
+
+export function getUsageEventsRepository(): UsageEventsRepository {
+  if (!usageEventsRepo) usageEventsRepo = new UsageEventsRepository(db);
+  return usageEventsRepo;
 }
 
 export function getStoryRatingRepository(): StoryRatingRepository {

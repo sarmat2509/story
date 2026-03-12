@@ -22,6 +22,7 @@ import { useCharacters } from '@/api/characters';
 import { useCreateStory, useStoryStatus, useRetryStoryImages } from '@/api/stories';
 import { useSubscriptionUsage } from '@/api/plans';
 import { PaywallModal } from '@/components/PaywallModal';
+import { getAnalytics } from '@/services/analytics';
 
 export default function WizardScreen() {
   const { t } = useTranslation();
@@ -62,6 +63,19 @@ export default function WizardScreen() {
       setStoryLanguage(i18n.language);
     }
   }, [i18n.language]);
+
+  // Track image_generation_failed when modal shows failed state
+  const failedTrackedRef = React.useRef(false);
+  useEffect(() => {
+    if (storyStatus?.status === 'failed' && !failedTrackedRef.current) {
+      failedTrackedRef.current = true;
+      getAnalytics().capture('image_generation_failed', {
+        request_id: requestId ?? undefined,
+        story_id: storyStatus?.storyId,
+        wizard_type: 'artisan',
+      });
+    }
+  }, [storyStatus?.status, storyStatus?.storyId, requestId]);
   
   // Auto-close removed - user must manually close modal
   
@@ -78,7 +92,20 @@ export default function WizardScreen() {
     
     try {
       setIsGenerating(true);
-      
+
+      getAnalytics().capture('story_generation_started', {
+        wizard_type: 'artisan',
+        scenario_card_id: scenarioCardId ?? undefined,
+        has_characters: selectedCharacters.length > 0,
+        has_children: selectedChildren.length > 0,
+        has_goal: selectedGoals.length > 0,
+        has_image_style: !!imageStyle,
+        has_user_notes: userNotes.trim().length > 0,
+        has_child_profile: !!childProfileId,
+        character_count: selectedCharacters.length,
+        children_count: selectedChildren.length,
+      });
+
       const payload = {
         uiLocale: i18n.language,
         storyLanguage,
@@ -107,6 +134,10 @@ export default function WizardScreen() {
   
   const handleRetry = async () => {
     if (storyStatus?.storyId && requestId) {
+      getAnalytics().capture('retry_images_clicked', {
+        request_id: requestId,
+        story_id: storyStatus.storyId,
+      });
       try {
         setIsGenerating(true);
         await retryStoryImages.mutateAsync(requestId);
@@ -125,6 +156,12 @@ export default function WizardScreen() {
   
   const handleCloseModal = () => {
     const storyId = storyStatus?.storyId;
+    if (storyId) {
+      getAnalytics().capture('story_created', {
+        story_id: storyId,
+        wizard_type: 'artisan',
+      });
+    }
     queryClient.invalidateQueries({ queryKey: ['stories'] });
     setIsGenerating(false);
     setRequestId(null);

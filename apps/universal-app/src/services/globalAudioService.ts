@@ -79,6 +79,10 @@ class GlobalAudioService {
 
         // Auto-play if requested
         if (params.autoPlay !== false) {
+          const { getAnalytics } = require('@/services/analytics');
+          getAnalytics().capture('audio_started', {
+            story_id: params.storyId,
+          });
           await sound.playAsync();
         }
       } else {
