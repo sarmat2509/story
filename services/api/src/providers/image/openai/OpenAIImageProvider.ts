@@ -180,6 +180,14 @@ export class OpenAIImageProvider implements IImageProvider {
         height: dimensions.height,
       }, 'OpenAI image generated successfully');
 
+      // Report usage for cost tracking (OpenAI GPT image flat rate)
+      request.onUsage?.({
+        provider: 'openai',
+        operation: request.operation || 'image_generate',
+        model: 'openai-gpt-image',
+        inputUnits: 1,
+      });
+
       return {
         imageData,
         mimeType: 'image/jpeg',

@@ -56,6 +56,7 @@ export const AI_COST_CONFIG = {
     } as ImageTokenCostConfig,
     'imagen-4.0-fast-generate-001': 0.02 as number,
     'imagen-3.0-generate-002': 0.04 as number,
+    'imagen-3.0-capability-001': 0.04 as number,
     'openai-gpt-image': 0.08 as number,
   } as Record<string, number | ImageTokenCostConfig>,
 

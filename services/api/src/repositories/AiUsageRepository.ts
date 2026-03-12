@@ -57,6 +57,24 @@ export class AiUsageRepository {
     return Number(row?.total ?? 0);
   }
 
+  async getStoryCostBreakdown(storyId: string): Promise<Array<{ provider: string; operation: string; model: string | null; costUsd: number }>> {
+    const rows = await this.db
+      .select({
+        provider: schema.aiUsageEvents.provider,
+        operation: schema.aiUsageEvents.operation,
+        model: schema.aiUsageEvents.model,
+        costUsd: schema.aiUsageEvents.costUsd,
+      })
+      .from(schema.aiUsageEvents)
+      .where(eq(schema.aiUsageEvents.storyId, storyId));
+    return rows.map((r) => ({
+      provider: r.provider,
+      operation: r.operation,
+      model: r.model,
+      costUsd: r.costUsd != null ? Number(r.costUsd) : 0,
+    }));
+  }
+
   async getUserMonthlyCost(userId: string, year: number, month: number): Promise<number> {
     const startOfMonth = new Date(year, month - 1, 1);
     const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);

@@ -137,6 +137,15 @@ export async function getStoryCost(storyId: string): Promise<number> {
 }
 
 /**
+ * Get cost breakdown for a story (for admin/debug)
+ */
+export async function getStoryCostBreakdown(storyId: string): Promise<
+  Array<{ provider: string; operation: string; model: string | null; costUsd: number }>
+> {
+  return getAiUsageRepository().getStoryCostBreakdown(storyId);
+}
+
+/**
  * Get user's AI cost for a month
  */
 export async function getUserMonthlyCost(userId: string, year: number, month: number): Promise<number> {

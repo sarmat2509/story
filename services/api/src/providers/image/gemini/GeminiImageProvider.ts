@@ -276,6 +276,15 @@ export class GeminiImageProvider implements IImageProvider {
         
         // Determine dimensions based on aspect ratio
         const dimensions = this.calculateDimensions(request.aspectRatio, hasReferences);
+
+        // Report usage for cost tracking (Imagen 3 flat rate per image)
+        const modelName = hasReferences ? 'imagen-3.0-capability-001' : 'imagen-3.0-generate-002';
+        request.onUsage?.({
+          provider: 'gemini',
+          operation: request.operation || 'image_generate',
+          model: modelName,
+          inputUnits: 1,
+        });
         
         return {
           imageData,

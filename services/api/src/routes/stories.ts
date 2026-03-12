@@ -24,6 +24,7 @@ import { createCharacter } from '../services/characterService';
 import { config } from '../config';
 import { startTask, completeTask, STORY_TASKS } from '../services/storyProgress';
 import { getStoryRepository, getAssetRepository } from '../repositories';
+import { getStoryCost, getStoryCostBreakdown } from '../services/aiUsageService';
 
 /**
  * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
@@ -1322,6 +1323,44 @@ router.get('/:id/status', requireAuth, async (req: Request, res: Response) => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to get story status'
+    });
+  }
+});
+
+/**
+ * GET /api/v1/stories/:id/cost
+ * Get COGS (cost of goods sold) for a story (owner only)
+ */
+router.get('/:id/cost', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { id: storyId } = req.params;
+    const userId = req.user!.id;
+
+    const story = await getStoryRepository().findByIdAndUser(storyId, userId);
+    if (!story) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Story not found',
+      });
+    }
+
+    const [costUsd, breakdown] = await Promise.all([
+      getStoryCost(storyId),
+      getStoryCostBreakdown(storyId),
+    ]);
+
+    res.json({
+      status: 'success',
+      data: {
+        costUsd: Math.round(costUsd * 1e8) / 1e8,
+        breakdown,
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id, storyId: req.params.id }, 'Get story cost failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to get story cost',
     });
   }
 });
