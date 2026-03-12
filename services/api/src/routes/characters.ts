@@ -313,6 +313,7 @@ router.post('/:id/turnaround', requireAuth, async (req, res) => {
         characterName: character.name,
         characterDescription: aiDescription.trim(),
         imageStyle: (req.body.imageStyle as string) || undefined,
+        useCache: character.isHidden,
       });
 
       return res.json({
@@ -420,9 +421,17 @@ router.patch('/:id', requireAuth, async (req, res) => {
     const userId = req.user!.id;
     const { id } = req.params;
     
-    // Support simple isHidden toggle (e.g. from "Save to my characters" button)
-    if (Object.keys(req.body).length === 1 && typeof req.body.isHidden === 'boolean') {
-      const character = await characterService.updateCharacter(id, userId, { isHidden: req.body.isHidden } as any);
+    // Support simple isHidden toggle + optional description (e.g. from "Save to my characters" button)
+    const keys = Object.keys(req.body);
+    const hasIsHidden = typeof req.body.isHidden === 'boolean';
+    const hasDescription = req.body.description !== undefined && (typeof req.body.description === 'string' || req.body.description === null);
+    const isSimpleUpdate = hasIsHidden && (keys.length === 1 || (keys.length === 2 && hasDescription));
+    if (isSimpleUpdate) {
+      const data: { isHidden: boolean; description?: string | null } = { isHidden: req.body.isHidden };
+      if (req.body.description !== undefined) {
+        data.description = req.body.description;
+      }
+      const character = await characterService.updateCharacter(id, userId, data as any);
       return res.json({ status: 'success', character });
     }
     

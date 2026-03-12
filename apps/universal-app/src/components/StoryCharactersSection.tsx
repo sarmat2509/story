@@ -1,5 +1,5 @@
-import React, { memo, useCallback } from 'react';
-import { View, Text, Image, TouchableOpacity, ImageStyle, StyleSheet } from 'react-native';
+import React, { memo, useCallback, useState } from 'react';
+import { View, Text, Image, TouchableOpacity, ImageStyle, StyleSheet, Platform, Pressable } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { stripCharacterIdFromName } from '@wondertales/shared';
@@ -12,13 +12,14 @@ export interface StoryCharacter {
   type: string;
   referencePhotoUrl?: string | null;
   isHidden?: boolean;
+  description?: string | null;
 }
 
 interface StoryCharactersSectionProps {
   characters: StoryCharacter[];
   savedCharacterIds: readonly string[];
   isArtisanMode: boolean;
-  onSaveCharacter: (characterId: string) => void;
+  onSaveCharacter: (characterId: string, description?: string | null) => void;
   isSavePending: boolean;
 }
 
@@ -28,6 +29,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.borders.radius.lg,
     padding: theme.spacing[4],
     marginBottom: theme.spacing[4],
+    zIndex: 10,
   },
   charactersSectionTitle: {
     fontSize: theme.typography.fontSize.lg,
@@ -44,6 +46,7 @@ const styles = StyleSheet.create({
   characterCardRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    zIndex: 10,
   },
   characterAvatar: {
     width: 40,
@@ -84,6 +87,30 @@ const styles = StyleSheet.create({
     color: theme.colors.interactive.primary,
     marginLeft: theme.spacing[1],
   },
+  avatarWithPreview: {
+    position: 'relative',
+    zIndex: 10,
+  },
+  characterCardHovered: {
+    zIndex: 1,
+  },
+  previewContainer: {
+    position: 'absolute',
+    left: 48,
+    top: 0,
+    width: 160,
+    height: 160,
+    padding: theme.spacing[3],
+    borderRadius: theme.borders.radius.lg,
+    backgroundColor: theme.colors.background.primary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    zIndex: 100,
+  },
+  previewImage: {
+    flex: 1,
+    filter: 'contrast(1.1)',
+  },
 });
 
 const CHARACTER_TYPE_KEYS: Record<string, string> = {
@@ -104,6 +131,7 @@ function StoryCharactersSectionInner({
 }: StoryCharactersSectionProps) {
   const { t } = useTranslation();
   const savedSet = new Set(savedCharacterIds);
+  const [hoveredCharacterId, setHoveredCharacterId] = useState<string | null>(null);
 
   const getCharacterTypeLabel = useCallback(
     (type: string) => {
@@ -120,16 +148,49 @@ function StoryCharactersSectionInner({
         const isEffectivelyHidden = char.isHidden && !savedSet.has(char.id);
         const canSaveCharacter = isEffectivelyHidden && isArtisanMode;
         return (
-          <View key={char.id} style={styles.characterCard}>
+          <View
+            key={char.id}
+            style={[
+              styles.characterCard,
+              Platform.OS === 'web' && hoveredCharacterId === char.id && styles.characterCardHovered,
+            ]}
+          >
             <View style={styles.characterCardRow}>
               {char.referencePhotoUrl ? (
-                <Image
-                  source={{
-                    uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl,
-                  }}
-                  style={styles.characterAvatar as ImageStyle}
-                  resizeMode="contain"
-                />
+                Platform.OS === 'web' ? (
+                  <Pressable
+                    style={styles.avatarWithPreview}
+                    onHoverIn={() => setHoveredCharacterId(char.id)}
+                    onHoverOut={() => setHoveredCharacterId(null)}
+                  >
+                    <Image
+                      source={{
+                        uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl,
+                      }}
+                      style={styles.characterAvatar as ImageStyle}
+                      resizeMode="contain"
+                    />
+                    {hoveredCharacterId === char.id && (
+                      <View style={styles.previewContainer}>
+                        <Image
+                          source={{
+                            uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl,
+                          }}
+                          style={styles.previewImage}
+                          resizeMode="contain"
+                        />
+                      </View>
+                    )}
+                  </Pressable>
+                ) : (
+                  <Image
+                    source={{
+                      uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl,
+                    }}
+                    style={styles.characterAvatar as ImageStyle}
+                    resizeMode="contain"
+                  />
+                )
               ) : (
                 <View style={[styles.characterAvatar, styles.characterAvatarPlaceholder]}>
                   <Ionicons name="person-outline" size={20} color={theme.colors.text.tertiary} />
@@ -143,7 +204,7 @@ function StoryCharactersSectionInner({
             {canSaveCharacter && (
               <TouchableOpacity
                 style={styles.saveCharacterButton}
-                onPress={() => onSaveCharacter(char.id)}
+                onPress={() => onSaveCharacter(char.id, char.description)}
                 disabled={isSavePending}
               >
                 <Ionicons name="bookmark-outline" size={16} color={theme.colors.interactive.primary} />

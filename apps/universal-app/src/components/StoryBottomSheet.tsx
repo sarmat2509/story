@@ -27,7 +27,7 @@ interface StoryBottomSheetProps {
   onUnpublish?: () => void;
   isPublishPending?: boolean;
   characters?: any[];
-  onSaveCharacter?: (characterId: string) => Promise<void>;
+  onSaveCharacter?: (characterId: string, description?: string | null) => Promise<void>;
   savedCharacterIds?: readonly string[];
   userMode?: 'instant' | 'artisan';
 }
