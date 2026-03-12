@@ -5,10 +5,12 @@
  * for higher quality, separate from the scene generation provider.
  */
 
+import crypto from 'crypto';
 import { getAssetStorageService } from './assetStorageService';
 import { recordUsage } from './aiUsageService';
+import { generateEmbedding } from './embeddingService';
 import { extractFrontFromTurnaround } from './turnaroundFrontExtractor';
-import { getCharacterRepository, getChildProfileRepository } from '../repositories';
+import { getCharacterRepository, getChildProfileRepository, getLlmTurnaroundCacheRepository } from '../repositories';
 import { NanoBananaProProvider } from '../providers/image/nanobananapro';
 import { Imagen4FastProvider } from '../providers/image/gemini/Imagen4FastProvider';
 import { ImageDomainService } from '../domain/image';
@@ -279,16 +281,19 @@ export interface LlmCharacterTurnaroundParams {
   characterDescription: string;
   imageStyle?: string;
   storyId?: string;
+  /** When false (user-created from route), skip cache lookup. Default true. */
+  useCache?: boolean;
 }
 
 /**
  * Generate a turnaround sheet for an LLM-invented character from text description only.
  * No reference image needed — the model creates the character from the description.
+ * Uses embedding cache: if similar description exists (95% threshold), reuse instead of generating.
  */
 export async function generateLlmCharacterTurnaround(
   params: LlmCharacterTurnaroundParams,
 ): Promise<TurnaroundSheetResult> {
-  const { characterId, userId, characterName, characterDescription, imageStyle, storyId } = params;
+  const { characterId, userId, characterName, characterDescription, imageStyle, storyId, useCache = true } = params;
 
   logger.info({
     characterId,
@@ -296,8 +301,41 @@ export async function generateLlmCharacterTurnaround(
     characterName,
     descriptionLength: characterDescription.length,
     imageStyle,
+    useCache,
   }, 'Starting text-only turnaround sheet generation for LLM character');
 
+  const assetStorage = getAssetStorageService();
+  const characterRepo = getCharacterRepository();
+
+  // 1. Cache lookup (only when useCache !== false)
+  if (useCache && characterDescription.trim().length > 0) {
+    try {
+      const embedding = await generateEmbedding(characterDescription);
+      const threshold = config.image.llmTurnaroundEmbeddingSimilarityThreshold;
+      const similar = await getLlmTurnaroundCacheRepository().findSimilar(embedding, threshold);
+
+      if (similar) {
+        const turnaroundSheet: TurnaroundSheetResult = {
+          url: similar.storagePath,
+          ...(similar.frontStoragePath && { frontUrl: similar.frontStoragePath }),
+          generatedAt: new Date().toISOString(),
+          sourcePhotoUrl: 'cache',
+        };
+        await characterRepo.updateTurnaroundSheet(characterId, turnaroundSheet);
+        logger.info({
+          characterId,
+          characterName,
+          cacheId: similar.id,
+          score: similar.score.toFixed(3),
+        }, 'LLM turnaround reused from cache');
+        return turnaroundSheet;
+      }
+    } catch (err) {
+      logger.warn({ err, characterId }, 'Cache lookup failed, falling back to generation');
+    }
+  }
+
+  // 2. Generate new turnaround
   const imageDomain = config.image.llmTurnaroundUseImagen4Fast
     ? getLlmTurnaroundImageDomain()
     : getTurnaroundImageDomain();
@@ -311,38 +349,50 @@ export async function generateLlmCharacterTurnaround(
     { onUsage: (u) => recordUsage(u, usageContext) }
   );
 
-  const assetStorage = getAssetStorageService();
-  const uploadResult = await assetStorage.uploadUserPhoto({
-    buffer: generated.imageData,
-    mimeType: generated.mimeType,
-    userId,
-    photoType: 'character_turnaround' as const,
-  });
+  const buffer = Buffer.isBuffer(generated.imageData)
+    ? generated.imageData
+    : Buffer.from(generated.imageData as string, 'base64');
+  const cacheId = crypto.randomUUID();
 
-  let frontUrl: string | undefined;
+  const { storagePath } = await assetStorage.saveLlmTurnaroundCacheImage(
+    cacheId,
+    buffer,
+    generated.mimeType
+  );
+
+  let frontStoragePath: string | undefined;
   try {
     const frontBuffer = await extractFrontFromTurnaround(generated.imageData);
     if (frontBuffer) {
-      const frontUpload = await assetStorage.uploadUserPhoto({
-        buffer: frontBuffer,
-        mimeType: 'image/png',
-        userId,
-        photoType: 'character_front' as const,
-      });
-      frontUrl = frontUpload.storagePath;
+      const frontResult = await assetStorage.saveLlmTurnaroundCacheImage(
+        cacheId,
+        frontBuffer,
+        'image/png',
+        '_front'
+      );
+      frontStoragePath = frontResult.storagePath;
     }
   } catch (err) {
     logger.warn({ err, characterId }, 'Failed to extract front from turnaround, saving without frontUrl');
   }
 
+  const embedding = await generateEmbedding(characterDescription).catch(() => null);
+  if (embedding) {
+    await getLlmTurnaroundCacheRepository().create({
+      id: cacheId,
+      description: characterDescription,
+      descriptionEmbedding: embedding,
+      storagePath,
+      frontStoragePath: frontStoragePath ?? null,
+    });
+  }
+
   const turnaroundSheet: TurnaroundSheetResult = {
-    url: uploadResult.storagePath,
-    ...(frontUrl && { frontUrl }),
+    url: storagePath,
+    ...(frontStoragePath && { frontUrl: frontStoragePath }),
     generatedAt: new Date().toISOString(),
     sourcePhotoUrl: 'text-description',
   };
-
-  const characterRepo = getCharacterRepository();
   await characterRepo.updateTurnaroundSheet(characterId, turnaroundSheet);
 
   logger.info({

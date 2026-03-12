@@ -363,6 +363,55 @@ export class AssetStorageService {
   }
 
   /**
+   * Save LLM turnaround cache image (for reuse across stories)
+   * Path: llm_turnaround_cache/{cacheId}.png or llm_turnaround_cache/{cacheId}_front.png
+   */
+  async saveLlmTurnaroundCacheImage(
+    cacheId: string,
+    buffer: Buffer,
+    mimeType: string = 'image/png',
+    suffix: string = ''
+  ): Promise<{ storagePath: string; storageUrl: string }> {
+    await this.ensureInitialized();
+
+    const ext = mimeType.includes('jpeg') || mimeType.includes('jpg') ? '.jpg' : '.png';
+    const storagePath = `llm_turnaround_cache/${cacheId}${suffix}${ext}`;
+
+    if (this.provider === 'local') {
+      const fullPath = path.join(this.localUploadDir, storagePath);
+      await fs.mkdir(path.dirname(fullPath), { recursive: true });
+      await fs.writeFile(fullPath, buffer);
+      logger.info({ cacheId, storagePath, size: buffer.length }, 'LLM turnaround cache image saved');
+      return {
+        storagePath,
+        storageUrl: `/api/v1/assets/${storagePath}`,
+      };
+    } else {
+      const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const s3Client = new S3Client({
+        region: config.storage.region || 'us-east-1',
+        credentials: {
+          accessKeyId: config.storage.accessKey || '',
+          secretAccessKey: config.storage.secretKey || '',
+        },
+      });
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: config.storage.bucket!,
+          Key: storagePath,
+          Body: buffer,
+          ContentType: mimeType,
+        })
+      );
+      const storageUrl = config.storage.cdnUrl
+        ? `${config.storage.cdnUrl}/${storagePath}`
+        : `/api/v1/assets/${storagePath}`;
+      logger.info({ cacheId, storagePath }, 'LLM turnaround cache image saved to S3');
+      return { storagePath, storageUrl };
+    }
+  }
+
+  /**
    * Get asset buffer by storage path (for reference images without asset ID)
    * 
    * @param storagePath - Storage path (e.g., "development/.../image.png")

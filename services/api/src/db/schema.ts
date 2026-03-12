@@ -794,6 +794,19 @@ export type NewEnvironmentImageCache = typeof environmentImageCache.$inferInsert
 export type StoryEnvironmentCache = typeof storyEnvironmentCache.$inferSelect;
 export type NewStoryEnvironmentCache = typeof storyEnvironmentCache.$inferInsert;
 
+// LLM turnaround cache - global reuse by embedding similarity (LLM characters only)
+export const llmTurnaroundCache = pgTable('llm_turnaround_cache', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  description: text('description').notNull(),
+  descriptionEmbedding: jsonb('description_embedding').$type<number[]>().notNull(),
+  storagePath: text('storage_path').notNull(),
+  frontStoragePath: text('front_storage_path'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export type LlmTurnaroundCache = typeof llmTurnaroundCache.$inferSelect;
+export type NewLlmTurnaroundCache = typeof llmTurnaroundCache.$inferInsert;
+
 // ==========================================
 // AUDIO/TTS TABLES (M5)
 // ==========================================

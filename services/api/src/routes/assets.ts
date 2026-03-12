@@ -51,6 +51,69 @@ function verifySignedUrl(assetPath: string, token: string, expires: string): boo
 }
 
 /**
+ * GET /api/v1/assets/llm_turnaround_cache/:filename
+ * Serve LLM turnaround cache images (character turnaround sheets).
+ * Auth: any logged-in user (turnaround shown in character cards).
+ */
+router.get('/llm_turnaround_cache/:filename', async (req: Request, res: Response) => {
+  try {
+    const { filename } = req.params;
+
+    const cookieToken = req.cookies?.wt_session as string | undefined;
+    const bearerToken = req.headers.authorization?.startsWith('Bearer ')
+      ? req.headers.authorization.slice(7)
+      : undefined;
+    const jwt = cookieToken || bearerToken;
+
+    if (!jwt) {
+      return res.status(401).json({ status: 'error', message: 'Authentication required' });
+    }
+
+    const decoded = verifyToken(jwt);
+    if (!decoded) {
+      return res.status(401).json({ status: 'error', message: 'Invalid or expired token' });
+    }
+
+    const session = await getSessionWithUser(decoded.sessionId);
+    if (!session) {
+      return res.status(401).json({ status: 'error', message: 'Session expired' });
+    }
+
+    const relativePath = `llm_turnaround_cache/${filename}`;
+    if (!isPathSafe(relativePath)) {
+      logger.warn({ relativePath }, 'Path traversal attempt in llm_turnaround_cache route');
+      return res.status(400).json({ status: 'error', message: 'Invalid file path' });
+    }
+
+    const fullPath = path.resolve(UPLOADS_DIR, relativePath);
+
+    try {
+      await fs.access(fullPath);
+    } catch {
+      return res.status(404).json({ status: 'error', message: 'Turnaround cache image not found' });
+    }
+
+    const ext = path.extname(fullPath).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.webp': 'image/webp',
+    };
+    const mimeType = mimeTypes[ext] || 'image/png';
+
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    res.sendFile(fullPath);
+  } catch (error) {
+    logger.error({ error }, 'Failed to serve LLM turnaround cache image');
+    res.status(500).json({ status: 'error', message: 'Failed to serve image' });
+  }
+});
+
+/**
  * GET /api/v1/assets/{env}/{userId}/photos/{photoType}/{filename}
  * Serve user photos (character, child, profile reference photos).
  * Auth: wt_session cookie (automatic from <img>) OR Bearer header (API clients).
