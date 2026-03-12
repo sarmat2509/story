@@ -96,6 +96,9 @@ deploy_api() {
   print_step "Uploading API image to droplet..."
   scp -o ControlPath=${SSH_CONTROL_PATH} /tmp/${API_IMAGE}.tar.gz ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/
 
+  print_step "Uploading .env.production..."
+  scp -o ControlPath=${SSH_CONTROL_PATH} .env.production ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/
+
   print_step "Loading API image and restarting on droplet..."
   ssh_droplet << EOF
 cd ${DROPLET_PATH}
