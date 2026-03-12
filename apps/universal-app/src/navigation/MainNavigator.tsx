@@ -43,6 +43,80 @@ import type { MainDrawerParamList, MainTabParamList } from '@/types/navigation';
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Drawer = createDrawerNavigator<MainDrawerParamList>();
 
+// Wrapper components to avoid inline functions (prevents state loss and perf issues)
+function WizardScreenWithAuth() {
+  const { user } = useAuthStore();
+  const isInstantMode = user?.mode === 'instant';
+  return (
+    <AuthGuard>
+      {isInstantMode ? <InstantWizardScreen /> : <WizardScreen />}
+    </AuthGuard>
+  );
+}
+function DashboardScreenWithAuth() {
+  return (
+    <AuthGuard>
+      <DashboardScreen />
+    </AuthGuard>
+  );
+}
+function LibraryScreenWithAuth() {
+  return (
+    <AuthGuard>
+      <LibraryScreen />
+    </AuthGuard>
+  );
+}
+function SeriesListScreenWithAuth() {
+  return (
+    <AuthGuard>
+      <SeriesListScreen />
+    </AuthGuard>
+  );
+}
+function SeriesDetailScreenWithAuth() {
+  return (
+    <AuthGuard>
+      <SeriesDetailScreen />
+    </AuthGuard>
+  );
+}
+function StoryReaderScreenWithAuth() {
+  return (
+    <AuthGuard>
+      <StoryReaderScreen />
+    </AuthGuard>
+  );
+}
+function ChildrenScreenWithAuth() {
+  return (
+    <AuthGuard>
+      <ChildrenScreen />
+    </AuthGuard>
+  );
+}
+function CharactersScreenWithAuth() {
+  return (
+    <AuthGuard>
+      <CharactersScreen />
+    </AuthGuard>
+  );
+}
+function ProfileScreenWithAuth() {
+  return (
+    <AuthGuard>
+      <ProfileScreen />
+    </AuthGuard>
+  );
+}
+function LanguageSettingsScreenWithAuth() {
+  return (
+    <AuthGuard>
+      <LanguageSettingsScreen />
+    </AuthGuard>
+  );
+}
+
 const MOBILE_TAB_ORDER: (keyof MainTabParamList)[] = ['Dashboard', 'Wizard', 'Library', 'Characters'];
 const TABLET_TAB_ORDER: (keyof MainTabParamList)[] = [
   'Dashboard',
@@ -337,11 +411,7 @@ function TabNavigator() {
       />
       <Tab.Screen 
         name="Dashboard" 
-        component={() => (
-          <AuthGuard>
-            <DashboardScreen />
-          </AuthGuard>
-        )}
+        component={DashboardScreenWithAuth}
         options={{ 
           title: t('navigation.dashboard'),
           tabBarLabel: t('navigation.tab_dashboard'),
@@ -353,11 +423,7 @@ function TabNavigator() {
       />
       <Tab.Screen 
         name="Wizard" 
-        component={() => (
-          <AuthGuard>
-            {isInstantMode ? <InstantWizardScreen /> : <WizardScreen />}
-          </AuthGuard>
-        )}
+        component={WizardScreenWithAuth}
         options={{ 
           title: t('navigation.create_story'),
           tabBarLabel: t('navigation.tab_create_story'),
@@ -369,11 +435,7 @@ function TabNavigator() {
       />
       <Tab.Screen 
         name="Library" 
-        component={() => (
-          <AuthGuard>
-            <LibraryScreen />
-          </AuthGuard>
-        )}
+        component={LibraryScreenWithAuth}
         options={{ 
           title: t('navigation.library'),
           tabBarLabel: t('navigation.tab_library'),
@@ -390,11 +452,7 @@ function TabNavigator() {
       />
       <Tab.Screen 
         name="Series" 
-        component={() => (
-          <AuthGuard>
-            <SeriesListScreen />
-          </AuthGuard>
-        )}
+        component={SeriesListScreenWithAuth}
         options={{ 
           title: 'Series',
           tabBarButton: () => null,
@@ -402,11 +460,7 @@ function TabNavigator() {
       />
       <Tab.Screen 
         name="SeriesDetail" 
-        component={() => (
-          <AuthGuard>
-            <SeriesDetailScreen />
-          </AuthGuard>
-        )}
+        component={SeriesDetailScreenWithAuth}
         options={{ 
           title: 'Series Detail',
           tabBarButton: () => null,
@@ -419,11 +473,7 @@ function TabNavigator() {
       />
       <Tab.Screen 
         name="Story" 
-        component={() => (
-          <AuthGuard>
-            <StoryReaderScreen />
-          </AuthGuard>
-        )}
+        component={StoryReaderScreenWithAuth}
         options={{ 
           title: 'Story',
           tabBarButton: () => null,
@@ -456,11 +506,7 @@ function TabNavigator() {
       {!isInstantMode && (
         <Tab.Screen 
           name="Children" 
-          component={() => (
-            <AuthGuard>
-              <ChildrenScreen />
-            </AuthGuard>
-          )}
+          component={ChildrenScreenWithAuth}
           options={{ 
             title: t('navigation.children'),
             tabBarLabel: t('navigation.tab_children'),
@@ -474,11 +520,7 @@ function TabNavigator() {
       {!isInstantMode && (
         <Tab.Screen 
           name="Characters" 
-          component={() => (
-            <AuthGuard>
-              <CharactersScreen />
-            </AuthGuard>
-          )}
+          component={CharactersScreenWithAuth}
           options={{ 
             title: t('navigation.characters'),
             tabBarLabel: t('navigation.tab_characters'),
@@ -510,11 +552,7 @@ function TabNavigator() {
       />
       <Tab.Screen 
         name="Profile" 
-        component={() => (
-          <AuthGuard>
-            <ProfileScreen />
-          </AuthGuard>
-        )}
+        component={ProfileScreenWithAuth}
         options={{ 
           title: t('navigation.profile'),
           tabBarLabel: t('navigation.tab_profile'),
@@ -526,11 +564,7 @@ function TabNavigator() {
       />
 <Tab.Screen 
         name="LanguageSettings" 
-        component={() => (
-          <AuthGuard>
-            <LanguageSettingsScreen />
-          </AuthGuard>
-        )}
+        component={LanguageSettingsScreenWithAuth}
         options={{ 
           title: t('profile.language_settings'),
           tabBarButton: () => null,
@@ -649,11 +683,7 @@ function DrawerNavigator() {
       />
       <Drawer.Screen 
         name="Dashboard" 
-        component={() => (
-          <AuthGuard>
-            <DashboardScreen />
-          </AuthGuard>
-        )}
+        component={DashboardScreenWithAuth}
         options={{ 
           title: t('navigation.dashboard'),
           drawerIcon: ({ color, size }) => (
@@ -664,11 +694,7 @@ function DrawerNavigator() {
       />
       <Drawer.Screen 
         name="Wizard" 
-        component={() => (
-          <AuthGuard>
-            {isInstantMode ? <InstantWizardScreen /> : <WizardScreen />}
-          </AuthGuard>
-        )}
+        component={WizardScreenWithAuth}
         options={{ 
           title: t('navigation.create_story'),
           drawerIcon: ({ color, size }) => (
@@ -679,11 +705,7 @@ function DrawerNavigator() {
       />
       <Drawer.Screen 
         name="Library" 
-        component={() => (
-          <AuthGuard>
-            <LibraryScreen />
-          </AuthGuard>
-        )}
+        component={LibraryScreenWithAuth}
         options={{ 
           title: t('navigation.library'),
           drawerIcon: ({ color, size }) => (
@@ -694,11 +716,7 @@ function DrawerNavigator() {
       />
       <Drawer.Screen 
         name="Series" 
-        component={() => (
-          <AuthGuard>
-            <SeriesListScreen />
-          </AuthGuard>
-        )}
+        component={SeriesListScreenWithAuth}
         options={{ 
           title: t('navigation.series'),
           drawerIcon: ({ color, size }) => (
@@ -709,11 +727,7 @@ function DrawerNavigator() {
       />
       <Drawer.Screen 
         name="SeriesDetail" 
-        component={() => (
-          <AuthGuard>
-            <SeriesDetailScreen />
-          </AuthGuard>
-        )}
+        component={SeriesDetailScreenWithAuth}
         options={{ 
           title: 'Series Detail',
           drawerItemStyle: { display: 'none' },
@@ -731,11 +745,7 @@ function DrawerNavigator() {
       />
       <Drawer.Screen 
         name="Story" 
-        component={() => (
-          <AuthGuard>
-            <StoryReaderScreen />
-          </AuthGuard>
-        )}
+        component={StoryReaderScreenWithAuth}
         options={{ 
           title: 'Story',
           drawerItemStyle: { display: 'none' },
@@ -770,11 +780,7 @@ function DrawerNavigator() {
       {!isInstantMode && (
         <Drawer.Screen 
           name="Children" 
-          component={() => (
-            <AuthGuard>
-              <ChildrenScreen />
-            </AuthGuard>
-          )}
+          component={ChildrenScreenWithAuth}
           options={{ 
             title: t('navigation.children'),
             drawerIcon: ({ color, size }) => (
@@ -787,11 +793,7 @@ function DrawerNavigator() {
       {!isInstantMode && (
         <Drawer.Screen 
           name="Characters" 
-          component={() => (
-            <AuthGuard>
-              <CharactersScreen />
-            </AuthGuard>
-          )}
+          component={CharactersScreenWithAuth}
           options={{ 
             title: t('navigation.characters'),
             drawerIcon: ({ color, size }) => (
@@ -821,11 +823,7 @@ function DrawerNavigator() {
       />
       <Drawer.Screen 
         name="Profile" 
-        component={() => (
-          <AuthGuard>
-            <ProfileScreen />
-          </AuthGuard>
-        )}
+        component={ProfileScreenWithAuth}
         options={{ 
           title: t('navigation.profile'),
           drawerIcon: ({ color, size }) => (
@@ -836,11 +834,7 @@ function DrawerNavigator() {
       />
       <Drawer.Screen 
         name="LanguageSettings" 
-        component={() => (
-          <AuthGuard>
-            <LanguageSettingsScreen />
-          </AuthGuard>
-        )}
+        component={LanguageSettingsScreenWithAuth}
         options={{ 
           title: t('profile.language_settings'),
           drawerItemStyle: { display: 'none' },
