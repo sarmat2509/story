@@ -2,6 +2,7 @@
  * Core generation functions - unified logic for standard and continuation
  */
 
+import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { getStoryRepository } from '../../repositories';
 import { getStoryDomainService } from '../aiService';
@@ -104,13 +105,10 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     const mergedCharacters = mergeCharacters(initialCharacters, llmCharacters);
     
     // Persist LLM characters (unified for both flows)
-    const initialCharacterNames = new Set(
-      initialCharacters.map(c => normalizeCharacterName(c.name))
-    );
     const llmCharacterResults = await persistLlmCharacters(
       request.userId,
       llmCharacters,
-      initialCharacterNames
+      initialCharacters,
     );
     
     // Enrich mergedCharacters with DB IDs
@@ -184,7 +182,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
         validationTimeMs,
         sceneCount: validatedText.scenes.length,
         fullTextLength: validatedText.fullText?.length || 0,
-        modelVersion: 'gemini-2.5-flash',
+        modelVersion: config.ai.modelVersion,
         plotExampleId: chosenPlotExampleId,
         worldRuleId: chosenWorldRuleId,
         llmGeneratedCharacters: llmCharacters,

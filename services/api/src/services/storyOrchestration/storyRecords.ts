@@ -3,15 +3,14 @@
  */
 
 import { getStoryRepository, getCharacterRepository } from '../../repositories';
+import { config } from '../../config';
 import { logger } from '../../utils/logger';
-import { normalizeCharacterName, toPhoneticKey } from '../../utils/characterNormalization';
+import { normalizeCharacterName, crossScriptIdentityKey } from '../../utils/characterNormalization';
 import { stripCharacterIds } from '../../utils/audioTags';
-import { generateEmbedding, cosineSimilarity } from '../embeddingService';
+import { findOrCreateLlmCharacter, mapLlmTypeToCharacterType } from './llmCharacterPersistence';
 import { createSceneRecords } from './utilities';
 import type { CreateStoryParams, CreateStoryStubParams } from './types';
 import type { CharacterData } from '../types';
-
-const EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
 
 /**
  * Create minimal story stub before text generation.
@@ -73,7 +72,7 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
           fullText: stripCharacterIds(params.text.fullText),
           wordCount: params.text.wordCount,
           estimatedReadMinutes,
-          modelVersion: (params.metadata as any).modelVersion || 'gemini-2.5-flash',
+          modelVersion: (params.metadata as any).modelVersion || config.ai.modelVersion,
           generationTimeMs: params.generationTimeMs,
           isPublished: !!params.seriesData,
           ...(params.seriesData ? {} : { visibility: null }),
@@ -93,6 +92,11 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
               Array.isArray((params.text as any).environments) &&
               (params.text as any).environments.length > 0 && {
                 environments: (params.text as any).environments,
+              }),
+            ...((params.text as any).outfits &&
+              Array.isArray((params.text as any).outfits) &&
+              (params.text as any).outfits.length > 0 && {
+                outfits: (params.text as any).outfits,
               }),
           },
           policyChecks: {
@@ -182,7 +186,7 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
         fullText: stripCharacterIds(params.text.fullText),
         wordCount: params.text.wordCount,
         estimatedReadMinutes,
-        modelVersion: 'gemini-2.5-flash',
+        modelVersion: config.ai.modelVersion,
         generationTimeMs: params.generationTimeMs,
         metadata: {
           llmGeneratedCharacters: llmCharacters,
@@ -199,6 +203,11 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
             Array.isArray((params.text as any).environments) &&
             (params.text as any).environments.length > 0 && {
               environments: (params.text as any).environments,
+            }),
+          ...((params.text as any).outfits &&
+            Array.isArray((params.text as any).outfits) &&
+            (params.text as any).outfits.length > 0 && {
+              outfits: (params.text as any).outfits,
             }),
         },
         policyChecks: {
@@ -352,18 +361,21 @@ export function mergeCharacters(
       }
     }
     
-    // Tier 2: Phonetic match (handles transliteration across scripts)
-    const phoneticKey = toPhoneticKey(llmChar.name);
-    existingChar = merged.find(c => 
-      c.name && typeof c.name === 'string' && toPhoneticKey(c.name) === phoneticKey
+    // Tier 2: Cross-script identity (e.g. Emilia <-> Емілія via ...iya -> ...ia)
+    const identityKey = crossScriptIdentityKey(llmChar.name);
+    existingChar = merged.find(
+      c =>
+        c.name &&
+        typeof c.name === 'string' &&
+        crossScriptIdentityKey(c.name) === identityKey,
     );
-    
+
     if (existingChar) {
-      logger.debug({ 
-        llmName: llmChar.name, 
-        userName: existingChar.name, 
-        phoneticKey 
-      }, 'Character matched by phonetic key (tier 2)');
+      logger.debug({
+        llmName: llmChar.name,
+        userName: existingChar.name,
+        identityKey,
+      }, 'Character matched by cross-script identity key (tier 2)');
       
       (existingChar as any).nameInStory = llmChar.name;
       
@@ -409,6 +421,16 @@ export function mergeCharacters(
   return merged;
 }
 
+function buildInitialCharacterExclusionFingerprints(characters: CharacterData[]): Set<string> {
+  const fingerprints = new Set<string>();
+  for (const c of characters) {
+    if (!c?.name || typeof c.name !== 'string') continue;
+    fingerprints.add(normalizeCharacterName(c.name));
+    fingerprints.add(crossScriptIdentityKey(c.name));
+  }
+  return fingerprints;
+}
+
 /**
  * Persist LLM-generated characters to database with hybrid deduplication
  * Used by both standard and continuation flows
@@ -416,14 +438,17 @@ export function mergeCharacters(
 export async function persistLlmCharacters(
   userId: string,
   llmCharacters: Array<{ name: string; type: string; description: string; role?: string; personality?: any; appearance?: string }>,
-  initialCharacterNames: Set<string>
+  initialCharacters: CharacterData[],
 ): Promise<Map<string, { characterId: string; isNew: boolean; hasTurnaround: boolean }>> {
   const results = new Map<string, { characterId: string; isNew: boolean; hasTurnaround: boolean }>();
 
-  // Filter to only LLM-only characters (not user-provided ones)
+  const exclusion = buildInitialCharacterExclusionFingerprints(initialCharacters);
+
+  // Filter to only LLM-only characters (not user-provided / initial cast)
   const purelyLlmChars = llmCharacters.filter(c => {
     const normalized = normalizeCharacterName(c.name);
-    return !initialCharacterNames.has(normalized);
+    const crossKey = crossScriptIdentityKey(c.name);
+    return !exclusion.has(normalized) && !exclusion.has(crossKey);
   });
 
   if (purelyLlmChars.length === 0) return results;
@@ -447,83 +472,4 @@ export async function persistLlmCharacters(
   }
 
   return results;
-}
-
-// ── Helper Functions ──
-
-function mapLlmTypeToCharacterType(llmType: string): string {
-  switch (llmType) {
-    case 'human': return 'person';
-    case 'animal': return 'animal';
-    case 'creature': return 'imaginary';
-    case 'object': return 'imaginary';
-    default: return 'imaginary';
-  }
-}
-
-async function findOrCreateLlmCharacter(
-  userId: string,
-  llmChar: { name: string; type: string; description: string },
-  existingHiddenChars: any[]
-): Promise<{ characterId: string; isNew: boolean; hasTurnaround: boolean }> {
-  const mappedType = mapLlmTypeToCharacterType(llmChar.type);
-
-  // TIER 1: Exact name + type match
-  const phoneticKey = toPhoneticKey(llmChar.name);
-  const nameMatch = existingHiddenChars.find(c =>
-    toPhoneticKey(c.name) === phoneticKey && c.type === mappedType
-  );
-  if (nameMatch) {
-    logger.info({ matched: nameMatch.name, by: 'name' }, 'LLM char matched by name');
-    return { characterId: nameMatch.id, isNew: false, hasTurnaround: !!nameMatch.turnaroundSheet };
-  }
-
-  // TIER 2: Embedding similarity
-  const sameTypeChars = existingHiddenChars.filter(
-    c => c.type === mappedType && c.descriptionEmbedding
-  );
-  let newEmbedding: number[] | null = null;
-  if (sameTypeChars.length > 0) {
-    try {
-      newEmbedding = await generateEmbedding(llmChar.description);
-      let bestMatch: { char: any; score: number } | null = null;
-      for (const c of sameTypeChars) {
-        const score = cosineSimilarity(newEmbedding, c.descriptionEmbedding as number[]);
-        if (score > EMBEDDING_SIMILARITY_THRESHOLD && (!bestMatch || score > bestMatch.score)) {
-          bestMatch = { char: c, score };
-        }
-      }
-      if (bestMatch) {
-        logger.info({
-          matched: bestMatch.char.name, newName: llmChar.name,
-          score: bestMatch.score.toFixed(3), by: 'embedding',
-        }, 'LLM char matched by visual similarity');
-        return {
-          characterId: bestMatch.char.id,
-          isNew: false,
-          hasTurnaround: !!bestMatch.char.turnaroundSheet,
-        };
-      }
-    } catch (err) {
-      logger.warn({ err, llmCharName: llmChar.name }, 'Embedding generation failed, skipping Tier 2 dedup');
-    }
-  }
-
-  // No match - create new hidden character
-  const embedding = newEmbedding || await generateEmbedding(llmChar.description).catch(() => null);
-
-  const created = await getCharacterRepository().create({
-    userId,
-    name: llmChar.name,
-    type: mappedType,
-    description: llmChar.description,
-    aiGeneratedDescription: llmChar.description,
-    descriptionEmbedding: embedding,
-    isHidden: true,
-  } as any);
-
-  // Add to in-memory cache for subsequent batch dedup
-  existingHiddenChars.push(created);
-
-  return { characterId: created.id, isNew: true, hasTurnaround: false };
 }

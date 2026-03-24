@@ -44,6 +44,19 @@ export function toPhoneticKey(name: string): string {
 }
 
 /**
+ * Fingerprint for matching the same person across scripts (e.g. Ukrainian -ія vs Latin -ia).
+ * any-ascii yields "...iya" for many Ukrainian names while Latin uses "...ia" — normalize that suffix.
+ * For display use the real name; use this only for merge / dedup logic.
+ */
+export function crossScriptIdentityKey(name: string): string {
+  let key = toPhoneticKey(name);
+  if (key.length > 3 && key.endsWith('iya')) {
+    key = `${key.slice(0, -3)}ia`;
+  }
+  return key;
+}
+
+/**
  * Build character registry from all sources (user + child + LLM)
  * Returns Map: normalizedName -> full character data.
  * Also stores phonetic key aliases for cross-script matching.
@@ -59,10 +72,18 @@ export function buildCharacterRegistry(
     const normalized = entry.normalizedName;
     registry.set(normalized, entry);
 
-    // Also store phonetic key alias for cross-script matching
     const phoneticKey = toPhoneticKey(name);
     if (phoneticKey && phoneticKey !== normalized && !registry.has(phoneticKey)) {
       registry.set(phoneticKey, { ...entry });
+    }
+    const crossKey = crossScriptIdentityKey(name);
+    if (
+      crossKey &&
+      crossKey !== normalized &&
+      crossKey !== phoneticKey &&
+      !registry.has(crossKey)
+    ) {
+      registry.set(crossKey, { ...entry });
     }
   }
   
@@ -108,8 +129,7 @@ export function buildCharacterRegistry(
 
 /**
  * Match LLM character names to registry.
- * First tries exact normalized match, then falls back to phonetic key
- * for cross-script matching (e.g. "Emilia" matching "Емілія" in registry).
+ * Tries normalized name, cross-script identity key, then raw phonetic key.
  */
 export function matchCharacterNames(
   llmNames: string[],
@@ -120,9 +140,10 @@ export function matchCharacterNames(
       const normalized = normalizeCharacterName(name);
       let match = registry.get(normalized);
       if (!match) {
-        // Phonetic fallback for cross-script matching
-        const phonetic = toPhoneticKey(name);
-        match = registry.get(phonetic);
+        match = registry.get(crossScriptIdentityKey(name));
+      }
+      if (!match) {
+        match = registry.get(toPhoneticKey(name));
       }
       return match ? match.normalizedName : normalized;
     });
