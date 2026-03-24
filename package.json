@@ -9,6 +9,8 @@
     "docker:dev": "docker compose -f docker-compose.dev.yml up",
     "docker:prod": "docker compose -f docker-compose.prod.yml up",
     "api:script": "docker compose -f docker-compose.dev.yml run --rm --entrypoint=\"\" api",
+    "compare:image-validation": "cd services/api && npx tsx src/scripts/compareSceneImageValidation.ts",
+    "compare:director": "cd services/api && npx tsx src/scripts/compareDirectorTextProviders.ts",
     "stripe:listen": "stripe listen --forward-to localhost:3000/api/v1/billing/webhook/stripe",
     "migrate": "bash scripts/runMigration.sh",
     "dev": "pnpm --parallel dev",

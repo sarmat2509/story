@@ -25,7 +25,13 @@
     "db:mark-migrations-applied": "npx tsx src/scripts/markExistingMigrationsAsApplied.ts",
     "db:migrate": "tsx src/scripts/runMigration.ts",
     "seed:voices": "tsx src/scripts/seedVoices.ts",
-    "test:imagen": "npx tsx src/scripts/testImagenAPI.ts"
+    "test:imagen": "npx tsx src/scripts/testImagenAPI.ts",
+    "test:llm-character-persistence": "tsx src/services/__tests__/llmCharacterPersistence.test.ts",
+    "test:cross-script-identity": "tsx src/utils/__tests__/crossScriptIdentityKey.test.ts",
+    "test:character-outfits": "tsx src/utils/__tests__/characterOutfits.test.ts",
+    "test:outfit-plate-service": "tsx src/services/__tests__/outfitPlateService.test.ts",
+    "compare:image-validation": "tsx src/scripts/compareSceneImageValidation.ts",
+    "compare:director": "tsx src/scripts/compareDirectorTextProviders.ts"
   },
   "dependencies": {
     "@google-cloud/aiplatform": "^6.5.0",
@@ -46,6 +52,7 @@
     "humps": "^2.0.1",
     "fluent-ffmpeg": "^2.1.2",
     "jsonwebtoken": "^9.0.2",
+    "marked": "^15.0.0",
     "multer": "^1.4.5-lts.1",
     "openai": "^6.21.0",
     "passport": "^0.7.0",
