@@ -74,6 +74,27 @@ export const passwordResetTokens = pgTable('password_reset_tokens', {
   };
 });
 
+// User feedback table (bug reports, feature requests)
+export const userFeedback = pgTable('user_feedback', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  category: varchar('category', { length: 20 }).notNull(), // 'bug' | 'feature' | 'other'
+  message: text('message').notNull(),
+  email: varchar('email', { length: 255 }),
+  screenshotUrl: text('screenshot_url'),
+  context: jsonb('context').default({}), // { platform, userAgent, url?, reportedScreen }
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index('user_feedback_user_id_idx').on(table.userId),
+    createdAtIdx: index('user_feedback_created_at_idx').on(table.createdAt),
+    categoryIdx: index('user_feedback_category_idx').on(table.category),
+  };
+});
+
+export type UserFeedback = typeof userFeedback.$inferSelect;
+export type NewUserFeedback = typeof userFeedback.$inferInsert;
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -176,7 +197,6 @@ export const childProfiles = pgTable('child_profiles', {
   userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   name: varchar('name', { length: 100 }).notNull(),
   birthDate: date('birth_date').notNull(),
-  gender: varchar('gender', { length: 20 }),
   languages: jsonb('languages').notNull(), // array of language codes
   referencePhotos: jsonb('reference_photos'), // array of photo objects
   appearanceTraits: jsonb('appearance_traits'), // structured appearance data
@@ -538,8 +558,8 @@ export const storyCharacters = pgTable('story_characters', {
   id: uuid('id').primaryKey().defaultRandom(),
   storyId: uuid('story_id').references(() => stories.id, { onDelete: 'cascade' }).notNull(),
   characterId: uuid('character_id').references(() => characters.id, { onDelete: 'cascade' }).notNull(),
-  role: varchar('role', { length: 50 }),
-  
+  role: varchar('role', { length: 255 }),
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => {
   return {
@@ -793,6 +813,45 @@ export type EnvironmentImageCache = typeof environmentImageCache.$inferSelect;
 export type NewEnvironmentImageCache = typeof environmentImageCache.$inferInsert;
 export type StoryEnvironmentCache = typeof storyEnvironmentCache.$inferSelect;
 export type NewStoryEnvironmentCache = typeof storyEnvironmentCache.$inferInsert;
+
+// Outfit plate cache — garment/silhouette reference (Imagen 4 Fast), global reuse by embedding
+export const outfitPlateCache = pgTable('outfit_plate_cache', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  outfitText: text('outfit_text').notNull(),
+  descriptionEmbedding: jsonb('description_embedding').$type<number[]>().notNull(),
+  imageStyle: varchar('image_style', { length: 100 }).notNull(),
+  ageGroup: varchar('age_group', { length: 20 }).notNull(),
+  storagePath: text('storage_path').notNull(),
+  storageUrl: text('storage_url'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const storyOutfitPlateCache = pgTable(
+  'story_outfit_plate_cache',
+  {
+    storyId: uuid('story_id')
+      .references(() => stories.id, { onDelete: 'cascade' })
+      .notNull(),
+    characterKey: varchar('character_key', { length: 200 }).notNull(),
+    storyEnvironmentId: varchar('story_environment_id', { length: 100 }).notNull(),
+    cacheId: uuid('cache_id')
+      .references(() => outfitPlateCache.id, { onDelete: 'cascade' })
+      .notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({
+      columns: [table.storyId, table.characterKey, table.storyEnvironmentId],
+    }),
+    storyIdx: index('story_outfit_plate_cache_story_idx').on(table.storyId),
+    cacheIdx: index('story_outfit_plate_cache_cache_idx').on(table.cacheId),
+  }),
+);
+
+export type OutfitPlateCache = typeof outfitPlateCache.$inferSelect;
+export type NewOutfitPlateCache = typeof outfitPlateCache.$inferInsert;
+export type StoryOutfitPlateCache = typeof storyOutfitPlateCache.$inferSelect;
+export type NewStoryOutfitPlateCache = typeof storyOutfitPlateCache.$inferInsert;
 
 // LLM turnaround cache - global reuse by embedding similarity (LLM characters only)
 export const llmTurnaroundCache = pgTable('llm_turnaround_cache', {

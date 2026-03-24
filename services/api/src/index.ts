@@ -19,6 +19,8 @@ import publicUnlistedRoutes from './routes/publicUnlisted';
 import meStoriesRoutes from './routes/meStories';
 import ssrStoriesRoutes from './routes/ssrStories';
 import ssrUnlistedRoutes from './routes/ssrUnlisted';
+import ssrLandingRoutes from './routes/ssrLanding';
+import ssrLegalRoutes from './routes/ssrLegal';
 import shareCardRoutes from './routes/shareCard';
 import sitemapRoute from './routes/sitemap';
 import billingRoutes from './routes/billing';
@@ -26,6 +28,7 @@ import billingWebhookRoutes from './routes/billingWebhook';
 import assetsRoutes from './routes/assets';
 import voicesRoutes from './routes/voices';
 import uploadRoutes from './routes/upload';
+import feedbackRoutes from './routes/feedback';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { globalLimiter, authLimiter, apiLimiter } from './middleware/rateLimiter';
 import { caseTransformMiddleware } from './middleware/caseTransform';
@@ -114,10 +117,13 @@ app.use('/api/v1/public/stories', apiLimiter, publicStoriesRoutes); // Public ca
 app.use('/api/v1/public/u', apiLimiter, publicUnlistedRoutes); // Unlisted by token
 app.use('/ssr/stories', ssrStoriesRoutes); // SSR HTML (no auth, cached)
 app.use('/ssr/u', ssrUnlistedRoutes); // SSR for unlisted
+app.use('/ssr/landing', ssrLandingRoutes); // Static landing page for SEO
+app.use('/ssr/legal', ssrLegalRoutes); // Terms of Service, Privacy Policy
 app.use('/share-card', apiLimiter, shareCardRoutes); // og:image 1200×630
 app.use('/api/v1/assets', apiLimiter, assetsRoutes); // M4: asset serving (local dev)
 app.use('/api/v1/voices', apiLimiter, voicesRoutes); // M5: TTS voices
 app.use('/api/v1/upload', apiLimiter, uploadRoutes); // M6: photo upload
+app.use('/api/v1/feedback', feedbackRoutes); // Feedback has its own rate limiter
 app.use('/api/v1/billing', apiLimiter, billingRoutes); // M1: Stripe checkout, portal
 app.use('/api/v1', indexRoutes);
 
