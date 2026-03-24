@@ -4,6 +4,7 @@
  */
 
 import type { JsonSchema } from '../../providers/base/JsonSchema';
+import { CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA } from './schemas';
 
 export const DIRECTOR_SCHEMA: JsonSchema = {
   type: 'object',
@@ -30,15 +31,35 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
         properties: {
           id: { type: 'string', description: 'Short unique identifier' },
           name: { type: 'string', description: 'Human-readable location name' },
-          description: { type: 'string', description: 'Base visual description IN ENGLISH. Include ALL static objects (tree, flower, path, bushes) with fixed positions and relative layout. Key objects stay in same positions across all illustrations.' },
-          characterOutfits: {
+          description: { type: 'string', description: 'Base visual description IN ENGLISH. Include ALL static objects (tree, flower, path, bushes) with fixed positions and relative layout. Key objects stay in same positions across all illustrations. Include weather/time-of-day when it affects the location (snow, rain, night).' },
+        },
+        required: ['id', 'name', 'description'],
+      },
+      description: 'All distinct locations in the story. Wardrobe is NOT here — use outfits[] and sceneVisual.cameraComposition.characters[].outfitId on each illustration.',
+    },
+    outfits: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: {
             type: 'string',
-            description: 'Format: "Char1: outfit1. Char2: outfit2." — one per character per environment',
+            description: 'Unique id within this story (e.g. o_emilia_home_1). Reused across scenes when the same wardrobe applies.',
+          },
+          characterName: {
+            type: 'string',
+            description: 'EXACT character name as in characters[] (same spelling).',
+          },
+          description: {
+            type: 'string',
+            description:
+              'WARDROBE ONLY IN ENGLISH: garments, footwear, worn accessories. Must match weather, season, and indoor/outdoor context of the scene and environment. No face, hair, skin, or body. Creatures/animals: "natural appearance".',
           },
         },
-        required: ['id', 'name', 'description', 'characterOutfits'],
+        required: ['id', 'characterName', 'description'],
       },
-      description: 'All distinct locations in the story',
+      description:
+        'Canonical wardrobe definitions. Build rows for every character that appears in any illustration\'s cameraComposition; each distinct look gets its own id. Every cameraComposition.characters[].outfitId MUST match one of these ids. Define outfits[] before assigning outfitId on each character row.',
     },
     illustrations: {
       type: 'array',
@@ -60,14 +81,10 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
                   shot: { type: 'string', description: 'Camera angle IN ENGLISH: shot type, eye level' },
                   characters: {
                     type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        name: { type: 'string' },
-                        description: { type: 'string', description: 'Position, posture, action IN ENGLISH' },
-                      },
-                      required: ['name', 'description'],
-                    },
+                    minItems: 1,
+                    items: CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA,
+                    description:
+                      'Who is in the shot; each row MUST include outfitId referencing outfits[].',
                   },
                 },
                 required: ['shot', 'characters'],
@@ -79,8 +96,9 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
         },
         required: ['environmentId', 'sceneVisual'],
       },
-      description: 'Visual descriptions for each illustration. Order matches placement: 1st=opening, rest=evenly distributed.',
+      description:
+        'Visual descriptions for each illustration. Order matches placement: 1st=opening, rest=evenly distributed. Each sceneVisual.cameraComposition.characters[] entry MUST include outfitId (schema-enforced, same strictness as environmentId).',
     },
   },
-  required: ['characters', 'environments', 'illustrations'],
+  required: ['characters', 'environments', 'outfits', 'illustrations'],
 };

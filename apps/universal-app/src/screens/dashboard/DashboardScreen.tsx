@@ -28,7 +28,8 @@ export default function DashboardScreen() {
   const { data: childrenData, isLoading: childrenLoading, error: childrenError } = useChildren();
 
   const stories = storiesData?.stories || [];
-  const children = childrenData || [];
+  const children = childrenData?.children ?? [];
+  const canCreateMoreChildren = childrenData?.canCreateMore ?? true;
   const storiesCount = Number(storiesData?.pagination?.total) || 0;
   const childrenCount = children.length;
   const isLoading = storiesLoading || childrenLoading;
@@ -108,7 +109,9 @@ export default function DashboardScreen() {
             onPress={() => navigation.navigate('Children')}
           >
             <Text style={styles.actionIcon}>👶</Text>
-            <Text style={styles.actionText}>{t('dashboard.actions.add_child')}</Text>
+            <Text style={styles.actionText}>
+              {canCreateMoreChildren ? t('dashboard.actions.add_child') : t('dashboard.actions.view_profiles')}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

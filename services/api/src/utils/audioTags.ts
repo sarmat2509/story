@@ -3,6 +3,7 @@
  * Tags are used for expressive TTS but must be removed for image generation and UI display
  */
 
+import { stripMarkdownStyleEmphasis } from '@wondertales/shared';
 import { getAllAudioTags } from '../constants/audioTags';
 
 /** Whitelist of allowed audio tags (lowercase, normalized). Used for stripForAudio. */
@@ -38,6 +39,8 @@ export function stripAllTags(text: string): string {
 
   // Remove [content] in square brackets (metadata: audio tags, character IDs)
   result = result.replace(/\[[^\]]*\]/g, '');
+
+  result = stripMarkdownStyleEmphasis(result);
 
   return result.replace(/\s{2,}/g, ' ').trim();
 }

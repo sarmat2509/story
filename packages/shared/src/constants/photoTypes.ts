@@ -3,11 +3,12 @@
  * Used by API (storage, validation), universal-app (upload), and routes.
  */
 
-/** User-uploadable photo types (profile, character, child reference photos) */
+/** User-uploadable photo types (profile, character, child reference photos, feedback screenshot) */
 export const PHOTO_TYPES_USER_UPLOAD = [
   'profile',
   'character',
   'child',
+  'feedback',
 ] as const;
 
 /** System-generated turnaround sheet types (AI-generated from reference photos) */

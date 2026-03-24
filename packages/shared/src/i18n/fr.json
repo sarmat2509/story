@@ -21,7 +21,37 @@
     "login": "Se connecter",
     "logout": "Se déconnecter",
     "signup": "S'inscrire",
-    "welcome": "Bienvenue"
+    "welcome": "Bienvenue",
+    "want_to_create_stories": "S'inscrire avec email"
+  },
+  "welcome": {
+    "slogan": "Dessins en personnages. Écoute, lis, publie.",
+    "sign_in_google": "Se connecter avec Google",
+    "sign_in_apple": "Se connecter avec Apple",
+    "browse_stories": "Histoires publiées",
+    "view_plans": "Tarifs",
+    "learn_more": "En savoir plus sur WonderTales"
+  },
+  "landing": {
+    "hero_title": "WonderTales",
+    "hero_subtitle": "Dessins en personnages. Écoute, lis, publie.",
+    "hero_description": "Transforme les dessins de ton enfant en héros d'histoires. Écoute des contes audio avec le narrateur. Crée des histoires avec tes propres personnages, publie-les et reçois des notes.",
+    "how_it_works_title": "Comment ça marche",
+    "step_1_title": "Choisis le thème et l'âge",
+    "step_1_text": "4-5 champs en 10 secondes",
+    "step_2_title": "Ajoute des personnages",
+    "step_2_text": "Télécharge un dessin ou une photo — l'IA les transformera en héros de l'histoire",
+    "step_3_title": "Reçois ton histoire",
+    "step_3_text": "Illustrations et narration en quelques minutes",
+    "demo_title": "Exemples d'histoires",
+    "safety_title": "Sûr pour les enfants",
+    "safety_intro": "Tout le contenu est adapté à l'âge et vérifié.",
+    "plans_title": "Tarifs",
+    "plans_cta": "Voir tous les tarifs",
+    "faq_title": "Questions fréquentes",
+    "cta_get_started": "Commencer",
+    "cta_view_stories": "Explorer les histoires",
+    "cta_view_pricing": "Voir les tarifs"
   },
   "story": {
     "create_title": "Créer une histoire",
@@ -159,6 +189,7 @@
     "generate_button": "Créer l'histoire",
     "generating": "Création...",
     "create_error": "Une erreur s'est produite lors de la création de l'histoire. Veuillez réessayer.",
+    "retry": "Réessayer",
     "retry_error": "Impossible de réessayer la génération des illustrations. Veuillez réessayer.",
     "advanced_settings": "Paramètres avancés",
     "add_characters": "Ajouter des personnages"
@@ -279,6 +310,7 @@
     "actions": {
       "create_story": "Créer une Nouvelle Histoire",
       "add_child": "Ajouter un Profil d'Enfant",
+      "view_profiles": "Voir les Profils",
       "view_library": "Voir la Bibliothèque"
     },
     "recent_stories": "Histoires Récentes",
@@ -312,20 +344,26 @@
     "features": {
       "stories_per_day": "Jusqu'à {{value}} histoires par jour",
       "stories_per_month": "{{value}} histoires par mois",
-      "images_per_story": "Jusqu'à {{value}} illustrations",
+      "images_per_story": "{{value}} illustrations dans l'histoire",
+      "images_per_story_one": "{{value}} illustration dans l'histoire",
+      "images_per_story_other": "{{value}} illustrations dans l'histoire",
       "image_quality": "Qualité d'image: {{value}}",
       "premium_voices": "Voix premium",
       "child_profiles_limit": "Jusqu'à {{value}} profils d'enfants",
+      "child_profiles_limit_one": "1 profil d'enfant",
+      "child_profiles_limit_unlimited": "Profils d'enfants illimités",
       "series_enabled": "Séries d'histoires",
       "export_pdf": "Exporter en PDF (bientôt)",
       "export_video": "Exporter en vidéo (bientôt)",
-      "share_enabled": "Partager des liens (bientôt)",
+      "share_enabled": "Publication et partage",
       "story_from_drawing": "Histoire à partir du dessin de l'enfant (bientôt)"
     }
   },
   "children_screen": {
     "title": "Profils d'Enfants",
     "subtitle": "Créez des histoires personnalisées pour chaque enfant",
+    "title_single": "Profil d'Enfant",
+    "subtitle_single": "Configurez le profil pour des histoires personnalisées",
     "add_button": "Ajouter un Nouvel Enfant",
     "empty_title": "Pas encore d'enfants",
     "empty_text": "Ajoutez le premier profil d'enfant pour créer des histoires personnalisées",
@@ -334,7 +372,9 @@
     "edit_button": "Modifier",
     "born": "Né",
     "gender": "Genre",
-    "languages": "Langues"
+    "languages": "Langues",
+    "delete_confirm_title": "Supprimer le profil de l'enfant ?",
+    "delete_confirm_message": "Êtes-vous sûr de vouloir supprimer {{name}} ? Le profil sera supprimé."
   },
   "gender_values": {
     "girl": "Fille",
@@ -366,6 +406,9 @@
     "sample_error": "Échec du chargement de l'échantillon"
   },
   "child_form": {
+    "creating_character": "Création du profil enfant",
+    "generating_remaining_sec": "~{{count}} s",
+    "generating_almost_done": "Presque terminé...",
     "generate_description": "Générer la description",
     "regenerate_description": "Régénérer la description",
     "description_upload_photos_first": "Téléchargez des photos à l'étape précédente pour générer une description",
@@ -417,6 +460,7 @@
     "usage_remaining_short": "{{stories}} histoires et {{audio}} histoires audio restantes",
     "upgrade_plan": "Mettre à niveau le plan",
     "support": "Support",
+    "report_problem": "Signaler un problème",
     "help_center": "Centre d'aide",
     "terms_of_service": "Conditions d'utilisation",
     "privacy_policy": "Politique de confidentialité",
@@ -424,6 +468,40 @@
     "logout_confirm_title": "Se déconnecter?",
     "logout_confirm_message": "Êtes-vous sûr de vouloir vous déconnecter?",
     "cancel": "Annuler"
+  },
+  "feedback": {
+    "title": "Signaler un problème",
+    "reported_screen": "Où cela s'est-il produit ?",
+    "reported_screen_options": {
+      "dashboard": "Tableau de bord",
+      "wizard": "Création d'histoire",
+      "story_viewer": "Lecteur d'histoire",
+      "library": "Mes histoires",
+      "children": "Profils d'enfants",
+      "characters": "Personnages",
+      "plans": "Tarifs",
+      "profile": "Profil",
+      "other": "Autre"
+    },
+    "category": "Catégorie",
+    "categories": {
+      "bug": "Bug",
+      "feature": "Demande de fonctionnalité",
+      "other": "Autre"
+    },
+    "message": "Description",
+    "message_placeholder": "Décrivez le problème ou la suggestion (10–2000 caractères)",
+    "message_min_length": "Le message doit contenir au moins 10 caractères",
+    "message_max_length": "Le message ne peut pas dépasser 2000 caractères",
+    "email": "E-mail",
+    "email_required": "L'e-mail est obligatoire pour les utilisateurs non connectés",
+    "email_invalid": "Veuillez entrer une adresse e-mail valide",
+    "attach_screenshot": "Joindre une capture d'écran",
+    "remove_screenshot": "Supprimer",
+    "submit": "Envoyer",
+    "success": "Merci !",
+    "success_message": "Votre commentaire a été envoyé. Nous l'examinerons.",
+    "report_this_issue": "Signaler ce problème"
   },
   "paywall": {
     "stories_limit_title": "Limite d'histoires atteint",

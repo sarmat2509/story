@@ -24,6 +24,8 @@ interface LogEntry {
   storyId?: string;
   sceneId?: number;
   fullPrompt?: string;
+  /** Some builds / log levels only retain a truncated prompt */
+  promptPreview?: string;
   systemInstruction?: string;
   style?: string;
   ageGroup?: string;
@@ -194,7 +196,10 @@ async function collectPrompts(
     }
 
     // Capture prompt entries
-    if (entry.msg === 'Built scene prompt with Asset Graph pattern' && entry.fullPrompt) {
+    if (
+      entry.msg === 'Built scene prompt with Asset Graph pattern' &&
+      (entry.fullPrompt || entry.promptPreview)
+    ) {
       const sceneId = entry.sceneId ?? -1;
       if (filterSceneId !== undefined && sceneId !== filterSceneId) continue;
 
@@ -207,13 +212,18 @@ async function collectPrompts(
         ? `${ctx.msg} (refs: ${ctx.refs}, real: ${ctx.real}, imaginary: ${ctx.imaginary})`
         : 'initial generation';
 
+      const userPrompt = entry.fullPrompt || entry.promptPreview || '';
+      const truncated = !entry.fullPrompt && !!entry.promptPreview;
+
       prompts.push({
         time: entry.time,
         sceneId,
         style: entry.style || 'unknown',
         ageGroup: entry.ageGroup || 'unknown',
         systemInstruction: entry.systemInstruction || '',
-        userPrompt: entry.fullPrompt || '',
+        userPrompt: truncated
+          ? `${userPrompt}\n\n[… truncated in log — run: npx tsx src/scripts/showSceneImagePrompt.ts <storyId> <sceneId>]`
+          : userPrompt,
         promptLength: entry.promptLength || 0,
         imageIndexMap: entry.imageIndexMap,
         referenceLabels: entry.referenceLabels,

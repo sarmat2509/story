@@ -84,6 +84,7 @@ export interface AnalyzeCharacterRequest {
   characterType: CharacterType;
   language?: string; // User's preferred language for description (e.g., 'uk', 'en', 'ru')
   existingTraits?: Record<string, any>; // Optional: existing appearance traits to refine
+  isChildProfile?: boolean; // When true: no invented names, factual appearance only, no objects in hands
 }
 
 export interface CharacterAnalysisOptions {
@@ -185,7 +186,12 @@ export class CharacterAnalysisService {
     }));
     
     // 3. Build analysis prompt
-    const prompt = this.buildAnalysisPrompt(request.characterType, request.language || 'en', request.existingTraits);
+    const prompt = this.buildAnalysisPrompt(
+      request.characterType,
+      request.language || 'en',
+      request.existingTraits,
+      request.isChildProfile
+    );
     
     // 4. Call Gemini Vision API with structured output
     try {
@@ -276,7 +282,8 @@ export class CharacterAnalysisService {
   private buildAnalysisPrompt(
     characterType: 'person' | 'animal' | 'imaginary',
     language: string = 'en',
-    existingTraits?: Record<string, any>
+    existingTraits?: Record<string, any>,
+    isChildProfile?: boolean
   ): string {
     const characterTypeLabel = characterType === 'person' ? 'person/human' : 
                                characterType === 'animal' ? 'animal/pet' : 
@@ -286,13 +293,18 @@ export class CharacterAnalysisService {
       'uk': 'Ukrainian',
       'ru': 'Russian',
       'en': 'English',
-      'es': 'Spanish'
+      'es': 'Spanish',
+      'de': 'German',
+      'fr': 'French'
     };
-    const languageName = languageMap[language] || 'English';
+    const baseLocale = (language || '').split('-')[0]?.toLowerCase() || 'en';
+    const languageName = languageMap[baseLocale] || 'English';
     
     // Type-specific description guidance (used in the prompt for DETAILED_DESCRIPTION section)
-    const descriptionGuidance = characterType === 'person' 
-      ? `A flowing, narrative description of the character's appearance (2-3 sentences) in ${languageName}. Describe from top to bottom: hair/head first, then face features (eyes, nose, mouth), skin details (freckles, moles, birthmarks, dimples), body build, and clothing. Mention specific jewelry, hair accessories, and glasses if visible.`
+    const descriptionGuidance = characterType === 'person'
+      ? isChildProfile
+        ? `A factual, concise description of the child's physical appearance (2-3 sentences) in ${languageName}. Use plain language, no artistic or flowery phrases. Describe from top to bottom: hair (color, length, style), face (eyes, nose, mouth, skin tone), distinctive features (freckles, dimples, birthmarks if visible), body build, and clothing. Mention specific jewelry, hair accessories, and glasses if visible. Do NOT invent or use any names. Do NOT describe objects the child is holding (toys, stuffed animals, pets, etc.) — focus only on the child's appearance.`
+        : `A flowing, narrative description of the character's appearance (2-3 sentences) in ${languageName}. Describe from top to bottom: hair/head first, then face features (eyes, nose, mouth), skin details (freckles, moles, birthmarks, dimples), body build, and clothing. Mention specific jewelry, hair accessories, and glasses if visible.`
       : characterType === 'animal'
       ? `A flowing, narrative description of the animal's appearance (2-3 sentences) in ${languageName}. Start with species/breed, then describe fur/feathers (color, pattern, length, texture), body shape and size, distinctive markings (spots, patches, stripes with locations), and any accessories (collar, bandana).`
       : `A detailed, comprehensive description of the imaginary creature's appearance (3-5 sentences) in ${languageName}. Start with overall shape and size. Then describe EVERY body part with EXACT COUNTS (e.g. "three large blue eyes", "four small wings", "two curled horns"). Describe body texture, all colors and patterns, limbs and extremities. ANTHROPOMORPHIC LIMB RULE: AI illustration renders creatures in an anthropomorphic style — the front/upper pair of appendages becomes arms, the rest stay as legs. Describe limbs accordingly: 4 appendages = "two arms and two legs" (NOT "four legs"); 6 appendages = "two arms and four legs" (NOT "six legs"); 8 appendages = "two arms and six legs" (NOT "eight legs"). Exception: if ALL appendages are clearly legs (all in shoes/boots, creature walks on all fours like an animal, no grasping limbs), describe them all as legs and note "quadrupedal" or "multi-legged" explicitly. Mention any drawn accessories or magical elements.`;
@@ -468,7 +480,9 @@ IMPORTANT: Return null for ANY field that you cannot confidently determine from 
 
 Please provide a comprehensive JSON response with the following structure:
 
-1. SUGGESTED_NAME: A creative, fictional name for this character (1-3 words).
+1. SUGGESTED_NAME: ${isChildProfile && characterType === 'person' 
+    ? `Return empty string "". Do NOT invent or guess any name — this is a child profile, not a fictional character.`
+    : `A creative, fictional name for this character (1-3 words).
    - IMPORTANT: The name MUST be in ${languageName} language
    - For people: Invent a name that fits their age and personality
      Examples for Ukrainian: "Софійка", "Максимко", "Олівія", "Лео"
@@ -480,7 +494,7 @@ Please provide a comprehensive JSON response with the following structure:
      Examples for Ukrainian: "Блакитко", "Зірочка", "Фіолетик"
      Examples for English: "Bluey", "Starlight", "Violet"
    - Make it sound natural, like a real storybook character name
-   - Avoid generic descriptive labels like "Girl with Hair" or "Blue Dragon"
+   - Avoid generic descriptive labels like "Girl with Hair" or "Blue Dragon"`}
 
 2. DETAILED_DESCRIPTION: ${descriptionGuidance}
    This should be based ONLY on what is visible in the photos. If photos are very unclear, describe what you CAN see.

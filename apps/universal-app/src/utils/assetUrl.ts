@@ -29,6 +29,11 @@ export function isServerAssetUrl(url: string | null | undefined): boolean {
 export function formatAssetUrl(pathOrUrl: string | null | undefined): string | null {
   if (pathOrUrl == null || pathOrUrl === '') return null;
 
+  // Blob/file URLs (local picker, during upload) — use as-is, never send to assets API
+  if (pathOrUrl.startsWith('blob:') || pathOrUrl.startsWith('file:')) {
+    return pathOrUrl;
+  }
+
   // Cache by path (without token) — refetch returns new signed URL, reuse cached to avoid image flicker
   const pathKey = getPathKey(pathOrUrl);
 

@@ -6,7 +6,7 @@
  * Supports:
  * - Cartoon/illustration styles (better than Imagen 3 for non-photorealistic)
  * - AI-generated images as references (for character consistency)
- * - Up to 14 reference images in one request
+ * - Reference limits depend on model (e.g. Gemini 3.1 Flash Image: up to ~4 character + ~10 object refs)
  * - Aspect ratios: 1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9
  */
 
@@ -54,16 +54,25 @@ export class NanoBananaProProvider implements IImageProvider {
    */
   async generateImage(request: GenerateImageRequest): Promise<GeneratedImage> {
     // Log full prompt and all text parts for debugging
+    const refList = request.referenceImages || [];
+    const characterRefCount = refList.filter((r) => r.referenceKind === 'character').length;
+    const objectRefCount = refList.filter((r) => r.referenceKind === 'object').length;
+    const unlabeledRefCount = refList.length - characterRefCount - objectRefCount;
+
     logger.info({ 
       promptLength: request.prompt.length,
       promptWordCount: request.prompt.split(/\s+/).length,
       fullPrompt: request.prompt,
       hasReferences: !!request.referenceImages,
       referenceCount: request.referenceImages?.length || 0,
+      referenceKindCharacterCount: characterRefCount,
+      referenceKindObjectCount: objectRefCount,
+      referenceKindUnlabeledCount: unlabeledRefCount,
       referenceInstructions: request.referenceImages?.map((ref, i) => ({
         index: i,
         instructionText: ref.instructionText || null,
         characterName: ref.characterName || null,
+        referenceKind: ref.referenceKind ?? null,
       })),
       aspectRatio: request.aspectRatio,
       model: this.model,
@@ -386,9 +395,9 @@ export class NanoBananaProProvider implements IImageProvider {
           `Gemini could not ${operationType === 'edit' ? 'edit' : 'generate'} an image. ` +
           `This may occur due to: ` +
           `1) Prompt too long (current: ${promptLength} chars), ` +
-          `2) Too many reference images (current: ${referenceCount}, max: 3), ` +
+          `2) Too many or incompatible reference images (current: ${referenceCount}; for gemini-3.1-flash-image-preview use separate character vs object caps — see IMAGE_MAX_CHARACTER_REFERENCE_IMAGES / IMAGE_MAX_OBJECT_REFERENCE_IMAGES), ` +
           `3) Unsupported content in prompt. ` +
-          `Try simplifying the prompt or reducing reference images.`
+          `Try simplifying the prompt or reducing object references (environment / outfit plates) first.`
         );
       }
 

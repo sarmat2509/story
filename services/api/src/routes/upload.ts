@@ -43,7 +43,7 @@ router.post('/photo', requireAuth, upload.single('photo'), async (req, res) => {
     if (!isPhotoTypeUserUpload(photoType)) {
       return res.status(400).json({
         status: 'error',
-        error: 'Invalid photoType. Must be: profile, character, or child'
+        error: 'Invalid photoType. Must be: profile, character, child, or feedback'
       });
     }
 
@@ -67,10 +67,12 @@ router.post('/photo', requireAuth, upload.single('photo'), async (req, res) => {
     }, 'User photo uploaded successfully');
 
     // Return signed URL so <Image> can load it without Bearer auth header
+    // storagePath: for feedback screenshots, used when submitting to user_feedback
     res.json({
       status: 'success',
       photo: {
         url: result.signedUrl || result.storageUrl,
+        storagePath: result.storagePath,
         uploadedAt: new Date().toISOString()
       }
     });

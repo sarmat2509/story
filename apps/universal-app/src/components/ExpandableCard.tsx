@@ -31,14 +31,14 @@ export function ExpandableCard({ title, icon, children, defaultExpanded = false 
         activeOpacity={0.7}
       >
         <View style={styles.headerLeft}>
-          {icon && (
-            <Ionicons 
-              name={icon} 
-              size={24} 
+          {icon ? (
+            <Ionicons
+              name={icon}
+              size={24}
               color={theme.colors.text.primary}
               style={styles.iconSpacing}
             />
-          )}
+          ) : null}
           <Text style={styles.title}>{title}</Text>
         </View>
         <Ionicons 

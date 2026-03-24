@@ -40,15 +40,13 @@ export default function PlansScreen() {
   // Fixed feature order - same for all plans
   const FEATURE_ORDER = [
     'stories_per_day',
-    'images_per_story', 
-    'image_quality',
+    'images_per_story',
     'premium_voices',
     'child_profiles_limit',
     'series_enabled',
     'export_pdf',
     'export_video',
     'share_enabled',
-    'story_from_drawing',
   ];
   
   // Sort features: available first, unavailable last, in fixed order
@@ -64,9 +62,11 @@ export default function PlansScreen() {
     
     entries.forEach(([slug, feature]: [string, any]) => {
       if (slug === 'audio_stories_per_month') return; // Skip highlighted feature
+      if (slug === 'story_from_drawing') return; // Removed: same as Instant mode, avoid confusion
+      if (slug === 'image_quality') return; // Removed: quality is same across plans
       
-      const isAvailable = feature.value?.enabled !== false && 
-                         (feature.value?.limit === undefined || feature.value?.limit > 0);
+      const isAvailable = feature.value?.enabled !== false &&
+                         (feature.value?.limit === undefined || feature.value?.limit == null || feature.value?.limit > 0);
       
       if (isAvailable) {
         available.push([slug, feature]);
@@ -133,8 +133,9 @@ export default function PlansScreen() {
   // Helper to render feature value
   const renderFeatureValue = (feature: any) => {
     const value = feature.value;
-    
+
     if ('limit' in value) {
+      if (value.limit == null) return '∞';
       return `${value.limit} ${value.unit || ''}`;
     }
     if ('enabled' in value) {
@@ -150,7 +151,7 @@ export default function PlansScreen() {
   const isFeatureAvailable = (feature: any) => {
     const value = feature.value;
     if ('enabled' in value) return value.enabled;
-    if ('limit' in value) return value.limit > 0;
+    if ('limit' in value) return value.limit == null || value.limit > 0;
     return true;
   };
   
@@ -290,10 +291,16 @@ export default function PlansScreen() {
                           !available && styles.featureTextDisabled
                         ]}
                       >
-                        {t(`plans.features.${slug}`, { 
-                          defaultValue: feature.name,
-                          value: renderFeatureValue(feature)
-                        })}
+                        {slug === 'child_profiles_limit' && feature.value?.limit == null
+                          ? t('plans.features.child_profiles_limit_unlimited')
+                          : slug === 'child_profiles_limit' && feature.value?.limit === 1
+                          ? t('plans.features.child_profiles_limit_one')
+                          : slug === 'images_per_story' && typeof feature.value?.limit === 'number'
+                          ? t('plans.features.images_per_story', { value: feature.value.limit, count: feature.value.limit })
+                          : t(`plans.features.${slug}`, { 
+                              defaultValue: feature.name,
+                              value: renderFeatureValue(feature)
+                            })}
                       </Text>
                     </View>
                   );
@@ -334,7 +341,7 @@ export default function PlansScreen() {
               ) : (
                 <TouchableOpacity 
                   style={styles.subscribeButton}
-                  onPress={() => navigation.navigate('Login')}
+                  onPress={() => navigation.navigate('Welcome')}
                 >
                   <Text style={styles.subscribeButtonText}>
                     {t('plans.subscribe_button')}
@@ -392,10 +399,16 @@ export default function PlansScreen() {
                           color={theme.colors.status.success}
                         />
                         <Text style={styles.featureText}>
-                          {t(`plans.features.${slug}`, { 
-                            defaultValue: feature.name,
-                            value: feature.value?.limit || ''
-                          })}
+                          {slug === 'child_profiles_limit' && feature.value?.limit == null
+                            ? t('plans.features.child_profiles_limit_unlimited')
+                            : slug === 'child_profiles_limit' && feature.value?.limit === 1
+                            ? t('plans.features.child_profiles_limit_one')
+                            : slug === 'images_per_story' && typeof feature.value?.limit === 'number'
+                            ? t('plans.features.images_per_story', { value: feature.value.limit, count: feature.value.limit })
+                            : t(`plans.features.${slug}`, { 
+                                defaultValue: feature.name,
+                                value: feature.value?.limit ?? renderFeatureValue(feature)
+                              })}
                         </Text>
                       </View>
                     );
@@ -522,6 +535,7 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
     marginBottom: theme.spacing[4],
+    minHeight: 33,
   },
   priceContainer: {
     flexDirection: 'row',

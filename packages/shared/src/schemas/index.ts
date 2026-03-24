@@ -161,10 +161,9 @@ import {
 } from '../constants/humanTraits';
 
 // Child Profile Schemas
-export const CreateChildProfileSchema = z.object({
+const BaseChildProfileSchema = z.object({
   name: z.string().min(1).max(100),
   birthDate: z.coerce.date().max(new Date(), 'Birth date cannot be in future'),
-  gender: z.enum(['girl', 'boy', 'other']).optional(),
   
   // Languages array (min 1, max 3)
   languages: z.array(LocaleSchema).min(1).max(3),
@@ -211,7 +210,13 @@ export const CreateChildProfileSchema = z.object({
   descriptionLanguage: z.string().max(10).optional()
 });
 
-export const UpdateChildProfileSchema = CreateChildProfileSchema.partial();
+export const CreateChildProfileSchema = BaseChildProfileSchema.refine(
+  (data) => (data.referencePhotos?.length ?? 0) > 0 || (data.aiGeneratedDescription?.trim().length ?? 0) > 0,
+  { message: 'Either referencePhotos or aiGeneratedDescription is required', path: ['aiGeneratedDescription'] }
+);
+
+// Update schema: omit referencePhotos (read-only on edit)
+export const UpdateChildProfileSchema = BaseChildProfileSchema.omit({ referencePhotos: true }).partial();
 
 // Character Schemas (Type-specific)
 
@@ -229,6 +234,9 @@ const BaseCharacterSchema = z.object({
   
   // Optional free text description
   description: z.string().max(5000).optional(),
+
+  // AI-generated description (from photo analysis)
+  aiGeneratedDescription: z.string().max(5000).optional(),
   
   // Language code of the description (from analysis or UI language)
   descriptionLanguage: z.string().max(10).optional()
@@ -310,9 +318,13 @@ export const CreateCharacterSchema = BaseCharacterSchema.and(
       personality: ImaginaryPersonalitySchema.optional()
     })
   ])
+).refine(
+  (data) => (data.referencePhotos?.length ?? 0) > 0 || (data.description?.trim().length ?? 0) > 0 || (data.aiGeneratedDescription?.trim().length ?? 0) > 0,
+  { message: 'Either referencePhotos, description, or aiGeneratedDescription is required', path: ['description'] }
 );
 
-export const UpdateCharacterSchema = BaseCharacterSchema.partial().and(
+// Update schema: omit referencePhotos (read-only on edit)
+export const UpdateCharacterSchema = BaseCharacterSchema.omit({ referencePhotos: true }).partial().and(
   z.discriminatedUnion('type', [
     z.object({
       type: z.literal('animal'),
@@ -329,10 +341,6 @@ export const UpdateCharacterSchema = BaseCharacterSchema.partial().and(
     z.object({
       type: z.literal('imaginary'),
       subtype: z.enum(IMAGINARY_SUBTYPES).optional(),
-      referencePhotos: z.array(z.object({
-        url: z.string().url(),
-        uploadedAt: z.union([z.coerce.date(), z.string().datetime()]).optional()
-      })).max(5).optional(),
       appearanceTraits: ImaginaryAppearanceSchema.optional(),
       personality: ImaginaryPersonalitySchema.optional()
     })

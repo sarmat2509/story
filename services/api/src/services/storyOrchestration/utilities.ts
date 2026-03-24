@@ -4,6 +4,10 @@
 
 import { getStoryRepository, getSceneRepository } from '../../repositories';
 import { logger } from '../../utils/logger';
+import {
+  cameraCompositionOutfitsToRecord,
+  outfitBindingsToRecord,
+} from '../../utils/characterOutfits';
 import { normalizeCharacterName } from '../../utils/characterNormalization';
 import { stripCharacterIds } from '../../utils/audioTags';
 import { flattenCameraComposition } from '../types';
@@ -197,20 +201,41 @@ export function mergeDirectorIntoText(
   directorResult: {
     characters: any[];
     environments: any[];
-    illustrations: Array<{ environmentId: string; sceneVisual: any }>;
+    outfits?: any[];
+    illustrations: Array<{
+      environmentId: string;
+      /** @deprecated LLM legacy; prefer sceneVisual.cameraComposition.characters[].outfitId */
+      outfitBindings?: Array<{ characterName?: string; outfitId?: string }>;
+      characterOutfitIds?: Record<string, string>;
+      sceneVisual: any;
+    }>;
   },
   imagesPerStory: number
 ): any {
   const sceneIds = getIllustrationBlockStartSceneIds(plainText.scenes.length, imagesPerStory);
+  const blockSize = Math.ceil(plainText.scenes.length / imagesPerStory) || 1;
   const sceneMap = new Map(plainText.scenes.map(s => [s.sceneId, { ...s }]));
 
   for (let i = 0; i < directorResult.illustrations.length && i < sceneIds.length; i++) {
-    const sceneId = sceneIds[i];
-    const scene = sceneMap.get(sceneId);
+    const anchor = sceneIds[i];
+    const sceneEnd = Math.min(anchor + blockSize - 1, plainText.scenes.length);
     const ill = directorResult.illustrations[i];
-    if (scene && ill) {
-      (scene as any).sceneVisual = ill.sceneVisual;
-      (scene as any).environmentId = ill.environmentId;
+    const outfitRecord =
+      cameraCompositionOutfitsToRecord(ill?.sceneVisual?.cameraComposition) ??
+      outfitBindingsToRecord(ill?.outfitBindings) ??
+      (ill?.characterOutfitIds && Object.keys(ill.characterOutfitIds).length > 0
+        ? { ...ill.characterOutfitIds }
+        : undefined);
+    for (let sid = anchor; sid <= sceneEnd; sid++) {
+      const sc = sceneMap.get(sid);
+      if (!sc || !ill) continue;
+      (sc as any).environmentId = ill.environmentId;
+      if (outfitRecord && Object.keys(outfitRecord).length > 0) {
+        (sc as any).characterOutfitIds = { ...outfitRecord };
+      }
+      if (sid === anchor) {
+        (sc as any).sceneVisual = ill.sceneVisual;
+      }
     }
   }
 
@@ -220,6 +245,7 @@ export function mergeDirectorIntoText(
     description: plainText.description,
     characters: directorResult.characters,
     environments: directorResult.environments,
+    outfits: Array.isArray(directorResult.outfits) ? directorResult.outfits : [],
     scenes: Array.from(sceneMap.values()).sort((a, b) => a.sceneId - b.sceneId),
     fullText: plainText.fullText,
     wordCount: plainText.wordCount,

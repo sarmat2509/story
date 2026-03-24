@@ -7,12 +7,12 @@ import { logger } from '../utils/logger';
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
-import { generateTurnaroundSheet, generateLlmCharacterTurnaround, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
+import { generateTurnaroundSheetFromReference, generateLlmCharacterTurnaround, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
 
 const router = Router();
 
 // Initialize analysis service
-const geminiProvider = new GeminiTextProvider(config.google.apiKey);
+const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
 const analysisService = new CharacterAnalysisService(geminiProvider);
 
 // POST /api/v1/characters/analyze - Analyze character photos
@@ -223,123 +223,69 @@ router.post('/', requireAuth, async (req, res) => {
     // Create character
     const character = await characterService.createCharacter(userId, data);
     
+    // Generate turnaround (mandatory) - create then generate, rollback on failure
+    if (isTurnaroundSheetEnabled()) {
+      try {
+        const referencePhotos = character.referencePhotos as Array<{ url?: string }> | undefined;
+        const hasPhotos = referencePhotos && Array.isArray(referencePhotos) && referencePhotos.length > 0;
+        const firstPhoto = hasPhotos ? referencePhotos!.find(p => p && p.url) : undefined;
+        const aiDescription = character.aiGeneratedDescription
+          || (character as any).descriptionEn
+          || (character as any).appearance
+          || character.description
+          || undefined;
+
+        if (firstPhoto?.url) {
+          await generateTurnaroundSheetFromReference({
+            targetType: 'character',
+            targetId: character.id,
+            referencePhotoUrls: referencePhotos!.map(p => p.url!).filter(Boolean),
+            characterName: character.name,
+            userId,
+            aiDescription,
+          });
+        } else if (aiDescription && aiDescription.trim().length > 0) {
+          await generateLlmCharacterTurnaround({
+            characterId: character.id,
+            userId,
+            characterName: character.name,
+            characterDescription: aiDescription.trim(),
+            useCache: character.isHidden,
+          });
+        } else {
+          await characterService.deleteCharacter(character.id, userId);
+          return res.status(400).json({
+            status: 'error',
+            error: 'Character must have reference photos or description for turnaround',
+          });
+        }
+      } catch (turnaroundError) {
+        logger.error({
+          err: turnaroundError,
+          characterId: character.id,
+          userId,
+        }, 'Turnaround generation failed, rolling back character create');
+        await characterService.deleteCharacter(character.id, userId);
+        return res.status(500).json({
+          status: 'error',
+          error: 'Failed to generate character model',
+        });
+      }
+    }
+
+    // Refetch character to get full turnaroundSheet data
+    const updatedCharacter = await characterService.getCharacterById(character.id, userId);
+    const characterToReturn = updatedCharacter ?? character;
+    
     res.status(201).json({
       status: 'success',
-      character,
+      character: characterToReturn,
     });
   } catch (error) {
     logger.error({ error, userId: req.user?.id }, 'Error creating character');
     res.status(500).json({
       status: 'error',
       error: 'Failed to create character'
-    });
-  }
-});
-
-// POST /api/v1/characters/:id/turnaround - Generate turnaround model sheet
-router.post('/:id/turnaround', requireAuth, async (req, res) => {
-  try {
-    const userId = req.user!.id;
-    const { id } = req.params;
-
-    // Check feature flag
-    if (!isTurnaroundSheetEnabled()) {
-      return res.status(501).json({
-        status: 'error',
-        error: 'Turnaround sheet generation is not enabled',
-      });
-    }
-
-    // Ownership + existence check
-    const character = await characterService.getCharacterById(id, userId);
-    if (!character) {
-      return res.status(404).json({
-        status: 'error',
-        error: 'Character not found',
-      });
-    }
-
-    // Use description from request body (possibly unsaved edits) or fall back to DB
-    const aiDescription = req.body.description
-      || (character as any).descriptionEn
-      || character.aiGeneratedDescription
-      || (character as any).appearance
-      || character.description
-      || undefined;
-
-    const referencePhotos = character.referencePhotos as Array<{ url?: string }> | undefined;
-    const firstPhoto = referencePhotos && Array.isArray(referencePhotos)
-      ? referencePhotos.find(p => p && p.url)
-      : undefined;
-
-    // Need either reference photo OR description
-    if (firstPhoto?.url) {
-      // Photo-based generation
-      logger.info({
-        userId,
-        characterId: id,
-        characterName: character.name,
-        hasBodyDescription: !!req.body.description,
-      }, 'Generating turnaround sheet on demand (photo-based)');
-
-      const result = await generateTurnaroundSheet({
-        characterId: id,
-        userId,
-        referencePhotoUrl: firstPhoto.url,
-        characterName: character.name,
-        aiDescription,
-      });
-
-      return res.json({
-        status: 'success',
-        turnaroundSheet: {
-          url: `/api/v1/assets/${result.url}`,
-          generatedAt: result.generatedAt,
-        },
-      });
-    }
-
-    if (aiDescription && aiDescription.trim().length > 0) {
-      // Description-only generation (no photo)
-      logger.info({
-        userId,
-        characterId: id,
-        characterName: character.name,
-      }, 'Generating turnaround sheet on demand (description-only)');
-
-      const result = await generateLlmCharacterTurnaround({
-        characterId: id,
-        userId,
-        characterName: character.name,
-        characterDescription: aiDescription.trim(),
-        imageStyle: (req.body.imageStyle as string) || undefined,
-        useCache: character.isHidden,
-      });
-
-      return res.json({
-        status: 'success',
-        turnaroundSheet: {
-          url: `/api/v1/assets/${result.url}`,
-          generatedAt: result.generatedAt,
-        },
-      });
-    }
-
-    return res.status(400).json({
-      status: 'error',
-      error: 'Add a photo/drawing or description to generate the model sheet',
-    });
-  } catch (error) {
-    logger.error({
-      err: error instanceof Error
-        ? { message: error.message, name: error.name, stack: error.stack }
-        : String(error),
-      userId: req.user?.id,
-      characterId: req.params.id,
-    }, 'Error generating turnaround sheet');
-    res.status(500).json({
-      status: 'error',
-      error: 'Failed to generate turnaround model sheet',
     });
   }
 });
@@ -467,33 +413,6 @@ router.patch('/:id', requireAuth, async (req, res) => {
     res.status(500).json({
       status: 'error',
       error: 'Failed to update character'
-    });
-  }
-});
-
-// DELETE /api/v1/characters/:id - Delete character
-router.delete('/:id', requireAuth, async (req, res) => {
-  try {
-    const userId = req.user!.id;
-    const { id } = req.params;
-    
-    // Delete character (ownership check happens in service)
-    await characterService.deleteCharacter(id, userId);
-    
-    res.status(204).send();
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.includes('not found')) {
-      return res.status(404).json({
-        status: 'error',
-        error: 'Character not found'
-      });
-    }
-    
-    logger.error({ error, userId: req.user?.id, characterId: req.params.id }, 'Error deleting character');
-    res.status(500).json({
-      status: 'error',
-      error: 'Failed to delete character'
     });
   }
 });

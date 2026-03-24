@@ -68,8 +68,7 @@ const linking: any = {
       Main: {
         path: '',
         screens: {
-          Landing: '',
-          Login: 'login',
+          Welcome: 'welcome',
           Register: 'register',
           ForgotPassword: 'auth/forgot-password',
           ResetPassword: 'auth/reset-password',

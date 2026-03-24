@@ -530,10 +530,10 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     
     const { CharacterAnalysisService } = await import('../services/characterAnalysisService');
     const { GeminiTextProvider } = await import('../providers/text/gemini/GeminiTextProvider');
-    const { generateTurnaroundSheet, isTurnaroundSheetEnabled } = await import('../services/turnaroundSheetService');
+    const { generateTurnaroundSheetFromReference, isTurnaroundSheetEnabled } = await import('../services/turnaroundSheetService');
     const { getCharacterRepository } = await import('../repositories');
     
-    const geminiProvider = new GeminiTextProvider(config.google.apiKey);
+    const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
     const analysisService = new CharacterAnalysisService(geminiProvider);
     
     for (const group of photoGroups) {
@@ -603,13 +603,14 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
               requestId
             }, 'Generating turnaround sheet (instant mode)');
             
-            const turnaroundResult = await generateTurnaroundSheet({
-              characterId: character.id,
-              userId: request.userId,
-              referencePhotoUrl: group.photoUrls[0],
+            const turnaroundResult = await generateTurnaroundSheetFromReference({
+              targetType: 'character',
+              targetId: character.id,
+              referencePhotoUrls: group.photoUrls,
               characterName: character.name,
-              aiDescription: analysis.detailedDescription,
+              userId: request.userId,
               storyId,
+              aiDescription: analysis.detailedDescription,
             });
             
             logger.info({

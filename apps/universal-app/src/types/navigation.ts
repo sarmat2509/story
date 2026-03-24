@@ -7,7 +7,7 @@ export type RootStackParamList = {
 
 export type MainDrawerParamList = {
   Landing: undefined;
-  Login: undefined;
+  Welcome: undefined;
   Register: undefined;
   ForgotPassword: undefined;
   ResetPassword: { token?: string };

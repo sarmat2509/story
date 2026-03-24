@@ -10,6 +10,7 @@ import { theme } from '@/theme';
 import { StoryCard } from '@/components/StoryCard';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { LibraryHeader } from '@/components/LibraryHeader';
+import { FeedbackModal } from '@/components/FeedbackModal';
 import { AudioFilterToggleRef } from '@/components/AudioFilterToggle';
 import { storage } from '@/utils/storage';
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -29,6 +30,7 @@ export default function LibraryScreen() {
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [storyToDelete, setStoryToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   
   // Ref to AudioFilterToggle for imperative control
   const audioToggleRef = useRef<AudioFilterToggleRef>(null);
@@ -202,11 +204,18 @@ export default function LibraryScreen() {
           scenarioCards={scenarioCards}
           selectedScenarioId={scenarioFilter}
           onScenarioChange={handleScenarioFilterChange}
+          onReportProblem={() => setShowFeedbackModal(true)}
         />
         <View style={styles.centerContainer}>
           <Text style={styles.emptyText}>No stories yet</Text>
           <Text style={styles.emptySubtext}>Create your first story!</Text>
         </View>
+
+        <FeedbackModal
+          visible={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+          initialReportedScreen="library"
+        />
       </View>
     );
   }
@@ -228,6 +237,7 @@ export default function LibraryScreen() {
           scenarioCards={scenarioCards}
           selectedScenarioId={scenarioFilter}
           onScenarioChange={handleScenarioFilterChange}
+          onReportProblem={() => setShowFeedbackModal(true)}
         />
         <ScrollView contentContainerStyle={styles.grid}>
           <View
@@ -270,6 +280,12 @@ export default function LibraryScreen() {
           onCancel={cancelDelete}
           variant="danger"
         />
+
+        <FeedbackModal
+          visible={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+          initialReportedScreen="library"
+        />
       </View>
     );
   }
@@ -290,6 +306,7 @@ export default function LibraryScreen() {
         scenarioCards={scenarioCards}
         selectedScenarioId={scenarioFilter}
         onScenarioChange={handleScenarioFilterChange}
+        onReportProblem={() => setShowFeedbackModal(true)}
       />
       <FlatList
         data={stories}
@@ -313,6 +330,12 @@ export default function LibraryScreen() {
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
         variant="danger"
+      />
+
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="library"
       />
     </View>
   );

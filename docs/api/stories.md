@@ -398,6 +398,10 @@ If AI generates inappropriate content:
 # Required for M3
 GEMINI_API_KEY=your_gemini_api_key
 AI_TEXT_VENDOR=gemini
+# Optional: Director (structured visuals) only; when unset, matches AI_TEXT_VENDOR
+# AI_DIRECTOR_TEXT_VENDOR=openai
+# OPENAI_API_KEY=...  # required in production if AI_TEXT_VENDOR or AI_DIRECTOR_TEXT_VENDOR is openai
+# AI_DIRECTOR_OPENAI_MODEL=gpt-5.2  # optional; defaults to OPENAI_TEXT_MODEL
 AI_MODEL_VERSION=gemini-2.5-flash
 AI_MAX_RETRIES=3
 AI_TIMEOUT_MS=30000

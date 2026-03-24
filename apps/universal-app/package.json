@@ -11,6 +11,9 @@
     "build:web": "expo export --platform web",
     "build:web:clean": "expo export --platform web --clear",
     "generate:icons": "node scripts/generate-web-icons.js",
+    "generate:og-landing": "node scripts/generate-og-landing.js",
+    "optimize:landing-assets": "node scripts/optimize-landing-assets.js",
+    "slice:voice-avatars": "node scripts/slice-voice-avatars.js",
     "lint": "eslint src --ext .ts,.tsx",
     "type-check": "tsc --noEmit"
   },

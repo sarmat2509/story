@@ -61,7 +61,7 @@ export default function LandingScreen() {
         {!isAuthenticated && (
           <TouchableOpacity
             style={[styles.button, styles.primaryButton]}
-            onPress={() => navigation.navigate('Login')}
+            onPress={() => navigation.navigate('Welcome')}
           >
             <Text style={styles.primaryButtonText}>Get Started</Text>
           </TouchableOpacity>

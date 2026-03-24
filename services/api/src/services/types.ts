@@ -44,8 +44,10 @@ export interface StoryRequestData {
  * Per-character composition entry inside the structured cameraComposition.
  */
 export interface CameraCharacterComposition {
-  name: string;        // Character name (EXACT from the story character list)
+  name: string; // Character name (EXACT from the story character list)
   description: string; // Position, posture, action, expression, gaze
+  /** References outfits[].id for this scene (required in LLM JSON schema). */
+  outfitId?: string;
 }
 
 /**
@@ -87,7 +89,9 @@ export interface SceneData {
   text: string;
   sceneVisual?: SceneVisual; // Structured visual description for image generation
   visualPrompt?: string; // Deprecated: kept for backward compatibility with old stories
-  characterOutfits?: Record<string, string>; // Per-scene outfit override: charName -> outfit description
+  /** Maps character name → outfit id from story root `outfits[]` (new format). */
+  characterOutfitIds?: Record<string, string>;
+  characterOutfits?: Record<string, string>; // Legacy per-scene outfit override: charName -> description
 }
 
 export interface StoryTextData {
@@ -117,12 +121,17 @@ export interface LLMCharacter {
   personality?: string;
 }
 
+/** Wardrobe definitions from story JSON (`outfits` array). */
+export type StoryOutfitEntry = { id: string; characterName: string; description: string };
+
 export interface ImageGenerationContext {
   childProfile?: ChildProfileData;
   characters: CharacterData[];
   userStyle?: string;
   ageGroup: string;
   scenarioCardId?: string;
+  /** When present with scene.characterOutfitIds, resolves wardrobe for image gen / validation. */
+  storyOutfits?: StoryOutfitEntry[];
   userPlan: {
     imagesPerStory: number;
     imageQuality: string;

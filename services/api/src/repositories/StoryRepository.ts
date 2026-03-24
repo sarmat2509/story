@@ -3,6 +3,17 @@ import { eq, and, desc, asc, sql, isNotNull, inArray, gte, lte } from 'drizzle-o
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
+/** Matches DB varchar length on story_characters.role (after migration 0065). */
+const STORY_CHARACTER_ROLE_MAX_LEN = 255;
+
+function normalizeStoryCharacterRole(role: string | null | undefined): string {
+  const r = (role ?? 'supporting').toString().trim();
+  if (!r) return 'supporting';
+  return r.length > STORY_CHARACTER_ROLE_MAX_LEN
+    ? r.slice(0, STORY_CHARACTER_ROLE_MAX_LEN)
+    : r;
+}
+
 export class StoryRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
@@ -483,7 +494,11 @@ export class StoryRepository {
   ): Promise<void> {
     if (data.length === 0) return;
     const conn = tx || this.db;
-    await conn.insert(schema.storyCharacters).values(data);
+    const rows = data.map((row) => ({
+      ...row,
+      role: normalizeStoryCharacterRole(row.role),
+    }));
+    await conn.insert(schema.storyCharacters).values(rows);
   }
 
   async createStoryCharacter(
@@ -491,7 +506,10 @@ export class StoryRepository {
     tx?: NodePgDatabase<typeof schema>
   ): Promise<void> {
     const conn = tx || this.db;
-    await conn.insert(schema.storyCharacters).values(data);
+    await conn.insert(schema.storyCharacters).values({
+      ...data,
+      role: normalizeStoryCharacterRole(data.role),
+    });
   }
 
   async findLinkedCharactersByStoryId(storyId: string): Promise<Array<{

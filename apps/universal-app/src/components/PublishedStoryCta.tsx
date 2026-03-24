@@ -22,7 +22,7 @@ export function PublishedStoryCta({ slug, isAuthenticated, inSidebar }: Publishe
     return null;
   }
 
-  const loginUrl = `/login?redirect=${encodeURIComponent(`/stories/${slug}`)}`;
+  const loginUrl = `/welcome`;
 
   const handlePress = () => {
     Linking.openURL(loginUrl);

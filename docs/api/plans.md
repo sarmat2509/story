@@ -208,13 +208,11 @@ const maxChildren = await planService.getFeatureLimit(userId, 'child_profiles_li
 |---------|------|---------|--------|
 | Stories/day | 1 | 2 | 5 |
 | Images/story | 3 | 12 | 12 |
-| Image quality | Low | Medium | High |
 | Audio minutes/month | 10 | 120 | 300 |
 | Story series | ❌ | ✅ | ✅ |
 | Premium voices | ❌ | ✅ | ✅ |
 | PDF export | ❌ | ✅ | ✅ |
 | Video export | ❌ | ❌ | ✅ |
-| Story from drawing | ❌ | ✅ | ✅ |
 | Child profiles | 1 | 2 | 4 |
 
 ## Usage Tracking

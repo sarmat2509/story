@@ -135,7 +135,7 @@ export default function ResetPasswordScreen() {
           <Text style={styles.successTitle}>{t('auth.reset_success')}</Text>
           <TouchableOpacity
             style={styles.button}
-            onPress={() => (navigation as any).navigate('Login')}
+            onPress={() => (navigation as any).navigate('Welcome')}
           >
             <Text style={styles.buttonText}>{t('auth.login')}</Text>
           </TouchableOpacity>
@@ -209,7 +209,7 @@ export default function ResetPasswordScreen() {
 
         <TouchableOpacity
           style={styles.backLink}
-          onPress={() => (navigation as any).navigate('Login')}
+          onPress={() => (navigation as any).navigate('Welcome')}
         >
           <Text style={styles.backLinkText}>{t('auth.back_to_login')}</Text>
         </TouchableOpacity>

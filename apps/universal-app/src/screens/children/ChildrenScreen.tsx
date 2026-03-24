@@ -1,32 +1,91 @@
 import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform, useWindowDimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useChildren } from '@/api/children';
+import { useChildren, useDeleteChild } from '@/api/children';
+import { ChildFormContent } from '@/components/ChildFormContent';
 import { ChildFormModal } from '@/components/ChildFormModal';
+import { FeedbackModal } from '@/components/FeedbackModal';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { ChildCard } from './components/ChildCard';
 import { theme } from '@/theme';
-import { formatAssetUrl } from '@/utils/assetUrl';
-import { ReferencePhoto } from '@wondertales/shared';
+import type { ReferencePhoto } from '@wondertales/shared';
+import type { ChildFormInitialData } from '@/components/ChildFormContent';
+
+function useColumns(): number {
+  const { width } = useWindowDimensions();
+  if (width >= 1024) return 4;
+  if (width >= 768) return 3;
+  return 2;
+}
+
+function mapChildToInitialData(child: Record<string, unknown>): ChildFormInitialData {
+  const birthDate = child.birthDate ?? child.birthdate;
+  return {
+    name: String(child.name ?? ''),
+    birthDate: birthDate instanceof Date ? birthDate : new Date(String(birthDate ?? '')),
+    languages: Array.isArray(child.languages) ? child.languages : [],
+    referencePhotos: child.referencePhotos as ReferencePhoto[] | undefined,
+    appearanceTraits: child.appearanceTraits as Record<string, unknown> | undefined,
+    personality: child.personality as Record<string, unknown> | undefined,
+    interests: child.interests as unknown[] | undefined,
+    sensitivities: child.sensitivities as Record<string, unknown> | undefined,
+    familyCast: child.familyCast as Record<string, string> | undefined,
+    aiGeneratedDescription: child.aiGeneratedDescription as string | undefined,
+    descriptionLanguage: child.descriptionLanguage as string | undefined,
+    turnaroundSheet: child.turnaroundSheet as { url: string; frontUrl?: string; generatedAt: string } | undefined,
+  };
+}
 
 export default function ChildrenScreen() {
   const { t } = useTranslation();
-  const { data: children, isLoading, error } = useChildren();
+  const { width } = useWindowDimensions();
+  const { data, isLoading, error } = useChildren();
+  const deleteChild = useDeleteChild();
+  const columns = useColumns();
+  const paddingHorizontal = theme.spacing[6] * 2;
+  const gap = theme.spacing[4];
+  const cardWidth = (width - paddingHorizontal - gap * (columns - 1)) / columns;
+
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
+  const [childToDelete, setChildToDelete] = useState<{ id: string; name: string } | null>(null);
   const [editingChild, setEditingChild] = useState<{
     id: string;
-    name: string;
-    birthDate: Date;
-    gender?: 'girl' | 'boy' | 'other';
-    languages: string[];
-    referencePhotos?: ReferencePhoto[];
-    appearanceTraits?: any;
-    personality?: any;
-    interests?: any;
-    sensitivities?: any;
-    familyCast?: Record<string, string>;
-    aiGeneratedDescription?: string;
-    descriptionLanguage?: string;
-    turnaroundSheet?: { url: string; frontUrl?: string; generatedAt: string };
-  } | undefined>();
+  } & ChildFormInitialData | undefined>();
+
+  const children = data?.children ?? [];
+  const limit = data?.limit ?? null;
+  const canCreateMore = data?.canCreateMore ?? false;
+  // Inline form only when limit=1 AND at most 1 child (if user has 2+ despite plan, show list)
+  const isInlineMode = limit === 1 && children.length <= 1;
+
+  const handleEditChild = (child: Record<string, unknown>) => {
+    setEditingChild({
+      id: String(child.id ?? ''),
+      ...mapChildToInitialData(child),
+    });
+    setIsModalVisible(true);
+  };
+
+  const handleDelete = (childId: string, childName: string) => {
+    setChildToDelete({ id: childId, name: childName });
+    setDeleteDialogVisible(true);
+  };
+
+  const confirmDelete = () => {
+    if (childToDelete) {
+      deleteChild.mutate(childToDelete.id);
+      setDeleteDialogVisible(false);
+      setChildToDelete(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteDialogVisible(false);
+    setChildToDelete(null);
+  };
 
   if (isLoading) {
     return (
@@ -45,113 +104,112 @@ export default function ChildrenScreen() {
     );
   }
 
+  // Inline mode: limit === 1 — form directly on page, no modal
+  if (isInlineMode) {
+    const existingChild = children[0];
+    return (
+      <>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{t('children_screen.title_single')}</Text>
+          <Text style={styles.subtitle}>{t('children_screen.subtitle_single')}</Text>
+        </View>
+        <ChildFormContent
+          key={existingChild?.id ?? 'new'}
+          childId={existingChild?.id}
+          initialData={existingChild ? mapChildToInitialData(existingChild as Record<string, unknown>) : undefined}
+          onSuccess={() => {}}
+          variant="inline"
+        />
+        <TouchableOpacity
+          style={styles.reportProblemLink}
+          onPress={() => setShowFeedbackModal(true)}
+        >
+          <Text style={styles.reportProblemLinkText}>{t('profile.report_problem')}</Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="children"
+      />
+    </>
+    );
+  }
+
+  // List mode: limit > 1 or null — cards + modal + add button (2+ profiles)
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Text style={styles.title}>{t('children_screen.title')}</Text>
-        <Text style={styles.subtitle}>
-          {t('children_screen.subtitle')}
-        </Text>
+        <Text style={styles.subtitle}>{t('children_screen.subtitle')}</Text>
       </View>
 
-      {!children || children.length === 0 ? (
+      {children.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyIcon}>👶</Text>
-          <Text style={styles.emptyTitle}>{t('children_screen.empty_title')}</Text>
-          <Text style={styles.emptyText}>
-            {t('children_screen.empty_text')}
-          </Text>
+          <Text style={styles.emptyText}>{t('children_screen.empty_title')}</Text>
+          <Text style={styles.emptyHint}>{t('children_screen.empty_text')}</Text>
+          {canCreateMore && (
+            <TouchableOpacity
+              style={styles.emptyButton}
+              onPress={() => {
+                setEditingChild(undefined);
+                setIsModalVisible(true);
+              }}
+            >
+              <Text style={styles.emptyButtonText}>{t('children_screen.add_button')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
-        <View style={styles.childrenList}>
-          {children.map((child: any) => {
-            const avatarUrl =
-              child.turnaroundSheet?.frontUrl ??
-              child.turnaroundSheet?.url ??
-              child.referencePhotos?.[0]?.url;
-            return (
-            <View key={child.id} style={styles.childCard}>
-              <View style={styles.childAvatar}>
-                {avatarUrl ? (
-                  <Image
-                    source={{ uri: formatAssetUrl(avatarUrl) ?? avatarUrl }}
-                    style={styles.childAvatarImage}
-                    resizeMode="contain"
+        <>
+          <View style={[styles.grid, Platform.OS === 'web' && { gridTemplateColumns: `repeat(${columns}, 1fr)` } as any]}>
+            {children.map((child: Record<string, unknown>) => {
+              const childId = String(child.id ?? '');
+              const childData = {
+                id: childId,
+                name: String(child.name ?? ''),
+                birthDate: child.birthDate as string | undefined,
+                birthdate: child.birthdate as string | undefined,
+                turnaroundSheet: child.turnaroundSheet as { url: string; frontUrl?: string } | undefined,
+                referencePhotos: child.referencePhotos as { url: string }[] | undefined,
+              };
+              return Platform.OS === 'web' ? (
+                <ChildCard
+                  key={childId}
+                  child={childData}
+                  onPress={() => handleEditChild(child)}
+                  onDelete={handleDelete}
+                />
+              ) : (
+                <View key={childId} style={{ width: cardWidth }}>
+                  <ChildCard
+                    child={childData}
+                    onPress={() => handleEditChild(child)}
+                    onDelete={handleDelete}
                   />
-                ) : (
-                  <Text style={styles.childAvatarText}>
-                    {child.name.charAt(0).toUpperCase()}
-                  </Text>
-                )}
-              </View>
-              <View style={styles.childInfo}>
-                <Text style={styles.childName}>{child.name}</Text>
-                {child.birthDate && (
-                  <Text style={styles.childDetail}>
-                    {t('children_screen.born')}: {new Date(child.birthDate).toLocaleDateString()}
-                  </Text>
-                )}
-                {child.gender && (
-                  <Text style={styles.childDetail}>
-                    {t('children_screen.gender')}: {String(t(`gender_values.${child.gender}`, child.gender))}
-                  </Text>
-                )}
-                {child.languages && child.languages.length > 0 && (
-                  <Text style={styles.childDetail}>
-                    {t('children_screen.languages')}: {child.languages.map((lang: string) => t(`language_names.${lang}`, lang)).join(', ')}
-                  </Text>
-                )}
-              </View>
-              <TouchableOpacity 
-                style={styles.editButton}
-                onPress={() => {
-                  const childData = {
-                    id: child.id,
-                    name: child.name,
-                    birthDate: new Date(child.birthDate),
-                    gender: child.gender,
-                    languages: child.languages,
-                    referencePhotos: child.referencePhotos,
-                    appearanceTraits: child.appearanceTraits,
-                    personality: child.personality,
-                    interests: child.interests,
-                    sensitivities: child.sensitivities,
-                    familyCast: child.familyCast,
-                    aiGeneratedDescription: child.aiGeneratedDescription,
-                    descriptionLanguage: child.descriptionLanguage,
-                    turnaroundSheet: child.turnaroundSheet,
-                  };
-                  console.log('[ChildrenScreen] Opening edit for child:', {
-                    id: child.id,
-                    hasPhotos: !!child.referencePhotos,
-                    photosCount: child.referencePhotos?.length || 0,
-                    photos: child.referencePhotos
-                  });
-                  setEditingChild(childData);
-                  setIsModalVisible(true);
-                }}
-              >
-                <Text style={styles.editButtonText}>{t('children_screen.edit_button')}</Text>
-              </TouchableOpacity>
-            </View>
-          );
-          })}
-        </View>
+                </View>
+              );
+            })}
+          </View>
+
+          {canCreateMore && (
+            <TouchableOpacity
+              style={styles.addCharacterButton}
+              onPress={() => {
+                setEditingChild(undefined);
+                setIsModalVisible(true);
+              }}
+            >
+              <Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />
+              <Text style={styles.addCharacterButtonText}>{t('children_screen.add_button')}</Text>
+            </TouchableOpacity>
+          )}
+        </>
       )}
 
-      {/* Add New Child button moved to bottom */}
-      <TouchableOpacity 
-        style={styles.addButton}
-        onPress={() => {
-          setEditingChild(undefined);
-          setIsModalVisible(true);
-        }}
-      >
-        <Text style={styles.addButtonIcon}>+</Text>
-        <Text style={styles.addButtonText}>{t('children_screen.add_button')}</Text>
-      </TouchableOpacity>
-
-      {/* Child Form Modal */}
       <ChildFormModal
         visible={isModalVisible}
         onClose={() => {
@@ -159,7 +217,31 @@ export default function ChildrenScreen() {
           setEditingChild(undefined);
         }}
         childId={editingChild?.id}
-        initialData={editingChild}
+        initialData={editingChild ? mapChildToInitialData(editingChild as unknown as Record<string, unknown>) : undefined}
+      />
+
+      <ConfirmDialog
+        visible={deleteDialogVisible}
+        title={t('children_screen.delete_confirm_title')}
+        message={t('children_screen.delete_confirm_message', { name: childToDelete?.name || '' })}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+        variant="danger"
+      />
+
+      <TouchableOpacity
+        style={styles.reportProblemLink}
+        onPress={() => setShowFeedbackModal(true)}
+      >
+        <Text style={styles.reportProblemLinkText}>{t('profile.report_problem')}</Text>
+      </TouchableOpacity>
+
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="children"
       />
     </ScrollView>
   );
@@ -191,101 +273,73 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.tertiary,
   },
-  addButton: {
+  addCharacterButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: theme.spacing[4],
     backgroundColor: theme.colors.interactive.primary,
+    paddingVertical: theme.spacing[4],
+    paddingHorizontal: theme.spacing[6],
     borderRadius: theme.borders.radius.lg,
     marginTop: theme.spacing[6],
-    marginBottom: theme.spacing[4],
+    gap: theme.spacing[2],
   },
-  addButtonIcon: {
-    fontSize: theme.typography.fontSize['2xl'],
-    color: theme.colors.text.inverse,
-    marginRight: theme.spacing[2],
-    fontWeight: theme.typography.fontWeight.bold,
-  },
-  addButtonText: {
+  addCharacterButtonText: {
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.inverse,
   },
-  childrenList: {
-    gap: theme.spacing[4],
-  },
-  childCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: theme.spacing[4],
-    backgroundColor: theme.colors.background.secondary,
-    borderRadius: theme.borders.radius.lg,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-  },
-  childAvatar: {
-    width: 56,
-    height: 56,
-    backgroundColor: theme.colors.interactive.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: theme.spacing[4],
-  },
-  childAvatarImage: {
-    width: 56,
-    height: 56,
-  },
-  childAvatarText: {
-    fontSize: theme.typography.fontSize['2xl'],
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.inverse,
-  },
-  childInfo: {
-    flex: 1,
-  },
-  childName: {
-    fontSize: theme.typography.fontSize.lg,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing[1],
-  },
-  childDetail: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
-    marginBottom: theme.spacing[0],
-  },
-  editButton: {
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[4],
-    backgroundColor: theme.colors.background.primary,
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
-  },
-  editButtonText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.interactive.primary,
-  },
+  grid: Platform.select({
+    web: {
+      display: 'grid' as any,
+      gap: theme.spacing[4],
+    },
+    default: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      gap: theme.spacing[4],
+    },
+  }),
   emptyState: {
     alignItems: 'center',
     marginTop: theme.spacing[12],
+    paddingVertical: theme.spacing[10],
   },
   emptyIcon: {
     fontSize: 64,
     marginBottom: theme.spacing[4],
   },
-  emptyTitle: {
-    fontSize: theme.typography.fontSize.xl,
+  emptyText: {
+    fontSize: theme.typography.fontSize.lg,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[2],
   },
-  emptyText: {
+  emptyHint: {
     fontSize: theme.typography.fontSize.base,
-    color: theme.colors.text.tertiary,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing[6],
     textAlign: 'center',
+  },
+  emptyButton: {
+    backgroundColor: theme.colors.interactive.primary,
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[6],
+    borderRadius: theme.borders.radius.lg,
+  },
+  emptyButtonText: {
+    color: theme.colors.text.inverse,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  reportProblemLink: {
+    alignSelf: 'center',
+    paddingVertical: theme.spacing[4],
+    marginTop: theme.spacing[4],
+  },
+  reportProblemLinkText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
   },
   loadingText: {
     marginTop: theme.spacing[4],

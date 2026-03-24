@@ -22,6 +22,7 @@ interface StoryBottomSheetProps {
   onFinish: () => void;
   onActivateAudio: () => void | Promise<void>;
   onDeleteStory: () => void;
+  onReportProblem?: () => void;
   onPublish?: () => void;
   onShare?: () => void;
   onUnpublish?: () => void;
@@ -44,6 +45,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
     onFinish,
     onActivateAudio,
     onDeleteStory,
+    onReportProblem,
     onPublish,
     onShare,
     onUnpublish,
@@ -173,6 +175,17 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
             <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
             <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
           </TouchableOpacity>
+
+          {/* Report Problem */}
+          {onReportProblem && (
+            <TouchableOpacity
+              style={styles.reportProblemButton}
+              onPress={onReportProblem}
+            >
+              <Ionicons name="bug-outline" size={20} color={theme.colors.text.tertiary} />
+              <Text style={styles.reportProblemButtonText}>{t('profile.report_problem')}</Text>
+            </TouchableOpacity>
+          )}
         </BottomSheetScrollView>
       </BottomSheet>
     );
@@ -294,5 +307,21 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.status.error,
+  },
+  reportProblemButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    padding: theme.spacing[3],
+    marginTop: theme.spacing[2],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  reportProblemButtonText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
   },
 });

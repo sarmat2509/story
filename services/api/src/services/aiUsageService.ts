@@ -15,11 +15,24 @@ export interface UsageContext {
   childProfileId?: string | null;
 }
 
+/** Distinct ai_usage_events.operation values; priced like scene image_generate */
+export const USAGE_OP_IMAGE_ENVIRONMENT = 'image_environment';
+export const USAGE_OP_IMAGE_OUTFIT_PLATE = 'image_outfit_plate';
+
+function isImageGenerationPricedOperation(operation: string): boolean {
+  return (
+    operation === 'image_generate' ||
+    operation === 'image_edit' ||
+    operation === USAGE_OP_IMAGE_ENVIRONMENT ||
+    operation === USAGE_OP_IMAGE_OUTFIT_PLATE
+  );
+}
+
 function getConfigKey(provider: string, model?: string): string {
   if (model) return model;
   if (provider === 'elevenlabs') return 'elevenlabs-eleven_v3';
   if (provider === 'google-tts') return 'gemini-2.5-flash-tts';
-  return 'gemini-2.5-flash';
+  return 'gemini-3-flash-preview';
 }
 
 /**
@@ -31,7 +44,7 @@ function calculateCost(usage: UsageMetadata): number | null {
 
   try {
     if (operation.includes('text') || operation === 'character_analysis' || operation === 'translation' || operation === 'face_dedup' || operation === 'image_validation' || operation === 'validateScene' || operation === 'regenerateScene' || operation === 'director') {
-      const textConfig = AI_COST_CONFIG.text[modelKey] || AI_COST_CONFIG.text['gemini-2.5-flash'];
+      const textConfig = AI_COST_CONFIG.text[modelKey] || AI_COST_CONFIG.text['gemini-3-flash-preview'];
       if (textConfig && 'inputPer1M' in textConfig) {
         const inputCost = (usage.inputUnits / 1e6) * textConfig.inputPer1M;
         const outputCost = ((usage.outputUnits ?? 0) / 1e6) * textConfig.outputPer1M;
@@ -39,7 +52,7 @@ function calculateCost(usage: UsageMetadata): number | null {
       }
     }
 
-    if (operation === 'image_generate' || operation === 'image_edit') {
+    if (isImageGenerationPricedOperation(operation)) {
       const imageConfig = AI_COST_CONFIG.image[modelKey];
       if (typeof imageConfig === 'number') {
         return imageConfig;
@@ -83,6 +96,11 @@ function calculateCost(usage: UsageMetadata): number | null {
     logger.warn({ err, usage }, 'Failed to calculate AI cost');
   }
   return null;
+}
+
+/** Estimated USD cost from usage metadata (same formula as DB recording). */
+export function estimateUsageCostUsd(usage: UsageMetadata): number | null {
+  return calculateCost(usage);
 }
 
 /**

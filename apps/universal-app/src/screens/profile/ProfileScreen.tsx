@@ -5,7 +5,9 @@ import { useNavigation, NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { FeedbackModal } from '@/components/FeedbackModal';
 import { theme } from '@/theme';
+import { LEGAL_URLS } from '@/config/constants';
 import { usePlansWithAuth, useSubscriptionUsage, useCreatePortalSession } from '@/api/plans';
 import { useUpdateMe } from '@/api/auth';
 
@@ -21,6 +23,7 @@ export default function ProfileScreen() {
   const updateMe = useUpdateMe();
   const [pseudonym, setPseudonym] = useState(user?.pseudonym ?? '');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   useEffect(() => {
     setPseudonym(user?.pseudonym ?? '');
@@ -30,7 +33,7 @@ export default function ProfileScreen() {
   const currentPlan = plans?.find(plan => plan.isCurrent);
   // API returns features as object { stories_per_month: { value: { limit } }, ... }
   const featuresObj = currentPlan?.features as Record<string, { value?: { limit?: number } }> | undefined;
-  const storiesLimit = featuresObj?.stories_per_month?.value?.limit ?? 5;
+  const storiesLimit = featuresObj?.stories_per_month?.value?.limit ?? 3;
 
   const formattedResetsAt = usage?.resetsAt
     ? new Date(usage.resetsAt).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -87,11 +90,6 @@ export default function ProfileScreen() {
           <View style={styles.infoRow}>
             <Text style={styles.label}>{t('profile.email')}</Text>
             <Text style={styles.value}>{user?.email || t('profile.not_set')}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>{t('profile.language')}</Text>
-            <Text style={styles.value}>{user?.preferredLocale || 'en'}</Text>
           </View>
 
           <View style={styles.infoRow}>
@@ -209,18 +207,32 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('profile.support')}</Text>
-        
+
+        <TouchableOpacity
+          style={styles.settingButton}
+          onPress={() => setShowFeedbackModal(true)}
+        >
+          <Text style={styles.settingText}>{t('profile.report_problem')}</Text>
+          <Text style={styles.settingArrow}>›</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.settingButton}>
           <Text style={styles.settingText}>{t('profile.help_center')}</Text>
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingButton}>
+        <TouchableOpacity
+          style={styles.settingButton}
+          onPress={() => Linking.openURL(LEGAL_URLS.terms)}
+        >
           <Text style={styles.settingText}>{t('profile.terms_of_service')}</Text>
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingButton}>
+        <TouchableOpacity
+          style={styles.settingButton}
+          onPress={() => Linking.openURL(LEGAL_URLS.privacy)}
+        >
           <Text style={styles.settingText}>{t('profile.privacy_policy')}</Text>
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
@@ -247,6 +259,12 @@ export default function ProfileScreen() {
       onConfirm={() => { logout(); setShowLogoutConfirm(false); }}
       onCancel={() => setShowLogoutConfirm(false)}
       variant="danger"
+    />
+
+    <FeedbackModal
+      visible={showFeedbackModal}
+      onClose={() => setShowFeedbackModal(false)}
+      initialReportedScreen="profile"
     />
     </>
   );

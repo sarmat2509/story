@@ -29,7 +29,7 @@
     "password_placeholder": "At least 8 characters",
     "forgot_password": "Forgot password?",
     "forgot_password_subtitle": "Enter your email and we'll send you a link to reset your password",
-    "want_to_create_stories": "Want to create stories?",
+    "want_to_create_stories": "Register with email",
     "register": "Sign up",
     "confirm_password": "Confirm password",
     "password_weak": "Weak",
@@ -52,6 +52,35 @@
     "passwords_must_match": "Passwords must match",
     "invalid_or_expired_token": "Link is invalid or has expired",
     "request_new_link": "Request new link"
+  },
+  "welcome": {
+    "slogan": "Turn drawings into characters. Listen, read along. Create and publish.",
+    "sign_in_google": "Sign in with Google",
+    "sign_in_apple": "Sign in with Apple",
+    "browse_stories": "Browse published stories",
+    "view_plans": "View plans",
+    "learn_more": "Learn more about WonderTales"
+  },
+  "landing": {
+    "hero_title": "WonderTales",
+    "hero_subtitle": "Turn drawings into characters. Listen, read along. Create and publish.",
+    "hero_description": "Transform your child's drawings into story heroes. Listen to audio tales with the narrator. Create stories with your own characters, publish them, and get ratings.",
+    "how_it_works_title": "How it works",
+    "step_1_title": "Choose theme and age",
+    "step_1_text": "4-5 fields, 10 seconds",
+    "step_2_title": "Add characters",
+    "step_2_text": "Upload a drawing or photo, AI turns them into story heroes",
+    "step_3_title": "Get your story",
+    "step_3_text": "Illustrations and voice narration in minutes",
+    "demo_title": "Example stories",
+    "safety_title": "Safe for children",
+    "safety_intro": "All content is age-appropriate and validated.",
+    "plans_title": "Plans and pricing",
+    "plans_cta": "View all plans",
+    "faq_title": "Frequently asked questions",
+    "cta_get_started": "Get Started",
+    "cta_view_stories": "Browse stories",
+    "cta_view_pricing": "View pricing"
   },
   "story": {
     "create_title": "Create Story",
@@ -200,6 +229,7 @@
     "language": "Story Language",
     "generating": "Creating...",
     "create_error": "Something went wrong while creating the story. Please try again.",
+    "retry": "Try again",
     "retry_error": "Failed to retry image generation. Please try again.",
     "advanced_settings": "Advanced Settings",
     "add_characters": "Add Characters"
@@ -317,6 +347,9 @@
     "save_button": "Save",
     "cancel_button": "Cancel",
     "saving": "Saving...",
+    "creating_character": "Creating child profile",
+    "generating_remaining_sec": "~{{count}} sec",
+    "generating_almost_done": "Almost done...",
     "photos_title": "Photos",
     "description": "Description",
     "description_placeholder": "Physical appearance description...",
@@ -674,6 +707,7 @@
     "usage_remaining_short": "{{stories}} stories and {{audio}} audio stories left",
     "upgrade_plan": "Upgrade Plan",
     "support": "Support",
+    "report_problem": "Report a problem",
     "help_center": "Help Center",
     "terms_of_service": "Terms of Service",
     "privacy_policy": "Privacy Policy",
@@ -681,6 +715,40 @@
     "logout_confirm_title": "Logout?",
     "logout_confirm_message": "Are you sure you want to logout?",
     "cancel": "Cancel"
+  },
+  "feedback": {
+    "title": "Report a problem",
+    "reported_screen": "Where did it happen?",
+    "reported_screen_options": {
+      "dashboard": "Dashboard",
+      "wizard": "Story creation",
+      "story_viewer": "Story viewer",
+      "library": "My stories",
+      "children": "Child profiles",
+      "characters": "Characters",
+      "plans": "Plans",
+      "profile": "Profile",
+      "other": "Other"
+    },
+    "category": "Category",
+    "categories": {
+      "bug": "Bug",
+      "feature": "Feature request",
+      "other": "Other"
+    },
+    "message": "Description",
+    "message_placeholder": "Describe the issue or suggestion (10–2000 characters)",
+    "message_min_length": "Message must be at least 10 characters",
+    "message_max_length": "Message must not exceed 2000 characters",
+    "email": "Email",
+    "email_required": "Email is required when not logged in",
+    "email_invalid": "Please enter a valid email address",
+    "attach_screenshot": "Attach screenshot",
+    "remove_screenshot": "Remove",
+    "submit": "Submit",
+    "success": "Thank you!",
+    "success_message": "Your feedback has been sent. We'll look into it.",
+    "report_this_issue": "Report this issue"
   },
   "mode_selection": {
     "title": "Choose Your Experience",
@@ -728,6 +796,7 @@
     "actions": {
       "create_story": "Create New Story",
       "add_child": "Add Child Profile",
+      "view_profiles": "View Profiles",
       "view_library": "View Story Library"
     },
     "recent_stories": "Recent Stories",
@@ -761,20 +830,26 @@
     "features": {
       "stories_per_day": "Up to {{value}} stories per day",
       "stories_per_month": "{{value}} stories per month",
-      "images_per_story": "Up to {{value}} illustrations",
+      "images_per_story": "{{value}} illustrations in story",
+      "images_per_story_one": "{{value}} illustration in story",
+      "images_per_story_other": "{{value}} illustrations in story",
       "image_quality": "Image quality: {{value}}",
       "premium_voices": "Premium voices",
       "child_profiles_limit": "Up to {{value}} child profiles",
+      "child_profiles_limit_one": "1 child profile",
+      "child_profiles_limit_unlimited": "Unlimited child profiles",
       "series_enabled": "Story series",
       "export_pdf": "Export to PDF (coming soon)",
       "export_video": "Export to video (coming soon)",
-      "share_enabled": "Share links (coming soon)",
+      "share_enabled": "Publication and sharing",
       "story_from_drawing": "Story from child's drawing (coming soon)"
     }
   },
   "children_screen": {
     "title": "Child Profiles",
     "subtitle": "Create personalized stories for each child",
+    "title_single": "Child Profile",
+    "subtitle_single": "Set up your child's profile for personalized stories",
     "add_button": "Add New Child",
     "empty_title": "No children yet",
     "empty_text": "Add your first child profile to create personalized stories",
@@ -783,7 +858,9 @@
     "edit_button": "Edit",
     "born": "Born",
     "gender": "Gender",
-    "languages": "Languages"
+    "languages": "Languages",
+    "delete_confirm_title": "Delete child profile?",
+    "delete_confirm_message": "Are you sure you want to delete {{name}}? The profile will be removed."
   },
   "gender_values": {
     "girl": "Girl",

@@ -4,6 +4,7 @@ import apiClient from '@/api/client';
 
 export interface UploadPhotoResult {
   url: string;
+  storagePath?: string;
   uploadedAt: string;
   isUploading?: boolean;
 }
@@ -43,15 +44,10 @@ export async function uploadPhoto(
     
     formData.append('photoType', photoType);
 
-    // Send to server
+    // Send to server (do NOT set Content-Type — fetch sets multipart/form-data with boundary automatically)
     const response = await apiClient.post<{ status: string; photo: UploadPhotoResult }>(
       '/api/v1/upload/photo',
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
+      formData
     );
 
     // API returns relative path: /api/v1/assets/... or /api/v1/assets/...?token=...
@@ -63,7 +59,8 @@ export async function uploadPhoto(
 
     return {
       ...response.data.photo,
-      url: photoUrl
+      url: photoUrl,
+      storagePath: response.data.photo.storagePath,
     };
   } catch (error) {
     console.error('Photo upload failed:', error);

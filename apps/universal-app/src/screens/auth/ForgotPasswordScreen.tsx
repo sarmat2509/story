@@ -58,7 +58,7 @@ export default function ForgotPasswordScreen() {
             <Text style={styles.successText}>{t('auth.reset_link_sent')}</Text>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => navigation.navigate('Login')}
+              onPress={() => navigation.navigate('Welcome')}
             >
               <Text style={styles.backButtonText}>{t('auth.back_to_login')}</Text>
             </TouchableOpacity>
@@ -97,7 +97,7 @@ export default function ForgotPasswordScreen() {
 
             <TouchableOpacity
               style={styles.backLink}
-              onPress={() => navigation.navigate('Login')}
+              onPress={() => navigation.navigate('Welcome')}
             >
               <Text style={styles.backLinkText}>{t('auth.back_to_login')}</Text>
             </TouchableOpacity>

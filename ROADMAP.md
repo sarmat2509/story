@@ -2,16 +2,16 @@
 
 > Актуальный статус фич и план дальнейшего развития.
 >
-> Последнее обновление: 2026-03-08
+> Последнее обновление: 2026-03-12
 
 ---
 
-## Что реализовано (на 2026-03-08)
+## Что реализовано (на 2026-03-12)
 
 ### Инфраструктура и платформа
 
 - ✅ Монорепо (pnpm workspaces): `services/api`, `apps/universal-app`, `packages/shared`
-- ✅ PostgreSQL + Drizzle ORM, 52 миграции
+- ✅ PostgreSQL + Drizzle ORM, 68 миграций
 - ✅ Docker Compose (dev + production)
 - ✅ Деплой на DigitalOcean Droplet 1GB: nginx → Express API + SPA webapp
 - ✅ HTTPS (Let's Encrypt + DuckDNS)
@@ -65,9 +65,29 @@
 - ✅ Dashboard, Library, StoryViewer, StoryReader
 - ✅ Wizard + InstantWizard
 - ✅ Characters, Children, Profile
-- ✅ PlansScreen (отображение планов, upgrade modal — без реальной оплаты)
+- ✅ PlansScreen (отображение планов, upgrade modal; Stripe web — реализовано, RevenueCat mobile — заглушка)
 - ✅ Published stories catalog (public pages)
 - ✅ Мультиязычность (uk, en, ru, de, es, fr) + i18n
+
+### Платежи (M1 — web)
+
+- ✅ Stripe Checkout Session + Webhook (checkout.session.completed, subscription.updated, subscription.deleted)
+- ✅ Stripe Customer Portal для управления подпиской
+- ✅ BillingSuccessScreen после успешной оплаты
+- ✅ Экран оплаты (web): план → Stripe Checkout → подтверждение
+- ✅ Управление подпиской в Profile (кнопка «Manage subscription» → Portal)
+- ✅ Пользователь может оплатить подписку (web: Stripe)
+- ✅ После оплаты план обновляется автоматически
+- ✅ Webhook обрабатывает все ключевые события Stripe
+- ✅ При отмене подписка действует до конца периода
+
+### Аналитика (M5)
+
+- ✅ PostHog: интеграция на фронте (web + native)
+- ✅ Трекинг событий: story_created, story_shared, story_completed, audio_started, plan_upgraded, story_generation_started
+- ✅ ai_usage_events: запись стоимости генерации (текст, изображения, аудио) per story
+- ✅ usage_events: story_created, image_generated, plan_upgraded, audio_synthesized
+- ✅ COGS per story (ai_usage_events, getStoryCost)
 
 ### Content Policy
 
@@ -83,28 +103,14 @@
 
 ## М1 — Интеграция платежей
 
-**Статус:** не реализовано (планы и лимиты есть, оплата — заглушка)
+**Статус:** частично (Stripe web реализован, RevenueCat mobile — нет)
 **Приоритет:** 🔴 Высокий (без этого нет монетизации)
 
-### Backend
+### Осталось
 
-- Stripe Checkout Session + Webhook (payment_succeeded, subscription_updated, subscription_deleted)
-- Stripe Customer portal для управления подпиской
 - RevenueCat для iOS/Android (IAP + синхронизация плана)
 - Синхронизация плана между платформами
-
-### Frontend
-
-- Реальный paywall при превышении лимитов
-- Экран оплаты: план → оплата → подтверждение
-- Управление подпиской в Profile (текущий план, дата продления, отмена)
-
-### Критерии готовности
-
-- Пользователь может оплатить подписку (web: Stripe, mobile: IAP)
-- После оплаты план обновляется автоматически
-- Webhook обрабатывает все ключевые события Stripe
-- При отмене подписка действует до конца периода
+- Реальный paywall при превышении лимитов (mobile)
 
 ---
 
@@ -179,21 +185,13 @@
 
 ## М5 — Аналитика и метрики
 
-**Статус:** не реализовано
+**Статус:** частично (PostHog + ai_usage_events реализованы)
 **Приоритет:** 🟡 Средний (нужно для понимания продукта)
 
-### Реализация
+### Осталось
 
-- Интеграция PostHog (или Amplitude/Mixpanel) — события на фронте
-- Трекинг событий: story_created, story_shared, story_completed, audio_started, plan_upgraded
-- Backend: стоимость генерации (токены, изображения, символы TTS) per story
-- `usage_events` таблица уже есть в схеме — нужно подключить запись
-
-### Критерии готовности
-
-- Ключевые события трекаются
-- Activation/conversion/retention доступны в дашборде
-- COGS per story рассчитывается автоматически
+- Дашборды PostHog настраиваются вручную (см. docs/posthog-dashboards-setup.md)
+- Activation/conversion/retention инсайты в дашборде
 
 ---
 
@@ -294,18 +292,6 @@
 
 ---
 
-## М11 — Сказка по рисунку/фото (улучшение instant mode)
-
-**Статус:** частично (instant mode из фото есть, нет режима «рисунок как герой»)
-**Приоритет:** 🟢 Низкий (вау-фича)
-
-- Анализ рисунка AI: «дракон с крыльями»
-- Предложение 4–6 сценариев с нарисованным героем
-- Включение рисунка в промпты иллюстраций (IP-Adapter)
-- Автоудаление фото
-
----
-
 ## М12 — Коллекции и недельный сериал
 
 **Статус:** не реализовано
@@ -364,11 +350,11 @@
 
 | #   | Майлстоун                                   | Статус         | Приоритет  |
 | --- | ------------------------------------------- | -------------- | ---------- |
-| М1  | Интеграция платежей (Stripe + RevenueCat)   | Не реализовано | 🔴 Высокий |
+| М1  | Интеграция платежей (Stripe + RevenueCat)   | Частично (Stripe web ✅) | 🔴 Высокий |
 | М2  | Лендинг: FAQ, демо, SEO                     | Частично       | 🔴 Высокий |
 | М3  | Режим сна (Sleep Mode)                      | Не реализовано | 🟡 Средний |
 | М4  | Серии: SeriesBible, арки, антиповторы       | Частично       | 🟡 Средний |
-| М5  | Аналитика и метрики (PostHog)               | Не реализовано | 🟡 Средний |
+| М5  | Аналитика и метрики (PostHog)               | Частично (PostHog + ai_usage ✅) | 🟡 Средний |
 | М6  | Policy Engine: цикл авторемонта             | Частично       | 🟡 Средний |
 | М7  | Админ-панель                                | Не реализовано | 🟡 Средний |
 | М8  | PDF-экспорт                                 | Не реализовано | 🟡 Средний |

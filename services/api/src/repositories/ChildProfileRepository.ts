@@ -40,6 +40,21 @@ export class ChildProfileRepository {
       ));
   }
 
+  /**
+   * Same as findByIds but includes soft-deleted profiles. For story display only
+   * (child still appears in cast after profile was removed from the library list).
+   */
+  async findByIdsIncludingInactive(userId: string, ids: string[]): Promise<schema.ChildProfile[]> {
+    if (ids.length === 0) return [];
+    return this.db
+      .select()
+      .from(schema.childProfiles)
+      .where(and(
+        eq(schema.childProfiles.userId, userId),
+        inArray(schema.childProfiles.id, ids)
+      ));
+  }
+
   async create(data: schema.NewChildProfile): Promise<schema.ChildProfile> {
     const [profile] = await this.db
       .insert(schema.childProfiles)

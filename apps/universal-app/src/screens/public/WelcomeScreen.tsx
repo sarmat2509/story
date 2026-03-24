@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  ScrollView,
   ActivityIndicator,
   Platform,
   TextInput,
-  ScrollView,
   KeyboardAvoidingView,
+  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -16,14 +17,16 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/store/authStore';
 import { useEmailLogin } from '@/api/auth';
 import { theme } from '@/theme';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function LoginScreen() {
-  const { t } = useTranslation();
+export default function WelcomeScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const { t } = useTranslation();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { signInWithGoogle, signInWithApple, isLoading: oauthLoading } = useAuth();
   const emailLoginMutation = useEmailLogin();
 
@@ -36,6 +39,15 @@ export default function LoginScreen() {
   const isLoading = oauthLoading || emailLoginMutation.isPending;
   const emailValid = EMAIL_REGEX.test(email);
   const canSubmitEmail = emailValid && password.length >= 8;
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.href = '/dashboard';
+      return;
+    }
+    navigation.reset({ index: 0, routes: [{ name: 'Dashboard' }] });
+  }, [isAuthenticated, navigation]);
 
   const handleError = (message: string, err: unknown) => {
     setError(message);
@@ -87,6 +99,14 @@ export default function LoginScreen() {
     }
   };
 
+  if (isAuthenticated) {
+    return (
+      <View style={[styles.container, styles.centerContainer]}>
+        <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -99,8 +119,36 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          <Text style={styles.title}>WonderTales</Text>
-          <Text style={styles.subtitle}>{t('auth.subtitle')}</Text>
+          <View style={styles.hero}>
+            {Platform.OS === 'web' ? (
+              <TouchableOpacity
+                onPress={() => {
+                  if (typeof window !== 'undefined') {
+                    window.location.href = '/';
+                  }
+                }}
+                style={styles.logoLink}
+                activeOpacity={0.8}
+              >
+                <Image
+                  source={{ uri: '/logo.webp' }}
+                  style={styles.logo}
+                  resizeMode="contain"
+                  accessibilityLabel="WonderTales"
+                />
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.logoContainer}>
+                <Image
+                  source={{ uri: '/logo.webp' }}
+                  style={styles.logo}
+                  resizeMode="contain"
+                  accessibilityLabel="WonderTales"
+                />
+              </View>
+            )}
+            <Text style={styles.subtitle}>{t('auth.subtitle')}</Text>
+          </View>
 
           {error && (
             <View style={styles.errorContainer}>
@@ -172,7 +220,7 @@ export default function LoginScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          <View style={styles.buttonContainer}>
+          <View style={styles.authSection}>
             <TouchableOpacity
               style={[styles.button, styles.googleButton]}
               onPress={handleGoogleLogin}
@@ -181,7 +229,10 @@ export default function LoginScreen() {
               {oauthLoading ? (
                 <ActivityIndicator color={theme.colors.text.inverse} />
               ) : (
-                <Text style={styles.buttonText}>Sign in with Google</Text>
+                <>
+                  <Ionicons name="logo-google" size={20} color={theme.colors.text.inverse} />
+                  <Text style={styles.buttonText}>{t('welcome.sign_in_google')}</Text>
+                </>
               )}
             </TouchableOpacity>
 
@@ -193,7 +244,10 @@ export default function LoginScreen() {
               {oauthLoading ? (
                 <ActivityIndicator color={theme.colors.text.inverse} />
               ) : (
-                <Text style={styles.buttonText}>Sign in with Apple</Text>
+                <>
+                  <Ionicons name="logo-apple" size={22} color={theme.colors.text.inverse} />
+                  <Text style={styles.buttonText}>{t('welcome.sign_in_apple')}</Text>
+                </>
               )}
             </TouchableOpacity>
           </View>
@@ -205,9 +259,23 @@ export default function LoginScreen() {
             <Text style={styles.registerLinkText}>{t('auth.want_to_create_stories')}</Text>
           </TouchableOpacity>
 
-          {Platform.OS === 'web' && (
-            <Text style={styles.noteText}>Note: Web OAuth will open in the same window</Text>
-          )}
+          <View style={styles.linksSection}>
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={() => navigation.navigate('Stories')}
+            >
+              <Ionicons name="newspaper-outline" size={24} color={theme.colors.interactive.primary} />
+              <Text style={styles.linkButtonText}>{t('welcome.browse_stories')}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={() => navigation.navigate('Plans')}
+            >
+              <Ionicons name="diamond-outline" size={24} color={theme.colors.interactive.primary} />
+              <Text style={styles.linkButtonText}>{t('welcome.view_plans')}</Text>
+            </TouchableOpacity>
+          </View>
 
           {showSkipOption && Platform.OS !== 'web' && (
             <Text style={styles.devNoteText}>
@@ -225,6 +293,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background.primary,
   },
+  centerContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
@@ -236,18 +308,24 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     padding: theme.spacing[6],
   },
-  title: {
-    fontSize: theme.typography.fontSize['6xl'],
-    fontWeight: theme.typography.fontWeight.bold,
-    textAlign: 'center',
-    marginBottom: theme.spacing[2],
-    color: theme.colors.interactive.primary,
+  hero: {
+    alignItems: 'center',
+    marginBottom: theme.spacing[6],
+  },
+  logoLink: {
+    marginBottom: theme.spacing[4],
+  },
+  logoContainer: {
+    marginBottom: theme.spacing[4],
+  },
+  logo: {
+    width: 300,
+    height: 70,
   },
   subtitle: {
     fontSize: theme.typography.fontSize.base,
     textAlign: 'center',
     color: theme.colors.text.tertiary,
-    marginBottom: theme.spacing[8],
   },
   errorContainer: {
     backgroundColor: theme.colors.error[50],
@@ -304,13 +382,17 @@ const styles = StyleSheet.create({
     color: theme.colors.interactive.primary,
   },
   button: {
-    padding: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: theme.spacing[4],
+    justifyContent: 'center',
+    gap: theme.spacing[3],
+    paddingVertical: theme.spacing[4],
+    paddingHorizontal: theme.spacing[6],
+    borderRadius: theme.borders.radius.md,
   },
   primaryButton: {
     backgroundColor: theme.colors.interactive.primary,
+    marginTop: theme.spacing[4],
   },
   primaryButtonText: {
     color: theme.colors.text.inverse,
@@ -335,8 +417,10 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
   },
-  buttonContainer: {
+  authSection: {
+    width: '100%',
     gap: theme.spacing[4],
+    marginBottom: theme.spacing[6],
   },
   googleButton: {
     backgroundColor: theme.colors.google,
@@ -350,7 +434,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
   },
   registerLink: {
-    marginTop: theme.spacing[8],
+    marginBottom: theme.spacing[6],
     alignSelf: 'center',
   },
   registerLinkText: {
@@ -358,11 +442,27 @@ const styles = StyleSheet.create({
     color: theme.colors.interactive.primary,
     textAlign: 'center',
   },
-  noteText: {
-    marginTop: theme.spacing[4],
-    fontSize: theme.typography.fontSize.xs,
-    textAlign: 'center',
-    color: theme.colors.text.tertiary,
+  linksSection: {
+    width: '100%',
+    gap: theme.spacing[4],
+    marginBottom: theme.spacing[6],
+  },
+  linkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[3],
+    paddingVertical: theme.spacing[4],
+    paddingHorizontal: theme.spacing[6],
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.secondary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+  },
+  linkButtonText: {
+    color: theme.colors.interactive.primary,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
   },
   devNoteText: {
     marginTop: theme.spacing[4],

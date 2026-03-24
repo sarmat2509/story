@@ -54,7 +54,7 @@ export const useAuthStore = create<AuthState>()(
           navigationRef.dispatch(
             CommonActions.reset({
               index: 0,
-              routes: [{ name: 'Main', state: { routes: [{ name: 'Landing' }], index: 0 } }],
+              routes: [{ name: 'Main', state: { routes: [{ name: 'Welcome' }], index: 0 } }],
             })
           );
         }

@@ -4,16 +4,17 @@ import * as childProfileService from '../services/childProfileService';
 import * as planService from '../services/planService';
 import { CreateChildProfileSchema, UpdateChildProfileSchema } from '@wondertales/shared';
 import { logger } from '../utils/logger';
+import { sanitizeChildProfileBody, sanitizeAnalysisAppearance } from '../utils/sanitizeChildProfile';
 
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
-import { generateChildTurnaroundSheet, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
+import { generateTurnaroundSheetFromReference, generateTurnaroundSheetFromDescription, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
 
 const router = Router();
 
 // Initialize analysis service
-const geminiProvider = new GeminiTextProvider(config.google.apiKey);
+const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
 const analysisService = new CharacterAnalysisService(geminiProvider);
 
 // POST /api/v1/children/analyze - Analyze child photos
@@ -42,7 +43,8 @@ router.post('/analyze', requireAuth, async (req, res) => {
       {
         photos,
         characterType: 'person',
-        language: language || 'en'
+        language: language || 'en',
+        isChildProfile: true
       },
       { onUsage: (u) => recordUsage(u, usageContext) }
     );
@@ -53,14 +55,7 @@ router.post('/analyze', requireAuth, async (req, res) => {
     };
     
     if (result.appearanceTraits) {
-      analysis.appearance = {
-        hairColor: result.appearanceTraits.hairColor || undefined,
-        hairLength: result.appearanceTraits.hairLength || undefined,
-        hairStyle: result.appearanceTraits.hairStyle || undefined,
-        eyeColor: result.appearanceTraits.eyeColor || undefined,
-        skinTone: result.appearanceTraits.skinTone || undefined,
-        distinctiveFeatures: result.distinctiveFeatures || []
-      };
+      analysis.appearance = sanitizeAnalysisAppearance(result.appearanceTraits as Record<string, unknown>);
     }
     
     res.json({
@@ -128,7 +123,10 @@ router.get('/', requireAuth, async (req, res) => {
 router.post('/', requireAuth, async (req, res) => {
   try {
     const userId = req.user!.id;
-    
+
+    // Sanitize invalid enum values (log for dev, leave field empty for user)
+    sanitizeChildProfileBody(req.body as Record<string, unknown>);
+
     // Validate input
     const validation = CreateChildProfileSchema.safeParse(req.body);
     if (!validation.success) {
@@ -148,9 +146,58 @@ router.post('/', requireAuth, async (req, res) => {
     // Create profile (feature check happens in service)
     const profile = await childProfileService.createChildProfile(userId, dataForCreate);
     
-    const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
+    // Generate turnaround (mandatory) - create then generate, rollback on failure
+    if (isTurnaroundSheetEnabled()) {
+      try {
+        const referencePhotos = profile.referencePhotos as Array<{ url?: string }> | undefined;
+        const hasPhotos = referencePhotos && Array.isArray(referencePhotos) && referencePhotos.length > 0;
+        const firstPhoto = hasPhotos ? referencePhotos!.find(p => p && p.url) : undefined;
+
+        if (firstPhoto?.url) {
+          await generateTurnaroundSheetFromReference({
+            targetType: 'child',
+            targetId: profile.id,
+            referencePhotoUrls: referencePhotos!.map(p => p.url!).filter(Boolean),
+            characterName: profile.name,
+            userId,
+            aiDescription: profile.aiGeneratedDescription,
+          });
+        } else if (profile.aiGeneratedDescription && profile.aiGeneratedDescription.trim().length > 0) {
+          await generateTurnaroundSheetFromDescription({
+            targetType: 'child',
+            targetId: profile.id,
+            characterName: profile.name,
+            characterDescription: profile.aiGeneratedDescription,
+            userId,
+          });
+        } else {
+          await childProfileService.deleteChildProfile(profile.id, userId);
+          return res.status(400).json({
+            status: 'error',
+            error: 'Child profile must have reference photos or aiGeneratedDescription for turnaround',
+          });
+        }
+      } catch (turnaroundError) {
+        logger.error({
+          err: turnaroundError,
+          childId: profile.id,
+          userId,
+        }, 'Turnaround generation failed, rolling back child create');
+        await childProfileService.deleteChildProfile(profile.id, userId);
+        return res.status(500).json({
+          status: 'error',
+          error: 'Failed to generate character model',
+        });
+      }
+    }
+
+    // Refetch profile to get full turnaroundSheet data
+    const updatedProfile = await childProfileService.getChildProfileById(profile.id, userId);
+    const profileToReturn = updatedProfile ?? profile;
+    
+    const ageData = childProfileService.getAgeData(new Date(profileToReturn.birthDate));
     const profileWithAge = {
-      ...profile,
+      ...profileToReturn,
       age: {
         years: ageData.ageYears,
         months: ageData.remainingMonths,
@@ -187,7 +234,10 @@ router.patch('/:id', requireAuth, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    
+
+    // Sanitize invalid enum values (log for dev, leave field empty for user)
+    sanitizeChildProfileBody(req.body as Record<string, unknown>);
+
     // Validate input
     const validation = UpdateChildProfileSchema.safeParse(req.body);
     if (!validation.success) {
@@ -239,89 +289,6 @@ router.patch('/:id', requireAuth, async (req, res) => {
     res.status(500).json({
       status: 'error',
       error: 'Failed to update child profile'
-    });
-  }
-});
-
-// POST /api/v1/children/:id/turnaround - Generate turnaround model sheet for child
-router.post('/:id/turnaround', requireAuth, async (req, res) => {
-  try {
-    const userId = req.user!.id;
-    const { id } = req.params;
-
-    // Check feature flag
-    if (!isTurnaroundSheetEnabled()) {
-      return res.status(501).json({
-        status: 'error',
-        error: 'Turnaround sheet generation is not enabled',
-      });
-    }
-
-    // Ownership + existence check
-    const child = await childProfileService.getChildProfileById(id, userId);
-    if (!child) {
-      return res.status(404).json({
-        status: 'error',
-        error: 'Child profile not found',
-      });
-    }
-
-    // Must have at least one reference photo
-    const referencePhotos = child.referencePhotos as Array<{ url?: string }> | undefined;
-    if (!referencePhotos || !Array.isArray(referencePhotos) || referencePhotos.length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        error: 'Child profile must have at least one reference photo',
-      });
-    }
-
-    const firstPhoto = referencePhotos.find(p => p && p.url);
-    if (!firstPhoto?.url) {
-      return res.status(400).json({
-        status: 'error',
-        error: 'No valid reference photo found',
-      });
-    }
-
-    // Use description from request body (possibly unsaved edits) or fall back to DB
-    const aiDescription = req.body.description
-      || child.aiGeneratedDescription
-      || undefined;
-
-    logger.info({
-      userId,
-      childId: id,
-      childName: child.name,
-      hasBodyDescription: !!req.body.description,
-    }, 'Generating child turnaround sheet on demand');
-
-    // Generate synchronously (awaited)
-    const result = await generateChildTurnaroundSheet({
-      childId: id,
-      userId,
-      referencePhotoUrl: firstPhoto.url,
-      childName: child.name,
-      aiDescription,
-    });
-
-    res.json({
-      status: 'success',
-      turnaroundSheet: {
-        url: `/api/v1/assets/${result.url}`,
-        generatedAt: result.generatedAt,
-      },
-    });
-  } catch (error) {
-    logger.error({
-      err: error instanceof Error
-        ? { message: error.message, name: error.name, stack: error.stack }
-        : String(error),
-      userId: req.user?.id,
-      childId: req.params.id,
-    }, 'Error generating child turnaround sheet');
-    res.status(500).json({
-      status: 'error',
-      error: 'Failed to generate turnaround model sheet',
     });
   }
 });

@@ -2,6 +2,9 @@
  * Batch Image Service
  * Builds scene prompts, creates Gemini batch jobs, parses results.
  * Used by batchImageWorkerJob for scheduled continuations.
+ *
+ * Product note: this path is text-only (no Files API / turnaround / env reference images).
+ * Realtime illustration uses `processStoryImages` → `generateSceneImageWithReference` instead.
  */
 
 import type { ImageBatchRequest, BatchJob, BatchStatus, BatchResult } from '../providers/base/IImageProvider';

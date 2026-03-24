@@ -22,6 +22,8 @@ export interface DirectTextPromptParams {
   optionalCharacters?: helpers.ContinuationCharacter[];
   /** Environments from previous episodes — reuse IDs when same location */
   previousEnvironments?: Array<{ id: string; name: string; description: string; characterOutfits?: string }>;
+  /** Wardrobe rows from previous episodes — reuse outfit ids when the same look returns */
+  previousOutfits?: Array<{ id: string; characterName: string; description: string }>;
 }
 
 /**
@@ -30,7 +32,18 @@ export interface DirectTextPromptParams {
  * When isContinuation=true, adds previous episodes, required/optional characters, usedPlots
  */
 export function buildDirectTextPrompt(params: DirectTextPromptParams): string {
-  const { spec, sceneCount, vocabLevel, isContinuation, previousOutlines, usedPlots, requiredCharacters, optionalCharacters, previousEnvironments } = params;
+  const {
+    spec,
+    sceneCount,
+    vocabLevel,
+    isContinuation,
+    previousOutlines,
+    usedPlots,
+    requiredCharacters,
+    optionalCharacters,
+    previousEnvironments,
+    previousOutfits,
+  } = params;
 
   const charactersSection = isContinuation && requiredCharacters
     ? helpers.formatSupportingCharactersContinuation(requiredCharacters, optionalCharacters)
@@ -86,6 +99,13 @@ ${validUsedPlots.length > 0 ? `- DO NOT repeat these plot elements: ${validUsedP
         .join('\n')}\nAdd NEW environments only for new locations. Use the same id when returning to a known location.\n\n`
     : '';
 
+  const reuseOutfitsSection =
+    isContinuation && previousOutfits && previousOutfits.length > 0
+      ? `REUSE OUTFITS: When a character wears the SAME wardrobe as in a previous episode, reuse the SAME outfit id and the same description (or refine only if the story text changes the look). Known outfits from earlier parts:\n${previousOutfits
+          .map((o) => `- id "${o.id}" — ${o.characterName}: ${o.description.slice(0, 100)}${o.description.length > 100 ? '...' : ''}`)
+          .join('\n')}\nCreate NEW outfit ids only for new looks (change of clothes, weather-appropriate change, disguise, etc.).\n\n`
+      : '';
+
   const storyRequirementsLabel = isContinuation ? '' : 'STORY REQUIREMENTS:\n';
 
   return helpers.cleanTemplate`
@@ -105,6 +125,8 @@ ${continuationRequirementsSection}
 
 ${reuseEnvironmentsSection}
 
+${reuseOutfitsSection}
+
 ${helpers.formatStoryRequirements({ spec, sceneCount })}
 
 ${helpers.formatAgeRequirements(spec.ageGroup)}
@@ -115,9 +137,11 @@ ${helpers.formatWritingStyle(spec, vocabLevel)}
 
 ${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRule: !!spec.worldRule, worldRuleText: spec.worldRule?.description })}
 
+${helpers.formatNarrativeContinuityRules()}
+
 ${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle, scenarioCardId: spec.scenarioCard?.id, policyProfile: spec.policyProfile })}
 
-OUTPUT FORMAT (JSON). Generate environments LAST — one entry per unique environmentId used in scenes. characterOutfits must list ALL characters who appear there — never empty string.
+OUTPUT FORMAT (JSON). Order: characters, moral, scenes (each sceneVisual.cameraComposition.characters with name, description, outfitId per row), then outfits (canonical wardrobe rows), then environments LAST — one entry per unique environmentId. Wardrobe lives ONLY in outfits[] + outfitId on each camera character row — not on environments.
 {
   "title": "Story title in ${spec.language}",
   "language": "${spec.language}",
@@ -141,20 +165,26 @@ OUTPUT FORMAT (JSON). Generate environments LAST — one entry per unique enviro
         "cameraComposition": {
           "shot": "Medium shot at child eye-level, focal point on Character1",
           "characters": [
-            { "name": "Character Name 1", "description": "foreground left on chair, sitting, smiling, looking at Character Name 2" },
-            { "name": "Character Name 2", "description": "background right near window, standing, waving" }
+            { "name": "Character Name 1", "description": "foreground left on chair, sitting, smiling, looking at Character Name 2", "outfitId": "o_char1_scene1" },
+            { "name": "Character Name 2", "description": "background right near window, standing, waving", "outfitId": "o_char2_scene1" }
           ]
         },
         "lighting": "Lighting conditions IN ENGLISH: warm golden sunlight from left window, soft shadows on floor."
       }
     }
   ],
+  "outfits": [
+    {
+      "id": "o_emilia_home_1",
+      "characterName": "ExactCharacterName",
+      "description": "WARDROBE ONLY IN ENGLISH — garments, colors, footwear, worn accessories; align with weather/season/indoor-outdoor. Creatures: natural appearance."
+    }
+  ],
   "environments": [
     {
       "id": "short_id",
       "name": "Human-readable location name",
-      "description": "BASE visual description IN ENGLISH...",
-      "characterOutfits": "ExactCharacterName: detailed outfit (type, colors, elements). CreatureName: natural appearance"
+      "description": "BASE visual description IN ENGLISH: fixed layout, static objects, weather/time-of-day for the place — no character wardrobe here."
     }
   ]
 }
@@ -200,6 +230,7 @@ export function buildDirectTextPromptPlain(params: DirectTextPromptParams): stri
     requiredCharacters,
     optionalCharacters,
     previousEnvironments,
+    previousOutfits,
   } = params;
 
   const charactersSection =
@@ -257,6 +288,13 @@ ${validUsedPlots.length > 0 ? `- DO NOT repeat these plot elements: ${validUsedP
           .join('\n')}\nAdd NEW environments only for new locations. Use the same id when returning to a known location.\n\n`
       : '';
 
+  const reuseOutfitsSectionPlain =
+    isContinuation && previousOutfits && previousOutfits.length > 0
+      ? `REUSE OUTFITS (for Director step later): In plain text, clearly state wardrobe changes in scene prose so the visual pass can assign stable outfit ids. Prior episode outfits for continuity:\n${previousOutfits
+          .map((o) => `- "${o.id}" — ${o.characterName}: ${o.description.slice(0, 100)}${o.description.length > 100 ? '...' : ''}`)
+          .join('\n')}\n\n`
+      : '';
+
   const storyRequirementsLabel = isContinuation ? '' : 'STORY REQUIREMENTS:\n';
 
   return helpers.cleanTemplate`
@@ -277,6 +315,8 @@ ${continuationRequirementsSection}
 
 ${reuseEnvironmentsSection}
 
+${reuseOutfitsSectionPlain}
+
 ${helpers.formatStoryRequirements({ spec, sceneCount })}
 
 ${helpers.formatAgeRequirements(spec.ageGroup)}
@@ -286,6 +326,8 @@ ${getContentPolicy({ policyProfile: spec.policyProfile, scenarioCardId: spec.sce
 ${helpers.formatWritingStyle(spec, vocabLevel)}
 
 ${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRule: !!spec.worldRule, worldRuleText: spec.worldRule?.description })}
+
+${helpers.formatNarrativeContinuityRules()}
 
 OUTPUT FORMAT (plain text only):
 title: Story title in ${spec.language}

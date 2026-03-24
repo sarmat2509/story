@@ -1,6 +1,6 @@
 // Appearance enums
 export const HAIR_COLORS = [
-  'blonde', 'light_brown', 'dark_brown', 'black', 'red', 'auburn', 'grey'
+  'blonde', 'light_brown', 'dark_brown', 'black', 'red', 'auburn', 'grey', 'white', 'salt_and_pepper'
 ] as const;
 
 export const HAIR_LENGTHS = [
@@ -8,7 +8,8 @@ export const HAIR_LENGTHS = [
 ] as const;
 
 export const HAIR_STYLES = [
-  'straight', 'wavy', 'curly', 'braided', 'ponytail', 'bun', 'afro', 'dreadlocks'
+  'straight', 'wavy', 'curly', 'coily', 'braided', 'ponytail', 'bun', 'afro', 'dreadlocks',
+  'mohawk', 'side_part', 'slicked_back'
 ] as const;
 
 export const EYE_COLORS = [

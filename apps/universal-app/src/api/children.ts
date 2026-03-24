@@ -5,15 +5,28 @@ import apiClient from './client';
 // Use shared type
 type ChildProfile = ChildProfileApi;
 
+export interface UseChildrenResult {
+  children: ChildProfile[];
+  limit: number | null;
+  canCreateMore: boolean;
+}
+
 // List child profiles
 export const useChildren = () => {
   return useQuery({
     queryKey: ['children'],
-    queryFn: async () => {
-      const response = await apiClient.get<{ status: string; children: ChildProfile[] }>(
-        '/api/v1/children'
-      );
-      return response.data.children;
+    queryFn: async (): Promise<UseChildrenResult> => {
+      const response = await apiClient.get<{
+        status: string;
+        children: ChildProfile[];
+        limit: number | null;
+        canCreateMore: boolean;
+      }>('/api/v1/children');
+      return {
+        children: response.data.children,
+        limit: response.data.limit,
+        canCreateMore: response.data.canCreateMore,
+      };
     },
   });
 };
@@ -26,7 +39,8 @@ export const useCreateChild = () => {
     mutationFn: async (data: CreateChildProfileInput) => {
       const response = await apiClient.post<{ status: string; child: ChildProfile }>(
         '/api/v1/children',
-        data
+        data,
+        { timeout: 120000 } // Turnaround generation can take ~40s+
       );
       return response.data.child;
     },
@@ -99,21 +113,3 @@ export const useAnalyzeChild = () => {
   });
 };
 
-// Generate turnaround model sheet for child profile
-export const useGenerateChildTurnaround = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (params: { childId: string; description?: string }) => {
-      const response = await apiClient.post<{
-        status: string;
-        turnaroundSheet: { url: string; generatedAt: string };
-      }>(`/api/v1/children/${params.childId}/turnaround`, {
-        description: params.description,
-      });
-      return response.data.turnaroundSheet;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['children'] });
-    },
-  });
-};

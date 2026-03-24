@@ -363,6 +363,54 @@ export class AssetStorageService {
   }
 
   /**
+   * Save outfit plate cache image (garment reference, global reuse)
+   * Path: outfit_plate_cache/{cacheId}.png
+   */
+  async saveOutfitPlateCacheImage(
+    cacheId: string,
+    buffer: Buffer,
+    mimeType: string = 'image/png',
+  ): Promise<{ storagePath: string; storageUrl: string }> {
+    await this.ensureInitialized();
+
+    const ext = mimeType.includes('jpeg') || mimeType.includes('jpg') ? '.jpg' : '.png';
+    const storagePath = `outfit_plate_cache/${cacheId}${ext}`;
+
+    if (this.provider === 'local') {
+      const fullPath = path.join(this.localUploadDir, storagePath);
+      await fs.mkdir(path.dirname(fullPath), { recursive: true });
+      await fs.writeFile(fullPath, buffer);
+      logger.info({ cacheId, storagePath, size: buffer.length }, 'Outfit plate cache image saved');
+      return {
+        storagePath,
+        storageUrl: `/api/v1/assets/${storagePath}`,
+      };
+    } else {
+      const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+      const s3Client = new S3Client({
+        region: config.storage.region || 'us-east-1',
+        credentials: {
+          accessKeyId: config.storage.accessKey || '',
+          secretAccessKey: config.storage.secretKey || '',
+        },
+      });
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: config.storage.bucket!,
+          Key: storagePath,
+          Body: buffer,
+          ContentType: mimeType,
+        }),
+      );
+      const storageUrl = config.storage.cdnUrl
+        ? `${config.storage.cdnUrl}/${storagePath}`
+        : `/api/v1/assets/${storagePath}`;
+      logger.info({ cacheId, storagePath }, 'Outfit plate cache image saved to S3');
+      return { storagePath, storageUrl };
+    }
+  }
+
+  /**
    * Save LLM turnaround cache image (for reuse across stories)
    * Path: llm_turnaround_cache/{cacheId}.png or llm_turnaround_cache/{cacheId}_front.png
    */

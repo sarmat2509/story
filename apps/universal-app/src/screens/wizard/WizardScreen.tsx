@@ -22,6 +22,7 @@ import { useCharacters } from '@/api/characters';
 import { useCreateStory, useStoryStatus, useRetryStoryImages } from '@/api/stories';
 import { useSubscriptionUsage } from '@/api/plans';
 import { PaywallModal } from '@/components/PaywallModal';
+import { FeedbackModal } from '@/components/FeedbackModal';
 import { getAnalytics } from '@/services/analytics';
 
 export default function WizardScreen() {
@@ -42,6 +43,7 @@ export default function WizardScreen() {
   // Modal state
   const [isChildModalVisible, setIsChildModalVisible] = useState(false);
   const [isCharacterModalVisible, setIsCharacterModalVisible] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -49,7 +51,9 @@ export default function WizardScreen() {
   
   // API hooks
   const { data: themesData, isLoading: themesLoading } = useStoryThemes();
-  const { data: children, isLoading: childrenLoading } = useChildren();
+  const { data: childrenData, isLoading: childrenLoading } = useChildren();
+  const children = childrenData?.children ?? [];
+  const canCreateMoreChildren = childrenData?.canCreateMore ?? false;
   const { data: characters, isLoading: charactersLoading } = useCharacters();
   const createStory = useCreateStory();
   const retryStoryImages = useRetryStoryImages();
@@ -206,7 +210,7 @@ export default function WizardScreen() {
             childProfileId={childProfileId}
             onChildProfileChange={setChildProfileId}
             children={children}
-            onAddChild={() => setIsChildModalVisible(true)}
+            onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
             goals={themesData?.goals || []}
             selectedGoals={selectedGoals}
             onGoalsChange={setSelectedGoals}
@@ -227,7 +231,7 @@ export default function WizardScreen() {
             selectedChildren={selectedChildren}
             onChildrenChange={setSelectedChildren}
             onAddCharacter={() => setIsCharacterModalVisible(true)}
-            onAddChild={() => setIsChildModalVisible(true)}
+            onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
           />
         </ExpandableCard>
 
@@ -243,6 +247,13 @@ export default function WizardScreen() {
             <Text style={styles.generateButtonText}>{t('wizard.generate_button')}</Text>
           )}
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.reportProblemLink}
+          onPress={() => setShowFeedbackModal(true)}
+        >
+          <Text style={styles.reportProblemLinkText}>{t('profile.report_problem')}</Text>
+        </TouchableOpacity>
       </ScrollView>
       
       {/* Generation Progress Modal */}
@@ -254,6 +265,7 @@ export default function WizardScreen() {
         errorMessage={storyStatus?.errorMessage ?? undefined}
         onClose={storyStatus?.status === 'completed' ? handleCloseModal : undefined}
         onRetry={storyStatus?.status === 'failed' ? handleRetry : undefined}
+        onReport={storyStatus?.status === 'failed' ? () => { setShowFeedbackModal(true); } : undefined}
         allowManualClose={true}
       />
 
@@ -273,6 +285,12 @@ export default function WizardScreen() {
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
         limitInfo={usage ? { used: usage.stories.used, limit: usage.stories.limit } : undefined}
+      />
+
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="wizard"
       />
     </>
   );
@@ -324,5 +342,14 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.lg,
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.inverse,
+  },
+  reportProblemLink: {
+    alignSelf: 'center',
+    paddingVertical: theme.spacing[4],
+    marginTop: theme.spacing[2],
+  },
+  reportProblemLinkText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
   },
 });

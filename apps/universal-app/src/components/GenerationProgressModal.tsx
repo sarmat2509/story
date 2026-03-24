@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import type { RequestStatus, StoryRequestProgressData } from '@wondertales/shared';
 import { theme } from '@/theme';
 
@@ -11,6 +12,7 @@ interface Props {
   errorMessage?: string;
   onClose?: () => void;
   onRetry?: () => void;
+  onReport?: () => void;
   allowManualClose?: boolean;
 }
 
@@ -22,8 +24,10 @@ export function GenerationProgressModal({
   errorMessage,
   onClose,
   onRetry,
+  onReport,
   allowManualClose = false,
 }: Props) {
+  const { t } = useTranslation();
   const getTaskLabel = (task: string) => {
     const labels: Record<string, string> = {
       'analyzing_photos': 'Аналізуємо фотографії...',
@@ -119,13 +123,25 @@ export function GenerationProgressModal({
             <Text style={styles.errorMessage}>{errorMessage}</Text>
           )}
           
-          {status === 'failed' && onRetry && (
-            <TouchableOpacity 
-              style={styles.retryButton}
-              onPress={onRetry}
-            >
-              <Text style={styles.retryButtonText}>Спробувати ще раз</Text>
-            </TouchableOpacity>
+          {status === 'failed' && (
+            <View style={styles.failedActions}>
+              {onRetry && (
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={onRetry}
+                >
+                  <Text style={styles.retryButtonText}>{t('wizard.retry')}</Text>
+                </TouchableOpacity>
+              )}
+              {onReport && (
+                <TouchableOpacity
+                  style={styles.reportButton}
+                  onPress={onReport}
+                >
+                  <Text style={styles.reportButtonText}>{t('feedback.report_this_issue')}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           )}
           
           {status === 'completed' && onClose && (
@@ -228,6 +244,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: theme.spacing[6],
   },
+  failedActions: {
+    flexDirection: 'row',
+    gap: theme.spacing[3],
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
   retryButton: {
     paddingVertical: theme.spacing[3],
     paddingHorizontal: theme.spacing[6],
@@ -238,6 +260,19 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.inverse,
+  },
+  reportButton: {
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[6],
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+  },
+  reportButtonText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
   },
   closeButton: {
     paddingVertical: theme.spacing[3],

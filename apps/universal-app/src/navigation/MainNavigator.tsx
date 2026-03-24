@@ -9,9 +9,8 @@ import { useTranslation } from 'react-i18next';
 import { useResponsive } from '@/hooks/useResponsive';
 import { theme } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
-import LandingScreen from '@/screens/public/LandingScreen';
+import WelcomeScreen from '@/screens/public/WelcomeScreen';
 import NotFoundScreen from '@/screens/public/NotFoundScreen';
-import LoginScreen from '@/screens/auth/LoginScreen';
 import RegisterScreen from '@/screens/auth/RegisterScreen';
 import ForgotPasswordScreen from '@/screens/auth/ForgotPasswordScreen';
 import ResetPasswordScreen from '@/screens/auth/ResetPasswordScreen';
@@ -129,13 +128,13 @@ const TABLET_TAB_ORDER: (keyof MainTabParamList)[] = [
 ];
 const MORE_MENU_ROUTES: (keyof MainTabParamList)[] = ['Series', 'Stories', 'Children', 'Plans', 'Profile'];
 
-const MOBILE_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Landing', 'Stories', 'Plans', 'Login'];
-const TABLET_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Landing', 'Stories', 'Plans', 'Login'];
+const MOBILE_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories', 'Plans'];
+const TABLET_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories', 'Plans'];
 const MORE_MENU_ROUTES_PUBLIC: (keyof MainTabParamList)[] = [];
 
 const TAB_LABELS: Record<string, string> = {
   Landing: 'navigation.tab_dashboard',
-  Login: 'auth.login',
+  Welcome: 'navigation.tab_dashboard',
   Dashboard: 'navigation.tab_dashboard',
   Wizard: 'navigation.tab_create_story',
   Library: 'navigation.tab_library',
@@ -148,7 +147,7 @@ const TAB_LABELS: Record<string, string> = {
 };
 const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Landing: 'home-outline',
-  Login: 'log-in-outline',
+  Welcome: 'home-outline',
   Dashboard: 'home-outline',
   Wizard: 'create-outline',
   Library: 'library-outline',
@@ -339,7 +338,7 @@ function TabNavigator() {
   return (
     <Tab.Navigator
       key={isAuthenticated ? 'auth' : 'public'}
-      initialRouteName={isAuthenticated ? 'Dashboard' : 'Landing'}
+      initialRouteName={isAuthenticated ? 'Dashboard' : 'Welcome'}
       backBehavior="history"
       screenOptions={{
         headerShown: true,
@@ -354,25 +353,13 @@ function TabNavigator() {
       )}
     >
       <Tab.Screen
-        name="Landing"
-        component={LandingScreen}
+        name="Welcome"
+        component={WelcomeScreen}
         options={{
-          title: 'WonderTales',
+          title: t('auth.welcome'),
           tabBarLabel: t('navigation.tab_dashboard'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
-          ),
-          tabBarButton: isAuthenticated ? () => null : undefined,
-        }}
-      />
-      <Tab.Screen
-        name="Login"
-        component={LoginScreen}
-        options={{
-          title: t('auth.login'),
-          tabBarLabel: t('auth.login'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="log-in-outline" size={size} color={color} />
           ),
           tabBarButton: isAuthenticated ? () => null : undefined,
         }}
@@ -615,7 +602,7 @@ function DrawerNavigator() {
   return (
     <Drawer.Navigator
       key={isAuthenticated ? 'auth' : 'public'}
-      initialRouteName={isAuthenticated ? 'Dashboard' : 'Landing'}
+      initialRouteName={isAuthenticated ? 'Dashboard' : 'Welcome'}
       backBehavior="history"
       drawerContent={(props) => <CollapsibleDrawerContent {...props} />}
       screenOptions={{
@@ -628,23 +615,12 @@ function DrawerNavigator() {
       }}
     >
       <Drawer.Screen
-        name="Landing"
-        component={LandingScreen}
+        name="Welcome"
+        component={WelcomeScreen}
         options={{
-          title: 'WonderTales',
+          title: t('auth.welcome'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
-          ),
-          drawerItemStyle: isAuthenticated ? { display: 'none' } : undefined,
-        }}
-      />
-      <Drawer.Screen
-        name="Login"
-        component={LoginScreen}
-        options={{
-          title: t('auth.login'),
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="log-in-outline" size={size} color={color} />
           ),
           drawerItemStyle: isAuthenticated ? { display: 'none' } : undefined,
         }}

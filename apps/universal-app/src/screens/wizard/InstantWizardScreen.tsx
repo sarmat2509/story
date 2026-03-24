@@ -21,6 +21,7 @@ import { useStoryThemes } from '@/api/dictionaries';
 import { useCreateStoryFromPhotos, useStoryStatus, useRetryStoryImages } from '@/api/stories';
 import { useSubscriptionUsage } from '@/api/plans';
 import { PaywallModal } from '@/components/PaywallModal';
+import { FeedbackModal } from '@/components/FeedbackModal';
 import { getAnalytics } from '@/services/analytics';
 
 type AgeGroup = '2-3' | '4-5' | '6-7' | '8-9' | '10-12';
@@ -46,6 +47,7 @@ export default function InstantWizardScreen() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   // API hooks
   const { data: themesData, isLoading: themesLoading } = useStoryThemes();
@@ -239,6 +241,13 @@ export default function InstantWizardScreen() {
         )}
       </TouchableOpacity>
 
+      <TouchableOpacity
+        style={styles.reportProblemLink}
+        onPress={() => setShowFeedbackModal(true)}
+      >
+        <Text style={styles.reportProblemLinkText}>{t('profile.report_problem')}</Text>
+      </TouchableOpacity>
+
       {/* Generation Progress Modal */}
       <GenerationProgressModal
         visible={isGenerating}
@@ -248,6 +257,13 @@ export default function InstantWizardScreen() {
         errorMessage={storyStatus?.errorMessage ?? undefined}
         onRetry={handleRetry}
         onClose={handleCloseModal}
+        onReport={storyStatus?.status === 'failed' ? () => setShowFeedbackModal(true) : undefined}
+      />
+
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="wizard"
       />
 
       <PaywallModal
@@ -321,5 +337,14 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.inverse,
+  },
+  reportProblemLink: {
+    alignSelf: 'center',
+    paddingVertical: theme.spacing[4],
+    marginTop: theme.spacing[2],
+  },
+  reportProblemLinkText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
   },
 });

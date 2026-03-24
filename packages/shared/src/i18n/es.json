@@ -21,7 +21,37 @@
     "login": "Iniciar sesión",
     "logout": "Cerrar sesión",
     "signup": "Registrarse",
-    "welcome": "Bienvenido"
+    "welcome": "Bienvenido",
+    "want_to_create_stories": "Registrarse con email"
+  },
+  "welcome": {
+    "slogan": "Dibujos en personajes. Escucha, lee, publica.",
+    "sign_in_google": "Iniciar sesión con Google",
+    "sign_in_apple": "Iniciar sesión con Apple",
+    "browse_stories": "Historias publicadas",
+    "view_plans": "Planes",
+    "learn_more": "Más sobre WonderTales"
+  },
+  "landing": {
+    "hero_title": "WonderTales",
+    "hero_subtitle": "Dibujos en personajes. Escucha, lee, publica.",
+    "hero_description": "Transforma los dibujos de tu hijo en héroes de cuentos. Escucha cuentos con el narrador. Crea historias con tus propios personajes, publícalas y recibe valoraciones.",
+    "how_it_works_title": "Cómo funciona",
+    "step_1_title": "Elige tema y edad",
+    "step_1_text": "4-5 campos en 10 segundos",
+    "step_2_title": "Añade personajes",
+    "step_2_text": "Sube un dibujo o foto — la IA los convertirá en héroes del cuento",
+    "step_3_title": "Recibe tu cuento",
+    "step_3_text": "Ilustraciones y narración en minutos",
+    "demo_title": "Ejemplos de historias",
+    "safety_title": "Seguro para niños",
+    "safety_intro": "Todo el contenido es apropiado para la edad y está verificado.",
+    "plans_title": "Planes y precios",
+    "plans_cta": "Ver todos los planes",
+    "faq_title": "Preguntas frecuentes",
+    "cta_get_started": "Empezar",
+    "cta_view_stories": "Explorar historias",
+    "cta_view_pricing": "Ver precios"
   },
   "story": {
     "create_title": "Crear cuento",
@@ -159,6 +189,7 @@
     "generate_button": "Crear historia",
     "generating": "Creando...",
     "create_error": "Ocurrió un error al crear la historia. Por favor, inténtalo de nuevo.",
+    "retry": "Intentar de nuevo",
     "retry_error": "No se pudo reintentar la generación de ilustraciones. Por favor, inténtalo de nuevo.",
     "advanced_settings": "Configuración avanzada",
     "add_characters": "Agregar personajes"
@@ -194,6 +225,9 @@
     "save_button": "Guardar",
     "cancel_button": "Cancelar",
     "saving": "Guardando...",
+    "creating_character": "Creando perfil del niño",
+    "generating_remaining_sec": "~{{count}} s",
+    "generating_almost_done": "Casi listo...",
     "photos_title": "Fotos",
     "description": "Descripción",
     "description_placeholder": "Descripción de la apariencia física...",
@@ -416,6 +450,7 @@
     "usage_remaining_short": "{{stories}} historias y {{audio}} historias de audio restantes",
     "upgrade_plan": "Actualizar plan",
     "support": "Soporte",
+    "report_problem": "Reportar un problema",
     "help_center": "Centro de ayuda",
     "terms_of_service": "Términos de servicio",
     "privacy_policy": "Política de privacidad",
@@ -423,6 +458,40 @@
     "logout_confirm_title": "¿Cerrar sesión?",
     "logout_confirm_message": "¿Estás seguro de que quieres cerrar sesión?",
     "cancel": "Cancelar"
+  },
+  "feedback": {
+    "title": "Reportar un problema",
+    "reported_screen": "¿Dónde ocurrió?",
+    "reported_screen_options": {
+      "dashboard": "Inicio",
+      "wizard": "Creación de historia",
+      "story_viewer": "Visor de historia",
+      "library": "Mis historias",
+      "children": "Perfiles de niños",
+      "characters": "Personajes",
+      "plans": "Planes",
+      "profile": "Perfil",
+      "other": "Otro"
+    },
+    "category": "Categoría",
+    "categories": {
+      "bug": "Error",
+      "feature": "Solicitud de función",
+      "other": "Otro"
+    },
+    "message": "Descripción",
+    "message_placeholder": "Describe el problema o la sugerencia (10–2000 caracteres)",
+    "message_min_length": "El mensaje debe tener al menos 10 caracteres",
+    "message_max_length": "El mensaje no puede superar 2000 caracteres",
+    "email": "Correo electrónico",
+    "email_required": "El correo es obligatorio para usuarios no identificados",
+    "email_invalid": "Introduce un correo electrónico válido",
+    "attach_screenshot": "Adjuntar captura de pantalla",
+    "remove_screenshot": "Eliminar",
+    "submit": "Enviar",
+    "success": "¡Gracias!",
+    "success_message": "Tu comentario ha sido enviado. Lo revisaremos.",
+    "report_this_issue": "Reportar este problema"
   },
   "navigation": {
     "dashboard": "Inicio",
@@ -542,6 +611,7 @@
     "actions": {
       "create_story": "Crear Nueva Historia",
       "add_child": "Agregar Perfil de Niño",
+      "view_profiles": "Ver Perfiles",
       "view_library": "Ver Biblioteca"
     },
     "recent_stories": "Historias Recientes",
@@ -575,20 +645,26 @@
     "features": {
       "stories_per_day": "Hasta {{value}} historias por día",
       "stories_per_month": "{{value}} historias por mes",
-      "images_per_story": "Hasta {{value}} ilustraciones",
+      "images_per_story": "{{value}} ilustraciones en historia",
+      "images_per_story_one": "{{value}} ilustración en historia",
+      "images_per_story_other": "{{value}} ilustraciones en historia",
       "image_quality": "Calidad de imagen: {{value}}",
       "premium_voices": "Voces premium",
       "child_profiles_limit": "Hasta {{value}} perfiles de niños",
+      "child_profiles_limit_one": "1 perfil de niño",
+      "child_profiles_limit_unlimited": "Perfiles de niños ilimitados",
       "series_enabled": "Series de historias",
       "export_pdf": "Exportar a PDF (próximamente)",
       "export_video": "Exportar a video (próximamente)",
-      "share_enabled": "Compartir enlaces (próximamente)",
+      "share_enabled": "Publicación y compartición",
       "story_from_drawing": "Historia del dibujo del niño (próximamente)"
     }
   },
   "children_screen": {
     "title": "Perfiles de Niños",
     "subtitle": "Crea historias personalizadas para cada niño",
+    "title_single": "Perfil del Niño",
+    "subtitle_single": "Configura el perfil para historias personalizadas",
     "add_button": "Agregar Nuevo Niño",
     "empty_title": "Aún no hay niños",
     "empty_text": "Agrega el primer perfil de niño para crear historias personalizadas",
@@ -597,7 +673,9 @@
     "edit_button": "Editar",
     "born": "Nacido",
     "gender": "Género",
-    "languages": "Idiomas"
+    "languages": "Idiomas",
+    "delete_confirm_title": "¿Eliminar perfil del niño?",
+    "delete_confirm_message": "¿Está seguro de que desea eliminar {{name}}? El perfil será eliminado."
   },
   "gender_values": {
     "girl": "Niña",

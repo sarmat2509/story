@@ -14,6 +14,35 @@ export async function getActivePlans(): Promise<Plan[]> {
   return activePlans;
 }
 
+/** Plans with stories/audio/images limits for landing display */
+export interface PlanWithLimits extends Plan {
+  storiesPerMonth: number;
+  audioStoriesPerMonth: number;
+  imagesPerStory: number;
+}
+
+export async function getPlansWithLimits(): Promise<PlanWithLimits[]> {
+  const plans = await getActivePlans();
+  const result = await Promise.all(
+    plans.map(async (plan) => {
+      const features = await getPlanRepository().findAllFeaturesForPlan(plan.id);
+      const map = new Map(features.map((f) => [f.slug, f.value]));
+      const getLimit = (slug: string, def: number): number => {
+        const v = map.get(slug);
+        if (!v || typeof v !== 'object') return def;
+        return (v as { limit?: number }).limit ?? def;
+      };
+      return {
+        ...plan,
+        storiesPerMonth: getLimit('stories_per_month', 3),
+        audioStoriesPerMonth: getLimit('audio_stories_per_month', 1),
+        imagesPerStory: getLimit('images_per_story', 3),
+      };
+    })
+  );
+  return result;
+}
+
 export async function getPlanBySlug(slug: string): Promise<Plan | null> {
   return getPlanRepository().findPlanBySlug(slug);
 }
@@ -154,7 +183,7 @@ export async function getPlanFeatures(userId: string): Promise<PlanFeatures> {
     imageQuality: getEnumFeature(featureMap, 'image_quality', 'low'),
     imageRegenerationPerDay: getNumericFeature(featureMap, 'image_regeneration_per_day', 0),
     allowReferencePhotos: getBooleanFeature(featureMap, 'allow_reference_photos', false),
-    storiesPerMonth: getNumericFeature(featureMap, 'stories_per_month', 5),
+    storiesPerMonth: getNumericFeature(featureMap, 'stories_per_month', 3),
     audioStoriesPerMonth: getNumericFeature(featureMap, 'audio_stories_per_month', 1),
   };
   

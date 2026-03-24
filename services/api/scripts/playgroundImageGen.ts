@@ -46,7 +46,7 @@ async function testCharacterAnalysis() {
   }
   
   try {
-    const textProvider = new GeminiTextProvider(config.google.apiKey);
+    const textProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
     const analysisService = new CharacterAnalysisService(textProvider);
     
     console.log('📸 Analyzing photo:', photoUrl);
@@ -197,7 +197,7 @@ async function testFullWorkflow() {
   try {
     // Step 1: Analyze character photos
     console.log('📸 Step 1: Analyzing character photos...');
-    const textProvider = new GeminiTextProvider(config.google.apiKey);
+    const textProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
     const analysisService = new CharacterAnalysisService(textProvider);
     
     const analysis = await analysisService.analyzeCharacter({

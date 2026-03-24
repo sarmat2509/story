@@ -29,7 +29,7 @@
     "password_placeholder": "Минимум 8 символов",
     "forgot_password": "Забыли пароль?",
     "forgot_password_subtitle": "Введите email, и мы отправим ссылку для сброса пароля",
-    "want_to_create_stories": "Хотите создавать истории?",
+    "want_to_create_stories": "Зарегистрироваться с помощью email",
     "register": "Зарегистрироваться",
     "confirm_password": "Подтвердите пароль",
     "password_weak": "Слабый",
@@ -52,6 +52,35 @@
     "passwords_must_match": "Пароли должны совпадать",
     "invalid_or_expired_token": "Ссылка недействительна или истекла",
     "request_new_link": "Запросить новую ссылку"
+  },
+  "welcome": {
+    "slogan": "Рисунки в персонажей. Слушай, читай, публикуй.",
+    "sign_in_google": "Войти через Google",
+    "sign_in_apple": "Войти через Apple",
+    "browse_stories": "Опубликованные истории",
+    "view_plans": "Тарифы",
+    "learn_more": "Узнать больше о WonderTales"
+  },
+  "landing": {
+    "hero_title": "WonderTales",
+    "hero_subtitle": "Рисунки в персонажей. Слушай, читай, публикуй.",
+    "hero_description": "Преврати рисунки ребёнка в героев сказки. Слушай аудиосказки с диктором. Создавай истории с собственными персонажами, публикуй их и получай оценки.",
+    "how_it_works_title": "Как это работает",
+    "step_1_title": "Выбери тему и возраст",
+    "step_1_text": "4-5 полей за 10 секунд",
+    "step_2_title": "Добавь персонажей",
+    "step_2_text": "Загрузи рисунок или фото — AI превратит их в героев сказки",
+    "step_3_title": "Получи сказку",
+    "step_3_text": "Иллюстрации и озвучка за минуты",
+    "demo_title": "Примеры историй",
+    "safety_title": "Безопасно для детей",
+    "safety_intro": "Весь контент адаптирован по возрасту и проверен.",
+    "plans_title": "Тарифы",
+    "plans_cta": "Посмотреть все тарифы",
+    "faq_title": "Частые вопросы",
+    "cta_get_started": "Начать",
+    "cta_view_stories": "Смотреть истории",
+    "cta_view_pricing": "Тарифы"
   },
   "story": {
     "create_title": "Создать сказку",
@@ -193,6 +222,7 @@
     "language": "Язык истории",
     "generating": "Создаём...",
     "create_error": "Возникла ошибка при создании истории. Попробуйте ещё раз.",
+    "retry": "Попробовать снова",
     "retry_error": "Не удалось повторить генерацию иллюстраций. Попробуйте ещё раз.",
     "advanced_settings": "Дополнительные настройки",
     "add_characters": "Добавить персонажей"
@@ -310,6 +340,9 @@
     "save_button": "Сохранить",
     "cancel_button": "Отмена",
     "saving": "Сохранение...",
+    "creating_character": "Создаём образ ребёнка",
+    "generating_remaining_sec": "~{{count}} сек",
+    "generating_almost_done": "Почти готово...",
     "photos_title": "Фотографии",
     "description": "Описание",
     "description_placeholder": "Описание внешности...",
@@ -651,6 +684,7 @@
     "usage_remaining_short": "Осталось {{stories}} сказок и {{audio}} аудиосказок",
     "upgrade_plan": "Обновить план",
     "support": "Поддержка",
+    "report_problem": "Сообщить о проблеме",
     "help_center": "Центр помощи",
     "terms_of_service": "Условия использования",
     "privacy_policy": "Политика конфиденциальности",
@@ -658,6 +692,40 @@
     "logout_confirm_title": "Выйти из аккаунта?",
     "logout_confirm_message": "Вы уверены, что хотите выйти?",
     "cancel": "Отменить"
+  },
+  "feedback": {
+    "title": "Сообщить о проблеме",
+    "reported_screen": "Где это произошло?",
+    "reported_screen_options": {
+      "dashboard": "Главная",
+      "wizard": "Создание истории",
+      "story_viewer": "Просмотр истории",
+      "library": "Мои истории",
+      "children": "Профили детей",
+      "characters": "Персонажи",
+      "plans": "Тарифы",
+      "profile": "Профиль",
+      "other": "Другое"
+    },
+    "category": "Категория",
+    "categories": {
+      "bug": "Ошибка",
+      "feature": "Предложение",
+      "other": "Другое"
+    },
+    "message": "Описание",
+    "message_placeholder": "Опишите проблему или предложение (10–2000 символов)",
+    "message_min_length": "Сообщение должно содержать не менее 10 символов",
+    "message_max_length": "Сообщение не может превышать 2000 символов",
+    "email": "Email",
+    "email_required": "Email обязателен для неавторизованных пользователей",
+    "email_invalid": "Введите корректный email",
+    "attach_screenshot": "Прикрепить скриншот",
+    "remove_screenshot": "Удалить",
+    "submit": "Отправить",
+    "success": "Спасибо!",
+    "success_message": "Ваш отзыв отправлен. Мы его рассмотрим.",
+    "report_this_issue": "Сообщить о проблеме"
   },
   "mode_selection": {
     "title": "Выберите свой опыт",
@@ -705,6 +773,7 @@
     "actions": {
       "create_story": "Создать новую историю",
       "add_child": "Добавить профиль ребенка",
+      "view_profiles": "Просмотреть профили",
       "view_library": "Просмотреть библиотеку"
     },
     "recent_stories": "Последние истории",
@@ -738,20 +807,27 @@
     "features": {
       "stories_per_day": "До {{value}} историй в день",
       "stories_per_month": "{{value}} историй в месяц",
-      "images_per_story": "До {{value}} иллюстраций",
+      "images_per_story": "{{value}} иллюстраций в истории",
+      "images_per_story_one": "{{value}} иллюстрация в истории",
+      "images_per_story_few": "{{value}} иллюстрации в истории",
+      "images_per_story_many": "{{value}} иллюстраций в истории",
       "image_quality": "Качество иллюстраций: {{value}}",
       "premium_voices": "Премиум голоса",
       "child_profiles_limit": "До {{value}} профилей детей",
+      "child_profiles_limit_one": "1 профиль ребёнка",
+      "child_profiles_limit_unlimited": "Профилей детей без ограничений",
       "series_enabled": "Серии историй",
       "export_pdf": "Экспорт в PDF (скоро)",
       "export_video": "Экспорт в видео (скоро)",
-      "share_enabled": "Поделиться ссылкой (скоро)",
+      "share_enabled": "Публикация и распространение",
       "story_from_drawing": "История из рисунка ребенка (скоро)"
     }
   },
   "children_screen": {
     "title": "Профили детей",
     "subtitle": "Создавайте персонализированные истории для каждого ребёнка",
+    "title_single": "Профиль ребёнка",
+    "subtitle_single": "Настройте профиль для персонализированных историй",
     "add_button": "Добавить ребёнка",
     "empty_title": "Пока нет профилей",
     "empty_text": "Добавьте первый профиль ребёнка для создания персонализированных историй",
@@ -760,7 +836,9 @@
     "edit_button": "Редактировать",
     "born": "Рождение",
     "gender": "Пол",
-    "languages": "Языки"
+    "languages": "Языки",
+    "delete_confirm_title": "Удалить профиль ребёнка?",
+    "delete_confirm_message": "Вы уверены, что хотите удалить {{name}}? Профиль будет удалён."
   },
   "gender_values": {
     "girl": "Девочка",

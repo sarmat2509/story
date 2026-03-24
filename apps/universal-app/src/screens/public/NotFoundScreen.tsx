@@ -17,7 +17,7 @@ export default function NotFoundScreen() {
       <Text style={styles.message}>{t('navigation.page_not_found_message')}</Text>
       <TouchableOpacity
         style={styles.button}
-        onPress={() => navigation.navigate('Landing')}
+        onPress={() => navigation.navigate('Welcome')}
       >
         <Text style={styles.buttonText}>{t('navigation.go_home')}</Text>
       </TouchableOpacity>

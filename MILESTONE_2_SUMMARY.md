@@ -71,7 +71,7 @@ Characters are stored as a flat, family-wide list (no pre-linking to children). 
 - Story limits: `stories_per_day`, `series_enabled`
 - Media: `images_per_story`, `image_quality`, `audio_minutes_per_month`, `premium_voices`
 - Export: `export_pdf`, `export_video`, `share_enabled`
-- Premium: `story_from_drawing`, `child_profiles_limit`
+- Premium: `child_profiles_limit`
 
 ## Next Steps
 

@@ -22,6 +22,8 @@ import { PolicyRepository } from './PolicyRepository';
 import { EnvironmentImageCacheRepository } from './EnvironmentImageCacheRepository';
 import { StoryEnvironmentCacheRepository } from './StoryEnvironmentCacheRepository';
 import { LlmTurnaroundCacheRepository } from './LlmTurnaroundCacheRepository';
+import { OutfitPlateCacheRepository } from './OutfitPlateCacheRepository';
+import { StoryOutfitPlateCacheRepository } from './StoryOutfitPlateCacheRepository';
 import { AlignmentRepository } from './AlignmentRepository';
 import { AiUsageRepository } from './AiUsageRepository';
 import { UsageEventsRepository } from './UsageEventsRepository';
@@ -44,6 +46,8 @@ export { PolicyRepository } from './PolicyRepository';
 export { EnvironmentImageCacheRepository } from './EnvironmentImageCacheRepository';
 export { StoryEnvironmentCacheRepository } from './StoryEnvironmentCacheRepository';
 export { LlmTurnaroundCacheRepository } from './LlmTurnaroundCacheRepository';
+export { OutfitPlateCacheRepository } from './OutfitPlateCacheRepository';
+export { StoryOutfitPlateCacheRepository } from './StoryOutfitPlateCacheRepository';
 export { AlignmentRepository } from './AlignmentRepository';
 export { AiUsageRepository } from './AiUsageRepository';
 export { UsageEventsRepository } from './UsageEventsRepository';
@@ -66,6 +70,8 @@ let policyRepo: PolicyRepository;
 let environmentImageCacheRepo: EnvironmentImageCacheRepository;
 let storyEnvironmentCacheRepo: StoryEnvironmentCacheRepository;
 let llmTurnaroundCacheRepo: LlmTurnaroundCacheRepository;
+let outfitPlateCacheRepo: OutfitPlateCacheRepository;
+let storyOutfitPlateCacheRepo: StoryOutfitPlateCacheRepository;
 let alignmentRepo: AlignmentRepository;
 let aiUsageRepo: AiUsageRepository;
 let usageEventsRepo: UsageEventsRepository;
@@ -148,6 +154,17 @@ export function getLlmTurnaroundCacheRepository(): LlmTurnaroundCacheRepository 
   if (!llmTurnaroundCacheRepo)
     llmTurnaroundCacheRepo = new LlmTurnaroundCacheRepository(db);
   return llmTurnaroundCacheRepo;
+}
+
+export function getOutfitPlateCacheRepository(): OutfitPlateCacheRepository {
+  if (!outfitPlateCacheRepo) outfitPlateCacheRepo = new OutfitPlateCacheRepository(db);
+  return outfitPlateCacheRepo;
+}
+
+export function getStoryOutfitPlateCacheRepository(): StoryOutfitPlateCacheRepository {
+  if (!storyOutfitPlateCacheRepo)
+    storyOutfitPlateCacheRepo = new StoryOutfitPlateCacheRepository(db);
+  return storyOutfitPlateCacheRepo;
 }
 
 export function getAlignmentRepository(): AlignmentRepository {

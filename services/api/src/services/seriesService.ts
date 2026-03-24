@@ -197,6 +197,8 @@ function buildInitialContext(story: Story): any {
     previousEnvironmentsCount: previousEnvironments.length,
   }, 'Building initial context');
 
+  const previousOutfits = Array.isArray(metadata?.outfits) ? metadata.outfits : [];
+
   return {
     previousOutlines: [{
       title: story.title,
@@ -210,6 +212,7 @@ function buildInitialContext(story: Story): any {
     optionalCharacters: formatCharacters(llmGeneratedCharacters), // LLM-generated = MAY use
     usedPlots: sceneSummaries, // Use scene summaries as used plots
     previousEnvironments,
+    previousOutfits,
   };
 }
 
@@ -304,6 +307,7 @@ export async function addContinuationToSeries(
     optionalCharacters: any[];
     usedPlots: string[];
     previousEnvironments?: Array<{ id: string; name: string; description: string; characterOutfits?: string }>;
+    previousOutfits?: Array<{ id: string; characterName: string; description: string }>;
   };
 
   // Extract new environments from this episode (metadata.environments or scenes)
@@ -344,6 +348,24 @@ export async function addContinuationToSeries(
     }
   }
 
+  const newOutfitRows: Array<{ id: string; characterName: string; description: string }> = Array.isArray(
+    metadata?.outfits,
+  )
+    ? metadata.outfits
+    : [];
+  const existingOutfitIds = new Set((ctx.previousOutfits || []).map((o) => o.id));
+  const mergedOutfits = [...(ctx.previousOutfits || [])];
+  for (const o of newOutfitRows) {
+    if (o?.id && !existingOutfitIds.has(o.id)) {
+      existingOutfitIds.add(o.id);
+      mergedOutfits.push({
+        id: o.id,
+        characterName: o.characterName || '',
+        description: o.description || '',
+      });
+    }
+  }
+
   const updatedContext = {
     ...ctx,
     previousOutlines: [
@@ -369,6 +391,7 @@ export async function addContinuationToSeries(
       ...sceneSummaries,
     ],
     previousEnvironments: mergedEnvs,
+    previousOutfits: mergedOutfits,
   };
   
   logger.info({

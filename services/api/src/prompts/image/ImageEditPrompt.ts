@@ -32,7 +32,36 @@ export function buildImageEditPrompt(params: ImageEditPromptParams): string {
       issues.push(`- Character "${character.name}" has WRONG COLORS. Fix the color palette to match the description.`);
     }
     if (!character.matchesOutfit) {
-      issues.push(`- Character "${character.name}" has WRONG OUTFIT/ACCESSORIES. Fix clothing and accessories to match the description.`);
+      issues.push(
+        `- Character "${character.name}" has WRONG OUTFIT/ACCESSORIES. Match the scene CHARACTER OUTFITS / expected wardrobe text exactly: same garment type, sleeve/collar/length, shoes, and accessories — not just similar colors.`,
+      );
+    }
+    const human = character.characterKind === 'human';
+    if (!character.faceMatchesReference) {
+      issues.push(
+        human
+          ? `- Character "${character.name}" (HUMAN): Face, head structure, and stable identifying traits do not match the turnaround reference. Align eyes, nose, mouth, cheeks, chin, and distinguishing marks with the reference — do not settle for a vague lookalike.`
+          : `- Character "${character.name}" (IMAGINARY): Muzzle/face, eyes, and expression do not match the creature reference (mane/fur/head markings as applicable).`,
+      );
+    }
+    if (!character.hairMatchesReference) {
+      issues.push(
+        human
+          ? `- Character "${character.name}" (HUMAN): Visible hairstyle/hair does not match the reference (length, part, texture, color). Wardrobe or palette must not substitute for correct hair.`
+          : `- Character "${character.name}" (IMAGINARY): Head fur/mane/crown markings do not match the reference sheet.`,
+      );
+    }
+    if (!character.ageReadMatchesReference) {
+      issues.push(
+        human
+          ? `- Character "${character.name}" (HUMAN): Apparent age category (child vs teen/adult) does not match the reference and scene — correct body scale and facial maturity.`
+          : `- Character "${character.name}" (IMAGINARY): Apparent life stage or scale relative to the reference does not match (unless the scene clearly requires a deliberate change).`,
+      );
+    }
+    if (!character.proportionsMatchReference) {
+      issues.push(
+        `- Character "${character.name}": Head-to-body and limb proportions / silhouette do not match the reference; fix anatomy scale while keeping the same pose intent.`,
+      );
     }
     // Include general issue field if present (may contain additional details not covered above)
     if (character.issue) {

@@ -24,13 +24,17 @@ export interface StoryDomainOptions {
     optionalCharacters: Array<{ name: string; type: string; description?: string; appearance?: string; role?: string }>;
     usedPlots: string[];
     previousEnvironments?: Array<{ id: string; name: string; description: string; characterOutfits?: string }>;
+    previousOutfits?: Array<{ id: string; characterName: string; description: string }>;
   };
 }
 import { buildDirectTextPrompt, buildDirectTextPromptPlain, buildDirectorPrompt, buildBatchValidationPrompt, buildBatchRegenerationPrompt } from '../../prompts/text';
+import config from '../../config';
+import { estimateUsageCostUsd } from '../../services/aiUsageService';
 import { logger } from '../../utils/logger';
 import { TEXT_SCHEMA, BATCH_VALIDATION_SCHEMA, BATCH_REGENERATION_SCHEMA } from './schemas';
 import { DIRECTOR_SCHEMA } from './directorSchema';
 import { parsePlainTextToScenes } from './parsePlainText';
+import { normalizeOutfitBindingsOnEpisodeText } from '../../utils/characterOutfits';
 
 export interface BatchValidationResult {
   failedScenes: Array<{
@@ -41,7 +45,10 @@ export interface BatchValidationResult {
 }
 
 export class StoryDomainService {
-  constructor(private textProvider: ITextProvider) {}
+  constructor(
+    private textProvider: ITextProvider,
+    private directorTextProvider: ITextProvider = textProvider,
+  ) {}
 
   /**
    * Generate story text directly (1-step process)
@@ -74,6 +81,7 @@ export class StoryDomainService {
       promptParams.optionalCharacters =
         ctx.optionalCharacters?.length > 0 ? ctx.optionalCharacters.map(toContinuationChar) : undefined;
       promptParams.previousEnvironments = ctx.previousEnvironments;
+      promptParams.previousOutfits = ctx.previousOutfits;
     }
 
     const prompt = buildDirectTextPrompt(promptParams);
@@ -93,6 +101,8 @@ export class StoryDomainService {
         onUsage: options?.onUsage,
         operation: isContinuation ? 'text_continuation' : 'text_structured',
       });
+
+      normalizeOutfitBindingsOnEpisodeText(text as { scenes?: Array<Record<string, unknown>> });
 
       // Compute fullText and wordCount server-side for consistency
       text.fullText = text.scenes.map(s => s.text).join('\n\n');
@@ -143,6 +153,7 @@ export class StoryDomainService {
       promptParams.optionalCharacters =
         ctx.optionalCharacters?.length > 0 ? ctx.optionalCharacters.map(toContinuationChar) : undefined;
       promptParams.previousEnvironments = ctx.previousEnvironments;
+      promptParams.previousOutfits = ctx.previousOutfits;
     }
 
     const prompt = buildDirectTextPromptPlain(promptParams);
@@ -183,23 +194,65 @@ export class StoryDomainService {
     options?: StoryDomainOptions
   ): Promise<{
     characters: Array<{ name: string; type: string; description: string; role?: string; personality?: string }>;
-    environments: Array<{ id: string; name: string; description: string; characterOutfits: string }>;
-    illustrations: Array<{ environmentId: string; sceneVisual: { setting: string; cameraComposition: { shot: string; characters: Array<{ name: string; description: string }> }; lighting: string } }>;
+    environments: Array<{ id: string; name: string; description: string }>;
+    outfits: Array<{ id: string; characterName: string; description: string }>;
+    illustrations: Array<{
+      environmentId: string;
+      sceneVisual: {
+        setting: string;
+        cameraComposition: {
+          shot: string;
+          characters: Array<{ name: string; description: string; outfitId: string }>;
+        };
+        lighting: string;
+      };
+    }>;
   }> {
-    logger.info({ imagesPerStory: params.imagesPerStory, blockCount: params.blocks.length }, 'Calling Director');
-
     const prompt = buildDirectorPrompt(params);
 
+    logger.info(
+      {
+        imagesPerStory: params.imagesPerStory,
+        blockCount: params.blocks.length,
+        promptLength: prompt.length,
+      },
+      'Calling Director',
+    );
+
+    if (config.features.logDirectorFullPrompt) {
+      logger.info({ promptLength: prompt.length, fullPrompt: prompt }, 'Director full prompt');
+    }
+
     try {
-      const result = await this.textProvider.generateStructured<{
+      const parentOnUsage = options?.onUsage;
+      const result = await this.directorTextProvider.generateStructured<{
         characters: any[];
         environments: any[];
-        illustrations: any[];
+        outfits: any[];
+        illustrations: Array<{
+          environmentId: string;
+          sceneVisual: any;
+        }>;
       }>({
         prompt,
         schema: DIRECTOR_SCHEMA,
         temperature: 0.7,
-        onUsage: options?.onUsage,
+        onUsage: (usage) => {
+          if (usage.operation === 'director') {
+            const costUsd = estimateUsageCostUsd(usage);
+            logger.info(
+              {
+                provider: usage.provider,
+                model: usage.model,
+                inputTokens: usage.inputUnits,
+                outputTokens: usage.outputUnits ?? 0,
+                costUsd,
+              },
+              'Director LLM request usage (estimated cost USD)',
+            );
+          }
+          parentOnUsage?.(usage);
+        },
         operation: 'director',
       });
 

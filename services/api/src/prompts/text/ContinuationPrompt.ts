@@ -121,9 +121,11 @@ ${helpers.formatWritingStyle(spec, vocabLevel)}
 
 ${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRule: !!spec.worldRule, worldRuleText: spec.worldRule?.description })}
 
+${helpers.formatNarrativeContinuityRules()}
+
 ${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle, scenarioCardId: spec.scenarioCard?.id, policyProfile: spec.policyProfile })}
 
-OUTPUT FORMAT: Same as DirectTextPrompt (JSON with title, language, characters, moral, scenes, environments). Generate environments LAST. Each environment MUST have characterOutfits as string "Char1: outfit1. Char2: outfit2." with all characters who appear there.
+OUTPUT FORMAT: Same as DirectTextPrompt (JSON with title, language, characters, moral, scenes with sceneVisual.cameraComposition.characters each including outfitId, outfits array, environments). Generate outfits then environments LAST. Wardrobe is ONLY in outfits[] and per-character outfitId on camera rows — not on environments.
 
 IMPORTANT - Character Descriptions:
 - In scene TEXT: Do NOT re-describe required/optional characters. NEW characters — MUST describe appearance when first introduced.
@@ -220,6 +222,8 @@ ${getContentPolicy({ policyProfile: spec.policyProfile, scenarioCardId: spec.sce
 ${helpers.formatWritingStyle(spec, vocabLevel)}
 
 ${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRule: !!spec.worldRule, worldRuleText: spec.worldRule?.description })}
+
+${helpers.formatNarrativeContinuityRules()}
 
 OUTPUT FORMAT (plain text only):
 title: Story title in ${spec.language}

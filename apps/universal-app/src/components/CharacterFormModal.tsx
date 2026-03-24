@@ -1,12 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
-import { useCreateCharacter, useUpdateCharacter, useAnalyzeCharacter, useGenerateTurnaround } from '@/api/characters';
+import { FeedbackModal } from './FeedbackModal';
+import { useCreateCharacter, useUpdateCharacter, useAnalyzeCharacter } from '@/api/characters';
 import { UploadPhotoResult, deletePhoto } from '@/utils/uploadPhoto';
 import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
 import { API_BASE_URL } from '@/config/constants';
+
+/** Normalize BCP 47 locale (e.g. uk-UA, en-US) to base code for API (uk, en) */
+function toBaseLocale(locale: string | undefined): string {
+  const base = (locale || '').split('-')[0]?.toLowerCase() || 'uk';
+  return LOCALE_IDS.includes(base as any) ? base : 'uk';
+}
 
 /** Convert relative asset path to absolute URL for Zod .url() validation */
 function toAbsoluteAssetUrl(url: string): string {
@@ -19,6 +26,7 @@ function toAbsoluteAssetUrl(url: string): string {
 import { storage } from '@/utils/storage';
 import { 
   CreateCharacterSchema,
+  LOCALE_IDS,
   ReferencePhoto,
   CharacterType,
   CharacterSubtype,
@@ -76,7 +84,9 @@ interface Props {
   initialData?: {
     name: string;
     type: CharacterType;
+    subtype?: CharacterSubtype | null;
     description?: string;
+    descriptionLanguage?: string;
     referencePhotos?: ReferencePhoto[];
     appearanceTraits?: any;
     personality?: any;
@@ -163,10 +173,11 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   const createCharacter = useCreateCharacter();
   const updateCharacter = useUpdateCharacter();
   const analyzeCharacter = useAnalyzeCharacter();
-  const generateTurnaround = useGenerateTurnaround();
   
   // Wizard state
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
+  const scrollRef = useRef<ScrollView>(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   
   // Basic fields
   const [name, setName] = useState('');
@@ -175,9 +186,6 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   const [description, setDescription] = useState('');
   const [descriptionLanguage, setDescriptionLanguage] = useState<string | undefined>(undefined);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Turnaround sheet (read-only, from backend)
-  const [turnaroundSheetUrl, setTurnaroundSheetUrl] = useState<string | undefined>(undefined);
 
   // Photos
   const [photos, setPhotos] = useState<UploadPhotoResult[]>([]);
@@ -337,20 +345,11 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
             favoriteActivities: []
           });
         }
-        
-        // Load turnaround sheet URL if available
-        setTurnaroundSheetUrl(initialData.turnaroundSheet?.url || undefined);
-
-        // Skip to step 2 if editing and has description
-        if (characterId && initialData.description) {
-          setCurrentStep(2);
-        }
       } else {
         setName('');
         setType('animal');
         setDescription('');
         setDescriptionLanguage(undefined);
-        setTurnaroundSheetUrl(undefined);
         setPhotos([]);
         setPetAppearance({
           breed: undefined,
@@ -390,11 +389,82 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   }, [visible, initialData, characterId]);
 
   // Helper function to map character type to analysis type
-  function getAnalysisCharacterType(type: CharacterType): 'person' | 'animal' | 'imaginary' {
-    if (isAnimalType(type)) return 'animal';
-    if (isImaginaryType(type)) return 'imaginary';
+  function getAnalysisCharacterType(t: CharacterType): 'person' | 'animal' | 'imaginary' {
+    if (isAnimalType(t)) return 'animal';
+    if (isImaginaryType(t)) return 'imaginary';
     return 'person';
   }
+
+  // Auto-analyze on step 2 entry (create only, when photos exist)
+  const hasAnalyzedRef = React.useRef(false);
+  useEffect(() => {
+    if (!characterId && currentStep === 2 && !hasAnalyzedRef.current) {
+      const uploadedPhotos = photos
+        .filter(p => !p.isUploading && p.url && formatAssetUrl(p.url) !== null)
+        .map(p => formatAssetUrl(p.url)!);
+      if (uploadedPhotos.length > 0 && !description.trim()) {
+        hasAnalyzedRef.current = true;
+        const characterType = getAnalysisCharacterType(type);
+        storage.getLanguage().then((saved) => {
+          let userLanguage = i18n.language;
+          if (!userLanguage || userLanguage === 'en-US') {
+            userLanguage = saved || 'uk';
+          }
+          const apiLanguage = toBaseLocale(userLanguage);
+          analyzeCharacter.mutate(
+            { photos: uploadedPhotos, characterType, language: apiLanguage },
+            {
+              onSuccess: (analysis) => {
+                setDescription(analysis.description || '');
+                setDescriptionLanguage(apiLanguage);
+                if (analysis.petAppearance && isAnimalType(type)) {
+                  setPetAppearance({
+                    breed: analysis.petAppearance.breed || undefined,
+                    furColor: analysis.petAppearance.furColor as FurColor | undefined,
+                    furPattern: analysis.petAppearance.furPattern as FurPattern | undefined,
+                    furLength: analysis.petAppearance.furLength as FurLength | undefined,
+                    size: analysis.petAppearance.size as PetSize | undefined,
+                    eyeColor: analysis.petAppearance.eyeColor as PetEyeColor | undefined,
+                    distinctiveFeatures: (analysis.petAppearance.distinctiveFeatures || []) as PetDistinctiveFeature[]
+                  });
+                }
+                if (analysis.humanAppearance && isHumanType(type)) {
+                  setHumanAppearance({
+                    ageRange: analysis.humanAppearance.ageRange as AgeRange | undefined,
+                    hairColor: analysis.humanAppearance.hairColor as HumanHairColor | undefined,
+                    hairLength: analysis.humanAppearance.hairLength as HumanHairLength | undefined,
+                    hairStyle: analysis.humanAppearance.hairStyle as HumanHairStyle | undefined,
+                    eyeColor: analysis.humanAppearance.eyeColor as EyeColor | undefined,
+                    skinTone: analysis.humanAppearance.skinTone as SkinTone | undefined,
+                    height: analysis.humanAppearance.height as Height | undefined,
+                    build: analysis.humanAppearance.build as Build | undefined,
+                    clothingStyle: analysis.humanAppearance.clothingStyle as ClothingStyle | undefined,
+                    distinctiveFeatures: (analysis.humanAppearance.distinctiveFeatures || []) as HumanDistinctiveFeature[]
+                  });
+                }
+                if (analysis.imaginaryAppearance && isImaginaryType(type)) {
+                  setImaginaryAppearance({
+                    species: analysis.imaginaryAppearance.species || '',
+                    primaryColor: analysis.imaginaryAppearance.primaryColor || '',
+                    secondaryColor: analysis.imaginaryAppearance.secondaryColor || '',
+                    size: analysis.imaginaryAppearance.size || '',
+                    magicalFeatures: analysis.imaginaryAppearance.magicalFeatures || []
+                  });
+                }
+              }
+            }
+          );
+        });
+      }
+    }
+    if (currentStep === 1) {
+      hasAnalyzedRef.current = false;
+    }
+  }, [characterId, currentStep, photos, description, type, analyzeCharacter.mutate, i18n.language]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, [currentStep]);
 
   // Handler for Step 1 "Continue" button
   const handleContinue = () => {
@@ -416,76 +486,6 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
 
     // Move to step 2
     setCurrentStep(2);
-  };
-
-  // Handler for "Generate Description" button on Step 2
-  const handleAnalyzePhotos = async () => {
-    const uploadedPhotos = photos
-      .filter(p => !p.isUploading && p.url && formatAssetUrl(p.url) !== null)
-      .map(p => formatAssetUrl(p.url)!);
-
-    if (uploadedPhotos.length === 0) return;
-
-    try {
-      const characterType = getAnalysisCharacterType(type);
-
-      // Get user's language - try i18n first, then storage, then fallback to 'uk'
-      let userLanguage = i18n.language;
-      if (!userLanguage || userLanguage === 'en-US') {
-        const savedLanguage = await storage.getLanguage();
-        userLanguage = savedLanguage || 'uk';
-      }
-
-      const analysis = await analyzeCharacter.mutateAsync({
-        photos: uploadedPhotos,
-        characterType,
-        language: userLanguage,
-      });
-
-      // Populate description and remember analysis language
-      setDescription(analysis.description || '');
-      setDescriptionLanguage(userLanguage);
-
-      // Populate appearance fields based on type
-      if (analysis.petAppearance && isAnimalType(type)) {
-        setPetAppearance({
-          breed: analysis.petAppearance.breed || undefined,
-          furColor: analysis.petAppearance.furColor as FurColor || undefined,
-          furPattern: analysis.petAppearance.furPattern as FurPattern || undefined,
-          furLength: analysis.petAppearance.furLength as FurLength || undefined,
-          size: analysis.petAppearance.size as PetSize || undefined,
-          eyeColor: analysis.petAppearance.eyeColor as PetEyeColor || undefined,
-          distinctiveFeatures: (analysis.petAppearance.distinctiveFeatures || []) as PetDistinctiveFeature[]
-        });
-      } else if (analysis.humanAppearance && isHumanType(type)) {
-        setHumanAppearance({
-          ageRange: analysis.humanAppearance.ageRange as AgeRange || undefined,
-          hairColor: analysis.humanAppearance.hairColor as HumanHairColor || undefined,
-          hairLength: analysis.humanAppearance.hairLength as HumanHairLength || undefined,
-          hairStyle: analysis.humanAppearance.hairStyle as HumanHairStyle || undefined,
-          eyeColor: analysis.humanAppearance.eyeColor as EyeColor || undefined,
-          skinTone: analysis.humanAppearance.skinTone as SkinTone || undefined,
-          height: analysis.humanAppearance.height as Height || undefined,
-          build: analysis.humanAppearance.build as Build || undefined,
-          clothingStyle: analysis.humanAppearance.clothingStyle as ClothingStyle || undefined,
-          distinctiveFeatures: (analysis.humanAppearance.distinctiveFeatures || []) as HumanDistinctiveFeature[]
-        });
-      } else if (analysis.imaginaryAppearance && isImaginaryType(type)) {
-        setImaginaryAppearance({
-          species: analysis.imaginaryAppearance.species || '',
-          primaryColor: analysis.imaginaryAppearance.primaryColor || '',
-          secondaryColor: analysis.imaginaryAppearance.secondaryColor || '',
-          size: analysis.imaginaryAppearance.size || '',
-          magicalFeatures: analysis.imaginaryAppearance.magicalFeatures || []
-        });
-      }
-    } catch (error) {
-      console.error('Photo analysis failed:', error);
-      Alert.alert(
-        t('character_form.analysis_failed_title'),
-        t('character_form.analysis_failed_message')
-      );
-    }
   };
 
   const handleSubmit = async () => {
@@ -591,7 +591,8 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
 
       // Submit
       if (characterId) {
-        await updateCharacter.mutateAsync({ id: characterId, data: result.data });
+        const { referencePhotos: _rp, ...updateData } = result.data;
+        await updateCharacter.mutateAsync({ id: characterId, data: updateData });
       } else {
         await createCharacter.mutateAsync(result.data);
       }
@@ -607,11 +608,17 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="fade"
       transparent
       onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
+        {createCharacter.isPending && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+            <Text style={styles.loadingOverlayText}>{t('character_form.creating_character') || 'Создаём образ персонажа'}</Text>
+          </View>
+        )}
         <View style={styles.modal}>
           {/* Header */}
           <View style={styles.header}>
@@ -628,7 +635,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView ref={scrollRef} style={styles.content} showsVerticalScrollIndicator={false}>
             {/* STEP 1: Basic Info */}
             {currentStep === 1 && (
               <>
@@ -739,143 +746,38 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                 {/* Description */}
                 <View style={styles.field}>
                   <Text style={styles.label}>{t('character_form.description_label')}</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea, errors.description && styles.inputError]}
-                    value={description}
-                    onChangeText={setDescription}
-                    placeholder={t('character_form.description_placeholder')}
-                    placeholderTextColor={theme.colors.text.disabled}
-                    multiline
-                    numberOfLines={4}
-                    textAlignVertical="top"
-                  />
-                  {description && (
+                  {photos.some(p => !p.isUploading && p.url && formatAssetUrl(p.url) !== null) && analyzeCharacter.isPending ? (
+                    <View style={styles.turnaroundGenerating}>
+                      <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+                      <Text style={styles.turnaroundGeneratingText}>
+                        {t('character_form.analyzing_photos')}
+                      </Text>
+                    </View>
+                  ) : (
+                    <TextInput
+                      style={[styles.input, styles.textArea, errors.description && styles.inputError]}
+                      value={description}
+                      onChangeText={setDescription}
+                      placeholder={t('character_form.description_placeholder')}
+                      placeholderTextColor={theme.colors.text.disabled}
+                      multiline
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                      editable={characterId ? true : !photos.some(p => !p.isUploading && p.url && formatAssetUrl(p.url) !== null)}
+                    />
+                  )}
+                  {description && !analyzeCharacter.isPending && (
                     <Text style={styles.hint}>
                       {t('character_form.ai_generated_hint')}
                     </Text>
                   )}
                   {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
-                  {/* Generate / Regenerate Description button */}
-                  {photos.some(p => !p.isUploading && p.url && formatAssetUrl(p.url) !== null) ? (
-                    analyzeCharacter.isPending ? (
-                      <View style={styles.turnaroundGenerating}>
-                        <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
-                        <Text style={styles.turnaroundGeneratingText}>
-                          {t('character_form.analyzing_photos')}
-                        </Text>
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={[
-                          styles.turnaroundButton,
-                          description ? styles.turnaroundButtonSecondary : undefined,
-                        ]}
-                        onPress={handleAnalyzePhotos}
-                      >
-                        <Ionicons
-                          name={description ? 'refresh-outline' : 'sparkles-outline'}
-                          size={18}
-                          color={description ? theme.colors.interactive.primary : theme.colors.text.inverse}
-                        />
-                        <Text
-                          style={[
-                            styles.turnaroundButtonText,
-                            description ? styles.turnaroundButtonTextSecondary : undefined,
-                          ]}
-                        >
-                          {description
-                            ? t('character_form.regenerate_description')
-                            : t('character_form.generate_description')}
-                        </Text>
-                      </TouchableOpacity>
-                    )
-                  ) : (
+                  {!photos.some(p => !p.isUploading && p.url && formatAssetUrl(p.url) !== null) && (
                     <Text style={styles.hint}>
                       {t('character_form.description_upload_photos_first')}
                     </Text>
                   )}
                 </View>
-
-                {/* Turnaround Sheet */}
-                <View style={styles.field}>
-                    <Text style={styles.label}>{t('character_form.turnaround_sheet')}</Text>
-                    {turnaroundSheetUrl && (
-                      <View style={styles.turnaroundContainer}>
-                        <Image
-                          source={{ uri: formatAssetUrl(turnaroundSheetUrl) || turnaroundSheetUrl }}
-                          style={styles.turnaroundImage}
-                          resizeMode="contain"
-                        />
-                      </View>
-                    )}
-                    {characterId ? (
-                      generateTurnaround.isPending ? (
-                        <View style={styles.turnaroundGenerating}>
-                          <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
-                          <Text style={styles.turnaroundGeneratingText}>
-                            {t('character_form.generating_turnaround')}
-                          </Text>
-                        </View>
-                      ) : (() => {
-                        const hasReferencePhotos = photos.some(p => !p.isUploading && p.url);
-                        const hasDescription = !!description?.trim();
-                        const canGenerateTurnaround = hasReferencePhotos || hasDescription;
-                        return canGenerateTurnaround ? (
-                          <TouchableOpacity
-                            style={[
-                              styles.turnaroundButton,
-                              turnaroundSheetUrl && styles.turnaroundButtonSecondary,
-                            ]}
-                            onPress={async () => {
-                              try {
-                                const result = await generateTurnaround.mutateAsync({ characterId, description: description || undefined });
-                                setTurnaroundSheetUrl(result.url);
-                              } catch (error) {
-                                Alert.alert(
-                                  t('error') || 'Error',
-                                  t('character_form.turnaround_error'),
-                                );
-                              }
-                            }}
-                          >
-                            <Ionicons
-                              name={turnaroundSheetUrl ? 'refresh-outline' : 'image-outline'}
-                              size={18}
-                              color={turnaroundSheetUrl ? theme.colors.interactive.primary : theme.colors.text.inverse}
-                            />
-                            <Text
-                              style={[
-                                styles.turnaroundButtonText,
-                                turnaroundSheetUrl && styles.turnaroundButtonTextSecondary,
-                              ]}
-                            >
-                              {turnaroundSheetUrl
-                                ? t('character_form.regenerate_turnaround')
-                                : t('character_form.generate_turnaround')}
-                            </Text>
-                          </TouchableOpacity>
-                        ) : (
-                          <TouchableOpacity
-                            style={[styles.turnaroundButton, styles.turnaroundButtonDisabled]}
-                            disabled
-                          >
-                            <Ionicons
-                              name="image-outline"
-                              size={18}
-                              color={theme.colors.text.disabled}
-                            />
-                            <Text style={[styles.turnaroundButtonText, styles.turnaroundButtonTextDisabled]}>
-                              {t('character_form.turnaround_add_photo_or_description')}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })()
-                    ) : (
-                      <Text style={styles.hint}>
-                        {t('character_form.turnaround_save_first')}
-                      </Text>
-                    )}
-                  </View>
 
                 {/* Appearance Section */}
                 <ExpandableCard title={t('character_form.appearance_title')} defaultExpanded={true}>
@@ -1184,18 +1086,33 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
               <TouchableOpacity
                 style={[styles.button, styles.saveButton]}
                 onPress={handleSubmit}
-                disabled={createCharacter.isPending || updateCharacter.isPending}
+                disabled={createCharacter.isPending || updateCharacter.isPending || (!characterId && !description.trim()) || (!characterId && analyzeCharacter.isPending)}
               >
                 <Text style={styles.saveButtonText}>
-                  {(createCharacter.isPending || updateCharacter.isPending)
+                  {createCharacter.isPending
+                    ? (t('character_form.creating_character') || 'Создаём образ персонажа')
+                    : updateCharacter.isPending
                     ? t('character_form.saving')
                     : t('character_form.save_button')}
                 </Text>
               </TouchableOpacity>
             )}
           </View>
+
+          <TouchableOpacity
+            style={styles.reportProblemLink}
+            onPress={() => setShowFeedbackModal(true)}
+          >
+            <Text style={styles.reportProblemLinkText}>{t('profile.report_problem')}</Text>
+          </TouchableOpacity>
         </View>
       </View>
+
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="characters"
+      />
     </Modal>
   );
 }
@@ -1216,6 +1133,16 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     maxHeight: '90%',
     overflow: 'hidden',
+  },
+  reportProblemLink: {
+    alignSelf: 'center',
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[4],
+    marginBottom: theme.spacing[4],
+  },
+  reportProblemLinkText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
   },
   header: {
     flexDirection: 'row',
@@ -1364,47 +1291,17 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.inverse,
   },
-  turnaroundContainer: {
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-    borderRadius: theme.borders.radius.md,
-    overflow: 'hidden',
-    backgroundColor: theme.colors.background.secondary,
-    marginBottom: theme.spacing[3],
-  },
-  turnaroundImage: {
-    width: '100%',
-    aspectRatio: 16 / 9,
-  },
-  turnaroundButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.9)',
     justifyContent: 'center',
-    gap: theme.spacing[2],
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.interactive.primary,
+    alignItems: 'center',
+    zIndex: 10,
   },
-  turnaroundButtonSecondary: {
-    backgroundColor: theme.colors.background.secondary,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
-  },
-  turnaroundButtonDisabled: {
-    backgroundColor: theme.colors.background.tertiary,
-    opacity: 0.8,
-  },
-  turnaroundButtonText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
-  },
-  turnaroundButtonTextSecondary: {
-    color: theme.colors.interactive.primary,
-  },
-  turnaroundButtonTextDisabled: {
-    color: theme.colors.text.disabled,
+  loadingOverlayText: {
+    marginTop: theme.spacing[4],
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.secondary,
   },
   turnaroundGenerating: {
     flexDirection: 'row',

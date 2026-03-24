@@ -32,20 +32,18 @@ import VoiceSelector from '@/components/VoiceSelector';
 import { useAlignmentSync } from '@/hooks/useAlignmentSync';
 import { ContinueSeriesSection } from '@/components/ContinueSeriesSection';
 import { StoryBottomSheet } from '@/components/StoryBottomSheet';
+import { FeedbackModal } from '@/components/FeedbackModal';
 import { StoryCharactersSection, type StoryCharacter } from '@/components/StoryCharactersSection';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { StoryViewerSkeleton } from '@/components/StoryViewerSkeleton';
-import { getReadingTimeMinutes } from '@wondertales/shared';
+import { getReadingTimeMinutes, stripMarkdownStyleEmphasis } from '@wondertales/shared';
 import { getAnalytics } from '@/services/analytics';
 
 type StoryViewerRouteProp = RouteProp<MainDrawerParamList, 'Story'>;
 
-// Helper function to remove audio tags from text
-const removeAudioTags = (text: string): string => {
-  // Remove ElevenLabs audio tags like [happy], [sad], [excited], etc.
-  // Keep whitespace and newlines intact
-  return text.replace(/\[[\w\s]+\]/g, '');
-};
+// Helper: strip bracket tags (audio, IDs) and ** emphasis for display (align with API stripAllTags)
+const removeAudioTags = (text: string): string =>
+  stripMarkdownStyleEmphasis(text.replace(/\[[^\]]*\]/g, ''));
 
 // Format wait time using i18n translations
 const formatWaitTime = (ms: number, t: (key: string, opts?: Record<string, any>) => string): string => {
@@ -219,6 +217,7 @@ export default function StoryViewerScreen() {
   // Delete dialog state
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [publishShareDialogVisible, setPublishShareDialogVisible] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [publishShareUrl, setPublishShareUrl] = useState<string | null>(null);
   const [publishDialogOpenedFromShare, setPublishDialogOpenedFromShare] = useState(false);
   const [unpublishDialogVisible, setUnpublishDialogVisible] = useState(false);
@@ -1320,6 +1319,7 @@ export default function StoryViewerScreen() {
               onFinish={handleAudioFinish}
               onActivateAudio={handleActivateAudio}
               onDeleteStory={handleDeleteStory}
+              onReportProblem={() => setShowFeedbackModal(true)}
               onPublish={handleOpenPublishDialog}
               onShare={handleShare}
               onUnpublish={handleUnpublish}
@@ -1446,6 +1446,15 @@ export default function StoryViewerScreen() {
                 <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
                 <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
               </TouchableOpacity>
+
+              {/* Report Problem */}
+              <TouchableOpacity
+                style={styles.reportProblemButton}
+                onPress={() => setShowFeedbackModal(true)}
+              >
+                <Ionicons name="bug-outline" size={20} color={theme.colors.text.tertiary} />
+                <Text style={styles.reportProblemButtonText}>{t('profile.report_problem')}</Text>
+              </TouchableOpacity>
             </View>
           </ScrollView>
           </View>
@@ -1497,6 +1506,12 @@ export default function StoryViewerScreen() {
         shareCardSceneId={story?.shareCardSceneId ?? null}
         initialVisibility={story?.visibility === 'unlisted' ? 'unlisted' : (story?.isPublished ? 'public' : 'unlisted')}
         openedFromShare={publishDialogOpenedFromShare}
+      />
+
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="story_viewer"
       />
     </View>
   );
@@ -1675,6 +1690,22 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.status.error,
+  },
+  reportProblemButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    padding: theme.spacing[3],
+    marginTop: theme.spacing[2],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  reportProblemButtonText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
   },
   // Common styles
   title: {

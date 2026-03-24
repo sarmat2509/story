@@ -26,11 +26,14 @@ import { navigateToStory } from '@/navigation/navigationRef';
 import { globalAudioService } from '@/services/globalAudioService';
 import { audioPlaybackService } from '@/services/audioPlaybackService';
 import { useAlignmentSync } from '@/hooks/useAlignmentSync';
-import { getReadingTimeMinutes } from '@wondertales/shared';
+import { getReadingTimeMinutes, stripMarkdownStyleEmphasis } from '@wondertales/shared';
 import type { MainDrawerParamList } from '@/types/navigation';
 
-const removeAudioTags = (text: string): string =>
-  text.replace(/<[^>]+>/g, '').trim();
+const removeAudioTags = (text: string): string => {
+  let t = text.replace(/<[^>]+>/g, '');
+  t = t.replace(/\[[^\]]*\]/g, '');
+  return stripMarkdownStyleEmphasis(t).replace(/\s{2,}/g, ' ').trim();
+};
 
 type RouteProps = RouteProp<MainDrawerParamList, 'PublishedStory' | 'UnlistedStory'>;
 

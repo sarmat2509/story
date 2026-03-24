@@ -53,11 +53,11 @@ export const ChipSelector: React.FC<ChipSelectorProps> = ({
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
-      {max && multiple && (
+      {max && multiple ? (
         <Text style={styles.hint}>
           {selectedArray.length} / {max}
         </Text>
-      )}
+      ) : null}
       <ScrollView 
         horizontal 
         showsHorizontalScrollIndicator={false}

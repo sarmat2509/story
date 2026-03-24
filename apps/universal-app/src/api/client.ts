@@ -28,8 +28,8 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Transform request data: camelCase → snake_case
-    if (config.data) {
+    // Transform request data: camelCase → snake_case (skip FormData — multipart must stay intact)
+    if (config.data && !(config.data instanceof FormData)) {
       config.data = decamelizeKeys(config.data, { separator: '_' });
     }
 

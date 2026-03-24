@@ -23,6 +23,7 @@ interface Props {
   scenarioCards?: ScenarioCard[];
   selectedScenarioId?: string | null;
   onScenarioChange?: (id: string | null) => void;
+  onReportProblem?: () => void;
 }
 
 const LibraryHeaderComponent = ({ 
@@ -38,6 +39,7 @@ const LibraryHeaderComponent = ({
   scenarioCards = [],
   selectedScenarioId,
   onScenarioChange,
+  onReportProblem,
 }: Props) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   console.log('[LibraryHeader] RENDER', {
@@ -158,6 +160,15 @@ const LibraryHeaderComponent = ({
             </TouchableOpacity>
           </View>
         )}
+        {onReportProblem && (
+          <TouchableOpacity
+            style={styles.reportButton}
+            onPress={onReportProblem}
+            accessibilityLabel={t('profile.report_problem')}
+          >
+            <Ionicons name="bug-outline" size={22} color={theme.colors.text.tertiary} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity 
             style={styles.viewToggle} 
             onPress={onToggleViewMode}
@@ -194,7 +205,8 @@ const areEqual = (prevProps: Props, nextProps: Props) => {
     prevProps.audioToggleRef === nextProps.audioToggleRef &&
     prevProps.selectedScenarioId === nextProps.selectedScenarioId &&
     prevProps.scenarioCards === nextProps.scenarioCards &&
-    prevProps.onScenarioChange === nextProps.onScenarioChange
+    prevProps.onScenarioChange === nextProps.onScenarioChange &&
+    prevProps.onReportProblem === nextProps.onReportProblem
     // Intentionally skip initialAudioFilter - it's only for initial useState
   );
 };
@@ -224,6 +236,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing[3],
+  },
+  reportButton: {
+    padding: theme.spacing[2],
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.secondary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
   },
   viewToggle: {
     padding: theme.spacing[2],

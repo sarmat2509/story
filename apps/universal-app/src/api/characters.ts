@@ -80,25 +80,6 @@ export const useDeleteCharacter = () => {
   });
 };
 
-// Generate turnaround model sheet for imaginary character
-export const useGenerateTurnaround = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (params: { characterId: string; description?: string }) => {
-      const response = await apiClient.post<{
-        status: string;
-        turnaroundSheet: { url: string; generatedAt: string };
-      }>(`/api/v1/characters/${params.characterId}/turnaround`, {
-        description: params.description,
-      });
-      return response.data.turnaroundSheet;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['characters'] });
-    },
-  });
-};
-
 // Analyze character photos mutation
 export const useAnalyzeCharacter = () => {
   return useMutation({

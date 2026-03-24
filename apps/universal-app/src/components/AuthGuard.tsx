@@ -11,7 +11,7 @@ type AuthGuardProps = {
 };
 
 /**
- * Redirects to Landing (HP) when user is not authenticated.
+ * Redirects to Welcome (HP) when user is not authenticated.
  * Use to wrap auth-only screens (Dashboard, Wizard, Library, etc.).
  */
 export function AuthGuard({ children }: AuthGuardProps) {
@@ -20,7 +20,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      navigation.navigate('Landing');
+      navigation.navigate('Welcome');
     }
   }, [isAuthenticated, navigation]);
 

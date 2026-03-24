@@ -16,7 +16,7 @@ let characterAnalysisService: CharacterAnalysisService | null = null;
 
 function getCharacterAnalysisService(): CharacterAnalysisService {
   if (!characterAnalysisService) {
-    const textProvider = new GeminiTextProvider(config.google.apiKey);
+    const textProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
     characterAnalysisService = new CharacterAnalysisService(textProvider);
   }
   return characterAnalysisService;

@@ -18,7 +18,7 @@ import { logger } from '../../../utils/logger';
 
 export class GeminiTextProvider implements ITextProvider {
   private client: GoogleGenAI;
-  private model: string = 'gemini-2.5-flash';
+  private model: string;
   private schemaAdapter: GeminiSchemaAdapter;
   
   // Ultra-relaxed safety settings for children's content generation
@@ -41,10 +41,12 @@ export class GeminiTextProvider implements ITextProvider {
     }
   ];
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, model: string = 'gemini-3-flash-preview') {
     if (!apiKey) {
       throw new Error('Gemini API key is required');
     }
+    const trimmed = model?.trim();
+    this.model = trimmed && trimmed.length > 0 ? trimmed : 'gemini-3-flash-preview';
     this.client = new GoogleGenAI({ apiKey });
     this.schemaAdapter = new GeminiSchemaAdapter();
   }

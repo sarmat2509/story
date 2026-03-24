@@ -458,6 +458,178 @@ export function formatCoreStoryRules(params: {
 }
 
 /**
+ * Narrative continuity for full-story generation (plain text and JSON paths).
+ * Genre-agnostic: objects, clues, carried items, scene boundaries.
+ */
+export function formatNarrativeContinuityRules(): string {
+  return [
+    'NARRATIVE CONTINUITY:',
+    '- Significant objects before use: If a character uses, opens, reads, holds, shows, or gives an object that matters to the plot, establish first how they have it (found, received, brought from home, packed, given by someone, etc.) in the same scene or an earlier scene. Do not start a scene with the character already interacting with an object that has never appeared in the story.',
+    '- Framed clues and hints: If the narration calls something a clue, hint, trail, sign, or "another hint," either show within the next one or two scenes why it mattered to the story, or resolve it (returned, stored, explained to a friend), or avoid clue/hint wording so readers are not promised a payoff that never comes.',
+    '- Persistent possessions: When the plot implies that a character keeps carrying the same items across multiple scenes or locations, treat those items consistently: establish them when they first matter, and if something new appears on the character late, give a clear in-story reason (gift, found, packed before leaving). Applies to any setting (bag, toolkit, toy, instrument, uniform piece — not only travel).',
+    '- Scene boundaries: If moving to a new scene could hide an important change (new key object, new companion, major prop), either show that change in the text or add a brief explicit bridge so nothing important appears without introduction.',
+  ].join('\n');
+}
+
+/**
+ * Director-only: costume continuity and turnaround vs story outfit.
+ */
+export function formatDirectorCostumeContinuityRules(): string {
+  return [
+    'COSTUME AND APPEARANCE CONTINUITY:',
+    '- Use the full story text up to and including the anchor scene moment (all prior blocks + context scenes in the current block) to determine each character\'s current wardrobe, hair, face visibility, and any disguise.',
+    '- If the text explicitly describes a change (change of clothes, new day and dressing, return to a previous outfit, removing a disguise), add or reuse an entry in the "outfits" array (wardrobe-only descriptions) and set each illustration\'s sceneVisual.cameraComposition.characters[].outfitId to the correct outfits[].id per character; align character lines (pose, hair, face).',
+    '- outfits[].description: WARDROBE ONLY — garments, footwear, and worn accessories (hats, scarves, belts, bags carried/worn, helmets, glasses as worn items). Do NOT put face, eyes, skin, age, body shape, hair, hairstyle, beard, makeup, or expression in outfit descriptions.',
+    '- Put hair, facial expression, pose, and how much of the face/body is visible in sceneVisual.cameraComposition.characters[].description (and character sheet descriptions where appropriate). Do not revert to a generic or earlier look unless the anchor or context text supports it.',
+    '- Wardrobe must match stated weather, season, and indoor/outdoor context of the anchor scene and its environment (rain, snow, heat, cold — appropriate layers, footwear, outerwear).',
+    'TURNAROUND / USER-SELECTED REFERENCE CHARACTERS:',
+    '- The reference image establishes identity, not a permanent costume. Preserve recognizability: face, age, body proportions, silhouette, skin tone, distinctive marks (freckles, glasses if the story keeps them), and hairstyle unless the story explicitly changes hair.',
+    '- Clothing and accessories must follow the story for that scene. If the text describes a new outfit, disguise, uniform, or sleepwear, define it in outfits[] and set each character row\'s outfitId in cameraComposition.characters; describe pose and hair in that row\'s description. Do not keep the reference sheet\'s default clothes when the story has moved on. The illustration must read as the same person, different clothes.',
+  ].join('\n');
+}
+
+/**
+ * Director-only: physical state, visual priority, and readability before sceneVisual JSON.
+ * Placed after story blocks so the model resolves anchor moments before per-block instructions.
+ */
+export function formatDirectorPhysicalReadabilityRules(): string {
+  return [
+    'CRITICAL - PHYSICAL READABILITY, SCENE LOGIC, AND VISUAL PRIORITY:',
+    'Before generating sceneVisual for an illustration, first resolve the anchor scene into one clear physical state. Interpret the depicted moment in the most literal, physically readable, and narratively accurate way.',
+    '',
+    'Possible physical states include indoor, outdoor, shoreline, shallow water, surface water, full underwater, cave entrance, cave interior, rain exposure, snow exposure, wind-heavy conditions, vehicle interior, flight, falling, and fantasy non-realistic conditions only when clearly supported by the text.',
+    '',
+    'VISUAL DECISION PRIORITY:',
+    'When cues conflict, always follow this order:',
+    '1) the exact action and meaning of the anchor scene',
+    '2) physical plausibility of the depicted moment',
+    '3) environment structure and scene-specific state',
+    '4) character identity consistency',
+    '5) wardrobe continuity',
+    '6) cinematic mood, atmosphere, or visual drama',
+    '',
+    'Do not let mood cues, genre cues, or dramatic composition change the actual event being depicted.',
+    '',
+    'DO NOT ESCALATE THE SCENE:',
+    'Do not visually transform a mild, tentative, near-edge, or early-stage moment into a more extreme version of itself. The illustration must preserve the actual intensity, location, and progression of the anchor scene.',
+    '',
+    'WARDROBE COMPATIBILITY RULE:',
+    'Wardrobe continuity applies only when it remains physically plausible for the anchor scene.',
+    'If a previously established outfit, accessory, or carried item conflicts with the current environment, weather, activity, safety logic, or body movement, adapt it to the closest plausible equivalent for that exact moment while preserving character identity and story continuity.',
+    'Do not preserve scene-inappropriate clothing just for continuity.',
+    '',
+    'REFERENCE AND TURNAROUND RULE:',
+    'Reference sheets establish character identity, not a permanent costume for all scenes.',
+    'Preserve recognizability through face, proportions, silhouette, stable hairstyle, skin tone, species traits, and distinctive features.',
+    'Do not automatically carry over scene-specific clothing, gear, outerwear, disguise pieces, or accessories from previous scenes or reference images when they do not fit the current anchor scene.',
+    '',
+    'PROP AND GEAR FUNCTIONALITY RULE:',
+    'Props, tools, worn accessories, and special gear must appear only in a physically usable, visually readable, and context-appropriate way for the depicted moment.',
+    'Do not force items into the illustration when they become misleading, unusable, or contradictory in the current scene state or framing.',
+    '',
+    'COMPOSITION READABILITY RULE:',
+    'Choose framing, camera angle, crop, and character placement so the anchor scene reads correctly at first glance.',
+    'Do not use dramatic, atmospheric, or cinematic composition if it makes the illustration look like a different event than the one described in the text.',
+    '',
+    'BODY AND MATERIAL BEHAVIOR RULE:',
+    'Character posture, fabric behavior, hair behavior, held objects, and environmental interaction must match the physical state of the scene.',
+    'Body language and materials should react believably to movement, weather, water, gravity, terrain, and spatial context unless the text explicitly establishes a stylized exception.',
+    '',
+    'ANCHOR SCENE FIDELITY:',
+    'The illustration must depict the exact moment of the anchor scene, not a later, earlier, intensified, or more visually dramatic adjacent moment.',
+    'Do not import later details, costume features, props, or emotional escalation unless they are clearly already true in the anchor scene itself.',
+    '',
+    'FINAL SELF-CHECK:',
+    'Before outputting each illustration, verify:',
+    '- the image depicts the exact anchor-scene moment',
+    '- the physical state is singular and clear',
+    '- clothing, props, and posture are plausible for that state',
+    '- composition preserves the intended narrative meaning',
+    '- continuity supports the scene without overriding it',
+    '- the scene is immediately understandable without contradictory visual cues',
+  ].join('\n');
+}
+
+/**
+ * Director-only: pointing, gaze, and deictic actions must read clearly in illustrations.
+ */
+export function formatDirectorDeicticActionsRules(): string {
+  return [
+    'CRITICAL - POINTING, GAZE, AND TARGET READABILITY:',
+    'When the anchor scene includes pointing, showing, indicating, reaching toward, or visually drawing attention to something, the illustration must make the target unmistakably readable at first glance.',
+    '',
+    'If a character points at, looks at, presents, notices, or calls attention to an object, creature, place, direction, or detail:',
+    '- the target must be visible in the frame unless the text clearly requires it to remain off-screen',
+    '- the pointing gesture, gaze direction, and target placement must align clearly',
+    '- the composition must preserve an obvious visual relationship between the character and the target',
+    '- avoid ambiguous staging where the gesture could appear to indicate a general area instead of the specific intended target',
+    '- if necessary, adjust character angle, arm direction, head turn, eye line, or target placement so the intended reference reads immediately',
+    '',
+    'For sceneVisual.cameraComposition.characters[].description:',
+    '- explicitly describe where the character is pointing or looking',
+    '- describe head direction and gaze direction when they matter for story clarity',
+    '',
+    'For composition:',
+    '- prefer framing that keeps both the indicating character and the indicated target readable in the same shot when possible',
+    '- do not place the target in a position that breaks the visual line of pointing or gaze',
+    '- do not let atmosphere, background beauty, or loose composition weaken the clarity of the indicated target',
+    '',
+    'FINAL CHECK FOR DEICTIC ACTIONS:',
+    'If someone is pointing, looking toward, or calling attention to something, a viewer should immediately understand exactly what the target is.',
+  ].join('\n');
+}
+
+/**
+ * Director-only: when characters use instruments or devices, sceneVisual must encode functional geometry, not mood alone.
+ */
+export function formatDirectorFunctionalDeviceCompositionRules(): string {
+  return [
+    'CRITICAL - FUNCTIONAL DEVICE COMPOSITION:',
+    'When a character is actively using an instrument or device, sceneVisual must describe the functional geometry of the interaction, not only the general action.',
+    '',
+    'Specify all of the following when relevant:',
+    '- which end or side of the object the character is using',
+    '- where the character\'s eye, hands, or body are placed relative to the object',
+    '- what direction the object is aimed toward',
+    '- what fixed environmental element the object is aligned with, if any',
+    '',
+    'For optical instruments, the viewing end and viewing direction must both be readable in the composition.',
+    'If the instrument is used to observe the sky, distance, or exterior space from indoors, the instrument must be clearly oriented toward a window, opening, or visible line of sight.',
+    'Avoid close framing that hides the operational logic of the object.',
+    '',
+    'When describing instrument use, do not describe only the emotion or intention; describe the exact usage posture and directional alignment.',
+    '',
+    'Template for sceneVisual.cameraComposition.characters[].description when applicable:',
+    '[character position], standing at the [operational side] of the [instrument], [eye/hand/body contact point], [realistic usage posture], using it toward [target direction / fixed environmental target].',
+  ].join('\n');
+}
+
+/**
+ * Director-only: mandatory wardrobe JSON — mirrors the strictness of environment rules.
+ * Missing outfitId on a character row in the shot breaks downstream image generation.
+ */
+export function formatDirectorWardrobeContract(params: { imagesPerStory: number }): string {
+  const n = params.imagesPerStory;
+  const multi = n > 1;
+  return [
+    'CRITICAL - Wardrobe JSON (same priority as environmentId — each character in the shot must cite outfits[].id):',
+    `- Your response includes "outfits" (array) and exactly ${n} illustration object(s). Each illustration's sceneVisual.cameraComposition.characters MUST be a non-empty array; EVERY row includes required fields name, description, and outfitId (non-empty string referencing outfits[].id).`,
+    '- INVALID: any character row without outfitId, or an empty characters array. Same strictness as environmentId.',
+    '- WORK ORDER (for EACH illustration):',
+    '  1) List who is in the shot in sceneVisual.cameraComposition.characters (name + description for pose/action).',
+    '  2) Ensure outfits[] has a row { id, characterName, description } for every outfitId you will cite.',
+    '  3) On EACH character row, set outfitId = EXACT outfits[].id for this anchor moment (same spelling as in outfits[].characterName for that row\'s name).',
+    '- Humans: detailed wardrobe-only English in outfits[].description. Creatures/animals: outfits[].description "natural appearance" — still set outfitId on every character row.',
+    '- Reuse the same outfitId across illustrations when the story keeps the same look; new id when clothes change.',
+    '- SELF-CHECK: every character in the shot has outfitId set. Do not omit a co-star (e.g. second parent in the same boat).',
+    multi
+      ? '- Repeat for EVERY illustration independently — do not copy incomplete character rows from another block.'
+      : '- For one summary illustration, every character in cameraComposition.characters must have outfitId.',
+    '- environments[] = place only. Garment prose only in outfits[].description.',
+  ].join('\n');
+}
+
+/**
  * Format scene-level rules (PACING, HOOKS, VOCAB) for single-scene regeneration.
  * No PLOT structure — used when regenerating one scene.
  */
@@ -485,24 +657,21 @@ export function formatSceneLevelRules(params: { ageGroup: string }): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Mandatory characterOutfits instruction — short, prominent, impossible to miss.
- * Call this right before OUTPUT FORMAT so LLM sees it last before generating.
+ * Mandatory outfits[] + per-scene references — short, prominent.
+ * Call this inside formatVisualStoryRules before environment rules.
  */
 export function formatCharacterOutfitsMandatory(): string {
   return [
-    'CHARACTER OUTFITS — MANDATORY:',
-    'Every environment MUST have "characterOutfits" as a NON-EMPTY string.',
-    'Format: "Char1: outfit1. Char2: outfit2." — one entry per character who appears in that location.',
-    'Outfit must be DETAILED and CONTEXT-APPROPRIATE for the location:',
-    '  - Type of clothing: dress, pajamas, overalls, swimsuit, spacesuit, raincoat, etc.',
-    '  - Colors: "yellow pajamas", "bright blue overalls", "orange t-shirt"',
-    '  - Details: collar, buttons, pockets, patterns (stars, stripes), accessories (hat, scarf, belt)',
-    '  - Match the environment: beach → swimsuit/trunks; space → spacesuit/helmet; winter forest → warm coat, hat, mittens; bedroom → pajamas; kitchen → apron; underwater → diving suit.',
-    'Example: "Emilia: yellow pajamas with star patterns, white collar, bare feet. Mochovyk: natural appearance"',
-    'Example (beach): "Max: red swim trunks, no shirt"',
-    'Example (space): "Luna: white spacesuit with blue stripes, transparent helmet"',
-    'Animals/creatures: use "natural appearance".',
-    'NEVER return empty string — always list all characters who appear in that location.',
+    'OUTFITS — MANDATORY (canonical wardrobe):',
+    '- Use a top-level "outfits" array. Each entry: unique "id" (short string within the story), "characterName" (EXACT name as in characters[]), "description" (WARDROBE ONLY IN ENGLISH).',
+    '- Every scene\'s sceneVisual.cameraComposition.characters MUST be a non-empty array. EACH character row MUST include "outfitId" (non-empty string, must exist in outfits[]) alongside "name" and "description" — same strictness as environmentId.',
+    '- Include one row per character physically present in the scene (humans in clothes; animals/creatures: outfits[].description "natural appearance" and still set outfitId on the row).',
+    'WARDROBE FIELD ONLY — NOT identity or head:',
+    '  - INCLUDE: garments, shoes, boots, worn hats/helmets/hoods (as clothing), scarves, belts, mittens, jewelry worn on the body, glasses worn, clearly worn bags/backpacks, uniform pieces, disguise costume pieces.',
+    '  - DO NOT INCLUDE: face, eyes, nose, mouth, skin, age, body build, height, hair, hairstyle, beard, fur pattern (for creatures — use "natural appearance"), expression, emotions, personality. Those belong in characters[].description and sceneVisual.cameraComposition.characters[].description.',
+    'Outfit descriptions must be DETAILED and aligned with WEATHER, SEASON, and indoor/outdoor context (snow → coat/boots; rain → jacket; heat → light fabrics; beach → swimwear). Match the environment and scene text.',
+    'Reuse the same outfit id when the character keeps the same look across scenes; create a new id when the story changes clothes.',
+    'Animals/creatures: description "natural appearance" in outfits[].',
   ].join('\n');
 }
 
@@ -512,8 +681,8 @@ export function formatCharacterOutfitsMandatory(): string {
 export function formatEnvironmentRules(): string {
   return [
     'CRITICAL - Environments (Base Descriptions):',
-    '- Define environments LAST, after scenes. One entry per unique environmentId used in scenes.',
-    '- Each environment has FOUR fields (all required):',
+    '- Define environments AFTER scenes and outfits. One entry per unique environmentId used in scenes.',
+    '- Each environment has THREE fields (all required): id, name, description. Do NOT put wardrobe in environments — use the outfits array and per-character outfitId on sceneVisual.cameraComposition.characters only.',
     '  - "id": Short identifier (e.g. "bedroom", "forest_clearing")',
     '  - "name": Human-readable name',
     '  - "description": BASE visual description IN ENGLISH of the fixed, permanent elements:',
@@ -522,16 +691,13 @@ export function formatEnvironmentRules(): string {
     '    * Fixed features: walls, floor, ceiling, windows, doors',
     '    * Key permanent objects: decorations, fixtures, large items',
     '    * Materials and colors of permanent elements',
+    '    * Weather and time-of-day when they affect the place (snow on ground, rain, night sky) — as part of the location, not character wardrobe',
     '    * SPATIAL LAYOUT: describe where key objects are (left/center/right, foreground/background) AND their positions relative to each other (path beside the tree, house behind the bushes, bushes to the left of the path). This layout is reused for ALL scenes in this environment.',
     '    * Include ALL static objects that appear in the story: flower, tree, rock, bench — everything that has a fixed place. If the story mentions a flower, it must be in environment.description with its position. No static object may appear "new" in sceneVisual — it must already be in the environment. Scene delta can only describe state changes (flower bloomed, tree lit up), not new objects.',
-    '  - "characterOutfits": REQUIRED string. Format "Char1: outfit1. Char2: outfit2." — EVERY character who appears in ANY scene in this environment. DETAILED outfit IN ENGLISH. Must match the environment (beach→swimsuit, space→spacesuit, winter→coat+hat, bedroom→pajamas). For animals/creatures: "natural appearance". NEVER omit or return empty string.',
     '- Base description should work for ALL scenes in this location',
     '- STORY-CRITICAL STATIC OBJECTS (tree, building, monument, rock, path, bushes, flower, bench) MUST be in environment.description with fixed position. For each: position in frame (left/center/right, foreground/background) AND position relative to other objects ("tree to the left of path", "path leads from foreground to tree", "bushes along left side of path", "house behind trees").',
     '- NO NEW STATIC OBJECTS IN SCENE: If an object appears in the story (flower, tree, rock), it is ALWAYS in environment. In scene delta — only state changes (flower bloomed, tree lit up, leaves rustling), never new objects or new positions. The object must be on the environment image.',
     '- DO NOT include temporary/transient elements (those go in sceneVisual.setting)',
-    '- Example characterOutfits (bedroom): "Zoryana: yellow pajamas with star patterns, white collar. Flash: natural appearance"',
-    '- Example characterOutfits (beach): "Emilia: turquoise one-piece swimsuit, sun hat"',
-    '- Example characterOutfits (space): "Cosmo: white spacesuit with blue stripes, transparent helmet"',
     '- Example description (indoor): "A cozy circular living room with panoramic windows on north wall showing space. Plush beige armchairs around low round coffee table. Warm beige walls, polished dark grey floor with light rug, ambient ceiling lights."',
     '- Example description (outdoor with spatial layout): "Winter park. A path leads from foreground center toward a distinctive green-leaved tree in the center-right. Bushes along the left side of the path. Bare trees along the left and right edges. Snow on the ground. Open sky above."',
     '- When to REUSE environmentId: Same physical location, minor variations. Examples:',
@@ -578,7 +744,8 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
         styleGuidance?.composition
       ),
       '  - "shot": Camera angle and shot type IN ENGLISH (e.g. "Medium-wide shot at child eye-level").',
-      `  - "characters": Array of objects, one per character. Each has "name" (EXACT from character list) and "description" (position in frame, posture, action, expression IN ENGLISH. Use positions relative to static objects from environment: "beside the tree", "on the path"). ${SPATIAL_POSITION_RULE} Maximum 3 characters.`,
+      `  - "characters": Array of objects, one per character. Each has "name", "description" (position, posture, action, expression IN ENGLISH), and "outfitId" (EXACT outfits[].id). ${SPATIAL_POSITION_RULE} Maximum 3 characters.`,
+      '  - When a character points, looks, or gestures toward something story-significant, include the target in that character\'s description and make the direction explicit (name the target when the text supports it — avoid vague "toward the sea" if a specific object, creature, or landmark is meant).',
       withStyleHint(
         '- "lighting": Light source, direction, intensity, shadows, color temperature, atmosphere. Write IN ENGLISH.',
         styleGuidance?.lighting
@@ -604,6 +771,8 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
     '    - "characters": Array of objects — one entry per character physically present in the scene. Maximum 3 characters. Each entry has:',
     '      - "name": EXACT character name from the story character list',
     `      - "description": Position in frame (foreground/background, left/right/center), body posture, action, facial expression, gaze direction. Use positions relative to static objects from environment (e.g. "beside the tree", "on the path"). ${SPATIAL_POSITION_RULE} IN ENGLISH.`,
+    '      - When a character points, looks, or gestures toward something story-significant, include the target in that character\'s description and make the direction explicit (e.g. not only "standing center, pointing toward the sea" but "center-right on wet sand, arm outstretched, pointing directly at the dolphin circling near the rocky reef, eyes fixed on it" when the text supports that level of specificity).',
+    '      - "outfitId": EXACT id from top-level outfits[] for this character in this scene (wardrobe reference; creatures/animals use a row with description "natural appearance").',
     withStyleHint(
       '  - "lighting": Light source, direction, intensity, shadow style, color temperature, atmosphere.',
       styleGuidance?.lighting
@@ -617,7 +786,7 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
     '- Example good setting delta: "Two books and telescope on coffee table. Windows show morning stars. Dad holding glowing seed in open palm."',
     '- Example bad setting: "A cozy circular living room with panoramic windows..." (this duplicates base environment - only write what\'s new)',
     '- Example bad setting: "The same hidden nook. Branch lowered." (references previous scene — image model has no context). Good: "A hidden nook with lush glowing foliage. The magical bush branch is now lowered. A woven basket on the ground, partially filled with berries."',
-    '- Example good cameraComposition: { "shot": "Medium-wide shot at child eye-level", "characters": [{ "name": "Emilia", "description": "foreground center beside workbench, sitting, examining a blueprint with magnifying glass, focused expression" }, { "name": "Rabbit", "description": "right side perched on workbench edge, ears perked up, looking curiously at Emilia" }] }',
+    '- Example good cameraComposition: { "shot": "Medium-wide shot at child eye-level", "characters": [{ "name": "Emilia", "description": "foreground center beside workbench, sitting, examining a blueprint with magnifying glass, focused expression", "outfitId": "o_emilia_workshop_1" }, { "name": "Rabbit", "description": "right side perched on workbench edge, ears perked up, looking curiously at Emilia", "outfitId": "o_rabbit_natural" }] }',
     '- Example bad cameraComposition: "Characters in a workshop" (too vague, not structured, no per-character entries)',
     '',
     'EXAMPLE - Base+Delta Pattern:',
@@ -643,7 +812,7 @@ export function formatCharactersPerSceneRules(): string {
     '- Other characters can be briefly MENTIONED (heard from another room, just left, remembered in dialogue) but should NOT be described as physically present and performing actions in the scene.',
     '- "cameraComposition.characters": list ONLY the characters who are physically present and actively participating in the scene (same characters who perform actions in the text). Maximum 3.',
     '- Use EXACT character names as defined in the story',
-    '- If scene has no characters (e.g., pure description), use an empty array for cameraComposition.characters',
+    '- Structured JSON requires at least one cameraComposition.characters row with name, description, and outfitId. Design scenes so the illustrated moment includes at least one present character; pure scenery-only beats are not supported by the schema.',
   ].join('\n');
 }
 
@@ -659,7 +828,9 @@ export function formatTextVisualConsistencyRules(): string {
     '- The setting in "sceneVisual.setting" must match the location described in the text.',
     '- sceneVisual.setting must be SELF-CONTAINED — never use "the same X" or reference other scenes.',
     '- INTERNAL CONSISTENCY: setting, cameraComposition.shot, cameraComposition.characters, and lighting must ALL describe the SAME location and moment. If shot says "inside the car", setting must describe the car interior — never mix locations. Before outputting, verify: could a single photograph capture everything described?',
+    '- Story-significant props and held items in sceneVisual (objects a character holds, wears as a plot item, or that drive the beat) must be supported by that scene\'s text for that moment. Do not add major props or costume pieces in sceneVisual that the text does not establish for that scene (generic background and atmosphere are fine).',
     '- Think of it as: text = the full story of the scene, sceneVisual = a single illustration capturing the key moment of that text.',
+    '- outfits[].description is WARDROBE ONLY. Hair, expression, pose, and how the face reads belong in sceneVisual.cameraComposition.characters[].description (and must match the same story moment as the text).',
   ].join('\n');
 }
 
