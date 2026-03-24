@@ -1,0 +1,62 @@
+{
+  "sceneImage": "uploads/development/23a825d6-d750-4297-bf17-5e2452d112aa/131076c0-43c1-47fd-8a52-42cb17929e0f/image/b631c79a-bbaf-488b-99ec-19cc9e6c4b8d.jpg",
+  "sceneCharacterOutfitsText": "CHARACTER OUTFITS: Емілія: A vibrant floral-patterned bomber jacket over a simple white t-shirt, dark blue cargo trousers with many pockets, and clean white sneakers. Флеш: natural appearance. Сяйвик: natural appearance.",
+  "sceneVisual": {
+    "setting": "Space shuttle cockpit: compact interior, wide viewport to stars, pilot seats with harnesses, dashboard with steering wheel and controls, textured metal floor.",
+    "lighting": "Soft interior cockpit light, glow from control panels",
+    "cameraComposition": {
+      "shot": "Interior wide showing cockpit and characters",
+      "characters": [
+        {
+          "name": "Емілія",
+          "description": "In the center pilot seat, hands on the steering wheel, facing the viewport",
+          "outfitId": "o_emilia_mission"
+        },
+        {
+          "name": "Флеш",
+          "description": "At the controls / steering area, holding stick with leaves",
+          "outfitId": "o_flash_natural"
+        },
+        {
+          "name": "Сяйвик",
+          "description": "Small spark creature on or near the right-side console",
+          "outfitId": "o_siaivyk_natural"
+        }
+      ]
+    }
+  },
+  "expectedCharacters": [
+    {
+      "name": "Емілія",
+      "isImaginary": false,
+      "description": "Young girl; stylized proportions; ponytail with pastel strands; freckles",
+      "expectedOutfitForScene": "Floral bomber jacket, simple white t-shirt, dark blue cargo trousers, clean white sneakers"
+    },
+    {
+      "name": "Флеш",
+      "isImaginary": true,
+      "description": "Round yellow body with small green spots; zigzag lightning tail; white eyes red pupils; red mane; wooden stick with leaves; short limbs",
+      "expectedOutfitForScene": "natural appearance"
+    },
+    {
+      "name": "Сяйвик",
+      "isImaginary": true,
+      "description": "Small light-blue fluffy spark creature; large round head; white antennae with balls; translucent wings; short limbs",
+      "expectedOutfitForScene": "natural appearance"
+    }
+  ],
+  "references": [
+    {
+      "characterName": "Емілія",
+      "path": "uploads/development/23a825d6-d750-4297-bf17-5e2452d112aa/photos/child_turnaround/1771191639812.jpg"
+    },
+    {
+      "characterName": "Флеш",
+      "path": "uploads/development/23a825d6-d750-4297-bf17-5e2452d112aa/photos/character_turnaround/1772467467251.jpg"
+    },
+    {
+      "characterName": "Сяйвик",
+      "path": "uploads/development/23a825d6-d750-4297-bf17-5e2452d112aa/photos/character_turnaround/1771331364070.jpg"
+    }
+  ]
+}

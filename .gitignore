@@ -27,6 +27,9 @@ secrets/
 !app.config.js
 !package.json
 !tsconfig*.json
+# Image validation pack fixtures (compareSceneImageValidation)
+!services/api/src/scripts/packs/
+!services/api/src/scripts/packs/*.json
 
 # Logs
 npm-debug.log*

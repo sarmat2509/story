@@ -1,0 +1,48 @@
+{
+  "sceneImage": "uploads/development/23a825d6-d750-4297-bf17-5e2452d112aa/ef1da4d9-e9b6-40f1-a9db-eaed24c30d72/image/47b2f44b-e16b-48f6-8000-db6e604bd946.jpg",
+  "sceneCharacterOutfitsText": "Емілія: floral bomber, jeans, pink sneakers. Флеш: natural appearance. Сяйвик: natural appearance, small pouch.",
+  "sceneVisual": {
+    "setting": "Stars and nebula through porthole; cozy cockpit.",
+    "lighting": "Soft ambient cockpit light.",
+    "cameraComposition": {
+      "shot": "Medium-wide shot at eye level",
+      "characters": [
+        { "name": "Емілія", "description": "At porthole", "outfitId": "o_emilia_bomber" },
+        { "name": "Флеш", "description": "Beside her", "outfitId": "o_flash_natural" },
+        { "name": "Сяйвик", "description": "Near controls", "outfitId": "o_syaivik_natural" }
+      ]
+    }
+  },
+  "expectedCharacters": [
+    {
+      "name": "Емілія",
+      "isImaginary": false,
+      "description": "Young girl, pink and blue hair streaks",
+      "expectedOutfitForScene": "Floral bomber jacket, jeans, pink sneakers"
+    },
+    {
+      "name": "Флеш",
+      "isImaginary": true,
+      "description": "Yellow creature, zigzag tail, wooden stick with leaves"
+    },
+    {
+      "name": "Сяйвик",
+      "isImaginary": true,
+      "description": "Small blue spark creature, wings, antennae, pouch"
+    }
+  ],
+  "references": [
+    {
+      "characterName": "Емілія",
+      "path": "uploads/development/23a825d6-d750-4297-bf17-5e2452d112aa/photos/child_turnaround/1771191639812.jpg"
+    },
+    {
+      "characterName": "Флеш",
+      "path": "uploads/development/23a825d6-d750-4297-bf17-5e2452d112aa/photos/character_turnaround/1772467467251.jpg"
+    },
+    {
+      "characterName": "Сяйвик",
+      "path": "uploads/development/23a825d6-d750-4297-bf17-5e2452d112aa/photos/character_turnaround/1771331364070.jpg"
+    }
+  ]
+}

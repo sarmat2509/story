@@ -1,0 +1,23 @@
+{
+  "imagesPerStory": 2,
+  "language": "uk",
+  "ageGroup": "6-8",
+  "imageStyle": "soft_watercolor",
+  "userCharacters": [
+    { "name": "Мія", "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" }
+  ],
+  "scenes": [
+    {
+      "sceneId": 1,
+      "text": "Мія [ID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee] стояла на горищі. Вона притулилася оком до великого мідного телескопа і дивилася на зорі крізь кругле вікно."
+    },
+    {
+      "sceneId": 2,
+      "text": "Раптом поруч з'явився маленький блакитний друг із крильцями. «Ми полетимо туди!» — сказав він. Мія [ID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee] посміхнулася."
+    },
+    {
+      "sceneId": 3,
+      "text": "Вони сіли в уявний корабель. Мія [ID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee] трималася за штурвал, а друг світився яскравіше."
+    }
+  ]
+}
