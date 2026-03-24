@@ -3,6 +3,7 @@
  * Functions for building prompts for image generation with character consistency
  */
 
+import { stripCharacterIdFromName } from '@wondertales/shared';
 import { stripAllTags } from '../../utils/audioTags';
 import { logger } from '../../utils/logger';
 import { flattenCameraComposition, type SceneVisual } from '../../services/types';
@@ -10,6 +11,36 @@ import type { StoryEnvironment } from '../../ai/types';
 import { getImageStylePrefix } from './styles';
 import { getImageContentPolicy } from '../contentPolicy';
 import { config } from '../../config';
+import { lookupOutfitForCharacterName } from '../../utils/characterOutfits';
+
+/**
+ * Resolve outfit plate "Image N" index for a character (map keys may be full or base names).
+ */
+function resolveOutfitPlateImageIndex(
+  characterName: string,
+  plateMap?: Map<string, number>,
+): number | undefined {
+  if (!plateMap || plateMap.size === 0) return undefined;
+  if (plateMap.has(characterName)) return plateMap.get(characterName);
+  const base = stripCharacterIdFromName(characterName).trim();
+  if (base && plateMap.has(base)) return plateMap.get(base);
+  const lower = base.toLowerCase();
+  for (const [k, v] of plateMap) {
+    if (stripCharacterIdFromName(k).trim().toLowerCase() === lower) return v;
+  }
+  return undefined;
+}
+
+function formatOutfitPlateCrossRef(plateIdx: number, identityImageIdx?: number): string {
+  const noMannequin =
+    ' Do not draw a wooden mannequin, jointed doll, or blank display head in this scene — only put those garments on the real character.';
+  const imageOnly =
+    ' Wardrobe source is Image only: do not blend with any other written outfit description — copy colors, patterns, silhouette, and layering exactly from this plate.';
+  if (identityImageIdx !== undefined && identityImageIdx !== plateIdx) {
+    return ` Wardrobe reference: Image ${plateIdx} shows the outfit on a display mannequin — use it for all garment details (cut, colors, patterns, layering). Image ${identityImageIdx} is the real character (face, hair, body).${imageOnly}${noMannequin}`;
+  }
+  return ` Wardrobe reference: Image ${plateIdx} shows clothes on a display mannequin — copy the wardrobe onto the story character, not the dummy.${imageOnly}${noMannequin}`;
+}
 
 export interface CharacterReference {
   name: string;
@@ -42,6 +73,8 @@ export function buildSceneImagePrompt(params: {
   hasReferences?: boolean;
   // Google Asset Graph pattern: maps normalized character name -> Image index
   imageIndexMap?: Map<string, number>;
+  // Outfit plate indices (Image N) per character — must match reference interleave order
+  outfitPlateImageIndexByCharacter?: Map<string, number>;
   // Current scene's environment (moved from system instruction to user prompt)
   currentEnvironment?: StoryEnvironment;
   // Scene-specific outfit overrides from text generation
@@ -67,6 +100,7 @@ export function buildSceneImagePrompt(params: {
       realWorldCharacters: params.realWorldCharacters,
       hasReferences: params.hasReferences,
       imageIndexMap: params.imageIndexMap,
+      outfitPlateImageIndexByCharacter: params.outfitPlateImageIndexByCharacter,
       currentEnvironment: params.currentEnvironment,
       characterOutfits: params.characterOutfits,
       hasEnvironmentImageRef: params.hasEnvironmentImageRef,
@@ -82,6 +116,8 @@ export function buildSceneImagePrompt(params: {
       params.referenceCharacterNames,
       true,
       params.imageIndexMap,
+      params.characterOutfits,
+      params.outfitPlateImageIndexByCharacter,
     );
     const charSection = characterLines ? `\n\n${characterLines}` : '';
     return `${stylePrefix}, ${cleanVisualPrompt}${charSection}, ${safetyAdditions}. Do not include any text, letters, captions, or character name labels in the image.`;
@@ -117,6 +153,7 @@ function buildStructuredPrompt(params: {
   realWorldCharacters?: Array<{ name: string; description: string }>;
   hasReferences?: boolean;
   imageIndexMap?: Map<string, number>;
+  outfitPlateImageIndexByCharacter?: Map<string, number>;
   currentEnvironment?: StoryEnvironment;
   characterOutfits?: Record<string, string>;
   hasEnvironmentImageRef?: boolean;
@@ -124,6 +161,12 @@ function buildStructuredPrompt(params: {
   const { sceneVisual, hasEnvironmentImageRef } = params;
 
   const sections: string[] = [];
+
+  if (params.outfitPlateImageIndexByCharacter && params.outfitPlateImageIndexByCharacter.size > 0) {
+    sections.push(
+      '- Wardrobe plates: numbered images marked OUTFIT PLATE / mannequin are the only wardrobe source for those characters — do not invent clothing from prose. Transfer those garments onto the matching character sheet identity. Never depict the mannequin, doll joints, or blank mannequin head.',
+    );
+  }
 
   // SETTING (scene-specific). When env image ref: only delta, labeled "Scene-specific"
   if (sceneVisual.setting) {
@@ -138,6 +181,7 @@ function buildStructuredPrompt(params: {
     params.hasReferences,
     params.imageIndexMap,
     params.characterOutfits,
+    params.outfitPlateImageIndexByCharacter,
   );
   if (characterLines) {
     sections.push(characterLines);
@@ -182,12 +226,19 @@ function escapeRegExp(str: string): string {
  * Real-world characters get their description inline (no longer in system instruction).
  * If characterOutfits are provided, appends scene-specific outfit to the description.
  */
+function structuralOutfitHint(outfitText: string): string {
+  const t = outfitText.trim();
+  if (!t) return '';
+  return ` STRUCTURAL MATCH: Reproduce garment type, length, sleeves, footwear, and named accessories from the outfit text (${t.slice(0, 200)}${t.length > 200 ? '…' : ''}) — not a generic same-color substitute.`;
+}
+
 function buildCharacterSection(
   realWorldCharacters?: Array<{ name: string; description: string }>,
   referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean }>,
   _hasReferences?: boolean,
   imageIndexMap?: Map<string, number>,
   characterOutfits?: Record<string, string>,
+  outfitPlateImageIndexByCharacter?: Map<string, number>,
 ): string {
   const lines: string[] = [];
 
@@ -196,13 +247,19 @@ function buildCharacterSection(
     for (const entry of referenceCharacterNames) {
       const name = typeof entry === 'string' ? entry : entry.name;
       const imgIdx = imageIndexMap?.get(name);
-      const outfitOverride = characterOutfits?.[name];
-      const outfitSuffix = outfitOverride ? `. Outfit in this scene: ${outfitOverride}` : '';
+      const plateIdx = resolveOutfitPlateImageIndex(name, outfitPlateImageIndexByCharacter);
+      // When an outfit plate is attached, wardrobe must come from that image only — no text mix.
+      const outfitOverride =
+        plateIdx === undefined ? lookupOutfitForCharacterName(name, characterOutfits) : undefined;
+      const structural = outfitOverride ? structuralOutfitHint(outfitOverride) : '';
+      const outfitSuffix = outfitOverride ? `. Outfit in this scene: ${outfitOverride}.${structural}` : '';
+      const plateSuffix =
+        plateIdx !== undefined ? formatOutfitPlateCrossRef(plateIdx, imgIdx) : '';
       if (imgIdx) {
         const sheetType = (typeof entry !== 'string' && entry.isTurnaround) ? 'character design from the sheet' : 'reference photo';
-        lines.push(`- ${name} (Image ${imgIdx}): match the ${sheetType}${outfitSuffix}`);
+        lines.push(`- ${name} (Image ${imgIdx}): match the ${sheetType}${outfitSuffix}${plateSuffix}`);
       } else {
-        lines.push(`- ${name}: match the attached reference image${outfitSuffix}`);
+        lines.push(`- ${name}: match the attached reference image${outfitSuffix}${plateSuffix}`);
       }
     }
   }
@@ -211,14 +268,19 @@ function buildCharacterSection(
   if (realWorldCharacters) {
     for (const char of realWorldCharacters) {
       const imgIdx = imageIndexMap?.get(char.name);
-      const outfitOverride = characterOutfits?.[char.name];
+      const plateIdx = resolveOutfitPlateImageIndex(char.name, outfitPlateImageIndexByCharacter);
+      const outfitOverride =
+        plateIdx === undefined ? lookupOutfitForCharacterName(char.name, characterOutfits) : undefined;
+      const structural = outfitOverride ? structuralOutfitHint(outfitOverride) : '';
       const desc = outfitOverride
-        ? `${char.description}. Outfit in this scene: ${outfitOverride}`
+        ? `${char.description}. Outfit in this scene: ${outfitOverride}.${structural}`
         : char.description;
+      const plateSuffix =
+        plateIdx !== undefined ? formatOutfitPlateCrossRef(plateIdx, imgIdx) : '';
       if (imgIdx) {
-        lines.push(`- ${char.name} (Image ${imgIdx}): ${desc}`);
+        lines.push(`- ${char.name} (Image ${imgIdx}): ${desc}${plateSuffix}`);
       } else {
-        lines.push(`- ${char.name}: ${desc}`);
+        lines.push(`- ${char.name}: ${desc}${plateSuffix}`);
       }
     }
   }
@@ -265,7 +327,7 @@ function buildCharacterDescriptions(characters?: CharacterReference[]): string {
 }
 
 /**
- * Build prompt for environment image (Imagen 4 Fast).
+ * Build prompt for environment reference image (Gemini Flash Image).
  * Fixed neutral style for easy re-drawing under any scene art style.
  */
 export function buildEnvironmentImagePrompt(params: {
@@ -325,6 +387,32 @@ export function buildCharacterPortraitPrompt(params: {
   return `${noTextPrefixInstruction}${stylePrefix}, character portrait, close-up view, ${params.description}, clear details, front-facing${noTextSuffixInstruction}, ${safetyAdditions}${aggressiveTextBlocking}${negativeGuidance}`;
 }
 
+/**
+ * Text-to-image prompt for a canonical outfit plate (Gemini Flash Image).
+ * Minimal prompt: centered mannequin + `characterOutfits` string does the work (long rules tended to leak as fake UI).
+ */
+export function buildOutfitPlatePrompt(params: {
+  outfitDescription: string;
+  imageStyle: string;
+  ageGroup: string;
+  scenarioCardId?: string;
+}): string {
+  const imagePolicy = getImageContentPolicy({
+    ageGroup: params.ageGroup,
+    scenarioCardId: params.scenarioCardId,
+  });
+  const safetyAdditions = imagePolicy.imageSafetyAdditions;
+  const spec = params.outfitDescription.trim().replace(/\.+$/, '').trim();
+
+  return [
+    `Children's book illustration, ${params.imageStyle}: one wooden artist mannequin stands in the center, full length, facing forward, blank smooth head, wearing ${spec}.`,
+    'Plain soft background. No letters or words in the image. Only this one mannequin.',
+    safetyAdditions,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
 // buildReferenceInstruction() removed — per-character instructions are now part of buildCharacterSection()
 
 /**
@@ -366,8 +454,12 @@ export function buildImageSystemInstruction(params: {
   // Reference image rules (only when turnaround sheets are attached)
   if (params.hasReferences) {
     sections.push(
-      'REFERENCES: Keep the exact proportions, silhouette, colors, and distinctive features from the provided character sheets. ' +
-      'Re-draw them in the scene\'s art style (the sheets are for design reference only).',
+      'REFERENCES: Character sheets establish IDENTITY: face, age, body proportions, silhouette, skin/hair palette, distinctive marks (freckles, glasses if part of the character in this story). ' +
+      'Match those consistently. Re-draw in the scene art style (sheets are design reference only). ' +
+      'CLOTHING vs SHEET: Default clothes on the character sheet may be ignored when the story supplies different wardrobe. ' +
+      'NUMBERED IMAGES: Each reference image is preceded by a line "Image N: …". When the user prompt pairs identity Image M with an outfit plate Image N, use M for face, hair, and body identity; use N as the sole source for all clothing (colors, patterns, silhouette). Do not merge a separate text outfit description with the plate. ' +
+      'If there is no outfit plate for a character, wardrobe may come from the user prompt text (characterOutfits / scene lines) and composition. ' +
+      'Outfit plates show wardrobe on a wooden display mannequin — that mannequin must never appear in the final scene. Ignore its head, limbs, and joints for identity; transfer only the clothes onto the living character from Image M.',
     );
   }
 
@@ -380,7 +472,7 @@ export function buildImageSystemInstruction(params: {
 
   // Clothing: outfit comes from environment.characterOutfits (per-environment, consistent within location)
   sections.push(
-    'CLOTHING: Use outfit from character description (per-environment, consistent within location).',
+    'CLOTHING: When an outfit plate (mannequin) reference exists for a character, that image is the only wardrobe specification — ignore duplicate outfit prose for that character. Otherwise, characterOutfits text in the prompt is wardrobe-only (not face/hair). Hair, expression, and facial identity come from character sheets and cameraComposition. Never paint the mannequin in the scene; face and body from the character sheet.',
   );
 
   // Tone / safety

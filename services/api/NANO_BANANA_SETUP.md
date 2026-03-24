@@ -70,9 +70,20 @@ GEMINI_VISION_MODEL=gemini-2.0-flash-exp
 IMAGE_PROVIDER=nanobananapro
 
 # Nano Banana Settings
-NANO_BANANA_MODEL=gemini-2.5-flash-image  # or gemini-3.0-pro-image for better quality
+NANO_BANANA_MODEL=gemini-3.1-flash-image-preview  # or gemini-3-pro-image-preview
 NANO_BANANA_ASPECT_RATIO=16:9
 ENABLE_FIRST_IMAGE_REFERENCE=true
+
+# Reference buckets (Gemini 3.1 image: separate character vs object slots)
+IMAGE_MAX_CHARACTER_REFERENCE_IMAGES=4
+IMAGE_MAX_OBJECT_REFERENCE_IMAGES=10
+# Legacy total cap (informational; orchestration uses buckets above)
+IMAGE_MAX_REFERENCE_IMAGES=14
+
+# Optional: outfit plates (Gemini Flash Image garment refs, cached by embedding)
+ENABLE_OUTFIT_PLATE=false
+OUTFIT_PLATE_MAX_PER_SCENE=2
+OUTFIT_PLATE_EMBEDDING_SIMILARITY_THRESHOLD=0.95
 ```
 
 ### Models

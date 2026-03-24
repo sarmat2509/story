@@ -1,8 +1,8 @@
 /**
- * Test script for Imagen 4 Fast API (environment images)
+ * Test environment image provider (Gemini 2.5 Flash Image via GOOGLE_API_KEY).
  * Run with: npx tsx src/scripts/testImagen4Fast.ts
  *
- * Requires: GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, GOOGLE_APPLICATION_CREDENTIALS
+ * Requires: GOOGLE_API_KEY
  */
 
 import { config } from '../config';
@@ -13,41 +13,25 @@ import { logger } from '../utils/logger';
 import * as fs from 'fs';
 import * as path from 'path';
 
-async function testImagen4Fast() {
-  logger.info('=== Testing Imagen 4 Fast API (Environment Images) ===');
+async function testEnvironmentImageProvider() {
+  logger.info('=== Testing environment image provider (Gemini Flash Image) ===');
 
-  // Check configuration
-  const projectId = config.image.imagen4Fast?.projectId || config.image.gemini.projectId;
-  const location = config.image.imagen4Fast?.location || config.image.gemini.location;
+  logger.info(
+    {
+      model: config.image.flashImageModel,
+      hasApiKey: !!config.google.apiKey,
+    },
+    'Configuration check',
+  );
 
-  logger.info({
-    projectId,
-    location,
-    hasCredentials: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
-    credentialsPath: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-  }, 'Configuration check');
-
-  if (!projectId) {
-    logger.error('GOOGLE_CLOUD_PROJECT is not set!');
-    process.exit(1);
-  }
-
-  if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    logger.error('GOOGLE_APPLICATION_CREDENTIALS is not set! Required for Vertex AI.');
-    process.exit(1);
-  }
-
-  const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  if (!fs.existsSync(credsPath)) {
-    logger.error({ path: credsPath }, 'Credentials file not found!');
+  if (!config.google.apiKey) {
+    logger.error('GOOGLE_API_KEY is not set!');
     process.exit(1);
   }
 
   try {
-    logger.info('Initializing Imagen 4 Fast provider...');
     const provider = getEnvironmentImageProvider();
 
-    // Test environment (like from LLM)
     const testEnvironment: StoryEnvironment = {
       id: 'test_canyon',
       name: 'Canyon',
@@ -72,45 +56,27 @@ async function testImagen4Fast() {
         mimeType: result.mimeType,
         dimensions: `${result.width}x${result.height}`,
       },
-      'Environment image generated successfully'
+      'Environment image generated successfully',
     );
 
-    // Save test image
     const testOutputDir = path.join(__dirname, '../../test-output');
     if (!fs.existsSync(testOutputDir)) {
       fs.mkdirSync(testOutputDir, { recursive: true });
     }
 
-    const outputPath = path.join(testOutputDir, `test-imagen4fast-env-${Date.now()}.png`);
-    const buffer = Buffer.isBuffer(result.imageData) ? result.imageData : Buffer.from(result.imageData as string, 'base64');
+    const outputPath = path.join(testOutputDir, `test-env-image-${Date.now()}.png`);
+    const buffer = Buffer.isBuffer(result.imageData)
+      ? result.imageData
+      : Buffer.from(result.imageData as string, 'base64');
     fs.writeFileSync(outputPath, buffer);
 
     logger.info({ outputPath }, 'Image saved');
-
-    logger.info('=== All tests passed! ===');
-    logger.info({ testOutputDir }, 'Check test-output directory for generated image');
-  } catch (error: any) {
-    logger.error(
-      {
-        error: error.message,
-        stack: error.stack,
-      },
-      'Test failed'
-    );
-
-    if (error.message.includes('Failed to obtain access token')) {
-      logger.error('Authentication failed. Check:');
-      logger.error('1. GOOGLE_APPLICATION_CREDENTIALS path is correct (use /app/secrets/... inside Docker)');
-      logger.error('2. Service account key file exists and is readable');
-      logger.error('3. Service account has "Vertex AI User" role');
-    } else if (error.message.includes('403')) {
-      logger.error('Permission denied. Ensure service account has roles/aiplatform.user');
-    } else if (error.message.includes('404')) {
-      logger.error('API not found. Check project, location, and that Vertex AI API is enabled.');
-    }
-
+    logger.info('=== All tests passed ===');
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error({ error: err.message, stack: err.stack }, 'Test failed');
     process.exit(1);
   }
 }
 
-testImagen4Fast();
+testEnvironmentImageProvider();

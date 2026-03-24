@@ -1,5 +1,8 @@
 /**
- * Regenerate images for a story that failed image generation
+ * LEGACY / OPS ONLY — not the production image pipeline.
+ * Uses generateSceneIllustration without character refs, env, or turnaround (unlike queue `image_batch` → processStoryImages).
+ * Prefer fixing failed scenes via API regenerate or retry jobs. See storyOrchestrationService.processStoryImages.
+ *
  * Run with: npx tsx src/scripts/regenerateImages.ts <storyId>
  */
 
@@ -8,7 +11,7 @@ import { stories, scenes, assets, storyRequests } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { logger } from '../utils/logger';
 import { ImageDomainService } from '../domain/image/ImageDomainService';
-import { GeminiImageProvider } from '../providers/image/gemini/GeminiImageProvider';
+import { NanoBananaProProvider } from '../providers/image/nanobananapro/NanoBananaProProvider';
 import { AssetStorageService } from '../services/assetStorageService';
 import { config } from '../config';
 
@@ -49,7 +52,10 @@ async function regenerateImages() {
     }
     
     // Initialize services
-    const imageProvider = new GeminiImageProvider();
+    const imageProvider = new NanoBananaProProvider(
+      config.google.apiKey,
+      config.image.flashImageModel,
+    );
     const imageDomain = new ImageDomainService(imageProvider);
     const assetStorage = new AssetStorageService();
     

@@ -56,11 +56,10 @@ graph TB
    - Caches limits for 5 minutes
    - Fallback to default (150 RPM) if API unavailable
    
-4. **GeminiImageProvider** (`providers/image/gemini/GeminiImageProvider.ts`)
-   - Wraps API calls with rate limiter
-   - Uses injected ImageRateLimiter instance
-   - Maintains retry logic
-   - Detects 429 errors for adaptive adjustment
+4. **NanoBananaProProvider** (`providers/image/nanobananapro/NanoBananaProProvider.ts`) (main scene pipeline)
+   - Wraps API calls with rate limiter via `ImageDomainService` / orchestration
+   - Retry logic lives in the provider
+   - Detects 429 errors for adaptive adjustment where applicable
 
 ## Configuration
 
@@ -203,18 +202,15 @@ npx ts-node src/services/__tests__/imageRateLimiter.test.ts
 Rate limiting is **transparent** to orchestration code:
 
 ```typescript
-// In storyOrchestrationService.ts
-// No changes needed - rate limiting happens automatically!
-await Promise.all(
-  scenes.map(scene => generateSceneImage(...))
-);
+// In storyOrchestrationService.ts (conceptual — actual flow uses concurrency pool + generateSceneImageWithReference)
+// Rate limiting happens inside the image domain / provider.
 ```
 
 **Behind the scenes:**
-1. `generateSceneImage()` → `ImageDomainService`
-2. → `GeminiImageProvider.generateImageInternal()`
+1. `generateSceneImageWithReference()` → `ImageDomainService`
+2. → `NanoBananaProProvider` (or configured `IImageProvider`)
 3. → **`rateLimiter.execute()`** ← Rate limiting happens here
-4. → Gemini Imagen 3 API
+4. → Gemini image API (`generateContent`)
 
 ## Troubleshooting
 

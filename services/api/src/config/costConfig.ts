@@ -28,6 +28,11 @@ export interface AudioTokenCostConfig {
 export const AI_COST_CONFIG = {
   text: {
     'gemini-2.5-flash': { inputPer1M: 0.3, outputPer1M: 2.5 } as TextCostConfig,
+    // Google AI paid tier list prices (approx.; verify on https://ai.google.dev/pricing )
+    'gemini-3-flash-preview': { inputPer1M: 0.5, outputPer1M: 3.0 } as TextCostConfig,
+    'gemini-3.1-flash-lite-preview': { inputPer1M: 0.25, outputPer1M: 1.5 } as TextCostConfig,
+    'gemini-3.1-pro-preview': { inputPer1M: 2.0, outputPer1M: 12.0 } as TextCostConfig,
+    'gemini-3-pro-preview': { inputPer1M: 2.0, outputPer1M: 12.0 } as TextCostConfig,
     'gpt-5.2': { inputPer1M: 1.75, outputPer1M: 14.0 } as TextCostConfig,
     'gpt-4.1': { inputPer1M: 2.0, outputPer1M: 8.0 } as TextCostConfig,
   } as Record<string, TextCostConfig>,
@@ -54,9 +59,6 @@ export const AI_COST_CONFIG = {
       imageRatePer1M: 60,
       inputPer1M: 0.5,
     } as ImageTokenCostConfig,
-    'imagen-4.0-fast-generate-001': 0.02 as number,
-    'imagen-3.0-generate-002': 0.04 as number,
-    'imagen-3.0-capability-001': 0.04 as number,
     'openai-gpt-image': 0.08 as number,
   } as Record<string, number | ImageTokenCostConfig>,
 

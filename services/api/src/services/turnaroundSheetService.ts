@@ -12,7 +12,6 @@ import { generateEmbedding } from './embeddingService';
 import { extractFrontFromTurnaround } from './turnaroundFrontExtractor';
 import { getCharacterRepository, getChildProfileRepository, getLlmTurnaroundCacheRepository } from '../repositories';
 import { NanoBananaProProvider } from '../providers/image/nanobananapro';
-import { Imagen4FastProvider } from '../providers/image/gemini/Imagen4FastProvider';
 import { ImageDomainService } from '../domain/image';
 import { logger } from '../utils/logger';
 import config from '../config';
@@ -20,7 +19,7 @@ import config from '../config';
 // Lazy singleton for turnaround-specific image domain (uses pro model)
 let turnaroundImageDomain: ImageDomainService | null = null;
 
-// Lazy singleton for LLM character turnaround (Imagen 4 Fast — text-to-image, $0.02)
+// Lazy singleton for LLM text-only character turnaround (Gemini 2.5 Flash Image)
 let llmTurnaroundImageDomain: ImageDomainService | null = null;
 
 function getTurnaroundImageDomain(): ImageDomainService {
@@ -35,20 +34,30 @@ function getTurnaroundImageDomain(): ImageDomainService {
 
 function getLlmTurnaroundImageDomain(): ImageDomainService {
   if (!llmTurnaroundImageDomain) {
-    logger.info('Initializing LLM turnaround image provider (Imagen 4 Fast)');
-    const provider = new Imagen4FastProvider();
+    const model = config.image.flashImageModel;
+    logger.info({ model }, 'Initializing LLM turnaround image provider (Gemini Flash Image)');
+    const provider = new NanoBananaProProvider(config.google.apiKey, model);
     llmTurnaroundImageDomain = new ImageDomainService(provider);
   }
   return llmTurnaroundImageDomain;
 }
 
-export interface TurnaroundSheetParams {
-  characterId: string;
-  userId: string;
-  referencePhotoUrl: string; // Storage path to the child's drawing
+export interface TurnaroundSheetFromReferenceParams {
+  targetType: 'character' | 'child';
+  targetId: string;
+  referencePhotoUrls: string[];
   characterName: string;
-  aiDescription?: string; // From Gemini Vision analysis
+  userId: string;
   storyId?: string;
+  aiDescription?: string;
+}
+
+export interface TurnaroundSheetFromDescriptionParams {
+  targetType: 'child';
+  targetId: string;
+  characterName: string;
+  characterDescription: string;
+  userId: string;
 }
 
 export interface TurnaroundSheetResult {
@@ -59,57 +68,46 @@ export interface TurnaroundSheetResult {
 }
 
 /**
- * Extract storage path from a full or relative URL.
- * Strips protocol + host and the /api/v1/assets/ prefix if present.
+ * Generate a turnaround model sheet from reference photos.
+ * Unified method for both characters and child profiles.
  */
-function extractStoragePath(url: string): string {
-  // Strip query parameters (signed URLs contain ?token=...&expires=...)
-  const urlWithoutQuery = url.split('?')[0];
-  const urlWithoutProtocol = urlWithoutQuery.replace(/^https?:\/\/[^/]+/, '');
-  return urlWithoutProtocol.replace(/^\/api\/v1\/assets\//, '');
-}
-
-/**
- * Generate a turnaround model sheet for an imaginary character.
- *
- * 1. Loads the child's drawing from asset storage
- * 2. Calls ImageDomainService.generateTurnaroundSheet()
- * 3. Uploads the result via assetStorage.uploadUserPhoto()
- * 4. Updates the character record with turnaroundSheet metadata
- */
-export async function generateTurnaroundSheet(
-  params: TurnaroundSheetParams,
+export async function generateTurnaroundSheetFromReference(
+  params: TurnaroundSheetFromReferenceParams,
 ): Promise<TurnaroundSheetResult> {
-  const { characterId, userId, referencePhotoUrl, characterName, aiDescription, storyId } = params;
+  const { targetType, targetId, referencePhotoUrls, characterName, userId, storyId, aiDescription } = params;
+
+  const firstUrl = referencePhotoUrls.find(u => u && u.trim());
+  if (!firstUrl) {
+    throw new Error('At least one reference photo URL is required');
+  }
 
   logger.info({
-    characterId,
-    userId,
+    targetType,
+    targetId,
     characterName,
-    referencePhotoUrl,
     hasDescription: !!aiDescription,
-  }, 'Starting turnaround sheet generation');
+  }, 'Starting turnaround sheet generation from reference');
 
-  // 1. Load the child's original drawing
   const assetStorage = getAssetStorageService();
-  const storagePath = extractStoragePath(referencePhotoUrl);
-  const drawingBuffer = await assetStorage.getAssetByPath(storagePath);
-
-  // Determine mime type from the storage path
+  const storagePath = extractStoragePath(firstUrl);
+  const photoBuffer = await assetStorage.getAssetByPath(storagePath);
   const mimeType = guessMimeType(storagePath);
 
   logger.info({
-    characterId,
-    drawingSize: drawingBuffer.length,
+    targetType,
+    targetId,
+    photoSize: photoBuffer.length,
     mimeType,
-  }, 'Loaded reference drawing for turnaround sheet');
+  }, 'Loaded reference for turnaround sheet');
 
-  // 2. Generate the turnaround sheet via dedicated pro model provider
   const imageDomain = getTurnaroundImageDomain();
-  const usageContext = { userId, characterId, storyId };
+  const usageContext = targetType === 'character'
+    ? { userId, characterId: targetId, storyId }
+    : { userId, childProfileId: targetId, storyId };
+
   const generated = await imageDomain.generateTurnaroundSheet(
     {
-      referenceImageBase64: drawingBuffer.toString('base64'),
+      referenceImageBase64: photoBuffer.toString('base64'),
       referenceMimeType: mimeType,
       characterName,
       characterDescription: aiDescription,
@@ -117,12 +115,14 @@ export async function generateTurnaroundSheet(
     { onUsage: (u) => recordUsage(u, usageContext) }
   );
 
-  // 3. Upload the turnaround sheet
+  const photoType = targetType === 'character' ? 'character_turnaround' as const : 'child_turnaround' as const;
+  const frontPhotoType = targetType === 'character' ? 'character_front' as const : 'child_front' as const;
+
   const uploadResult = await assetStorage.uploadUserPhoto({
     buffer: generated.imageData,
     mimeType: generated.mimeType,
     userId,
-    photoType: 'character_turnaround' as const,
+    photoType,
   });
 
   let frontUrl: string | undefined;
@@ -133,91 +133,60 @@ export async function generateTurnaroundSheet(
         buffer: frontBuffer,
         mimeType: 'image/png',
         userId,
-        photoType: 'character_front' as const,
+        photoType: frontPhotoType,
       });
       frontUrl = frontUpload.storagePath;
     }
   } catch (err) {
-    logger.warn({ err, characterId }, 'Failed to extract front from turnaround, saving without frontUrl');
+    logger.warn({ err, targetType, targetId }, 'Failed to extract front from turnaround, saving without frontUrl');
   }
 
   const turnaroundSheet: TurnaroundSheetResult = {
     url: uploadResult.storagePath,
     ...(frontUrl && { frontUrl }),
     generatedAt: new Date().toISOString(),
-    sourcePhotoUrl: referencePhotoUrl,
+    sourcePhotoUrl: firstUrl,
   };
 
-  // 4. Persist in the characters table
-  const characterRepo = getCharacterRepository();
-  await characterRepo.updateTurnaroundSheet(characterId, turnaroundSheet);
+  if (targetType === 'character') {
+    await getCharacterRepository().updateTurnaroundSheet(targetId, turnaroundSheet);
+  } else {
+    await getChildProfileRepository().updateTurnaroundSheet(targetId, turnaroundSheet);
+  }
 
   logger.info({
-    characterId,
-    characterName,
+    targetType,
+    targetId,
     turnaroundUrl: turnaroundSheet.url,
   }, 'Turnaround sheet generated and stored successfully');
 
   return turnaroundSheet;
 }
 
-export interface ChildTurnaroundSheetParams {
-  childId: string;
-  userId: string;
-  referencePhotoUrl: string; // Storage path to the child's photo
-  childName: string;
-  aiDescription?: string; // From Gemini Vision analysis
-  storyId?: string;
-}
-
 /**
- * Generate a turnaround model sheet for a child profile.
- *
- * 1. Loads the child's photo from asset storage
- * 2. Calls ImageDomainService.generateTurnaroundSheet()
- * 3. Uploads the result via assetStorage.uploadUserPhoto()
- * 4. Updates the child_profiles record with turnaroundSheet metadata
+ * Generate a turnaround model sheet for a child profile from text description only (no photos).
  */
-export async function generateChildTurnaroundSheet(
-  params: ChildTurnaroundSheetParams,
+export async function generateTurnaroundSheetFromDescription(
+  params: TurnaroundSheetFromDescriptionParams,
 ): Promise<TurnaroundSheetResult> {
-  const { childId, userId, referencePhotoUrl, childName, aiDescription, storyId } = params;
+  const { targetId, characterName, characterDescription, userId } = params;
 
   logger.info({
-    childId,
+    childId: targetId,
     userId,
-    childName,
-    referencePhotoUrl,
-    hasDescription: !!aiDescription,
-  }, 'Starting child turnaround sheet generation');
+    characterName,
+    descriptionLength: characterDescription.length,
+  }, 'Starting text-only turnaround sheet generation for child');
 
-  // 1. Load the child's photo
-  const assetStorage = getAssetStorageService();
-  const storagePath = extractStoragePath(referencePhotoUrl);
-  const photoBuffer = await assetStorage.getAssetByPath(storagePath);
-
-  const mimeType = guessMimeType(storagePath);
-
-  logger.info({
-    childId,
-    photoSize: photoBuffer.length,
-    mimeType,
-  }, 'Loaded reference photo for child turnaround sheet');
-
-  // 2. Generate the turnaround sheet via dedicated pro model provider
   const imageDomain = getTurnaroundImageDomain();
-  const usageContext = { userId, childProfileId: childId, storyId };
-  const generated = await imageDomain.generateTurnaroundSheet(
-    {
-      referenceImageBase64: photoBuffer.toString('base64'),
-      referenceMimeType: mimeType,
-      characterName: childName,
-      characterDescription: aiDescription,
-    },
+  const usageContext = { userId, childProfileId: targetId };
+
+  const generated = await imageDomain.generateTurnaroundSheetFromDescription(
+    { characterName, characterDescription },
     { onUsage: (u) => recordUsage(u, usageContext) }
   );
 
-  // 3. Upload the turnaround sheet
+  const assetStorage = getAssetStorageService();
   const uploadResult = await assetStorage.uploadUserPhoto({
     buffer: generated.imageData,
     mimeType: generated.mimeType,
@@ -238,27 +207,36 @@ export async function generateChildTurnaroundSheet(
       frontUrl = frontUpload.storagePath;
     }
   } catch (err) {
-    logger.warn({ err, childId }, 'Failed to extract front from turnaround, saving without frontUrl');
+    logger.warn({ err, childId: targetId }, 'Failed to extract front from turnaround, saving without frontUrl');
   }
 
   const turnaroundSheet: TurnaroundSheetResult = {
     url: uploadResult.storagePath,
     ...(frontUrl && { frontUrl }),
     generatedAt: new Date().toISOString(),
-    sourcePhotoUrl: referencePhotoUrl,
+    sourcePhotoUrl: 'text-description',
   };
 
-  // 4. Persist in the child_profiles table
-  const childProfileRepo = getChildProfileRepository();
-  await childProfileRepo.updateTurnaroundSheet(childId, turnaroundSheet);
+  await getChildProfileRepository().updateTurnaroundSheet(targetId, turnaroundSheet);
 
   logger.info({
-    childId,
-    childName,
+    childId: targetId,
+    characterName,
     turnaroundUrl: turnaroundSheet.url,
-  }, 'Child turnaround sheet generated and stored successfully');
+  }, 'Child turnaround sheet generated from description');
 
   return turnaroundSheet;
+}
+
+/**
+ * Extract storage path from a full or relative URL.
+ * Strips protocol + host and the /api/v1/assets/ prefix if present.
+ */
+function extractStoragePath(url: string): string {
+  // Strip query parameters (signed URLs contain ?token=...&expires=...)
+  const urlWithoutQuery = url.split('?')[0];
+  const urlWithoutProtocol = urlWithoutQuery.replace(/^https?:\/\/[^/]+/, '');
+  return urlWithoutProtocol.replace(/^\/api\/v1\/assets\//, '');
 }
 
 /**
@@ -335,10 +313,8 @@ export async function generateLlmCharacterTurnaround(
     }
   }
 
-  // 2. Generate new turnaround
-  const imageDomain = config.image.llmTurnaroundUseImagen4Fast
-    ? getLlmTurnaroundImageDomain()
-    : getTurnaroundImageDomain();
+  // 2. Generate new turnaround (text-only LLM characters: Flash Image, not photo-reference turnaround model)
+  const imageDomain = getLlmTurnaroundImageDomain();
   const usageContext = { userId, characterId, storyId };
   const generated = await imageDomain.generateTurnaroundSheetFromDescription(
     {

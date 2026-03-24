@@ -211,7 +211,7 @@ For AI-powered features (story generation, image generation, TTS), **MUST** foll
 ┌──────────────────────┐  ┌───────────────────────┐
 │  Prompt Engineering  │  │  Provider Layer       │
 │  - OutlinePrompt     │  │  - GeminiTextProvider │
-│  - TextPrompt        │  │  - GeminiImageProvider│
+│  - TextPrompt        │  │  - NanoBananaPro       │
 │  - ValidationPrompt  │  │  - ElevenLabsProvider │
 └──────────────────────┘  └───────────────────────┘
 ```
@@ -1952,6 +1952,7 @@ Before submitting code, verify:
 | **dumpSceneVisuals** | Full sceneVisual (setting, cameraComposition, lighting) for all scenes | `npx tsx src/scripts/dumpSceneVisuals.ts <storyId>` |
 | **parseEnvFromLog** | Extract LLM environments + characterOutfits from app.log | `npx tsx src/scripts/parseEnvFromLog.ts [storyId]` — without storyId shows recent entries |
 | **setImageGenerationComplete** | Set imageGenerationComplete=true for a stuck story (fix polling) | `npx tsx src/scripts/setImageGenerationComplete.ts <storyId>` |
+| **rerunDirectorForStory** | Re-call Director LLM for an existing story (prints JSON; does not update DB) | `npx tsx src/scripts/rerunDirectorForStory.ts <storyId> [--images N] [--json out.json] [--prompt]` |
 
 **Logs location:**
 - Host: `services/api/logs/app.log` (if API runs locally)

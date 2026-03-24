@@ -15,6 +15,8 @@ export interface ReferenceImage {
   fileUri?: string; // Provider file URI (alternative to base64Data — avoids inline payload)
   mimeType?: string; // MIME type if using base64Data (e.g., 'image/jpeg', 'image/png')
   characterName?: string; // Optional label for the reference
+  /** Gemini 3.1 image: identity refs vs object refs (environment, outfit plate) for logging / limits */
+  referenceKind?: 'character' | 'object';
   instructionText?: string; // Per-image instruction for multimodal interleaving (placed before image in parts)
   // Additional fields for API conversion
   referenceId?: number; // 1-4, used in prompt as [1], [2], etc.
@@ -33,7 +35,7 @@ export interface GenerateImageRequest {
   personGeneration?: 'allow_adult' | 'allow_all' | 'dont_allow'; // Control person generation (lowercase as per API)
   systemInstruction?: string; // Static context (style, characters) set once per story, separate from per-scene prompt
   onUsage?: (usage: UsageMetadata) => void; // Optional callback for cost tracking
-  operation?: string; // Operation name for usage callback (e.g. 'image_generate', 'image_edit')
+  operation?: string; // Usage callback: 'image_generate' | 'image_edit' | 'image_environment' | 'image_outfit_plate'
   // REMOVED (not supported by Imagen 3):
   // - negativePrompt (include in prompt text instead)
   // - width, height (use aspectRatio)
@@ -75,7 +77,7 @@ export interface EditImageRequest {
 /**
  * IImageProvider - Provider-agnostic interface for image generation
  * 
- * MVP: GeminiImageProvider (Imagen 3)
+ * Implementations: NanoBananaProProvider (Gemini image), OpenAIImageProvider, GeminiBatchImageProvider (batch).
  * Future: OpenAIImageProvider (DALL-E), StabilityProvider (Stable Diffusion)
  */
 export interface IImageProvider {

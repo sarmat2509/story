@@ -1,7 +1,7 @@
 /**
  * Batch Image Worker Job
  * Processes batch_image_pending: creates Gemini batch, polls, saves scene assets, sets hidden=false.
- * Runs every 15–30 min. Env/turnaround: realtime (Imagen 4) — simplified for first version.
+ * Runs every 15–30 min. Env/turnaround: realtime (Gemini image) — simplified for first version.
  */
 
 import { logger } from '../utils/logger';

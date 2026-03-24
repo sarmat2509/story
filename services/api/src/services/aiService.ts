@@ -10,8 +10,6 @@
 
 import { GeminiTextProvider } from '../providers/text/gemini';
 import { OpenAITextProvider } from '../providers/text/openai';
-import { GeminiImageProvider } from '../providers/image/gemini';
-import { Imagen4FastProvider } from '../providers/image/gemini/Imagen4FastProvider';
 import { GeminiQuotaProvider } from '../providers/image/gemini/GeminiQuotaProvider';
 import { NanoBananaProProvider } from '../providers/image/nanobananapro';
 import { OpenAIImageProvider } from '../providers/image/openai';
@@ -41,6 +39,7 @@ let audioDomainService: AudioDomainService | null = null;
 
 // Provider instances (private to this module)
 let textProvider: ITextProvider | null = null;
+let directorTextProvider: ITextProvider | null = null;
 let imageProvider: IImageProvider | null = null;
 let environmentImageProvider: IImageProvider | null = null;
 let batchImageProvider: IImageProvider | null = null;
@@ -60,14 +59,13 @@ let textQuotaProvider: IQuotaProvider | null = null;
 export function getStoryDomainService(): StoryDomainService {
   if (!storyDomainService) {
     logger.info('Initializing Story Domain Service');
-    
-    // Create provider (hidden from orchestration)
-    const provider = getTextProvider();
-    
-    // Create domain service with provider
-    storyDomainService = new StoryDomainService(provider);
+
+    const mainText = getTextProvider();
+    const directorText = getDirectorTextProvider();
+
+    storyDomainService = new StoryDomainService(mainText, directorText);
   }
-  
+
   return storyDomainService;
 }
 
@@ -128,7 +126,7 @@ export function getTextProvider(): ITextProvider {
     
     switch (vendor) {
       case 'gemini':
-        textProvider = new GeminiTextProvider(config.ai.geminiApiKey);
+        textProvider = new GeminiTextProvider(config.ai.geminiApiKey, config.ai.modelVersion);
         break;
       case 'openai':
         textProvider = new OpenAITextProvider(config.ai.openaiApiKey, config.ai.openaiModel);
@@ -141,13 +139,48 @@ export function getTextProvider(): ITextProvider {
   return textProvider;
 }
 
+function effectiveDirectorTextVendor(): string {
+  return config.ai.directorTextVendor || config.ai.textVendor;
+}
+
+/**
+ * Text provider for Director only. When AI_DIRECTOR_TEXT_VENDOR matches AI_TEXT_VENDOR (or is unset),
+ * returns the same instance as getTextProvider().
+ */
+export function getDirectorTextProvider(): ITextProvider {
+  if (effectiveDirectorTextVendor() === config.ai.textVendor) {
+    return getTextProvider();
+  }
+
+  if (!directorTextProvider) {
+    const vendor = effectiveDirectorTextVendor();
+    logger.info({ vendor }, 'Initializing director text provider');
+
+    switch (vendor) {
+      case 'gemini':
+        directorTextProvider = new GeminiTextProvider(config.ai.geminiApiKey, config.ai.modelVersion);
+        break;
+      case 'openai':
+        directorTextProvider = new OpenAITextProvider(
+          config.ai.openaiApiKey,
+          config.ai.openaiDirectorModel,
+        );
+        break;
+      default:
+        throw new Error(`Unknown director text vendor: ${vendor}`);
+    }
+  }
+
+  return directorTextProvider;
+}
+
 /**
  * Get image provider instance (private)
  * Only called by getImageDomainService()
  * Supports:
  * - 'nanobananapro': Gemini Flash/Pro Image (for cartoon/illustration with character consistency)
  * - 'openai': GPT Image via Responses API (for character consistency with input_fidelity)
- * - 'gemini': Imagen 3 (legacy, for photorealistic images)
+ * - 'gemini': Gemini 2.5 Flash Image only (same stack as env / cheap paths; Imagen removed)
  */
 function getImageProvider(): IImageProvider {
   if (!imageProvider) {
@@ -165,8 +198,10 @@ function getImageProvider(): IImageProvider {
         imageProvider = new OpenAIImageProvider(config.ai.openaiApiKey);
         break;
       case 'gemini':
-        // Legacy Imagen 3 provider
-        imageProvider = new GeminiImageProvider(config.ai.geminiApiKey);
+        imageProvider = new NanoBananaProProvider(
+          config.google.apiKey,
+          config.image.flashImageModel,
+        );
         break;
       default:
         logger.warn({ provider }, 'Unknown image provider, falling back to nanobananapro');
@@ -178,13 +213,18 @@ function getImageProvider(): IImageProvider {
 }
 
 /**
- * Get environment image provider (Imagen 4 Fast)
- * Used for generating environment reference images ($0.02/image)
+ * Environment reference images — Gemini 2.5 Flash Image (API key), not Vertex Imagen.
  */
 export function getEnvironmentImageProvider(): IImageProvider {
   if (!environmentImageProvider) {
-    logger.info('Initializing environment image provider (Imagen 4 Fast)');
-    environmentImageProvider = new Imagen4FastProvider();
+    logger.info(
+      { model: config.image.flashImageModel },
+      'Initializing environment image provider (Gemini Flash Image)',
+    );
+    environmentImageProvider = new NanoBananaProProvider(
+      config.google.apiKey,
+      config.image.flashImageModel,
+    );
   }
   return environmentImageProvider;
 }
@@ -447,6 +487,7 @@ export function resetServices(): void {
   imageDomainService = null;
   audioDomainService = null;
   textProvider = null;
+  directorTextProvider = null;
   imageProvider = null;
   environmentImageProvider = null;
   batchImageProvider = null;
