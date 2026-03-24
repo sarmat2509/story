@@ -42,6 +42,16 @@ function validateProductionConfig() {
     if (process.env.JWT_SECRET?.includes('change_in_production')) {
       throw new Error('JWT_SECRET must be changed from default value in production');
     }
+
+    const textVendor = process.env.AI_TEXT_VENDOR || 'gemini';
+    const directorTextVendor =
+      (process.env.AI_DIRECTOR_TEXT_VENDOR || '').trim() || textVendor;
+    const needsOpenAiKey = textVendor === 'openai' || directorTextVendor === 'openai';
+    if (needsOpenAiKey && !process.env.OPENAI_API_KEY?.trim()) {
+      throw new Error(
+        'OPENAI_API_KEY is required in production when AI_TEXT_VENDOR or AI_DIRECTOR_TEXT_VENDOR is openai',
+      );
+    }
   }
 }
 
@@ -63,8 +73,16 @@ export const config = {
     geminiVisionModel: process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash',
     openaiApiKey: process.env.OPENAI_API_KEY || '',
     openaiModel: process.env.OPENAI_TEXT_MODEL || 'gpt-5.2',
+    /** When set, Director (`callDirector`) uses this text vendor; otherwise same as textVendor */
+    directorTextVendor: (process.env.AI_DIRECTOR_TEXT_VENDOR || '').trim() || undefined,
+    /** OpenAI model for Director only; falls back to OPENAI_TEXT_MODEL default */
+    openaiDirectorModel:
+      process.env.AI_DIRECTOR_OPENAI_MODEL ||
+      process.env.OPENAI_TEXT_MODEL ||
+      'gpt-5.2',
     elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || '',
-    modelVersion: process.env.AI_MODEL_VERSION || 'gemini-2.5-flash',
+    // Structured text (Director, validation, etc.): GEMINI_TEXT_MODEL overrides legacy AI_MODEL_VERSION
+    modelVersion: process.env.GEMINI_TEXT_MODEL || process.env.AI_MODEL_VERSION || 'gemini-3-flash-preview',
     maxRetries: parseInt(process.env.AI_MAX_RETRIES || '3', 10),
     timeoutMs: parseInt(process.env.AI_TIMEOUT_MS || '30000', 10),
   },
@@ -73,8 +91,9 @@ export const config = {
   image: {
     skipGeneration: process.env.SKIP_IMAGE_GENERATION === 'true',
     provider: process.env.IMAGE_PROVIDER || 'nanobananapro', // Default to Nano Banana Pro
+    /** gemini-2.5-flash-image: env images, legacy IMAGE_PROVIDER=gemini, LLM text-only turnaround */
+    flashImageModel: process.env.GEMINI_FLASH_IMAGE_MODEL || 'gemini-2.5-flash-image',
     gemini: {
-      model: process.env.GEMINI_IMAGE_MODEL || 'imagen-3.0-generate-002', // Legacy Imagen 3
       projectId: process.env.GOOGLE_CLOUD_PROJECT || '',
       location: process.env.GOOGLE_CLOUD_LOCATION || 'us-central1',
       batchGcsBucket: process.env.BATCH_IMAGE_GCS_BUCKET || '', // For scheduled continuation batch (Vertex AI)
@@ -92,8 +111,22 @@ export const config = {
     // Post-generation validation (Gemini Vision)
     enableValidation: process.env.ENABLE_IMAGE_VALIDATION === 'true',
     validationMaxRetries: parseInt(process.env.IMAGE_VALIDATION_MAX_RETRIES || '2', 10),
-    // Max total reference images per API call (turnarounds + scene refs)
-    maxReferenceImages: parseInt(process.env.IMAGE_MAX_REFERENCE_IMAGES || '3', 10),
+    /** Scene image accepted when computeValidationScore(...) is strictly greater than this (no LLM isValid). */
+    validationMinAcceptScore: parseInt(process.env.IMAGE_VALIDATION_MIN_ACCEPT_SCORE || '85', 10),
+    // Legacy single cap (prefer bucket limits below for Gemini 3.1 image)
+    maxReferenceImages: parseInt(process.env.IMAGE_MAX_REFERENCE_IMAGES || '14', 10),
+    /** Identity refs: turnaround / child / character sheets (Gemini 3.1: up to 4) */
+    maxCharacterReferenceImages: parseInt(
+      process.env.IMAGE_MAX_CHARACTER_REFERENCE_IMAGES || '4',
+      10,
+    ),
+    /** Environment + outfit plates + non-character refs (Gemini 3.1: up to 10) */
+    maxObjectReferenceImages: parseInt(process.env.IMAGE_MAX_OBJECT_REFERENCE_IMAGES || '10', 10),
+    enableOutfitPlate: process.env.ENABLE_OUTFIT_PLATE === 'true',
+    outfitPlateMaxPerScene: parseInt(process.env.OUTFIT_PLATE_MAX_PER_SCENE || '2', 10),
+    outfitPlateEmbeddingSimilarityThreshold: parseFloat(
+      process.env.OUTFIT_PLATE_EMBEDDING_SIMILARITY_THRESHOLD || '0.95',
+    ),
     // Validation scoring: absolute penalties (subtracted from 100)
     validationScoring: {
       // Per-character penalties (subtracted from 100)
@@ -105,27 +138,31 @@ export const config = {
       textPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_TEXT || '5', 10),
       unexpectedCharsPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_UNEXPECTED || '3', 10),
       artifactsPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_ARTIFACTS || '10', 10),
+      /** Per false identity flag (face/hair/age/proportions) for humans who have a turnaround reference in this validation call */
+      humanIdentityFlagPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_HUMAN_IDENTITY_FLAG || '8', 10),
+      /** If recognizableScore is below this for a human with ref, apply humanLowRecognizableExtraPenalty */
+      humanLowRecognizableThreshold: parseFloat(
+        process.env.IMAGE_SCORE_HUMAN_LOW_REC_THRESHOLD || '0.75',
+      ),
+      humanLowRecognizableExtraPenalty: parseInt(
+        process.env.IMAGE_SCORE_PENALTY_HUMAN_LOW_REC || '5',
+        10,
+      ),
     },
     // Turnaround sheet generation for imaginary characters
     enableTurnaroundSheet: process.env.ENABLE_TURNAROUND_SHEET === 'true',
     turnaroundModel: process.env.TURNAROUND_MODEL || 'gemini-3-pro-image-preview',
-    // LLM character turnaround: use Imagen 4 Fast (text-to-image, $0.02) instead of Gemini
-    llmTurnaroundUseImagen4Fast: process.env.LLM_TURNAROUND_USE_IMAGEN_4_FAST !== 'false',
     // Parallel streams for image generation within a single story (turnarounds + scene images)
     parallelStreams: parseInt(process.env.IMAGE_PARALLEL_STREAMS || '2', 10),
-    // Environment image reference (Imagen 4 Fast)
+    // Environment image reference (Gemini 2.5 Flash Image via API key)
     enableEnvironmentReference: process.env.ENABLE_ENVIRONMENT_REFERENCE === 'true',
-    imagen4Fast: {
-      projectId: process.env.GOOGLE_CLOUD_PROJECT || '',
-      location: process.env.GOOGLE_CLOUD_LOCATION || 'us-central1',
-    },
     environmentEmbeddingSimilarityThreshold: parseFloat(
       process.env.ENVIRONMENT_EMBEDDING_SIMILARITY_THRESHOLD || '0.95'
     ),
     llmTurnaroundEmbeddingSimilarityThreshold: parseFloat(
       process.env.LLM_TURNAROUND_EMBEDDING_SIMILARITY_THRESHOLD || '0.95'
     ),
-    // Skip Imagen 4 for environments with only 1 scene (among scenes with images) — cost optimization
+    // Skip environment reference image when only one scene has images — cost optimization
     skipEnvImageForSingleScene: process.env.SKIP_ENV_IMAGE_FOR_SINGLE_SCENE !== 'false',
     environmentImageStyle:
       process.env.ENVIRONMENT_IMAGE_STYLE ||
@@ -278,6 +315,8 @@ export const config = {
     enableCharacterAnalysis: process.env.ENABLE_CHARACTER_ANALYSIS !== 'false', // Enabled by default
     useDirectorFlow: process.env.USE_DIRECTOR_FLOW === 'true', // Plain text + Director for visuals (N scenes only)
     enableRealPayments: process.env.ENABLE_REAL_PAYMENTS === 'true', // M1: Stripe/RevenueCat; false = stub (PUT /plans/upgrade)
+    /** When true, logs the complete Director LLM prompt (search app.log for msg "Director full prompt"). Large. */
+    logDirectorFullPrompt: process.env.LOG_DIRECTOR_FULL_PROMPT === 'true',
   },
 
   // Stripe (M1 Payment Integration)

@@ -26,16 +26,27 @@ export interface SceneValidationResult {
  * Detects character hallucinations, duplicates, missing characters, reference fidelity issues.
  */
 export interface ImageValidationResult {
-  isValid: boolean;
   characterCount: number;
   expectedCharacterCount: number;
   characters: Array<{
     name: string;
+    /** Echo expected list: human vs imaginary — must match isImaginary from validation input. */
+    characterKind: 'human' | 'imaginary';
     found: boolean;
     duplicated: boolean;
-    recognizableScore: number;  // 0-1. 1=fully recognizable, 0.9=1 feature wrong, 0=completely different. Penalty=(1-score)*20.
-    matchesColors: boolean;    // Correct color palette (fur, eyes, skin)
-    matchesOutfit: boolean;    // Correct clothing/accessories (true if none described)
+    recognizableScore: number; // 0-1 aggregate identity score; must align with boolean identity flags below.
+    faceMatchesReference: boolean;
+    hairMatchesReference: boolean;
+    ageReadMatchesReference: boolean;
+    proportionsMatchReference: boolean;
+    matchesColors: boolean;
+    matchesOutfit: boolean;
+    /** Explicit age/face/hair/proportions/stable traits vs reference — no vague "similar enough". */
+    identityComparisonSummary: string;
+    /** When set: whether silhouette, body type, and first-glance read match the reference design. */
+    sameOverallDesignRead?: boolean;
+    /** When set: how much silhouette/body-type drift vs reference (structured output hint). */
+    silhouetteDriftSeverity?: 'none' | 'mild' | 'moderate' | 'severe';
     issue?: string;
   }>;
   hasUnexpectedCharacters: boolean;
@@ -133,10 +144,19 @@ export interface EpisodeOutline {
  * Episode text - full story content
  * Scene-by-scene structure prepared for M4 image generation
  */
+/** Canonical wardrobe row from structured text generation (matches TEXT_SCHEMA). */
+export interface StoryOutfitRow {
+  id: string;
+  characterName: string;
+  description: string;
+}
+
 export interface EpisodeText {
   title: string;
   language: string;
   environments?: StoryEnvironment[]; // Persistent location descriptions
+  /** Canonical wardrobe; scenes reference rows via sceneVisual.cameraComposition.characters[].outfitId (LLM) → normalized to characterOutfitIds. */
+  outfits?: StoryOutfitRow[];
   characters?: Array<{ // NEW - optional for backward compatibility
     name: string;
     type: string;
@@ -150,6 +170,8 @@ export interface EpisodeText {
     sceneVisual?: SceneVisual; // Structured visual description for image generation
     visualPrompt?: string; // Deprecated: kept for backward compatibility with old stories
     environmentId?: string; // Reference to environment where this scene takes place
+    /** After normalization: maps character name → outfit id from outfits[] (from camera composition or legacy outfitBindings). */
+    characterOutfitIds?: Record<string, string>;
     characters?: string[]; // Character names appearing in this scene (optional for backward compatibility)
   }>;
   fullText: string; // Concatenated full story for reading

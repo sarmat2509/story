@@ -9,6 +9,31 @@
 import type { JsonSchema } from '../../providers/base/JsonSchema';
 
 /**
+ * One row in sceneVisual.cameraComposition.characters — pose plus wardrobe ref (replaces top-level outfitBindings).
+ */
+export const CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA: JsonSchema = {
+  type: 'object',
+  properties: {
+    name: {
+      type: 'string',
+      minLength: 1,
+      description: 'EXACT character name from the story character list (and characters[]), including "Name [ID: uuid]" if used.',
+    },
+    description: {
+      type: 'string',
+      minLength: 1,
+      description: 'Position in frame, posture, action, expression. IN ENGLISH.',
+    },
+    outfitId: {
+      type: 'string',
+      minLength: 1,
+      description: 'EXACT outfits[].id for this character in this scene — same kind of reference as environmentId → environments[].id.',
+    },
+  },
+  required: ['name', 'description', 'outfitId'],
+};
+
+/**
  * Schema for full story text generation
  * Defines the structure of EpisodeText
  */
@@ -33,6 +58,30 @@ export const TEXT_SCHEMA: JsonSchema = {
       description: 'All characters created in the story (excluding user-provided characters from SUPPORTING CHARACTERS section)'
     },
     moral: { type: 'string', description: 'The moral/lesson of the story' },
+    outfits: {
+      type: 'array',
+      description:
+        'Canonical wardrobe for the story. Generate AFTER all scenes are written so each scene can reference outfit ids. Each distinct look gets a unique id.',
+      items: {
+        type: 'object',
+        properties: {
+          id: {
+            type: 'string',
+            description: 'Unique within story (e.g. o_hero_park_1). Reuse the same id across scenes when wardrobe unchanged.',
+          },
+          characterName: {
+            type: 'string',
+            description: 'EXACT character name as in characters[].name',
+          },
+          description: {
+            type: 'string',
+            description:
+              'WARDROBE ONLY IN ENGLISH. Align with weather, season, and indoor/outdoor context of this scene and its environment. Garments, shoes, worn accessories only — no face, hair, or body. Animals/creatures: "natural appearance".',
+          },
+        },
+        required: ['id', 'characterName', 'description'],
+      },
+    },
     scenes: {
       type: 'array',
       items: {
@@ -63,15 +112,10 @@ export const TEXT_SCHEMA: JsonSchema = {
                   },
                   characters: {
                     type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        name: { type: 'string', description: 'EXACT character name from the story character list' },
-                        description: { type: 'string', description: 'Position in frame, posture, action, expression. Use beside/next to/behind — avoid "at" when standing. IN ENGLISH.' }
-                      },
-                      required: ['name', 'description']
-                    },
-                    description: 'Per-character composition. MUST list ALL characters physically present in this scene and ONLY those characters.'
+                    minItems: 1,
+                    items: CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA,
+                    description:
+                      'Per-character composition. MUST list ALL characters physically present in this scene and ONLY those characters. Each row MUST include outfitId referencing outfits[].',
                   }
                 },
                 required: ['shot', 'characters']
@@ -94,18 +138,14 @@ export const TEXT_SCHEMA: JsonSchema = {
         properties: {
           id: { type: 'string', description: 'Short unique identifier (e.g. "bedroom", "forest_path", "silver_tree_glade" — use distinct ids for different places like path vs glade)' },
           name: { type: 'string', description: 'Human-readable name of the location' },
-          description: { type: 'string', description: 'BASE visual description IN ENGLISH: fixed layout, permanent furniture, walls, floor, windows. Include ALL static objects that appear in the story (tree, flower, path, bushes, bench) with fixed positions (left/center/right) and relative positions (path beside tree, bushes left of path). Key objects DO NOT change between scenes. Scene delta only adds state changes (flower bloomed), not new objects.' },
-          characterOutfits: {
-            type: 'string',
-            description: 'REQUIRED. One entry per character who appears in this environment. Format: "Char1: outfit1. Char2: outfit2." Outfit = DETAILED IN ENGLISH: type of clothing, colors, elements. Must match environment. For animals/creatures use "natural appearance". NEVER return empty string.'
-          },
+          description: { type: 'string', description: 'BASE visual description IN ENGLISH: fixed layout, permanent furniture, walls, floor, windows, weather/time-of-day when it affects the place. Include ALL static objects (tree, flower, path, bushes, bench) with fixed positions (left/center/right) and relative positions. Wardrobe belongs in outfits[] only — not here.' },
         },
-        required: ['id', 'name', 'description', 'characterOutfits']
+        required: ['id', 'name', 'description']
       },
-      description: 'All distinct physical locations in the story. Generate LAST — one entry per unique environmentId used in scenes. Create separate entries for distinctly different places (forest path vs glade, different rooms, cave vs clearing).'
+      description: 'All distinct physical locations. Generate AFTER outfits — one entry per unique environmentId used in scenes.'
     },
   },
-  required: ['title', 'language', 'characters', 'scenes', 'environments']
+  required: ['title', 'language', 'characters', 'outfits', 'scenes', 'environments']
 };
 
 /**
@@ -168,7 +208,6 @@ export const BATCH_VALIDATION_SCHEMA: JsonSchema = {
 export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
-    isValid: { type: 'boolean', description: 'True if image passes all validation checks' },
     characterCount: { type: 'number', description: 'Total number of distinct characters/creatures visible in the image' },
     expectedCharacterCount: { type: 'number', description: 'Number of characters expected based on the prompt' },
     characters: {
@@ -177,14 +216,81 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
         type: 'object',
         properties: {
           name: { type: 'string', description: 'Character name from the expected list' },
+          characterKind: {
+            type: 'string',
+            enum: ['human', 'imaginary'],
+            description:
+              'Must match EXPECTED CHARACTERS line for this name: human = real-world character (HUMAN), imaginary = IMAGINARY_CREATURE.',
+          },
           found: { type: 'boolean', description: 'Whether this character is present in the image' },
           duplicated: { type: 'boolean', description: 'Whether this character appears more than once without scene justification. Only true when duplicate is NOT scene-justified (mirror, reflection, portrait = false).' },
-          recognizableScore: { type: 'number', description: '0-1. 1=all distinctive features present. 0.9=exactly 1 feature wrong/missing (antennae not glowing, flowers on wings missing). 0.8=2 features. 0.7=3+. 0.5=wrong colors/species. 0=completely different creature. Penalty=(1-score)*20.' },
-          matchesColors: { type: 'boolean', description: 'Whether the character color palette matches the reference image (fur/skin color, eye color, distinctive markings).' },
-          matchesOutfit: { type: 'boolean', description: 'Whether clothing and accessories match the reference image (hat, bow, dress). Set to true if no outfit is described.' },
+          recognizableScore: {
+            type: 'number',
+            description:
+              '0-1 aggregate identity vs turnaround. Must reflect overall design read, silhouette, creature subtype read (imaginary), and body form—not only a checklist of local features. 1.0 ONLY when no meaningful drift in silhouette, body type, mass, head/muzzle shape, subtype read, proportions, or signature traits; any noticeable subtype-read drift or body-form reinterpretation → strictly below 1.0. Consistent with face/hair/age/proportions booleans and optional silhouetteDriftSeverity/sameOverallDesignRead. For HUMANS: wrong face OR wrong age read OR wrong visible hairstyle must NOT be scored 0.9 as a minor single feature—usually 0.7–0.8 each; combined drift → often ≤0.5. For IMAGINARY: missing dominant body markings (spots/stripes) → ≤0.5; major silhouette/body-type/subtype drift → often 0.5–0.7 even if some colors/markings match. Do not use ~0.9 when proportionsMatchReference is false due to visible drift. Wardrobe vs sheet does not raise this score. Penalty=(1-score)*20.',
+          },
+          faceMatchesReference: {
+            type: 'boolean',
+            description:
+              'Visible face/head identity vs reference: face shape, eye shape/size, nose/mouth, cheeks, jaw/chin, freckles/glasses when stable. For IMAGINARY: snout/muzzle/eye region/expression for that creature. True if no reference for this character or head fully obscured and scene explains occlusion.',
+          },
+          hairMatchesReference: {
+            type: 'boolean',
+            description:
+              'Visible hair vs reference (length, cut, silhouette, parting, texture, braid/ponytail/loose) unless scene explicitly authorizes a change. For IMAGINARY: mane/crest/fur on head as hair analog. Not wardrobe—primary identity.',
+          },
+          ageReadMatchesReference: {
+            type: 'boolean',
+            description:
+              'For HUMAN: same age category as reference (child vs teen/adult) unless scene authorizes. Wrong age read is major—not stylistic. For IMAGINARY: true unless scene implies juvenile/adult creature change.',
+          },
+          proportionsMatchReference: {
+            type: 'boolean',
+            description:
+              'Head-to-body, limb-to-torso ratios and silhouette vs reference. Moderate drift → often recognizableScore 0.7–0.8; severe → ≤0.5.',
+          },
+          matchesColors: {
+            type: 'boolean',
+            description:
+              'Whether persistent identity colors match the reference: skin/fur/feathers, eyes, visible hair color, stable markings. False if hair color clearly wrong vs reference without scene excuse. Do not use clothing fabric color vs sheet here—that is matchesOutfit vs scene text.',
+          },
+          matchesOutfit: {
+            type: 'boolean',
+            description:
+              'Whether VISIBLE clothing/shoes/accessories match the scene wardrobe text (CHARACTER OUTFITS / Expected outfit for THIS scene), NOT the turnaround reference. Require garment TYPE and key structural details from that text (sleeve length, neckline/collar, skirt length, shoe type). Same dominant color but wrong silhouette (e.g. another yellow dress) = false. True if no outfit is specified in scene text, or visible costume aligns with the written spec. Occlusion rules apply when scene context hides parts.',
+          },
+          identityComparisonSummary: {
+            type: 'string',
+            description:
+              'Contrastive format required: (1) MATCHES—what aligns (silhouette, body type, head/muzzle, markings, subtype read for imaginary, proportions). (2) DIFFERS—what does not match or is reinterpreted. (3) FIRST-GLANCE—one sentence: unchanged vs drifted design read. For imaginary creatures always mention subtype read (e.g. spirit-like vs insect-like). No vague merged praise.',
+          },
+          sameOverallDesignRead: {
+            type: 'boolean',
+            description:
+              'Optional. True ONLY if no meaningful drift in silhouette, body type, mass, head/muzzle, creature subtype read, proportions, or signature traits—same first-glance design. False if any noticeable subtype drift, body-form reinterpretation, or silhouette shift (even with matching colors/accessories). False if moderate/severe silhouetteDriftSeverity. Omit if uncertain.',
+          },
+          silhouetteDriftSeverity: {
+            type: 'string',
+            enum: ['none', 'mild', 'moderate', 'severe'],
+            description:
+              'Optional. none only when silhouette, body type, subtype read, and proportions closely match—no meaningful reinterpretation. mild/moderate/severe for visible shifts; moderate+ when body-read or subtype clearly shifts; severe when first-glance read fails. Subtype read differing from reference → not none.',
+          },
           issue: { type: 'string', nullable: true, description: 'ALL problems for this character in one string, separated by semicolons' },
         },
-        required: ['name', 'found', 'duplicated', 'recognizableScore', 'matchesColors', 'matchesOutfit'],
+        required: [
+          'name',
+          'characterKind',
+          'found',
+          'duplicated',
+          'recognizableScore',
+          'faceMatchesReference',
+          'hairMatchesReference',
+          'ageReadMatchesReference',
+          'proportionsMatchReference',
+          'matchesColors',
+          'matchesOutfit',
+          'identityComparisonSummary',
+        ],
       },
     },
     hasUnexpectedCharacters: { type: 'boolean', description: 'Whether there are extra characters not in the expected list' },
@@ -192,7 +298,7 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
     hasRenderingArtifacts: { type: 'boolean', description: 'Whether the image has visual artifacts at character boundaries: body parts showing through other characters, merged limbs, transparency errors.' },
     overallFeedback: { type: 'string', description: 'Human-readable summary of all issues found' },
   },
-  required: ['isValid', 'characterCount', 'expectedCharacterCount', 'characters', 'hasUnexpectedCharacters', 'hasTextOrLetters', 'hasRenderingArtifacts', 'overallFeedback'],
+  required: ['characterCount', 'expectedCharacterCount', 'characters', 'hasUnexpectedCharacters', 'hasTextOrLetters', 'hasRenderingArtifacts', 'overallFeedback'],
 };
 
 /**
@@ -246,15 +352,10 @@ export const SCENE_SCHEMA: JsonSchema = {
             },
             characters: {
               type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  name: { type: 'string', description: 'EXACT character name from the story character list' },
-                  description: { type: 'string', description: 'Position in frame, posture, action, expression. Use beside/next to/behind — avoid "at" when standing. IN ENGLISH.' }
-                },
-                required: ['name', 'description']
-              },
-              description: 'Per-character composition. MUST list ALL characters physically present in this scene and ONLY those characters.'
+              minItems: 1,
+              items: CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA,
+              description:
+                'Per-character composition. MUST list ALL characters physically present in this scene. Each entry includes outfitId → outfits[].',
             }
           },
           required: ['shot', 'characters']

@@ -18,13 +18,13 @@ import {
   extractSceneCharacters,
   type CharacterReference,
 } from '../../prompts/image';
-import { buildImageValidationPrompt } from '../../prompts/image/ImageValidationPrompt';
 import { buildImageEditPrompt } from '../../prompts/image/ImageEditPrompt';
 import { buildTurnaroundPrompt, buildTextOnlyTurnaroundPrompt } from '../../prompts/image/TurnaroundPrompt';
-import { IMAGE_VALIDATION_SCHEMA } from '../story/schemas';
 import type { ImageValidationResult } from '../../ai/types';
-import { flattenCameraComposition, type SceneVisual } from '../../services/types';
+import { type SceneVisual } from '../../services/types';
 import config from '../../config';
+import { runProductImageValidation } from './imageValidationRun';
+import { inferReferenceKind } from '../../utils/referenceImageKind';
 
 /**
  * Image generation parameters specific to story scenes
@@ -67,6 +67,8 @@ export interface SceneImageWithReferenceRequest {
     mimeType?: string;
     instructionText: string;
     characterName?: string;
+    source?: string;
+    referenceKind?: 'character' | 'object';
   }>;
 
   // System instruction (static context: role, art style, format, quality)
@@ -74,6 +76,9 @@ export interface SceneImageWithReferenceRequest {
 
   // Google Asset Graph pattern: maps character name -> Image N index
   imageIndexMap?: Map<string, number>;
+
+  /** Character name → outfit plate reference index (Image N), after sequential assignment */
+  outfitPlateImageIndexByCharacter?: Map<string, number>;
 
   // Current scene's environment description (included in user prompt)
   currentEnvironment?: { id: string; name: string; description: string };
@@ -183,6 +188,7 @@ export class ImageDomainService {
       referenceCharacterNames: request.imaginaryCharacters,
       realWorldCharacters: request.realWorldCharacters,
       imageIndexMap: request.imageIndexMap,
+      outfitPlateImageIndexByCharacter: request.outfitPlateImageIndexByCharacter,
       currentEnvironment: request.currentEnvironment,
       characterOutfits: request.characterOutfits,
       scenarioCardId: request.scenarioCardId,
@@ -205,20 +211,45 @@ export class ImageDomainService {
       fullPrompt: enhancedPrompt,
       systemInstruction,
       imageIndexMap: request.imageIndexMap ? Object.fromEntries(request.imageIndexMap) : undefined,
+      outfitPlateImageIndexByCharacter: request.outfitPlateImageIndexByCharacter
+        ? Object.fromEntries(request.outfitPlateImageIndexByCharacter)
+        : undefined,
       referenceLabels: request.referenceImages?.map(r => r.instructionText),
     }, 'Built scene prompt with Asset Graph pattern');
 
-    const providerRequest: GenerateImageRequest = {
-      prompt: enhancedPrompt,
-      aspectRatio: request.aspectRatio || '16:9',
-      systemInstruction,
-      referenceImages: request.referenceImages?.map(ref => ({
+    const refImages =
+      request.referenceImages?.map((ref) => ({
         url: ref.url,
         base64Data: ref.base64Data,
         fileUri: ref.fileUri,
         mimeType: ref.mimeType,
         instructionText: ref.instructionText,
-      })) || undefined,
+        characterName: ref.characterName,
+        referenceKind:
+          ref.referenceKind ??
+          inferReferenceKind({
+            source: ref.source,
+            type: (ref as { type?: string }).type,
+          }),
+      })) || undefined;
+
+    const characterRefCount = refImages?.filter((r) => r.referenceKind === 'character').length ?? 0;
+    const objectRefCount = refImages?.filter((r) => r.referenceKind === 'object').length ?? 0;
+    logger.info(
+      {
+        sceneId: request.sceneId,
+        referenceKindCharacterCount: characterRefCount,
+        referenceKindObjectCount: objectRefCount,
+        referenceTotal: refImages?.length ?? 0,
+      },
+      'Reference images passed to image provider (by kind)',
+    );
+
+    const providerRequest: GenerateImageRequest = {
+      prompt: enhancedPrompt,
+      aspectRatio: request.aspectRatio || '16:9',
+      systemInstruction,
+      referenceImages: refImages,
       onUsage: options?.onUsage,
       operation: 'image_generate',
     };
@@ -423,123 +454,29 @@ export class ImageDomainService {
       name: string;
       isImaginary: boolean;
       description?: string;
+      /** Scene-expected wardrobe (Director / characterOutfits); outfit check uses this, not the turnaround sheet. */
+      expectedOutfitForScene?: string;
     }>;
     sceneVisual: SceneVisual;
+    /** Full characterOutfits line(s) for this scene/environment — same as image prompt; ground truth for wardrobe. */
+    sceneCharacterOutfitsText?: string;
     referenceImages?: Array<{
       characterName: string;
       imageData?: string; // base64 (optional when fileUri provided)
       fileUri?: string; // Files API URI — when present, used instead of inline data
       mimeType: string;
     }>;
+    logContext?: { storyId?: string; sceneId?: number; attempt?: number };
     onUsage?: (usage: UsageMetadata) => void;
   }): Promise<ImageValidationResult> {
     if (!this.textProvider) {
       throw new Error('Image validation requires textProvider (ENABLE_IMAGE_VALIDATION=true)');
     }
 
-    logger.info({
-      expectedCharacterCount: params.expectedCharacters.length,
-      referenceCount: params.referenceImages?.length ?? 0,
-      imaginaryCharacters: params.expectedCharacters.filter(c => c.isImaginary).map(c => c.name),
-    }, 'Validating generated image with Vision model (reference-based)');
-
-    // Generated image is always the first image; reference images follow
-    const imageDataArray: Array<{
-      mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
-      data: string;
-      fileUri?: string;
-    }> = [{
-      mimeType: params.mimeType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
-      data: params.imageData.toString('base64'),
-    }];
-
-    // Append reference images (turnaround sheets) for visual comparison
-    if (params.referenceImages && params.referenceImages.length > 0) {
-      for (const ref of params.referenceImages) {
-        imageDataArray.push({
-          mimeType: ref.mimeType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
-          data: ref.imageData || '',
-          fileUri: ref.fileUri,
-        });
-      }
-      logger.debug({
-        referenceCount: params.referenceImages.length,
-        referenceCharacters: params.referenceImages.map(r => r.characterName),
-      }, 'Sending reference images alongside generated image for validation');
-    }
-
-    // Build scene context string for occlusion-aware validation
-    const { text: compositionText } = flattenCameraComposition(params.sceneVisual.cameraComposition);
-    const sceneContext = [
-      params.sceneVisual.setting,
-      compositionText,
-    ].filter(Boolean).join('. ');
-
-    // Build validation prompt with text descriptions, scene context, and reference image metadata
-    const prompt = buildImageValidationPrompt({
-      expectedCharacters: params.expectedCharacters,
-      sceneContext: sceneContext || undefined,
-      referenceImages: params.referenceImages,
+    return runProductImageValidation(this.textProvider, params, {
+      visionModel: config.ai?.geminiVisionModel || 'gemini-2.5-flash',
+      operation: 'image_validation',
     });
-
-    try {
-      const result = await this.textProvider.generateStructured<ImageValidationResult>({
-        model: config.ai?.geminiVisionModel || 'gemini-2.5-flash',
-        prompt,
-        imageData: imageDataArray,
-        schema: IMAGE_VALIDATION_SCHEMA,
-        temperature: 0.2, // Low temperature for consistent validation
-        relaxedSafety: true, // Avoid false positives on children's content
-        onUsage: params.onUsage,
-        operation: 'image_validation',
-      });
-
-      logger.info({
-        isValid: result.isValid,
-        characterCount: result.characterCount,
-        expectedCharacterCount: result.expectedCharacterCount,
-        hasUnexpected: result.hasUnexpectedCharacters,
-        hasText: result.hasTextOrLetters,
-        issues: result.characters.filter(c => !c.found || c.duplicated || (c.recognizableScore ?? 1) < 0.5)
-          .map(c => `${c.name}: ${c.issue || 'issue'}`),
-      }, 'Image validation result');
-
-      return result;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-
-      // If blocked by safety filter, auto-pass (same pattern as text validation)
-      if (errorMsg.includes('PROHIBITED_CONTENT') || errorMsg.includes('blocked')) {
-        logger.warn({
-          error: errorMsg,
-        }, 'Image validation blocked by safety filter — auto-passing');
-
-        return {
-          isValid: true,
-          characterCount: params.expectedCharacters.length,
-          expectedCharacterCount: params.expectedCharacters.length,
-          characters: params.expectedCharacters.map(c => ({
-            name: c.name,
-            found: true,
-            duplicated: false,
-            recognizableScore: 1,
-            matchesColors: true,
-            matchesOutfit: true,
-          })),
-          hasUnexpectedCharacters: false,
-          hasTextOrLetters: false,
-          hasRenderingArtifacts: false,
-          overallFeedback: `Auto-approved (safety filter false positive): ${errorMsg}`,
-        };
-      }
-
-      logger.error({
-        err: error instanceof Error
-          ? { message: error.message, name: error.name, stack: error.stack }
-          : String(error),
-      }, 'Image validation failed');
-      throw new Error(`Image validation failed: ${errorMsg}`);
-    }
   }
 
   /**
@@ -563,6 +500,8 @@ export class ImageDomainService {
       mimeType?: string;
       instructionText: string;
       characterName?: string;
+      source?: string;
+      referenceKind?: 'character' | 'object';
     }>;
     systemInstruction?: string;
     personGeneration?: 'allow_adult' | 'allow_all' | 'dont_allow';
@@ -591,12 +530,16 @@ export class ImageDomainService {
       originalMimeType: params.originalMimeType,
       editInstructions,
       aspectRatio: params.aspectRatio,
-      referenceImages: params.referenceImages?.map(ref => ({
+      referenceImages: params.referenceImages?.map((ref) => ({
         url: ref.url,
         base64Data: ref.base64Data,
         fileUri: ref.fileUri,
         mimeType: ref.mimeType,
         instructionText: ref.instructionText,
+        characterName: ref.characterName,
+        referenceKind:
+          ref.referenceKind ??
+          inferReferenceKind({ source: ref.source, type: (ref as { type?: string }).type }),
       })) || undefined,
       systemInstruction: params.systemInstruction,
       personGeneration: params.personGeneration,
