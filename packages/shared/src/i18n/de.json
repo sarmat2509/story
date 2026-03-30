@@ -582,5 +582,40 @@
       "ignore_notice": "Falls du das nicht angefordert hast, kannst du diese E-Mail einfach ignorieren.",
       "footer": "Dies ist eine transaktionale E-Mail zum Kontozugriff."
     }
+  },
+  "transactional_emails": {
+    "welcome": {
+      "subject": "Willkommen bei WonderTales",
+      "preview": "Dein Konto ist bereit und du kannst mit personalisierten Geschichten starten.",
+      "greeting": "Willkommen bei WonderTales!",
+      "intro": {
+        "password": "Dein Konto wurde erfolgreich erstellt. Du kannst jetzt Geschichten speichern, Kinderprofile einrichten und von jedem Geraet darauf zugreifen.",
+        "google": "Dein Konto wurde erfolgreich mit Google erstellt. Du kannst jetzt Geschichten speichern, Kinderprofile einrichten und von jedem Geraet darauf zugreifen.",
+        "apple": "Dein Konto wurde erfolgreich mit Apple erstellt. Du kannst jetzt Geschichten speichern, Kinderprofile einrichten und von jedem Geraet darauf zugreifen."
+      },
+      "cta": "WonderTales oeffnen",
+      "tips_title": "Sinnvolle naechste Schritte",
+      "tips": [
+        "Lege ein Kinderprofil an, um persoenlichere Geschichten zu erhalten.",
+        "Erstelle deine erste Geschichte oder Audiogeschichte.",
+        "Speichere WonderTales als Lesezeichen, damit du schnell zu deiner Bibliothek zurueckkommst."
+      ],
+      "security_title": "Sicherheit",
+      "security_body": {
+        "password": "Wenn du das nicht warst, setze dein Passwort bitte so schnell wie moeglich zurueck.",
+        "google": "Wenn du das nicht warst, pruefe bitte die Sicherheit und Anmeldeaktivitaet deines Google-Kontos.",
+        "apple": "Wenn du das nicht warst, pruefe bitte die Sicherheit und Anmeldeaktivitaet deiner Apple ID."
+      },
+      "footer": "Dies ist eine transaktionale E-Mail zur Kontoerstellung."
+    },
+    "password_reset": {
+      "subject": "WonderTales - Passwort zuruecksetzen",
+      "preview": "Nutze diesen sicheren Link, um ein neues Passwort fuer dein Konto festzulegen.",
+      "intro": "Wir haben eine Anfrage erhalten, das Passwort fuer dein WonderTales-Konto zurueckzusetzen.",
+      "cta": "Passwort zuruecksetzen",
+      "expires_notice": "Dieser Link ist 1 Stunde lang gueltig.",
+      "ignore_notice": "Falls du das nicht angefordert hast, kannst du diese E-Mail einfach ignorieren.",
+      "footer": "Dies ist eine transaktionale E-Mail zum Kontozugriff."
+    }
   }
 }

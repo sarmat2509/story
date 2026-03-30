@@ -1,6 +1,7 @@
 import { getOAuthRepository } from '../repositories';
 import type { User, OAuthIdentity, NewOAuthIdentity } from '../db/schema';
 import { getUserByEmail, createUser } from './userService';
+import { enqueueWelcomeEmail } from './emailService';
 import { encryptToken, decryptToken } from '../utils/encryption';
 import { logger } from '../utils/logger';
 
@@ -148,6 +149,15 @@ async function handleOAuthCallback(
       // Log but don't fail OAuth if subscription init fails
       logger.error({ err, userId: user.id }, 'Failed to initialize subscription for new user');
     });
+
+    enqueueWelcomeEmail(
+      {
+        email: user.email,
+        displayName: user.displayName,
+        preferredLocale: user.preferredLocale,
+      },
+      { signupMethod: provider }
+    );
   }
   
   return {

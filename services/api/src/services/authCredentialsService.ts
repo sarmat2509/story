@@ -3,7 +3,7 @@ import { getUserByEmail, createUser } from './userService';
 import { getUserRepository } from '../repositories';
 import { getPasswordResetTokenRepository } from '../repositories';
 import { hashPassword, verifyPassword } from './passwordService';
-import { sendPasswordResetEmail } from './emailService';
+import { sendPasswordResetEmail, enqueueWelcomeEmail } from './emailService';
 import config from '../config';
 import { logger } from '../utils/logger';
 
@@ -54,12 +54,21 @@ export async function register(
     logger.error({ err, userId: user.id }, 'Failed to initialize subscription for new user');
   });
 
+  enqueueWelcomeEmail(
+    {
+      email: user.email,
+      displayName: user.displayName,
+      preferredLocale: user.preferredLocale,
+    },
+    { signupMethod: 'password' }
+  );
+
   return { user, isNewUser: true };
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
   const user = await getUserByEmail(email);
-  if (!user || !user.passwordHash) {
+  if (!user) {
     // Don't reveal whether email exists - always return success
     return;
   }
@@ -71,7 +80,7 @@ export async function requestPasswordReset(email: string): Promise<void> {
   const frontendUrl = config.web.webAppUrl;
   const resetLink = `${frontendUrl}/auth/reset-password?token=${tokenRow.token}`;
 
-  await sendPasswordResetEmail(user.email, resetLink);
+  await sendPasswordResetEmail(user.email, resetLink, user.preferredLocale);
 }
 
 export async function resetPassword(
@@ -86,8 +95,13 @@ export async function resetPassword(
 
   const passwordHash = await hashPassword(newPassword);
   const userRepo = getUserRepository();
+  const existingUser = await userRepo.findById(tokenRow.userId);
   const user = await userRepo.update(tokenRow.userId, { passwordHash });
   await tokenRepo.deleteByToken(token);
+
+  if (existingUser && !existingUser.passwordHash) {
+    logger.info({ userId: user.id }, 'Password login enabled for OAuth account via reset flow');
+  }
 
   return user;
 }
