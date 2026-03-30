@@ -251,6 +251,7 @@ export default function InstantWizardScreen() {
       {/* Generation Progress Modal */}
       <GenerationProgressModal
         visible={isGenerating}
+        requestId={requestId ?? undefined}
         status={storyStatus?.status || 'pending'}
         progress={storyStatus?.progress || 0}
         progressData={storyStatus?.progressData}

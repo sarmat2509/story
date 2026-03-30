@@ -32,6 +32,12 @@ export class OpenAITextProvider implements ITextProvider {
     logger.info({ model: this.model }, 'OpenAI Text Provider initialized');
   }
 
+  private buildPromptCacheKey(request: GenerateStructuredRequest<unknown>, modelName: string): string | undefined {
+    const key = request.cachedPrefix?.key?.trim();
+    if (!key) return undefined;
+    return `${modelName}:${key}`;
+  }
+
   /**
    * Generate structured JSON response using OpenAI
    * Implements ITextProvider.generateStructured
@@ -39,13 +45,18 @@ export class OpenAITextProvider implements ITextProvider {
   async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
     const startTime = Date.now();
     const modelName = request.model || this.model;
+    const effectivePrompt = request.cachedPrefix?.content?.trim()
+      ? `${request.cachedPrefix.content.trim()}\n\n${request.prompt}`
+      : request.prompt;
+    const promptCacheKey = this.buildPromptCacheKey(request, modelName);
 
     logger.debug({
       model: modelName,
       temperature: request.temperature,
       hasImages: !!request.imageData,
       imageCount: request.imageData?.length || 0,
-      promptLength: request.prompt.length,
+      promptLength: effectivePrompt.length,
+      promptCacheKey,
     }, 'Generating structured content with OpenAI');
 
     // Adapt provider-agnostic schema to OpenAI format
@@ -53,7 +64,7 @@ export class OpenAITextProvider implements ITextProvider {
 
     try {
       // Build message content (text + optional images for vision)
-      const content = this.buildMessageContent(request.prompt, request.imageData);
+      const content = this.buildMessageContent(effectivePrompt, request.imageData);
 
       // Call OpenAI API with retry logic
       const response = await this.callWithRetry(async () => {
@@ -63,6 +74,8 @@ export class OpenAITextProvider implements ITextProvider {
           temperature: request.temperature ?? 0.9,
           ...(request.maxTokens && { max_tokens: request.maxTokens }),
           ...(request.topP && { top_p: request.topP }),
+          ...(promptCacheKey && { prompt_cache_key: promptCacheKey }),
+          ...(promptCacheKey && { prompt_cache_retention: '24h' }),
           response_format: {
             type: 'json_schema',
             json_schema: {
@@ -109,18 +122,26 @@ export class OpenAITextProvider implements ITextProvider {
         finishReason,
         duration,
         promptTokens: usage?.prompt_tokens,
+        cachedPromptTokens: (usage as { prompt_tokens_details?: { cached_tokens?: number } } | undefined)
+          ?.prompt_tokens_details?.cached_tokens,
         completionTokens: usage?.completion_tokens,
         totalTokens: usage?.total_tokens,
         model: modelName,
       }, 'OpenAI structured response received');
 
       if (request.onUsage && usage) {
+        const cachedInputUnits =
+          (usage as { prompt_tokens_details?: { cached_tokens?: number } }).prompt_tokens_details?.cached_tokens ?? 0;
+        const inputUnits = usage.prompt_tokens ?? 0;
         request.onUsage({
           provider: 'openai',
           operation: request.operation ?? 'text_structured',
           model: modelName,
-          inputUnits: usage.prompt_tokens ?? 0,
+          inputUnits,
+          effectiveInputUnits: Math.max(inputUnits - cachedInputUnits, 0),
           outputUnits: usage.completion_tokens ?? 0,
+          cachedInputUnits,
+          cacheHit: cachedInputUnits > 0,
         });
       }
 
@@ -170,25 +191,39 @@ export class OpenAITextProvider implements ITextProvider {
     logger.debug({ temperature: request.temperature }, 'Generating text content with OpenAI');
 
     try {
+      const effectivePrompt = request.cachedPrefix?.content?.trim()
+        ? `${request.cachedPrefix.content.trim()}\n\n${request.prompt}`
+        : request.prompt;
+      const promptCacheKey = request.cachedPrefix?.key?.trim()
+        ? `${this.model}:${request.cachedPrefix.key.trim()}`
+        : undefined;
       const response = await this.callWithRetry(async () => {
         return await this.client.chat.completions.create({
           model: this.model,
-          messages: [{ role: 'user', content: request.prompt }],
+          messages: [{ role: 'user', content: effectivePrompt }],
           temperature: request.temperature ?? 0.7,
           ...(request.maxTokens && { max_tokens: request.maxTokens }),
           ...(request.topP && { top_p: request.topP }),
           ...(request.stopSequences && { stop: request.stopSequences }),
+          ...(promptCacheKey && { prompt_cache_key: promptCacheKey }),
+          ...(promptCacheKey && { prompt_cache_retention: '24h' }),
         });
       });
 
       const usage = response.usage;
       if (request.onUsage && usage) {
+        const cachedInputUnits =
+          (usage as { prompt_tokens_details?: { cached_tokens?: number } }).prompt_tokens_details?.cached_tokens ?? 0;
+        const inputUnits = usage.prompt_tokens ?? 0;
         request.onUsage({
           provider: 'openai',
           operation: request.operation ?? 'text_free',
           model: this.model,
-          inputUnits: usage.prompt_tokens ?? 0,
+          inputUnits,
+          effectiveInputUnits: Math.max(inputUnits - cachedInputUnits, 0),
           outputUnits: usage.completion_tokens ?? 0,
+          cachedInputUnits,
+          cacheHit: cachedInputUnits > 0,
         });
       }
 

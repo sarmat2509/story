@@ -75,6 +75,38 @@ export class AiUsageRepository {
     }));
   }
 
+  async listByStoryId(storyId: string): Promise<Array<{
+    provider: string;
+    operation: string;
+    model: string | null;
+    inputUnits: number | null;
+    outputUnits: number | null;
+    metadata: Record<string, unknown> | null;
+    costUsd: number | null;
+  }>> {
+    const rows = await this.db
+      .select({
+        provider: schema.aiUsageEvents.provider,
+        operation: schema.aiUsageEvents.operation,
+        model: schema.aiUsageEvents.model,
+        inputUnits: schema.aiUsageEvents.inputUnits,
+        outputUnits: schema.aiUsageEvents.outputUnits,
+        metadata: schema.aiUsageEvents.metadata,
+        costUsd: schema.aiUsageEvents.costUsd,
+      })
+      .from(schema.aiUsageEvents)
+      .where(eq(schema.aiUsageEvents.storyId, storyId));
+    return rows.map((row) => ({
+      provider: row.provider,
+      operation: row.operation,
+      model: row.model,
+      inputUnits: row.inputUnits,
+      outputUnits: row.outputUnits,
+      metadata: (row.metadata as Record<string, unknown> | null) ?? null,
+      costUsd: row.costUsd != null ? Number(row.costUsd) : null,
+    }));
+  }
+
   async getUserMonthlyCost(userId: string, year: number, month: number): Promise<number> {
     const startOfMonth = new Date(year, month - 1, 1);
     const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);

@@ -83,6 +83,14 @@ export const config = {
     elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || '',
     // Structured text (Director, validation, etc.): GEMINI_TEXT_MODEL overrides legacy AI_MODEL_VERSION
     modelVersion: process.env.GEMINI_TEXT_MODEL || process.env.AI_MODEL_VERSION || 'gemini-3-flash-preview',
+    validationModel: process.env.GEMINI_VALIDATION_MODEL || 'gemini-2.5-flash-lite',
+    geminiContextCacheMinEstimatedTokens: parseInt(
+      process.env.GEMINI_CONTEXT_CACHE_MIN_ESTIMATED_TOKENS || '1024',
+      10,
+    ),
+    geminiContextCacheMinShare: parseFloat(
+      process.env.GEMINI_CONTEXT_CACHE_MIN_SHARE || '0.5',
+    ),
     maxRetries: parseInt(process.env.AI_MAX_RETRIES || '3', 10),
     timeoutMs: parseInt(process.env.AI_TIMEOUT_MS || '30000', 10),
   },
@@ -347,6 +355,7 @@ export const config = {
     rpmQuotaRefreshIntervalMs: parseInt(process.env.TEXT_RPM_QUOTA_REFRESH_INTERVAL_MS || '300000', 10),
     rpmSafetyMargin: parseFloat(process.env.TEXT_RPM_SAFETY_MARGIN || '0.9'),
     queueTimeoutMs: parseInt(process.env.TEXT_QUEUE_TIMEOUT_MS || '300000', 10),
+    validationConcurrency: parseInt(process.env.TEXT_VALIDATION_CONCURRENCY || '3', 10),
   },
 };
 

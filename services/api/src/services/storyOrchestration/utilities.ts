@@ -9,7 +9,7 @@ import {
   outfitBindingsToRecord,
 } from '../../utils/characterOutfits';
 import { normalizeCharacterName } from '../../utils/characterNormalization';
-import { stripCharacterIds } from '../../utils/audioTags';
+import { stripAllTags, stripCharacterIds } from '../../utils/audioTags';
 import { flattenCameraComposition } from '../types';
 
 /**
@@ -187,7 +187,9 @@ export function composeScenesIntoBlocks(
     const sceneStart = anchor;
     const sceneEnd = Math.min(anchor + blockSize - 1, scenes.length);
     const blockScenes = scenes.filter(s => s.sceneId >= sceneStart && s.sceneId <= sceneEnd);
-    const blockText = blockScenes.map(s => `Scene ${s.sceneId}:\n${s.text}`).join('\n\n');
+    const blockText = blockScenes
+      .map((s) => `Scene ${s.sceneId}:\n${stripAllTags(s.text)}`)
+      .join('\n\n');
     return { blockIndex: i, sceneStart, sceneEnd, blockText };
   });
 }

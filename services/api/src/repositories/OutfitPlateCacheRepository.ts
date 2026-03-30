@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 import { cosineSimilarity } from '../services/embeddingService';
@@ -58,6 +58,14 @@ export class OutfitPlateCacheRepository {
       .where(eq(schema.outfitPlateCache.id, id))
       .limit(1);
     return row || null;
+  }
+
+  async getByIds(ids: string[]): Promise<schema.OutfitPlateCache[]> {
+    if (ids.length === 0) return [];
+    return this.db
+      .select()
+      .from(schema.outfitPlateCache)
+      .where(inArray(schema.outfitPlateCache.id, ids));
   }
 
   async create(data: schema.NewOutfitPlateCache): Promise<schema.OutfitPlateCache> {

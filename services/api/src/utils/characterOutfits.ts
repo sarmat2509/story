@@ -134,6 +134,21 @@ export function lookupOutfitForCharacterName(
   return undefined;
 }
 
+/**
+ * "natural appearance" means: keep the character's default/reference wardrobe
+ * rather than introducing a scene-specific clothing override.
+ */
+export function isNaturalAppearanceOutfit(
+  outfitText: string | undefined | null,
+): boolean {
+  if (!outfitText || typeof outfitText !== 'string') return false;
+  const normalized = outfitText
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?,;:]+$/g, '');
+  return normalized === 'natural appearance';
+}
+
 /** Canonical wardrobe row from story JSON (`outfits` array). */
 export type StoryOutfitDefinition = { id: string; characterName: string; description: string };
 

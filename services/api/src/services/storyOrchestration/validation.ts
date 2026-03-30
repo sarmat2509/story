@@ -5,16 +5,82 @@
 import { logger } from '../../utils/logger';
 import { getStoryDomainService } from '../aiService';
 import { recordUsage } from '../aiUsageService';
-import { startTask, completeTask, STORY_TASKS } from '../storyProgress';
+import { startTask, completeTask, updateTaskProgress, STORY_TASKS } from '../storyProgress';
 import { getGenerationCoefficients } from '../generationTimeService';
+import config from '../../config';
 import type { ValidateParams, ValidateResult } from './types';
 
 type SceneValidationLike = {
   sceneId: number;
   isValid: boolean;
   violations: Array<{ category: string; message: string }>;
-  correctedCameraComposition?: { shot: string; characters: Array<{ name: string; description: string }> };
+  correctedCameraComposition?: {
+    shot: string;
+    characters: Array<{ name: string; description: string; outfitId?: string }>;
+  };
 };
+
+function mergeCorrectedCameraComposition(
+  existingCameraComposition: unknown,
+  corrected: NonNullable<SceneValidationLike['correctedCameraComposition']>,
+): NonNullable<SceneValidationLike['correctedCameraComposition']> {
+  const existingCharacters =
+    existingCameraComposition &&
+    typeof existingCameraComposition === 'object' &&
+    Array.isArray((existingCameraComposition as { characters?: unknown }).characters)
+      ? ((existingCameraComposition as {
+          characters: Array<{ name?: string; outfitId?: string }>;
+        }).characters ?? [])
+      : [];
+
+  const existingOutfits = new Map(
+    existingCharacters
+      .filter((character) => typeof character?.name === 'string' && typeof character?.outfitId === 'string')
+      .map((character) => [character.name!.trim(), character.outfitId!.trim()] as const),
+  );
+
+  return {
+    shot: corrected.shot,
+    characters: corrected.characters.map((character) => ({
+      ...character,
+      ...(character.outfitId
+        ? { outfitId: character.outfitId }
+        : existingOutfits.get(character.name.trim())
+          ? { outfitId: existingOutfits.get(character.name.trim()) }
+          : {}),
+    })),
+  };
+}
+
+async function runWithConcurrencyLimit<T, TResult>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<TResult>,
+): Promise<TResult[]> {
+  if (items.length === 0) return [];
+
+  const limit = Math.max(1, concurrency);
+  const results = new Array<TResult>(items.length);
+  const executing: Promise<void>[] = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const p = fn(items[i], i)
+      .then((result) => {
+        results[i] = result;
+      })
+      .finally(() => {
+        executing.splice(executing.indexOf(p), 1);
+      });
+
+    executing.push(p);
+    if (executing.length >= limit) {
+      await Promise.race(executing);
+    }
+  }
+
+  await Promise.all(executing);
+  return results;
+}
 
 /**
  * Validate story scenes with retry logic
@@ -28,37 +94,86 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
   const coefficients = await getGenerationCoefficients();
 
   const validationStart = Date.now();
+  const validationConcurrency = config.text.validationConcurrency;
   await startTask(requestId, STORY_TASKS.VALIDATING, {
     estimatedMs: coefficients.avgValidationMsPerScene * (text?.scenes?.length || 6),
+    totalScenes: text.scenes.length,
+    completedScenes: 0,
+    currentSceneId: null,
   });
 
-  logger.info({ requestId, sceneCount: text.scenes.length }, 'Starting batch scene validation');
-  const batchResult = await storyDomain.validateScenesBatch(
-    text.scenes,
-    spec.policyProfile,
-    spec.scenarioCard?.id,
-    { onUsage: (u) => recordUsage(u, usageContext) }
+  let completedValidationUnits = 0;
+  let totalValidationUnits = text.scenes.length + 1;
+
+  const reportValidationProgress = async (currentSceneId: number | null): Promise<void> => {
+    const ratio = totalValidationUnits > 0 ? completedValidationUnits / totalValidationUnits : 0;
+    await updateTaskProgress(
+      requestId,
+      STORY_TASKS.VALIDATING,
+      ratio,
+      {
+        completedScenes: completedValidationUnits,
+        totalScenes: totalValidationUnits,
+        currentSceneId,
+      },
+    );
+  };
+
+  logger.info(
+    { requestId, sceneCount: text.scenes.length, validationConcurrency },
+    'Starting parallel scene validation',
   );
-  const failedMap = new Map(batchResult.failedScenes.map((f) => [f.sceneId, f]));
-  const validations: SceneValidationLike[] = text.scenes.map((scene: any) => {
-    const failed = failedMap.get(scene.sceneId);
-    if (failed) {
+  const initialValidationDurations: number[] = [];
+  const validations = await runWithConcurrencyLimit(
+    text.scenes,
+    validationConcurrency,
+    async (scene: any, idx: number): Promise<SceneValidationLike> => {
+      const sceneStart = Date.now();
+      const isLastScene = idx === text.scenes.length - 1;
+
+      logger.info({ requestId, sceneId: scene.sceneId, isLastScene }, 'Scene validation started');
+      const validation = await storyDomain.validateScene(
+        scene,
+        spec.policyProfile,
+        isLastScene,
+        spec.scenarioCard?.id,
+        { onUsage: (u) => recordUsage(u, usageContext) },
+      );
+      const durationMs = Date.now() - sceneStart;
+      initialValidationDurations.push(durationMs);
+      completedValidationUnits += 1;
+
+      logger.info(
+        {
+          requestId,
+          sceneId: scene.sceneId,
+          durationMs,
+          isValid: validation.isValid,
+          violationCount: validation.violations.length,
+        },
+        'Scene validation completed',
+      );
+
+      await reportValidationProgress(scene.sceneId);
+
       return {
-        sceneId: scene.sceneId,
-        isValid: false,
-        violations: failed.violations,
-        correctedCameraComposition: failed.correctedCameraComposition,
+        sceneId: validation.sceneId,
+        isValid: validation.isValid,
+        violations: validation.violations,
+        correctedCameraComposition: validation.correctedCameraComposition,
       };
-    }
-    return { sceneId: scene.sceneId, isValid: true, violations: [] };
-  });
+    },
+  );
 
   // Apply correctedCameraComposition directly (no regeneration needed)
   for (const validation of validations) {
     if (validation.correctedCameraComposition) {
       const scene = text.scenes.find((s: any) => s.sceneId === validation.sceneId);
       if (scene?.sceneVisual) {
-        scene.sceneVisual.cameraComposition = validation.correctedCameraComposition;
+        scene.sceneVisual.cameraComposition = mergeCorrectedCameraComposition(
+          scene.sceneVisual.cameraComposition,
+          validation.correctedCameraComposition,
+        );
         logger.info(
           { requestId, sceneId: validation.sceneId, characterCount: validation.correctedCameraComposition.characters.length },
           'Applied correctedCameraComposition to scene'
@@ -131,25 +246,47 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
       const scenesToRevalidate = sceneIds.map((id) => text.scenes.find((s: any) => s.sceneId === id)).filter(Boolean);
       let revalidations: SceneValidationLike[];
       if (scenesToRevalidate.length > 0) {
-        const revalBatch = await storyDomain.validateScenesBatch(
+        totalValidationUnits += scenesToRevalidate.length;
+        await reportValidationProgress(null);
+        revalidations = await runWithConcurrencyLimit(
           scenesToRevalidate as any[],
-          spec.policyProfile,
-          spec.scenarioCard?.id,
-          { onUsage: (u) => recordUsage(u, usageContext) }
-        );
-        const revalFailedMap = new Map(revalBatch.failedScenes.map((f) => [f.sceneId, f]));
-        revalidations = sceneIds.map((sceneId) => {
-          const failed = revalFailedMap.get(sceneId);
-          if (failed) {
+          validationConcurrency,
+          async (scene: any): Promise<SceneValidationLike> => {
+            const sceneStart = Date.now();
+
+            logger.info({ requestId, sceneId: scene.sceneId, attempt: attempt + 1 }, 'Scene revalidation started');
+            const validation = await storyDomain.validateScene(
+              scene,
+              spec.policyProfile,
+              scene.sceneId === text.scenes[text.scenes.length - 1]?.sceneId,
+              spec.scenarioCard?.id,
+              { onUsage: (u) => recordUsage(u, usageContext) },
+            );
+            const durationMs = Date.now() - sceneStart;
+            completedValidationUnits += 1;
+
+            logger.info(
+              {
+                requestId,
+                sceneId: scene.sceneId,
+                attempt: attempt + 1,
+                durationMs,
+                isValid: validation.isValid,
+                violationCount: validation.violations.length,
+              },
+              'Scene revalidation completed',
+            );
+
+            await reportValidationProgress(scene.sceneId);
+
             return {
-              sceneId,
-              isValid: false,
-              violations: failed.violations,
-              correctedCameraComposition: failed.correctedCameraComposition,
+              sceneId: validation.sceneId,
+              isValid: validation.isValid,
+              violations: validation.violations,
+              correctedCameraComposition: validation.correctedCameraComposition,
             };
-          }
-          return { sceneId, isValid: true, violations: [] };
-        });
+          },
+        );
       } else {
         revalidations = sceneIds.map((sceneId) => ({ sceneId, isValid: true, violations: [] }));
       }
@@ -159,7 +296,10 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
         const sceneId = sceneIds[idx];
         const scene = text.scenes.find((s: any) => s.sceneId === sceneId);
         if (validation.correctedCameraComposition && scene?.sceneVisual) {
-          scene.sceneVisual.cameraComposition = validation.correctedCameraComposition;
+          scene.sceneVisual.cameraComposition = mergeCorrectedCameraComposition(
+            scene.sceneVisual.cameraComposition,
+            validation.correctedCameraComposition,
+          );
           logger.info(
             { requestId, sceneId },
             'Applied correctedCameraComposition after revalidation'
@@ -198,7 +338,25 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
   const validationTimeMs = Date.now() - validationStart;
   await completeTask(requestId, STORY_TASKS.VALIDATING);
 
-  logger.info({ requestId, validationTimeMs, sceneCount: text.scenes.length }, 'Validation completed');
+  const maxSceneMs = initialValidationDurations.length > 0
+    ? Math.max(...initialValidationDurations)
+    : 0;
+  const avgSceneMs = initialValidationDurations.length > 0
+    ? Math.round(initialValidationDurations.reduce((sum, ms) => sum + ms, 0) / initialValidationDurations.length)
+    : 0;
+
+  logger.info(
+    {
+      requestId,
+      validationTimeMs,
+      sceneCount: text.scenes.length,
+      validationConcurrency,
+      avgSceneMs,
+      maxSceneMs,
+      failedCount: failedScenes.length,
+    },
+    'Validation completed',
+  );
 
   return {
     validatedText: text,

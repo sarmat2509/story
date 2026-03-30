@@ -47,4 +47,11 @@ export class StoryEnvironmentCacheRepository {
     if (!row) throw new Error('StoryEnvironmentCache upsert failed');
     return row;
   }
+
+  async listByStoryId(storyId: string): Promise<schema.StoryEnvironmentCache[]> {
+    return this.db
+      .select()
+      .from(schema.storyEnvironmentCache)
+      .where(eq(schema.storyEnvironmentCache.storyId, storyId));
+  }
 }

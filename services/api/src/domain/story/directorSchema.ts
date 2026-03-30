@@ -53,13 +53,13 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
           description: {
             type: 'string',
             description:
-              'WARDROBE ONLY IN ENGLISH: garments, footwear, worn accessories. Must match weather, season, and indoor/outdoor context of the scene and environment. No face, hair, skin, or body. Creatures/animals: "natural appearance".',
+              'WARDROBE ONLY IN ENGLISH: garments, footwear, worn accessories. Must match weather, season, and indoor/outdoor context of the scene and environment. No face, hair, skin, or body. Use exactly "natural appearance" when the character keeps their default/reference clothes for this scene. Creatures/animals: "natural appearance".',
           },
         },
         required: ['id', 'characterName', 'description'],
       },
       description:
-        'Canonical wardrobe definitions. Build rows for every character that appears in any illustration\'s cameraComposition; each distinct look gets its own id. Every cameraComposition.characters[].outfitId MUST match one of these ids. Define outfits[] before assigning outfitId on each character row.',
+        'Canonical wardrobe definitions. Build rows for every character that appears in any illustration\'s cameraComposition; each distinct look gets its own id. If a character keeps their default/reference clothes and those clothes fit the scene, description may be exactly "natural appearance". Every cameraComposition.characters[].outfitId MUST match one of these ids. Define outfits[] before assigning outfitId on each character row.',
     },
     illustrations: {
       type: 'array',

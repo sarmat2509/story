@@ -6,6 +6,7 @@ import { theme } from '@/theme';
 
 interface Props {
   visible: boolean;
+  requestId?: string;
   status: RequestStatus;
   progress: number;
   progressData?: StoryRequestProgressData;
@@ -18,6 +19,7 @@ interface Props {
 
 export function GenerationProgressModal({
   visible,
+  requestId,
   status,
   progress,
   progressData,
@@ -28,15 +30,47 @@ export function GenerationProgressModal({
   allowManualClose = false,
 }: Props) {
   const { t } = useTranslation();
-  const getTaskLabel = (task: string) => {
+  const maxSeenProgressRef = React.useRef(0);
+  const requestIdRef = React.useRef<string | undefined>(requestId);
+
+  React.useEffect(() => {
+    if (requestIdRef.current !== requestId) {
+      requestIdRef.current = requestId;
+      maxSeenProgressRef.current = 0;
+    }
+  }, [requestId]);
+
+  const getFallbackTask = () => {
+    if (!progressData?.plannedTasks?.length) {
+      return null;
+    }
+
+    const currentProgress = progressData.overallProgress ?? progress ?? 0;
+    const incompletePlannedTask = progressData.plannedTasks.find((task) => {
+      if (progressData.completedTasks.includes(task.task)) {
+        return false;
+      }
+
+      return currentProgress <= task.rangeEnd;
+    });
+
+    return incompletePlannedTask?.task ?? null;
+  };
+
+  const getTaskLabel = (task: string, details?: Record<string, any>) => {
     const labels: Record<string, string> = {
       'analyzing_photos': 'Аналізуємо фотографії...',
       'generating_text': 'Пишемо текст...',
+      'producing_visuals': 'Готуємо сцени для ілюстрацій...',
       'validating': 'Перевіряємо безпечність контенту...',
       'generating_images': 'Створюємо ілюстрації...',
       'generating_audio': 'Озвучуємо історію...',
     };
-    return labels[task] || 'Обробляємо запит...';
+
+    return t(`story.tasks.${task}`, {
+      ...(details ?? {}),
+      defaultValue: labels[task] || 'Обробляємо запит...',
+    });
   };
   
   const getStatusText = () => {
@@ -44,7 +78,16 @@ export function GenerationProgressModal({
       return 'Додаємо історію до черги...';
     }
     if (status === 'processing' && progressData?.activeTasks?.[0]) {
-      return getTaskLabel(progressData.activeTasks[0].task);
+      return getTaskLabel(
+        progressData.activeTasks[0].task,
+        progressData.activeTasks[0].details,
+      );
+    }
+    if (status === 'processing') {
+      const fallbackTask = getFallbackTask();
+      if (fallbackTask) {
+        return getTaskLabel(fallbackTask);
+      }
     }
     if (status === 'completed') {
       return 'Готово! 🎉';
@@ -58,8 +101,11 @@ export function GenerationProgressModal({
   const getProgressPercentage = () => {
     if (status === 'completed') return 100;
     if (status === 'failed') return 0;
-    // Use backend-calculated progress directly
-    return progressData?.overallProgress ?? progress ?? 0;
+
+    const incomingProgress = progressData?.overallProgress ?? progress ?? 0;
+    const clampedProgress = Math.max(maxSeenProgressRef.current, incomingProgress);
+    maxSeenProgressRef.current = clampedProgress;
+    return clampedProgress;
   };
 
   return (

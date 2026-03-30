@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 import { cosineSimilarity } from '../services/embeddingService';
@@ -58,6 +58,14 @@ export class EnvironmentImageCacheRepository {
       .where(eq(schema.environmentImageCache.id, id))
       .limit(1);
     return row || null;
+  }
+
+  async getByIds(ids: string[]): Promise<schema.EnvironmentImageCache[]> {
+    if (ids.length === 0) return [];
+    return this.db
+      .select()
+      .from(schema.environmentImageCache)
+      .where(inArray(schema.environmentImageCache.id, ids));
   }
 
   async create(

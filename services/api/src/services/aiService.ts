@@ -40,6 +40,7 @@ let audioDomainService: AudioDomainService | null = null;
 // Provider instances (private to this module)
 let textProvider: ITextProvider | null = null;
 let directorTextProvider: ITextProvider | null = null;
+let validationTextProvider: ITextProvider | null = null;
 let imageProvider: IImageProvider | null = null;
 let environmentImageProvider: IImageProvider | null = null;
 let batchImageProvider: IImageProvider | null = null;
@@ -62,8 +63,9 @@ export function getStoryDomainService(): StoryDomainService {
 
     const mainText = getTextProvider();
     const directorText = getDirectorTextProvider();
+    const validationText = getValidationTextProvider();
 
-    storyDomainService = new StoryDomainService(mainText, directorText);
+    storyDomainService = new StoryDomainService(mainText, directorText, validationText);
   }
 
   return storyDomainService;
@@ -71,14 +73,11 @@ export function getStoryDomainService(): StoryDomainService {
 
 /**
  * Get Image Domain Service instance
- * M4: Returns full implementation with rate limiting
+ * M4: Returns full implementation for image generation + validation.
  */
 export function getImageDomainService(): ImageDomainService {
   if (!imageDomainService) {
-    logger.info('Initializing Image Domain Service with rate limiting');
-    
-    // Initialize rate limiter (singleton)
-    getImageRateLimiter();
+    logger.info('Initializing Image Domain Service');
     
     // Create image provider (hidden from orchestration)
     const provider = getImageProvider();
@@ -172,6 +171,32 @@ export function getDirectorTextProvider(): ITextProvider {
   }
 
   return directorTextProvider;
+}
+
+export function getValidationTextProvider(): ITextProvider {
+  const validationModel = config.ai.validationModel;
+
+  if (config.ai.geminiApiKey?.trim()) {
+    if (
+      config.ai.textVendor === 'gemini' &&
+      validationModel === config.ai.modelVersion
+    ) {
+      return getTextProvider();
+    }
+
+    if (!validationTextProvider) {
+      logger.info({ model: validationModel }, 'Initializing validation text provider');
+      validationTextProvider = new GeminiTextProvider(config.ai.geminiApiKey, validationModel);
+    }
+
+    return validationTextProvider;
+  }
+
+  logger.warn(
+    { textVendor: config.ai.textVendor, validationModel },
+    'Gemini validation provider unavailable, falling back to main text provider',
+  );
+  return getTextProvider();
 }
 
 /**

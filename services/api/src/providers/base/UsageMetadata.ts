@@ -7,7 +7,10 @@ export interface UsageMetadata {
   operation: string;
   model?: string;
   inputUnits: number;
+  effectiveInputUnits?: number;
   outputUnits?: number;
+  cachedInputUnits?: number;
+  cacheHit?: boolean;
   thoughtTokens?: number;
   imageTokens?: number;
   durationMs?: number;

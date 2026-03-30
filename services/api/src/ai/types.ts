@@ -18,7 +18,10 @@ export interface SceneValidationResult {
     suggestion?: string;
   }>;
   /** When cameraComposition has issues (missing/extra characters), the corrected version. Applied directly without scene regeneration. */
-  correctedCameraComposition?: { shot: string; characters: Array<{ name: string; description: string }> };
+  correctedCameraComposition?: {
+    shot: string;
+    characters: Array<{ name: string; description: string; outfitId?: string }>;
+  };
 }
 
 /**
@@ -61,14 +64,6 @@ export interface ImageValidationResult {
 export interface PolicyProfile {
   ageGroup: string;
   language: string;
-  disallowedRules: Array<{
-    id: string;
-    category: string;
-    prohibitedElements: string[];
-    examples: { forbidden: string[]; allowed: string[] };
-    severity: string;
-  }>;
-  fearLevelMax: number;
   allowedConflicts: string[];
   constraints: {
     mustHaveHappyEnding: boolean;

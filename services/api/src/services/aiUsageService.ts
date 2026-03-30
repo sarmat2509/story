@@ -41,12 +41,16 @@ function getConfigKey(provider: string, model?: string): string {
 function calculateCost(usage: UsageMetadata): number | null {
   const { provider, operation, model } = usage;
   const modelKey = getConfigKey(provider, model);
+  const billedInputUnits =
+    usage.effectiveInputUnits != null
+      ? usage.effectiveInputUnits
+      : Math.max(usage.inputUnits - (usage.cachedInputUnits ?? 0), 0);
 
   try {
     if (operation.includes('text') || operation === 'character_analysis' || operation === 'translation' || operation === 'face_dedup' || operation === 'image_validation' || operation === 'validateScene' || operation === 'regenerateScene' || operation === 'director') {
       const textConfig = AI_COST_CONFIG.text[modelKey] || AI_COST_CONFIG.text['gemini-3-flash-preview'];
       if (textConfig && 'inputPer1M' in textConfig) {
-        const inputCost = (usage.inputUnits / 1e6) * textConfig.inputPer1M;
+        const inputCost = (billedInputUnits / 1e6) * textConfig.inputPer1M;
         const outputCost = ((usage.outputUnits ?? 0) / 1e6) * textConfig.outputPer1M;
         return inputCost + outputCost;
       }
@@ -69,7 +73,7 @@ function calculateCost(usage: UsageMetadata): number | null {
         const thoughtTokens = usage.thoughtTokens ?? 0;
         const inputCost =
           imgConfig.inputPer1M != null
-            ? (usage.inputUnits / 1e6) * imgConfig.inputPer1M
+            ? (billedInputUnits / 1e6) * imgConfig.inputPer1M
             : 0;
         const imageCost = (imageTokens / 1e6) * imgConfig.imageRatePer1M;
         const thinkingCost = imgConfig.thinkingRatePer1M
@@ -109,6 +113,10 @@ export function estimateUsageCostUsd(usage: UsageMetadata): number | null {
 export async function recordUsage(usage: UsageMetadata, context: UsageContext): Promise<void> {
   try {
     const costUsd = calculateCost(usage);
+    const billedInputUnits =
+      usage.effectiveInputUnits != null
+        ? usage.effectiveInputUnits
+        : Math.max(usage.inputUnits - (usage.cachedInputUnits ?? 0), 0);
     const repo = getAiUsageRepository();
 
     await repo.create({
@@ -124,11 +132,20 @@ export async function recordUsage(usage: UsageMetadata, context: UsageContext): 
       costUsd: costUsd != null ? costUsd : null,
       durationMs: usage.durationMs ?? null,
       metadata:
-        usage.thoughtTokens != null || usage.imageTokens != null || usage.durationSeconds != null
+        usage.thoughtTokens != null ||
+        usage.imageTokens != null ||
+        usage.durationSeconds != null ||
+        usage.cachedInputUnits != null ||
+        usage.effectiveInputUnits != null ||
+        usage.cacheHit != null
           ? {
               thoughtTokens: usage.thoughtTokens,
               imageTokens: usage.imageTokens,
               durationSeconds: usage.durationSeconds,
+              cachedInputUnits: usage.cachedInputUnits,
+              effectiveInputUnits:
+                usage.effectiveInputUnits != null ? usage.effectiveInputUnits : billedInputUnits,
+              cacheHit: usage.cacheHit,
             }
           : null,
     });
@@ -161,6 +178,54 @@ export async function getStoryCostBreakdown(storyId: string): Promise<
   Array<{ provider: string; operation: string; model: string | null; costUsd: number }>
 > {
   return getAiUsageRepository().getStoryCostBreakdown(storyId);
+}
+
+export async function getStoryCacheStats(storyId: string): Promise<{
+  totalCachedInputUnits: number;
+  totalEffectiveInputUnits: number;
+  cacheHitCount: number;
+  cachedOperationCount: number;
+}> {
+  const events = await getAiUsageRepository().listByStoryId(storyId);
+  let totalCachedInputUnits = 0;
+  let totalEffectiveInputUnits = 0;
+  let cacheHitCount = 0;
+  let cachedOperationCount = 0;
+
+  for (const event of events) {
+    const metadata = event.metadata ?? {};
+    const cachedInputUnitsRaw = metadata['cachedInputUnits'];
+    const effectiveInputUnitsRaw = metadata['effectiveInputUnits'];
+    const cacheHitRaw = metadata['cacheHit'];
+    const cachedInputUnits =
+      typeof cachedInputUnitsRaw === 'number'
+        ? cachedInputUnitsRaw
+        : typeof cachedInputUnitsRaw === 'string'
+          ? Number(cachedInputUnitsRaw)
+          : 0;
+    const effectiveInputUnits =
+      typeof effectiveInputUnitsRaw === 'number'
+        ? effectiveInputUnitsRaw
+        : typeof effectiveInputUnitsRaw === 'string'
+          ? Number(effectiveInputUnitsRaw)
+          : Math.max((event.inputUnits ?? 0) - cachedInputUnits, 0);
+    const cacheHit =
+      typeof cacheHitRaw === 'boolean'
+        ? cacheHitRaw
+        : cachedInputUnits > 0;
+
+    totalCachedInputUnits += Number.isFinite(cachedInputUnits) ? cachedInputUnits : 0;
+    totalEffectiveInputUnits += Number.isFinite(effectiveInputUnits) ? effectiveInputUnits : 0;
+    if (cacheHit) cacheHitCount += 1;
+    if (cachedInputUnits > 0 || cacheHit) cachedOperationCount += 1;
+  }
+
+  return {
+    totalCachedInputUnits,
+    totalEffectiveInputUnits,
+    cacheHitCount,
+    cachedOperationCount,
+  };
 }
 
 /**

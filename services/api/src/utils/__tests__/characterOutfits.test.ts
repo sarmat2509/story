@@ -3,6 +3,7 @@ import {
   parseCharacterOutfitsString,
   findNameValueSeparator,
   lookupOutfitForCharacterName,
+  isNaturalAppearanceOutfit,
   outfitBindingsToRecord,
   cameraCompositionOutfitsToRecord,
   normalizeOutfitBindingsOnEpisodeText,
@@ -46,6 +47,13 @@ function testLookupOutfit() {
   const outfits = { 'Emily [ID: e1]': 'yellow dress' };
   assert.strictEqual(lookupOutfitForCharacterName('Emily', outfits), 'yellow dress');
   assert.strictEqual(lookupOutfitForCharacterName('Emily [ID: e1]', outfits), 'yellow dress');
+}
+
+function testNaturalAppearanceDetection() {
+  assert.strictEqual(isNaturalAppearanceOutfit('natural appearance'), true);
+  assert.strictEqual(isNaturalAppearanceOutfit('Natural Appearance.'), true);
+  assert.strictEqual(isNaturalAppearanceOutfit(' yellow dress '), false);
+  assert.strictEqual(isNaturalAppearanceOutfit(undefined), false);
 }
 
 function testOutfitBindingsToRecord() {
@@ -104,6 +112,7 @@ testParseNewline();
 testParseIdInName();
 testFindNameValueSeparator();
 testLookupOutfit();
+testNaturalAppearanceDetection();
 testOutfitBindingsToRecord();
 testCameraCompositionOutfitsToRecord();
 testNormalizeOutfitBindingsOnEpisodeText();

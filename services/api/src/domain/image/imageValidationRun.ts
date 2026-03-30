@@ -7,7 +7,10 @@ import { stripCharacterIdFromName } from '@wondertales/shared';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
 import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 import type { ImageValidationResult } from '../../ai/types';
-import { buildImageValidationPrompt } from '../../prompts/image/ImageValidationPrompt';
+import {
+  buildImageValidationRuntimePrompt,
+  getImageValidationCachedPrefix,
+} from '../../prompts/image/ImageValidationPrompt';
 import { IMAGE_VALIDATION_SCHEMA } from '../story/schemas';
 import { flattenCameraComposition, type SceneVisual } from '../../services/types';
 import { logger } from '../../utils/logger';
@@ -239,16 +242,19 @@ export async function runProductImageValidation(
     .filter(Boolean)
     .join('\n');
 
-  const prompt = buildImageValidationPrompt({
+  const hasReferenceImages = (input.referenceImages?.length ?? 0) > 0;
+  const prompt = buildImageValidationRuntimePrompt({
     expectedCharacters: input.expectedCharacters,
     sceneContext: sceneContext || undefined,
     referenceImages: input.referenceImages,
   });
+  const cachedPrefix = getImageValidationCachedPrefix(hasReferenceImages);
 
   try {
     const raw = await textProvider.generateStructured<ImageValidationResult>({
       model: visionModel,
       prompt,
+      cachedPrefix,
       imageData: imageDataArray,
       schema: IMAGE_VALIDATION_SCHEMA,
       temperature: 0.2,

@@ -15,11 +15,17 @@ import type { ITextProvider } from '../../base/ITextProvider';
 import type { GenerateStructuredRequest, GenerateTextRequest, StreamCallback } from '../../base/JsonSchema';
 import { GeminiSchemaAdapter } from './GeminiSchemaAdapter';
 import { logger } from '../../../utils/logger';
+import {
+  GeminiContextCacheService,
+  shouldUseGeminiContextCache,
+} from './GeminiContextCacheService';
+import config from '../../../config';
 
 export class GeminiTextProvider implements ITextProvider {
   private client: GoogleGenAI;
   private model: string;
   private schemaAdapter: GeminiSchemaAdapter;
+  private contextCacheService: GeminiContextCacheService;
   
   // Ultra-relaxed safety settings for children's content generation
   private photoAnalysisSafetySettings = [
@@ -49,6 +55,7 @@ export class GeminiTextProvider implements ITextProvider {
     this.model = trimmed && trimmed.length > 0 ? trimmed : 'gemini-3-flash-preview';
     this.client = new GoogleGenAI({ apiKey });
     this.schemaAdapter = new GeminiSchemaAdapter();
+    this.contextCacheService = new GeminiContextCacheService(this.client);
   }
 
   /**
@@ -75,6 +82,43 @@ export class GeminiTextProvider implements ITextProvider {
     }, 'Creating Gemini model for structured generation');
 
     try {
+      const cachedPrefix = request.cachedPrefix?.content?.trim();
+      let promptText = request.prompt;
+      let cachedContentName: string | null = null;
+      if (cachedPrefix) {
+        const cacheDecision = shouldUseGeminiContextCache({
+          cachedContent: cachedPrefix,
+          runtimeContent: request.prompt,
+          minEstimatedTokens: config.ai.geminiContextCacheMinEstimatedTokens,
+          minShare: config.ai.geminiContextCacheMinShare,
+        });
+        if (cacheDecision.useCache) {
+          cachedContentName = await this.contextCacheService.getOrCreate({
+            model: modelName,
+            key: request.cachedPrefix!.key,
+            content: cachedPrefix,
+            ttlSeconds: request.cachedPrefix?.ttlSeconds,
+            displayName: request.cachedPrefix?.displayName,
+          });
+          if (!cachedContentName) {
+            promptText = `${cachedPrefix}\n\n${request.prompt}`;
+          }
+        } else {
+          promptText = `${cachedPrefix}\n\n${request.prompt}`;
+          logger.info(
+            {
+              cacheKey: request.cachedPrefix?.key,
+              model: modelName,
+              reason: cacheDecision.reason,
+              estimatedCachedTokens: cacheDecision.estimatedCachedTokens,
+              estimatedRuntimeTokens: cacheDecision.estimatedRuntimeTokens,
+              cachedShare: Number(cacheDecision.cachedShare.toFixed(3)),
+            },
+            'Skipping Gemini context cache',
+          );
+        }
+      }
+
       // Build content parts for Gemini (text + optional images)
       const contentParts: any[] = [];
       
@@ -102,7 +146,7 @@ export class GeminiTextProvider implements ITextProvider {
       }
       
       // Add text prompt
-      contentParts.push({ text: request.prompt });
+      contentParts.push({ text: promptText });
       
       // Call Gemini API with retry logic
       const result = await this.callGeminiWithRetry(() =>
@@ -122,6 +166,7 @@ export class GeminiTextProvider implements ITextProvider {
             ...(request.maxTokens && { maxOutputTokens: request.maxTokens }),
             ...(request.topP && { topP: request.topP }),
             ...(request.topK && { topK: request.topK }),
+            ...(cachedContentName && { cachedContent: cachedContentName }),
             // Use OFF for all children's content generation — our prompts enforce safety.
             // Gemini's built-in filters produce false positives on character descriptions
             // (e.g. "sharp white teeth" on an imaginary creature drawn by a child).
@@ -186,16 +231,29 @@ export class GeminiTextProvider implements ITextProvider {
       }, 'Gemini structured response JSON');
 
       // Report usage for cost tracking
-      const usage = (result as { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number } }).usageMetadata;
+      const usage = (result as {
+        usageMetadata?: {
+          promptTokenCount?: number;
+          candidatesTokenCount?: number;
+          totalTokenCount?: number;
+          cachedContentTokenCount?: number;
+          thoughtsTokenCount?: number;
+        };
+      }).usageMetadata;
       if (request.onUsage && usage) {
         const inputUnits = usage.promptTokenCount ?? 0;
         const outputUnits = usage.candidatesTokenCount ?? usage.totalTokenCount ? (usage.totalTokenCount - inputUnits) : 0;
+        const cachedInputUnits = usage.cachedContentTokenCount ?? 0;
         request.onUsage({
           provider: 'gemini',
           operation: request.operation ?? 'text_structured',
           model: modelName,
           inputUnits,
+          effectiveInputUnits: Math.max(inputUnits - cachedInputUnits, 0),
           outputUnits,
+          cachedInputUnits,
+          cacheHit: cachedInputUnits > 0,
+          thoughtTokens: usage.thoughtsTokenCount ?? 0,
         });
       }
 
@@ -247,31 +305,80 @@ export class GeminiTextProvider implements ITextProvider {
     logger.debug({ temperature: request.temperature }, 'Generating text content with Gemini');
 
     try {
+      const cachedPrefix = request.cachedPrefix?.content?.trim();
+      let promptText = request.prompt;
+      let cachedContentName: string | null = null;
+      if (cachedPrefix) {
+        const cacheDecision = shouldUseGeminiContextCache({
+          cachedContent: cachedPrefix,
+          runtimeContent: request.prompt,
+          minEstimatedTokens: config.ai.geminiContextCacheMinEstimatedTokens,
+          minShare: config.ai.geminiContextCacheMinShare,
+        });
+        if (cacheDecision.useCache) {
+          cachedContentName = await this.contextCacheService.getOrCreate({
+            model: this.model,
+            key: request.cachedPrefix!.key,
+            content: cachedPrefix,
+            ttlSeconds: request.cachedPrefix?.ttlSeconds,
+            displayName: request.cachedPrefix?.displayName,
+          });
+          if (!cachedContentName) {
+            promptText = `${cachedPrefix}\n\n${request.prompt}`;
+          }
+        } else {
+          promptText = `${cachedPrefix}\n\n${request.prompt}`;
+          logger.info(
+            {
+              cacheKey: request.cachedPrefix?.key,
+              model: this.model,
+              reason: cacheDecision.reason,
+              estimatedCachedTokens: cacheDecision.estimatedCachedTokens,
+              estimatedRuntimeTokens: cacheDecision.estimatedRuntimeTokens,
+              cachedShare: Number(cacheDecision.cachedShare.toFixed(3)),
+            },
+            'Skipping Gemini context cache',
+          );
+        }
+      }
+
       // Call Gemini API with retry logic
       const result = await this.callGeminiWithRetry(() =>
         this.client.models.generateContent({
           model: this.model,
-          contents: request.prompt,
+          contents: promptText,
           config: {
             temperature: request.temperature ?? 0.7,
             ...(request.maxTokens && { maxOutputTokens: request.maxTokens }),
             ...(request.topP && { topP: request.topP }),
             ...(request.topK && { topK: request.topK }),
             ...(request.stopSequences && { stopSequences: request.stopSequences }),
+            ...(cachedContentName && { cachedContent: cachedContentName }),
           },
         })
       );
 
-      const usage = (result as { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number } }).usageMetadata;
+      const usage = (result as {
+        usageMetadata?: {
+          promptTokenCount?: number;
+          candidatesTokenCount?: number;
+          totalTokenCount?: number;
+          cachedContentTokenCount?: number;
+        };
+      }).usageMetadata;
       if (request.onUsage && usage) {
         const inputUnits = usage.promptTokenCount ?? 0;
         const outputUnits = usage.candidatesTokenCount ?? usage.totalTokenCount ? (usage.totalTokenCount - inputUnits) : 0;
+        const cachedInputUnits = usage.cachedContentTokenCount ?? 0;
         request.onUsage({
           provider: 'gemini',
           operation: request.operation ?? 'text_free',
           model: this.model,
           inputUnits,
+          effectiveInputUnits: Math.max(inputUnits - cachedInputUnits, 0),
           outputUnits,
+          cachedInputUnits,
+          cacheHit: cachedInputUnits > 0,
         });
       }
 

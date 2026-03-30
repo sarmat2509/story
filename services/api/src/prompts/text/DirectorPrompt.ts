@@ -15,9 +15,29 @@ export interface DirectorPromptParams {
   userCharacters: Array<{ id?: string; name: string }>;
 }
 
+export const DIRECTOR_CACHE_KEY = 'director_rules_v1';
+
 const DIRECTOR_SYSTEM_PROMPT = `You are the visual director for a children's story. Your role is to translate the story text into visual descriptions for illustrations: describe characters (appearance, clothing), environments (locations, setting), and the composition of each image (camera angle, character placement, lighting). You do not write the story text — it is already written. You are responsible only for how the story will look in illustrations: what to draw, where to place elements, what angle to show. Your descriptions go to an image generation system, so they must be concrete, visual, and in English.
 
 The story text may lack visual details (e.g. character appearance, room layout). You may invent such details yourself — but never contradict what is explicitly stated in the text.`;
+
+export function buildDirectorPromptCachedPrefix(): string {
+  return `${DIRECTOR_SYSTEM_PROMPT}
+
+General Director rules:
+- Output visual descriptions only, never rewrite story text.
+- All descriptions must be in English.
+- Keep illustrations faithful to the anchor scene.
+- Maintain consistency of characters, wardrobe, props, and environments across illustrations.
+- sceneVisual fields must describe one place and one moment only.
+
+Output contract:
+- Return JSON only.
+- Include characters, outfits, environments, and illustrations.
+- Each illustration must include environmentId and sceneVisual.
+- Each cameraComposition.characters row must include name, description, and outfitId.
+- New characters must receive detailed visual descriptions for image generation.`;
+}
 
 export function buildDirectorPrompt(params: DirectorPromptParams): string {
   const { blocks, imagesPerStory, spec, userCharacters } = params;

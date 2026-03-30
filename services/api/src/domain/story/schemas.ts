@@ -76,7 +76,7 @@ export const TEXT_SCHEMA: JsonSchema = {
           description: {
             type: 'string',
             description:
-              'WARDROBE ONLY IN ENGLISH. Align with weather, season, and indoor/outdoor context of this scene and its environment. Garments, shoes, worn accessories only — no face, hair, or body. Animals/creatures: "natural appearance".',
+              'WARDROBE ONLY IN ENGLISH. Align with weather, season, and indoor/outdoor context of this scene and its environment. Garments, shoes, worn accessories only — no face, hair, or body. Use exactly "natural appearance" when the character keeps their default/reference clothes for this scene. Animals/creatures: "natural appearance".',
           },
         },
         required: ['id', 'characterName', 'description'],
@@ -185,7 +185,8 @@ export const BATCH_VALIDATION_SCHEMA: JsonSchema = {
                   type: 'object',
                   properties: {
                     name: { type: 'string' },
-                    description: { type: 'string' }
+                    description: { type: 'string' },
+                    outfitId: { type: 'string' }
                   },
                   required: ['name', 'description']
                 }
@@ -199,6 +200,51 @@ export const BATCH_VALIDATION_SCHEMA: JsonSchema = {
     }
   },
   required: ['failedScenes']
+};
+
+/**
+ * Schema for scene validation results.
+ */
+export const VALIDATION_SCHEMA: JsonSchema = {
+  type: 'object',
+  properties: {
+    sceneId: { type: 'number' },
+    isValid: { type: 'boolean' },
+    violations: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          category: { type: 'string' },
+          severity: { type: 'string' },
+          message: { type: 'string' },
+          suggestion: { type: 'string', nullable: true },
+        },
+        required: ['category', 'severity', 'message'],
+      },
+    },
+    correctedCameraComposition: {
+      type: 'object',
+      nullable: true,
+      properties: {
+        shot: { type: 'string' },
+        characters: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              description: { type: 'string' },
+              outfitId: { type: 'string' },
+            },
+            required: ['name', 'description'],
+          },
+        },
+      },
+      required: ['shot', 'characters'],
+    },
+  },
+  required: ['sceneId', 'isValid', 'violations'],
 };
 
 /**

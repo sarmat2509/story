@@ -17,6 +17,40 @@ import { ConcurrentJobQueue, type BaseJob } from './ConcurrentJobQueue';
 import { config } from '../config';
 import { getStoryRepository, getSceneRepository } from '../repositories';
 
+const ESTIMATED_SCENE_COUNT_BY_AGE_GROUP: Record<string, number> = {
+  '0-1': 5,
+  '1y': 5,
+  '2-3': 6,
+  '4-5': 8,
+  '6-8': 9,
+  '9-12': 11,
+};
+
+function estimateSceneCountForAgeGroup(ageGroup?: string): number {
+  if (!ageGroup) return 6;
+  return ESTIMATED_SCENE_COUNT_BY_AGE_GROUP[ageGroup] ?? 6;
+}
+
+function estimateTrackedImageCount(totalScenes: number, imagesPerStory: number): number {
+  if (totalScenes <= 0 || imagesPerStory <= 0) {
+    return 0;
+  }
+
+  const illustratedSceneCount = config.features.useDirectorFlow
+    ? Math.ceil(totalScenes / Math.max(imagesPerStory, 1))
+    : Math.min(totalScenes, imagesPerStory);
+
+  return Math.min(2, illustratedSceneCount);
+}
+
+function estimateProducerMs(illustrationCount: number): number {
+  if (illustrationCount <= 0) {
+    return 0;
+  }
+
+  return Math.max(15000, illustrationCount * 15000);
+}
+
 // ── Job Types ──
 
 export interface TextGenerationJob extends BaseJob {
@@ -477,16 +511,16 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     const { createStoryStub } = await import('../services/storyOrchestration/storyRecords');
     const { getChildProfileRepository } = await import('../repositories');
     let storyId: string | undefined = intermediateData.storyId;
-    if (!storyId) {
-      let ageGroup = '4-5';
-      if (request.childProfileId) {
-        const profile = await getChildProfileRepository().findById(request.childProfileId, request.userId);
-        if (profile?.birthDate) {
-          const { calculateAgeGroup } = await import('../services/childProfileService');
-          const ageMonths = Math.floor((Date.now() - new Date(profile.birthDate).getTime()) / (30.44 * 24 * 60 * 60 * 1000));
-          ageGroup = calculateAgeGroup(ageMonths);
-        }
+    let ageGroup = '4-5';
+    if (request.childProfileId) {
+      const profile = await getChildProfileRepository().findById(request.childProfileId, request.userId);
+      if (profile?.birthDate) {
+        const { calculateAgeGroup } = await import('../services/childProfileService');
+        const ageMonths = Math.floor((Date.now() - new Date(profile.birthDate).getTime()) / (30.44 * 24 * 60 * 60 * 1000));
+        ageGroup = calculateAgeGroup(ageMonths);
       }
+    }
+    if (!storyId) {
       storyId = await createStoryStub({
         userId: request.userId,
         storyRequestId: request.id,
@@ -499,7 +533,40 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     }
     
     // Step 1: Face deduplication (with progress tracking)
-    const { startTask, completeTask, STORY_TASKS } = await import('../services/storyProgress');
+    const { startTask, completeTask, setPlannedTasks, STORY_TASKS } = await import('../services/storyProgress');
+    const { getGenerationCoefficients } = await import('../services/generationTimeService');
+    const { getPlanFeatures } = await import('../services/planService');
+    const coefficients = await getGenerationCoefficients();
+    const userPlan = await getPlanFeatures(request.userId);
+    const estimatedSceneCount = estimateSceneCountForAgeGroup(ageGroup);
+    const trackedImageCount = estimateTrackedImageCount(
+      estimatedSceneCount,
+      userPlan.imagesPerStory || 0,
+    );
+    const illustrationCount = userPlan.imagesPerStory > 0
+      ? (
+          config.features.useDirectorFlow
+            ? Math.ceil(estimatedSceneCount / Math.max(userPlan.imagesPerStory || 1, 1))
+            : Math.min(estimatedSceneCount, userPlan.imagesPerStory || 0)
+        )
+      : 0;
+
+    await setPlannedTasks(requestId, [
+      { task: STORY_TASKS.ANALYZING_PHOTOS, estimatedMs: 30000 },
+      { task: STORY_TASKS.GENERATING_TEXT, estimatedMs: coefficients.avgTextMs },
+      ...(config.features.useDirectorFlow
+        ? [{ task: STORY_TASKS.PRODUCING_VISUALS, estimatedMs: estimateProducerMs(illustrationCount) }]
+        : []),
+      {
+        task: STORY_TASKS.VALIDATING,
+        estimatedMs: coefficients.avgValidationMsPerScene * Math.max(estimatedSceneCount, 1),
+      },
+      {
+        task: STORY_TASKS.GENERATING_IMAGES,
+        estimatedMs: coefficients.avgMsPerImage * trackedImageCount,
+      },
+    ]);
+
     await startTask(requestId, STORY_TASKS.ANALYZING_PHOTOS, {
       estimatedMs: 30000,
     });

@@ -26,6 +26,45 @@ export interface DirectTextPromptParams {
   previousOutfits?: Array<{ id: string; characterName: string; description: string }>;
 }
 
+export const WRITER_STRUCTURED_CACHE_KEY = 'writer_structured_rules_v1';
+export const WRITER_PLAIN_CACHE_KEY = 'writer_plain_rules_v1';
+
+export function buildDirectTextPromptCachedPrefix(): string {
+  return `You are a creative storyteller specializing in children's content with audio narration.
+Generate a complete story directly with all scenes, text, and visual descriptions.
+
+Core rules:
+- Write age-appropriate, positive, empowering stories.
+- Keep narrative and scene output internally consistent.
+- Happy, safe ending required.
+- Follow the requested language exactly.
+- For image consistency, character descriptions must be specific and stable.
+
+Structured output contract:
+- Return JSON only.
+- Include title, language, characters, moral, scenes, outfits, environments.
+- Scenes must include sceneVisual with setting, cameraComposition, and lighting.
+- cameraComposition.characters entries must include name, description, and outfitId.
+- Wardrobe belongs only in outfits[] plus outfitId references, not in environments.`;
+}
+
+export function buildDirectTextPromptPlainCachedPrefix(): string {
+  return `You are a creative storyteller specializing in children's content with audio narration.
+Generate the story in plain text only.
+
+Core rules:
+- Write age-appropriate, positive, empowering stories.
+- Happy, safe ending required.
+- Follow the requested language exactly.
+- Write the requested number of scenes separated by --- on its own line.
+- No JSON in the response.
+
+Plain output contract:
+- title: Story title
+- description: Short SEO description
+- Then scene blocks separated by ---`;
+}
+
 /**
  * Build direct text generation prompt
  * Skips outline generation and creates full story in one step
@@ -177,7 +216,7 @@ OUTPUT FORMAT (JSON). Order: characters, moral, scenes (each sceneVisual.cameraC
     {
       "id": "o_emilia_home_1",
       "characterName": "ExactCharacterName",
-      "description": "WARDROBE ONLY IN ENGLISH — garments, colors, footwear, worn accessories; align with weather/season/indoor-outdoor. Creatures: natural appearance."
+      "description": "WARDROBE ONLY IN ENGLISH — garments, colors, footwear, worn accessories; align with weather/season/indoor-outdoor. If the character keeps their default/reference clothes for this scene, use exactly: natural appearance."
     }
   ],
   "environments": [

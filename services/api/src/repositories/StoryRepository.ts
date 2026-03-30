@@ -1,5 +1,5 @@
 import type { StoryAudioMetadata } from '@wondertales/shared';
-import { eq, and, desc, asc, sql, isNotNull, inArray, gte, lte } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, isNotNull, inArray, gte, lte, ilike, or } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -32,6 +32,17 @@ export class StoryRepository {
       .where(eq(schema.stories.id, id))
       .limit(1);
     return story || null;
+  }
+
+  async findMetadataByIds(ids: string[]): Promise<Array<{ id: string; metadata: unknown }>> {
+    if (ids.length === 0) return [];
+    return this.db
+      .select({
+        id: schema.stories.id,
+        metadata: schema.stories.metadata,
+      })
+      .from(schema.stories)
+      .where(inArray(schema.stories.id, ids));
   }
 
   async findByIdAndUser(id: string, userId: string): Promise<schema.Story | null> {
@@ -284,6 +295,57 @@ export class StoryRepository {
       .from(schema.stories)
       .where(and(...conditions));
     return result[0]?.count || 0;
+  }
+
+  async listAllPaginated(options: {
+    limit: number;
+    offset: number;
+    search?: string;
+  }): Promise<Array<Pick<schema.Story, 'id' | 'title' | 'userId' | 'createdAt'>>> {
+    const { limit, offset, search } = options;
+    const normalizedSearch = search?.trim();
+    const query = this.db
+      .select({
+        id: schema.stories.id,
+        title: schema.stories.title,
+        userId: schema.stories.userId,
+        createdAt: schema.stories.createdAt,
+      })
+      .from(schema.stories)
+      .orderBy(desc(schema.stories.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    if (normalizedSearch) {
+      return query.where(
+        or(
+          ilike(schema.stories.title, `%${normalizedSearch}%`),
+          sql<boolean>`${schema.stories.id}::text ILIKE ${`%${normalizedSearch}%`}`,
+        ),
+      );
+    }
+
+    return query;
+  }
+
+  async countAll(search?: string): Promise<number> {
+    const normalizedSearch = search?.trim();
+    const query = this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.stories);
+
+    if (normalizedSearch) {
+      const [row] = await query.where(
+        or(
+          ilike(schema.stories.title, `%${normalizedSearch}%`),
+          sql<boolean>`${schema.stories.id}::text ILIKE ${`%${normalizedSearch}%`}`,
+        ),
+      );
+      return Number(row?.count ?? 0);
+    }
+
+    const [row] = await query;
+    return Number(row?.count ?? 0);
   }
 
   async createStory(

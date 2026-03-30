@@ -11,7 +11,10 @@ import type { StoryEnvironment } from '../../ai/types';
 import { getImageStylePrefix } from './styles';
 import { getImageContentPolicy } from '../contentPolicy';
 import { config } from '../../config';
-import { lookupOutfitForCharacterName } from '../../utils/characterOutfits';
+import {
+  isNaturalAppearanceOutfit,
+  lookupOutfitForCharacterName,
+} from '../../utils/characterOutfits';
 
 /**
  * Resolve outfit plate "Image N" index for a character (map keys may be full or base names).
@@ -33,7 +36,7 @@ function resolveOutfitPlateImageIndex(
 
 function formatOutfitPlateCrossRef(plateIdx: number, identityImageIdx?: number): string {
   const noMannequin =
-    ' Do not draw a wooden mannequin, jointed doll, or blank display head in this scene — only put those garments on the real character.';
+    ' Do not draw the mannequin itself in this scene. Do not transfer mannequin anatomy to the character: no wooden limbs, no segmented elbows or knees, no peg joints, no ball-joint wrists or ankles, no blank dummy head. Keep the real character\'s natural body and put only those garments on them.';
   const imageOnly =
     ' Wardrobe source is Image only: do not blend with any other written outfit description — copy colors, patterns, silhouette, and layering exactly from this plate.';
   if (identityImageIdx !== undefined && identityImageIdx !== plateIdx) {
@@ -164,7 +167,7 @@ function buildStructuredPrompt(params: {
 
   if (params.outfitPlateImageIndexByCharacter && params.outfitPlateImageIndexByCharacter.size > 0) {
     sections.push(
-      '- Wardrobe plates: numbered images marked OUTFIT PLATE / mannequin are the only wardrobe source for those characters — do not invent clothing from prose. Transfer those garments onto the matching character sheet identity. Never depict the mannequin, doll joints, or blank mannequin head.',
+      '- Wardrobe plates: numbered images marked OUTFIT PLATE / mannequin are the only wardrobe source for those characters — do not invent clothing from prose. Transfer only the garments onto the matching character sheet identity. Never depict the mannequin itself, and never copy its wooden parts, segmented elbows/knees, peg joints, joint seams, blank mannequin head, or dummy limb proportions into the final character.',
     );
   }
 
@@ -232,6 +235,14 @@ function structuralOutfitHint(outfitText: string): string {
   return ` STRUCTURAL MATCH: Reproduce garment type, length, sleeves, footwear, and named accessories from the outfit text (${t.slice(0, 200)}${t.length > 200 ? '…' : ''}) — not a generic same-color substitute.`;
 }
 
+function formatOutfitOverrideForPrompt(outfitText: string): string {
+  if (isNaturalAppearanceOutfit(outfitText)) {
+    return ' Keep the character in their default/reference clothes for this scene. Do not invent a wardrobe change.';
+  }
+  const structural = structuralOutfitHint(outfitText);
+  return ` Outfit in this scene: ${outfitText}.${structural}`;
+}
+
 function buildCharacterSection(
   realWorldCharacters?: Array<{ name: string; description: string }>,
   referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean }>,
@@ -251,8 +262,7 @@ function buildCharacterSection(
       // When an outfit plate is attached, wardrobe must come from that image only — no text mix.
       const outfitOverride =
         plateIdx === undefined ? lookupOutfitForCharacterName(name, characterOutfits) : undefined;
-      const structural = outfitOverride ? structuralOutfitHint(outfitOverride) : '';
-      const outfitSuffix = outfitOverride ? `. Outfit in this scene: ${outfitOverride}.${structural}` : '';
+      const outfitSuffix = outfitOverride ? formatOutfitOverrideForPrompt(outfitOverride) : '';
       const plateSuffix =
         plateIdx !== undefined ? formatOutfitPlateCrossRef(plateIdx, imgIdx) : '';
       if (imgIdx) {
@@ -271,9 +281,8 @@ function buildCharacterSection(
       const plateIdx = resolveOutfitPlateImageIndex(char.name, outfitPlateImageIndexByCharacter);
       const outfitOverride =
         plateIdx === undefined ? lookupOutfitForCharacterName(char.name, characterOutfits) : undefined;
-      const structural = outfitOverride ? structuralOutfitHint(outfitOverride) : '';
       const desc = outfitOverride
-        ? `${char.description}. Outfit in this scene: ${outfitOverride}.${structural}`
+        ? `${char.description}.${formatOutfitOverrideForPrompt(outfitOverride)}`
         : char.description;
       const plateSuffix =
         plateIdx !== undefined ? formatOutfitPlateCrossRef(plateIdx, imgIdx) : '';
@@ -405,8 +414,8 @@ export function buildOutfitPlatePrompt(params: {
   const spec = params.outfitDescription.trim().replace(/\.+$/, '').trim();
 
   return [
-    `Children's book illustration, ${params.imageStyle}: one wooden artist mannequin stands in the center, full length, facing forward, blank smooth head, wearing ${spec}.`,
-    'Plain soft background. No letters or words in the image. Only this one mannequin.',
+    `Children's book illustration, ${params.imageStyle}: one smooth display mannequin stands in the center, full length, facing forward, blank smooth head, wearing ${spec}. The mannequin is a clean clothing display only: smooth continuous limbs, no visible mechanical hinge joints, no peg joints, no segmented elbows, no segmented knees, no articulated wrists or ankles.`,
+    'Plain soft background. No letters or words in the image. Only this one mannequin. Keep the mannequin neutral and non-mechanical so the image reads as wardrobe reference only.',
     safetyAdditions,
   ]
     .filter(Boolean)
@@ -456,10 +465,10 @@ export function buildImageSystemInstruction(params: {
     sections.push(
       'REFERENCES: Character sheets establish IDENTITY: face, age, body proportions, silhouette, skin/hair palette, distinctive marks (freckles, glasses if part of the character in this story). ' +
       'Match those consistently. Re-draw in the scene art style (sheets are design reference only). ' +
-      'CLOTHING vs SHEET: Default clothes on the character sheet may be ignored when the story supplies different wardrobe. ' +
+      'CLOTHING vs SHEET: If the story outfit says "natural appearance", keep the default/reference clothes from the character sheet or description. If the story supplies different wardrobe, the default sheet clothes may be ignored. ' +
       'NUMBERED IMAGES: Each reference image is preceded by a line "Image N: …". When the user prompt pairs identity Image M with an outfit plate Image N, use M for face, hair, and body identity; use N as the sole source for all clothing (colors, patterns, silhouette). Do not merge a separate text outfit description with the plate. ' +
       'If there is no outfit plate for a character, wardrobe may come from the user prompt text (characterOutfits / scene lines) and composition. ' +
-      'Outfit plates show wardrobe on a wooden display mannequin — that mannequin must never appear in the final scene. Ignore its head, limbs, and joints for identity; transfer only the clothes onto the living character from Image M.',
+      'Outfit plates show wardrobe on a display mannequin — that mannequin must never appear in the final scene. Ignore its head, limbs, joints, limb segmentation, peg joints, and any dummy anatomy for identity; transfer only the clothes onto the living character from Image M.',
     );
   }
 
@@ -472,7 +481,7 @@ export function buildImageSystemInstruction(params: {
 
   // Clothing: outfit comes from environment.characterOutfits (per-environment, consistent within location)
   sections.push(
-    'CLOTHING: When an outfit plate (mannequin) reference exists for a character, that image is the only wardrobe specification — ignore duplicate outfit prose for that character. Otherwise, characterOutfits text in the prompt is wardrobe-only (not face/hair). Hair, expression, and facial identity come from character sheets and cameraComposition. Never paint the mannequin in the scene; face and body from the character sheet.',
+    'CLOTHING: When an outfit plate (mannequin) reference exists for a character, that image is the only wardrobe specification — ignore duplicate outfit prose for that character. Otherwise, characterOutfits text in the prompt is wardrobe-only (not face/hair). If a characterOutfits line says "natural appearance", keep that character in their default/reference clothes for the scene. Hair, expression, and facial identity come from character sheets and cameraComposition. Never paint the mannequin in the scene, and never transfer mannequin joints, wooden limbs, segmented elbows/knees, peg joints, or blank dummy anatomy onto the living character; face and body come from the character sheet.',
   );
 
   // Tone / safety

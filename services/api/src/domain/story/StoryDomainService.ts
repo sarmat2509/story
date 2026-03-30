@@ -10,7 +10,7 @@
  * - MUST work with provider-agnostic interfaces (ITextProvider)
  */
 
-import type { StorySpec, EpisodeText, PolicyProfile } from '../../ai/types';
+import type { StorySpec, EpisodeText, PolicyProfile, SceneValidationResult } from '../../ai/types';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
 import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 
@@ -27,11 +27,28 @@ export interface StoryDomainOptions {
     previousOutfits?: Array<{ id: string; characterName: string; description: string }>;
   };
 }
-import { buildDirectTextPrompt, buildDirectTextPromptPlain, buildDirectorPrompt, buildBatchValidationPrompt, buildBatchRegenerationPrompt } from '../../prompts/text';
+import {
+  buildDirectTextPrompt,
+  buildDirectTextPromptCachedPrefix,
+  buildDirectTextPromptPlain,
+  buildDirectTextPromptPlainCachedPrefix,
+  buildDirectorPrompt,
+  buildDirectorPromptCachedPrefix,
+  buildValidationPrompt,
+  buildBatchValidationCachedPrefix,
+  buildBatchValidationRuntimePrompt,
+  buildBatchRegenerationCachedPrefix,
+  buildBatchRegenerationRuntimePrompt,
+  DIRECTOR_CACHE_KEY,
+  TEXT_REGENERATION_CACHE_KEY,
+  TEXT_VALIDATION_CACHE_KEY,
+  WRITER_PLAIN_CACHE_KEY,
+  WRITER_STRUCTURED_CACHE_KEY,
+} from '../../prompts/text';
 import config from '../../config';
 import { estimateUsageCostUsd } from '../../services/aiUsageService';
 import { logger } from '../../utils/logger';
-import { TEXT_SCHEMA, BATCH_VALIDATION_SCHEMA, BATCH_REGENERATION_SCHEMA } from './schemas';
+import { TEXT_SCHEMA, VALIDATION_SCHEMA, BATCH_VALIDATION_SCHEMA, BATCH_REGENERATION_SCHEMA } from './schemas';
 import { DIRECTOR_SCHEMA } from './directorSchema';
 import { parsePlainTextToScenes } from './parsePlainText';
 import { normalizeOutfitBindingsOnEpisodeText } from '../../utils/characterOutfits';
@@ -40,7 +57,10 @@ export interface BatchValidationResult {
   failedScenes: Array<{
     sceneId: number;
     violations: Array<{ category: string; severity: string; message: string; suggestion?: string }>;
-    correctedCameraComposition?: { shot: string; characters: Array<{ name: string; description: string }> };
+    correctedCameraComposition?: {
+      shot: string;
+      characters: Array<{ name: string; description: string; outfitId?: string }>;
+    };
   }>;
 }
 
@@ -48,7 +68,14 @@ export class StoryDomainService {
   constructor(
     private textProvider: ITextProvider,
     private directorTextProvider: ITextProvider = textProvider,
+    private validationTextProvider: ITextProvider = textProvider,
   ) {}
+
+  private getValidationModelOverride(): string | undefined {
+    return config.ai.geminiApiKey?.trim()
+      ? config.ai.validationModel
+      : undefined;
+  }
 
   /**
    * Generate story text directly (1-step process)
@@ -96,6 +123,11 @@ export class StoryDomainService {
       // Call provider with provider-agnostic request
       const text = await this.textProvider.generateStructured<EpisodeText>({
         prompt,
+        cachedPrefix: {
+          key: WRITER_STRUCTURED_CACHE_KEY,
+          content: buildDirectTextPromptCachedPrefix(),
+          displayName: WRITER_STRUCTURED_CACHE_KEY,
+        },
         schema: TEXT_SCHEMA,
         temperature: 0.9,
         onUsage: options?.onUsage,
@@ -161,6 +193,11 @@ export class StoryDomainService {
     try {
       const rawText = await this.textProvider.generateText({
         prompt,
+        cachedPrefix: {
+          key: WRITER_PLAIN_CACHE_KEY,
+          content: buildDirectTextPromptPlainCachedPrefix(),
+          displayName: WRITER_PLAIN_CACHE_KEY,
+        },
         temperature: 0.9,
         onUsage: options?.onUsage,
         operation: isContinuation ? 'text_continuation' : 'text_plain',
@@ -235,6 +272,11 @@ export class StoryDomainService {
         }>;
       }>({
         prompt,
+        cachedPrefix: {
+          key: DIRECTOR_CACHE_KEY,
+          content: buildDirectorPromptCachedPrefix(),
+          displayName: DIRECTOR_CACHE_KEY,
+        },
         schema: DIRECTOR_SCHEMA,
         temperature: 0.7,
         onUsage: (usage) => {
@@ -271,6 +313,74 @@ export class StoryDomainService {
   }
 
   /**
+   * Validate a single scene for content safety and age-appropriateness.
+   */
+  async validateScene(
+    sceneText: EpisodeText['scenes'][0],
+    policy: PolicyProfile,
+    isLastScene: boolean,
+    scenarioCardId?: string,
+    options?: StoryDomainOptions,
+  ): Promise<SceneValidationResult> {
+    const prompt = buildValidationPrompt({
+      sceneText,
+      policy,
+      isLastScene,
+      scenarioCardId,
+    });
+
+    logger.debug(
+      {
+        sceneId: sceneText.sceneId,
+        isLastScene,
+        promptLength: prompt.length,
+        promptPreview: prompt.slice(0, 500),
+        fullPrompt: prompt,
+      },
+      'Scene validation prompt',
+    );
+
+    try {
+      const validation = await this.validationTextProvider.generateStructured<SceneValidationResult>({
+        prompt,
+        schema: VALIDATION_SCHEMA,
+        temperature: 0.3,
+        model: this.getValidationModelOverride(),
+        onUsage: options?.onUsage,
+        operation: 'validateScene',
+      });
+
+      logger.info(
+        {
+          sceneId: validation.sceneId,
+          isValid: validation.isValid,
+          violationCount: validation.violations.length,
+          hasCorrectedCameraComposition: !!validation.correctedCameraComposition,
+        },
+        'Scene validation complete',
+      );
+
+      return validation;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      if (errorMsg.includes('PROHIBITED_CONTENT') || errorMsg.includes('blocked')) {
+        logger.warn(
+          { sceneId: sceneText.sceneId, error: errorMsg },
+          'Scene validation blocked - auto-passing as safe',
+        );
+        return {
+          sceneId: sceneText.sceneId,
+          isValid: true,
+          violations: [],
+        };
+      }
+
+      logger.error({ error, sceneId: sceneText.sceneId }, 'Scene validation failed');
+      throw new Error(`Scene validation failed: ${errorMsg}`);
+    }
+  }
+
+  /**
    * Validate all scenes in one batch request.
    * Returns only failed scenes (minimal info).
    */
@@ -280,7 +390,12 @@ export class StoryDomainService {
     scenarioCardId?: string,
     options?: StoryDomainOptions
   ): Promise<BatchValidationResult> {
-    const prompt = buildBatchValidationPrompt({ scenes, policy, scenarioCardId });
+    const prompt = buildBatchValidationRuntimePrompt({ scenes, policy, scenarioCardId });
+    const cachedPrefix = {
+      key: TEXT_VALIDATION_CACHE_KEY,
+      content: buildBatchValidationCachedPrefix(),
+      displayName: TEXT_VALIDATION_CACHE_KEY,
+    };
     logger.info({ sceneCount: scenes.length, promptLength: prompt.length }, 'Batch validating scenes');
 
     logger.debug(
@@ -294,10 +409,12 @@ export class StoryDomainService {
     );
 
     try {
-      const result = await this.textProvider.generateStructured<BatchValidationResult>({
+      const result = await this.validationTextProvider.generateStructured<BatchValidationResult>({
         prompt,
+        cachedPrefix,
         schema: BATCH_VALIDATION_SCHEMA,
         temperature: 0.3,
+        model: this.getValidationModelOverride(),
         onUsage: options?.onUsage,
         operation: 'validateScene',
       });
@@ -344,7 +461,12 @@ export class StoryDomainService {
     options?: StoryDomainOptions
   ): Promise<Array<{ sceneId: number; text: string }>> {
     const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
-    const prompt = buildBatchRegenerationPrompt({ spec, sceneCount, failedScenes, vocabLevel });
+    const prompt = buildBatchRegenerationRuntimePrompt({ spec, sceneCount, failedScenes, vocabLevel });
+    const cachedPrefix = {
+      key: TEXT_REGENERATION_CACHE_KEY,
+      content: buildBatchRegenerationCachedPrefix(),
+      displayName: TEXT_REGENERATION_CACHE_KEY,
+    };
     logger.info(
       { failedCount: failedScenes.length, sceneIds: failedScenes.map((f) => f.sceneId), promptLength: prompt.length },
       'Batch regenerating scenes'
@@ -363,6 +485,7 @@ export class StoryDomainService {
     try {
       const result = await this.textProvider.generateStructured<{ scenes: Array<{ sceneId: number; text: string }> }>({
         prompt,
+        cachedPrefix,
         schema: BATCH_REGENERATION_SCHEMA,
         temperature: 0.9,
         onUsage: options?.onUsage,

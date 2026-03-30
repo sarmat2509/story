@@ -51,6 +51,13 @@ export interface ImageData {
   fileUri?: string; // Files API URI — when present, used instead of inline data
 }
 
+export interface PromptCacheConfig {
+  key: string;
+  content: string;
+  ttlSeconds?: number;
+  displayName?: string;
+}
+
 /**
  * Request parameters for structured generation
  */
@@ -63,6 +70,7 @@ export interface GenerateStructuredRequest<T = any> {
   topP?: number;
   topK?: number;
   imageData?: ImageData[]; // For vision models (Gemini Vision, GPT-4 Vision, etc.)
+  cachedPrefix?: PromptCacheConfig; // Optional stable prefix for provider-side prompt caching
   relaxedSafety?: boolean; // Use ultra-relaxed safety settings (for photo analysis)
   onUsage?: (usage: UsageMetadata) => void; // Optional callback for cost tracking
   operation?: string; // Operation name for usage callback (e.g. 'text_structured', 'validateScene')
@@ -73,6 +81,7 @@ export interface GenerateStructuredRequest<T = any> {
  */
 export interface GenerateTextRequest {
   prompt: string;
+  cachedPrefix?: PromptCacheConfig; // Optional stable prefix for provider-side prompt caching
   temperature?: number;
   maxTokens?: number;
   topP?: number;

@@ -275,6 +275,7 @@ export function ContinueSeriesSection({
 
       <GenerationProgressModal
         visible={!!continuationRequestId}
+        requestId={continuationRequestId ?? undefined}
         status={continuationStatus?.status ?? 'pending'}
         progress={continuationStatus?.progress ?? 0}
         progressData={continuationStatus?.progressData}

@@ -52,4 +52,11 @@ export class StoryOutfitPlateCacheRepository {
     if (!row) throw new Error('StoryOutfitPlateCache upsert failed');
     return row;
   }
+
+  async listByStoryId(storyId: string): Promise<schema.StoryOutfitPlateCache[]> {
+    return this.db
+      .select()
+      .from(schema.storyOutfitPlateCache)
+      .where(eq(schema.storyOutfitPlateCache.storyId, storyId));
+  }
 }

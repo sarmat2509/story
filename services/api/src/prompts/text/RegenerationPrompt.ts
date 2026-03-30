@@ -20,11 +20,26 @@ export interface BatchRegenerationPromptParams {
   vocabLevel: string;
 }
 
-/**
- * Build batch regeneration prompt - fix ALL failed scenes in one request.
- * Returns JSON with all corrected scenes.
- */
-export function buildBatchRegenerationPrompt(params: BatchRegenerationPromptParams): string {
+export const TEXT_REGENERATION_CACHE_KEY = 'text_regeneration_rules_v1';
+
+export function buildBatchRegenerationCachedPrefix(): string {
+  return `Rewrite only the scenes that failed validation.
+
+Core rules:
+- Fix ONLY what validation flags.
+- Keep plot, characters, location, events, and scene meaning unchanged.
+- The illustration will not change, so the rewritten text must still describe the same scene.
+- Return JSON only.
+
+Output contract:
+{
+  "scenes": [
+    { "sceneId": <number>, "text": "<regenerated scene text>" }
+  ]
+}`;
+}
+
+export function buildBatchRegenerationRuntimePrompt(params: BatchRegenerationPromptParams): string {
   const { spec, sceneCount, failedScenes, vocabLevel } = params;
   const totalScenes = sceneCount;
   const minWords = Math.floor(spec.policyProfile.readability.targetWordsRange[0] / totalScenes);
@@ -36,40 +51,36 @@ export function buildBatchRegenerationPrompt(params: BatchRegenerationPromptPara
 
   const scenesBlock = failedScenes
     .map(
-      (f) => `--- SCENE ${f.sceneId} ---
-VALIDATION FEEDBACK (ISSUES TO FIX):
-${f.feedback}
-
+      (f) => `SCENE ${f.sceneId}
+FEEDBACK: ${f.feedback}
 ORIGINAL TEXT:
 ${f.originalText}`
     )
     .join('\n\n');
 
-  return `Fix policy violations in ALL scenes below. Fix ONLY what the validation flags. Keep plot, characters, location, events unchanged. The illustration will NOT change — your text must describe the same scene.
-
-LANGUAGE: Write entirely in ${getLanguageFullDisplay(spec.language as any)}.
+  return `LANGUAGE: ${getLanguageFullDisplay(spec.language as any)}
+AGE GROUP: ${spec.ageGroup}
+VOCABULARY LEVEL: ${vocabLevel}
+TARGET WORDS PER SCENE: ${minWords}-${maxWords}
+SCENE COUNT IN STORY: ${sceneCount}
 
 SCENES TO FIX:
 ${scenesBlock}
 
+POLICY RULES:
 ${textPromptSection}
-
-REQUIREMENTS:
-- Age group: ${spec.ageGroup}
-- Vocabulary level: ${vocabLevel}
-- Target word count per scene: ${minWords}-${maxWords} words
 
 ${helpers.formatChildProfile(spec)}
 
 ${helpers.formatSceneLevelRules({ ageGroup: spec.ageGroup })}
 
-RETURN JSON with ALL corrected scenes in the same order:
-{
-  "scenes": [
-    { "sceneId": <number>, "text": "<regenerated scene text>" }
-  ]
+Include exactly ${failedScenes.length} corrected scenes in the same order.`;
 }
 
-- Include exactly ${failedScenes.length} entries, one per scene above.
-- sceneId must match the scene number. text = regenerated scene text only.`;
+/**
+ * Build batch regeneration prompt - fix ALL failed scenes in one request.
+ * Returns JSON with all corrected scenes.
+ */
+export function buildBatchRegenerationPrompt(params: BatchRegenerationPromptParams): string {
+  return `${buildBatchRegenerationCachedPrefix()}\n\n${buildBatchRegenerationRuntimePrompt(params)}`;
 }
