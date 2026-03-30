@@ -124,6 +124,7 @@ router.get('/story-themes', async (req, res) => {
     // Fetch sequentially to isolate 42P01 errors (table not found)
     let goalsData: Awaited<ReturnType<typeof dictionaryRepo.findAllGoals>>;
     let scenarioCardsData: Awaited<ReturnType<typeof dictionaryRepo.findActiveScenarioCards>>;
+    let ageGroupsData: Awaited<ReturnType<typeof dictionaryRepo.findActiveAgeGroups>>;
     try {
       goalsData = await dictionaryRepo.findAllGoals();
     } catch (e) {
@@ -134,6 +135,12 @@ router.get('/story-themes', async (req, res) => {
       scenarioCardsData = await dictionaryRepo.findActiveScenarioCards();
     } catch (e) {
       logger.error({ err: e, msg: (e as Error).message }, 'story-themes: findActiveScenarioCards failed');
+      throw e;
+    }
+    try {
+      ageGroupsData = await dictionaryRepo.findActiveAgeGroups();
+    } catch (e) {
+      logger.error({ err: e, msg: (e as Error).message }, 'story-themes: findActiveAgeGroups failed');
       throw e;
     }
     
@@ -172,10 +179,19 @@ router.get('/story-themes', async (req, res) => {
         ageGroups: JSON.parse(sc.ageGroups)
       };
     });
+
+    const ageGroups = ageGroupsData.map((ageGroup) => ({
+      id: ageGroup.id,
+      slug: ageGroup.slug,
+      nameKey: ageGroup.nameKey,
+      minMonths: ageGroup.minMonths,
+      maxMonths: ageGroup.maxMonths,
+      sortOrder: ageGroup.sortOrder,
+    }));
     
     return res.json({
       status: 'success',
-      data: { goals, scenarioCards: scenarios }
+      data: { goals, scenarioCards: scenarios, ageGroups }
     });
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));

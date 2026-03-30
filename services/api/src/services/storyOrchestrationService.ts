@@ -3722,9 +3722,6 @@ async function saveStory(
   chosenWorldRuleId?: string,
 ): Promise<string> {
   try {
-    // Calculate estimated read time (average 200 words per minute)
-    const estimatedReadMinutes = Math.ceil(text.wordCount / 200);
-    
     // Extract LLM-generated characters
     const llmCharacters = (text as any).characters || [];
     
@@ -3743,7 +3740,6 @@ async function saveStory(
         scenes: text.scenes, // Keep for backward compatibility
         fullText: text.fullText,
         wordCount: text.wordCount,
-        estimatedReadMinutes,
         modelVersion: config.ai.modelVersion,
         generationTimeMs,
         metadata: {
@@ -4137,7 +4133,6 @@ export async function getStory(storyId: string, userId: string) {
     scenes: story.scenes,
     fullText: story.fullText,
     wordCount: story.wordCount,
-    estimatedReadMinutes: story.estimatedReadMinutes,
     outline: story.outline,
     audioMetadata: story.audioMetadata,
     characters: [...childCharacters, ...enrichedCharacters],

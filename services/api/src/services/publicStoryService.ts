@@ -14,6 +14,7 @@ import { getAssetStorageService } from './assetStorageService';
 import { logger } from '../utils/logger';
 import { stripAllTags } from '../utils/audioTags';
 import { config } from '../config';
+import { getReadingTimeMinutes } from '@wondertales/shared';
 import type { AlignmentData, StoryPublicView, StoryAudioMetadata } from '@wondertales/shared';
 
 async function getAudioUrlAndAlignment(storyId: string): Promise<{ url: string | null; alignment?: any; duration?: number }> {
@@ -240,11 +241,14 @@ export async function listPublicStories(options: {
   offset?: number;
   hasAudio?: boolean;
   scenarioCardId?: string;
+  ageGroup?: string;
+  readingTimeMin?: number;
+  readingTimeMax?: number;
   showOnHomePage?: boolean;
 }): Promise<{ items: PublicStoryListItem[]; total: number }> {
-  const { limit = 20, offset = 0, hasAudio, scenarioCardId, showOnHomePage } = options;
+  const { limit = 20, offset = 0, hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax, showOnHomePage } = options;
   const storyRepo = getStoryRepository();
-  const filterOpts = { hasAudio, scenarioCardId, showOnHomePage };
+  const filterOpts = { hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax, showOnHomePage };
   const [stories, total] = await Promise.all([
     storyRepo.listPublished({ limit, offset, ...filterOpts }),
     storyRepo.countPublished(filterOpts),
@@ -262,6 +266,17 @@ export async function listPublicStories(options: {
       const enrichedScenes = enrichedScenesMap.get(s.id) || s.scenes || [];
       const scenes = Array.isArray(enrichedScenes) ? enrichedScenes : [];
       const scenarioCardId = (s as any).scenarioCardId ?? null;
+      const normalizedScenes = scenes.map((sc: any) => {
+        const imgPath = sc.image?.url ?? sc.imageUrl;
+        const imageUrl = imgPath
+          ? (String(imgPath).startsWith('http') ? imgPath : `/api/v1/assets/${String(imgPath).replace(/^\/api\/v1\/assets\//, '')}`)
+          : null;
+        return {
+          sceneId: sc.sceneId,
+          text: stripAllTags(sc.text || ''),
+          imageUrl,
+        };
+      });
       return {
         id: s.id,
         title: s.title,
@@ -270,17 +285,7 @@ export async function listPublicStories(options: {
         authorDisplayName: s.authorDisplayName || 'Anonymous',
         publishedAt: s.publishedAt ? s.publishedAt.toISOString?.() ?? String(s.publishedAt) : null,
         publishedSlug: s.publishedSlug!,
-        scenes: scenes.map((sc: any) => {
-          const imgPath = sc.image?.url ?? sc.imageUrl;
-          const imageUrl = imgPath
-            ? (String(imgPath).startsWith('http') ? imgPath : `/api/v1/assets/${String(imgPath).replace(/^\/api\/v1\/assets\//, '')}`)
-            : null;
-          return {
-            sceneId: sc.sceneId,
-            text: stripAllTags(sc.text || ''),
-            imageUrl,
-          };
-        }),
+        scenes: normalizedScenes,
         audioMetadata: s.audioMetadata,
         hasAudio: !!s.audioMetadata,
         scenarioCardId: scenarioCardId ?? null,

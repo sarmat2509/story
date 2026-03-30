@@ -9,6 +9,14 @@ import i18n from '@/config/i18n';
 // Use shared types
 type StoryGoal = StoryGoalApi;
 type ScenarioCard = ScenarioCardApi;
+type StoryAgeGroup = {
+  id: string;
+  slug: string;
+  nameKey: string;
+  minMonths: number;
+  maxMonths: number | null;
+  sortOrder: number;
+};
 
 // Get story themes (goals, scenarios)
 export const useStoryThemes = () => {
@@ -22,6 +30,7 @@ export const useStoryThemes = () => {
         data: {
           goals: StoryGoal[];
           scenarioCards: ScenarioCard[];
+          ageGroups: StoryAgeGroup[];
         };
       }>(`/api/v1/dictionaries/story-themes?locale=${locale}`);
       return response.data.data;

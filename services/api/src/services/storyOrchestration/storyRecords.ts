@@ -29,7 +29,6 @@ export async function createStoryStub(params: CreateStoryStubParams): Promise<st
     scenes: [],
     fullText: '',
     wordCount: 0,
-    estimatedReadMinutes: 0,
     modelVersion: null,
     generationTimeMs: null,
     metadata: null,
@@ -59,7 +58,6 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
       throw new Error(`Story ${storyId} not found. Cannot enrich — story stub may have been deleted or never created.`);
     }
 
-    const estimatedReadMinutes = Math.ceil(params.text.wordCount / 200);
     const llmCharacters = (params.text as any).characters || [];
 
     await getStoryRepository().transaction(async (tx) => {
@@ -71,7 +69,6 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
           scenes: params.text.scenes,
           fullText: stripCharacterIds(params.text.fullText),
           wordCount: params.text.wordCount,
-          estimatedReadMinutes,
           modelVersion: (params.metadata as any).modelVersion || config.ai.modelVersion,
           generationTimeMs: params.generationTimeMs,
           isPublished: !!params.seriesData,
@@ -168,7 +165,6 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
  */
 export async function createStoryRecord(params: CreateStoryParams): Promise<string> {
   try {
-    const estimatedReadMinutes = Math.ceil(params.text.wordCount / 200);
     const llmCharacters = (params.text as any).characters || [];
     
     const storyId = await getStoryRepository().transaction(async (tx) => {
@@ -185,7 +181,6 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
         scenes: params.text.scenes,
         fullText: stripCharacterIds(params.text.fullText),
         wordCount: params.text.wordCount,
-        estimatedReadMinutes,
         modelVersion: config.ai.modelVersion,
         generationTimeMs: params.generationTimeMs,
         metadata: {

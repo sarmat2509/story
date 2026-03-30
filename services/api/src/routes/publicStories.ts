@@ -37,8 +37,28 @@ router.get('/', async (req: Request, res: Response) => {
       (typeof req.query.scenarioCardId === 'string' ? req.query.scenarioCardId : null) ||
       (typeof req.query.scenario_card_id === 'string' ? req.query.scenario_card_id : null) ||
       undefined;
+    const ageGroup =
+      (typeof req.query.ageGroup === 'string' ? req.query.ageGroup : null) ||
+      (typeof req.query.age_group === 'string' ? req.query.age_group : null) ||
+      undefined;
+    const readingTimeMinRaw =
+      (typeof req.query.readingTimeMin === 'string' ? req.query.readingTimeMin : null) ||
+      (typeof req.query.reading_time_min === 'string' ? req.query.reading_time_min : null);
+    const readingTimeMaxRaw =
+      (typeof req.query.readingTimeMax === 'string' ? req.query.readingTimeMax : null) ||
+      (typeof req.query.reading_time_max === 'string' ? req.query.reading_time_max : null);
+    const readingTimeMin = readingTimeMinRaw != null ? parseInt(readingTimeMinRaw, 10) : undefined;
+    const readingTimeMax = readingTimeMaxRaw != null ? parseInt(readingTimeMaxRaw, 10) : undefined;
 
-    const { items, total } = await listPublicStories({ limit, offset, hasAudio: hasAudio || undefined, scenarioCardId });
+    const { items, total } = await listPublicStories({
+      limit,
+      offset,
+      hasAudio: hasAudio || undefined,
+      scenarioCardId,
+      ageGroup,
+      readingTimeMin: Number.isFinite(readingTimeMin) ? readingTimeMin : undefined,
+      readingTimeMax: Number.isFinite(readingTimeMax) ? readingTimeMax : undefined,
+    });
 
     res.json({
       status: 'success',

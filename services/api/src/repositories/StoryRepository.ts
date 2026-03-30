@@ -14,6 +14,16 @@ function normalizeStoryCharacterRole(role: string | null | undefined): string {
     : r;
 }
 
+function buildReadingTimeMinutesSql() {
+  const sanitizedText = sql<string>`regexp_replace(${schema.stories.fullText}, '\\[[^\\]]*\\]', '', 'g')`;
+  return sql<number>`
+    CASE
+      WHEN char_length(${sanitizedText}) = 0 THEN 0
+      ELSE GREATEST(1, ROUND(char_length(${sanitizedText}) / 800.0))
+    END
+  `;
+}
+
 export class StoryRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
@@ -87,9 +97,21 @@ export class StoryRepository {
     offset?: number;
     hasAudio?: boolean;
     scenarioCardId?: string;
+    ageGroup?: string;
+    readingTimeMin?: number;
+    readingTimeMax?: number;
     showOnHomePage?: boolean;
   } = {}): Promise<schema.Story[]> {
-    const { limit = 20, offset = 0, hasAudio, scenarioCardId, showOnHomePage } = options;
+    const {
+      limit = 20,
+      offset = 0,
+      hasAudio,
+      scenarioCardId,
+      ageGroup,
+      readingTimeMin,
+      readingTimeMax,
+      showOnHomePage,
+    } = options;
     const conditions = [
       eq(schema.stories.isPublished, true),
       isNotNull(schema.stories.publishedSlug),
@@ -100,6 +122,16 @@ export class StoryRepository {
     }
     if (hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
+    }
+    if (ageGroup) {
+      conditions.push(eq(schema.stories.ageGroup, ageGroup));
+    }
+    const readingTimeMinutesExpr = buildReadingTimeMinutesSql();
+    if (typeof readingTimeMin === 'number') {
+      conditions.push(gte(readingTimeMinutesExpr, readingTimeMin));
+    }
+    if (typeof readingTimeMax === 'number') {
+      conditions.push(lte(readingTimeMinutesExpr, readingTimeMax));
     }
     if (scenarioCardId) {
       const rows = await this.db
@@ -123,8 +155,15 @@ export class StoryRepository {
     return rows.map(r => ({ ...r.story, scenarioCardId: r.scenarioCardId ?? null }));
   }
 
-  async countPublished(options: { hasAudio?: boolean; scenarioCardId?: string; showOnHomePage?: boolean } = {}): Promise<number> {
-    const { hasAudio, scenarioCardId, showOnHomePage } = options;
+  async countPublished(options: {
+    hasAudio?: boolean;
+    scenarioCardId?: string;
+    ageGroup?: string;
+    readingTimeMin?: number;
+    readingTimeMax?: number;
+    showOnHomePage?: boolean;
+  } = {}): Promise<number> {
+    const { hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax, showOnHomePage } = options;
     const conditions = [
       eq(schema.stories.isPublished, true),
       isNotNull(schema.stories.publishedSlug),
@@ -135,6 +174,16 @@ export class StoryRepository {
     }
     if (hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
+    }
+    if (ageGroup) {
+      conditions.push(eq(schema.stories.ageGroup, ageGroup));
+    }
+    const readingTimeMinutesExpr = buildReadingTimeMinutesSql();
+    if (typeof readingTimeMin === 'number') {
+      conditions.push(gte(readingTimeMinutesExpr, readingTimeMin));
+    }
+    if (typeof readingTimeMax === 'number') {
+      conditions.push(lte(readingTimeMinutesExpr, readingTimeMax));
     }
     if (scenarioCardId) {
       const result = await this.db

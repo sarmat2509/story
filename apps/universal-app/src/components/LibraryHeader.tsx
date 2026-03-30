@@ -10,6 +10,11 @@ interface ScenarioCard {
   icon?: string;
 }
 
+interface FilterOption {
+  label: string;
+  value: string | null;
+}
+
 interface Props {
   viewMode: 'grid' | 'list';
   currentPage: number;
@@ -23,7 +28,67 @@ interface Props {
   scenarioCards?: ScenarioCard[];
   selectedScenarioId?: string | null;
   onScenarioChange?: (id: string | null) => void;
+  ageOptions?: FilterOption[];
+  selectedAgeGroup?: string | null;
+  onAgeGroupChange?: (ageGroup: string | null) => void;
+  readingTimeOptions?: FilterOption[];
+  selectedReadingTime?: string | null;
+  onReadingTimeChange?: (value: string | null) => void;
   onReportProblem?: () => void;
+}
+
+type DropdownKey = 'scenario' | 'age' | 'reading';
+
+function FilterDropdown({
+  buttonLabel,
+  isOpen,
+  onToggle,
+  options,
+  selectedValue,
+  onSelect,
+}: {
+  buttonLabel: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  options: FilterOption[];
+  selectedValue?: string | null;
+  onSelect: (value: string | null) => void;
+}) {
+  return (
+    <View style={styles.dropdownWrapper}>
+      <TouchableOpacity
+        style={styles.dropdownButton}
+        onPress={onToggle}
+      >
+        <Text style={styles.dropdownButtonText} numberOfLines={1}>
+          {buttonLabel}
+        </Text>
+        <Ionicons
+          name={isOpen ? 'chevron-up' : 'chevron-down'}
+          size={14}
+          color={theme.colors.text.tertiary}
+        />
+      </TouchableOpacity>
+      {isOpen && (
+        <View style={styles.dropdownMenu}>
+          {options.map((option, index) => {
+            const isActive = selectedValue === option.value;
+            return (
+              <TouchableOpacity
+                key={`${option.value ?? 'all'}-${index}`}
+                style={[styles.dropdownItem, isActive && styles.dropdownItemActive]}
+                onPress={() => onSelect(option.value)}
+              >
+                <Text style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
 }
 
 const LibraryHeaderComponent = ({ 
@@ -39,15 +104,15 @@ const LibraryHeaderComponent = ({
   scenarioCards = [],
   selectedScenarioId,
   onScenarioChange,
+  ageOptions = [],
+  selectedAgeGroup,
+  onAgeGroupChange,
+  readingTimeOptions = [],
+  selectedReadingTime,
+  onReadingTimeChange,
   onReportProblem,
 }: Props) => {
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  console.log('[LibraryHeader] RENDER', {
-    viewMode,
-    currentPage,
-    totalPages,
-    initialAudioFilter,
-  });
+  const [openDropdown, setOpenDropdown] = useState<DropdownKey | null>(null);
   
   // Use ref to store labels - updates on language change but doesn't cause re-creation
   const labelsRef = useRef({
@@ -66,7 +131,6 @@ const LibraryHeaderComponent = ({
   // Memoize AudioFilterToggle element - only recreate if ref or callback changes
   // Note: initialAudioFilter intentionally NOT in deps - only used for initial mount
   const audioFilterElement = useMemo(() => {
-    console.log('[LibraryHeader] Creating AudioFilterToggle element');
     return (
       <AudioFilterToggle
         ref={audioToggleRef}
@@ -78,6 +142,24 @@ const LibraryHeaderComponent = ({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioToggleRef, onToggleAudioFilter]);
+
+  const scenarioOptions = useMemo<FilterOption[]>(
+    () => [
+      { value: null, label: t('library.all_scenarios') },
+      ...scenarioCards.map((card) => ({
+        value: card.id,
+        label: `${card.icon ? `${card.icon} ` : ''}${card.name}`,
+      })),
+    ],
+    [scenarioCards, t]
+  );
+
+  const selectedScenarioLabel = selectedScenarioId
+    ? scenarioCards.find((c) => c.id === selectedScenarioId)?.name || t('library.all_scenarios')
+    : t('library.all_scenarios');
+  const selectedAgeLabel = ageOptions.find((option) => option.value === selectedAgeGroup)?.label ?? t('library.all_ages');
+  const selectedReadingTimeLabel =
+    readingTimeOptions.find((option) => option.value === selectedReadingTime)?.label ?? t('library.all_reading_times');
   
   return (
     <View style={styles.header}>
@@ -85,46 +167,45 @@ const LibraryHeaderComponent = ({
         {audioFilterElement}
         
         {scenarioCards.length > 0 && onScenarioChange && (
-          <View style={styles.scenarioWrapper}>
-            <TouchableOpacity
-              style={styles.scenarioButton}
-              onPress={() => setDropdownOpen(prev => !prev)}
-            >
-              <Text style={styles.scenarioButtonText} numberOfLines={1}>
-                {selectedScenarioId
-                  ? scenarioCards.find(c => c.id === selectedScenarioId)?.name || t('library.all_scenarios')
-                  : t('library.all_scenarios')}
-              </Text>
-              <Ionicons
-                name={dropdownOpen ? 'chevron-up' : 'chevron-down'}
-                size={14}
-                color={theme.colors.text.tertiary}
-              />
-            </TouchableOpacity>
-            {dropdownOpen && (
-              <View style={styles.scenarioMenu}>
-                <TouchableOpacity
-                  style={[styles.scenarioItem, !selectedScenarioId && styles.scenarioItemActive]}
-                  onPress={() => { onScenarioChange(null); setDropdownOpen(false); }}
-                >
-                  <Text style={[styles.scenarioItemText, !selectedScenarioId && styles.scenarioItemTextActive]}>
-                    {t('library.all_scenarios')}
-                  </Text>
-                </TouchableOpacity>
-                {scenarioCards.map(card => (
-                  <TouchableOpacity
-                    key={card.id}
-                    style={[styles.scenarioItem, selectedScenarioId === card.id && styles.scenarioItemActive]}
-                    onPress={() => { onScenarioChange(card.id); setDropdownOpen(false); }}
-                  >
-                    <Text style={[styles.scenarioItemText, selectedScenarioId === card.id && styles.scenarioItemTextActive]}>
-                      {card.icon ? `${card.icon} ` : ''}{card.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
+          <FilterDropdown
+            buttonLabel={selectedScenarioLabel}
+            isOpen={openDropdown === 'scenario'}
+            onToggle={() => setOpenDropdown((prev) => (prev === 'scenario' ? null : 'scenario'))}
+            options={scenarioOptions}
+            selectedValue={selectedScenarioId}
+            onSelect={(value) => {
+              onScenarioChange(value);
+              setOpenDropdown(null);
+            }}
+          />
+        )}
+
+        {ageOptions.length > 0 && onAgeGroupChange && (
+          <FilterDropdown
+            buttonLabel={selectedAgeLabel}
+            isOpen={openDropdown === 'age'}
+            onToggle={() => setOpenDropdown((prev) => (prev === 'age' ? null : 'age'))}
+            options={ageOptions}
+            selectedValue={selectedAgeGroup}
+            onSelect={(value) => {
+              onAgeGroupChange(value);
+              setOpenDropdown(null);
+            }}
+          />
+        )}
+
+        {readingTimeOptions.length > 0 && onReadingTimeChange && (
+          <FilterDropdown
+            buttonLabel={selectedReadingTimeLabel}
+            isOpen={openDropdown === 'reading'}
+            onToggle={() => setOpenDropdown((prev) => (prev === 'reading' ? null : 'reading'))}
+            options={readingTimeOptions}
+            selectedValue={selectedReadingTime}
+            onSelect={(value) => {
+              onReadingTimeChange(value);
+              setOpenDropdown(null);
+            }}
+          />
         )}
       </View>
       
@@ -187,13 +268,6 @@ const LibraryHeaderComponent = ({
 
 // Custom comparison: ignore initialAudioFilter changes (used only for initial mount)
 const areEqual = (prevProps: Props, nextProps: Props) => {
-  console.log('[LibraryHeader] areEqual check', {
-    viewModeChanged: prevProps.viewMode !== nextProps.viewMode,
-    currentPageChanged: prevProps.currentPage !== nextProps.currentPage,
-    totalPagesChanged: prevProps.totalPages !== nextProps.totalPages,
-    initialAudioFilterChanged: prevProps.initialAudioFilter !== nextProps.initialAudioFilter,
-  });
-  
   return (
     prevProps.viewMode === nextProps.viewMode &&
     prevProps.currentPage === nextProps.currentPage &&
@@ -206,6 +280,12 @@ const areEqual = (prevProps: Props, nextProps: Props) => {
     prevProps.selectedScenarioId === nextProps.selectedScenarioId &&
     prevProps.scenarioCards === nextProps.scenarioCards &&
     prevProps.onScenarioChange === nextProps.onScenarioChange &&
+    prevProps.ageOptions === nextProps.ageOptions &&
+    prevProps.selectedAgeGroup === nextProps.selectedAgeGroup &&
+    prevProps.onAgeGroupChange === nextProps.onAgeGroupChange &&
+    prevProps.readingTimeOptions === nextProps.readingTimeOptions &&
+    prevProps.selectedReadingTime === nextProps.selectedReadingTime &&
+    prevProps.onReadingTimeChange === nextProps.onReadingTimeChange &&
     prevProps.onReportProblem === nextProps.onReportProblem
     // Intentionally skip initialAudioFilter - it's only for initial useState
   );
@@ -230,6 +310,7 @@ const styles = StyleSheet.create({
   leftControls: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: theme.spacing[3],
   },
   rightControls: {
@@ -266,11 +347,11 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.primary,
   },
-  scenarioWrapper: {
+  dropdownWrapper: {
     position: 'relative',
     zIndex: 10,
   },
-  scenarioButton: {
+  dropdownButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing[1],
@@ -281,12 +362,12 @@ const styles = StyleSheet.create({
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
   },
-  scenarioButtonText: {
+  dropdownButtonText: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.primary,
     maxWidth: 160,
   },
-  scenarioMenu: {
+  dropdownMenu: {
     position: 'absolute',
     top: '100%',
     left: 0,
@@ -309,20 +390,20 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  scenarioItem: {
+  dropdownItem: {
     paddingHorizontal: theme.spacing[3],
     paddingVertical: theme.spacing[2],
     borderBottomWidth: theme.borders.width.thin,
     borderBottomColor: theme.colors.border.light,
   },
-  scenarioItemActive: {
+  dropdownItemActive: {
     backgroundColor: theme.colors.primary[50],
   },
-  scenarioItemText: {
+  dropdownItemText: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.primary,
   },
-  scenarioItemTextActive: {
+  dropdownItemTextActive: {
     color: theme.colors.interactive.primary,
     fontWeight: theme.typography.fontWeight.semibold,
   },

@@ -489,7 +489,6 @@ export const stories = pgTable('stories', {
   scenes: jsonb('scenes').notNull(), // Array of { sceneId, text, visualPrompt, imageUrl } - DEPRECATED, use scenes table
   fullText: text('full_text').notNull(),
   wordCount: integer('word_count'),
-  estimatedReadMinutes: integer('estimated_read_minutes'),
   
   modelVersion: varchar('model_version', { length: 50 }),
   generationTimeMs: integer('generation_time_ms'),

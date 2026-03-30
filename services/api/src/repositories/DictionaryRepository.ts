@@ -20,6 +20,14 @@ export class DictionaryRepository {
       .orderBy(schema.scenarioCards.sortOrder);
   }
 
+  async findActiveAgeGroups(): Promise<schema.AgeGroup[]> {
+    return this.db
+      .select()
+      .from(schema.ageGroups)
+      .where(eq(schema.ageGroups.isActive, true))
+      .orderBy(schema.ageGroups.sortOrder);
+  }
+
   async findScenarioCardById(id: string): Promise<schema.ScenarioCard | null> {
     const [card] = await this.db
       .select()

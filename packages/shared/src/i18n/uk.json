@@ -150,7 +150,12 @@
     "show_all": "Показати всі",
     "delete_confirm_message": "Ви впевнені, що хочете видалити \"{{title}}\"? Цю дію не можна скасувати.",
     "filter_scenario": "Сценарій:",
-    "all_scenarios": "Усі сценарії"
+    "all_scenarios": "Усі сценарії",
+    "all_ages": "Будь-який вік",
+    "all_reading_times": "Будь-яка тривалість",
+    "reading_time_up_to_5": "До 5 хв",
+    "reading_time_6_10": "6-10 хв",
+    "reading_time_11_plus": "11+ хв"
   },
   "series": {
     "title": "Серії",

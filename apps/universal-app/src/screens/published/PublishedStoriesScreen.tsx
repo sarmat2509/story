@@ -22,6 +22,16 @@ import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 
 const ITEMS_PER_PAGE = 24;
+const READING_TIME_OPTIONS = [
+  { value: null, min: undefined, max: undefined },
+  { value: 'short', min: undefined, max: 5 },
+  { value: 'medium', min: 6, max: 10 },
+  { value: 'long', min: 11, max: undefined },
+] as const;
+
+function getAgeGroupTranslationKey(slug: string): string {
+  return `story.age_${slug.replace(/-/g, '_')}`;
+}
 
 export default function PublishedStoriesScreen() {
   const { t } = useTranslation();
@@ -30,11 +40,14 @@ export default function PublishedStoriesScreen() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [audioFilter, setAudioFilter] = useState(false);
   const [scenarioFilter, setScenarioFilter] = useState<string | null>(null);
+  const [ageFilter, setAgeFilter] = useState<string | null>(null);
+  const [readingTimeFilter, setReadingTimeFilter] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const audioToggleRef = useRef<AudioFilterToggleRef>(null);
 
   const { data: themesData } = useStoryThemes();
   const scenarioCards = useMemo(() => themesData?.scenarioCards || [], [themesData?.scenarioCards]);
+  const ageGroups = useMemo(() => themesData?.ageGroups || [], [themesData?.ageGroups]);
 
   useEffect(() => {
     storage.getLibraryViewMode().then((mode) => {
@@ -68,13 +81,49 @@ export default function PublishedStoriesScreen() {
     setCurrentPage(1);
   }, []);
 
+  const handleAgeFilterChange = useCallback((ageGroup: string | null) => {
+    setAgeFilter(ageGroup);
+    setCurrentPage(1);
+  }, []);
+
+  const handleReadingTimeFilterChange = useCallback((value: string | null) => {
+    setReadingTimeFilter(value);
+    setCurrentPage(1);
+  }, []);
+
   const offset = useMemo(() => (currentPage - 1) * ITEMS_PER_PAGE, [currentPage]);
+  const selectedReadingRange = useMemo(
+    () => READING_TIME_OPTIONS.find((option) => option.value === readingTimeFilter) ?? READING_TIME_OPTIONS[0],
+    [readingTimeFilter]
+  );
+  const ageOptions = useMemo(
+    () => [
+      { value: null, label: t('library.all_ages') },
+      ...ageGroups.map((ageGroup) => ({
+        value: ageGroup.slug,
+        label: t(getAgeGroupTranslationKey(ageGroup.slug), { defaultValue: ageGroup.slug }),
+      })),
+    ],
+    [ageGroups, t]
+  );
+  const readingTimeOptions = useMemo(
+    () => [
+      { value: null, label: t('library.all_reading_times') },
+      { value: 'short', label: t('library.reading_time_up_to_5') },
+      { value: 'medium', label: t('library.reading_time_6_10') },
+      { value: 'long', label: t('library.reading_time_11_plus') },
+    ],
+    [t]
+  );
 
   const { data, isLoading, error } = usePublishedStories({
     limit: ITEMS_PER_PAGE,
     offset,
     hasAudio: audioFilter,
     scenarioCardId: scenarioFilter,
+    ageGroup: ageFilter,
+    readingTimeMin: selectedReadingRange.min,
+    readingTimeMax: selectedReadingRange.max,
   });
 
   const stories = data?.stories ?? [];
@@ -128,6 +177,12 @@ export default function PublishedStoriesScreen() {
         scenarioCards={scenarioCards.map((c) => ({ id: c.id, name: c.name, icon: c.icon }))}
         selectedScenarioId={scenarioFilter}
         onScenarioChange={handleScenarioFilterChange}
+        ageOptions={ageOptions}
+        selectedAgeGroup={ageFilter}
+        onAgeGroupChange={handleAgeFilterChange}
+        readingTimeOptions={readingTimeOptions}
+        selectedReadingTime={readingTimeFilter}
+        onReadingTimeChange={handleReadingTimeFilterChange}
       />
 
       {!stories.length ? (
