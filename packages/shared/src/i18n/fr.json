@@ -111,7 +111,12 @@
     "show_all": "Tout afficher",
     "delete_confirm_message": "Êtes-vous sûr de vouloir supprimer \"{{title}}\"? Cette action est irréversible.",
     "filter_scenario": "Scénario :",
-    "all_scenarios": "Tous les scénarios"
+    "all_scenarios": "Tous les scénarios",
+    "all_ages": "Tous les âges",
+    "all_reading_times": "Toute durée",
+    "reading_time_up_to_5": "Jusqu'à 5 min",
+    "reading_time_6_10": "6-10 min",
+    "reading_time_11_plus": "11+ min"
   },
   "series": {
     "title": "Séries",

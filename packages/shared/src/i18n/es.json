@@ -111,7 +111,12 @@
     "show_all": "Mostrar todos",
     "delete_confirm_message": "¿Estás seguro de que quieres eliminar \"{{title}}\"? Esta acción no se puede deshacer.",
     "filter_scenario": "Escenario:",
-    "all_scenarios": "Todos los escenarios"
+    "all_scenarios": "Todos los escenarios",
+    "all_ages": "Todas las edades",
+    "all_reading_times": "Cualquier duración",
+    "reading_time_up_to_5": "Hasta 5 min",
+    "reading_time_6_10": "6-10 min",
+    "reading_time_11_plus": "11+ min"
   },
   "series": {
     "title": "Series",
