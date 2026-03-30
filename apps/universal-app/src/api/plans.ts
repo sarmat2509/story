@@ -4,6 +4,7 @@ import {
   PlanAuthenticatedApi 
 } from '@wondertales/shared';
 import apiClient from './client';
+import i18n from '@/config/i18n';
 
 // Use shared types - renamed for clarity
 type PlanPublic = PlanPublicApi;
@@ -11,11 +12,14 @@ type PlanAuthenticated = PlanAuthenticatedApi;
 
 // Get plans with features (public, works for all users)
 export const usePlans = () => {
+  const locale = i18n.language || 'uk';
+
   return useQuery({
-    queryKey: ['plans'],
+    queryKey: ['plans', locale],
     queryFn: async () => {
       const response = await apiClient.get<{ status: string; plans: PlanPublic[] }>(
-        '/api/v1/plans'
+        '/api/v1/plans',
+        { params: { locale } }
       );
       return response.data.plans;
     },
@@ -46,14 +50,16 @@ export const useSubscriptionUsage = () => {
 
 // Get plans with current plan info (authenticated only)
 export const usePlansWithAuth = () => {
+  const locale = i18n.language || 'uk';
+
   return useQuery({
-    queryKey: ['plans', 'with-auth'],
+    queryKey: ['plans', 'with-auth', locale],
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
         plans: PlanAuthenticated[];
         enableRealPayments?: boolean;
-      }>('/api/v1/plans/with-features');
+      }>('/api/v1/plans/with-features', { params: { locale } });
       return {
         plans: response.data.plans,
         enableRealPayments: response.data.enableRealPayments ?? false,

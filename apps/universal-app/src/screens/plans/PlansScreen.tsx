@@ -129,7 +129,7 @@ export default function PlansScreen() {
     const symbol = currency === 'UAH' ? '₴' : currency === 'USD' ? '$' : '€';
     return `${symbol}${amount.toFixed(currency === 'USD' ? 2 : 0)}`;
   };
-  
+
   // Helper to render feature value
   const renderFeatureValue = (feature: any) => {
     const value = feature.value;
