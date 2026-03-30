@@ -104,6 +104,44 @@ run_migrations_in_container() {
   fi
 }
 
+sync_nginx_config() {
+  print_step "Syncing nginx config to droplet..."
+
+  local nginx_tarball="/tmp/kazka-nginx-config.tar.gz"
+
+  COPYFILE_DISABLE=1 tar -czf "${nginx_tarball}" \
+    docker-compose.prod.yml \
+    nginx/nginx.conf \
+    nginx/conf.d \
+    nginx/includes \
+    apps/universal-app/nginx.conf
+
+  ssh_droplet "mkdir -p ${DROPLET_PATH}/nginx/conf.d ${DROPLET_PATH}/nginx/includes ${DROPLET_PATH}/apps/universal-app"
+  scp -o ControlPath=${SSH_CONTROL_PATH} "${nginx_tarball}" ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/
+  rm -f "${nginx_tarball}"
+
+  ssh_droplet << EOF
+cd ${DROPLET_PATH}
+tar -xzf kazka-nginx-config.tar.gz
+rm -f kazka-nginx-config.tar.gz
+EOF
+
+  echo "🔍 Validating nginx config in temporary nginx container..."
+  ssh_droplet "docker run --rm \
+    --add-host api:127.0.0.1 \
+    --add-host webapp:127.0.0.1 \
+    -v ${DROPLET_PATH}/nginx/nginx.conf:/etc/nginx/nginx.conf:ro \
+    -v ${DROPLET_PATH}/nginx/conf.d:/etc/nginx/conf.d:ro \
+    -v ${DROPLET_PATH}/nginx/includes:/etc/nginx/includes:ro \
+    -v ${DROPLET_PATH}/certbot/conf:/etc/letsencrypt:ro \
+    -v ${DROPLET_PATH}/certbot/www:/var/www/certbot:ro \
+    nginx:alpine nginx -t"
+
+  echo "🔄 Recreating nginx with latest compose + config..."
+  ssh_droplet "cd ${DROPLET_PATH} && docker compose -f docker-compose.prod.yml up -d --force-recreate nginx"
+  echo "✅ Nginx config synced"
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 1: Run pending migrations on droplet
 # ─────────────────────────────────────────────────────────────────────────────
@@ -145,10 +183,10 @@ cd ${DROPLET_PATH}
 docker load < ${API_IMAGE}.tar.gz
 rm -f ${API_IMAGE}.tar.gz
 docker compose -f docker-compose.prod.yml up -d api
-docker compose -f docker-compose.prod.yml restart nginx
 EOF
 
   rm -f /tmp/${API_IMAGE}.tar.gz
+  sync_nginx_config
   echo "✅ API deployed"
 }
 
@@ -226,9 +264,9 @@ if [ -e dist ]; then
   ln -sfn apps/universal-app/dist dist
 fi
 docker compose -f docker-compose.prod.yml restart webapp
-docker compose -f docker-compose.prod.yml restart nginx
 EOF
 
+  sync_nginx_config
   echo "✅ Webapp deployed"
 }
 
