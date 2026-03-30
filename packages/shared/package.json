@@ -6,8 +6,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "build:fast": "esbuild src/index.ts --bundle --platform=node --outfile=dist/index.js --external:zod --external:i18next --minify && tsc --emitDeclarationOnly --declaration",
+    "build": "tsc && pnpm run copy:i18n",
+    "build:fast": "esbuild src/index.ts --bundle --platform=node --outfile=dist/index.js --external:zod --external:i18next --minify && tsc --emitDeclarationOnly --declaration && pnpm run copy:i18n",
+    "copy:i18n": "mkdir -p dist/i18n && cp src/i18n/*.json dist/i18n/",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist"
   },
@@ -24,11 +25,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./i18n/uk.json": "./src/i18n/uk.json",
-    "./i18n/ru.json": "./src/i18n/ru.json",
-    "./i18n/en.json": "./src/i18n/en.json",
-    "./i18n/es.json": "./src/i18n/es.json",
-    "./i18n/fr.json": "./src/i18n/fr.json",
-    "./i18n/de.json": "./src/i18n/de.json"
+    "./i18n/uk.json": "./dist/i18n/uk.json",
+    "./i18n/ru.json": "./dist/i18n/ru.json",
+    "./i18n/en.json": "./dist/i18n/en.json",
+    "./i18n/es.json": "./dist/i18n/es.json",
+    "./i18n/fr.json": "./dist/i18n/fr.json",
+    "./i18n/de.json": "./dist/i18n/de.json"
   }
 }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,16 @@ export default function LandingScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { t } = useTranslation();
   const { isAuthenticated } = useAuthStore();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigation.navigate('Dashboard');
+    }
+  }, [isAuthenticated, navigation]);
+
+  if (isAuthenticated) {
+    return null;
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>

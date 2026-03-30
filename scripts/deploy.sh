@@ -7,7 +7,7 @@
 #   ./scripts/deploy.sh --web    # Webapp only
 #   ./scripts/deploy.sh --migrate  # Migrations only (no rebuild/redeploy)
 
-set -e
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -22,12 +22,39 @@ API_TAG="latest"
 # SSH multiplexing: single connection + passphrase prompt for the whole script
 SSH_CONTROL_PATH="/tmp/deploy-ssh-ctl-$$"
 SSH_OPTS="-o ControlMaster=auto -o ControlPath=${SSH_CONTROL_PATH} -o ControlPersist=60"
+CURRENT_STEP="bootstrap"
+LAST_REMOTE_COMMAND=""
+
+cleanup() {
+  ssh -O exit -o ControlPath=${SSH_CONTROL_PATH} ${DROPLET_USER}@${DROPLET_IP} 2>/dev/null || true
+}
+
+on_error() {
+  local exit_code=$?
+  local line_no=$1
+  local command=$2
+
+  echo ""
+  echo "❌ Deployment failed"
+  echo "   step: ${CURRENT_STEP}"
+  echo "   line: ${line_no}"
+  echo "   command: ${command}"
+  if [[ -n "${LAST_REMOTE_COMMAND}" ]]; then
+    echo "   last remote command: ${LAST_REMOTE_COMMAND}"
+  fi
+  echo "   exit code: ${exit_code}"
+  echo ""
+  echo "💡 Tip: rerun the failing remote command manually over SSH to inspect it in isolation."
+
+  exit "${exit_code}"
+}
 
 # Open master connection once (triggers passphrase prompt if needed)
 ssh $SSH_OPTS -o BatchMode=no "${DROPLET_USER}@${DROPLET_IP}" true
 
 # Cleanup master connection on exit
-trap "ssh -O exit -o ControlPath=${SSH_CONTROL_PATH} ${DROPLET_USER}@${DROPLET_IP} 2>/dev/null || true" EXIT
+trap cleanup EXIT
+trap 'on_error "${LINENO}" "${BASH_COMMAND}"' ERR
 
 # Parse flags
 DEPLOY_API=false
@@ -58,10 +85,23 @@ print_step() {
   echo "═══════════════════════════════════════════════"
   echo "  $1"
   echo "═══════════════════════════════════════════════"
+  CURRENT_STEP="$1"
 }
 
 ssh_droplet() {
+  LAST_REMOTE_COMMAND="$*"
   ssh $SSH_OPTS "${DROPLET_USER}@${DROPLET_IP}" "$@"
+}
+
+run_migrations_in_container() {
+  local remote_cmd="cd ${DROPLET_PATH} && docker exec wondertales-api-prod sh -c 'cd /app/services/api && npx tsx src/scripts/runAllMigrations.ts'"
+
+  echo "🔄 Running migrations inside API container..."
+  if ! ssh_droplet "${remote_cmd}"; then
+    echo "❌ Migration command failed. Collecting diagnostics..."
+    ssh_droplet "cd ${DROPLET_PATH} && docker compose -f docker-compose.prod.yml ps && echo '--- API logs (tail 120) ---' && docker compose -f docker-compose.prod.yml logs api --tail 120" || true
+    return 1
+  fi
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -76,7 +116,7 @@ run_migrations() {
     return 0
   fi
 
-  ssh_droplet "cd ${DROPLET_PATH} && docker exec wondertales-api-prod npx tsx src/scripts/runAllMigrations.ts"
+  run_migrations_in_container
   echo "✅ Migrations done"
 }
 
@@ -119,21 +159,27 @@ run_migrations_post_deploy() {
   print_step "Running pending migrations (post-deploy)..."
 
   echo "⏳ Waiting for API container to be healthy..."
+  local status=""
   for i in $(seq 1 20); do
-    STATUS=$(ssh_droplet "docker inspect --format='{{.State.Health.Status}}' wondertales-api-prod 2>/dev/null || docker inspect --format='{{.State.Status}}' wondertales-api-prod 2>/dev/null || echo unknown" | tr -d '[:space:]')
-    echo "   Waiting... ($i/20) status: $STATUS"
-    if [[ "$STATUS" == "healthy" ]]; then
+    status=$(ssh_droplet "docker inspect --format='{{.State.Health.Status}}' wondertales-api-prod 2>/dev/null || docker inspect --format='{{.State.Status}}' wondertales-api-prod 2>/dev/null || echo unknown" | tr -d '[:space:]')
+    echo "   Waiting... ($i/20) status: $status"
+    if [[ "$status" == "healthy" ]]; then
       echo "   Container is healthy"
       break
     fi
-    if [[ "$STATUS" == "running" && $i -gt 5 ]]; then
+    if [[ "$status" == "running" && $i -gt 5 ]]; then
       echo "   Container is running (no healthcheck)"
       break
     fi
     sleep 3
   done
 
-  ssh_droplet "cd ${DROPLET_PATH} && docker exec wondertales-api-prod npx tsx src/scripts/runAllMigrations.ts"
+  if [[ "$status" != "healthy" && "$status" != "running" ]]; then
+    echo "❌ API container is not ready for migrations (status: ${status:-unknown})"
+    exit 1
+  fi
+
+  run_migrations_in_container
   echo "✅ Migrations done"
 }
 
