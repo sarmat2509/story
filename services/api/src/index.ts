@@ -17,6 +17,7 @@ import storiesRoutes from './routes/stories';
 import imageValidationsRoutes from './routes/imageValidations';
 import adminRoutes from './routes/admin';
 import publicStoriesRoutes from './routes/publicStories';
+import publicAuthorsRoutes from './routes/publicAuthors';
 import publicUnlistedRoutes from './routes/publicUnlisted';
 import meStoriesRoutes from './routes/meStories';
 import ssrStoriesRoutes from './routes/ssrStories';
@@ -118,6 +119,7 @@ app.use('/api/v1/stories', apiLimiter, storiesRoutes); // M3: story generation
 app.use('/api/v1/image-validations', apiLimiter, imageValidationsRoutes);
 app.use('/api/v1/admin', apiLimiter, adminRoutes);
 app.use('/api/v1/public/stories', apiLimiter, publicStoriesRoutes); // Public catalog + single story
+app.use('/api/v1/public/authors', apiLimiter, publicAuthorsRoutes); // Public author pages
 app.use('/api/v1/public/u', apiLimiter, publicUnlistedRoutes); // Unlisted by token
 app.use('/ssr/stories', ssrStoriesRoutes); // SSR HTML (no auth, cached)
 app.use('/ssr/u', ssrUnlistedRoutes); // SSR for unlisted

@@ -140,7 +140,12 @@
     "show_all": "Показать все",
     "delete_confirm_message": "Вы уверены, что хотите удалить \"{{title}}\"? Это действие нельзя отменить.",
     "filter_scenario": "Сценарий:",
-    "all_scenarios": "Все сценарии"
+    "all_scenarios": "Все сценарии",
+    "all_ages": "Все возрасты",
+    "all_reading_times": "Любое время чтения",
+    "reading_time_up_to_5": "До 5 мин",
+    "reading_time_6_10": "6-10 мин",
+    "reading_time_11_plus": "11+ мин"
   },
   "series": {
     "title": "Серии",
@@ -708,7 +713,14 @@
     "logout": "Выйти",
     "logout_confirm_title": "Выйти из аккаунта?",
     "logout_confirm_message": "Вы уверены, что хотите выйти?",
-    "cancel": "Отменить"
+    "cancel": "Отменить",
+    "about_me": "О себе",
+    "about_me_placeholder": "Коротко расскажите о себе как об авторе",
+    "author_label": "Автор",
+    "author_not_found": "Автор не найден",
+    "author_story_count": "{{count}} опубликованных историй",
+    "author_published_stories": "Истории автора",
+    "author_no_stories": "У этого автора пока нет опубликованных историй"
   },
   "feedback": {
     "title": "Сообщить о проблеме",

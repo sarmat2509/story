@@ -25,7 +25,9 @@ export default function ProfileScreen() {
   const enableRealPayments = plansData && 'enableRealPayments' in plansData ? plansData.enableRealPayments : false;
   const updatePseudonym = useUpdateMe();
   const updateAvatar = useUpdateMe();
+  const updateAboutMe = useUpdateMe();
   const [pseudonym, setPseudonym] = useState(user?.pseudonym ?? '');
+  const [aboutMe, setAboutMe] = useState(user?.aboutMe ?? '');
   const [isAvatarBusy, setIsAvatarBusy] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -33,6 +35,10 @@ export default function ProfileScreen() {
   useEffect(() => {
     setPseudonym(user?.pseudonym ?? '');
   }, [user?.pseudonym]);
+
+  useEffect(() => {
+    setAboutMe(user?.aboutMe ?? '');
+  }, [user?.aboutMe]);
 
   // Get current subscription plan
   const currentPlan = plans?.find(plan => plan.isCurrent);
@@ -244,6 +250,31 @@ export default function ProfileScreen() {
               disabled={updatePseudonym.isPending}
             >
               {updatePseudonym.isPending ? (
+                <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+              ) : (
+                <Text style={styles.savePseudonymText}>{t('common.save')}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>{t('profile.about_me')}</Text>
+            <TextInput
+              style={[styles.pseudonymInput, styles.aboutMeInput]}
+              value={aboutMe}
+              onChangeText={setAboutMe}
+              placeholder={t('profile.about_me_placeholder')}
+              placeholderTextColor={theme.colors.text.tertiary}
+              maxLength={1000}
+              multiline
+              textAlignVertical="top"
+            />
+            <TouchableOpacity
+              style={styles.savePseudonymButton}
+              onPress={() => updateAboutMe.mutate({ aboutMe: aboutMe.trim() || null })}
+              disabled={updateAboutMe.isPending}
+            >
+              {updateAboutMe.isPending ? (
                 <ActivityIndicator size="small" color={theme.colors.text.inverse} />
               ) : (
                 <Text style={styles.savePseudonymText}>{t('common.save')}</Text>
@@ -566,6 +597,10 @@ const styles = StyleSheet.create({
   settingText: {
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.primary,
+  },
+  aboutMeInput: {
+    minHeight: 120,
+    paddingTop: theme.spacing[3],
   },
   settingValue: {
     fontSize: theme.typography.fontSize.sm,

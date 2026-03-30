@@ -15,6 +15,7 @@ const updateUserSchema = z.object({
   preferredLocale: z.string().optional(),
   mode: z.enum(['instant', 'artisan']).optional(),
   pseudonym: z.string().max(100).nullable().optional(),
+  aboutMe: z.string().max(1000).nullable().optional(),
 });
 
 // Get current user
@@ -50,7 +51,7 @@ router.patch('/', requireAuth, async (req: Request, res: Response) => {
       return;
     }
     
-    const { displayName, avatarUrl, preferredLocale, mode, pseudonym } = validationResult.data;
+    const { displayName, avatarUrl, preferredLocale, mode, pseudonym, aboutMe } = validationResult.data;
     
     const updatedUser = await updateUser(req.user!.id, {
       displayName,
@@ -58,9 +59,10 @@ router.patch('/', requireAuth, async (req: Request, res: Response) => {
       preferredLocale,
       mode,
       pseudonym,
+      aboutMe,
     });
     
-    logger.info({ userId: req.user!.id, updates: { displayName, avatarUrl, preferredLocale, mode, pseudonym } }, 'User profile updated');
+    logger.info({ userId: req.user!.id, updates: { displayName, avatarUrl, preferredLocale, mode, pseudonym, aboutMe } }, 'User profile updated');
     
     res.json({
       status: 'success',

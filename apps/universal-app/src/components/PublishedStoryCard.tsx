@@ -10,7 +10,9 @@ export interface PublicStoryListItem {
   id: string;
   title: string;
   publishedSlug: string;
+  authorId?: string;
   authorDisplayName: string;
+  authorAvatarUrl?: string | null;
   scenes?: Array<{ sceneId: number; imageUrl?: string | null }>;
   hasAudio?: boolean;
   audioMetadata?: StoryAudioMetadata | null;

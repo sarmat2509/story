@@ -84,6 +84,7 @@ const linking: any = {
           StoryRedirect: 'story/:storyId',
           Stories: 'stories',
           PublishedStory: 'stories/:slug',
+          AuthorProfile: 'authors/:authorId',
           UnlistedStory: 'u/:token',
           Children: 'children',
           Characters: 'characters',

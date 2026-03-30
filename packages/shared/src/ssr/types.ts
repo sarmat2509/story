@@ -14,6 +14,11 @@ export interface StoryPublicView {
     text: string;
     imageUrl?: string | null;
   }>;
+  author?: {
+    id: string;
+    displayName: string;
+    avatarUrl?: string | null;
+  };
   authorDisplayName: string;
   publishedAt: string | null;
   audio?: {
@@ -28,6 +33,13 @@ export interface StoryPublicView {
   publicRenderVersion: number;
   /** Present when count > 0 */
   rating?: { avg: number; count: number };
+}
+
+export interface PublicAuthorView {
+  id: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  aboutMe?: string | null;
 }
 
 export interface StoryMetaParams {

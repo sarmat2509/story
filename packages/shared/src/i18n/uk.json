@@ -915,7 +915,14 @@
     "logout_confirm_title": "Вийти з акаунту?",
     "logout_confirm_message": "Ви впевнені, що хочете вийти?",
     "cancel": "Скасувати",
-    "pseudonym": "Псевдоним (для публікацій)"
+    "pseudonym": "Псевдоним (для публікацій)",
+    "about_me": "Про себе",
+    "about_me_placeholder": "Коротко розкажіть про себе як автора",
+    "author_label": "Автор",
+    "author_not_found": "Автора не знайдено",
+    "author_story_count": "{{count}} опублікованих історій",
+    "author_published_stories": "Історії автора",
+    "author_no_stories": "У цього автора ще немає опублікованих історій"
   },
   "feedback": {
     "title": "Повідомити про проблему",

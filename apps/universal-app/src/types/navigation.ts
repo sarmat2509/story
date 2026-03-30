@@ -35,6 +35,7 @@ export type MainDrawerParamList = {
   StoryRedirect: { storyId: string };
   Stories: undefined;
   PublishedStory: { slug: string };
+  AuthorProfile: { authorId: string };
   UnlistedStory: { token: string };
   Children: undefined;
   Characters: undefined;

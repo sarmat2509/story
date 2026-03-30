@@ -10,7 +10,7 @@ import {
   Platform,
   type ImageStyle,
 } from 'react-native';
-import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
+import { useRoute, useNavigation, RouteProp, type NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { usePublicStory, usePublicStoryByToken } from '@/api/stories';
 import { useAuthStore } from '@/store/authStore';
@@ -45,7 +45,7 @@ export default function PublishedStoryScreen() {
   const slug = (route.params as any)?.slug ?? '';
   const token = (route.params as any)?.token ?? '';
   const useDesktopLayout = isDesktop || isTabletLandscape;
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
 
   const publicQuery = usePublicStory(slug, !!slug && !token);
   const tokenQuery = usePublicStoryByToken(token, !!token);
@@ -199,16 +199,40 @@ export default function PublishedStoryScreen() {
     : '';
 
   const isOwner = !!(story as any)?.isOwner;
+  const authorAvatarUrl = formatAssetUrl((story as any)?.author?.avatarUrl) ?? (story as any)?.author?.avatarUrl ?? null;
+  const authorInitial = (story.authorDisplayName || 'A').trim().charAt(0).toUpperCase();
+  const authorId = (story as any)?.author?.id as string | undefined;
+  const handleAuthorPress = useCallback(() => {
+    if (!authorId) return;
+    navigation.navigate('AuthorProfile', { authorId });
+  }, [authorId, navigation]);
 
   const renderMainContent = () => (
     <>
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <View style={styles.headerText}>
-            <Text style={styles.meta}>
-              {story.authorDisplayName || 'Anonymous'} · {publishedAt}
-            </Text>
-          </View>
+          <TouchableOpacity
+            style={[styles.authorCard, !authorId && styles.authorCardDisabled]}
+            onPress={handleAuthorPress}
+            disabled={!authorId}
+            activeOpacity={0.85}
+          >
+            <View style={styles.authorAvatar}>
+              {authorAvatarUrl ? (
+                <Image source={{ uri: authorAvatarUrl }} style={styles.authorAvatarImage as ImageStyle} />
+              ) : (
+                <Text style={styles.authorAvatarFallback}>{authorInitial}</Text>
+              )}
+            </View>
+            <View style={styles.headerText}>
+              <Text style={styles.authorLabel}>{t('profile.author_label')}</Text>
+              <Text style={styles.authorName}>{story.authorDisplayName || 'Anonymous'}</Text>
+              <Text style={styles.meta}>{publishedAt}</Text>
+            </View>
+            {authorId ? (
+              <Ionicons name="chevron-forward" size={18} color={theme.colors.text.tertiary} />
+            ) : null}
+          </TouchableOpacity>
           {useDesktopLayout ? null : isAuthenticated && isOwner && (
             <TouchableOpacity
               style={styles.editButton}
@@ -463,8 +487,52 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: theme.spacing[4],
   },
+  authorCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    padding: theme.spacing[3],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  authorCardDisabled: {
+    opacity: 0.88,
+  },
+  authorAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.background.tertiary,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  authorAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  authorAvatarFallback: {
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.secondary,
+  },
   headerText: {
     flex: 1,
+  },
+  authorLabel: {
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.interactive.primary,
+    fontWeight: theme.typography.fontWeight.semibold,
+    marginBottom: 2,
+  },
+  authorName: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    marginBottom: 2,
   },
   editButton: {
     flexDirection: 'row',
@@ -485,7 +553,6 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
-    marginBottom: theme.spacing[4],
   },
   audioWidget: {
     backgroundColor: theme.colors.background.secondary,

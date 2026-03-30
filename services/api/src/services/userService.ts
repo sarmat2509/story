@@ -15,6 +15,7 @@ export interface UpdateUserInput {
   preferredLocale?: string;
   mode?: 'instant' | 'artisan';
   pseudonym?: string | null;
+  aboutMe?: string | null;
 }
 
 export interface UserWithOAuth extends User {

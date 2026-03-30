@@ -25,6 +25,7 @@ import SeriesDetailScreen from '@/screens/series/SeriesDetailScreen';
 import LegacyRedirectScreen from '@/screens/LegacyRedirectScreen';
 import StoryReaderScreen from '@/screens/StoryReaderScreen';
 import PublishedStoriesScreen from '@/screens/published/PublishedStoriesScreen';
+import AuthorProfileScreen from '@/screens/published/AuthorProfileScreen';
 import ChildrenScreen from '@/screens/children/ChildrenScreen';
 import CharactersScreen from '@/screens/characters/CharactersScreen';
 import PlansScreen from '@/screens/plans/PlansScreen';
@@ -495,6 +496,14 @@ function TabNavigator() {
           tabBarButton: () => null,
         }}
       />
+      <Tab.Screen
+        name="AuthorProfile"
+        component={AuthorProfileScreen}
+        options={{
+          title: 'Author',
+          tabBarButton: () => null,
+        }}
+      />
       <Tab.Screen 
         name="UnlistedStory" 
         component={StoryReaderScreen}
@@ -766,6 +775,14 @@ function DrawerNavigator() {
         component={StoryReaderScreen}
         options={{ 
           title: 'Story',
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
+      <Drawer.Screen
+        name="AuthorProfile"
+        component={AuthorProfileScreen}
+        options={{
+          title: 'Author',
           drawerItemStyle: { display: 'none' },
         }}
       />

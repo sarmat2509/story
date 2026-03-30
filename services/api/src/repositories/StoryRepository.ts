@@ -100,6 +100,7 @@ export class StoryRepository {
     ageGroup?: string;
     readingTimeMin?: number;
     readingTimeMax?: number;
+    authorId?: string;
     showOnHomePage?: boolean;
   } = {}): Promise<schema.Story[]> {
     const {
@@ -110,6 +111,7 @@ export class StoryRepository {
       ageGroup,
       readingTimeMin,
       readingTimeMax,
+      authorId,
       showOnHomePage,
     } = options;
     const conditions = [
@@ -125,6 +127,9 @@ export class StoryRepository {
     }
     if (ageGroup) {
       conditions.push(eq(schema.stories.ageGroup, ageGroup));
+    }
+    if (authorId) {
+      conditions.push(eq(schema.stories.userId, authorId));
     }
     const readingTimeMinutesExpr = buildReadingTimeMinutesSql();
     if (typeof readingTimeMin === 'number') {
@@ -161,9 +166,10 @@ export class StoryRepository {
     ageGroup?: string;
     readingTimeMin?: number;
     readingTimeMax?: number;
+    authorId?: string;
     showOnHomePage?: boolean;
   } = {}): Promise<number> {
-    const { hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax, showOnHomePage } = options;
+    const { hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage } = options;
     const conditions = [
       eq(schema.stories.isPublished, true),
       isNotNull(schema.stories.publishedSlug),
@@ -177,6 +183,9 @@ export class StoryRepository {
     }
     if (ageGroup) {
       conditions.push(eq(schema.stories.ageGroup, ageGroup));
+    }
+    if (authorId) {
+      conditions.push(eq(schema.stories.userId, authorId));
     }
     const readingTimeMinutesExpr = buildReadingTimeMinutesSql();
     if (typeof readingTimeMin === 'number') {

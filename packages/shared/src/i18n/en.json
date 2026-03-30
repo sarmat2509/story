@@ -150,7 +150,12 @@
     "show_all": "Show all",
     "delete_confirm_message": "Are you sure you want to delete \"{{title}}\"? This action cannot be undone.",
     "filter_scenario": "Scenario:",
-    "all_scenarios": "All scenarios"
+    "all_scenarios": "All scenarios",
+    "all_ages": "All ages",
+    "all_reading_times": "Any reading time",
+    "reading_time_up_to_5": "Up to 5 min",
+    "reading_time_6_10": "6-10 min",
+    "reading_time_11_plus": "11+ min"
   },
   "series": {
     "title": "Series",
@@ -731,7 +736,14 @@
     "logout": "Logout",
     "logout_confirm_title": "Logout?",
     "logout_confirm_message": "Are you sure you want to logout?",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "about_me": "About me",
+    "about_me_placeholder": "Tell readers a little about yourself as an author",
+    "author_label": "Author",
+    "author_not_found": "Author not found",
+    "author_story_count": "{{count}} published stories",
+    "author_published_stories": "Stories by this author",
+    "author_no_stories": "This author has no published stories yet"
   },
   "feedback": {
     "title": "Report a problem",

@@ -133,7 +133,7 @@ export const useUpdateMe = () => {
   const { setUser } = useAuthStore();
 
   return useMutation({
-    mutationFn: async (data: { displayName?: string; avatarUrl?: string | null; preferredLocale?: string; mode?: string; pseudonym?: string | null }) => {
+    mutationFn: async (data: { displayName?: string; avatarUrl?: string | null; preferredLocale?: string; mode?: string; pseudonym?: string | null; aboutMe?: string | null }) => {
       const response = await apiClient.patch<{ status: string; user: User }>('/api/v1/me', data);
       return response.data.user;
     },

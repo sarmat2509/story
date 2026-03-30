@@ -7,6 +7,7 @@ export const users = pgTable('users', {
   passwordHash: varchar('password_hash', { length: 255 }),
   displayName: varchar('display_name', { length: 255 }),
   pseudonym: varchar('pseudonym', { length: 100 }),
+  aboutMe: text('about_me'),
   avatarUrl: text('avatar_url'),
   preferredLocale: varchar('preferred_locale', { length: 5 }).default('uk').notNull(),
   mode: varchar('mode', { length: 20 }).default('instant').notNull(), // 'instant' | 'artisan'

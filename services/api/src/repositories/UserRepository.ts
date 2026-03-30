@@ -1,4 +1,4 @@
-import { desc, eq, ilike, sql } from 'drizzle-orm';
+import { desc, eq, ilike, inArray, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -43,7 +43,7 @@ export class UserRepository {
 
   async update(
     id: string,
-    data: Partial<Pick<schema.NewUser, 'displayName' | 'avatarUrl' | 'preferredLocale' | 'mode' | 'pseudonym' | 'passwordHash' | 'stripeCustomerId'>>
+    data: Partial<Pick<schema.NewUser, 'displayName' | 'avatarUrl' | 'preferredLocale' | 'mode' | 'pseudonym' | 'aboutMe' | 'passwordHash' | 'stripeCustomerId'>>
   ): Promise<schema.User> {
     const [user] = await this.db
       .update(schema.users)
@@ -51,6 +51,35 @@ export class UserRepository {
       .where(eq(schema.users.id, id))
       .returning();
     return user;
+  }
+
+  async findPublicAuthorById(id: string): Promise<Pick<schema.User, 'id' | 'displayName' | 'pseudonym' | 'aboutMe' | 'avatarUrl'> | null> {
+    const [user] = await this.db
+      .select({
+        id: schema.users.id,
+        displayName: schema.users.displayName,
+        pseudonym: schema.users.pseudonym,
+        aboutMe: schema.users.aboutMe,
+        avatarUrl: schema.users.avatarUrl,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, id))
+      .limit(1);
+    return user || null;
+  }
+
+  async findPublicAuthorsByIds(ids: string[]): Promise<Array<Pick<schema.User, 'id' | 'displayName' | 'pseudonym' | 'aboutMe' | 'avatarUrl'>>> {
+    if (ids.length === 0) return [];
+    return this.db
+      .select({
+        id: schema.users.id,
+        displayName: schema.users.displayName,
+        pseudonym: schema.users.pseudonym,
+        aboutMe: schema.users.aboutMe,
+        avatarUrl: schema.users.avatarUrl,
+      })
+      .from(schema.users)
+      .where(inArray(schema.users.id, ids));
   }
 
   async updateRole(id: string, role: 'user' | 'admin'): Promise<schema.User> {

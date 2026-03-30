@@ -500,6 +500,28 @@ export function usePublishedStories(params?: {
   });
 }
 
+export function usePublicAuthor(authorId: string | undefined, params?: { limit?: number; offset?: number }) {
+  const { limit = 24, offset = 0 } = params ?? {};
+  return useQuery({
+    queryKey: ['public-author', authorId, limit, offset],
+    queryFn: async () => {
+      const response = await apiClient.get<{
+        status: string;
+        author: {
+          id: string;
+          displayName: string;
+          avatarUrl?: string | null;
+          aboutMe?: string | null;
+        };
+        stories: any[];
+        pagination: { limit: number; offset: number; total: number };
+      }>(`/api/v1/public/authors/${authorId}`, { params: { limit, offset } });
+      return response.data;
+    },
+    enabled: !!authorId,
+  });
+}
+
 // Get published story by slug (public). On web, may use __INITIAL_STORY__ from SSR.
 export function usePublicStory(slug: string | undefined, enabled = true) {
   const initialStoryRef = React.useRef<any>(null);

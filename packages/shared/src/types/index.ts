@@ -52,6 +52,7 @@ export interface User {
   preferred_locale: Locale;
   mode?: 'instant' | 'artisan';
   pseudonym?: string | null;
+  about_me?: string | null;
   role: 'user' | 'admin';
   created_at: string;
   updated_at: string;

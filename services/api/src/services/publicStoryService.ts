@@ -8,7 +8,7 @@ import { db } from '../db';
 import { audioAssets, assets } from '../db/schema';
 import type { Story } from '../db/schema';
 import { and, eq, desc, isNull } from 'drizzle-orm';
-import { getStoryRepository, getAlignmentRepository } from '../repositories';
+import { getStoryRepository, getAlignmentRepository, getUserRepository } from '../repositories';
 import { enrichAllStoriesWithImages } from './storyOrchestrationService';
 import { getAssetStorageService } from './assetStorageService';
 import { logger } from '../utils/logger';
@@ -16,6 +16,13 @@ import { stripAllTags } from '../utils/audioTags';
 import { config } from '../config';
 import { getReadingTimeMinutes } from '@wondertales/shared';
 import type { AlignmentData, StoryPublicView, StoryAudioMetadata } from '@wondertales/shared';
+
+interface PublicAuthorView {
+  id: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  aboutMe?: string | null;
+}
 
 async function getAudioUrlAndAlignment(storyId: string): Promise<{ url: string | null; alignment?: any; duration?: number }> {
   const [row] = await db
@@ -94,12 +101,14 @@ export async function buildStoryPublicView(
   });
 
   const metadata = (story.metadata as Record<string, unknown> | null) || {};
+  const author = await getPublicAuthorById(story.userId);
   return {
     id: story.id,
     title: story.title,
     fullText: stripAllTags(story.fullText || ''),
     ...(metadata.seoDescription && typeof metadata.seoDescription === 'string' && { seoDescription: metadata.seoDescription }),
     scenes: formattedScenes,
+    ...(author && { author }),
     authorDisplayName: story.authorDisplayName || 'Anonymous',
     publishedAt: story.publishedAt ? story.publishedAt.toISOString?.() ?? String(story.publishedAt) : null,
     audio: audioUrl
@@ -225,7 +234,9 @@ export interface PublicStoryListItem {
   title: string;
   language: string;
   ageGroup: string;
+  authorId: string;
   authorDisplayName: string;
+  authorAvatarUrl?: string | null;
   publishedAt: string | null;
   publishedSlug: string;
   scenes: Array<{ sceneId: number; text: string; imageUrl: string | null }>;
@@ -244,15 +255,18 @@ export async function listPublicStories(options: {
   ageGroup?: string;
   readingTimeMin?: number;
   readingTimeMax?: number;
+  authorId?: string;
   showOnHomePage?: boolean;
 }): Promise<{ items: PublicStoryListItem[]; total: number }> {
-  const { limit = 20, offset = 0, hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax, showOnHomePage } = options;
+  const { limit = 20, offset = 0, hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage } = options;
   const storyRepo = getStoryRepository();
-  const filterOpts = { hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax, showOnHomePage };
+  const filterOpts = { hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage };
   const [stories, total] = await Promise.all([
     storyRepo.listPublished({ limit, offset, ...filterOpts }),
     storyRepo.countPublished(filterOpts),
   ]);
+  const authors = await getUserRepository().findPublicAuthorsByIds([...new Set(stories.map((story) => story.userId))]);
+  const authorById = new Map(authors.map((author) => [author.id, author]));
 
   const enrichedScenesMap = await enrichAllStoriesWithImages(
     stories.map(s => ({ id: s.id, scenes: (s.scenes as any[]) || [] }))
@@ -282,7 +296,9 @@ export async function listPublicStories(options: {
         title: s.title,
         language: s.language,
         ageGroup: s.ageGroup,
+        authorId: s.userId,
         authorDisplayName: s.authorDisplayName || 'Anonymous',
+        authorAvatarUrl: authorById.get(s.userId)?.avatarUrl ?? null,
         publishedAt: s.publishedAt ? s.publishedAt.toISOString?.() ?? String(s.publishedAt) : null,
         publishedSlug: s.publishedSlug!,
         scenes: normalizedScenes,
@@ -295,4 +311,15 @@ export async function listPublicStories(options: {
     });
 
   return { items, total };
+}
+
+export async function getPublicAuthorById(authorId: string): Promise<PublicAuthorView | null> {
+  const author = await getUserRepository().findPublicAuthorById(authorId);
+  if (!author) return null;
+  return {
+    id: author.id,
+    displayName: author.pseudonym || author.displayName || 'Anonymous',
+    avatarUrl: author.avatarUrl ?? null,
+    aboutMe: author.aboutMe ?? null,
+  };
 }
