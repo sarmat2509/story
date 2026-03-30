@@ -28,15 +28,6 @@ export async function buildPolicyProfile(ageGroup: string, language: string): Pr
     // Fetch all content policy rules
     const policyRulesData = await policyRepo.findContentPolicyRules();
     
-    // Transform DB rows to PolicyProfile format
-    const disallowedRules = policyRulesData.map(row => ({
-      id: row.id,
-      category: row.category,
-      prohibitedElements: JSON.parse(row.prohibitedElements) as string[],
-      examples: JSON.parse(row.examples) as { forbidden: string[]; allowed: string[] },
-      severity: row.severity
-    }));
-    
     // Parse JSON fields from age rules
     const allowedConflicts = JSON.parse(ageRules.allowedConflicts) as string[];
     
@@ -44,19 +35,13 @@ export async function buildPolicyProfile(ageGroup: string, language: string): Pr
     const promptGuidelines = buildPolicyPromptSection(policyRulesData.map(row => ({
       id: row.id,
       category: row.category,
-      description: row.description,
-      prohibitedElements: JSON.parse(row.prohibitedElements) as string[],
-      examples: JSON.parse(row.examples) as { forbidden: string[]; allowed: string[] },
       promptGuidance: row.promptGuidance,
-      severity: row.severity as 'critical' | 'high' | 'medium',
       sortOrder: row.sortOrder
     }))) + `\n\nAGE-SPECIFIC (${ageGroup}): ${ageRules.additionalRules}`;
     
     const profile: PolicyProfile = {
       ageGroup,
       language,
-      disallowedRules,
-      fearLevelMax: ageRules.fearLevel,
       allowedConflicts,
       constraints: {
         mustHaveHappyEnding: true,
@@ -72,7 +57,7 @@ export async function buildPolicyProfile(ageGroup: string, language: string): Pr
     
     logger.info({ 
       ageGroup, 
-      rulesCount: disallowedRules.length,
+      rulesCount: policyRulesData.length,
       wordRange: profile.readability.targetWordsRange 
     }, 'Policy profile built successfully');
     
@@ -95,7 +80,6 @@ export async function getAgeEngineRules(ageGroup: string) {
   
   return {
     ...rules,
-    themes: JSON.parse(rules.themes) as string[],
     allowedConflicts: JSON.parse(rules.allowedConflicts) as string[],
     wordRange: [rules.wordRangeMin, rules.wordRangeMax] as [number, number]
   };

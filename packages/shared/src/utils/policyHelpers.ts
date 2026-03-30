@@ -12,16 +12,3 @@ export function buildPolicyPromptSection(rules: ContentPolicyRule[]): string {
     `${rule.category}: ${rule.promptGuidance}`
   ).join('\n\n');
 }
-
-/**
- * Filter content policy rules by minimum severity level
- * Useful for applying stricter rules to younger age groups
- */
-export function filterRulesBySeverity(
-  rules: ContentPolicyRule[], 
-  minSeverity: 'medium' | 'high' | 'critical'
-): ContentPolicyRule[] {
-  const severityOrder = { medium: 1, high: 2, critical: 3 };
-  const minLevel = severityOrder[minSeverity];
-  return rules.filter(r => severityOrder[r.severity] >= minLevel);
-}

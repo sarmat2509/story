@@ -15,14 +15,7 @@ export interface StoryGoal {
 export interface ContentPolicyRule {
   id: string;
   category: string;
-  description: string;
-  prohibitedElements: string[];
-  examples: {
-    forbidden: string[];
-    allowed: string[];
-  };
   promptGuidance: string;
-  severity: 'critical' | 'high' | 'medium';
   sortOrder: number;
 }
 
@@ -32,10 +25,7 @@ export interface AgeEngineRule {
   wordRangeMin: number;
   wordRangeMax: number;
   maxSentenceLength: number;
-  vocabulary: string;
   dialogRatio: number;
-  themes: string[];
-  fearLevel: number;
   allowedConflicts: string[];
   additionalRules: string;
 }

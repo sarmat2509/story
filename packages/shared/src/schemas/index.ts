@@ -81,7 +81,6 @@ export const PolicyProfileSchema = z.object({
   language: LocaleSchema,
   allowed_themes: z.array(StoryGoalSchema),
   disallowed: z.array(z.string()),
-  fear_level_max: z.number().int().min(0).max(3),
   moral_style: z.enum(['show_dont_tell', 'explicit']),
   constraints: z.object({
     must_have_happy_ending: z.boolean(),
@@ -370,4 +369,3 @@ export const CreateStoryRequestSchema = z.object({
 });
 
 export type CreateStoryRequestInput = z.infer<typeof CreateStoryRequestSchema>;
-
