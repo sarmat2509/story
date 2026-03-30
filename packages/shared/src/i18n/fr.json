@@ -582,40 +582,5 @@
       "ignore_notice": "Si vous n etes pas a l origine de cette demande, vous pouvez ignorer cet email en toute securite.",
       "footer": "Ceci est un email transactionnel lie a l acces a votre compte."
     }
-  },
-  "transactional_emails": {
-    "welcome": {
-      "subject": "Bienvenue sur WonderTales",
-      "preview": "Votre compte est pret et vous pouvez creer vos premieres histoires personnalisees.",
-      "greeting": "Bienvenue sur WonderTales !",
-      "intro": {
-        "password": "Votre compte a bien ete cree. Vous pouvez maintenant enregistrer des histoires, configurer des profils enfant et y revenir depuis n importe quel appareil.",
-        "google": "Votre compte a bien ete cree avec Google. Vous pouvez maintenant enregistrer des histoires, configurer des profils enfant et y revenir depuis n importe quel appareil.",
-        "apple": "Votre compte a bien ete cree avec Apple. Vous pouvez maintenant enregistrer des histoires, configurer des profils enfant et y revenir depuis n importe quel appareil."
-      },
-      "cta": "Ouvrir WonderTales",
-      "tips_title": "Bonnes prochaines etapes",
-      "tips": [
-        "Creez un profil enfant pour obtenir des histoires plus personnalisees.",
-        "Essayez de creer votre premiere histoire ou histoire audio.",
-        "Ajoutez WonderTales a vos favoris pour revenir vite a votre bibliotheque."
-      ],
-      "security_title": "Securite",
-      "security_body": {
-        "password": "Si ce n etait pas vous, reinitialisez votre mot de passe des que possible via la recuperation d acces.",
-        "google": "Si ce n etait pas vous, verifiez la securite et l activite de connexion de votre compte Google.",
-        "apple": "Si ce n etait pas vous, verifiez la securite et l activite de connexion de votre identifiant Apple."
-      },
-      "footer": "Ceci est un email transactionnel lie a la creation de votre compte."
-    },
-    "password_reset": {
-      "subject": "WonderTales - Reinitialiser le mot de passe",
-      "preview": "Utilisez ce lien securise pour definir un nouveau mot de passe pour votre compte.",
-      "intro": "Nous avons recu une demande de reinitialisation du mot de passe de votre compte WonderTales.",
-      "cta": "Reinitialiser le mot de passe",
-      "expires_notice": "Ce lien expire dans 1 heure.",
-      "ignore_notice": "Si vous n etes pas a l origine de cette demande, vous pouvez ignorer cet email en toute securite.",
-      "footer": "Ceci est un email transactionnel lie a l acces a votre compte."
-    }
   }
 }

@@ -959,40 +959,5 @@
       "ignore_notice": "If you didn't request this, you can safely ignore this email.",
       "footer": "This is a transactional email about account access."
     }
-  },
-  "transactional_emails": {
-    "welcome": {
-      "subject": "Welcome to WonderTales",
-      "preview": "Your account is ready and you can start creating personalized stories.",
-      "greeting": "Welcome to WonderTales!",
-      "intro": {
-        "password": "Your account has been created successfully. You can now save stories, set up child profiles, and come back to them from any device.",
-        "google": "Your account has been created successfully with Google. You can now save stories, set up child profiles, and come back to them from any device.",
-        "apple": "Your account has been created successfully with Apple. You can now save stories, set up child profiles, and come back to them from any device."
-      },
-      "cta": "Open WonderTales",
-      "tips_title": "Good next steps",
-      "tips": [
-        "Set up a child profile to get more personalized stories.",
-        "Create your first story or audio story.",
-        "Bookmark WonderTales so you can quickly return to your library."
-      ],
-      "security_title": "Security",
-      "security_body": {
-        "password": "If this wasn't you, reset your password as soon as possible through the password recovery flow.",
-        "google": "If this wasn't you, review your Google account security and sign-in activity.",
-        "apple": "If this wasn't you, review your Apple ID security and sign-in activity."
-      },
-      "footer": "This is a transactional email about account creation."
-    },
-    "password_reset": {
-      "subject": "WonderTales - Reset your password",
-      "preview": "Use this secure link to set a new password for your account.",
-      "intro": "We received a request to reset the password for your WonderTales account.",
-      "cta": "Reset your password",
-      "expires_notice": "This link expires in 1 hour.",
-      "ignore_notice": "If you didn't request this, you can safely ignore this email.",
-      "footer": "This is a transactional email about account access."
-    }
   }
 }

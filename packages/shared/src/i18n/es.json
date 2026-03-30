@@ -768,40 +768,5 @@
       "ignore_notice": "Si no has sido tu, puedes ignorar este correo con seguridad.",
       "footer": "Este es un correo transaccional sobre el acceso a tu cuenta."
     }
-  },
-  "transactional_emails": {
-    "welcome": {
-      "subject": "Bienvenido a WonderTales",
-      "preview": "Tu cuenta esta lista y ya puedes crear historias personalizadas.",
-      "greeting": "Bienvenido a WonderTales!",
-      "intro": {
-        "password": "Tu cuenta se ha creado correctamente. Ahora puedes guardar historias, configurar perfiles infantiles y volver a ellas desde cualquier dispositivo.",
-        "google": "Tu cuenta se ha creado correctamente con Google. Ahora puedes guardar historias, configurar perfiles infantiles y volver a ellas desde cualquier dispositivo.",
-        "apple": "Tu cuenta se ha creado correctamente con Apple. Ahora puedes guardar historias, configurar perfiles infantiles y volver a ellas desde cualquier dispositivo."
-      },
-      "cta": "Abrir WonderTales",
-      "tips_title": "Siguientes pasos recomendados",
-      "tips": [
-        "Crea un perfil infantil para recibir historias mas personalizadas.",
-        "Prueba a crear tu primera historia o historia con audio.",
-        "Guarda WonderTales en tus marcadores para volver rapido a tu biblioteca."
-      ],
-      "security_title": "Seguridad",
-      "security_body": {
-        "password": "Si no has sido tu, restablece tu contrasena cuanto antes mediante la recuperacion de acceso.",
-        "google": "Si no has sido tu, revisa la seguridad y la actividad de acceso de tu cuenta de Google.",
-        "apple": "Si no has sido tu, revisa la seguridad y la actividad de acceso de tu Apple ID."
-      },
-      "footer": "Este es un correo transaccional sobre la creacion de tu cuenta."
-    },
-    "password_reset": {
-      "subject": "WonderTales - Restablece tu contrasena",
-      "preview": "Usa este enlace seguro para establecer una nueva contrasena para tu cuenta.",
-      "intro": "Hemos recibido una solicitud para restablecer la contrasena de tu cuenta de WonderTales.",
-      "cta": "Restablecer contrasena",
-      "expires_notice": "Este enlace caduca en 1 hora.",
-      "ignore_notice": "Si no has sido tu, puedes ignorar este correo con seguridad.",
-      "footer": "Este es un correo transaccional sobre el acceso a tu cuenta."
-    }
   }
 }
