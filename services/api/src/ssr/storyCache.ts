@@ -97,3 +97,33 @@ export async function setCachedAlignment(slug: string, alignmentJson: string, tt
     logger.warn({ err, slug }, 'Redis alignment set failed');
   }
 }
+
+// Landing version - used for homepage cache revalidation
+const LANDING_RENDER_VERSION_KEY = 'ssr:landing:render_version';
+
+export async function getLandingRenderVersion(): Promise<number> {
+  const redis = await getRedisClient();
+  if (!redis) return 1;
+  try {
+    const value = await redis.get(LANDING_RENDER_VERSION_KEY);
+    const parsed = value ? Number.parseInt(value, 10) : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  } catch (err) {
+    logger.warn({ err }, 'Redis landing version get failed');
+    return 1;
+  }
+}
+
+export async function incrementLandingRenderVersion(): Promise<number> {
+  const redis = await getRedisClient();
+  if (!redis) return 1;
+  try {
+    const current = await getLandingRenderVersion();
+    const next = current + 1;
+    await redis.set(LANDING_RENDER_VERSION_KEY, String(next), 60 * 60 * 24 * 365);
+    return next;
+  } catch (err) {
+    logger.warn({ err }, 'Redis landing version increment failed');
+    return 1;
+  }
+}

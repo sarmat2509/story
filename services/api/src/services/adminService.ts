@@ -14,17 +14,19 @@ import { getAssetStorageService } from './assetStorageService';
 import { getImageValidationById, listAllImageValidations, listImageValidationsForStory } from './imageValidationQueryService';
 import { getStoryCacheStats, getStoryCost, getStoryCostBreakdown } from './aiUsageService';
 import { normalizeOutfitPlateCharacterKey } from './outfitPlateService';
+import { incrementLandingRenderVersion } from '../ssr/storyCache';
 
 export async function listAdminStories(params: {
   limit: number;
   offset: number;
   search?: string;
+  publishedStatus?: 'all' | 'published' | 'unlisted' | 'draft';
 }) {
-  const { limit, offset, search } = params;
+  const { limit, offset, search, publishedStatus = 'all' } = params;
   const repo = getStoryRepository();
   const [items, total] = await Promise.all([
-    repo.listAllPaginated({ limit, offset, search }),
-    repo.countAll(search),
+    repo.listAllPaginated({ limit, offset, search, publishedStatus }),
+    repo.countAll(search, publishedStatus),
   ]);
 
   return {
@@ -33,8 +35,39 @@ export async function listAdminStories(params: {
       title: item.title,
       userId: item.userId,
       createdAt: item.createdAt.toISOString(),
+      isPublished: item.isPublished,
+      visibility: item.visibility,
+      showOnHomePage: item.showOnHomePage,
+      publishedSlug: item.publishedSlug,
     })),
     meta: { limit, offset, total },
+  };
+}
+
+export async function updateAdminStoryHomePageFlag(storyId: string, showOnHomePage: boolean) {
+  const repo = getStoryRepository();
+  const story = await repo.findById(storyId);
+  if (!story) return null;
+
+  const isEligibleForHomePage =
+    story.isPublished === true &&
+    story.visibility === 'public' &&
+    typeof story.publishedSlug === 'string' &&
+    story.publishedSlug.trim().length > 0;
+  const shouldShow = showOnHomePage && isEligibleForHomePage;
+  const hasChanged = story.showOnHomePage !== shouldShow;
+
+  await repo.updateHomePageVisibility(storyId, shouldShow);
+  if (hasChanged) {
+    await incrementLandingRenderVersion();
+  }
+
+  return {
+    id: storyId,
+    showOnHomePage: shouldShow,
+    isPublished: story.isPublished,
+    visibility: story.visibility,
+    publishedSlug: story.publishedSlug,
   };
 }
 

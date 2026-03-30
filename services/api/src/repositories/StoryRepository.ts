@@ -63,7 +63,8 @@ export class StoryRepository {
       .from(schema.stories)
       .where(and(
         eq(schema.stories.publishedSlug, slug),
-        eq(schema.stories.isPublished, true)
+        eq(schema.stories.isPublished, true),
+        eq(schema.stories.visibility, 'public'),
       ))
       .limit(1);
     return story || null;
@@ -86,12 +87,17 @@ export class StoryRepository {
     offset?: number;
     hasAudio?: boolean;
     scenarioCardId?: string;
+    showOnHomePage?: boolean;
   } = {}): Promise<schema.Story[]> {
-    const { limit = 20, offset = 0, hasAudio, scenarioCardId } = options;
+    const { limit = 20, offset = 0, hasAudio, scenarioCardId, showOnHomePage } = options;
     const conditions = [
       eq(schema.stories.isPublished, true),
       isNotNull(schema.stories.publishedSlug),
+      eq(schema.stories.visibility, 'public'),
     ];
+    if (showOnHomePage) {
+      conditions.push(eq(schema.stories.showOnHomePage, true));
+    }
     if (hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
     }
@@ -117,12 +123,16 @@ export class StoryRepository {
     return rows.map(r => ({ ...r.story, scenarioCardId: r.scenarioCardId ?? null }));
   }
 
-  async countPublished(options: { hasAudio?: boolean; scenarioCardId?: string } = {}): Promise<number> {
-    const { hasAudio, scenarioCardId } = options;
+  async countPublished(options: { hasAudio?: boolean; scenarioCardId?: string; showOnHomePage?: boolean } = {}): Promise<number> {
+    const { hasAudio, scenarioCardId, showOnHomePage } = options;
     const conditions = [
       eq(schema.stories.isPublished, true),
       isNotNull(schema.stories.publishedSlug),
+      eq(schema.stories.visibility, 'public'),
     ];
+    if (showOnHomePage) {
+      conditions.push(eq(schema.stories.showOnHomePage, true));
+    }
     if (hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
     }
@@ -301,8 +311,9 @@ export class StoryRepository {
     limit: number;
     offset: number;
     search?: string;
-  }): Promise<Array<Pick<schema.Story, 'id' | 'title' | 'userId' | 'createdAt'>>> {
-    const { limit, offset, search } = options;
+    publishedStatus?: 'all' | 'published' | 'unlisted' | 'draft';
+  }): Promise<Array<Pick<schema.Story, 'id' | 'title' | 'userId' | 'createdAt' | 'isPublished' | 'visibility' | 'showOnHomePage' | 'publishedSlug'>>> {
+    const { limit, offset, search, publishedStatus = 'all' } = options;
     const normalizedSearch = search?.trim();
     const query = this.db
       .select({
@@ -310,37 +321,65 @@ export class StoryRepository {
         title: schema.stories.title,
         userId: schema.stories.userId,
         createdAt: schema.stories.createdAt,
+        isPublished: schema.stories.isPublished,
+        visibility: schema.stories.visibility,
+        showOnHomePage: schema.stories.showOnHomePage,
+        publishedSlug: schema.stories.publishedSlug,
       })
       .from(schema.stories)
       .orderBy(desc(schema.stories.createdAt))
       .limit(limit)
       .offset(offset);
 
+    const conditions = [];
+    if (publishedStatus === 'published') {
+      conditions.push(eq(schema.stories.isPublished, true));
+      conditions.push(eq(schema.stories.visibility, 'public'));
+    } else if (publishedStatus === 'unlisted') {
+      conditions.push(eq(schema.stories.isPublished, true));
+      conditions.push(eq(schema.stories.visibility, 'unlisted'));
+    } else if (publishedStatus === 'draft') {
+      conditions.push(or(eq(schema.stories.isPublished, false), sql<boolean>`${schema.stories.isPublished} IS NULL`)!);
+    }
     if (normalizedSearch) {
-      return query.where(
+      conditions.push(
         or(
           ilike(schema.stories.title, `%${normalizedSearch}%`),
           sql<boolean>`${schema.stories.id}::text ILIKE ${`%${normalizedSearch}%`}`,
-        ),
+        )!,
       );
     }
 
-    return query;
+    return conditions.length > 0 ? query.where(and(...conditions)) : query;
   }
 
-  async countAll(search?: string): Promise<number> {
+  async countAll(search?: string, publishedStatus: 'all' | 'published' | 'unlisted' | 'draft' = 'all'): Promise<number> {
     const normalizedSearch = search?.trim();
     const query = this.db
       .select({ count: sql<number>`count(*)` })
       .from(schema.stories);
 
+    const conditions = [];
+    if (publishedStatus === 'published') {
+      conditions.push(eq(schema.stories.isPublished, true));
+      conditions.push(eq(schema.stories.visibility, 'public'));
+    } else if (publishedStatus === 'unlisted') {
+      conditions.push(eq(schema.stories.isPublished, true));
+      conditions.push(eq(schema.stories.visibility, 'unlisted'));
+    } else if (publishedStatus === 'draft') {
+      conditions.push(or(eq(schema.stories.isPublished, false), sql<boolean>`${schema.stories.isPublished} IS NULL`)!);
+    }
     if (normalizedSearch) {
-      const [row] = await query.where(
+      conditions.push(
         or(
           ilike(schema.stories.title, `%${normalizedSearch}%`),
           sql<boolean>`${schema.stories.id}::text ILIKE ${`%${normalizedSearch}%`}`,
-        ),
+        )!,
       );
+    }
+
+    if (conditions.length > 0) {
+      const [row] = await query.where(and(...conditions));
       return Number(row?.count ?? 0);
     }
 
@@ -369,6 +408,16 @@ export class StoryRepository {
     await conn
       .update(schema.stories)
       .set(data)
+      .where(eq(schema.stories.id, id));
+  }
+
+  async updateHomePageVisibility(id: string, showOnHomePage: boolean): Promise<void> {
+    await this.db
+      .update(schema.stories)
+      .set({
+        showOnHomePage,
+        updatedAt: new Date(),
+      })
       .where(eq(schema.stories.id, id));
   }
 

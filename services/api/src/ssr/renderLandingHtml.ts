@@ -77,9 +77,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .story-card .story-illustration{height:200px;background:linear-gradient(135deg,#e8e4f3,#f5e6f0);display:flex;align-items:center;justify-content:center;color:#8b7cb8;font-size:14px;overflow:hidden}
 .story-card .story-illustration img{width:100%;height:100%;object-fit:cover;display:block}
 .story-card .story-info{padding:20px}
-.story-card .story-age{font-size:12px;color:#64748b;margin-bottom:4px}
 .story-card .story-title{font-size:16px;font-weight:600;color:#1e293b;margin-bottom:12px;line-height:1.4}
-.story-card .story-meta{font-size:13px;color:#64748b;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.story-card .story-meta-badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.story-card .story-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#475569;padding:6px 10px;border-radius:999px;background:#f8fafc}
+.story-card .story-badge-icon{font-size:13px;line-height:1}
+.story-card .story-badge-label{font-weight:600}
+.story-card .story-badge-value{color:#0f172a}
+.story-card .story-card-cta{display:inline-flex;align-items:center;justify-content:center;padding:8px 14px;border-radius:999px;border:1.5px solid #8b7cb8;background:transparent;color:#8b7cb8;font-size:13px;font-weight:600;text-decoration:none}
+.story-card .story-card-cta:hover{background:rgba(139,124,184,0.08)}
 .benefit-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-bottom:32px}
 .benefit-card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 24px rgba(0,0,0,0.08);overflow:hidden}
 .benefit-card .benefit-card-image{height:180px;margin:-24px -24px 16px -24px;overflow:hidden;background:linear-gradient(135deg,#e8e4f3,#f5e6f0)}
@@ -266,13 +271,6 @@ function renderExampleStories(webAppUrl: string, exampleStories: ExampleStory[])
   <section class="section">
     <h2>Приклади чарівних історій</h2>
     <p class="section-subtitle">Перегляньте зразки історій, щоб побачити якість, тон і різноманіття, які можуть створювати сім'ї.</p>
-    <div class="filter-pills">
-      <a href="${escapeHtml(webAppUrl)}/stories" class="filter-pill active">3–5 років</a>
-      <a href="${escapeHtml(webAppUrl)}/stories" class="filter-pill active">6–8 років</a>
-      <a href="${escapeHtml(webAppUrl)}/stories" class="filter-pill">Пригоди</a>
-      <a href="${escapeHtml(webAppUrl)}/stories" class="filter-pill">Перед сном</a>
-      <a href="${escapeHtml(webAppUrl)}/stories" class="filter-pill">Смішні</a>
-    </div>
     <div class="story-cards">
       ${stories.map((s) => {
         const href = s.slug ? `${escapeHtml(webAppUrl)}/stories/${escapeHtml(s.slug)}` : `${escapeHtml(webAppUrl)}/stories`;
@@ -283,10 +281,20 @@ function renderExampleStories(webAppUrl: string, exampleStories: ExampleStory[])
       <a href="${href}" class="story-card" style="text-decoration:none;color:inherit">
         <div class="story-illustration">${thumb}</div>
         <div class="story-info">
-          <div class="story-age">${escapeHtml(s.age)}</div>
           <div class="story-title">${escapeHtml(s.title)}</div>
-          <div class="story-meta">⏱️ ${escapeHtml(s.time)}</div>
-          <span class="cta-purple">Переглянути історію →</span>
+          <div class="story-meta-badges">
+            <div class="story-badge">
+              <span class="story-badge-icon" aria-hidden="true">📚</span>
+              <span class="story-badge-label">Вік:</span>
+              <span class="story-badge-value">${escapeHtml(s.age)}</span>
+            </div>
+            <div class="story-badge">
+              <span class="story-badge-icon" aria-hidden="true">⏱️</span>
+              <span class="story-badge-label">Читання:</span>
+              <span class="story-badge-value">${escapeHtml(s.time)}</span>
+            </div>
+          </div>
+          <span class="story-card-cta">Переглянути історію</span>
         </div>
       </a>`;
       }).join('')}

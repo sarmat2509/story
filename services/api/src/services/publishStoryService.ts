@@ -5,7 +5,7 @@
  */
 
 import { getStoryRepository, getUserRepository } from '../repositories';
-import { addPublishedSlug, removePublishedSlug } from '../ssr/storyCache';
+import { addPublishedSlug, incrementLandingRenderVersion, removePublishedSlug } from '../ssr/storyCache';
 import { invalidateSitemapCache } from './sitemapService';
 import { config } from '../config';
 import { logger } from '../utils/logger';
@@ -109,6 +109,7 @@ export async function publishStory(
 
   if (visibility === 'unlisted') {
     const token = shortId() + shortId(); // 16 chars
+    const shouldClearHomePageFlag = story.showOnHomePage === true;
     await storyRepo.updateStory(storyId, {
       isPublished: true,
       publishedAt: new Date(),
@@ -116,9 +117,17 @@ export async function publishStory(
       authorDisplayName,
       visibility: 'unlisted',
       shareToken: token,
+      ...(shouldClearHomePageFlag ? { showOnHomePage: false } : {}),
       ...(shareCardSceneId != null && { shareCardSceneId }),
     });
     await storyRepo.incrementPublicRenderVersion(storyId);
+    if (story.publishedSlug) {
+      await removePublishedSlug(story.publishedSlug);
+      await invalidateSitemapCache();
+    }
+    if (shouldClearHomePageFlag) {
+      await incrementLandingRenderVersion();
+    }
 
     logger.info({ storyId, shareToken: token, userId }, 'Story published (unlisted)');
 
@@ -171,6 +180,7 @@ export async function unpublishStory(storyId: string, userId: string): Promise<b
   if (!story) return false;
 
   const slug = story.publishedSlug;
+  const shouldClearHomePageFlag = story.showOnHomePage === true;
 
   await storyRepo.updateStory(storyId, {
     isPublished: false,
@@ -179,6 +189,7 @@ export async function unpublishStory(storyId: string, userId: string): Promise<b
     authorDisplayName: null,
     visibility: 'public',
     shareToken: null,
+    ...(shouldClearHomePageFlag ? { showOnHomePage: false } : {}),
   });
 
   if (slug) {
@@ -186,8 +197,10 @@ export async function unpublishStory(storyId: string, userId: string): Promise<b
     await removePublishedSlug(slug);
     await invalidateSitemapCache();
   }
+  if (shouldClearHomePageFlag) {
+    await incrementLandingRenderVersion();
+  }
 
   logger.info({ storyId, slug, userId }, 'Story unpublished');
   return true;
 }
-

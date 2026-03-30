@@ -511,6 +511,7 @@ export const stories = pgTable('stories', {
   shareToken: varchar('share_token', { length: 64 }), // For unlisted: token for /u/:token URL
   shareCardSceneId: integer('share_card_scene_id'), // 0-based scene index for og:image. NULL = first
   publicRenderVersion: integer('public_render_version').default(1), // Bump on publish/unpublish/audio/alignment/theme
+  showOnHomePage: boolean('show_on_home_page').default(false).notNull(),
 
   ratingSum: integer('rating_sum').default(0).notNull(),
   ratingCount: integer('rating_count').default(0).notNull(),

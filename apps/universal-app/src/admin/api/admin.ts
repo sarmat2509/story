@@ -6,6 +6,10 @@ export type AdminStoryListItem = {
   title: string;
   userId: string;
   createdAt: string;
+  isPublished: boolean | null;
+  visibility: string | null;
+  showOnHomePage: boolean;
+  publishedSlug?: string | null;
 };
 
 export type AdminUserListItem = {
@@ -134,15 +138,43 @@ type PaginatedResponse<T> = {
   };
 };
 
-export function useAdminStories(params: { limit: number; offset: number; search?: string }) {
-  const { limit, offset, search } = params;
+export function useAdminStories(params: { limit: number; offset: number; search?: string; publishedStatus?: 'all' | 'published' | 'unlisted' | 'draft' }) {
+  const { limit, offset, search, publishedStatus = 'all' } = params;
   return useQuery({
-    queryKey: ['admin', 'stories', limit, offset, search ?? ''],
+    queryKey: ['admin', 'stories', limit, offset, search ?? '', publishedStatus],
     queryFn: async () => {
       const response = await apiClient.get<PaginatedResponse<AdminStoryListItem>>('/api/v1/admin/stories', {
-        params: { limit, offset, search: search || undefined },
+        params: { limit, offset, search: search || undefined, publishedStatus },
       });
       return response.data.data;
+    },
+  });
+}
+
+export function useUpdateAdminStory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      storyId: string;
+      showOnHomePage: boolean;
+    }) => {
+      const response = await apiClient.patch<{
+        status: string;
+        data: {
+          id: string;
+          showOnHomePage: boolean;
+          isPublished: boolean | null;
+          visibility: string | null;
+          publishedSlug?: string | null;
+        };
+      }>(`/api/v1/admin/stories/${params.storyId}`, {
+        showOnHomePage: params.showOnHomePage,
+      });
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'stories'] });
     },
   });
 }

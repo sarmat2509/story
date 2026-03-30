@@ -5,11 +5,13 @@
  */
 
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { getReadingTimeMinutes } from '@wondertales/shared';
 import { renderLandingHtml } from '../ssr/renderLandingHtml';
 import { listPublicStories } from '../services/publicStoryService';
 import * as planService from '../services/planService';
 import { getVoiceRepository } from '../repositories';
+import { getLandingRenderVersion } from '../ssr/storyCache';
 
 const router = Router();
 
@@ -26,7 +28,26 @@ const AGE_GROUP_LABELS: Record<string, string> = {
 };
 
 function formatAgeGroup(ageGroup: string): string {
-  return AGE_GROUP_LABELS[ageGroup] || ageGroup;
+  const mapped = AGE_GROUP_LABELS[ageGroup];
+  if (mapped) return mapped;
+
+  const normalized = ageGroup.trim();
+  if (!normalized) return ageGroup;
+
+  if (/рок/i.test(normalized)) {
+    return normalized;
+  }
+
+  if (/^\d+\s*[-–]\s*\d+$/.test(normalized)) {
+    const [from, to] = normalized.split(/[-–]/).map((part) => part.trim());
+    return `${from}–${to} років`;
+  }
+
+  if (/^\d+$/.test(normalized)) {
+    return `${normalized} років`;
+  }
+
+  return normalized;
 }
 
 /**
@@ -52,12 +73,13 @@ function formatStoryTime(
  */
 router.get('/', async (_req: Request, res: Response) => {
   const locale = _req.headers['accept-language']?.split(',')[0]?.slice(0, 2) || 'uk';
+  const landingRenderVersion = await getLandingRenderVersion();
   let exampleStories: Array<{ age: string; title: string; time: string; slug: string; thumbnailUrl: string | null }> = [];
 
   let plans: Awaited<ReturnType<typeof planService.getPlansWithLimits>> = [];
   let voices: LandingVoices = [];
   try {
-    const { items } = await listPublicStories({ limit: 6 });
+    const { items } = await listPublicStories({ limit: 6, showOnHomePage: true });
     exampleStories = items.slice(0, 6).map((s) => ({
       age: formatAgeGroup(s.ageGroup),
       title: s.title,
@@ -80,8 +102,17 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 
   const html = renderLandingHtml({ locale, exampleStories, plans, voices });
+  const etag = `"landing-${landingRenderVersion}-${crypto.createHash('sha1').update(locale).digest('hex').slice(0, 8)}"`;
+  if (_req.headers['if-none-match'] === etag) {
+    res.status(304);
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'public, no-cache, must-revalidate');
+    return res.end();
+  }
+
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour
+  res.setHeader('ETag', etag);
+  res.setHeader('Cache-Control', 'public, no-cache, must-revalidate');
   res.send(html);
 });
 

@@ -13,6 +13,7 @@ import {
   listAdminImageValidations,
   listAdminStories,
   listAdminUsers,
+  updateAdminStoryHomePageFlag,
   updateAdminConfigItem,
 } from '../services/adminService';
 import { updateAdminUserSettings } from '../services/adminUserService';
@@ -26,6 +27,7 @@ const ListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).default(100),
   offset: z.coerce.number().int().min(0).default(0),
   search: z.string().trim().optional(),
+  publishedStatus: z.enum(['all', 'published', 'unlisted', 'draft']).optional().default('all'),
 });
 
 const FeedbackListQuerySchema = ListQuerySchema.extend({
@@ -78,6 +80,10 @@ const UpdateAdminUserBodySchema = z.object({
 }).refine((value) => value.role !== undefined || value.planSlug !== undefined, {
   message: 'At least one field is required',
 });
+
+const UpdateAdminStoryBodySchema = z.object({
+  showOnHomePage: z.boolean(),
+}).strict();
 
 const StoryGoalPatchSchema = z.object({
   name: z.string().trim().min(1).optional(),
@@ -344,8 +350,8 @@ router.get('/stories', async (req: Request, res: Response) => {
       });
     }
 
-    const { limit, offset, search } = parsed.data;
-    const data = await listAdminStories({ limit, offset, search });
+    const { limit, offset, search, publishedStatus } = parsed.data;
+    const data = await listAdminStories({ limit, offset, search, publishedStatus });
 
     return res.json({
       status: 'success',
@@ -356,6 +362,47 @@ router.get('/stories', async (req: Request, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to list stories',
+    });
+  }
+});
+
+router.patch('/stories/:storyId', async (req: Request, res: Response) => {
+  try {
+    const parsedParams = StoryIdParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid story id',
+        details: parsedParams.error.flatten(),
+      });
+    }
+
+    const parsedBody = UpdateAdminStoryBodySchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid request body',
+        details: parsedBody.error.flatten(),
+      });
+    }
+
+    const data = await updateAdminStoryHomePageFlag(parsedParams.data.storyId, parsedBody.data.showOnHomePage);
+    if (!data) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Story not found',
+      });
+    }
+
+    return res.json({
+      status: 'success',
+      data,
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id, storyId: req.params.storyId }, 'Admin story update failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to update story',
     });
   }
 });
