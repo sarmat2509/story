@@ -11,9 +11,35 @@ function getPathKey(url: string): string {
   return url.split('?')[0];
 }
 
+function getOwnAssetPath(pathOrUrl: string): string | null {
+  const withoutQuery = getPathKey(pathOrUrl);
+
+  if (withoutQuery.startsWith('http://') || withoutQuery.startsWith('https://')) {
+    try {
+      const parsed = new URL(withoutQuery);
+      return parsed.pathname.startsWith(ASSETS_PREFIX) ? parsed.pathname : null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (withoutQuery.startsWith(ASSETS_PREFIX)) {
+    return withoutQuery;
+  }
+
+  const stripped = withoutQuery.startsWith('/') ? withoutQuery.slice(1) : withoutQuery;
+  return `${ASSETS_PREFIX}${stripped}`;
+}
+
 /** True if URL is a server asset (relative or absolute) - for cleanup/delete checks */
 export function isServerAssetUrl(url: string | null | undefined): boolean {
-  return !!url && (url.startsWith(ASSETS_PREFIX) || url.startsWith('http'));
+  return !!url && !!getOwnAssetPath(url);
+}
+
+/** Normalize our own asset URLs to a canonical /api/v1/assets/... path without expiring query params. */
+export function toCanonicalAssetUrl(pathOrUrl: string): string {
+  const ownAssetPath = getOwnAssetPath(pathOrUrl);
+  return ownAssetPath ?? pathOrUrl;
 }
 
 /**
@@ -34,38 +60,22 @@ export function formatAssetUrl(pathOrUrl: string | null | undefined): string | n
     return pathOrUrl;
   }
 
-  // Cache by path (without token) — refetch returns new signed URL, reuse cached to avoid image flicker
-  const pathKey = getPathKey(pathOrUrl);
+  const ownAssetPath = getOwnAssetPath(pathOrUrl);
+  if (ownAssetPath) {
+    const cached = urlCacheByPath.get(ownAssetPath);
+    if (cached) return cached;
+
+    const result = Platform.OS === 'web'
+      ? ownAssetPath
+      : `${API_BASE_URL.replace(/\/$/, '')}${ownAssetPath}`;
+
+    urlCacheByPath.set(ownAssetPath, result);
+    return result;
+  }
 
   if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
-    const cached = urlCacheByPath.get(pathKey);
-    if (cached) return cached;
-    urlCacheByPath.set(pathKey, pathOrUrl);
     return pathOrUrl;
   }
 
-  // Relative path (may include ?token=... for signed URLs)
-  const queryPart = pathOrUrl.includes('?') ? pathOrUrl.substring(pathOrUrl.indexOf('?')) : '';
-  let assetPath = pathKey;
-  if (!assetPath.startsWith(ASSETS_PREFIX)) {
-    const stripped = assetPath.startsWith('/') ? assetPath.slice(1) : assetPath;
-    assetPath = `${ASSETS_PREFIX}${stripped}`;
-  }
-
-  // If URL has token, check cache first — reuse to avoid flicker when refetch returns new token
-  if (queryPart) {
-    const cached = urlCacheByPath.get(pathKey);
-    if (cached) return cached;
-  }
-
-  let result: string;
-  if (Platform.OS === 'web') {
-    result = assetPath + queryPart;
-  } else {
-    const base = API_BASE_URL.replace(/\/$/, '');
-    result = `${base}${assetPath}${queryPart}`;
-  }
-
-  if (queryPart) urlCacheByPath.set(pathKey, result);
-  return result;
+  return pathOrUrl;
 }

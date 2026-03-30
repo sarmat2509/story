@@ -5,6 +5,7 @@ import { recordUsage } from './aiUsageService';
 import { CharacterAnalysisService } from './characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
+import { collectEntityAssetPaths, deleteEntityAssets } from './entityAssetCleanupService';
 import { translateCharacterDescription } from './translationService';
 import type { CharacterType } from '@wondertales/shared';
 
@@ -164,8 +165,13 @@ export async function countStoriesByCharacter(
     throw new Error('Character not found');
   }
   
-  // Use repository method instead of direct db access
-  return await getCharacterRepository().countStoriesUsingCharacter(characterId);
+  const characterRepo = getCharacterRepository();
+  const [storyCount, requestCount] = await Promise.all([
+    characterRepo.countStoriesUsingCharacter(characterId),
+    characterRepo.countStoryRequestsUsingCharacter(characterId, userId),
+  ]);
+
+  return storyCount + requestCount;
 }
 
 export async function getCharacterById(
@@ -212,11 +218,16 @@ export async function deleteCharacter(id: string, userId: string): Promise<void>
   if (!existing) {
     throw new Error('Character not found');
   }
-  
-  // Soft delete
-  await characterRepo.softDelete(id, userId);
-  
-  logger.info({ userId, characterId: id }, 'Deleted (soft) character');
+
+  const assetPaths = collectEntityAssetPaths({
+    referencePhotos: existing.referencePhotos,
+    turnaroundSheet: existing.turnaroundSheet,
+  });
+
+  await deleteEntityAssets(assetPaths);
+  await characterRepo.hardDelete(id, userId);
+
+  logger.info({ userId, characterId: id, deletedAssetCount: assetPaths.length }, 'Character hard deleted with related assets');
 }
 
 // Type-specific validation helpers (these can be expanded as needed)

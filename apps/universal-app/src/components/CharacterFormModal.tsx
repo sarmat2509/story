@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
@@ -17,11 +17,25 @@ function toBaseLocale(locale: string | undefined): string {
 
 /** Convert relative asset path to absolute URL for Zod .url() validation */
 function toAbsoluteAssetUrl(url: string): string {
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      const parsed = new URL(url);
+      return `${parsed.origin}${parsed.pathname}`;
+    } catch {
+      return url.split('?')[0];
+    }
+  }
+
+  const withoutQuery = url.split('?')[0];
   const base = typeof window !== 'undefined'
     ? window.location.origin
     : API_BASE_URL.replace(/\/$/, '');
-  return url.startsWith('/') ? `${base}${url}` : `${base}/${url}`;
+  const assetPath = withoutQuery.startsWith('/api/v1/assets/')
+    ? withoutQuery
+    : withoutQuery.startsWith('/')
+      ? `/api/v1/assets/${withoutQuery.slice(1)}`
+      : `/api/v1/assets/${withoutQuery}`;
+  return `${base}${assetPath}`;
 }
 import { storage } from '@/utils/storage';
 import { 
@@ -90,7 +104,7 @@ interface Props {
     referencePhotos?: ReferencePhoto[];
     appearanceTraits?: any;
     personality?: any;
-    turnaroundSheet?: { url: string; generatedAt: string };
+    turnaroundSheet?: { url: string; frontUrl?: string; generatedAt: string };
   };
 }
 
@@ -173,6 +187,11 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   const createCharacter = useCreateCharacter();
   const updateCharacter = useUpdateCharacter();
   const analyzeCharacter = useAnalyzeCharacter();
+  const currentPreviewUrl =
+    initialData?.turnaroundSheet?.frontUrl
+    ?? initialData?.turnaroundSheet?.url
+    ?? initialData?.referencePhotos?.[0]?.url
+    ?? null;
   
   // Wizard state
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
@@ -689,6 +708,16 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                       {t('character_form.imaginary_photos_hint')}
                     </Text>
                   )}
+                  {characterId && currentPreviewUrl && photos.length === 0 ? (
+                    <View style={styles.currentImageCard}>
+                      <Text style={styles.currentImageLabel}>{t('child_form.current_image') || 'Текущее изображение'}</Text>
+                      <Image
+                        source={{ uri: formatAssetUrl(currentPreviewUrl) ?? currentPreviewUrl }}
+                        style={styles.currentImage}
+                        resizeMode="contain"
+                      />
+                    </View>
+                  ) : null}
                   <PhotoUploadGrid
                     photos={photos}
                     onPhotosChange={setPhotos}
@@ -1189,6 +1218,25 @@ const styles = StyleSheet.create({
   },
   field: {
     marginBottom: theme.spacing[5],
+  },
+  currentImageCard: {
+    marginBottom: theme.spacing[3],
+    padding: theme.spacing[3],
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  currentImageLabel: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing[2],
+  },
+  currentImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.primary,
   },
   label: {
     fontSize: theme.typography.fontSize.base,

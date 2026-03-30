@@ -115,7 +115,10 @@ router.delete('/photo', requireAuth, async (req, res) => {
       });
     }
 
-    const storagePath = url.substring(prefixIndex + assetPrefix.length);
+    const storagePath = url
+      .substring(prefixIndex + assetPrefix.length)
+      .split('?')[0]
+      .split('#')[0];
 
     // Security: verify the path belongs to the requesting user
     // Use startsWith with env prefix to prevent substring collision

@@ -1,4 +1,4 @@
-import { eq, and, inArray, count } from 'drizzle-orm';
+import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -78,6 +78,15 @@ export class CharacterRepository {
       ));
   }
 
+  async hardDelete(id: string, userId: string): Promise<void> {
+    await this.db
+      .delete(schema.characters)
+      .where(and(
+        eq(schema.characters.id, id),
+        eq(schema.characters.userId, userId)
+      ));
+  }
+
   async updateAnalysis(
     id: string,
     data: {
@@ -133,6 +142,18 @@ export class CharacterRepository {
       .from(schema.storyCharacters)
       .where(eq(schema.storyCharacters.characterId, characterId));
     
+    return Number(result[0]?.count) || 0;
+  }
+
+  async countStoryRequestsUsingCharacter(characterId: string, userId: string): Promise<number> {
+    const result = await this.db
+      .select({ count: count() })
+      .from(schema.storyRequests)
+      .where(and(
+        eq(schema.storyRequests.userId, userId),
+        sql`${schema.storyRequests.selectedCharacters} @> ${JSON.stringify([characterId])}::jsonb`,
+      ));
+
     return Number(result[0]?.count) || 0;
   }
 }

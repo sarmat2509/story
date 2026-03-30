@@ -1,4 +1,4 @@
-import { eq, and, inArray } from 'drizzle-orm';
+import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -89,6 +89,15 @@ export class ChildProfileRepository {
       ));
   }
 
+  async hardDelete(id: string, userId: string): Promise<void> {
+    await this.db
+      .delete(schema.childProfiles)
+      .where(and(
+        eq(schema.childProfiles.id, id),
+        eq(schema.childProfiles.userId, userId)
+      ));
+  }
+
   async updateTurnaroundSheet(
     childId: string,
     turnaroundSheet: { url: string; frontUrl?: string; generatedAt: string; sourcePhotoUrl: string },
@@ -122,5 +131,35 @@ export class ChildProfileRepository {
       .update(schema.childProfiles)
       .set({ descriptionEn } as any)
       .where(eq(schema.childProfiles.id, childId));
+  }
+
+  async countStoryUsage(childId: string, userId: string): Promise<number> {
+    const [storiesResult, directRequestsResult, selectedRequestsResult] = await Promise.all([
+      this.db
+        .select({ count: count() })
+        .from(schema.stories)
+        .where(and(
+          eq(schema.stories.userId, userId),
+          eq(schema.stories.childProfileId, childId),
+        )),
+      this.db
+        .select({ count: count() })
+        .from(schema.storyRequests)
+        .where(and(
+          eq(schema.storyRequests.userId, userId),
+          eq(schema.storyRequests.childProfileId, childId),
+        )),
+      this.db
+        .select({ count: count() })
+        .from(schema.storyRequests)
+        .where(and(
+          eq(schema.storyRequests.userId, userId),
+          sql`${schema.storyRequests.selectedChildren} @> ${JSON.stringify([childId])}::jsonb`,
+        )),
+    ]);
+
+    return Number(storiesResult[0]?.count ?? 0)
+      + Number(directRequestsResult[0]?.count ?? 0)
+      + Number(selectedRequestsResult[0]?.count ?? 0);
   }
 }

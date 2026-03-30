@@ -26,6 +26,32 @@ function isPathSafe(requestedPath: string): boolean {
   return resolved.startsWith(UPLOADS_DIR + path.sep) || resolved === UPLOADS_DIR;
 }
 
+function getMimeTypeForFile(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeTypes: Record<string, string> = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+    '.mp3': 'audio/mpeg',
+  };
+  return mimeTypes[ext] || 'application/octet-stream';
+}
+
+async function sendPublicFile(res: Response, relativePath: string, mimeType?: string) {
+  const fullPath = path.resolve(UPLOADS_DIR, relativePath);
+
+  await fs.access(fullPath);
+
+  res.setHeader('Content-Type', mimeType || getMimeTypeForFile(fullPath));
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+  res.sendFile(fullPath);
+}
+
 /**
  * Verify HMAC signed URL token.
  * Returns true if the token + expires params are valid.
@@ -122,6 +148,7 @@ router.get('/llm_turnaround_cache/:filename', async (req: Request, res: Response
 router.get('/:env/:userId/photos/:photoType/:filename', async (req: Request, res: Response) => {
   try {
     const { env, userId, photoType, filename } = req.params;
+    const { token, expires } = req.query;
     
     // Validate photo type
     if (!isPhotoType(photoType)) {
@@ -129,6 +156,28 @@ router.get('/:env/:userId/photos/:photoType/:filename', async (req: Request, res
         status: 'error',
         message: 'Invalid photo type'
       });
+    }
+
+    // Build path and validate containment
+    const relativePath = `${env}/${userId}/photos/${photoType}/${filename}`;
+    if (!isPathSafe(relativePath)) {
+      logger.warn({ userId, relativePath }, 'Path traversal attempt in photos route');
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid file path'
+      });
+    }
+
+    // Signed URL access path (used by feedback screenshots and other private asset previews)
+    if (token && expires) {
+      if (verifySignedUrl(relativePath, token as string, expires as string)) {
+        return sendPublicFile(res, relativePath);
+      }
+
+      logger.debug(
+        { relativePath },
+        'Signed asset URL is invalid or expired, falling back to authenticated access',
+      );
     }
     
     // --- Auth: cookie OR Bearer header ---
@@ -153,18 +202,9 @@ router.get('/:env/:userId/photos/:photoType/:filename', async (req: Request, res
     }
 
     // Ownership check: URL userId must match authenticated user
-    if (userId !== session.user.id) {
+    // Admins may inspect feedback screenshots across users.
+    if (userId !== session.user.id && !(session.user.role === 'admin' && photoType === 'feedback')) {
       return res.status(403).json({ status: 'error', message: 'Access denied' });
-    }
-    
-    // Build path and validate containment
-    const relativePath = `${env}/${userId}/photos/${photoType}/${filename}`;
-    if (!isPathSafe(relativePath)) {
-      logger.warn({ userId, relativePath }, 'Path traversal attempt in photos route');
-      return res.status(400).json({
-        status: 'error',
-        message: 'Invalid file path'
-      });
     }
     
     const fullPath = path.resolve(UPLOADS_DIR, relativePath);
@@ -297,6 +337,33 @@ router.get('/*', async (req: Request, res: Response) => {
         message: 'Invalid file path'
       });
     }
+
+    if (
+      assetPath.startsWith('env_cache/') ||
+      assetPath.startsWith('outfit_plate_cache/')
+    ) {
+      try {
+        await sendPublicFile(res, assetPath);
+        return;
+      } catch {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Asset file not found',
+        });
+      }
+    }
+
+    if (assetPath.includes('/rejected/')) {
+      try {
+        await sendPublicFile(res, assetPath);
+        return;
+      } catch {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Rejected debug asset not found',
+        });
+      }
+    }
     
     const pathParts = assetPath.split('/');
     
@@ -328,28 +395,15 @@ router.get('/*', async (req: Request, res: Response) => {
       });
     }
     
-    // Serve file
-    const fullPath = path.resolve(UPLOADS_DIR, assetPath);
-    
-    // Check file exists
     try {
-      await fs.access(fullPath);
+      await sendPublicFile(res, assetPath, asset.mimeType);
+      return;
     } catch {
       return res.status(404).json({
         status: 'error',
         message: 'Asset file not found'
       });
     }
-    
-    // Set appropriate headers
-    res.setHeader('Content-Type', asset.mimeType);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'); // Allow embedding from app (different origin)
-    
-    // Send file
-    res.sendFile(fullPath);
-    
   } catch (error) {
     logger.error({ error, path: req.params[0] }, 'Failed to serve asset');
     res.status(500).json({

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Platform, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Platform, Linking, Image, Alert } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -10,6 +11,8 @@ import { theme } from '@/theme';
 import { LEGAL_URLS } from '@/config/constants';
 import { usePlansWithAuth, useSubscriptionUsage, useCreatePortalSession } from '@/api/plans';
 import { useUpdateMe } from '@/api/auth';
+import { formatAssetUrl, isServerAssetUrl, toCanonicalAssetUrl } from '@/utils/assetUrl';
+import { uploadPhoto, deletePhoto } from '@/utils/uploadPhoto';
 
 export default function ProfileScreen() {
   const { t } = useTranslation();
@@ -20,8 +23,10 @@ export default function ProfileScreen() {
   const createPortalSession = useCreatePortalSession();
   const plans = plansData && 'plans' in plansData ? plansData.plans : plansData;
   const enableRealPayments = plansData && 'enableRealPayments' in plansData ? plansData.enableRealPayments : false;
-  const updateMe = useUpdateMe();
+  const updatePseudonym = useUpdateMe();
+  const updateAvatar = useUpdateMe();
   const [pseudonym, setPseudonym] = useState(user?.pseudonym ?? '');
+  const [isAvatarBusy, setIsAvatarBusy] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
@@ -31,13 +36,15 @@ export default function ProfileScreen() {
 
   // Get current subscription plan
   const currentPlan = plans?.find(plan => plan.isCurrent);
+  const currentPlanName = currentPlan?.name || t('plans.free');
   // API returns features as object { stories_per_month: { value: { limit } }, ... }
   const featuresObj = currentPlan?.features as Record<string, { value?: { limit?: number } }> | undefined;
   const storiesLimit = featuresObj?.stories_per_month?.value?.limit ?? 3;
+  const avatarUrl = formatAssetUrl(user?.avatarUrl) ?? user?.avatarUrl ?? null;
+  const avatarInitial = user?.displayName?.trim().charAt(0)
+    || user?.email?.trim().charAt(0)
+    || 'U';
 
-  const formattedResetsAt = usage?.resetsAt
-    ? new Date(usage.resetsAt).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    : '';
   const formattedPeriodEnd = usage?.currentPeriodEnd
     ? new Date(usage.currentPeriodEnd).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : '';
@@ -63,6 +70,92 @@ export default function ProfileScreen() {
 
   const handleLogout = () => setShowLogoutConfirm(true);
 
+  const handleOpenAdmin = () => {
+    const parent = navigation.getParent();
+    (parent as any)?.navigate('Admin', { screen: 'AdminStories' });
+  };
+
+  const requestPhotoPermission = async () => {
+    if (Platform.OS === 'web') return true;
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        t('profile.avatar_permission_title'),
+        t('profile.avatar_permission_message')
+      );
+      return false;
+    }
+
+    return true;
+  };
+
+  const handlePickAvatar = async () => {
+    const hasPermission = await requestPhotoPermission();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+
+      const previousAvatarUrl = user?.avatarUrl ?? null;
+      const localUri = result.assets[0].uri;
+
+      setIsAvatarBusy(true);
+      try {
+        const uploadedAvatar = await uploadPhoto(localUri, 'profile');
+        const canonicalAvatarUrl = toCanonicalAssetUrl(uploadedAvatar.url);
+
+        try {
+          await updateAvatar.mutateAsync({ avatarUrl: canonicalAvatarUrl });
+
+          if (previousAvatarUrl && previousAvatarUrl !== canonicalAvatarUrl && isServerAssetUrl(previousAvatarUrl)) {
+            await deletePhoto(previousAvatarUrl);
+          }
+        } catch (error) {
+          if (isServerAssetUrl(uploadedAvatar.url)) {
+            await deletePhoto(uploadedAvatar.url);
+          }
+          throw error;
+        }
+      } catch (error) {
+        console.error('Avatar upload failed:', error);
+        Alert.alert(t('common.error'), t('profile.avatar_upload_error'));
+      } finally {
+        setIsAvatarBusy(false);
+      }
+    } catch (error) {
+      console.error('Avatar pick failed:', error);
+      Alert.alert(t('common.error'), t('profile.avatar_pick_error'));
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!user?.avatarUrl) return;
+
+    const previousAvatarUrl = user.avatarUrl;
+    setIsAvatarBusy(true);
+
+    try {
+      await updateAvatar.mutateAsync({ avatarUrl: null });
+
+      if (isServerAssetUrl(previousAvatarUrl)) {
+        await deletePhoto(previousAvatarUrl);
+      }
+    } catch (error) {
+      console.error('Avatar removal failed:', error);
+      Alert.alert(t('common.error'), t('profile.avatar_remove_error'));
+    } finally {
+      setIsAvatarBusy(false);
+    }
+  };
+
   return (
     <>
     <ScrollView contentContainerStyle={styles.content}>
@@ -74,13 +167,56 @@ export default function ProfileScreen() {
         <Text style={styles.sectionTitle}>{t('profile.account_info')}</Text>
         
         <View style={styles.profileCard}>
-          {user?.avatarUrl && (
-            <View style={styles.avatarContainer}>
-              <Text style={styles.avatarPlaceholder}>
-                {user.displayName?.charAt(0).toUpperCase() || 'U'}
-              </Text>
+          <View style={styles.avatarSection}>
+            <TouchableOpacity
+              style={styles.avatarContainer}
+              onPress={handlePickAvatar}
+              activeOpacity={0.85}
+              disabled={isAvatarBusy}
+            >
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarPlaceholder}>
+                  {avatarInitial.toUpperCase()}
+                </Text>
+              )}
+
+              {isAvatarBusy ? (
+                <View style={styles.avatarLoadingOverlay}>
+                  <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+                </View>
+              ) : null}
+            </TouchableOpacity>
+
+            <View style={styles.avatarActions}>
+              <TouchableOpacity
+                style={[styles.avatarActionButton, styles.avatarPrimaryButton]}
+                onPress={handlePickAvatar}
+                disabled={isAvatarBusy}
+              >
+                <Text style={[styles.avatarActionText, styles.avatarPrimaryButtonText]}>
+                  {isAvatarBusy
+                    ? t('profile.avatar_uploading')
+                    : avatarUrl
+                      ? t('profile.change_avatar')
+                      : t('profile.add_avatar')}
+                </Text>
+              </TouchableOpacity>
+
+              {user?.avatarUrl ? (
+                <TouchableOpacity
+                  style={[styles.avatarActionButton, styles.avatarSecondaryButton]}
+                  onPress={handleRemoveAvatar}
+                  disabled={isAvatarBusy}
+                >
+                  <Text style={[styles.avatarActionText, styles.avatarSecondaryButtonText]}>
+                    {t('profile.remove_avatar')}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
-          )}
+          </View>
           
           <View style={styles.infoRow}>
             <Text style={styles.label}>{t('profile.name')}</Text>
@@ -104,10 +240,10 @@ export default function ProfileScreen() {
             />
             <TouchableOpacity
               style={styles.savePseudonymButton}
-              onPress={() => updateMe.mutate({ pseudonym: pseudonym.trim() || null })}
-              disabled={updateMe.isPending}
+              onPress={() => updatePseudonym.mutate({ pseudonym: pseudonym.trim() || null })}
+              disabled={updatePseudonym.isPending}
             >
-              {updateMe.isPending ? (
+              {updatePseudonym.isPending ? (
                 <ActivityIndicator size="small" color={theme.colors.text.inverse} />
               ) : (
                 <Text style={styles.savePseudonymText}>{t('common.save')}</Text>
@@ -151,6 +287,13 @@ export default function ProfileScreen() {
           <Text style={styles.settingText}>{t('profile.privacy_settings')}</Text>
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
+
+        {Platform.OS === 'web' && user?.role === 'admin' ? (
+          <TouchableOpacity style={styles.settingButton} onPress={handleOpenAdmin}>
+            <Text style={styles.settingText}>Admin</Text>
+            <Text style={styles.settingArrow}>›</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <View style={styles.section}>
@@ -163,7 +306,7 @@ export default function ProfileScreen() {
         ) : (
           <View style={styles.subscriptionCard}>
             <Text style={styles.subscriptionPlan}>
-              {currentPlan?.name || t('plans.free')}
+              {currentPlanName}
             </Text>
             {usage?.cancelAtPeriodEnd && formattedPeriodEnd ? (
               <Text style={styles.subscriptionDetail}>
@@ -300,20 +443,73 @@ const styles = StyleSheet.create({
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
   },
+  avatarSection: {
+    alignItems: 'center',
+    marginBottom: theme.spacing[5],
+  },
   avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     backgroundColor: theme.colors.interactive.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    alignSelf: 'center',
-    marginBottom: theme.spacing[5],
+    overflow: 'hidden',
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarPlaceholder: {
     fontSize: theme.typography.fontSize['4xl'],
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.inverse,
+  },
+  avatarLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: theme.spacing[3],
+  },
+  avatarActionButton: {
+    minWidth: 132,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    marginHorizontal: theme.spacing[1],
+    marginTop: theme.spacing[2],
+  },
+  avatarPrimaryButton: {
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  avatarSecondaryButton: {
+    backgroundColor: theme.colors.background.primary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+  },
+  avatarActionText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  avatarPrimaryButtonText: {
+    color: theme.colors.text.inverse,
+  },
+  avatarSecondaryButtonText: {
+    color: theme.colors.text.primary,
   },
   infoRow: {
     marginBottom: theme.spacing[4],

@@ -11,6 +11,7 @@ const router = Router();
 // Validation schema for user update
 const updateUserSchema = z.object({
   displayName: z.string().optional(),
+  avatarUrl: z.string().nullable().optional(),
   preferredLocale: z.string().optional(),
   mode: z.enum(['instant', 'artisan']).optional(),
   pseudonym: z.string().max(100).nullable().optional(),
@@ -49,16 +50,17 @@ router.patch('/', requireAuth, async (req: Request, res: Response) => {
       return;
     }
     
-    const { displayName, preferredLocale, mode, pseudonym } = validationResult.data;
+    const { displayName, avatarUrl, preferredLocale, mode, pseudonym } = validationResult.data;
     
     const updatedUser = await updateUser(req.user!.id, {
       displayName,
+      avatarUrl,
       preferredLocale,
       mode,
       pseudonym,
     });
     
-    logger.info({ userId: req.user!.id, updates: { displayName, preferredLocale, mode, pseudonym } }, 'User profile updated');
+    logger.info({ userId: req.user!.id, updates: { displayName, avatarUrl, preferredLocale, mode, pseudonym } }, 'User profile updated');
     
     res.json({
       status: 'success',

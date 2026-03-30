@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Platform, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Platform, Alert, ActivityIndicator, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,11 +18,25 @@ import { API_BASE_URL } from '@/config/constants';
 
 /** Convert relative asset path to absolute URL for Zod .url() validation */
 function toAbsoluteAssetUrl(url: string): string {
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      const parsed = new URL(url);
+      return `${parsed.origin}${parsed.pathname}`;
+    } catch {
+      return url.split('?')[0];
+    }
+  }
+
+  const withoutQuery = url.split('?')[0];
   const base = typeof window !== 'undefined'
     ? window.location.origin
     : API_BASE_URL.replace(/\/$/, '');
-  return url.startsWith('/') ? `${base}${url}` : `${base}/${url}`;
+  const assetPath = withoutQuery.startsWith('/api/v1/assets/')
+    ? withoutQuery
+    : withoutQuery.startsWith('/')
+      ? `/api/v1/assets/${withoutQuery.slice(1)}`
+      : `/api/v1/assets/${withoutQuery}`;
+  return `${base}${assetPath}`;
 }
 
 import { storage } from '@/utils/storage';
@@ -82,6 +96,11 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
   const createChild = useCreateChild();
   const updateChild = useUpdateChild();
   const analyzeChild = useAnalyzeChild();
+  const currentPreviewUrl =
+    initialData?.turnaroundSheet?.frontUrl
+    ?? initialData?.turnaroundSheet?.url
+    ?? initialData?.referencePhotos?.[0]?.url
+    ?? null;
 
   const [currentStep, setCurrentStep] = useState(1);
   const scrollRef = useRef<ScrollView>(null);
@@ -515,6 +534,16 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
 
             <View style={styles.field}>
               <Text style={styles.label}>{t('child_form.photos_title')}</Text>
+              {childId && currentPreviewUrl && photos.length === 0 ? (
+                <View style={styles.currentImageCard}>
+                  <Text style={styles.currentImageLabel}>{t('child_form.current_image') || 'Текущее изображение'}</Text>
+                  <Image
+                    source={{ uri: formatAssetUrl(currentPreviewUrl) ?? currentPreviewUrl }}
+                    style={styles.currentImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              ) : null}
               <PhotoUploadGrid
                 photos={photos}
                 onPhotosChange={setPhotos}
@@ -683,6 +712,25 @@ const styles = StyleSheet.create({
   },
   field: {
     marginBottom: theme.spacing[5],
+  },
+  currentImageCard: {
+    marginBottom: theme.spacing[3],
+    padding: theme.spacing[3],
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  currentImageLabel: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing[2],
+  },
+  currentImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.primary,
   },
   label: {
     fontSize: theme.typography.fontSize.base,

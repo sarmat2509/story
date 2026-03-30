@@ -3,6 +3,7 @@ import type { ChildProfile, NewChildProfile } from '../db/schema';
 import { logger } from '../utils/logger';
 import { recordUsage } from './aiUsageService';
 import * as planService from './planService';
+import { collectEntityAssetPaths, deleteEntityAssets } from './entityAssetCleanupService';
 import { translateChildDescription } from './translationService';
 
 // Age calculation helpers
@@ -160,9 +161,21 @@ export async function deleteChildProfile(id: string, userId: string): Promise<vo
   if (!existing) {
     throw new Error('Child profile not found');
   }
-  
-  // Soft delete
-  await childProfileRepo.softDelete(id, userId);
-  
-  logger.info({ userId, profileId: id }, 'Deleted (soft) child profile');
+
+  const usageCount = await childProfileRepo.countStoryUsage(id, userId);
+  if (usageCount > 0) {
+    await childProfileRepo.softDelete(id, userId);
+    logger.info({ userId, profileId: id, usageCount }, 'Child profile archived because it is used in stories or requests');
+    return;
+  }
+
+  const assetPaths = collectEntityAssetPaths({
+    referencePhotos: existing.referencePhotos,
+    turnaroundSheet: existing.turnaroundSheet,
+  });
+
+  await deleteEntityAssets(assetPaths);
+  await childProfileRepo.hardDelete(id, userId);
+
+  logger.info({ userId, profileId: id, deletedAssetCount: assetPaths.length }, 'Child profile hard deleted with related assets');
 }
