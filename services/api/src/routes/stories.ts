@@ -24,7 +24,7 @@ import { createCharacter } from '../services/characterService';
 import { config } from '../config';
 import { startTask, completeTask, STORY_TASKS } from '../services/storyProgress';
 import { getStoryRepository, getAssetRepository } from '../repositories';
-import { getStoryCost, getStoryCostBreakdown } from '../services/aiUsageService';
+import { getStoryCacheStats, getStoryCost, getStoryCostBreakdown } from '../services/aiUsageService';
 
 /**
  * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
@@ -1344,9 +1344,10 @@ router.get('/:id/cost', requireAuth, async (req: Request, res: Response) => {
       });
     }
 
-    const [costUsd, breakdown] = await Promise.all([
+    const [costUsd, breakdown, cacheStats] = await Promise.all([
       getStoryCost(storyId),
       getStoryCostBreakdown(storyId),
+      getStoryCacheStats(storyId),
     ]);
 
     res.json({
@@ -1354,6 +1355,7 @@ router.get('/:id/cost', requireAuth, async (req: Request, res: Response) => {
       data: {
         costUsd: Math.round(costUsd * 1e8) / 1e8,
         breakdown,
+        cacheStats,
       },
     });
   } catch (error) {

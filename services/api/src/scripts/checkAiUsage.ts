@@ -54,11 +54,15 @@ async function checkAiUsage() {
     for (const row of result.rows) {
       const cost = parseFloat(row.cost_usd || '0');
       totalCost += cost;
+      const metadata = row.metadata || null;
+      const cachedInputUnits = metadata?.cachedInputUnits ?? 0;
+      const effectiveInputUnits = metadata?.effectiveInputUnits ?? row.input_units ?? '-';
+      const cacheHit = metadata?.cacheHit ?? false;
       console.log(`
   ${row.created_at} | ${row.provider} | ${row.operation} | ${row.model || '-'}
-    input: ${row.input_units ?? '-'} | output: ${row.output_units ?? '-'} | cost: $${cost.toFixed(6)}
+    input: ${row.input_units ?? '-'} | effective_input: ${effectiveInputUnits} | cached_input: ${cachedInputUnits} | cache_hit: ${cacheHit} | output: ${row.output_units ?? '-'} | cost: $${cost.toFixed(6)}
     story: ${row.story_id || '-'} | user: ${row.user_id || '-'}
-    ${row.metadata ? `metadata: ${JSON.stringify(row.metadata)}` : ''}
+    ${metadata ? `metadata: ${JSON.stringify(metadata)}` : ''}
 `);
     }
 
