@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
 import MainNavigator from './MainNavigator';
+import AdminNavigator from '@/admin/navigation/AdminNavigator';
 import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
 import type { RootStackParamList } from '@/types/navigation';
 
@@ -36,6 +37,9 @@ export default function RootNavigator() {
     >
       <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
       <Stack.Screen name="Main" component={MainNavigator} />
+      {Platform.OS === 'web' ? (
+        <Stack.Screen name="Admin" component={AdminNavigator} />
+      ) : null}
     </Stack.Navigator>
   );
 }

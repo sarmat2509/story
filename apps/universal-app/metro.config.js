@@ -23,6 +23,14 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     const filePath = path.resolve(workspaceRoot, 'packages', 'shared', 'src', 'i18n', `${sharedI18nMatch[1]}.json`);
     return { type: 'sourceFile', filePath };
   }
+  if (moduleName === 'react-native-view-shot') {
+    const filePath = path.resolve(workspaceRoot, 'node_modules', 'react-native-view-shot', 'src', 'index.js');
+    return { type: 'sourceFile', filePath };
+  }
+  if (moduleName === 'html2canvas') {
+    const filePath = path.resolve(workspaceRoot, 'node_modules', 'html2canvas', 'dist', 'html2canvas.esm.js');
+    return { type: 'sourceFile', filePath };
+  }
   if (
     platform === 'web' &&
     (moduleName === 'zustand' || moduleName.startsWith('zustand/'))

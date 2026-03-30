@@ -11,6 +11,8 @@ export const users = pgTable('users', {
   preferredLocale: varchar('preferred_locale', { length: 5 }).default('uk').notNull(),
   mode: varchar('mode', { length: 20 }).default('instant').notNull(), // 'instant' | 'artisan'
   stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
+  /** Application role: 'user' | 'admin' */
+  role: varchar('role', { length: 20 }).notNull().default('user'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {
@@ -138,7 +140,6 @@ export const features = pgTable('features', {
   featureType: varchar('feature_type', { length: 20 }).notNull(), // 'boolean' | 'numeric' | 'enum'
   defaultValue: jsonb('default_value').notNull(), // type-specific default
   category: varchar('category', { length: 50 }).notNull(),
-  isInternal: boolean('is_internal').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {
@@ -310,11 +311,7 @@ export const storyGoals = pgTable('story_goals', {
 export const contentPolicyRules = pgTable('content_policy_rules', {
   id: varchar('id', { length: 50 }).primaryKey(),
   category: varchar('category', { length: 100 }).notNull(),
-  description: text('description').notNull(),
-  prohibitedElements: text('prohibited_elements').notNull(), // JSON array
-  examples: text('examples').notNull(), // JSON object
   promptGuidance: text('prompt_guidance').notNull(),
-  severity: varchar('severity', { length: 20 }).notNull(),
   sortOrder: integer('sort_order').notNull().default(0),
 });
 
@@ -325,10 +322,7 @@ export const ageEngineRules = pgTable('age_engine_rules', {
   wordRangeMin: integer('word_range_min').notNull(),
   wordRangeMax: integer('word_range_max').notNull(),
   maxSentenceLength: integer('max_sentence_length').notNull(),
-  vocabulary: varchar('vocabulary', { length: 20 }).notNull(),
   dialogRatio: decimal('dialog_ratio', { precision: 3, scale: 2 }).notNull(),
-  themes: text('themes').notNull(), // JSON array
-  fearLevel: integer('fear_level').notNull(),
   allowedConflicts: text('allowed_conflicts').notNull(), // JSON array
   additionalRules: text('additional_rules').notNull(),
 });
@@ -596,6 +590,53 @@ export const aiUsageEvents = pgTable('ai_usage_events', {
   };
 });
 
+/** Vision model validation per image attempt (analytics; image_storage_path matches asset path convention). */
+export const imageValidationResults = pgTable(
+  'image_validation_results',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    storyId: uuid('story_id')
+      .references(() => stories.id, { onDelete: 'cascade' })
+      .notNull(),
+    sceneIndex: integer('scene_index').notNull(),
+    attempt: integer('attempt').notNull(),
+    imageStoragePath: text('image_storage_path').notNull(),
+    validationScore: integer('validation_score').notNull(),
+    visionModel: varchar('vision_model', { length: 100 }),
+    result: jsonb('result').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    storyIdx: index('idx_image_validation_results_story').on(table.storyId),
+    storySceneCreatedIdx: index('idx_image_validation_results_story_scene_created').on(
+      table.storyId,
+      table.sceneIndex,
+      table.createdAt,
+    ),
+  }),
+);
+
+export const storyDirectorScenes = pgTable(
+  'story_director_scenes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    storyId: uuid('story_id')
+      .references(() => stories.id, { onDelete: 'cascade' })
+      .notNull(),
+    sceneIndex: integer('scene_index').notNull(),
+    environmentId: text('environment_id'),
+    characterOutfitIds: jsonb('character_outfit_ids'),
+    sceneVisual: jsonb('scene_visual'),
+    illustrationBlockIndex: integer('illustration_block_index').notNull(),
+    isBlockAnchor: boolean('is_block_anchor').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    storyIdx: index('idx_story_director_scenes_story').on(table.storyId),
+    storySceneIdx: index('idx_story_director_scenes_story_scene').on(table.storyId, table.sceneIndex),
+  }),
+);
+
 export type StoryGoal = typeof storyGoals.$inferSelect;
 export type NewStoryGoal = typeof storyGoals.$inferInsert;
 
@@ -671,6 +712,11 @@ export type NewBatchImageJob = typeof batchImageJobs.$inferInsert;
 
 export type AiUsageEvent = typeof aiUsageEvents.$inferSelect;
 export type NewAiUsageEvent = typeof aiUsageEvents.$inferInsert;
+
+export type ImageValidationResultRow = typeof imageValidationResults.$inferSelect;
+export type NewImageValidationResultRow = typeof imageValidationResults.$inferInsert;
+export type StoryDirectorScene = typeof storyDirectorScenes.$inferSelect;
+export type NewStoryDirectorScene = typeof storyDirectorScenes.$inferInsert;
 
 // ==========================================
 // IMAGE GENERATION TABLES (M4)
@@ -1022,4 +1068,3 @@ export type NewAlignment = typeof alignments.$inferInsert;
 
 export type AudioAsset = typeof audioAssets.$inferSelect;
 export type NewAudioAsset = typeof audioAssets.$inferInsert;
-

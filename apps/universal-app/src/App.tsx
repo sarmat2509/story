@@ -92,6 +92,19 @@ const linking: any = {
           NotFound: '404',
         },
       },
+      Admin: {
+        path: 'admin',
+        screens: {
+          AdminStories: 'stories',
+          AdminScenesStory: 'stories/:storyId',
+          AdminFeedback: 'feedback',
+          AdminContentConfig: 'content-config',
+          AdminUsers: 'users',
+          AdminValidations: 'validations',
+          AdminValidationDetail: 'validations/:id',
+          AdminScenes: 'scenes',
+        },
+      },
     },
   },
 };

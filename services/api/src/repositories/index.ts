@@ -29,6 +29,10 @@ import { AiUsageRepository } from './AiUsageRepository';
 import { UsageEventsRepository } from './UsageEventsRepository';
 import { StoryRatingRepository } from './StoryRatingRepository';
 import { PasswordResetTokenRepository } from './PasswordResetTokenRepository';
+import { ImageValidationRepository } from './ImageValidationRepository';
+import { StoryDirectorSceneRepository } from './StoryDirectorSceneRepository';
+import { AdminConfigRepository } from './AdminConfigRepository';
+import { FeedbackRepository } from './FeedbackRepository';
 
 // Re-export classes for type usage
 export { UserRepository } from './UserRepository';
@@ -53,6 +57,10 @@ export { AiUsageRepository } from './AiUsageRepository';
 export { UsageEventsRepository } from './UsageEventsRepository';
 export { StoryRatingRepository } from './StoryRatingRepository';
 export { PasswordResetTokenRepository } from './PasswordResetTokenRepository';
+export { ImageValidationRepository } from './ImageValidationRepository';
+export { StoryDirectorSceneRepository } from './StoryDirectorSceneRepository';
+export { AdminConfigRepository } from './AdminConfigRepository';
+export { FeedbackRepository } from './FeedbackRepository';
 
 // Singleton instances
 let userRepo: UserRepository;
@@ -77,6 +85,10 @@ let aiUsageRepo: AiUsageRepository;
 let usageEventsRepo: UsageEventsRepository;
 let storyRatingRepo: StoryRatingRepository;
 let passwordResetTokenRepo: PasswordResetTokenRepository;
+let imageValidationRepo: ImageValidationRepository;
+let storyDirectorSceneRepo: StoryDirectorSceneRepository;
+let adminConfigRepo: AdminConfigRepository;
+let feedbackRepo: FeedbackRepository;
 
 export function getUserRepository(): UserRepository {
   if (!userRepo) userRepo = new UserRepository(db);
@@ -151,8 +163,7 @@ export function getStoryEnvironmentCacheRepository(): StoryEnvironmentCacheRepos
 }
 
 export function getLlmTurnaroundCacheRepository(): LlmTurnaroundCacheRepository {
-  if (!llmTurnaroundCacheRepo)
-    llmTurnaroundCacheRepo = new LlmTurnaroundCacheRepository(db);
+  if (!llmTurnaroundCacheRepo) llmTurnaroundCacheRepo = new LlmTurnaroundCacheRepository(db);
   return llmTurnaroundCacheRepo;
 }
 
@@ -188,7 +199,26 @@ export function getStoryRatingRepository(): StoryRatingRepository {
 }
 
 export function getPasswordResetTokenRepository(): PasswordResetTokenRepository {
-  if (!passwordResetTokenRepo)
-    passwordResetTokenRepo = new PasswordResetTokenRepository(db);
+  if (!passwordResetTokenRepo) passwordResetTokenRepo = new PasswordResetTokenRepository(db);
   return passwordResetTokenRepo;
+}
+
+export function getImageValidationRepository(): ImageValidationRepository {
+  if (!imageValidationRepo) imageValidationRepo = new ImageValidationRepository(db);
+  return imageValidationRepo;
+}
+
+export function getStoryDirectorSceneRepository(): StoryDirectorSceneRepository {
+  if (!storyDirectorSceneRepo) storyDirectorSceneRepo = new StoryDirectorSceneRepository(db);
+  return storyDirectorSceneRepo;
+}
+
+export function getAdminConfigRepository(): AdminConfigRepository {
+  if (!adminConfigRepo) adminConfigRepo = new AdminConfigRepository(db);
+  return adminConfigRepo;
+}
+
+export function getFeedbackRepository(): FeedbackRepository {
+  if (!feedbackRepo) feedbackRepo = new FeedbackRepository(db);
+  return feedbackRepo;
 }

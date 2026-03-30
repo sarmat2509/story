@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { captureScreen } from 'react-native-view-shot';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
@@ -38,6 +39,95 @@ interface FeedbackModalProps {
   initialReportedScreen?: ReportedScreen;
 }
 
+async function captureCurrentViewportDataUrl(): Promise<string> {
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof document === 'undefined') {
+    throw new Error('Web-only screenshot capture is unavailable');
+  }
+
+  console.log('[FeedbackModal] Starting web viewport screenshot capture');
+
+  const captureRoot =
+    document.getElementById('root') ??
+    document.getElementById('main') ??
+    document.body;
+
+  if (!captureRoot) {
+    throw new Error('App root not found');
+  }
+  const viewportWidth = Math.max(window.innerWidth, 1);
+  const viewportHeight = Math.max(window.innerHeight, 1);
+  const scrollX = window.scrollX || window.pageXOffset || 0;
+  const scrollY = window.scrollY || window.pageYOffset || 0;
+  const html2canvasModule = await import('html2canvas');
+  const html2canvas = html2canvasModule.default;
+  const canvas = await html2canvas(captureRoot as HTMLElement, {
+    backgroundColor: window.getComputedStyle(document.body).backgroundColor || '#ffffff',
+    useCORS: true,
+    allowTaint: false,
+    logging: false,
+    scale: Math.min(window.devicePixelRatio || 1, 2),
+    width: viewportWidth,
+    height: viewportHeight,
+    x: scrollX,
+    y: scrollY,
+    scrollX,
+    scrollY,
+    windowWidth: viewportWidth,
+    windowHeight: viewportHeight,
+  });
+
+  console.log('[FeedbackModal] Web viewport screenshot render completed');
+
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    if (!canvas.toBlob) {
+      try {
+        resolve(canvas.toDataURL('image/jpeg', 0.9));
+      } catch (error) {
+        reject(error);
+      }
+      return;
+    }
+
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Failed to serialize screenshot canvas'));
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Failed to read screenshot blob'));
+        }
+      };
+      reader.onerror = () => reject(reader.error ?? new Error('Failed to read screenshot blob'));
+      reader.readAsDataURL(blob);
+    }, 'image/jpeg', 0.9);
+  });
+
+  console.log('[FeedbackModal] Web viewport screenshot encoded');
+  return dataUrl;
+}
+
+async function captureFeedbackScreenshotUri(): Promise<string> {
+  if (Platform.OS === 'web') {
+    console.log('[FeedbackModal] Using web screenshot capture path');
+    return captureCurrentViewportDataUrl();
+  }
+
+  if (Platform.OS === 'ios' || Platform.OS === 'android') {
+    console.log('[FeedbackModal] Using native screenshot capture path', { platform: Platform.OS });
+    return captureScreen({
+      format: 'jpg',
+      quality: 0.8,
+    });
+  }
+
+  throw new Error('Automatic screenshot capture is unavailable on this platform');
+}
+
 export function FeedbackModal({
   visible,
   onClose,
@@ -54,6 +144,9 @@ export function FeedbackModal({
   const [screenshotUri, setScreenshotUri] = useState<string | null>(null);
   const [screenshotStoragePath, setScreenshotStoragePath] = useState<string | null>(null);
   const [isUploadingScreenshot, setIsUploadingScreenshot] = useState(false);
+  const [isPreparingModal, setIsPreparingModal] = useState(false);
+  const [hasAttemptedAutoCapture, setHasAttemptedAutoCapture] = useState(false);
+  const [isAutoCaptured, setIsAutoCaptured] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const isLoggedIn = !!user;
@@ -68,9 +161,82 @@ export function FeedbackModal({
       setEmail('');
       setScreenshotUri(null);
       setScreenshotStoragePath(null);
+      setIsPreparingModal(false);
+      setIsUploadingScreenshot(false);
+      setHasAttemptedAutoCapture(false);
+      setIsAutoCaptured(false);
       setSubmitted(false);
+    } else {
+      setIsPreparingModal(false);
+      setIsUploadingScreenshot(false);
     }
   }, [visible, initialReportedScreen]);
+
+  useEffect(() => {
+    if (!visible || !showScreenshotField || hasAttemptedAutoCapture) {
+      return;
+    }
+
+    let cancelled = false;
+    const preparingTimeout = setTimeout(() => {
+      if (!cancelled) {
+        setIsPreparingModal(false);
+      }
+    }, 1500);
+
+    const runAutoCapture = async () => {
+      try {
+        console.log('[FeedbackModal] Auto screenshot capture started', {
+          platform: Platform.OS,
+          reportedScreen: initialReportedScreen,
+        });
+        setHasAttemptedAutoCapture(true);
+        setIsPreparingModal(true);
+        setIsUploadingScreenshot(true);
+
+        if (Platform.OS === 'web') {
+          await new Promise<void>((resolve) => {
+            window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+          });
+        }
+
+        const capturedUri = await captureFeedbackScreenshotUri();
+        if (cancelled) return;
+
+        console.log('[FeedbackModal] Screenshot captured successfully', {
+          platform: Platform.OS,
+          uriPrefix: capturedUri.slice(0, 40),
+        });
+        setScreenshotUri(capturedUri);
+        setIsAutoCaptured(true);
+        setIsPreparingModal(false);
+        const uploaded = await uploadPhoto(capturedUri, 'feedback');
+        if (cancelled) return;
+
+        console.log('[FeedbackModal] Screenshot uploaded successfully', {
+          platform: Platform.OS,
+          storagePath: uploaded.storagePath ?? null,
+        });
+        setScreenshotStoragePath(uploaded.storagePath || null);
+      } catch (error) {
+        console.warn('Auto feedback screenshot capture failed', error);
+        if (!cancelled) {
+          setIsPreparingModal(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsUploadingScreenshot(false);
+        }
+      }
+    };
+
+    void runAutoCapture();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(preparingTimeout);
+    };
+  }, [visible, showScreenshotField]);
 
   const requestPermission = async () => {
     if (Platform.OS !== 'web') {
@@ -102,6 +268,7 @@ export function FeedbackModal({
 
       const uri = result.assets[0].uri;
       setScreenshotUri(uri);
+      setIsAutoCaptured(false);
       setIsUploadingScreenshot(true);
 
       try {
@@ -121,6 +288,7 @@ export function FeedbackModal({
   const handleRemoveScreenshot = () => {
     setScreenshotUri(null);
     setScreenshotStoragePath(null);
+    setIsAutoCaptured(false);
   };
 
   const handleSubmit = async () => {
@@ -162,21 +330,35 @@ export function FeedbackModal({
   };
 
   const handleClose = () => {
-    if (!submitFeedback.isPending) {
+    if (!submitFeedback.isPending && !isPreparingModal) {
       onClose();
     }
   };
+
+  if (visible && showScreenshotField && (isPreparingModal || !hasAttemptedAutoCapture)) {
+    return (
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+        <View style={styles.overlay}>
+          <View style={styles.preparingDialog}>
+            <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+            <Text style={styles.preparingTitle}>{t('feedback.title')}</Text>
+            <Text style={styles.preparingText}>{t('feedback.preparing_screenshot')}</Text>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
 
   if (submitted) {
     return (
       <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
         <View style={styles.overlay}>
-          <View style={styles.dialog}>
+          <View style={styles.successDialog}>
             <View style={[styles.iconContainer, { backgroundColor: `${theme.colors.status.success}20` }]}>
               <Ionicons name="checkmark-circle" size={48} color={theme.colors.status.success} />
             </View>
-            <Text style={styles.title}>{t('feedback.success')}</Text>
-            <Text style={styles.message}>{t('feedback.success_message')}</Text>
+            <Text style={styles.successTitle}>{t('feedback.success')}</Text>
+            <Text style={styles.successMessage}>{t('feedback.success_message')}</Text>
             <TouchableOpacity style={styles.primaryButton} onPress={handleClose}>
               <Text style={styles.primaryButtonText}>{t('common.got_it')}</Text>
             </TouchableOpacity>
@@ -283,13 +465,31 @@ export function FeedbackModal({
                 {screenshotUri ? (
                   <View style={styles.screenshotPreview}>
                     <Image source={{ uri: screenshotUri }} style={styles.screenshotImage} />
-                    <TouchableOpacity
-                      style={styles.removeScreenshotButton}
-                      onPress={handleRemoveScreenshot}
-                    >
-                      <Ionicons name="trash-outline" size={20} color={theme.colors.text.inverse} />
-                      <Text style={styles.removeScreenshotText}>{t('feedback.remove_screenshot')}</Text>
-                    </TouchableOpacity>
+                    <View style={styles.screenshotActions}>
+                      {isAutoCaptured ? (
+                        <Text style={styles.autoScreenshotHint}>{t('feedback.auto_screenshot_attached')}</Text>
+                      ) : null}
+                      {isUploadingScreenshot ? (
+                        <Text style={styles.autoScreenshotHint}>{t('feedback.uploading_screenshot')}</Text>
+                      ) : null}
+                      <View style={styles.screenshotButtonRow}>
+                        <TouchableOpacity
+                          style={styles.replaceScreenshotButton}
+                          onPress={handleAttachScreenshot}
+                          disabled={isUploadingScreenshot}
+                        >
+                          <Ionicons name="refresh-outline" size={20} color={theme.colors.interactive.primary} />
+                          <Text style={styles.replaceScreenshotText}>{t('feedback.replace_screenshot')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.removeScreenshotButton}
+                          onPress={handleRemoveScreenshot}
+                        >
+                          <Ionicons name="trash-outline" size={20} color={theme.colors.text.inverse} />
+                          <Text style={styles.removeScreenshotText}>{t('feedback.remove_screenshot')}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
                 ) : (
                   <TouchableOpacity
@@ -348,6 +548,36 @@ const styles = StyleSheet.create({
     width: '100%',
     maxHeight: '90%',
     paddingBottom: theme.spacing[6],
+  },
+  successDialog: {
+    backgroundColor: theme.colors.background.primary,
+    borderRadius: theme.borders.radius.xl,
+    maxWidth: 480,
+    width: '100%',
+    paddingVertical: theme.spacing[8],
+    paddingHorizontal: theme.spacing[8],
+    alignItems: 'center',
+  },
+  preparingDialog: {
+    backgroundColor: theme.colors.background.primary,
+    borderRadius: theme.borders.radius.xl,
+    maxWidth: 420,
+    width: '100%',
+    paddingVertical: theme.spacing[8],
+    paddingHorizontal: theme.spacing[6],
+    alignItems: 'center',
+    gap: theme.spacing[4],
+  },
+  preparingTitle: {
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+  },
+  preparingText: {
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -442,11 +672,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing[3],
   },
+  screenshotActions: {
+    flex: 1,
+    gap: theme.spacing[2],
+  },
+  screenshotButtonRow: {
+    flexDirection: 'row',
+    gap: theme.spacing[2],
+    flexWrap: 'wrap',
+  },
   screenshotImage: {
     width: 64,
     height: 64,
     borderRadius: theme.borders.radius.md,
     backgroundColor: theme.colors.background.tertiary,
+  },
+  autoScreenshotHint: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
   },
   removeScreenshotButton: {
     flexDirection: 'row',
@@ -460,6 +703,22 @@ const styles = StyleSheet.create({
   removeScreenshotText: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.inverse,
+  },
+  replaceScreenshotButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[4],
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.interactive.primary,
+  },
+  replaceScreenshotText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.interactive.primary,
+    fontWeight: theme.typography.fontWeight.medium,
   },
   footer: {
     flexDirection: 'row',
@@ -504,6 +763,8 @@ const styles = StyleSheet.create({
     borderRadius: theme.borders.radius.md,
     backgroundColor: theme.colors.interactive.primary,
     alignSelf: 'center',
+    minWidth: 180,
+    alignItems: 'center',
   },
   primaryButtonText: {
     fontSize: theme.typography.fontSize.base,
@@ -517,12 +778,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
-    marginBottom: theme.spacing[4],
+    marginBottom: theme.spacing[5],
   },
-  message: {
+  successTitle: {
+    fontSize: theme.typography.fontSize['2xl'],
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+    marginBottom: theme.spacing[3],
+  },
+  successMessage: {
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.secondary,
     textAlign: 'center',
-    marginBottom: theme.spacing[6],
+    lineHeight: 30,
+    marginBottom: theme.spacing[8],
+    maxWidth: 360,
   },
 });

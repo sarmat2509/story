@@ -3,6 +3,18 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 export type RootStackParamList = {
   ModeSelection: undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
+  Admin: NavigatorScreenParams<AdminStackParamList> | undefined;
+};
+
+export type AdminStackParamList = {
+  AdminStories: undefined;
+  AdminUsers: undefined;
+  AdminFeedback: undefined;
+  AdminValidations: undefined;
+  AdminContentConfig: undefined;
+  AdminValidationDetail: { id: string };
+  AdminScenes: undefined;
+  AdminScenesStory: { storyId: string };
 };
 
 export type MainDrawerParamList = {

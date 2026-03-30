@@ -2,17 +2,10 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CommonActions } from '@react-navigation/native';
+import type { UserApi } from '@wondertales/shared';
 import { navigationRef } from '@/navigation/navigationRef';
 
-export interface User {
-  id: string;
-  email: string;
-  displayName: string | null;
-  avatarUrl: string | null;
-  preferredLocale: string;
-  mode?: 'instant' | 'artisan';
-  pseudonym?: string | null;
-}
+export type User = UserApi;
 
 interface AuthState {
   user: User | null;

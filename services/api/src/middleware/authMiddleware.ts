@@ -3,6 +3,7 @@ import { verifyToken } from '../services/jwtService';
 import { getSessionWithUser, updateLastActive } from '../services/sessionService';
 import { logger } from '../utils/logger';
 import type { User } from '../db/schema';
+import { USER_ROLE_ADMIN } from '../constants/userRoles';
 
 // Extend Express Request type
 declare global {
@@ -90,6 +91,25 @@ export async function requireAuth(
       message: 'Internal authentication error',
     });
   }
+}
+
+/** Use after requireAuth. Returns 403 unless users.role is admin. */
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({
+      status: 'error',
+      message: 'Not authenticated',
+    });
+    return;
+  }
+  if (req.user.role !== USER_ROLE_ADMIN) {
+    res.status(403).json({
+      status: 'error',
+      message: 'Forbidden',
+    });
+    return;
+  }
+  next();
 }
 
 // Optional authentication middleware

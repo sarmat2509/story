@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import {
   Animated,
+  Platform,
   type StyleProp,
   StyleSheet,
   type ViewStyle,
@@ -9,6 +10,7 @@ import {
 import {
   CommonActions,
   DrawerActions,
+  type NavigationProp,
   useLinkBuilder,
 } from '@react-navigation/native';
 import {
@@ -16,10 +18,13 @@ import {
   type DrawerContentComponentProps,
 } from '@react-navigation/drawer';
 import { PlatformPressable, Text } from '@react-navigation/elements';
+import { Ionicons } from '@expo/vector-icons';
 import Color from 'color';
 import type { Route } from '@react-navigation/native';
 import { useDrawerCollapsedStore } from '@/store/drawerCollapsedStore';
+import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
+import type { RootStackParamList } from '@/types/navigation';
 
 const LABEL_ANIMATION_DURATION = 250;
 const COLLAPSED_HIGHLIGHT_SIZE = 48; // icon 24 + padding 12 each side
@@ -151,11 +156,17 @@ function CollapsibleDrawerItem({
 
 export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
   const { state, navigation, descriptors, ...rest } = props;
+  const user = useAuthStore((s) => s.user);
   const focusedRoute = state.routes[state.index];
   const focusedDescriptor = descriptors[focusedRoute.key];
   const focusedOptions = focusedDescriptor.options;
   const { drawerContentStyle, drawerContentContainerStyle } = focusedOptions;
   const { buildHref } = useLinkBuilder();
+  const collapsed = useDrawerCollapsedStore((s) => s.collapsed);
+  const handleAdminPress = () => {
+    const rootNavigation = navigation.getParent<NavigationProp<RootStackParamList>>();
+    rootNavigation?.navigate('Admin', { screen: 'AdminStories' });
+  };
 
   const visibleRoutes = state.routes.filter(
     (route) => !isItemHidden(descriptors[route.key].options.drawerItemStyle)
@@ -198,6 +209,48 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
           />
         );
       })}
+      {Platform.OS === 'web' && user?.role === 'admin' ? (
+        <View
+          style={[
+            styles.itemContainer,
+            { backgroundColor: 'transparent' },
+            collapsed && {
+              alignSelf: 'center',
+              justifyContent: 'center',
+              alignItems: 'center',
+            },
+          ]}
+        >
+          <PlatformPressable
+            onPress={handleAdminPress}
+            role="button"
+            href="/admin/stories"
+            pressColor={undefined}
+            pressOpacity={0.7}
+          >
+            <View style={[styles.itemWrapper, collapsed && styles.itemWrapperCollapsed]}>
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={24}
+                color={theme.colors.interactive.primary}
+              />
+              {!collapsed ? (
+                <View style={styles.labelContainer}>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.labelText,
+                      { color: theme.colors.interactive.primary, fontWeight: '700' },
+                    ]}
+                  >
+                    Admin
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </PlatformPressable>
+        </View>
+      ) : null}
     </DrawerContentScrollView>
   );
 }
