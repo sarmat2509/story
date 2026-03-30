@@ -99,15 +99,15 @@ export function CharactersForm({
   const getCharacterTypeName = (type: string): string => {
     switch (type) {
       case 'child':
-        return t('wizard.child_badge') || 'Дитина';
+        return t('wizard.child_badge');
       case 'person':
-        return 'Людина';
+        return t('characters.categories.person');
       case 'animal':
-        return 'Тварина';
+        return t('characters.categories.animal');
       case 'imaginary':
-        return 'Вигаданий';
+        return t('characters.categories.imaginary');
       default:
-        return 'Персонаж';
+        return t('characters.title');
     }
   };
   
@@ -141,7 +141,7 @@ export function CharactersForm({
       {/* Characters and Children List */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>
-          {t('characters.select_children_and_characters') || 'Виберіть персонажів та дітей (до 5)'}
+          {t('characters.select_children_and_characters')}
         </Text>
         
         {!hasAnyItems ? (
@@ -155,7 +155,7 @@ export function CharactersForm({
                   onPress={onAddChild}
                 >
                   <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
-                  <Text style={styles.addButtonText}>Додати дитину</Text>
+                  <Text style={styles.addButtonText}>{t('characters.add_child_to_story')}</Text>
                 </TouchableOpacity>
               )}
               {onAddCharacter && (

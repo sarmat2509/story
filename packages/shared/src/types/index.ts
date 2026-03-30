@@ -51,6 +51,8 @@ export interface User {
   avatar_url: string | null;
   preferred_locale: Locale;
   mode?: 'instant' | 'artisan';
+  pseudonym?: string | null;
+  role: 'user' | 'admin';
   created_at: string;
   updated_at: string;
 }
@@ -123,7 +125,6 @@ export interface PolicyProfile {
   language: Locale;
   allowed_themes: StoryGoal[];
   disallowed: string[];
-  fear_level_max: number;
   moral_style: 'show_dont_tell' | 'explicit';
   constraints: {
     must_have_happy_ending: boolean;
@@ -444,6 +445,18 @@ export interface StoryRequestProgressData {
   activeTasks: Array<{ task: string; progress: number; details?: Record<string, any> }>;
   completedTasks: string[];
   overallProgress: number;
+  plannedTasks?: Array<{
+    task: string;
+    estimatedMs: number;
+    rangeStart: number;
+    rangeEnd: number;
+  }>;
+  taskTimeline?: Record<string, {
+    startedAt?: number;
+    completedAt?: number;
+    estimatedMs?: number;
+  }>;
+  maxOverallProgress?: number;
 }
 
 // Story request status response (polling endpoint)

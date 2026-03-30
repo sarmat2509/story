@@ -55,7 +55,7 @@ export default function LanguageSettingsScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>{t('profile.language_settings')}</Text>
       <Text style={styles.description}>
-        Виберіть мову для інтерфейсу додатку
+        {t('profile.language_settings_description')}
       </Text>
       
       {LANGUAGES.map((language) => {

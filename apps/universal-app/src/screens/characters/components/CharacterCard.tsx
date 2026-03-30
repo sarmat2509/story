@@ -1,5 +1,16 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Pressable, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  Pressable,
+  Platform,
+  type ImageStyle,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
@@ -34,11 +45,13 @@ const getCharacterIcon = (type: string): string => {
 export function CharacterCard({ character, onPress, onDelete }: Props) {
   const avatarUrl =
     character.turnaroundSheet?.frontUrl ?? character.turnaroundSheet?.url ?? character.referencePhotos?.[0]?.url;
+  const imageContainerWebStyle =
+    Platform.OS === 'web' ? ({ filter: 'contrast(1.05)' } as any) : null;
 
   return (
     <View style={styles.cardWrapper}>
       <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
-        <View style={styles.imageContainer}>
+        <View style={[styles.imageContainer, imageContainerWebStyle]}>
           {avatarUrl ? (
             <Image
               source={{ uri: formatAssetUrl(avatarUrl) ?? avatarUrl }}
@@ -71,7 +84,17 @@ export function CharacterCard({ character, onPress, onDelete }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create<{
+  cardWrapper: ViewStyle;
+  card: ViewStyle;
+  imageContainer: ViewStyle;
+  image: ImageStyle;
+  placeholder: ViewStyle;
+  placeholderIcon: TextStyle;
+  name: TextStyle;
+  deleteButton: ViewStyle;
+  deleteButtonPressed: ViewStyle;
+}>({
   cardWrapper: {
     position: 'relative',
   },
@@ -84,11 +107,10 @@ const styles = StyleSheet.create({
     padding: theme.spacing[6],
   },
   imageContainer: {
-    height: '180px',
+    height: 180,
     width: '100%',
     alignSelf: 'center',
     backgroundColor: theme.colors.background.primary,
-    ...(Platform.OS === 'web' && { filter: 'contrast(1.05)' }),
   },
   image: {
     width: '100%',

@@ -184,6 +184,8 @@
     "style_night": "Ruhige Nacht",
     "style_felt": "Filz",
     "style_clay": "Ton",
+    "image_style_label": "Illustrationsstil (optional)",
+    "image_style_hint": "Wählen Sie einen Stil oder lassen Sie das Feld leer für eine automatische Auswahl nach Alter",
     "notes_label": "Zusätzliche Notizen (optional)",
     "notes_placeholder": "Z.B.: hatte heute einen Streit mit einem Freund",
     "generate_button": "Geschichte erstellen",
@@ -192,7 +194,27 @@
     "retry": "Erneut versuchen",
     "retry_error": "Illustrationen konnten nicht erneut generiert werden. Bitte versuchen Sie es erneut.",
     "advanced_settings": "Erweiterte Einstellungen",
-    "add_characters": "Charaktere hinzufügen"
+    "add_characters": "Charaktere hinzufügen",
+    "child_badge": "Kind"
+  },
+  "characters": {
+    "title": "Charaktere",
+    "no_characters": "Du hast noch keine Charaktere",
+    "no_characters_hint": "Füge Charaktere hinzu, um sie in Geschichten zu verwenden",
+    "add_character": "Charakter erstellen",
+    "family_members": "Familienmitglieder einbeziehen",
+    "select_characters": "Charaktere auswählen (bis zu 5)",
+    "select_children_and_characters": "Wähle Charaktere und Kinder aus (bis zu 5)",
+    "add_child_to_story": "Kind zur Geschichte hinzufügen",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "delete_confirm_title": "Charakter löschen?",
+    "delete_confirm_message": "Möchtest du {{name}} wirklich löschen? Wenn der Charakter in Geschichten verwendet wird, wird er stattdessen verborgen.",
+    "categories": {
+      "person": "Mensch",
+      "animal": "Tier",
+      "imaginary": "Fantasiefigur"
+    }
   },
   "navigation": {
     "dashboard": "Startseite",
@@ -409,6 +431,7 @@
     "creating_character": "Kinderprofil wird erstellt",
     "generating_remaining_sec": "~{{count}} Sek",
     "generating_almost_done": "Fast fertig...",
+    "current_image": "Aktuelles Bild",
     "generate_description": "Beschreibung generieren",
     "regenerate_description": "Beschreibung neu generieren",
     "description_upload_photos_first": "Laden Sie Fotos im vorherigen Schritt hoch, um eine Beschreibung zu generieren",
@@ -445,12 +468,24 @@
   "profile": {
     "title": "Profil",
     "account_info": "Kontoinformationen",
+    "pseudonym": "Pseudonym (für Veröffentlichungen)",
     "name": "Name",
     "email": "E-Mail",
     "language": "Sprache",
+    "mode": "Modus",
     "not_set": "Nicht festgelegt",
+    "add_avatar": "Avatar hinzufügen",
+    "change_avatar": "Avatar ändern",
+    "remove_avatar": "Avatar entfernen",
+    "avatar_uploading": "Wird hochgeladen...",
+    "avatar_permission_title": "Berechtigung erforderlich",
+    "avatar_permission_message": "Bitte erlauben Sie den Zugriff auf Ihre Fotobibliothek.",
+    "avatar_upload_error": "Avatar konnte nicht hochgeladen werden. Bitte versuchen Sie es erneut.",
+    "avatar_pick_error": "Bild konnte nicht ausgewählt werden.",
+    "avatar_remove_error": "Avatar konnte nicht entfernt werden. Bitte versuchen Sie es erneut.",
     "preferences": "Einstellungen",
     "language_settings": "Spracheinstellungen",
+    "language_settings_description": "Wähle die Sprache der App-Oberfläche",
     "notification_settings": "Benachrichtigungseinstellungen",
     "privacy_settings": "Datenschutzeinstellungen",
     "subscription": "Abonnement",
@@ -497,7 +532,11 @@
     "email_required": "E-Mail ist für nicht angemeldete Nutzer erforderlich",
     "email_invalid": "Bitte geben Sie eine gültige E-Mail-Adresse ein",
     "attach_screenshot": "Screenshot anhängen",
+    "replace_screenshot": "Screenshot ersetzen",
     "remove_screenshot": "Entfernen",
+    "auto_screenshot_attached": "Der aktuelle Bildschirm wurde automatisch angehängt",
+    "preparing_screenshot": "Screenshot wird vorbereitet...",
+    "uploading_screenshot": "Screenshot wird hochgeladen...",
     "submit": "Absenden",
     "success": "Vielen Dank!",
     "success_message": "Ihr Feedback wurde gesendet. Wir werden es prüfen.",
@@ -508,5 +547,40 @@
     "stories_limit_message": "Sie haben {{used}} von {{limit}} Geschichten diesen Monat verwendet.",
     "stories_limit_message_default": "Ihr monatliches Geschichtenlimit wurde erreicht.",
     "upgrade_button": "Plan upgraden"
+  },
+  "transactional_emails": {
+    "welcome": {
+      "subject": "Willkommen bei WonderTales",
+      "preview": "Dein Konto ist bereit und du kannst mit personalisierten Geschichten starten.",
+      "greeting": "Willkommen bei WonderTales!",
+      "intro": {
+        "password": "Dein Konto wurde erfolgreich erstellt. Du kannst jetzt Geschichten speichern, Kinderprofile einrichten und von jedem Geraet darauf zugreifen.",
+        "google": "Dein Konto wurde erfolgreich mit Google erstellt. Du kannst jetzt Geschichten speichern, Kinderprofile einrichten und von jedem Geraet darauf zugreifen.",
+        "apple": "Dein Konto wurde erfolgreich mit Apple erstellt. Du kannst jetzt Geschichten speichern, Kinderprofile einrichten und von jedem Geraet darauf zugreifen."
+      },
+      "cta": "WonderTales oeffnen",
+      "tips_title": "Sinnvolle naechste Schritte",
+      "tips": [
+        "Lege ein Kinderprofil an, um persoenlichere Geschichten zu erhalten.",
+        "Erstelle deine erste Geschichte oder Audiogeschichte.",
+        "Speichere WonderTales als Lesezeichen, damit du schnell zu deiner Bibliothek zurueckkommst."
+      ],
+      "security_title": "Sicherheit",
+      "security_body": {
+        "password": "Wenn du das nicht warst, setze dein Passwort bitte so schnell wie moeglich zurueck.",
+        "google": "Wenn du das nicht warst, pruefe bitte die Sicherheit und Anmeldeaktivitaet deines Google-Kontos.",
+        "apple": "Wenn du das nicht warst, pruefe bitte die Sicherheit und Anmeldeaktivitaet deiner Apple ID."
+      },
+      "footer": "Dies ist eine transaktionale E-Mail zur Kontoerstellung."
+    },
+    "password_reset": {
+      "subject": "WonderTales - Passwort zuruecksetzen",
+      "preview": "Nutze diesen sicheren Link, um ein neues Passwort fuer dein Konto festzulegen.",
+      "intro": "Wir haben eine Anfrage erhalten, das Passwort fuer dein WonderTales-Konto zurueckzusetzen.",
+      "cta": "Passwort zuruecksetzen",
+      "expires_notice": "Dieser Link ist 1 Stunde lang gueltig.",
+      "ignore_notice": "Falls du das nicht angefordert hast, kannst du diese E-Mail einfach ignorieren.",
+      "footer": "Dies ist eine transaktionale E-Mail zum Kontozugriff."
+    }
   }
 }

@@ -184,6 +184,8 @@
     "style_night": "Noche tranquila",
     "style_felt": "Fieltro",
     "style_clay": "Arcilla",
+    "image_style_label": "Estilo de ilustración (opcional)",
+    "image_style_hint": "Elige un estilo o déjalo vacío para una selección automática según la edad",
     "notes_label": "Notas adicionales (opcional)",
     "notes_placeholder": "Ej.: tuve una pelea con un amigo hoy",
     "generate_button": "Crear historia",
@@ -192,7 +194,8 @@
     "retry": "Intentar de nuevo",
     "retry_error": "No se pudo reintentar la generación de ilustraciones. Por favor, inténtalo de nuevo.",
     "advanced_settings": "Configuración avanzada",
-    "add_characters": "Agregar personajes"
+    "add_characters": "Agregar personajes",
+    "child_badge": "Niño"
   },
   "characters": {
     "title": "Personajes",
@@ -201,11 +204,13 @@
     "add_character": "Crear personaje",
     "family_members": "Incluir miembros de la familia",
     "select_characters": "Seleccionar personajes (hasta 5)",
+    "select_children_and_characters": "Selecciona personajes y niños (hasta 5)",
+    "add_child_to_story": "Agregar niño a la historia",
     "edit": "Editar",
     "delete": "Eliminar",
     "delete_confirm_title": "¿Eliminar personaje?",
     "delete_confirm_message": "¿Estás seguro de que quieres eliminar a {{name}}? Si se usa en historias, se ocultará.",
-    "character_types": {
+    "categories": {
       "person": "Persona",
       "animal": "Animal",
       "imaginary": "Imaginario"
@@ -229,6 +234,7 @@
     "generating_remaining_sec": "~{{count}} s",
     "generating_almost_done": "Casi listo...",
     "photos_title": "Fotos",
+    "current_image": "Imagen actual",
     "description": "Descripción",
     "description_placeholder": "Descripción de la apariencia física...",
     "generated_by_ai_hint": "Generado por AI - puedes editarlo",
@@ -435,12 +441,24 @@
   "profile": {
     "title": "Perfil",
     "account_info": "Información de la cuenta",
+    "pseudonym": "Seudónimo (para publicaciones)",
     "name": "Nombre",
     "email": "Email",
     "language": "Idioma",
+    "mode": "Modo",
     "not_set": "No establecido",
+    "add_avatar": "Agregar avatar",
+    "change_avatar": "Cambiar avatar",
+    "remove_avatar": "Eliminar avatar",
+    "avatar_uploading": "Subiendo...",
+    "avatar_permission_title": "Se necesita permiso",
+    "avatar_permission_message": "Permite el acceso a tu galería de fotos.",
+    "avatar_upload_error": "No se pudo subir el avatar. Inténtalo de nuevo.",
+    "avatar_pick_error": "No se pudo seleccionar la imagen.",
+    "avatar_remove_error": "No se pudo eliminar el avatar. Inténtalo de nuevo.",
     "preferences": "Preferencias",
     "language_settings": "Configuración de idioma",
+    "language_settings_description": "Elige el idioma de la interfaz de la aplicación",
     "notification_settings": "Configuración de notificaciones",
     "privacy_settings": "Configuración de privacidad",
     "subscription": "Suscripción",
@@ -487,7 +505,11 @@
     "email_required": "El correo es obligatorio para usuarios no identificados",
     "email_invalid": "Introduce un correo electrónico válido",
     "attach_screenshot": "Adjuntar captura de pantalla",
+    "replace_screenshot": "Reemplazar captura",
     "remove_screenshot": "Eliminar",
+    "auto_screenshot_attached": "La pantalla actual se adjuntó automáticamente",
+    "preparing_screenshot": "Preparando captura...",
+    "uploading_screenshot": "Subiendo captura...",
     "submit": "Enviar",
     "success": "¡Gracias!",
     "success_message": "Tu comentario ha sido enviado. Lo revisaremos.",
@@ -711,5 +733,40 @@
     "stories_limit_message": "Has usado {{used}} de {{limit}} historias este mes.",
     "stories_limit_message_default": "Tu límite mensual de historias ha sido alcanzado.",
     "upgrade_button": "Actualizar plan"
+  },
+  "transactional_emails": {
+    "welcome": {
+      "subject": "Bienvenido a WonderTales",
+      "preview": "Tu cuenta esta lista y ya puedes crear historias personalizadas.",
+      "greeting": "Bienvenido a WonderTales!",
+      "intro": {
+        "password": "Tu cuenta se ha creado correctamente. Ahora puedes guardar historias, configurar perfiles infantiles y volver a ellas desde cualquier dispositivo.",
+        "google": "Tu cuenta se ha creado correctamente con Google. Ahora puedes guardar historias, configurar perfiles infantiles y volver a ellas desde cualquier dispositivo.",
+        "apple": "Tu cuenta se ha creado correctamente con Apple. Ahora puedes guardar historias, configurar perfiles infantiles y volver a ellas desde cualquier dispositivo."
+      },
+      "cta": "Abrir WonderTales",
+      "tips_title": "Siguientes pasos recomendados",
+      "tips": [
+        "Crea un perfil infantil para recibir historias mas personalizadas.",
+        "Prueba a crear tu primera historia o historia con audio.",
+        "Guarda WonderTales en tus marcadores para volver rapido a tu biblioteca."
+      ],
+      "security_title": "Seguridad",
+      "security_body": {
+        "password": "Si no has sido tu, restablece tu contrasena cuanto antes mediante la recuperacion de acceso.",
+        "google": "Si no has sido tu, revisa la seguridad y la actividad de acceso de tu cuenta de Google.",
+        "apple": "Si no has sido tu, revisa la seguridad y la actividad de acceso de tu Apple ID."
+      },
+      "footer": "Este es un correo transaccional sobre la creacion de tu cuenta."
+    },
+    "password_reset": {
+      "subject": "WonderTales - Restablece tu contrasena",
+      "preview": "Usa este enlace seguro para establecer una nueva contrasena para tu cuenta.",
+      "intro": "Hemos recibido una solicitud para restablecer la contrasena de tu cuenta de WonderTales.",
+      "cta": "Restablecer contrasena",
+      "expires_notice": "Este enlace caduca en 1 hora.",
+      "ignore_notice": "Si no has sido tu, puedes ignorar este correo con seguridad.",
+      "footer": "Este es un correo transaccional sobre el acceso a tu cuenta."
+    }
   }
 }

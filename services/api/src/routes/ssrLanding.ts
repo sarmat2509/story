@@ -13,6 +13,10 @@ import { getVoiceRepository } from '../repositories';
 
 const router = Router();
 
+type LandingVoices = Awaited<
+  ReturnType<ReturnType<typeof getVoiceRepository>['findActiveByLanguage']>
+>;
+
 const AGE_GROUP_LABELS: Record<string, string> = {
   '2-3': '2–3 років',
   '4-5': '4–5 років',
@@ -51,7 +55,7 @@ router.get('/', async (_req: Request, res: Response) => {
   let exampleStories: Array<{ age: string; title: string; time: string; slug: string; thumbnailUrl: string | null }> = [];
 
   let plans: Awaited<ReturnType<typeof planService.getPlansWithLimits>> = [];
-  let voices: Awaited<ReturnType<typeof getVoiceRepository>['findActiveByLanguage']> = [];
+  let voices: LandingVoices = [];
   try {
     const { items } = await listPublicStories({ limit: 6 });
     exampleStories = items.slice(0, 6).map((s) => ({

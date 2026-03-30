@@ -7,7 +7,7 @@ import { useCharacters, useDeleteCharacter } from '@/api/characters';
 import { CharacterCard } from './components/CharacterCard';
 import { CharacterFormModal } from '@/components/CharacterFormModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { ReferencePhoto } from '@wondertales/shared';
+import { CharacterSubtype, ReferencePhoto } from '@wondertales/shared';
 
 function useColumns(): number {
   const { width } = useWindowDimensions();
@@ -29,12 +29,13 @@ export default function CharactersScreen() {
     id: string;
     name: string;
     type: 'person' | 'animal' | 'imaginary';
-    subtype?: string;
+    subtype?: CharacterSubtype | null;
     description?: string;
+    descriptionLanguage?: string;
     referencePhotos?: ReferencePhoto[];
     appearanceTraits?: any;
     personality?: any;
-    turnaroundSheet?: { url: string; generatedAt: string };
+    turnaroundSheet?: { url: string; frontUrl?: string; generatedAt: string };
   } | undefined>();
   
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);

@@ -184,6 +184,8 @@
     "style_night": "Nuit calme",
     "style_felt": "Feutre",
     "style_clay": "Argile",
+    "image_style_label": "Style d'illustration (optionnel)",
+    "image_style_hint": "Choisissez un style ou laissez vide pour une sélection automatique selon l'âge",
     "notes_label": "Notes supplémentaires (optionnel)",
     "notes_placeholder": "Ex.: s'est disputé avec un ami aujourd'hui",
     "generate_button": "Créer l'histoire",
@@ -192,7 +194,27 @@
     "retry": "Réessayer",
     "retry_error": "Impossible de réessayer la génération des illustrations. Veuillez réessayer.",
     "advanced_settings": "Paramètres avancés",
-    "add_characters": "Ajouter des personnages"
+    "add_characters": "Ajouter des personnages",
+    "child_badge": "Enfant"
+  },
+  "characters": {
+    "title": "Personnages",
+    "no_characters": "Vous n'avez pas encore de personnages",
+    "no_characters_hint": "Ajoutez des personnages pour les inclure dans les histoires",
+    "add_character": "Créer un personnage",
+    "family_members": "Inclure les membres de la famille",
+    "select_characters": "Sélectionner des personnages (jusqu'à 5)",
+    "select_children_and_characters": "Sélectionnez des personnages et des enfants (jusqu'à 5)",
+    "add_child_to_story": "Ajouter un enfant à l'histoire",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "delete_confirm_title": "Supprimer le personnage ?",
+    "delete_confirm_message": "Voulez-vous vraiment supprimer {{name}} ? S'il est utilisé dans des histoires, il sera masqué à la place.",
+    "categories": {
+      "person": "Personne",
+      "animal": "Animal",
+      "imaginary": "Imaginaire"
+    }
   },
   "navigation": {
     "dashboard": "Accueil",
@@ -409,6 +431,7 @@
     "creating_character": "Création du profil enfant",
     "generating_remaining_sec": "~{{count}} s",
     "generating_almost_done": "Presque terminé...",
+    "current_image": "Image actuelle",
     "generate_description": "Générer la description",
     "regenerate_description": "Régénérer la description",
     "description_upload_photos_first": "Téléchargez des photos à l'étape précédente pour générer une description",
@@ -445,12 +468,24 @@
   "profile": {
     "title": "Profil",
     "account_info": "Informations du compte",
+    "pseudonym": "Pseudonyme (pour les publications)",
     "name": "Nom",
     "email": "Email",
     "language": "Langue",
+    "mode": "Mode",
     "not_set": "Non défini",
+    "add_avatar": "Ajouter un avatar",
+    "change_avatar": "Changer l'avatar",
+    "remove_avatar": "Supprimer l'avatar",
+    "avatar_uploading": "Téléversement...",
+    "avatar_permission_title": "Autorisation requise",
+    "avatar_permission_message": "Veuillez autoriser l'accès à votre photothèque.",
+    "avatar_upload_error": "Impossible de téléverser l'avatar. Veuillez réessayer.",
+    "avatar_pick_error": "Impossible de sélectionner l'image.",
+    "avatar_remove_error": "Impossible de supprimer l'avatar. Veuillez réessayer.",
     "preferences": "Préférences",
     "language_settings": "Paramètres de langue",
+    "language_settings_description": "Choisissez la langue de l’interface de l’application",
     "notification_settings": "Paramètres de notification",
     "privacy_settings": "Paramètres de confidentialité",
     "subscription": "Abonnement",
@@ -497,7 +532,11 @@
     "email_required": "L'e-mail est obligatoire pour les utilisateurs non connectés",
     "email_invalid": "Veuillez entrer une adresse e-mail valide",
     "attach_screenshot": "Joindre une capture d'écran",
+    "replace_screenshot": "Remplacer la capture",
     "remove_screenshot": "Supprimer",
+    "auto_screenshot_attached": "L'écran actuel a été joint automatiquement",
+    "preparing_screenshot": "Préparation de la capture...",
+    "uploading_screenshot": "Téléversement de la capture...",
     "submit": "Envoyer",
     "success": "Merci !",
     "success_message": "Votre commentaire a été envoyé. Nous l'examinerons.",
@@ -508,5 +547,40 @@
     "stories_limit_message": "Vous avez utilisé {{used}} sur {{limit}} histoires ce mois-ci.",
     "stories_limit_message_default": "Votre limite mensuelle d'histoires a été atteinte.",
     "upgrade_button": "Mettre à niveau le plan"
+  },
+  "transactional_emails": {
+    "welcome": {
+      "subject": "Bienvenue sur WonderTales",
+      "preview": "Votre compte est pret et vous pouvez creer vos premieres histoires personnalisees.",
+      "greeting": "Bienvenue sur WonderTales !",
+      "intro": {
+        "password": "Votre compte a bien ete cree. Vous pouvez maintenant enregistrer des histoires, configurer des profils enfant et y revenir depuis n importe quel appareil.",
+        "google": "Votre compte a bien ete cree avec Google. Vous pouvez maintenant enregistrer des histoires, configurer des profils enfant et y revenir depuis n importe quel appareil.",
+        "apple": "Votre compte a bien ete cree avec Apple. Vous pouvez maintenant enregistrer des histoires, configurer des profils enfant et y revenir depuis n importe quel appareil."
+      },
+      "cta": "Ouvrir WonderTales",
+      "tips_title": "Bonnes prochaines etapes",
+      "tips": [
+        "Creez un profil enfant pour obtenir des histoires plus personnalisees.",
+        "Essayez de creer votre premiere histoire ou histoire audio.",
+        "Ajoutez WonderTales a vos favoris pour revenir vite a votre bibliotheque."
+      ],
+      "security_title": "Securite",
+      "security_body": {
+        "password": "Si ce n etait pas vous, reinitialisez votre mot de passe des que possible via la recuperation d acces.",
+        "google": "Si ce n etait pas vous, verifiez la securite et l activite de connexion de votre compte Google.",
+        "apple": "Si ce n etait pas vous, verifiez la securite et l activite de connexion de votre identifiant Apple."
+      },
+      "footer": "Ceci est un email transactionnel lie a la creation de votre compte."
+    },
+    "password_reset": {
+      "subject": "WonderTales - Reinitialiser le mot de passe",
+      "preview": "Utilisez ce lien securise pour definir un nouveau mot de passe pour votre compte.",
+      "intro": "Nous avons recu une demande de reinitialisation du mot de passe de votre compte WonderTales.",
+      "cta": "Reinitialiser le mot de passe",
+      "expires_notice": "Ce lien expire dans 1 heure.",
+      "ignore_notice": "Si vous n etes pas a l origine de cette demande, vous pouvez ignorer cet email en toute securite.",
+      "footer": "Ceci est un email transactionnel lie a l acces a votre compte."
+    }
   }
 }
