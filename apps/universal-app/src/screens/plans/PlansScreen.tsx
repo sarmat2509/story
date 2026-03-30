@@ -237,14 +237,6 @@ export default function PlansScreen() {
                 isCurrent && styles.planCardCurrent,
               ] as ViewStyle[]}
             >
-              {isCurrent ? (
-                <View style={styles.currentBadge}>
-                  <Text style={styles.currentBadgeText}>
-                    {t('plans.current_plan')}
-                  </Text>
-                </View>
-              ) : null}
-              
               <Text style={styles.planName}>{plan.name}</Text>
               {plan.description && (
                 <Text style={styles.planDescription}>{plan.description}</Text>
