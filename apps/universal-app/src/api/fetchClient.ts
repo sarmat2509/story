@@ -8,6 +8,7 @@ interface RequestConfig {
   params?: Record<string, any>;
   timeout?: number;
   data?: any;
+  skipAuthLogoutOn401?: boolean;
 }
 
 interface RequestInterceptor {
@@ -150,6 +151,7 @@ export class FetchClient {
           data: responseData,
           headers: response.headers,
         };
+        error.config = finalConfig;
         error.request = { url: requestURL, method, headers, body };
 
         // Apply response interceptor for errors

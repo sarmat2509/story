@@ -59,7 +59,10 @@ export const usePlansWithAuth = () => {
         status: string;
         plans: PlanAuthenticated[];
         enableRealPayments?: boolean;
-      }>('/api/v1/plans/with-features', { params: { locale } });
+      }>('/api/v1/plans/with-features', {
+        params: { locale },
+        skipAuthLogoutOn401: true,
+      });
       return {
         plans: response.data.plans,
         enableRealPayments: response.data.enableRealPayments ?? false,

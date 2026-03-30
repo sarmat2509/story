@@ -52,7 +52,7 @@ apiClient.interceptors.response.use(
     return response;
   },
   async (error: any) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !error.config?.skipAuthLogoutOn401) {
       // Token expired or invalid - logout user
       const { logout } = useAuthStore.getState();
       await storage.removeAuthToken();

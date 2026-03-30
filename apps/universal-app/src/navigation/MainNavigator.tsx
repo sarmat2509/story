@@ -129,8 +129,8 @@ const TABLET_TAB_ORDER: (keyof MainTabParamList)[] = [
 ];
 const MORE_MENU_ROUTES: (keyof MainTabParamList)[] = ['Series', 'Stories', 'Children', 'Plans', 'Profile'];
 
-const MOBILE_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Landing', 'Stories', 'Plans'];
-const TABLET_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Landing', 'Stories', 'Plans'];
+const MOBILE_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories', 'Plans'];
+const TABLET_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories', 'Plans'];
 const MORE_MENU_ROUTES_PUBLIC: (keyof MainTabParamList)[] = [];
 
 const TAB_LABELS: Record<string, string> = {
@@ -362,7 +362,7 @@ function TabNavigator() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
-          tabBarButton: isAuthenticated ? () => null : undefined,
+          tabBarButton: () => null,
         }}
       />
       <Tab.Screen
@@ -635,7 +635,7 @@ function DrawerNavigator() {
           drawerIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
-          drawerItemStyle: isAuthenticated ? { display: 'none' } : undefined,
+          drawerItemStyle: { display: 'none' },
         }}
       />
       <Drawer.Screen

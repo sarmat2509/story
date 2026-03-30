@@ -28,14 +28,18 @@ export default function PlansScreen() {
   
   // Select appropriate query based on auth state
   const authData = authPlansQuery.data;
-  const plans = isAuthenticated
+  const authStatus = (authPlansQuery.error as { response?: { status?: number } } | null)?.response?.status;
+  const authUnauthorized = authStatus === 401;
+  const effectiveIsAuthenticated = isAuthenticated && !authUnauthorized;
+
+  const plans = effectiveIsAuthenticated
     ? (authData && 'plans' in authData ? authData.plans : authData)
     : publicPlansQuery.data;
-  const enableRealPayments = isAuthenticated && authData && 'enableRealPayments' in authData
+  const enableRealPayments = effectiveIsAuthenticated && authData && 'enableRealPayments' in authData
     ? authData.enableRealPayments
     : false;
-  const isLoading = isAuthenticated ? authPlansQuery.isLoading : publicPlansQuery.isLoading;
-  const error = isAuthenticated ? authPlansQuery.error : publicPlansQuery.error;
+  const isLoading = effectiveIsAuthenticated ? authPlansQuery.isLoading : publicPlansQuery.isLoading;
+  const error = effectiveIsAuthenticated ? authPlansQuery.error : publicPlansQuery.error;
   
   // Fixed feature order - same for all plans
   const FEATURE_ORDER = [
@@ -211,7 +215,7 @@ export default function PlansScreen() {
           
           // Determine button type
           let buttonType: 'subscribe' | 'upgrade' | 'downgrade' | 'current' = 'subscribe';
-          if (isAuthenticated && 'isCurrent' in plan) {
+          if (effectiveIsAuthenticated && 'isCurrent' in plan) {
             if (plan.isCurrent) {
               buttonType = 'current';
             } else {
