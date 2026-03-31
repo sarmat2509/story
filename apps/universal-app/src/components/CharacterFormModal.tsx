@@ -2,17 +2,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { DEFAULT_LOCALE } from '@wondertales/shared';
 import { theme } from '@/theme';
 import { FeedbackModal } from './FeedbackModal';
 import { useCreateCharacter, useUpdateCharacter, useAnalyzeCharacter } from '@/api/characters';
 import { UploadPhotoResult, deletePhoto } from '@/utils/uploadPhoto';
 import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
-import { API_BASE_URL } from '@/config/constants';
+import { API_BASE_URL, APP_CONFIG } from '@/config/constants';
 
 /** Normalize BCP 47 locale (e.g. uk-UA, en-US) to base code for API (uk, en) */
 function toBaseLocale(locale: string | undefined): string {
-  const base = (locale || '').split('-')[0]?.toLowerCase() || 'uk';
-  return LOCALE_IDS.includes(base as any) ? base : 'uk';
+  const base = (locale || '').split('-')[0]?.toLowerCase() || DEFAULT_LOCALE;
+  return LOCALE_IDS.includes(base as any) ? base : DEFAULT_LOCALE;
 }
 
 /** Convert relative asset path to absolute URL for Zod .url() validation */
@@ -427,7 +428,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
         storage.getLanguage().then((saved) => {
           let userLanguage = i18n.language;
           if (!userLanguage || userLanguage === 'en-US') {
-            userLanguage = saved || 'uk';
+            userLanguage = saved || APP_CONFIG.defaultLanguage;
           }
           const apiLanguage = toBaseLocale(userLanguage);
           analyzeCharacter.mutate(

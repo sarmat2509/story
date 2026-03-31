@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { LOCALE_IDS, Locale } from '@wondertales/shared';
 import ukTranslations from '@wondertales/shared/i18n/uk.json';
 import ruTranslations from '@wondertales/shared/i18n/ru.json';
 import enTranslations from '@wondertales/shared/i18n/en.json';
@@ -10,9 +11,9 @@ import config from '../config';
 import { logger } from '../utils/logger';
 
 let resendClient: Resend | null = null;
-const SUPPORTED_EMAIL_LOCALES = ['uk', 'en', 'ru', 'de', 'es', 'fr', 'pl'] as const;
+const SUPPORTED_EMAIL_LOCALES = LOCALE_IDS;
 
-type SupportedEmailLocale = (typeof SUPPORTED_EMAIL_LOCALES)[number];
+type SupportedEmailLocale = Locale;
 type SignupMethod = 'password' | 'google' | 'apple';
 
 interface EmailContent {

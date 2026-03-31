@@ -1,4 +1,5 @@
 import { Request, Router } from 'express';
+import { DEFAULT_LOCALE, LOCALE_IDS, isValidLocale } from '@wondertales/shared';
 import * as planService from '../services/planService';
 import { getDictionaryRepository } from '../repositories';
 import { logger } from '../utils/logger';
@@ -6,11 +7,11 @@ import { requireAuth } from '../middleware/authMiddleware';
 import config from '../config';
 
 const router = Router();
-const SUPPORTED_LOCALES = new Set(['uk', 'ru', 'en', 'es', 'fr', 'de', 'pl']);
+const SUPPORTED_LOCALES = new Set(LOCALE_IDS);
 
 function normalizeLocale(input?: string | null): string {
-  const normalized = input?.slice(0, 2).toLowerCase() || 'uk';
-  return SUPPORTED_LOCALES.has(normalized) ? normalized : 'uk';
+  const normalized = input?.slice(0, 2).toLowerCase() || DEFAULT_LOCALE;
+  return isValidLocale(normalized) && SUPPORTED_LOCALES.has(normalized) ? normalized : DEFAULT_LOCALE;
 }
 
 function resolvePublicLocale(req: Request): string {
@@ -46,7 +47,7 @@ async function getPlanTranslations(planSlugs: string[], locale: string): Promise
 
 async function buildPlansWithFeatures(options?: { currentPlanId?: string; locale?: string }) {
   const plans = await planService.getActivePlans();
-  const locale = normalizeLocale(options?.locale || 'uk');
+  const locale = normalizeLocale(options?.locale || DEFAULT_LOCALE);
   const translations = await getPlanTranslations(plans.map((plan) => plan.slug), locale);
 
   const plansWithFeatures = await Promise.all(

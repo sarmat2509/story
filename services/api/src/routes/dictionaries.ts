@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  DEFAULT_LOCALE,
   HAIR_COLORS, HAIR_STYLES, EYE_COLORS, SKIN_TONES, DISTINCTIVE_FEATURES,
   PERSONALITY_TRAITS, FAVORITE_ACTIVITIES, INTERESTS,
   COMMON_FEARS, AVOID_TOPICS,
@@ -118,7 +119,7 @@ router.get('/character-traits', async (req, res) => {
 // GET /api/v1/dictionaries/story-themes - Get story configuration (goals, scenarios) (public)
 router.get('/story-themes', async (req, res) => {
   try {
-    const locale = (req.query.locale as string) || 'uk';
+    const locale = (req.query.locale as string) || DEFAULT_LOCALE;
     const dictionaryRepo = getDictionaryRepository();
     
     // Fetch sequentially to isolate 42P01 errors (table not found)

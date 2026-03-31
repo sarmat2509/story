@@ -3,6 +3,7 @@ import {
   PlanPublicApi,
   PlanAuthenticatedApi 
 } from '@wondertales/shared';
+import { APP_CONFIG } from '@/config/constants';
 import apiClient from './client';
 import i18n from '@/config/i18n';
 
@@ -12,7 +13,7 @@ type PlanAuthenticated = PlanAuthenticatedApi;
 
 // Get plans with features (public, works for all users)
 export const usePlans = () => {
-  const locale = i18n.language || 'uk';
+  const locale = i18n.language || APP_CONFIG.defaultLanguage;
 
   return useQuery({
     queryKey: ['plans', locale],
@@ -50,7 +51,7 @@ export const useSubscriptionUsage = () => {
 
 // Get plans with current plan info (authenticated only)
 export const usePlansWithAuth = () => {
-  const locale = i18n.language || 'uk';
+  const locale = i18n.language || APP_CONFIG.defaultLanguage;
 
   return useQuery({
     queryKey: ['plans', 'with-auth', locale],

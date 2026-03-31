@@ -19,6 +19,7 @@ import {
 import { navigateToStory } from '@/navigation/navigationRef';
 import { toastService } from '@/services/toastService';
 import { theme } from '@/theme';
+import { APP_CONFIG } from '@/config/constants';
 import { GenerationProgressModal } from '@/components/GenerationProgressModal';
 import i18n from '@/config/i18n';
 
@@ -150,7 +151,7 @@ export function ContinueSeriesSection({
                   {t('story_viewer.schedule_planned_on', {
                     date: new Date(
                       (scheduleData as { nextRunAt: string }).nextRunAt
-                    ).toLocaleDateString(i18n.language || 'uk', {
+                    ).toLocaleDateString(i18n.language || APP_CONFIG.defaultLanguage, {
                       day: 'numeric',
                       month: 'long',
                       year: 'numeric',

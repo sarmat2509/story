@@ -15,6 +15,7 @@
 
 import './loadEnvForScripts';
 
+import { LOCALE_IDS, Locale } from '@wondertales/shared';
 import { db } from '../db';
 import { ttsVoices } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -23,8 +24,8 @@ import { getVoiceSampleText } from '../utils/i18nLoader';
 import { getAssetStorageService } from '../services/assetStorageService';
 import { getAudioProviderByName } from '../services/aiService';
 
-const SUPPORTED_SAMPLE_LANGUAGES = ['uk', 'ru', 'en', 'es', 'fr', 'de', 'pl'] as const;
-type SupportedSampleLanguage = typeof SUPPORTED_SAMPLE_LANGUAGES[number];
+const SUPPORTED_SAMPLE_LANGUAGES = LOCALE_IDS;
+type SupportedSampleLanguage = Locale;
 
 function parseLanguagesArg(): SupportedSampleLanguage[] {
   const arg = process.argv.find((entry) => entry.startsWith('--languages='));

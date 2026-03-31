@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE } from '@wondertales/shared';
 import { desc, eq, ilike, inArray, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
@@ -35,7 +36,7 @@ export class UserRepository {
       passwordHash: data.passwordHash ?? null,
       displayName: data.displayName || null,
       avatarUrl: data.avatarUrl || null,
-      preferredLocale: data.preferredLocale || 'uk',
+      preferredLocale: data.preferredLocale || DEFAULT_LOCALE,
     };
     const [user] = await this.db.insert(schema.users).values(newUser).returning();
     return user;

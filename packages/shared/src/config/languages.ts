@@ -3,6 +3,8 @@
  * Single source of truth for all supported languages
  */
 
+export const DEFAULT_LOCALE = 'uk' as const;
+
 export const SUPPORTED_LANGUAGES = {
   uk: {
     id: 'uk',

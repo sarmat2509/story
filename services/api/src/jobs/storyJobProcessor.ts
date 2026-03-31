@@ -11,6 +11,7 @@
  */
 
 import type { StoryAudioMetadata } from '@wondertales/shared';
+import { DEFAULT_LOCALE } from '@wondertales/shared';
 import { logger } from '../utils/logger';
 import { recordUsage } from '../services/aiUsageService';
 import { ConcurrentJobQueue, type BaseJob } from './ConcurrentJobQueue';
@@ -505,7 +506,7 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
       return;
     }
     
-    const language = request.storyLanguage || 'uk';
+    const language = request.storyLanguage || DEFAULT_LOCALE;
 
     // Create story stub at start for AI usage tracking (face dedup, character analysis, turnaround)
     const { createStoryStub } = await import('../services/storyOrchestration/storyRecords');
@@ -525,7 +526,7 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
         userId: request.userId,
         storyRequestId: request.id,
         childProfileId: request.childProfileId,
-        spec: { language: request.storyLanguage || 'uk', ageGroup, characters: [] } as any,
+        spec: { language: request.storyLanguage || DEFAULT_LOCALE, ageGroup, characters: [] } as any,
       });
       await getStoryRepository().updateRequest(requestId, {
         intermediateData: { ...intermediateData, storyId },

@@ -3,6 +3,7 @@ import {
   StoryGoalApi, 
   ScenarioCardApi 
 } from '@wondertales/shared';
+import { APP_CONFIG } from '@/config/constants';
 import apiClient from './client';
 import i18n from '@/config/i18n';
 
@@ -20,7 +21,7 @@ type StoryAgeGroup = {
 
 // Get story themes (goals, scenarios)
 export const useStoryThemes = () => {
-  const locale = i18n.language || 'uk';
+  const locale = i18n.language || APP_CONFIG.defaultLanguage;
   
   return useQuery({
     queryKey: ['dictionaries', 'story-themes', locale],

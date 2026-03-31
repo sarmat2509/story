@@ -6,7 +6,7 @@
 
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
-import { getReadingTimeMinutes } from '@wondertales/shared';
+import { DEFAULT_LOCALE, getReadingTimeMinutes } from '@wondertales/shared';
 import { renderLandingHtml } from '../ssr/renderLandingHtml';
 import { listPublicStories } from '../services/publicStoryService';
 import * as planService from '../services/planService';
@@ -72,7 +72,7 @@ function formatStoryTime(
  * Fetches real published stories for the examples section.
  */
 router.get('/', async (_req: Request, res: Response) => {
-  const locale = _req.headers['accept-language']?.split(',')[0]?.slice(0, 2) || 'uk';
+  const locale = _req.headers['accept-language']?.split(',')[0]?.slice(0, 2) || DEFAULT_LOCALE;
   const landingRenderVersion = await getLandingRenderVersion();
   let exampleStories: Array<{ age: string; title: string; time: string; slug: string; thumbnailUrl: string | null }> = [];
 

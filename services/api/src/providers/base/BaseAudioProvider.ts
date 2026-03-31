@@ -1,4 +1,5 @@
 import { IAudioProvider, SynthesizeRequest, SynthesizeResult, Voice, VoiceCatalogEntry } from './IAudioProvider';
+import { isValidLocale, LOCALE_IDS } from '@wondertales/shared';
 import { logger } from '../../utils/logger';
 import { config, getConcurrencyLimitForPlan } from '../../config';
 
@@ -84,9 +85,8 @@ export abstract class BaseAudioProvider implements IAudioProvider {
       throw new Error('Language is required');
     }
 
-    const validLanguages = ['uk', 'en', 'ru', 'es', 'de', 'fr', 'pl'];
-    if (!validLanguages.includes(language)) {
-      throw new Error(`Invalid language code: ${language}. Supported: ${validLanguages.join(', ')}`);
+    if (!isValidLocale(language)) {
+      throw new Error(`Invalid language code: ${language}. Supported: ${LOCALE_IDS.join(', ')}`);
     }
 
     // Validate prosody settings if provided

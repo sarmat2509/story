@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { APP_CONFIG } from '@/config/constants';
-import { SUPPORTED_LANGUAGES, isValidLocale } from '@wondertales/shared';
+import { DEFAULT_LOCALE, SUPPORTED_LANGUAGES, isValidLocale } from '@wondertales/shared';
 import { theme } from '@/theme';
 import { storage } from '@/utils/storage';
 import { useAuthStore } from '@/store/authStore';
@@ -12,9 +12,9 @@ import apiClient from '@/api/client';
 export default function LanguageSettingsScreen() {
   const { t, i18n } = useTranslation();
   const { user: _user, setUser } = useAuthStore();
-  const normalizedCurrentLanguage = i18n.language?.split('-')[0]?.toLowerCase() || 'uk';
+  const normalizedCurrentLanguage = i18n.language?.split('-')[0]?.toLowerCase() || DEFAULT_LOCALE;
   const [selectedLanguage, setSelectedLanguage] = useState(
-    isValidLocale(normalizedCurrentLanguage) ? normalizedCurrentLanguage : 'uk'
+    isValidLocale(normalizedCurrentLanguage) ? normalizedCurrentLanguage : DEFAULT_LOCALE
   );
   const [isChanging, setIsChanging] = useState(false);
   const languages = APP_CONFIG.supportedLanguages.map((code) => ({

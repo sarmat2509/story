@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { isPhotoType } from '@wondertales/shared';
+import { isPhotoType, isValidLocale } from '@wondertales/shared';
 import { getAssetRepository } from '../repositories';
 import { verifyToken } from '../services/jwtService';
 import { getSessionWithUser } from '../services/sessionService';
@@ -255,8 +255,7 @@ router.get('/voice-samples/:language/:filename', async (req: Request, res: Respo
     const { language, filename } = req.params;
     
     // Validate language
-    const validLanguages = ['uk', 'en', 'ru', 'de', 'es', 'fr', 'pl'];
-    if (!validLanguages.includes(language)) {
+    if (!isValidLocale(language)) {
       return res.status(400).json({
         status: 'error',
         message: 'Invalid language'

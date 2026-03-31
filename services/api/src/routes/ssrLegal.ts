@@ -5,14 +5,13 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { DEFAULT_LOCALE, isValidLocale } from '@wondertales/shared';
 import { verifyToken } from '../services/jwtService';
 import { getSessionWithUser } from '../services/sessionService';
 import { renderLegalHtml } from '../ssr/renderLegalHtml';
 import { logger } from '../utils/logger';
 
 const router = Router();
-
-const SUPPORTED_LOCALES = ['uk', 'en', 'ru', 'de', 'es', 'fr'] as const;
 
 async function getLocaleFromRequest(req: Request): Promise<string> {
   const cookieToken = req.cookies?.wt_session as string | undefined;
@@ -27,15 +26,15 @@ async function getLocaleFromRequest(req: Request): Promise<string> {
       const session = await getSessionWithUser(decoded.sessionId);
       if (session?.user?.preferredLocale) {
         const locale = session.user.preferredLocale.slice(0, 2).toLowerCase();
-        if (SUPPORTED_LOCALES.includes(locale as (typeof SUPPORTED_LOCALES)[number])) {
+        if (isValidLocale(locale)) {
           return locale;
         }
       }
     }
   }
 
-  const acceptLang = req.headers['accept-language']?.split(',')[0]?.slice(0, 2)?.toLowerCase() || 'uk';
-  return SUPPORTED_LOCALES.includes(acceptLang as (typeof SUPPORTED_LOCALES)[number]) ? acceptLang : 'uk';
+  const acceptLang = req.headers['accept-language']?.split(',')[0]?.slice(0, 2)?.toLowerCase() || DEFAULT_LOCALE;
+  return isValidLocale(acceptLang) ? acceptLang : DEFAULT_LOCALE;
 }
 
 router.get('/terms', async (req: Request, res: Response) => {

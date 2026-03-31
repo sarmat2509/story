@@ -6,10 +6,10 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { marked } from 'marked';
+import { DEFAULT_LOCALE, isValidLocale } from '@wondertales/shared';
 import { config } from '../config';
 
 const LEGAL_DIR = join(__dirname, '../legal');
-const SUPPORTED_LOCALES = ['uk', 'en', 'ru', 'de', 'es', 'fr'] as const;
 
 function escapeHtml(s: string): string {
   return s
@@ -49,8 +49,8 @@ export interface RenderLegalOptions {
 }
 
 function resolveLocale(locale: string): string {
-  const normalized = locale?.slice(0, 2)?.toLowerCase() || 'uk';
-  return SUPPORTED_LOCALES.includes(normalized as (typeof SUPPORTED_LOCALES)[number]) ? normalized : 'uk';
+  const normalized = locale?.slice(0, 2)?.toLowerCase() || DEFAULT_LOCALE;
+  return isValidLocale(normalized) ? normalized : DEFAULT_LOCALE;
 }
 
 async function loadMarkdown(doc: 'terms' | 'privacy', locale: string): Promise<string> {
