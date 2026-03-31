@@ -7,8 +7,12 @@
  * Usage:
  *   pnpm api:script npx tsx src/scripts/backfillTurnaroundFront.ts
  *   pnpm api:script npx tsx src/scripts/backfillTurnaroundFront.ts --force  # re-extract even if frontUrl exists
+ *   pnpm api:script npx tsx src/scripts/backfillTurnaroundFront.ts --limit=5 --offset=0 --entity=characters --sleep-ms=1000
+ *   pnpm api:script npx tsx src/scripts/backfillTurnaroundFront.ts --limit=20 --allow-large-batch --ignore-system-load
  */
 
+import './loadEnvForScripts';
+import os from 'os';
 import { db } from '../db';
 import { characters, childProfiles } from '../db/schema';
 import { sql, and, isNotNull } from 'drizzle-orm';
@@ -17,6 +21,107 @@ import { getCharacterRepository, getChildProfileRepository } from '../repositori
 import { extractFrontFromTurnaround, type RightEdgeDebug } from '../services/turnaroundFrontExtractor';
 import { logger } from '../utils/logger';
 
+type BackfillEntity = 'all' | 'characters' | 'children';
+
+interface ScriptOptions {
+  force: boolean;
+  limit: number;
+  offset: number;
+  entity: BackfillEntity;
+  sleepMs: number;
+  allowLargeBatch: boolean;
+  ignoreSystemLoad: boolean;
+}
+
+function parseNumberArg(name: string, defaultValue: number): number {
+  const arg = process.argv.find((entry) => entry.startsWith(`--${name}=`));
+  if (!arg) return defaultValue;
+  const value = Number.parseInt(arg.split('=')[1] ?? '', 10);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`Invalid --${name} value: ${arg}`);
+  }
+  return value;
+}
+
+function parseEntityArg(): BackfillEntity {
+  const arg = process.argv.find((entry) => entry.startsWith('--entity='));
+  if (!arg) return 'all';
+  const value = arg.split('=')[1] as BackfillEntity | undefined;
+  if (value === 'all' || value === 'characters' || value === 'children') {
+    return value;
+  }
+  throw new Error(`Invalid --entity value: ${arg}`);
+}
+
+function parseOptions(): ScriptOptions {
+  return {
+    force: process.argv.includes('--force'),
+    limit: parseNumberArg('limit', 25),
+    offset: parseNumberArg('offset', 0),
+    entity: parseEntityArg(),
+    sleepMs: parseNumberArg('sleep-ms', 0),
+    allowLargeBatch: process.argv.includes('--allow-large-batch'),
+    ignoreSystemLoad: process.argv.includes('--ignore-system-load'),
+  };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function assertSafeStart(options: ScriptOptions): void {
+  const cpuCount = Math.max(os.cpus().length, 1);
+  const load1 = os.loadavg()[0];
+  const freeMemMb = Math.round(os.freemem() / 1024 / 1024);
+  const totalMemMb = Math.round(os.totalmem() / 1024 / 1024);
+
+  logger.info(
+    {
+      entity: options.entity,
+      limit: options.limit,
+      offset: options.offset,
+      sleepMs: options.sleepMs,
+      cpuCount,
+      load1,
+      freeMemMb,
+      totalMemMb,
+    },
+    'Backfill safety pre-check',
+  );
+
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is not set');
+  }
+
+  if (options.limit === 0) {
+    throw new Error('--limit must be greater than 0');
+  }
+
+  if (!options.allowLargeBatch && options.limit > 10) {
+    throw new Error(
+      `Unsafe batch size: --limit=${options.limit}. Use 10 or less, or add --allow-large-batch if you really want to override.`,
+    );
+  }
+
+  if (!options.allowLargeBatch && options.entity === 'all') {
+    throw new Error(
+      'Unsafe entity scope: --entity=all is blocked by default. Run characters and children separately, or add --allow-large-batch to override.',
+    );
+  }
+
+  if (!options.ignoreSystemLoad && load1 >= Math.max(0.9, cpuCount * 0.9)) {
+    throw new Error(
+      `System load is already high (load1=${load1.toFixed(2)}, cpuCount=${cpuCount}). Retry later or pass --ignore-system-load to override.`,
+    );
+  }
+
+  if (!options.ignoreSystemLoad && freeMemMb < 256) {
+    throw new Error(
+      `Free memory is too low (${freeMemMb} MB / ${totalMemMb} MB). Retry later or pass --ignore-system-load to override.`,
+    );
+  }
+}
+
 function extractStoragePath(url: string): string {
   const urlWithoutQuery = url.split('?')[0];
   const urlWithoutProtocol = urlWithoutQuery.replace(/^https?:\/\/[^/]+/, '');
@@ -24,8 +129,9 @@ function extractStoragePath(url: string): string {
 }
 
 async function backfillTurnaroundFront() {
-  const force = process.argv.includes('--force');
-  logger.info({ force }, 'Starting turnaround front backfill...');
+  const options = parseOptions();
+  assertSafeStart(options);
+  logger.info({ ...options }, 'Starting turnaround front backfill...');
 
   const assetStorage = getAssetStorageService();
   const characterRepo = getCharacterRepository();
@@ -37,28 +143,38 @@ async function backfillTurnaroundFront() {
     sql`${characters.turnaroundSheet}->>'url' IS NOT NULL`,
   );
 
-  const charsNeedingFront = await db
-    .select({ id: characters.id, userId: characters.userId, name: characters.name, turnaroundSheet: characters.turnaroundSheet })
-    .from(characters)
-    .where(
-      force
-        ? hasTurnaround
-        : and(hasTurnaround, sql`${characters.turnaroundSheet}->>'frontUrl' IS NULL`),
-    );
+  const charsNeedingFront = options.entity === 'children'
+    ? []
+    : await db
+        .select({ id: characters.id, userId: characters.userId, name: characters.name, turnaroundSheet: characters.turnaroundSheet })
+        .from(characters)
+        .where(
+          options.force
+            ? hasTurnaround
+            : and(hasTurnaround, sql`${characters.turnaroundSheet}->>'frontUrl' IS NULL`),
+        )
+        .orderBy(characters.id)
+        .limit(options.limit)
+        .offset(options.offset);
 
   const childHasTurnaround = and(
     isNotNull(childProfiles.turnaroundSheet),
     sql`${childProfiles.turnaroundSheet}->>'url' IS NOT NULL`,
   );
 
-  const childrenNeedingFront = await db
-    .select({ id: childProfiles.id, userId: childProfiles.userId, name: childProfiles.name, turnaroundSheet: childProfiles.turnaroundSheet })
-    .from(childProfiles)
-    .where(
-      force
-        ? childHasTurnaround
-        : and(childHasTurnaround, sql`${childProfiles.turnaroundSheet}->>'frontUrl' IS NULL`),
-    );
+  const childrenNeedingFront = options.entity === 'characters'
+    ? []
+    : await db
+        .select({ id: childProfiles.id, userId: childProfiles.userId, name: childProfiles.name, turnaroundSheet: childProfiles.turnaroundSheet })
+        .from(childProfiles)
+        .where(
+          options.force
+            ? childHasTurnaround
+            : and(childHasTurnaround, sql`${childProfiles.turnaroundSheet}->>'frontUrl' IS NULL`),
+        )
+        .orderBy(childProfiles.id)
+        .limit(options.limit)
+        .offset(options.offset);
 
   const total = charsNeedingFront.length + childrenNeedingFront.length;
 
@@ -72,15 +188,27 @@ async function backfillTurnaroundFront() {
       .select({ count: sql<number>`count(*)::int` })
       .from(childProfiles)
       .where(and(isNotNull(childProfiles.turnaroundSheet), sql`${childProfiles.turnaroundSheet}->>'url' IS NOT NULL`));
-    logger.info(
-      { totalWithTurnaround: (charTotal?.count ?? 0) + (childTotal?.count ?? 0), characters: charTotal?.count ?? 0, children: childTotal?.count ?? 0 },
-      'No records to process. Total with turnaround (may already have frontUrl)',
-    );
+      logger.info(
+        { totalWithTurnaround: (charTotal?.count ?? 0) + (childTotal?.count ?? 0), characters: charTotal?.count ?? 0, children: childTotal?.count ?? 0 },
+        'No records to process. Total with turnaround (may already have frontUrl)',
+      );
     logger.info('No records to process. Exiting.');
     return;
   }
 
-  logger.info({ characters: charsNeedingFront.length, children: childrenNeedingFront.length, total, force }, 'Found records needing front extraction');
+  logger.info(
+    {
+      entity: options.entity,
+      limit: options.limit,
+      offset: options.offset,
+      sleepMs: options.sleepMs,
+      characters: charsNeedingFront.length,
+      children: childrenNeedingFront.length,
+      total,
+      force: options.force,
+    },
+    'Found records needing front extraction',
+  );
 
   let processed = 0;
   let errors = 0;
@@ -88,6 +216,7 @@ async function backfillTurnaroundFront() {
 
   for (const char of charsNeedingFront) {
     try {
+      logger.info({ characterId: char.id, name: char.name, processed, total }, 'Processing character turnaround front');
       const ts = char.turnaroundSheet as { url: string; generatedAt: string; sourcePhotoUrl?: string } | null;
       if (!ts?.url) {
         skipped++;
@@ -130,9 +259,8 @@ async function backfillTurnaroundFront() {
       });
 
       processed++;
-      if (processed % 5 === 0) {
-        logger.info({ processed, errors, skipped, total }, 'Backfill progress');
-      }
+      logger.info({ processed, errors, skipped, total, characterId: char.id, name: char.name }, 'Character front backfilled');
+      if (options.sleepMs > 0) await sleep(options.sleepMs);
     } catch (err) {
       errors++;
       logger.error({ err, characterId: char.id, name: char.name }, 'Failed to backfill character front');
@@ -141,6 +269,7 @@ async function backfillTurnaroundFront() {
 
   for (const child of childrenNeedingFront) {
     try {
+      logger.info({ childId: child.id, name: child.name, processed, total }, 'Processing child turnaround front');
       const ts = child.turnaroundSheet as { url: string; generatedAt: string; sourcePhotoUrl?: string } | null;
       if (!ts?.url) {
         skipped++;
@@ -183,9 +312,8 @@ async function backfillTurnaroundFront() {
       });
 
       processed++;
-      if (processed % 5 === 0) {
-        logger.info({ processed, errors, skipped, total }, 'Backfill progress');
-      }
+      logger.info({ processed, errors, skipped, total, childId: child.id, name: child.name }, 'Child front backfilled');
+      if (options.sleepMs > 0) await sleep(options.sleepMs);
     } catch (err) {
       errors++;
       logger.error({ err, childId: child.id, name: child.name }, 'Failed to backfill child front');

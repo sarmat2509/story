@@ -67,6 +67,23 @@ export function GenerationProgressModal({
       'generating_audio': 'Озвучуємо історію...',
     };
 
+    const countBasedTasks = new Set([
+      'generating_portraits',
+      'generating_images',
+      'generating_audio',
+    ]);
+    const hasCounters =
+      typeof details?.current === 'number' &&
+      Number.isFinite(details.current) &&
+      typeof details?.total === 'number' &&
+      Number.isFinite(details.total);
+
+    if (countBasedTasks.has(task) && !hasCounters) {
+      return t(`story.${task}`, {
+        defaultValue: labels[task] || 'Обробляємо запит...',
+      });
+    }
+
     return t(`story.tasks.${task}`, {
       ...(details ?? {}),
       defaultValue: labels[task] || 'Обробляємо запит...',

@@ -14,6 +14,13 @@ export interface RenderHtmlDocumentParams {
   headStyles?: string;
 }
 
+const BASE_DOCUMENT_STYLES = `
+html,body{height:100%;margin:0;padding:0}
+body{min-height:100vh}
+#root{min-height:100%;height:100%;display:flex;flex-direction:column}
+#root>*{flex:1;min-height:100%}
+`;
+
 /**
  * Renders HTML shell with meta, JSON-LD, body placeholder, and __INITIAL_STORY__ script.
  * Body is typically empty or minimal for SPA hydration.
@@ -43,7 +50,7 @@ export function renderHtmlDocument(params: RenderHtmlDocumentParams): string {
 <html lang="uk">
 <head>
   ${meta}
-  ${headStyles ? `<style>${headStyles}</style>` : ''}
+  <style>${BASE_DOCUMENT_STYLES}${headStyles || ''}</style>
   <script type="application/ld+json">${jsonLd}</script>
 </head>
 <body>

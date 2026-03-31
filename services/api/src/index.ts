@@ -57,15 +57,16 @@ const isLocalDev = webAppOrigin.includes('localhost') || webAppOrigin.includes('
 const localhostSources = isLocalDev
   ? ['http://localhost', 'http://localhost:*', 'ws://localhost', 'ws://localhost:*']
   : [];
+const posthogSources = ['https://*.i.posthog.com', 'https://*.posthog.com'];
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", ...(webAppOrigin ? [webAppOrigin] : [])],
-      scriptSrcElem: ["'self'", "'unsafe-inline'", ...(webAppOrigin ? [webAppOrigin] : [])],
+      scriptSrc: ["'self'", "'unsafe-inline'", ...(webAppOrigin ? [webAppOrigin] : []), ...posthogSources],
+      scriptSrcElem: ["'self'", "'unsafe-inline'", ...(webAppOrigin ? [webAppOrigin] : []), ...posthogSources],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:', 'https:', ...(isLocalDev ? ['http://localhost', 'http://localhost:*'] : [])],
-      connectSrc: ["'self'", 'https:', 'wss:', ...localhostSources],
+      connectSrc: ["'self'", 'https:', 'wss:', ...localhostSources, ...posthogSources],
       fontSrc: ["'self'", 'data:', 'https:'],
       mediaSrc: ["'self'", 'blob:', 'https:', ...(isLocalDev ? ['http://localhost', 'http://localhost:*'] : [])],
       objectSrc: ["'none'"],

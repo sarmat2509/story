@@ -396,6 +396,17 @@ deploy_webapp() {
   fi
   echo "   ✓ Build verified (wondertales://)"
 
+  local expo_bundle
+  expo_bundle=$(find apps/universal-app/dist/_expo/static/js/web -maxdepth 1 -type f -name '*.js' | head -n 1)
+  if [[ -z "${expo_bundle}" ]]; then
+    echo "❌ ERROR: Could not find Expo web bundle in apps/universal-app/dist/_expo/static/js/web"
+    exit 1
+  fi
+
+  mkdir -p apps/universal-app/dist/static/js
+  cp "${expo_bundle}" apps/universal-app/dist/static/js/bundle.js
+  echo "   ✓ Created SSR compatibility bundle at /static/js/bundle.js"
+
   print_step "Uploading webapp to droplet..."
   cd apps/universal-app
   tar -czf dist.tar.gz dist/

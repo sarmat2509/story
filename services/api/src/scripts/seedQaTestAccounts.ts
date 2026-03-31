@@ -27,11 +27,10 @@
 
 import './loadEnvForScripts';
 
+import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
 import { db, closeDatabaseConnection } from '../db';
-import { characters, childProfiles, oauthIdentities, userSubscriptions, users } from '../db/schema';
-import { getPlanRepository } from '../repositories';
-import { hashPassword } from '../services/passwordService';
+import { characters, childProfiles, oauthIdentities, plans, userSubscriptions, users } from '../db/schema';
 import { encryptToken } from '../utils/encryption';
 
 type AccountCode =
@@ -255,8 +254,7 @@ function addOneMonth(date: Date): Date {
 }
 
 async function resolvePlanIds() {
-  const planRepo = getPlanRepository();
-  const activePlans = await planRepo.findActivePlans();
+  const activePlans = await db.select().from(plans).where(eq(plans.isActive, true)).orderBy(plans.sortOrder);
 
   const freePlan = activePlans.find((plan) => plan.slug === 'free');
   if (!freePlan) {
@@ -344,6 +342,10 @@ async function ensureOAuthIdentity(userId: string, spec: AccountSpec, email: str
     return null;
   }
 
+  if (DRY_RUN) {
+    return null;
+  }
+
   let encryptedToken: string;
   try {
     encryptedToken = encryptToken(`seed-token-${spec.code.toLowerCase()}`) || '';
@@ -390,10 +392,6 @@ async function ensureOAuthIdentity(userId: string, spec: AccountSpec, email: str
       ),
   });
 
-  if (DRY_RUN) {
-    return null;
-  }
-
   if (!existingForUser) {
     await db.insert(oauthIdentities).values({
       userId,
@@ -429,6 +427,10 @@ async function upsertSubscription(
   spec: AccountSpec,
   planId: string
 ) {
+  if (DRY_RUN) {
+    return;
+  }
+
   const existing = await db.query.userSubscriptions.findFirst({
     where: (table, { eq: drizzleEq }) => drizzleEq(table.userId, userId),
   });
@@ -456,10 +458,6 @@ async function upsertSubscription(
     },
     updatedAt: now,
   };
-
-  if (DRY_RUN) {
-    return;
-  }
 
   if (!existing) {
     await db.insert(userSubscriptions).values({
@@ -494,6 +492,10 @@ async function ensureStripeCustomerId(userId: string, spec: AccountSpec) {
 async function ensureAccountFixtures(userId: string, spec: AccountSpec): Promise<string[]> {
   if (!ACCOUNT_CODES_WITH_LIBRARY_FIXTURES.has(spec.code)) {
     return [];
+  }
+
+  if (DRY_RUN) {
+    return ['CHILD_MINIMAL would be created', 'CHARACTER_PERSON would be created'];
   }
 
   const notes: string[] = [];
@@ -592,7 +594,7 @@ async function ensureAccountFixtures(userId: string, spec: AccountSpec): Promise
 
 async function seedAccount(spec: AccountSpec, freePlanId: string, paidPlanId: string): Promise<SummaryRow> {
   const email = buildEmail(spec.code);
-  const passwordHash = spec.auth === 'password' ? await hashPassword(DEFAULT_PASSWORD) : null;
+  const passwordHash = spec.auth === 'password' ? await bcrypt.hash(DEFAULT_PASSWORD, 12) : null;
   const planId = spec.planKind === 'paid' ? paidPlanId : freePlanId;
 
   const { user, result } = await upsertUser(spec, passwordHash, email);

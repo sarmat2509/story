@@ -40,6 +40,16 @@ if ! grep -rq "wondertales://" apps/universal-app/dist/ 2>/dev/null; then
 fi
 echo "   ✓ Build verified (wondertales://)"
 
+EXPO_BUNDLE=$(find apps/universal-app/dist/_expo/static/js/web -maxdepth 1 -type f -name '*.js' | head -n 1)
+if [ -z "$EXPO_BUNDLE" ]; then
+  echo "❌ ERROR: Could not find Expo web bundle in apps/universal-app/dist/_expo/static/js/web"
+  exit 1
+fi
+
+mkdir -p apps/universal-app/dist/static/js
+cp "$EXPO_BUNDLE" apps/universal-app/dist/static/js/bundle.js
+echo "   ✓ Created SSR compatibility bundle at /static/js/bundle.js"
+
 # 3. Create tarball
 echo "📦 Creating tarball..."
 cd apps/universal-app
