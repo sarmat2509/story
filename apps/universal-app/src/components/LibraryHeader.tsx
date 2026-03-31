@@ -31,13 +31,16 @@ interface Props {
   ageOptions?: FilterOption[];
   selectedAgeGroup?: string | null;
   onAgeGroupChange?: (ageGroup: string | null) => void;
+  languageOptions?: FilterOption[];
+  selectedLanguage?: string | null;
+  onLanguageChange?: (language: string | null) => void;
   readingTimeOptions?: FilterOption[];
   selectedReadingTime?: string | null;
   onReadingTimeChange?: (value: string | null) => void;
   onReportProblem?: () => void;
 }
 
-type DropdownKey = 'scenario' | 'age' | 'reading';
+type DropdownKey = 'scenario' | 'age' | 'language' | 'reading';
 
 function FilterDropdown({
   buttonLabel,
@@ -107,6 +110,9 @@ const LibraryHeaderComponent = ({
   ageOptions = [],
   selectedAgeGroup,
   onAgeGroupChange,
+  languageOptions = [],
+  selectedLanguage,
+  onLanguageChange,
   readingTimeOptions = [],
   selectedReadingTime,
   onReadingTimeChange,
@@ -158,6 +164,8 @@ const LibraryHeaderComponent = ({
     ? scenarioCards.find((c) => c.id === selectedScenarioId)?.name || t('library.all_scenarios')
     : t('library.all_scenarios');
   const selectedAgeLabel = ageOptions.find((option) => option.value === selectedAgeGroup)?.label ?? t('library.all_ages');
+  const selectedLanguageLabel =
+    languageOptions.find((option) => option.value === selectedLanguage)?.label ?? t('library.all_languages');
   const selectedReadingTimeLabel =
     readingTimeOptions.find((option) => option.value === selectedReadingTime)?.label ?? t('library.all_reading_times');
   
@@ -189,6 +197,20 @@ const LibraryHeaderComponent = ({
             selectedValue={selectedAgeGroup}
             onSelect={(value) => {
               onAgeGroupChange(value);
+              setOpenDropdown(null);
+            }}
+          />
+        )}
+
+        {languageOptions.length > 0 && onLanguageChange && (
+          <FilterDropdown
+            buttonLabel={selectedLanguageLabel}
+            isOpen={openDropdown === 'language'}
+            onToggle={() => setOpenDropdown((prev) => (prev === 'language' ? null : 'language'))}
+            options={languageOptions}
+            selectedValue={selectedLanguage}
+            onSelect={(value) => {
+              onLanguageChange(value);
               setOpenDropdown(null);
             }}
           />
@@ -283,6 +305,9 @@ const areEqual = (prevProps: Props, nextProps: Props) => {
     prevProps.ageOptions === nextProps.ageOptions &&
     prevProps.selectedAgeGroup === nextProps.selectedAgeGroup &&
     prevProps.onAgeGroupChange === nextProps.onAgeGroupChange &&
+    prevProps.languageOptions === nextProps.languageOptions &&
+    prevProps.selectedLanguage === nextProps.selectedLanguage &&
+    prevProps.onLanguageChange === nextProps.onLanguageChange &&
     prevProps.readingTimeOptions === nextProps.readingTimeOptions &&
     prevProps.selectedReadingTime === nextProps.selectedReadingTime &&
     prevProps.onReadingTimeChange === nextProps.onReadingTimeChange &&

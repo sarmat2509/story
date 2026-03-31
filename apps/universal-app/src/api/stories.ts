@@ -471,21 +471,23 @@ export function usePublishedStories(params?: {
   offset?: number;
   hasAudio?: boolean;
   scenarioCardId?: string | null;
+  language?: string | null;
   ageGroup?: string | null;
   readingTimeMin?: number;
   readingTimeMax?: number;
 }) {
-  const { limit = 20, offset = 0, hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax } = params ?? {};
+  const { limit = 20, offset = 0, hasAudio, scenarioCardId, language, ageGroup, readingTimeMin, readingTimeMax } = params ?? {};
 
   const searchParams: Record<string, string | number> = { limit, offset };
   if (hasAudio === true) searchParams.has_audio = 'true';
   if (scenarioCardId) searchParams.scenario_card_id = scenarioCardId;
+  if (language) searchParams.language = language;
   if (ageGroup) searchParams.age_group = ageGroup;
   if (typeof readingTimeMin === 'number') searchParams.reading_time_min = readingTimeMin;
   if (typeof readingTimeMax === 'number') searchParams.reading_time_max = readingTimeMax;
 
   return useQuery({
-    queryKey: ['published-stories', limit, offset, hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax],
+    queryKey: ['published-stories', limit, offset, hasAudio, scenarioCardId, language, ageGroup, readingTimeMin, readingTimeMax],
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;

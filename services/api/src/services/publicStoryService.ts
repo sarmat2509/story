@@ -252,15 +252,16 @@ export async function listPublicStories(options: {
   offset?: number;
   hasAudio?: boolean;
   scenarioCardId?: string;
+  language?: string;
   ageGroup?: string;
   readingTimeMin?: number;
   readingTimeMax?: number;
   authorId?: string;
   showOnHomePage?: boolean;
 }): Promise<{ items: PublicStoryListItem[]; total: number }> {
-  const { limit = 20, offset = 0, hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage } = options;
+  const { limit = 20, offset = 0, hasAudio, scenarioCardId, language, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage } = options;
   const storyRepo = getStoryRepository();
-  const filterOpts = { hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage };
+  const filterOpts = { hasAudio, scenarioCardId, language, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage };
   const [stories, total] = await Promise.all([
     storyRepo.listPublished({ limit, offset, ...filterOpts }),
     storyRepo.countPublished(filterOpts),

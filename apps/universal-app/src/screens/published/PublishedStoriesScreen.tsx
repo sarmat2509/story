@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { usePublishedStories } from '@/api/stories';
 import { useStoryThemes } from '@/api/dictionaries';
+import { APP_CONFIG } from '@/config/constants';
 import { theme } from '@/theme';
 import { LibraryHeader } from '@/components/LibraryHeader';
 import { PublishedStoryCard } from '@/components/PublishedStoryCard';
@@ -41,6 +42,7 @@ export default function PublishedStoriesScreen() {
   const [audioFilter, setAudioFilter] = useState(false);
   const [scenarioFilter, setScenarioFilter] = useState<string | null>(null);
   const [ageFilter, setAgeFilter] = useState<string | null>(null);
+  const [languageFilter, setLanguageFilter] = useState<string | null>(null);
   const [readingTimeFilter, setReadingTimeFilter] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const audioToggleRef = useRef<AudioFilterToggleRef>(null);
@@ -86,6 +88,11 @@ export default function PublishedStoriesScreen() {
     setCurrentPage(1);
   }, []);
 
+  const handleLanguageFilterChange = useCallback((language: string | null) => {
+    setLanguageFilter(language);
+    setCurrentPage(1);
+  }, []);
+
   const handleReadingTimeFilterChange = useCallback((value: string | null) => {
     setReadingTimeFilter(value);
     setCurrentPage(1);
@@ -115,12 +122,23 @@ export default function PublishedStoriesScreen() {
     ],
     [t]
   );
+  const languageOptions = useMemo(
+    () => [
+      { value: null, label: t('library.all_languages') },
+      ...APP_CONFIG.supportedLanguages.map((language) => ({
+        value: language,
+        label: t(`language_names.${language}`, { defaultValue: language.toUpperCase() }),
+      })),
+    ],
+    [t]
+  );
 
   const { data, isLoading, error } = usePublishedStories({
     limit: ITEMS_PER_PAGE,
     offset,
     hasAudio: audioFilter,
     scenarioCardId: scenarioFilter,
+    language: languageFilter,
     ageGroup: ageFilter,
     readingTimeMin: selectedReadingRange.min,
     readingTimeMax: selectedReadingRange.max,
@@ -180,6 +198,9 @@ export default function PublishedStoriesScreen() {
         ageOptions={ageOptions}
         selectedAgeGroup={ageFilter}
         onAgeGroupChange={handleAgeFilterChange}
+        languageOptions={languageOptions}
+        selectedLanguage={languageFilter}
+        onLanguageChange={handleLanguageFilterChange}
         readingTimeOptions={readingTimeOptions}
         selectedReadingTime={readingTimeFilter}
         onReadingTimeChange={handleReadingTimeFilterChange}

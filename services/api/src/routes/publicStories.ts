@@ -37,6 +37,9 @@ router.get('/', async (req: Request, res: Response) => {
       (typeof req.query.scenarioCardId === 'string' ? req.query.scenarioCardId : null) ||
       (typeof req.query.scenario_card_id === 'string' ? req.query.scenario_card_id : null) ||
       undefined;
+    const language =
+      (typeof req.query.language === 'string' ? req.query.language : null) ||
+      undefined;
     const ageGroup =
       (typeof req.query.ageGroup === 'string' ? req.query.ageGroup : null) ||
       (typeof req.query.age_group === 'string' ? req.query.age_group : null) ||
@@ -55,6 +58,7 @@ router.get('/', async (req: Request, res: Response) => {
       offset,
       hasAudio: hasAudio || undefined,
       scenarioCardId,
+      language,
       ageGroup,
       readingTimeMin: Number.isFinite(readingTimeMin) ? readingTimeMin : undefined,
       readingTimeMax: Number.isFinite(readingTimeMax) ? readingTimeMax : undefined,

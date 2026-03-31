@@ -97,6 +97,7 @@ export class StoryRepository {
     offset?: number;
     hasAudio?: boolean;
     scenarioCardId?: string;
+    language?: string;
     ageGroup?: string;
     readingTimeMin?: number;
     readingTimeMax?: number;
@@ -108,6 +109,7 @@ export class StoryRepository {
       offset = 0,
       hasAudio,
       scenarioCardId,
+      language,
       ageGroup,
       readingTimeMin,
       readingTimeMax,
@@ -124,6 +126,9 @@ export class StoryRepository {
     }
     if (hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
+    }
+    if (language) {
+      conditions.push(eq(schema.stories.language, language));
     }
     if (ageGroup) {
       conditions.push(eq(schema.stories.ageGroup, ageGroup));
@@ -163,13 +168,14 @@ export class StoryRepository {
   async countPublished(options: {
     hasAudio?: boolean;
     scenarioCardId?: string;
+    language?: string;
     ageGroup?: string;
     readingTimeMin?: number;
     readingTimeMax?: number;
     authorId?: string;
     showOnHomePage?: boolean;
   } = {}): Promise<number> {
-    const { hasAudio, scenarioCardId, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage } = options;
+    const { hasAudio, scenarioCardId, language, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage } = options;
     const conditions = [
       eq(schema.stories.isPublished, true),
       isNotNull(schema.stories.publishedSlug),
@@ -180,6 +186,9 @@ export class StoryRepository {
     }
     if (hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
+    }
+    if (language) {
+      conditions.push(eq(schema.stories.language, language));
     }
     if (ageGroup) {
       conditions.push(eq(schema.stories.ageGroup, ageGroup));
