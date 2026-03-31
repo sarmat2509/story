@@ -4,7 +4,7 @@
  * SSR HTML is rendered on-demand via GET /ssr/stories/:slug (Redis cache).
  */
 
-import { getStoryRepository, getUserRepository } from '../repositories';
+import { getStoryRepository } from '../repositories';
 import { addPublishedSlug, incrementLandingRenderVersion, removePublishedSlug } from '../ssr/storyCache';
 import { invalidateSitemapCache } from './sitemapService';
 import { config } from '../config';
@@ -61,7 +61,7 @@ export interface PublishResult {
 }
 
 /**
- * Publish a story. Sets published_at, published_slug or share_token, author_display_name.
+ * Publish a story. Sets published_at, published_slug or share_token.
  * visibility: 'public' = in catalog (slug), 'unlisted' = by link only (share_token).
  * Returns shareUrl for immediate share sheet.
  */
@@ -72,7 +72,6 @@ export async function publishStory(
   shareCardSceneId?: number
 ): Promise<PublishResult | null> {
   const storyRepo = getStoryRepository();
-  const userRepo = getUserRepository();
 
   const story = await storyRepo.findByIdAndUser(storyId, userId);
   if (!story) return null;
@@ -103,10 +102,6 @@ export async function publishStory(
     }
   }
 
-  const user = await userRepo.findById(userId);
-  const authorDisplayName =
-    user?.pseudonym || user?.displayName || 'Anonymous';
-
   if (visibility === 'unlisted') {
     const token = shortId() + shortId(); // 16 chars
     const shouldClearHomePageFlag = story.showOnHomePage === true;
@@ -114,7 +109,6 @@ export async function publishStory(
       isPublished: true,
       publishedAt: new Date(),
       publishedSlug: null,
-      authorDisplayName,
       visibility: 'unlisted',
       shareToken: token,
       ...(shouldClearHomePageFlag ? { showOnHomePage: false } : {}),
@@ -149,7 +143,6 @@ export async function publishStory(
     isPublished: true,
     publishedAt: new Date(),
     publishedSlug: slug,
-    authorDisplayName,
     visibility: 'public',
     shareToken: null,
     ...(shareCardSceneId != null && { shareCardSceneId }),

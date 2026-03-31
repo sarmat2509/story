@@ -29,7 +29,7 @@ export default function AuthorProfileScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
-  const { authorId } = route.params;
+  const authorId = route.params?.authorId;
   const [currentPage, setCurrentPage] = useState(1);
 
   const offset = useMemo(() => (currentPage - 1) * ITEMS_PER_PAGE, [currentPage]);
@@ -67,6 +67,15 @@ export default function AuthorProfileScreen() {
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
         <Text style={styles.loadingText}>{t('common.loading')}</Text>
+      </View>
+    );
+  }
+
+  if (!authorId) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorTitle}>{t('common.error')}</Text>
+        <Text style={styles.errorMessage}>{t('profile.author_not_found')}</Text>
       </View>
     );
   }

@@ -202,10 +202,10 @@ export default function PublishedStoryScreen() {
   const authorAvatarUrl = formatAssetUrl((story as any)?.author?.avatarUrl) ?? (story as any)?.author?.avatarUrl ?? null;
   const authorInitial = (story.authorDisplayName || 'A').trim().charAt(0).toUpperCase();
   const authorId = (story as any)?.author?.id as string | undefined;
-  const handleAuthorPress = useCallback(() => {
+  const handleAuthorPress = () => {
     if (!authorId) return;
     navigation.navigate('AuthorProfile', { authorId });
-  }, [authorId, navigation]);
+  };
 
   const renderMainContent = () => (
     <>

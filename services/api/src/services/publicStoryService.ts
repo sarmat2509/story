@@ -24,6 +24,12 @@ interface PublicAuthorView {
   aboutMe?: string | null;
 }
 
+function resolveAuthorDisplayName(
+  author?: { pseudonym?: string | null; displayName?: string | null } | null
+): string {
+  return author?.pseudonym || author?.displayName || 'Anonymous';
+}
+
 async function getAudioUrlAndAlignment(storyId: string): Promise<{ url: string | null; alignment?: any; duration?: number }> {
   const [row] = await db
     .select({ audioAsset: audioAssets, asset: assets })
@@ -109,7 +115,7 @@ export async function buildStoryPublicView(
     ...(metadata.seoDescription && typeof metadata.seoDescription === 'string' && { seoDescription: metadata.seoDescription }),
     scenes: formattedScenes,
     ...(author && { author }),
-    authorDisplayName: story.authorDisplayName || 'Anonymous',
+    authorDisplayName: author?.displayName || 'Anonymous',
     publishedAt: story.publishedAt ? story.publishedAt.toISOString?.() ?? String(story.publishedAt) : null,
     audio: audioUrl
       ? {
@@ -298,7 +304,7 @@ export async function listPublicStories(options: {
         language: s.language,
         ageGroup: s.ageGroup,
         authorId: s.userId,
-        authorDisplayName: s.authorDisplayName || 'Anonymous',
+        authorDisplayName: resolveAuthorDisplayName(authorById.get(s.userId)),
         authorAvatarUrl: authorById.get(s.userId)?.avatarUrl ?? null,
         publishedAt: s.publishedAt ? s.publishedAt.toISOString?.() ?? String(s.publishedAt) : null,
         publishedSlug: s.publishedSlug!,
@@ -319,7 +325,7 @@ export async function getPublicAuthorById(authorId: string): Promise<PublicAutho
   if (!author) return null;
   return {
     id: author.id,
-    displayName: author.pseudonym || author.displayName || 'Anonymous',
+    displayName: resolveAuthorDisplayName(author),
     avatarUrl: author.avatarUrl ?? null,
     aboutMe: author.aboutMe ?? null,
   };
