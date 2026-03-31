@@ -3,6 +3,7 @@
  * These interfaces abstract AI providers for text generation
  */
 
+import type { Locale } from '@wondertales/shared';
 import type { CharacterData, SceneVisual } from '../services/types';
 
 /**
@@ -63,7 +64,7 @@ export interface ImageValidationResult {
  */
 export interface PolicyProfile {
   ageGroup: string;
-  language: string;
+  language: Locale;
   allowedConflicts: string[];
   constraints: {
     mustHaveHappyEnding: boolean;
@@ -81,7 +82,7 @@ export interface PolicyProfile {
  * Story specification for AI generation
  */
 export interface StorySpec {
-  language: string;
+  language: Locale;
   ageGroup: string;
   childName?: string; // Optional - only set if child is a character in the story
   goal?: string;
@@ -119,7 +120,7 @@ export interface StoryEnvironment {
  */
 export interface EpisodeOutline {
   title: string;
-  language: string;
+  language: Locale;
   moral: string;
   environments?: StoryEnvironment[]; // Persistent location descriptions
   scenes: Array<{
@@ -148,7 +149,7 @@ export interface StoryOutfitRow {
 
 export interface EpisodeText {
   title: string;
-  language: string;
+  language: Locale;
   environments?: StoryEnvironment[]; // Persistent location descriptions
   /** Canonical wardrobe; scenes reference rows via sceneVisual.cameraComposition.characters[].outfitId (LLM) → normalized to characterOutfitIds. */
   outfits?: StoryOutfitRow[];

@@ -7,17 +7,17 @@
  */
 
 import type { StorySpec, PolicyProfile } from '../ai/types';
-import { getLanguageFullDisplay } from '@wondertales/shared';
+import { getLanguageFullDisplay, type Locale } from '@wondertales/shared';
 import { getTextStyleGuidance } from './image/styles';
 import { getContentPolicy } from './contentPolicy';
 
 /**
  * Get full language display name from code
- * @param code - Language code (uk, ru, en, es, de, fr)
+ * @param code - Language code (uk, ru, en, es, de, fr, pl)
  * @returns Full language name (e.g., "Ukrainian (Українська)")
  */
-export function getLanguageName(code: string): string {
-  return getLanguageFullDisplay(code as any);
+export function getLanguageName(code: Locale): string {
+  return getLanguageFullDisplay(code);
 }
 
 /**
