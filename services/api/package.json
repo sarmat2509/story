@@ -25,6 +25,7 @@
     "db:mark-migrations-applied": "npx tsx src/scripts/markExistingMigrationsAsApplied.ts",
     "db:migrate": "tsx src/scripts/runMigration.ts",
     "seed:voices": "tsx src/scripts/seedVoices.ts",
+    "seed:test-accounts": "tsx src/scripts/seedQaTestAccounts.ts",
     "test:imagen": "npx tsx src/scripts/testImagenAPI.ts",
     "test:llm-character-persistence": "tsx src/services/__tests__/llmCharacterPersistence.test.ts",
     "test:cross-script-identity": "tsx src/utils/__tests__/crossScriptIdentityKey.test.ts",
