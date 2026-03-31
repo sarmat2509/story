@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useChildren, useDeleteChild } from '@/api/children';
-import { ChildFormContent } from '@/components/ChildFormContent';
 import { ChildFormModal } from '@/components/ChildFormModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -56,10 +55,7 @@ export default function ChildrenScreen() {
   } & ChildFormInitialData | undefined>();
 
   const children = data?.children ?? [];
-  const limit = data?.limit ?? null;
   const canCreateMore = data?.canCreateMore ?? false;
-  // Inline form only when limit=1 AND at most 1 child (if user has 2+ despite plan, show list)
-  const isInlineMode = limit === 1 && children.length <= 1;
 
   const handleEditChild = (child: Record<string, unknown>) => {
     setEditingChild({
@@ -103,42 +99,6 @@ export default function ChildrenScreen() {
       </View>
     );
   }
-
-  // Inline mode: limit === 1 — form directly on page, no modal
-  if (isInlineMode) {
-    const existingChild = children[0];
-    return (
-      <>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{t('children_screen.title_single')}</Text>
-          <Text style={styles.subtitle}>{t('children_screen.subtitle_single')}</Text>
-        </View>
-        <ChildFormContent
-          key={existingChild?.id ?? 'new'}
-          childId={existingChild?.id}
-          initialData={existingChild ? mapChildToInitialData(existingChild as Record<string, unknown>) : undefined}
-          onSuccess={() => {}}
-          variant="inline"
-        />
-        <TouchableOpacity
-          style={styles.reportProblemLink}
-          onPress={() => setShowFeedbackModal(true)}
-        >
-          <Text style={styles.reportProblemLinkText}>{t('profile.report_problem')}</Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      <FeedbackModal
-        visible={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-        initialReportedScreen="children"
-      />
-    </>
-    );
-  }
-
-  // List mode: limit > 1 or null — cards + modal + add button (2+ profiles)
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.header}>

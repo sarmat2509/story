@@ -96,11 +96,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
   const createChild = useCreateChild();
   const updateChild = useUpdateChild();
   const analyzeChild = useAnalyzeChild();
-  const currentPreviewUrl =
-    initialData?.turnaroundSheet?.frontUrl
-    ?? initialData?.turnaroundSheet?.url
-    ?? initialData?.referencePhotos?.[0]?.url
-    ?? null;
+  const currentPreviewUrl = initialData?.turnaroundSheet?.frontUrl ?? null;
 
   const [currentStep, setCurrentStep] = useState(1);
   const scrollRef = useRef<ScrollView>(null);
@@ -534,16 +530,6 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
 
             <View style={styles.field}>
               <Text style={styles.label}>{t('child_form.photos_title')}</Text>
-              {childId && currentPreviewUrl && photos.length === 0 ? (
-                <View style={styles.currentImageCard}>
-                  <Text style={styles.currentImageLabel}>{t('child_form.current_image') || 'Текущее изображение'}</Text>
-                  <Image
-                    source={{ uri: formatAssetUrl(currentPreviewUrl) ?? currentPreviewUrl }}
-                    style={styles.currentImage}
-                    resizeMode="contain"
-                  />
-                </View>
-              ) : null}
               <PhotoUploadGrid
                 photos={photos}
                 onPhotosChange={setPhotos}
@@ -557,6 +543,17 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
 
         {currentStep === 2 && (
           <>
+            {childId && currentPreviewUrl ? (
+              <View style={styles.currentImageCard}>
+                <Text style={styles.currentImageLabel}>{t('child_form.current_image') || 'Текущее изображение'}</Text>
+                <Image
+                  source={{ uri: formatAssetUrl(currentPreviewUrl) ?? currentPreviewUrl }}
+                  style={styles.currentImage}
+                  resizeMode="contain"
+                />
+              </View>
+            ) : null}
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t('child_form.description')}</Text>
               {photos.some(p => !p.isUploading && isServerAssetUrl(p.url)) && analyzeChild.isPending ? (

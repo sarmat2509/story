@@ -355,7 +355,7 @@
     "generating_remaining_sec": "~{{count}} сек",
     "generating_almost_done": "Почти готово...",
     "photos_title": "Фотографии",
-    "current_image": "Текущее изображение",
+    "current_image": "Аватар",
     "description": "Описание",
     "description_placeholder": "Описание внешности...",
     "generated_by_ai_hint": "Сгенерировано AI - вы можете редактировать",

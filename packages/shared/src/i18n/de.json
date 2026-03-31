@@ -452,7 +452,7 @@
     "creating_character": "Kinderprofil wird erstellt",
     "generating_remaining_sec": "~{{count}} Sek",
     "generating_almost_done": "Fast fertig...",
-    "current_image": "Aktuelles Bild",
+    "current_image": "Avatar",
     "generate_description": "Beschreibung generieren",
     "regenerate_description": "Beschreibung neu generieren",
     "description_upload_photos_first": "Laden Sie Fotos im vorherigen Schritt hoch, um eine Beschreibung zu generieren",
