@@ -19,6 +19,10 @@ export type AdminUserListItem = {
   planSlug: string | null;
   planName: string | null;
   createdAt: string;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  storiesUsedCurrentPeriod: number;
+  audioStoriesUsedCurrentPeriod: number;
 };
 
 export type AdminFeedbackListItem = {
@@ -224,12 +228,16 @@ export function useUpdateAdminUser() {
       userId: string;
       role?: 'user' | 'admin';
       planSlug?: string;
+      storiesUsedCurrentPeriod?: number;
+      audioStoriesUsedCurrentPeriod?: number;
     }) => {
       const response = await apiClient.patch<{ status: string; data: { id: string; email: string; role: 'user' | 'admin' } }>(
         `/api/v1/admin/users/${params.userId}`,
         {
           role: params.role,
           planSlug: params.planSlug,
+          storiesUsedCurrentPeriod: params.storiesUsedCurrentPeriod,
+          audioStoriesUsedCurrentPeriod: params.audioStoriesUsedCurrentPeriod,
         },
       );
       return response.data.data;

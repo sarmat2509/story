@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { useAdminUsers, useUpdateAdminUser, type AdminUserListItem } from '@/admin/api/admin';
 import { AdminSearchBar, AdminPagination } from '@/admin/components/AdminControls';
@@ -19,6 +19,8 @@ export default function AdminUsersScreen() {
   const [selectedUser, setSelectedUser] = useState<AdminUserListItem | null>(null);
   const [draftRole, setDraftRole] = useState<'user' | 'admin'>('user');
   const [draftPlanSlug, setDraftPlanSlug] = useState<string | null>(null);
+  const [draftStoriesUsedCurrentPeriod, setDraftStoriesUsedCurrentPeriod] = useState('0');
+  const [draftAudioStoriesUsedCurrentPeriod, setDraftAudioStoriesUsedCurrentPeriod] = useState('0');
   const { data, isLoading, error } = useAdminUsers({ limit: PAGE_SIZE, offset, search });
   const { data: plans } = usePlans();
   const updateUser = useUpdateAdminUser();
@@ -28,6 +30,8 @@ export default function AdminUsersScreen() {
     item.email,
     item.role,
     item.planName ?? item.planSlug ?? 'No plan',
+    item.storiesUsedCurrentPeriod,
+    item.audioStoriesUsedCurrentPeriod,
     new Date(item.createdAt).toLocaleString(),
     <TouchableOpacity
       key={`${item.id}-edit`}
@@ -36,6 +40,8 @@ export default function AdminUsersScreen() {
         setSelectedUser(item);
         setDraftRole(item.role);
         setDraftPlanSlug(item.planSlug);
+        setDraftStoriesUsedCurrentPeriod(String(item.storiesUsedCurrentPeriod));
+        setDraftAudioStoriesUsedCurrentPeriod(String(item.audioStoriesUsedCurrentPeriod));
       }}
     >
       <Text style={styles.editButtonText}>Edit</Text>
@@ -58,7 +64,7 @@ export default function AdminUsersScreen() {
       {!isLoading && !error ? (
         <>
           <AdminTable
-            headers={['ID', 'Email', 'Role', 'Plan', 'Created', 'Edit']}
+            headers={['ID', 'Email', 'Role', 'Plan', 'Stories', 'Audio', 'Created', 'Edit']}
             rows={rows}
             emptyText="No users found."
           />
@@ -66,6 +72,13 @@ export default function AdminUsersScreen() {
             <View style={styles.editorPanel}>
               <Text style={styles.editorTitle}>Edit user</Text>
               <Text style={styles.editorMeta}>{selectedUser.email}</Text>
+              <Text style={styles.editorHint}>
+                Usage values apply to the current billing period
+                {selectedUser.currentPeriodEnd
+                  ? ` (ends ${new Date(selectedUser.currentPeriodEnd).toLocaleString()})`
+                  : ''}
+                .
+              </Text>
 
               <View style={styles.group}>
                 <Text style={styles.groupLabel}>Role</Text>
@@ -101,6 +114,30 @@ export default function AdminUsersScreen() {
                 </View>
               </View>
 
+              <View style={styles.group}>
+                <Text style={styles.groupLabel}>Stories used this period</Text>
+                <TextInput
+                  style={styles.input}
+                  value={draftStoriesUsedCurrentPeriod}
+                  onChangeText={setDraftStoriesUsedCurrentPeriod}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={theme.colors.text.tertiary}
+                />
+              </View>
+
+              <View style={styles.group}>
+                <Text style={styles.groupLabel}>Audio stories used this period</Text>
+                <TextInput
+                  style={styles.input}
+                  value={draftAudioStoriesUsedCurrentPeriod}
+                  onChangeText={setDraftAudioStoriesUsedCurrentPeriod}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={theme.colors.text.tertiary}
+                />
+              </View>
+
               <View style={styles.actionsRow}>
                 <TouchableOpacity
                   style={styles.secondaryButton}
@@ -112,10 +149,21 @@ export default function AdminUsersScreen() {
                 <TouchableOpacity
                   style={styles.primaryButton}
                   onPress={async () => {
+                    const parsedStoriesUsedCurrentPeriod = Number.parseInt(draftStoriesUsedCurrentPeriod, 10);
+                    const parsedAudioStoriesUsedCurrentPeriod = Number.parseInt(
+                      draftAudioStoriesUsedCurrentPeriod,
+                      10
+                    );
                     await updateUser.mutateAsync({
                       userId: selectedUser.id,
                       role: draftRole,
                       planSlug: draftPlanSlug ?? undefined,
+                      storiesUsedCurrentPeriod: Number.isFinite(parsedStoriesUsedCurrentPeriod)
+                        ? Math.max(0, parsedStoriesUsedCurrentPeriod)
+                        : 0,
+                      audioStoriesUsedCurrentPeriod: Number.isFinite(parsedAudioStoriesUsedCurrentPeriod)
+                        ? Math.max(0, parsedAudioStoriesUsedCurrentPeriod)
+                        : 0,
                     });
                     setSelectedUser(null);
                   }}
@@ -168,12 +216,25 @@ const styles = StyleSheet.create({
   editorMeta: {
     color: theme.colors.text.secondary,
   },
+  editorHint: {
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+  },
   group: {
     gap: 8,
   },
   groupLabel: {
     fontWeight: '600',
     color: theme.colors.text.primary,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: theme.colors.border.medium,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: theme.colors.text.primary,
+    backgroundColor: theme.colors.background.primary,
   },
   optionsRow: {
     flexDirection: 'row',

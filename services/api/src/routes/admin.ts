@@ -77,9 +77,18 @@ const AdminConfigParamsSchema = z.object({
 const UpdateAdminUserBodySchema = z.object({
   role: z.enum(['user', 'admin']).optional(),
   planSlug: z.string().trim().min(1).optional(),
-}).refine((value) => value.role !== undefined || value.planSlug !== undefined, {
-  message: 'At least one field is required',
-});
+  storiesUsedCurrentPeriod: z.coerce.number().int().min(0).optional(),
+  audioStoriesUsedCurrentPeriod: z.coerce.number().int().min(0).optional(),
+}).refine(
+  (value) =>
+    value.role !== undefined ||
+    value.planSlug !== undefined ||
+    value.storiesUsedCurrentPeriod !== undefined ||
+    value.audioStoriesUsedCurrentPeriod !== undefined,
+  {
+    message: 'At least one field is required',
+  }
+);
 
 const UpdateAdminStoryBodySchema = z.object({
   showOnHomePage: z.boolean(),
@@ -483,8 +492,11 @@ router.patch('/users/:userId', async (req: Request, res: Response) => {
 
     const updatedUser = await updateAdminUserSettings({
       userId: parsedParams.data.userId,
+      actorUserId: req.user?.id,
       role: parsedBody.data.role,
       planSlug: parsedBody.data.planSlug,
+      storiesUsedCurrentPeriod: parsedBody.data.storiesUsedCurrentPeriod,
+      audioStoriesUsedCurrentPeriod: parsedBody.data.audioStoriesUsedCurrentPeriod,
     });
 
     if (!updatedUser) {

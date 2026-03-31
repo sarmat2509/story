@@ -101,6 +101,7 @@ router.delete('/', requireAuth, async (req: Request, res: Response) => {
 router.get('/subscription-usage', requireAuth, async (req: Request, res: Response) => {
   try {
     const { getPlanFeatures, getUserSubscription } = await import('../services/planService');
+    const { getUsageForPeriod } = await import('../services/usageEventsService');
     const features = await getPlanFeatures(req.user!.id);
     const subscription = await getUserSubscription(req.user!.id);
 
@@ -112,31 +113,13 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
       });
     }
 
-    const { db } = await import('../db');
-    const { stories } = await import('../db/schema');
-    const { eq, and, isNotNull, gte, sql } = await import('drizzle-orm');
-
     const currentPeriodStart = subscription.currentPeriodStart;
+    const currentPeriodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
 
-    const [storiesCountResult, audioCountResult] = await Promise.all([
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(stories)
-        .where(and(eq(stories.userId, req.user!.id), gte(stories.createdAt, currentPeriodStart))),
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(stories)
-        .where(
-          and(
-            eq(stories.userId, req.user!.id),
-            isNotNull(stories.audioMetadata),
-            gte(stories.createdAt, currentPeriodStart)
-          )
-        ),
+    const [storiesUsed, audioUsed] = await Promise.all([
+      getUsageForPeriod(req.user!.id, currentPeriodStart, currentPeriodEnd, 'story_created'),
+      getUsageForPeriod(req.user!.id, currentPeriodStart, currentPeriodEnd, 'audio_synthesized'),
     ]);
-
-    const storiesUsed = Number(storiesCountResult[0]?.count) || 0;
-    const audioUsed = Number(audioCountResult[0]?.count) || 0;
     const storiesLimit = features.storiesPerMonth;
     const audioLimit = features.audioStoriesPerMonth;
 

@@ -15,6 +15,8 @@ import { getImageValidationById, listAllImageValidations, listImageValidationsFo
 import { getStoryCacheStats, getStoryCost, getStoryCostBreakdown } from './aiUsageService';
 import { normalizeOutfitPlateCharacterKey } from './outfitPlateService';
 import { incrementLandingRenderVersion } from '../ssr/storyCache';
+import { getUserSubscription } from './planService';
+import { getUsageForPeriod } from './usageEventsService';
 
 export async function listAdminStories(params: {
   limit: number;
@@ -84,13 +86,33 @@ export async function listAdminUsers(params: {
   ]);
 
   return {
-    items: items.map((item) => ({
-      id: item.id,
-      email: item.email,
-      role: item.role,
-      planSlug: item.planSlug,
-      planName: item.planName,
-      createdAt: item.createdAt.toISOString(),
+    items: await Promise.all(items.map(async (item) => {
+      const subscription = await getUserSubscription(item.id);
+      const currentPeriodStart = subscription?.currentPeriodStart ?? null;
+      const currentPeriodEnd = subscription?.currentPeriodEnd ?? subscription?.resetAt ?? null;
+
+      let storiesUsedCurrentPeriod = 0;
+      let audioStoriesUsedCurrentPeriod = 0;
+
+      if (currentPeriodStart && currentPeriodEnd) {
+        [storiesUsedCurrentPeriod, audioStoriesUsedCurrentPeriod] = await Promise.all([
+          getUsageForPeriod(item.id, currentPeriodStart, currentPeriodEnd, 'story_created'),
+          getUsageForPeriod(item.id, currentPeriodStart, currentPeriodEnd, 'audio_synthesized'),
+        ]);
+      }
+
+      return {
+        id: item.id,
+        email: item.email,
+        role: item.role,
+        planSlug: item.planSlug,
+        planName: item.planName,
+        createdAt: item.createdAt.toISOString(),
+        currentPeriodStart: currentPeriodStart?.toISOString() ?? null,
+        currentPeriodEnd: currentPeriodEnd?.toISOString() ?? null,
+        storiesUsedCurrentPeriod,
+        audioStoriesUsedCurrentPeriod,
+      };
     })),
     meta: { limit, offset, total },
   };
