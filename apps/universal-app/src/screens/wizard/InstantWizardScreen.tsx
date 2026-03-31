@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/config/i18n';
 import { navigateToStory } from '@/navigation/navigationRef';
@@ -22,7 +24,9 @@ import { useCreateStoryFromPhotos, useStoryStatus, useRetryStoryImages } from '@
 import { useSubscriptionUsage } from '@/api/plans';
 import { PaywallModal } from '@/components/PaywallModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { getAnalytics } from '@/services/analytics';
+import type { MainDrawerParamList } from '@/types/navigation';
 
 type AgeGroup = '2-3' | '4-5' | '6-7' | '8-9' | '10-12';
 
@@ -35,6 +39,7 @@ interface PhotoObject {
 
 export default function InstantWizardScreen() {
   const { t } = useTranslation();
+  const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
 
   // Form state
@@ -55,6 +60,14 @@ export default function InstantWizardScreen() {
   const createStoryFromPhotos = useCreateStoryFromPhotos();
   const retryStoryImages = useRetryStoryImages();
   const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
+  }, [navigation]);
 
   // Set default language from i18n
   useEffect(() => {
@@ -241,13 +254,6 @@ export default function InstantWizardScreen() {
         )}
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.reportProblemLink}
-        onPress={() => setShowFeedbackModal(true)}
-      >
-        <Text style={styles.reportProblemLinkText}>{t('profile.report_problem')}</Text>
-      </TouchableOpacity>
-
       {/* Generation Progress Modal */}
       <GenerationProgressModal
         visible={isGenerating}
@@ -338,14 +344,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.inverse,
-  },
-  reportProblemLink: {
-    alignSelf: 'center',
-    paddingVertical: theme.spacing[4],
-    marginTop: theme.spacing[2],
-  },
-  reportProblemLinkText: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
   },
 });

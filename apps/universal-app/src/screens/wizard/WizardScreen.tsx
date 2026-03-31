@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
@@ -23,6 +23,7 @@ import { useCreateStory, useStoryStatus, useRetryStoryImages } from '@/api/stori
 import { useSubscriptionUsage } from '@/api/plans';
 import { PaywallModal } from '@/components/PaywallModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { getAnalytics } from '@/services/analytics';
 
 export default function WizardScreen() {
@@ -60,6 +61,14 @@ export default function WizardScreen() {
   const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
   const { data: usage } = useSubscriptionUsage();
   const [showPaywall, setShowPaywall] = useState(false);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
+  }, [navigation]);
   
   // Set default language from i18n
   useEffect(() => {
@@ -248,12 +257,6 @@ export default function WizardScreen() {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.reportProblemLink}
-          onPress={() => setShowFeedbackModal(true)}
-        >
-          <Text style={styles.reportProblemLinkText}>{t('profile.report_problem')}</Text>
-        </TouchableOpacity>
       </ScrollView>
       
       {/* Generation Progress Modal */}
@@ -343,14 +346,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.lg,
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.inverse,
-  },
-  reportProblemLink: {
-    alignSelf: 'center',
-    paddingVertical: theme.spacing[4],
-    marginTop: theme.spacing[2],
-  },
-  reportProblemLinkText: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
   },
 });

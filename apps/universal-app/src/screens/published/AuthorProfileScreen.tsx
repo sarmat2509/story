@@ -16,6 +16,8 @@ import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePublicAuthor } from '@/api/stories';
 import { PublishedStoryCard } from '@/components/PublishedStoryCard';
+import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -31,6 +33,7 @@ export default function AuthorProfileScreen() {
   const { width } = useWindowDimensions();
   const authorId = route.params?.authorId;
   const [currentPage, setCurrentPage] = useState(1);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const offset = useMemo(() => (currentPage - 1) * ITEMS_PER_PAGE, [currentPage]);
   const { data, isLoading, error } = usePublicAuthor(authorId, { limit: ITEMS_PER_PAGE, offset });
@@ -50,9 +53,12 @@ export default function AuthorProfileScreen() {
   }, [width, numColumns]);
 
   useLayoutEffect(() => {
-    if (author?.displayName) {
-      navigation.setOptions({ title: author.displayName });
-    }
+    navigation.setOptions({
+      title: author?.displayName ?? 'Author',
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
   }, [author?.displayName, navigation]);
 
   const handleStoryPress = useCallback(
@@ -90,6 +96,7 @@ export default function AuthorProfileScreen() {
   }
 
   return (
+    <>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.hero}>
         <View style={styles.avatarShell}>
@@ -163,6 +170,12 @@ export default function AuthorProfileScreen() {
         </View>
       )}
     </ScrollView>
+    <FeedbackModal
+      visible={showFeedbackModal}
+      onClose={() => setShowFeedbackModal(false)}
+      initialReportedScreen="other"
+    />
+    </>
   );
 }
 

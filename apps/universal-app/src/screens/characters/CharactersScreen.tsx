@@ -1,13 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { theme } from '@/theme';
 import { useCharacters, useDeleteCharacter } from '@/api/characters';
 import { CharacterCard } from './components/CharacterCard';
 import { CharacterFormModal } from '@/components/CharacterFormModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { CharacterSubtype, ReferencePhoto } from '@wondertales/shared';
+import type { MainDrawerParamList } from '@/types/navigation';
 
 function useColumns(): number {
   const { width } = useWindowDimensions();
@@ -18,6 +23,7 @@ function useColumns(): number {
 
 export default function CharactersScreen() {
   const { t } = useTranslation();
+  const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { width } = useWindowDimensions();
   const { data: characters, isLoading, error } = useCharacters();
   const columns = useColumns();
@@ -40,7 +46,16 @@ export default function CharactersScreen() {
   
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const deleteCharacter = useDeleteCharacter();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
+  }, [navigation]);
   
   const handleAddCharacter = () => {
     setEditingCharacter(undefined);
@@ -174,6 +189,12 @@ export default function CharactersScreen() {
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
         variant="danger"
+      />
+
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="characters"
       />
     </View>
   );

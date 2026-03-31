@@ -21,6 +21,8 @@ import { formatAssetUrl } from '@/utils/assetUrl';
 import { Ionicons } from '@expo/vector-icons';
 import { PublishedStoryCta } from '@/components/PublishedStoryCta';
 import { StoryRatingWidget } from '@/components/StoryRatingWidget';
+import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import AudioPlayer from '@/components/AudioPlayer';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { globalAudioService } from '@/services/globalAudioService';
@@ -46,6 +48,7 @@ export default function PublishedStoryScreen() {
   const token = (route.params as any)?.token ?? '';
   const useDesktopLayout = isDesktop || isTabletLandscape;
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const publicQuery = usePublicStory(slug, !!slug && !token);
   const tokenQuery = usePublicStoryByToken(token, !!token);
@@ -53,9 +56,12 @@ export default function PublishedStoryScreen() {
   const { data: story, isLoading, error, refetch } = activeQuery;
 
   useLayoutEffect(() => {
-    if (story?.title) {
-      navigation.setOptions({ title: story.title });
-    }
+    navigation.setOptions({
+      title: story?.title ?? '',
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
   }, [navigation, story?.title]);
 
   // ── Audio + highlight state ────────────────────────────────────────────────
@@ -429,14 +435,26 @@ export default function PublishedStoryScreen() {
             <View style={styles.sidebar}>{renderRightColumn()}</View>
           </View>
         </View>
+        <FeedbackModal
+          visible={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+          initialReportedScreen="other"
+        />
       </View>
     );
   }
 
   return (
-    <ScrollView ref={scrollViewRef} style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.contentWrapper}>{renderMainContent()}</View>
-    </ScrollView>
+    <>
+      <ScrollView ref={scrollViewRef} style={styles.container} contentContainerStyle={styles.content}>
+        <View style={styles.contentWrapper}>{renderMainContent()}</View>
+      </ScrollView>
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="other"
+      />
+    </>
   );
 }
 

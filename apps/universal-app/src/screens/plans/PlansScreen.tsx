@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Modal, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
@@ -9,6 +9,8 @@ import { usePlans, usePlansWithAuth, useUpgradePlan, useCreateCheckoutSession } 
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 
 export default function PlansScreen() {
   const { t } = useTranslation();
@@ -19,8 +21,17 @@ export default function PlansScreen() {
   // Modal state for upgrade flow
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const upgradePlan = useUpgradePlan();
   const createCheckoutSession = useCreateCheckoutSession();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
+  }, [navigation]);
   
   // Fetch plans - use authenticated hook if logged in, otherwise public
   const publicPlansQuery = usePlans();
@@ -196,6 +207,7 @@ export default function PlansScreen() {
   };
 
   return (
+    <>
     <ScrollView
       style={styles.container}
       contentContainerStyle={[
@@ -445,6 +457,12 @@ export default function PlansScreen() {
         </View>
       </Modal>
     </ScrollView>
+    <FeedbackModal
+      visible={showFeedbackModal}
+      onClose={() => setShowFeedbackModal(false)}
+      initialReportedScreen="plans"
+    />
+    </>
   );
 }
 

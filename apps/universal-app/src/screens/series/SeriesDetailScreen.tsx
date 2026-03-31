@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useMemo, useLayoutEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,8 @@ import { theme } from '@/theme';
 import { StoryCard } from '@/components/StoryCard';
 import { ContinueSeriesSection } from '@/components/ContinueSeriesSection';
 import { PendingPartCard } from '@/components/PendingPartCard';
+import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import type { MainDrawerParamList } from '@/types/navigation';
 
 type SeriesDetailRouteProp = RouteProp<MainDrawerParamList, 'SeriesDetail'>;
@@ -34,6 +36,7 @@ export default function SeriesDetailScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const seriesId = route.params?.seriesId;
 
@@ -81,8 +84,13 @@ export default function SeriesDetailScreen() {
 
   const baseTitle = seriesInfo?.baseTitle ?? lastStory?.title ?? t('series.detail_title');
 
-  useEffect(() => {
-    navigation.setOptions({ title: baseTitle });
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: baseTitle,
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
   }, [navigation, baseTitle]);
 
   if (!seriesId) {
@@ -184,6 +192,11 @@ export default function SeriesDetailScreen() {
           )}
         </View>
       </ScrollView>
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="other"
+      />
     </View>
   );
 }

@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, ScrollView, useWindowDimensions, ActivityIndicator, Platform } from 'react-native';
-import { useRoute, useFocusEffect, RouteProp } from '@react-navigation/native';
+import { useRoute, useFocusEffect, RouteProp, useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useStories, useDeleteStory, prefetchStory } from '@/api/stories';
@@ -11,6 +12,7 @@ import { StoryCard } from '@/components/StoryCard';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { LibraryHeader } from '@/components/LibraryHeader';
 import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AudioFilterToggleRef } from '@/components/AudioFilterToggle';
 import { storage } from '@/utils/storage';
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -21,6 +23,7 @@ export default function LibraryScreen() {
   console.log('[LibraryScreen] RENDER START');
   
   const { t } = useTranslation();
+  const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const route = useRoute<RouteProp<MainDrawerParamList, 'Library'>>();
   const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
@@ -31,6 +34,14 @@ export default function LibraryScreen() {
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [storyToDelete, setStoryToDelete] = useState<{ id: string; title: string } | null>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
+  }, [navigation]);
   
   // Ref to AudioFilterToggle for imperative control
   const audioToggleRef = useRef<AudioFilterToggleRef>(null);
@@ -204,7 +215,6 @@ export default function LibraryScreen() {
           scenarioCards={scenarioCards}
           selectedScenarioId={scenarioFilter}
           onScenarioChange={handleScenarioFilterChange}
-          onReportProblem={() => setShowFeedbackModal(true)}
         />
         <View style={styles.centerContainer}>
           <Text style={styles.emptyText}>No stories yet</Text>
@@ -237,7 +247,6 @@ export default function LibraryScreen() {
           scenarioCards={scenarioCards}
           selectedScenarioId={scenarioFilter}
           onScenarioChange={handleScenarioFilterChange}
-          onReportProblem={() => setShowFeedbackModal(true)}
         />
         <ScrollView contentContainerStyle={styles.grid}>
           <View
@@ -306,7 +315,6 @@ export default function LibraryScreen() {
         scenarioCards={scenarioCards}
         selectedScenarioId={scenarioFilter}
         onScenarioChange={handleScenarioFilterChange}
-        onReportProblem={() => setShowFeedbackModal(true)}
       />
       <FlatList
         data={stories}

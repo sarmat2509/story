@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useLayoutEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useSeriesList } from '@/api/stories';
+import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { theme } from '@/theme';
 import { SeriesCard } from '@/components/SeriesCard';
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -24,8 +26,17 @@ export default function SeriesListScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const { data: series, isLoading, error } = useSeriesList();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
+  }, [navigation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -94,6 +105,7 @@ export default function SeriesListScreen() {
   }
 
   return (
+    <>
     <ScrollView contentContainerStyle={styles.grid} style={styles.container}>
       <View
         style={[
@@ -112,6 +124,12 @@ export default function SeriesListScreen() {
         )}
       </View>
     </ScrollView>
+    <FeedbackModal
+      visible={showFeedbackModal}
+      onClose={() => setShowFeedbackModal(false)}
+      initialReportedScreen="other"
+    />
+    </>
   );
 }
 

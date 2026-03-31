@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Platform, Linking, Image, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,7 @@ import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { theme } from '@/theme';
 import { LEGAL_URLS } from '@/config/constants';
 import { usePlansWithAuth, useSubscriptionUsage, useCreatePortalSession } from '@/api/plans';
@@ -31,6 +32,14 @@ export default function ProfileScreen() {
   const [isAvatarBusy, setIsAvatarBusy] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
+  }, [navigation]);
 
   useEffect(() => {
     setPseudonym(user?.pseudonym ?? '');
@@ -381,14 +390,6 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('profile.support')}</Text>
-
-        <TouchableOpacity
-          style={styles.settingButton}
-          onPress={() => setShowFeedbackModal(true)}
-        >
-          <Text style={styles.settingText}>{t('profile.report_problem')}</Text>
-          <Text style={styles.settingArrow}>›</Text>
-        </TouchableOpacity>
 
         <TouchableOpacity style={styles.settingButton}>
           <Text style={styles.settingText}>{t('profile.help_center')}</Text>

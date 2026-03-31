@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useLayoutEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, FlatList, useWindowDimensions } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
@@ -10,6 +10,8 @@ import { useStories } from '@/api/stories';
 import { useChildren } from '@/api/children';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { StoryCard } from '@/components/StoryCard';
+import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { theme } from '@/theme';
 
 export default function DashboardScreen() {
@@ -18,6 +20,15 @@ export default function DashboardScreen() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const { data: storiesData, isLoading: storiesLoading, error: storiesError } = useStories();
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
+  }, [navigation]);
 
   // Invalidate stories cache when screen gains focus (e.g. after creating a story)
   useFocusEffect(
@@ -71,6 +82,7 @@ export default function DashboardScreen() {
   }
 
   return (
+    <>
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Text style={styles.greeting}>
@@ -150,6 +162,12 @@ export default function DashboardScreen() {
         <Text style={styles.viewLibraryText}>{t('dashboard.actions.view_library')}</Text>
       </TouchableOpacity>
     </ScrollView>
+    <FeedbackModal
+      visible={showFeedbackModal}
+      onClose={() => setShowFeedbackModal(false)}
+      initialReportedScreen="dashboard"
+    />
+    </>
   );
 }
 

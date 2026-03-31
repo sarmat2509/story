@@ -37,7 +37,6 @@ interface Props {
   readingTimeOptions?: FilterOption[];
   selectedReadingTime?: string | null;
   onReadingTimeChange?: (value: string | null) => void;
-  onReportProblem?: () => void;
 }
 
 type DropdownKey = 'scenario' | 'age' | 'language' | 'reading';
@@ -116,7 +115,6 @@ const LibraryHeaderComponent = ({
   readingTimeOptions = [],
   selectedReadingTime,
   onReadingTimeChange,
-  onReportProblem,
 }: Props) => {
   const [openDropdown, setOpenDropdown] = useState<DropdownKey | null>(null);
   
@@ -263,15 +261,6 @@ const LibraryHeaderComponent = ({
             </TouchableOpacity>
           </View>
         )}
-        {onReportProblem && (
-          <TouchableOpacity
-            style={styles.reportButton}
-            onPress={onReportProblem}
-            accessibilityLabel={t('profile.report_problem')}
-          >
-            <Ionicons name="bug-outline" size={22} color={theme.colors.text.tertiary} />
-          </TouchableOpacity>
-        )}
         <TouchableOpacity 
             style={styles.viewToggle} 
             onPress={onToggleViewMode}
@@ -310,8 +299,7 @@ const areEqual = (prevProps: Props, nextProps: Props) => {
     prevProps.onLanguageChange === nextProps.onLanguageChange &&
     prevProps.readingTimeOptions === nextProps.readingTimeOptions &&
     prevProps.selectedReadingTime === nextProps.selectedReadingTime &&
-    prevProps.onReadingTimeChange === nextProps.onReadingTimeChange &&
-    prevProps.onReportProblem === nextProps.onReportProblem
+    prevProps.onReadingTimeChange === nextProps.onReadingTimeChange
     // Intentionally skip initialAudioFilter - it's only for initial useState
   );
 };
@@ -342,13 +330,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing[3],
-  },
-  reportButton: {
-    padding: theme.spacing[2],
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.background.secondary,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
   },
   viewToggle: {
     padding: theme.spacing[2],

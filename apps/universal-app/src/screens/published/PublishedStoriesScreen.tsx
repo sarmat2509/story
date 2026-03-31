@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,8 @@ import { theme } from '@/theme';
 import { LibraryHeader } from '@/components/LibraryHeader';
 import { PublishedStoryCard } from '@/components/PublishedStoryCard';
 import { AudioFilterToggleRef } from '@/components/AudioFilterToggle';
+import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { storage } from '@/utils/storage';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -45,7 +47,16 @@ export default function PublishedStoriesScreen() {
   const [languageFilter, setLanguageFilter] = useState<string | null>(null);
   const [readingTimeFilter, setReadingTimeFilter] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const audioToggleRef = useRef<AudioFilterToggleRef>(null);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
+  }, [navigation]);
 
   const { data: themesData } = useStoryThemes();
   const scenarioCards = useMemo(() => themesData?.scenarioCards || [], [themesData?.scenarioCards]);
@@ -250,6 +261,11 @@ export default function PublishedStoriesScreen() {
           )}
         />
       )}
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="other"
+      />
     </View>
   );
 }

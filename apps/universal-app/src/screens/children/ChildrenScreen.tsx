@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { useChildren, useDeleteChild } from '@/api/children';
 import { ChildFormModal } from '@/components/ChildFormModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChildCard } from './components/ChildCard';
 import { theme } from '@/theme';
 import type { ReferencePhoto } from '@wondertales/shared';
 import type { ChildFormInitialData } from '@/components/ChildFormContent';
+import type { MainDrawerParamList } from '@/types/navigation';
 
 function useColumns(): number {
   const { width } = useWindowDimensions();
@@ -38,6 +42,7 @@ function mapChildToInitialData(child: Record<string, unknown>): ChildFormInitial
 
 export default function ChildrenScreen() {
   const { t } = useTranslation();
+  const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { width } = useWindowDimensions();
   const { data, isLoading, error } = useChildren();
   const deleteChild = useDeleteChild();
@@ -53,6 +58,14 @@ export default function ChildrenScreen() {
   const [editingChild, setEditingChild] = useState<{
     id: string;
   } & ChildFormInitialData | undefined>();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
+  }, [navigation]);
 
   const children = data?.children ?? [];
   const canCreateMore = data?.canCreateMore ?? false;
@@ -191,13 +204,6 @@ export default function ChildrenScreen() {
         variant="danger"
       />
 
-      <TouchableOpacity
-        style={styles.reportProblemLink}
-        onPress={() => setShowFeedbackModal(true)}
-      >
-        <Text style={styles.reportProblemLinkText}>{t('profile.report_problem')}</Text>
-      </TouchableOpacity>
-
       <FeedbackModal
         visible={showFeedbackModal}
         onClose={() => setShowFeedbackModal(false)}
@@ -291,15 +297,6 @@ const styles = StyleSheet.create({
     color: theme.colors.text.inverse,
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
-  },
-  reportProblemLink: {
-    alignSelf: 'center',
-    paddingVertical: theme.spacing[4],
-    marginTop: theme.spacing[4],
-  },
-  reportProblemLinkText: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
   },
   loadingText: {
     marginTop: theme.spacing[4],

@@ -71,7 +71,7 @@ import { ExpandableCard } from './ExpandableCard';
 export interface ChildFormInitialData {
   name: string;
   birthDate: Date;
-  languages: string[];
+  languages?: string[];
   referencePhotos?: ReferencePhoto[];
   appearanceTraits?: Record<string, unknown>;
   personality?: Record<string, unknown>;
@@ -104,7 +104,6 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [languages, setLanguages] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [photos, setPhotos] = useState<UploadPhotoResult[]>([]);
@@ -137,6 +136,9 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
   const TURNAROUND_ESTIMATED_SECONDS = 30;
   const turnaroundRemainingSeconds = Math.max(0, TURNAROUND_ESTIMATED_SECONDS - turnaroundElapsedSeconds);
   const turnaroundProgressPercent = Math.min(99, Math.round((turnaroundElapsedSeconds / TURNAROUND_ESTIMATED_SECONDS) * 100));
+  const profileLanguages = initialData?.languages?.length
+    ? initialData.languages
+    : [toBaseLocale(i18n.language)];
 
   useEffect(() => {
     if (!createChild.isPending) {
@@ -155,7 +157,6 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
     if (initialData) {
       setName(initialData.name);
       setBirthDate(initialData.birthDate);
-      setLanguages(initialData.languages);
       if (initialData.referencePhotos && initialData.referencePhotos.length > 0) {
         setPhotos(initialData.referencePhotos.map((photo, index) => ({
           id: `existing-${index}`,
@@ -209,7 +210,6 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
     } else {
       setName('');
       setBirthDate(new Date());
-      setLanguages([]);
       setPhotos([]);
       setDescription('');
       setDescriptionLanguage(undefined);
@@ -275,14 +275,6 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   }, [currentStep]);
 
-  const toggleLanguage = (lang: string) => {
-    if (languages.includes(lang)) {
-      setLanguages(languages.filter(l => l !== lang));
-    } else if (languages.length < 3) {
-      setLanguages([...languages, lang]);
-    }
-  };
-
   const handleContinue = () => {
     if (!name.trim()) {
       Alert.alert(t('error') || 'Error', t('child_form.name_required') || 'Name is required');
@@ -290,10 +282,6 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
     }
     if (!birthDate) {
       Alert.alert(t('error') || 'Error', t('child_form.birth_date_required') || 'Birth date is required');
-      return;
-    }
-    if (languages.length === 0) {
-      Alert.alert(t('error') || 'Error', t('child_form.languages_required') || 'At least one language is required');
       return;
     }
     const hasUploadingPhotos = photos.some(photo => photo.isUploading);
@@ -310,10 +298,6 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
   const handleSubmit = async () => {
     try {
       setErrors({});
-      if (languages.length === 0) {
-        setErrors({ languages: t('child_form.languages_required') || 'At least one language is required', submit: t('child_form.languages_required') || 'At least one language is required' });
-        return;
-      }
       const appearanceData: Record<string, unknown> = {};
       if (appearance.hairColor) appearanceData.hairColor = appearance.hairColor;
       if (appearance.hairLength) appearanceData.hairLength = appearance.hairLength;
@@ -343,7 +327,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
         const updateData = {
           name,
           birthDate,
-          languages,
+          languages: profileLanguages,
           aiGeneratedDescription: description || undefined,
           descriptionLanguage: descriptionLanguage || undefined,
           appearanceTraits: Object.keys(appearanceData).length > 0 ? appearanceData : undefined,
@@ -373,7 +357,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
         const data = {
           name,
           birthDate,
-          languages,
+          languages: profileLanguages,
           referencePhotos: uploadedPhotos.length > 0 ? uploadedPhotos : undefined,
           aiGeneratedDescription: description || undefined,
           descriptionLanguage: descriptionLanguage || undefined,
@@ -506,29 +490,6 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>{t('child_form.languages_label')}</Text>
-              <View style={styles.languageButtons}>
-                {LOCALE_IDS.map((lang) => (
-                  <TouchableOpacity
-                    key={lang}
-                    style={[
-                      styles.languageChip,
-                      languages.includes(lang) && styles.languageChipSelected,
-                      languages.length >= 3 && !languages.includes(lang) && styles.languageChipDisabled
-                    ]}
-                    onPress={() => toggleLanguage(lang)}
-                    disabled={languages.length >= 3 && !languages.includes(lang)}
-                  >
-                    <Text style={[styles.languageChipText, languages.includes(lang) && styles.languageChipTextSelected]}>
-                      {lang.toUpperCase()}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {errors.languages && <Text style={styles.errorText}>{errors.languages}</Text>}
-            </View>
-
-            <View style={styles.field}>
               <Text style={styles.label}>{t('child_form.photos_title')}</Text>
               <PhotoUploadGrid
                 photos={photos}
@@ -544,13 +505,15 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
         {currentStep === 2 && (
           <>
             {childId && currentPreviewUrl ? (
-              <View style={styles.currentImageCard}>
-                <Text style={styles.currentImageLabel}>{t('child_form.current_image') || 'Текущее изображение'}</Text>
-                <Image
-                  source={{ uri: formatAssetUrl(currentPreviewUrl) ?? currentPreviewUrl }}
-                  style={styles.currentImage}
-                  resizeMode="contain"
-                />
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>{t('child_form.current_image') || 'Аватар'}</Text>
+                <View style={styles.currentImageCard}>
+                  <Image
+                    source={{ uri: formatAssetUrl(currentPreviewUrl) ?? currentPreviewUrl }}
+                    style={styles.currentImage}
+                    resizeMode="contain"
+                  />
+                </View>
               </View>
             ) : null}
 
@@ -711,17 +674,11 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[5],
   },
   currentImageCard: {
-    marginBottom: theme.spacing[3],
     padding: theme.spacing[3],
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
     borderRadius: theme.borders.radius.md,
     backgroundColor: theme.colors.background.secondary,
-  },
-  currentImageLabel: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.secondary,
-    marginBottom: theme.spacing[2],
   },
   currentImage: {
     width: '100%',
@@ -786,34 +743,6 @@ const styles = StyleSheet.create({
   genderButtonTextSelected: {
     color: theme.colors.interactive.primary,
     fontWeight: theme.typography.fontWeight.semibold,
-  },
-  languageButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing[2],
-  },
-  languageChip: {
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[4],
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-    borderRadius: theme.borders.radius.full,
-    backgroundColor: theme.colors.background.secondary,
-  },
-  languageChipSelected: {
-    borderColor: theme.colors.interactive.primary,
-    backgroundColor: theme.colors.primary[50],
-  },
-  languageChipDisabled: {
-    opacity: 0.4,
-  },
-  languageChipText: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.secondary,
-    fontWeight: theme.typography.fontWeight.medium,
-  },
-  languageChipTextSelected: {
-    color: theme.colors.interactive.primary,
   },
   submitError: {
     textAlign: 'center',

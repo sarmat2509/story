@@ -1,107 +1,35 @@
-# Quick Reference: Critical Rules
+# Quick Reference: WonderTales
 
-> Essential rules for WonderTales development. See `.cursorrules` for full details.
+Read this after `.cursorrules`.
 
-## 🚨 Critical "NEVER" Rules
+## Always
 
-1. **NEVER** use `lt()` for session expiry - use `gt()`
-2. **NEVER** store OAuth tokens in plaintext - encrypt with AES-256-GCM
-3. **NEVER** use `console.log` - use `logger` from `utils/logger.ts`
-4. **NEVER** make multiple queries - use JOINs
-5. **NEVER** use default secrets in production
-6. **NEVER** skip input validation with Zod
-7. **NEVER** skip rate limiting on endpoints
-8. **NEVER** forget to clear intervals on shutdown
-9. **NEVER** use `any` type - use proper TypeScript types
-10. **NEVER** copy-paste code (>10 lines) - refactor to generic function
+- routes call services only
+- services own orchestration and business logic
+- repositories own database access
+- middleware handles cross-cutting concerns only
+- use `logger`, not `console.log`
+- validate external input with `zod`
+- update shared types when API contracts change
 
-## ✅ Critical "MUST" Rules
+## Never
 
-### Security
-- Encrypt: `encryptToken(token)` before DB save
-- Validate: All inputs with Zod schemas
-- Check expiry: `gt(sessions.expiresAt, new Date())`
+- import repositories in routes
+- import `db` in routes
+- import repositories in middleware
+- import `db` in middleware
+- put business logic in routes
+- return Express responses from services
 
-### Database
-- JOIN instead of multiple queries
-- Use Drizzle operators: `eq()`, `gt()`, `and()`
-- Add indexes for foreign keys and WHERE clauses
+## Fast Review Checklist
 
-### Logging
-```typescript
-logger.info({ userId, action }, 'message');
-logger.error({ err, context }, 'error message');
-```
+- [ ] route -> service -> repository layering is intact
+- [ ] no new direct DB access outside repositories
+- [ ] input validation exists
+- [ ] logging uses `logger`
+- [ ] API response changes are reflected in shared/client types
+- [ ] new DB tables/filters have indexes where needed
 
-### Middleware Order
-```
-helmet → cors → rate limit → body parser → passport → routes → error handlers
-```
+## New Session Reminder
 
-### Resource Cleanup
-```typescript
-let intervalId: NodeJS.Timeout | null = null;
-// Store IDs, clear on shutdown, handle SIGTERM/SIGINT
-```
-
-## 🔍 Code Review - 30 Second Check
-
-- [ ] Drizzle operators (not `<` `>`)
-- [ ] No plaintext sensitive data
-- [ ] Zod validation on input
-- [ ] `logger.*` (not console)
-- [ ] Rate limiting applied
-- [ ] Try-catch for errors
-- [ ] Cleanup handlers
-- [ ] No duplication >10 lines
-
-## 📁 File Patterns
-
-```
-services/api/src/
-├── config/          - Environment validation
-├── db/              - Schema, connection pool
-├── middleware/      - Auth, rate limit, errors
-├── routes/          - Grouped by feature
-├── services/        - Business logic (generic)
-├── utils/           - Encryption, logger
-└── index.ts         - App initialization
-```
-
-## 🎯 Common Fixes
-
-### 3 Queries → 1 Query
-```typescript
-// Before
-const session = await getSession(token);
-const user = await getUser(session.userId);
-
-// After
-const [result] = await db
-  .select({ session: sessions, user: users })
-  .from(sessions)
-  .innerJoin(users, eq(sessions.userId, users.id))
-  .where(eq(sessions.token, token));
-```
-
-### Console → Logger
-```typescript
-// Before
-console.error('Auth failed:', error);
-
-// After
-logger.error({ err: error, userId }, 'Auth failed');
-```
-
-### Duplication → Generic
-```typescript
-// Before: handleGoogleCallback + handleAppleCallback (150 lines each)
-
-// After: Generic handleOAuthCallback (80 lines once)
-```
-
----
-
-**Full rules**: `.cursorrules`  
-**Architecture docs**: `docs/architecture.md`  
-**Review fixes**: `ARCHITECTURE_FIXES_COMPLETE.md`
+Use `.cursor/agent_bootstrap.md` as the startup prompt for new sessions or agent settings.

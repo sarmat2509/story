@@ -2888,7 +2888,7 @@ async function saveRejectedImage(params: {
 }): Promise<string | null> {
   try {
     const ext = params.mimeType.includes('png') ? '.png' : '.jpg';
-    const uploadsDir = path.resolve(__dirname, '../../uploads');
+    const uploadsDir = path.resolve(process.cwd(), 'uploads');
     const rejectedDir = path.join(
       uploadsDir,
       config.nodeEnv,

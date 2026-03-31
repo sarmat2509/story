@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { View, Text, ScrollView, Image, StyleSheet, ActivityIndicator, TouchableOpacity, Platform, ImageStyle, Share } from 'react-native';
 import { useRoute, RouteProp, useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -33,6 +33,7 @@ import { useAlignmentSync } from '@/hooks/useAlignmentSync';
 import { ContinueSeriesSection } from '@/components/ContinueSeriesSection';
 import { StoryBottomSheet } from '@/components/StoryBottomSheet';
 import { FeedbackModal } from '@/components/FeedbackModal';
+import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { StoryCharactersSection, type StoryCharacter } from '@/components/StoryCharactersSection';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { StoryViewerSkeleton } from '@/components/StoryViewerSkeleton';
@@ -232,6 +233,14 @@ export default function StoryViewerScreen() {
     used: number;
     resetsAt: string;
   } | null>(null);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
+    });
+  }, [navigation]);
   
   // Reset selected voice when switching to another story/language so the widget
   // always reflects the current story's voice catalog.
@@ -1467,14 +1476,6 @@ export default function StoryViewerScreen() {
                 <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
               </TouchableOpacity>
 
-              {/* Report Problem */}
-              <TouchableOpacity
-                style={styles.reportProblemButton}
-                onPress={() => setShowFeedbackModal(true)}
-              >
-                <Ionicons name="bug-outline" size={20} color={theme.colors.text.tertiary} />
-                <Text style={styles.reportProblemButtonText}>{t('profile.report_problem')}</Text>
-              </TouchableOpacity>
             </View>
           </ScrollView>
           </View>
@@ -1710,22 +1711,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.status.error,
-  },
-  reportProblemButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    padding: theme.spacing[3],
-    marginTop: theme.spacing[2],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-    backgroundColor: theme.colors.background.secondary,
-  },
-  reportProblemButtonText: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
   },
   // Common styles
   title: {
