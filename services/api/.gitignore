@@ -1,4 +1,7 @@
-uploads/
+uploads/*
+!uploads/voice-samples/
+uploads/voice-samples/**
+!uploads/voice-samples/**/*.mp3
 *.log
 .env
 .env.local
