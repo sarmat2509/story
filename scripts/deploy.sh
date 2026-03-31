@@ -18,12 +18,15 @@ DROPLET_USER="root"
 DROPLET_PATH="/var/www/kazka"
 API_IMAGE="kazka-api"
 API_TAG="latest"
+API_PRELOAD_MIN_FREE_KB=2097152
+API_POST_DEPLOY_CLEANUP_MIN_FREE_KB=1048576
 
 # SSH multiplexing: single connection + passphrase prompt for the whole script
 SSH_CONTROL_PATH="/tmp/deploy-ssh-ctl-$$"
 SSH_OPTS="-o ControlMaster=auto -o ControlPath=${SSH_CONTROL_PATH} -o ControlPersist=60"
 CURRENT_STEP="bootstrap"
 LAST_REMOTE_COMMAND=""
+STEP_STARTED_AT=0
 
 cleanup() {
   ssh -O exit -o ControlPath=${SSH_CONTROL_PATH} ${DROPLET_USER}@${DROPLET_IP} 2>/dev/null || true
@@ -81,16 +84,151 @@ done
 # ─────────────────────────────────────────────────────────────────────────────
 
 print_step() {
+  STEP_STARTED_AT=$(date +%s)
   echo ""
   echo "═══════════════════════════════════════════════"
-  echo "  $1"
+  echo "  $1 ($(date '+%H:%M:%S'))"
   echo "═══════════════════════════════════════════════"
   CURRENT_STEP="$1"
+}
+
+print_step_done() {
+  local finished_at duration
+  finished_at=$(date +%s)
+  duration=$((finished_at - STEP_STARTED_AT))
+  echo "✅ ${CURRENT_STEP} finished in ${duration}s ($(date '+%H:%M:%S'))"
+}
+
+read_env_var() {
+  local env_file="$1"
+  local key="$2"
+  local line value
+
+  [[ -f "${env_file}" ]] || return 1
+
+  line=$(grep -E "^${key}=" "${env_file}" | tail -n 1 || true)
+  [[ -n "${line}" ]] || return 1
+
+  value="${line#*=}"
+  value="${value%$'\r'}"
+
+  if [[ "${value}" == \"*\" && "${value}" == *\" ]]; then
+    value="${value:1:-1}"
+  elif [[ "${value}" == \'*\' && "${value}" == *\' ]]; then
+    value="${value:1:-1}"
+  fi
+
+  printf '%s\n' "${value}"
 }
 
 ssh_droplet() {
   LAST_REMOTE_COMMAND="$*"
   ssh $SSH_OPTS "${DROPLET_USER}@${DROPLET_IP}" "$@"
+}
+
+upload_google_credentials() {
+  local credentials_target credentials_filename local_credentials_path
+
+  credentials_target=$(read_env_var "${PROJECT_ROOT}/.env.production" "GOOGLE_APPLICATION_CREDENTIALS" || true)
+  if [[ -z "${credentials_target}" ]]; then
+    echo "ℹ️  GOOGLE_APPLICATION_CREDENTIALS is not set in .env.production — skipping credential upload"
+    return 0
+  fi
+
+  if [[ "${credentials_target}" != /app/secrets/* ]]; then
+    echo "❌ GOOGLE_APPLICATION_CREDENTIALS must point inside /app/secrets in .env.production"
+    echo "   current value: ${credentials_target}"
+    exit 1
+  fi
+
+  credentials_filename="$(basename "${credentials_target}")"
+  local_credentials_path="${PROJECT_ROOT}/services/api/${credentials_filename}"
+
+  if [[ ! -f "${local_credentials_path}" ]]; then
+    echo "❌ Local Google credentials file not found: ${local_credentials_path}"
+    echo "   Expected a local-only file whose basename matches GOOGLE_APPLICATION_CREDENTIALS in .env.production"
+    exit 1
+  fi
+
+  print_step "Uploading Google service account JSON..."
+  ssh_droplet "mkdir -p ${DROPLET_PATH}/secrets && chmod 700 ${DROPLET_PATH}/secrets"
+  scp -o ControlPath=${SSH_CONTROL_PATH} "${local_credentials_path}" \
+    ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/secrets/${credentials_filename}
+  ssh_droplet "chmod 600 ${DROPLET_PATH}/secrets/${credentials_filename}"
+  print_step_done
+}
+
+cleanup_api_docker_artifacts() {
+  local available_kb
+  available_kb=$(ssh_droplet "df -Pk / | awk 'NR==2 {print \$4}'" | tr -d '[:space:]')
+
+  if [[ -z "${available_kb}" || ! "${available_kb}" =~ ^[0-9]+$ ]]; then
+    echo "⚠️  Could not determine free disk space — skipping Docker cleanup"
+    return 0
+  fi
+
+  if (( available_kb >= API_POST_DEPLOY_CLEANUP_MIN_FREE_KB )); then
+    echo "ℹ️  Free disk space is above 1GB — skipping Docker cleanup"
+    return 0
+  fi
+
+  print_step "Low disk space detected, cleaning old Docker images and build cache..."
+  ssh_droplet << EOF
+cd ${DROPLET_PATH}
+echo "--- Before cleanup ---"
+docker system df || true
+echo
+docker image prune -a -f || true
+echo
+docker builder prune -a -f || true
+echo
+echo "--- After cleanup ---"
+docker system df || true
+EOF
+}
+
+prepare_disk_for_api_deploy() {
+  local available_kb
+  available_kb=$(ssh_droplet "df -Pk / | awk 'NR==2 {print \$4}'" | tr -d '[:space:]')
+
+  if [[ -z "${available_kb}" || ! "${available_kb}" =~ ^[0-9]+$ ]]; then
+    echo "⚠️  Could not determine free disk space before API load — continuing without pre-cleanup"
+    return 0
+  fi
+
+  if (( available_kb >= API_PRELOAD_MIN_FREE_KB )); then
+    echo "ℹ️  Free disk space before API load is above 2GB — no pre-cleanup needed"
+    return 0
+  fi
+
+  print_step "Low disk space before API load, stopping old API and cleaning Docker artifacts..."
+  ssh_droplet << EOF
+cd ${DROPLET_PATH}
+echo "--- Before pre-cleanup ---"
+df -h
+echo
+docker system df || true
+echo
+echo "+ docker compose -f docker-compose.prod.yml stop api"
+docker compose -f docker-compose.prod.yml stop api || true
+echo
+echo "+ docker compose -f docker-compose.prod.yml rm -f api"
+docker compose -f docker-compose.prod.yml rm -f api || true
+echo
+echo "+ docker image rm ${API_IMAGE}:${API_TAG}"
+docker image rm ${API_IMAGE}:${API_TAG} || true
+echo
+echo "+ docker image prune -a -f"
+docker image prune -a -f || true
+echo
+echo "+ docker builder prune -a -f"
+docker builder prune -a -f || true
+echo
+echo "--- After pre-cleanup ---"
+df -h
+echo
+docker system df || true
+EOF
 }
 
 run_migrations_in_container() {
@@ -167,23 +305,36 @@ deploy_api() {
     -f services/api/Dockerfile \
     --target production \
     .
+  print_step_done
 
   print_step "Saving API image to tarball..."
   docker save ${API_IMAGE}:${API_TAG} | gzip > /tmp/${API_IMAGE}.tar.gz
+  print_step_done
 
   print_step "Uploading API image to droplet..."
   scp -o ControlPath=${SSH_CONTROL_PATH} /tmp/${API_IMAGE}.tar.gz ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/
+  print_step_done
 
   print_step "Uploading .env.production..."
   scp -o ControlPath=${SSH_CONTROL_PATH} .env.production ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/
+  print_step_done
+
+  upload_google_credentials
+
+  prepare_disk_for_api_deploy
 
   print_step "Loading API image and restarting on droplet..."
   ssh_droplet << EOF
 cd ${DROPLET_PATH}
+echo "Starting docker load at \$(date '+%H:%M:%S')"
 docker load < ${API_IMAGE}.tar.gz
+echo "Finished docker load at \$(date '+%H:%M:%S')"
 rm -f ${API_IMAGE}.tar.gz
+echo "Starting docker compose up at \$(date '+%H:%M:%S')"
 docker compose -f docker-compose.prod.yml up -d api
+echo "Finished docker compose up at \$(date '+%H:%M:%S')"
 EOF
+  print_step_done
 
   rm -f /tmp/${API_IMAGE}.tar.gz
   sync_nginx_config
@@ -270,11 +421,11 @@ EOF
   echo "✅ Webapp deployed"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
 # Main
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
 
-echo "🚀 Deploy started"
+echo "Deploy started"
 echo "   API:      $DEPLOY_API"
 echo "   Webapp:   $DEPLOY_WEB"
 echo "   Migrate:  $DEPLOY_MIGRATE"
@@ -290,6 +441,7 @@ if $DEPLOY_API; then
   deploy_api
   # Post-deploy migrations: after new image is running
   run_migrations_post_deploy
+  cleanup_api_docker_artifacts
 fi
 
 # Deploy webapp

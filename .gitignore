@@ -21,6 +21,7 @@ dist/
 # Secrets
 secrets/
 *.json
+services/api/gen-lang-client-*.json
 # Except config files
 !eas.json
 !app.json

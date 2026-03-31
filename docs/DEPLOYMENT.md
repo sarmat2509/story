@@ -75,15 +75,17 @@ nano .env.production
 
 **Google Cloud Service Account (for environment image generation):**
 
-If you use Vertex AI / Imagen for environment images, place the service account JSON on the droplet:
+If you use Vertex AI / Imagen for environment images, keep the service account JSON only on your local machine and let `deploy.sh` copy it to the droplet during API deploy.
 
 ```bash
-mkdir -p /var/www/kazka/secrets
-# Copy your gen-lang-client-*.json from local machine to droplet
-scp services/api/gen-lang-client-0122295568-9f0522a53e33.json root@your-droplet-ip:/var/www/kazka/secrets/
+# Store the JSON locally, outside git tracking
+ls services/api/gen-lang-client-*.json
+
+# The basename must match GOOGLE_APPLICATION_CREDENTIALS in .env.production
+./scripts/deploy.sh --api
 ```
 
-Ensure `GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/gen-lang-client-0122295568-9f0522a53e33.json` in `.env.production` (path is inside the container; `secrets/` is mounted at `/app/secrets`).
+Ensure `GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/gen-lang-client-<your-key>.json` in `.env.production`. During deploy, the script will look for `services/api/<your-key>.json` locally and upload it to `/var/www/kazka/secrets/` on the droplet.
 
 **Generate Secure Secrets:**
 
