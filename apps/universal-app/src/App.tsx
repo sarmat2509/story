@@ -90,6 +90,7 @@ const linking: any = {
           Characters: 'characters',
           Plans: 'pricing',
           Profile: 'profile',
+          LanguageSettings: 'settings/language',
           BillingSuccess: 'billing/success',
           NotFound: '404',
         },

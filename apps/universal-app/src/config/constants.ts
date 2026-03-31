@@ -37,7 +37,7 @@ export const OAUTH_CONFIG = {
 export const APP_CONFIG = {
   name: 'WonderTales',
   scheme: 'wondertales',
-  supportedLanguages: ['uk', 'ru', 'en', 'es', 'fr', 'de'] as const,
+  supportedLanguages: ['uk', 'ru', 'en', 'es', 'fr', 'de', 'pl'] as const,
   defaultLanguage: 'uk' as const,
 };
 

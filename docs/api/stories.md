@@ -33,8 +33,8 @@ Creates a new story generation request. The story is generated asynchronously.
 ```json
 {
   "childProfileId": "uuid",           // Optional: Link to child profile
-  "uiLocale": "uk",                   // UI language: uk|ru|en|es|de|fr
-  "storyLanguage": "uk",              // Story text language: uk|ru|en|es|de|fr
+  "uiLocale": "uk",                   // UI language: uk|ru|en|es|de|fr|pl
+  "storyLanguage": "uk",              // Story text language: uk|ru|en|es|de|fr|pl
   "goal": "friendship",               // Optional: Story moral theme (from DB)
   "tone": "calm",                     // Optional: Story tone (from DB)
   "scenarioCardId": "lost_toy_find_with_friend",  // Optional: Scenario template (from DB)
@@ -159,7 +159,7 @@ Get user's stories with filtering and pagination.
 #### Query Parameters
 
 - `child_profile_id` (optional) - Filter by child
-- `language` (optional) - Filter by language (uk/ru/en/es/de/fr)
+- `language` (optional) - Filter by language (uk/ru/en/es/de/fr/pl)
 - `limit` (optional) - Max results (default: 20)
 - `offset` (optional) - Pagination offset (default: 0)
 

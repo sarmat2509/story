@@ -9,7 +9,7 @@
  * 
  * Usage:
  *   npx tsx src/scripts/generateVoiceSamples.ts
- *   npx tsx src/scripts/generateVoiceSamples.ts --languages=ru,en,es,fr,de
+ *   npx tsx src/scripts/generateVoiceSamples.ts --languages=ru,en,es,fr,de,pl
  *   npx tsx src/scripts/generateVoiceSamples.ts --force
  */
 
@@ -23,7 +23,7 @@ import { getVoiceSampleText } from '../utils/i18nLoader';
 import { getAssetStorageService } from '../services/assetStorageService';
 import { getAudioProviderByName } from '../services/aiService';
 
-const SUPPORTED_SAMPLE_LANGUAGES = ['uk', 'ru', 'en', 'es', 'fr', 'de'] as const;
+const SUPPORTED_SAMPLE_LANGUAGES = ['uk', 'ru', 'en', 'es', 'fr', 'de', 'pl'] as const;
 type SupportedSampleLanguage = typeof SUPPORTED_SAMPLE_LANGUAGES[number];
 
 function parseLanguagesArg(): SupportedSampleLanguage[] {

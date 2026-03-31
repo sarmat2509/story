@@ -5,6 +5,7 @@ import * as enTranslations from './en.json';
 import * as esTranslations from './es.json';
 import * as deTranslations from './de.json';
 import * as frTranslations from './fr.json';
+import * as plTranslations from './pl.json';
 
 // Initialize i18next with all supported languages
 export const initI18n = (locale: string = 'uk') => {
@@ -30,6 +31,9 @@ export const initI18n = (locale: string = 'uk') => {
       },
       fr: {
         translation: frTranslations,
+      },
+      pl: {
+        translation: plTranslations,
       },
     },
     interpolation: {

@@ -255,7 +255,7 @@ router.get('/voice-samples/:language/:filename', async (req: Request, res: Respo
     const { language, filename } = req.params;
     
     // Validate language
-    const validLanguages = ['uk', 'en', 'ru', 'de', 'es', 'fr'];
+    const validLanguages = ['uk', 'en', 'ru', 'de', 'es', 'fr', 'pl'];
     if (!validLanguages.includes(language)) {
       return res.status(400).json({
         status: 'error',

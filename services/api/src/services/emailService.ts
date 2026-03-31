@@ -5,11 +5,12 @@ import enTranslations from '@wondertales/shared/i18n/en.json';
 import esTranslations from '@wondertales/shared/i18n/es.json';
 import frTranslations from '@wondertales/shared/i18n/fr.json';
 import deTranslations from '@wondertales/shared/i18n/de.json';
+import plTranslations from '@wondertales/shared/i18n/pl.json';
 import config from '../config';
 import { logger } from '../utils/logger';
 
 let resendClient: Resend | null = null;
-const SUPPORTED_EMAIL_LOCALES = ['uk', 'en', 'ru', 'de', 'es', 'fr'] as const;
+const SUPPORTED_EMAIL_LOCALES = ['uk', 'en', 'ru', 'de', 'es', 'fr', 'pl'] as const;
 
 type SupportedEmailLocale = (typeof SUPPORTED_EMAIL_LOCALES)[number];
 type SignupMethod = 'password' | 'google' | 'apple';
@@ -74,6 +75,7 @@ const TRANSLATIONS: Record<SupportedEmailLocale, TranslationShape> = {
   de: deTranslations as TranslationShape,
   es: esTranslations as TranslationShape,
   fr: frTranslations as TranslationShape,
+  pl: plTranslations as TranslationShape,
 };
 
 function getResend(): Resend | null {

@@ -907,7 +907,8 @@
     "en": "English",
     "es": "Spanish",
     "fr": "French",
-    "de": "German"
+    "de": "German",
+    "pl": "Polish"
   },
   "voice_names": {
     "perseus": "Perseus",

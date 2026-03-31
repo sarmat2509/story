@@ -6,7 +6,7 @@ import { requireAuth } from '../middleware/authMiddleware';
 import config from '../config';
 
 const router = Router();
-const SUPPORTED_LOCALES = new Set(['uk', 'ru', 'en', 'es', 'fr', 'de']);
+const SUPPORTED_LOCALES = new Set(['uk', 'ru', 'en', 'es', 'fr', 'de', 'pl']);
 
 function normalizeLocale(input?: string | null): string {
   const normalized = input?.slice(0, 2).toLowerCase() || 'uk';

@@ -13,6 +13,7 @@ import enTranslations from '@wondertales/shared/i18n/en.json';
 import esTranslations from '@wondertales/shared/i18n/es.json';
 import frTranslations from '@wondertales/shared/i18n/fr.json';
 import deTranslations from '@wondertales/shared/i18n/de.json';
+import plTranslations from '@wondertales/shared/i18n/pl.json';
 
 const resources = {
   uk: { translation: ukTranslations },
@@ -21,6 +22,7 @@ const resources = {
   es: { translation: esTranslations },
   fr: { translation: frTranslations },
   de: { translation: deTranslations },
+  pl: { translation: plTranslations },
 };
 
 export async function initI18n() {

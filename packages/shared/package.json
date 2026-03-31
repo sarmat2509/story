@@ -30,6 +30,7 @@
     "./i18n/en.json": "./dist/i18n/en.json",
     "./i18n/es.json": "./dist/i18n/es.json",
     "./i18n/fr.json": "./dist/i18n/fr.json",
-    "./i18n/de.json": "./dist/i18n/de.json"
+    "./i18n/de.json": "./dist/i18n/de.json",
+    "./i18n/pl.json": "./dist/i18n/pl.json"
   }
 }

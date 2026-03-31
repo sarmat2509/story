@@ -1,12 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { SUPPORTED_LANGUAGES, isValidLocale } from '@wondertales/shared';
+import { APP_CONFIG } from '@/config/constants';
 import { theme } from '@/theme';
-
-interface Language {
-  code: string;
-  label: string;
-  flag: string;
-}
 
 interface Props {
   selected: string;
@@ -14,26 +11,32 @@ interface Props {
   defaultLanguage: string;
 }
 
-const languages: Language[] = [
-  { code: 'uk', label: 'Українська', flag: '🇺🇦' },
-  { code: 'ru', label: 'Русский', flag: '🇷🇺' },
-  { code: 'en', label: 'English', flag: '🇬🇧' },
-  { code: 'es', label: 'Español', flag: '🇪🇸' },
-  { code: 'fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'de', label: 'Deutsch', flag: '🇩🇪' }
-];
-
 export function LanguageSelector({ selected, onSelect, defaultLanguage }: Props) {
+  const { t } = useTranslation();
+  const languages = useMemo(
+    () =>
+      APP_CONFIG.supportedLanguages.map((code) => {
+        const config = SUPPORTED_LANGUAGES[code];
+        return {
+          code,
+          label: t(`language_names.${code}`, { defaultValue: config.nativeName }),
+          flag: config.flag,
+        };
+      }),
+    [t]
+  );
+
   // Auto-select default language on mount if no selection
   useEffect(() => {
-    if (!selected && defaultLanguage) {
-      onSelect(defaultLanguage);
+    const normalizedDefaultLanguage = defaultLanguage?.split('-')[0]?.toLowerCase() || '';
+    if (!selected && normalizedDefaultLanguage && isValidLocale(normalizedDefaultLanguage)) {
+      onSelect(normalizedDefaultLanguage);
     }
-  }, [defaultLanguage]);
+  }, [defaultLanguage, onSelect, selected]);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>Мова історії</Text>
+      <Text style={styles.label}>{t('wizard.language')}</Text>
       <View style={styles.chipsContainer}>
         {languages.map((lang) => (
           <TouchableOpacity

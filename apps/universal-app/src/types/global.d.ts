@@ -12,3 +12,4 @@ declare module '@wondertales/shared/i18n/en.json';
 declare module '@wondertales/shared/i18n/es.json';
 declare module '@wondertales/shared/i18n/fr.json';
 declare module '@wondertales/shared/i18n/de.json';
+declare module '@wondertales/shared/i18n/pl.json';

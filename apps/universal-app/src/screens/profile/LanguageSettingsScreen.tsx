@@ -2,25 +2,26 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { APP_CONFIG } from '@/config/constants';
+import { SUPPORTED_LANGUAGES, isValidLocale } from '@wondertales/shared';
 import { theme } from '@/theme';
 import { storage } from '@/utils/storage';
 import { useAuthStore } from '@/store/authStore';
 import apiClient from '@/api/client';
 
-const LANGUAGES = [
-  { code: 'uk', name: 'Українська', flag: '🇺🇦' },
-  { code: 'ru', name: 'Русский', flag: '🇷🇺' },
-  { code: 'en', name: 'English', flag: '🇬🇧' },
-  { code: 'es', name: 'Español', flag: '🇪🇸' },
-  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
-  { code: 'fr', name: 'Français', flag: '🇫🇷' },
-];
-
 export default function LanguageSettingsScreen() {
   const { t, i18n } = useTranslation();
   const { user: _user, setUser } = useAuthStore();
-  const [selectedLanguage, setSelectedLanguage] = useState(i18n.language);
+  const normalizedCurrentLanguage = i18n.language?.split('-')[0]?.toLowerCase() || 'uk';
+  const [selectedLanguage, setSelectedLanguage] = useState(
+    isValidLocale(normalizedCurrentLanguage) ? normalizedCurrentLanguage : 'uk'
+  );
   const [isChanging, setIsChanging] = useState(false);
+  const languages = APP_CONFIG.supportedLanguages.map((code) => ({
+    code,
+    name: t(`language_names.${code}`, { defaultValue: SUPPORTED_LANGUAGES[code].nativeName }),
+    flag: SUPPORTED_LANGUAGES[code].flag,
+  }));
 
   const handleLanguageChange = async (languageCode: string) => {
     if (isChanging || selectedLanguage === languageCode) return;
@@ -58,7 +59,7 @@ export default function LanguageSettingsScreen() {
         {t('profile.language_settings_description')}
       </Text>
       
-      {LANGUAGES.map((language) => {
+      {languages.map((language) => {
         const isSelected = selectedLanguage === language.code;
         
         return (

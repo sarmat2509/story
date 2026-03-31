@@ -84,7 +84,7 @@ export abstract class BaseAudioProvider implements IAudioProvider {
       throw new Error('Language is required');
     }
 
-    const validLanguages = ['uk', 'en', 'ru', 'es', 'de', 'fr'];
+    const validLanguages = ['uk', 'en', 'ru', 'es', 'de', 'fr', 'pl'];
     if (!validLanguages.includes(language)) {
       throw new Error(`Invalid language code: ${language}. Supported: ${validLanguages.join(', ')}`);
     }

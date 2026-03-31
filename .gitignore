@@ -28,6 +28,8 @@ services/api/gen-lang-client-*.json
 !app.config.js
 !package.json
 !tsconfig*.json
+!packages/shared/src/i18n/*.json
+!packages/shared/dist/i18n/*.json
 # Image validation pack fixtures (compareSceneImageValidation)
 !services/api/src/scripts/packs/
 !services/api/src/scripts/packs/*.json

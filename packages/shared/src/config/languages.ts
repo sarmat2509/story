@@ -39,6 +39,12 @@ export const SUPPORTED_LANGUAGES = {
     displayName: 'French',
     nativeName: 'Français',
     flag: '🇫🇷'
+  },
+  pl: {
+    id: 'pl',
+    displayName: 'Polish',
+    nativeName: 'Polski',
+    flag: '🇵🇱'
   }
 } as const;
 

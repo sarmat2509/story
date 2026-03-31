@@ -60,7 +60,7 @@ const GenerateFromPhotosSchema = z.object({
   photos: z.array(z.string().url().min(1).max(5)),
   ageGroup: z.enum(['2-3', '4-5', '6-7', '8-9', '10-12']),
   scenario: z.string(),
-  language: z.enum(['uk', 'en', 'ru', 'es']),
+  language: z.enum(['uk', 'en', 'ru', 'es', 'de', 'fr', 'pl']),
   goals: z.array(z.string().optional()),
   imageStyle: z.string().optional(),
   notes: z.string().max(1000).optional(),
