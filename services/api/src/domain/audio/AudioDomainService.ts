@@ -991,12 +991,12 @@ export class AudioDomainService {
       // Get voice from database instead of ElevenLabs API
       const dbVoice = await getVoiceRepository().findById(explicitVoiceId);
       
-      if (dbVoice && dbVoice.language === story.language) {
+      if (dbVoice) {
         logger.info({ voiceId: explicitVoiceId, provider: dbVoice.provider }, 'Using explicit voice from database');
         return {
           id: dbVoice.providerVoiceId,
           name: dbVoice.name,
-          language: dbVoice.language,
+          language: story.language,
           gender: dbVoice.gender as 'male' | 'female' | 'neutral',
           provider: dbVoice.provider as 'elevenlabs' | 'google' | 'openai',
           dbId: dbVoice.id, // Add UUID for cache
@@ -1005,7 +1005,7 @@ export class AudioDomainService {
       
       logger.warn(
         { voiceId: explicitVoiceId, language: story.language },
-        'Explicit voice not found or language mismatch, using automatic selection'
+        'Explicit voice not found, using automatic selection'
       );
     }
 
@@ -1075,7 +1075,7 @@ export class AudioDomainService {
         return null;
       }
       
-      return this.mapDbVoiceToProvider(fallback);
+      return this.mapDbVoiceToProvider(fallback, language);
     }
     
     // Prefer non-premium voices
@@ -1089,18 +1089,18 @@ export class AudioDomainService {
       gender: characterGender 
     }, 'Voice selected for role');
     
-    return this.mapDbVoiceToProvider(selectedDb);
+    return this.mapDbVoiceToProvider(selectedDb, language);
   }
 
   /**
    * Map DB voice record to Voice interface
    */
-  private mapDbVoiceToProvider(dbVoice: any): Voice & { dbId?: string } {
+  private mapDbVoiceToProvider(dbVoice: any, languageOverride?: string): Voice & { dbId?: string } {
     return {
       id: dbVoice.providerVoiceId,
       dbId: dbVoice.id, // Store DB UUID for cache queries
       name: dbVoice.name,
-      language: dbVoice.language,
+      language: languageOverride || dbVoice.language,
       gender: dbVoice.gender as 'male' | 'female' | 'neutral' | undefined,
       ageCategory: dbVoice.ageCategory as 'child' | 'young_adult' | 'adult' | 'senior' | undefined,
       tags: dbVoice.voiceTags || [],
@@ -1121,21 +1121,21 @@ export class AudioDomainService {
     if (voiceId) {
       const voice = await this.audioProvider.getVoice(voiceId);
       
-      if (voice && voice.language === language) {
-        return voice;
+      if (voice) {
+        return { ...voice, language };
       }
       
       logger.warn(
         { voiceId, language },
-        'Requested voice not found or language mismatch, using default'
+        'Requested voice not found, using default'
       );
     }
 
-    // Get default voice for language
-    const voices = await this.audioProvider.getVoices(language);
+    // Voices are treated as multilingual, so don't filter by language here.
+    const voices = await this.audioProvider.getVoices();
 
     if (voices.length === 0) {
-      logger.error({ language }, 'No voices available for language');
+      logger.error({ language }, 'No voices available');
       return null;
     }
 
@@ -1143,11 +1143,11 @@ export class AudioDomainService {
     const freeVoices = voices.filter((v) => !v.isPremium);
     
     if (freeVoices.length > 0) {
-      return freeVoices[0];
+      return { ...freeVoices[0], language };
     }
 
     // Fallback to any voice
-    return voices[0];
+    return { ...voices[0], language };
   }
 
   /**
@@ -1287,4 +1287,3 @@ export function getAudioDomainService(): AudioDomainService {
   }
   return audioDomainServiceInstance;
 }
-

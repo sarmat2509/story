@@ -144,8 +144,10 @@ export default function StoryViewerScreen() {
   const hasAudioJobRef = useRef(false);
   
   // Use story language for voice selection (not UI language)
-  const storyLanguage = story?.language || 'uk';
-  const { data: voicesData, isLoading: isLoadingVoices, error: voicesError } = useVoices(storyLanguage);
+  const storyLanguage = story?.language;
+  const { data: voicesData, isLoading: isLoadingVoices, error: voicesError } = useVoices(storyLanguage ?? 'uk', {
+    enabled: !!storyLanguage,
+  });
   const voices = voicesData?.data || [];
   const userPlan = voicesData?.meta?.userPlan || 'free';
   const hasPremiumAccess = voicesData?.meta?.hasPremiumAccess || false;
@@ -231,14 +233,32 @@ export default function StoryViewerScreen() {
     resetsAt: string;
   } | null>(null);
   
-  // Set default voice on mount (prefer first available/unlocked voice)
+  // Reset selected voice when switching to another story/language so the widget
+  // always reflects the current story's voice catalog.
   useEffect(() => {
-    if (voices.length > 0 && !selectedVoiceId) {
-      const firstAvailable = voices.find(v => !v.isLocked) || voices[0];
-      setSelectedVoiceId(firstAvailable.id);
-      setSelectedVoice(firstAvailable);
+    setSelectedVoiceId(undefined);
+    setSelectedVoice(undefined);
+  }, [storyId, storyLanguage]);
+
+  // Set default voice for the current story language (prefer first available/unlocked voice)
+  useEffect(() => {
+    if (voices.length === 0) {
+      return;
     }
-  }, [voices, selectedVoiceId]);
+
+    const selected = selectedVoiceId ? voices.find((voice) => voice.id === selectedVoiceId) : undefined;
+
+    if (selected) {
+      if (selectedVoice?.id !== selected.id) {
+        setSelectedVoice(selected);
+      }
+      return;
+    }
+
+    const firstAvailable = voices.find(v => !v.isLocked) || voices[0];
+    setSelectedVoiceId(firstAvailable.id);
+    setSelectedVoice(firstAvailable);
+  }, [voices, selectedVoiceId, selectedVoice?.id]);
 
   // Proactive limit check: show limit message when audioUsage indicates limit reached
   useEffect(() => {
@@ -1051,7 +1071,7 @@ export default function StoryViewerScreen() {
                   const voice = voices.find(v => v.id === voiceId);
                   setSelectedVoice(voice);
                 }}
-                language={storyLanguage}
+                language={storyLanguage ?? 'uk'}
                 userPlan={userPlan}
                 hasPremiumAccess={hasPremiumAccess}
                 onUpgrade={() => {

@@ -38,9 +38,14 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     // Fetch all voices from database via repository
     const voices = await getVoiceRepository().findActiveByLanguage(language);
     
-    // Mark which voices are locked for this user
+    const getLanguageSamplePath = (providerVoiceId: string): string =>
+      `voice-samples/${language}/${providerVoiceId}.mp3`;
+
+    // Mark which voices are locked for this user and point samples to the
+    // requested story language instead of the seed language from the DB row.
     const voicesWithAccess = voices.map(voice => ({
       ...voice,
+      sampleAudioUrl: getLanguageSamplePath(voice.providerVoiceId),
       isLocked: voice.isPremium && !hasPremiumVoices,
     }));
     

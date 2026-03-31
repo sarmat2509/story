@@ -909,6 +909,21 @@
     "fr": "French",
     "de": "German"
   },
+  "voice_names": {
+    "perseus": "Perseus",
+    "orion": "Orion",
+    "andromeda": "Andromeda",
+    "cassiopeia": "Cassiopeia",
+    "lyra": "Lyra",
+    "hydra": "Hydra",
+    "phoenix": "Phoenix",
+    "centaurus": "Centaurus",
+    "marin": "Marin",
+    "cedar": "Cedar",
+    "coral": "Coral",
+    "ballad": "Ballad",
+    "alloy": "Alloy"
+  },
   "voice_selector": {
     "title": "Select Narrator Voice",
     "select_voice": "Select Voice",

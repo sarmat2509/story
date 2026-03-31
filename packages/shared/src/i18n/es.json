@@ -718,6 +718,21 @@
     "fr": "Francés",
     "de": "Alemán"
   },
+  "voice_names": {
+    "perseus": "Perseo",
+    "orion": "Orión",
+    "andromeda": "Andrómeda",
+    "cassiopeia": "Casiopea",
+    "lyra": "Lira",
+    "hydra": "Hidra",
+    "phoenix": "Fénix",
+    "centaurus": "Centauro",
+    "marin": "Marin",
+    "cedar": "Cedar",
+    "coral": "Coral",
+    "ballad": "Balada",
+    "alloy": "Alloy"
+  },
   "voice_selector": {
     "title": "Seleccionar voz del narrador",
     "select_voice": "Seleccionar voz",

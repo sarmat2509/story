@@ -1094,6 +1094,21 @@
     "fr": "Français",
     "de": "Deutsch"
   },
+  "voice_names": {
+    "perseus": "Персей",
+    "orion": "Оріон",
+    "andromeda": "Андромеда",
+    "cassiopeia": "Кассіопея",
+    "lyra": "Ліра",
+    "hydra": "Гідра",
+    "phoenix": "Феникс",
+    "centaurus": "Кентавр",
+    "marin": "Марін",
+    "cedar": "Седар",
+    "coral": "Корал",
+    "ballad": "Балада",
+    "alloy": "Алой"
+  },
   "voice_selector": {
     "title": "Виберіть голос оповідача",
     "select_voice": "Оберіть голос",

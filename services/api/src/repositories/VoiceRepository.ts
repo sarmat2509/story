@@ -5,8 +5,9 @@ import * as schema from '../db/schema';
 export class VoiceRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
-  async findActiveByLanguage(language: string): Promise<Array<{
+  async findActiveByLanguage(_language: string): Promise<Array<{
     id: string;
+    providerVoiceId: string;
     name: string;
     displayName: string;
     gender: string | null;
@@ -19,6 +20,7 @@ export class VoiceRepository {
     return this.db
       .select({
         id: schema.ttsVoices.id,
+        providerVoiceId: schema.ttsVoices.providerVoiceId,
         name: schema.ttsVoices.name,
         displayName: schema.ttsVoices.displayName,
         gender: schema.ttsVoices.gender,
@@ -29,10 +31,7 @@ export class VoiceRepository {
         provider: schema.ttsVoices.provider,
       })
       .from(schema.ttsVoices)
-      .where(and(
-        eq(schema.ttsVoices.language, language),
-        eq(schema.ttsVoices.isActive, true)
-      ))
+      .where(eq(schema.ttsVoices.isActive, true))
       .orderBy(schema.ttsVoices.isPremium, schema.ttsVoices.name);
   }
 
@@ -90,7 +89,6 @@ export class VoiceRepository {
     roleType: string | null;
   }>> {
     const filters: any[] = [
-      eq(schema.ttsVoices.language, params.language),
       eq(schema.ttsVoices.isActive, true),
       or(
         eq(schema.ttsVoices.roleType, params.role),
@@ -129,14 +127,11 @@ export class VoiceRepository {
     return query;
   }
 
-  async findFallbackByLanguage(language: string): Promise<schema.TtsVoice | null> {
+  async findFallbackByLanguage(_language: string): Promise<schema.TtsVoice | null> {
     const [voice] = await this.db
       .select()
       .from(schema.ttsVoices)
-      .where(and(
-        eq(schema.ttsVoices.language, language),
-        eq(schema.ttsVoices.isActive, true)
-      ))
+      .where(eq(schema.ttsVoices.isActive, true))
       .limit(1);
     return voice || null;
   }

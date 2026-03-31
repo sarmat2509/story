@@ -14,7 +14,9 @@ export interface VoicesResponse {
   };
 }
 
-export const useVoices = (language: string = 'uk') => {
+export const useVoices = (language: string = 'uk', options?: { enabled?: boolean }) => {
+  const { enabled = true } = options ?? {};
+
   return useQuery<VoicesResponse>({
     queryKey: ['voices', language],
     queryFn: async () => {
@@ -39,6 +41,7 @@ export const useVoices = (language: string = 'uk') => {
         throw error;
       }
     },
+    enabled: enabled && !!language,
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 };
