@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,6 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { useAuthStore } from '@/store/authStore';
 import { useEmailLogin } from '@/api/auth';
 import { theme } from '@/theme';
 
@@ -26,7 +25,6 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default function WelcomeScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { t } = useTranslation();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { signInWithGoogle, signInWithApple, isLoading: oauthLoading } = useAuth();
   const emailLoginMutation = useEmailLogin();
 
@@ -39,15 +37,6 @@ export default function WelcomeScreen() {
   const isLoading = oauthLoading || emailLoginMutation.isPending;
   const emailValid = EMAIL_REGEX.test(email);
   const canSubmitEmail = emailValid && password.length >= 8;
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.location.href = '/dashboard';
-      return;
-    }
-    navigation.reset({ index: 0, routes: [{ name: 'Dashboard' }] });
-  }, [isAuthenticated, navigation]);
 
   const handleError = (message: string, err: unknown) => {
     setError(message);
@@ -98,14 +87,6 @@ export default function WelcomeScreen() {
       handleError(message, err);
     }
   };
-
-  if (isAuthenticated) {
-    return (
-      <View style={[styles.container, styles.centerContainer]}>
-        <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
-      </View>
-    );
-  }
 
   return (
     <KeyboardAvoidingView
@@ -292,10 +273,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background.primary,
-  },
-  centerContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   scrollContent: {
     flexGrow: 1,

@@ -4,6 +4,16 @@
  */
 
 import { config } from '../config';
+import {
+  buildLandingAlternateLinks,
+  buildPlanDescription,
+  formatPlanPrice,
+  getLandingContent,
+  getLandingUrl,
+  getPlanDisplayName,
+  type LandingContent,
+  type LandingExampleStory,
+} from './landingContent';
 
 /** Plan with stories/audio/images limits for landing display */
 interface PlanWithLimits {
@@ -178,44 +188,39 @@ function renderAnnouncementBar(webAppUrl: string): string {
   </div>`;
 }
 
-function renderHero(webAppUrl: string): string {
+function renderHero(webAppUrl: string, content: LandingContent): string {
   return `
   <section class="hero">
     <div class="brand">
       <img src="/logo.webp" alt="Wonder Tales" width="180" height="36" />
     </div>
     <div class="hero-content">
-      <h1>Перетворіть малюнок дитини на <span>чарівного героя казки</span></h1>
-      <p class="subheadline">Створюйте персоналізовані історії з красивими ілюстраціями, озвученням і текстом для читання — за хвилини, безпечно, з урахуванням віку.</p>
+      <h1>${escapeHtml(content.hero.title)} <span>${escapeHtml(content.hero.highlight)}</span></h1>
+      <p class="subheadline">${escapeHtml(content.hero.subheadline)}</p>
     </div>
     
     <div class="hero-mockup">
-      <img src="/hero-mockup.webp" alt="Малюнок дитини перетворюється на ілюстрацію до казки" width="1200" height="600" loading="eager" />
+      <img src="/hero-mockup.webp" alt="${escapeHtml(content.hero.imageAlt)}" width="1200" height="600" loading="eager" />
       <div class="trust-chips">
-        <span class="trust-chip trust-chip--safe"><span class="trust-chip-icon">${TRUST_CHIP_ICONS.safe}</span> Безпечно для дітей</span>
-        <span class="trust-chip trust-chip--audio"><span class="trust-chip-icon">${TRUST_CHIP_ICONS.audio}</span> Озвучення включено</span>
-        <span class="trust-chip trust-chip--personalized"><span class="trust-chip-icon">${TRUST_CHIP_ICONS.personalized}</span> Персоналізація за малюнками</span>
-        <span class="trust-chip trust-chip--languages"><span class="trust-chip-icon">${TRUST_CHIP_ICONS.languages}</span> Багато мов</span>
-        <span class="trust-chip trust-chip--ready"><span class="trust-chip-icon">${TRUST_CHIP_ICONS.ready}</span> Готово за хвилини</span>
+        <span class="trust-chip trust-chip--safe"><span class="trust-chip-icon">${TRUST_CHIP_ICONS.safe}</span> ${escapeHtml(content.trustChips.safe)}</span>
+        <span class="trust-chip trust-chip--audio"><span class="trust-chip-icon">${TRUST_CHIP_ICONS.audio}</span> ${escapeHtml(content.trustChips.audio)}</span>
+        <span class="trust-chip trust-chip--personalized"><span class="trust-chip-icon">${TRUST_CHIP_ICONS.personalized}</span> ${escapeHtml(content.trustChips.personalized)}</span>
+        <span class="trust-chip trust-chip--languages"><span class="trust-chip-icon">${TRUST_CHIP_ICONS.languages}</span> ${escapeHtml(content.trustChips.languages)}</span>
+        <span class="trust-chip trust-chip--ready"><span class="trust-chip-icon">${TRUST_CHIP_ICONS.ready}</span> ${escapeHtml(content.trustChips.ready)}</span>
       </div>
     </div>
     <div class="actions">
-      <a href="${escapeHtml(webAppUrl)}/welcome" class="cta-purple">Створити першу історію →</a>
+      <a href="${escapeHtml(webAppUrl)}/welcome" class="cta-purple">${escapeHtml(content.hero.cta)}</a>
     </div>
   </section>`;
 }
 
-function renderWhyFamiliesLove(webAppUrl: string): string {
-  const cards = [
-    { title: "Їхній малюнок оживає", desc: "Дитина бачить свій світ у казці — її ідеї, улюблені герої стають справжніми персонажами.", image: "/landing/draw-to-hero.png" },
-    { title: "Історії, які хочеться вмикати знову", desc: "Яскраві сцени, виразне озвучення й текст, що підсвічується під голос, роблять кожну історію захоплюючою від початку до кінця.", image: "/landing/listen-again.png" },
-    { title: "Казки, які легко зрозуміти й полюбити", desc: "Історії звучать природно, цікаво й по віку — дитині легко стежити за сюжетом і занурюватися в пригоду.", image: "/landing/safe-by-age.png" },
-    { title: "Чарівна історія з'являється дуже швидко", desc: "Достатньо обрати героя, тему й настрій — або завантажте кілька фото, і WonderTales сам створить персонажів. За кілька хвилин дитина вже може слухати, читати й роздивлятися свою казку.", image: "/landing/create-in-minutes.png" },
-  ];
+function renderWhyFamiliesLove(_webAppUrl: string, content: LandingContent): string {
+  const cards = content.whyFamiliesLove.cards;
   return `
   <section class="section">
-    <h2>Чому діти люблять WonderTales</h2>
-    <p class="section-subtitle">Більше ніж генератор історій — чарівний досвід, до якого діти хочуть повертатися, а батьки відчувають спокій.</p>
+    <h2>${escapeHtml(content.whyFamiliesLove.title)}</h2>
+    <p class="section-subtitle">${escapeHtml(content.whyFamiliesLove.subtitle)}</p>
     <div class="value-cards">
       ${cards.map((c) => `
       <div class="value-card">
@@ -229,17 +234,12 @@ function renderWhyFamiliesLove(webAppUrl: string): string {
   </section>`;
 }
 
-function renderFromSketchToStory(webAppUrl: string): string {
-  const steps = [
-    { title: "Додайте малюнки, фото або ідеї героїв", desc: "Завантажте дитячі малюнки, фото чи просто опишіть персонажів словами — WonderTales перетворить ваші ідеї на живих героїв, яких дитина впізнає, полюбить і захоче бачити знову." },
-    { title: "Налаштуйте казку саме під вашу дитину", desc: "Оберіть мову й тему: магія, космос, детективи, страшилки та інші. Можна обрати мораль історії, стиль ілюстрацій і додати особливі побажання. WonderTales врахує все й створить історію, яка відчувається по-справжньому особливою." },
-    { title: "Отримайте готову казку з ілюстраціями", desc: "За кілька хвилин WonderTales створить повноцінну історію з красивими сценами, продуманим сюжетом і персонажами — щоб читати було цікаво, легко й захопливо." },
-    { title: "Слухайте, читайте й діліться разом", desc: "Увімкніть озвучення, читайте текст у зручному темпі або діліться історією з рідними. Казка стає не просто контентом, а теплим сімейним моментом, до якого хочеться повертатися знову і знову." },
-  ];
+function renderFromSketchToStory(_webAppUrl: string, content: LandingContent): string {
+  const steps = content.fromSketchToStory.steps;
   return `
   <section class="section">
-    <h2>Від малюнка до казки — один чарівний процес</h2>
-    <p class="section-subtitle">Побачте, як простий малюнок стає опрацьованим персонажем і повною персоналізованою історією.</p>
+    <h2>${escapeHtml(content.fromSketchToStory.title)}</h2>
+    <p class="section-subtitle">${escapeHtml(content.fromSketchToStory.subtitle)}</p>
     <div class="flow-steps">
       ${steps.map((s, i) => `
       <div class="flow-step">
@@ -251,32 +251,18 @@ function renderFromSketchToStory(webAppUrl: string): string {
   </section>`;
 }
 
-interface ExampleStory {
-  age: string;
-  title: string;
-  time: string;
-  slug: string;
-  thumbnailUrl: string | null;
-}
-
-const FALLBACK_EXAMPLE_STORIES: ExampleStory[] = [
-  { age: "3–5 років", title: "Малий будівник ракет", time: "5 хв", slug: "", thumbnailUrl: null },
-  { age: "6–8 років", title: "Міла та місячний сад", time: "6 хв", slug: "", thumbnailUrl: null },
-  { age: "4–7 років", title: "Бруно — відважний паперовий дракон", time: "7 хв", slug: "", thumbnailUrl: null },
-];
-
-function renderExampleStories(webAppUrl: string, exampleStories: ExampleStory[]): string {
-  const stories = exampleStories.length > 0 ? exampleStories : FALLBACK_EXAMPLE_STORIES;
+function renderExampleStories(webAppUrl: string, exampleStories: LandingExampleStory[], content: LandingContent): string {
+  const stories = exampleStories.length > 0 ? exampleStories : content.exampleStories.fallbackStories;
   return `
   <section class="section">
-    <h2>Приклади чарівних історій</h2>
-    <p class="section-subtitle">Перегляньте зразки історій, щоб побачити якість, тон і різноманіття, які можуть створювати сім'ї.</p>
+    <h2>${escapeHtml(content.exampleStories.title)}</h2>
+    <p class="section-subtitle">${escapeHtml(content.exampleStories.subtitle)}</p>
     <div class="story-cards">
       ${stories.map((s) => {
         const href = s.slug ? `${escapeHtml(webAppUrl)}/stories/${escapeHtml(s.slug)}` : `${escapeHtml(webAppUrl)}/stories`;
         const thumb = s.thumbnailUrl
           ? `<img src="${escapeHtml(s.thumbnailUrl)}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover" />`
-          : '<span>Перегляд</span>';
+          : `<span>${escapeHtml(content.exampleStories.previewFallback)}</span>`;
         return `
       <a href="${href}" class="story-card" style="text-decoration:none;color:inherit">
         <div class="story-illustration">${thumb}</div>
@@ -285,37 +271,32 @@ function renderExampleStories(webAppUrl: string, exampleStories: ExampleStory[])
           <div class="story-meta-badges">
             <div class="story-badge">
               <span class="story-badge-icon" aria-hidden="true">📚</span>
-              <span class="story-badge-label">Вік:</span>
+              <span class="story-badge-label">${escapeHtml(content.exampleStories.ageLabel)}</span>
               <span class="story-badge-value">${escapeHtml(s.age)}</span>
             </div>
             <div class="story-badge">
               <span class="story-badge-icon" aria-hidden="true">⏱️</span>
-              <span class="story-badge-label">Читання:</span>
+              <span class="story-badge-label">${escapeHtml(content.exampleStories.readingLabel)}</span>
               <span class="story-badge-value">${escapeHtml(s.time)}</span>
             </div>
           </div>
-          <span class="story-card-cta">Переглянути історію</span>
+          <span class="story-card-cta">${escapeHtml(content.exampleStories.viewStoryCta)}</span>
         </div>
       </a>`;
       }).join('')}
     </div>
     <div class="cta-block">
-      <a href="${escapeHtml(webAppUrl)}/stories" class="cta-purple">Всі історії</a>
+      <a href="${escapeHtml(webAppUrl)}/stories" class="cta-purple">${escapeHtml(content.exampleStories.allStoriesCta)}</a>
     </div>
   </section>`;
 }
 
-function renderMadeForChildren(webAppUrl: string): string {
-  const cards = [
-    { title: "Особиста пам'ятка, а не одноразовий контент", desc: "Кожна історія особлива, бо починається з уяви вашої дитини.", image: "/landing/personal-keepsake.png" },
-    { title: "Підтримка читання та мовного розвитку", desc: "Діти слухають, читають за текстом і насолоджуються історіями різними мовами.", image: "/landing/reading-and-language.png" },
-    { title: "Ідеально перед сном і для спокійних моментів", desc: "Готова казка для щоденних сімейних ритуалів.", image: "/landing/bedtime-moments.png" },
-    { title: "Легко ділитися з родиною", desc: "Надсилайте посилання на історії бабусям, дідусям і рідним. Опублікуйте в каталозі — отримайте оцінки від читачів.", image: "/landing/share-with-family.png" },
-  ];
+function renderMadeForChildren(_webAppUrl: string, content: LandingContent): string {
+  const cards = content.madeForChildren.cards;
   return `
   <section class="section">
-    <h2>Створено для дітей. Цінно для батьків.</h2>
-    <p class="section-subtitle">Більш змістовний час перед екраном — творчий, особистий і до нього хочеться повертатися.</p>
+    <h2>${escapeHtml(content.madeForChildren.title)}</h2>
+    <p class="section-subtitle">${escapeHtml(content.madeForChildren.subtitle)}</p>
     <div class="benefit-cards">
       ${cards.map((c) => `
       <div class="benefit-card">
@@ -329,16 +310,8 @@ function renderMadeForChildren(webAppUrl: string): string {
   </section>`;
 }
 
-function renderFeatureGrid(webAppUrl: string): string {
-  const features = [
-    { title: "Голосове озвучення", desc: "Виразна аудіоверсія: обирайте голос під настрій — жіночий чи чоловічий, дзвінкий чи м'який. Слухайте в дорозі, перед сном або коли зручно.", image: "/landing/voice-narration.png" },
-    { title: "Текст для читання разом", desc: "Слово за словом підсвічується під озвучення — дитина слідкує оком і природно зв'язує звук з текстом. Як караоке для казок.", image: "/landing/read-along-text.png" },
-    { title: "Адаптація за віком", desc: "Складність тексту, довжина речень і абзаців узгоджені з Lexile (MetaMetrics) — стандартом, яким користуються школи й освітні програми. Тон і лексика підлаштовуються під вік дитини.", image: "/landing/age-adaptation.png" },
-    { title: "Серії з улюбленими героями", desc: "Улюблені персонажі легко та зручно повертаються в нових історіях — дитина чекає на продовження пригод свого героя.", image: "/landing/favorite-hero-series.png" },
-    { title: "Своя історія від малюнка до казки", desc: "Дитина стає автором власної казки — придумує героя, обирає пригоду, ділиться з сім'єю чи друзями. Опублікуйте в каталозі — отримайте оцінки від читачів.", image: "/landing/draw-to-story.png" },
-    { title: "Кілька профілів дітей", desc: "Окремий профіль для кожної дитини — вік, ім'я, вподобання та настрій. Історії підлаштовуються під конкретну дитину.", image: "/landing/multiple-child-profiles.png" },
-    { title: "Ілюстрації різних стилів", desc: "Оберіть стиль під настрій — акварель, пластелін, 3D-анімація, комікс чи нічна казка. Кожна історія виглядає по-своєму.", image: "/landing/illustration-styles.png" },
-  ];
+function renderFeatureGrid(_webAppUrl: string, content: LandingContent): string {
+  const features = content.featureGrid.features;
   const titlesHtml = features
     .map(
       (f, i) => `
@@ -364,8 +337,8 @@ function renderFeatureGrid(webAppUrl: string): string {
     .join('');
   return `
   <section class="section">
-    <h2>Все необхідне для чарівного часу з казками</h2>
-    <p class="section-subtitle">Створено для красивої, простої й багаторазової персоналізованої казки.</p>
+    <h2>${escapeHtml(content.featureGrid.title)}</h2>
+    <p class="section-subtitle">${escapeHtml(content.featureGrid.subtitle)}</p>
     <div class="feature-sticky" data-feature-sticky>
       <div class="feature-sticky-titles">${titlesHtml}</div>
       <div class="feature-sticky-cards">${cardsHtml}</div>
@@ -401,18 +374,12 @@ function renderFeatureGrid(webAppUrl: string): string {
   </section>`;
 }
 
-function renderSafetyTrust(webAppUrl: string): string {
-  const points = [
-    "Щасливі кінцівки",
-    "Без насильства й тривожного контенту",
-    "Адаптація під вік дитини",
-    "Лише дружній, позитивний тон",
-    "Сімейні, безпечні теми",
-  ];
+function renderSafetyTrust(_webAppUrl: string, content: LandingContent): string {
+  const points = content.safety.points;
   return `
   <section class="section">
-    <h2>Безпечно для дітей</h2>
-    <p class="section-subtitle">Кожна історія відповідає правилам безпеки і задумана бути радісною, м'якою та відповідною віку дитини.</p>
+    <h2>${escapeHtml(content.safety.title)}</h2>
+    <p class="section-subtitle">${escapeHtml(content.safety.subtitle)}</p>
     <div class="safety-container">
       <div class="safety-points">
         ${points.map((p) => `<div class="safety-point">${escapeHtml(p)}</div>`).join('')}
@@ -468,19 +435,13 @@ function getVoiceCardPosition(index: number, total: number): { left: number; top
   return { left: Math.round(x - halfW), top: Math.round(y - halfH) };
 }
 
-function renderVoicesSection(webAppUrl: string, voices: LandingVoice[]): string {
-  const items = voices.length > 0 ? voices : [
-    { id: 'lyra', name: 'lyra', displayName: 'Ліра', sampleAudioUrl: null },
-    { id: 'hydra', name: 'hydra', displayName: 'Гідра', sampleAudioUrl: null },
-    { id: 'phoenix', name: 'phoenix', displayName: 'Феникс', sampleAudioUrl: null },
-    { id: 'centaurus', name: 'centaurus', displayName: 'Кентавр', sampleAudioUrl: null },
-  ];
+function renderVoicesSection(_webAppUrl: string, voices: LandingVoice[], content: LandingContent): string {
+  const items = voices.length > 0 ? voices : content.voices.fallbackVoices;
   const playIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
-  const pauseIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>';
   return `
   <section class="section">
-    <h2>Голоси для озвучення</h2>
-    <p class="section-subtitle">Обирайте голос для казки — жіночий чи чоловічий. Передслухайте перед створенням історії. Безкоштовні голоси для всіх. Преміум-голоси (Оріон, Андромеда, Кассіопея) — для тарифу Казковий світ.</p>
+    <h2>${escapeHtml(content.voices.title)}</h2>
+    <p class="section-subtitle">${escapeHtml(content.voices.subtitle)}</p>
     <div class="voice-cards">
       ${items.map((v, i) => {
         const sampleUrl = buildVoiceSampleUrl(v.sampleAudioUrl);
@@ -496,7 +457,7 @@ function renderVoicesSection(webAppUrl: string, voices: LandingVoice[]): string 
         <div class="voice-info">
           <div class="voice-name">${escapeHtml(v.displayName)}</div>
         </div>
-        ${hasSample ? `<button class="voice-play" type="button" data-audio-url="${escapeHtml(sampleUrl)}" aria-label="Передслухати">${playIcon}</button>` : `<button class="voice-play" disabled aria-label="Немає зразка">${playIcon}</button>`}
+        ${hasSample ? `<button class="voice-play" type="button" data-audio-url="${escapeHtml(sampleUrl)}" aria-label="${escapeHtml(content.voices.previewAria)}">${playIcon}</button>` : `<button class="voice-play" disabled aria-label="${escapeHtml(content.voices.noSampleAria)}">${playIcon}</button>`}
       </div>`;
       }).join('')}
     </div>
@@ -531,155 +492,63 @@ function renderVoicesSection(webAppUrl: string, voices: LandingVoice[]): string 
   </section>`;
 }
 
-function renderMultilingual(webAppUrl: string): string {
-  const bullets = [
-    "Створюйте історії різними мовами",
-    "Читайте та слухайте природно",
-    "Ідеально для дво- та багатомовних сімей",
-    "Чудово для ігрового вивчення мови",
-  ];
+function renderMultilingual(_webAppUrl: string, content: LandingContent): string {
+  const bullets = content.multilingual.bullets;
   return `
   <section class="section">
-    <h2>Читай однією мовою, вчися іншій</h2>
-    <p class="section-subtitle">WonderTales — багатомовні історії для сімей, де важливі й уява, й занурення в мову.</p>
+    <h2>${escapeHtml(content.multilingual.title)}</h2>
+    <p class="section-subtitle">${escapeHtml(content.multilingual.subtitle)}</p>
     <ul class="multilingual-bullets">
       ${bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join('')}
     </ul>
   </section>`;
 }
 
-function pluralStories(n: number): string {
-  if (n % 10 === 1 && n % 100 !== 11) return 'історія';
-  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return 'історії';
-  return 'історій';
-}
-function pluralAudio(n: number): string {
-  if (n % 10 === 1 && n % 100 !== 11) return 'аудіоісторія';
-  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return 'аудіоісторії';
-  return 'аудіоісторій';
-}
-
-function pluralImages(n: number): string {
-  if (n === 1) return 'ілюстрація';
-  if (n >= 2 && n <= 4) return 'ілюстрації';
-  return 'ілюстрацій';
-}
-
-function buildPlanDesc(
-  slug: string,
-  storiesPerMonth: number,
-  audioStoriesPerMonth: number,
-  imagesPerStory: number
-): string {
-  const term = slug == 'free' ? '' : ' на місяць';
-  const limits = `${storiesPerMonth} ${pluralStories(storiesPerMonth)}, ${audioStoriesPerMonth} аудіо${term}`;
-  const images = `${imagesPerStory} ${pluralImages(imagesPerStory)} на історію`;
-  switch (slug) {
-    case 'free':
-      return `${limits}. ${images}. Створіть кілька чарівних історій і подивіться, як працює WonderTales.`;
-    case 'silver':
-      return `${limits}. ${images}. Ідеально для однієї дитини.`;
-    case 'golden':
-      return `${limits}. ${images}. Щоденні історії, кілька профілів дітей.`;
-    case 'fairyworld':
-      return `${limits}. ${images}. Преміум-озвучення, більше профілів, розширений експорт.`;
-    default:
-      return `${limits}. ${images}.`;
-  }
-}
-
-function formatPlanPrice(priceMonthly: number, currency: string): string {
-  const amount = (currency === 'UAH' || currency === 'USD' || currency === 'EUR') ? priceMonthly / 100 : priceMonthly;
-  if (currency === 'UAH') return `${Math.round(amount)} грн`;
-  if (currency === 'USD') return `$${amount.toFixed(2)}`;
-  if (currency === 'EUR') return `€${amount ? amount.toFixed(2) : amount}`;
-  return `${amount} ${currency}`;
-}
-
-function renderPricing(webAppUrl: string, dbPlans: PlanWithLimits[]): string {
+function renderPricing(webAppUrl: string, dbPlans: PlanWithLimits[], content: LandingContent, locale: string): string {
   const plans =
     dbPlans.length > 0
       ? dbPlans.map((p) => ({
           slug: p.slug,
-          name: p.name,
-          price: formatPlanPrice(p.priceMonthly, 'EUR'),
-          desc: buildPlanDesc(p.slug, p.storiesPerMonth, p.audioStoriesPerMonth, p.imagesPerStory),
+          name: getPlanDisplayName(locale, p.slug, p.name),
+          price: formatPlanPrice(locale, p.priceMonthly, p.pricingCurrency),
+          desc: buildPlanDescription(locale, p.slug, p.storiesPerMonth, p.audioStoriesPerMonth, p.imagesPerStory),
           featured: p.slug === 'golden',
         }))
       : [
-          { slug: 'free', name: 'Безкоштовний', price: '0', desc: buildPlanDesc('free', 3, 1, 1), featured: false },
-          { slug: 'silver', name: 'Срібні мрії', price: '—', desc: buildPlanDesc('silver', 15, 5, 3), featured: false },
-          { slug: 'golden', name: 'Золоті зорі', price: '—', desc: buildPlanDesc('golden', 30, 10, 5), featured: true },
-          { slug: 'fairyworld', name: 'Казковий світ', price: '—', desc: buildPlanDesc('fairyworld', 50, 15, 8), featured: false },
+          { slug: 'free', name: content.pricing.fallbackPlans.free.name, price: content.pricing.fallbackPlans.free.price, desc: buildPlanDescription(locale, 'free', 3, 1, 1), featured: false },
+          { slug: 'silver', name: content.pricing.fallbackPlans.silver.name, price: content.pricing.fallbackPlans.silver.price, desc: buildPlanDescription(locale, 'silver', 15, 5, 3), featured: false },
+          { slug: 'golden', name: content.pricing.fallbackPlans.golden.name, price: content.pricing.fallbackPlans.golden.price, desc: buildPlanDescription(locale, 'golden', 30, 10, 5), featured: true },
+          { slug: 'fairyworld', name: content.pricing.fallbackPlans.fairyworld.name, price: content.pricing.fallbackPlans.fairyworld.price, desc: buildPlanDescription(locale, 'fairyworld', 50, 15, 8), featured: false },
         ];
   return `
   <section class="section">
-    <h2>Оберіть тариф для вашої сім'ї</h2>
-    <p class="section-subtitle">Почніть безкоштовно, потім відкрийте більше історій, озвучення, ілюстрацій і способи поділитися.</p>
+    <h2>${escapeHtml(content.pricing.title)}</h2>
+    <p class="section-subtitle">${escapeHtml(content.pricing.subtitle)}</p>
     <div class="plans-grid">
       ${plans.map((p) => `
       <div class="plan-card${p.featured ? ' featured' : ''}">
-        ${p.featured ? '<span class="plan-badge">Найпопулярніший</span>' : ''}
+        ${p.featured ? `<span class="plan-badge">${escapeHtml(content.pricing.popularBadge)}</span>` : ''}
         <div class="plan-name">${escapeHtml(p.name)}</div>
-        <div class="plan-price">${escapeHtml(p.price)}${p.slug !== 'free' ? '<span style="font-size:14px;font-weight:400;color:#64748b">/міс</span>' : ''}</div>
+        <div class="plan-price">${escapeHtml(p.price)}${p.slug !== 'free' ? `<span style="font-size:14px;font-weight:400;color:#64748b">${escapeHtml(content.pricing.perMonthSuffix)}</span>` : ''}</div>
         <div class="plan-desc">${escapeHtml(p.desc)}</div>
       </div>`).join('')}
     </div>
-    <p class="pricing-reassurance">Підвищуйте тариф будь-коли, коли сім'я більше читає, слухає і створює.</p>
+    <p class="pricing-reassurance">${escapeHtml(content.pricing.reassurance)}</p>
     <div class="cta-block">
-      <a href="${escapeHtml(webAppUrl)}/pricing" class="cta-purple">Тарифи та можливості</a>
+      <a href="${escapeHtml(webAppUrl)}/pricing" class="cta-purple">${escapeHtml(content.pricing.cta)}</a>
     </div>
   </section>`;
 }
 
-function renderFaq(webAppUrl: string): string {
-  const faqItems = [
-    {
-      q: 'Чому WonderTales це безпечно для дітей?',
-      a: 'Текст кожної сцени перевіряється окремо: WonderTales аналізує зміст на відповідність віку, безпечні теми й щасливе закінчення. Якщо сцена не проходить перевірку — WonderTales автоматично переписує її з урахуванням зауважень. Ілюстрації теж проходять валідацію: WonderTales перевіряє кожне зображення на наявність забороненого контенту (насильство, текст на картинці, небажані елементи) — і при потребі генерує заміну. У WonderTales закладено чіткі обмеження: без насильства, горе, травмуючих сцен; лише дружній, позитивний тон. Складність речень узгоджена з Lexile (стандарт шкіл і освітніх програм), тому казка завжди зрозуміла саме для вашого віку.',
-    },
-    {
-      q: 'Чи можу використовувати малюнок дитини в історії?',
-      a: 'Так. Завантажте малюнок, фото дитини чи улюбленої тваринки — або опишіть героя словами: WonderTales намалює персонажа за вашими нотатками. Є швидкий режим: кілька фото, і WonderTales сам розпізнає особи, створить персонажів і вплете їх у сюжет. Можна додати дракона, єдинорога, робота або уявного друга — історія будується навколо тих, кого ваша дитина впізнає і полюбить.',
-    },
-    {
-      q: 'Чи потрібно самому писати історію?',
-      a: 'Ні. Ви обираєте вік дитини, тему (магія і чарівники, космічна одіссея, технології тощо), персонажів і мову. Можна обрати моральну мету — дружба, сміливість, допомога, безпека на дорозі — і додати короткі примітки. WonderTales створює повноцінну історію: з сенсорними деталями, діалогами, місією та задовольняючою кульмінацією. Ви лише натискаєте — і отримуєте текст, ілюстрації та опційно озвучення.',
-    },
-    {
-      q: 'Скільки часу потрібно для створення історії?',
-      a: 'Зазвичай 1–2 хвилини. Ви бачите прогрес у реальному часі: аналіз фото (якщо швидкий режим), генерація тексту, перевірка безпеки, створення ілюстрацій. Озвучення можна додати пізніше окремо. Це час для чашки чаю — і дитина вже отримує свою історію.',
-    },
-    {
-      q: 'Чи можна слухати історію в аудіо?',
-      a: 'Так. Після створення історії можна згенерувати озвучення — виразне, з емоціями: радість, цікавість, шепіт, сміх. Голоси жіночі й чоловічі, різні тембри. Є режим читання разом: слово підсвічується синхронно з озвученням, як караоке для казок — дитина легко співвідносить звук і текст. Преміум-голоси (Оріон, Андромеда, Кассіопея) доступні для тарифу Казковий світ. Ліміт аудіоісторій на місяць залежить від тарифу.',
-    },
-    {
-      q: 'Чи можна створювати історії різними мовами?',
-      a: 'Так. Ми розуміємо, як важко дитині опановувати нову мову — тому й створили WonderTales: історії, де ваша дитина є героєм, допомагають зануритися в мову без стресу, через уяву й емоційний зв\'язок. WonderTales підтримує українську, англійську, німецьку, французьку, іспанську та російську мови. Текст і озвучення генеруються тією ж мовою, яку ви обрали. Ідеально для сімей, які хочуть підтримати дитину в освоєнні мови через знайомих персонажів і захоплюючі сюжети.',
-    },
-    {
-      q: 'Чи є безкоштовний тариф?',
-      a: `Так. Можна почати безкоштовно: кілька історій на місяць, одна аудіоісторія, один профіль дитини. Платні тарифи відкривають більше історій, більше озвучення, кілька профілів дітей і більше ілюстрацій — майже до кожної сцени. <a href="${escapeHtml(webAppUrl)}/pricing">Деталі — на сторінці тарифів</a>.`,
-      allowHtml: true,
-    },
-    {
-      q: 'Чи можна ділитися історіями з родиною?',
-      a: 'Так. Опублікуйте історію публічно (в каталозі) або приватним посиланням — і надішліть бабусям, дідусям, друзям. Опубліковані історії можуть отримувати оцінки від читачів і з\'являтися в загальному каталозі прикладів. Вищі тарифи дають більше можливостей публікації.',
-    },
-    {
-      q: 'Які стилі ілюстрацій?',
-      a: 'Акварель — м\'які переливи, прозорі шари фарби, класичний вінтидж-казковий настрій. Олівець — видимі штрихи, хрестування, текстура паперу, тепла ностальгійна замальовка. Комікс — чіткі контури, плоскі кольори, графічні тіні, як сторінка з дитячого коміксу. 3D-анімація — округлі форми, кінематографічне світло, полірований вигляд сучасного мультфільму. Нічна казка — глибокі індиго й фіолет, тепле золотисте світло свічок і ліхтариків, затишна вечірня атмосфера. Фетр — видимі шви, пухнаста вовна, ручна робота, мініатюрний діорамний вигляд. Пластелін — тактильна пластилінова анімація, видимі відбитки пальців, іграшкові пропорції. Аніме — чітке cel-shading, виразні обличчя, рукописні фони. Оберіть стиль під настрій — і кожна історія виглядатиме по-своєму.',
-    },
-    {
-      q: 'Який обсяг історії?',
-      a: '5–11 сцен залежно від віку: для молодших — коротші історії, для старших — більше сцен і глибший сюжет. WonderTales автоматично підлаштовує довжину під обраний вік дитини.',
-    },
-  ];
+function renderFaq(webAppUrl: string, content: LandingContent): string {
+  const faqItems = content.faq.items.map((item) => ({
+    ...item,
+    a: item.allowHtml ? item.a.split('/pricing').join(`${escapeHtml(webAppUrl)}/pricing`) : item.a,
+  }));
   return `
   <section class="section">
-    <h2>Часті питання</h2>
-    <p class="section-subtitle">Усе, що батьки зазвичай хочуть знати перед стартом.</p>
+    <h2>${escapeHtml(content.faq.title)}</h2>
+    <p class="section-subtitle">${escapeHtml(content.faq.subtitle)}</p>
     <div class="faq-list">
       ${faqItems.map(
         (item) => `
@@ -690,44 +559,43 @@ function renderFaq(webAppUrl: string): string {
       ).join('')}
     </div>
     <div class="cta-block">
-      <a href="${escapeHtml(webAppUrl)}/welcome" class="cta-purple">Створити першу історію зараз</a>
+      <a href="${escapeHtml(webAppUrl)}/welcome" class="cta-purple">${escapeHtml(content.faq.cta)}</a>
     </div>
   </section>`;
 }
 
-function renderFinalCta(webAppUrl: string): string {
+function renderFinalCta(webAppUrl: string, content: LandingContent): string {
   return `
   <section class="final-cta">
-    <h2>Подаруйте дитині радість стати героєм власної історії</h2>
-    <p class="final-subheadline">Малюнок, фото або опис — WonderTales створить персоналізовану історію за хвилини.</p>
+    <h2>${escapeHtml(content.finalCta.title)}</h2>
+    <p class="final-subheadline">${escapeHtml(content.finalCta.subtitle)}</p>
     <div class="actions">
-      <a href="${escapeHtml(webAppUrl)}/welcome" class="cta-purple">Створити історію безкоштовно</a>
-      <a href="${escapeHtml(webAppUrl)}/pricing" class="cta-purple-outline">Переглянути тарифи</a>
+      <a href="${escapeHtml(webAppUrl)}/welcome" class="cta-purple">${escapeHtml(content.finalCta.primaryCta)}</a>
+      <a href="${escapeHtml(webAppUrl)}/pricing" class="cta-purple-outline">${escapeHtml(content.finalCta.secondaryCta)}</a>
     </div>
   </section>`;
 }
 
 export function renderLandingHtml(params?: {
   locale?: string;
-  exampleStories?: ExampleStory[];
+  exampleStories?: LandingExampleStory[];
   plans?: PlanWithLimits[];
   voices?: Array<{ id: string; name: string; displayName: string; sampleAudioUrl: string | null }>;
 }): string {
+  const locale = params?.locale;
   const webAppUrl = config.web?.webAppUrl?.replace(/\/$/, '') || '';
-  const landingUrl = webAppUrl || '/';
+  const landingUrl = getLandingUrl(webAppUrl, locale);
   const ogImageUrl = `${webAppUrl}/og-landing.png`;
   const exampleStories = params?.exampleStories ?? [];
   const plans = params?.plans ?? [];
   const voices = params?.voices ?? [];
+  const content = getLandingContent(locale);
 
-  const title = "WonderTales — Перетворіть малюнок дитини на героя казки";
-  const description =
-    'Створюйте персоналізовані історії з ілюстраціями, озвученням і текстом для читання. Безпечно, з урахуванням віку, для сімей.';
-
-  const safeTitle = escapeHtml(title);
-  const safeDesc = escapeHtml(description.slice(0, 200));
+  const safeTitle = escapeHtml(content.metaTitle);
+  const safeDesc = escapeHtml(content.metaDescription.slice(0, 200));
   const safeUrl = escapeHtml(landingUrl);
   const safeImage = escapeHtml(ogImageUrl);
+  const alternateLinks = buildLandingAlternateLinks(webAppUrl);
 
   const meta = `
   <meta charset="utf-8">
@@ -742,33 +610,34 @@ export function renderLandingHtml(params?: {
   <meta property="og:image:height" content="630">
   <meta property="og:url" content="${safeUrl}">
   <meta property="og:type" content="website">
-  <meta property="og:locale" content="uk_UA">
+  <meta property="og:locale" content="${escapeHtml(content.ogLocale)}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${safeTitle}">
   <meta name="twitter:description" content="${safeDesc}">
   <meta name="twitter:image" content="${safeImage}">
-  <link rel="canonical" href="${safeUrl}">`.trim();
+  <link rel="canonical" href="${safeUrl}">
+  ${alternateLinks}`.trim();
 
   const bodyHtml = `
   <div class="landing-wrapper" id="landing-wrapper">
     <div class="landing">
-      ${renderHero(webAppUrl)}
-      ${renderWhyFamiliesLove(webAppUrl)}
-      ${renderFromSketchToStory(webAppUrl)}
-      ${renderExampleStories(webAppUrl, exampleStories)}
-      ${renderMadeForChildren(webAppUrl)}
-      ${renderFeatureGrid(webAppUrl)}
-      ${renderSafetyTrust(webAppUrl)}
-      ${renderVoicesSection(webAppUrl, voices)}
-      ${renderMultilingual(webAppUrl)}
-      ${renderPricing(webAppUrl, plans)}
-      ${renderFaq(webAppUrl)}
-      ${renderFinalCta(webAppUrl)}
+      ${renderHero(webAppUrl, content)}
+      ${renderWhyFamiliesLove(webAppUrl, content)}
+      ${renderFromSketchToStory(webAppUrl, content)}
+      ${renderExampleStories(webAppUrl, exampleStories, content)}
+      ${renderMadeForChildren(webAppUrl, content)}
+      ${renderFeatureGrid(webAppUrl, content)}
+      ${renderSafetyTrust(webAppUrl, content)}
+      ${renderVoicesSection(webAppUrl, voices, content)}
+      ${renderMultilingual(webAppUrl, content)}
+      ${renderPricing(webAppUrl, plans, content, locale || 'uk')}
+      ${renderFaq(webAppUrl, content)}
+      ${renderFinalCta(webAppUrl, content)}
     </div>
   </div>`;
 
   return `<!DOCTYPE html>
-<html lang="uk">
+<html lang="${escapeHtml(content.htmlLang)}">
 <head>
   ${meta}
   <style>${LANDING_STYLES}</style>

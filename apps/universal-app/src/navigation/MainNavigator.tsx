@@ -9,7 +9,6 @@ import { useTranslation } from 'react-i18next';
 import { useResponsive } from '@/hooks/useResponsive';
 import { theme } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
-import LandingScreen from '@/screens/public/LandingScreen';
 import WelcomeScreen from '@/screens/public/WelcomeScreen';
 import NotFoundScreen from '@/screens/public/NotFoundScreen';
 import RegisterScreen from '@/screens/auth/RegisterScreen';
@@ -135,7 +134,6 @@ const TABLET_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories
 const MORE_MENU_ROUTES_PUBLIC: (keyof MainTabParamList)[] = [];
 
 const TAB_LABELS: Record<string, string> = {
-  Landing: 'navigation.tab_dashboard',
   Welcome: 'navigation.tab_dashboard',
   Dashboard: 'navigation.tab_dashboard',
   Wizard: 'navigation.tab_create_story',
@@ -148,7 +146,6 @@ const TAB_LABELS: Record<string, string> = {
   Series: 'navigation.series',
 };
 const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Landing: 'home-outline',
   Welcome: 'home-outline',
   Dashboard: 'home-outline',
   Wizard: 'create-outline',
@@ -340,7 +337,7 @@ function TabNavigator() {
   return (
     <Tab.Navigator
       key={isAuthenticated ? 'auth' : 'public'}
-      initialRouteName={isAuthenticated ? 'Dashboard' : 'Landing'}
+      initialRouteName={isAuthenticated ? 'Dashboard' : 'Welcome'}
       backBehavior="history"
       screenOptions={{
         headerShown: true,
@@ -354,18 +351,6 @@ function TabNavigator() {
         </View>
       )}
     >
-      <Tab.Screen
-        name="Landing"
-        component={LandingScreen}
-        options={{
-          title: 'WonderTales',
-          tabBarLabel: t('navigation.tab_dashboard'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
-          ),
-          tabBarButton: () => null,
-        }}
-      />
       <Tab.Screen
         name="Welcome"
         component={WelcomeScreen}
@@ -624,7 +609,7 @@ function DrawerNavigator() {
   return (
     <Drawer.Navigator
       key={isAuthenticated ? 'auth' : 'public'}
-      initialRouteName={isAuthenticated ? 'Dashboard' : 'Landing'}
+      initialRouteName={isAuthenticated ? 'Dashboard' : 'Welcome'}
       backBehavior="history"
       drawerContent={(props) => <CollapsibleDrawerContent {...props} />}
       screenOptions={{
@@ -636,17 +621,6 @@ function DrawerNavigator() {
         headerLeft: (isTablet || isDesktop) ? () => <DrawerBurgerButton /> : undefined,
       }}
     >
-      <Drawer.Screen
-        name="Landing"
-        component={LandingScreen}
-        options={{
-          title: 'WonderTales',
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
-          ),
-          drawerItemStyle: { display: 'none' },
-        }}
-      />
       <Drawer.Screen
         name="Welcome"
         component={WelcomeScreen}

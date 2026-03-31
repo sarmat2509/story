@@ -18,7 +18,6 @@ export type AdminStackParamList = {
 };
 
 export type MainDrawerParamList = {
-  Landing: undefined;
   Welcome: undefined;
   Register: undefined;
   ForgotPassword: undefined;

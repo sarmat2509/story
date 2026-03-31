@@ -8,6 +8,7 @@ import { getStoryRepository } from '../repositories';
 import { getRedisClient } from '../utils/redisClient';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { getLandingUrl, LANDING_LOCALES } from '../ssr/landingContent';
 
 const SITEMAP_CACHE_KEY = 'sitemap:xml';
 const SITEMAP_TTL = 3600; // 1 hour
@@ -41,8 +42,14 @@ export async function generateSitemapXml(): Promise<string> {
       return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.8</priority>\n  </url>`;
     });
 
+  const landingUrls = LANDING_LOCALES.map((locale) => {
+    const loc = escapeXml(getLandingUrl(webAppUrl || 'https://magic-sleep-time.duckdns.org', locale));
+    const priority = locale === 'uk' ? '1.0' : '0.9';
+    return `  <url>\n    <loc>${loc}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
+  });
+
   const staticUrls = [
-    `  <url>\n    <loc>${escapeXml(webAppUrl || 'https://magic-sleep-time.duckdns.org')}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>`,
+    ...landingUrls,
     `  <url>\n    <loc>${escapeXml(`${webAppUrl}/stories`)}</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`,
   ];
 
