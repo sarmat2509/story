@@ -54,6 +54,12 @@ interface ElevenLabsVoiceSettings {
   use_speaker_boost?: boolean;
 }
 
+interface ElevenLabsTextToSpeechFallbackParams {
+  text: string;
+  voiceId: string;
+  voiceSettings: ElevenLabsVoiceSettings;
+}
+
 /**
  * ElevenLabs TTS Provider
  */
@@ -98,6 +104,62 @@ export class ElevenLabsProvider extends BaseAudioProvider {
     
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.statusText}`);
+    }
+  }
+
+  private async synthesizeViaTextToSpeech(
+    params: ElevenLabsTextToSpeechFallbackParams
+  ): Promise<Buffer> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), config.audio.timeoutMs);
+
+    try {
+      logger.warn(
+        {
+          voiceId: params.voiceId,
+          fallbackModel: 'eleven_multilingual_v2',
+        },
+        'Falling back from text-to-dialogue to text-to-speech'
+      );
+
+      const response = await fetch(
+        `${this.baseUrl}/text-to-speech/${params.voiceId}`,
+        {
+          method: 'POST',
+          headers: {
+            Accept: 'audio/mpeg',
+            'Content-Type': 'application/json',
+            'xi-api-key': this.apiKey,
+          },
+          body: JSON.stringify({
+            text: params.text,
+            model_id: 'eleven_multilingual_v2',
+            voice_settings: {
+              stability: params.voiceSettings.stability,
+              similarity_boost: params.voiceSettings.similarity_boost,
+              style: params.voiceSettings.style,
+              use_speaker_boost: params.voiceSettings.use_speaker_boost,
+            },
+          }),
+          signal: controller.signal,
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`ElevenLabs text-to-speech fallback error: ${response.status} - ${errorText}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (fetchError: any) {
+      if (fetchError.name === 'AbortError') {
+        throw new Error('ElevenLabs text-to-speech fallback timeout');
+      }
+
+      throw fetchError;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -211,7 +273,7 @@ export class ElevenLabsProvider extends BaseAudioProvider {
             } else if (response.status === 401) {
               throw new Error('Invalid API key');
             } else if (response.status === 404) {
-              throw new Error(`Voice not found: ${voiceId}`);
+              return this.synthesizeViaTextToSpeech({ text, voiceId, voiceSettings });
             }
             
             throw new Error(
@@ -419,4 +481,3 @@ export class ElevenLabsProvider extends BaseAudioProvider {
     return ELEVENLABS_VOICE_CATALOG;
   }
 }
-

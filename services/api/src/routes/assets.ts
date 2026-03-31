@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { isPhotoType, isValidLocale } from '@wondertales/shared';
+import { DEFAULT_LOCALE, isPhotoType, isValidLocale } from '@wondertales/shared';
 import { getAssetRepository } from '../repositories';
 import { verifyToken } from '../services/jwtService';
 import { getSessionWithUser } from '../services/sessionService';
@@ -271,26 +271,36 @@ router.get('/voice-samples/:language/:filename', async (req: Request, res: Respo
         message: 'Invalid file path'
       });
     }
-    
-    const fullPath = path.resolve(UPLOADS_DIR, relativePath);
-    
-    // Check file exists
-    try {
-      await fs.access(fullPath);
-    } catch {
-      return res.status(404).json({
+
+    const fallbackRelativePath = `voice-samples/${DEFAULT_LOCALE}/${filename}`;
+    if (!isPathSafe(fallbackRelativePath)) {
+      logger.warn({ fallbackRelativePath }, 'Path traversal attempt in voice-samples fallback route');
+      return res.status(400).json({
         status: 'error',
-        message: 'Voice sample not found'
+        message: 'Invalid file path'
       });
     }
-    
-    // Set appropriate headers
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 days (samples don't change)
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Allow CORS
-    
-    // Send file
-    res.sendFile(fullPath);
+
+    const candidatePaths = language === DEFAULT_LOCALE
+      ? [relativePath]
+      : [relativePath, fallbackRelativePath];
+
+    for (const candidatePath of candidatePaths) {
+      const fullPath = path.resolve(UPLOADS_DIR, candidatePath);
+
+      try {
+        await fs.access(fullPath);
+        return sendPublicFile(res, candidatePath, 'audio/mpeg');
+      } catch {
+        continue;
+      }
+    }
+
+    logger.warn({ language, filename, fallbackLocale: DEFAULT_LOCALE }, 'Voice sample not found in requested locale or fallback locale');
+    return res.status(404).json({
+      status: 'error',
+      message: 'Voice sample not found'
+    });
     
   } catch (error) {
     logger.error({ error }, 'Failed to serve voice sample');

@@ -1,11 +1,12 @@
 import { eq, and, or } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
+import { getLocalizedVoiceDisplayName, getVoiceSamplePath } from '../utils/voicePresentation';
 
 export class VoiceRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
-  async findActiveByLanguage(_language: string): Promise<Array<{
+  async findActiveByLanguage(language: string): Promise<Array<{
     id: string;
     providerVoiceId: string;
     name: string;
@@ -17,7 +18,7 @@ export class VoiceRepository {
     isPremium: boolean;
     provider: string;
   }>> {
-    return this.db
+    const voices = await this.db
       .select({
         id: schema.ttsVoices.id,
         providerVoiceId: schema.ttsVoices.providerVoiceId,
@@ -33,6 +34,12 @@ export class VoiceRepository {
       .from(schema.ttsVoices)
       .where(eq(schema.ttsVoices.isActive, true))
       .orderBy(schema.ttsVoices.isPremium, schema.ttsVoices.name);
+
+    return voices.map((voice) => ({
+      ...voice,
+      displayName: getLocalizedVoiceDisplayName(voice.name, language, voice.displayName),
+      sampleAudioUrl: getVoiceSamplePath(voice.providerVoiceId, language),
+    }));
   }
 
   async findByProviderVoiceId(

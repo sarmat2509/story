@@ -9,7 +9,13 @@ import {
   getStoryEnvironmentCacheRepository,
   getAlignmentRepository,
 } from '../repositories';
-import { type CreateStoryRequestInput, stripCharacterIdFromName } from '@wondertales/shared';
+import {
+  DEFAULT_LOCALE,
+  isValidLocale,
+  stripCharacterIdFromName,
+  type CreateStoryRequestInput,
+  type Locale,
+} from '@wondertales/shared';
 import { getStoryDomainService, getImageDomainService, getAudioDomainService, getEnvironmentImageProvider } from './aiService';
 import { recordUsage, USAGE_OP_IMAGE_ENVIRONMENT } from './aiUsageService';
 import { getAssetStorageService } from './assetStorageService';
@@ -2448,6 +2454,8 @@ async function buildStorySpec(
       }
     }
     
+    const storyLanguage = normalizeStoryLocale(request.storyLanguage);
+
     // Load goal with guidance and translations
     let goalWithGuidance: { slug: string; name: string; promptGuidance: string } | undefined;
     const goalData = await goalDataPromise;
@@ -2456,7 +2464,7 @@ async function buildStorySpec(
       const translations = await getDictionaryRepository().findTranslations(
         'story_goal',
         [goalData.slug],
-        request.storyLanguage
+        storyLanguage
       );
       
       const goalNameTranslation = translations.find(t => t.fieldName === 'name');
@@ -2469,10 +2477,10 @@ async function buildStorySpec(
     }
     
     // Build policy profile
-    const policyProfile = await buildPolicyProfile(ageGroup, request.storyLanguage);
+    const policyProfile = await buildPolicyProfile(ageGroup, storyLanguage);
     
     const spec: StorySpec & { childProfile?: ChildProfileData } = {
-      language: request.storyLanguage,
+      language: storyLanguage,
       ageGroup,
       childName,
       childProfile: childProfile || undefined,
@@ -2514,6 +2522,11 @@ async function buildStorySpec(
     }, 'Failed to build story spec');
     throw error;
   }
+}
+
+function normalizeStoryLocale(language?: string | null): Locale {
+  const normalized = language?.slice(0, 2).toLowerCase() || DEFAULT_LOCALE;
+  return isValidLocale(normalized) ? normalized : DEFAULT_LOCALE;
 }
 
 export interface EnvImageData {
