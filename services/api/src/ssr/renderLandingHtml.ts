@@ -11,8 +11,10 @@ import {
   getLandingContent,
   getLandingUrl,
   getPlanDisplayName,
+  normalizeLandingLocale,
   type LandingContent,
   type LandingExampleStory,
+  type LandingLocale,
 } from './landingContent';
 
 /** Plan with stories/audio/images limits for landing display */
@@ -95,6 +97,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .story-card .story-badge-value{color:#0f172a}
 .story-card .story-card-cta{display:inline-flex;align-items:center;justify-content:center;padding:8px 14px;border-radius:999px;border:1.5px solid #8b7cb8;background:transparent;color:#8b7cb8;font-size:13px;font-weight:600;text-decoration:none}
 .story-card .story-card-cta:hover{background:rgba(139,124,184,0.08)}
+.story-empty-state{max-width:720px;margin:0 auto 32px;padding:32px 28px;border-radius:24px;background:rgba(255,255,255,0.92);box-shadow:0 10px 30px rgba(15,23,42,0.08);text-align:center}
+.story-empty-state-icon{font-size:36px;line-height:1;margin-bottom:12px}
+.story-empty-state h3{margin:0 0 10px;font-size:24px;color:#1e293b}
+.story-empty-state p{margin:0 auto 20px;max-width:560px;font-size:16px;line-height:1.7;color:#64748b}
 .benefit-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-bottom:32px}
 .benefit-card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 24px rgba(0,0,0,0.08);overflow:hidden}
 .benefit-card .benefit-card-image{height:180px;margin:-24px -24px 16px -24px;overflow:hidden;background:linear-gradient(135deg,#e8e4f3,#f5e6f0)}
@@ -176,19 +182,23 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#039;');
 }
 
-function renderAnnouncementBar(webAppUrl: string): string {
+function getLocalizedWelcomeUrl(webAppUrl: string, locale?: string): string {
+  return `${webAppUrl}${locale && locale !== 'uk' ? `/${locale}/welcome` : '/welcome'}`;
+}
+
+function renderAnnouncementBar(webAppUrl: string, locale?: string): string {
   return `
   <div class="announcement-bar">
     
     <div class="nav-links">
       <a href="${escapeHtml(webAppUrl)}/stories">Приклади історій</a>
       <a href="${escapeHtml(webAppUrl)}/pricing">Тарифи</a>
-      <a href="${escapeHtml(webAppUrl)}/welcome" class="cta-purple">Реєстрація →</a>
+      <a href="${escapeHtml(getLocalizedWelcomeUrl(webAppUrl, locale))}" class="cta-purple">Реєстрація →</a>
     </div>
   </div>`;
 }
 
-function renderHero(webAppUrl: string, content: LandingContent): string {
+function renderHero(webAppUrl: string, content: LandingContent, locale?: string): string {
   return `
   <section class="hero">
     <div class="brand">
@@ -210,7 +220,7 @@ function renderHero(webAppUrl: string, content: LandingContent): string {
       </div>
     </div>
     <div class="actions">
-      <a href="${escapeHtml(webAppUrl)}/welcome" class="cta-purple">${escapeHtml(content.hero.cta)}</a>
+      <a href="${escapeHtml(getLocalizedWelcomeUrl(webAppUrl, locale))}" class="cta-purple">${escapeHtml(content.hero.cta)}</a>
     </div>
   </section>`;
 }
@@ -251,8 +261,68 @@ function renderFromSketchToStory(_webAppUrl: string, content: LandingContent): s
   </section>`;
 }
 
-function renderExampleStories(webAppUrl: string, exampleStories: LandingExampleStory[], content: LandingContent): string {
-  const stories = exampleStories.length > 0 ? exampleStories : content.exampleStories.fallbackStories;
+const EMPTY_EXAMPLE_STORIES_COPY: Record<LandingLocale, { title: string; description: string; cta: string }> = {
+  uk: {
+    title: 'Історій цією мовою поки що немає',
+    description: 'Ми скоро додамо сюди чарівні приклади. А поки що саме ваша історія може стати першою на цій мовній сторінці.',
+    cta: 'Створити свою історію',
+  },
+  ru: {
+    title: 'Историй на этом языке пока нет',
+    description: 'Скоро здесь появятся волшебные примеры. А пока именно ваша история может стать первой на этой языковой странице.',
+    cta: 'Создать свою историю',
+  },
+  en: {
+    title: 'No stories in this language yet',
+    description: 'Magical examples will appear here soon. Until then, your story could become the very first one on this language page.',
+    cta: 'Create your story',
+  },
+  es: {
+    title: 'Todavia no hay historias en este idioma',
+    description: 'Pronto apareceran aqui ejemplos magicos. Mientras tanto, tu historia puede convertirse en la primera de esta version por idioma.',
+    cta: 'Crear mi historia',
+  },
+  de: {
+    title: 'In dieser Sprache gibt es noch keine Geschichten',
+    description: 'Hier erscheinen bald magische Beispiele. Bis dahin kann deine Geschichte die erste auf dieser Sprachversion werden.',
+    cta: 'Meine Geschichte erstellen',
+  },
+  fr: {
+    title: 'Il n y a pas encore d histoires dans cette langue',
+    description: 'De beaux exemples apparaitront bientot ici. En attendant, votre histoire peut devenir la toute premiere de cette version linguistique.',
+    cta: 'Creer mon histoire',
+  },
+  pl: {
+    title: 'Jeszcze nie ma historii w tym jezyku',
+    description: 'Wkrotce pojawia sie tu magiczne przyklady. Na razie to twoja historia moze byc pierwsza na tej wersji jezykowej.',
+    cta: 'Stworz swoja historie',
+  },
+};
+
+function renderExampleStories(
+  webAppUrl: string,
+  exampleStories: LandingExampleStory[],
+  content: LandingContent,
+  locale?: string
+): string {
+  const stories = exampleStories;
+  const normalizedLocale = normalizeLandingLocale(locale);
+
+  if (stories.length === 0) {
+    const emptyState = EMPTY_EXAMPLE_STORIES_COPY[normalizedLocale];
+    return `
+  <section class="section">
+    <h2>${escapeHtml(content.exampleStories.title)}</h2>
+    <p class="section-subtitle">${escapeHtml(content.exampleStories.subtitle)}</p>
+    <div class="story-empty-state">
+      <div class="story-empty-state-icon" aria-hidden="true">✨</div>
+      <h3>${escapeHtml(emptyState.title)}</h3>
+      <p>${escapeHtml(emptyState.description)}</p>
+      <a href="${escapeHtml(getLocalizedWelcomeUrl(webAppUrl, normalizedLocale))}" class="cta-purple">${escapeHtml(emptyState.cta)}</a>
+    </div>
+  </section>`;
+  }
+
   return `
   <section class="section">
     <h2>${escapeHtml(content.exampleStories.title)}</h2>
@@ -540,7 +610,7 @@ function renderPricing(webAppUrl: string, dbPlans: PlanWithLimits[], content: La
   </section>`;
 }
 
-function renderFaq(webAppUrl: string, content: LandingContent): string {
+function renderFaq(webAppUrl: string, content: LandingContent, locale?: string): string {
   const faqItems = content.faq.items.map((item) => ({
     ...item,
     a: item.allowHtml ? item.a.split('/pricing').join(`${escapeHtml(webAppUrl)}/pricing`) : item.a,
@@ -559,18 +629,18 @@ function renderFaq(webAppUrl: string, content: LandingContent): string {
       ).join('')}
     </div>
     <div class="cta-block">
-      <a href="${escapeHtml(webAppUrl)}/welcome" class="cta-purple">${escapeHtml(content.faq.cta)}</a>
+      <a href="${escapeHtml(getLocalizedWelcomeUrl(webAppUrl, locale))}" class="cta-purple">${escapeHtml(content.faq.cta)}</a>
     </div>
   </section>`;
 }
 
-function renderFinalCta(webAppUrl: string, content: LandingContent): string {
+function renderFinalCta(webAppUrl: string, content: LandingContent, locale?: string): string {
   return `
   <section class="final-cta">
     <h2>${escapeHtml(content.finalCta.title)}</h2>
     <p class="final-subheadline">${escapeHtml(content.finalCta.subtitle)}</p>
     <div class="actions">
-      <a href="${escapeHtml(webAppUrl)}/welcome" class="cta-purple">${escapeHtml(content.finalCta.primaryCta)}</a>
+      <a href="${escapeHtml(getLocalizedWelcomeUrl(webAppUrl, locale))}" class="cta-purple">${escapeHtml(content.finalCta.primaryCta)}</a>
       <a href="${escapeHtml(webAppUrl)}/pricing" class="cta-purple-outline">${escapeHtml(content.finalCta.secondaryCta)}</a>
     </div>
   </section>`;
@@ -621,18 +691,18 @@ export function renderLandingHtml(params?: {
   const bodyHtml = `
   <div class="landing-wrapper" id="landing-wrapper">
     <div class="landing">
-      ${renderHero(webAppUrl, content)}
+      ${renderHero(webAppUrl, content, locale)}
       ${renderWhyFamiliesLove(webAppUrl, content)}
       ${renderFromSketchToStory(webAppUrl, content)}
-      ${renderExampleStories(webAppUrl, exampleStories, content)}
+      ${renderExampleStories(webAppUrl, exampleStories, content, locale)}
       ${renderMadeForChildren(webAppUrl, content)}
       ${renderFeatureGrid(webAppUrl, content)}
       ${renderSafetyTrust(webAppUrl, content)}
       ${renderVoicesSection(webAppUrl, voices, content)}
       ${renderMultilingual(webAppUrl, content)}
       ${renderPricing(webAppUrl, plans, content, locale || 'uk')}
-      ${renderFaq(webAppUrl, content)}
-      ${renderFinalCta(webAppUrl, content)}
+      ${renderFaq(webAppUrl, content, locale)}
+      ${renderFinalCta(webAppUrl, content, locale)}
     </div>
   </div>`;
 

@@ -62,7 +62,11 @@ async function handleLanding(req: Request, res: Response) {
   let plans: Awaited<ReturnType<typeof planService.getPlansWithLimits>> = [];
   let voices: LandingVoices = [];
   try {
-    const { items } = await listPublicStories({ limit: 6, showOnHomePage: true });
+    const { items } = await listPublicStories({
+      limit: 6,
+      showOnHomePage: true,
+      language: locale,
+    });
     exampleStories = items.slice(0, 6).map((s) => ({
       age: formatLandingAgeGroup(locale, s.ageGroup),
       title: s.title,
