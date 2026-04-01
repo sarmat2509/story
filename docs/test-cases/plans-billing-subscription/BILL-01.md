@@ -8,13 +8,14 @@
 
 ## Что проверяем
 
-Неавторизованный пользователь открывает страницу тарифов и с CTA тарифа попадает на экран `Welcome`, а не в checkout или закрытый сценарий.
+Неавторизованный пользователь открывает локализованную SSR-страницу тарифов и с CTA тарифа попадает на локализованный `Welcome`, а не в checkout или закрытый сценарий.
 
 ## Точки входа
 
 | Раздел | Web URL | Навигация внутри приложения |
 | --- | --- | --- |
-| Тарифы | <https://magic-sleep-time.duckdns.org/pricing> | Публичный раздел `Тарифы` |
+| Тарифы | <https://magic-sleep-time.duckdns.org/en/pricing> | Прямой URL локализованной pricing-страницы |
+| Вход | <https://magic-sleep-time.duckdns.org/en/welcome> | CTA `Subscribe` на <https://magic-sleep-time.duckdns.org/en/pricing> |
 
 ## Предусловия
 
@@ -22,13 +23,15 @@
 
 ## Шаги проверки
 
-1. Откройте <https://magic-sleep-time.duckdns.org/pricing> в чистой сессии браузера.
+1. Откройте <https://magic-sleep-time.duckdns.org/en/pricing> в чистой сессии браузера.
 2. Убедитесь, что страница загрузилась без редиректа.
-3. Найдите любую карточку платного тарифа и нажмите CTA `Подписаться`.
+3. Зафиксируйте H1 `Pricing Plans` и subtitle `Choose the perfect plan for your family`.
+4. Найдите любую карточку платного тарифа и нажмите CTA `Subscribe`.
 
 ## Ожидаемый результат
 
-- Открывается страница `/pricing` с заголовком `Тарифы`.
-- На странице видны карточки тарифов и CTA `Подписаться`.
-- Нажатие `Подписаться` переводит пользователя на экран `Welcome` по маршруту `/welcome`.
+- Открывается страница `https://magic-sleep-time.duckdns.org/en/pricing` с H1 `Pricing Plans`.
+- На странице виден subtitle `Choose the perfect plan for your family`.
+- На карточках тарифов есть CTA `Subscribe`.
+- Нажатие `Subscribe` переводит пользователя на экран `Welcome` по маршруту `https://magic-sleep-time.duckdns.org/en/welcome`.
 - Пользователь не попадает в checkout, пустой экран или 404.

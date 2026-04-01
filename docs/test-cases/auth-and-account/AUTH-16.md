@@ -1,4 +1,4 @@
-# AUTH-16 Публичные CTA на лендинге
+# AUTH-16 Локализованные CTA на лендинге
 [Назад к index](../README.md)
 
 
@@ -10,40 +10,39 @@
 
 | Раздел | Web URL | Навигация внутри приложения |
 | --- | --- | --- |
-| Лендинг | <https://magic-sleep-time.duckdns.org/> | Открыть корень приложения |
-| Экран входа | <https://magic-sleep-time.duckdns.org/welcome> | Публичная стартовая страница |
-| Регистрация | <https://magic-sleep-time.duckdns.org/register> | <https://magic-sleep-time.duckdns.org/welcome> -> кнопка `Зарегистрироваться с помощью email` |
-| Восстановление пароля | <https://magic-sleep-time.duckdns.org/auth/forgot-password> | <https://magic-sleep-time.duckdns.org/welcome> -> ссылка `Забыли пароль?` |
-| Сброс пароля | Ссылка из письма | <https://magic-sleep-time.duckdns.org/welcome> -> `Забыли пароль?` -> письмо со ссылкой |
-| Главная | <https://magic-sleep-time.duckdns.org/dashboard> | Домашний экран после входа |
-| Профиль | <https://magic-sleep-time.duckdns.org/profile> | Раздел `Профиль` |
+| Локализованный лендинг | <https://magic-sleep-time.duckdns.org/en/> | Открыть языковую версию лендинга напрямую |
+| Локализованный вход | <https://magic-sleep-time.duckdns.org/en/welcome> | CTA `Create your first story` на <https://magic-sleep-time.duckdns.org/en/> |
+| Локализованные тарифы | <https://magic-sleep-time.duckdns.org/en/pricing> | CTA `Pricing Plans` или переход на тарифы с лендинга |
 
 ## Предусловия
 
-- Есть доступ к тестовому почтовому ящику.
-- OAuth-провайдеры настроены в тестируемом окружении.
-- Подготовлены тестовые пользователи для email и OAuth сценариев.
+- Нет активной авторизованной сессии.
 
 ## Что проверяем
 
-Лендинг <https://magic-sleep-time.duckdns.org/> дает рабочие переходы в авторизацию, каталог историй и тарифы.
+Локализованный SSR-лендинг сохраняет locale в CTA и переводах.
 
 ## Чеклист
 
-- [ ] Лендинг <https://magic-sleep-time.duckdns.org/> дает рабочие переходы в авторизацию, каталог историй и тарифы.
-- [ ] Открывается правильный экран или страница без неожиданного редиректа или 404.
-- [ ] Контент на странице соответствует выбранному объекту и сценарию перехода.
+- [ ] Локализованный SSR-лендинг сохраняет locale в CTA и переводах.
+- [ ] Открывается правильный URL без неожиданного схлопывания locale до корня.
+- [ ] Тексты на открытых страницах соответствуют выбранному языку.
 - [ ] Во время выполнения сценария не возникает критических ошибок, сломанной верстки или необработанных состояний.
 
 ## Шаги проверки
 
-1. Откройте <https://magic-sleep-time.duckdns.org/> в неавторизованном состоянии.
-2. Нажмите `Get Started` или эквивалентную основную кнопку входа.
-3. Вернитесь назад и проверьте переходы в каталог опубликованных историй и на тарифы.
+1. Откройте <https://magic-sleep-time.duckdns.org/en/> в чистой неавторизованной сессии.
+2. Дождитесь полной загрузки страницы и зафиксируйте, что в hero есть английский CTA `Create your first story`.
+3. Нажмите `Create your first story`.
+4. Зафиксируйте URL и текст под логотипом на открывшемся экране.
+5. Вернитесь назад на <https://magic-sleep-time.duckdns.org/en/>.
+6. Перейдите на тарифы через CTA или прямой URL <https://magic-sleep-time.duckdns.org/en/pricing>.
+7. Зафиксируйте URL, H1 и subtitle страницы тарифов.
 
 ## Критерии приемки
 
-- Лендинг <https://magic-sleep-time.duckdns.org/> дает рабочие переходы в авторизацию, каталог историй и тарифы.
-- Открывается правильный экран или страница без неожиданного редиректа или 404.
-- Контент на странице соответствует выбранному объекту и сценарию перехода.
+- После открытия <https://magic-sleep-time.duckdns.org/en/> URL остается `.../en/`, а лендинг показывает английский CTA `Create your first story`.
+- Нажатие `Create your first story` открывает <https://magic-sleep-time.duckdns.org/en/welcome>, а не `/welcome` без locale.
+- На экране <https://magic-sleep-time.duckdns.org/en/welcome> под логотипом отображается текст `Personalized illustrated fairy tales`.
+- Страница тарифов открывается по адресу <https://magic-sleep-time.duckdns.org/en/pricing> с H1 `Pricing Plans` и subtitle `Choose the perfect plan for your family`.
 - Во время выполнения сценария не возникает критических ошибок, сломанной верстки или необработанных состояний.

@@ -93,7 +93,8 @@
 - [AUTH-13 Выход из аккаунта](./auth-and-account/AUTH-13.md)
 - [AUTH-14 Показ пароля и индикатор силы на регистрации](./auth-and-account/AUTH-14.md)
 - [AUTH-15 Публичные переходы со страницы входа](./auth-and-account/AUTH-15.md)
-- [AUTH-16 Публичные CTA на лендинге](./auth-and-account/AUTH-16.md)
+- [AUTH-16 Локализованные CTA на лендинге](./auth-and-account/AUTH-16.md)
+- [AUTH-17 Локализованный /welcome сохраняет locale в URL](./auth-and-account/AUTH-17.md)
 
 ### Онбординг, главная и профиль
 
@@ -212,6 +213,9 @@
 - [PUB-16 Обложка для расшаривания и псевдоним в диалоге публикации](./publication-and-public-pages/PUB-16.md)
 - [PUB-17 Копирование публичной ссылки после публикации на web](./publication-and-public-pages/PUB-17.md)
 - [PUB-18 Фильтр по языку истории](./publication-and-public-pages/PUB-18.md)
+- [PUB-19 Примеры историй на языковой версии лендинга фильтруются по языку](./publication-and-public-pages/PUB-19.md)
+- [PUB-20 Пустое состояние примеров на языковой версии лендинга](./publication-and-public-pages/PUB-20.md)
+- [PUB-21 sitemap.xml содержит локализованные landing и pricing URL](./publication-and-public-pages/PUB-21.md)
 
 ### Тарифы, биллинг и подписка
 
@@ -310,6 +314,9 @@
 | `PUBLISHED_PUBLIC_STORY_UK` | История, опубликованная в каталог, с языком истории `uk` |
 | `PUBLISHED_PUBLIC_STORY_ES` | История, опубликованная в каталог, с языком истории `es` |
 | `PUBLISHED_PUBLIC_STORIES_MULTI_LANGUAGE` | Набор минимум из двух опубликованных историй в каталоге с разными значениями языка истории, например `uk` и `es` |
+| `HOME_LANDING_STORY_UK` | История с языком `uk`, опубликованная в каталог, с `publishedSlug` и `showOnHomePage=true`, видимая в блоке примеров на корневом лендинге |
+| `HOME_LANDING_STORY_ES` | История с языком `es`, опубликованная в каталог, с `publishedSlug` и `showOnHomePage=true`, видимая в блоке примеров на `/es/` |
+| `HOME_LANDING_NO_STORIES_DE` | Состояние, в котором для языка `de` нет опубликованных историй с `showOnHomePage=true` |
 | `PUBLISHED_UNLISTED_STORY` | История, опубликованная по ссылке |
 | `SERIES_WITH_MULTIPLE_PARTS` | Серия историй минимум из 2 частей |
 
