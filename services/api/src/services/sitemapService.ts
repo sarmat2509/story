@@ -10,6 +10,11 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { getLandingUrl, LANDING_LOCALES } from '../ssr/landingContent';
 
+function getPricingUrl(webAppUrl: string, locale: string): string {
+  const base = webAppUrl.replace(/\/$/, '');
+  return locale === 'uk' ? `${base}/pricing` : `${base}/${locale}/pricing`;
+}
+
 const SITEMAP_CACHE_KEY = 'sitemap:xml';
 const SITEMAP_TTL = 3600; // 1 hour
 
@@ -48,8 +53,15 @@ export async function generateSitemapXml(): Promise<string> {
     return `  <url>\n    <loc>${loc}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
   });
 
+  const pricingUrls = LANDING_LOCALES.map((locale) => {
+    const loc = escapeXml(getPricingUrl(webAppUrl || 'https://magic-sleep-time.duckdns.org', locale));
+    const priority = locale === 'uk' ? '0.95' : '0.85';
+    return `  <url>\n    <loc>${loc}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
+  });
+
   const staticUrls = [
     ...landingUrls,
+    ...pricingUrls,
     `  <url>\n    <loc>${escapeXml(`${webAppUrl}/stories`)}</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`,
   ];
 

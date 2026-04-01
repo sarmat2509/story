@@ -1,25 +1,19 @@
 import { Request, Router } from 'express';
-import { DEFAULT_LOCALE, LOCALE_IDS, isValidLocale } from '@wondertales/shared';
+import { DEFAULT_LOCALE } from '@wondertales/shared';
 import * as planService from '../services/planService';
-import { getDictionaryRepository } from '../repositories';
 import { logger } from '../utils/logger';
 import { requireAuth } from '../middleware/authMiddleware';
 import config from '../config';
+import { buildPlansWithFeatures, normalizePlanLocale } from '../services/planPresentationService';
 
 const router = Router();
-const SUPPORTED_LOCALES = new Set(LOCALE_IDS);
-
-function normalizeLocale(input?: string | null): string {
-  const normalized = input?.slice(0, 2).toLowerCase() || DEFAULT_LOCALE;
-  return isValidLocale(normalized) && SUPPORTED_LOCALES.has(normalized) ? normalized : DEFAULT_LOCALE;
-}
 
 function resolvePublicLocale(req: Request): string {
   const queryLocale = typeof req.query.locale === 'string' ? req.query.locale : undefined;
   const headerLocale = typeof req.headers['accept-language'] === 'string'
     ? req.headers['accept-language'].split(',')[0]
     : undefined;
-  return normalizeLocale(queryLocale || headerLocale);
+  return normalizePlanLocale(queryLocale || headerLocale);
 }
 
 function resolveAuthenticatedLocale(req: Request): string {
@@ -27,63 +21,7 @@ function resolveAuthenticatedLocale(req: Request): string {
   const headerLocale = typeof req.headers['accept-language'] === 'string'
     ? req.headers['accept-language'].split(',')[0]
     : undefined;
-  return normalizeLocale(queryLocale || req.user?.preferredLocale || headerLocale || null);
-}
-
-async function getPlanTranslations(planSlugs: string[], locale: string): Promise<Map<string, Map<string, string>>> {
-  const dictionaryRepo = getDictionaryRepository();
-  const translationsData = await dictionaryRepo.findTranslations('plan', planSlugs, locale);
-  const translationsMap = new Map<string, Map<string, string>>();
-
-  translationsData.forEach((translation) => {
-    if (!translationsMap.has(translation.entityId)) {
-      translationsMap.set(translation.entityId, new Map());
-    }
-    translationsMap.get(translation.entityId)!.set(translation.fieldName, translation.value);
-  });
-
-  return translationsMap;
-}
-
-async function buildPlansWithFeatures(options?: { currentPlanId?: string; locale?: string }) {
-  const plans = await planService.getActivePlans();
-  const locale = normalizeLocale(options?.locale || DEFAULT_LOCALE);
-  const translations = await getPlanTranslations(plans.map((plan) => plan.slug), locale);
-
-  const plansWithFeatures = await Promise.all(
-    plans.map(async (plan) => {
-      const planFeatures = await planService.getPlanFeaturesByPlanId(plan.id);
-      const featuresMap: Record<string, any> = {};
-
-      for (const pf of planFeatures) {
-        const feature = await planService.getFeatureById(pf.featureId);
-        if (feature) {
-          featuresMap[feature.slug] = {
-            name: feature.name,
-            value: pf.value,
-            category: feature.category,
-          };
-        }
-      }
-
-      const planTranslations = translations.get(plan.slug);
-
-      return {
-        id: plan.id,
-        slug: plan.slug,
-        name: planTranslations?.get('name') || plan.name,
-        description: planTranslations?.get('description') || plan.description,
-        priceMonthly: plan.priceMonthly,
-        pricingCurrency: plan.pricingCurrency,
-        sortOrder: plan.sortOrder,
-        features: featuresMap,
-        isCurrent: options?.currentPlanId ? plan.id === options.currentPlanId : undefined,
-      };
-    })
-  );
-
-  plansWithFeatures.sort((a, b) => a.sortOrder - b.sortOrder);
-  return plansWithFeatures;
+  return normalizePlanLocale(queryLocale || req.user?.preferredLocale || headerLocale || null);
 }
 
 // GET /api/v1/plans - List all active plans with features (public)

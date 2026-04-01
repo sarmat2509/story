@@ -23,6 +23,7 @@ import meStoriesRoutes from './routes/meStories';
 import ssrStoriesRoutes from './routes/ssrStories';
 import ssrUnlistedRoutes from './routes/ssrUnlisted';
 import ssrLandingRoutes from './routes/ssrLanding';
+import ssrPricingRoutes from './routes/ssrPricing';
 import ssrLegalRoutes from './routes/ssrLegal';
 import shareCardRoutes from './routes/shareCard';
 import sitemapRoute from './routes/sitemap';
@@ -125,6 +126,7 @@ app.use('/api/v1/public/u', apiLimiter, publicUnlistedRoutes); // Unlisted by to
 app.use('/ssr/stories', ssrStoriesRoutes); // SSR HTML (no auth, cached)
 app.use('/ssr/u', ssrUnlistedRoutes); // SSR for unlisted
 app.use('/ssr/landing', ssrLandingRoutes); // Static landing page for SEO
+app.use('/ssr/pricing', ssrPricingRoutes); // Static pricing page for SEO
 app.use('/ssr/legal', ssrLegalRoutes); // Terms of Service, Privacy Policy
 app.use('/share-card', apiLimiter, shareCardRoutes); // og:image 1200×630
 app.use('/api/v1/assets', apiLimiter, assetsRoutes); // M4: asset serving (local dev)
