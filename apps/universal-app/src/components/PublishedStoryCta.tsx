@@ -16,13 +16,14 @@ interface PublishedStoryCtaProps {
  * "Увійти та створити" - sign in and create your own story.
  */
 export function PublishedStoryCta({ slug: _slug, isAuthenticated, inSidebar }: PublishedStoryCtaProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   if (isAuthenticated) {
     return null;
   }
 
-  const loginUrl = `/welcome`;
+  const locale = i18n.language?.split('-')[0]?.toLowerCase();
+  const loginUrl = locale && locale !== 'uk' ? `/${locale}/welcome` : '/welcome';
 
   const handlePress = () => {
     Linking.openURL(loginUrl);

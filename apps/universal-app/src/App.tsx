@@ -6,7 +6,13 @@ import { StatusBar } from 'expo-status-bar';
 import { LogBox } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { initI18n } from '@/config/i18n';
-import { NavigationContainer } from '@react-navigation/native';
+import i18n from '@/config/i18n';
+import { storage } from '@/utils/storage';
+import {
+  NavigationContainer,
+  getPathFromState as defaultGetPathFromState,
+  getStateFromPath as defaultGetStateFromPath,
+} from '@react-navigation/native';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AnalyticsProvider } from '@/components/AnalyticsProvider';
 import { AnalyticsIdentity } from '@/components/AnalyticsIdentity';
@@ -16,6 +22,7 @@ import { navigationRef } from '@/navigation/navigationRef';
 import { pushNotificationService } from '@/services/pushNotificationService';
 import RootNavigator from '@/navigation/RootNavigator';
 import type { MainTabParamList } from '@/types/navigation';
+import { isValidLocale } from '@wondertales/shared';
 
 import interopRequireDefault from '@babel/runtime/helpers/interopRequireDefault';
 console.log('interopRequireDefault OK', typeof interopRequireDefault);
@@ -60,8 +67,97 @@ function getActiveMainRouteFromState(state: { routes?: { name: string; params?: 
   return { name: route.name as keyof MainTabParamList, params: route.params };
 }
 
+function getLocaleFromWebPath(path: string): string | null {
+  const firstSegment = path
+    .split('/')
+    .filter(Boolean)[0]
+    ?.toLowerCase();
+
+  return firstSegment && isValidLocale(firstSegment) ? firstSegment : null;
+}
+
+function stripLocalePrefix(path: string): string {
+  const locale = getLocaleFromWebPath(path);
+  if (!locale) {
+    return path;
+  }
+
+  const stripped = path.replace(new RegExp(`^/${locale}(?=/|$)`), '') || '/';
+  return stripped.startsWith('/') ? stripped : `/${stripped}`;
+}
+
+function preserveOriginalPathOnFocusedRoute(state: any, originalPath: string): any {
+  if (!state?.routes?.length) {
+    return state;
+  }
+
+  const index = state.index ?? 0;
+
+  return {
+    ...state,
+    routes: state.routes.map((route: any, routeIndex: number) => {
+      if (routeIndex !== index) {
+        return route;
+      }
+
+      if (route.state) {
+        return {
+          ...route,
+          state: preserveOriginalPathOnFocusedRoute(route.state, originalPath),
+        };
+      }
+
+      return {
+        ...route,
+        path: originalPath,
+      };
+    }),
+  };
+}
+
+function getPreferredWebLocale(): string | null {
+  if (typeof window !== 'undefined') {
+    const localeFromPath = getLocaleFromWebPath(window.location.pathname);
+    if (localeFromPath) {
+      return localeFromPath;
+    }
+  }
+
+  const i18nLocale = i18n.language?.split('-')[0]?.toLowerCase();
+  return i18nLocale && isValidLocale(i18nLocale) ? i18nLocale : null;
+}
+
+function addLocalePrefix(path: string): string {
+  const locale = getPreferredWebLocale();
+  if (!locale || locale === 'uk') {
+    return path;
+  }
+
+  if (!path.startsWith('/')) {
+    return `/${locale}/${path}`;
+  }
+
+  if (path === '/') {
+    return `/${locale}`;
+  }
+
+  if (path === '') {
+    return `/${locale}`;
+  }
+
+  return path.startsWith(`/${locale}/`) || path === `/${locale}` ? path : `/${locale}${path}`;
+}
+
 const linking: any = {
   prefixes: ['wondertales://', 'http://localhost:8081', 'https://app.wondertales.com'],
+  getStateFromPath(path: string, options: any) {
+    const state = defaultGetStateFromPath(stripLocalePrefix(path), options);
+    return state ? preserveOriginalPathOnFocusedRoute(state, path) : state;
+  },
+  getPathFromState(state: any, options: any) {
+    const path = defaultGetPathFromState(state, options);
+    return addLocalePrefix(path);
+  },
   config: {
     screens: {
       ModeSelection: 'mode-selection',
@@ -135,6 +231,29 @@ export default function App() {
 
     prepare();
   }, [setAuthLoading]);
+
+  useEffect(() => {
+    if (!isReady || typeof window === 'undefined') {
+      return;
+    }
+
+    const syncLanguageFromPath = () => {
+      const locale = getLocaleFromWebPath(window.location.pathname);
+      if (!locale || i18n.language === locale) {
+        return;
+      }
+
+      void i18n.changeLanguage(locale);
+      void storage.setLanguage(locale);
+    };
+
+    syncLanguageFromPath();
+    window.addEventListener('popstate', syncLanguageFromPath);
+
+    return () => {
+      window.removeEventListener('popstate', syncLanguageFromPath);
+    };
+  }, [isReady]);
 
   // Setup push notifications
   useEffect(() => {

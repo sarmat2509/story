@@ -22,7 +22,18 @@
     "logout": "Cerrar sesión",
     "signup": "Registrarse",
     "welcome": "Bienvenido",
-    "want_to_create_stories": "Registrarse con email"
+    "subtitle": "Cuentos ilustrados personalizados",
+    "email": "Correo electrónico",
+    "email_placeholder": "tu@email.com",
+    "password": "Contraseña",
+    "password_placeholder": "Al menos 8 caracteres",
+    "forgot_password": "¿Olvidaste tu contraseña?",
+    "want_to_create_stories": "Registrarse con email",
+    "invalid_credentials": "Correo o contraseña incorrectos",
+    "sign_in_with_oauth": "Inicia sesión con Google o Apple",
+    "google_failed": "Error al iniciar sesión con Google. Inténtalo de nuevo.",
+    "apple_failed": "Error al iniciar sesión con Apple. Inténtalo de nuevo.",
+    "or": "o"
   },
   "welcome": {
     "slogan": "Dibujos en personajes. Escucha, lee, publica.",

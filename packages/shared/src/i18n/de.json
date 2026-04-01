@@ -22,7 +22,18 @@
     "logout": "Abmelden",
     "signup": "Registrieren",
     "welcome": "Willkommen",
-    "want_to_create_stories": "Mit E-Mail registrieren"
+    "subtitle": "Personalisierte illustrierte Märchen",
+    "email": "E-Mail",
+    "email_placeholder": "dein@email.de",
+    "password": "Passwort",
+    "password_placeholder": "Mindestens 8 Zeichen",
+    "forgot_password": "Passwort vergessen?",
+    "want_to_create_stories": "Mit E-Mail registrieren",
+    "invalid_credentials": "Ungültige E-Mail oder ungültiges Passwort",
+    "sign_in_with_oauth": "Mit Google oder Apple anmelden",
+    "google_failed": "Google-Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
+    "apple_failed": "Apple-Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
+    "or": "oder"
   },
   "welcome": {
     "slogan": "Zeichnungen zu Charakteren. Hören, mitlesen, veröffentlichen.",

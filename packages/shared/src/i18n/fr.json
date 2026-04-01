@@ -22,7 +22,18 @@
     "logout": "Se déconnecter",
     "signup": "S'inscrire",
     "welcome": "Bienvenue",
-    "want_to_create_stories": "S'inscrire avec email"
+    "subtitle": "Contes illustrés personnalisés",
+    "email": "E-mail",
+    "email_placeholder": "ton@email.fr",
+    "password": "Mot de passe",
+    "password_placeholder": "Au moins 8 caractères",
+    "forgot_password": "Mot de passe oublié ?",
+    "want_to_create_stories": "S'inscrire avec email",
+    "invalid_credentials": "E-mail ou mot de passe invalide",
+    "sign_in_with_oauth": "Connectez-vous avec Google ou Apple",
+    "google_failed": "Échec de la connexion Google. Veuillez réessayer.",
+    "apple_failed": "Échec de la connexion Apple. Veuillez réessayer.",
+    "or": "ou"
   },
   "welcome": {
     "slogan": "Dessins en personnages. Écoute, lis, publie.",

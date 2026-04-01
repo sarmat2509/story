@@ -3,6 +3,7 @@ import 'intl-pluralrules';
 
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { isValidLocale } from '@wondertales/shared';
 import { storage } from '@/utils/storage';
 import { APP_CONFIG } from '@/config/constants';
 
@@ -25,10 +26,29 @@ const resources = {
   pl: { translation: plTranslations },
 };
 
+function getLocaleFromUrl(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const firstSegment = window.location.pathname
+    .split('/')
+    .filter(Boolean)[0]
+    ?.toLowerCase();
+
+  return firstSegment && isValidLocale(firstSegment) ? firstSegment : null;
+}
+
 export async function initI18n() {
-  // Get saved language or use default
+  // On web, locale in the URL should win over saved preference so public routes
+  // like /en/welcome can be rendered in the requested language before login.
   const savedLanguage = await storage.getLanguage();
-  const initialLanguage = savedLanguage || APP_CONFIG.defaultLanguage;
+  const urlLanguage = getLocaleFromUrl();
+  const initialLanguage = urlLanguage || savedLanguage || APP_CONFIG.defaultLanguage;
+
+  if (urlLanguage && urlLanguage !== savedLanguage) {
+    await storage.setLanguage(urlLanguage);
+  }
 
   await i18n
     .use(initReactI18next)
