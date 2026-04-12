@@ -1,5 +1,5 @@
 /**
- * Seed QA manual test accounts used by docs/test-cases/README.md.
+ * Seed QA manual test accounts for staging / manual QA flows.
  *
  * Creates or updates the accounts that can be prepared automatically at the
  * database level: users, OAuth identities, roles, plan subscriptions,

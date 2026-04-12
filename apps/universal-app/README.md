@@ -120,9 +120,6 @@ Output will be in `dist/` directory.
 - **Expo Go**: Поддерживает большинство функций, кроме native OAuth SDK.
 - **Production builds**: iOS/Android production builds будут настроены в следующих фазах через EAS Build.
 
-## iOS Development
+## Документация монорепозитория
 
-- **[Build for iPad/iPhone](./BUILD_IOS.md)** - Complete guide for building to physical devices
-- **[Environment Setup](./ENV_QUICK_REFERENCE.md)** - Production vs Local configuration
-- **[Commands Cheat Sheet](./IOS_BUILD_CHEATSHEET.md)** - Quick reference for all commands
-- **[Push Notifications Fix](./TROUBLESHOOTING_PUSH_NOTIFICATIONS.md)** - Fix for free Apple account error
+Сборка, инфраструктура и архитектура описаны в корне репозитория: [docs/README.md](../../docs/README.md).

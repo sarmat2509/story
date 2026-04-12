@@ -37,4 +37,4 @@ echo "  View logs:   ssh root@167.172.102.75 \"cd /var/www/kazka && docker compo
 echo "  Follow logs: ssh root@167.172.102.75 \"cd /var/www/kazka && docker compose -f docker-compose.prod.yml logs api -f\""
 echo "  Find errors: ssh root@167.172.102.75 \"cd /var/www/kazka && docker compose -f docker-compose.prod.yml logs api --tail 500\" | grep -i error"
 echo ""
-echo "📖 Full logs guide: docs/DROPLET_LOGS_GUIDE.md"
+echo "📖 Deployment and ops: docs/DEPLOYMENT.md"

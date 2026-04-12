@@ -297,10 +297,8 @@ expo export:web
 
 ### Documentation
 
-- **[Droplet Logs Guide](./docs/DROPLET_LOGS_GUIDE.md)** - Complete guide for viewing API logs
-- **[Logs Cheat Sheet](./docs/LOGS_CHEATSHEET.md)** - Quick reference commands
-- **[iOS Build Guide](./apps/universal-app/BUILD_IOS.md)** - Building for iPad/iPhone
-- **[Environment Setup](./apps/universal-app/ENV_QUICK_REFERENCE.md)** - Production vs Local config
+- **[docs/README.md](./docs/README.md)** — индекс: архитектура, Docker, локальная разработка, деплой
+- **[QUICK_RULES.md](./QUICK_RULES.md)** — правила слоёв API и общие требования к изменениям
 
 ### Deployment Scripts
 
