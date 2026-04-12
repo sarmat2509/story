@@ -83,7 +83,9 @@ export function getImageDomainService(): ImageDomainService {
     const provider = getImageProvider();
     
     // Inject text provider for Vision-based image validation (only when enabled)
-    const validationTextProvider = config.image.enableValidation ? getTextProvider() : undefined;
+    const validationTextProvider = config.image.enableValidation
+      ? getValidationTextProvider()
+      : undefined;
     if (validationTextProvider) {
       logger.info('Image validation enabled — injecting text provider for Gemini Vision');
     }

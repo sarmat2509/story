@@ -57,13 +57,14 @@ export class AiUsageRepository {
     return Number(row?.total ?? 0);
   }
 
-  async getStoryCostBreakdown(storyId: string): Promise<Array<{ provider: string; operation: string; model: string | null; costUsd: number }>> {
+  async getStoryCostBreakdown(storyId: string): Promise<Array<{ provider: string; operation: string; model: string | null; costUsd: number; createdAt: Date }>> {
     const rows = await this.db
       .select({
         provider: schema.aiUsageEvents.provider,
         operation: schema.aiUsageEvents.operation,
         model: schema.aiUsageEvents.model,
         costUsd: schema.aiUsageEvents.costUsd,
+        createdAt: schema.aiUsageEvents.createdAt,
       })
       .from(schema.aiUsageEvents)
       .where(eq(schema.aiUsageEvents.storyId, storyId));
@@ -72,6 +73,7 @@ export class AiUsageRepository {
       operation: r.operation,
       model: r.model,
       costUsd: r.costUsd != null ? Number(r.costUsd) : 0,
+      createdAt: r.createdAt,
     }));
   }
 

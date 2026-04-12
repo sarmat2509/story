@@ -235,6 +235,7 @@ export class StoryDomainService {
     outfits: Array<{ id: string; characterName: string; description: string }>;
     illustrations: Array<{
       environmentId: string;
+      primaryRead: string;
       sceneVisual: {
         setting: string;
         cameraComposition: {
@@ -268,6 +269,7 @@ export class StoryDomainService {
         outfits: any[];
         illustrations: Array<{
           environmentId: string;
+          primaryRead: string;
           sceneVisual: any;
         }>;
       }>({

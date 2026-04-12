@@ -26,8 +26,8 @@ export interface DirectTextPromptParams {
   previousOutfits?: Array<{ id: string; characterName: string; description: string }>;
 }
 
-export const WRITER_STRUCTURED_CACHE_KEY = 'writer_structured_rules_v1';
-export const WRITER_PLAIN_CACHE_KEY = 'writer_plain_rules_v1';
+export const WRITER_STRUCTURED_CACHE_KEY = 'writer_structured_rules_v2';
+export const WRITER_PLAIN_CACHE_KEY = 'writer_plain_rules_v2';
 
 export function buildDirectTextPromptCachedPrefix(): string {
   return `You are a creative storyteller specializing in children's content with audio narration.
@@ -39,6 +39,9 @@ Core rules:
 - Happy, safe ending required.
 - Follow the requested language exactly.
 - For image consistency, character descriptions must be specific and stable.
+- In SCENE TEXT, do not describe clothing. Keep physical appearance mentions to an absolute minimum.
+- In SCENE TEXT, prefer actions, emotions, dialogue, and plot beats over visual re-description of characters.
+- If a NEW character is introduced, allow at most one brief first-glance appearance cue in prose; do not dwell on hair, eyes, face shape, or wardrobe.
 
 Structured output contract:
 - Return JSON only.
@@ -58,6 +61,9 @@ Core rules:
 - Follow the requested language exactly.
 - Write the requested number of scenes separated by --- on its own line.
 - No JSON in the response.
+- In SCENE TEXT, do not describe clothing. Keep physical appearance mentions to an absolute minimum.
+- In SCENE TEXT, prefer actions, emotions, dialogue, and plot beats over visual re-description of characters.
+- If a NEW character is introduced, allow at most one brief first-glance appearance cue in prose; do not dwell on hair, eyes, face shape, or wardrobe.
 
 Plain output contract:
 - title: Story title
@@ -126,7 +132,10 @@ ${validUsedPlots.length > 0 ? `- DO NOT repeat these plot elements: ${validUsedP
 - MUST have a satisfying conclusion for this episode
 - OPTIONAL: Add a gentle cliffhanger or hint for next episode
 - DO NOT repeat physical appearance of required/optional characters (from previous episodes). Use names and actions directly. Avoid "Emilia with her bright eyes...", "Flash, round and yellow...". Start with action.
-- NEW characters: MUST describe their appearance when first introduced (for reader and image generation). Add to characters array with detailed description.
+- Do NOT mention clothing in scene prose, even if clothes changed. Wardrobe belongs in outfits[] and sceneVisual only.
+- Avoid prose about hair color, eye color, freckles, face shape, skin tone, or other stable appearance traits unless one brief mention is truly needed for a NEW character's first introduction.
+- Describe physical appearance in scene prose only for genuinely NEW LLM-invented characters that were not present in the provided story context before this story/episode.
+- NEW characters: if needed, give only one brief first-glance visual cue in scene prose at first introduction. Put the full detailed appearance in characters[] instead.
 
 `;
       })()
@@ -202,7 +211,7 @@ OUTPUT FORMAT (JSON). Order: characters, moral, scenes (each sceneVisual.cameraC
       "sceneVisual": {
         "setting": "Complete physical setting for this scene IN ENGLISH: room layout, furniture, objects, wall decorations, floor material, materials, textures, colors, weather, time of day.",
         "cameraComposition": {
-          "shot": "Medium shot at child eye-level, focal point on Character1",
+          "shot": "Medium shot at child eye-level",
           "characters": [
             { "name": "Character Name 1", "description": "foreground left on chair, sitting, smiling, looking at Character Name 2", "outfitId": "o_char1_scene1" },
             { "name": "Character Name 2", "description": "background right near window, standing, waving", "outfitId": "o_char2_scene1" }
@@ -230,12 +239,18 @@ OUTPUT FORMAT (JSON). Order: characters, moral, scenes (each sceneVisual.cameraC
 
 IMPORTANT - Character Descriptions:
 ${isContinuation && (requiredCharacters?.length || 0) + (optionalCharacters?.length || 0) > 0
-  ? `- In scene TEXT: Do NOT re-describe required/optional characters. NEW characters — MUST describe appearance when first introduced.
+  ? `- In scene TEXT: Do NOT re-describe required/optional characters. NEW characters may get only one brief first-glance appearance cue when first introduced.
+- In scene TEXT: NEVER describe clothing or outfit details. Do not mention jackets, coats, bombers, dresses, scarves, boots, hats, uniforms, or color/pattern details of clothes.
+- In scene TEXT: Minimize stable appearance details such as hair color/style, eye color, freckles, face shape, skin tone, or body build. Use them only if absolutely needed once for a NEW character's first introduction.
+- In scene TEXT: Describe physical appearance only for genuinely NEW LLM-invented characters that were not already present in the provided story context.
 - characters array: Include ONLY new characters. Provide DETAILED visual descriptions (appearance, colors, size, distinctive features, clothing) for each.
 - Do NOT include required/optional characters from above in output
 - Be SPECIFIC and CONSISTENT for image generation`
   : `- Return ALL characters you create in the story (do NOT include user-provided characters from SUPPORTING CHARACTERS section above)
 - If no new characters are created (story only uses user-provided characters), return empty array []
+- In scene TEXT: NEVER describe clothing or outfit details. Do not mention jackets, coats, bombers, dresses, scarves, boots, hats, uniforms, or color/pattern details of clothes.
+- In scene TEXT: Minimize stable appearance details such as hair color/style, eye color, freckles, face shape, skin tone, or body build. Prefer actions, emotions, and story events.
+- For a NEW character, allow at most one brief first-glance appearance cue in prose; put the full detailed appearance into characters[] instead.
 - Provide DETAILED visual descriptions (appearance, colors, size, distinctive features, clothing)
 - Be SPECIFIC and CONSISTENT - describe exactly how the character looks for image generation
 - Example good description: "Small fluffy creature with purple fur, large golden eyes, translucent butterfly wings with star patterns, wears a tiny silver crown"
@@ -314,7 +329,10 @@ ${validUsedPlots.length > 0 ? `- DO NOT repeat these plot elements: ${validUsedP
 - Maintain the same tone and age-appropriateness
 - MUST have a satisfying conclusion for this episode
 - DO NOT repeat physical appearance of required/optional characters (from previous episodes). Use names and actions directly. Avoid "Emilia with her bright eyes...", "Flash, round and yellow...". Start with action.
-- NEW characters: MUST describe their appearance when first introduced (for reader and image generation).
+- Do NOT mention clothing in scene prose, even if clothes changed. Wardrobe belongs in outfits[] and sceneVisual only.
+- Avoid prose about hair color, eye color, freckles, face shape, skin tone, or other stable appearance traits unless one brief mention is truly needed for a NEW character's first introduction.
+- Describe physical appearance in scene prose only for genuinely NEW LLM-invented characters that were not present in the provided story context before this story/episode.
+- NEW characters: if needed, give only one brief first-glance visual cue in scene prose at first introduction.
 
 `;
         })()

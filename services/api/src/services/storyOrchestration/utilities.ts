@@ -206,6 +206,7 @@ export function mergeDirectorIntoText(
     outfits?: any[];
     illustrations: Array<{
       environmentId: string;
+      primaryRead?: string;
       /** @deprecated LLM legacy; prefer sceneVisual.cameraComposition.characters[].outfitId */
       outfitBindings?: Array<{ characterName?: string; outfitId?: string }>;
       characterOutfitIds?: Record<string, string>;
@@ -236,6 +237,9 @@ export function mergeDirectorIntoText(
         (sc as any).characterOutfitIds = { ...outfitRecord };
       }
       if (sid === anchor) {
+        if (ill.primaryRead) {
+          (sc as any).primaryRead = ill.primaryRead;
+        }
         (sc as any).sceneVisual = ill.sceneVisual;
       }
     }

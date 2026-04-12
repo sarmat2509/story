@@ -108,7 +108,7 @@ export const TEXT_SCHEMA: JsonSchema = {
                 properties: {
                   shot: {
                     type: 'string',
-                    description: 'Camera angle IN ENGLISH: shot type (wide/medium/close-up), eye level, focal point.'
+                    description: 'Camera angle IN ENGLISH: shot type (wide/medium/close-up), eye level, and framing.'
                   },
                   characters: {
                     type: 'array',
@@ -273,12 +273,12 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
           recognizableScore: {
             type: 'number',
             description:
-              '0-1 aggregate identity vs turnaround. Must reflect overall design read, silhouette, creature subtype read (imaginary), and body form—not only a checklist of local features. 1.0 ONLY when no meaningful drift in silhouette, body type, mass, head/muzzle shape, subtype read, proportions, or signature traits; any noticeable subtype-read drift or body-form reinterpretation → strictly below 1.0. Consistent with face/hair/age/proportions booleans and optional silhouetteDriftSeverity/sameOverallDesignRead. For HUMANS: wrong face OR wrong age read OR wrong visible hairstyle must NOT be scored 0.9 as a minor single feature—usually 0.7–0.8 each; combined drift → often ≤0.5. For IMAGINARY: missing dominant body markings (spots/stripes) → ≤0.5; major silhouette/body-type/subtype drift → often 0.5–0.7 even if some colors/markings match. Do not use ~0.9 when proportionsMatchReference is false due to visible drift. Wardrobe vs sheet does not raise this score. Penalty=(1-score)*20.',
+              '0-1 aggregate identity vs turnaround. Must reflect overall design read, silhouette, creature subtype read (imaginary), and body form—not only a checklist of local features. 1.0 ONLY when no meaningful drift in silhouette, body type, mass, head/muzzle shape, subtype read, proportions, or signature traits; any noticeable subtype-read drift or body-form reinterpretation → strictly below 1.0. Consistent with face/hair/age/proportions booleans and optional silhouetteDriftSeverity/sameOverallDesignRead. For HUMANS: wrong face OR wrong age read OR wrong visible hairstyle must NOT be scored 0.9 as a minor single feature—usually 0.7–0.8 each; combined drift → often ≤0.5. For IMAGINARY: missing dominant body markings (spots/stripes) → ≤0.5; major silhouette/body-type/subtype drift → often 0.5–0.7 even if some colors/markings match. Temporary emotional expression, gaze, or flexible appendage pose (antennae/ears/whiskers/tail tip/crest tilt/wing angle) does NOT by itself lower this score if the same first-glance design read is preserved. Scene-authorized temporary visual states also do NOT by themselves lower this score: transparency, shimmering outline, glow, magical aura, mist/smoke form, or other explicitly requested transient presentation effects. Do not treat \"transparent vs solid\" alone as identity drift when the designer scene brief explicitly requests transparency or spectral rendering. Do not use ~0.9 when proportionsMatchReference is false due to visible drift. Wardrobe vs sheet does not raise this score. Penalty=(1-score)*20.',
           },
           faceMatchesReference: {
             type: 'boolean',
             description:
-              'Visible face/head identity vs reference: face shape, eye shape/size, nose/mouth, cheeks, jaw/chin, freckles/glasses when stable. For IMAGINARY: snout/muzzle/eye region/expression for that creature. True if no reference for this character or head fully obscured and scene explains occlusion.',
+              'Visible face/head identity vs reference: face shape, eye shape/size, nose/mouth, cheeks, jaw/chin, freckles/glasses when stable. For IMAGINARY: snout/muzzle/eye region and stable head design for that creature. Temporary emotional expression alone should NOT make this false if the same underlying face/head design is preserved. True if no reference for this character or head fully obscured and scene explains occlusion.',
           },
           hairMatchesReference: {
             type: 'boolean',
@@ -298,28 +298,28 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
           matchesColors: {
             type: 'boolean',
             description:
-              'Whether persistent identity colors match the reference: skin/fur/feathers, eyes, visible hair color, stable markings. False if hair color clearly wrong vs reference without scene excuse. Do not use clothing fabric color vs sheet here—that is matchesOutfit vs scene text.',
+              'Whether persistent identity colors match the reference: skin/fur/feathers, eyes, visible hair color, stable markings. False if hair color clearly wrong vs reference without scene excuse. Do not use clothing fabric color vs sheet here—that is matchesOutfit vs scene text. Do NOT fail this only because a designer-authorized temporary glow, aura, magical lighting, transparency, spectral effect, or shimmer changes apparent brightness/color.',
           },
           matchesOutfit: {
             type: 'boolean',
             description:
-              'Whether VISIBLE clothing/shoes/accessories match the scene wardrobe text (CHARACTER OUTFITS / Expected outfit for THIS scene), NOT the turnaround reference. Require garment TYPE and key structural details from that text (sleeve length, neckline/collar, skirt length, shoe type). Same dominant color but wrong silhouette (e.g. another yellow dress) = false. True if no outfit is specified in scene text, or visible costume aligns with the written spec. Occlusion rules apply when scene context hides parts.',
+              'Whether VISIBLE clothing/shoes/accessories match the scene wardrobe text (CHARACTER OUTFITS / Expected outfit for THIS scene), NOT the turnaround reference. If an outfit plate reference is provided, use that outfit plate as the strongest clothing ground truth. Require garment TYPE and key structural details from the scene text / plate (sleeve length, neckline/collar, skirt length, shoe type). Same dominant color but wrong silhouette (e.g. another yellow dress) = false. True if no outfit is specified in scene text, or visible costume aligns with the written spec. Do not mark false merely because the clothing differs from the identity sheet / turnaround clothes. Occlusion rules apply when scene context hides parts.',
           },
           identityComparisonSummary: {
             type: 'string',
             description:
-              'Contrastive format required: (1) MATCHES—what aligns (silhouette, body type, head/muzzle, markings, subtype read for imaginary, proportions). (2) DIFFERS—what does not match or is reinterpreted. (3) FIRST-GLANCE—one sentence: unchanged vs drifted design read. For imaginary creatures always mention subtype read (e.g. spirit-like vs insect-like). No vague merged praise.',
+              'Contrastive format required: (1) MATCHES—what aligns (silhouette, body type, head/muzzle, markings, subtype read for imaginary, proportions). (2) DIFFERS—what does not match or is reinterpreted. (3) FIRST-GLANCE—one sentence: unchanged vs drifted design read. For imaginary creatures always mention subtype read (e.g. spirit-like vs insect-like). No vague merged praise. Do NOT list clothing differences here when the outfit is authorized by scene wardrobe text or an outfit plate; that belongs in matchesOutfit/issue only. Do NOT list designer-authorized temporary scene states such as transparency, glow, shimmering outline, magical aura, or scene-driven facial expression as identity drift unless they truly change the first-glance character design.',
           },
           sameOverallDesignRead: {
             type: 'boolean',
             description:
-              'Optional. True ONLY if no meaningful drift in silhouette, body type, mass, head/muzzle, creature subtype read, proportions, or signature traits—same first-glance design. False if any noticeable subtype drift, body-form reinterpretation, or silhouette shift (even with matching colors/accessories). False if moderate/severe silhouetteDriftSeverity. Omit if uncertain.',
+              'Optional. True ONLY if no meaningful drift in silhouette, body type, mass, head/muzzle, creature subtype read, proportions, or signature traits—same first-glance design. Temporary emotion or flexible appendage pose alone does not make this false. False if any noticeable subtype drift, body-form reinterpretation, or silhouette shift (even with matching colors/accessories). False if moderate/severe silhouetteDriftSeverity. Omit if uncertain.',
           },
           silhouetteDriftSeverity: {
             type: 'string',
             enum: ['none', 'mild', 'moderate', 'severe'],
             description:
-              'Optional. none only when silhouette, body type, subtype read, and proportions closely match—no meaningful reinterpretation. mild/moderate/severe for visible shifts; moderate+ when body-read or subtype clearly shifts; severe when first-glance read fails. Subtype read differing from reference → not none.',
+              'Optional. none only when silhouette, body type, subtype read, and proportions closely match—no meaningful reinterpretation. Do not mark this above none for temporary emotional expression or flexible appendage pose alone. mild/moderate/severe for visible shifts; moderate+ when body-read or subtype clearly shifts; severe when first-glance read fails. Subtype read differing from reference → not none.',
           },
           issue: { type: 'string', nullable: true, description: 'ALL problems for this character in one string, separated by semicolons' },
         },
@@ -394,7 +394,7 @@ export const SCENE_SCHEMA: JsonSchema = {
           properties: {
             shot: {
               type: 'string',
-              description: 'Camera angle IN ENGLISH: shot type (wide/medium/close-up), eye level, focal point.'
+              description: 'Camera angle IN ENGLISH: shot type (wide/medium/close-up), eye level, and framing.'
             },
             characters: {
               type: 'array',

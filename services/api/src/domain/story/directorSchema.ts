@@ -67,34 +67,39 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
         type: 'object',
         properties: {
           environmentId: { type: 'string', description: 'ID of environment for this illustration' },
+          primaryRead: {
+            type: 'string',
+            description:
+              'Short ENGLISH phrase naming the single primary visual read of this illustration — what the viewer should understand first at a glance (for example: "Emilia receives the clay pot"). This is the only explicit focus field; sceneVisual must support it rather than restating a different focus.',
+          },
           sceneVisual: {
             type: 'object',
-            description: 'setting, shot, characters, lighting must ALL describe the SAME location and moment',
+            description: 'setting, shot, characters, lighting must ALL describe the SAME location and moment and must all support primaryRead instead of introducing a competing focal event',
             properties: {
               setting: {
                 type: 'string',
-                description: 'Scene-specific additions IN ENGLISH. Describe what is NEW or CHANGED. Must match cameraComposition.shot location.',
+                description: 'Scene-specific additions IN ENGLISH. Describe what is NEW or CHANGED. Must match cameraComposition.shot location and support primaryRead. Do not state a separate focus sentence here.',
               },
               cameraComposition: {
                 type: 'object',
                 properties: {
-                  shot: { type: 'string', description: 'Camera angle IN ENGLISH: shot type, eye level' },
+                  shot: { type: 'string', description: 'Camera angle IN ENGLISH: shot type, eye level. Choose the shot to make primaryRead readable.' },
                   characters: {
                     type: 'array',
                     minItems: 1,
                     items: CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA,
                     description:
-                      'Who is in the shot; each row MUST include outfitId referencing outfits[].',
+                      'Who is in the shot; each row MUST include outfitId referencing outfits[]. Character descriptions must support primaryRead instead of creating a competing focal action.',
                   },
                 },
                 required: ['shot', 'characters'],
               },
-              lighting: { type: 'string', description: 'Lighting conditions IN ENGLISH' },
+              lighting: { type: 'string', description: 'Lighting conditions IN ENGLISH. Lighting should support primaryRead, not introduce a different focal effect.' },
             },
             required: ['setting', 'cameraComposition', 'lighting'],
           },
         },
-        required: ['environmentId', 'sceneVisual'],
+        required: ['environmentId', 'primaryRead', 'sceneVisual'],
       },
       description:
         'Visual descriptions for each illustration. Order matches placement: 1st=opening, rest=evenly distributed. Each sceneVisual.cameraComposition.characters[] entry MUST include outfitId (schema-enforced, same strictness as environmentId).',

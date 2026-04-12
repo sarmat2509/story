@@ -30,7 +30,7 @@ function applyEnvLines(content: string, override: boolean): void {
 
 const scriptDir = __dirname;
 const apiRoot = path.resolve(scriptDir, '../..');
-const repoRoot = path.resolve(apiRoot, '..');
+const repoRoot = path.resolve(apiRoot, '../..');
 
 const files: Array<{ file: string; override: boolean }> = [
   { file: path.join(repoRoot, '.env'), override: false },

@@ -129,6 +129,7 @@ export interface EpisodeOutline {
     goal: string;
     emotion: string;
     beats: string[];
+    primaryRead?: string;
     sceneVisual?: SceneVisual; // Structured visual description for image generation
     visualPrompt?: string; // Deprecated: kept for backward compatibility with old outlines
     environmentId?: string; // Reference to environment where this scene takes place
@@ -163,6 +164,7 @@ export interface EpisodeText {
   scenes: Array<{
     sceneId: number;
     text: string; // Text for this specific scene
+    primaryRead?: string;
     sceneVisual?: SceneVisual; // Structured visual description for image generation
     visualPrompt?: string; // Deprecated: kept for backward compatibility with old stories
     environmentId?: string; // Reference to environment where this scene takes place

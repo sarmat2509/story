@@ -33,7 +33,8 @@
     "test:character-outfits": "tsx src/utils/__tests__/characterOutfits.test.ts",
     "test:outfit-plate-service": "tsx src/services/__tests__/outfitPlateService.test.ts",
     "compare:image-validation": "tsx src/scripts/compareSceneImageValidation.ts",
-    "compare:director": "tsx src/scripts/compareDirectorTextProviders.ts"
+    "compare:director": "tsx src/scripts/compareDirectorTextProviders.ts",
+    "prompt:artifact-lab": "tsx src/scripts/runArtifactImagePrompt.ts"
   },
   "dependencies": {
     "@google-cloud/aiplatform": "^6.5.0",

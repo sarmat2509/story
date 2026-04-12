@@ -5,6 +5,48 @@ import { inferReferenceKind } from '../utils/referenceImageKind';
 
 export type { ReferenceImageKind };
 
+export function isPlaceholderReferenceName(name?: string | null): boolean {
+  const base = stripCharacterIdFromName(name || '').trim().toLowerCase();
+  return base === 'unknown' || base === 'unnamed';
+}
+
+/**
+ * Resolve a single placeholder ref name (e.g. "unknown") to the one scene character
+ * that is still unmatched by explicit reference names. Returns a map keyed by the
+ * original placeholder token so call sites can preserve existing imageIndex lookup.
+ */
+export function buildPlaceholderReferenceNameMap(
+  referenceNames: Array<string | undefined | null>,
+  candidateCharacterNames: Array<string | undefined | null>,
+): Map<string, string> {
+  const explicitReferenceNames = new Set(
+    referenceNames
+      .filter((name): name is string => typeof name === 'string' && !isPlaceholderReferenceName(name))
+      .map((name) => stripCharacterIdFromName(name).trim().toLowerCase())
+      .filter(Boolean),
+  );
+
+  const placeholderRefs = referenceNames.filter(
+    (name): name is string => typeof name === 'string' && isPlaceholderReferenceName(name),
+  );
+
+  const unmatchedCandidates: string[] = [];
+  const seenCandidates = new Set<string>();
+  for (const candidate of candidateCharacterNames) {
+    if (typeof candidate !== 'string') continue;
+    const normalized = stripCharacterIdFromName(candidate).trim().toLowerCase();
+    if (!normalized || seenCandidates.has(normalized) || explicitReferenceNames.has(normalized)) continue;
+    seenCandidates.add(normalized);
+    unmatchedCandidates.push(candidate);
+  }
+
+  const resolved = new Map<string, string>();
+  if (placeholderRefs.length === 1 && unmatchedCandidates.length === 1) {
+    resolved.set(placeholderRefs[0], unmatchedCandidates[0]);
+  }
+  return resolved;
+}
+
 /**
  * In-memory reference row before / after bucket trimming (orchestration → image provider).
  */

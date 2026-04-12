@@ -9,6 +9,7 @@ import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 
 export interface ImageDomainOptions {
   onUsage?: (usage: UsageMetadata) => void;
+  onBuiltPrompt?: (payload: BuiltScenePromptPayload) => void | Promise<void>;
 }
 import type { UploadedFile } from '../../providers/base/IFileManager';
 import { logger } from '../../utils/logger';
@@ -26,10 +27,27 @@ import config from '../../config';
 import { runProductImageValidation } from './imageValidationRun';
 import { inferReferenceKind } from '../../utils/referenceImageKind';
 
+export interface BuiltScenePromptPayload {
+  primaryRead?: string;
+  prompt: string;
+  systemInstruction?: string;
+  aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+  referenceImages?: Array<{
+    instructionText?: string;
+    characterName?: string;
+    referenceKind?: 'character' | 'object';
+    mimeType?: string;
+    fileUri?: string;
+    hasBase64Data: boolean;
+    url?: string;
+  }>;
+}
+
 /**
  * Image generation parameters specific to story scenes
  */
 export interface SceneImageRequest {
+  primaryRead?: string;
   sceneVisual?: SceneVisual; // Structured visual (preferred)
   visualPrompt?: string; // Deprecated fallback
   sceneId?: number;
@@ -47,6 +65,7 @@ export interface SceneImageRequest {
  * Uses AI-generated character descriptions + optional reference image
  */
 export interface SceneImageWithReferenceRequest {
+  primaryRead?: string;
   sceneVisual?: SceneVisual; // Structured visual (preferred)
   visualPrompt?: string; // Deprecated fallback
   sceneId: number;
@@ -195,11 +214,13 @@ export class ImageDomainService {
       hasEnvironmentImageRef: request.hasEnvironmentImageRef,
     });
 
-    // Build system instruction: use pre-built one from orchestration, or build here
-    const systemInstruction = request.systemInstruction || buildImageSystemInstruction({
+    // Build system instruction from the actual per-scene reference set so env-ref rules
+    // are included only when this scene really carries an environment image.
+    const systemInstruction = buildImageSystemInstruction({
       style: request.style,
       ageGroup: request.ageGroup,
       hasReferences: hasRefs,
+      hasEnvironmentReference: !!request.hasEnvironmentImageRef,
       scenarioCardId: request.scenarioCardId,
     });
 
@@ -253,6 +274,22 @@ export class ImageDomainService {
       onUsage: options?.onUsage,
       operation: 'image_generate',
     };
+
+    await options?.onBuiltPrompt?.({
+      primaryRead: request.primaryRead,
+      prompt: enhancedPrompt,
+      systemInstruction,
+      aspectRatio: providerRequest.aspectRatio,
+      referenceImages: refImages?.map((ref) => ({
+        instructionText: ref.instructionText,
+        characterName: ref.characterName,
+        referenceKind: ref.referenceKind,
+        mimeType: ref.mimeType,
+        fileUri: ref.fileUri,
+        hasBase64Data: !!ref.base64Data,
+        url: ref.url,
+      })),
+    });
 
     return await this.imageProvider.generateImage(providerRequest);
   }
@@ -444,7 +481,8 @@ export class ImageDomainService {
    * reference-image fidelity (colors, outfit, recognizability), and unwanted text.
    *
    * Validation is reference-based: the generated image is compared against
-   * character reference images (turnaround sheets). References are passed as
+   * compact identity reference images for scene characters (prefer front-view sheets,
+   * otherwise reference photos / turnaround fallback). References are passed as
    * base64 or fileUri (Files API). Requires textProvider (ENABLE_IMAGE_VALIDATION).
    */
   async validateGeneratedImage(params: {
@@ -465,6 +503,7 @@ export class ImageDomainService {
       imageData?: string; // base64 (optional when fileUri provided)
       fileUri?: string; // Files API URI — when present, used instead of inline data
       mimeType: string;
+      referenceKind?: 'identity' | 'outfit_plate';
     }>;
     logContext?: { storyId?: string; sceneId?: number; attempt?: number };
     onUsage?: (usage: UsageMetadata) => void;
@@ -474,7 +513,10 @@ export class ImageDomainService {
     }
 
     return runProductImageValidation(this.textProvider, params, {
-      visionModel: config.ai?.geminiVisionModel || 'gemini-2.5-flash',
+      visionModel:
+        config.ai?.validationModel
+        || config.ai?.geminiVisionModel
+        || 'gemini-2.5-flash-lite',
       operation: 'image_validation',
     });
   }
@@ -637,4 +679,3 @@ export class ImageDomainService {
     return result;
   }
 }
-

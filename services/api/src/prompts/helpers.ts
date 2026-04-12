@@ -481,11 +481,11 @@ export function formatDirectorCostumeContinuityRules(): string {
     '- First decide whether the character\'s default/reference clothes already fit this scene. If yes, reuse that look and set outfits[].description to exactly "natural appearance". Only define a new explicit wardrobe description when the scene truly needs different clothes (weather, uniform, sleepwear, costume, disguise, celebration wear, protective gear, etc.).',
     '- If the text explicitly describes a change (change of clothes, new day and dressing, return to a previous outfit, removing a disguise), add or reuse an entry in the "outfits" array (wardrobe-only descriptions) and set each illustration\'s sceneVisual.cameraComposition.characters[].outfitId to the correct outfits[].id per character; align character lines (pose, hair, face).',
     '- outfits[].description: WARDROBE ONLY — garments, footwear, and worn accessories (hats, scarves, belts, bags carried/worn, helmets, glasses as worn items). Do NOT put face, eyes, skin, age, body shape, hair, hairstyle, beard, makeup, or expression in outfit descriptions.',
-    '- Put hair, facial expression, pose, and how much of the face/body is visible in sceneVisual.cameraComposition.characters[].description (and character sheet descriptions where appropriate). Do not revert to a generic or earlier look unless the anchor or context text supports it.',
+    '- In sceneVisual.cameraComposition.characters[].description, describe pose, facial expression, gaze direction, head turn, and temporary visibility/occlusion only. For reference-grounded characters, do NOT restate stable identity traits there: no hairstyle, hair color, eye color, freckles, face shape, skin tone, or other enduring appearance details unless the story explicitly changes or hides them in this exact moment.',
     '- Wardrobe must match stated weather, season, and indoor/outdoor context of the anchor scene and its environment (rain, snow, heat, cold — appropriate layers, footwear, outerwear).',
     'TURNAROUND / USER-SELECTED REFERENCE CHARACTERS:',
     '- The reference image establishes identity, not a permanent costume. Preserve recognizability: face, age, body proportions, silhouette, skin tone, distinctive marks (freckles, glasses if the story keeps them), and hairstyle unless the story explicitly changes hair.',
-    '- Clothing and accessories must follow the story for that scene. If the text describes a new outfit, disguise, uniform, or sleepwear, define it in outfits[] and set each character row\'s outfitId in cameraComposition.characters; describe pose and hair in that row\'s description. Do not keep the reference sheet\'s default clothes when the story has moved on. The illustration must read as the same person, different clothes.',
+    '- Clothing and accessories must follow the story for that scene. If the text describes a new outfit, disguise, uniform, or sleepwear, define it in outfits[] and set each character row\'s outfitId in cameraComposition.characters; describe pose, gaze, expression, and temporary visibility in that row\'s description. Do not restate stable identity traits from the reference sheet there. Do not keep the reference sheet\'s default clothes when the story has moved on. The illustration must read as the same person, different clothes.',
   ].join('\n');
 }
 
@@ -602,6 +602,79 @@ export function formatDirectorFunctionalDeviceCompositionRules(): string {
     '',
     'Template for sceneVisual.cameraComposition.characters[].description when applicable:',
     '[character position], standing at the [operational side] of the [instrument], [eye/hand/body contact point], [realistic usage posture], using it toward [target direction / fixed environmental target].',
+  ].join('\n');
+}
+
+/**
+ * Director-only: keep scene descriptions image-friendly and consistent with a
+ * simple "character DNA + frozen moment" prompt structure.
+ */
+export function formatDirectorImagePromptRules(): string {
+  return [
+    'CRITICAL - IMAGE-PROMPT WRITING RULES:',
+    'Write for an image generation system, not for a chat conversation. Be concise, visual, concrete, and structured.',
+    '',
+    'CHARACTER DNA:',
+    '- In characters[].description, establish each character\'s stable visual identity first: who they are, 2-3 memorable visible traits, and recognizable clothing or accessories when supported by the story.',
+    '- Prioritize visible identity over inner world. Do NOT replace appearance with personality, backstory, or abstract traits.',
+    '- Keep designs simple and memorable. Prefer 2-3 strong distinguishing features over long overloaded lists of minor details.',
+    '',
+    'SCENE FORMULA:',
+    '- For each illustration, build sceneVisual as a clear visual combination of: subject + key visual traits + outfit + emotion + action + setting.',
+    '- Put emotion and action where they are visible: expression, posture, gesture, gaze, and interaction with props or other characters.',
+    '',
+    'FROZEN MOMENT ONLY:',
+    '- Depict exactly one concrete frozen moment, as if a photographer stopped time.',
+    '- Never describe a sequence of events, multiple beats, or "before/after/then" story progression inside one sceneVisual.',
+    '- Before outputting, ask: "What is the single frame the viewer can see right now?"',
+    '- If the story beat involves several simultaneous actions, choose the single clearest instant that makes the plot readable in one frame. Do not try to make every tiny action equally prominent.',
+    '',
+    'VISUAL FOCUS HIERARCHY:',
+    '- For each illustration, internally choose ONE primary read: the single action, relationship, or reveal the viewer should understand first at a glance.',
+    '- Optionally choose ONE secondary supporting read. Everything else must stay background support, not a competing focal task.',
+    '- In the JSON response, state that intended focus only in illustrations[].primaryRead. This is the ONLY field where you explicitly name the main read in words.',
+    '- Do not repeat or redefine focus in sceneVisual.setting, cameraComposition.shot, cameraComposition.characters[].description, or lighting with phrases like "the focal point is", "the focus is", "clear problem setup", or another competing read statement.',
+    '- Do not make the viewer decode several equally important details at once. If three things all seem important, pick the one that tells the story best and simplify the rest.',
+    '- Characters, props, and background details should be arranged to support the primary read, not compete with it.',
+    '- If the primary read depends on a small object or precise gesture, reduce background complexity and avoid giving multiple other characters equally demanding micro-actions.',
+    '- Once primaryRead is chosen, non-primary characters should usually get simple supporting behavior: watching, leaning, holding still, or one small witness gesture. Do not give them equally energetic, comic, or attention-grabbing actions unless they are part of the primary read.',
+    '- Do not place the primary read in the far background while also expecting strong facial likeness and readable reactions from several foreground characters in the same wide shot.',
+    '- If the scene contains both a large location reveal (bridge, ravine, tower, gate, courtyard, cliff, long path) and a small decisive action (handoff, clue, object exchange, page reading, key insertion), choose which one is primary. Do not demand both as equally readable in one medium-wide frame.',
+    '- If the primary read is an exchange or handoff, the giver, receiver, and object must sit in one clear readable cluster. Do not separate them across large depth gaps or barrier geography.',
+    '- When an environment image will exist downstream, treat environment layout as a fixed support layer. Put stable layout and static-object geography in environments[].description, then keep sceneVisual lean and focused on the characters, the moment, and any visible state change.',
+    '',
+    'VISIBLE LANGUAGE ONLY:',
+    '- Describe what is actually visible in the frame: pose, expression, action, held objects, clothing, placement, environment, and lighting.',
+    '- Avoid abstract summaries such as "hacking the system", "feeling adventurous", or "a magical moment" unless the visual evidence is also stated concretely.',
+    '- Avoid inferred intent wording such as "as if ready to...", "as if searching for...", or "to help the others...". State only the visible action, posture, gaze, and result in the frame.',
+    '- For reference-grounded characters, sceneVisual.cameraComposition.characters[].description must stay reference-safe: it may direct pose, expression, gaze, head turn, action, placement, hand use, and temporary occlusion only. It must NOT restate or paraphrase stable identity traits from the sheet, including hair details, eye color, freckles, face shape, skin tone, body build, age markers, or signature facial features.',
+    '- Bad for reference-grounded characters: "adjusting her high ponytail", "freckles visible", "orange eyes look toward the tunnel", "wide eyes scan the wall". Good: "hand lifted near the head", "excited expression", "gaze directed toward the tunnel", "gaze directed toward the wall".',
+    '- Do not write pseudo-labels or colon-tagged object lines such as "stone gargoyle:" or "magic gate:". Describe non-character objects in normal prose, not as labeled entries.',
+    '- Use canonical character names consistently inside sceneVisual. Do not switch scripts or transliterations for the same character within one output.',
+    '- For reference-grounded animals or creature companions, prefer morphology-safe wording: pose, gaze, placement, wings spread, standing beside, hovering above. Do not invent extra anatomy detail or comedy styling.',
+    '',
+    'RENDERABILITY AND SHOT SELECTION:',
+    '- Prefer a composition that makes the key story action immediately readable over a composition that looks cinematic or symmetrical.',
+    '- sceneVisual must visually realize primaryRead, not fight it. If sceneVisual reads like a different focal event than primaryRead, rewrite sceneVisual until they match.',
+    '- If important information depends on small hand-object contact, object-slot alignment, a clue on a page, a tiny facial reaction, or another fine detail, choose a close enough shot for that detail to read clearly. Do NOT hide tiny critical actions inside a wide or medium-wide tableau.',
+    '- If a barrier or depth transition (ravine, river, bridge span, doorway threshold, cliff edge, balcony gap) separates camera from the key action, do not keep the camera on the wrong side just to show the whole geography. Move closer to the action or demote the small action to supporting state.',
+    '- Avoid overloading one frame with multiple separate micro-interactions that all require precise reading at once. If the scene contains a puzzle, mechanism, or several coordinated activations, choose the single most readable decisive instant and let the other relevant effects be visible as supporting state, not as three equally tiny simultaneous actions.',
+    '- Do not add secondary composition goals such as "triangle composition", "perfect symmetry", or decorative staging when they compete with readability of the plot-critical action.',
+    '- Do not rely on weakly visible wording such as "slightly ajar", "tiny gap", "barely visible", "subtle creak implied", or other near-invisible cues for something story-important. If it matters, make it clearly visible and plainly described.',
+    '- For mechanisms, clues, or directional relationships, explicitly decide what must be large and readable in frame, and remove nonessential fine details that compete with that read.',
+    '- For handoffs, gifts, exchanges, or receiving moments: one supporting character may witness or present, but do not assign several equally expressive gestures that pull focus away from the object transfer itself.',
+    '- If one character is performing the primary action, keep secondary characters visually quieter. Avoid extra flourishes like mid-hop comedy beats, tongue-out poses, big wing flourishes, or dramatic hover loops unless that secondary action is itself the primary read.',
+    '- For non-human sidekicks or creature companions that are reference-grounded but not the primary read, prefer calm, readable poses over comic distortion: standing close, upright beside, perched, or steady hovering usually work better than mid-hop, tongue-out, exaggerated bounce, or looping motion.',
+    '- If a non-human companion must stay highly recognizable, keep its silhouette, head shape, ear/wing shape, facial marking pattern, and overall body proportions stable by not assigning a pose that would distort those features.',
+    '- Avoid bracketed stage-direction tags or meta markers such as "[excited]", "[whisper]", "[shouting]". Convert them into plain visual language.',
+    '',
+    'POSITIVE PHRASING:',
+    '- Use positive visual phrasing. State what is present, not what is absent.',
+    '- Prefer "clear blue sky", "bare head", or "short brown hair" over "no clouds", "no hat", or "without long hair".',
+    '',
+    'KEEP IT LEAN:',
+    '- Do not overload the prompt with unnecessary details that do not help recognizability or scene clarity.',
+    '- If extra detail does not change what the illustrator should draw, leave it out.',
   ].join('\n');
 }
 
@@ -763,7 +836,7 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
     'CRITICAL - sceneVisual (structured visual description for image generation):',
     '- "sceneVisual" is an object with three fields, ALL IN ENGLISH:',
     withStyleHint(
-      '  - "setting": DELTA ONLY - Scene-specific additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific state (door open/closed, curtains drawn/open), items being actively used, lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. If minimal changes, describe time-of-day atmosphere or specific focus. Write IN ENGLISH.',
+      '  - "setting": DELTA ONLY - Scene-specific additions IN ENGLISH. Describe ONLY what is NEW, CHANGED, or TRANSIENT in this scene compared to the base environment description: temporary objects (mugs on table, books open, toys on floor), scene-specific state (door open/closed, curtains drawn/open), items being actively used, lighting changes (candles lit, lamps on/off), weather effects (rain outside, fog). DO NOT repeat base structure (walls, permanent furniture, fixed layout) - that comes from environment.description. Write as standalone additions. If minimal changes, describe time-of-day atmosphere or one concrete visible change. Write IN ENGLISH.',
       styleGuidance?.setting
     ),
     '    - STANDALONE: NEVER use "the same X", "as before", "continuing from previous scene". If the location is unchanged, REPEAT the key visual elements (describe the nook, foliage, objects) — do not reference other scenes.',
@@ -771,10 +844,12 @@ export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: 
       '  - "cameraComposition": An OBJECT with two fields:',
       styleGuidance?.composition
     ),
-    '    - "shot": Camera angle (wide/medium/close-up), eye level, focal point. IN ENGLISH.',
+    '    - "shot": Camera angle (wide/medium/close-up), eye level, and framing. IN ENGLISH.',
     '    - "characters": Array of objects — one entry per character physically present in the scene. Maximum 3 characters. Each entry has:',
     '      - "name": EXACT character name from the story character list',
-    `      - "description": Position in frame (foreground/background, left/right/center), body posture, action, facial expression, gaze direction. Use positions relative to static objects from environment (e.g. "beside the tree", "on the path"). ${SPATIAL_POSITION_RULE} IN ENGLISH.`,
+    `      - "description": Position in frame (foreground/background, left/right/center), body posture, visible action, facial expression, gaze direction. Use positions relative to static objects from environment (e.g. "beside the tree", "on the path"). ${SPATIAL_POSITION_RULE} IN ENGLISH.`,
+    '      - For reference-grounded characters, do NOT restate stable identity traits here (no hairstyle, hair color, eye color, freckles, face shape, skin tone, or other enduring appearance details). Keep this field about the frozen moment only.',
+    '      - Avoid inferred intent phrasing such as "as if ready to enter", "as if searching for clues", or "to help the others see". Describe only what is visibly happening in the frame.',
     '      - When a character points, looks, or gestures toward something story-significant, include the target in that character\'s description and make the direction explicit (e.g. not only "standing center, pointing toward the sea" but "center-right on wet sand, arm outstretched, pointing directly at the dolphin circling near the rocky reef, eyes fixed on it" when the text supports that level of specificity).',
     '      - "outfitId": EXACT id from top-level outfits[] for this character in this scene (wardrobe reference; creatures/animals use a row with description "natural appearance").',
     withStyleHint(
@@ -865,6 +940,7 @@ export function formatVisualStoryRules(opts?: {
   imageStyle?: string | null;
   scenarioCardId?: string;
   policyProfile?: PolicyProfile;
+  includeAudioTagsRules?: boolean;
 }): string {
   const policyProfile = opts?.policyProfile ?? {
     ageGroup: '6-8',
@@ -875,10 +951,12 @@ export function formatVisualStoryRules(opts?: {
     readability: { maxSentenceLen: 18, targetWordsRange: [500, 800], dialogRatio: 0.5 },
     promptGuidelines: '',
   };
-  const audioTagsRules = getContentPolicy({
-    policyProfile,
-    scenarioCardId: opts?.scenarioCardId,
-  }).audioTagsRules;
+  const audioTagsRules = opts?.includeAudioTagsRules === false
+    ? null
+    : getContentPolicy({
+        policyProfile,
+        scenarioCardId: opts?.scenarioCardId,
+      }).audioTagsRules;
 
   const parts = [
     formatCharacterOutfitsMandatory(),

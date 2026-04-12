@@ -35,6 +35,17 @@ function getConfigKey(provider: string, model?: string): string {
   return 'gemini-3-flash-preview';
 }
 
+function getTextCostConfig(modelKey: string) {
+  if (AI_COST_CONFIG.text[modelKey]) return AI_COST_CONFIG.text[modelKey];
+  // Validation currently defaults to gemini-2.5-flash-lite, which may not have
+  // an explicit pricing row in local config. Use same-family flash pricing as a
+  // conservative fallback instead of unrelated gemini-3-flash-preview pricing.
+  if (modelKey.startsWith('gemini-2.5-flash-lite')) {
+    return AI_COST_CONFIG.text['gemini-2.5-flash'];
+  }
+  return AI_COST_CONFIG.text['gemini-3-flash-preview'];
+}
+
 /**
  * Calculate cost in USD from usage metadata
  */
@@ -48,7 +59,7 @@ function calculateCost(usage: UsageMetadata): number | null {
 
   try {
     if (operation.includes('text') || operation === 'character_analysis' || operation === 'translation' || operation === 'face_dedup' || operation === 'image_validation' || operation === 'validateScene' || operation === 'regenerateScene' || operation === 'director') {
-      const textConfig = AI_COST_CONFIG.text[modelKey] || AI_COST_CONFIG.text['gemini-3-flash-preview'];
+      const textConfig = getTextCostConfig(modelKey);
       if (textConfig && 'inputPer1M' in textConfig) {
         const inputCost = (billedInputUnits / 1e6) * textConfig.inputPer1M;
         const outputCost = ((usage.outputUnits ?? 0) / 1e6) * textConfig.outputPer1M;
@@ -175,7 +186,7 @@ export async function getStoryCost(storyId: string): Promise<number> {
  * Get cost breakdown for a story (for admin/debug)
  */
 export async function getStoryCostBreakdown(storyId: string): Promise<
-  Array<{ provider: string; operation: string; model: string | null; costUsd: number }>
+  Array<{ provider: string; operation: string; model: string | null; costUsd: number; createdAt: Date }>
 > {
   return getAiUsageRepository().getStoryCostBreakdown(storyId);
 }

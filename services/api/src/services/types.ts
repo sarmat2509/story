@@ -87,6 +87,7 @@ export function flattenCameraComposition(
 export interface SceneData {
   sceneId: number;
   text: string;
+  primaryRead?: string;
   sceneVisual?: SceneVisual; // Structured visual description for image generation
   visualPrompt?: string; // Deprecated: kept for backward compatibility with old stories
   /** Maps character name → outfit id from story root `outfits[]` (new format). */
@@ -107,6 +108,7 @@ export interface OutlineData {
   characters?: LLMCharacter[];
   scenes: Array<{
     sceneId: number;
+    primaryRead?: string;
     sceneVisual?: SceneVisual;
     visualPrompt?: string; // Deprecated: kept for backward compatibility
     setting?: string;

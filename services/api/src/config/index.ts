@@ -121,6 +121,16 @@ export const config = {
     validationMaxRetries: parseInt(process.env.IMAGE_VALIDATION_MAX_RETRIES || '2', 10),
     /** Scene image accepted when computeValidationScore(...) is strictly greater than this (no LLM isValid). */
     validationMinAcceptScore: parseInt(process.env.IMAGE_VALIDATION_MIN_ACCEPT_SCORE || '85', 10),
+    /** Validation-only downscale for the generated scene image sent to the vision model. */
+    validationSceneMaxSide: parseInt(
+      process.env.IMAGE_VALIDATION_SCENE_MAX_SIDE || '1024',
+      10,
+    ),
+    /** Validation-only downscale for per-character identity reference images. */
+    validationReferenceMaxSide: parseInt(
+      process.env.IMAGE_VALIDATION_REFERENCE_MAX_SIDE || '768',
+      10,
+    ),
     // Legacy single cap (prefer bucket limits below for Gemini 3.1 image)
     maxReferenceImages: parseInt(process.env.IMAGE_MAX_REFERENCE_IMAGES || '14', 10),
     /** Identity refs: turnaround / child / character sheets (Gemini 3.1: up to 4) */
@@ -170,8 +180,8 @@ export const config = {
     llmTurnaroundEmbeddingSimilarityThreshold: parseFloat(
       process.env.LLM_TURNAROUND_EMBEDDING_SIMILARITY_THRESHOLD || '0.95'
     ),
-    // Skip environment reference image when only one scene has images — cost optimization
-    skipEnvImageForSingleScene: process.env.SKIP_ENV_IMAGE_FOR_SINGLE_SCENE !== 'false',
+    // Generate environment references for every unique environment unless a reusable match is found.
+    skipEnvImageForSingleScene: process.env.SKIP_ENV_IMAGE_FOR_SINGLE_SCENE === 'true',
     environmentImageStyle:
       process.env.ENVIRONMENT_IMAGE_STYLE ||
       'clean line art, simple shapes, clear spatial layout',

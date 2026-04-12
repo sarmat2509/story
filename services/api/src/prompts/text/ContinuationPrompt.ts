@@ -111,7 +111,10 @@ ${validUsedPlots.length > 0 ? `- DO NOT repeat these plot elements: ${validUsedP
 - MUST have a satisfying conclusion for this episode
 - OPTIONAL: Add a gentle cliffhanger or hint for next episode
 - DO NOT repeat physical appearance of required/optional characters (from previous episodes). Use names and actions directly. Avoid "Emilia with her bright eyes...", "Flash, round and yellow...". Start with action.
-- NEW characters: MUST describe their appearance when first introduced (for reader and image generation). Add to characters array with detailed description.
+- Do NOT mention clothing in scene prose, even if clothes changed. Wardrobe belongs in outfits[] and sceneVisual only.
+- Avoid prose about hair color, eye color, freckles, face shape, skin tone, or other stable appearance traits unless one brief mention is truly needed for a NEW character's first introduction.
+- Describe physical appearance in scene prose only for genuinely NEW LLM-invented characters that were not present in the provided story context before this story/episode.
+- NEW characters: if needed, give only one brief first-glance visual cue in scene prose at first introduction. Add the full detailed appearance to characters[] instead.
 
 ${helpers.formatStoryRequirements({ spec, sceneCount })}
 
@@ -128,7 +131,10 @@ ${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle, scenarioCardId: 
 OUTPUT FORMAT: Same as DirectTextPrompt (JSON with title, language, characters, moral, scenes with sceneVisual.cameraComposition.characters each including outfitId, outfits array, environments). Generate outfits then environments LAST. Wardrobe is ONLY in outfits[] and per-character outfitId on camera rows — not on environments.
 
 IMPORTANT - Character Descriptions:
-- In scene TEXT: Do NOT re-describe required/optional characters. NEW characters — MUST describe appearance when first introduced.
+- In scene TEXT: Do NOT re-describe required/optional characters. NEW characters may get only one brief first-glance appearance cue when first introduced.
+- In scene TEXT: NEVER describe clothing or outfit details. Do not mention jackets, coats, bombers, dresses, scarves, boots, hats, uniforms, or color/pattern details of clothes.
+- In scene TEXT: Minimize stable appearance details such as hair color/style, eye color, freckles, face shape, skin tone, or body build. Use them only if absolutely needed once for a NEW character's first introduction.
+- In scene TEXT: Describe physical appearance only for genuinely NEW LLM-invented characters that were not already present in the provided story context.
 - characters array: Include ONLY new characters. Provide DETAILED visual descriptions (appearance, colors, size, distinctive features, clothing) for each.
 ${validRequiredChars.length > 0 || validOptionalChars.length > 0 
   ? '- Do NOT include required/optional characters from above in output\n' 
@@ -211,7 +217,10 @@ ${validUsedPlots.length > 0 ? `- DO NOT repeat these plot elements: ${validUsedP
 - Maintain the same tone and age-appropriateness
 - MUST have a satisfying conclusion for this episode
 - DO NOT repeat physical appearance of required/optional characters (from previous episodes). Use names and actions directly. Avoid "Emilia with her bright eyes...", "Flash, round and yellow...". Start with action.
-- NEW characters: MUST describe their appearance when first introduced (for reader and image generation).
+- Do NOT mention clothing in scene prose, even if clothes changed. Wardrobe belongs in outfits[] and sceneVisual only.
+- Avoid prose about hair color, eye color, freckles, face shape, skin tone, or other stable appearance traits unless one brief mention is truly needed for a NEW character's first introduction.
+- Describe physical appearance in scene prose only for genuinely NEW LLM-invented characters that were not present in the provided story context before this story/episode.
+- NEW characters: if needed, give only one brief first-glance visual cue in scene prose at first introduction.
 
 ${helpers.formatStoryRequirements({ spec, sceneCount })}
 

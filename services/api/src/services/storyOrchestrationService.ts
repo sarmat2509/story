@@ -34,7 +34,7 @@ import { buildPolicyProfile } from './policyService';
 import { getGenerationCoefficients } from './generationTimeService';
 import type { StorySpec, StoryEnvironment, ImageValidationResult } from '../ai/types';
 import {
-  charHasTurnaroundRef,
+  charHasIdentityReference,
   findExpectedForValidationChar,
 } from '../domain/image/imageValidationRun';
 import { logger } from '../utils/logger';
@@ -51,6 +51,7 @@ import {
 import {
   applyReferenceBucketLimits,
   assignSequentialImageIndices,
+  buildPlaceholderReferenceNameMap,
   collectOutfitPlateImageIndices,
   logReferenceBucketDelivery,
 } from './referenceImageBuckets';
@@ -82,6 +83,7 @@ import {
   type ReferencePhoto,
   type AppearanceTraits,
 } from './types';
+import type { BuiltScenePromptPayload } from '../domain/image/ImageDomainService';
 // NEW M9: Character-based reference tracking
 import {
   buildCharacterRegistry,
@@ -114,6 +116,8 @@ const ESTIMATED_SCENE_COUNT_BY_AGE_GROUP: Record<string, number> = {
   '6-8': 9,
   '9-12': 11,
 };
+
+const IMAGE_PROMPT_DEBUG_ROOT = path.resolve(__dirname, '../../../..', 'image-prompt-debug');
 
 function estimateSceneCountForAgeGroup(ageGroup?: string): number {
   if (!ageGroup) return 6;
@@ -1318,8 +1322,7 @@ async function prepareFilesApiAndSystemInstruction(params: {
 
   const hasAnyReferences =
     allCharacters.some(hasVisualAsset) ||
-    !!hasLazyLlmRefPotential ||
-    config.image.enableEnvironmentReference;
+    !!hasLazyLlmRefPotential;
 
   const style = params.userStyle || imageDomain.buildImageStyle(spec.ageGroup);
 
@@ -1327,7 +1330,7 @@ async function prepareFilesApiAndSystemInstruction(params: {
     style,
     ageGroup: spec.ageGroup,
     hasReferences: hasAnyReferences,
-    hasEnvironmentReference: config.image.enableEnvironmentReference,
+    hasEnvironmentReference: false,
     scenarioCardId: spec.scenarioCard?.id,
   });
 
@@ -1401,7 +1404,6 @@ async function prepareSceneEnvironmentReference(params: {
   assetStorage: ReturnType<typeof getAssetStorageService>;
   imageDomain: ReturnType<typeof getImageDomainService>;
   scenarioCardId?: string;
-  scenesUsingThisEnv?: number;
   previousStoryIds?: string[];
 }): Promise<EnvImageData | null> {
   const {
@@ -1412,7 +1414,6 @@ async function prepareSceneEnvironmentReference(params: {
     assetStorage,
     imageDomain,
     scenarioCardId,
-    scenesUsingThisEnv,
     previousStoryIds,
   } = params;
 
@@ -1427,7 +1428,6 @@ async function prepareSceneEnvironmentReference(params: {
     environment,
     assetStorage,
     scenarioCardId,
-    scenesUsingThisEnv,
     ...(previousStoryIds && previousStoryIds.length > 0 ? { previousStoryIds } : {}),
   });
 
@@ -1764,15 +1764,6 @@ export async function processStoryImages(requestId: string): Promise<void> {
           .map(s => s.sceneId)
       );
 
-      // Pre-compute scenes per environment (for single-scene skip optimization)
-      const scenesPerEnvironment = new Map<string, number>();
-      for (const s of scenesToGenerate) {
-        const envId = (s as any).environmentId;
-        if (envId) {
-          scenesPerEnvironment.set(envId, (scenesPerEnvironment.get(envId) || 0) + 1);
-        }
-      }
-
       // For continuation: get previous story IDs in series to reuse env images
       let previousStoryIds: string[] = [];
       if (isContinuation && checkpoints.seriesId) {
@@ -1897,7 +1888,6 @@ export async function processStoryImages(requestId: string): Promise<void> {
               assetStorage,
               imageDomain,
               scenarioCardId: spec.scenarioCard?.id,
-              scenesUsingThisEnv: scenesPerEnvironment.get(currentEnvironmentId) ?? 0,
               ...(previousStoryIds.length > 0 ? { previousStoryIds } : {}),
             });
             envImagePending.set(currentEnvironmentId, pending);
@@ -2547,13 +2537,12 @@ async function getOrCreateEnvironmentImage(params: {
   environment: StoryEnvironment;
   assetStorage: ReturnType<typeof getAssetStorageService>;
   scenarioCardId?: string;
-  scenesUsingThisEnv?: number;
   /** For continuation: check previous parts in series for cached env image */
   previousStoryIds?: string[];
 }): Promise<EnvImageData | null> {
   if (!config.image.enableEnvironmentReference) return null;
 
-  const { storyId, userId, storyEnvironmentId, environment, assetStorage, scenarioCardId, scenesUsingThisEnv, previousStoryIds } = params;
+  const { storyId, userId, storyEnvironmentId, environment, assetStorage, scenarioCardId, previousStoryIds } = params;
   const envCacheRepo = getEnvironmentImageCacheRepository();
   const storyEnvRepo = getStoryEnvironmentCacheRepository();
   const threshold = config.image.environmentEmbeddingSimilarityThreshold;
@@ -2606,18 +2595,6 @@ async function getOrCreateEnvironmentImage(params: {
       mimeType: 'image/png',
       storagePath: similar.storagePath,
     };
-  }
-
-  // 2.5. Skip environment reference image for single-scene stories (cost optimization)
-  if (
-    config.image.skipEnvImageForSingleScene &&
-    scenesUsingThisEnv === 1
-  ) {
-    logger.info(
-      { storyEnvironmentId, scenesUsingThisEnv },
-      'Skipping environment reference image for single-scene environment'
-    );
-    return null;
   }
 
   // 3. Generate with Gemini Flash Image (env provider)
@@ -2770,20 +2747,40 @@ function isRetryableGenerationError(error: unknown): boolean {
 async function generateWithRetry(
   imageDomain: ReturnType<typeof getImageDomainService>,
   generateRequest: Parameters<ReturnType<typeof getImageDomainService>['generateSceneWithReference']>[0],
-  context: { storyId: string; sceneId: number; userId?: string },
+  context: {
+    storyId: string;
+    sceneId: number;
+    userId?: string;
+    nextPromptAttemptId?: () => number;
+    validationAttempt?: number;
+  },
 ): Promise<ReturnType<ReturnType<typeof getImageDomainService>['generateSceneWithReference']>> {
   const usageContext = { userId: context.userId ?? null, storyId: context.storyId };
   const onUsage = (u: UsageMetadata) => recordUsage(u, usageContext);
   let lastError: unknown;
   for (let retry = 0; retry <= MAX_GENERATION_RETRIES; retry++) {
+    const promptAttemptId = context.nextPromptAttemptId ? context.nextPromptAttemptId() : retry + 1;
     try {
-      return await imageDomain.generateSceneWithReference(generateRequest, { onUsage });
+      return await imageDomain.generateSceneWithReference(generateRequest, {
+        onUsage,
+        onBuiltPrompt: async (payload) => {
+          await saveImagePromptDebugArtifact({
+            storyId: context.storyId,
+            sceneId: context.sceneId,
+            attemptId: promptAttemptId,
+            providerRetry: retry + 1,
+            validationAttempt: context.validationAttempt,
+            payload,
+          });
+        },
+      });
     } catch (error) {
       lastError = error;
       if (isRetryableGenerationError(error) && retry < MAX_GENERATION_RETRIES) {
         logger.warn({
           storyId: context.storyId,
           sceneId: context.sceneId,
+          promptAttemptId,
           retry: retry + 1,
           maxRetries: MAX_GENERATION_RETRIES,
           error: error instanceof Error ? error.message : String(error),
@@ -2799,17 +2796,156 @@ async function generateWithRetry(
   throw lastError;
 }
 
+async function saveImagePromptDebugArtifact(params: {
+  storyId: string;
+  sceneId: number;
+  attemptId: number;
+  providerRetry: number;
+  validationAttempt?: number;
+  payload: BuiltScenePromptPayload;
+}): Promise<void> {
+  try {
+    const storyDir = path.join(IMAGE_PROMPT_DEBUG_ROOT, params.storyId);
+    await fs.mkdir(storyDir, { recursive: true });
+
+    const filePath = path.join(
+      storyDir,
+      `${params.sceneId}-${params.attemptId}.json`,
+    );
+
+    const debugRecord = {
+      storyId: params.storyId,
+      sceneId: params.sceneId,
+      attemptId: params.attemptId,
+      providerRetry: params.providerRetry,
+      validationAttempt: params.validationAttempt ?? null,
+      savedAt: new Date().toISOString(),
+      primaryRead: params.payload.primaryRead ?? null,
+      prompt: params.payload.prompt,
+      systemInstruction: params.payload.systemInstruction ?? null,
+      aspectRatio: params.payload.aspectRatio ?? null,
+      referenceImages: (params.payload.referenceImages ?? []).map((ref, index) => ({
+        index: index + 1,
+        instructionText: ref.instructionText ?? null,
+        characterName: ref.characterName ?? null,
+        referenceKind: ref.referenceKind ?? null,
+        mimeType: ref.mimeType ?? null,
+        fileUri: ref.fileUri ?? null,
+        url: ref.url ?? null,
+        hasBase64Data: ref.hasBase64Data,
+      })),
+      fullTextPrompt:
+        `PRIMARY READ:\n${params.payload.primaryRead ?? ''}\n\n` +
+        `SYSTEM INSTRUCTION:\n${params.payload.systemInstruction ?? ''}\n\n` +
+        `USER PROMPT:\n${params.payload.prompt}\n\n` +
+        `REFERENCE IMAGES:\n${JSON.stringify(
+          (params.payload.referenceImages ?? []).map((ref, index) => ({
+            index: index + 1,
+            instructionText: ref.instructionText ?? null,
+            characterName: ref.characterName ?? null,
+            referenceKind: ref.referenceKind ?? null,
+            mimeType: ref.mimeType ?? null,
+            fileUri: ref.fileUri ?? null,
+            url: ref.url ?? null,
+            hasBase64Data: ref.hasBase64Data,
+          })),
+          null,
+          2,
+        )}`,
+    };
+
+    await fs.writeFile(filePath, JSON.stringify(debugRecord, null, 2), 'utf-8');
+  } catch (error) {
+    logger.warn(
+      {
+        storyId: params.storyId,
+        sceneId: params.sceneId,
+        attemptId: params.attemptId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      'Failed to save image prompt debug artifact',
+    );
+  }
+}
+
 /**
  * Compute a 0-100 quality score from image validation results.
  * Higher = better. Score = 100 minus penalties per character and global penalties.
  * Acceptance uses score > threshold only (no LLM isValid). Structural inconsistencies (characterKind vs
  * expected, imaginary design-read flags) add penalties so they cannot pass on model optimism alone.
  */
+const SCENE_AUTH_TRANSIENT_FORM_RE =
+  /\b(transparent|translucent|see[- ]?through|spectral|ghostly|ethereal|shimmer(?:ing)?(?:\s+outline)?|glow(?:ing)?(?:\s+outline)?|glimmer(?:ing)?|spark(?:le|ling|ly)|luminous|radiant|aura|mist(?:y)?|smok(?:e|y)|semi-transparent)\b/i;
+const SCENE_AUTH_EXPRESSION_RE =
+  /\b(expression|gaze|startled|surprised|shocked|worried|afraid|scared|sleepy|calm|neutral|happy|sad|angry|excited|delighted|determined|curious|wide-eyed|smil(?:e|ing)|frown(?:ing)?|tearful)\b/i;
+const VALIDATION_TRANSIENT_FORM_MISMATCH_RE =
+  /\b(transparent|translucent|solid form|opaque|spectral|ghostly|ethereal|shimmer(?:ing)?(?:\s+outline)?|glow(?:ing)?(?:\s+outline)?|outline|aura|mist(?:y)?|smok(?:e|y)|luminous|radiant)\b/i;
+const VALIDATION_EXPRESSION_MISMATCH_RE =
+  /\b(expression|gaze|emotion|startled|surprised|neutral|happy|sad|angry|excited|wide-eyed|smil(?:e|ing)|frown(?:ing)?|sleepy|worried|afraid)\b/i;
+const HARD_IDENTITY_DRIFT_RE =
+  /\b(face\s*shape|facial\s*structure|head\s*shape|muzzle|snout|hair|hairstyle|age\s*read|proportion|silhouette|body\s*type|species|subtype|markings|stripes?|spots?|wrong\s+character|different\s+character|extra\s+limb|missing\s+limb)\b/i;
+
+function buildCharacterSceneBrief(sceneVisual: SceneVisual | undefined, characterName: string): string {
+  if (!sceneVisual) return '';
+
+  const parts: string[] = [];
+  if (sceneVisual.setting?.trim()) parts.push(sceneVisual.setting.trim());
+  if (sceneVisual.lighting?.trim()) parts.push(sceneVisual.lighting.trim());
+
+  const cameraComposition = sceneVisual.cameraComposition;
+  if (typeof cameraComposition === 'string') {
+    if (cameraComposition.trim()) parts.push(cameraComposition.trim());
+  } else {
+    if (cameraComposition.shot?.trim()) parts.push(cameraComposition.shot.trim());
+    const targetName = stripCharacterIdFromName(characterName).trim().toLowerCase();
+    const matchingRow = cameraComposition.characters.find(
+      (row) => stripCharacterIdFromName(row.name).trim().toLowerCase() === targetName,
+    );
+    if (matchingRow?.description?.trim()) {
+      parts.push(matchingRow.description.trim());
+    }
+  }
+
+  return parts.join(' ').toLowerCase();
+}
+
+function getSceneAuthorizedValidationLeniency(
+  characterName: string,
+  sceneVisual: SceneVisual | undefined,
+  validationCharacter: ImageValidationResult['characters'][0],
+): {
+  transientFormAuthorizedConflict: boolean;
+  expressionAuthorizedConflict: boolean;
+} {
+  const sceneBrief = buildCharacterSceneBrief(sceneVisual, characterName);
+  if (!sceneBrief) {
+    return {
+      transientFormAuthorizedConflict: false,
+      expressionAuthorizedConflict: false,
+    };
+  }
+
+  const issueText = `${validationCharacter.issue ?? ''} ${validationCharacter.identityComparisonSummary ?? ''}`.toLowerCase();
+  const hasHardIdentityDrift = HARD_IDENTITY_DRIFT_RE.test(issueText);
+
+  return {
+    transientFormAuthorizedConflict:
+      SCENE_AUTH_TRANSIENT_FORM_RE.test(sceneBrief) &&
+      VALIDATION_TRANSIENT_FORM_MISMATCH_RE.test(issueText) &&
+      !hasHardIdentityDrift,
+    expressionAuthorizedConflict:
+      SCENE_AUTH_EXPRESSION_RE.test(sceneBrief) &&
+      VALIDATION_EXPRESSION_MISMATCH_RE.test(issueText) &&
+      !hasHardIdentityDrift,
+  };
+}
+
 function computeValidationScore(
   validation: ImageValidationResult,
   options?: {
     referenceNamesNormalized?: Set<string>;
     expectedCharacters?: Array<{ name: string; isImaginary: boolean }>;
+    sceneVisual?: SceneVisual;
     validationReferenceImages?: Array<{
       characterName: string;
       imageData?: string;
@@ -2822,6 +2958,7 @@ function computeValidationScore(
   let score = 100;
   const refSet = options?.referenceNamesNormalized;
   const expected = options?.expectedCharacters;
+  const sceneVisual = options?.sceneVisual;
   const valRefs = options?.validationReferenceImages;
 
   if (validation.characterCount !== validation.expectedCharacterCount) {
@@ -2829,10 +2966,17 @@ function computeValidationScore(
   }
 
   for (const c of validation.characters) {
-    const recScore = c.recognizableScore ?? 1;
+    const leniency = getSceneAuthorizedValidationLeniency(c.name, sceneVisual, c);
+    const recScoreRaw = c.recognizableScore ?? 1;
+    const recScore = leniency.transientFormAuthorizedConflict
+      ? Math.max(recScoreRaw, 0.93)
+      : leniency.expressionAuthorizedConflict
+        ? Math.max(recScoreRaw, 0.96)
+        : recScoreRaw;
+
     score -= (1 - recScore) * p.recognizablePenalty;
     if (c.duplicated) score -= p.duplicatedPenalty;
-    if (!c.matchesColors) score -= p.matchesColorsPenalty;
+    if (!c.matchesColors && !leniency.transientFormAuthorizedConflict) score -= p.matchesColorsPenalty;
     if (!c.matchesOutfit) score -= p.matchesOutfitPenalty;
 
     const norm = stripCharacterIdFromName(c.name).trim().toLowerCase();
@@ -2840,7 +2984,7 @@ function computeValidationScore(
       c.characterKind === 'human' && refSet && refSet.size > 0 && refSet.has(norm);
 
     if (humanWithRef) {
-      if (!c.faceMatchesReference) score -= p.humanIdentityFlagPenalty;
+      if (!c.faceMatchesReference && !leniency.expressionAuthorizedConflict) score -= p.humanIdentityFlagPenalty;
       if (!c.hairMatchesReference) score -= p.humanIdentityFlagPenalty;
       if (!c.ageReadMatchesReference) score -= p.humanIdentityFlagPenalty;
       if (!c.proportionsMatchReference) score -= p.humanIdentityFlagPenalty;
@@ -2855,15 +2999,15 @@ function computeValidationScore(
       score -= 45;
     }
 
-    if (exp?.isImaginary && charHasTurnaroundRef(c.name, valRefs)) {
-      if (c.sameOverallDesignRead === false) {
+    if (exp?.isImaginary && charHasIdentityReference(c.name, valRefs)) {
+      if (c.sameOverallDesignRead === false && !leniency.transientFormAuthorizedConflict) {
         score -= 22;
       }
-      if (c.silhouetteDriftSeverity === 'severe') {
+      if (c.silhouetteDriftSeverity === 'severe' && !leniency.transientFormAuthorizedConflict) {
         score -= 28;
-      } else if (c.silhouetteDriftSeverity === 'moderate') {
+      } else if (c.silhouetteDriftSeverity === 'moderate' && !leniency.transientFormAuthorizedConflict) {
         score -= 14;
-      } else if (c.silhouetteDriftSeverity === 'mild') {
+      } else if (c.silhouetteDriftSeverity === 'mild' && !leniency.transientFormAuthorizedConflict) {
         score -= 5;
       }
     }
@@ -3083,8 +3227,32 @@ async function generateSceneImageWithReference(
       }, 'Added child profile to character descriptions for image generation');
     }
     
+    const sceneCharacterNamesForRefs =
+      scene.sceneVisual?.cameraComposition
+        ? flattenCameraComposition(scene.sceneVisual.cameraComposition).characterNames
+        : ((scene as any).visualCharacters || (scene as any).characters || []);
+
+    const placeholderReferenceNameMap = buildPlaceholderReferenceNameMap(
+      (context.referenceImageDataArray || [])
+        .filter((ref) =>
+          ref.source === 'imaginary_friend' ||
+          ref.source === 'child_reference' ||
+          ref.source === 'character_reference',
+        )
+        .map((ref) => ref.characterName),
+      sceneCharacterNamesForRefs,
+    );
+
+    const resolvedReferenceImageDataArray = context.referenceImageDataArray?.map((ref) => {
+      if (!ref.characterName) return ref;
+      const resolvedName = placeholderReferenceNameMap.get(ref.characterName);
+      return resolvedName && resolvedName !== ref.characterName
+        ? { ...ref, characterName: resolvedName }
+        : ref;
+    });
+
     // Build reference images array with Google Asset Graph numbered labels
-    const referenceImagesArray = context.referenceImageDataArray?.map((ref, index) => {
+    const referenceImagesArray = resolvedReferenceImageDataArray?.map((ref, index) => {
       const refSource = (ref as any).source;
       const refImageIndex = (ref as any).imageIndex ?? (index + 1);
       const meta: ReferenceMetadata = {
@@ -3156,7 +3324,7 @@ async function generateSceneImageWithReference(
     // Classify characters into imaginary (with reference images) vs real-world (text description only)
     const imaginaryCharNameSet = new Set<string>();
     const imaginaryCharacters: Array<{ name: string; isTurnaround?: boolean }> = [];
-    for (const ref of context.referenceImageDataArray || []) {
+    for (const ref of resolvedReferenceImageDataArray || []) {
       if (
         (ref.type === 'imaginary' ||
           ref.type === 'child_reference' ||
@@ -3183,7 +3351,7 @@ async function generateSceneImageWithReference(
     ) ?? false;
 
     const outfitPlateImageIndexByCharacter = collectOutfitPlateImageIndices(
-      context.referenceImageDataArray,
+      resolvedReferenceImageDataArray,
     );
 
     const resolvedSceneOutfits = resolveCharacterOutfits(scene, context);
@@ -3193,6 +3361,7 @@ async function generateSceneImageWithReference(
     );
 
     const generateRequest = {
+      primaryRead: scene.primaryRead,
       sceneVisual: scene.sceneVisual,
       visualPrompt: scene.visualPrompt, // Fallback for old stories
       sceneId: scene.sceneId,
@@ -3211,12 +3380,26 @@ async function generateSceneImageWithReference(
       hasEnvironmentImageRef,
     };
 
+    let imagePromptAttemptCounter = 0;
+    const nextPromptAttemptId = () => {
+      imagePromptAttemptCounter += 1;
+      return imagePromptAttemptCounter;
+    };
+
     const maxAttempts = config.image.enableValidation
       ? config.image.validationMaxRetries + 1
       : 1;
 
     let image = await generateWithRetry(
-      context.imageDomain, generateRequest, { storyId, sceneId: scene.sceneId, userId: context.userId },
+      context.imageDomain,
+      generateRequest,
+      {
+        storyId,
+        sceneId: scene.sceneId,
+        userId: context.userId,
+        nextPromptAttemptId,
+        validationAttempt: 1,
+      },
     );
     let lastValidation: ImageValidationResult | null = null;
     const outfitByCharacter = omitOutfitProseForNonHumanCharacters(
@@ -3235,28 +3418,14 @@ async function generateSceneImageWithReference(
             ? serializeCharacterOutfitsToStr(outfitByCharacter)
             : undefined;
     const expectedCharacters = buildExpectedCharactersForValidation(
-      scene, context.characters, context.referenceImageDataArray, outfitByCharacter,
+      scene, context.characters, resolvedReferenceImageDataArray, outfitByCharacter,
     );
-    const validationReferenceImages: Array<{ characterName: string; imageData?: string; fileUri?: string; mimeType: string }> = [];
-    if (context.referenceImageDataArray) {
-      for (const ref of context.referenceImageDataArray) {
-        if ((ref as any).isTurnaround && (ref as any).characterName && ((ref as any).base64 || (ref as any).fileUri)) {
-          if ((ref as any).base64) {
-            validationReferenceImages.push({
-              characterName: (ref as any).characterName,
-              imageData: (ref as any).base64,
-              mimeType: (ref as any).mimeType || 'image/jpeg',
-            });
-          } else if ((ref as any).fileUri) {
-            validationReferenceImages.push({
-              characterName: (ref as any).characterName,
-              fileUri: (ref as any).fileUri,
-              mimeType: (ref as any).mimeType || 'image/jpeg',
-            });
-          }
-        }
-      }
-    }
+    const validationReferenceImages = await buildValidationReferenceImages({
+      expectedCharacters,
+      characters: context.characters,
+      assetStorage: context.assetStorage,
+      referenceImageDataArray: resolvedReferenceImageDataArray,
+    });
     const validationRefNamesNormalized = new Set(
       validationReferenceImages.map((r) =>
         stripCharacterIdFromName(r.characterName).trim().toLowerCase(),
@@ -3288,6 +3457,7 @@ async function generateSceneImageWithReference(
           const score = computeValidationScore(validation, {
             referenceNamesNormalized: validationRefNamesNormalized,
             expectedCharacters,
+            sceneVisual: scene.sceneVisual || migrateVisualPrompt(scene),
             validationReferenceImages,
           });
 
@@ -3373,7 +3543,7 @@ async function generateSceneImageWithReference(
                 attempt,
                 imageStoragePath: rejectedPath,
                 validationScore: score,
-                visionModel: config.ai.geminiVisionModel,
+                visionModel: config.ai.validationModel || config.ai.geminiVisionModel,
                 validation,
               });
             },
@@ -3387,7 +3557,15 @@ async function generateSceneImageWithReference(
             }, 'Validation failed — regenerating scene image from scratch');
 
             image = await generateWithRetry(
-              context.imageDomain, generateRequest, { storyId, sceneId: scene.sceneId, userId: context.userId },
+              context.imageDomain,
+              generateRequest,
+              {
+                storyId,
+                sceneId: scene.sceneId,
+                userId: context.userId,
+                nextPromptAttemptId,
+                validationAttempt: attempt + 1,
+              },
             );
           }
         } catch (validationError) {
@@ -3460,7 +3638,7 @@ async function generateSceneImageWithReference(
         attempt: finalValidationMeta.attempt,
         imageStoragePath: uploadResult.storagePath,
         validationScore: finalValidationMeta.score,
-        visionModel: config.ai.geminiVisionModel,
+        visionModel: config.ai.validationModel || config.ai.geminiVisionModel,
         validation: finalValidationMeta.validation,
       });
     }
@@ -3481,7 +3659,7 @@ async function generateSceneImageWithReference(
         referenceCount: referenceImagesArray?.length || 0,
         style: context.userStyle,
         hasSceneVisual: !!scene.sceneVisual,
-        referenceImages: context.referenceImageDataArray?.map((ref, index) => ({
+        referenceImages: resolvedReferenceImageDataArray?.map((ref, index) => ({
           index: index + 1,
           source: ref.source || 'unknown',
           characterName: ref.characterName || 'unknown',
@@ -3655,7 +3833,7 @@ function buildExpectedCharactersForValidation(
       || undefined;
 
     // All characters (imaginary and real-world) get text descriptions for validation.
-    // Validation is text-description-based — no reference images are sent.
+    // Identity refs may also be attached separately; this text stays the fallback/context channel.
     return {
       name,
       isImaginary,
@@ -3669,6 +3847,122 @@ function buildExpectedCharactersForValidation(
   });
 }
 
+function findCharacterForValidationName(
+  sceneName: string,
+  characters: CharacterData[],
+): CharacterData | undefined {
+  const normalizedSceneName = stripCharacterIdFromName(sceneName).trim().toLowerCase();
+  return characters.find((char) => {
+    const charName = stripCharacterIdFromName(char.name).trim().toLowerCase();
+    return charName === normalizedSceneName || char.name.trim().toLowerCase() === sceneName.trim().toLowerCase();
+  });
+}
+
+async function buildValidationReferenceImages(params: {
+  expectedCharacters: Array<{ name: string }>;
+  characters: CharacterData[];
+  assetStorage: ReturnType<typeof getAssetStorageService>;
+  referenceImageDataArray?: Array<{
+    source?: string;
+    characterName?: string;
+    base64?: string;
+    fileUri?: string;
+    mimeType?: string;
+  }>;
+}): Promise<Array<{
+  characterName: string;
+  imageData?: string;
+  fileUri?: string;
+  mimeType: string;
+  referenceKind?: 'identity' | 'outfit_plate';
+}>> {
+  const refs: Array<{
+    characterName: string;
+    imageData?: string;
+    fileUri?: string;
+    mimeType: string;
+    referenceKind?: 'identity' | 'outfit_plate';
+  }> = [];
+  const seenIdentity = new Set<string>();
+  const seenOutfitPlate = new Set<string>();
+
+  for (const expected of params.expectedCharacters) {
+    const char = findCharacterForValidationName(expected.name, params.characters);
+    const resolvedName = char?.name || expected.name;
+    const normalizedName = stripCharacterIdFromName(resolvedName).trim().toLowerCase();
+    if (!normalizedName || seenIdentity.has(normalizedName)) continue;
+    seenIdentity.add(normalizedName);
+
+    const turnaround = (char as any)?.turnaroundSheet as
+      | { url?: string; frontUrl?: string }
+      | null
+      | undefined;
+    const referencePhotoUrl = char?.referencePhotos?.find((photo) => photo?.url)?.url;
+    const chosenSource =
+      turnaround?.frontUrl?.trim()
+        ? 'front'
+        : referencePhotoUrl?.trim()
+          ? 'reference_photo'
+          : turnaround?.url?.trim()
+            ? 'turnaround'
+            : null;
+    const chosenUrl =
+      turnaround?.frontUrl?.trim()
+      || referencePhotoUrl?.trim()
+      || turnaround?.url?.trim();
+
+    if (!chosenUrl) continue;
+
+    try {
+      const data = await loadReferenceImageData(chosenUrl, params.assetStorage);
+      logger.debug(
+        { characterName: resolvedName, chosenSource, chosenUrl },
+        'Selected identity reference for image validation',
+      );
+      refs.push({
+        characterName: resolvedName,
+        imageData: data.base64,
+        mimeType: data.mimeType,
+        referenceKind: 'identity',
+      });
+    } catch (err) {
+      logger.warn(
+        {
+          characterName: resolvedName,
+          chosenUrl,
+          err: err instanceof Error ? err.message : String(err),
+        },
+        'Failed to load validation reference image',
+      );
+    }
+  }
+
+  for (const ref of params.referenceImageDataArray || []) {
+    if (ref.source !== 'outfit_plate' || !ref.characterName || !ref.mimeType) continue;
+    const normalizedName = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
+    if (!normalizedName || seenOutfitPlate.has(normalizedName)) continue;
+
+    const refBase = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
+    const expected = params.expectedCharacters.find((c) => {
+      const expectedBase = stripCharacterIdFromName(c.name).trim().toLowerCase();
+      return expectedBase === refBase || c.name.trim().toLowerCase() === ref.characterName!.trim().toLowerCase();
+    });
+    if (!expected) continue;
+
+    if (!ref.fileUri && !ref.base64) continue;
+    seenOutfitPlate.add(normalizedName);
+    refs.push({
+      characterName: ref.characterName,
+      ...(ref.fileUri ? { fileUri: ref.fileUri } : {}),
+      ...(ref.base64 ? { imageData: ref.base64 } : {}),
+      mimeType: ref.mimeType,
+      referenceKind: 'outfit_plate',
+    });
+  }
+
+  return refs;
+}
+
 /**
  * Build instruction text placed immediately before a reference image.
  * Uses Google's "Image N: <role>" numbered label convention for unambiguous
@@ -3676,6 +3970,8 @@ function buildExpectedCharactersForValidation(
  */
 function buildReferenceInstructionText(meta: ReferenceMetadata): string {
   const imgLabel = `Image ${meta.imageIndex}`;
+  const baseName = stripCharacterIdFromName(meta.characterName).trim();
+  const isPlaceholderName = !baseName || ['unknown', 'unnamed'].includes(baseName.toLowerCase());
 
   if (meta.source === 'environment') {
     return `${imgLabel}: Environment reference — content/layout only, not style. Re-draw in scene art style.`;
@@ -3684,9 +3980,9 @@ function buildReferenceInstructionText(meta: ReferenceMetadata): string {
   if (meta.source === 'outfit_plate') {
     const idIdx = meta.identityImageIndex;
     const identityPart = idIdx
-      ? `Real face, hair, and body for "${meta.characterName}" come from Image ${idIdx} (character sheet or reference photo) — NOT from the mannequin or silhouette in ${imgLabel}.`
-      : `Real identity for "${meta.characterName}" comes from that character's description and character reference images above — NOT from the display figure in ${imgLabel}.`;
-    return `${imgLabel}: OUTFIT PLATE for "${meta.characterName}" — wardrobe shown on a display mannequin (not a story character). Use ${imgLabel} only for the clothes: shapes, colors, patterns, layering, fit. Never draw this mannequin in the final scene. Do not copy mannequin anatomy into the character: no wooden limbs, no segmented elbows or knees, no peg joints, no articulated wrists or ankles, no blank dummy head. ${identityPart} Apply the wardrobe from ${imgLabel} onto the real character from ${idIdx ? `Image ${idIdx}` : 'the identity reference'}.`;
+      ? `${meta.characterName} keeps identity from Image ${idIdx}.`
+      : `${meta.characterName} keeps identity from the matching character reference above.`;
+    return `${imgLabel}: OUTFIT PLATE for "${meta.characterName}". Clothing only. ${meta.characterName} is wearing the outfit from ${imgLabel}. ${identityPart} Do not draw the mannequin.`;
   }
 
   if (
@@ -3695,6 +3991,9 @@ function buildReferenceInstructionText(meta: ReferenceMetadata): string {
     meta.source === 'character_reference'
   ) {
     const sheetType = meta.isTurnaround ? 'Character sheet' : 'Reference photo';
+    if (isPlaceholderName) {
+      return `${imgLabel}: ${sheetType} for a character in this scene.`;
+    }
     return `${imgLabel}: ${sheetType} for "${meta.characterName}".`;
   }
 
@@ -4759,7 +5058,6 @@ export async function regenerateSceneImage(
     assetStorage,
     imageDomain,
     scenarioCardId,
-    scenesUsingThisEnv: scenesFromStory.filter((s: any) => s.environmentId === currentEnvironmentId).length,
     ...(previousStoryIds.length > 0 ? { previousStoryIds } : {}),
   });
 
