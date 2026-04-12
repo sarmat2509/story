@@ -22,7 +22,7 @@ Before starting, choose your build environment:
 
 **Configuration:**
 ```env
-EXPO_PUBLIC_API_BASE_URL=https://magic-sleep-time.duckdns.org
+EXPO_PUBLIC_API_BASE_URL=https://wondertales.art
 ```
 
 ### 🔧 Local Development Environment
@@ -112,7 +112,7 @@ This will create the native iOS project in the `ios/` folder.
 
 You can build the iOS app for different environments:
 
-- **Production** - Connect to live API at `https://magic-sleep-time.duckdns.org`
+- **Production** - Connect to live API at `https://wondertales.art`
 - **Local Development** - Connect to local API for testing
 
 ### 2.2 Configure for Production Environment
@@ -124,7 +124,7 @@ For production builds (default):
 # Create or edit .env file
 cat > .env << 'EOF'
 # Production API
-EXPO_PUBLIC_API_BASE_URL=https://magic-sleep-time.duckdns.org
+EXPO_PUBLIC_API_BASE_URL=https://wondertales.art
 
 # Google OAuth (Production)
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS=151914486575-4ekba7gcqcbc6joqahhaigs7v97qjdoo.apps.googleusercontent.com
@@ -189,8 +189,8 @@ cat .env | grep EXPO_PUBLIC_API_BASE_URL
 The app will log the API URL on startup:
 
 ```
-🔗 API_BASE_URL: https://magic-sleep-time.duckdns.org
-🔗 EXPO_PUBLIC_API_BASE_URL: https://magic-sleep-time.duckdns.org
+🔗 API_BASE_URL: https://wondertales.art
+🔗 EXPO_PUBLIC_API_BASE_URL: https://wondertales.art
 ```
 
 ---
@@ -273,7 +273,7 @@ open ios/WonderTales.xcworkspace
 
 ### 6.1 Start Local API (Only if using local development)
 
-**Skip this step if using production environment** (`EXPO_PUBLIC_API_BASE_URL=https://magic-sleep-time.duckdns.org`)
+**Skip this step if using production environment** (`EXPO_PUBLIC_API_BASE_URL=https://wondertales.art`)
 
 If testing with local backend:
 
@@ -349,7 +349,7 @@ When switching from production to local or vice versa:
 # 1. Update .env file
 # For production:
 cat > .env << 'EOF'
-EXPO_PUBLIC_API_BASE_URL=https://magic-sleep-time.duckdns.org
+EXPO_PUBLIC_API_BASE_URL=https://wondertales.art
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS=151914486575-4ekba7gcqcbc6joqahhaigs7v97qjdoo.apps.googleusercontent.com
 EOF
 
@@ -377,8 +377,8 @@ Check which API the app is connecting to:
 2. Check Xcode console output (View → Debug Area)
 3. Look for these logs:
    ```
-   🔗 API_BASE_URL: https://magic-sleep-time.duckdns.org
-   🔗 EXPO_PUBLIC_API_BASE_URL: https://magic-sleep-time.duckdns.org
+   🔗 API_BASE_URL: https://wondertales.art
+   🔗 EXPO_PUBLIC_API_BASE_URL: https://wondertales.art
    ```
 
 ### 7.3 Enable Fast Refresh
@@ -487,7 +487,7 @@ open ios/WonderTales.xcworkspace
 
 **If using Production Environment:**
 - ✅ No Metro bundler needed for production API
-- ✅ App connects directly to `https://magic-sleep-time.duckdns.org`
+- ✅ App connects directly to `https://wondertales.art`
 - ⚠️ Check your internet connection
 - ⚠️ Verify `.env` has correct production URL
 
@@ -630,7 +630,7 @@ idevicesyslog
 
 ### Production Environment
 
-- **API URL**: `https://magic-sleep-time.duckdns.org`
+- **API URL**: `https://wondertales.art`
 - **Bundle Identifier**: `com.anonymous.wondertales`
 - **EAS Project ID**: `f96175da-3327-4a98-ba09-90ed92e7e668`
 - **Minimum iOS Version**: iOS 13.4+
@@ -676,7 +676,7 @@ Before asking for help, verify:
 
 **For Production Environment:**
 - [ ] Internet connection is working
-- [ ] Production URL is accessible: `curl https://magic-sleep-time.duckdns.org/health/health`
+- [ ] Production URL is accessible: `curl https://wondertales.art/health/health`
 
 **For Local Development:**
 - [ ] iPad and Mac are on same Wi-Fi (not cellular)
@@ -698,7 +698,7 @@ cd ios && pod install && cd ..
 
 # 2. Configure .env for production
 cat > .env << 'EOF'
-EXPO_PUBLIC_API_BASE_URL=https://magic-sleep-time.duckdns.org
+EXPO_PUBLIC_API_BASE_URL=https://wondertales.art
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS=151914486575-4ekba7gcqcbc6joqahhaigs7v97qjdoo.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB=151914486575-1kpc8ot6kdhjho9hbm7tbqmtgqv7tk60.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID=151914486575-9tqc0a0ksjl6hhokoevcek809bkgve9r.apps.googleusercontent.com

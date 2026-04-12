@@ -20,12 +20,12 @@
         "simulator": true
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://magic-sleep-time.duckdns.org"
+        "EXPO_PUBLIC_API_BASE_URL": "https://wondertales.art"
       }
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://magic-sleep-time.duckdns.org"
+        "EXPO_PUBLIC_API_BASE_URL": "https://wondertales.art"
       }
     }
   },
