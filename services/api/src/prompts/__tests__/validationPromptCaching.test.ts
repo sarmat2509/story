@@ -96,10 +96,19 @@ function testImageValidationPromptSplit() {
   });
 
   assert.ok(cached.content.includes('Scoring guide'));
+  assert.strictEqual(cached.key, 'image_validation_rules_full_v3');
+  assert.ok(cached.content.includes('Temporary expression changes alone are NOT identity drift.'));
+  assert.ok(cached.content.includes('flexible appendages (antennae, ears, whiskers, tail tip, crest tilt, wing angle)'));
+  assert.ok(cached.content.includes('Do not fail faceMatchesReference for temporary emotion alone'));
+  assert.ok(cached.content.includes('If an outfit plate reference is provided for a character, that outfit plate is the strongest clothing ground truth'));
+  assert.ok(cached.content.includes('validate outfit primarily against that plate'));
+  assert.ok(cached.content.includes('ignore the clothing shown on identity reference images'));
+  assert.ok(cached.content.includes('Do NOT list wardrobe differences inside identityComparisonSummary'));
   assert.ok(!cached.content.includes('forest path at dusk'));
   assert.ok(runtime.includes('forest path at dusk'));
   assert.ok(runtime.includes('yellow raincoat'));
-  assert.ok(runtime.includes('Image 2'));
+  assert.ok(runtime.includes('Image 2: identity reference for "Mia [ID: 123]"'));
+  assert.ok(runtime.includes('For IDENTITY references: use them for identity only and ignore their clothing'));
 }
 
 testTextValidationPromptSplit();
