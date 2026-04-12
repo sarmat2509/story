@@ -6,6 +6,7 @@ import { getStoryRepository } from '../repositories';
 import {
   createAdminConfigItem,
   deleteAdminConfigItem,
+  getAdminDashboard,
   listAdminFeedback,
   getAdminImageValidation,
   listAdminConfigItems,
@@ -33,6 +34,10 @@ const ListQuerySchema = z.object({
 const FeedbackListQuerySchema = ListQuerySchema.extend({
   category: z.enum(['bug', 'feature', 'other']).optional(),
   hasScreenshot: z.coerce.boolean().optional(),
+});
+
+const DashboardQuerySchema = z.object({
+  days: z.coerce.number().int().min(0).max(3650).default(30),
 });
 
 const StoryIdParamsSchema = z.object({
@@ -347,6 +352,32 @@ function normalizeAdminConfigPayload(
   }
   return payload;
 }
+
+router.get('/dashboard', async (req: Request, res: Response) => {
+  try {
+    const parsed = DashboardQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid query',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const data = await getAdminDashboard(parsed.data.days);
+
+    return res.json({
+      status: 'success',
+      data,
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin dashboard fetch failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to load dashboard',
+    });
+  }
+});
 
 router.get('/stories', async (req: Request, res: Response) => {
   try {

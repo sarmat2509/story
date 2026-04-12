@@ -1,5 +1,6 @@
 import {
   getAdminConfigRepository,
+  getAdminDashboardRepository,
   getEnvironmentImageCacheRepository,
   getFeedbackRepository,
   getOutfitPlateCacheRepository,
@@ -17,6 +18,10 @@ import { normalizeOutfitPlateCharacterKey } from './outfitPlateService';
 import { incrementLandingRenderVersion } from '../ssr/storyCache';
 import { getUserSubscription } from './planService';
 import { getUsageForPeriod } from './usageEventsService';
+
+export async function getAdminDashboard(days: number) {
+  return getAdminDashboardRepository().getDashboard(days);
+}
 
 export async function listAdminStories(params: {
   limit: number;
@@ -305,6 +310,7 @@ export async function listAdminDirectorScenes(storyId: string) {
         operation: item.operation,
         model: item.model,
         costUsd: Math.round(item.costUsd * 1e8) / 1e8,
+        createdAt: item.createdAt.toISOString(),
       })),
     },
     environments: (Array.isArray(metadata.environments) ? metadata.environments : []).map((item) => ({
