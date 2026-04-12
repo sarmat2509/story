@@ -41,6 +41,7 @@ services:
         condition: service_healthy
     volumes:
       - api_uploads:/app/services/api/uploads
+      - ./image-prompt-debug:/app/image-prompt-debug
       - api_logs:/app/services/api/logs
       - ./secrets:/app/secrets:ro
 

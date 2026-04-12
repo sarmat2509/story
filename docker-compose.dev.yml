@@ -45,6 +45,7 @@ services:
       - ./services/api/drizzle:/app/services/api/drizzle
       - ./packages:/app/packages
       - ./services/api/uploads:/app/services/api/uploads  # Mount local uploads directory
+      - ./image-prompt-debug:/app/image-prompt-debug
       - api_logs:/app/services/api/logs
       - ./secrets:/app/secrets:ro
       # Use image's node_modules (anonymous volumes above overwrote with empty dirs → bcryptjs not found)

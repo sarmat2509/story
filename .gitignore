@@ -47,6 +47,7 @@ lerna-debug.log*
 
 # Debug
 *.log
+image-prompt-debug/
 
 # IDE
 .idea/
@@ -97,6 +98,8 @@ apps/web-landing/out/
 *.sqlite3
 /.pnpm-store
 /.cursor
+/image-prompt-debug
+/image-prompt-lab
 
 # Deployment
 backups/
