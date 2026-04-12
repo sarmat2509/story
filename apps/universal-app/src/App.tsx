@@ -193,6 +193,7 @@ const linking: any = {
       Admin: {
         path: 'admin',
         screens: {
+          AdminDashboard: 'dashboard',
           AdminStories: 'stories',
           AdminScenesStory: 'stories/:storyId',
           AdminFeedback: 'feedback',

@@ -7,6 +7,7 @@ export type RootStackParamList = {
 };
 
 export type AdminStackParamList = {
+  AdminDashboard: undefined;
   AdminStories: undefined;
   AdminUsers: undefined;
   AdminFeedback: undefined;

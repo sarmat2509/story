@@ -5,6 +5,7 @@ import { theme } from '@/theme';
 import type { AdminStackParamList } from '@/types/navigation';
 
 type AdminRouteName =
+  | 'AdminDashboard'
   | 'AdminStories'
   | 'AdminUsers'
   | 'AdminFeedback'
@@ -18,6 +19,7 @@ const sections: Array<{
   {
     title: 'Operations',
     items: [
+      { key: 'AdminDashboard', label: 'Dashboard', routeName: 'AdminDashboard' },
       { key: 'AdminStories', label: 'Stories', routeName: 'AdminStories' },
       { key: 'AdminUsers', label: 'Users', routeName: 'AdminUsers' },
       { key: 'AdminFeedback', label: 'Feedback', routeName: 'AdminFeedback' },

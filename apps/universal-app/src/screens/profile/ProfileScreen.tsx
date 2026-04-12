@@ -87,7 +87,7 @@ export default function ProfileScreen() {
 
   const handleOpenAdmin = () => {
     const parent = navigation.getParent();
-    (parent as any)?.navigate('Admin', { screen: 'AdminStories' });
+    (parent as any)?.navigate('Admin', { screen: 'AdminDashboard' });
   };
 
   const requestPhotoPermission = async () => {

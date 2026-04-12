@@ -93,6 +93,71 @@ export type AdminStoryCostBreakdownItem = {
   operation: string;
   model: string | null;
   costUsd: number;
+  createdAt: string;
+};
+
+export type AdminDashboardOverview = {
+  totalStories: number;
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  requestSuccessRate: number;
+  totalCostUsd: number;
+  avgCostUsd: number;
+  avgGenerationTimeMs: number;
+  avgWordCount: number;
+  avgSceneCount: number;
+  avgImageSceneCount: number;
+  requestRetryStories: number;
+  imageRetryStories: number;
+  bothRetryStories: number;
+  anyRetryStories: number;
+  extraImageAttempts: number;
+  avgValidationAttempts: number;
+  firstPassImageRate: number;
+  audioStoryCount: number;
+  audioAttachRate: number;
+};
+
+export type AdminDashboardDailyPoint = {
+  date: string;
+  storyCount: number;
+  totalCostUsd: number;
+  retryStoryCount: number;
+};
+
+export type AdminDashboardImageBucket = {
+  bucket: string;
+  bucketSort: number;
+  storyCount: number;
+  totalCostUsd: number;
+  avgCostUsd: number;
+  avgGenerationTimeMs: number;
+};
+
+export type AdminDashboardOperationBreakdown = {
+  operation: string;
+  eventCount: number;
+  storyCount: number;
+  totalCostUsd: number;
+};
+
+export type AdminDashboardBreakdownItem = {
+  value: string;
+  storyCount: number;
+  totalCostUsd: number;
+  avgCostUsd: number;
+  share: number;
+};
+
+export type AdminDashboardData = {
+  rangeDays: number;
+  overview: AdminDashboardOverview;
+  daily: AdminDashboardDailyPoint[];
+  costByImageCount: AdminDashboardImageBucket[];
+  costByOperation: AdminDashboardOperationBreakdown[];
+  languages: AdminDashboardBreakdownItem[];
+  imageStyles: AdminDashboardBreakdownItem[];
 };
 
 export type AdminStoryCacheStats = {
@@ -141,6 +206,18 @@ type PaginatedResponse<T> = {
     };
   };
 };
+
+export function useAdminDashboard(days: number) {
+  return useQuery({
+    queryKey: ['admin', 'dashboard', days],
+    queryFn: async () => {
+      const response = await apiClient.get<{ status: string; data: AdminDashboardData }>('/api/v1/admin/dashboard', {
+        params: { days },
+      });
+      return response.data.data;
+    },
+  });
+}
 
 export function useAdminStories(params: { limit: number; offset: number; search?: string; publishedStatus?: 'all' | 'published' | 'unlisted' | 'draft' }) {
   const { limit, offset, search, publishedStatus = 'all' } = params;

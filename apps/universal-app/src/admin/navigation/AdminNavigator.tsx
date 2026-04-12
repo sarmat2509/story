@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
 import type { AdminStackParamList } from '@/types/navigation';
+import AdminDashboardScreen from '@/admin/screens/AdminDashboardScreen';
 import AdminContentConfigScreen from '@/admin/screens/AdminContentConfigScreen';
 import AdminFeedbackScreen from '@/admin/screens/AdminFeedbackScreen';
 import AdminScenesScreen from '@/admin/screens/AdminScenesScreen';
@@ -39,7 +40,8 @@ export default function AdminNavigator() {
   }
 
   return (
-    <Stack.Navigator initialRouteName="AdminStories" screenOptions={{ headerShown: false }}>
+    <Stack.Navigator initialRouteName="AdminDashboard" screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
       <Stack.Screen name="AdminStories" component={AdminStoriesScreen} />
       <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
       <Stack.Screen name="AdminFeedback" component={AdminFeedbackScreen} />

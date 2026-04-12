@@ -165,7 +165,7 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
   const collapsed = useDrawerCollapsedStore((s) => s.collapsed);
   const handleAdminPress = () => {
     const rootNavigation = navigation.getParent<NavigationProp<RootStackParamList>>();
-    rootNavigation?.navigate('Admin', { screen: 'AdminStories' });
+    rootNavigation?.navigate('Admin', { screen: 'AdminDashboard' });
   };
 
   const visibleRoutes = state.routes.filter(

@@ -78,6 +78,12 @@ export function GenerationProgressModal({
       typeof details?.total === 'number' &&
       Number.isFinite(details.total);
 
+    if (task === 'generating_images') {
+      return t(`story.${task}`, {
+        defaultValue: labels[task] || 'Обробляємо запит...',
+      });
+    }
+
     if (countBasedTasks.has(task) && !hasCounters) {
       return t(`story.${task}`, {
         defaultValue: labels[task] || 'Обробляємо запит...',
@@ -278,7 +284,7 @@ const styles = StyleSheet.create({
   },
   progressBarContainer: {
     width: '100%',
-    height: 8,
+    height: 10,
     backgroundColor: theme.colors.background.secondary,
     borderRadius: theme.borders.radius.full,
     overflow: 'hidden',

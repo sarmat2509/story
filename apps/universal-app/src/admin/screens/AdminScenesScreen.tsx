@@ -493,6 +493,9 @@ export default function AdminScenesScreen() {
                         <Text style={styles.costBreakdownMeta}>
                           {item.provider}{item.model ? ` / ${item.model}` : ''}
                         </Text>
+                        <Text style={styles.costBreakdownMeta}>
+                          {new Date(item.createdAt).toLocaleString()}
+                        </Text>
                       </View>
                       <Text style={styles.costBreakdownValue}>${item.costUsd.toFixed(6)}</Text>
                     </View>
