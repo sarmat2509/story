@@ -26,6 +26,7 @@ import { getAssetStorageService } from '../../services/assetStorageService';
 import { getAudioRateLimiter } from '../../services/audioRateLimiter';
 import { config } from '../../config';
 import { ElevenLabsProvider } from '../../providers/audio/elevenlabs/ElevenLabsProvider';
+import { stripForAudio } from '../../utils/audioTags';
 
 /**
  * Voice parameters for audio generation
@@ -1154,7 +1155,7 @@ export class AudioDomainService {
    * Normalize text for synthesis
    */
   private normalizeText(text: string, language: string): string {
-    let normalized = text
+    let normalized = stripForAudio(text)
       .trim()
       .replace(/\s+/g, ' ') // Normalize whitespace
       .replace(/\u2019/g, "'") // Normalize apostrophes

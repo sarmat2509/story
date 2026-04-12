@@ -16,6 +16,7 @@ import type {
   AlignmentResult,
 } from '../../base/IAlignmentProvider';
 import { logger } from '../../../utils/logger';
+import { stripForAudio } from '../../../utils/audioTags';
 
 /**
  * ElevenLabs Forced Alignment API response
@@ -163,7 +164,6 @@ export class ElevenLabsAlignmentProvider implements IAlignmentProvider {
    * Clean text for alignment (remove audio tags)
    */
   private cleanTextForAlignment(text: string): string {
-    // Remove ElevenLabs audio tags like [happy], [sad], [excited], etc.
-    return text.replace(/\[[\w\s]+\]/g, '').trim();
+    return stripForAudio(text).replace(/\[[\w\s]+\]/g, '').trim();
   }
 }

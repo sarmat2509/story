@@ -10,6 +10,20 @@ import { getAllAudioTags } from '../constants/audioTags';
 const ALLOWED_AUDIO_TAGS = new Set(getAllAudioTags().map((t) => t.toLowerCase()));
 
 /**
+ * Remove SSML-style <break .../> tags and normalize whitespace around them.
+ * We only strip the unsupported pause tag here, not arbitrary angle-bracket markup.
+ */
+export function stripSsmlBreakTags(text: string): string {
+  if (!text) return text;
+
+  return text
+    .replace(/<break\b[^>]*\/>/gi, ' ')
+    .replace(/<break\b[^>]*>\s*<\/break>/gi, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/**
  * Remove ALL tags from text (for UI, image generation, storage).
  * Strips tags but KEEPS the text inside them:
  *   - <tag>content</tag> → content (remove tags, keep inner text)
@@ -108,7 +122,7 @@ export function stripCharacterIds(text: string): string {
  */
 export function stripForAudio(text: string): string {
   if (!text) return text;
-  return text
+  return stripSsmlBreakTags(text)
     .replace(/\[([^\]]+)\]/g, (_, content) => {
       const tag = content.trim().toLowerCase().replace(/\s{2,}/g, ' ');
       return ALLOWED_AUDIO_TAGS.has(tag) ? `[${content}]` : '';
