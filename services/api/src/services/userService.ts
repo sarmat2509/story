@@ -1,5 +1,6 @@
 import { getUserRepository, getOAuthRepository } from '../repositories';
 import type { User, OAuthIdentity } from '../db/schema';
+import type { ThemePaletteId } from '@wondertales/shared';
 
 export interface CreateUserInput {
   email: string;
@@ -16,6 +17,7 @@ export interface UpdateUserInput {
   mode?: 'instant' | 'artisan';
   pseudonym?: string | null;
   aboutMe?: string | null;
+  themePalette?: ThemePaletteId;
 }
 
 export interface UserWithOAuth extends User {

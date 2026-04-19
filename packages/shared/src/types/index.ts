@@ -43,6 +43,26 @@ import { IMAGE_STYLES } from '../constants/imageStyles';
 
 export type ArtStyle = typeof IMAGE_STYLES[number];
 
+// UI theme palettes a user can pick in Profile -> Theme settings
+export const THEME_PALETTE_IDS = [
+  'dusk_lavender',
+  'sunset_peach',
+  'forest_mint',
+  'ocean_breeze',
+  'berry_wine',
+  'vanilla_cream',
+  'midnight_blue',
+  'storybook_watercolor',
+  'candy_pop',
+  'slate_modern',
+  /** Playful “boy” presets: dinosaurs, hacker/terminal, sports stadium */
+  'dino_jungle',
+  'cyber_hack',
+  'sports_arena',
+] as const;
+export type ThemePaletteId = typeof THEME_PALETTE_IDS[number];
+export const DEFAULT_THEME_PALETTE_ID: ThemePaletteId = 'dusk_lavender';
+
 // User types
 export interface User {
   id: string;
@@ -54,6 +74,7 @@ export interface User {
   pseudonym?: string | null;
   about_me?: string | null;
   role: 'user' | 'admin';
+  theme_palette: ThemePaletteId;
   created_at: string;
   updated_at: string;
 }

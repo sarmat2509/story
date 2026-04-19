@@ -905,6 +905,8 @@
     "preferences": "Налаштування",
     "language_settings": "Налаштування мови",
     "language_settings_description": "Виберіть мову для інтерфейсу додатку",
+    "theme_settings": "Тема оформлення",
+    "theme_settings_description": "Оберіть кольорову палітру застосунку",
     "notification_settings": "Налаштування сповіщень",
     "privacy_settings": "Налаштування приватності",
     "subscription": "Підписка",
@@ -931,6 +933,30 @@
     "author_story_count": "{{count}} опублікованих історій",
     "author_published_stories": "Історії автора",
     "author_no_stories": "У цього автора ще немає опублікованих історій"
+  },
+  "theme": {
+    "title": "Тема оформлення",
+    "subtitle": "Оберіть палітру, що пасує настрою",
+    "current": "Поточна палітра",
+    "applied": "Палітру застосовано",
+    "restart_required_title": "Потрібен перезапуск",
+    "restart_required_message": "Будь ласка, перезапустіть застосунок, щоб застосувати нову тему.",
+    "save_error": "Не вдалося зберегти палітру. Спробуйте ще раз.",
+    "palette_names": {
+      "dusk_lavender": "Лавандовий сон",
+      "sunset_peach": "Сонячний персик",
+      "forest_mint": "М'ятний ліс",
+      "ocean_breeze": "Морські бризки",
+      "berry_wine": "Ягідне варення",
+      "vanilla_cream": "Ванільне печиво",
+      "midnight_blue": "Зоряна ніч",
+      "storybook_watercolor": "Веселкова казка",
+      "candy_pop": "Кондитерська",
+      "slate_modern": "Сіре хмаринка",
+      "dino_jungle": "Джунглі динозаврів",
+      "cyber_hack": "Неоновий код",
+      "sports_arena": "Спортивна арена"
+    }
   },
   "feedback": {
     "title": "Повідомити про проблему",

@@ -704,6 +704,8 @@
     "preferences": "Настройки",
     "language_settings": "Настройки языка",
     "language_settings_description": "Выберите язык интерфейса приложения",
+    "theme_settings": "Тема оформления",
+    "theme_settings_description": "Выберите цветовую палитру приложения",
     "notification_settings": "Настройки уведомлений",
     "privacy_settings": "Настройки приватности",
     "subscription": "Подписка",
@@ -729,6 +731,30 @@
     "author_story_count": "{{count}} опубликованных историй",
     "author_published_stories": "Истории автора",
     "author_no_stories": "У этого автора пока нет опубликованных историй"
+  },
+  "theme": {
+    "title": "Тема оформления",
+    "subtitle": "Выберите палитру по настроению",
+    "current": "Текущая палитра",
+    "applied": "Палитра применена",
+    "restart_required_title": "Нужен перезапуск",
+    "restart_required_message": "Пожалуйста, перезапустите приложение, чтобы применить новую тему.",
+    "save_error": "Не удалось сохранить палитру. Попробуйте ещё раз.",
+    "palette_names": {
+      "dusk_lavender": "Лавандовый сон",
+      "sunset_peach": "Солнечный персик",
+      "forest_mint": "Мятный лес",
+      "ocean_breeze": "Морские брызги",
+      "berry_wine": "Ягодное варенье",
+      "vanilla_cream": "Ванильное печенье",
+      "midnight_blue": "Звёздная ночь",
+      "storybook_watercolor": "Радужная сказка",
+      "candy_pop": "Конфетный магазин",
+      "slate_modern": "Серое облачко",
+      "dino_jungle": "Джунгли динозавров",
+      "cyber_hack": "Неоновый код",
+      "sports_arena": "Спортивная арена"
+    }
   },
   "feedback": {
     "title": "Сообщить о проблеме",

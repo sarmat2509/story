@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import { THEME_PALETTE_IDS } from '@wondertales/shared';
 import { requireAuth } from '../middleware/authMiddleware';
 import { getUserWithOAuth, updateUser, deleteUser, countUserOAuthIdentities } from '../services/userService';
 import { getUserSessions, deleteSession } from '../services/sessionService';
@@ -16,6 +17,7 @@ const updateUserSchema = z.object({
   mode: z.enum(['instant', 'artisan']).optional(),
   pseudonym: z.string().max(100).nullable().optional(),
   aboutMe: z.string().max(1000).nullable().optional(),
+  themePalette: z.enum(THEME_PALETTE_IDS).optional(),
 });
 
 // Get current user
@@ -51,8 +53,8 @@ router.patch('/', requireAuth, async (req: Request, res: Response) => {
       return;
     }
     
-    const { displayName, avatarUrl, preferredLocale, mode, pseudonym, aboutMe } = validationResult.data;
-    
+    const { displayName, avatarUrl, preferredLocale, mode, pseudonym, aboutMe, themePalette } = validationResult.data;
+
     const updatedUser = await updateUser(req.user!.id, {
       displayName,
       avatarUrl,
@@ -60,9 +62,10 @@ router.patch('/', requireAuth, async (req: Request, res: Response) => {
       mode,
       pseudonym,
       aboutMe,
+      themePalette,
     });
-    
-    logger.info({ userId: req.user!.id, updates: { displayName, avatarUrl, preferredLocale, mode, pseudonym, aboutMe } }, 'User profile updated');
+
+    logger.info({ userId: req.user!.id, updates: { displayName, avatarUrl, preferredLocale, mode, pseudonym, aboutMe, themePalette } }, 'User profile updated');
     
     res.json({
       status: 'success',

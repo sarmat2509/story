@@ -727,6 +727,8 @@
     "preferences": "Preferences",
     "language_settings": "Language Settings",
     "language_settings_description": "Choose the app interface language",
+    "theme_settings": "Theme",
+    "theme_settings_description": "Pick a color palette for the app",
     "notification_settings": "Notification Settings",
     "privacy_settings": "Privacy Settings",
     "subscription": "Subscription",
@@ -752,6 +754,30 @@
     "author_story_count": "{{count}} published stories",
     "author_published_stories": "Stories by this author",
     "author_no_stories": "This author has no published stories yet"
+  },
+  "theme": {
+    "title": "Theme",
+    "subtitle": "Pick a color palette that fits your mood",
+    "current": "Current palette",
+    "applied": "Palette applied",
+    "restart_required_title": "Restart required",
+    "restart_required_message": "Please restart the app to apply the new theme.",
+    "save_error": "Could not save palette. Please try again.",
+    "palette_names": {
+      "dusk_lavender": "Lavender Dream",
+      "sunset_peach": "Sunny Peach",
+      "forest_mint": "Minty Forest",
+      "ocean_breeze": "Splash & Waves",
+      "berry_wine": "Berry Jam",
+      "vanilla_cream": "Vanilla Cookie",
+      "midnight_blue": "Starlight Night",
+      "storybook_watercolor": "Rainbow Tale",
+      "candy_pop": "Candy Shop",
+      "slate_modern": "Cozy Cloud",
+      "dino_jungle": "Dino Jungle",
+      "cyber_hack": "Neon Code",
+      "sports_arena": "Match Day"
+    }
   },
   "feedback": {
     "title": "Report a problem",

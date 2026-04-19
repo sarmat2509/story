@@ -529,6 +529,8 @@
     "preferences": "Einstellungen",
     "language_settings": "Spracheinstellungen",
     "language_settings_description": "Wähle die Sprache der App-Oberfläche",
+    "theme_settings": "Design",
+    "theme_settings_description": "Wähle die Farbpalette der App",
     "notification_settings": "Benachrichtigungseinstellungen",
     "privacy_settings": "Datenschutzeinstellungen",
     "subscription": "Abonnement",
@@ -546,6 +548,30 @@
     "logout_confirm_title": "Abmelden?",
     "logout_confirm_message": "Bist du sicher, dass du dich abmelden möchtest?",
     "cancel": "Abbrechen"
+  },
+  "theme": {
+    "title": "Design",
+    "subtitle": "Wähle eine Farbpalette, die zu dir passt",
+    "current": "Aktuelle Palette",
+    "applied": "Palette angewendet",
+    "restart_required_title": "Neustart nötig",
+    "restart_required_message": "Bitte starte die App neu, um das neue Design zu übernehmen.",
+    "save_error": "Palette konnte nicht gespeichert werden. Bitte versuche es erneut.",
+    "palette_names": {
+      "dusk_lavender": "Lavendeltraum",
+      "sunset_peach": "Sonniger Pfirsich",
+      "forest_mint": "Minziger Wald",
+      "ocean_breeze": "Spritzer & Wellen",
+      "berry_wine": "Beerenmarmelade",
+      "vanilla_cream": "Vanillekeks",
+      "midnight_blue": "Sternennacht",
+      "storybook_watercolor": "Regenbogen-Märchen",
+      "candy_pop": "Süßladen",
+      "slate_modern": "Kuschelgrau",
+      "dino_jungle": "Dino-Dschungel",
+      "cyber_hack": "Neon-Code",
+      "sports_arena": "Spieltag"
+    }
   },
   "feedback": {
     "title": "Problem melden",

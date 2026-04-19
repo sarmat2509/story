@@ -14,6 +14,8 @@ export const users = pgTable('users', {
   stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
   /** Application role: 'user' | 'admin' */
   role: varchar('role', { length: 20 }).notNull().default('user'),
+  /** Active UI theme palette id (see @wondertales/shared THEME_PALETTE_IDS) */
+  themePalette: varchar('theme_palette', { length: 32 }).notNull().default('dusk_lavender'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {

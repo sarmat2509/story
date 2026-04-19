@@ -529,6 +529,8 @@
     "preferences": "Préférences",
     "language_settings": "Paramètres de langue",
     "language_settings_description": "Choisissez la langue de l’interface de l’application",
+    "theme_settings": "Thème",
+    "theme_settings_description": "Choisissez la palette de couleurs de l’application",
     "notification_settings": "Paramètres de notification",
     "privacy_settings": "Paramètres de confidentialité",
     "subscription": "Abonnement",
@@ -546,6 +548,30 @@
     "logout_confirm_title": "Se déconnecter?",
     "logout_confirm_message": "Êtes-vous sûr de vouloir vous déconnecter?",
     "cancel": "Annuler"
+  },
+  "theme": {
+    "title": "Thème",
+    "subtitle": "Choisis une palette de couleurs qui correspond à ton humeur",
+    "current": "Palette actuelle",
+    "applied": "Palette appliquée",
+    "restart_required_title": "Redémarrage requis",
+    "restart_required_message": "Redémarre l’application pour appliquer le nouveau thème.",
+    "save_error": "Impossible d’enregistrer la palette. Réessaie.",
+    "palette_names": {
+      "dusk_lavender": "Rêve lavande",
+      "sunset_peach": "Pêche ensoleillée",
+      "forest_mint": "Forêt menthe",
+      "ocean_breeze": "Éclaboussures et vagues",
+      "berry_wine": "Confiture de baies",
+      "vanilla_cream": "Biscuit vanille",
+      "midnight_blue": "Nuit étoilée",
+      "storybook_watercolor": "Conte arc-en-ciel",
+      "candy_pop": "Boutique de bonbons",
+      "slate_modern": "Petit nuage gris",
+      "dino_jungle": "Jungle des dinosaures",
+      "cyber_hack": "Code néon",
+      "sports_arena": "Jour de match"
+    }
   },
   "feedback": {
     "title": "Signaler un problème",

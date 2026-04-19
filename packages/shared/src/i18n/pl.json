@@ -727,6 +727,8 @@
     "preferences": "Preferencje",
     "language_settings": "Ustawienia jezyka",
     "language_settings_description": "Wybierz jezyk interfejsu aplikacji",
+    "theme_settings": "Motyw",
+    "theme_settings_description": "Wybierz palete kolorow aplikacji",
     "notification_settings": "Ustawienia powiadomien",
     "privacy_settings": "Ustawienia prywatnosci",
     "subscription": "Subskrypcja",
@@ -752,6 +754,30 @@
     "author_story_count": "{{count}} opublikowanych historii",
     "author_published_stories": "Historie tego autora",
     "author_no_stories": "Ten autor nie ma jeszcze opublikowanych historii"
+  },
+  "theme": {
+    "title": "Motyw",
+    "subtitle": "Wybierz palete kolorow dopasowana do nastroju",
+    "current": "Obecna paleta",
+    "applied": "Paleta zastosowana",
+    "restart_required_title": "Wymagany restart",
+    "restart_required_message": "Uruchom aplikacje ponownie, aby zastosowac nowy motyw.",
+    "save_error": "Nie udalo sie zapisac palety. Sprobuj ponownie.",
+    "palette_names": {
+      "dusk_lavender": "Lawendowy sen",
+      "sunset_peach": "Sloneczna brzoskwinia",
+      "forest_mint": "Mietowy las",
+      "ocean_breeze": "Morskie pluski",
+      "berry_wine": "Dzem jagodowy",
+      "vanilla_cream": "Waniliowe ciastko",
+      "midnight_blue": "Gwiezdna noc",
+      "storybook_watercolor": "Teczowa bajka",
+      "candy_pop": "Sklep ze slodyczami",
+      "slate_modern": "Szara chmurka",
+      "dino_jungle": "Dzungla dinozaurow",
+      "cyber_hack": "Neonowy kod",
+      "sports_arena": "Dzien meczu"
+    }
   },
   "feedback": {
     "title": "Zglos problem",
