@@ -1,0 +1,28 @@
+# OpenSSL config for CSR: wondertales.art (+ www)
+# Usage (from repo root):
+#   mkdir -p secrets/wondertales-art-csr
+#   openssl req -new -newkey rsa:2048 -nodes \
+#     -keyout secrets/wondertales-art-csr/wondertales.art.key \
+#     -out secrets/wondertales-art-csr/wondertales.art.csr \
+#     -config scripts/ssl/openssl-wondertales.cnf
+#
+# Edit [ dn ] if your CA requires specific organization details.
+
+[ req ]
+default_bits       = 2048
+prompt             = no
+default_md         = sha256
+distinguished_name = dn
+req_extensions     = req_ext
+
+[ dn ]
+C  = UA
+O  = WonderTales
+CN = wondertales.art
+
+[ req_ext ]
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = wondertales.art
+DNS.2 = www.wondertales.art
