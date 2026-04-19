@@ -186,6 +186,7 @@ const linking: any = {
           Plans: 'pricing',
           Profile: 'profile',
           LanguageSettings: 'settings/language',
+          ThemeSettings: 'settings/theme',
           BillingSuccess: 'billing/success',
           NotFound: '404',
         },

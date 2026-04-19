@@ -31,6 +31,7 @@ import PlansScreen from '@/screens/plans/PlansScreen';
 import ProfileScreen from '@/screens/profile/ProfileScreen';
 import BillingSuccessScreen from '@/screens/billing/BillingSuccessScreen';
 import LanguageSettingsScreen from '@/screens/profile/LanguageSettingsScreen';
+import ThemeSettingsScreen from '@/screens/profile/ThemeSettingsScreen';
 import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
 import { MiniAudioPlayer } from '@/components/MiniAudioPlayer';
 import { useMainNavigationStore } from '@/store/mainNavigationStore';
@@ -113,6 +114,13 @@ function LanguageSettingsScreenWithAuth() {
   return (
     <AuthGuard>
       <LanguageSettingsScreen />
+    </AuthGuard>
+  );
+}
+function ThemeSettingsScreenWithAuth() {
+  return (
+    <AuthGuard>
+      <ThemeSettingsScreen />
     </AuthGuard>
   );
 }
@@ -565,6 +573,14 @@ function TabNavigator() {
         }}
       />
       <Tab.Screen
+        name="ThemeSettings"
+        component={ThemeSettingsScreenWithAuth}
+        options={{
+          title: t('profile.theme_settings'),
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen
         name="NotFound"
         component={NotFoundScreen}
         options={{
@@ -828,6 +844,14 @@ function DrawerNavigator() {
         component={LanguageSettingsScreenWithAuth}
         options={{ 
           title: t('profile.language_settings'),
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
+      <Drawer.Screen
+        name="ThemeSettings"
+        component={ThemeSettingsScreenWithAuth}
+        options={{
+          title: t('profile.theme_settings'),
           drawerItemStyle: { display: 'none' },
         }}
       />

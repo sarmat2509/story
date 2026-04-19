@@ -8,6 +8,8 @@ import { useAuthStore } from '@/store/authStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { AnimatedSection } from '@/components/AnimatedSection';
+import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
 import { usePlansWithAuth, useSubscriptionUsage, useCreatePortalSession } from '@/api/plans';
 import { useUpdateMe } from '@/api/auth';
@@ -18,6 +20,7 @@ export default function ProfileScreen() {
   const { t } = useTranslation();
   const { user, logout } = useAuthStore();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const enterKey = useScreenEnter();
   const { data: plansData, isLoading: plansLoading } = usePlansWithAuth();
   const { data: usage, isLoading: usageLoading } = useSubscriptionUsage();
   const createPortalSession = useCreatePortalSession();
@@ -180,11 +183,13 @@ export default function ProfileScreen() {
   return (
     <>
     <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{t('profile.title')}</Text>
-      </View>
+      <AnimatedSection delay={0} trigger={enterKey}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{t('profile.title')}</Text>
+        </View>
+      </AnimatedSection>
 
-      <View style={styles.section}>
+      <AnimatedSection delay={120} trigger={enterKey} style={styles.section}>
         <Text style={styles.sectionTitle}>{t('profile.account_info')}</Text>
         
         <View style={styles.profileCard}>
@@ -300,9 +305,9 @@ export default function ProfileScreen() {
             )}
           </TouchableOpacity>
         </View>
-      </View>
+      </AnimatedSection>
 
-      <View style={styles.section}>
+      <AnimatedSection delay={220} trigger={enterKey} style={styles.section}>
         <Text style={styles.sectionTitle}>{t('profile.preferences')}</Text>
         
         {/* Mode Settings */}
@@ -327,13 +332,28 @@ export default function ProfileScreen() {
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.settingButton}
+          onPress={() => navigation.navigate('ThemeSettings')}
+        >
+          <View style={styles.settingLeft}>
+            <Text style={styles.settingText}>{t('profile.theme_settings')}</Text>
+            {user?.themePalette ? (
+              <Text style={styles.settingValue}>
+                {t(`theme.palette_names.${user.themePalette}`)}
+              </Text>
+            ) : null}
+          </View>
+          <Text style={styles.settingArrow}>›</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.settingButton}>
           <Text style={styles.settingText}>{t('profile.notification_settings')}</Text>
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
-      </View>
+      </AnimatedSection>
 
-      <View style={styles.section}>
+      <AnimatedSection delay={320} trigger={enterKey} style={styles.section}>
         <Text style={styles.sectionTitle}>{t('profile.subscription')}</Text>
         
         {plansLoading ? (
@@ -383,18 +403,20 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </View>
+      </AnimatedSection>
 
-      <TouchableOpacity
-        style={styles.logoutButton}
-        onPress={handleLogout}
-      >
-        <Text style={styles.logoutButtonText}>{t('profile.logout')}</Text>
-      </TouchableOpacity>
+      <AnimatedSection delay={420} trigger={enterKey}>
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+        >
+          <Text style={styles.logoutButtonText}>{t('profile.logout')}</Text>
+        </TouchableOpacity>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>WonderTales v1.0.0</Text>
-      </View>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>WonderTales v1.0.0</Text>
+        </View>
+      </AnimatedSection>
     </ScrollView>
 
     <ConfirmDialog

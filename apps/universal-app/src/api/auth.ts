@@ -1,12 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { UserApi, AuthResponseApi } from '@wondertales/shared';
+import { UserApi, AuthResponseApi, type ThemePaletteId } from '@wondertales/shared';
 import apiClient from './client';
 import { useAuthStore } from '@/store/authStore';
 import { storage } from '@/utils/storage';
+import { getActivePaletteId, setActivePaletteId } from '@/theme/activePalette';
 
 // Use shared types
 type User = UserApi;
 type AuthResponse = AuthResponseApi;
+
+/**
+ * Mirror the user's server-side theme palette preference into the local
+ * synchronous store so the next cold boot reads the chosen palette.
+ * We intentionally do NOT reload the app here — the UI already rendered
+ * with the old palette; the new one applies on next boot. An explicit reload
+ * is only triggered from `ThemeSettingsScreen` when the user picks a palette.
+ */
+function syncPaletteFromUser(user: User): void {
+  const serverPalette = user.themePalette as ThemePaletteId | undefined;
+  if (!serverPalette) return;
+  if (serverPalette !== getActivePaletteId()) {
+    setActivePaletteId(serverPalette);
+  }
+}
 
 // Email/password mutations
 export const useEmailLogin = () => {
@@ -24,6 +40,7 @@ export const useEmailLogin = () => {
       await storage.setAuthToken(data.token);
       await storage.setUser(data.user);
       login(data.user, data.token);
+      syncPaletteFromUser(data.user);
     },
   });
 };
@@ -43,6 +60,7 @@ export const useRegister = () => {
       await storage.setAuthToken(data.token);
       await storage.setUser(data.user);
       login(data.user, data.token);
+      syncPaletteFromUser(data.user);
     },
   });
 };
@@ -87,6 +105,7 @@ export const useGoogleLogin = () => {
       await storage.setAuthToken(data.token);
       await storage.setUser(data.user);
       login(data.user, data.token);
+      syncPaletteFromUser(data.user);
     },
   });
 };
@@ -111,6 +130,7 @@ export const useAppleLogin = () => {
       await storage.setAuthToken(data.token);
       await storage.setUser(data.user);
       login(data.user, data.token);
+      syncPaletteFromUser(data.user);
     },
   });
 };
@@ -133,7 +153,15 @@ export const useUpdateMe = () => {
   const { setUser } = useAuthStore();
 
   return useMutation({
-    mutationFn: async (data: { displayName?: string; avatarUrl?: string | null; preferredLocale?: string; mode?: string; pseudonym?: string | null; aboutMe?: string | null }) => {
+    mutationFn: async (data: {
+      displayName?: string;
+      avatarUrl?: string | null;
+      preferredLocale?: string;
+      mode?: string;
+      pseudonym?: string | null;
+      aboutMe?: string | null;
+      themePalette?: ThemePaletteId;
+    }) => {
       const response = await apiClient.patch<{ status: string; user: User }>('/api/v1/me', data);
       return response.data.user;
     },
@@ -141,6 +169,7 @@ export const useUpdateMe = () => {
       setUser(user);
       storage.setUser(user);
       queryClient.setQueryData(['user'], user);
+      syncPaletteFromUser(user);
     },
   });
 };

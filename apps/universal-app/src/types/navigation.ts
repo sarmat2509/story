@@ -43,6 +43,7 @@ export type MainDrawerParamList = {
   Profile: undefined;
   BillingSuccess: undefined;
   LanguageSettings: undefined;
+  ThemeSettings: undefined;
   ModeSelection: undefined;
 };
 

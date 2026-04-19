@@ -1,91 +1,80 @@
-// Base color palette
+import { getActivePaletteId } from './activePalette';
+import { PALETTE_REGISTRY } from './palettes';
+
+// Resolve which palette to use at module-load time. Changing the palette
+// requires an app reload because `StyleSheet.create()` captures colors once.
+const activePalette = PALETTE_REGISTRY[getActivePaletteId()];
+
+// Base color palette — shape kept identical to the previous static export so
+// that none of the ~70 screens that read `theme.colors.*` need to change.
 export const colors = {
-  // Primary (Sky Blue) - #0ea5e9
-  primary: {
-    50: '#f0f9ff',
-    100: '#e0f2fe',
-    200: '#bae6fd',
-    300: '#7dd3fc',
-    400: '#38bdf8',
-    500: '#0ea5e9',  // Main primary
-    600: '#0284c7',
-    700: '#0369a1',
-    800: '#075985',
-    900: '#0c4a6e',
-  },
-  
-  // Neutral (Slate)
+  // Primary ramp, derived from the active palette
+  primary: activePalette.primary,
+
+  // Neutral (Slate) — shared across all palettes
   neutral: {
     50: '#f8fafc',
     100: '#f1f5f9',
     200: '#e2e8f0',
     300: '#cbd5e1',
     400: '#94a3b8',
-    500: '#64748b',  // Main gray text
+    500: '#64748b',
     600: '#475569',
     700: '#334155',
     800: '#1e293b',
     900: '#0f172a',
   },
-  
-  // Success
+
   success: {
     50: '#f0fdf4',
     500: '#10b981',
     600: '#059669',
   },
-  
-  // Error
+
   error: {
     50: '#fee2e2',
     500: '#ef4444',
     600: '#dc2626',
     700: '#b91c1c',
   },
-  
-  // Warning
+
   warning: {
     50: '#fef3c7',
     500: '#f59e0b',
     600: '#d97706',
   },
-  
-  // Special
+
   white: '#ffffff',
   black: '#000000',
-  
-  // OAuth brands
+
   google: '#4285F4',
   apple: '#000000',
 };
 
-// Semantic colors (usage-based)
+// Semantic colors (usage-based) — also derived from the active palette
 export const semanticColors = {
-  // Backgrounds
   background: {
-    primary: colors.white,
-    secondary: colors.neutral[50],
+    primary: activePalette.background.primary,
+    secondary: activePalette.background.secondary,
     tertiary: colors.neutral[100],
     inverse: colors.neutral[900],
+    hero: activePalette.background.hero,
   },
-  
-  // Text
+
   text: {
-    primary: colors.neutral[800],
-    secondary: colors.neutral[600],
-    tertiary: colors.neutral[500],
+    primary: activePalette.text.primary,
+    secondary: activePalette.text.secondary,
+    tertiary: activePalette.text.tertiary,
     disabled: colors.neutral[400],
     inverse: colors.white,
   },
-  
-  // Borders
+
   border: {
-    light: colors.neutral[200],
+    light: activePalette.border.light,
     medium: colors.neutral[300],
     dark: colors.neutral[400],
   },
-  
-  // Interactive states
+
   interactive: {
     primary: colors.primary[500],
     primaryHover: colors.primary[600],
@@ -93,8 +82,7 @@ export const semanticColors = {
     secondary: colors.neutral[100],
     secondaryHover: colors.neutral[200],
   },
-  
-  // Status
+
   status: {
     success: colors.success[500],
     error: colors.error[600],
