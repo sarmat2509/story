@@ -13,7 +13,13 @@ export interface SceneValidationResult {
   sceneId: number;
   isValid: boolean;
   violations: Array<{
-    category: 'content_policy' | 'age_inappropriate' | 'fear_level' | 'emotional_tone' | 'vocabulary' | 'camera_composition_incomplete';
+    category:
+      | 'content_policy'
+      | 'age_inappropriate'
+      | 'fear_level'
+      | 'emotional_tone'
+      | 'vocabulary'
+      | 'camera_composition_incomplete';
     severity: 'critical' | 'high' | 'medium';
     message: string;
     suggestion?: string;
@@ -34,22 +40,26 @@ export interface ImageValidationResult {
   expectedCharacterCount: number;
   characters: Array<{
     name: string;
-    /** Echo expected list: human vs imaginary — must match isImaginary from validation input. */
-    characterKind: 'human' | 'imaginary';
+    /** Echo expected roster KIND: human (person/child), animal (real-world species), imaginary (fictional creature). */
+    characterKind: 'human' | 'animal' | 'imaginary';
     found: boolean;
     duplicated: boolean;
     recognizableScore: number; // 0-1 aggregate identity score; must align with boolean identity flags below.
-    faceMatchesReference: boolean;
-    hairMatchesReference: boolean;
-    ageReadMatchesReference: boolean;
-    proportionsMatchReference: boolean;
+    /** HUMAN identity slot. Null for animal/imaginary or when no reference is available. */
+    faceMatchesReference?: boolean | null;
+    /** HUMAN identity slot. Null for animal/imaginary or when no reference is available. */
+    hairMatchesReference?: boolean | null;
+    /** HUMAN identity slot. Null for animal/imaginary or when no reference is available. */
+    ageReadMatchesReference?: boolean | null;
+    /** Head-to-body proportions. Applies to all kinds; null when no reference is available. */
+    proportionsMatchReference?: boolean | null;
     matchesColors: boolean;
     matchesOutfit: boolean;
     /** Explicit age/face/hair/proportions/stable traits vs reference — no vague "similar enough". */
     identityComparisonSummary: string;
-    /** When set: whether silhouette, body type, and first-glance read match the reference design. */
+    /** When set: whether silhouette, body type, and first-glance read match the reference design. Used for animal + imaginary identity. */
     sameOverallDesignRead?: boolean;
-    /** When set: how much silhouette/body-type drift vs reference (structured output hint). */
+    /** When set: how much silhouette/body-type drift vs reference. Used for animal + imaginary identity. */
     silhouetteDriftSeverity?: 'none' | 'mild' | 'moderate' | 'severe';
     issue?: string;
   }>;
@@ -93,7 +103,8 @@ export interface StorySpec {
   imageStyle?: string; // Image art style (soft_watercolor, colored_pencil, etc.)
   policyProfile: PolicyProfile;
   childProfile?: any; // Used for image generation context
-  scenarioCard?: { // NEW: Scenario card theme
+  scenarioCard?: {
+    // NEW: Scenario card theme
     id: string;
     name: string;
     description: string;
@@ -154,7 +165,8 @@ export interface EpisodeText {
   environments?: StoryEnvironment[]; // Persistent location descriptions
   /** Canonical wardrobe; scenes reference rows via sceneVisual.cameraComposition.characters[].outfitId (LLM) → normalized to characterOutfitIds. */
   outfits?: StoryOutfitRow[];
-  characters?: Array<{ // NEW - optional for backward compatibility
+  characters?: Array<{
+    // NEW - optional for backward compatibility
     name: string;
     type: string;
     description: string;
@@ -182,7 +194,7 @@ export interface EpisodeText {
  */
 export interface TextProvider {
   generateText(spec: StorySpec): Promise<EpisodeText>;
-  
+
   /**
    * Validate a single scene for content safety and age-appropriateness
    * Used for parallel scene-by-scene validation
@@ -193,7 +205,7 @@ export interface TextProvider {
     policy: PolicyProfile,
     isLastScene: boolean
   ): Promise<SceneValidationResult>;
-  
+
   /**
    * Regenerate scene text based on validation feedback.
    * Returns plain text only. Fixes only policy violations.

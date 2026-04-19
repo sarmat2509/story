@@ -12,6 +12,7 @@ import config from '../../config';
 import {
   buildImageValidationRuntimePrompt,
   getImageValidationCachedPrefix,
+  type ImageValidationCharacterKind,
 } from '../../prompts/image/ImageValidationPrompt';
 import { IMAGE_VALIDATION_SCHEMA } from '../story/schemas';
 import { flattenCameraComposition, type SceneVisual } from '../../services/types';
@@ -22,7 +23,8 @@ export type ProductImageValidationInput = {
   mimeType: string;
   expectedCharacters: Array<{
     name: string;
-    isImaginary: boolean;
+    characterKind: ImageValidationCharacterKind;
+    speciesSubtype?: string;
     description?: string;
     expectedOutfitForScene?: string;
   }>;
@@ -46,11 +48,7 @@ export type ProductImageValidationOptions = {
   operation?: string;
 };
 
-type SupportedVisionMimeType =
-  | 'image/jpeg'
-  | 'image/png'
-  | 'image/webp'
-  | 'image/gif';
+type SupportedVisionMimeType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
 
 type PreparedValidationImage = {
   buffer: Buffer;
@@ -73,7 +71,7 @@ function normalizeVisionMimeType(mimeType: string): SupportedVisionMimeType {
 async function prepareImageForValidation(
   buffer: Buffer,
   mimeType: string,
-  maxSide: number,
+  maxSide: number
 ): Promise<PreparedValidationImage> {
   const normalizedMimeType = normalizeVisionMimeType(mimeType);
   const metadata = await sharp(buffer, { animated: false }).rotate().metadata();
@@ -97,14 +95,12 @@ async function prepareImageForValidation(
     };
   }
 
-  let pipeline = sharp(buffer, { animated: false })
-    .rotate()
-    .resize({
-      width: maxSide,
-      height: maxSide,
-      fit: 'inside',
-      withoutEnlargement: true,
-    });
+  let pipeline = sharp(buffer, { animated: false }).rotate().resize({
+    width: maxSide,
+    height: maxSide,
+    fit: 'inside',
+    withoutEnlargement: true,
+  });
 
   let outputMimeType: SupportedVisionMimeType = normalizedMimeType;
   if (normalizedMimeType === 'image/jpeg') {
@@ -138,16 +134,14 @@ function validationNamesMatch(a: string, b: string): boolean {
 
 export function findExpectedForValidationChar(
   charName: string,
-  expected: ProductImageValidationInput['expectedCharacters'],
+  expected: ProductImageValidationInput['expectedCharacters']
 ): ProductImageValidationInput['expectedCharacters'][0] | undefined {
   return expected.find((e) => validationNamesMatch(e.name, charName));
 }
 
 export function charHasIdentityReference(
   charName: string,
-  refs:
-    | ReadonlyArray<{ characterName: string; imageData?: string; fileUri?: string }>
-    | undefined,
+  refs: ReadonlyArray<{ characterName: string; imageData?: string; fileUri?: string }> | undefined
 ): boolean {
   if (!refs?.length) return false;
   return refs.some((r) => validationNamesMatch(r.characterName, charName));
@@ -159,59 +153,67 @@ export function charHasIdentityReference(
 export function normalizeImageValidationResult(
   result: ImageValidationResult & { isValid?: boolean },
   expectedCharacters: ProductImageValidationInput['expectedCharacters'],
-  referenceImages: ProductImageValidationInput['referenceImages'] | undefined,
+  referenceImages: ProductImageValidationInput['referenceImages'] | undefined
 ): ImageValidationResult {
   const { isValid: _ignored, ...rest } = result;
   const out = { ...rest } as ImageValidationResult;
 
   for (const c of out.characters) {
     const exp = findExpectedForValidationChar(c.name, expectedCharacters);
-    const expectedKind = exp ? (exp.isImaginary ? 'imaginary' : 'human') : null;
+    const expectedKind = exp?.characterKind ?? null;
     if (expectedKind && c.characterKind !== expectedKind) {
       logger.warn(
         { name: c.name, expectedKind, got: c.characterKind },
-        'Image validation characterKind mismatch vs expected list',
+        'Image validation characterKind mismatch vs expected list'
       );
     }
   }
 
   for (const c of out.characters) {
     const exp = findExpectedForValidationChar(c.name, expectedCharacters);
-    if (!exp || exp.isImaginary) continue;
+    if (!exp || exp.characterKind !== 'human') continue;
+    if (c.characterKind !== 'human') continue;
     if (!charHasIdentityReference(c.name, referenceImages)) continue;
     if (
-      !c.faceMatchesReference ||
-      !c.hairMatchesReference ||
-      !c.ageReadMatchesReference ||
-      !c.proportionsMatchReference
+      c.faceMatchesReference === false ||
+      c.hairMatchesReference === false ||
+      c.ageReadMatchesReference === false ||
+      c.proportionsMatchReference === false
     ) {
       logger.warn(
         { name: c.name },
-        'Image validation human with identity reference has false identity boolean(s)',
+        'Image validation human with identity reference has false identity boolean(s)'
       );
     }
   }
 
   for (const c of out.characters) {
     const exp = findExpectedForValidationChar(c.name, expectedCharacters);
-    if (!exp || !exp.isImaginary) continue;
+    if (!exp || exp.characterKind === 'human') continue;
     if (!charHasIdentityReference(c.name, referenceImages)) continue;
     const score = c.recognizableScore ?? 1;
-    if (!c.proportionsMatchReference && score <= 0.7) {
+    if (c.proportionsMatchReference === false && score <= 0.7) {
       logger.warn(
         {
           name: c.name,
+          kind: exp.characterKind,
           proportionsMatchReference: c.proportionsMatchReference,
           recognizableScore: score,
         },
-        'Image validation imaginary creature proportions/score concern',
+        'Image validation non-human proportions/score concern'
       );
     }
     if (c.sameOverallDesignRead === false) {
-      logger.warn({ name: c.name }, 'Image validation sameOverallDesignRead false');
+      logger.warn(
+        { name: c.name, kind: exp.characterKind },
+        'Image validation sameOverallDesignRead false'
+      );
     }
     if (c.silhouetteDriftSeverity === 'severe') {
-      logger.warn({ name: c.name }, 'Image validation silhouetteDriftSeverity severe');
+      logger.warn(
+        { name: c.name, kind: exp.characterKind },
+        'Image validation silhouetteDriftSeverity severe'
+      );
     }
   }
 
@@ -221,34 +223,35 @@ export function normalizeImageValidationResult(
 function summarizeValidationIssues(
   c: ImageValidationResult['characters'][0],
   expectedCharacters: ProductImageValidationInput['expectedCharacters'],
-  referenceImages: ProductImageValidationInput['referenceImages'] | undefined,
+  referenceImages: ProductImageValidationInput['referenceImages'] | undefined
 ): string | null {
   const parts: string[] = [];
   if (!c.found) parts.push('missing');
   if (c.duplicated) parts.push('duplicated');
-  if ((c.recognizableScore ?? 1) < 0.5) parts.push(`lowRecognizable(${(c.recognizableScore ?? 0).toFixed(2)})`);
+  if ((c.recognizableScore ?? 1) < 0.5)
+    parts.push(`lowRecognizable(${(c.recognizableScore ?? 0).toFixed(2)})`);
   if (!c.matchesColors) parts.push('colors');
   if (!c.matchesOutfit) parts.push('outfit');
   const exp = findExpectedForValidationChar(c.name, expectedCharacters);
-  const humanWithRef =
-    exp && !exp.isImaginary && charHasIdentityReference(c.name, referenceImages);
+  const hasRef = charHasIdentityReference(c.name, referenceImages);
+  const humanWithRef = exp?.characterKind === 'human' && c.characterKind === 'human' && hasRef;
   if (humanWithRef) {
-    if (!c.faceMatchesReference) parts.push('face');
-    if (!c.hairMatchesReference) parts.push('hair');
-    if (!c.ageReadMatchesReference) parts.push('ageRead');
-    if (!c.proportionsMatchReference) parts.push('proportions');
+    if (c.faceMatchesReference === false) parts.push('face');
+    if (c.hairMatchesReference === false) parts.push('hair');
+    if (c.ageReadMatchesReference === false) parts.push('ageRead');
+    if (c.proportionsMatchReference === false) parts.push('proportions');
   }
-  const imaginaryWithRef =
-    exp && exp.isImaginary && charHasIdentityReference(c.name, referenceImages);
-  if (imaginaryWithRef) {
-    if (!c.proportionsMatchReference) parts.push('proportions');
+  const nonHumanWithRef =
+    exp && exp.characterKind !== 'human' && c.characterKind !== 'human' && hasRef;
+  if (nonHumanWithRef) {
+    if (c.proportionsMatchReference === false) parts.push('proportions');
     if (c.sameOverallDesignRead === false) parts.push('designRead');
     if (c.silhouetteDriftSeverity && c.silhouetteDriftSeverity !== 'none') {
       parts.push(`silhouette:${c.silhouetteDriftSeverity}`);
     }
   }
-  if (exp && c.characterKind !== (exp.isImaginary ? 'imaginary' : 'human')) {
-    parts.push('characterKindMismatch');
+  if (exp && c.characterKind !== exp.characterKind) {
+    parts.push(`characterKindMismatch(expected=${exp.characterKind},got=${c.characterKind})`);
   }
   if (parts.length === 0) return null;
   return `${c.name}: ${parts.join(',')}${c.issue ? ` — ${c.issue}` : ''}`;
@@ -261,7 +264,7 @@ function summarizeValidationIssues(
 export async function runProductImageValidation(
   textProvider: ITextProvider,
   input: ProductImageValidationInput,
-  options: ProductImageValidationOptions = {},
+  options: ProductImageValidationOptions = {}
 ): Promise<ImageValidationResult> {
   const visionModel = options.visionModel;
   const operation = options.operation ?? 'image_validation';
@@ -269,7 +272,7 @@ export async function runProductImageValidation(
   const preparedGeneratedImage = await prepareImageForValidation(
     input.imageData,
     input.mimeType,
-    config.image.validationSceneMaxSide,
+    config.image.validationSceneMaxSide
   );
 
   const preparedReferenceImages =
@@ -280,14 +283,14 @@ export async function runProductImageValidation(
             const prepared = await prepareImageForValidation(
               Buffer.from(ref.imageData, 'base64'),
               ref.mimeType,
-              config.image.validationReferenceMaxSide,
+              config.image.validationReferenceMaxSide
             );
             return {
               ...ref,
               imageData: prepared.buffer.toString('base64'),
               mimeType: prepared.mimeType,
             };
-          }),
+          })
         )
       : undefined;
 
@@ -302,8 +305,11 @@ export async function runProductImageValidation(
     {
       ...input.logContext,
       expectedCharacterCount: input.expectedCharacters.length,
-      expectedCharacterNames: input.expectedCharacters.map((c) => c.name),
-      imaginaryCharacterNames: input.expectedCharacters.filter((c) => c.isImaginary).map((c) => c.name),
+      expectedRoster: input.expectedCharacters.map((c) => ({
+        name: c.name,
+        characterKind: c.characterKind,
+        speciesSubtype: c.speciesSubtype,
+      })),
       generatedImage: {
         mimeType: preparedGeneratedImage.mimeType,
         sizeBytes: preparedGeneratedImage.buffer.length,
@@ -319,13 +325,11 @@ export async function runProductImageValidation(
       referencesSent: refMeta,
       imageOrderToModel: [
         '1_generated_illustration',
-        ...(preparedReferenceImages ?? []).map(
-          (r, i) => `${i + 2}_reference_${r.characterName}`,
-        ),
+        ...(preparedReferenceImages ?? []).map((r, i) => `${i + 2}_reference_${r.characterName}`),
       ],
       totalAttachmentCount: 1 + refMeta.length,
     },
-    'Image validation: sending generated scene + identity references to Vision model',
+    'Image validation: sending generated scene + identity references to Vision model'
   );
 
   const imageDataArray: Array<{
@@ -354,9 +358,7 @@ export async function runProductImageValidation(
   const sceneLighting = input.sceneVisual.lighting?.trim();
   const cameraComposition = input.sceneVisual.cameraComposition;
   const shotText =
-    typeof cameraComposition === 'string'
-      ? undefined
-      : cameraComposition.shot?.trim();
+    typeof cameraComposition === 'string' ? undefined : cameraComposition.shot?.trim();
   const characterDirectionLines =
     typeof cameraComposition === 'string'
       ? []
@@ -409,7 +411,7 @@ export async function runProductImageValidation(
     const result = normalizeImageValidationResult(
       raw,
       input.expectedCharacters,
-      preparedReferenceImages,
+      preparedReferenceImages
     );
 
     const issueSummaries = result.characters
@@ -424,7 +426,7 @@ export async function runProductImageValidation(
         hasText: result.hasTextOrLetters,
         issues: issueSummaries,
       },
-      'Image validation result',
+      'Image validation result'
     );
 
     return result;
@@ -432,39 +434,48 @@ export async function runProductImageValidation(
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
 
     if (errorMsg.includes('PROHIBITED_CONTENT') || errorMsg.includes('blocked')) {
-      logger.warn({ error: errorMsg }, 'Image validation blocked by safety filter — auto-passing');
+      logger.warn(
+        { ...input.logContext, error: errorMsg },
+        'Image validation blocked by safety filter — returning skipped result (no auto-pass)'
+      );
 
+      // Return a deterministic "skipped" result. recognizableScore is deliberately below the
+      // default acceptance threshold so orchestration does not silently accept the image; the
+      // retry loop / catch path decides what to do next. Identity booleans stay null so nothing
+      // downstream can mistake this for a real vision verdict.
       return {
         characterCount: input.expectedCharacters.length,
         expectedCharacterCount: input.expectedCharacters.length,
         characters: input.expectedCharacters.map((c) => ({
           name: c.name,
-          characterKind: c.isImaginary ? 'imaginary' : 'human',
-          found: true,
+          characterKind: c.characterKind,
+          found: false,
           duplicated: false,
-          recognizableScore: 1,
-          faceMatchesReference: true,
-          hairMatchesReference: true,
-          ageReadMatchesReference: true,
-          proportionsMatchReference: true,
-          matchesColors: true,
-          matchesOutfit: true,
-          identityComparisonSummary: 'Auto-approved (safety filter false positive).',
+          recognizableScore: 0.5,
+          faceMatchesReference: null,
+          hairMatchesReference: null,
+          ageReadMatchesReference: null,
+          proportionsMatchReference: null,
+          matchesColors: false,
+          matchesOutfit: false,
+          identityComparisonSummary: 'Validation safety-auto-skipped — no visual verdict.',
+          issue: 'safety_auto_skipped',
         })),
         hasUnexpectedCharacters: false,
         hasTextOrLetters: false,
         hasRenderingArtifacts: false,
-        overallFeedback: `Auto-approved (safety filter false positive): ${errorMsg}`,
+        overallFeedback: `safety-auto-skipped: ${errorMsg}`,
       };
     }
 
     logger.error(
       {
-        err: error instanceof Error
-          ? { message: error.message, name: error.name, stack: error.stack }
-          : String(error),
+        err:
+          error instanceof Error
+            ? { message: error.message, name: error.name, stack: error.stack }
+            : String(error),
       },
-      'Image validation failed',
+      'Image validation failed'
     );
     throw new Error(`Image validation failed: ${errorMsg}`);
   }

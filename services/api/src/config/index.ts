@@ -5,8 +5,16 @@ if (process.env.NODE_ENV === 'development') {
   console.log('🔐 OAuth Config Check:');
   console.log('  GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'Set ✓' : 'Missing ✗');
   console.log('  GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'Set ✓' : 'Missing ✗');
-  console.log('  ELEVENLABS_API_KEY:', process.env.ELEVENLABS_API_KEY ? `Set ✓ (length: ${process.env.ELEVENLABS_API_KEY.length})` : 'Missing ✗');
-  console.log('  ENABLE_ENVIRONMENT_REFERENCE:', process.env.ENABLE_ENVIRONMENT_REFERENCE === 'true' ? 'true ✓' : 'false');
+  console.log(
+    '  ELEVENLABS_API_KEY:',
+    process.env.ELEVENLABS_API_KEY
+      ? `Set ✓ (length: ${process.env.ELEVENLABS_API_KEY.length})`
+      : 'Missing ✗'
+  );
+  console.log(
+    '  ENABLE_ENVIRONMENT_REFERENCE:',
+    process.env.ENABLE_ENVIRONMENT_REFERENCE === 'true' ? 'true ✓' : 'false'
+  );
 }
 
 // Validate required environment variables in production
@@ -19,37 +27,36 @@ function validateProductionConfig() {
       'GOOGLE_CLIENT_ID',
       'GOOGLE_CLIENT_SECRET',
     ];
-    
+
     const missing = required.filter((key) => !process.env[key]);
-    
+
     if (missing.length > 0) {
       throw new Error(
         `Missing required environment variables in production: ${missing.join(', ')}`
       );
     }
-    
+
     // Validate JWT_SECRET strength
     if (process.env.JWT_SECRET!.length < 32) {
       throw new Error('JWT_SECRET must be at least 32 characters in production');
     }
-    
+
     // Validate ENCRYPTION_KEY format
     if (process.env.ENCRYPTION_KEY!.length !== 64) {
       throw new Error('ENCRYPTION_KEY must be 64 hex characters (32 bytes) in production');
     }
-    
+
     // Warn about default values
     if (process.env.JWT_SECRET?.includes('change_in_production')) {
       throw new Error('JWT_SECRET must be changed from default value in production');
     }
 
     const textVendor = process.env.AI_TEXT_VENDOR || 'gemini';
-    const directorTextVendor =
-      (process.env.AI_DIRECTOR_TEXT_VENDOR || '').trim() || textVendor;
+    const directorTextVendor = (process.env.AI_DIRECTOR_TEXT_VENDOR || '').trim() || textVendor;
     const needsOpenAiKey = textVendor === 'openai' || directorTextVendor === 'openai';
     if (needsOpenAiKey && !process.env.OPENAI_API_KEY?.trim()) {
       throw new Error(
-        'OPENAI_API_KEY is required in production when AI_TEXT_VENDOR or AI_DIRECTOR_TEXT_VENDOR is openai',
+        'OPENAI_API_KEY is required in production when AI_TEXT_VENDOR or AI_DIRECTOR_TEXT_VENDOR is openai'
       );
     }
   }
@@ -62,7 +69,7 @@ export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   apiVersion: process.env.API_VERSION || 'v1',
-  
+
   // AI Providers
   ai: {
     textVendor: process.env.AI_TEXT_VENDOR || 'gemini',
@@ -77,24 +84,21 @@ export const config = {
     directorTextVendor: (process.env.AI_DIRECTOR_TEXT_VENDOR || '').trim() || undefined,
     /** OpenAI model for Director only; falls back to OPENAI_TEXT_MODEL default */
     openaiDirectorModel:
-      process.env.AI_DIRECTOR_OPENAI_MODEL ||
-      process.env.OPENAI_TEXT_MODEL ||
-      'gpt-5.2',
+      process.env.AI_DIRECTOR_OPENAI_MODEL || process.env.OPENAI_TEXT_MODEL || 'gpt-5.2',
     elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || '',
     // Structured text (Director, validation, etc.): GEMINI_TEXT_MODEL overrides legacy AI_MODEL_VERSION
-    modelVersion: process.env.GEMINI_TEXT_MODEL || process.env.AI_MODEL_VERSION || 'gemini-3-flash-preview',
+    modelVersion:
+      process.env.GEMINI_TEXT_MODEL || process.env.AI_MODEL_VERSION || 'gemini-3-flash-preview',
     validationModel: process.env.GEMINI_VALIDATION_MODEL || 'gemini-2.5-flash-lite',
     geminiContextCacheMinEstimatedTokens: parseInt(
       process.env.GEMINI_CONTEXT_CACHE_MIN_ESTIMATED_TOKENS || '1024',
-      10,
+      10
     ),
-    geminiContextCacheMinShare: parseFloat(
-      process.env.GEMINI_CONTEXT_CACHE_MIN_SHARE || '0.5',
-    ),
+    geminiContextCacheMinShare: parseFloat(process.env.GEMINI_CONTEXT_CACHE_MIN_SHARE || '0.5'),
     maxRetries: parseInt(process.env.AI_MAX_RETRIES || '3', 10),
     timeoutMs: parseInt(process.env.AI_TIMEOUT_MS || '30000', 10),
   },
-  
+
   // Image Generation
   image: {
     skipGeneration: process.env.SKIP_IMAGE_GENERATION === 'true',
@@ -112,7 +116,10 @@ export const config = {
     maxRetries: parseInt(process.env.IMAGE_MAX_RETRIES || '3', 10),
     retryDelayMs: parseInt(process.env.IMAGE_RETRY_DELAY_MS || '2000', 10),
     // RPM Rate Limiting
-    rpmQuotaRefreshIntervalMs: parseInt(process.env.IMAGE_RPM_QUOTA_REFRESH_INTERVAL_MS || '300000', 10), // 5 minutes
+    rpmQuotaRefreshIntervalMs: parseInt(
+      process.env.IMAGE_RPM_QUOTA_REFRESH_INTERVAL_MS || '300000',
+      10
+    ), // 5 minutes
     rpmDefaultLimit: parseInt(process.env.IMAGE_RPM_DEFAULT_LIMIT || '150', 10), // Default RPM for Tier 1
     rpmSafetyMargin: parseFloat(process.env.IMAGE_RPM_SAFETY_MARGIN || '0.9'), // Use 90% of limit
     queueTimeoutMs: parseInt(process.env.IMAGE_QUEUE_TIMEOUT_MS || '300000', 10), // 5 minutes max wait in queue
@@ -122,28 +129,25 @@ export const config = {
     /** Scene image accepted when computeValidationScore(...) is strictly greater than this (no LLM isValid). */
     validationMinAcceptScore: parseInt(process.env.IMAGE_VALIDATION_MIN_ACCEPT_SCORE || '85', 10),
     /** Validation-only downscale for the generated scene image sent to the vision model. */
-    validationSceneMaxSide: parseInt(
-      process.env.IMAGE_VALIDATION_SCENE_MAX_SIDE || '1024',
-      10,
-    ),
+    validationSceneMaxSide: parseInt(process.env.IMAGE_VALIDATION_SCENE_MAX_SIDE || '1024', 10),
     /** Validation-only downscale for per-character identity reference images. */
     validationReferenceMaxSide: parseInt(
       process.env.IMAGE_VALIDATION_REFERENCE_MAX_SIDE || '768',
-      10,
+      10
     ),
     // Legacy single cap (prefer bucket limits below for Gemini 3.1 image)
     maxReferenceImages: parseInt(process.env.IMAGE_MAX_REFERENCE_IMAGES || '14', 10),
     /** Identity refs: turnaround / child / character sheets (Gemini 3.1: up to 4) */
     maxCharacterReferenceImages: parseInt(
       process.env.IMAGE_MAX_CHARACTER_REFERENCE_IMAGES || '4',
-      10,
+      10
     ),
     /** Environment + outfit plates + non-character refs (Gemini 3.1: up to 10) */
     maxObjectReferenceImages: parseInt(process.env.IMAGE_MAX_OBJECT_REFERENCE_IMAGES || '10', 10),
     enableOutfitPlate: process.env.ENABLE_OUTFIT_PLATE === 'true',
     outfitPlateMaxPerScene: parseInt(process.env.OUTFIT_PLATE_MAX_PER_SCENE || '2', 10),
     outfitPlateEmbeddingSimilarityThreshold: parseFloat(
-      process.env.OUTFIT_PLATE_EMBEDDING_SIMILARITY_THRESHOLD || '0.95',
+      process.env.OUTFIT_PLATE_EMBEDDING_SIMILARITY_THRESHOLD || '0.95'
     ),
     // Validation scoring: absolute penalties (subtracted from 100)
     validationScoring: {
@@ -157,15 +161,20 @@ export const config = {
       unexpectedCharsPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_UNEXPECTED || '3', 10),
       artifactsPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_ARTIFACTS || '10', 10),
       /** Per false identity flag (face/hair/age/proportions) for humans who have a turnaround reference in this validation call */
-      humanIdentityFlagPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_HUMAN_IDENTITY_FLAG || '8', 10),
+      humanIdentityFlagPenalty: parseInt(
+        process.env.IMAGE_SCORE_PENALTY_HUMAN_IDENTITY_FLAG || '8',
+        10
+      ),
       /** If recognizableScore is below this for a human with ref, apply humanLowRecognizableExtraPenalty */
       humanLowRecognizableThreshold: parseFloat(
-        process.env.IMAGE_SCORE_HUMAN_LOW_REC_THRESHOLD || '0.75',
+        process.env.IMAGE_SCORE_HUMAN_LOW_REC_THRESHOLD || '0.75'
       ),
       humanLowRecognizableExtraPenalty: parseInt(
         process.env.IMAGE_SCORE_PENALTY_HUMAN_LOW_REC || '5',
-        10,
+        10
       ),
+      /** Applied when the validator's characterKind disagrees with the expected roster kind. */
+      kindMismatchPenalty: parseInt(process.env.IMAGE_SCORE_PENALTY_KIND_MISMATCH || '45', 10),
     },
     // Turnaround sheet generation for imaginary characters
     enableTurnaroundSheet: process.env.ENABLE_TURNAROUND_SHEET === 'true',
@@ -183,8 +192,7 @@ export const config = {
     // Generate environment references for every unique environment unless a reusable match is found.
     skipEnvImageForSingleScene: process.env.SKIP_ENV_IMAGE_FOR_SINGLE_SCENE === 'true',
     environmentImageStyle:
-      process.env.ENVIRONMENT_IMAGE_STYLE ||
-      'clean line art, simple shapes, clear spatial layout',
+      process.env.ENVIRONMENT_IMAGE_STYLE || 'clean line art, simple shapes, clear spatial layout',
   },
 
   // OpenAI Image (GPT Image via Responses API) - for character consistency with input_fidelity
@@ -192,7 +200,7 @@ export const config = {
     mainlineModel: process.env.OPENAI_IMAGE_MAINLINE_MODEL || 'gpt-4.1',
     quality: process.env.OPENAI_IMAGE_QUALITY || 'medium', // low | medium | high | auto
   },
-  
+
   // Nano Banana Pro (Gemini 3 Pro Image) - for cartoon/illustration with character consistency
   nanoBanana: {
     model: process.env.NANO_BANANA_MODEL || 'gemini-3-pro-image-preview', // Upgraded from gemini-2.5-flash-image for better character consistency
@@ -202,7 +210,7 @@ export const config = {
     enableFilesApi: process.env.NANO_BANANA_ENABLE_FILES_API === 'true', // Off by default — upload turnarounds to Google Files API
     maxPromptLength: parseInt(process.env.NANO_BANANA_MAX_PROMPT_LENGTH || '2000', 10), // Max chars before truncation
   },
-  
+
   // Audio/TTS Generation (M5)
   audio: {
     provider: process.env.AUDIO_PROVIDER || 'elevenlabs', // 'elevenlabs' | 'google' | 'openai'
@@ -256,35 +264,35 @@ export const config = {
       enterprise: 30,
     },
   },
-  
+
   // Google Cloud (for Quotas API)
   googleCloud: {
     project: process.env.GOOGLE_CLOUD_PROJECT || '',
     credentials: process.env.GOOGLE_CLOUD_CREDENTIALS || '', // Path to service account JSON
     location: process.env.GOOGLE_CLOUD_LOCATION || 'us-central1',
   },
-  
+
   // Database
   database: {
     url: process.env.DATABASE_URL || 'postgresql://kazka:devpass@localhost:5432/kazka_dev',
   },
-  
+
   // JWT
   jwt: {
     secret: process.env.JWT_SECRET || 'wondertales_super_secret_key_change_in_production_2026',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
-  
+
   // Session
   session: {
     expiresIn: process.env.SESSION_EXPIRES_IN || '30d',
   },
-  
+
   // Google APIs
   google: {
     apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '', // For Gemini APIs (Vision, Image generation)
   },
-  
+
   // OAuth
   oauth: {
     google: {
@@ -293,7 +301,8 @@ export const config = {
       callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback',
       // Mobile client IDs for token verification
       iosClientId: process.env.GOOGLE_IOS_CLIENT_ID || process.env.GOOGLE_CLIENT_ID_IOS || '',
-      androidClientId: process.env.GOOGLE_ANDROID_CLIENT_ID || process.env.GOOGLE_CLIENT_ID_ANDROID || '',
+      androidClientId:
+        process.env.GOOGLE_ANDROID_CLIENT_ID || process.env.GOOGLE_CLIENT_ID_ANDROID || '',
     },
     apple: {
       clientId: process.env.APPLE_CLIENT_ID || '',
@@ -303,7 +312,7 @@ export const config = {
       callbackUrl: process.env.APPLE_CALLBACK_URL || 'http://localhost:3000/auth/apple/callback',
     },
   },
-  
+
   // Storage
   storage: {
     provider: (process.env.STORAGE_PROVIDER || 'local') as 'aws' | 'local',
@@ -313,7 +322,7 @@ export const config = {
     secretKey: process.env.STORAGE_SECRET_KEY || '',
     cdnUrl: process.env.STORAGE_CDN_URL || '',
   },
-  
+
   // Email (Resend)
   email: {
     resendApiKey: process.env.RESEND_API_KEY || '',
@@ -322,8 +331,15 @@ export const config = {
 
   // Published stories (static HTML output + SSR)
   web: {
-    webAppUrl: process.env.WEB_APP_URL || process.env.EXPO_PUBLIC_WEB_APP_URL || 'https://app.wondertales.com',
-    apiPublicUrl: process.env.API_PUBLIC_URL || process.env.WEB_APP_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.wondertales.com',
+    webAppUrl:
+      process.env.WEB_APP_URL ||
+      process.env.EXPO_PUBLIC_WEB_APP_URL ||
+      'https://app.wondertales.com',
+    apiPublicUrl:
+      process.env.API_PUBLIC_URL ||
+      process.env.WEB_APP_URL ||
+      process.env.EXPO_PUBLIC_API_BASE_URL ||
+      'https://api.wondertales.com',
     webBundleUrl: process.env.WEB_BUNDLE_URL || '/static/js/bundle.js', // SPA bundle for SSR hydration
     webBuildId: process.env.WEB_BUILD_ID || 'dev', // For cache key versioning
   },
@@ -349,7 +365,7 @@ export const config = {
         return acc;
       }, {}),
   },
-  
+
   // Job Queue Concurrency (fallbacks if rate limiter unavailable)
   queue: {
     textConcurrency: parseInt(process.env.TEXT_QUEUE_CONCURRENCY || '3', 10),
@@ -358,11 +374,14 @@ export const config = {
     instantConcurrency: parseInt(process.env.INSTANT_QUEUE_CONCURRENCY || '3', 10),
     pollIntervalMs: parseInt(process.env.QUEUE_POLL_INTERVAL_MS || '1000', 10),
   },
-  
+
   // Text Generation Rate Limiting
   text: {
     rpmDefaultLimit: parseInt(process.env.TEXT_RPM_DEFAULT_LIMIT || '10', 10),
-    rpmQuotaRefreshIntervalMs: parseInt(process.env.TEXT_RPM_QUOTA_REFRESH_INTERVAL_MS || '300000', 10),
+    rpmQuotaRefreshIntervalMs: parseInt(
+      process.env.TEXT_RPM_QUOTA_REFRESH_INTERVAL_MS || '300000',
+      10
+    ),
     rpmSafetyMargin: parseFloat(process.env.TEXT_RPM_SAFETY_MARGIN || '0.9'),
     queueTimeoutMs: parseInt(process.env.TEXT_QUEUE_TIMEOUT_MS || '300000', 10),
     validationConcurrency: parseInt(process.env.TEXT_VALIDATION_CONCURRENCY || '3', 10),

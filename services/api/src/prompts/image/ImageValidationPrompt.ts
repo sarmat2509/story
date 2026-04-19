@@ -6,10 +6,14 @@
 
 import { stripCharacterIdFromName } from '@wondertales/shared';
 
+export type ImageValidationCharacterKind = 'human' | 'animal' | 'imaginary';
+
 export interface ImageValidationPromptParams {
   expectedCharacters: Array<{
     name: string;
-    isImaginary: boolean;
+    characterKind: ImageValidationCharacterKind;
+    /** Optional species/role hint (e.g. 'hamster', 'dragon', 'cat'). Input-only — not part of model output. */
+    speciesSubtype?: string;
     description?: string;
     expectedOutfitForScene?: string;
   }>;
@@ -23,8 +27,14 @@ export interface ImageValidationPromptParams {
   }>;
 }
 
-export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v4';
-export const IMAGE_VALIDATION_CACHE_KEY_LITE = 'image_validation_rules_lite_v2';
+export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v5';
+export const IMAGE_VALIDATION_CACHE_KEY_LITE = 'image_validation_rules_lite_v3';
+
+function promptKindLabel(kind: ImageValidationCharacterKind): string {
+  if (kind === 'animal') return 'ANIMAL';
+  if (kind === 'imaginary') return 'IMAGINARY_CREATURE';
+  return 'HUMAN';
+}
 
 function namesMatchForValidation(a: string, b: string): boolean {
   const na = stripCharacterIdFromName(a).trim().toLowerCase();
@@ -34,14 +44,14 @@ function namesMatchForValidation(a: string, b: string): boolean {
 
 function expectedRowForRefName(
   refName: string,
-  expectedCharacters: ImageValidationPromptParams['expectedCharacters'],
+  expectedCharacters: ImageValidationPromptParams['expectedCharacters']
 ): ImageValidationPromptParams['expectedCharacters'][0] | undefined {
   return expectedCharacters.find((e) => namesMatchForValidation(e.name, refName));
 }
 
 function validationRefLabel(
   ref: NonNullable<ImageValidationPromptParams['referenceImages']>[number],
-  imageIndex: number,
+  imageIndex: number
 ): string {
   const role = ref.referenceKind === 'outfit_plate' ? 'outfit plate' : 'identity reference';
   return `Image ${imageIndex}: ${role} for "${ref.characterName}"`;
@@ -55,7 +65,7 @@ export function getImageValidationCachedPrefix(hasReferenceImages: boolean): {
   if (!hasReferenceImages) {
     return {
       key: IMAGE_VALIDATION_CACHE_KEY_LITE,
-      displayName: 'image_validation_rules_lite_v2',
+      displayName: IMAGE_VALIDATION_CACHE_KEY_LITE,
       content: `You are a quality assurance inspector for children's book illustrations.
 
 Validate only what is observable in the generated illustration.
@@ -68,8 +78,8 @@ Without reference images:
 - Do not invent identity failures that require a turnaround reference.
 
 Output JSON rules:
-- characterKind must be exactly "human" or "imaginary".
-- For each character, fill all required booleans and scores conservatively.
+- characterKind must be exactly "human", "animal", or "imaginary" and MUST match the KIND listed for that name in the expected roster. Do not reinterpret an animal as human.
+- For each character, fill required booleans and scores conservatively. Identity-vs-reference booleans (face/hair/ageRead/proportions) may be null for animal/imaginary when no reference is available.
 - issue should list concrete observed problems separated by semicolons when needed.
 - Report observable checks only. No aggregate pass/fail field. Return JSON only.`,
     };
@@ -77,7 +87,7 @@ Output JSON rules:
 
   return {
     key: IMAGE_VALIDATION_CACHE_KEY_FULL,
-    displayName: 'image_validation_rules_full_v4',
+    displayName: IMAGE_VALIDATION_CACHE_KEY_FULL,
     content: `You are a quality assurance inspector for children's book illustrations.
 
 Ground truth:
@@ -89,7 +99,8 @@ Ground truth:
 
 Identity rules:
 - HUMAN: highest-weight checks are face structure, age read, visible hairstyle, then proportions/silhouette, then stable colors/markings.
-- IMAGINARY_CREATURE: highest-weight checks are silhouette, body type, subtype read, head/muzzle shape, proportions, and signature markings/colors.
+- ANIMAL: highest-weight checks are body type / silhouette, species read (e.g. hamster vs cat), head/muzzle shape, proportions, fur/feather pattern, and stable markings/coloration. For ANIMAL, interpret sameOverallDesignRead = same body type + species read, silhouetteDriftSeverity = body-proportions/silhouette drift, proportionsMatchReference = head-to-body ratio. Leave faceMatchesReference / hairMatchesReference / ageReadMatchesReference as null for animals — those are human identity slots.
+- IMAGINARY_CREATURE: highest-weight checks are silhouette, body type, subtype read, head/muzzle shape, proportions, and signature markings/colors. Use the same sameOverallDesignRead / silhouetteDriftSeverity / proportionsMatchReference fields as animals; leave human-only identity booleans null.
 - Matching clothes, palette, pose, or broad archetype cannot compensate for wrong identity.
 - If first-glance design read drifts, recognizableScore must drop meaningfully.
 - Temporary expression changes alone are NOT identity drift. A sad vs happy expression, different gaze direction, or scene-driven eyebrow/eyelid change should not materially lower recognizableScore if the same design is still obvious at first glance.
@@ -114,8 +125,9 @@ Validation rules:
 - Apply scene-appropriate occlusion before failing outfit or visibility checks.
 
 Output JSON rules:
-- characterKind must be exactly "human" or "imaginary".
-- faceMatchesReference, hairMatchesReference, ageReadMatchesReference, proportionsMatchReference are required booleans.
+- characterKind must be exactly "human", "animal", or "imaginary" and MUST match the KIND listed for that name in the expected roster. Do not answer "human" for a character listed as ANIMAL just because they appear small or cute.
+- For HUMAN with an identity reference: faceMatchesReference, hairMatchesReference, ageReadMatchesReference, proportionsMatchReference are expected booleans.
+- For ANIMAL / IMAGINARY_CREATURE: leave faceMatchesReference, hairMatchesReference, and ageReadMatchesReference as null (they are human identity slots). Use sameOverallDesignRead, silhouetteDriftSeverity, and proportionsMatchReference to express identity drift.
 - Do not fail faceMatchesReference for temporary emotion alone when the same underlying face/head design is preserved.
 - identityComparisonSummary must state what matches, what differs, and whether first-glance design read drifted.
 - Do NOT list wardrobe differences inside identityComparisonSummary when those differences are authorized by scene wardrobe text or by an outfit plate. Clothing mismatch belongs in matchesOutfit / issue, not in identity drift commentary.
@@ -127,42 +139,47 @@ Output JSON rules:
 
 export function buildImageValidationRuntimePrompt(params: ImageValidationPromptParams): string {
   const { expectedCharacters } = params;
-  const refs = params.referenceImages && params.referenceImages.length > 0 ? params.referenceImages : [];
+  const refs =
+    params.referenceImages && params.referenceImages.length > 0 ? params.referenceImages : [];
 
-  const characterList = expectedCharacters.length > 0
-    ? expectedCharacters
-        .map((c, i) => {
-          const kind = c.isImaginary ? 'IMAGINARY_CREATURE' : 'HUMAN';
-          const desc = c.description ? `: ${c.description}` : '';
-          const outfitLine = c.expectedOutfitForScene?.trim()
-            ? ` | scene outfit: ${c.expectedOutfitForScene.trim()}`
-            : '';
-          return `${i + 1}. "${c.name}" | KIND=${kind}${desc}${outfitLine}`;
-        })
-        .join('\n')
-    : 'None';
+  const characterList =
+    expectedCharacters.length > 0
+      ? expectedCharacters
+          .map((c, i) => {
+            const kind = promptKindLabel(c.characterKind);
+            const subtype = c.speciesSubtype?.trim() ? ` | SUBTYPE=${c.speciesSubtype.trim()}` : '';
+            const desc = c.description ? ` | ${c.description}` : '';
+            const outfitLine = c.expectedOutfitForScene?.trim()
+              ? ` | scene outfit: ${c.expectedOutfitForScene.trim()}`
+              : '';
+            return `${i + 1}. "${c.name}" | KIND=${kind}${subtype}${desc}${outfitLine}`;
+          })
+          .join('\n')
+      : 'None';
 
-  const kindTable = expectedCharacters.length > 0
-    ? expectedCharacters
-        .map((c) => `"${c.name}" => ${c.isImaginary ? 'IMAGINARY_CREATURE' : 'HUMAN'}`)
-        .join('\n')
-    : 'None';
+  const kindTable =
+    expectedCharacters.length > 0
+      ? expectedCharacters
+          .map((c) => `"${c.name}" => ${promptKindLabel(c.characterKind)}`)
+          .join('\n')
+      : 'None';
 
   const imageOrder = [
     'Image 1: generated illustration',
     ...refs.map((ref, i) => validationRefLabel(ref, i + 2)),
   ].join('\n');
 
-  const validationMapping = refs.length > 0
-    ? refs
-        .map((ref, i) => {
-          const row = expectedRowForRefName(ref.characterName, expectedCharacters);
-          const kind = row ? (row.isImaginary ? 'IMAGINARY_CREATURE' : 'HUMAN') : 'UNKNOWN';
-          const role = ref.referenceKind === 'outfit_plate' ? 'OUTFIT_PLATE' : 'IDENTITY';
-          return `"${ref.characterName}" -> Image ${i + 2} [${kind}; ${role}]`;
-        })
-        .join('\n')
-    : 'None';
+  const validationMapping =
+    refs.length > 0
+      ? refs
+          .map((ref, i) => {
+            const row = expectedRowForRefName(ref.characterName, expectedCharacters);
+            const kind = row ? promptKindLabel(row.characterKind) : 'CHARACTER';
+            const role = ref.referenceKind === 'outfit_plate' ? 'OUTFIT_PLATE' : 'IDENTITY';
+            return `"${ref.characterName}" -> Image ${i + 2} [${kind}; ${role}]`;
+          })
+          .join('\n')
+      : 'None';
 
   return [
     'Validate Image 1 against the expected character roster and return JSON only.',

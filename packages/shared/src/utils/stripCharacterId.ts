@@ -4,5 +4,7 @@
  */
 export function stripCharacterIdFromName(name: string): string {
   if (!name) return name;
-  return name.replace(/\s*\[ID:\s*[^\]]+\]/g, '').trim();
+  // NFC-normalize so names with composed/decomposed diacritics (e.g. Ukrainian
+  // apostrophe) match consistently across scene rosters, references, and DB.
+  return name.normalize('NFC').replace(/\s*\[ID:\s*[^\]]+\]/g, '').trim();
 }

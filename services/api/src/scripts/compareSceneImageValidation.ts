@@ -17,10 +17,11 @@
  *     "cameraComposition": { "shot": "...", "characters": [{ "name": "Емілія", "description": "...", "outfitId": "o_x" }] }
  *   },
  *   "expectedCharacters": [
- *     { "name": "Емілія", "isImaginary": false, "description": "optional", "expectedOutfitForScene": "optional" },
- *     { "name": "Флеш", "isImaginary": true, "description": "optional" },
- *     { "name": "Сяйвик", "isImaginary": true }
+ *     { "name": "Емілія", "characterKind": "human", "description": "optional", "expectedOutfitForScene": "optional" },
+ *     { "name": "Флеш", "characterKind": "imaginary", "description": "optional" },
+ *     { "name": "Хом'як", "characterKind": "animal", "speciesSubtype": "hamster" }
  *   ],
+ *   // Legacy pack.json with "isImaginary": bool is auto-converted to characterKind.
  *   "references": [
  *     { "characterName": "Емілія", "path": "uploads/development/USER_ID/photos/child_turnaround/....jpg" },
  *     { "characterName": "Флеш", "path": "uploads/.../character_turnaround/....jpg" },
@@ -48,18 +49,43 @@ import type { SceneVisual } from '../services/types';
 /** services/api — directory that contains uploads/ (independent of process.cwd()) */
 const API_ROOT = path.resolve(__dirname, '../..');
 
+type PackExpectedCharacter = {
+  name: string;
+  /** New-style explicit kind — preferred. */
+  characterKind?: 'human' | 'animal' | 'imaginary';
+  /** Optional species/role hint for animals or imaginary creatures. */
+  speciesSubtype?: string;
+  /** Legacy: older packs only knew human vs imaginary. */
+  isImaginary?: boolean;
+  description?: string;
+  expectedOutfitForScene?: string;
+};
+
 type Pack = {
   sceneImage: string;
   sceneCharacterOutfitsText?: string;
   sceneVisual: SceneVisual;
-  expectedCharacters: Array<{
-    name: string;
-    isImaginary: boolean;
-    description?: string;
-    expectedOutfitForScene?: string;
-  }>;
+  expectedCharacters: PackExpectedCharacter[];
   references: Array<{ characterName: string; path: string }>;
 };
+
+function normalizePackExpected(c: PackExpectedCharacter): {
+  name: string;
+  characterKind: 'human' | 'animal' | 'imaginary';
+  speciesSubtype?: string;
+  description?: string;
+  expectedOutfitForScene?: string;
+} {
+  const kind: 'human' | 'animal' | 'imaginary' =
+    c.characterKind ?? (c.isImaginary ? 'imaginary' : 'human');
+  return {
+    name: c.name,
+    characterKind: kind,
+    speciesSubtype: c.speciesSubtype,
+    description: c.description,
+    expectedOutfitForScene: c.expectedOutfitForScene,
+  };
+}
 
 function mimeFromExt(filePath: string): 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' {
   const e = path.extname(filePath).toLowerCase();
@@ -69,8 +95,13 @@ function mimeFromExt(filePath: string): 'image/jpeg' | 'image/png' | 'image/webp
   return 'image/jpeg';
 }
 
-function readImageResolved(relativeOrAbsolute: string, cwd: string): { buf: Buffer; mime: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' } {
-  const resolved = path.isAbsolute(relativeOrAbsolute) ? relativeOrAbsolute : path.join(cwd, relativeOrAbsolute);
+function readImageResolved(
+  relativeOrAbsolute: string,
+  cwd: string
+): { buf: Buffer; mime: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' } {
+  const resolved = path.isAbsolute(relativeOrAbsolute)
+    ? relativeOrAbsolute
+    : path.join(cwd, relativeOrAbsolute);
   if (!fs.existsSync(resolved)) {
     throw new Error(`File not found: ${resolved}`);
   }
@@ -88,7 +119,7 @@ function parseArgs(): { pack: string } {
   if (!pack) {
     throw new Error(
       'Usage: npx tsx services/api/src/scripts/compareSceneImageValidation.ts --pack <pack.json>\n' +
-        '  (from repo root) or cd services/api && npx tsx src/scripts/compareSceneImageValidation.ts --pack ...',
+        '  (from repo root) or cd services/api && npx tsx src/scripts/compareSceneImageValidation.ts --pack ...'
     );
   }
   return { pack };
@@ -101,7 +132,7 @@ function resolvePackFilePath(packPath: string): string {
   const fromApi = path.resolve(API_ROOT, packPath);
   if (fs.existsSync(fromApi)) return fromApi;
   throw new Error(
-    `Pack not found: ${packPath}\n  tried: ${fromCwd}\n  tried: ${fromApi}\n  Run from repo root with path services/api/src/scripts/packs/....json`,
+    `Pack not found: ${packPath}\n  tried: ${fromCwd}\n  tried: ${fromApi}\n  Run from repo root with path services/api/src/scripts/packs/....json`
   );
 }
 
@@ -123,7 +154,7 @@ async function main() {
   const input = {
     imageData: scene.buf,
     mimeType: scene.mime,
-    expectedCharacters: raw.expectedCharacters,
+    expectedCharacters: raw.expectedCharacters.map(normalizePackExpected),
     sceneVisual: raw.sceneVisual,
     sceneCharacterOutfitsText: raw.sceneCharacterOutfitsText,
     referenceImages,
@@ -133,7 +164,7 @@ async function main() {
   const openaiKey = config.ai.openaiApiKey;
   if (!geminiKey) {
     throw new Error(
-      'Missing Gemini API key. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env.local (repo root) or export in shell.',
+      'Missing Gemini API key. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env.local (repo root) or export in shell.'
     );
   }
   if (!openaiKey) {
@@ -141,9 +172,7 @@ async function main() {
   }
 
   const geminiModel =
-    process.env.COMPARE_GEMINI_MODEL ||
-    config.ai.geminiVisionModel ||
-    'gemini-3-flash-preview';
+    process.env.COMPARE_GEMINI_MODEL || config.ai.geminiVisionModel || 'gemini-3-flash-preview';
   const openaiModel = process.env.COMPARE_OPENAI_MODEL || 'gpt-4o';
 
   const gemini = new GeminiTextProvider(geminiKey, config.ai.modelVersion);

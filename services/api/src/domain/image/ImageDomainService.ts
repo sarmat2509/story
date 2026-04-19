@@ -3,7 +3,12 @@
  * Business logic for image generation (M4)
  */
 
-import type { IImageProvider, GenerateImageRequest, GeneratedImage, ReferenceImage } from '../../providers/base/IImageProvider';
+import type {
+  IImageProvider,
+  GenerateImageRequest,
+  GeneratedImage,
+  ReferenceImage,
+} from '../../providers/base/IImageProvider';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
 import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 
@@ -20,7 +25,10 @@ import {
   type CharacterReference,
 } from '../../prompts/image';
 import { buildImageEditPrompt } from '../../prompts/image/ImageEditPrompt';
-import { buildTurnaroundPrompt, buildTextOnlyTurnaroundPrompt } from '../../prompts/image/TurnaroundPrompt';
+import {
+  buildTurnaroundPrompt,
+  buildTextOnlyTurnaroundPrompt,
+} from '../../prompts/image/TurnaroundPrompt';
 import type { ImageValidationResult } from '../../ai/types';
 import { type SceneVisual } from '../../services/types';
 import config from '../../config';
@@ -113,7 +121,7 @@ export interface SceneImageWithReferenceRequest {
 
 /**
  * ImageDomainService - Business logic for image generation
- * 
+ *
  * Responsibilities:
  * - Calculate optimal image dimensions based on age group
  * - Build age-appropriate art styles
@@ -124,16 +132,19 @@ export interface SceneImageWithReferenceRequest {
 export class ImageDomainService {
   constructor(
     private imageProvider: IImageProvider,
-    private textProvider?: ITextProvider, // For vision-based image validation (Gemini Vision)
+    private textProvider?: ITextProvider // For vision-based image validation (Gemini Vision)
   ) {}
 
   /**
    * Generate illustration for a story scene
    * Main method for scene image generation with full business logic
    */
-  async generateSceneIllustration(request: SceneImageRequest, options?: ImageDomainOptions): Promise<GeneratedImage> {
+  async generateSceneIllustration(
+    request: SceneImageRequest,
+    options?: ImageDomainOptions
+  ): Promise<GeneratedImage> {
     logger.info(
-      { 
+      {
         sceneId: request.sceneId,
         hasCharacters: !!request.characters?.length,
         hasReferences: !!request.referenceImages?.length,
@@ -141,17 +152,19 @@ export class ImageDomainService {
       },
       'Generating scene illustration'
     );
-    
+
     // Extract scene characters if scene text provided
-    const sceneCharacters = request.sceneText && request.characters
-      ? extractSceneCharacters(request.sceneText, request.characters)
-      : request.characters || [];
-    
+    const sceneCharacters =
+      request.sceneText && request.characters
+        ? extractSceneCharacters(request.sceneText, request.characters)
+        : request.characters || [];
+
     // Determine if we need capability model (for reference images)
-    const useCapabilityModel = request.mode === 'with_references' && 
-                               request.referenceImages && 
-                               request.referenceImages.length > 0;
-    
+    const useCapabilityModel =
+      request.mode === 'with_references' &&
+      request.referenceImages &&
+      request.referenceImages.length > 0;
+
     // Build enhanced prompt with characters, style, and safety guidelines (contentPolicy handles negative prompt internally)
     const enhancedPrompt = buildSceneImagePrompt({
       sceneVisual: request.sceneVisual,
@@ -162,7 +175,7 @@ export class ImageDomainService {
       hasReferences: useCapabilityModel,
       scenarioCardId: request.scenarioCardId,
     });
-    
+
     // Create provider request
     const providerRequest: GenerateImageRequest = {
       prompt: enhancedPrompt,
@@ -181,20 +194,26 @@ export class ImageDomainService {
   /**
    * Generate scene with reference-based approach (Nano Banana Pro)
    * Uses AI-generated descriptions + optional reference image for character consistency
-   * 
+   *
    * Flow:
    * - Scene 1: Generate from text descriptions only (no reference)
    * - Scenes 2-N: Generate using Scene 1 as reference + text descriptions
    */
-  async generateSceneWithReference(request: SceneImageWithReferenceRequest, options?: ImageDomainOptions): Promise<GeneratedImage> {
-    logger.info({ 
-      sceneId: request.sceneId,
-      hasReferences: !!request.referenceImages,
-      referenceCount: request.referenceImages?.length || 0,
-      realWorldCount: request.realWorldCharacters.length,
-      imaginaryCount: request.imaginaryCharacters.length,
-      hasSystemInstruction: !!request.systemInstruction,
-    }, 'Generating scene with reference approach');
+  async generateSceneWithReference(
+    request: SceneImageWithReferenceRequest,
+    options?: ImageDomainOptions
+  ): Promise<GeneratedImage> {
+    logger.info(
+      {
+        sceneId: request.sceneId,
+        hasReferences: !!request.referenceImages,
+        referenceCount: request.referenceImages?.length || 0,
+        realWorldCount: request.realWorldCharacters.length,
+        imaginaryCount: request.imaginaryCharacters.length,
+        hasSystemInstruction: !!request.systemInstruction,
+      },
+      'Generating scene with reference approach'
+    );
 
     const hasRefs = !!request.referenceImages && request.referenceImages.length > 0;
 
@@ -224,19 +243,24 @@ export class ImageDomainService {
       scenarioCardId: request.scenarioCardId,
     });
 
-    logger.info({
-      sceneId: request.sceneId,
-      style: request.style,
-      ageGroup: request.ageGroup,
-      promptLength: enhancedPrompt.length,
-      fullPrompt: enhancedPrompt,
-      systemInstruction,
-      imageIndexMap: request.imageIndexMap ? Object.fromEntries(request.imageIndexMap) : undefined,
-      outfitPlateImageIndexByCharacter: request.outfitPlateImageIndexByCharacter
-        ? Object.fromEntries(request.outfitPlateImageIndexByCharacter)
-        : undefined,
-      referenceLabels: request.referenceImages?.map(r => r.instructionText),
-    }, 'Built scene prompt with Asset Graph pattern');
+    logger.info(
+      {
+        sceneId: request.sceneId,
+        style: request.style,
+        ageGroup: request.ageGroup,
+        promptLength: enhancedPrompt.length,
+        fullPrompt: enhancedPrompt,
+        systemInstruction,
+        imageIndexMap: request.imageIndexMap
+          ? Object.fromEntries(request.imageIndexMap)
+          : undefined,
+        outfitPlateImageIndexByCharacter: request.outfitPlateImageIndexByCharacter
+          ? Object.fromEntries(request.outfitPlateImageIndexByCharacter)
+          : undefined,
+        referenceLabels: request.referenceImages?.map((r) => r.instructionText),
+      },
+      'Built scene prompt with Asset Graph pattern'
+    );
 
     const refImages =
       request.referenceImages?.map((ref) => ({
@@ -263,7 +287,7 @@ export class ImageDomainService {
         referenceKindObjectCount: objectRefCount,
         referenceTotal: refImages?.length ?? 0,
       },
-      'Reference images passed to image provider (by kind)',
+      'Reference images passed to image provider (by kind)'
     );
 
     const providerRequest: GenerateImageRequest = {
@@ -308,7 +332,7 @@ export class ImageDomainService {
     buffer: Buffer,
     mimeType: string,
     displayName?: string,
-    cacheKey?: string,
+    cacheKey?: string
   ): Promise<UploadedFile | null> {
     const fileManager = this.imageProvider.getFileManager?.();
     if (!fileManager) {
@@ -343,7 +367,7 @@ export class ImageDomainService {
     characters?: CharacterReference[]
   ): ReferenceImage[] {
     const references: ReferenceImage[] = [];
-    
+
     // Extract from child profile
     if (childProfile?.referencePhotos) {
       for (const photo of childProfile.referencePhotos) {
@@ -355,7 +379,7 @@ export class ImageDomainService {
         }
       }
     }
-    
+
     // Extract from characters
     if (characters) {
       for (const character of characters) {
@@ -371,7 +395,7 @@ export class ImageDomainService {
         }
       }
     }
-    
+
     return references;
   }
 
@@ -379,12 +403,9 @@ export class ImageDomainService {
    * Build character description from reference photos and appearance traits
    * Used when API doesn't support direct reference images
    */
-  buildCharacterDescription(
-    referencePhotos?: any[],
-    appearanceTraits?: any
-  ): string {
+  buildCharacterDescription(referencePhotos?: any[], appearanceTraits?: any): string {
     const parts: string[] = [];
-    
+
     // Build from appearance traits if available
     if (appearanceTraits) {
       if (appearanceTraits.hairColor) parts.push(`${appearanceTraits.hairColor} hair`);
@@ -395,10 +416,10 @@ export class ImageDomainService {
       if (appearanceTraits.build) parts.push(appearanceTraits.build);
       if (appearanceTraits.clothingStyle) parts.push(appearanceTraits.clothingStyle);
     }
-    
+
     // Note: For MVP, we don't analyze reference photos
     // In future, could use Vision API to extract description from photos
-    
+
     return parts.join(', ');
   }
 
@@ -420,23 +441,23 @@ export class ImageDomainService {
   calculateImageDimensions(ageGroup: string): { width: number; height: number } {
     // All age groups use 16:9 aspect ratio (1024x576) for consistency
     // This is optimal for story scenes and works well with Imagen 3
-    
+
     switch (ageGroup) {
       case '0-1':
       case '1y':
         // Very young children - simple is better
         return { width: 1024, height: 576 };
-      
+
       case '2-3':
       case '4-5':
         // Young children - standard quality
         return { width: 1024, height: 576 };
-      
+
       case '6-8':
       case '9-12':
         // Older children - can appreciate more detail
         return { width: 1024, height: 576 };
-      
+
       default:
         return { width: 1024, height: 576 };
     }
@@ -451,25 +472,25 @@ export class ImageDomainService {
     if (userStyle) {
       return userStyle;
     }
-    
+
     // Otherwise, determine default based on age
     switch (ageGroup) {
       case '0-1':
       case '1y':
         return 'soft_watercolor'; // Gentlest, most soothing
-      
+
       case '2-3':
         return 'colored_pencil'; // Simple, friendly
-      
+
       case '4-5':
         return 'warm_3d'; // Engaging, familiar (like Pixar)
-      
+
       case '6-8':
         return 'anime_light'; // More expressive, appealing to this age
-      
+
       case '9-12':
         return 'comic_line'; // More sophisticated, action-oriented
-      
+
       default:
         return 'soft_watercolor';
     }
@@ -490,7 +511,10 @@ export class ImageDomainService {
     mimeType: string;
     expectedCharacters: Array<{
       name: string;
-      isImaginary: boolean;
+      /** 3-way roster kind; must match CHARACTER TYPE from the story (person/child => human, animal, imaginary). */
+      characterKind: 'human' | 'animal' | 'imaginary';
+      /** Optional species/role hint (hamster, dragon, cat, fairy). Input-only. */
+      speciesSubtype?: string;
       description?: string;
       /** Scene-expected wardrobe (Director / characterOutfits); outfit check uses this, not the turnaround sheet. */
       expectedOutfitForScene?: string;
@@ -514,9 +538,7 @@ export class ImageDomainService {
 
     return runProductImageValidation(this.textProvider, params, {
       visionModel:
-        config.ai?.validationModel
-        || config.ai?.geminiVisionModel
-        || 'gemini-2.5-flash-lite',
+        config.ai?.validationModel || config.ai?.geminiVisionModel || 'gemini-2.5-flash-lite',
       operation: 'image_validation',
     });
   }
@@ -559,30 +581,34 @@ export class ImageDomainService {
       sceneDescription: params.sceneDescription,
     });
 
-    logger.info({
-      editInstructionsLength: editInstructions.length,
-      editInstructionsPreview: editInstructions.substring(0, 200),
-      originalMimeType: params.originalMimeType,
-      referenceCount: params.referenceImages?.length || 0,
-      hasSystemInstruction: !!params.systemInstruction,
-    }, 'Editing scene image based on validation feedback');
+    logger.info(
+      {
+        editInstructionsLength: editInstructions.length,
+        editInstructionsPreview: editInstructions.substring(0, 200),
+        originalMimeType: params.originalMimeType,
+        referenceCount: params.referenceImages?.length || 0,
+        hasSystemInstruction: !!params.systemInstruction,
+      },
+      'Editing scene image based on validation feedback'
+    );
 
     return await this.imageProvider.editImage({
       originalImage: params.originalImage,
       originalMimeType: params.originalMimeType,
       editInstructions,
       aspectRatio: params.aspectRatio,
-      referenceImages: params.referenceImages?.map((ref) => ({
-        url: ref.url,
-        base64Data: ref.base64Data,
-        fileUri: ref.fileUri,
-        mimeType: ref.mimeType,
-        instructionText: ref.instructionText,
-        characterName: ref.characterName,
-        referenceKind:
-          ref.referenceKind ??
-          inferReferenceKind({ source: ref.source, type: (ref as { type?: string }).type }),
-      })) || undefined,
+      referenceImages:
+        params.referenceImages?.map((ref) => ({
+          url: ref.url,
+          base64Data: ref.base64Data,
+          fileUri: ref.fileUri,
+          mimeType: ref.mimeType,
+          instructionText: ref.instructionText,
+          characterName: ref.characterName,
+          referenceKind:
+            ref.referenceKind ??
+            inferReferenceKind({ source: ref.source, type: (ref as { type?: string }).type }),
+        })) || undefined,
       systemInstruction: params.systemInstruction,
       personGeneration: params.personGeneration,
       onUsage: params.onUsage,
@@ -595,16 +621,22 @@ export class ImageDomainService {
    * Takes the child's drawing as a reference and produces a single image
    * with 4 views: front, 3/4, side profile, and back.
    */
-  async generateTurnaroundSheet(params: {
-    referenceImageBase64: string;
-    referenceMimeType: string;
-    characterName: string;
-    characterDescription?: string;
-  }, options?: ImageDomainOptions): Promise<GeneratedImage> {
-    logger.info({
-      characterName: params.characterName,
-      hasDescription: !!params.characterDescription,
-    }, 'Generating turnaround sheet for imaginary character');
+  async generateTurnaroundSheet(
+    params: {
+      referenceImageBase64: string;
+      referenceMimeType: string;
+      characterName: string;
+      characterDescription?: string;
+    },
+    options?: ImageDomainOptions
+  ): Promise<GeneratedImage> {
+    logger.info(
+      {
+        characterName: params.characterName,
+        hasDescription: !!params.characterDescription,
+      },
+      'Generating turnaround sheet for imaginary character'
+    );
 
     // Build the turnaround prompt
     const prompt = buildTurnaroundPrompt({
@@ -630,11 +662,14 @@ export class ImageDomainService {
 
     const result = await this.imageProvider.generateImage(request);
 
-    logger.info({
-      characterName: params.characterName,
-      imageSize: result.imageData.length,
-      mimeType: result.mimeType,
-    }, 'Turnaround sheet generated successfully');
+    logger.info(
+      {
+        characterName: params.characterName,
+        imageSize: result.imageData.length,
+        mimeType: result.mimeType,
+      },
+      'Turnaround sheet generated successfully'
+    );
 
     return result;
   }
@@ -643,15 +678,21 @@ export class ImageDomainService {
    * Generate a turnaround sheet from a TEXT DESCRIPTION only (no reference image).
    * Used for LLM-invented characters that have no user-uploaded drawing.
    */
-  async generateTurnaroundSheetFromDescription(params: {
-    characterName: string;
-    characterDescription: string;
-    imageStyle?: string;
-  }, options?: ImageDomainOptions): Promise<GeneratedImage> {
-    logger.info({
-      characterName: params.characterName,
-      descriptionLength: params.characterDescription.length,
-    }, 'Generating text-only turnaround sheet for LLM character');
+  async generateTurnaroundSheetFromDescription(
+    params: {
+      characterName: string;
+      characterDescription: string;
+      imageStyle?: string;
+    },
+    options?: ImageDomainOptions
+  ): Promise<GeneratedImage> {
+    logger.info(
+      {
+        characterName: params.characterName,
+        descriptionLength: params.characterDescription.length,
+      },
+      'Generating text-only turnaround sheet for LLM character'
+    );
 
     const prompt = buildTextOnlyTurnaroundPrompt({
       characterName: params.characterName,
@@ -670,11 +711,14 @@ export class ImageDomainService {
 
     const result = await this.imageProvider.generateImage(request);
 
-    logger.info({
-      characterName: params.characterName,
-      imageSize: result.imageData.length,
-      mimeType: result.mimeType,
-    }, 'Text-only turnaround sheet generated successfully');
+    logger.info(
+      {
+        characterName: params.characterName,
+        imageSize: result.imageData.length,
+        mimeType: result.mimeType,
+      },
+      'Text-only turnaround sheet generated successfully'
+    );
 
     return result;
   }

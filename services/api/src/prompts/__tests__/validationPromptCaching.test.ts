@@ -22,9 +22,7 @@ function testTextValidationPromptSplit() {
         sceneVisual: {
           cameraComposition: {
             shot: 'wide',
-            characters: [
-              { name: 'Mia', description: 'foreground center' },
-            ],
+            characters: [{ name: 'Mia', description: 'foreground center' }],
           },
         },
       } as any,
@@ -70,12 +68,12 @@ function testTextRegenerationPromptSplit() {
     } as any,
     sceneCount: 3,
     vocabLevel: 'simple',
-    failedScenes: [
-      { sceneId: 2, originalText: 'Old text', feedback: 'Too scary' },
-    ],
+    failedScenes: [{ sceneId: 2, originalText: 'Old text', feedback: 'Too scary' }],
   });
 
-  assert.ok(cached.includes('Keep plot, characters, location, events, and scene meaning unchanged.'));
+  assert.ok(
+    cached.includes('Keep plot, characters, location, events, and scene meaning unchanged.')
+  );
   assert.ok(!cached.includes('Old text'));
   assert.ok(runtime.includes('Old text'));
   assert.ok(runtime.includes('Too scary'));
@@ -87,7 +85,7 @@ function testImageValidationPromptSplit() {
     expectedCharacters: [
       {
         name: 'Mia [ID: 123]',
-        isImaginary: false,
+        characterKind: 'human',
         expectedOutfitForScene: 'yellow raincoat',
       },
     ],
@@ -96,19 +94,36 @@ function testImageValidationPromptSplit() {
   });
 
   assert.ok(cached.content.includes('Scoring guide'));
-  assert.strictEqual(cached.key, 'image_validation_rules_full_v3');
+  assert.strictEqual(cached.key, 'image_validation_rules_full_v5');
   assert.ok(cached.content.includes('Temporary expression changes alone are NOT identity drift.'));
-  assert.ok(cached.content.includes('flexible appendages (antennae, ears, whiskers, tail tip, crest tilt, wing angle)'));
-  assert.ok(cached.content.includes('Do not fail faceMatchesReference for temporary emotion alone'));
-  assert.ok(cached.content.includes('If an outfit plate reference is provided for a character, that outfit plate is the strongest clothing ground truth'));
+  assert.ok(
+    cached.content.includes(
+      'flexible appendages (antennae, ears, whiskers, tail tip, crest tilt, wing angle)'
+    )
+  );
+  assert.ok(
+    cached.content.includes('Do not fail faceMatchesReference for temporary emotion alone')
+  );
+  assert.ok(
+    cached.content.includes(
+      'If an outfit plate reference is provided for a character, that outfit plate is the strongest clothing ground truth'
+    )
+  );
   assert.ok(cached.content.includes('validate outfit primarily against that plate'));
   assert.ok(cached.content.includes('ignore the clothing shown on identity reference images'));
-  assert.ok(cached.content.includes('Do NOT list wardrobe differences inside identityComparisonSummary'));
+  assert.ok(
+    cached.content.includes('Do NOT list wardrobe differences inside identityComparisonSummary')
+  );
   assert.ok(!cached.content.includes('forest path at dusk'));
   assert.ok(runtime.includes('forest path at dusk'));
   assert.ok(runtime.includes('yellow raincoat'));
   assert.ok(runtime.includes('Image 2: identity reference for "Mia [ID: 123]"'));
-  assert.ok(runtime.includes('For IDENTITY references: use them for identity only and ignore their clothing'));
+  assert.ok(
+    runtime.includes(
+      'For IDENTITY references: use them for identity only and ignore their clothing'
+    )
+  );
+  assert.ok(runtime.includes('KIND=HUMAN'));
 }
 
 testTextValidationPromptSplit();

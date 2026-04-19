@@ -2894,7 +2894,19 @@ function buildCharacterSceneBrief(sceneVisual: SceneVisual | undefined, characte
 
   const cameraComposition = sceneVisual.cameraComposition;
   if (typeof cameraComposition === 'string') {
-    if (cameraComposition.trim()) parts.push(cameraComposition.trim());
+    // For legacy string composition, isolate sentences that mention THIS character so leniency
+    // keyed on e.g. "transparent" doesn't leak from one character to all characters in the scene.
+    const raw = cameraComposition.trim();
+    if (raw) {
+      const nameKey = stripCharacterIdFromName(characterName).trim().toLowerCase();
+      if (nameKey) {
+        const sentences = raw.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
+        const relevant = sentences.filter((s) => s.toLowerCase().includes(nameKey));
+        if (relevant.length > 0) {
+          parts.push(relevant.join(' '));
+        }
+      }
+    }
   } else {
     if (cameraComposition.shot?.trim()) parts.push(cameraComposition.shot.trim());
     const targetName = stripCharacterIdFromName(characterName).trim().toLowerCase();
@@ -2940,11 +2952,11 @@ function getSceneAuthorizedValidationLeniency(
   };
 }
 
-function computeValidationScore(
+export function computeValidationScore(
   validation: ImageValidationResult,
   options?: {
     referenceNamesNormalized?: Set<string>;
-    expectedCharacters?: Array<{ name: string; isImaginary: boolean }>;
+    expectedCharacters?: Array<{ name: string; characterKind: 'human' | 'animal' | 'imaginary' }>;
     sceneVisual?: SceneVisual;
     validationReferenceImages?: Array<{
       characterName: string;
@@ -2952,9 +2964,11 @@ function computeValidationScore(
       fileUri?: string;
       mimeType?: string;
     }>;
+    /** Override scoring params (used by tests); defaults to config.image.validationScoring. */
+    scoringOverride?: typeof config.image.validationScoring;
   },
 ): number {
-  const p = config.image.validationScoring;
+  const p = options?.scoringOverride ?? config.image.validationScoring;
   let score = 100;
   const refSet = options?.referenceNamesNormalized;
   const expected = options?.expectedCharacters;
@@ -2967,6 +2981,7 @@ function computeValidationScore(
 
   for (const c of validation.characters) {
     const leniency = getSceneAuthorizedValidationLeniency(c.name, sceneVisual, c);
+    const identityLenient = leniency.transientFormAuthorizedConflict || leniency.expressionAuthorizedConflict;
     const recScoreRaw = c.recognizableScore ?? 1;
     const recScore = leniency.transientFormAuthorizedConflict
       ? Math.max(recScoreRaw, 0.93)
@@ -2980,34 +2995,47 @@ function computeValidationScore(
     if (!c.matchesOutfit) score -= p.matchesOutfitPenalty;
 
     const norm = stripCharacterIdFromName(c.name).trim().toLowerCase();
-    const humanWithRef =
-      c.characterKind === 'human' && refSet && refSet.size > 0 && refSet.has(norm);
+    const hasRef = !!(refSet && refSet.size > 0 && refSet.has(norm));
+    const exp = expected ? findExpectedForValidationChar(c.name, expected) : undefined;
+    const expectedKind = exp?.characterKind ?? null;
 
+    // Kind mismatch: single penalty; model branches below keyed on BOTH sides matching the
+    // same kind so we never double-dock for our own mis-routing.
+    if (expectedKind && c.characterKind !== expectedKind) {
+      score -= p.kindMismatchPenalty;
+    }
+
+    const humanWithRef =
+      expectedKind === 'human' && c.characterKind === 'human' && hasRef;
     if (humanWithRef) {
-      if (!c.faceMatchesReference && !leniency.expressionAuthorizedConflict) score -= p.humanIdentityFlagPenalty;
-      if (!c.hairMatchesReference) score -= p.humanIdentityFlagPenalty;
-      if (!c.ageReadMatchesReference) score -= p.humanIdentityFlagPenalty;
-      if (!c.proportionsMatchReference) score -= p.humanIdentityFlagPenalty;
+      if (c.faceMatchesReference === false && !identityLenient) score -= p.humanIdentityFlagPenalty;
+      if (c.hairMatchesReference === false && !identityLenient) score -= p.humanIdentityFlagPenalty;
+      if (c.ageReadMatchesReference === false && !identityLenient) score -= p.humanIdentityFlagPenalty;
+      if (c.proportionsMatchReference === false && !identityLenient) score -= p.humanIdentityFlagPenalty;
       if (recScore < p.humanLowRecognizableThreshold) {
         score -= p.humanLowRecognizableExtraPenalty;
       }
     }
 
-    const exp = expected ? findExpectedForValidationChar(c.name, expected) : undefined;
-    const expectedKind = exp ? (exp.isImaginary ? 'imaginary' : 'human') : null;
-    if (expectedKind && c.characterKind !== expectedKind) {
-      score -= 45;
-    }
-
-    if (exp?.isImaginary && charHasIdentityReference(c.name, valRefs)) {
-      if (c.sameOverallDesignRead === false && !leniency.transientFormAuthorizedConflict) {
+    // Unified non-human branch: applies to animals AND imaginary creatures when the model
+    // agrees on the kind and we have an identity reference (turnaround / reference photo).
+    const nonHumanWithRef =
+      expectedKind && expectedKind !== 'human'
+      && c.characterKind !== 'human'
+      && c.characterKind === expectedKind
+      && charHasIdentityReference(c.name, valRefs);
+    if (nonHumanWithRef) {
+      if (c.sameOverallDesignRead === false && !identityLenient) {
         score -= 22;
       }
-      if (c.silhouetteDriftSeverity === 'severe' && !leniency.transientFormAuthorizedConflict) {
+      if (c.proportionsMatchReference === false && !identityLenient) {
+        score -= p.humanIdentityFlagPenalty;
+      }
+      if (c.silhouetteDriftSeverity === 'severe' && !identityLenient) {
         score -= 28;
-      } else if (c.silhouetteDriftSeverity === 'moderate' && !leniency.transientFormAuthorizedConflict) {
+      } else if (c.silhouetteDriftSeverity === 'moderate' && !identityLenient) {
         score -= 14;
-      } else if (c.silhouetteDriftSeverity === 'mild' && !leniency.transientFormAuthorizedConflict) {
+      } else if (c.silhouetteDriftSeverity === 'mild' && !identityLenient) {
         score -= 5;
       }
     }
@@ -3418,7 +3446,11 @@ async function generateSceneImageWithReference(
             ? serializeCharacterOutfitsToStr(outfitByCharacter)
             : undefined;
     const expectedCharacters = buildExpectedCharactersForValidation(
-      scene, context.characters, resolvedReferenceImageDataArray, outfitByCharacter,
+      scene,
+      context.characters,
+      resolvedReferenceImageDataArray,
+      outfitByCharacter,
+      { storyId, sceneId: scene.sceneId },
     );
     const validationReferenceImages = await buildValidationReferenceImages({
       expectedCharacters,
@@ -3437,7 +3469,7 @@ async function generateSceneImageWithReference(
     let acceptByValidationScore = false;
     /** Meta for the image buffer we upload (accepted attempt or best-of); persisted after upload. */
     let finalValidationMeta: { validation: ImageValidationResult; score: number; attempt: number } | null = null;
-    if (config.image.enableValidation && maxAttempts > 1) {
+    if (config.image.enableValidation) {
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           const imgUsageContext = { userId: context.userId, storyId };
@@ -3569,14 +3601,17 @@ async function generateSceneImageWithReference(
             );
           }
         } catch (validationError) {
+          // Validation transport/LLM error: do NOT silently auto-accept. Keep acceptByValidationScore
+          // false so the caller falls through to best-of-N selection or downstream retry logic.
           finalValidationMeta = null;
-          // Validation itself failed (e.g. Vision API error) — skip validation, use current image
+          lastValidation = null;
+          acceptByValidationScore = false;
           logger.error({
             err: validationError instanceof Error
               ? { message: validationError.message, name: validationError.name, stack: validationError.stack }
               : String(validationError),
             storyId, sceneId: scene.sceneId, attempt,
-          }, 'Image validation error — skipping validation, using current image');
+          }, 'Image validation transport error — not auto-accepting image');
           break;
         }
       }
@@ -3631,7 +3666,7 @@ async function generateSceneImageWithReference(
       assetType: 'image',
     });
 
-    if (finalValidationMeta && config.image.enableValidation && maxAttempts > 1) {
+    if (finalValidationMeta && config.image.enableValidation) {
       await persistImageValidationResult({
         storyId,
         sceneIndex: scene.sceneId,
@@ -3783,15 +3818,22 @@ function outfitFallbackFromCamera(
 /**
  * Build the expected character list for image validation.
  * Extracts characters from cameraComposition (single source of truth),
- * then maps them against character data to determine type (imaginary vs real-world).
+ * then maps each name to a 3-way characterKind (human/animal/imaginary)
+ * so the validator compares a hamster against hamster rules, not human rules.
  */
-function buildExpectedCharactersForValidation(
+export function buildExpectedCharactersForValidation(
   scene: SceneData,
   characters: CharacterData[],
   referenceImageDataArray?: Array<{ source?: string; characterName?: string }>,
   outfitByCharacter?: Record<string, string>,
-): Array<{ name: string; isImaginary: boolean; description?: string; expectedOutfitForScene?: string }> {
-  // Extract characters from cameraComposition (single source of truth)
+  logContext?: { storyId?: string; sceneId?: number },
+): Array<{
+  name: string;
+  characterKind: 'human' | 'animal' | 'imaginary';
+  speciesSubtype?: string;
+  description?: string;
+  expectedOutfitForScene?: string;
+}> {
   let sceneCharacterNames: string[];
   const sv = scene.sceneVisual;
   if (sv?.cameraComposition && typeof sv.cameraComposition !== 'string') {
@@ -3801,42 +3843,52 @@ function buildExpectedCharactersForValidation(
     sceneCharacterNames = (scene as any).visualCharacters || (scene as any).characters || [];
   }
 
-  // Build a set of imaginary character names from reference images
-  const imaginaryNameSet = new Set(
-    (referenceImageDataArray || [])
-      .filter(
-        r =>
-          (r.source === 'imaginary_friend' ||
-            r.source === 'child_reference' ||
-            r.source === 'character_reference') &&
-          r.characterName,
-      )
-      .map(r => stripCharacterIdFromName(r.characterName!).trim().toLowerCase()),
-  );
+  // refSource index by normalized character name; used only as fallback when charData.type is unknown.
+  const refSourceByName = new Map<string, string>();
+  for (const ref of referenceImageDataArray || []) {
+    if (!ref.characterName || !ref.source) continue;
+    const key = stripCharacterIdFromName(ref.characterName).trim().toLowerCase();
+    if (key && !refSourceByName.has(key)) {
+      refSourceByName.set(key, ref.source);
+    }
+  }
 
-  return sceneCharacterNames.map(name => {
-    const baseName = stripCharacterIdFromName(name).trim();
-    const baseLower = baseName.toLowerCase();
-    const charData = characters.find(
-      c =>
-        c.name.toLowerCase() === name.toLowerCase() ||
-        c.name.toLowerCase() === baseLower,
-    );
-    const isImaginary = imaginaryNameSet.has(name.toLowerCase())
-      || imaginaryNameSet.has(baseLower)
-      || charData?.type === 'imaginary';
+  const roster = sceneCharacterNames.map(name => {
+    const baseLower = stripCharacterIdFromName(name).trim().toLowerCase();
+    const charData = characters.find(c => {
+      if (!c?.name) return false;
+      return stripCharacterIdFromName(c.name).trim().toLowerCase() === baseLower;
+    });
 
+    const t = charData?.type;
+    const refSource = refSourceByName.get(baseLower);
+    const characterKind: 'human' | 'animal' | 'imaginary' =
+      t === 'animal'
+        ? 'animal'
+        : t === 'imaginary'
+          ? 'imaginary'
+          : t === 'person' || t === 'child'
+            ? 'human'
+            : refSource === 'imaginary_friend'
+              ? 'imaginary'
+              : 'human';
+
+    const subtypeRaw = (charData as any)?.subtype;
+    const speciesSubtype =
+      typeof subtypeRaw === 'string' && subtypeRaw.trim() ? subtypeRaw.trim() : undefined;
+
+    // expectedOutfitForScene is a HUMAN concept (clothing). Animals and imaginary creatures
+    // use "natural appearance" — feeding them pose/camera fallback text confuses matchesOutfit.
     const fromOutfits = lookupOutfitForValidationName(name, outfitByCharacter);
     const expectedOutfitForScene =
-      fromOutfits?.trim()
-      || outfitFallbackFromCamera(name, sv?.cameraComposition)
-      || undefined;
+      characterKind === 'human'
+        ? fromOutfits?.trim() || outfitFallbackFromCamera(name, sv?.cameraComposition) || undefined
+        : undefined;
 
-    // All characters (imaginary and real-world) get text descriptions for validation.
-    // Identity refs may also be attached separately; this text stays the fallback/context channel.
     return {
       name,
-      isImaginary,
+      characterKind,
+      speciesSubtype,
       description: (charData as any)?.descriptionEn
         || (charData as any)?.aiGeneratedDescription
         || charData?.appearance
@@ -3845,6 +3897,22 @@ function buildExpectedCharactersForValidation(
       expectedOutfitForScene,
     };
   });
+
+  logger.debug(
+    {
+      ...logContext,
+      sceneIdFromData: scene.sceneId,
+      roster: roster.map(r => ({
+        name: r.name,
+        characterKind: r.characterKind,
+        speciesSubtype: r.speciesSubtype,
+        hasOutfit: !!r.expectedOutfitForScene,
+      })),
+    },
+    'Built expected characters for image validation',
+  );
+
+  return roster;
 }
 
 function findCharacterForValidationName(
