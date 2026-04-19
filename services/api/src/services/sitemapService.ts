@@ -48,13 +48,13 @@ export async function generateSitemapXml(): Promise<string> {
     });
 
   const landingUrls = LANDING_LOCALES.map((locale) => {
-    const loc = escapeXml(getLandingUrl(webAppUrl || 'https://magic-sleep-time.duckdns.org', locale));
+    const loc = escapeXml(getLandingUrl(webAppUrl || 'https://wondertales.art', locale));
     const priority = locale === 'uk' ? '1.0' : '0.9';
     return `  <url>\n    <loc>${loc}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
   });
 
   const pricingUrls = LANDING_LOCALES.map((locale) => {
-    const loc = escapeXml(getPricingUrl(webAppUrl || 'https://magic-sleep-time.duckdns.org', locale));
+    const loc = escapeXml(getPricingUrl(webAppUrl || 'https://wondertales.art', locale));
     const priority = locale === 'uk' ? '0.95' : '0.85';
     return `  <url>\n    <loc>${loc}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
   });

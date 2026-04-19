@@ -27,4 +27,4 @@ EOF
 
 echo ""
 echo "✅ Hot-fix deployed!"
-echo "🌐 Check: https://magic-sleep-time.duckdns.org/health"
+echo "🌐 Check: https://wondertales.art/health"

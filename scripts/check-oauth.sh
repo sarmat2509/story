@@ -7,7 +7,7 @@ DROPLET_IP="167.172.102.75"
 DROPLET_USER="root"
 DROPLET_PATH="/var/www/kazka"
 
-echo "🔍 OAuth diagnostic for magic-sleep-time.duckdns.org"
+echo "🔍 OAuth diagnostic for wondertales.art"
 echo ""
 
 echo "1️⃣ API container status:"
@@ -19,12 +19,12 @@ ssh ${DROPLET_USER}@${DROPLET_IP} "cd ${DROPLET_PATH} && docker exec wondertales
 echo ""
 
 echo "3️⃣ Health check (API reachable):"
-curl -s -o /dev/null -w "%{http_code}" https://magic-sleep-time.duckdns.org/health
+curl -s -o /dev/null -w "%{http_code}" https://wondertales.art/health
 echo " /health"
 echo ""
 
 echo "4️⃣ OAuth start - response (first request, no follow):"
-curl -s -o /dev/null -w "HTTP %{http_code}\n" -I "https://magic-sleep-time.duckdns.org/api/v1/auth/google/start"
+curl -s -o /dev/null -w "HTTP %{http_code}\n" -I "https://wondertales.art/api/v1/auth/google/start"
 echo ""
 
 echo "5️⃣ Last API logs (errors):"

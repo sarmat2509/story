@@ -50,4 +50,4 @@ rm -f /tmp/${IMAGE_NAME}.tar.gz
 
 echo ""
 echo "✅ API deployment complete!"
-echo "🌐 Check: https://magic-sleep-time.duckdns.org/health"
+echo "🌐 Check: https://wondertales.art/health"

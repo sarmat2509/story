@@ -30,7 +30,7 @@ ENDSSH
 
 echo ""
 echo "✅ API deployment complete!"
-echo "🌐 Check: https://magic-sleep-time.duckdns.org/health"
+echo "🌐 Check: https://wondertales.art/health"
 echo ""
 echo "📋 Useful commands:"
 echo "  View logs:   ssh root@167.172.102.75 \"cd /var/www/kazka && docker compose -f docker-compose.prod.yml logs api --tail 100\""

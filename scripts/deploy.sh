@@ -245,6 +245,27 @@ run_migrations_in_container() {
 sync_nginx_config() {
   print_step "Syncing nginx config to droplet..."
 
+  # nginx/conf.d references Let's Encrypt paths; nginx -t fails if files are missing.
+  local tls_live="${DROPLET_PATH}/certbot/conf/live/wondertales.art"
+  if ! ssh_droplet "test -r '${tls_live}/fullchain.pem' && test -r '${tls_live}/privkey.pem'"; then
+    echo ""
+    echo "❌ TLS files missing on droplet (nginx -t will fail until they exist):"
+    echo "     ${tls_live}/fullchain.pem"
+    echo "     ${tls_live}/privkey.pem"
+    echo ""
+    echo "   Issue a certificate (DNS for wondertales.art must point to this server; port 80 reachable):"
+    echo "   ssh ${DROPLET_USER}@${DROPLET_IP}"
+    echo "   cd ${DROPLET_PATH} && docker compose -f docker-compose.prod.yml up -d nginx"
+    echo "   docker run --rm \\"
+    echo "     -v ${DROPLET_PATH}/certbot/conf:/etc/letsencrypt \\"
+    echo "     -v ${DROPLET_PATH}/certbot/www:/var/www/certbot \\"
+    echo "     certbot/certbot certonly --webroot -w /var/www/certbot -d wondertales.art --email YOUR@EMAIL --agree-tos -n"
+    echo ""
+    echo "   Temporary workaround: symlink an existing live/... folder to live/wondertales.art (wrong hostname in cert until replaced)."
+    echo ""
+    return 1
+  fi
+
   local nginx_tarball="/tmp/kazka-nginx-config.tar.gz"
 
   COPYFILE_DISABLE=1 tar -czf "${nginx_tarball}" \
@@ -378,7 +399,7 @@ run_migrations_post_deploy() {
 deploy_webapp() {
   print_step "Building webapp locally..."
   cd apps/universal-app
-  export EXPO_PUBLIC_API_BASE_URL=https://magic-sleep-time.duckdns.org
+  export EXPO_PUBLIC_API_BASE_URL=https://wondertales.art
 
   rm -rf .expo node_modules/.cache 2>/dev/null || true
   pnpm build:web:clean
@@ -465,5 +486,5 @@ print_step "Deployment complete!"
 ssh_droplet "cd ${DROPLET_PATH} && docker compose -f docker-compose.prod.yml ps"
 
 echo ""
-echo "🌐 API:    https://magic-sleep-time.duckdns.org/health"
-echo "🌐 App:    https://magic-sleep-time.duckdns.org"
+echo "🌐 API:    https://wondertales.art/health"
+echo "🌐 App:    https://wondertales.art"

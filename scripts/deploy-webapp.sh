@@ -20,7 +20,7 @@ echo "   Project root: $PROJECT_ROOT"
 # 1. Build webapp locally (clear all caches to avoid stale builds)
 echo "📦 Building webapp locally..."
 cd apps/universal-app
-export EXPO_PUBLIC_API_BASE_URL=https://magic-sleep-time.duckdns.org
+export EXPO_PUBLIC_API_BASE_URL=https://wondertales.art
 
 # Clear Metro/Expo caches (stale cache can produce old scheme like kazka://)
 rm -rf .expo node_modules/.cache 2>/dev/null || true
@@ -83,4 +83,4 @@ echo "🧹 Cleaning up..."
 rm apps/universal-app/dist.tar.gz
 
 echo "✅ Deployment complete!"
-echo "🌐 Check: https://magic-sleep-time.duckdns.org"
+echo "🌐 Check: https://wondertales.art"
