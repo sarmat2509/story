@@ -9,7 +9,6 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { theme } from '@/theme';
-import { LEGAL_URLS } from '@/config/constants';
 import { usePlansWithAuth, useSubscriptionUsage, useCreatePortalSession } from '@/api/plans';
 import { useUpdateMe } from '@/api/auth';
 import { formatAssetUrl, isServerAssetUrl, toCanonicalAssetUrl } from '@/utils/assetUrl';
@@ -24,9 +23,9 @@ export default function ProfileScreen() {
   const createPortalSession = useCreatePortalSession();
   const plans = plansData && 'plans' in plansData ? plansData.plans : plansData;
   const enableRealPayments = plansData && 'enableRealPayments' in plansData ? plansData.enableRealPayments : false;
-  const updatePseudonym = useUpdateMe();
+  const updateProfile = useUpdateMe();
   const updateAvatar = useUpdateMe();
-  const updateAboutMe = useUpdateMe();
+  const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [pseudonym, setPseudonym] = useState(user?.pseudonym ?? '');
   const [aboutMe, setAboutMe] = useState(user?.aboutMe ?? '');
   const [isAvatarBusy, setIsAvatarBusy] = useState(false);
@@ -40,6 +39,10 @@ export default function ProfileScreen() {
       ),
     });
   }, [navigation]);
+
+  useEffect(() => {
+    setDisplayName(user?.displayName ?? '');
+  }, [user?.displayName]);
 
   useEffect(() => {
     setPseudonym(user?.pseudonym ?? '');
@@ -84,11 +87,6 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => setShowLogoutConfirm(true);
-
-  const handleOpenAdmin = () => {
-    const parent = navigation.getParent();
-    (parent as any)?.navigate('Admin', { screen: 'AdminDashboard' });
-  };
 
   const requestPhotoPermission = async () => {
     if (Platform.OS === 'web') return true;
@@ -149,6 +147,14 @@ export default function ProfileScreen() {
       console.error('Avatar pick failed:', error);
       Alert.alert(t('common.error'), t('profile.avatar_pick_error'));
     }
+  };
+
+  const handleSaveProfile = () => {
+    updateProfile.mutate({
+      displayName: displayName.trim(),
+      pseudonym: pseudonym.trim() || null,
+      aboutMe: aboutMe.trim() || null,
+    });
   };
 
   const handleRemoveAvatar = async () => {
@@ -232,64 +238,67 @@ export default function ProfileScreen() {
               ) : null}
             </View>
           </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>{t('profile.name')}</Text>
-            <Text style={styles.value}>{user?.displayName || t('profile.not_set')}</Text>
+
+          <View style={styles.accountColumns}>
+            <View style={styles.accountColumn}>
+              <View style={styles.infoRow}>
+                <Text style={styles.label}>{t('profile.name')}</Text>
+                <TextInput
+                  style={styles.pseudonymInput}
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                  placeholder={t('profile.not_set')}
+                  placeholderTextColor={theme.colors.text.tertiary}
+                  maxLength={255}
+                />
+              </View>
+
+              <View style={[styles.infoRow, styles.infoRowLastInColumn]}>
+                <Text style={styles.label}>{t('profile.email')}</Text>
+                <Text style={styles.value}>{user?.email || t('profile.not_set')}</Text>
+              </View>
+            </View>
+
+            <View style={styles.accountColumn}>
+              <View style={styles.infoRow}>
+                <Text style={styles.label}>{t('profile.pseudonym')}</Text>
+                <TextInput
+                  style={styles.pseudonymInput}
+                  value={pseudonym}
+                  onChangeText={setPseudonym}
+                  placeholder={t('profile.pseudonym')}
+                  placeholderTextColor={theme.colors.text.tertiary}
+                  maxLength={100}
+                />
+              </View>
+
+              <View style={[styles.infoRow, styles.infoRowLastInColumn]}>
+                <Text style={styles.label}>{t('profile.about_me')}</Text>
+                <TextInput
+                  style={[styles.pseudonymInput, styles.aboutMeInput]}
+                  value={aboutMe}
+                  onChangeText={setAboutMe}
+                  placeholder={t('profile.about_me_placeholder')}
+                  placeholderTextColor={theme.colors.text.tertiary}
+                  maxLength={1000}
+                  multiline
+                  textAlignVertical="top"
+                />
+              </View>
+            </View>
           </View>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>{t('profile.email')}</Text>
-            <Text style={styles.value}>{user?.email || t('profile.not_set')}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>{t('profile.pseudonym')}</Text>
-            <TextInput
-              style={styles.pseudonymInput}
-              value={pseudonym}
-              onChangeText={setPseudonym}
-              placeholder={t('profile.pseudonym')}
-              placeholderTextColor={theme.colors.text.tertiary}
-              maxLength={100}
-            />
-            <TouchableOpacity
-              style={styles.savePseudonymButton}
-              onPress={() => updatePseudonym.mutate({ pseudonym: pseudonym.trim() || null })}
-              disabled={updatePseudonym.isPending}
-            >
-              {updatePseudonym.isPending ? (
-                <ActivityIndicator size="small" color={theme.colors.text.inverse} />
-              ) : (
-                <Text style={styles.savePseudonymText}>{t('common.save')}</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>{t('profile.about_me')}</Text>
-            <TextInput
-              style={[styles.pseudonymInput, styles.aboutMeInput]}
-              value={aboutMe}
-              onChangeText={setAboutMe}
-              placeholder={t('profile.about_me_placeholder')}
-              placeholderTextColor={theme.colors.text.tertiary}
-              maxLength={1000}
-              multiline
-              textAlignVertical="top"
-            />
-            <TouchableOpacity
-              style={styles.savePseudonymButton}
-              onPress={() => updateAboutMe.mutate({ aboutMe: aboutMe.trim() || null })}
-              disabled={updateAboutMe.isPending}
-            >
-              {updateAboutMe.isPending ? (
-                <ActivityIndicator size="small" color={theme.colors.text.inverse} />
-              ) : (
-                <Text style={styles.savePseudonymText}>{t('common.save')}</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.saveProfileButton}
+            onPress={handleSaveProfile}
+            disabled={updateProfile.isPending}
+          >
+            {updateProfile.isPending ? (
+              <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+            ) : (
+              <Text style={styles.saveProfileButtonText}>{t('common.save')}</Text>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -322,18 +331,6 @@ export default function ProfileScreen() {
           <Text style={styles.settingText}>{t('profile.notification_settings')}</Text>
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.settingButton}>
-          <Text style={styles.settingText}>{t('profile.privacy_settings')}</Text>
-          <Text style={styles.settingArrow}>›</Text>
-        </TouchableOpacity>
-
-        {Platform.OS === 'web' && user?.role === 'admin' ? (
-          <TouchableOpacity style={styles.settingButton} onPress={handleOpenAdmin}>
-            <Text style={styles.settingText}>Admin</Text>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
-        ) : null}
       </View>
 
       <View style={styles.section}>
@@ -386,31 +383,6 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('profile.support')}</Text>
-
-        <TouchableOpacity style={styles.settingButton}>
-          <Text style={styles.settingText}>{t('profile.help_center')}</Text>
-          <Text style={styles.settingArrow}>›</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.settingButton}
-          onPress={() => Linking.openURL(LEGAL_URLS.terms)}
-        >
-          <Text style={styles.settingText}>{t('profile.terms_of_service')}</Text>
-          <Text style={styles.settingArrow}>›</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.settingButton}
-          onPress={() => Linking.openURL(LEGAL_URLS.privacy)}
-        >
-          <Text style={styles.settingText}>{t('profile.privacy_policy')}</Text>
-          <Text style={styles.settingArrow}>›</Text>
-        </TouchableOpacity>
       </View>
 
       <TouchableOpacity
@@ -543,8 +515,21 @@ const styles = StyleSheet.create({
   avatarSecondaryButtonText: {
     color: theme.colors.text.primary,
   },
+  accountColumns: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[5],
+    alignItems: 'flex-start',
+  },
+  accountColumn: {
+    flex: 1,
+    minWidth: 148,
+  },
   infoRow: {
     marginBottom: theme.spacing[4],
+  },
+  infoRowLastInColumn: {
+    marginBottom: 0,
   },
   label: {
     fontSize: theme.typography.fontSize.sm,
@@ -566,17 +551,15 @@ const styles = StyleSheet.create({
     padding: theme.spacing[3],
     marginTop: theme.spacing[1],
   },
-  savePseudonymButton: {
-    alignSelf: 'flex-start',
-    marginTop: theme.spacing[2],
-    paddingVertical: theme.spacing[2],
+  saveProfileButton: {
+    marginTop: theme.spacing[5],
+    paddingVertical: theme.spacing[3],
     paddingHorizontal: theme.spacing[4],
     backgroundColor: theme.colors.interactive.primary,
     borderRadius: theme.borders.radius.md,
-    minWidth: 80,
     alignItems: 'center',
   },
-  savePseudonymText: {
+  saveProfileButtonText: {
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.inverse,
