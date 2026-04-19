@@ -585,6 +585,13 @@
     "success_message": "Votre commentaire a été envoyé. Nous l'examinerons.",
     "report_this_issue": "Signaler ce problème"
   },
+  "billing": {
+    "success_title": "Abonnement réussi !",
+    "success_message": "Merci ! Votre formule a été mise à jour. Vous bénéficiez désormais de tous les avantages de votre nouveau plan.",
+    "go_to_profile": "Aller au profil",
+    "view_plans": "Voir les formules",
+    "manage_subscription": "Gérer l'abonnement"
+  },
   "paywall": {
     "stories_limit_title": "Limite d'histoires atteint",
     "stories_limit_message": "Vous avez utilisé {{used}} sur {{limit}} histoires ce mois-ci.",

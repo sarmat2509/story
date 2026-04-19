@@ -926,6 +926,13 @@
     "loading_sample": "Загрузка...",
     "sample_error": "Не удалось загрузить сэмпл"
   },
+  "billing": {
+    "success_title": "Подписка оформлена!",
+    "success_message": "Спасибо! Ваш план обновлён. Теперь вам доступны все преимущества нового плана.",
+    "go_to_profile": "Перейти в профиль",
+    "view_plans": "Смотреть планы",
+    "manage_subscription": "Управление подпиской"
+  },
   "paywall": {
     "stories_limit_title": "Достигнут лимит историй",
     "stories_limit_message": "Вы использовали {{used}} из {{limit}} историй в этом месяце.",

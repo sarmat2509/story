@@ -768,6 +768,13 @@
     "loading_sample": "Cargando...",
     "sample_error": "No se pudo cargar la muestra"
   },
+  "billing": {
+    "success_title": "¡Suscripción realizada!",
+    "success_message": "¡Gracias! Tu plan se ha actualizado. Ya tienes acceso a todas las ventajas de tu nuevo plan.",
+    "go_to_profile": "Ir al perfil",
+    "view_plans": "Ver planes",
+    "manage_subscription": "Gestionar suscripción"
+  },
   "paywall": {
     "stories_limit_title": "Límite de historias alcanzado",
     "stories_limit_message": "Has usado {{used}} de {{limit}} historias este mes.",

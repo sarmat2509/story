@@ -585,6 +585,13 @@
     "success_message": "Ihr Feedback wurde gesendet. Wir werden es prüfen.",
     "report_this_issue": "Problem melden"
   },
+  "billing": {
+    "success_title": "Abonnement erfolgreich!",
+    "success_message": "Danke! Ihr Tarif wurde aktualisiert. Sie haben nun Zugriff auf alle Vorteile Ihres neuen Plans.",
+    "go_to_profile": "Zum Profil",
+    "view_plans": "Tarife ansehen",
+    "manage_subscription": "Abonnement verwalten"
+  },
   "paywall": {
     "stories_limit_title": "Geschichtenlimit erreicht",
     "stories_limit_message": "Sie haben {{used}} von {{limit}} Geschichten diesen Monat verwendet.",
