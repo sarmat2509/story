@@ -25,6 +25,8 @@ import { useSubscriptionUsage } from '@/api/plans';
 import { PaywallModal } from '@/components/PaywallModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { AnimatedSection } from '@/components/AnimatedSection';
+import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
 import type { MainDrawerParamList } from '@/types/navigation';
 
@@ -41,6 +43,7 @@ export default function InstantWizardScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
+  const enterKey = useScreenEnter();
 
   // Form state
   const [photos, setPhotos] = useState<PhotoObject[]>([]);
@@ -178,81 +181,86 @@ export default function InstantWizardScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Photo Upload */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('instant_wizard.upload_photos')}</Text>
-        <Text style={styles.sectionDescription}>{t('instant_wizard.photos_description')}</Text>
-        <PhotoUploadGrid
-          photos={photos.map((p) => ({ url: p.url, uploadedAt: p.uploadedAt || new Date().toISOString(), isUploading: (p as { isUploading?: boolean }).isUploading }))}
-          onPhotosChange={(newPhotos) => setPhotos(newPhotos.map((p) => ({ url: p.url, uploadedAt: p.uploadedAt })))}
-          maxPhotos={5}
-          photoType="character"
-        />
-      </View>
-
-      {/* Age Group Selector */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('instant_wizard.age_group')}</Text>
-        <Text style={styles.sectionDescription}>{t('instant_wizard.age_group_description')}</Text>
-        <View style={styles.ageGroupContainer}>
-          {(['2-3', '4-5', '6-7', '8-9', '10-12'] as AgeGroup[]).map((age) => (
-            <TouchableOpacity
-              key={age}
-              style={[
-                styles.ageGroupButton,
-                ageGroup === age && styles.ageGroupButtonSelected,
-              ]}
-              onPress={() => setAgeGroup(age)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.ageGroupText,
-                  ageGroup === age && styles.ageGroupTextSelected,
-                ]}
-              >
-                {age} {t('instant_wizard.years')}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Scenario Selection */}
-      <View style={styles.section}>
-        {themesLoading ? (
-          <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
-        ) : (
-          <ScenarioCardsGrid
-            scenarios={themesData?.scenarioCards || []}
-            selected={scenarioCardId}
-            onSelect={setScenarioCardId}
+      <AnimatedSection delay={0} trigger={enterKey}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('instant_wizard.upload_photos')}</Text>
+          <Text style={styles.sectionDescription}>{t('instant_wizard.photos_description')}</Text>
+          <PhotoUploadGrid
+            photos={photos.map((p) => ({ url: p.url, uploadedAt: p.uploadedAt || new Date().toISOString(), isUploading: (p as { isUploading?: boolean }).isUploading }))}
+            onPhotosChange={(newPhotos) => setPhotos(newPhotos.map((p) => ({ url: p.url, uploadedAt: p.uploadedAt })))}
+            maxPhotos={5}
+            photoType="character"
           />
-        )}
-      </View>
+        </View>
+      </AnimatedSection>
 
-      {/* Language Selection */}
-      <View style={styles.section}>
-        <LanguageSelector 
-          selected={storyLanguage} 
-          onSelect={setStoryLanguage}
-          defaultLanguage={i18n.language}
-        />
-      </View>
+      <AnimatedSection delay={120} trigger={enterKey}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('instant_wizard.age_group')}</Text>
+          <Text style={styles.sectionDescription}>{t('instant_wizard.age_group_description')}</Text>
+          <View style={styles.ageGroupContainer}>
+            {(['2-3', '4-5', '6-7', '8-9', '10-12'] as AgeGroup[]).map((age) => (
+              <TouchableOpacity
+                key={age}
+                style={[
+                  styles.ageGroupButton,
+                  ageGroup === age && styles.ageGroupButtonSelected,
+                ]}
+                onPress={() => setAgeGroup(age)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.ageGroupText,
+                    ageGroup === age && styles.ageGroupTextSelected,
+                  ]}
+                >
+                  {age} {t('instant_wizard.years')}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </AnimatedSection>
 
-      {/* Generate Button */}
-      <TouchableOpacity
-        style={[styles.generateButton, !canGenerate && styles.generateButtonDisabled]}
-        onPress={handleGenerate}
-        disabled={!canGenerate || isGenerating}
-        activeOpacity={0.8}
-      >
-        {isGenerating ? (
-          <ActivityIndicator color={theme.colors.text.inverse} />
-        ) : (
-          <Text style={styles.generateButtonText}>{t('instant_wizard.generate_story')}</Text>
-        )}
-      </TouchableOpacity>
+      <AnimatedSection delay={220} trigger={enterKey}>
+        <View style={styles.section}>
+          {themesLoading ? (
+            <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+          ) : (
+            <ScenarioCardsGrid
+              scenarios={themesData?.scenarioCards || []}
+              selected={scenarioCardId}
+              onSelect={setScenarioCardId}
+            />
+          )}
+        </View>
+      </AnimatedSection>
+
+      <AnimatedSection delay={320} trigger={enterKey}>
+        <View style={styles.section}>
+          <LanguageSelector
+            selected={storyLanguage}
+            onSelect={setStoryLanguage}
+            defaultLanguage={i18n.language}
+          />
+        </View>
+      </AnimatedSection>
+
+      <AnimatedSection delay={420} trigger={enterKey}>
+        <TouchableOpacity
+          style={[styles.generateButton, !canGenerate && styles.generateButtonDisabled]}
+          onPress={handleGenerate}
+          disabled={!canGenerate || isGenerating}
+          activeOpacity={0.8}
+        >
+          {isGenerating ? (
+            <ActivityIndicator color={theme.colors.text.inverse} />
+          ) : (
+            <Text style={styles.generateButtonText}>{t('instant_wizard.generate_story')}</Text>
+          )}
+        </TouchableOpacity>
+      </AnimatedSection>
 
       {/* Generation Progress Modal */}
       <GenerationProgressModal

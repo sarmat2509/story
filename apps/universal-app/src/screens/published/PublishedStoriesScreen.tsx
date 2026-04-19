@@ -20,11 +20,14 @@ import { PublishedStoryCard } from '@/components/PublishedStoryCard';
 import { AudioFilterToggleRef } from '@/components/AudioFilterToggle';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { AnimatedSection } from '@/components/AnimatedSection';
+import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { storage } from '@/utils/storage';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 
 const ITEMS_PER_PAGE = 24;
+const cardDelay = (i: number) => Math.min(i * 35, 260);
 const READING_TIME_OPTIONS = [
   { value: null, min: undefined, max: undefined },
   { value: 'short', min: undefined, max: 5 },
@@ -49,6 +52,7 @@ export default function PublishedStoriesScreen() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const audioToggleRef = useRef<AudioFilterToggleRef>(null);
+  const enterKey = useScreenEnter();
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -231,22 +235,28 @@ export default function PublishedStoriesScreen() {
               Platform.OS === 'web' && { gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any,
             ]}
           >
-            {stories.map((story) =>
+            {stories.map((story, index) =>
               Platform.OS === 'web' ? (
-                <PublishedStoryCard
-                  key={story.id}
-                  story={story}
-                  onPress={handlePress}
-                  variant="grid"
-                />
-              ) : (
-                <View key={story.id} style={{ width: gridCardWidth }}>
+                <AnimatedSection key={story.id} delay={cardDelay(index)} trigger={enterKey}>
                   <PublishedStoryCard
                     story={story}
                     onPress={handlePress}
                     variant="grid"
                   />
-                </View>
+                </AnimatedSection>
+              ) : (
+                <AnimatedSection
+                  key={story.id}
+                  delay={cardDelay(index)}
+                  trigger={enterKey}
+                  style={{ width: gridCardWidth }}
+                >
+                  <PublishedStoryCard
+                    story={story}
+                    onPress={handlePress}
+                    variant="grid"
+                  />
+                </AnimatedSection>
               )
             )}
           </View>
@@ -256,8 +266,10 @@ export default function PublishedStoriesScreen() {
           data={stories}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <PublishedStoryCard story={item} onPress={handlePress} variant="list" />
+          renderItem={({ item, index }) => (
+            <AnimatedSection delay={cardDelay(index)} trigger={enterKey}>
+              <PublishedStoryCard story={item} onPress={handlePress} variant="list" />
+            </AnimatedSection>
           )}
         />
       )}

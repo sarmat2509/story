@@ -24,13 +24,16 @@ import { useSubscriptionUsage } from '@/api/plans';
 import { PaywallModal } from '@/components/PaywallModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { AnimatedSection } from '@/components/AnimatedSection';
+import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
 
 export default function WizardScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
-  
+  const enterKey = useScreenEnter();
+
   // Form state
   const [storyLanguage, setStoryLanguage] = useState('');
   const [scenarioCardId, setScenarioCardId] = useState<string | null>(null);
@@ -199,64 +202,68 @@ export default function WizardScreen() {
   return (
     <>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Scenario Cards - Always Visible */}
-        <ScenarioCardsGrid 
-          scenarios={themesData?.scenarioCards || []}
-          selected={scenarioCardId}
-          onSelect={setScenarioCardId}
-        />
-
-        {/* Language Selector - Always Visible */}
-        <LanguageSelector
-          selected={storyLanguage}
-          onSelect={setStoryLanguage}
-          defaultLanguage={i18n.language}
-        />
-
-        {/* Optional Advanced Settings */}
-        <ExpandableCard title={t('wizard.advanced_settings')} icon="settings-outline">
-          <AdvancedSettingsForm 
-            childProfileId={childProfileId}
-            onChildProfileChange={setChildProfileId}
-            children={children}
-            onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
-            goals={themesData?.goals || []}
-            selectedGoals={selectedGoals}
-            onGoalsChange={setSelectedGoals}
-            imageStyle={imageStyle}
-            onImageStyleChange={setImageStyle}
-            userNotes={userNotes}
-            onNotesChange={setUserNotes}
+        <AnimatedSection delay={0} trigger={enterKey}>
+          <ScenarioCardsGrid
+            scenarios={themesData?.scenarioCards || []}
+            selected={scenarioCardId}
+            onSelect={setScenarioCardId}
           />
-        </ExpandableCard>
+        </AnimatedSection>
 
-        {/* Optional Characters */}
-        <ExpandableCard title={t('wizard.add_characters')} icon="people-outline">
-          <CharactersForm 
-            characters={characters}
-            selectedCharacters={selectedCharacters}
-            onCharactersChange={setSelectedCharacters}
-            children={children}
-            selectedChildren={selectedChildren}
-            onChildrenChange={setSelectedChildren}
-            onAddCharacter={() => setIsCharacterModalVisible(true)}
-            onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
+        <AnimatedSection delay={120} trigger={enterKey}>
+          <LanguageSelector
+            selected={storyLanguage}
+            onSelect={setStoryLanguage}
+            defaultLanguage={i18n.language}
           />
-        </ExpandableCard>
+        </AnimatedSection>
 
-        {/* Generate Button - MOVED TO BOTTOM */}
-        <TouchableOpacity 
-          style={[styles.generateButton, (!storyLanguage) && styles.generateButtonDisabled]}
-          onPress={handleGenerate}
-          disabled={!storyLanguage || isGenerating}
-        >
-          {isGenerating ? (
-            <ActivityIndicator color={theme.colors.text.inverse} />
-          ) : (
-            <Text style={styles.generateButtonText}>{t('wizard.generate_button')}</Text>
-          )}
-        </TouchableOpacity>
+        <AnimatedSection delay={220} trigger={enterKey}>
+          <ExpandableCard title={t('wizard.advanced_settings')} icon="settings-outline">
+            <AdvancedSettingsForm
+              childProfileId={childProfileId}
+              onChildProfileChange={setChildProfileId}
+              children={children}
+              onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
+              goals={themesData?.goals || []}
+              selectedGoals={selectedGoals}
+              onGoalsChange={setSelectedGoals}
+              imageStyle={imageStyle}
+              onImageStyleChange={setImageStyle}
+              userNotes={userNotes}
+              onNotesChange={setUserNotes}
+            />
+          </ExpandableCard>
+        </AnimatedSection>
 
+        <AnimatedSection delay={320} trigger={enterKey}>
+          <ExpandableCard title={t('wizard.add_characters')} icon="people-outline">
+            <CharactersForm
+              characters={characters}
+              selectedCharacters={selectedCharacters}
+              onCharactersChange={setSelectedCharacters}
+              children={children}
+              selectedChildren={selectedChildren}
+              onChildrenChange={setSelectedChildren}
+              onAddCharacter={() => setIsCharacterModalVisible(true)}
+              onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
+            />
+          </ExpandableCard>
+        </AnimatedSection>
+
+        <AnimatedSection delay={420} trigger={enterKey}>
+          <TouchableOpacity
+            style={[styles.generateButton, (!storyLanguage) && styles.generateButtonDisabled]}
+            onPress={handleGenerate}
+            disabled={!storyLanguage || isGenerating}
+          >
+            {isGenerating ? (
+              <ActivityIndicator color={theme.colors.text.inverse} />
+            ) : (
+              <Text style={styles.generateButtonText}>{t('wizard.generate_button')}</Text>
+            )}
+          </TouchableOpacity>
+        </AnimatedSection>
       </ScrollView>
       
       {/* Generation Progress Modal */}

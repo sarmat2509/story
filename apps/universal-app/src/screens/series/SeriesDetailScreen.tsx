@@ -26,7 +26,11 @@ import { ContinueSeriesSection } from '@/components/ContinueSeriesSection';
 import { PendingPartCard } from '@/components/PendingPartCard';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { AnimatedSection } from '@/components/AnimatedSection';
+import { useScreenEnter } from '@/hooks/useScreenEnter';
 import type { MainDrawerParamList } from '@/types/navigation';
+
+const cardDelay = (i: number) => Math.min(i * 35, 260);
 
 type SeriesDetailRouteProp = RouteProp<MainDrawerParamList, 'SeriesDetail'>;
 
@@ -37,6 +41,7 @@ export default function SeriesDetailScreen() {
   const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const enterKey = useScreenEnter();
 
   const seriesId = route.params?.seriesId;
 
@@ -128,54 +133,53 @@ export default function SeriesDetailScreen() {
             Platform.OS === 'web' && { gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any,
           ]}
         >
-          {stories.map((story) => {
+          {stories.map((story, index) => {
             const partNumber = (story as { partNumber?: number }).partNumber;
             const displayTitle =
               partNumber != null
                 ? `${t('series.part_number', { number: partNumber })}: ${story.title}`
                 : story.title;
             const displayStory = { ...story, title: displayTitle };
-            return Platform.OS === 'web' ? (
+            const card = (
               <StoryCard
-                key={story.id}
                 story={displayStory}
                 onPress={handleStoryPress}
                 variant="grid"
               />
+            );
+            return Platform.OS === 'web' ? (
+              <AnimatedSection key={story.id} delay={cardDelay(index)} trigger={enterKey}>
+                {card}
+              </AnimatedSection>
             ) : (
-              <View key={story.id} style={{ width: gridCardWidth }}>
-                <StoryCard
-                  story={displayStory}
-                  onPress={handleStoryPress}
-                  variant="grid"
-                />
-              </View>
+              <AnimatedSection
+                key={story.id}
+                delay={cardDelay(index)}
+                trigger={enterKey}
+                style={{ width: gridCardWidth }}
+              >
+                {card}
+              </AnimatedSection>
             );
           })}
           {showPendingCard &&
             (Platform.OS === 'web' ? (
-              <PendingPartCard key="pending" partNumber={nextPartNumber} />
-            ) : (
-              <View key="pending" style={{ width: gridCardWidth }}>
+              <AnimatedSection key="pending" delay={cardDelay(stories.length)} trigger={enterKey}>
                 <PendingPartCard partNumber={nextPartNumber} />
-              </View>
+              </AnimatedSection>
+            ) : (
+              <AnimatedSection
+                key="pending"
+                delay={cardDelay(stories.length)}
+                trigger={enterKey}
+                style={{ width: gridCardWidth }}
+              >
+                <PendingPartCard partNumber={nextPartNumber} />
+              </AnimatedSection>
             ))}
           {!showPendingCard && lastStory && (
             Platform.OS === 'web' ? (
-              <ContinueSeriesSection
-                key="continue"
-                storyId={lastStory.id}
-                seriesInfo={
-                  seriesInfo
-                    ? { totalParts: seriesInfo.totalParts, baseTitle: seriesInfo.baseTitle }
-                    : undefined
-                }
-                userPlan={userPlan}
-                onNavigateToPlans={() => navigation.navigate('Plans' as never)}
-                variant="card"
-              />
-            ) : (
-              <View key="continue" style={{ width: gridCardWidth }}>
+              <AnimatedSection key="continue" delay={cardDelay(stories.length)} trigger={enterKey}>
                 <ContinueSeriesSection
                   storyId={lastStory.id}
                   seriesInfo={
@@ -187,7 +191,26 @@ export default function SeriesDetailScreen() {
                   onNavigateToPlans={() => navigation.navigate('Plans' as never)}
                   variant="card"
                 />
-              </View>
+              </AnimatedSection>
+            ) : (
+              <AnimatedSection
+                key="continue"
+                delay={cardDelay(stories.length)}
+                trigger={enterKey}
+                style={{ width: gridCardWidth }}
+              >
+                <ContinueSeriesSection
+                  storyId={lastStory.id}
+                  seriesInfo={
+                    seriesInfo
+                      ? { totalParts: seriesInfo.totalParts, baseTitle: seriesInfo.baseTitle }
+                      : undefined
+                  }
+                  userPlan={userPlan}
+                  onNavigateToPlans={() => navigation.navigate('Plans' as never)}
+                  variant="card"
+                />
+              </AnimatedSection>
             )
           )}
         </View>

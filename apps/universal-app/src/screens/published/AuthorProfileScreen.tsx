@@ -18,11 +18,14 @@ import { usePublicAuthor } from '@/api/stories';
 import { PublishedStoryCard } from '@/components/PublishedStoryCard';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { AnimatedSection } from '@/components/AnimatedSection';
+import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 import type { MainDrawerParamList } from '@/types/navigation';
 
 const ITEMS_PER_PAGE = 24;
+const cardDelay = (i: number) => Math.min(240 + i * 35, 500);
 
 type RouteProps = RouteProp<MainDrawerParamList, 'AuthorProfile'>;
 
@@ -34,6 +37,7 @@ export default function AuthorProfileScreen() {
   const authorId = route.params?.authorId;
   const [currentPage, setCurrentPage] = useState(1);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const enterKey = useScreenEnter();
 
   const offset = useMemo(() => (currentPage - 1) * ITEMS_PER_PAGE, [currentPage]);
   const { data, isLoading, error } = usePublicAuthor(authorId, { limit: ITEMS_PER_PAGE, offset });
@@ -98,22 +102,24 @@ export default function AuthorProfileScreen() {
   return (
     <>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.hero}>
-        <View style={styles.avatarShell}>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-          ) : (
-            <Text style={styles.avatarFallback}>{authorInitial}</Text>
-          )}
+      <AnimatedSection delay={0} trigger={enterKey}>
+        <View style={styles.hero}>
+          <View style={styles.avatarShell}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+            ) : (
+              <Text style={styles.avatarFallback}>{authorInitial}</Text>
+            )}
+          </View>
+          <View style={styles.heroText}>
+            <Text style={styles.authorName}>{author.displayName}</Text>
+            <Text style={styles.storyCount}>{t('profile.author_story_count', { count: totalStories })}</Text>
+            {author.aboutMe ? <Text style={styles.aboutMe}>{author.aboutMe}</Text> : null}
+          </View>
         </View>
-        <View style={styles.heroText}>
-          <Text style={styles.authorName}>{author.displayName}</Text>
-          <Text style={styles.storyCount}>{t('profile.author_story_count', { count: totalStories })}</Text>
-          {author.aboutMe ? <Text style={styles.aboutMe}>{author.aboutMe}</Text> : null}
-        </View>
-      </View>
+      </AnimatedSection>
 
-      <View style={styles.sectionHeader}>
+      <AnimatedSection delay={140} trigger={enterKey} style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>{t('profile.author_published_stories')}</Text>
         {totalPages > 1 ? (
           <View style={styles.pagination}>
@@ -136,12 +142,14 @@ export default function AuthorProfileScreen() {
             </TouchableOpacity>
           </View>
         ) : null}
-      </View>
+      </AnimatedSection>
 
       {!stories.length ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>{t('profile.author_no_stories')}</Text>
-        </View>
+        <AnimatedSection delay={240} trigger={enterKey}>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>{t('profile.author_no_stories')}</Text>
+          </View>
+        </AnimatedSection>
       ) : (
         <View
           style={[
@@ -149,24 +157,29 @@ export default function AuthorProfileScreen() {
             Platform.OS === 'web' && { gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any,
           ]}
         >
-          {stories.map((story) =>
-            Platform.OS === 'web' ? (
+          {stories.map((story, index) => {
+            const card = (
               <PublishedStoryCard
-                key={story.id}
                 story={story}
                 onPress={handleStoryPress}
                 variant="grid"
               />
+            );
+            return Platform.OS === 'web' ? (
+              <AnimatedSection key={story.id} delay={cardDelay(index)} trigger={enterKey}>
+                {card}
+              </AnimatedSection>
             ) : (
-              <View key={story.id} style={{ width: gridCardWidth }}>
-                <PublishedStoryCard
-                  story={story}
-                  onPress={handleStoryPress}
-                  variant="grid"
-                />
-              </View>
-            )
-          )}
+              <AnimatedSection
+                key={story.id}
+                delay={cardDelay(index)}
+                trigger={enterKey}
+                style={{ width: gridCardWidth }}
+              >
+                {card}
+              </AnimatedSection>
+            );
+          })}
         </View>
       )}
     </ScrollView>

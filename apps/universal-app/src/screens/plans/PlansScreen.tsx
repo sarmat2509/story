@@ -11,12 +11,17 @@ import { theme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { AnimatedSection } from '@/components/AnimatedSection';
+import { useScreenEnter } from '@/hooks/useScreenEnter';
+
+const cardDelay = (i: number) => Math.min(120 + i * 120, 420);
 
 export default function PlansScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const insets = useSafeAreaInsets();
   const { isAuthenticated } = useAuthStore();
+  const enterKey = useScreenEnter();
   
   // Modal state for upgrade flow
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -215,13 +220,15 @@ export default function PlansScreen() {
         { paddingTop: theme.spacing[6] + insets.top },
       ]}
     >
-      <View style={styles.header}>
-        <Text style={styles.title}>{t('plans.title')}</Text>
-        <Text style={styles.subtitle}>{t('plans.subtitle')}</Text>
-      </View>
-      
+      <AnimatedSection delay={0} trigger={enterKey}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{t('plans.title')}</Text>
+          <Text style={styles.subtitle}>{t('plans.subtitle')}</Text>
+        </View>
+      </AnimatedSection>
+
       <View style={[styles.plansGrid, isWeb && styles.plansGridWeb]}>
-        {plans?.map((plan) => {
+        {plans?.map((plan, planIndex) => {
           const isCurrent = isAuthenticated && 'isCurrent' in plan && plan.isCurrent;
           const audioFeature = (plan.features as unknown as Record<string, { value?: { limit?: number } }>)['audio_stories_per_month']; // CHANGED from audio_minutes_per_month
           
@@ -241,13 +248,17 @@ export default function PlansScreen() {
           }
           
           return (
-            <View
+            <AnimatedSection
               key={plan.id}
-              style={[
-                styles.planCard,
-                isWeb ? styles.planCardWeb : styles.planCardNative,
-                isCurrent && styles.planCardCurrent,
-              ] as ViewStyle[]}
+              delay={cardDelay(planIndex)}
+              trigger={enterKey}
+              style={
+                [
+                  styles.planCard,
+                  isWeb ? styles.planCardWeb : styles.planCardNative,
+                  isCurrent && styles.planCardCurrent,
+                ] as ViewStyle[]
+              }
             >
               <Text style={styles.planName}>{plan.name}</Text>
               {plan.description && (
@@ -356,7 +367,7 @@ export default function PlansScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
-            </View>
+            </AnimatedSection>
           );
         })}
       </View>

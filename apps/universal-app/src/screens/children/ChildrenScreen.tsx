@@ -10,7 +10,11 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChildCard } from './components/ChildCard';
+import { AnimatedSection } from '@/components/AnimatedSection';
+import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
+
+const cardDelay = (i: number) => Math.min(120 + i * 40, 360);
 import type { ReferencePhoto } from '@wondertales/shared';
 import type { ChildFormInitialData } from '@/components/ChildFormContent';
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -44,6 +48,7 @@ export default function ChildrenScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { width } = useWindowDimensions();
+  const enterKey = useScreenEnter();
   const { data, isLoading, error } = useChildren();
   const deleteChild = useDeleteChild();
   const columns = useColumns();
@@ -114,32 +119,36 @@ export default function ChildrenScreen() {
   }
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{t('children_screen.title')}</Text>
-        <Text style={styles.subtitle}>{t('children_screen.subtitle')}</Text>
-      </View>
+      <AnimatedSection delay={0} trigger={enterKey}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{t('children_screen.title')}</Text>
+          <Text style={styles.subtitle}>{t('children_screen.subtitle')}</Text>
+        </View>
+      </AnimatedSection>
 
       {children.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>👶</Text>
-          <Text style={styles.emptyText}>{t('children_screen.empty_title')}</Text>
-          <Text style={styles.emptyHint}>{t('children_screen.empty_text')}</Text>
-          {canCreateMore && (
-            <TouchableOpacity
-              style={styles.emptyButton}
-              onPress={() => {
-                setEditingChild(undefined);
-                setIsModalVisible(true);
-              }}
-            >
-              <Text style={styles.emptyButtonText}>{t('children_screen.add_button')}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        <AnimatedSection delay={120} trigger={enterKey}>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>👶</Text>
+            <Text style={styles.emptyText}>{t('children_screen.empty_title')}</Text>
+            <Text style={styles.emptyHint}>{t('children_screen.empty_text')}</Text>
+            {canCreateMore && (
+              <TouchableOpacity
+                style={styles.emptyButton}
+                onPress={() => {
+                  setEditingChild(undefined);
+                  setIsModalVisible(true);
+                }}
+              >
+                <Text style={styles.emptyButtonText}>{t('children_screen.add_button')}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </AnimatedSection>
       ) : (
         <>
           <View style={[styles.grid, Platform.OS === 'web' && { gridTemplateColumns: `repeat(${columns}, 1fr)` } as any]}>
-            {children.map((child: Record<string, unknown>) => {
+            {children.map((child: Record<string, unknown>, index: number) => {
               const childId = String(child.id ?? '');
               const childData = {
                 id: childId,
@@ -149,36 +158,43 @@ export default function ChildrenScreen() {
                 turnaroundSheet: child.turnaroundSheet as { url: string; frontUrl?: string } | undefined,
                 referencePhotos: child.referencePhotos as { url: string }[] | undefined,
               };
-              return Platform.OS === 'web' ? (
+              const cardContent = (
                 <ChildCard
-                  key={childId}
                   child={childData}
                   onPress={() => handleEditChild(child)}
                   onDelete={handleDelete}
                 />
+              );
+              return Platform.OS === 'web' ? (
+                <AnimatedSection key={childId} delay={cardDelay(index)} trigger={enterKey}>
+                  {cardContent}
+                </AnimatedSection>
               ) : (
-                <View key={childId} style={{ width: cardWidth }}>
-                  <ChildCard
-                    child={childData}
-                    onPress={() => handleEditChild(child)}
-                    onDelete={handleDelete}
-                  />
-                </View>
+                <AnimatedSection
+                  key={childId}
+                  delay={cardDelay(index)}
+                  trigger={enterKey}
+                  style={{ width: cardWidth }}
+                >
+                  {cardContent}
+                </AnimatedSection>
               );
             })}
           </View>
 
           {canCreateMore && (
-            <TouchableOpacity
-              style={styles.addCharacterButton}
-              onPress={() => {
-                setEditingChild(undefined);
-                setIsModalVisible(true);
-              }}
-            >
-              <Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />
-              <Text style={styles.addCharacterButtonText}>{t('children_screen.add_button')}</Text>
-            </TouchableOpacity>
+            <AnimatedSection delay={cardDelay(children.length)} trigger={enterKey}>
+              <TouchableOpacity
+                style={styles.addCharacterButton}
+                onPress={() => {
+                  setEditingChild(undefined);
+                  setIsModalVisible(true);
+                }}
+              >
+                <Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />
+                <Text style={styles.addCharacterButtonText}>{t('children_screen.add_button')}</Text>
+              </TouchableOpacity>
+            </AnimatedSection>
           )}
         </>
       )}

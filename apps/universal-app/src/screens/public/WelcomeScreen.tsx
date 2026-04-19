@@ -14,11 +14,17 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useEmailLogin } from '@/api/auth';
 import { theme } from '@/theme';
+import { GradientButton } from '@/components/GradientButton';
+import { GlassCard, IRIDESCENT_BORDER_COLORS } from '@/components/GlassCard';
+import { AnimatedSection } from '@/components/AnimatedSection';
+import { InteractiveSurface } from '@/components/InteractiveSurface';
+import { useScreenEnter } from '@/hooks/useScreenEnter';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -27,6 +33,7 @@ export default function WelcomeScreen() {
   const { t } = useTranslation();
   const { signInWithGoogle, signInWithApple, isLoading: oauthLoading } = useAuth();
   const emailLoginMutation = useEmailLogin();
+  const enterKey = useScreenEnter();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -94,49 +101,51 @@ export default function WelcomeScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
     >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <LinearGradient
+        colors={['#E9DFFA', '#F4EEFB', '#FDEDEA', '#FDF5E6']}
+        locations={[0, 0.35, 0.7, 1]}
+        style={styles.gradient}
       >
-        <View style={styles.content}>
-          <View style={styles.hero}>
-            {Platform.OS === 'web' ? (
-              <TouchableOpacity
-                onPress={() => {
-                  if (typeof window !== 'undefined') {
-                    window.location.href = '/';
-                  }
-                }}
-                style={styles.logoLink}
-                activeOpacity={0.8}
-              >
-                <Image
-                  source={{ uri: '/logo.webp' }}
-                  style={styles.logo}
-                  resizeMode="contain"
-                  accessibilityLabel="WonderTales"
-                />
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.logoContainer}>
-                <Image
-                  source={{ uri: '/logo.webp' }}
-                  style={styles.logo}
-                  resizeMode="contain"
-                  accessibilityLabel="WonderTales"
-                />
+        <View pointerEvents="none" style={styles.bokehOne} />
+        <View pointerEvents="none" style={styles.bokehTwo} />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            <AnimatedSection delay={0} trigger={enterKey}>
+              <View style={styles.hero}>
+                <View style={styles.heroFrame}>
+                  <Image
+                    source={require('../../../assets/hero/welcome-dreamscape.png')}
+                    style={styles.heroImage}
+                    resizeMode="cover"
+                    accessibilityLabel={t('welcome.hero_alt', {
+                      defaultValue:
+                        'Child in a dream bubble holding a drawing of her puppy Luna, with a cloud castle and sparkle trail',
+                    })}
+                  />
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={['rgba(255,255,255,0)', 'rgba(253,245,230,0.85)']}
+                    style={styles.heroFade}
+                  />
+                </View>
+                <Text style={styles.subtitle}>{t('auth.subtitle')}</Text>
               </View>
-            )}
-            <Text style={styles.subtitle}>{t('auth.subtitle')}</Text>
-          </View>
+            </AnimatedSection>
 
           {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
+            <AnimatedSection delay={80} trigger={enterKey}>
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            </AnimatedSection>
           )}
 
+          <AnimatedSection delay={140} trigger={enterKey}>
+          <GlassCard style={styles.glassForm} borderColors={IRIDESCENT_BORDER_COLORS}>
           <View style={styles.formSection}>
             <Text style={styles.inputLabel}>{t('auth.email')}</Text>
             <TextInput
@@ -182,17 +191,13 @@ export default function WelcomeScreen() {
               <Text style={styles.forgotLinkText}>{t('auth.forgot_password')}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.button, styles.primaryButton, !canSubmitEmail && styles.buttonDisabled]}
+            <GradientButton
+              label={t('auth.login')}
               onPress={handleEmailLogin}
               disabled={!canSubmitEmail || isLoading}
-            >
-              {emailLoginMutation.isPending ? (
-                <ActivityIndicator color={theme.colors.text.inverse} />
-              ) : (
-                <Text style={styles.primaryButtonText}>{t('auth.login')}</Text>
-              )}
-            </TouchableOpacity>
+              loading={emailLoginMutation.isPending}
+              style={styles.primaryButtonSpacing}
+            />
           </View>
 
           <View style={styles.divider}>
@@ -239,32 +244,39 @@ export default function WelcomeScreen() {
           >
             <Text style={styles.registerLinkText}>{t('auth.want_to_create_stories')}</Text>
           </TouchableOpacity>
+          </GlassCard>
+          </AnimatedSection>
 
+          <AnimatedSection delay={260} trigger={enterKey}>
           <View style={styles.linksSection}>
-            <TouchableOpacity
+            <InteractiveSurface
               style={styles.linkButton}
               onPress={() => navigation.navigate('Stories')}
+              accessibilityLabel={t('welcome.browse_stories')}
             >
               <Ionicons name="newspaper-outline" size={24} color={theme.colors.interactive.primary} />
               <Text style={styles.linkButtonText}>{t('welcome.browse_stories')}</Text>
-            </TouchableOpacity>
+            </InteractiveSurface>
 
-            <TouchableOpacity
+            <InteractiveSurface
               style={styles.linkButton}
               onPress={() => navigation.navigate('Plans')}
+              accessibilityLabel={t('welcome.view_plans')}
             >
               <Ionicons name="diamond-outline" size={24} color={theme.colors.interactive.primary} />
               <Text style={styles.linkButtonText}>{t('welcome.view_plans')}</Text>
-            </TouchableOpacity>
+            </InteractiveSurface>
           </View>
+          </AnimatedSection>
 
-          {showSkipOption && Platform.OS !== 'web' && (
-            <Text style={styles.devNoteText}>
-              Dev Tip: Test UI layout on web version, or build with expo-dev-client for native OAuth
-            </Text>
-          )}
-        </View>
-      </ScrollView>
+            {showSkipOption && Platform.OS !== 'web' && (
+              <Text style={styles.devNoteText}>
+                Dev Tip: Test UI layout on web version, or build with expo-dev-client for native OAuth
+              </Text>
+            )}
+          </View>
+        </ScrollView>
+      </LinearGradient>
     </KeyboardAvoidingView>
   );
 }
@@ -272,7 +284,9 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background.primary,
+  },
+  gradient: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
@@ -282,27 +296,74 @@ const styles = StyleSheet.create({
   },
   content: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 440,
     padding: theme.spacing[6],
   },
   hero: {
     alignItems: 'center',
     marginBottom: theme.spacing[6],
   },
-  logoLink: {
-    marginBottom: theme.spacing[4],
+  heroFrame: {
+    width: '100%',
+    aspectRatio: 3 / 2,
+    borderRadius: theme.borders.radius['2xl'],
+    overflow: 'hidden',
+    marginBottom: theme.spacing[5],
+    ...Platform.select({
+      ios: {
+        shadowColor: '#3B2E6E',
+        shadowOpacity: 0.22,
+        shadowRadius: 28,
+        shadowOffset: { width: 0, height: 18 },
+      },
+      android: { elevation: 8 },
+      web: {
+        boxShadow: '0 30px 60px -30px rgba(59, 46, 110, 0.45)' as unknown as string,
+      },
+    }),
   },
-  logoContainer: {
-    marginBottom: theme.spacing[4],
+  heroImage: {
+    width: '100%',
+    height: '100%',
   },
-  logo: {
-    width: 300,
-    height: 70,
+  heroFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '35%',
+  },
+  bokehOne: {
+    position: 'absolute',
+    top: -120,
+    right: -80,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: 'rgba(169, 156, 224, 0.35)',
+    opacity: 0.9,
+  },
+  bokehTwo: {
+    position: 'absolute',
+    bottom: -140,
+    left: -100,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(242, 138, 94, 0.25)',
+  },
+  glassForm: {
+    padding: theme.spacing[5],
+    marginBottom: theme.spacing[6],
+  },
+  primaryButtonSpacing: {
+    marginTop: theme.spacing[5],
   },
   subtitle: {
-    fontSize: theme.typography.fontSize.base,
+    fontSize: theme.typography.fontSize.lg,
     textAlign: 'center',
-    color: theme.colors.text.tertiary,
+    color: theme.colors.text.secondary,
+    lineHeight: theme.typography.fontSize.lg * theme.typography.lineHeight.normal,
   },
   errorContainer: {
     backgroundColor: theme.colors.error[50],
@@ -328,9 +389,9 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing[4],
   },
   input: {
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
+    borderColor: 'rgba(235, 226, 247, 0.9)',
     borderRadius: theme.borders.radius.md,
     padding: theme.spacing[4],
     fontSize: theme.typography.fontSize.base,
@@ -431,10 +492,22 @@ const styles = StyleSheet.create({
     gap: theme.spacing[3],
     paddingVertical: theme.spacing[4],
     paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.background.secondary,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
+    borderRadius: theme.borders.radius.lg,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#3B2E6E',
+        shadowOpacity: 0.08,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+      },
+      android: { elevation: 2 },
+      web: {
+        boxShadow: '0 14px 30px -18px rgba(59, 46, 110, 0.3)' as unknown as string,
+      },
+    }),
   },
   linkButtonText: {
     color: theme.colors.interactive.primary,

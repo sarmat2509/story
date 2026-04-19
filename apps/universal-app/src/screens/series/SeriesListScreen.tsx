@@ -19,7 +19,11 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { theme } from '@/theme';
 import { SeriesCard } from '@/components/SeriesCard';
+import { AnimatedSection } from '@/components/AnimatedSection';
+import { useScreenEnter } from '@/hooks/useScreenEnter';
 import type { MainDrawerParamList } from '@/types/navigation';
+
+const cardDelay = (i: number) => Math.min(i * 35, 260);
 
 export default function SeriesListScreen() {
   const { t } = useTranslation();
@@ -27,6 +31,7 @@ export default function SeriesListScreen() {
   const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const enterKey = useScreenEnter();
 
   const { data: series, isLoading, error } = useSeriesList();
 
@@ -113,13 +118,20 @@ export default function SeriesListScreen() {
           Platform.OS === 'web' && { gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any,
         ]}
       >
-        {series.map((s) =>
+        {series.map((s, index) =>
           Platform.OS === 'web' ? (
-            <SeriesCard key={s.id} series={s} onPress={handleSeriesPress} cardWidth={cardWidth} />
-          ) : (
-            <View key={s.id} style={{ width: cardWidth }}>
+            <AnimatedSection key={s.id} delay={cardDelay(index)} trigger={enterKey}>
               <SeriesCard series={s} onPress={handleSeriesPress} cardWidth={cardWidth} />
-            </View>
+            </AnimatedSection>
+          ) : (
+            <AnimatedSection
+              key={s.id}
+              delay={cardDelay(index)}
+              trigger={enterKey}
+              style={{ width: cardWidth }}
+            >
+              <SeriesCard series={s} onPress={handleSeriesPress} cardWidth={cardWidth} />
+            </AnimatedSection>
           )
         )}
       </View>

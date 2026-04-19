@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, ScrollView, useWindowDimensions, Acti
 import { useRoute, useFocusEffect, RouteProp, useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useStories, useDeleteStory, prefetchStory } from '@/api/stories';
 import { useStoryThemes } from '@/api/dictionaries';
@@ -14,8 +15,13 @@ import { LibraryHeader } from '@/components/LibraryHeader';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AudioFilterToggleRef } from '@/components/AudioFilterToggle';
+import { AnimatedSection } from '@/components/AnimatedSection';
+import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { storage } from '@/utils/storage';
 import type { MainDrawerParamList } from '@/types/navigation';
+
+// Cap per-item stagger so large pages don't take forever to finish animating.
+const cardDelay = (i: number) => Math.min(i * 35, 260);
 
 const ITEMS_PER_PAGE = 24;
 
@@ -26,6 +32,7 @@ export default function LibraryScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const route = useRoute<RouteProp<MainDrawerParamList, 'Library'>>();
   const queryClient = useQueryClient();
+  const enterKey = useScreenEnter();
   const { width } = useWindowDimensions();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [audioFilter, setAudioFilter] = useState(false);
@@ -169,17 +176,19 @@ export default function LibraryScreen() {
     navigateToStory(storyId);
   }, [queryClient]);
   
-  const renderListItem = useCallback(({ item }: { item: any }) => {
+  const renderListItem = useCallback(({ item, index }: { item: any; index: number }) => {
     console.log('[LibraryScreen] renderListItem called for:', item.id);
     return (
-      <StoryCard 
-        story={item}
-        onPress={handleStoryPress}
-        onDelete={handleDelete}
-        variant="list"
-      />
+      <AnimatedSection delay={cardDelay(index)} trigger={enterKey}>
+        <StoryCard
+          story={item}
+          onPress={handleStoryPress}
+          onDelete={handleDelete}
+          variant="list"
+        />
+      </AnimatedSection>
     );
-  }, [handleStoryPress, handleDelete]);
+  }, [handleStoryPress, handleDelete, enterKey]);
   
   if (isLoading) {
     return (
@@ -217,6 +226,12 @@ export default function LibraryScreen() {
           onScenarioChange={handleScenarioFilterChange}
         />
         <View style={styles.centerContainer}>
+          <Ionicons
+            name="library-outline"
+            size={48}
+            color={theme.colors.text.tertiary}
+            style={styles.emptyIcon}
+          />
           <Text style={styles.emptyText}>No stories yet</Text>
           <Text style={styles.emptySubtext}>Create your first story!</Text>
         </View>
@@ -255,24 +270,34 @@ export default function LibraryScreen() {
               Platform.OS === 'web' && { gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any,
             ]}
           >
-            {stories.map((story) =>
+            {stories.map((story, index) =>
               Platform.OS === 'web' ? (
-                <StoryCard
+                <AnimatedSection
                   key={story.id}
-                  story={story}
-                  onPress={handleStoryPress}
-                  onDelete={handleDelete}
-                  variant="grid"
-                />
-              ) : (
-                <View key={story.id} style={{ width: gridCardWidth }}>
+                  delay={cardDelay(index)}
+                  trigger={enterKey}
+                >
                   <StoryCard
                     story={story}
                     onPress={handleStoryPress}
                     onDelete={handleDelete}
                     variant="grid"
                   />
-                </View>
+                </AnimatedSection>
+              ) : (
+                <AnimatedSection
+                  key={story.id}
+                  delay={cardDelay(index)}
+                  trigger={enterKey}
+                  style={{ width: gridCardWidth }}
+                >
+                  <StoryCard
+                    story={story}
+                    onPress={handleStoryPress}
+                    onDelete={handleDelete}
+                    variant="grid"
+                  />
+                </AnimatedSection>
               )
             )}
           </View>
@@ -393,9 +418,14 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     textAlign: 'center',
   },
+  emptyIcon: {
+    marginBottom: theme.spacing[3],
+    opacity: 0.7,
+  },
   emptyText: {
     fontSize: theme.typography.fontSize.lg,
     fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
     textAlign: 'center',
   },
   emptySubtext: {

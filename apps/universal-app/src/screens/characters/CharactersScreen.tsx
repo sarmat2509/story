@@ -11,6 +11,10 @@ import { CharacterFormModal } from '@/components/CharacterFormModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { AnimatedSection } from '@/components/AnimatedSection';
+import { useScreenEnter } from '@/hooks/useScreenEnter';
+
+const cardDelay = (i: number) => Math.min(i * 40, 320);
 import { CharacterSubtype, ReferencePhoto } from '@wondertales/shared';
 import type { MainDrawerParamList } from '@/types/navigation';
 
@@ -25,6 +29,7 @@ export default function CharactersScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { width } = useWindowDimensions();
+  const enterKey = useScreenEnter();
   const { data: characters, isLoading, error } = useCharacters();
   const columns = useColumns();
   const paddingHorizontal = theme.spacing[6] * 2;
@@ -122,49 +127,57 @@ export default function CharactersScreen() {
         {characters && characters.length > 0 ? (
           <>
             <View style={[styles.grid, Platform.OS === 'web' && { gridTemplateColumns: `repeat(${columns}, 1fr)` } as any]}>
-              {characters.map((character) =>
-                Platform.OS === 'web' ? (
+              {characters.map((character, index) => {
+                const card = (
                   <CharacterCard
-                    key={character.id}
                     character={character}
                     onPress={() => handleEditCharacter(character)}
                     onDelete={handleDelete}
                   />
+                );
+                return Platform.OS === 'web' ? (
+                  <AnimatedSection key={character.id} delay={cardDelay(index)} trigger={enterKey}>
+                    {card}
+                  </AnimatedSection>
                 ) : (
-                  <View key={character.id} style={{ width: cardWidth }}>
-                    <CharacterCard
-                      character={character}
-                      onPress={() => handleEditCharacter(character)}
-                      onDelete={handleDelete}
-                    />
-                  </View>
-                )
-              )}
+                  <AnimatedSection
+                    key={character.id}
+                    delay={cardDelay(index)}
+                    trigger={enterKey}
+                    style={{ width: cardWidth }}
+                  >
+                    {card}
+                  </AnimatedSection>
+                );
+              })}
             </View>
-            
-            {/* Add Character Button */}
-            <TouchableOpacity 
-              style={styles.addCharacterButton}
-              onPress={handleAddCharacter}
-            >
-              <Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />
-              <Text style={styles.addCharacterButtonText}>
-                {t('characters.add_character')}
-              </Text>
-            </TouchableOpacity>
+
+            <AnimatedSection delay={cardDelay(characters.length)} trigger={enterKey}>
+              <TouchableOpacity
+                style={styles.addCharacterButton}
+                onPress={handleAddCharacter}
+              >
+                <Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />
+                <Text style={styles.addCharacterButtonText}>
+                  {t('characters.add_character')}
+                </Text>
+              </TouchableOpacity>
+            </AnimatedSection>
           </>
         ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>👥</Text>
-            <Text style={styles.emptyText}>{t('characters.no_characters')}</Text>
-            <Text style={styles.emptyHint}>{t('characters.no_characters_hint')}</Text>
-            <TouchableOpacity 
-              style={styles.emptyButton}
-              onPress={handleAddCharacter}
-            >
-              <Text style={styles.emptyButtonText}>{t('characters.add_character')}</Text>
-            </TouchableOpacity>
-          </View>
+          <AnimatedSection delay={80} trigger={enterKey}>
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>👥</Text>
+              <Text style={styles.emptyText}>{t('characters.no_characters')}</Text>
+              <Text style={styles.emptyHint}>{t('characters.no_characters_hint')}</Text>
+              <TouchableOpacity
+                style={styles.emptyButton}
+                onPress={handleAddCharacter}
+              >
+                <Text style={styles.emptyButtonText}>{t('characters.add_character')}</Text>
+              </TouchableOpacity>
+            </View>
+          </AnimatedSection>
         )}
       </ScrollView>
 
