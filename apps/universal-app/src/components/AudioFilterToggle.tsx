@@ -1,6 +1,19 @@
 import React, { useState, useImperativeHandle, forwardRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Platform,
+  type PressableStateCallbackType,
+} from 'react-native';
 import { theme } from '@/theme';
+import { hexAlpha } from '@/theme/colorAlpha';
+
+type ExtendedPressableState = PressableStateCallbackType & {
+  hovered?: boolean;
+  focused?: boolean;
+};
 
 interface Props {
   allStoriesLabel: string;
@@ -49,52 +62,70 @@ const AudioFilterToggleComponent = forwardRef<AudioFilterToggleRef, Props>(({
   
   return (
     <View style={styles.segmentedControl}>
-      <TouchableOpacity 
-        style={styles.segment}
+      <Pressable
         onPress={() => isActive && handleToggle()}
         accessibilityLabel={allStoriesLabel}
+        focusable
+        style={(state: ExtendedPressableState) => [
+          styles.segment,
+          Platform.OS === 'web' && state.hovered && styles.segmentHovered,
+          state.pressed && styles.segmentPressed,
+          Platform.OS === 'web' && state.focused && styles.segmentFocused,
+        ]}
       >
-        <Text style={[
-          styles.segmentText, 
-          !isActive && styles.segmentTextActive
-        ]}>
+        <Text
+          style={[styles.segmentText, !isActive && styles.segmentTextActive]}
+        >
           {allStoriesLabel}
         </Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.toggleContainer}
+      </Pressable>
+
+      <Pressable
         onPress={handleToggle}
         accessibilityRole="switch"
         accessibilityState={{ checked: isActive }}
+        focusable
+        style={(state: ExtendedPressableState) => [
+          styles.toggleContainer,
+          Platform.OS === 'web' && state.hovered && styles.toggleContainerHovered,
+          state.pressed && styles.toggleContainerPressed,
+          Platform.OS === 'web' && state.focused && styles.toggleContainerFocused,
+        ]}
       >
-        <View style={[
-          styles.toggleTrack,
-          {
-            backgroundColor: isActive ? theme.colors.interactive.primary : theme.colors.neutral[300],
-          },
-        ]}>
-          <View style={[
-            styles.toggleThumb,
+        <View
+          style={[
+            styles.toggleTrack,
             {
-              transform: [{ translateX: isActive ? 20 : 0 }],
+              backgroundColor: isActive ? theme.colors.interactive.primary : theme.colors.neutral[300],
             },
-          ]} />
+          ]}
+        >
+          <View
+            style={[
+              styles.toggleThumb,
+              {
+                transform: [{ translateX: isActive ? 20 : 0 }],
+              },
+            ]}
+          />
         </View>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={styles.segment}
+      </Pressable>
+
+      <Pressable
         onPress={() => !isActive && handleToggle()}
         accessibilityLabel={audioOnlyLabel}
+        focusable
+        style={(state: ExtendedPressableState) => [
+          styles.segment,
+          Platform.OS === 'web' && state.hovered && styles.segmentHovered,
+          state.pressed && styles.segmentPressed,
+          Platform.OS === 'web' && state.focused && styles.segmentFocused,
+        ]}
       >
-        <Text style={[
-          styles.segmentText, 
-          isActive && styles.segmentTextActive
-        ]}>
+        <Text style={[styles.segmentText, isActive && styles.segmentTextActive]}>
           {audioOnlyLabel}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
     </View>
   );
 });
@@ -125,12 +156,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing[2],
     paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3]
+    paddingHorizontal: theme.spacing[3],
   },
   segment: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+    borderRadius: theme.borders.radius.md,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'background-color 180ms ease, box-shadow 180ms ease',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    }),
   },
+  segmentHovered: Platform.select({
+    web: {
+      backgroundColor: theme.colors.primary[50],
+      boxShadow: `0 1px 6px ${hexAlpha(theme.colors.primary[900], 0.08)}`,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+    default: {},
+  }),
+  segmentPressed: {
+    opacity: 0.9,
+  },
+  segmentFocused: Platform.select({
+    web: {
+      outlineStyle: 'solid',
+      outlineWidth: 2,
+      outlineColor: theme.colors.primary[500],
+      outlineOffset: 2,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+  }),
   segmentText: {
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.medium,
@@ -141,7 +202,35 @@ const styles = StyleSheet.create({
   },
   toggleContainer: {
     padding: theme.spacing[1],
+    borderRadius: theme.borders.radius.full,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'box-shadow 180ms ease',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    }),
   },
+  toggleContainerHovered: Platform.select({
+    web: {
+      boxShadow: `0 2px 10px ${hexAlpha(theme.colors.primary[900], 0.18)}`,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+    default: {},
+  }),
+  toggleContainerPressed: {
+    opacity: 0.92,
+  },
+  toggleContainerFocused: Platform.select({
+    web: {
+      outlineStyle: 'solid',
+      outlineWidth: 2,
+      outlineColor: theme.colors.primary[500],
+      outlineOffset: 3,
+      borderRadius: 9999,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+  }),
   toggleTrack: {
     width: 44,
     height: 24,

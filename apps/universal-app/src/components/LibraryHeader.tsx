@@ -1,8 +1,21 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Platform,
+  type PressableStateCallbackType,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AudioFilterToggle, AudioFilterToggleRef } from './AudioFilterToggle';
 import { theme } from '@/theme';
+import { hexAlpha } from '@/theme/colorAlpha';
+
+type ExtendedPressableState = PressableStateCallbackType & {
+  hovered?: boolean;
+  focused?: boolean;
+};
 
 interface ScenarioCard {
   id: string;
@@ -58,9 +71,18 @@ function FilterDropdown({
 }) {
   return (
     <View style={styles.dropdownWrapper}>
-      <TouchableOpacity
-        style={styles.dropdownButton}
+      <Pressable
         onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: isOpen }}
+        focusable
+        style={(state: ExtendedPressableState) => [
+          styles.dropdownButton,
+          isOpen && styles.dropdownButtonOpen,
+          Platform.OS === 'web' && state.hovered && styles.dropdownButtonHovered,
+          state.pressed && styles.dropdownButtonPressed,
+          Platform.OS === 'web' && state.focused && styles.dropdownButtonFocused,
+        ]}
       >
         <Text style={styles.dropdownButtonText} numberOfLines={1}>
           {buttonLabel}
@@ -68,23 +90,32 @@ function FilterDropdown({
         <Ionicons
           name={isOpen ? 'chevron-up' : 'chevron-down'}
           size={14}
-          color={theme.colors.text.tertiary}
+          color={isOpen ? theme.colors.interactive.primary : theme.colors.text.tertiary}
         />
-      </TouchableOpacity>
+      </Pressable>
       {isOpen && (
         <View style={styles.dropdownMenu}>
           {options.map((option, index) => {
             const isActive = selectedValue === option.value;
+            const isLast = index === options.length - 1;
             return (
-              <TouchableOpacity
+              <Pressable
                 key={`${option.value ?? 'all'}-${index}`}
-                style={[styles.dropdownItem, isActive && styles.dropdownItemActive]}
+                focusable
+                style={(state: ExtendedPressableState) => [
+                  styles.dropdownItem,
+                  isActive && styles.dropdownItemActive,
+                  isLast && styles.dropdownItemLast,
+                  Platform.OS === 'web' && state.hovered && !isActive && styles.dropdownItemHovered,
+                  state.pressed && styles.dropdownItemPressed,
+                  Platform.OS === 'web' && state.focused && styles.dropdownItemFocused,
+                ]}
                 onPress={() => onSelect(option.value)}
               >
                 <Text style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}>
                   {option.label}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             );
           })}
         </View>
@@ -232,46 +263,80 @@ const LibraryHeaderComponent = ({
       <View style={styles.rightControls}>
         {totalPages > 1 && (
           <View style={styles.paginationInHeader}>
-            <TouchableOpacity
-              style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
+            <Pressable
               onPress={() => onPageChange(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
+              focusable={currentPage !== 1}
+              style={(state: ExtendedPressableState) => [
+                styles.paginationButton,
+                currentPage === 1 && styles.paginationButtonDisabled,
+                currentPage !== 1 &&
+                  Platform.OS === 'web' &&
+                  state.hovered &&
+                  styles.paginationButtonHovered,
+                currentPage !== 1 && state.pressed && styles.paginationButtonPressed,
+                currentPage !== 1 &&
+                  Platform.OS === 'web' &&
+                  state.focused &&
+                  styles.paginationButtonFocused,
+              ]}
             >
-              <Ionicons 
-                name="chevron-back" 
-                size={20} 
-                color={currentPage === 1 ? theme.colors.text.disabled : theme.colors.interactive.primary} 
+              <Ionicons
+                name="chevron-back"
+                size={20}
+                color={currentPage === 1 ? theme.colors.text.disabled : theme.colors.interactive.primary}
               />
-            </TouchableOpacity>
-            
+            </Pressable>
+
             <Text style={styles.paginationText}>
               {t('library.page')} {currentPage} {t('library.of')} {totalPages}
             </Text>
-            
-            <TouchableOpacity
-              style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
+
+            <Pressable
               onPress={() => onPageChange(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
+              focusable={currentPage !== totalPages}
+              style={(state: ExtendedPressableState) => [
+                styles.paginationButton,
+                currentPage === totalPages && styles.paginationButtonDisabled,
+                currentPage !== totalPages &&
+                  Platform.OS === 'web' &&
+                  state.hovered &&
+                  styles.paginationButtonHovered,
+                currentPage !== totalPages && state.pressed && styles.paginationButtonPressed,
+                currentPage !== totalPages &&
+                  Platform.OS === 'web' &&
+                  state.focused &&
+                  styles.paginationButtonFocused,
+              ]}
             >
-              <Ionicons 
-                name="chevron-forward" 
-                size={20} 
-                color={currentPage === totalPages ? theme.colors.text.disabled : theme.colors.interactive.primary} 
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={
+                  currentPage === totalPages ? theme.colors.text.disabled : theme.colors.interactive.primary
+                }
               />
-            </TouchableOpacity>
+            </Pressable>
           </View>
         )}
-        <TouchableOpacity 
-            style={styles.viewToggle} 
-            onPress={onToggleViewMode}
-            accessibilityLabel={`Switch to ${viewMode === 'grid' ? 'list' : 'grid'} view`}
-          >
-            <Ionicons 
-              name={viewMode === 'grid' ? 'list' : 'grid'} 
-              size={24} 
-              color={theme.colors.text.primary} 
-            />
-        </TouchableOpacity>
+        <Pressable
+          onPress={onToggleViewMode}
+          accessibilityLabel={`Switch to ${viewMode === 'grid' ? 'list' : 'grid'} view`}
+          focusable
+          style={(state: ExtendedPressableState) => [
+            styles.viewToggle,
+            Platform.OS === 'web' && state.hovered && styles.viewToggleHovered,
+            state.pressed && styles.viewTogglePressed,
+            Platform.OS === 'web' && state.focused && styles.viewToggleFocused,
+          ]}
+        >
+          <Ionicons
+            name={viewMode === 'grid' ? 'list' : 'grid'}
+            size={24}
+            color={theme.colors.text.primary}
+          />
+        </Pressable>
       </View>
     </View>
   );
@@ -337,7 +402,34 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background.secondary,
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
+    ...Platform.select({
+      web: {
+        transition: 'background-color 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    }),
   },
+  viewToggleHovered: Platform.select({
+    web: {
+      backgroundColor: theme.colors.primary[50],
+      borderColor: theme.colors.primary[200],
+      boxShadow: `0 2px 8px ${hexAlpha(theme.colors.primary[900], 0.1)}`,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+    default: {},
+  }),
+  viewTogglePressed: {
+    opacity: 0.92,
+  },
+  viewToggleFocused: Platform.select({
+    web: {
+      outlineStyle: 'solid',
+      outlineWidth: 2,
+      outlineColor: theme.colors.primary[500],
+      outlineOffset: 2,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+  }),
   paginationInHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -345,7 +437,36 @@ const styles = StyleSheet.create({
   },
   paginationButton: {
     padding: theme.spacing[2],
+    borderRadius: theme.borders.radius.sm,
+    ...Platform.select({
+      web: {
+        transition: 'background-color 160ms ease, box-shadow 160ms ease',
+        cursor: 'pointer',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    }),
   },
+  paginationButtonHovered: {
+    backgroundColor: theme.colors.primary[50],
+    ...Platform.select({
+      web: {
+        boxShadow: `0 1px 6px ${hexAlpha(theme.colors.primary[900], 0.08)}`,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    }),
+  },
+  paginationButtonPressed: {
+    opacity: 0.85,
+  },
+  paginationButtonFocused: Platform.select({
+    web: {
+      outlineStyle: 'solid',
+      outlineWidth: 2,
+      outlineColor: theme.colors.primary[500],
+      outlineOffset: 1,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+  }),
   paginationButtonDisabled: {
     opacity: 0.5,
   },
@@ -367,7 +488,39 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background.secondary,
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    }),
   },
+  dropdownButtonOpen: {
+    borderColor: theme.colors.primary[300],
+    backgroundColor: theme.colors.primary[50],
+  },
+  dropdownButtonHovered: Platform.select({
+    web: {
+      borderColor: theme.colors.primary[200],
+      backgroundColor: theme.colors.primary[50],
+      boxShadow: `0 2px 10px ${hexAlpha(theme.colors.primary[900], 0.12)}`,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+    default: {},
+  }),
+  dropdownButtonPressed: {
+    opacity: 0.94,
+  },
+  dropdownButtonFocused: Platform.select({
+    web: {
+      outlineStyle: 'solid',
+      outlineWidth: 2,
+      outlineColor: theme.colors.primary[500],
+      outlineOffset: 2,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+  }),
   dropdownButtonText: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.primary,
@@ -401,7 +554,32 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing[2],
     borderBottomWidth: theme.borders.width.thin,
     borderBottomColor: theme.colors.border.light,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'background-color 140ms ease',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    }),
   },
+  dropdownItemLast: {
+    borderBottomWidth: 0,
+  },
+  dropdownItemHovered: {
+    backgroundColor: theme.colors.neutral[100],
+  },
+  dropdownItemPressed: {
+    opacity: 0.92,
+  },
+  dropdownItemFocused: Platform.select({
+    web: {
+      outlineStyle: 'solid',
+      outlineWidth: 2,
+      outlineColor: theme.colors.primary[500],
+      outlineOffset: -2,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+  }),
   dropdownItemActive: {
     backgroundColor: theme.colors.primary[50],
   },
