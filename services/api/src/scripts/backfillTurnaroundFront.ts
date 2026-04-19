@@ -18,7 +18,11 @@ import { characters, childProfiles } from '../db/schema';
 import { sql, and, isNotNull } from 'drizzle-orm';
 import { getAssetStorageService } from '../services/assetStorageService';
 import { getCharacterRepository, getChildProfileRepository } from '../repositories';
-import { extractFrontFromTurnaround, type RightEdgeDebug } from '../services/turnaroundFrontExtractor';
+import {
+  extractFrontFromTurnaround,
+  type RightEdgeDebug,
+  type TurnaroundRightEdgeLogContext,
+} from '../services/turnaroundFrontExtractor';
 import { logger } from '../utils/logger';
 
 type BackfillEntity = 'all' | 'characters' | 'children';
@@ -128,6 +132,22 @@ function extractStoragePath(url: string): string {
   return urlWithoutProtocol.replace(/^\/api\/v1\/assets\//, '');
 }
 
+async function deletePreviousFrontAsset(
+  assetStorage: ReturnType<typeof getAssetStorageService>,
+  frontUrl: string | undefined,
+  options: ScriptOptions,
+  logFields: Record<string, unknown>,
+): Promise<void> {
+  if (!options.force || !frontUrl) return;
+  try {
+    const oldPath = extractStoragePath(frontUrl);
+    await assetStorage.deleteAsset(oldPath);
+    logger.info({ ...logFields, oldFrontStoragePath: oldPath }, 'Deleted previous turnaround front asset before re-extract');
+  } catch (err) {
+    logger.warn({ err, ...logFields, frontUrl }, 'Failed to delete previous turnaround front asset (continuing)');
+  }
+}
+
 async function backfillTurnaroundFront() {
   const options = parseOptions();
   assertSafeStart(options);
@@ -217,7 +237,12 @@ async function backfillTurnaroundFront() {
   for (const char of charsNeedingFront) {
     try {
       logger.info({ characterId: char.id, name: char.name, processed, total }, 'Processing character turnaround front');
-      const ts = char.turnaroundSheet as { url: string; generatedAt: string; sourcePhotoUrl?: string } | null;
+      const ts = char.turnaroundSheet as {
+        url: string;
+        frontUrl?: string;
+        generatedAt: string;
+        sourcePhotoUrl?: string;
+      } | null;
       if (!ts?.url) {
         skipped++;
         continue;
@@ -231,10 +256,30 @@ async function backfillTurnaroundFront() {
         continue;
       }
 
+      await deletePreviousFrontAsset(assetStorage, ts.frontUrl, options, { characterId: char.id, name: char.name });
+
+      const rightEdgeLogContext: TurnaroundRightEdgeLogContext = {
+        turnaroundStoragePath: storagePath,
+        characterId: char.id,
+      };
       const frontBuffer = await extractFrontFromTurnaround(buffer, {
+        rightEdgeLogContext,
         onRightEdge: (d: RightEdgeDebug) =>
           logger.info(
-            { characterId: char.id, chosenMethod: d.chosenMethod, delta: d.delta, edgePure: d.edgePure, edgeSoft: d.edgeSoft, rightEdge: d.rightEdge },
+            {
+              characterId: char.id,
+              turnaroundStoragePath: storagePath,
+              chosenMethod: d.chosenMethod,
+              delta: d.delta,
+              edgePure: d.edgePure,
+              edgeSoft: d.edgeSoft,
+              rightEdge: d.rightEdge,
+              maskCcLargeComponents: d.maskCcLargeComponents ?? null,
+              maskCcLeftBlobMaxX: d.maskCcLeftBlobMaxX ?? null,
+              maskCcLeftBlobMinX: d.maskCcLeftBlobMinX ?? null,
+              maskCcLeftBlobMaxY: d.maskCcLeftBlobMaxY ?? null,
+              maskCcBgDelta: d.maskCcBgDelta ?? null,
+            },
             'Front extraction right edge',
           ),
       });
@@ -270,7 +315,12 @@ async function backfillTurnaroundFront() {
   for (const child of childrenNeedingFront) {
     try {
       logger.info({ childId: child.id, name: child.name, processed, total }, 'Processing child turnaround front');
-      const ts = child.turnaroundSheet as { url: string; generatedAt: string; sourcePhotoUrl?: string } | null;
+      const ts = child.turnaroundSheet as {
+        url: string;
+        frontUrl?: string;
+        generatedAt: string;
+        sourcePhotoUrl?: string;
+      } | null;
       if (!ts?.url) {
         skipped++;
         continue;
@@ -284,10 +334,30 @@ async function backfillTurnaroundFront() {
         continue;
       }
 
+      await deletePreviousFrontAsset(assetStorage, ts.frontUrl, options, { childId: child.id, name: child.name });
+
+      const rightEdgeLogContext: TurnaroundRightEdgeLogContext = {
+        turnaroundStoragePath: storagePath,
+        childId: child.id,
+      };
       const frontBuffer = await extractFrontFromTurnaround(buffer, {
+        rightEdgeLogContext,
         onRightEdge: (d: RightEdgeDebug) =>
           logger.info(
-            { childId: child.id, chosenMethod: d.chosenMethod, delta: d.delta, edgePure: d.edgePure, edgeSoft: d.edgeSoft, rightEdge: d.rightEdge },
+            {
+              childId: child.id,
+              turnaroundStoragePath: storagePath,
+              chosenMethod: d.chosenMethod,
+              delta: d.delta,
+              edgePure: d.edgePure,
+              edgeSoft: d.edgeSoft,
+              rightEdge: d.rightEdge,
+              maskCcLargeComponents: d.maskCcLargeComponents ?? null,
+              maskCcLeftBlobMaxX: d.maskCcLeftBlobMaxX ?? null,
+              maskCcLeftBlobMinX: d.maskCcLeftBlobMinX ?? null,
+              maskCcLeftBlobMaxY: d.maskCcLeftBlobMaxY ?? null,
+              maskCcBgDelta: d.maskCcBgDelta ?? null,
+            },
             'Front extraction right edge',
           ),
       });
