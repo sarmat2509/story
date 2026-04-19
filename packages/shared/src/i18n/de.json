@@ -312,6 +312,7 @@
     "characters_title": "Charaktere",
     "save_character": "Zu meinen Charakteren speichern",
     "character_saved": "Charakter gespeichert!",
+    "character_save_error": "Charakter konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
     "character_type_pet": "Tier",
     "character_type_friend": "Freund",
     "character_type_imaginary_friend": "Fantasiefreund",
@@ -496,7 +497,16 @@
     "magical_features_placeholder": "Magische Eigenschaft hinzufügen...",
     "custom_description_placeholder": "Vollständige Beschreibung des Aussehens...",
     "personality_trait_placeholder": "Eigenschaft hinzufügen...",
-    "favorite_activity_placeholder": "Aktivität hinzufügen..."
+    "favorite_activity_placeholder": "Aktivität hinzufügen...",
+    "save_button": "Speichern",
+    "cancel_button": "Abbrechen",
+    "saving": "Wird gespeichert...",
+    "creating_character": "Charakter wird erstellt…",
+    "upload_in_progress": "Upload läuft",
+    "wait_for_upload": "Bitte warten Sie, bis alle Fotos hochgeladen sind",
+    "validation_error": "Validierungsfehler",
+    "validation_error_message": "Bitte überprüfen Sie die eingegebenen Daten",
+    "save_failed": "Speichern fehlgeschlagen. Bitte versuchen Sie es erneut."
   },
   "profile": {
     "title": "Profil",

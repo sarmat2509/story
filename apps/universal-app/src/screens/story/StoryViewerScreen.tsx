@@ -606,7 +606,7 @@ export default function StoryViewerScreen() {
         setSavedCharacterIds((prev) => new Set(prev).add(characterId));
         toastService.success(t('story_viewer.character_saved'));
       } catch {
-        toastService.error('Error');
+        toastService.error(t('common.error'), t('story_viewer.character_save_error'));
       }
     },
     [updateCharacterMutation, t]

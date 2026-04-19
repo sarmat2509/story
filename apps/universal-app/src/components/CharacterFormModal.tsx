@@ -198,6 +198,8 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
   const scrollRef = useRef<ScrollView>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  /** Full-screen second modal while create/update request runs (form modal hidden). */
+  const [isSubmittingOverlay, setIsSubmittingOverlay] = useState(false);
   
   // Basic fields
   const [name, setName] = useState('');
@@ -250,8 +252,17 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
     favoriteActivities: [] as (PetActivity | string)[]
   });
 
+  useEffect(() => {
+    if (!visible) {
+      setIsSubmittingOverlay(false);
+    }
+  }, [visible]);
+
   // Handle close with cleanup: delete orphaned photos for new characters
   const handleClose = async () => {
+    if (isSubmittingOverlay) {
+      return;
+    }
     // Only cleanup uploaded photos for NEW characters (not when editing existing ones)
     if (!characterId) {
       const uploadedPhotos = photos.filter(p => !p.isUploading && isServerAssetUrl(p.url));
@@ -498,8 +509,8 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
     const hasUploadingPhotos = photos.some(photo => photo.isUploading);
     if (hasUploadingPhotos) {
       Alert.alert(
-        t('character_form.upload_in_progress') || 'Upload in progress',
-        t('character_form.wait_for_upload') || 'Please wait for photo upload to complete'
+        t('character_form.upload_in_progress'),
+        t('character_form.wait_for_upload')
       );
       return;
     }
@@ -509,9 +520,8 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   };
 
   const handleSubmit = async () => {
-    try {
-      // Prepare appearance traits based on type
-      let appearanceTraits;
+    // Prepare appearance traits based on type
+    let appearanceTraits;
       if (isAnimalType(type)) {
         // Only include defined fields
         const petData: any = {};
@@ -561,8 +571,8 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
       const hasUploadingPhotos = photos.some(photo => photo.isUploading);
       if (hasUploadingPhotos) {
         Alert.alert(
-          t('character_form.upload_in_progress') || 'Завантаження',
-          t('character_form.wait_for_upload') || 'Будь ласка, зачекайте поки завантажаться всі фото'
+          t('character_form.upload_in_progress'),
+          t('character_form.wait_for_upload')
         );
         return;
       }
@@ -603,42 +613,38 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
         });
         setErrors(newErrors);
         Alert.alert(
-          t('character_form.validation_error') || 'Помилка валідації',
-          t('character_form.validation_error_message') || 'Будь ласка, перевірте введені дані'
+          t('character_form.validation_error'),
+          t('character_form.validation_error_message')
         );
         return;
       }
 
-      // Submit
-      if (characterId) {
-        const { referencePhotos: _rp, ...updateData } = result.data;
-        await updateCharacter.mutateAsync({ id: characterId, data: updateData });
-      } else {
-        await createCharacter.mutateAsync(result.data);
+      // Submit: hide form modal, show dedicated saving modal
+      setIsSubmittingOverlay(true);
+      try {
+        if (characterId) {
+          const { referencePhotos: _rp, ...updateData } = result.data;
+          await updateCharacter.mutateAsync({ id: characterId, data: updateData });
+        } else {
+          await createCharacter.mutateAsync(result.data);
+        }
+        onClose();
+      } catch (error) {
+        console.error('Failed to save character:', error);
+        setIsSubmittingOverlay(false);
+        setErrors({ submit: t('character_form.save_failed') });
       }
-
-      // Close modal on success
-      onClose();
-    } catch (error) {
-      console.error('Failed to save character:', error);
-      setErrors({ submit: 'Failed to save. Please try again.' });
-    }
   };
 
   return (
+    <>
     <Modal
-      visible={visible}
+      visible={visible && !isSubmittingOverlay}
       animationType="fade"
       transparent
       onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
-        {createCharacter.isPending && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
-            <Text style={styles.loadingOverlayText}>{t('character_form.creating_character') || 'Создаём образ персонажа'}</Text>
-          </View>
-        )}
         <View style={styles.modal}>
           {/* Header */}
           <View style={styles.header}>
@@ -1116,15 +1122,15 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
               <TouchableOpacity
                 style={[styles.button, styles.saveButton]}
                 onPress={handleSubmit}
-                disabled={createCharacter.isPending || updateCharacter.isPending || (!characterId && !description.trim()) || (!characterId && analyzeCharacter.isPending)}
+                disabled={
+                  isSubmittingOverlay
+                  || createCharacter.isPending
+                  || updateCharacter.isPending
+                  || (!characterId && !description.trim())
+                  || (!characterId && analyzeCharacter.isPending)
+                }
               >
-                <Text style={styles.saveButtonText}>
-                  {createCharacter.isPending
-                    ? (t('character_form.creating_character') || 'Создаём образ персонажа')
-                    : updateCharacter.isPending
-                    ? t('character_form.saving')
-                    : t('character_form.save_button')}
-                </Text>
+                <Text style={styles.saveButtonText}>{t('character_form.save_button')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1137,13 +1143,28 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
           </TouchableOpacity>
         </View>
       </View>
-
-      <FeedbackModal
-        visible={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-        initialReportedScreen="characters"
-      />
     </Modal>
+
+    <Modal
+      visible={visible && isSubmittingOverlay}
+      animationType="fade"
+      transparent
+      onRequestClose={() => {}}
+    >
+      <View style={styles.savingModalOverlay}>
+        <View style={styles.savingModalCard}>
+          <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+          <Text style={styles.savingModalMessage}>{t('character_form.creating_character')}</Text>
+        </View>
+      </View>
+    </Modal>
+
+    <FeedbackModal
+      visible={showFeedbackModal}
+      onClose={() => setShowFeedbackModal(false)}
+      initialReportedScreen="characters"
+    />
+    </>
   );
 }
 
@@ -1340,17 +1361,30 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.inverse,
   },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+  savingModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
+    padding: theme.spacing[6],
   },
-  loadingOverlayText: {
-    marginTop: theme.spacing[4],
+  savingModalCard: {
+    backgroundColor: theme.colors.background.primary,
+    borderRadius: theme.borders.radius.lg,
+    paddingVertical: theme.spacing[8],
+    paddingHorizontal: theme.spacing[8],
+    alignItems: 'center',
+    maxWidth: 320,
+    width: '100%',
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+  },
+  savingModalMessage: {
+    marginTop: theme.spacing[5],
     fontSize: theme.typography.fontSize.base,
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+    fontWeight: theme.typography.fontWeight.medium,
   },
   turnaroundGenerating: {
     flexDirection: 'row',

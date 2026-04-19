@@ -312,6 +312,7 @@
     "characters_title": "Personnages",
     "save_character": "Sauvegarder dans mes personnages",
     "character_saved": "Personnage sauvegardé !",
+    "character_save_error": "Impossible d'enregistrer le personnage. Veuillez réessayer.",
     "character_type_pet": "Animal",
     "character_type_friend": "Ami",
     "character_type_imaginary_friend": "Ami imaginaire",
@@ -496,7 +497,16 @@
     "magical_features_placeholder": "Ajouter une caractéristique magique...",
     "custom_description_placeholder": "Description complète de l'apparence...",
     "personality_trait_placeholder": "Ajouter un trait...",
-    "favorite_activity_placeholder": "Ajouter une activité..."
+    "favorite_activity_placeholder": "Ajouter une activité...",
+    "save_button": "Enregistrer",
+    "cancel_button": "Annuler",
+    "saving": "Enregistrement...",
+    "creating_character": "Création du personnage…",
+    "upload_in_progress": "Téléversement en cours",
+    "wait_for_upload": "Veuillez attendre que toutes les photos soient téléversées",
+    "validation_error": "Erreur de validation",
+    "validation_error_message": "Veuillez vérifier les données saisies",
+    "save_failed": "Enregistrement impossible. Veuillez réessayer."
   },
   "profile": {
     "title": "Profil",
