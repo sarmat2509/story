@@ -6,6 +6,7 @@ import { useAudioPlayerStore } from '@/store/audioPlayerStore';
 import { globalAudioService } from '@/services/globalAudioService';
 import { audioPlaybackService } from '@/services/audioPlaybackService';
 import { theme } from '@/theme';
+import { PlayTriangleIcon } from '@/components/icons/PlayTriangleIcon';
 
 interface AudioPlayerProps {
   storyId: string; // Story ID to determine if this player is connected to the active audio
@@ -329,10 +330,12 @@ export default function AudioPlayer({
       >
         {isLoading ? (
           <ActivityIndicator size="large" color="#fff" />
+        ) : isPlaying ? (
+          <Text style={styles.playButtonText}>⏸️</Text>
         ) : (
-          <Text style={styles.playButtonText}>
-            {isPlaying ? '⏸️' : '▶️'}
-          </Text>
+          <View style={styles.playTriangleOptical}>
+            <PlayTriangleIcon size={30} color="#FFFFFF" />
+          </View>
         )}
       </TouchableOpacity>
 
@@ -468,6 +471,10 @@ const styles = StyleSheet.create({
   },
   playButtonDisabled: {
     opacity: 0.5,
+  },
+  /** Play triangle reads left-heavy; nudge right for optical center in the circle. */
+  playTriangleOptical: {
+    marginLeft: 5,
   },
   playButtonText: {
     fontSize: 28,

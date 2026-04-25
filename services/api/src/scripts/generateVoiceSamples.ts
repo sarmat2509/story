@@ -10,7 +10,9 @@
  * Usage:
  *   npx tsx src/scripts/generateVoiceSamples.ts
  *   npx tsx src/scripts/generateVoiceSamples.ts --languages=ru,en,es,fr,de,pl
+ *   (Grok: Ukrainian is skipped — no samples for `uk`; use en/ru/es/de/fr/pl.)
  *   npx tsx src/scripts/generateVoiceSamples.ts --force
+ *   npx tsx src/scripts/generateVoiceSamples.ts --provider=grok --languages=en,ru,es,fr,de,pl --force
  */
 
 import './loadEnvForScripts';
@@ -53,6 +55,13 @@ function hasFlag(flag: string): boolean {
   return process.argv.includes(flag);
 }
 
+/** Optional: e.g. `--provider=grok` to regenerate only that TTS vendor. */
+function parseProviderArg(): string | undefined {
+  const arg = process.argv.find((entry) => entry.startsWith('--provider='));
+  const value = arg?.split('=')[1]?.trim();
+  return value || undefined;
+}
+
 async function sampleExistsInStorage(
   assetStorage: ReturnType<typeof getAssetStorageService>,
   language: string,
@@ -81,11 +90,12 @@ interface VoiceRecord {
 async function generateVoiceSamples() {
   const targetLanguages = parseLanguagesArg();
   const force = hasFlag('--force');
+  const providerFilter = parseProviderArg();
 
-  logger.info({ targetLanguages, force }, 'Starting voice sample generation');
+  logger.info({ targetLanguages, force, providerFilter }, 'Starting voice sample generation');
   
   // Fetch all active voices
-  const voices = await db
+  const rows = await db
     .select({
       id: ttsVoices.id,
       providerVoiceId: ttsVoices.providerVoiceId,
@@ -97,8 +107,12 @@ async function generateVoiceSamples() {
     })
     .from(ttsVoices)
     .where(eq(ttsVoices.isActive, true));
-  
-  logger.info({ total: voices.length }, 'Found voices to process');
+
+  const voices = providerFilter
+    ? rows.filter((v) => v.provider === providerFilter)
+    : rows;
+
+  logger.info({ total: rows.length, afterFilter: voices.length, providerFilter }, 'Found voices to process');
   
   const assetStorage = getAssetStorageService();
   
@@ -110,20 +124,28 @@ async function generateVoiceSamples() {
     const audioProvider = getAudioProviderByName(voice.provider);
 
     for (const language of targetLanguages) {
-      const isPrimaryLanguage = language === voice.language;
-
-      if (isPrimaryLanguage && voice.sampleAudioUrl && !force) {
+      if (voice.provider === 'grok' && language === 'uk') {
         logger.info(
-          { voiceId: voice.id, name: voice.name, language },
-          'Primary sample already exists, skipping'
+          { voiceId: voice.id, name: voice.name, provider: voice.provider },
+          'Skipping Grok sample for Ukrainian (xAI TTS not offered for uk stories)'
         );
         skipCount++;
         continue;
       }
 
-      if (!force && await sampleExistsInStorage(assetStorage, language, voice.providerVoiceId)) {
+      const isPrimaryLanguage = language === voice.language;
+
+      // Never skip based only on `sample_audio_url` in DB: after `tts_voices.language` changes
+      // (e.g. uk→en for Grok) the URL can still point at another locale while `voice-samples/{lang}/{id}.mp3`
+      // for the new primary is missing (Atlas/sal had no `en/sal.mp3`).
+      if (!force && (await sampleExistsInStorage(assetStorage, language, voice.providerVoiceId))) {
         logger.info(
-          { voiceId: voice.id, name: voice.name, language },
+          {
+            voiceId: voice.id,
+            name: voice.name,
+            language,
+            isPrimaryLanguage,
+          },
           'Sample file already exists in storage, skipping'
         );
         skipCount++;

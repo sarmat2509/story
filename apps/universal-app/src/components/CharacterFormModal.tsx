@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { DEFAULT_LOCALE } from '@wondertales/shared';
 import { theme } from '@/theme';
 import { FeedbackModal } from './FeedbackModal';
+import { GlassPrimaryButton } from './GlassPrimaryButton';
 import { useCreateCharacter, useUpdateCharacter, useAnalyzeCharacter } from '@/api/characters';
 import { UploadPhotoResult, deletePhoto } from '@/utils/uploadPhoto';
 import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
@@ -1109,18 +1110,16 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
             </TouchableOpacity>
 
             {currentStep === 1 ? (
-              <TouchableOpacity
-                style={[styles.button, styles.continueButton]}
+              <GlassPrimaryButton
+                title={t('character_form.continue_button')}
                 onPress={handleContinue}
                 disabled={!name.trim() || photos.some(p => p.isUploading)}
-              >
-                <Text style={styles.continueButtonText}>
-                  {t('character_form.continue_button')}
-                </Text>
-              </TouchableOpacity>
+                size="footer"
+                style={styles.button}
+              />
             ) : (
-              <TouchableOpacity
-                style={[styles.button, styles.saveButton]}
+              <GlassPrimaryButton
+                title={t('character_form.save_button')}
                 onPress={handleSubmit}
                 disabled={
                   isSubmittingOverlay
@@ -1129,9 +1128,10 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                   || (!characterId && !description.trim())
                   || (!characterId && analyzeCharacter.isPending)
                 }
-              >
-                <Text style={styles.saveButtonText}>{t('character_form.save_button')}</Text>
-              </TouchableOpacity>
+                loading={createCharacter.isPending || updateCharacter.isPending}
+                size="footer"
+                style={styles.button}
+              />
             )}
           </View>
 
@@ -1344,22 +1344,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.secondary,
-  },
-  saveButton: {
-    backgroundColor: theme.colors.interactive.primary,
-  },
-  saveButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
-  },
-  continueButton: {
-    backgroundColor: theme.colors.interactive.primary,
-  },
-  continueButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
   },
   savingModalOverlay: {
     flex: 1,

@@ -230,6 +230,7 @@ export default function PlansScreen() {
       <View style={[styles.plansGrid, isWeb && styles.plansGridWeb]}>
         {plans?.map((plan, planIndex) => {
           const isCurrent = isAuthenticated && 'isCurrent' in plan && plan.isCurrent;
+          const isFreePlan = plan.slug === 'free';
           const audioFeature = (plan.features as unknown as Record<string, { value?: { limit?: number } }>)['audio_stories_per_month']; // CHANGED from audio_minutes_per_month
           
           // Determine button type
@@ -345,7 +346,7 @@ export default function PlansScreen() {
                     {t('plans.upgrade_button')}
                   </Text>
                 </TouchableOpacity>
-              ) : buttonType === 'downgrade' ? (
+              ) : buttonType === 'downgrade' && isFreePlan ? null : buttonType === 'downgrade' ? (
                 <TouchableOpacity 
                   style={styles.subscribeButton}
                   onPress={() => {

@@ -91,41 +91,38 @@ export default function ThemeSettingsScreen() {
                 accessibilityState={{ selected: isSelected, disabled: updateMe.isPending }}
                 accessibilityLabel={t(meta.labelKey)}
               >
-                <View style={styles.cardRow}>
-                  <View style={styles.swatches}>
-                    {meta.swatches.map((color, idx) => (
-                      <View
-                        key={`${paletteId}-${idx}`}
-                        style={[styles.swatch, { backgroundColor: color }]}
-                      />
-                    ))}
-                  </View>
-                  <View style={styles.cardText}>
-                    <Text
-                      style={[styles.cardName, isSelected && styles.cardNameSelected]}
-                      numberOfLines={1}
-                    >
-                      {t(meta.labelKey)}
-                    </Text>
-                    {isSelected && (
-                      <Text style={styles.cardCurrent}>{t('theme.current')}</Text>
-                    )}
-                  </View>
-                  <View style={styles.cardTrailing}>
-                    {isBusy ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={theme.colors.interactive.primary}
-                      />
-                    ) : isSelected ? (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={24}
-                        color={theme.colors.interactive.primary}
-                      />
-                    ) : null}
-                  </View>
+                <View style={styles.cardBadge}>
+                  {isBusy ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={theme.colors.interactive.primary}
+                    />
+                  ) : isSelected ? (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={26}
+                      color={theme.colors.interactive.primary}
+                    />
+                  ) : null}
                 </View>
+                <View style={styles.swatches}>
+                  {meta.swatches.map((color, idx) => (
+                    <View
+                      key={`${paletteId}-${idx}`}
+                      style={[
+                        styles.swatch,
+                        idx > 0 && styles.swatchOverlap,
+                        { backgroundColor: color },
+                      ]}
+                    />
+                  ))}
+                </View>
+                <Text
+                  style={[styles.cardName, isSelected && styles.cardNameSelected]}
+                  numberOfLines={2}
+                >
+                  {t(meta.labelKey)}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -140,7 +137,8 @@ export default function ThemeSettingsScreen() {
   );
 }
 
-const SWATCH_SIZE = 28;
+/** Sized so 3 swatches fit in one ~31% column on narrow phones. */
+const SWATCH_SIZE = 46;
 
 const styles = StyleSheet.create({
   container: {
@@ -162,12 +160,18 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[6],
   },
   grid: {
-    gap: theme.spacing[3],
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: theme.spacing[5],
   },
   card: {
+    position: 'relative',
+    width: '32%',
     padding: theme.spacing[4],
+    alignItems: 'center',
     backgroundColor: theme.colors.background.secondary,
-    borderRadius: theme.borders.radius.md,
+    borderRadius: 25,
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
   },
@@ -175,42 +179,39 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.interactive.primary,
     backgroundColor: theme.colors.primary[50],
   },
-  cardRow: {
-    flexDirection: 'row',
+  cardBadge: {
+    position: 'absolute',
+    top: theme.spacing[2],
+    right: theme.spacing[2],
+    minWidth: 28,
+    minHeight: 28,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   swatches: {
     flexDirection: 'row',
-    marginRight: theme.spacing[3],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing[3],
   },
   swatch: {
     width: SWATCH_SIZE,
     height: SWATCH_SIZE,
     borderRadius: SWATCH_SIZE / 2,
-    marginLeft: -SWATCH_SIZE / 3,
     borderWidth: 2,
     borderColor: theme.colors.white,
   },
-  cardText: {
-    flex: 1,
-    marginLeft: theme.spacing[2],
+  swatchOverlap: {
+    marginLeft: -SWATCH_SIZE / 3,
   },
   cardName: {
-    fontSize: theme.typography.fontSize.base,
+    fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.text.primary,
+    textAlign: 'center',
   },
   cardNameSelected: {
     color: theme.colors.interactive.primary,
     fontWeight: theme.typography.fontWeight.semibold,
-  },
-  cardCurrent: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.secondary,
-    marginTop: 2,
-  },
-  cardTrailing: {
-    width: 28,
-    alignItems: 'flex-end',
   },
 });

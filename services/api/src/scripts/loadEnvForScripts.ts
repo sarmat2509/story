@@ -47,3 +47,8 @@ for (const { file, override } of files) {
     /* ignore */
   }
 }
+
+/** One-off scripts import `db` without the HTTP app; skip global shutdown hooks on rejections. */
+if (process.argv.some((arg) => arg.includes('seedVoices') || arg.includes('generateVoiceSamples'))) {
+  process.env.WT_SKIP_PROCESS_SIGNAL_HANDLERS = '1';
+}

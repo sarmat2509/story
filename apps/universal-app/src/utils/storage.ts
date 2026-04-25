@@ -8,6 +8,8 @@ const STORAGE_KEYS = {
   AUDIO_NOTIFICATIONS: '@wondertales/audio_notifications_shown',
   LIBRARY_VIEW_MODE: '@wondertales/library_view_mode',
   AUDIO_FILTER: '@wondertales/audio_filter',
+  /** Last TTS voice chosen in Story viewer (default for next stories). */
+  PREFERRED_STORY_VOICE_ID: '@wondertales/preferred_story_voice_id',
 } as const;
 
 export const storage = {
@@ -98,5 +100,13 @@ export const storage = {
     } catch (error) {
       console.error('Failed to save audio filter:', error);
     }
+  },
+
+  async getPreferredStoryVoiceId(): Promise<string | null> {
+    return this.getItem('PREFERRED_STORY_VOICE_ID');
+  },
+
+  async setPreferredStoryVoiceId(voiceId: string): Promise<void> {
+    return this.setItem('PREFERRED_STORY_VOICE_ID', voiceId);
   },
 };

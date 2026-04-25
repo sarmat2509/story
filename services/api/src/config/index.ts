@@ -213,7 +213,7 @@ export const config = {
 
   // Audio/TTS Generation (M5)
   audio: {
-    provider: process.env.AUDIO_PROVIDER || 'elevenlabs', // 'elevenlabs' | 'google' | 'openai'
+    provider: process.env.AUDIO_PROVIDER || 'elevenlabs', // 'elevenlabs' | 'google' | 'openai' | 'grok'
     premiumProvider: process.env.AUDIO_PREMIUM_PROVIDER || 'elevenlabs', // Premium provider for Fairyworld plan
     elevenlabs: {
       apiKey: process.env.ELEVENLABS_API_KEY || '',
@@ -230,6 +230,10 @@ export const config = {
     openai: {
       apiKey: process.env.OPENAI_API_KEY || '',
       model: process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts', // or 'tts-1', 'tts-1-hd'
+    },
+    // xAI Grok TTS (https://api.x.ai/v1/tts)
+    grok: {
+      apiKey: process.env.GROK_API_KEY || process.env.XAI_API_KEY || '',
     },
     // Default voices per language
     defaultVoice: {

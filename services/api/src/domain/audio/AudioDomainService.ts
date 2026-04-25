@@ -27,6 +27,7 @@ import { getAudioRateLimiter } from '../../services/audioRateLimiter';
 import { config } from '../../config';
 import { ElevenLabsProvider } from '../../providers/audio/elevenlabs/ElevenLabsProvider';
 import { stripForAudio } from '../../utils/audioTags';
+import { isGrokBlockedForStoryLanguage } from '../../providers/audio/grok/supportedLocales';
 
 /**
  * Voice parameters for audio generation
@@ -117,6 +118,12 @@ export class AudioDomainService {
 
     if (!voice) {
       throw new Error(`No voice available for language: ${story.language}`);
+    }
+
+    if ((voice.provider || '') === 'grok' && isGrokBlockedForStoryLanguage(story.language)) {
+      throw new Error(
+        'Grok (xAI) TTS is not available for Ukrainian stories. Choose another narrator voice.'
+      );
     }
 
     logger.info(
@@ -715,6 +722,8 @@ export class AudioDomainService {
    * Report audio usage for cost tracking.
    * ElevenLabs: inputUnits = chars.
    * Google TTS: inputUnits ≈ chars/4, outputUnits = durationSec * 25.
+   * OpenAI TTS: inputUnits = chars (see `gpt-4o-mini-tts` in costConfig).
+   * Grok / xAI TTS: inputUnits = chars, billed per input character (xAI docs).
    */
   private reportAudioUsage(
     onUsage: (u: UsageMetadata) => void,
@@ -732,12 +741,29 @@ export class AudioDomainService {
         outputUnits: Math.round(durationSeconds * 25),
         durationSeconds,
       });
+    } else if (provider === 'grok') {
+      onUsage({
+        provider: 'grok',
+        operation: 'audio_synthesize',
+        model: 'xai-tts',
+        inputUnits: charCount,
+        durationSeconds,
+      });
+    } else if (provider === 'openai') {
+      onUsage({
+        provider: 'openai',
+        operation: 'audio_synthesize',
+        model: 'gpt-4o-mini-tts',
+        inputUnits: charCount,
+        durationSeconds,
+      });
     } else {
       onUsage({
         provider: 'elevenlabs',
         operation: 'audio_synthesize',
         model: (voice as any).modelId || 'elevenlabs-eleven_v3',
         inputUnits: charCount,
+        durationSeconds,
       });
     }
   }
@@ -993,15 +1019,22 @@ export class AudioDomainService {
       const dbVoice = await getVoiceRepository().findById(explicitVoiceId);
       
       if (dbVoice) {
-        logger.info({ voiceId: explicitVoiceId, provider: dbVoice.provider }, 'Using explicit voice from database');
-        return {
-          id: dbVoice.providerVoiceId,
-          name: dbVoice.name,
-          language: story.language,
-          gender: dbVoice.gender as 'male' | 'female' | 'neutral',
-          provider: dbVoice.provider as 'elevenlabs' | 'google' | 'openai',
-          dbId: dbVoice.id, // Add UUID for cache
-        };
+        if (dbVoice.provider === 'grok' && isGrokBlockedForStoryLanguage(story.language)) {
+          logger.warn(
+            { voiceId: explicitVoiceId, storyLanguage: story.language },
+            'Explicit Grok voice ignored for Ukrainian story; using automatic selection'
+          );
+        } else {
+          logger.info({ voiceId: explicitVoiceId, provider: dbVoice.provider }, 'Using explicit voice from database');
+          return {
+            id: dbVoice.providerVoiceId,
+            name: dbVoice.name,
+            language: story.language,
+            gender: dbVoice.gender as 'male' | 'female' | 'neutral',
+            provider: dbVoice.provider as 'elevenlabs' | 'google' | 'openai' | 'grok',
+            dbId: dbVoice.id, // Add UUID for cache
+          };
+        }
       }
       
       logger.warn(
@@ -1101,6 +1134,7 @@ export class AudioDomainService {
       id: dbVoice.providerVoiceId,
       dbId: dbVoice.id, // Store DB UUID for cache queries
       name: dbVoice.name,
+      provider: dbVoice.provider as Voice['provider'],
       language: languageOverride || dbVoice.language,
       gender: dbVoice.gender as 'male' | 'female' | 'neutral' | undefined,
       ageCategory: dbVoice.ageCategory as 'child' | 'young_adult' | 'adult' | 'senior' | undefined,

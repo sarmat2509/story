@@ -23,6 +23,9 @@ interface StoryCharactersSectionProps {
   isSavePending: boolean;
 }
 
+/** Fixed box for reference photo; image is ~90% of the box so content has a slight inset from the frame. */
+const CHARACTER_IMAGE_BOX = 56;
+
 const styles = StyleSheet.create({
   charactersSection: {
     backgroundColor: theme.colors.background.secondary,
@@ -48,15 +51,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 10,
   },
-  characterAvatar: {
-    width: 40,
-    height: 40,
+  characterImageFrame: {
+    width: CHARACTER_IMAGE_BOX,
+    height: CHARACTER_IMAGE_BOX,
     marginRight: theme.spacing[3],
+    backgroundColor: theme.colors.background.primary,
+    borderRadius: theme.borders.radius.md,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  characterImageFull: {
+    width: '90%',
+    height: '90%',
+    ...Platform.select({
+      web: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        objectFit: 'contain' as any,
+      },
+      default: {},
+    }),
   },
   characterAvatarPlaceholder: {
+    width: CHARACTER_IMAGE_BOX,
+    height: CHARACTER_IMAGE_BOX,
+    marginRight: theme.spacing[3],
     backgroundColor: theme.colors.background.tertiary,
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: theme.borders.radius.md,
   },
   characterInfo: {
     flex: 1,
@@ -75,7 +99,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     marginTop: theme.spacing[2],
-    marginLeft: 52,
+    marginLeft: CHARACTER_IMAGE_BOX + theme.spacing[3],
     paddingVertical: theme.spacing[1],
     paddingHorizontal: theme.spacing[2],
     borderRadius: theme.borders.radius.md,
@@ -96,7 +120,7 @@ const styles = StyleSheet.create({
   },
   previewContainer: {
     position: 'absolute',
-    left: 48,
+    left: CHARACTER_IMAGE_BOX + theme.spacing[2],
     top: 0,
     width: 160,
     height: 160,
@@ -109,7 +133,14 @@ const styles = StyleSheet.create({
   },
   previewImage: {
     flex: 1,
-    filter: 'contrast(1.1)',
+    ...Platform.select({
+      web: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        objectFit: 'contain' as any,
+        filter: 'contrast(1.1)',
+      },
+      default: {},
+    }),
   },
 });
 
@@ -163,37 +194,41 @@ function StoryCharactersSectionInner({
                     onHoverIn={() => setHoveredCharacterId(char.id)}
                     onHoverOut={() => setHoveredCharacterId(null)}
                   >
-                    <Image
-                      source={{
-                        uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl,
-                      }}
-                      style={styles.characterAvatar as ImageStyle}
-                      resizeMode="contain"
-                    />
+                    <View style={styles.characterImageFrame}>
+                      <Image
+                        source={{
+                          uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl,
+                        }}
+                        style={styles.characterImageFull as ImageStyle}
+                        resizeMode="contain"
+                      />
+                    </View>
                     {hoveredCharacterId === char.id && (
                       <View style={styles.previewContainer}>
                         <Image
                           source={{
                             uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl,
                           }}
-                          style={styles.previewImage}
+                          style={styles.previewImage as ImageStyle}
                           resizeMode="contain"
                         />
                       </View>
                     )}
                   </Pressable>
                 ) : (
-                  <Image
-                    source={{
-                      uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl,
-                    }}
-                    style={styles.characterAvatar as ImageStyle}
-                    resizeMode="contain"
-                  />
+                  <View style={styles.characterImageFrame}>
+                    <Image
+                      source={{
+                        uri: formatAssetUrl(char.referencePhotoUrl) ?? char.referencePhotoUrl,
+                      }}
+                      style={styles.characterImageFull as ImageStyle}
+                      resizeMode="contain"
+                    />
+                  </View>
                 )
               ) : (
-                <View style={[styles.characterAvatar, styles.characterAvatarPlaceholder]}>
-                  <Ionicons name="person-outline" size={20} color={theme.colors.text.tertiary} />
+                <View style={styles.characterAvatarPlaceholder}>
+                  <Ionicons name="person-outline" size={22} color={theme.colors.text.tertiary} />
                 </View>
               )}
               <View style={styles.characterInfo}>

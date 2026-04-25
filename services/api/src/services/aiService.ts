@@ -16,6 +16,7 @@ import { OpenAIImageProvider } from '../providers/image/openai';
 import { ElevenLabsProvider } from '../providers/audio/elevenlabs';
 import { GoogleTTSProvider } from '../providers/audio/google/GoogleTTSProvider';
 import { OpenAITTSProvider } from '../providers/audio/openai/OpenAITTSProvider';
+import { GrokTTSProvider } from '../providers/audio/grok/GrokTTSProvider';
 import { ElevenLabsAlignmentProvider } from '../providers/alignment/elevenlabs/ElevenLabsAlignmentProvider';
 import { StoryDomainService } from '../domain/story';
 import { ImageDomainService } from '../domain/image';
@@ -275,7 +276,7 @@ export function getBatchImageProvider(): IImageProvider | null {
 /**
  * Get audio provider instance (private)
  * Only called by getAudioDomainService()
- * M5: Supports ElevenLabs, Google Cloud TTS, OpenAI TTS
+ * M5: Supports ElevenLabs, Google Cloud TTS, OpenAI TTS, Grok (xAI) TTS
  */
 function getAudioProviderInternal(): IAudioProvider {
   if (!audioProvider) {
@@ -312,8 +313,14 @@ function getAudioProviderInternal(): IAudioProvider {
           config.audio.openai.model
         );
         break;
+      case 'grok':
+        if (!config.audio?.grok?.apiKey) {
+          throw new Error('Grok/xAI API key is required (GROK_API_KEY or XAI_API_KEY)');
+        }
+        audioProvider = new GrokTTSProvider(config.audio.grok.apiKey);
+        break;
       default:
-        throw new Error(`Unknown audio vendor: ${vendor}. Supported: elevenlabs, google, openai`);
+        throw new Error(`Unknown audio vendor: ${vendor}. Supported: elevenlabs, google, openai, grok`);
     }
   }
   
@@ -415,9 +422,15 @@ export function getAudioProviderByName(providerName: string): IAudioProvider {
         config.audio.openai.apiKey,
         config.audio.openai.model
       );
-    
+
+    case 'grok':
+      if (!config.audio?.grok?.apiKey) {
+        throw new Error('Grok/xAI API key is required (GROK_API_KEY or XAI_API_KEY)');
+      }
+      return new GrokTTSProvider(config.audio.grok.apiKey);
+
     default:
-      throw new Error(`Unknown audio provider: ${providerName}. Supported: elevenlabs, google, openai`);
+      throw new Error(`Unknown audio provider: ${providerName}. Supported: elevenlabs, google, openai, grok`);
   }
 }
 

@@ -1,7 +1,8 @@
 /**
  * AI Cost Configuration
- * Pricing per model (Vertex AI, OpenAI, ElevenLabs, Google TTS — March 2026)
- * Sources: Vertex AI Pricing, OpenAI Pricing, ElevenLabs API, Google Cloud TTS
+ * Pricing per model (Vertex AI, OpenAI, ElevenLabs, Google TTS, xAI TTS — April 2026)
+ * Sources: Vertex AI Pricing, OpenAI Pricing, ElevenLabs API, Google Cloud TTS,
+ *   xAI Text to Speech: https://docs.x.ai/docs/models#text-to-speech ($4.20 / 1M input characters)
  */
 
 export interface TextCostConfig {
@@ -73,5 +74,7 @@ export const AI_COST_CONFIG = {
     'google-wavenet': 0.000004,
     'google-neural2': 0.000016,
     'gpt-4o-mini-tts': 0.000015,
+    /** xAI unary/streaming TTS: billed per input character (not audio duration). */
+    'xai-tts': 4.2 / 1_000_000,
   } as Record<string, number | AudioTokenCostConfig>,
 };

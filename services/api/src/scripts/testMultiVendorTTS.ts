@@ -6,6 +6,7 @@
  *   AUDIO_PROVIDER=elevenlabs npm run test:tts
  *   AUDIO_PROVIDER=google npm run test:tts
  *   AUDIO_PROVIDER=openai npm run test:tts
+ *   AUDIO_PROVIDER=grok npm run test:tts
  */
 
 import { getAudioProvider } from '../services/aiService';
@@ -103,6 +104,10 @@ function getVoiceId(provider: string, gender: 'male' | 'female'): string {
     openai: {
       male: 'cedar',
       female: 'marin',
+    },
+    grok: {
+      male: 'rex',
+      female: 'eve',
     },
   };
   

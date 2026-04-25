@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
+import { GlassPrimaryButton } from './GlassPrimaryButton';
 import { useCreateChild, useUpdateChild, useAnalyzeChild } from '@/api/children';
 import { CreateChildProfileSchema, DEFAULT_LOCALE, UpdateChildProfileSchema, LOCALE_IDS, ReferencePhoto } from '@wondertales/shared';
 
@@ -597,28 +598,27 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
                 <Text style={styles.cancelButtonText}>{t('child_form.cancel_button')}</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              style={[styles.button, styles.saveButton, !showCancelInFooter && styles.buttonFull]}
+            <GlassPrimaryButton
+              title={t('child_form.continue_button') || 'Continue'}
               onPress={handleContinue}
               disabled={!name.trim() || photos.some(p => p.isUploading)}
-            >
-              <Text style={styles.saveButtonText}>{t('child_form.continue_button') || 'Continue'}</Text>
-            </TouchableOpacity>
+              size="footer"
+              style={[styles.button, !showCancelInFooter && styles.buttonFull]}
+            />
           </>
         ) : (
           <>
             <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={() => setCurrentStep(1)}>
               <Text style={styles.cancelButtonText}>{t('child_form.back') || 'Back'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.saveButton]}
+            <GlassPrimaryButton
+              title={t('child_form.save_button')}
               onPress={handleSubmit}
               disabled={createChild.isPending || updateChild.isPending || (!childId && !description.trim()) || (!childId && analyzeChild.isPending)}
-            >
-              <Text style={styles.saveButtonText}>
-                {createChild.isPending ? (t('child_form.creating_character') || 'Создаём образ ребёнка') : (updateChild.isPending ? t('child_form.saving') : t('child_form.save_button'))}
-              </Text>
-            </TouchableOpacity>
+              loading={createChild.isPending || updateChild.isPending}
+              size="footer"
+              style={styles.button}
+            />
           </>
         )}
       </View>
@@ -777,14 +777,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.secondary,
-  },
-  saveButton: {
-    backgroundColor: theme.colors.interactive.primary,
-  },
-  saveButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
   },
   section: {
     marginBottom: theme.spacing[6],

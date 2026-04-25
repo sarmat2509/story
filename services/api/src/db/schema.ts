@@ -954,7 +954,7 @@ export const ttsVoices = pgTable('tts_voices', {
   id: uuid('id').primaryKey().defaultRandom(),
   
   // Voice identity
-  provider: varchar('provider', { length: 50 }).notNull(), // 'elevenlabs' | 'google' | 'azure'
+  provider: varchar('provider', { length: 50 }).notNull(), // 'elevenlabs' | 'google' | 'openai' | 'grok' | ...
   providerVoiceId: varchar('provider_voice_id', { length: 100 }).notNull(),
   
   // Voice metadata

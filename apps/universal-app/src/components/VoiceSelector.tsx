@@ -44,8 +44,17 @@ export default function VoiceSelector({
   const isDesktop = width >= 768;
 
   const selectedVoice = voices.find(v => v.id === selectedVoiceId);
-  const getLocalizedVoiceName = (voice: Voice) =>
-    t(`voice_names.${voice.name}`, { defaultValue: voice.displayName || voice.name });
+
+  /** Localized name; in dev builds appends TTS vendor for easier QA. */
+  const getVoiceDisplayLabel = (voice: Voice) => {
+    const base = t(`voice_names.${voice.name}`, {
+      defaultValue: voice.displayName || voice.name,
+    });
+    if (__DEV__ && voice.provider) {
+      return `${base} (${voice.provider})`;
+    }
+    return base;
+  };
   
   // Cleanup audio on unmount
   useEffect(() => {
@@ -124,7 +133,7 @@ export default function VoiceSelector({
       >
         <View style={styles.dropdownContent}>
           <Text style={styles.dropdownText}>
-            {selectedVoice ? getLocalizedVoiceName(selectedVoice) : t('voice_selector.select_voice')} {selectedVoice?.isPremium && '⭐'}
+            {selectedVoice ? getVoiceDisplayLabel(selectedVoice) : t('voice_selector.select_voice')} {selectedVoice?.isPremium && '⭐'}
           </Text>
           <Text style={styles.dropdownGender}>
             {selectedVoice && t(`voice_selector.gender.${selectedVoice.gender}`)}
@@ -189,7 +198,7 @@ export default function VoiceSelector({
                       <View style={[styles.voiceItem, styles.lockedItem]}>
                         <View style={styles.voiceItemContent}>
                           <Text style={styles.voiceItemName}>
-                            🔒 {getLocalizedVoiceName(voice)} ⭐
+                            🔒 {getVoiceDisplayLabel(voice)} ⭐
                           </Text>
                           <Text style={styles.voiceItemGender}>
                             {t(`voice_selector.gender.${voice.gender}`)}
@@ -241,7 +250,7 @@ export default function VoiceSelector({
                     >
                       <View style={styles.voiceItemContent}>
                         <Text style={styles.voiceItemName}>
-                          {getLocalizedVoiceName(voice)} {voice.isPremium && '⭐'}
+                          {getVoiceDisplayLabel(voice)} {voice.isPremium && '⭐'}
                         </Text>
                         <Text style={styles.voiceItemGender}>
                           {t(`voice_selector.gender.${voice.gender}`)}

@@ -5,7 +5,7 @@ import type { NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
-import { useStories, useDeleteStory, prefetchStory } from '@/api/stories';
+import { useStories, useDeleteStory, prefetchStory, useUserStoryLanguages } from '@/api/stories';
 import { useStoryThemes } from '@/api/dictionaries';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { theme } from '@/theme';
@@ -19,6 +19,15 @@ import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { storage } from '@/utils/storage';
 import type { MainDrawerParamList } from '@/types/navigation';
+import { SUPPORTED_LANGUAGES, isValidLocale } from '@wondertales/shared';
+
+function formatLibraryLanguageLabel(code: string): string {
+  if (isValidLocale(code)) {
+    const lang = SUPPORTED_LANGUAGES[code];
+    return `${lang.flag} ${lang.nativeName}`;
+  }
+  return code;
+}
 
 // Cap per-item stagger so large pages don't take forever to finish animating.
 const cardDelay = (i: number) => Math.min(i * 35, 260);
@@ -37,6 +46,7 @@ export default function LibraryScreen() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [audioFilter, setAudioFilter] = useState(false);
   const [scenarioFilter, setScenarioFilter] = useState<string | null>(null);
+  const [languageFilter, setLanguageFilter] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [storyToDelete, setStoryToDelete] = useState<{ id: string; title: string } | null>(null);
@@ -55,11 +65,31 @@ export default function LibraryScreen() {
   
   const { data: themesData } = useStoryThemes();
   const scenarioCards = useMemo(() => themesData?.scenarioCards || [], [themesData?.scenarioCards]);
+  const { data: languageCodes = [] } = useUserStoryLanguages();
+
+  const languageOptions = useMemo(() => {
+    if (languageCodes.length === 0) return [];
+    return [
+      { value: null as string | null, label: t('library.all_languages') },
+      ...languageCodes.map((code) => ({
+        value: code,
+        label: formatLibraryLanguageLabel(code),
+      })),
+    ];
+  }, [languageCodes, t]);
+
+  useEffect(() => {
+    if (languageFilter && languageCodes.length > 0 && !languageCodes.includes(languageFilter)) {
+      setLanguageFilter(null);
+      setCurrentPage(1);
+    }
+  }, [languageFilter, languageCodes]);
   
   // Invalidate stories cache when screen gains focus (e.g. after creating a story)
   useFocusEffect(
     useCallback(() => {
       queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['user-story-languages'] });
     }, [queryClient])
   );
   
@@ -120,12 +150,18 @@ export default function LibraryScreen() {
     setCurrentPage(1);
   }, []);
 
+  const handleLanguageFilterChange = useCallback((language: string | null) => {
+    setLanguageFilter(language);
+    setCurrentPage(1);
+  }, []);
+
   // Fetch stories with pagination
   const { data, isLoading, error } = useStories({
     limit: ITEMS_PER_PAGE,
     offset,
     hasAudio: audioFilter,
     scenarioCardId: scenarioFilter,
+    language: languageFilter,
   });
   
   console.log('[LibraryScreen] useStories result:', { 
@@ -224,6 +260,9 @@ export default function LibraryScreen() {
           scenarioCards={scenarioCards}
           selectedScenarioId={scenarioFilter}
           onScenarioChange={handleScenarioFilterChange}
+          languageOptions={languageOptions}
+          selectedLanguage={languageFilter}
+          onLanguageChange={handleLanguageFilterChange}
         />
         <View style={styles.centerContainer}>
           <Ionicons
@@ -262,6 +301,9 @@ export default function LibraryScreen() {
           scenarioCards={scenarioCards}
           selectedScenarioId={scenarioFilter}
           onScenarioChange={handleScenarioFilterChange}
+          languageOptions={languageOptions}
+          selectedLanguage={languageFilter}
+          onLanguageChange={handleLanguageFilterChange}
         />
         <ScrollView contentContainerStyle={styles.grid}>
           <View
@@ -340,6 +382,9 @@ export default function LibraryScreen() {
         scenarioCards={scenarioCards}
         selectedScenarioId={scenarioFilter}
         onScenarioChange={handleScenarioFilterChange}
+        languageOptions={languageOptions}
+        selectedLanguage={languageFilter}
+        onLanguageChange={handleLanguageFilterChange}
       />
       <FlatList
         data={stories}

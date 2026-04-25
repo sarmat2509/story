@@ -1,4 +1,4 @@
-import { eq, and, or } from 'drizzle-orm';
+import { eq, and, or, ne } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 import { getLocalizedVoiceDisplayName, getVoiceSamplePath } from '../utils/voicePresentation';
@@ -18,6 +18,11 @@ export class VoiceRepository {
     isPremium: boolean;
     provider: string;
   }>> {
+    const baseFilters =
+      language === 'uk'
+        ? and(eq(schema.ttsVoices.isActive, true), ne(schema.ttsVoices.provider, 'grok'))
+        : eq(schema.ttsVoices.isActive, true);
+
     const voices = await this.db
       .select({
         id: schema.ttsVoices.id,
@@ -32,7 +37,7 @@ export class VoiceRepository {
         provider: schema.ttsVoices.provider,
       })
       .from(schema.ttsVoices)
-      .where(eq(schema.ttsVoices.isActive, true))
+      .where(baseFilters)
       .orderBy(schema.ttsVoices.isPremium, schema.ttsVoices.name);
 
     return voices.map((voice) => ({
@@ -107,6 +112,10 @@ export class VoiceRepository {
       filters.push(eq(schema.ttsVoices.gender, params.characterGender));
     }
 
+    if (params.language === 'uk') {
+      filters.push(ne(schema.ttsVoices.provider, 'grok'));
+    }
+
     let query = this.db
       .select({
         id: schema.ttsVoices.id,
@@ -134,11 +143,16 @@ export class VoiceRepository {
     return query;
   }
 
-  async findFallbackByLanguage(_language: string): Promise<schema.TtsVoice | null> {
+  async findFallbackByLanguage(language: string): Promise<schema.TtsVoice | null> {
+    const whereClause =
+      language === 'uk'
+        ? and(eq(schema.ttsVoices.isActive, true), ne(schema.ttsVoices.provider, 'grok'))
+        : eq(schema.ttsVoices.isActive, true);
+
     const [voice] = await this.db
       .select()
       .from(schema.ttsVoices)
-      .where(eq(schema.ttsVoices.isActive, true))
+      .where(whereClause)
       .limit(1);
     return voice || null;
   }

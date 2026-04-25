@@ -13,7 +13,7 @@ export interface Voice {
   name: string;
   language: string;
   gender?: 'male' | 'female' | 'neutral'; // Updated to include 'neutral'
-  provider?: 'elevenlabs' | 'google' | 'openai'; // NEW: Provider type
+  provider?: 'elevenlabs' | 'google' | 'openai' | 'grok';
   ageCategory?: 'child' | 'young_adult' | 'adult' | 'senior';
   tags?: string[];        // e.g., ['calm', 'energetic', 'storyteller', 'parent']
   accent?: string;

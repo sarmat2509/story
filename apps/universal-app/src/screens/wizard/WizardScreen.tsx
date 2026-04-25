@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -24,6 +24,7 @@ import { useSubscriptionUsage } from '@/api/plans';
 import { PaywallModal } from '@/components/PaywallModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { GlassPrimaryButton } from '@/components/GlassPrimaryButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
@@ -252,17 +253,14 @@ export default function WizardScreen() {
         </AnimatedSection>
 
         <AnimatedSection delay={420} trigger={enterKey}>
-          <TouchableOpacity
-            style={[styles.generateButton, (!storyLanguage) && styles.generateButtonDisabled]}
+          <GlassPrimaryButton
+            title={t('wizard.generate_button')}
             onPress={handleGenerate}
             disabled={!storyLanguage || isGenerating}
-          >
-            {isGenerating ? (
-              <ActivityIndicator color={theme.colors.text.inverse} />
-            ) : (
-              <Text style={styles.generateButtonText}>{t('wizard.generate_button')}</Text>
-            )}
-          </TouchableOpacity>
+            loading={isGenerating}
+            size="hero"
+            style={styles.generateButton}
+          />
         </AnimatedSection>
       </ScrollView>
       
@@ -338,20 +336,8 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
   },
   generateButton: {
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[4],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.lg,
-    alignItems: 'center',
     marginTop: theme.spacing[6],
     marginBottom: theme.spacing[8],
-  },
-  generateButtonDisabled: {
-    opacity: 0.5,
-  },
-  generateButtonText: {
-    fontSize: theme.typography.fontSize.lg,
-    fontWeight: theme.typography.fontWeight.bold,
-    color: theme.colors.text.inverse,
+    alignSelf: 'stretch',
   },
 });

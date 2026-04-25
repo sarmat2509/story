@@ -194,7 +194,9 @@ async function gracefulShutdown(signal: string) {
 }
 
 // Register signal handlers only once (prevent duplicate registration on module reload)
-if (!signalHandlersRegistered) {
+// CLI scripts (e.g. seed:voices) set WT_SKIP_PROCESS_SIGNAL_HANDLERS so local errors are not
+// mistaken for server-wide unhandled rejections.
+if (!signalHandlersRegistered && process.env.WT_SKIP_PROCESS_SIGNAL_HANDLERS !== '1') {
   signalHandlersRegistered = true;
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));

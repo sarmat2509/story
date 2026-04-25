@@ -6,7 +6,8 @@ import type {
   StorySummaryApi,
   StoryManifestApi,
   StoryAudioMetadata,
-  CreateStoryRequestInput
+  CreateStoryRequestInput,
+  UserStoryLanguagesResponse,
 } from '@wondertales/shared';
 import apiClient from './client';
 
@@ -29,11 +30,12 @@ export const useStories = (params: {
   hasAudio?: boolean;
   scenarioCardId?: string | null;
   seriesId?: string | null;
+  language?: string | null;
 } = {}) => {
-  const { limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId } = params ?? {};
+  const { limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId, language } = params ?? {};
 
   return useQuery({
-    queryKey: ['stories', limit, offset, hasAudio, scenarioCardId, seriesId],
+    queryKey: ['stories', limit, offset, hasAudio, scenarioCardId, seriesId, language],
     queryFn: async () => {
       const searchParams = new URLSearchParams();
       searchParams.set('limit', String(limit));
@@ -48,6 +50,9 @@ export const useStories = (params: {
       if (seriesId) {
         searchParams.set('series_id', seriesId);
       }
+      if (language) {
+        searchParams.set('language', language);
+      }
       const queryString = searchParams.toString();
       const url = queryString ? `/api/v1/me/stories?${queryString}` : '/api/v1/me/stories';
       const response = await apiClient.get<{ status: string; stories: StorySummary[]; pagination?: any }>(url);
@@ -58,6 +63,17 @@ export const useStories = (params: {
     },
   });
 };
+
+/** Language codes that appear in the user's library (≥1 story each). */
+export function useUserStoryLanguages() {
+  return useQuery({
+    queryKey: ['user-story-languages'],
+    queryFn: async () => {
+      const response = await apiClient.get<UserStoryLanguagesResponse>('/api/v1/me/stories/languages');
+      return response.data.languages;
+    },
+  });
+}
 
 // List user's story series (for series list screen)
 export interface SeriesListItem {
@@ -341,6 +357,7 @@ export const useDeleteStory = () => {
     onSuccess: () => {
       // Invalidate stories list to refresh after deletion
       queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['user-story-languages'] });
     },
   });
 };

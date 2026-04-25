@@ -1,3 +1,5 @@
+import './loadEnvForScripts';
+
 /**
  * Voice Catalog Seeding Script
  * 
@@ -6,56 +8,70 @@
  * - Voice-age group associations
  * - Provider preview URLs
  * 
- * Supports multiple TTS providers (ElevenLabs, Google TTS, OpenAI TTS)
- * 
+ * Supports multiple TTS providers (ElevenLabs, Google TTS, OpenAI TTS, Grok/xAI TTS)
+ *
  * Usage:
  *   npm run seed:voices
  *   AUDIO_PROVIDER=google npm run seed:voices
  *   AUDIO_PROVIDER=openai npm run seed:voices
+ *   AUDIO_PROVIDER=grok npm run seed:voices
+ *   SEED_VOICE_PROVIDERS=grok,google npm run seed:voices
+ *
+ * Uses `loadEnvForScripts` (repo `.env` / `.env.local`, then `services/api/.env`).
  */
 
 import { db } from '../db';
 import { ttsVoices, ageGroups, voiceAgeGroups } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { logger } from '../utils/logger';
-import { getAudioProvider, getAudioProviderByName } from '../services/aiService';
+import { getAudioProviderByName } from '../services/aiService';
 import { getAssetStorageService } from '../services/assetStorageService';
 import { getVoiceSampleText } from '../utils/i18nLoader';
 import { config } from '../config';
 
+function resolveSeedProviderNames(): string[] {
+  const raw = process.env.SEED_VOICE_PROVIDERS?.trim();
+  if (raw) {
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [config.audio?.provider || 'elevenlabs'];
+}
+
 /**
- * Seed voice catalog with age group associations
+ * Seed voice catalog with age group associations for one TTS provider
  */
-async function seedVoices() {
-  const provider = config.audio?.provider || 'elevenlabs';
-  
-  logger.info({ provider }, 'Starting voice catalog seeding for provider');
-  
-  // Get voice catalog from the active provider
-  const audioProvider = getAudioProvider();
+async function seedVoicesForProvider(providerName: string) {
+  logger.info({ provider: providerName }, 'Starting voice catalog seeding for provider');
+
+  const audioProvider = getAudioProviderByName(providerName);
   const voiceCatalog = audioProvider.getDefaultVoices();
-  
-  logger.info({ count: voiceCatalog.length }, 'Retrieved voice catalog from provider');
-  
+
+  logger.info({ provider: providerName, count: voiceCatalog.length }, 'Retrieved voice catalog from provider');
+
   for (const voiceData of voiceCatalog) {
     try {
       const { suitableForAgeSlugs, ...voiceFields } = voiceData;
-      
-      // Check if voice already exists
+
       const existing = await db.query.ttsVoices.findFirst({
-        where: (voices: any, { eq }: any) => eq(voices.providerVoiceId, voiceData.providerVoiceId)
+        where: (voices, { eq: eqCol }) =>
+          and(eqCol(voices.provider, providerName), eqCol(voices.providerVoiceId, voiceData.providerVoiceId)),
       });
-      
+
       if (existing) {
-        logger.info({ voiceId: existing.id, name: voiceData.name }, 'Voice already exists, skipping');
+        logger.info(
+          { voiceId: existing.id, name: voiceData.name, provider: providerName },
+          'Voice already exists, skipping'
+        );
         continue;
       }
-      
-      // Insert voice
+
       const [voice] = await db
         .insert(ttsVoices)
         .values({
-          provider,
+          provider: providerName,
           ...voiceFields,
           isActive: true,
         })
@@ -131,10 +147,24 @@ async function seedVoices() {
       }
       
     } catch (error) {
-      logger.error({ error, voice: voiceData.name }, 'Failed to seed voice');
+      logger.error({ error, voice: voiceData.name, provider: providerName }, 'Failed to seed voice');
     }
   }
-  
+
+  logger.info({ provider: providerName }, 'Voice catalog seeding completed for provider');
+}
+
+/**
+ * Seed catalogs for one or more providers (see SEED_VOICE_PROVIDERS).
+ */
+async function seedVoices() {
+  const providers = resolveSeedProviderNames();
+  logger.info({ providers }, 'Voice seeding provider list');
+
+  for (const providerName of providers) {
+    await seedVoicesForProvider(providerName);
+  }
+
   logger.info('Voice catalog seeding completed');
 }
 
@@ -178,18 +208,21 @@ async function displayCatalog() {
   }
 }
 
+async function runCli() {
+  try {
+    await seedVoices();
+    await displayCatalog();
+    logger.info('Seeding successful');
+    process.exit(0);
+  } catch (error) {
+    logger.error({ err: error }, 'Seeding failed');
+    process.exit(1);
+  }
+}
+
 // Run if called directly
 if (require.main === module) {
-  seedVoices()
-    .then(() => displayCatalog())
-    .then(() => {
-      logger.info('Seeding successful');
-      process.exit(0);
-    })
-    .catch(error => {
-      logger.error({ error }, 'Seeding failed');
-      process.exit(1);
-    });
+  void runCli();
 }
 
 export { seedVoices };

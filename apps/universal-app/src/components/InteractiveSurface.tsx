@@ -10,6 +10,14 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { theme } from '@/theme';
+import { hexAlpha } from '@/theme/colorAlpha';
+
+/** Matches GradientButton / focus ring — uses active palette primary, not fixed lavender. */
+const FOCUS_OUTLINE = hexAlpha(theme.colors.primary[500], 0.88);
+const HOVER_SHADOW_COLOR = hexAlpha(theme.colors.primary[900], 0.38);
+const PRESSED_SHADOW_COLOR = hexAlpha(theme.colors.primary[900], 0.35);
+const DEFAULT_PRESS_TINT = hexAlpha(theme.colors.primary[900], 0.08);
 
 type ExtendedPressableState = PressableStateCallbackType & {
   hovered?: boolean;
@@ -47,7 +55,7 @@ export function InteractiveSurface({
   hoverStyle,
   pressedStyle,
   hoverTint = 'rgba(255, 255, 255, 0.35)',
-  pressTint = 'rgba(59, 46, 110, 0.08)',
+  pressTint = DEFAULT_PRESS_TINT,
   accessibilityLabel,
   accessibilityRole = 'button',
 }: InteractiveSurfaceProps) {
@@ -130,7 +138,7 @@ const webBase: ViewStyle = Platform.select({
 const webHoverShadow: ViewStyle = Platform.select({
   web: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    boxShadow: '0 14px 28px -14px rgba(59, 46, 110, 0.38)' as any,
+    boxShadow: `0 14px 28px -14px ${HOVER_SHADOW_COLOR}` as any,
   },
   default: {},
 }) as ViewStyle;
@@ -138,7 +146,7 @@ const webHoverShadow: ViewStyle = Platform.select({
 const webPressedShadow: ViewStyle = Platform.select({
   web: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    boxShadow: '0 4px 10px -6px rgba(59, 46, 110, 0.35)' as any,
+    boxShadow: `0 4px 10px -6px ${PRESSED_SHADOW_COLOR}` as any,
   },
   default: {},
 }) as ViewStyle;
@@ -147,7 +155,7 @@ const webFocusRing: ViewStyle = Platform.select({
   web: {
     outlineStyle: 'solid' as unknown as ViewStyle['borderStyle'],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    outlineColor: 'rgba(123, 102, 199, 0.85)' as any,
+    outlineColor: FOCUS_OUTLINE as any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     outlineWidth: 3 as any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -39,6 +39,7 @@ import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { StoryViewerSkeleton } from '@/components/StoryViewerSkeleton';
 import { getReadingTimeMinutes, stripMarkdownStyleEmphasis } from '@wondertales/shared';
 import { getAnalytics } from '@/services/analytics';
+import { storage } from '@/utils/storage';
 
 type StoryViewerRouteProp = RouteProp<MainDrawerParamList, 'Story'>;
 
@@ -242,14 +243,8 @@ export default function StoryViewerScreen() {
     });
   }, [navigation]);
   
-  // Reset selected voice when switching to another story/language so the widget
-  // always reflects the current story's voice catalog.
-  useEffect(() => {
-    setSelectedVoiceId(undefined);
-    setSelectedVoice(undefined);
-  }, [storyId, storyLanguage]);
-
-  // Set default voice for the current story language (prefer first available/unlocked voice)
+  // Default voice: keep last user choice across stories; if it is missing from this
+  // catalog (e.g. other story language), restore from storage or first unlocked voice.
   useEffect(() => {
     if (voices.length === 0) {
       return;
@@ -264,10 +259,22 @@ export default function StoryViewerScreen() {
       return;
     }
 
-    const firstAvailable = voices.find(v => !v.isLocked) || voices[0];
-    setSelectedVoiceId(firstAvailable.id);
-    setSelectedVoice(firstAvailable);
-  }, [voices, selectedVoiceId, selectedVoice?.id]);
+    let cancelled = false;
+    void storage.getPreferredStoryVoiceId().then((saved) => {
+      if (cancelled) return;
+      const savedId = saved?.trim();
+      const fromSaved = savedId
+        ? voices.find((v) => v.id === savedId && (!v.isLocked || hasPremiumAccess))
+        : undefined;
+      const firstAvailable = voices.find((v) => !v.isLocked) || voices[0];
+      const pick: (typeof voices)[number] = fromSaved ?? firstAvailable;
+      setSelectedVoiceId(pick.id);
+      setSelectedVoice(pick);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [voices, selectedVoiceId, selectedVoice?.id, hasPremiumAccess]);
 
   // Proactive limit check: show limit message when audioUsage indicates limit reached
   useEffect(() => {
@@ -1079,6 +1086,7 @@ export default function StoryViewerScreen() {
                   setSelectedVoiceId(voiceId);
                   const voice = voices.find(v => v.id === voiceId);
                   setSelectedVoice(voice);
+                  void storage.setPreferredStoryVoiceId(voiceId);
                 }}
                 language={storyLanguage ?? 'uk'}
                 userPlan={userPlan}
@@ -1576,8 +1584,6 @@ const styles = StyleSheet.create({
     minWidth: theme.layout.sidebar.widthFixed,
     maxWidth: theme.layout.sidebar.widthFixed,
     flexShrink: 0,
-    borderLeftWidth: 1,
-    borderLeftColor: theme.colors.border.light,
   },
   rightColumn: {
     flex: 1,

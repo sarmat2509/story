@@ -327,7 +327,7 @@ export interface AudioMetadata {
   nightMode?: boolean;
   sceneGroupAssetIds?: (string | null)[];
   finalAssetId?: string;
-  provider?: string;           // Audio generation provider ('elevenlabs' | 'google' | 'openai' | 'azure')
+  provider?: string;           // Audio generation provider ('elevenlabs' | 'google' | 'openai' | 'grok' | 'azure')
   alignment?: AlignmentData;   // M6: Forced alignment data (works with audio from any provider)
 }
 
@@ -506,6 +506,12 @@ export type ScenarioCardApi = CamelizeKeys<ScenarioCard>;
 export type VoiceApi = CamelizeKeys<Voice>;
 export type StorySummaryApi = CamelizeKeys<StorySummary>;
 export type StoryApi = CamelizeKeys<Story>;
+
+/** GET /api/v1/me/stories/languages */
+export interface UserStoryLanguagesResponse {
+  status: 'success';
+  languages: string[];
+}
 
 /** Story manifest from GET /api/v1/me/stories/:id - full viewer payload */
 export interface StoryManifestApi extends StoryApi {

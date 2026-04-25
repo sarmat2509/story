@@ -15,9 +15,8 @@ import { StoryCard } from '@/components/StoryCard';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { GradientButton } from '@/components/GradientButton';
-import { GlassCard } from '@/components/GlassCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
-import { InteractiveSurface } from '@/components/InteractiveSurface';
+import { GlassPrimaryButton } from '@/components/GlassPrimaryButton';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
 import { hexAlpha } from '@/theme/colorAlpha';
@@ -30,8 +29,6 @@ const DASHBOARD_BG_GRADIENT: [string, string] = [
 
 const BOKEH_ONE_COLOR = hexAlpha(theme.colors.primary[400], 0.26);
 const BOKEH_TWO_COLOR = hexAlpha(theme.colors.primary[300], 0.22);
-const VIEW_LIBRARY_SHADOW = hexAlpha(theme.colors.primary[900], 0.28);
-
 export default function DashboardScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
@@ -135,44 +132,54 @@ export default function DashboardScreen() {
           </View>
         </AnimatedSection>
 
-        {/* Stats with integrated actions - 2 columns */}
+        {/* Stats + primary actions in one card per column */}
         <AnimatedSection delay={120} trigger={enterKey}>
         <View style={styles.statsSection}>
-          {/* Stories Column */}
-          <View style={styles.statColumn}>
-            <GlassCard style={styles.statCard}>
+          <View style={styles.statCard}>
+            <View style={styles.statMetrics}>
               <Text style={styles.statNumber}>{storiesCount}</Text>
               <Text style={styles.statLabel}>{t('dashboard.stats.stories')}</Text>
-            </GlassCard>
-            <GradientButton
-              label={t('dashboard.actions.create_story')}
+            </View>
+            <GlassPrimaryButton
+              title={t('dashboard.actions.create_story')}
               onPress={() => navigation.navigate('Wizard')}
+              accessibilityLabel={t('dashboard.actions.create_story')}
               leading={
                 <Ionicons
-                  name="sparkles"
-                  size={18}
-                  color={theme.colors.text.inverse}
+                  name="sparkles-outline"
+                  size={22}
+                  color={theme.colors.primary[700]}
                 />
               }
+              style={styles.statCardCta}
             />
           </View>
 
-          {/* Children Column */}
-          <View style={styles.statColumn}>
-            <GlassCard style={styles.statCard}>
+          <View style={styles.statCard}>
+            <View style={styles.statMetrics}>
               <Text style={styles.statNumber}>{childrenCount}</Text>
               <Text style={styles.statLabel}>{t('dashboard.stats.children')}</Text>
-            </GlassCard>
-            <GradientButton
-              label={canCreateMoreChildren ? t('dashboard.actions.add_child') : t('dashboard.actions.view_profiles')}
+            </View>
+            <GlassPrimaryButton
+              title={
+                canCreateMoreChildren
+                  ? t('dashboard.actions.add_child')
+                  : t('dashboard.actions.view_profiles')
+              }
               onPress={() => navigation.navigate('Children')}
+              accessibilityLabel={
+                canCreateMoreChildren
+                  ? t('dashboard.actions.add_child')
+                  : t('dashboard.actions.view_profiles')
+              }
               leading={
                 <Ionicons
-                  name={canCreateMoreChildren ? 'person-add' : 'people'}
-                  size={18}
-                  color={theme.colors.text.inverse}
+                  name={canCreateMoreChildren ? 'person-add-outline' : 'people-outline'}
+                  size={22}
+                  color={theme.colors.primary[700]}
                 />
               }
+              style={styles.statCardCta}
             />
           </View>
         </View>
@@ -207,19 +214,19 @@ export default function DashboardScreen() {
 
         {/* View Library Button */}
         <AnimatedSection delay={360} trigger={enterKey}>
-          <InteractiveSurface
-            style={styles.viewLibraryButton}
+          <GlassPrimaryButton
+            title={t('dashboard.actions.view_library')}
             onPress={() => navigation.navigate('Library')}
             accessibilityLabel={t('dashboard.actions.view_library')}
-          >
-            <Ionicons
-              name="library-outline"
-              size={22}
-              color={theme.colors.primary[700]}
-              style={styles.viewLibraryIcon}
-            />
-            <Text style={styles.viewLibraryText}>{t('dashboard.actions.view_library')}</Text>
-          </InteractiveSurface>
+            leading={
+              <Ionicons
+                name="library-outline"
+                size={22}
+                color={theme.colors.primary[700]}
+              />
+            }
+            style={styles.glassDashboardActionSpacingBelow}
+          />
         </AnimatedSection>
       </ScrollView>
     </LinearGradient>
@@ -316,13 +323,33 @@ const styles = StyleSheet.create({
     gap: theme.spacing[4],
     marginBottom: theme.spacing[8],
   },
-  statColumn: {
-    flex: 1,
-    gap: theme.spacing[3],
-  },
+  /** Outer shell: metrics + CTA; no border — depth from shadow only. */
   statCard: {
-    padding: theme.spacing[5],
+    flex: 1,
+    padding: theme.spacing[4],
+    alignItems: 'stretch',
+    backgroundColor: theme.colors.background.primary,
+    borderRadius: 25,
+    gap: theme.spacing[4],
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.colors.primary[900],
+        shadowOpacity: 0.1,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 6 },
+      },
+      android: { elevation: 3 },
+      web: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        boxShadow: `0 8px 24px -8px ${hexAlpha(theme.colors.primary[900], 0.14)}` as any,
+      },
+    }),
+  },
+  statMetrics: {
     alignItems: 'center',
+  },
+  statCardCta: {
+    alignSelf: 'stretch',
   },
   statNumber: {
     fontSize: theme.typography.fontSize['4xl'],
@@ -353,35 +380,7 @@ const styles = StyleSheet.create({
   gridCell: {
     flex: 1,
   },
-  viewLibraryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: theme.spacing[4],
-    backgroundColor: 'rgba(255, 255, 255, 0.72)',
-    borderRadius: theme.borders.radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255, 255, 255, 0.9)',
+  glassDashboardActionSpacingBelow: {
     marginBottom: theme.spacing[6],
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.colors.primary[900],
-        shadowOpacity: 0.12,
-        shadowRadius: 18,
-        shadowOffset: { width: 0, height: 10 },
-      },
-      android: { elevation: 3 },
-      web: {
-        boxShadow: `0 18px 34px -20px ${VIEW_LIBRARY_SHADOW}` as unknown as string,
-      },
-    }),
-  },
-  viewLibraryIcon: {
-    marginRight: theme.spacing[3],
-  },
-  viewLibraryText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.primary[700],
   },
 });

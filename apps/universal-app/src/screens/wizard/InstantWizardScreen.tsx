@@ -25,6 +25,7 @@ import { useSubscriptionUsage } from '@/api/plans';
 import { PaywallModal } from '@/components/PaywallModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { GlassPrimaryButton } from '@/components/GlassPrimaryButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
@@ -248,18 +249,14 @@ export default function InstantWizardScreen() {
       </AnimatedSection>
 
       <AnimatedSection delay={420} trigger={enterKey}>
-        <TouchableOpacity
-          style={[styles.generateButton, !canGenerate && styles.generateButtonDisabled]}
+        <GlassPrimaryButton
+          title={t('instant_wizard.generate_story')}
           onPress={handleGenerate}
           disabled={!canGenerate || isGenerating}
-          activeOpacity={0.8}
-        >
-          {isGenerating ? (
-            <ActivityIndicator color={theme.colors.text.inverse} />
-          ) : (
-            <Text style={styles.generateButtonText}>{t('instant_wizard.generate_story')}</Text>
-          )}
-        </TouchableOpacity>
+          loading={isGenerating}
+          size="hero"
+          style={styles.generateButton}
+        />
       </AnimatedSection>
 
       {/* Generation Progress Modal */}
@@ -336,21 +333,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
   },
   generateButton: {
-    paddingVertical: theme.spacing[4],
-    paddingHorizontal: theme.spacing[6],
-    backgroundColor: theme.colors.interactive.primary,
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginTop: theme.spacing[6],
-    minHeight: 48,
-  },
-  generateButtonDisabled: {
-    backgroundColor: theme.colors.background.tertiary,
-  },
-  generateButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
+    alignSelf: 'stretch',
   },
 });

@@ -631,8 +631,6 @@ const styles = StyleSheet.create({
     paddingLeft: theme.spacing[6],
     paddingRight: theme.spacing[6],
     paddingVertical: theme.spacing[6],
-    borderLeftWidth: 1,
-    borderLeftColor: theme.colors.border.light,
   },
   sidebar: {
     // @ts-ignore - position: sticky is web-only
