@@ -113,6 +113,10 @@ export async function buildStoryPublicView(
     title: story.title,
     fullText: stripAllTags(story.fullText || ''),
     ...(metadata.seoDescription && typeof metadata.seoDescription === 'string' && { seoDescription: metadata.seoDescription }),
+    ...(story.closingKeepsakeLabel != null &&
+      String(story.closingKeepsakeLabel).trim() !== '' && {
+        closingKeepsakeLabel: String(story.closingKeepsakeLabel).trim(),
+      }),
     scenes: formattedScenes,
     ...(author && { author }),
     authorDisplayName: author?.displayName || 'Anonymous',

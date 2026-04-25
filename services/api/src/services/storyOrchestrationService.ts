@@ -38,7 +38,7 @@ import {
   findExpectedForValidationChar,
 } from '../domain/image/imageValidationRun';
 import { logger } from '../utils/logger';
-import { stripCharacterIds, stripAllTags } from '../utils/audioTags';
+import { extractClosingKeepsakeFromEpisodeText, stripCharacterIds, stripAllTags } from '../utils/audioTags';
 import {
   isNaturalAppearanceOutfit,
   parseCharacterOutfitsString,
@@ -4120,6 +4120,10 @@ async function saveStory(
         scenes: text.scenes, // Keep for backward compatibility
         fullText: text.fullText,
         wordCount: text.wordCount,
+        closingKeepsakeLabel: extractClosingKeepsakeFromEpisodeText({
+          fullText: text.fullText,
+          scenes: text.scenes,
+        }),
         modelVersion: config.ai.modelVersion,
         generationTimeMs,
         metadata: {

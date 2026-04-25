@@ -52,6 +52,7 @@ import { TEXT_SCHEMA, VALIDATION_SCHEMA, BATCH_VALIDATION_SCHEMA, BATCH_REGENERA
 import { DIRECTOR_SCHEMA } from './directorSchema';
 import { parsePlainTextToScenes } from './parsePlainText';
 import { normalizeOutfitBindingsOnEpisodeText } from '../../utils/characterOutfits';
+import { countNarrationWords } from '../../utils/audioTags';
 
 export interface BatchValidationResult {
   failedScenes: Array<{
@@ -136,9 +137,9 @@ export class StoryDomainService {
 
       normalizeOutfitBindingsOnEpisodeText(text as { scenes?: Array<Record<string, unknown>> });
 
-      // Compute fullText and wordCount server-side for consistency
+      // Compute fullText and wordCount server-side for consistency (word count excludes bracket audio tags)
       text.fullText = text.scenes.map(s => s.text).join('\n\n');
-      text.wordCount = text.fullText.split(/\s+/).length;
+      text.wordCount = countNarrationWords(text.fullText);
 
       logger.info({ wordCount: text.wordCount, sceneCount: text.scenes.length }, 'Story text generated successfully');
       return text;
@@ -204,7 +205,7 @@ export class StoryDomainService {
       });
 
       const parsed = parsePlainTextToScenes(rawText);
-      const wordCount = parsed.fullText.split(/\s+/).length;
+      const wordCount = countNarrationWords(parsed.fullText);
 
       logger.info({ wordCount, sceneCount: parsed.scenes.length }, 'Story text (plain) generated successfully');
       return {

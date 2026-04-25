@@ -24,11 +24,53 @@ export function stripSsmlBreakTags(text: string): string {
 }
 
 /**
+ * Word count for story-length targets: removes bracket tags (audio, character IDs, etc.),
+ * HTML tags, and markdown emphasis, then counts whitespace-separated tokens.
+ */
+export function countNarrationWords(text: string): number {
+  const cleaned = stripAllTags(text).trim();
+  if (!cleaned) return 0;
+  return cleaned.split(/\s+/).filter(Boolean).length;
+}
+
+/**
+ * Extract the small tangible keepsake label from raw story prose.
+ * Writer marks it once as `{label}` (see formatCoreStoryRules). If multiple matches exist, returns the last (typical for the resolution beat).
+ */
+export function extractStoryKeepsakeLabel(fullText: string): string | null {
+  const re = /\{([^{}]+)\}/g;
+  let last: string | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(fullText)) !== null) {
+    const inner = m[1].trim();
+    if (inner.length > 0) last = inner;
+  }
+  return last;
+}
+
+/** Prefer fullText; if no `{...}` there, join scene texts (same marker rules). */
+export function extractClosingKeepsakeFromEpisodeText(text: {
+  fullText?: string;
+  scenes?: Array<{ text?: string }>;
+}): string | null {
+  if (text.fullText?.trim()) {
+    const fromFull = extractStoryKeepsakeLabel(text.fullText);
+    if (fromFull) return fromFull;
+  }
+  if (text.scenes && Array.isArray(text.scenes) && text.scenes.length > 0) {
+    const joined = text.scenes.map((s) => s.text || '').join('\n\n');
+    return extractStoryKeepsakeLabel(joined);
+  }
+  return null;
+}
+
+/**
  * Remove ALL tags from text (for UI, image generation, storage).
  * Strips tags but KEEPS the text inside them:
  *   - <tag>content</tag> → content (remove tags, keep inner text)
  *   - <tag ... /> → '' (self-closing, nothing to keep)
  *   - [content] → '' (square brackets: audio tags, character IDs — metadata only)
+ *   - {keepsake} → keepsake (curly braces removed; inner label stays readable in prose)
  *
  * Use this when displaying or persisting story text without markup.
  */
@@ -53,6 +95,9 @@ export function stripAllTags(text: string): string {
 
   // Remove [content] in square brackets (metadata: audio tags, character IDs)
   result = result.replace(/\[[^\]]*\]/g, '');
+
+  // Unwrap {keepsake} markers (single-level; extractStoryKeepsakeLabel reads raw text before this)
+  result = result.replace(/\{([^{}]+)\}/g, (_, inner: string) => inner.trim());
 
   result = stripMarkdownStyleEmphasis(result);
 
@@ -127,6 +172,7 @@ export function stripForAudio(text: string): string {
       const tag = content.trim().toLowerCase().replace(/\s{2,}/g, ' ');
       return ALLOWED_AUDIO_TAGS.has(tag) ? `[${content}]` : '';
     })
+    .replace(/\{([^{}]+)\}/g, (_, inner: string) => inner.trim())
     .replace(/\s{2,}/g, ' ')
     .trim();
 }

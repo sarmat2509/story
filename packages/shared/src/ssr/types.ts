@@ -9,6 +9,8 @@ export interface StoryPublicView {
   fullText: string;
   /** Short SEO description (1-2 sentences, max 160 chars). Used for og:description, meta name="description". */
   seoDescription?: string;
+  /** Closing tangible token label from writer `{...}` marker when present. */
+  closingKeepsakeLabel?: string | null;
   scenes: Array<{
     sceneId: number;
     text: string;

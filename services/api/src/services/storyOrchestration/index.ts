@@ -20,7 +20,14 @@ export {
 } from './utilities';
 
 // Export story record creation
-export { createStoryRecord, createStoryStub, enrichStoryRecord, mergeCharacters, persistLlmCharacters } from './storyRecords';
+export {
+  createStoryRecord,
+  createStoryStub,
+  enrichStoryRecord,
+  mergeCharacters,
+  persistLlmCharacters,
+  syncStoryClosingKeepsakeLabel,
+} from './storyRecords';
 
 // Export validation
 export { validateStoryScenes } from './validation';

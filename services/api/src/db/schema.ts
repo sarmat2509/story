@@ -492,7 +492,9 @@ export const stories = pgTable('stories', {
   scenes: jsonb('scenes').notNull(), // Array of { sceneId, text, visualPrompt, imageUrl } - DEPRECATED, use scenes table
   fullText: text('full_text').notNull(),
   wordCount: integer('word_count'),
-  
+  /** Small tangible token label from `{...}` in resolution scene prose (writer convention). */
+  closingKeepsakeLabel: varchar('closing_keepsake_label', { length: 500 }),
+
   modelVersion: varchar('model_version', { length: 50 }),
   generationTimeMs: integer('generation_time_ms'),
   policyChecks: jsonb('policy_checks'),

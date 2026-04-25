@@ -249,30 +249,36 @@ export function formatStoryRequirements(params: {
     }
   }
   
-  // Add goal/moral with detailed guidance
+  // Add goal/moral with detailed guidance (omit entirely when no goal — avoids empty filler)
   if (params.spec.goal) {
     const goalDisplay = params.spec.goalName || params.spec.goal; // Use translated name or fallback to slug
     parts.push(`- Goal/Moral: ${goalDisplay}`);
     if (params.spec.goalGuidance) {
       parts.push(`  Guidance: ${params.spec.goalGuidance}`);
     }
-  } else {
-    parts.push(`- Goal/Moral: general positive message`);
   }
-  
+
   if (params.sceneCount) {
     parts.push(`- Number of scenes: ${params.sceneCount}`);
   }
 
+  const wordCountScope =
+    ' (spoken story prose only; do not count words that appear only inside square-bracket audio tags like [happy] or [whisper])';
+
   if (params.targetWordCount) {
-    parts.push(`- Target word count: ${params.targetWordCount[0]}-${params.targetWordCount[1]} words`);
+    parts.push(
+      `- Target word count: ${params.targetWordCount[0]}-${params.targetWordCount[1]} words${wordCountScope}`,
+    );
   } else if (params.spec.policyProfile?.readability?.targetWordsRange) {
     const range = params.spec.policyProfile.readability.targetWordsRange;
-    parts.push(`- Target word count: ${range[0]}-${range[1]} words`);
+    parts.push(`- Target word count: ${range[0]}-${range[1]} words${wordCountScope}`);
   }
 
   return parts.join('\n');
 }
+
+/** Infants through toddlers (~under 3 in product buckets): plot formulas and rhythm/repetition rules use this set. */
+const YOUNG_AGE_GROUPS = ['0-1', '1y', '2-3'];
 
 /**
  * Format age-appropriate requirements for prompts
@@ -359,20 +365,25 @@ export function formatAgeRequirements(ageGroup: string): string {
 
 /**
  * Format writing style guidelines for text generation
- * @param spec - Story specification
- * @param vocabLevel - Vocabulary level (simple, basic, intermediate, advanced)
+ * @param spec - Story specification (gates rhythm/repetition for youngest buckets only)
+ * @param _vocabLevel - Vocabulary level from domain (lexical detail lives in formatAgeRequirements TEXT COMPLEXITY)
  * @returns Formatted writing style text
  */
-export function formatWritingStyle(spec: StorySpec, vocabLevel: string): string {
-  const sections = [
-    'WRITING STYLE:',
-    `- Use ${vocabLevel} vocabulary appropriate for age ${spec.ageGroup}`,
+export function formatWritingStyle(spec: StorySpec, _vocabLevel: string): string {
+  const sections: string[] = ['WRITING STYLE:'];
+
+  if (YOUNG_AGE_GROUPS.includes(spec.ageGroup)) {
+    sections.push(
+      '- MUST use rhythm and repetition: repeat phrases, gentle refrains, and predictable patterns so very young listeners can anticipate and join in.',
+    );
+  }
+
+  sections.push(
     '- Include sensory details (sounds, colors, feelings)',
     '- Show don\'t tell emotions',
-    '- Use rhythm and repetition for younger ages',
     '- Include dialog for character connection',
-    '- Build to satisfying, safe conclusion'
-  ];
+    '- Build to satisfying, safe conclusion',
+  );
 
   return sections.join('\n');
 }
@@ -381,8 +392,6 @@ export function formatWritingStyle(spec: StorySpec, vocabLevel: string): string 
 // Core Story Rules — PLOT structure, PACING, HOOKS, VOCAB.
 // Used by DirectTextPrompt, ContinuationPrompt. Scene-level only for RegenerationPrompt.
 // ─────────────────────────────────────────────────────────────────────────────
-
-const YOUNG_AGE_GROUPS = ['0-1', '1y', '2-3'];
 
 /**
  * Format core story rules (PLOT, PACING, HOOKS, VOCAB) for full story generation.
@@ -417,7 +426,8 @@ export function formatCoreStoryRules(params: {
 
     plotText += `
 - Scene ${climaxScene}: decisive brave action solves main problem.
-- Scene ${resolutionScene}: happy return + small tangible token + tiny sequel hint.`;
+- Scene ${resolutionScene}: happy return + small tangible token + tiny sequel hint.
+- Keepsake marker (Scene ${resolutionScene}, exactly once in the whole story): when the hero receives or keeps that small tangible token, put its short name inside a single pair of curly braces in the scene prose — e.g. ...treasured {silver pebble} from... Use the story language inside the braces (2–6 words, no nested braces). Exactly one {...} in the entire manuscript for this keepsake only; do not use curly braces for anything else.`;
 
     sections.push(plotText);
 
@@ -450,8 +460,8 @@ export function formatCoreStoryRules(params: {
   // VOCAB — for 4-5 and above
   if (!isYoung) {
     sections.push(`VOCAB:
-- Challenging words (per age requirements): each immediately clarified by context or dialogue.
-- Avoid rare/archaic words unless explained.`);
+- Richer vocabulary: make harder words clear through what happens in the scene and how characters react and speak—meaning should land without stopping the story. Do NOT define words in parentheses, appositives like "word (meaning)", "which means…", or other mid-line glosses.
+- Prefer plain strong wording when a rare or archaic term does not earn its place; if you use one, the surrounding prose alone must make the sense obvious—no narrator aside to explain it.`);
   }
 
   return 'CORE STORY RULES:\n' + sections.join('\n\n');
@@ -723,7 +733,7 @@ export function formatSceneLevelRules(params: { ageGroup: string }): string {
 - Include: 1 action beat, >=2 dialogue lines, 1 short punchy sentence (3–7 words).
 - Paragraphs 2–4 sentences.
 - End scene with micro-hook (question / new clue / small twist). No flat endings.
-- Challenging words: clarify by context or dialogue. Avoid rare/archaic unless explained.`;
+- Vocabulary: if you use a harder word, keep it clear through the beat and dialogue alone—no parentheses, appositives, or "which means" glosses. Avoid rare or archaic words unless the scene already makes the sense unmistakable.`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -916,14 +926,43 @@ export function formatTextVisualConsistencyRules(): string {
 
 /**
  * Scene text boundary rules — sentences must not split across scenes.
+ * @param context - structured: JSON scene "text" field; plain: prose blocks between --- delimiters
  */
-export function formatSceneTextBoundaryRules(): string {
+export function formatSceneTextBoundaryRules(context: 'structured' | 'plain' = 'structured'): string {
+  const subject =
+    context === 'plain'
+      ? 'Each scene block (the narrative prose between --- delimiters)'
+      : 'Each scene\'s "text"';
   return [
     'CRITICAL - Scene Text Boundaries:',
-    '- Each scene\'s "text" MUST end at a complete sentence boundary (period, exclamation mark, or question mark followed by any closing quotes)',
+    `- ${subject} MUST end at a complete sentence boundary (period, exclamation mark, or question mark followed by any closing quotes)`,
     '- NEVER split a sentence across two scenes — every sentence must belong entirely to one scene',
     '- Do NOT start a new sentence at the end of a scene that continues in the next scene',
   ].join('\n');
+}
+
+/**
+ * Writer-only rules for Director plain-text flow: TTS audio tags + scene prose boundaries.
+ * Omits outfit/environment/sceneVisual composition rules (those belong to the Director pass).
+ */
+export function formatWriterPlainSceneRules(opts?: {
+  scenarioCardId?: string;
+  policyProfile?: PolicyProfile;
+}): string {
+  const policyProfile = opts?.policyProfile ?? {
+    ageGroup: '6-8',
+    language: 'en',
+    disallowedRules: [],
+    allowedConflicts: [],
+    constraints: { mustHaveHappyEnding: true, noShamingLanguage: true },
+    readability: { maxSentenceLen: 18, targetWordsRange: [500, 800], dialogRatio: 0.5 },
+    promptGuidelines: '',
+  };
+  const audioTagsRules = getContentPolicy({
+    policyProfile,
+    scenarioCardId: opts?.scenarioCardId,
+  }).audioTagsRules;
+  return [audioTagsRules, formatSceneTextBoundaryRules('plain')].filter(Boolean).join('\n\n');
 }
 
 /**
@@ -1002,5 +1041,8 @@ export function cleanTemplate(strings: TemplateStringsArray, ...values: any[]): 
     trimmedLines.pop();
   }
 
-  return trimmedLines.join('\n');
+  let out = trimmedLines.join('\n');
+  // Empty template interpolations stack extra newlines from the source template; cap at one blank line.
+  out = out.replace(/\n{3,}/g, '\n\n');
+  return out;
 }

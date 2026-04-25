@@ -1,3 +1,4 @@
+import './loadEnvForScripts';
 import { Pool } from 'pg';
 import { readFileSync } from 'fs';
 import { join } from 'path';

@@ -6,7 +6,7 @@ import { getStoryRepository, getCharacterRepository } from '../../repositories';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { normalizeCharacterName, crossScriptIdentityKey } from '../../utils/characterNormalization';
-import { stripCharacterIds } from '../../utils/audioTags';
+import { extractClosingKeepsakeFromEpisodeText, stripCharacterIds } from '../../utils/audioTags';
 import { findOrCreateLlmCharacter, mapLlmTypeToCharacterType } from './llmCharacterPersistence';
 import { createSceneRecords } from './utilities';
 import type { CreateStoryParams, CreateStoryStubParams } from './types';
@@ -60,6 +60,11 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
 
     const llmCharacters = (params.text as any).characters || [];
 
+    const closingKeepsakeLabel = extractClosingKeepsakeFromEpisodeText({
+      fullText: params.text.fullText,
+      scenes: params.text.scenes as Array<{ text?: string }> | undefined,
+    });
+
     await getStoryRepository().transaction(async (tx) => {
       await getStoryRepository().updateStory(
         storyId,
@@ -69,6 +74,7 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
           scenes: params.text.scenes,
           fullText: stripCharacterIds(params.text.fullText),
           wordCount: params.text.wordCount,
+          closingKeepsakeLabel,
           modelVersion: (params.metadata as any).modelVersion || config.ai.modelVersion,
           generationTimeMs: params.generationTimeMs,
           isPublished: !!params.seriesData,
@@ -160,13 +166,38 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
 }
 
 /**
+ * Re-read story text from DB and update `closing_keepsake_label` from `{...}` markers.
+ * Use after manual text edits or backfills when the marker convention was added later.
+ */
+export async function syncStoryClosingKeepsakeLabel(storyId: string): Promise<void> {
+  const row = await getStoryRepository().findById(storyId);
+  if (!row) {
+    logger.warn({ storyId }, 'syncStoryClosingKeepsakeLabel: story not found');
+    return;
+  }
+  const label = extractClosingKeepsakeFromEpisodeText({
+    fullText: row.fullText,
+    scenes: (row.scenes as Array<{ text?: string }>) || [],
+  });
+  await getStoryRepository().updateStory(storyId, {
+    closingKeepsakeLabel: label,
+    updatedAt: new Date(),
+  });
+  logger.info({ storyId, hasLabel: !!label }, 'Closing keepsake label synced from stored text');
+}
+
+/**
  * Create story record with scenes and character linking
  * Unified for both standard and continuation flows
  */
 export async function createStoryRecord(params: CreateStoryParams): Promise<string> {
   try {
     const llmCharacters = (params.text as any).characters || [];
-    
+    const closingKeepsakeLabel = extractClosingKeepsakeFromEpisodeText({
+      fullText: params.text.fullText,
+      scenes: params.text.scenes as Array<{ text?: string }> | undefined,
+    });
+
     const storyId = await getStoryRepository().transaction(async (tx) => {
       // Create story record with metadata
       const story = await getStoryRepository().createStory({
@@ -181,6 +212,7 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
         scenes: params.text.scenes,
         fullText: stripCharacterIds(params.text.fullText),
         wordCount: params.text.wordCount,
+        closingKeepsakeLabel,
         modelVersion: config.ai.modelVersion,
         generationTimeMs: params.generationTimeMs,
         metadata: {

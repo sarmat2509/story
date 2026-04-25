@@ -27,7 +27,7 @@ export interface DirectTextPromptParams {
 }
 
 export const WRITER_STRUCTURED_CACHE_KEY = 'writer_structured_rules_v2';
-export const WRITER_PLAIN_CACHE_KEY = 'writer_plain_rules_v2';
+export const WRITER_PLAIN_CACHE_KEY = 'writer_plain_rules_v3';
 
 export function buildDirectTextPromptCachedPrefix(): string {
   return `You are a creative storyteller specializing in children's content with audio narration.
@@ -57,6 +57,7 @@ Generate the story in plain text only.
 
 Core rules:
 - Write age-appropriate, positive, empowering stories.
+- Keep narrative and scene output internally consistent.
 - Happy, safe ending required.
 - Follow the requested language exactly.
 - Write the requested number of scenes separated by --- on its own line.
@@ -240,16 +241,14 @@ OUTPUT FORMAT (JSON). Order: characters, moral, scenes (each sceneVisual.cameraC
 IMPORTANT - Character Descriptions:
 ${isContinuation && (requiredCharacters?.length || 0) + (optionalCharacters?.length || 0) > 0
   ? `- In scene TEXT: Do NOT re-describe required/optional characters. NEW characters may get only one brief first-glance appearance cue when first introduced.
-- In scene TEXT: NEVER describe clothing or outfit details. Do not mention jackets, coats, bombers, dresses, scarves, boots, hats, uniforms, or color/pattern details of clothes.
-- In scene TEXT: Minimize stable appearance details such as hair color/style, eye color, freckles, face shape, skin tone, or body build. Use them only if absolutely needed once for a NEW character's first introduction.
+- In scene text: skip clothing lists and long appearance breakdowns—use action, feelings, and dialogue. One quick look-in for a brand-new character is enough when they first appear.
 - In scene TEXT: Describe physical appearance only for genuinely NEW LLM-invented characters that were not already present in the provided story context.
 - characters array: Include ONLY new characters. Provide DETAILED visual descriptions (appearance, colors, size, distinctive features, clothing) for each.
 - Do NOT include required/optional characters from above in output
 - Be SPECIFIC and CONSISTENT for image generation`
   : `- Return ALL characters you create in the story (do NOT include user-provided characters from SUPPORTING CHARACTERS section above)
 - If no new characters are created (story only uses user-provided characters), return empty array []
-- In scene TEXT: NEVER describe clothing or outfit details. Do not mention jackets, coats, bombers, dresses, scarves, boots, hats, uniforms, or color/pattern details of clothes.
-- In scene TEXT: Minimize stable appearance details such as hair color/style, eye color, freckles, face shape, skin tone, or body build. Prefer actions, emotions, and story events.
+- In scene text: skip clothing lists and long appearance breakdowns—prefer action, feelings, and dialogue.
 - For a NEW character, allow at most one brief first-glance appearance cue in prose; put the full detailed appearance into characters[] instead.
 - Provide DETAILED visual descriptions (appearance, colors, size, distinctive features, clothing)
 - Be SPECIFIC and CONSISTENT - describe exactly how the character looks for image generation
@@ -320,29 +319,31 @@ export function buildDirectTextPromptPlain(params: DirectTextPromptParams): stri
           const optChars = optionalCharacters || [];
           return `STORY CONTINUATION REQUIREMENTS:
 - This is Part ${partNumber} of the series
-- The story MUST connect to the previous episode
+- The story MUST connect to the previous episode. Reference events, characters, or outcomes from Part ${partNumber - 1}. Maintain narrative continuity while introducing a NEW world rule and NEW setting.
 ${reqChars.length > 0 ? '- MUST feature all REQUIRED characters from above\n' : ''}
-${optChars.length > 0 ? '- MAY feature OPTIONAL characters if they fit the story\n' : ''}
-- Create NEW events and challenges
+${optChars.length > 0 ? '- MAY feature OPTIONAL characters if they fit the story (not required)\n' : ''}
+- Create NEW events and challenges (not covered in previous episodes)
 - Build on previous story but make this episode standalone enjoyable
+- Introduce new secondary characters in the narrative as needed; a later visual pass will capture cast, outfits, and environments (you do not output JSON for those).
 ${validUsedPlots.length > 0 ? `- DO NOT repeat these plot elements: ${validUsedPlots.join(', ')}\n` : ''}
 - Maintain the same tone and age-appropriateness
 - MUST have a satisfying conclusion for this episode
+- OPTIONAL: Add a gentle cliffhanger or hint for next episode
 - DO NOT repeat physical appearance of required/optional characters (from previous episodes). Use names and actions directly. Avoid "Emilia with her bright eyes...", "Flash, round and yellow...". Start with action.
-- Do NOT mention clothing in scene prose, even if clothes changed. Wardrobe belongs in outfits[] and sceneVisual only.
+- Do NOT mention clothing in scene prose, even if clothes changed. When the look changes, state it clearly in the story (e.g. raincoat, pajamas) so a later visual pass can infer wardrobe—avoid catalog-style garment lists.
 - Avoid prose about hair color, eye color, freckles, face shape, skin tone, or other stable appearance traits unless one brief mention is truly needed for a NEW character's first introduction.
 - Describe physical appearance in scene prose only for genuinely NEW LLM-invented characters that were not present in the provided story context before this story/episode.
-- NEW characters: if needed, give only one brief first-glance visual cue in scene prose at first introduction.
+- NEW characters: if needed, give only one brief first-glance visual cue in scene prose at first introduction. Do not output a separate character sheet.
 
 `;
         })()
       : '';
 
-  const reuseEnvironmentsSection =
+  const reuseEnvironmentsSectionPlain =
     isContinuation && previousEnvironments && previousEnvironments.length > 0
-      ? `REUSE ENVIRONMENTS: When the scene is in the SAME location as a previous episode, use the EXACT environment id. Available from previous episodes:\n${previousEnvironments
+      ? `REUSE LOCATIONS (prose continuity): When the story returns to the SAME place as a previous episode, reuse the SAME location name and clear recurring cues (layout, landmarks, atmosphere) so a later visual pass can match it. Reference locations from earlier parts (ids are for your continuity only — do not paste ids into the story unless natural as a name):\n${previousEnvironments
           .map((e) => `- ${e.id} (${e.name}): ${e.description.slice(0, 120)}${e.description.length > 120 ? '...' : ''}`)
-          .join('\n')}\nAdd NEW environments only for new locations. Use the same id when returning to a known location.\n\n`
+          .join('\n')}\nFor genuinely NEW places, establish a distinct name and setting in prose.\n\n`
       : '';
 
   const reuseOutfitsSectionPlain =
@@ -370,7 +371,7 @@ ${storyRequirementsLabel}
 
 ${continuationRequirementsSection}
 
-${reuseEnvironmentsSection}
+${reuseEnvironmentsSectionPlain}
 
 ${reuseOutfitsSectionPlain}
 
@@ -386,6 +387,24 @@ ${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRu
 
 ${helpers.formatNarrativeContinuityRules()}
 
+${helpers.formatWriterPlainSceneRules({
+  scenarioCardId: spec.scenarioCard?.id,
+  policyProfile: spec.policyProfile,
+})}
+
+IMPORTANT — Character introductions (prose only; no JSON character list):
+${isContinuation && (requiredCharacters?.length || 0) + (optionalCharacters?.length || 0) > 0
+  ? `- In scene TEXT: Do NOT re-describe required/optional characters. NEW characters may get only one brief first-glance appearance cue when first introduced.
+- In scene text: skip clothing lists and long appearance breakdowns—use action, feelings, and dialogue. One quick look-in for a brand-new character is enough when they first appear.
+- In scene TEXT: Describe physical appearance only for genuinely NEW LLM-invented characters that were not already present in the provided story context.
+- Establish NEW characters through the narrative only; do not output a separate character roster.`
+  : `- Use the SUPPORTING CHARACTERS from above plus any new characters you invent in the story.
+- If the story only uses user-provided characters, do not invent extra named cast unless the plot truly needs them.
+- In scene text: skip clothing lists and long appearance breakdowns—prefer action, feelings, and dialogue.
+- For a NEW character, allow at most one brief first-glance appearance cue in prose when they first matter to the plot.
+- Good introduction example: "A small fluffy creature with purple fur tapped her shoulder—its silver crown glinted."
+- Vague (avoid): "A cute helper appeared."`}
+
 OUTPUT FORMAT (plain text only):
 title: Story title in ${spec.language}
 
@@ -398,15 +417,13 @@ Scene 2 text...
 ---
 (continue for all ${sceneCount} scenes)
 
-RULES:
-- Write exactly ${sceneCount} scenes, each separated by --- on its own line
-- No JSON, no scene numbers in the text — only the --- delimiter between scenes
-- Each scene: 1-3 paragraphs depending on age group
-- Focus on positive, empowering storytelling
-- Happy, safe ending required
-- TITLE: Be creative and imaginative. Reflect the ESSENCE of this story — the main event, conflict, or theme. Do NOT use generic templates like "Пригоди X у Y". Use poetic, intriguing, or whimsical phrasing when it fits. Spark curiosity. Examples: "Таємниця висохлого озера", "Чарівна крапля надії", "Таємниця печери мрій", "Подорож до зірок"
+TITLE (for the title line above):
+- Be creative and imaginative. Reflect the ESSENCE of this story — the main event, conflict, or theme. Do NOT use generic templates like "Пригоди X у Y". Use poetic, intriguing, or whimsical phrasing when it fits. Spark curiosity. Examples: "Таємниця висохлого озера", "Чарівна крапля надії", "Таємниця печери мрій", "Подорож до зірок"
 ${isContinuation && previousOutlines && previousOutlines.length > 0
   ? '\n- TITLE (continuations): Do NOT use "Частина 2/3/N". Each episode gets a unique title.'
   : ''}
+
+RULES (format only):
+- No JSON, no scene numbers in the text — only the --- delimiter between scenes
 `;
 }

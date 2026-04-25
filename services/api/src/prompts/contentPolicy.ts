@@ -67,11 +67,7 @@ function buildTextPromptSection(
 ): string {
   const sections: string[] = [];
 
-  // Mandatory minimum: happy, safe ending
   sections.push(
-    'REQUIREMENTS:',
-    '- MUST have happy, safe ending',
-    '',
     'SAFETY GUIDELINES:',
     '- All content must be age-appropriate and safe',
   );
@@ -196,7 +192,11 @@ function buildAudioTagsRules(isScaryStory: boolean): string {
     '- Use EXACT formats above (NOT [whispers], [giggles], [gasps] - these will be spoken literally!)',
     '- Lowercase only (NOT [WHISPER] or [Whisper])',
     '- Place tags before/after dialogue segments or at natural pauses',
-    '- Use 2-3 tags per scene maximum for natural flow',
+    '',
+    'PROSE DELIVERY → MUST TAG (TTS does not infer from attributions):',
+    '- If attribution or narration says how a line is spoken (whispered, murmured, muttered, spoke softly, under her breath, shouted, yelled, cried out, called loudly, etc.), add the closest official Delivery tag for that quoted speech. Words like "whispered" alone do not change TTS delivery; [whisper] or [shouting] does.',
+    '- Map to supported tags only: whisper / murmur / mutter / softly / quietly / under his breath → [whisper]; shout / yell / cry out / bellow / loudly → [shouting].',
+    '- Put the tag on the same beat as the dialogue—typically immediately before the opening quote for that line.',
     '',
     'FORBIDDEN - Do NOT use screenplay/script markup:',
     '- No _narrator_, _character_Name_, _dialog_, or similar underscore tags',
@@ -214,7 +214,11 @@ function buildAudioTagsRules(isScaryStory: boolean): string {
     ? 'SAFETY: Use child-appropriate audio tags from approved list. For scary stories, suspenseful tags like [whisper], [exhales sharply], [inhales deeply] are encouraged for atmosphere. Avoid [gunshot], [explosion].'
     : 'SAFETY: Only use child-appropriate audio tags from approved list above. Avoid scary sounds ([gunshot], [explosion]), aggressive emotions. Prefer gentle, playful tags like [chuckles], [laughing], [excited], [whisper], [curious].';
 
-  baseRules.push(safetyGuidance, '', 'Use tags naturally to enhance storytelling emotion without overusing them.');
+  baseRules.push(
+    safetyGuidance,
+    '',
+    'Use tags wherever they improve how the narration sounds—emotion, pacing, delivery, and reactions—still only from the approved list above.',
+  );
 
   return baseRules.join('\n');
 }
