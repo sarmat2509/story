@@ -7,6 +7,7 @@ import { theme } from '@/theme';
 import type { AdminStackParamList } from '@/types/navigation';
 import AdminDashboardScreen from '@/admin/screens/AdminDashboardScreen';
 import AdminContentConfigScreen from '@/admin/screens/AdminContentConfigScreen';
+import AdminVoicesScreen from '@/admin/screens/AdminVoicesScreen';
 import AdminFeedbackScreen from '@/admin/screens/AdminFeedbackScreen';
 import AdminScenesScreen from '@/admin/screens/AdminScenesScreen';
 import AdminStoriesScreen from '@/admin/screens/AdminStoriesScreen';
@@ -47,6 +48,7 @@ export default function AdminNavigator() {
       <Stack.Screen name="AdminFeedback" component={AdminFeedbackScreen} />
       <Stack.Screen name="AdminValidations" component={AdminValidationsScreen} />
       <Stack.Screen name="AdminContentConfig" component={AdminContentConfigScreen} />
+      <Stack.Screen name="AdminVoices" component={AdminVoicesScreen} />
       <Stack.Screen name="AdminValidationDetail" component={AdminValidationDetailScreen} />
       <Stack.Screen name="AdminScenesStory" component={AdminScenesScreen} />
     </Stack.Navigator>

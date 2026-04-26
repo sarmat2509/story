@@ -54,6 +54,9 @@ import { parsePlainTextToScenes } from './parsePlainText';
 import { normalizeOutfitBindingsOnEpisodeText } from '../../utils/characterOutfits';
 import { countNarrationWords } from '../../utils/audioTags';
 
+/** Plain writer output budget — avoids truncated endings when the model hits provider defaults (e.g. Gemini `maxOutputTokens` 4096). */
+const PLAIN_WRITER_MAX_OUTPUT_TOKENS = 16384;
+
 export interface BatchValidationResult {
   failedScenes: Array<{
     sceneId: number;
@@ -199,6 +202,7 @@ export class StoryDomainService {
           content: buildDirectTextPromptPlainCachedPrefix(),
           displayName: WRITER_PLAIN_CACHE_KEY,
         },
+        maxTokens: PLAIN_WRITER_MAX_OUTPUT_TOKENS,
         temperature: 0.9,
         onUsage: options?.onUsage,
         operation: isContinuation ? 'text_continuation' : 'text_plain',

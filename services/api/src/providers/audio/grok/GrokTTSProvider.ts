@@ -1,4 +1,6 @@
 import { SynthesizeRequest, SynthesizeResult, Voice, VoiceCatalogEntry } from '../../base/IAudioProvider';
+import type { TtsSpeechTagCatalog } from '../../base/TtsSpeechTagCatalog';
+import { buildGrokSpeechTagCatalog } from '../ttsSpeechTagCatalogs';
 import { BaseAudioProvider } from '../../base/BaseAudioProvider';
 import { GROK_TTS_VOICE_CATALOG } from './voices';
 import { isGrokBlockedForStoryLanguage } from './supportedLocales';
@@ -160,5 +162,9 @@ export class GrokTTSProvider extends BaseAudioProvider {
 
   getDefaultVoices(): VoiceCatalogEntry[] {
     return GROK_TTS_VOICE_CATALOG;
+  }
+
+  getTtsSpeechTagCatalog(): TtsSpeechTagCatalog {
+    return buildGrokSpeechTagCatalog();
   }
 }

@@ -260,6 +260,52 @@ export function useUpdateAdminStory() {
   });
 }
 
+export type AdminVoiceListItem = {
+  id: string;
+  provider: string;
+  providerVoiceId: string;
+  name: string;
+  displayName: string;
+  language: string;
+  isActive: boolean;
+  isPremium: boolean;
+  updatedAt: string;
+};
+
+export function useAdminVoices(params: {
+  limit: number;
+  offset: number;
+  search?: string;
+  provider?: string;
+}) {
+  const { limit, offset, search, provider } = params;
+  return useQuery({
+    queryKey: ['admin', 'voices', limit, offset, search ?? '', provider ?? ''],
+    queryFn: async () => {
+      const response = await apiClient.get<PaginatedResponse<AdminVoiceListItem>>('/api/v1/admin/voices', {
+        params: { limit, offset, search: search || undefined, provider: provider || undefined },
+      });
+      return response.data.data;
+    },
+  });
+}
+
+export function useUpdateAdminVoice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { voiceId: string; isActive: boolean }) => {
+      const response = await apiClient.patch<{ status: string; data: AdminVoiceListItem }>(
+        `/api/v1/admin/voices/${params.voiceId}`,
+        { isActive: params.isActive },
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'voices'] });
+    },
+  });
+}
+
 export function useAdminUsers(params: { limit: number; offset: number; search?: string }) {
   const { limit, offset, search } = params;
   return useQuery({
@@ -351,6 +397,49 @@ export function useAdminImageValidation(id?: string) {
   });
 }
 
+export type AdminResetStoryAudioClearedPayload = {
+  storyId: string;
+  userId: string;
+  audioAssetRowsRemoved: boolean;
+  audioFileAssetsRemoved: boolean;
+  alignmentRemoved: boolean;
+  storageFilesAttempted: number;
+  storageFilesDeleted: number;
+};
+
+export type AdminResetStoryAudioResponse = {
+  cleared: AdminResetStoryAudioClearedPayload;
+  jobId?: string;
+};
+
+export function useAdminResetStoryAudio() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      storyId: string;
+      regenerate?: boolean;
+      voiceId?: string;
+      speed?: number;
+      nightMode?: boolean;
+    }) => {
+      const response = await apiClient.post<{ status: string; data: AdminResetStoryAudioResponse }>(
+        `/api/v1/admin/stories/${params.storyId}/audio/reset`,
+        {
+          regenerate: params.regenerate === true,
+          voiceId: params.voiceId,
+          speed: params.speed,
+          nightMode: params.nightMode,
+        },
+      );
+      return response.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'director-scenes', variables.storyId] });
+    },
+  });
+}
+
 export function useAdminRegenerateSceneImage() {
   const queryClient = useQueryClient();
 
@@ -381,6 +470,42 @@ export function useAdminRegenerateSceneImage() {
   });
 }
 
+export type AdminStoryAudioTimingPayload = {
+  audioGenerationTimeMs: number | null;
+  prosodyTaggingTimeMs: number | null;
+  ttsChunksSynthesisTimeMs: number | null;
+  ttsBatchWallTimeMs: number | null;
+  ttsSynthesisBatchesWallMs: number | null;
+  ttsChunksParallelEstimateMs: number | null;
+};
+
+export type AdminStoryAudioChunkPayload = {
+  groupIndex: number;
+  assetId: string | null;
+  generationTimeMs: number | null;
+};
+
+export type AdminSynthesisTaggedSegment = {
+  text: string;
+  isMissingChunk: boolean;
+};
+
+export type AdminStoryAudioPayload = {
+  audioUrl: string | null;
+  synthesisTaggedText: string | null;
+  /** Present when `audio_metadata.deferredTaggedFullText` exists (deferred prosody); pink UI for `isMissingChunk`. */
+  synthesisTaggedSegments: AdminSynthesisTaggedSegment[] | null;
+  /** Count of `[` openings excluding `[ID:…]` scene markers — 0 means no inline prosody tags in stored TTS string. */
+  synthesisInlineBracketOpenCount: number;
+  /** Non-null when stored TTS text is non-empty but has no inline bracket tags (prosody fallback). */
+  synthesisProsodyHint: string | null;
+  vendorStylePromptEn: string | null;
+  durationSeconds: number | null;
+  voiceName: string | null;
+  timing: AdminStoryAudioTimingPayload;
+  chunks: AdminStoryAudioChunkPayload[];
+};
+
 export function useAdminDirectorScenes(storyId?: string) {
   return useQuery({
     queryKey: ['admin', 'director-scenes', storyId ?? ''],
@@ -403,6 +528,7 @@ export function useAdminDirectorScenes(storyId?: string) {
           };
           environments: AdminEnvironmentItem[];
           outfits: AdminOutfitItem[];
+          audio: AdminStoryAudioPayload;
           meta: { total: number };
         };
       }>(`/api/v1/admin/stories/${storyId}/director-scenes`);

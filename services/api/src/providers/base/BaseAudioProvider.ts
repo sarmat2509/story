@@ -1,4 +1,11 @@
-import { IAudioProvider, SynthesizeRequest, SynthesizeResult, Voice, VoiceCatalogEntry } from './IAudioProvider';
+import {
+  IAudioProvider,
+  SynthesizeRequest,
+  SynthesizeResult,
+  Voice,
+  VoiceCatalogEntry,
+} from './IAudioProvider';
+import type { TtsSpeechTagCatalog } from './TtsSpeechTagCatalog';
 import { isValidLocale, LOCALE_IDS } from '@wondertales/shared';
 import { logger } from '../../utils/logger';
 import { config, getConcurrencyLimitForPlan } from '../../config';
@@ -40,11 +47,11 @@ export abstract class BaseAudioProvider implements IAudioProvider {
       return true;
     } catch (error: any) {
       logger.error(
-        { 
-          error: error.message, 
+        {
+          error: error.message,
           provider: this.getProviderName(),
-          stack: error.stack 
-        }, 
+          stack: error.stack,
+        },
         `${this.getProviderName()} health check failed`
       );
       return false;
@@ -113,10 +120,10 @@ export abstract class BaseAudioProvider implements IAudioProvider {
       // Don't retry on non-retryable errors
       if (this.isNonRetryableError(error)) {
         logger.error(
-          { 
-            error: error.message, 
+          {
+            error: error.message,
             provider: this.getProviderName(),
-            operationName 
+            operationName,
           },
           `Non-retryable error in ${this.getProviderName()}`
         );
@@ -126,29 +133,29 @@ export abstract class BaseAudioProvider implements IAudioProvider {
       // Retry on rate limits and temporary errors
       if (attempt < this.maxRetries) {
         const delay = this.retryDelayMs * Math.pow(2, attempt - 1);
-        
+
         logger.warn(
-          { 
-            attempt, 
-            maxRetries: this.maxRetries, 
+          {
+            attempt,
+            maxRetries: this.maxRetries,
             delayMs: delay,
             provider: this.getProviderName(),
             error: error.message,
-            operationName
+            operationName,
           },
           `Retrying ${this.getProviderName()} request`
         );
-        
+
         await new Promise((resolve) => setTimeout(resolve, delay));
         return this.retryWithBackoff(fn, attempt + 1, operationName);
       }
 
       logger.error(
-        { 
+        {
           error: error.message,
           attempts: attempt,
           provider: this.getProviderName(),
-          operationName
+          operationName,
         },
         `${this.getProviderName()} request failed after ${attempt} attempts`
       );
@@ -166,13 +173,18 @@ export abstract class BaseAudioProvider implements IAudioProvider {
       'voice not found',
       'invalid voice',
       'invalid request',
+      // gRPC INVALID_ARGUMENT: bad input; retries do not fix (e.g. Gemini-TTS policy on text/prompt).
+      'invalid_argument',
+      // Vertex blocked synthesis (e.g. support code 54702341).
+      'usage guidelines',
+      'violates vertex ai',
       'text is required',
       'voice id is required',
       'exceeds maximum length',
     ];
 
     const errorMessage = error.message?.toLowerCase() || '';
-    return nonRetryableMessages.some(msg => errorMessage.includes(msg));
+    return nonRetryableMessages.some((msg) => errorMessage.includes(msg));
   }
 
   /**
@@ -207,4 +219,6 @@ export abstract class BaseAudioProvider implements IAudioProvider {
   getMaxConcurrency(planSlug?: string): number {
     return getConcurrencyLimitForPlan(planSlug);
   }
+
+  abstract getTtsSpeechTagCatalog(): TtsSpeechTagCatalog;
 }

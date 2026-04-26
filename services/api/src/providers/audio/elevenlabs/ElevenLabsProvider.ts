@@ -21,6 +21,8 @@ import type {
   ProsodySettings,
   VoiceCatalogEntry,
 } from '../../base/IAudioProvider';
+import type { TtsSpeechTagCatalog } from '../../base/TtsSpeechTagCatalog';
+import { buildElevenLabsV3SpeechTagCatalog } from '../ttsSpeechTagCatalogs';
 import { BaseAudioProvider } from '../../base/BaseAudioProvider';
 import { logger } from '../../../utils/logger';
 import { config, getConcurrencyLimitForPlan } from '../../../config';
@@ -479,5 +481,9 @@ export class ElevenLabsProvider extends BaseAudioProvider {
    */
   getDefaultVoices(): VoiceCatalogEntry[] {
     return ELEVENLABS_VOICE_CATALOG;
+  }
+
+  getTtsSpeechTagCatalog(): TtsSpeechTagCatalog {
+    return buildElevenLabsV3SpeechTagCatalog();
   }
 }

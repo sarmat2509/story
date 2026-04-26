@@ -1,8 +1,12 @@
 /**
  * Prints full writer prompts (plain + structured) for a fixed sample StorySpec — no LLM calls.
  * Run: pnpm --filter wondertales-api print:writer-prompts
+ *
+ * Loads .env first. Asserts plain prompt omits writer audio-tag rules (deferred prosody at TTS is always on).
  */
+import './loadEnvForScripts';
 import type { StorySpec } from '../ai/types';
+import { getAllAudioTags } from '../constants/audioTags';
 import { buildDirectTextPrompt, buildDirectTextPromptPlain } from '../prompts/text';
 
 const STATIC_POLICY = {
@@ -44,6 +48,28 @@ console.log('='.repeat(80));
 console.log('PLAIN WRITER (Director flow) — buildDirectTextPromptPlain');
 console.log('='.repeat(80));
 console.log(plain);
+console.log('\n');
+
+const marker = 'AUDIO TAGS USAGE:';
+if (plain.includes(marker)) {
+  console.error(`FAIL: plain writer prompt still contains "${marker}" (deferred TTS mode).`);
+  process.exit(1);
+}
+if (plain.includes('OFFICIAL SUPPORTED TAGS:')) {
+  console.error('FAIL: plain prompt still contains ElevenLabs OFFICIAL SUPPORTED TAGS block.');
+  process.exit(1);
+}
+const lower = plain.toLowerCase();
+for (const tag of getAllAudioTags()) {
+  const needle = `[${tag.toLowerCase()}]`;
+  if (lower.includes(needle)) {
+    console.error(
+      `FAIL: plain prompt contains bracket token ${needle} (writer must not see Eleven audio-tag examples in deferred mode).`
+    );
+    process.exit(1);
+  }
+}
+console.log('[OK] defer-audio-tags: plain prompt has no writer audio-tag rules or whitelist [tag] examples.');
 console.log('\n');
 console.log('='.repeat(80));
 console.log('STRUCTURED WRITER — buildDirectTextPrompt');

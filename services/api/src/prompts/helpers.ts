@@ -238,6 +238,11 @@ export function formatStoryRequirements(params: {
   spec: StorySpec;
   sceneCount?: number;
   targetWordCount?: [number, number];
+  /**
+   * When `prose_only`, word-count line omits square-bracket audio-tag examples (defer-TTS writer flow).
+   * @default 'audio_tags_in_manuscript'
+   */
+  targetWordCountScope?: 'audio_tags_in_manuscript' | 'prose_only';
 }): string {
   const parts = [];
   
@@ -263,7 +268,9 @@ export function formatStoryRequirements(params: {
   }
 
   const wordCountScope =
-    ' (spoken story prose only; do not count words that appear only inside square-bracket audio tags like [happy] or [whisper])';
+    params.targetWordCountScope === 'prose_only'
+      ? ' (spoken story prose only)'
+      : ' (spoken story prose only; do not count words that appear only inside square-bracket audio tags like [happy] or [whisper])';
 
   if (params.targetWordCount) {
     parts.push(
@@ -944,10 +951,13 @@ export function formatSceneTextBoundaryRules(context: 'structured' | 'plain' = '
 /**
  * Writer-only rules for Director plain-text flow: TTS audio tags + scene prose boundaries.
  * Omits outfit/environment/sceneVisual composition rules (those belong to the Director pass).
+ * When includeAudioTagsInWriter is false (deferred prosody at TTS — app default), audio tag rules are omitted — tags are added at TTS time.
  */
 export function formatWriterPlainSceneRules(opts?: {
   scenarioCardId?: string;
   policyProfile?: PolicyProfile;
+  /** Default true. Set false when audio tags are deferred to the TTS pipeline. */
+  includeAudioTagsInWriter?: boolean;
 }): string {
   const policyProfile = opts?.policyProfile ?? {
     ageGroup: '6-8',
@@ -958,10 +968,13 @@ export function formatWriterPlainSceneRules(opts?: {
     readability: { maxSentenceLen: 18, targetWordsRange: [500, 800], dialogRatio: 0.5 },
     promptGuidelines: '',
   };
-  const audioTagsRules = getContentPolicy({
-    policyProfile,
-    scenarioCardId: opts?.scenarioCardId,
-  }).audioTagsRules;
+  const includeAudio = opts?.includeAudioTagsInWriter !== false;
+  const audioTagsRules = includeAudio
+    ? getContentPolicy({
+        policyProfile,
+        scenarioCardId: opts?.scenarioCardId,
+      }).audioTagsRules
+    : null;
   return [audioTagsRules, formatSceneTextBoundaryRules('plain')].filter(Boolean).join('\n\n');
 }
 

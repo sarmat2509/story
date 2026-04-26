@@ -1,5 +1,7 @@
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { SynthesizeRequest, SynthesizeResult, Voice, VoiceCatalogEntry } from '../../base/IAudioProvider';
+import type { TtsSpeechTagCatalog } from '../../base/TtsSpeechTagCatalog';
+import { buildGoogleGeminiTtsSpeechTagCatalog } from '../ttsSpeechTagCatalogs';
 import { BaseAudioProvider } from '../../base/BaseAudioProvider';
 import { GOOGLE_TTS_VOICE_CATALOG } from './voices';
 import { GoogleTagProcessor } from './GoogleTagProcessor';
@@ -50,15 +52,19 @@ export class GoogleTTSProvider extends BaseAudioProvider {
     // Validate input
     this.validateSynthesizeRequest(request);
     
-    const { text, voiceId, language, prosody } = request;
-    
+    const { text, voiceId, language, prosody, synthesizeStylePromptEn } = request;
+
     // Process tags using abstract interface
     const processed = this.tagProcessor.process(text, prosody);
-    
+
+    const styleFromLlm = synthesizeStylePromptEn?.trim();
+    const tagProcessorPrompt = processed.emotionalControl?.value?.trim();
+    const mergedPrompt = [styleFromLlm, tagProcessorPrompt].filter(Boolean).join('\n\n') || undefined;
+
     // Call Google TTS API with retry and timeout
     return this.retryWithBackoff(async () => {
       return this.withTimeout(
-        this.performSynthesis(processed.text, voiceId, language, processed.emotionalControl?.value),
+        this.performSynthesis(processed.text, voiceId, language, mergedPrompt),
         this.timeoutMs,
         'Google TTS synthesis'
       );
@@ -171,5 +177,9 @@ export class GoogleTTSProvider extends BaseAudioProvider {
     if (ssmlGender === 'MALE') return 'male';
     if (ssmlGender === 'FEMALE') return 'female';
     return 'neutral';
+  }
+
+  getTtsSpeechTagCatalog(): TtsSpeechTagCatalog {
+    return buildGoogleGeminiTtsSpeechTagCatalog();
   }
 }

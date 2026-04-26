@@ -1,4 +1,4 @@
-import { eq, and, or, ne } from 'drizzle-orm';
+import { and, asc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 import { getLocalizedVoiceDisplayName, getVoiceSamplePath } from '../utils/voicePresentation';
@@ -18,10 +18,7 @@ export class VoiceRepository {
     isPremium: boolean;
     provider: string;
   }>> {
-    const baseFilters =
-      language === 'uk'
-        ? and(eq(schema.ttsVoices.isActive, true), ne(schema.ttsVoices.provider, 'grok'))
-        : eq(schema.ttsVoices.isActive, true);
+    const baseFilters = eq(schema.ttsVoices.isActive, true);
 
     const voices = await this.db
       .select({
@@ -89,6 +86,7 @@ export class VoiceRepository {
     ageGroupId?: string | null;
   }): Promise<Array<{
     id: string;
+    provider: string;
     providerVoiceId: string;
     name: string;
     language: string;
@@ -112,13 +110,10 @@ export class VoiceRepository {
       filters.push(eq(schema.ttsVoices.gender, params.characterGender));
     }
 
-    if (params.language === 'uk') {
-      filters.push(ne(schema.ttsVoices.provider, 'grok'));
-    }
-
     let query = this.db
       .select({
         id: schema.ttsVoices.id,
+        provider: schema.ttsVoices.provider,
         providerVoiceId: schema.ttsVoices.providerVoiceId,
         name: schema.ttsVoices.name,
         language: schema.ttsVoices.language,
@@ -144,10 +139,7 @@ export class VoiceRepository {
   }
 
   async findFallbackByLanguage(language: string): Promise<schema.TtsVoice | null> {
-    const whereClause =
-      language === 'uk'
-        ? and(eq(schema.ttsVoices.isActive, true), ne(schema.ttsVoices.provider, 'grok'))
-        : eq(schema.ttsVoices.isActive, true);
+    const whereClause = eq(schema.ttsVoices.isActive, true);
 
     const [voice] = await this.db
       .select()
@@ -155,5 +147,87 @@ export class VoiceRepository {
       .where(whereClause)
       .limit(1);
     return voice || null;
+  }
+
+  private buildAdminListWhere(options: { search?: string; provider?: string }) {
+    const normalizedSearch = options.search?.trim();
+    const providerFilter = options.provider?.trim();
+    const conditions: SQL[] = [];
+
+    if (providerFilter) {
+      conditions.push(eq(schema.ttsVoices.provider, providerFilter));
+    }
+    if (normalizedSearch) {
+      const pattern = `%${normalizedSearch}%`;
+      conditions.push(
+        or(
+          ilike(schema.ttsVoices.name, pattern),
+          ilike(schema.ttsVoices.displayName, pattern),
+          ilike(schema.ttsVoices.providerVoiceId, pattern),
+          ilike(schema.ttsVoices.provider, pattern),
+        )!,
+      );
+    }
+
+    return conditions.length > 0 ? and(...conditions) : undefined;
+  }
+
+  /**
+   * All catalog rows (active or not), for admin UI.
+   */
+  async listForAdmin(options: {
+    limit: number;
+    offset: number;
+    search?: string;
+    provider?: string;
+  }): Promise<
+    Array<{
+      id: string;
+      provider: string;
+      providerVoiceId: string;
+      name: string;
+      displayName: string;
+      language: string;
+      isActive: boolean;
+      isPremium: boolean;
+      updatedAt: Date;
+    }>
+  > {
+    const where = this.buildAdminListWhere(options);
+    const base = this.db
+      .select({
+        id: schema.ttsVoices.id,
+        provider: schema.ttsVoices.provider,
+        providerVoiceId: schema.ttsVoices.providerVoiceId,
+        name: schema.ttsVoices.name,
+        displayName: schema.ttsVoices.displayName,
+        language: schema.ttsVoices.language,
+        isActive: schema.ttsVoices.isActive,
+        isPremium: schema.ttsVoices.isPremium,
+        updatedAt: schema.ttsVoices.updatedAt,
+      })
+      .from(schema.ttsVoices)
+      .orderBy(asc(schema.ttsVoices.provider), asc(schema.ttsVoices.name))
+      .limit(options.limit)
+      .offset(options.offset);
+    return where ? base.where(where) : base;
+  }
+
+  async countForAdmin(options: { search?: string; provider?: string }): Promise<number> {
+    const where = this.buildAdminListWhere(options);
+    const query = this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.ttsVoices);
+    const [row] = where ? await query.where(where) : await query;
+    return Number(row?.count ?? 0);
+  }
+
+  async updateIsActive(id: string, isActive: boolean): Promise<schema.TtsVoice | null> {
+    const [row] = await this.db
+      .update(schema.ttsVoices)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(schema.ttsVoices.id, id))
+      .returning();
+    return row ?? null;
   }
 }

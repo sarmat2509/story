@@ -9,6 +9,7 @@
  * Excludes: add_updated_at_triggers.sql (run separately after db:push)
  */
 
+import './loadEnvForScripts';
 import { join } from 'path';
 import { readdirSync, readFileSync } from 'fs';
 import { Pool } from 'pg';

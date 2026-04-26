@@ -10,7 +10,8 @@ type AdminRouteName =
   | 'AdminUsers'
   | 'AdminFeedback'
   | 'AdminValidations'
-  | 'AdminContentConfig';
+  | 'AdminContentConfig'
+  | 'AdminVoices';
 
 const sections: Array<{
   title: string;
@@ -28,7 +29,10 @@ const sections: Array<{
   },
   {
     title: 'Content',
-    items: [{ key: 'AdminContentConfig', label: 'Content Config', routeName: 'AdminContentConfig' }],
+    items: [
+      { key: 'AdminContentConfig', label: 'Content Config', routeName: 'AdminContentConfig' },
+      { key: 'AdminVoices', label: 'Voices', routeName: 'AdminVoices' },
+    ],
   },
 ];
 

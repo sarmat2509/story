@@ -199,6 +199,7 @@ const linking: any = {
           AdminScenesStory: 'stories/:storyId',
           AdminFeedback: 'feedback',
           AdminContentConfig: 'content-config',
+          AdminVoices: 'voices',
           AdminUsers: 'users',
           AdminValidations: 'validations',
           AdminValidationDetail: 'validations/:id',

@@ -16,7 +16,8 @@ import { logger } from '../utils/logger';
 import { recordUsage } from '../services/aiUsageService';
 import { ConcurrentJobQueue, type BaseJob } from './ConcurrentJobQueue';
 import { config } from '../config';
-import { getStoryRepository, getSceneRepository } from '../repositories';
+import { getStoryRepository, getSceneRepository, getVoiceRepository } from '../repositories';
+import { isGrokBlockedForStoryLanguage } from '../providers/audio/grok/supportedLocales';
 
 const ESTIMATED_SCENE_COUNT_BY_AGE_GROUP: Record<string, number> = {
   '0-1': 5,
@@ -302,7 +303,6 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
   const { getAudioDomainService } = await import('../domain/audio');
   const { groupScenesIntoChunks } = await import('../domain/audio/sceneGrouper');
   const { getAudioProviderByName } = await import('../services/aiService');
-  const { getVoiceRepository } = await import('../repositories');
 
   // Load story
   const story = await getStoryRepository().findById(job.storyId);
@@ -331,21 +331,46 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
   const plan = subscription ? await getPlanById(subscription.planId) : null;
   const planType = plan?.slug === 'premium' ? 'premium' : 'free';
 
-  // Resolve voice and provider for limits (no conditions — provider returns its own limits)
+  // Resolve voice for chunk limits (align with AudioDomainService: inactive / blocked → fallback)
   const voiceId = job.voiceParams?.voiceId;
-  const voice = voiceId ? await getVoiceRepository().findById(voiceId) : null;
-  const provider = getAudioProviderByName(voice?.provider ?? 'elevenlabs');
+  let voiceRow = voiceId ? await getVoiceRepository().findById(voiceId) : null;
+  if (voiceRow && !voiceRow.isActive) {
+    logger.warn(
+      { voiceId, storyId: job.storyId },
+      'Job voiceId points to inactive catalog row; using fallback for chunk limits'
+    );
+    voiceRow = null;
+  }
+  if (voiceRow?.provider === 'grok' && isGrokBlockedForStoryLanguage(story.language)) {
+    logger.warn(
+      { voiceId, storyLanguage: story.language },
+      'Grok not used for this story language; using fallback for chunk limits'
+    );
+    voiceRow = null;
+  }
+  if (!voiceRow) {
+    voiceRow = await getVoiceRepository().findFallbackByLanguage(story.language);
+  }
+  const provider = getAudioProviderByName(voiceRow?.provider ?? 'elevenlabs');
   const concurrencyLimit = provider.getMaxConcurrency(plan?.slug);
   const maxCharsPerChunk = provider.getMaxCharsPerChunk();
 
   // Group scenes for parallel generation (provider-specific char limit)
   const sceneGroups = groupScenesIntoChunks(scenesForAudio, concurrencyLimit, maxCharsPerChunk);
 
-  logger.info({
-    storyId: job.storyId,
-    concurrencyLimit,
-    numGroups: sceneGroups.length,
-  }, 'Scene groups created for audio generation');
+  logger.info(
+    {
+      storyId: job.storyId,
+      concurrencyLimit,
+      numGroups: sceneGroups.length,
+      jobVoiceId: voiceId ?? null,
+      voiceCatalogDbId: voiceRow?.id,
+      voiceCatalogProvider: voiceRow?.provider,
+      voiceCatalogProviderVoiceId: voiceRow?.providerVoiceId,
+      voiceCatalogName: voiceRow?.name,
+    },
+    'Scene groups created for audio generation',
+  );
 
   const audioDomain = getAudioDomainService();
   const audioGenStart = Date.now();
@@ -364,9 +389,13 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
     const audioGenerationTimeMs = Date.now() - audioGenStart;
     const fullTextLength = scenesForAudio.reduce((sum, s) => sum + s.text.length, 0);
 
-    // Update story with audio metadata + generation timing
+    // Merge: synthesizeSceneGroups already wrote timing + sceneGroupAssetIds to audio_metadata
+    const freshAfterSynth = await getStoryRepository().findById(job.storyId);
+    const metaAfterSynth = (freshAfterSynth?.audioMetadata as StoryAudioMetadata | null) ?? {};
+
     await getStoryRepository().updateStory(job.storyId, {
       audioMetadata: {
+        ...metaAfterSynth,
         voiceId: result.voiceId,
         voiceName: result.voiceName,
         totalDuration: result.duration,
@@ -375,7 +404,7 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
         audioGenerationTimeMs,
         fullTextLength,
         concurrencyLimit,
-        numChunks: sceneGroups.length,
+        numChunks: result.numTtsChunks ?? sceneGroups.length,
       },
     });
 
@@ -421,7 +450,8 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
       const { getAlignmentRepository } = await import('../repositories');
       await getAlignmentRepository().upsert(job.storyId, alignmentData, finalAssetId);
 
-      const currentAudioMetadata = (story.audioMetadata as StoryAudioMetadata | null) || {};
+      const alignedFresh = await getStoryRepository().findById(job.storyId);
+      const currentAudioMetadata = (alignedFresh?.audioMetadata as StoryAudioMetadata | null) || {};
       await getStoryRepository().updateStory(job.storyId, {
         audioMetadata: {
           ...currentAudioMetadata,
@@ -827,7 +857,6 @@ class StoryJobQueue {
       try {
         const { getGenerationCoefficients, estimateAudioGenerationMs } = await import('../services/generationTimeService');
         const { getAudioProviderByName } = await import('../services/aiService');
-        const { getVoiceRepository } = await import('../repositories');
         const { getUserSubscription, getPlanById } = await import('../services/planService');
         const story = await getStoryRepository().findById(requestIdOrJobData.storyId);
         if (story) {
@@ -836,8 +865,17 @@ class StoryJobQueue {
             story.fullText?.length ??
             (typeof metaFullTextLength === 'number' ? metaFullTextLength : 0);
           const voiceId = requestIdOrJobData.voiceParams?.voiceId;
-          const voice = voiceId ? await getVoiceRepository().findById(voiceId) : null;
-          const provider = getAudioProviderByName(voice?.provider ?? 'elevenlabs');
+          let voiceRow = voiceId ? await getVoiceRepository().findById(voiceId) : null;
+          if (voiceRow && !voiceRow.isActive) {
+            voiceRow = null;
+          }
+          if (voiceRow?.provider === 'grok' && isGrokBlockedForStoryLanguage(story.language)) {
+            voiceRow = null;
+          }
+          if (!voiceRow) {
+            voiceRow = await getVoiceRepository().findFallbackByLanguage(story.language);
+          }
+          const provider = getAudioProviderByName(voiceRow?.provider ?? 'elevenlabs');
           const subscription = await getUserSubscription(requestIdOrJobData.userId);
           const plan = subscription ? await getPlanById(subscription.planId) : null;
           const concurrencyLimit = provider.getMaxConcurrency(plan?.slug);

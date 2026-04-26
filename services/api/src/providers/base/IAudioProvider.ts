@@ -61,6 +61,11 @@ export interface SynthesizeRequest {
   language: string;       // Required: 'uk', 'en', 'ru', etc.
   prosody?: ProsodySettings;
   outputFormat?: 'mp3' | 'wav' | 'ogg';
+  /**
+   * Google Gemini-TTS only: natural-language performance direction in English, merged into
+   * the synthesis `prompt` alongside tag-processor hints (deferred prosody LLM output).
+   */
+  synthesizeStylePromptEn?: string;
 }
 
 /**
@@ -77,6 +82,8 @@ export interface SynthesizeResult {
     model?: string;
   };
 }
+
+import type { TtsSpeechTagCatalog } from './TtsSpeechTagCatalog';
 
 /**
  * IAudioProvider - Provider-agnostic interface for TTS/audio generation
@@ -133,4 +140,9 @@ export interface IAudioProvider {
    * ElevenLabs uses planSlug; Google/OpenAI ignore and return fixed limit.
    */
   getMaxConcurrency(planSlug?: string): number;
+
+  /**
+   * Vendor-specific whitelist + LLM instructions when deferred prosody tagging runs before synthesis.
+   */
+  getTtsSpeechTagCatalog(): TtsSpeechTagCatalog;
 }

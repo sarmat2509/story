@@ -129,6 +129,57 @@ export class AssetRepository {
       .where(eq(schema.audioAssets.storyId, storyId));
   }
 
+  /** Removes all `audio_assets` rows for a story (run before deleting `assets` audio files). */
+  async deleteAudioAssetsByStoryId(storyId: string): Promise<void> {
+    await this.db.delete(schema.audioAssets).where(eq(schema.audioAssets.storyId, storyId));
+  }
+
+  /** Deletes `assets` rows for this story with `asset_type = 'audio'` (partial chunks + final mix). */
+  async deleteStoryAudioFileAssets(storyId: string): Promise<void> {
+    await this.db
+      .delete(schema.assets)
+      .where(and(eq(schema.assets.storyId, storyId), eq(schema.assets.assetType, 'audio')));
+  }
+
+  /** Partial/final row keyed by assets.id (sceneGroupAssetIds entries point at assets.id). */
+  async findAudioAssetByStoryAndAssetId(
+    storyId: string,
+    assetId: string
+  ): Promise<schema.AudioAsset | null> {
+    const [row] = await this.db
+      .select()
+      .from(schema.audioAssets)
+      .where(
+        and(
+          eq(schema.audioAssets.storyId, storyId),
+          eq(schema.audioAssets.assetId, assetId)
+        )
+      )
+      .limit(1);
+    return row || null;
+  }
+
+  /** Latest completed row with stored TTS input (e.g. retry `synthesizeStory` without re-running prosody LLM). */
+  async findLatestTaggedAudioInputByStoryAndVoice(
+    storyId: string,
+    voiceUuid: string
+  ): Promise<schema.AudioAsset | null> {
+    const [row] = await this.db
+      .select()
+      .from(schema.audioAssets)
+      .where(
+        and(
+          eq(schema.audioAssets.storyId, storyId),
+          eq(schema.audioAssets.voiceId, voiceUuid),
+          eq(schema.audioAssets.status, 'completed'),
+          isNotNull(schema.audioAssets.synthesisTaggedText)
+        )
+      )
+      .orderBy(desc(schema.audioAssets.createdAt))
+      .limit(1);
+    return row || null;
+  }
+
   async findCachedAudio(
     textHash: string,
     voiceId: string,

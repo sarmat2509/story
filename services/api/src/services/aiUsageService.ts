@@ -19,6 +19,9 @@ export interface UsageContext {
 export const USAGE_OP_IMAGE_ENVIRONMENT = 'image_environment';
 export const USAGE_OP_IMAGE_OUTFIT_PLATE = 'image_outfit_plate';
 
+/** Deferred TTS prosody LLM (`enrichDeferredProsodyForTtsChunk`); priced like text tokens (same provider/model). */
+export const USAGE_OP_TTS_PROSODY_TAGS = 'tts_prosody_tags';
+
 function isImageGenerationPricedOperation(operation: string): boolean {
   return (
     operation === 'image_generate' ||
@@ -62,7 +65,17 @@ function calculateCost(usage: UsageMetadata): number | null {
       : Math.max(usage.inputUnits - (usage.cachedInputUnits ?? 0), 0);
 
   try {
-    if (operation.includes('text') || operation === 'character_analysis' || operation === 'translation' || operation === 'face_dedup' || operation === 'image_validation' || operation === 'validateScene' || operation === 'regenerateScene' || operation === 'director') {
+    if (
+      operation.includes('text') ||
+      operation === USAGE_OP_TTS_PROSODY_TAGS ||
+      operation === 'character_analysis' ||
+      operation === 'translation' ||
+      operation === 'face_dedup' ||
+      operation === 'image_validation' ||
+      operation === 'validateScene' ||
+      operation === 'regenerateScene' ||
+      operation === 'director'
+    ) {
       const textConfig = getTextCostConfig(modelKey);
       if (textConfig && 'inputPer1M' in textConfig) {
         const inputCost = (billedInputUnits / 1e6) * textConfig.inputPer1M;
@@ -84,12 +97,11 @@ function calculateCost(usage: UsageMetadata): number | null {
           imageTokens1K?: number;
           imageTokensPer1K?: number;
         };
-        const imageTokens = usage.imageTokens ?? imgConfig.imageTokens1K ?? imgConfig.imageTokensPer1K ?? 1120;
+        const imageTokens =
+          usage.imageTokens ?? imgConfig.imageTokens1K ?? imgConfig.imageTokensPer1K ?? 1120;
         const thoughtTokens = usage.thoughtTokens ?? 0;
         const inputCost =
-          imgConfig.inputPer1M != null
-            ? (billedInputUnits / 1e6) * imgConfig.inputPer1M
-            : 0;
+          imgConfig.inputPer1M != null ? (billedInputUnits / 1e6) * imgConfig.inputPer1M : 0;
         const imageCost = (imageTokens / 1e6) * imgConfig.imageRatePer1M;
         const thinkingCost = imgConfig.thinkingRatePer1M
           ? (thoughtTokens / 1e6) * imgConfig.thinkingRatePer1M
@@ -190,7 +202,13 @@ export async function getStoryCost(storyId: string): Promise<number> {
  * Get cost breakdown for a story (for admin/debug)
  */
 export async function getStoryCostBreakdown(storyId: string): Promise<
-  Array<{ provider: string; operation: string; model: string | null; costUsd: number; createdAt: Date }>
+  Array<{
+    provider: string;
+    operation: string;
+    model: string | null;
+    costUsd: number;
+    createdAt: Date;
+  }>
 > {
   return getAiUsageRepository().getStoryCostBreakdown(storyId);
 }
@@ -224,10 +242,7 @@ export async function getStoryCacheStats(storyId: string): Promise<{
         : typeof effectiveInputUnitsRaw === 'string'
           ? Number(effectiveInputUnitsRaw)
           : Math.max((event.inputUnits ?? 0) - cachedInputUnits, 0);
-    const cacheHit =
-      typeof cacheHitRaw === 'boolean'
-        ? cacheHitRaw
-        : cachedInputUnits > 0;
+    const cacheHit = typeof cacheHitRaw === 'boolean' ? cacheHitRaw : cachedInputUnits > 0;
 
     totalCachedInputUnits += Number.isFinite(cachedInputUnits) ? cachedInputUnits : 0;
     totalEffectiveInputUnits += Number.isFinite(effectiveInputUnits) ? effectiveInputUnits : 0;
@@ -246,6 +261,10 @@ export async function getStoryCacheStats(storyId: string): Promise<{
 /**
  * Get user's AI cost for a month
  */
-export async function getUserMonthlyCost(userId: string, year: number, month: number): Promise<number> {
+export async function getUserMonthlyCost(
+  userId: string,
+  year: number,
+  month: number
+): Promise<number> {
   return getAiUsageRepository().getUserMonthlyCost(userId, year, month);
 }

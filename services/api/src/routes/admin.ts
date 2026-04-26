@@ -13,9 +13,12 @@ import {
   listAdminDirectorScenes,
   listAdminImageValidations,
   listAdminStories,
+  adminResetStoryAudio,
   listAdminUsers,
+  listAdminVoices,
   updateAdminStoryHomePageFlag,
   updateAdminConfigItem,
+  updateAdminVoiceActive,
 } from '../services/adminService';
 import { updateAdminUserSettings } from '../services/adminUserService';
 import { logger } from '../utils/logger';
@@ -48,6 +51,20 @@ const UserIdParamsSchema = z.object({
   userId: z.string().uuid(),
 });
 
+const VoiceIdParamsSchema = z.object({
+  voiceId: z.string().uuid(),
+});
+
+const AdminVoicesListQuerySchema = ListQuerySchema.extend({
+  provider: z.string().trim().min(1).max(50).optional(),
+});
+
+const UpdateAdminVoiceBodySchema = z
+  .object({
+    isActive: z.boolean(),
+  })
+  .strict();
+
 const ValidationIdParamsSchema = z.object({
   id: z.string().uuid(),
 });
@@ -60,6 +77,16 @@ const StorySceneParamsSchema = z.object({
 const AdminRegenerateSceneImageBodySchema = z.object({
   visualPrompt: z.string().trim().min(1).optional(),
 }).strict();
+
+const AdminResetStoryAudioBodySchema = z
+  .object({
+    /** When true, enqueue `audio_generation` after DB/storage cleanup (full rebuild from scratch). */
+    regenerate: z.boolean().optional(),
+    voiceId: z.string().uuid().optional(),
+    speed: z.coerce.number().min(0.5).max(2).optional(),
+    nightMode: z.boolean().optional(),
+  })
+  .strict();
 
 const AdminConfigResourceSchema = z.enum([
   'plans',
@@ -474,6 +501,74 @@ router.get('/users', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/voices', async (req: Request, res: Response) => {
+  try {
+    const parsed = AdminVoicesListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid query',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const { limit, offset, search, provider } = parsed.data;
+    const data = await listAdminVoices({ limit, offset, search, provider });
+
+    return res.json({
+      status: 'success',
+      data,
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin voices list failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to list voices',
+    });
+  }
+});
+
+router.patch('/voices/:voiceId', async (req: Request, res: Response) => {
+  try {
+    const parsedParams = VoiceIdParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid params',
+        details: parsedParams.error.flatten(),
+      });
+    }
+
+    const parsedBody = UpdateAdminVoiceBodySchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid body',
+        details: parsedBody.error.flatten(),
+      });
+    }
+
+    const data = await updateAdminVoiceActive(parsedParams.data.voiceId, parsedBody.data.isActive);
+    if (!data) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Voice not found',
+      });
+    }
+
+    return res.json({
+      status: 'success',
+      data,
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin voice update failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to update voice',
+    });
+  }
+});
+
 router.get('/feedback', async (req: Request, res: Response) => {
   try {
     const parsed = FeedbackListQuerySchema.safeParse(req.query);
@@ -609,6 +704,64 @@ router.get('/image-validations/:id', async (req: Request, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to get image validation',
+    });
+  }
+});
+
+router.post('/stories/:storyId/audio/reset', async (req: Request, res: Response) => {
+  try {
+    const parsedParams = StoryIdParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid params',
+        details: parsedParams.error.flatten(),
+      });
+    }
+
+    const parsedBody = AdminResetStoryAudioBodySchema.safeParse(req.body ?? {});
+    if (!parsedBody.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid body',
+        details: parsedBody.error.flatten(),
+      });
+    }
+
+    const story = await getStoryRepository().findById(parsedParams.data.storyId);
+    if (!story) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Story not found',
+      });
+    }
+
+    const data = await adminResetStoryAudio(parsedParams.data.storyId, {
+      regenerate: parsedBody.data.regenerate === true,
+      voiceId: parsedBody.data.voiceId,
+      speed: parsedBody.data.speed,
+      nightMode: parsedBody.data.nightMode,
+    });
+
+    logger.info(
+      {
+        adminUserId: req.user?.id,
+        storyId: parsedParams.data.storyId,
+        regenerate: parsedBody.data.regenerate === true,
+        jobId: data.jobId,
+      },
+      'Admin story audio reset',
+    );
+
+    return res.json({
+      status: 'success',
+      data,
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin story audio reset failed');
+    return res.status(500).json({
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Failed to reset story audio',
     });
   }
 });

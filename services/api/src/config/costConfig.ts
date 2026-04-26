@@ -26,6 +26,7 @@ export interface AudioTokenCostConfig {
   audioTokensPerSecond: number;
 }
 
+/** Text token rates also apply to `tts_prosody_tags` usage events (same input/output token units). */
 export const AI_COST_CONFIG = {
   text: {
     'gemini-2.5-flash': { inputPer1M: 0.3, outputPer1M: 2.5 } as TextCostConfig,

@@ -163,7 +163,9 @@ export class GeminiTextProvider implements ITextProvider {
             responseMimeType: 'application/json',
             responseSchema: geminiSchema as any, // TypeScript workaround for complex nested schemas
             temperature: request.temperature ?? 0.7,
-            ...(request.maxTokens && { maxOutputTokens: request.maxTokens }),
+            // Gemini 3+ may use internal "thinking" tokens against the output budget; keep a high floor
+            // so structured payloads (e.g. full `taggedText` echoing long input) are not truncated mid-JSON.
+            maxOutputTokens: Math.min(98304, Math.max(request.maxTokens ?? 8192, 8192)),
             ...(request.topP && { topP: request.topP }),
             ...(request.topK && { topK: request.topK }),
             ...(cachedContentName && { cachedContent: cachedContentName }),
@@ -215,10 +217,12 @@ export class GeminiTextProvider implements ITextProvider {
       // Check if response was truncated due to token limit
       const candidate = result.candidates?.[0];
       if (candidate?.finishReason === 'MAX_TOKENS') {
+        const effectiveMaxOut = Math.min(98304, Math.max(request.maxTokens ?? 8192, 8192));
         logger.warn({
           finishReason: candidate.finishReason,
           responseLength: responseText.length,
-          maxTokens: request.maxTokens,
+          maxOutputTokens: effectiveMaxOut,
+          requestedMaxTokens: request.maxTokens,
         }, 'Response was truncated due to MAX_TOKENS - increase maxOutputTokens');
         throw new Error('Response truncated: increase maxOutputTokens parameter');
       }
@@ -349,7 +353,7 @@ export class GeminiTextProvider implements ITextProvider {
           contents: promptText,
           config: {
             temperature: request.temperature ?? 0.7,
-            ...(request.maxTokens && { maxOutputTokens: request.maxTokens }),
+            maxOutputTokens: request.maxTokens ?? 4096,
             ...(request.topP && { topP: request.topP }),
             ...(request.topK && { topK: request.topK }),
             ...(request.stopSequences && { stopSequences: request.stopSequences }),

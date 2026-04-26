@@ -13,6 +13,7 @@ export type AdminStackParamList = {
   AdminFeedback: undefined;
   AdminValidations: undefined;
   AdminContentConfig: undefined;
+  AdminVoices: undefined;
   AdminValidationDetail: { id: string };
   AdminScenes: undefined;
   AdminScenesStory: { storyId: string };

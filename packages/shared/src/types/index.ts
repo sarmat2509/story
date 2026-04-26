@@ -354,9 +354,34 @@ export interface StoryAudioMetadata {
 
   // Internal/timing (optional, used for generation metrics)
   audioGenerationTimeMs?: number;
+  /** Wall time for deferred prosody LLM (audio tags), single full-story call when applicable. */
+  prosodyTaggingTimeMs?: number;
+  /**
+   * Sum of per-chunk TTS `synthesize` durations (serial equivalent; not user wait when chunks run in parallel).
+   */
+  ttsChunksSynthesisTimeMs?: number;
+  /** Wall clock for the whole TTS chunk loop (batches run sequentially; chunks inside a batch run in parallel). */
+  ttsBatchWallTimeMs?: number;
+  /**
+   * Sum of wall clocks around each `Promise.all` batch (parallel within batch).
+   * Close to user-visible TTS synthesize wait; slightly less than `ttsBatchWallTimeMs` if there is inter-batch overhead.
+   */
+  ttsSynthesisBatchesWallMs?: number;
+  /**
+   * Sum over batches of max(chunk synthesize ms) in that batch — lower bound if parallelism were perfect and overhead zero.
+   */
+  ttsChunksParallelEstimateMs?: number;
   fullTextLength?: number;
   concurrencyLimit?: number;
   numChunks?: number;
+
+  /**
+   * Deferred prosody (full story + vendor tags) persisted as soon as the prosody LLM returns,
+   * before per-chunk TTS. `deferredTtsChunkCharLengths` partitions this string in order (UTF-16
+   * code units); sum must equal `deferredTaggedFullText.length`.
+   */
+  deferredTaggedFullText?: string;
+  deferredTtsChunkCharLengths?: number[];
 }
 
 // ==========================================

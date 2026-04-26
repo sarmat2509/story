@@ -1,5 +1,45 @@
 // Single entry point: docker-compose. Env comes from env_file (.env.local or .env.production).
 
+import fs from 'fs';
+import path from 'path';
+
+/** Monorepo root (`story/`), from `services/api/src/config` → `config` → `src` → `api` → `services` → repo. */
+const REPO_ROOT_FOR_SECRETS = path.join(__dirname, '../../../../');
+
+/**
+ * When `.env.local` reuses Docker's `GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/foo.json`
+ * but the API runs on the host, map to `./secrets/foo.json` at repo root (same layout as compose).
+ */
+function resolveDockerAppSecretsPathToRepo(dockerPath: string): string | null {
+  const m = dockerPath.match(/^\/app\/secrets\/([^/]+)$/);
+  if (!m?.[1]) return null;
+  const local = path.join(REPO_ROOT_FOR_SECRETS, 'secrets', m[1]);
+  try {
+    if (fs.existsSync(local)) return local;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** Prefer a credentials path that exists on disk (Docker paths often break local CLI). */
+function resolveGoogleServiceAccountKeyPath(): string {
+  const candidates = [
+    process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim(),
+    process.env.GOOGLE_CLOUD_CREDENTIALS?.trim(),
+  ].filter((p): p is string => !!p);
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p;
+      const mapped = resolveDockerAppSecretsPathToRepo(p);
+      if (mapped) return mapped;
+    } catch {
+      /* ignore */
+    }
+  }
+  return '';
+}
+
 // Debug: Log if OAuth credentials are loaded
 if (process.env.NODE_ENV === 'development') {
   console.log('🔐 OAuth Config Check:');
@@ -89,6 +129,12 @@ export const config = {
     // Structured text (Director, validation, etc.): GEMINI_TEXT_MODEL overrides legacy AI_MODEL_VERSION
     modelVersion:
       process.env.GEMINI_TEXT_MODEL || process.env.AI_MODEL_VERSION || 'gemini-3-flash-preview',
+    /**
+     * Structured JSON for deferred TTS prosody (full `taggedText` echo). Gemini 3 preview can hit
+     * MAX_TOKENS when internal thinking competes with long JSON output — default to 2.5 Flash here only.
+     */
+    ttsProsodyTagsModel:
+      (process.env.GEMINI_TTS_PROSODY_MODEL || '').trim() || 'gemini-2.5-flash',
     validationModel: process.env.GEMINI_VALIDATION_MODEL || 'gemini-2.5-flash-lite',
     geminiContextCacheMinEstimatedTokens: parseInt(
       process.env.GEMINI_CONTEXT_CACHE_MIN_ESTIMATED_TOKENS || '1024',
@@ -222,7 +268,7 @@ export const config = {
     // NEW: Google Cloud TTS configuration
     google: {
       projectId: process.env.GOOGLE_CLOUD_PROJECT || '',
-      credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS || '', // path to JSON
+      credentials: resolveGoogleServiceAccountKeyPath(),
       model: process.env.GOOGLE_TTS_MODEL || 'gemini-2.5-flash-tts',
       location: process.env.GOOGLE_TTS_LOCATION || 'global', // or 'us', 'eu'
     },
@@ -258,6 +304,8 @@ export const config = {
     quotaRefreshIntervalMs: parseInt(process.env.AUDIO_QUOTA_REFRESH_INTERVAL_MS || '300000', 10), // 5 min
     queueTimeoutMs: parseInt(process.env.AUDIO_QUEUE_TIMEOUT_MS || '300000', 10), // 5 min
     safetyMargin: parseFloat(process.env.AUDIO_SAFETY_MARGIN || '0.9'), // Use 90% of quota
+    /** When true: writer prompts omit audio-tag rules; TTS prosody tags are added in AudioDomainService before synthesis. */
+    deferAudioTagsToTts: true,
     // Concurrency limits by plan (ElevenLabs Multilingual v2)
     concurrency: {
       free: 2,

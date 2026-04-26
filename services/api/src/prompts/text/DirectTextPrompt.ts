@@ -7,6 +7,7 @@
 import * as helpers from '../helpers';
 import { getContentPolicy } from '../contentPolicy';
 import type { StorySpec } from '../../ai/types';
+import config from '../../config';
 
 export interface DirectTextPromptParams {
   spec: StorySpec;
@@ -90,6 +91,11 @@ export function buildDirectTextPrompt(params: DirectTextPromptParams): string {
     previousEnvironments,
     previousOutfits,
   } = params;
+
+  const includeWriterAudioTags = !config.audio.deferAudioTagsToTts;
+  const structuredSceneTextHint = includeWriterAudioTags
+    ? 'Full scene text (1-3 paragraphs) with embedded ElevenLabs v3 audio tags for expressive narration.'
+    : 'Full scene text (1-3 paragraphs) of narration prose only — do not put audio tags or square-bracket performance cues in the text; they are added at narration time.';
 
   const charactersSection = isContinuation && requiredCharacters
     ? helpers.formatSupportingCharactersContinuation(requiredCharacters, optionalCharacters)
@@ -176,7 +182,11 @@ ${reuseEnvironmentsSection}
 
 ${reuseOutfitsSection}
 
-${helpers.formatStoryRequirements({ spec, sceneCount })}
+${helpers.formatStoryRequirements({
+    spec,
+    sceneCount,
+    targetWordCountScope: includeWriterAudioTags ? 'audio_tags_in_manuscript' : 'prose_only',
+  })}
 
 ${helpers.formatAgeRequirements(spec.ageGroup)}
 
@@ -188,7 +198,12 @@ ${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRu
 
 ${helpers.formatNarrativeContinuityRules()}
 
-${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle, scenarioCardId: spec.scenarioCard?.id, policyProfile: spec.policyProfile })}
+${helpers.formatVisualStoryRules({
+    imageStyle: spec.imageStyle,
+    scenarioCardId: spec.scenarioCard?.id,
+    policyProfile: spec.policyProfile,
+    includeAudioTagsRules: includeWriterAudioTags,
+  })}
 
 OUTPUT FORMAT (JSON). Order: characters, moral, scenes (each sceneVisual.cameraComposition.characters with name, description, outfitId per row), then outfits (canonical wardrobe rows), then environments LAST — one entry per unique environmentId. Wardrobe lives ONLY in outfits[] + outfitId on each camera character row — not on environments.
 {
@@ -208,7 +223,7 @@ OUTPUT FORMAT (JSON). Order: characters, moral, scenes (each sceneVisual.cameraC
     {
       "sceneId": 1,
       "environmentId": "short_id",
-      "text": "Full scene text (1-3 paragraphs) with embedded ElevenLabs v3 audio tags for expressive narration.",
+      "text": "${structuredSceneTextHint}",
       "sceneVisual": {
         "setting": "Complete physical setting for this scene IN ENGLISH: room layout, furniture, objects, wall decorations, floor material, materials, textures, colors, weather, time of day.",
         "cameraComposition": {
@@ -285,6 +300,11 @@ export function buildDirectTextPromptPlain(params: DirectTextPromptParams): stri
     previousEnvironments,
     previousOutfits,
   } = params;
+
+  const includeWriterAudioTagsPlain = !config.audio.deferAudioTagsToTts;
+  const plainSceneExampleLine = includeWriterAudioTagsPlain
+    ? 'Scene 1 text (1-3 paragraphs with ElevenLabs v3 audio tags for expressive narration)...'
+    : 'Scene 1 text (1-3 paragraphs of narration prose only — no audio tags or square-bracket performance cues)...';
 
   const charactersSection =
     isContinuation && requiredCharacters
@@ -375,7 +395,11 @@ ${reuseEnvironmentsSectionPlain}
 
 ${reuseOutfitsSectionPlain}
 
-${helpers.formatStoryRequirements({ spec, sceneCount })}
+${helpers.formatStoryRequirements({
+    spec,
+    sceneCount,
+    targetWordCountScope: includeWriterAudioTagsPlain ? 'audio_tags_in_manuscript' : 'prose_only',
+  })}
 
 ${helpers.formatAgeRequirements(spec.ageGroup)}
 
@@ -390,6 +414,7 @@ ${helpers.formatNarrativeContinuityRules()}
 ${helpers.formatWriterPlainSceneRules({
   scenarioCardId: spec.scenarioCard?.id,
   policyProfile: spec.policyProfile,
+  includeAudioTagsInWriter: includeWriterAudioTagsPlain,
 })}
 
 IMPORTANT — Character introductions (prose only; no JSON character list):
@@ -411,7 +436,7 @@ title: Story title in ${spec.language}
 description: Short SEO description (1-2 sentences, max 160 characters). ${isContinuation && previousOutlines && previousOutlines.length > 0 ? 'For continuations, describe THIS episode\'s adventure. Do not summarize the whole series. ' : ''}Summarize the story for search engines.
 
 ---
-Scene 1 text (1-3 paragraphs with ElevenLabs v3 audio tags for expressive narration)...
+${plainSceneExampleLine}
 ---
 Scene 2 text...
 ---

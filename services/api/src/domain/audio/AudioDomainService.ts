@@ -27,6 +27,13 @@ import { getAudioRateLimiter } from '../../services/audioRateLimiter';
 import { config } from '../../config';
 import { ElevenLabsProvider } from '../../providers/audio/elevenlabs/ElevenLabsProvider';
 import { stripForAudio } from '../../utils/audioTags';
+import {
+  stripApprovedCatalogMarkup,
+  sanitizeVendorMarkup,
+  validateTaggedAgainstCanon,
+  splitTaggedTextForTtsChunks,
+} from '../../utils/ttsProsodyTaggedText';
+import { readVendorStylePromptEnFromGenerationParams } from '../../services/ttsProsodyTaggingService';
 import { isGrokBlockedForStoryLanguage } from '../../providers/audio/grok/supportedLocales';
 
 /**
@@ -48,6 +55,13 @@ export interface AudioResult {
   voiceId: string;
   voiceName: string;
   cached: boolean;
+  /** Number of TTS segments (after deferred prosody split); may differ from scene-group count. */
+  numTtsChunks?: number;
+  prosodyTaggingTimeMs?: number;
+  ttsChunksSynthesisTimeMs?: number;
+  ttsBatchWallTimeMs?: number;
+  ttsSynthesisBatchesWallMs?: number;
+  ttsChunksParallelEstimateMs?: number;
 }
 
 /**
@@ -126,43 +140,160 @@ export class AudioDomainService {
       );
     }
 
-    logger.info(
-      {
-        storyId: story.id,
-        voiceId: voice.id,
-        voiceName: voice.name,
-        voiceGender: voice.gender,
-        provider: voice.provider,
-      },
-      'Voice selected'
-    );
-    
-    // 2. Get provider based on voice.provider
-    const { getAudioProviderByName } = await import('../../services/aiService');
-    const audioProvider = getAudioProviderByName(voice.provider || 'elevenlabs');
-    
-    logger.info(
-      {
-        storyId: story.id,
-        provider: voice.provider,
-        providerType: audioProvider.constructor.name,
-      },
-      'Audio provider selected for voice'
-    );
-    
-    // Log provider info for debugging
-    logger.debug(
-      {
-        providerType: audioProvider.constructor.name,
-        provider: voice.provider,
-      },
-      'Provider state before synthesis'
-    );
+    const voiceDbUuid = (voice as Voice & { dbId?: string }).dbId;
+    const providerName = voice.provider || 'elevenlabs';
 
     logger.info(
       {
         storyId: story.id,
-        totalGroups: sceneGroups.length,
+        voiceDbUuid,
+        providerVoiceId: voice.id,
+        voiceName: voice.name,
+        voiceGender: voice.gender,
+        catalogProvider: voice.provider,
+        synthesizeProvider: providerName,
+      },
+      'Voice selected for TTS'
+    );
+    
+    // 2. Get provider based on voice.provider
+    const { getAudioProviderByName } = await import('../../services/aiService');
+    const audioProvider = getAudioProviderByName(providerName);
+    
+    logger.info(
+      {
+        storyId: story.id,
+        voiceDbUuid,
+        providerVoiceId: voice.id,
+        catalogProvider: voice.provider,
+        synthesizeProvider: providerName,
+        audioProviderClass: audioProvider.constructor.name,
+      },
+      'TTS provider resolved for selected voice'
+    );
+
+    let groupsToSynth: Array<{
+      scenes: any[];
+      text: string;
+      totalChars: number;
+      ttsStylePromptEn?: string;
+    }> = sceneGroups.map((g) => ({
+      scenes: g.scenes,
+      text: g.text,
+      totalChars: g.totalChars,
+    }));
+
+    /** Persisted to `stories.audio_metadata` right after deferred prosody (before chunk TTS). */
+    let deferredTaggedPersist: string | undefined;
+    let deferredChunkLensPersist: number[] | undefined;
+
+    /** Scene-group texts are joined with spaces; single-LLM tagged chunks already partition the string with no glue. */
+    let ttsFullTextJoiner: 'space' | 'none' = 'space';
+    let prosodyTaggingTimeMs = 0;
+    let ttsChunksSynthesisTimeMs = 0;
+    let ttsSynthesisBatchesWallMs = 0;
+    let ttsChunksParallelEstimateMs = 0;
+
+    if (config.audio.deferAudioTagsToTts) {
+      const catalog = audioProvider.getTtsSpeechTagCatalog();
+      if (catalog.markupModel !== 'none_use_instructions') {
+        const { enrichDeferredProsodyForTtsChunk } = await import('../../services/ttsProsodyTaggingService');
+        const voiceDbId = (voice as { dbId?: string }).dbId ?? null;
+
+        const rawNarration =
+          story.fullText && String(story.fullText).trim().length > 0
+            ? String(story.fullText)
+            : sceneGroups.map((g) => g.text).join(' ');
+        const fullCanon = this.normalizeText(rawNarration, story.language);
+
+        let taggedFull: string | undefined;
+        let sharedVendorStylePromptEn: string | undefined;
+        let usedLlmProsody = false;
+        let reusedFullFromDb = false;
+
+        if (voiceDbId) {
+          const priorAudio = await getAssetRepository().findLatestTaggedAudioInputByStoryAndVoice(
+            story.id,
+            voiceDbId
+          );
+          const rawStored = priorAudio?.synthesisTaggedText?.trim();
+          if (rawStored) {
+            const { text: sanitized } = sanitizeVendorMarkup(rawStored, catalog);
+            if (validateTaggedAgainstCanon(sanitized, fullCanon, catalog, story.language)) {
+              taggedFull = sanitized;
+              reusedFullFromDb = true;
+              if (priorAudio?.assetId) {
+                const priorAsset = await getAssetRepository().findById(priorAudio.assetId);
+                const style = readVendorStylePromptEnFromGenerationParams(priorAsset?.generationParams);
+                sharedVendorStylePromptEn = style || undefined;
+              }
+              logger.info(
+                { storyId: story.id, source: 'db_audio_assets' },
+                'Reusing full-story deferred prosody for scene-group path (skipping LLM)'
+              );
+            }
+          }
+        }
+
+        if (!taggedFull) {
+          const prosodyT0 = Date.now();
+          const enriched = await enrichDeferredProsodyForTtsChunk({
+            canonText: fullCanon,
+            catalog,
+            language: story.language,
+            storyId: story.id,
+            onUsage: options?.onUsage,
+            includeVendorStylePromptEn: (voice.provider || '') === 'google',
+          });
+          prosodyTaggingTimeMs = Date.now() - prosodyT0;
+          taggedFull = enriched.taggedText;
+          sharedVendorStylePromptEn = enriched.vendorStylePromptEn;
+          usedLlmProsody = enriched.usedLlm;
+        }
+
+        const taggedCombined = taggedFull ?? '';
+        if (!taggedCombined.trim()) {
+          throw new Error('Deferred prosody produced empty tagged text');
+        }
+
+        const maxChars = audioProvider.getMaxCharsPerChunk();
+        const chunkStrings = splitTaggedTextForTtsChunks(taggedCombined, maxChars);
+        if (chunkStrings.length === 0) {
+          throw new Error('Deferred prosody produced empty tagged text after split');
+        }
+
+        groupsToSynth = chunkStrings.map((text) => ({
+          scenes: [] as any[],
+          text,
+          totalChars: text.length,
+          ttsStylePromptEn: sharedVendorStylePromptEn,
+        }));
+        ttsFullTextJoiner = 'none';
+        deferredTaggedPersist = taggedCombined;
+        deferredChunkLensPersist = chunkStrings.map((c) => c.length);
+
+        logger.info(
+          {
+            storyId: story.id,
+            numSceneGroups: sceneGroups.length,
+            numTtsChunks: chunkStrings.length,
+            maxCharsPerTtsChunk: maxChars,
+            usedLlmProsody,
+            reusedFullFromDb,
+            hasSharedStylePrompt: !!sharedVendorStylePromptEn,
+            taggedFullLen: taggedCombined.length,
+            prosodyTaggingTimeMs,
+          },
+          'Deferred TTS prosody: single LLM on full narration, split at tag boundaries for TTS'
+        );
+      }
+    }
+
+    logger.info(
+      {
+        storyId: story.id,
+        numTtsChunks: groupsToSynth.length,
+        numSceneGroups: sceneGroups.length,
         concurrencyLimit,
         voiceParams,
       },
@@ -172,16 +303,17 @@ export class AudioDomainService {
     logger.info(
       {
         storyId: story.id,
-        numGroups: sceneGroups.length,
-        totalChars: sceneGroups.reduce((sum, g) => sum + g.totalChars, 0),
+        numTtsChunks: groupsToSynth.length,
+        numSceneGroups: sceneGroups.length,
+        totalChars: groupsToSynth.reduce((sum, g) => sum + g.totalChars, 0),
         voiceId: voiceParams.voiceId,
         planType: userPlanType,
       },
-      'Synthesizing story from scene groups'
+      'Synthesizing story from TTS chunks (scene groups merged when deferred prosody runs)'
     );
 
-    // 2. Build full text for cache key
-    const fullText = sceneGroups.map((g) => g.text).join(' ');
+    // 2. Full string for cache key (post prosody: chunks partition tagged text; else scene groups use spaces)
+    const fullText = groupsToSynth.map((g) => g.text).join(ttsFullTextJoiner === 'none' ? '' : ' ');
     const speed = voiceParams.speed || 1.0;
 
     // 3. Check cache
@@ -210,22 +342,45 @@ export class AudioDomainService {
 
     // NEW: Load existing scene group assets from metadata (M5.1)
     logger.info({ storyId: story.id }, 'Step 3/7: Checking for existing partial chunks');
-    const existingAssets = await this.loadExistingSceneGroupAssets(story, sceneGroups);
-    
-    const audioMetadata: StoryAudioMetadata = (story.audioMetadata as StoryAudioMetadata | null) ?? {};
-    const sceneGroupAssetIds = audioMetadata.sceneGroupAssetIds ?? new Array(sceneGroups.length).fill(null);
-    
-    // Ensure array has correct length (in case story was regenerated with different scene count)
-    while (sceneGroupAssetIds.length < sceneGroups.length) {
-      sceneGroupAssetIds.push(null);
+    const ttsChunkCount = groupsToSynth.length;
+    const existingAssets = await this.loadExistingSceneGroupAssets(story, ttsChunkCount);
+
+    let sceneGroupAssetIds = [
+      ...(((story.audioMetadata as StoryAudioMetadata | null) ?? {}).sceneGroupAssetIds ?? []),
+    ];
+    if (sceneGroupAssetIds.length !== ttsChunkCount) {
+      sceneGroupAssetIds = new Array(ttsChunkCount).fill(null);
+    } else {
+      while (sceneGroupAssetIds.length < ttsChunkCount) {
+        sceneGroupAssetIds.push(null);
+      }
+      if (sceneGroupAssetIds.length > ttsChunkCount) {
+        sceneGroupAssetIds = sceneGroupAssetIds.slice(0, ttsChunkCount);
+      }
+    }
+
+    let workingAudioMetadata: StoryAudioMetadata = {
+      ...((story.audioMetadata as StoryAudioMetadata | null) ?? {}),
+      sceneGroupAssetIds,
+      voiceId: voice.id,
+      voiceName: voice.name,
+      ...(deferredTaggedPersist && deferredChunkLensPersist
+        ? {
+            deferredTaggedFullText: deferredTaggedPersist,
+            deferredTtsChunkCharLengths: deferredChunkLensPersist,
+          }
+        : {}),
+    };
+    if (deferredTaggedPersist && deferredChunkLensPersist) {
+      await this.updateStoryAudioMetadata(story.id, workingAudioMetadata);
     }
 
     logger.info(
       {
         storyId: story.id,
-        totalGroups: sceneGroups.length,
+        numTtsChunks: ttsChunkCount,
         cachedGroups: existingAssets.filter(Boolean).length,
-        missingGroups: existingAssets.filter(a => !a).length,
+        missingGroups: existingAssets.filter((a) => !a).length,
       },
       'Existing chunks loaded - will REUSE cached, generate only missing'
     );
@@ -235,12 +390,12 @@ export class AudioDomainService {
     logger.info(
       {
         storyId: story.id,
-        numGroups: sceneGroups.length,
-        cachedGroups: existingAssets.filter(a => a !== null).length,
+        numTtsChunks: ttsChunkCount,
+        cachedGroups: existingAssets.filter((a) => a !== null).length,
         concurrencyLimit,
         voiceId: voice.id,
       },
-      'Starting batched audio generation for scene groups'
+      'Starting batched audio generation for TTS chunks'
     );
 
     const startTime = Date.now();
@@ -251,9 +406,9 @@ export class AudioDomainService {
       cached?: boolean;
     }> = [];
 
-    // Process groups in batches
-    for (let i = 0; i < sceneGroups.length; i += concurrencyLimit) {
-      const batch = sceneGroups.slice(i, i + concurrencyLimit);
+    // Process TTS chunks in batches
+    for (let i = 0; i < groupsToSynth.length; i += concurrencyLimit) {
+      const batch = groupsToSynth.slice(i, i + concurrencyLimit);
       
       logger.info(
         {
@@ -265,6 +420,8 @@ export class AudioDomainService {
         'Processing batch'
       );
 
+      const batchChunkSynthMs: number[] = [];
+      const batchWallStart = Date.now();
       const batchResults = await Promise.all(
         batch.map(async (group, batchIndex) => {
           const absoluteIndex = i + batchIndex;
@@ -300,13 +457,13 @@ export class AudioDomainService {
                   groupIndex: absoluteIndex,
                   attempt,
                   maxAttempts: 3,
-                  sceneIds: group.scenes.map((s) => s.sceneId),
+                  sceneIds: group.scenes?.map((s: { sceneId: number }) => s.sceneId) ?? [],
                   chars: group.totalChars,
                 },
                 `🔄 Generating chunk ${absoluteIndex} (attempt ${attempt}/3)`
               );
 
-              const startTime = Date.now();
+              const chunkSynthStart = Date.now();
               const result = await audioProvider.synthesize({
                 text: group.text,
                 voiceId: voice.id,
@@ -316,8 +473,11 @@ export class AudioDomainService {
                   nightMode: voiceParams.nightMode,
                 },
                 outputFormat: 'mp3',
+                synthesizeStylePromptEn: group.ttsStylePromptEn,
               });
-              const generationTime = Date.now() - startTime;
+              const generationTime = Date.now() - chunkSynthStart;
+              batchChunkSynthMs.push(generationTime);
+              ttsChunksSynthesisTimeMs += generationTime;
 
               if (options?.onUsage) {
                 this.reportAudioUsage(options.onUsage, voice, group.text.length, result.durationSeconds);
@@ -343,7 +503,10 @@ export class AudioDomainService {
                 result.durationSeconds,
                 (voice as any).dbId || voice.id,
                 speed,
-                voice
+                voice,
+                group.text,
+                group.ttsStylePromptEn,
+                generationTime
               );
               
               logger.info(
@@ -357,12 +520,13 @@ export class AudioDomainService {
               
               // Update metadata
               sceneGroupAssetIds[absoluteIndex] = partialAssetId;
-              await this.updateStoryAudioMetadata(story.id, {
-                ...audioMetadata,
+              workingAudioMetadata = {
+                ...workingAudioMetadata,
                 voiceId: voice.id,
                 voiceName: voice.name,
                 sceneGroupAssetIds,
-              });
+              };
+              await this.updateStoryAudioMetadata(story.id, workingAudioMetadata);
 
               logger.info(
                 {
@@ -390,6 +554,12 @@ export class AudioDomainService {
                     attempt,
                     error: (error as Error).message,
                     retryAfterMs: backoffMs,
+                    voiceDbUuid: (voice as Voice & { dbId?: string }).dbId,
+                    providerVoiceId: voice.id,
+                    voiceName: voice.name,
+                    catalogProvider: voice.provider,
+                    ttsVendor: voice.provider || 'elevenlabs',
+                    audioProviderClass: audioProvider.constructor.name,
                   },
                   `⚠️  Chunk generation failed, retrying after ${backoffMs}ms...`
                 );
@@ -403,6 +573,12 @@ export class AudioDomainService {
                     groupIndex: absoluteIndex,
                     error: (error as Error).message,
                     stack: (error as Error).stack,
+                    voiceDbUuid: (voice as Voice & { dbId?: string }).dbId,
+                    providerVoiceId: voice.id,
+                    voiceName: voice.name,
+                    catalogProvider: voice.provider,
+                    ttsVendor: voice.provider || 'elevenlabs',
+                    audioProviderClass: audioProvider.constructor.name,
                   },
                   '❌ Chunk generation failed after 3 attempts'
                 );
@@ -417,19 +593,25 @@ export class AudioDomainService {
         })
       );
 
+      ttsSynthesisBatchesWallMs += Date.now() - batchWallStart;
+      if (batchChunkSynthMs.length > 0) {
+        ttsChunksParallelEstimateMs += Math.max(...batchChunkSynthMs);
+      }
+
       audioResults.push(...batchResults);
       
       logger.info(
         {
           storyId: story.id,
           completedGroups: audioResults.length,
-          totalGroups: sceneGroups.length,
+          totalChunks: groupsToSynth.length,
+          batchWallMs: Date.now() - batchWallStart,
         },
         'Batch completed'
       );
     }
 
-    const generationTime = Date.now() - startTime;
+    const ttsBatchWallTimeMs = Date.now() - startTime;
 
     // 5. Extract buffers and calculate estimated duration from chunks
     logger.info({ storyId: story.id }, 'Step 5/7: Extracting audio buffers from results');
@@ -445,7 +627,7 @@ export class AudioDomainService {
         numChunks: audioBuffers.length,
         totalSize: audioBuffers.reduce((sum, buf) => sum + buf.length, 0),
         estimatedDuration: totalDuration,
-        generationTimeMs: generationTime,
+        generationTimeMs: ttsBatchWallTimeMs,
       },
       'Audio buffers extracted'
     );
@@ -510,6 +692,7 @@ export class AudioDomainService {
 
     // 8. Create assets table record
     logger.info({ storyId: story.id }, 'Step 8/8: Saving final audio record to DB');
+    const vendorStyleFromChunks = groupsToSynth.map((g) => g.ttsStylePromptEn).find((s) => s && String(s).trim());
     const assetRecord = await getAssetRepository().create({
       storyId: story.id,
       sceneId: null,
@@ -524,9 +707,19 @@ export class AudioDomainService {
         voiceId: voice.id,
         voiceName: voice.name,
         language: story.language,
-        numGroups: sceneGroups.length,
+        numGroups: groupsToSynth.length,
+        numSceneGroups: sceneGroups.length,
         duration: totalDuration,
+        ttsSynthesisText: fullText,
+        prosodyTaggingTimeMs,
+        ttsChunksSynthesisTimeMs,
+        ttsBatchWallTimeMs,
+        ttsSynthesisBatchesWallMs,
+        ttsChunksParallelEstimateMs,
+        ...(vendorStyleFromChunks ? { vendorStylePromptEn: String(vendorStyleFromChunks).trim() } : {}),
       },
+      generationTimeMs:
+        Math.round(ttsSynthesisBatchesWallMs > 0 ? ttsSynthesisBatchesWallMs : ttsBatchWallTimeMs) || null,
       status: 'completed',
     });
 
@@ -541,6 +734,7 @@ export class AudioDomainService {
         pitchShift: 0,
         nightMode: false,
         textHash: this.cacheService.generateTextHash(fullText),
+        synthesisTaggedText: fullText,
         durationSeconds: totalDuration.toString() as any,
         provider: voice.provider || 'elevenlabs', // Use voice provider, not hardcoded
         status: 'completed',
@@ -551,13 +745,18 @@ export class AudioDomainService {
 
     // 11. Update story metadata with final concatenated asset ID (M5.1)
     await this.updateStoryAudioMetadata(story.id, {
-      ...audioMetadata,
+      ...workingAudioMetadata,
       voiceId: voice.id,
       voiceName: voice.name,
       totalDuration,
       generatedAt: new Date().toISOString(),
       sceneGroupAssetIds, // Keep partial assets for retry
       finalAssetId: assetRecord.id, // Final concatenated audio
+      prosodyTaggingTimeMs,
+      ttsChunksSynthesisTimeMs,
+      ttsBatchWallTimeMs,
+      ttsSynthesisBatchesWallMs,
+      ttsChunksParallelEstimateMs,
     });
 
     logger.info(
@@ -567,8 +766,14 @@ export class AudioDomainService {
         duration: totalDuration,
         finalSize: finalAudioData.length,
         cachedGroups: existingAssets.filter(Boolean).length,
-        generatedGroups: audioResults.filter(r => !r.cached).length,
-        totalGroups: sceneGroups.length,
+        generatedGroups: audioResults.filter((r) => !r.cached).length,
+        numTtsChunks: groupsToSynth.length,
+        numSceneGroups: sceneGroups.length,
+        prosodyTaggingTimeMs,
+        ttsChunksSynthesisTimeMs,
+        ttsBatchWallTimeMs,
+        ttsSynthesisBatchesWallMs,
+        ttsChunksParallelEstimateMs,
       },
       '=== ✅ Audio generation completed successfully ==='
     );
@@ -580,6 +785,12 @@ export class AudioDomainService {
       voiceId: voice.id,
       voiceName: voice.name,
       cached: false,
+      numTtsChunks: groupsToSynth.length,
+      prosodyTaggingTimeMs,
+      ttsChunksSynthesisTimeMs,
+      ttsBatchWallTimeMs,
+      ttsSynthesisBatchesWallMs,
+      ttsChunksParallelEstimateMs,
     };
   }
 
@@ -606,7 +817,54 @@ export class AudioDomainService {
     }
 
     // 2. Normalize text
-    const normalizedText = this.normalizeText(story.fullText, story.language);
+    let normalizedText = this.normalizeText(story.fullText, story.language);
+    let deferredVendorStylePromptEn: string | undefined;
+
+    if (config.audio.deferAudioTagsToTts) {
+      const { getAudioProviderByName } = await import('../../services/aiService');
+      const deferProvider = getAudioProviderByName(voice.provider || 'elevenlabs');
+      const deferCatalog = deferProvider.getTtsSpeechTagCatalog();
+      if (deferCatalog.markupModel !== 'none_use_instructions') {
+        const voiceDbId = (voice as { dbId?: string }).dbId;
+        let reusedFromDb = false;
+        if (voiceDbId) {
+          const priorAudio = await getAssetRepository().findLatestTaggedAudioInputByStoryAndVoice(
+            story.id,
+            voiceDbId
+          );
+          const rawStored = priorAudio?.synthesisTaggedText?.trim();
+          if (rawStored) {
+            const { text: sanitized } = sanitizeVendorMarkup(rawStored, deferCatalog);
+            if (validateTaggedAgainstCanon(sanitized, normalizedText, deferCatalog, story.language)) {
+              normalizedText = sanitized;
+              reusedFromDb = true;
+              if (priorAudio?.assetId) {
+                const priorAsset = await getAssetRepository().findById(priorAudio.assetId);
+                const style = readVendorStylePromptEnFromGenerationParams(priorAsset?.generationParams);
+                deferredVendorStylePromptEn = style || undefined;
+              }
+              logger.info(
+                { storyId: story.id, source: 'db_audio_assets' },
+                'Reusing full-story deferred prosody from DB (skipping LLM)'
+              );
+            }
+          }
+        }
+        if (!reusedFromDb) {
+          const { enrichDeferredProsodyForTtsChunk } = await import('../../services/ttsProsodyTaggingService');
+          const enriched = await enrichDeferredProsodyForTtsChunk({
+            canonText: normalizedText,
+            catalog: deferCatalog,
+            language: story.language,
+            storyId: story.id,
+            onUsage: options?.onUsage,
+            includeVendorStylePromptEn: (voice.provider || '') === 'google',
+          });
+          normalizedText = enriched.taggedText;
+          deferredVendorStylePromptEn = enriched.vendorStylePromptEn;
+        }
+      }
+    }
 
     // 3. Check cache
     const speed = voiceParams.speed || 1.0;
@@ -642,6 +900,7 @@ export class AudioDomainService {
         nightMode: voiceParams.nightMode,
       },
       outputFormat: 'mp3',
+      synthesizeStylePromptEn: deferredVendorStylePromptEn,
     };
 
     const result = await this.audioProvider.synthesize(synthesizeRequest);
@@ -675,6 +934,10 @@ export class AudioDomainService {
         voiceName: voice.name,
         language: story.language,
         duration: result.durationSeconds,
+        ttsSynthesisText: normalizedText,
+        ...(deferredVendorStylePromptEn
+          ? { vendorStylePromptEn: deferredVendorStylePromptEn }
+          : {}),
         ...result.metadata,
       },
       status: 'completed',
@@ -693,6 +956,7 @@ export class AudioDomainService {
         pitchShift: 0,
         nightMode: voiceParams.nightMode || false,
         textHash,
+        synthesisTaggedText: normalizedText,
         durationSeconds: result.durationSeconds.toString() as any,
         provider: 'elevenlabs',
         providerRequestId: result.providerRequestId,
@@ -782,42 +1046,34 @@ export class AudioDomainService {
   }
 
   /**
-   * Load existing scene group assets from story metadata
-   * 
-   * Retrieves audio buffers for previously generated scene groups from storage.
-   * Returns an array with the same length as sceneGroups, containing Buffer for
-   * generated groups and null for groups that need generation.
-   * 
-   * @param story - Story with audioMetadata containing sceneGroupAssetIds
-   * @param sceneGroups - Current scene groups for this story
-   * @returns Array of buffers (Buffer for existing, null for missing)
+   * Load existing TTS chunk assets from story metadata (partial MP3s keyed by chunk index).
+   *
+   * @param expectedChunkCount - Number of TTS segments (may differ from scene-group count when deferred prosody merges + splits).
    */
   private async loadExistingSceneGroupAssets(
     story: Story,
-    sceneGroups: Array<{ scenes: any[]; text: string; totalChars: number }>
+    expectedChunkCount: number
   ): Promise<(Buffer | null)[]> {
     const audioMetadata = story.audioMetadata as AudioMetadata | null;
     const existingAssetIds = audioMetadata?.sceneGroupAssetIds || [];
-    
+
     logger.info(
       {
         storyId: story.id,
-        totalExpectedGroups: sceneGroups.length,
+        expectedChunkCount,
         existingAssetIds: existingAssetIds.length,
       },
       'Loading existing partial chunks from storage'
     );
-    
-    // Initialize array with nulls (same length as scene groups)
-    const existingBuffers: (Buffer | null)[] = new Array(sceneGroups.length).fill(null);
-    
+
+    const existingBuffers: (Buffer | null)[] = new Array(expectedChunkCount).fill(null);
+
     if (existingAssetIds.length === 0) {
       logger.info({ storyId: story.id }, 'No existing scene group assets found - will generate all');
       return existingBuffers;
     }
-    
-    // Load existing assets
-    for (let i = 0; i < Math.min(existingAssetIds.length, sceneGroups.length); i++) {
+
+    for (let i = 0; i < Math.min(existingAssetIds.length, expectedChunkCount); i++) {
       const assetId = existingAssetIds[i];
       
       if (!assetId) {
@@ -849,14 +1105,14 @@ export class AudioDomainService {
     
     const cachedCount = existingBuffers.filter(b => b !== null).length;
     const missingCount = existingBuffers.filter(b => !b).length;
-    const reusePercentage = ((cachedCount / sceneGroups.length) * 100).toFixed(1);
-    
+    const reusePercentage = ((cachedCount / expectedChunkCount) * 100).toFixed(1);
+
     logger.info(
-      { 
-        storyId: story.id, 
-        cached: cachedCount, 
+      {
+        storyId: story.id,
+        cached: cachedCount,
         missing: missingCount,
-        total: sceneGroups.length,
+        total: expectedChunkCount,
         reusePercentage: reusePercentage + '%',
       },
       'Partial chunk loading complete'
@@ -888,7 +1144,13 @@ export class AudioDomainService {
     duration: number,
     voiceId: string,
     speed: number,
-    voice: Voice
+    voice: Voice,
+    /** TTS input for this chunk (post–deferred prosody when enabled). */
+    synthesisTaggedText: string,
+    /** English vendor synthesis style for this chunk (stored for retry reuse; e.g. Gemini-TTS `prompt`). */
+    vendorStylePromptEn?: string,
+    /** Wall time for this chunk's `synthesize` call (ms). */
+    chunkSynthesisTimeMs?: number
   ): Promise<string> {
     // Upload to storage
     const uploadResult = await this.storageService.uploadAsset({
@@ -916,7 +1178,16 @@ export class AudioDomainService {
         speed,
         duration,
         isPartial: true,
+        ttsSynthesisText: synthesisTaggedText,
+        ...(typeof chunkSynthesisTimeMs === 'number' && chunkSynthesisTimeMs > 0
+          ? { generationTimeMs: chunkSynthesisTimeMs }
+          : {}),
+        ...(vendorStylePromptEn ? { vendorStylePromptEn } : {}),
       },
+      generationTimeMs:
+        typeof chunkSynthesisTimeMs === 'number' && chunkSynthesisTimeMs > 0
+          ? Math.round(chunkSynthesisTimeMs)
+          : null,
       status: 'completed',
     });
 
@@ -939,6 +1210,7 @@ export class AudioDomainService {
       provider: voice.provider || 'elevenlabs', // Use voice provider
       status: 'completed',
       textHash: '', // Not needed for partial (groupIndex is the key)
+      synthesisTaggedText,
       nightMode: false,
       pitchShift: 0,
       sceneGroupIndex: groupIndex, // ✅ Save group index for partial chunk
@@ -1019,7 +1291,12 @@ export class AudioDomainService {
       const dbVoice = await getVoiceRepository().findById(explicitVoiceId);
       
       if (dbVoice) {
-        if (dbVoice.provider === 'grok' && isGrokBlockedForStoryLanguage(story.language)) {
+        if (!dbVoice.isActive) {
+          logger.warn(
+            { voiceId: explicitVoiceId, provider: dbVoice.provider },
+            'Explicit voice is inactive; using automatic selection'
+          );
+        } else if (dbVoice.provider === 'grok' && isGrokBlockedForStoryLanguage(story.language)) {
           logger.warn(
             { voiceId: explicitVoiceId, storyLanguage: story.language },
             'Explicit Grok voice ignored for Ukrainian story; using automatic selection'
@@ -1130,11 +1407,25 @@ export class AudioDomainService {
    * Map DB voice record to Voice interface
    */
   private mapDbVoiceToProvider(dbVoice: any, languageOverride?: string): Voice & { dbId?: string } {
+    const catalogProvider = dbVoice.provider as Voice['provider'] | undefined;
+    if (!catalogProvider || String(catalogProvider).trim() === '') {
+      logger.error(
+        {
+          voiceDbUuid: dbVoice.id,
+          providerVoiceId: dbVoice.providerVoiceId,
+          name: dbVoice.name,
+        },
+        'tts_voices row missing provider; cannot route TTS to the correct vendor',
+      );
+      throw new Error(
+        `Voice catalog row ${dbVoice.id} (${dbVoice.name}) has no provider — re-seed or fix DB`
+      );
+    }
     return {
       id: dbVoice.providerVoiceId,
       dbId: dbVoice.id, // Store DB UUID for cache queries
       name: dbVoice.name,
-      provider: dbVoice.provider as Voice['provider'],
+      provider: catalogProvider,
       language: languageOverride || dbVoice.language,
       gender: dbVoice.gender as 'male' | 'female' | 'neutral' | undefined,
       ageCategory: dbVoice.ageCategory as 'child' | 'young_adult' | 'adult' | 'senior' | undefined,
@@ -1191,6 +1482,9 @@ export class AudioDomainService {
   private normalizeText(text: string, language: string): string {
     let normalized = stripForAudio(text)
       .trim()
+      .replace(/\u00A0|\u202F/g, ' ')
+      .replace(/\u00AD/g, '')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
       .replace(/\s+/g, ' ') // Normalize whitespace
       .replace(/\u2019/g, "'") // Normalize apostrophes
       .replace(/\u201c|\u201d/g, '"') // Normalize quotes
@@ -1200,6 +1494,12 @@ export class AudioDomainService {
     if (language === 'uk') {
       // Ukrainian-specific normalization if needed
       normalized = normalized.replace(/ʼ/g, "'");
+    }
+
+    try {
+      normalized = normalized.normalize('NFC');
+    } catch {
+      /* ignore */
     }
 
     return normalized;
@@ -1252,17 +1552,38 @@ export class AudioDomainService {
       const audioBuffer = await this.storageService.getAssetBuffer(asset.id);
       
       // 4. Call IAlignmentProvider (vendor-agnostic)
+      const fromAudioAsset =
+        typeof audioAsset.synthesisTaggedText === 'string' && audioAsset.synthesisTaggedText.length > 0
+          ? audioAsset.synthesisTaggedText
+          : null;
+      const assetGen = asset.generationParams as Record<string, unknown> | null | undefined;
+      const fromGenerationParams =
+        typeof assetGen?.ttsSynthesisText === 'string' && assetGen.ttsSynthesisText.length > 0
+          ? assetGen.ttsSynthesisText
+          : null;
+      const ttsSynthesisText =
+        fromAudioAsset ?? fromGenerationParams ?? this.normalizeText(story.fullText, story.language);
+
+      const { getAudioProviderByName } = await import('../../services/aiService');
+      const voiceRow = audioAsset.voiceId
+        ? await getVoiceRepository().findById(audioAsset.voiceId)
+        : null;
+      const alignmentProviderName = (voiceRow?.provider || audioAsset.provider || 'elevenlabs') as string;
+      const ttsProviderForAlignment = getAudioProviderByName(alignmentProviderName);
+      const alignmentCatalog = ttsProviderForAlignment.getTtsSpeechTagCatalog();
+      const alignmentPlain = stripApprovedCatalogMarkup(ttsSynthesisText, alignmentCatalog);
+
       logger.info({
         storyId,
         audioProvider: audioAsset.provider,
         alignmentProvider: alignmentProvider.getProviderName(),
-        textLength: story.fullText.length,
+        textLength: alignmentPlain.length,
         audioSize: audioBuffer.length,
       }, 'Generating forced alignment');
       
       const alignmentResult = await alignmentProvider.generateAlignment({
         audioBuffer,
-        text: story.fullText,
+        text: alignmentPlain,
         language: story.language,
         mimeType: asset.mimeType,
       });

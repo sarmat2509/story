@@ -21,6 +21,10 @@ export class AlignmentRepository {
     return { data: row.data as AlignmentData };
   }
 
+  async deleteByStoryId(storyId: string): Promise<void> {
+    await this.db.delete(schema.alignments).where(eq(schema.alignments.storyId, storyId));
+  }
+
   async upsert(storyId: string, data: AlignmentData, assetId?: string | null): Promise<void> {
     const now = new Date();
     await this.db

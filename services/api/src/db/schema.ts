@@ -1013,7 +1013,9 @@ export const audioAssets = pgTable('audio_assets', {
   
   // Content hash for caching
   textHash: varchar('text_hash', { length: 64 }).notNull(), // SHA256 of normalized text
-  
+  /** TTS input for this row (vendor markup when deferred prosody applied). Final row: full narration; partials: chunk only. */
+  synthesisTaggedText: text('synthesis_tagged_text'),
+
   // Asset info
   assetId: uuid('asset_id').references(() => assets.id, { onDelete: 'cascade' }).notNull(),
   durationSeconds: decimal('duration_seconds', { precision: 8, scale: 2 }),

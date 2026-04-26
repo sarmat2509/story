@@ -5,8 +5,8 @@ import { VoiceCatalogEntry } from '../../base/IAudioProvider';
  * API: https://docs.x.ai/developers/model-capabilities/audio/text-to-speech
  *
  * `language` is the voice row **primary** locale (used for sample metadata / seeding).
- * Grok is **not** offered for Ukrainian (`uk`) stories — see `supportedLocales.ts` and
- * `VoiceRepository` filters.
+ * Grok catalog rows are not offered in the app (`is_active = false` in DB / seed). Ukrainian
+ * stories still block Grok at synthesis if a stale voice id pointed at Grok — see `supportedLocales.ts`.
  *
  * providerVoiceId matches xAI `voice_id` (case-insensitive).
  */

@@ -6,6 +6,7 @@
 import * as helpers from '../helpers';
 import { getContentPolicy } from '../contentPolicy';
 import type { StorySpec } from '../../ai/types';
+import config from '../../config';
 
 export interface ContinuationPromptParams {
   spec: StorySpec;
@@ -116,7 +117,11 @@ ${validUsedPlots.length > 0 ? `- DO NOT repeat these plot elements: ${validUsedP
 - Describe physical appearance in scene prose only for genuinely NEW LLM-invented characters that were not present in the provided story context before this story/episode.
 - NEW characters: if needed, give only one brief first-glance visual cue in scene prose at first introduction. Add the full detailed appearance to characters[] instead.
 
-${helpers.formatStoryRequirements({ spec, sceneCount })}
+${helpers.formatStoryRequirements({
+    spec,
+    sceneCount,
+    targetWordCountScope: config.audio.deferAudioTagsToTts ? 'prose_only' : 'audio_tags_in_manuscript',
+  })}
 
 ${helpers.formatAgeRequirements(spec.ageGroup)}
 
@@ -126,7 +131,12 @@ ${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRu
 
 ${helpers.formatNarrativeContinuityRules()}
 
-${helpers.formatVisualStoryRules({ imageStyle: spec.imageStyle, scenarioCardId: spec.scenarioCard?.id, policyProfile: spec.policyProfile })}
+${helpers.formatVisualStoryRules({
+    imageStyle: spec.imageStyle,
+    scenarioCardId: spec.scenarioCard?.id,
+    policyProfile: spec.policyProfile,
+    includeAudioTagsRules: !config.audio.deferAudioTagsToTts,
+  })}
 
 OUTPUT FORMAT: Same as DirectTextPrompt (JSON with title, language, characters, moral, scenes with sceneVisual.cameraComposition.characters each including outfitId, outfits array, environments). Generate outfits then environments LAST. Wardrobe is ONLY in outfits[] and per-character outfitId on camera rows — not on environments.
 
@@ -153,6 +163,10 @@ TITLE: Be creative and imaginative. Reflect the ESSENCE of this story — the ma
  */
 export function buildContinuationPromptPlain(params: ContinuationPromptParams): string {
   const { spec, sceneCount, vocabLevel, previousOutlines, requiredCharacters, optionalCharacters, usedPlots } = params;
+  const includeWriterAudioTags = !config.audio.deferAudioTagsToTts;
+  const plainSceneExampleLine = includeWriterAudioTags
+    ? 'Scene 1 text (1-3 paragraphs with ElevenLabs v3 audio tags)...'
+    : 'Scene 1 text (1-3 paragraphs of narration prose only — no audio tags or square-bracket performance cues)...';
   const partNumber = previousOutlines.length + 1;
 
   const validRequiredChars = requiredCharacters.filter(char =>
@@ -222,7 +236,11 @@ ${validUsedPlots.length > 0 ? `- DO NOT repeat these plot elements: ${validUsedP
 - Describe physical appearance in scene prose only for genuinely NEW LLM-invented characters that were not present in the provided story context before this story/episode.
 - NEW characters: if needed, give only one brief first-glance visual cue in scene prose at first introduction.
 
-${helpers.formatStoryRequirements({ spec, sceneCount })}
+${helpers.formatStoryRequirements({
+    spec,
+    sceneCount,
+    targetWordCountScope: includeWriterAudioTags ? 'audio_tags_in_manuscript' : 'prose_only',
+  })}
 
 ${helpers.formatAgeRequirements(spec.ageGroup)}
 
@@ -234,13 +252,19 @@ ${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRu
 
 ${helpers.formatNarrativeContinuityRules()}
 
+${helpers.formatWriterPlainSceneRules({
+    scenarioCardId: spec.scenarioCard?.id,
+    policyProfile: spec.policyProfile,
+    includeAudioTagsInWriter: includeWriterAudioTags,
+  })}
+
 OUTPUT FORMAT (plain text only):
 title: Story title in ${spec.language}
 
 description: Short SEO description (1-2 sentences, max 160 characters). For continuations, describe THIS episode's adventure. Do not summarize the whole series.
 
 ---
-Scene 1 text (1-3 paragraphs with ElevenLabs v3 audio tags)...
+${plainSceneExampleLine}
 ---
 Scene 2 text...
 ---

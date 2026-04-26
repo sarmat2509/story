@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
 import { SynthesizeRequest, SynthesizeResult, Voice, VoiceCatalogEntry } from '../../base/IAudioProvider';
+import type { TtsSpeechTagCatalog } from '../../base/TtsSpeechTagCatalog';
+import { buildOpenAiTtsSpeechTagCatalog } from '../ttsSpeechTagCatalogs';
 import { BaseAudioProvider } from '../../base/BaseAudioProvider';
 import { OPENAI_TTS_VOICE_CATALOG } from './voices';
 import { OpenAITagProcessor } from './OpenAITagProcessor';
@@ -128,5 +130,9 @@ export class OpenAITTSProvider extends BaseAudioProvider {
    */
   getDefaultVoices(): VoiceCatalogEntry[] {
     return OPENAI_TTS_VOICE_CATALOG;
+  }
+
+  getTtsSpeechTagCatalog(): TtsSpeechTagCatalog {
+    return buildOpenAiTtsSpeechTagCatalog();
   }
 }

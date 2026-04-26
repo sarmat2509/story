@@ -8,7 +8,8 @@ import './loadEnvForScripts';
  * - Voice-age group associations
  * - Provider preview URLs
  * 
- * Supports multiple TTS providers (ElevenLabs, Google TTS, OpenAI TTS, Grok/xAI TTS)
+ * Supports multiple TTS providers (ElevenLabs, Google TTS, OpenAI TTS, Grok/xAI TTS).
+ * Grok catalog rows are seeded **inactive** (`is_active = false`) — not shown in the app; skip sample synthesis for Grok.
  *
  * Usage:
  *   npm run seed:voices
@@ -73,7 +74,7 @@ async function seedVoicesForProvider(providerName: string) {
         .values({
           provider: providerName,
           ...voiceFields,
-          isActive: true,
+          isActive: providerName !== 'grok',
         })
         .returning({ id: ttsVoices.id, name: ttsVoices.name });
       
@@ -101,49 +102,51 @@ async function seedVoicesForProvider(providerName: string) {
       
       logger.info({ voiceId: voice.id, ageGroups: suitableForAgeSlugs.length }, 'Voice fully configured');
       
-      // Generate voice sample
-      try {
-        logger.info({ voiceId: voice.id, language: voiceFields.language }, 'Generating voice sample');
-        
-        const sampleText = getVoiceSampleText(voiceFields.language);
-        const assetStorage = getAssetStorageService();
-        
-        // Synthesize audio sample
-        const result = await audioProvider.synthesize({
-          text: sampleText,
-          voiceId: voiceFields.providerVoiceId,
-          language: voiceFields.language,
-          prosody: {
-            speed: 1.0,
-          },
-        });
-        
-        logger.info({ voiceId: voice.id, audioSize: result.audioData.length }, 'Sample audio synthesized');
-        
-        // Upload to storage
-        const uploadResult = await assetStorage.uploadVoiceSample({
-          audioBuffer: result.audioData,
-          language: voiceFields.language,
-          voiceId: voiceFields.providerVoiceId,
-        });
-        
-        logger.info({ voiceId: voice.id, storagePath: uploadResult.storagePath }, 'Sample uploaded');
-        
-        // Update database with sample URL
-        await db
-          .update(ttsVoices)
-          .set({ sampleAudioUrl: uploadResult.storagePath })
-          .where(eq(ttsVoices.id, voice.id));
-        
-        logger.info({ voiceId: voice.id }, '✅ Voice sample generated successfully');
-        
-      } catch (sampleError) {
-        logger.error({ 
-          error: sampleError instanceof Error ? sampleError.message : String(sampleError),
-          errorStack: sampleError instanceof Error ? sampleError.stack : undefined,
-          voiceId: voice.id 
-        }, '⚠️ Failed to generate voice sample (voice seeded without sample)');
-        // Don't fail the entire seeding if sample generation fails
+      // Generate voice sample (skip Grok — inactive catalog, avoid xAI sample calls)
+      if (providerName === 'grok') {
+        logger.info({ voiceId: voice.id, provider: providerName }, 'Skipping voice sample for inactive Grok catalog');
+      } else {
+        try {
+          logger.info({ voiceId: voice.id, language: voiceFields.language }, 'Generating voice sample');
+
+          const sampleText = getVoiceSampleText(voiceFields.language);
+          const assetStorage = getAssetStorageService();
+
+          const result = await audioProvider.synthesize({
+            text: sampleText,
+            voiceId: voiceFields.providerVoiceId,
+            language: voiceFields.language,
+            prosody: {
+              speed: 1.0,
+            },
+          });
+
+          logger.info({ voiceId: voice.id, audioSize: result.audioData.length }, 'Sample audio synthesized');
+
+          const uploadResult = await assetStorage.uploadVoiceSample({
+            audioBuffer: result.audioData,
+            language: voiceFields.language,
+            voiceId: voiceFields.providerVoiceId,
+          });
+
+          logger.info({ voiceId: voice.id, storagePath: uploadResult.storagePath }, 'Sample uploaded');
+
+          await db
+            .update(ttsVoices)
+            .set({ sampleAudioUrl: uploadResult.storagePath })
+            .where(eq(ttsVoices.id, voice.id));
+
+          logger.info({ voiceId: voice.id }, '✅ Voice sample generated successfully');
+        } catch (sampleError) {
+          logger.error(
+            {
+              error: sampleError instanceof Error ? sampleError.message : String(sampleError),
+              errorStack: sampleError instanceof Error ? sampleError.stack : undefined,
+              voiceId: voice.id,
+            },
+            '⚠️ Failed to generate voice sample (voice seeded without sample)'
+          );
+        }
       }
       
     } catch (error) {

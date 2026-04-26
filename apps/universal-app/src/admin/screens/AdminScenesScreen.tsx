@@ -1,14 +1,36 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { createElement, useEffect, useMemo, useState } from 'react';
 import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { stripCharacterIdFromName } from '@wondertales/shared';
-import { useAdminDirectorScenes, useAdminRegenerateSceneImage } from '@/admin/api/admin';
+import { useAdminDirectorScenes, useAdminRegenerateSceneImage, useAdminResetStoryAudio } from '@/admin/api/admin';
 import { AdminLayout } from '@/admin/components/AdminLayout';
 import { AdminErrorState, AdminLoadingState } from '@/admin/components/AdminState';
 import { theme } from '@/theme';
 import type { AdminStackParamList } from '@/types/navigation';
 import { formatAssetUrl } from '@/utils/assetUrl';
+
+function confirmAdminAudioAction(message: string): Promise<boolean> {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.confirm === 'function') {
+    return Promise.resolve(window.confirm(message));
+  }
+  return new Promise((resolve) => {
+    Alert.alert('Confirm', message, [
+      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+      { text: 'Continue', style: 'destructive', onPress: () => resolve(true) },
+    ]);
+  });
+}
+
+function formatDurationMs(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms)) {
+    return '—';
+  }
+  if (ms < 1000) {
+    return `${Math.round(ms)} ms`;
+  }
+  return `${Math.round(ms)} ms (${(ms / 1000).toFixed(1)} s)`;
+}
 
 function toLabel(key: string): string {
   return key
@@ -206,6 +228,7 @@ export default function AdminScenesScreen() {
   const routeStoryId = route.params?.storyId as string | undefined;
   const scenesQuery = useAdminDirectorScenes(routeStoryId);
   const regenerateMutation = useAdminRegenerateSceneImage();
+  const resetAudioMutation = useAdminResetStoryAudio();
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string | null>(null);
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null);
 
@@ -232,6 +255,8 @@ export default function AdminScenesScreen() {
     [directorSceneByIndex, storyScenes],
   );
   const storyMeta = scenesQuery.data?.story;
+  const storyAudio = scenesQuery.data?.audio;
+  const audioPlaybackUrl = formatAssetUrl(storyAudio?.audioUrl ?? null);
   const validations = useMemo(() => scenesQuery.data?.validations ?? [], [scenesQuery.data?.validations]);
   const validationsBySceneIndex = useMemo(() => {
     const map = new Map<number, typeof validations>();
@@ -266,8 +291,162 @@ export default function AdminScenesScreen() {
         {storyMeta?.title ? <Text style={styles.storyTitle}>{storyMeta.title}</Text> : null}
         {routeStoryId ? <Text style={styles.selectedMeta}>{routeStoryId}</Text> : null}
         {!routeStoryId ? <Text style={styles.helperText}>Open this page from the stories table.</Text> : null}
+        {routeStoryId && !scenesQuery.isLoading && !scenesQuery.error && storyAudio ? (
+          <View style={styles.audioSection} nativeID="admin-story-audio-section">
+            <View style={styles.storyTextHeading}>
+              <Ionicons name="volume-high-outline" size={16} color={theme.colors.interactive.primary} />
+              <Text style={styles.sceneVisualHeadingText}>AUDIO (TTS)</Text>
+            </View>
+            {storyAudio.voiceName ? (
+              <Text style={styles.audioMetaLine}>
+                Voice: {storyAudio.voiceName}
+                {storyAudio.durationSeconds != null && Number.isFinite(storyAudio.durationSeconds)
+                  ? ` · ${Math.round(storyAudio.durationSeconds)}s`
+                  : ''}
+              </Text>
+            ) : null}
+            <Text style={styles.audioBlockLabel}>Generation timing</Text>
+            <View style={styles.audioTimingBlock}>
+              <Text style={styles.audioMetaLine}>
+                Total pipeline (job wall): {formatDurationMs(storyAudio.timing?.audioGenerationTimeMs)}
+              </Text>
+              <Text style={styles.audioMetaLine}>
+                Prosody / audio tags (LLM): {formatDurationMs(storyAudio.timing?.prosodyTaggingTimeMs)}
+              </Text>
+              <Text style={styles.audioMetaLine}>
+                TTS (wall, full chunk loop): {formatDurationMs(storyAudio.timing?.ttsBatchWallTimeMs)}
+              </Text>
+              <Text style={styles.audioMetaLine}>
+                TTS (wall, sum of parallel batches): {formatDurationMs(storyAudio.timing?.ttsSynthesisBatchesWallMs)}
+              </Text>
+              <Text style={styles.audioMetaLine}>
+                TTS (parallel lower bound, sum of slowest chunk per batch):{' '}
+                {formatDurationMs(storyAudio.timing?.ttsChunksParallelEstimateMs)}
+              </Text>
+              <Text style={styles.audioMetaLine}>
+                TTS (serial sum of chunk synthesize, not user wait):{' '}
+                {formatDurationMs(storyAudio.timing?.ttsChunksSynthesisTimeMs)}
+              </Text>
+            </View>
+            {storyAudio.chunks && storyAudio.chunks.length > 0 ? (
+              <>
+                <Text style={styles.audioBlockLabel}>Per-chunk TTS (synthesize wall)</Text>
+                <ScrollView style={styles.audioScrollBox} nestedScrollEnabled>
+                  {storyAudio.chunks.map((c) => (
+                    <Text key={`chunk-${c.groupIndex}-${c.assetId ?? 'x'}`} selectable style={styles.audioPre}>
+                      chunk {c.groupIndex}
+                      {c.assetId ? ` · ${c.assetId.slice(0, 8)}…` : ''}: {formatDurationMs(c.generationTimeMs)}
+                    </Text>
+                  ))}
+                </ScrollView>
+              </>
+            ) : null}
+            <Text style={styles.audioBlockLabel}>Vendor style prompt (English)</Text>
+            <ScrollView style={styles.audioScrollBox} nestedScrollEnabled>
+              <Text selectable style={styles.audioPre}>
+                {storyAudio.vendorStylePromptEn?.trim() ? storyAudio.vendorStylePromptEn : '—'}
+              </Text>
+            </ScrollView>
+            <Text style={styles.audioBlockLabel}>Synthesis text (with audio tags)</Text>
+            {storyAudio.synthesisProsodyHint ? (
+              <Text style={styles.audioProsodyWarning}>{storyAudio.synthesisProsodyHint}</Text>
+            ) : null}
+            {storyAudio.synthesisTaggedSegments && storyAudio.synthesisTaggedSegments.length > 0 ? (
+              <Text style={styles.audioBlockHint}>
+                Pink background: narration slice not yet synthesized (no completed TTS chunk for that
+                slot).
+              </Text>
+            ) : null}
+            <ScrollView style={styles.audioScrollBoxLarge} nestedScrollEnabled>
+              {storyAudio.synthesisTaggedSegments && storyAudio.synthesisTaggedSegments.length > 0 ? (
+                <Text selectable style={styles.audioPre}>
+                  {storyAudio.synthesisTaggedSegments.map((seg, idx) => (
+                    <Text
+                      key={`synth-seg-${idx}`}
+                      selectable
+                      style={seg.isMissingChunk ? styles.audioPreMissingChunk : undefined}
+                    >
+                      {seg.text}
+                    </Text>
+                  ))}
+                </Text>
+              ) : (
+                <Text selectable style={styles.audioPre}>
+                  {storyAudio.synthesisTaggedText?.trim() ? storyAudio.synthesisTaggedText : '—'}
+                </Text>
+              )}
+            </ScrollView>
+            <Text style={styles.audioBlockLabel}>Playback</Text>
+            {audioPlaybackUrl ? (
+              Platform.OS === 'web' ? (
+                createElement('audio', {
+                  controls: true,
+                  src: audioPlaybackUrl,
+                  style: { width: '100%', maxWidth: 560, height: 44, marginTop: 4 },
+                })
+              ) : (
+                <Text selectable style={styles.audioMetaLine}>
+                  {audioPlaybackUrl}
+                </Text>
+              )
+            ) : (
+              <Text style={styles.helperText}>No final audio asset — generate audio for this story first.</Text>
+            )}
+            <Text style={styles.audioBlockLabel}>Admin — audio reset</Text>
+            <Text style={styles.helperText}>
+              Clear removes alignment, audio_assets, audio files, and story audio metadata. Regenerate does that
+              then queues a new full TTS job (all chunks from scratch).
+            </Text>
+            <View style={styles.audioAdminActions}>
+              <TouchableOpacity
+                style={styles.audioDangerButton}
+                disabled={resetAudioMutation.isPending || !routeStoryId}
+                onPress={async () => {
+                  if (!routeStoryId) return;
+                  const ok = await confirmAdminAudioAction(
+                    'Remove all audio data for this story from the database and storage?',
+                  );
+                  if (!ok) return;
+                  resetAudioMutation.mutate({ storyId: routeStoryId, regenerate: false });
+                }}
+              >
+                <Text style={styles.audioDangerButtonText}>
+                  {resetAudioMutation.isPending ? 'Working…' : 'Clear audio'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.audioDangerButton}
+                disabled={resetAudioMutation.isPending || !routeStoryId}
+                onPress={async () => {
+                  if (!routeStoryId) return;
+                  const ok = await confirmAdminAudioAction(
+                    'Clear all audio and queue a full regeneration (new chunks, new mix)?',
+                  );
+                  if (!ok) return;
+                  resetAudioMutation.mutate({ storyId: routeStoryId, regenerate: true });
+                }}
+              >
+                <Text style={styles.audioDangerButtonText}>
+                  {resetAudioMutation.isPending ? 'Working…' : 'Regenerate from scratch'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {resetAudioMutation.isSuccess && resetAudioMutation.data?.jobId ? (
+              <Text style={styles.audioMetaLine}>Queued job: {resetAudioMutation.data.jobId}</Text>
+            ) : null}
+            {resetAudioMutation.error ? (
+              <Text style={styles.audioErrorText}>{(resetAudioMutation.error as Error).message}</Text>
+            ) : null}
+          </View>
+        ) : null}
         {scenesQuery.isLoading ? <AdminLoadingState /> : null}
         {scenesQuery.error ? <AdminErrorState message={(scenesQuery.error as Error).message} /> : null}
+        {routeStoryId && !scenesQuery.isLoading && !scenesQuery.error && storyAudio && scenes.length > 0 ? (
+          <Text style={styles.helperText}>
+            Per-scene «STORY TEXT» is the writer manuscript (prose). Inline `[…]` TTS prosody markup, when the
+            pipeline stores it, appears only above under AUDIO → «Synthesis text».
+          </Text>
+        ) : null}
         {routeStoryId && !scenesQuery.isLoading && !scenesQuery.error ? (
           scenes.length > 0 ? (
             <View style={styles.cardGrid}>
@@ -861,5 +1040,100 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: theme.colors.text.primary,
+  },
+  audioSection: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+    gap: 10,
+  },
+  audioBlockLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.text.secondary,
+    letterSpacing: 0.3,
+    marginTop: 4,
+  },
+  audioMetaLine: {
+    fontSize: 13,
+    color: theme.colors.text.primary,
+    lineHeight: 20,
+  },
+  audioTimingBlock: {
+    gap: 2,
+    marginBottom: 4,
+  },
+  audioAdminActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 4,
+  },
+  audioDangerButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.primary,
+  },
+  audioDangerButtonText: {
+    color: theme.colors.text.primary,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  audioErrorText: {
+    fontSize: 13,
+    color: theme.colors.status.error,
+    marginTop: 4,
+  },
+  audioScrollBox: {
+    maxHeight: 160,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.primary,
+    padding: 10,
+  },
+  audioScrollBoxLarge: {
+    /** Native: cap height so the screen stays usable; web: grow with text (page scroll). */
+    ...Platform.select({
+      default: { maxHeight: 1200 },
+      web: {},
+    }),
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.primary,
+    padding: 10,
+  },
+  audioPre: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: theme.colors.text.primary,
+    fontFamily: Platform.select({ web: 'ui-monospace, SFMono-Regular, Menlo, monospace', default: undefined }),
+  },
+  audioPreMissingChunk: {
+    backgroundColor: '#fce4ec',
+  },
+  audioBlockHint: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    marginBottom: 6,
+    lineHeight: 18,
+  },
+  audioProsodyWarning: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: theme.colors.status.warning,
+    backgroundColor: '#fff7ed',
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
   },
 });
