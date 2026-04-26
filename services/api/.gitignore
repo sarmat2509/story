@@ -12,13 +12,3 @@ build/
 coverage/
 .DS_Store
 bin/ffmpeg
-
-# Local TTS / prosody experiment outputs (scripts write here)
-defer-tts-audio-out/
-defer-tts-ru-scary-audio-out/
-defer-tts-*.txt
-story-*-tagged-tts.txt
-story-*-sample.txt
-story-llm-generated-sample.txt
-writer-prompts-output.txt
-tts-prosody-llm-prompt-google-ru.txt
