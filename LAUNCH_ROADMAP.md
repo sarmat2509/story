@@ -334,10 +334,11 @@ Done:
 - `/children` includes normalized child-mode controls and active child-session counts.
 - `/children` UI now exposes Child Mode enablement, daily/monthly limits, free-text/audio/review/family-story toggles, active child-session counts, and session revocation.
 - `story_requests` and `stories` now carry child-mode attribution and parent review fields; the async story pipeline propagates these fields when a child-created request is introduced.
+- `requireChildSession` and `requireSessionScope` middleware are available for future child-safe endpoints.
 
 Remaining:
 
-- No child-safe generation endpoint/scoped authorization layer is implemented yet.
+- No child-safe generation endpoint is implemented yet; scoped middleware exists but is not wired to a generation route.
 - No parent gate UI/API for returning from Child Mode to Parent Mode is implemented.
 - Parent controls are stored and exposed by API, but are not yet enforced in child-safe generation flows.
 - `/children` still needs allowed-theme/language/character/sibling controls and a safe start/return gate before Child Mode is user-facing.

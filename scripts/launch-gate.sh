@@ -20,6 +20,7 @@ run_in() {
 
 API_TESTS=(
   src/jobs/__tests__/ConcurrentJobQueue.test.ts
+  src/middleware/__tests__/authMiddlewareParentSession.test.ts
   src/ssr/__tests__/publicSeoLocales.test.ts
   src/services/__tests__/assetAccessService.test.ts
   src/services/__tests__/audioQuotaReservationService.test.ts

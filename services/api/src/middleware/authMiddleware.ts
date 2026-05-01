@@ -149,6 +149,64 @@ export function requireParentSession(req: Request, res: Response, next: NextFunc
   next();
 }
 
+/** Use after requireAuth. Allows only scoped child sessions attached to one child profile. */
+export function requireChildSession(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({
+      status: 'error',
+      message: 'Not authenticated',
+      code: 'AUTHENTICATION_REQUIRED',
+    });
+    return;
+  }
+
+  if (req.sessionMode !== 'child') {
+    res.status(403).json({
+      status: 'error',
+      message: 'Child session required',
+      code: 'CHILD_SESSION_REQUIRED',
+    });
+    return;
+  }
+
+  if (!req.childProfileId) {
+    res.status(403).json({
+      status: 'error',
+      message: 'Child profile context required',
+      code: 'CHILD_PROFILE_CONTEXT_REQUIRED',
+    });
+    return;
+  }
+
+  next();
+}
+
+/** Use after requireAuth. Verifies an explicit scope on the authenticated session. */
+export function requireSessionScope(scope: string) {
+  return function requireSessionScopeMiddleware(req: Request, res: Response, next: NextFunction): void {
+    if (!req.user) {
+      res.status(401).json({
+        status: 'error',
+        message: 'Not authenticated',
+        code: 'AUTHENTICATION_REQUIRED',
+      });
+      return;
+    }
+
+    if (!req.sessionScopes?.includes(scope)) {
+      res.status(403).json({
+        status: 'error',
+        message: 'Required session scope missing',
+        code: 'SESSION_SCOPE_REQUIRED',
+        requiredScope: scope,
+      });
+      return;
+    }
+
+    next();
+  };
+}
+
 /** Use after requireAuth. Returns 403 unless users.role is admin. */
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) {
