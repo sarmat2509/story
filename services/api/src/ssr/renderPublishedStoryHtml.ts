@@ -31,6 +31,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .main{flex:1;padding:24px 24px 48px;min-width:0}
 /* meta.marginBottom(16) + header.marginBottom(24) from React = 40px total */
 .meta{font-size:14px;color:#64748b;margin-bottom:40px}
+.author-link{color:#475569;text-decoration:underline;text-underline-offset:3px}
 
 /* ── Scenes ── */
 .scene{margin-bottom:24px}

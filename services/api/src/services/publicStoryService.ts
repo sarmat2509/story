@@ -15,19 +15,24 @@ import { logger } from '../utils/logger';
 import { stripAllTags } from '../utils/audioTags';
 import { config } from '../config';
 import { getReadingTimeMinutes } from '@wondertales/shared';
-import type { AlignmentData, StoryPublicView, StoryAudioMetadata } from '@wondertales/shared';
-
-interface PublicAuthorView {
-  id: string;
-  displayName: string;
-  avatarUrl?: string | null;
-  aboutMe?: string | null;
-}
+import { normalizeAssetStoragePath } from './entityAssetCleanupService';
+import type {
+  AlignmentData,
+  PublicAuthorView,
+  StoryPublicView,
+  StoryAudioMetadata,
+} from '@wondertales/shared';
 
 function resolveAuthorDisplayName(
   author?: { pseudonym?: string | null; displayName?: string | null } | null
 ): string {
   return author?.pseudonym || author?.displayName || 'Anonymous';
+}
+
+export function isValidPublicAuthorId(authorId: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    authorId
+  );
 }
 
 async function getAudioUrlAndAlignment(storyId: string): Promise<{ url: string | null; alignment?: any; duration?: number }> {
@@ -331,6 +336,7 @@ export async function listPublicStories(options: {
 }
 
 export async function getPublicAuthorById(authorId: string): Promise<PublicAuthorView | null> {
+  if (!isValidPublicAuthorId(authorId)) return null;
   const author = await getUserRepository().findPublicAuthorById(authorId);
   if (!author) return null;
   return {
@@ -339,4 +345,20 @@ export async function getPublicAuthorById(authorId: string): Promise<PublicAutho
     avatarUrl: author.avatarUrl ?? null,
     aboutMe: author.aboutMe ?? null,
   };
+}
+
+export async function isPublicAuthorAvatarPath(
+  authorId: string,
+  storagePath: string
+): Promise<boolean> {
+  if (!isValidPublicAuthorId(authorId)) return false;
+
+  const author = await getUserRepository().findPublicAuthorById(authorId);
+  const avatarPath =
+    typeof author?.avatarUrl === 'string' ? normalizeAssetStoragePath(author.avatarUrl) : null;
+
+  if (!avatarPath || avatarPath !== storagePath) return false;
+
+  const publicStoryCount = await getStoryRepository().countPublished({ authorId });
+  return publicStoryCount > 0;
 }

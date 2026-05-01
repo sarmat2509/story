@@ -3,6 +3,7 @@ import { DEFAULT_LOCALE, isPhotoType, isValidLocale } from '@wondertales/shared'
 import { getAssetRepository, getStoryRepository } from '../repositories';
 import { verifyToken } from '../services/jwtService';
 import { getSessionWithUser } from '../services/sessionService';
+import { isPublicAuthorAvatarPath } from '../services/publicStoryService';
 import {
   decideStoryAssetAccess,
   type AssetAccessDecision,
@@ -295,6 +296,21 @@ router.get('/:env/:userId/photos/:photoType/:filename', async (req: Request, res
         { relativePath },
         'Signed asset URL is invalid or expired, falling back to authenticated access',
       );
+    }
+
+    if (photoType === 'profile') {
+      const publicAuthorAvatar = await isPublicAuthorAvatarPath(userId, relativePath);
+      if (publicAuthorAvatar) {
+        try {
+          await sendPublicFile(res, relativePath);
+          return;
+        } catch {
+          return res.status(404).json({
+            status: 'error',
+            message: 'Photo not found',
+          });
+        }
+      }
     }
     
     // --- Auth: cookie OR Bearer header ---

@@ -6,6 +6,11 @@ const story = {
   title: 'Launch Story',
   fullText: 'A short launch story.',
   scenes: [],
+  author: {
+    id: 'author-1',
+    displayName: 'WonderTales',
+    avatarUrl: null,
+  },
   authorDisplayName: 'WonderTales',
   publishedAt: '2026-05-01T00:00:00.000Z',
   share: {
@@ -24,6 +29,11 @@ void (async function main() {
     indexableHtml,
     /<meta name="robots" content="index,follow">/,
     'published story SSR remains indexable by default'
+  );
+  assert.match(
+    renderPublishedStoryHtml({ story, useStaticBody: true }),
+    /href="[^"]+\/authors\/author-1"/,
+    'published story SSR links public author pages when author id is present'
   );
 
   const unlistedHtml = renderPublishedStoryHtml({

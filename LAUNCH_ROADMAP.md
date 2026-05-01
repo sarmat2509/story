@@ -600,9 +600,11 @@ Current code findings:
 - Bundle catalog data is now cached client-side by current plan slug and invalidated after subscription checkout, bundle checkout, portal return, plan upgrade/downgrade, and billing success.
 - `/stories` is currently included in the sitemap, but exact `/stories` is routed to the SPA catalog, not an SSR catalog.
 - `/stories/:slug` is correctly routed to API SSR and should remain indexable only for intentionally published stories.
-- `/u/:token` is routed to SSR but currently reuses the published story renderer with `index,follow`; unlisted links must be `noindex,nofollow`.
-- `/authors/:authorId` is React-only today, but it is part of the intended public discovery flow from public story pages and must become an indexable SSR page before launch.
+- `/u/:token` is routed to SSR with `noindex,nofollow` response/header handling and remains out of the sitemap.
+- `/authors/:authorId` is now routed through API SSR from nginx for authors with at least one public catalog story; missing, invalid, or zero-public-story authors return 404 with `noindex,nofollow`.
+- Public author avatar files can be served without auth only when the requested profile image matches the author's public avatar and the author has at least one public catalog story.
 - `/terms` and `/privacy` are SSR, but only `en` and `uk` markdown files exist. Other launch locales must either get legal content or stay out of indexed/legal alternate routes.
+- Local Docker logs after author SSR checks show successful author/avatar responses; dev nginx still emits non-fatal IPv6 fallback warnings for `host.docker.internal:8082` before retrying successfully.
 
 Required public route contract:
 
@@ -645,9 +647,9 @@ Required code changes:
   - or move pricing display helpers into a shared package and use them from both `renderPricingHtml` and `PlansScreen`.
 - Create one route ownership manifest for SEO/public/app-only paths and use it consistently in sitemap generation, nginx route comments/config, React linking, and tests.
 - Add SSR for `/stories` catalog if it remains in sitemap. Otherwise remove `/stories` from sitemap until the SSR catalog exists.
-- Render `/u/:token` with `noindex,nofollow` and keep it out of sitemap.
-- Add SSR for `/authors/:authorId` and route it from nginx before adding author pages to sitemap.
-- Public story SSR and React pages should link the author name/avatar to `/authors/:authorId` when `author.id` is present.
+- Keep `/u/:token` rendered with `noindex,nofollow` and out of sitemap.
+- Keep `/authors/:authorId` SSR routed from nginx; add author pages to sitemap only after the sitemap author eligibility query is implemented.
+- Public story SSR and React pages link the author name/avatar to `/authors/:authorId` when `author.id` is present.
 - Author pages must list only public catalog stories, never private, draft, hidden, child-review-pending, or unlisted stories.
 - Author pages with zero public catalog stories should return 404 or `noindex,nofollow`.
 - Sitemap may include author pages only for authors with at least one public catalog story.
@@ -663,7 +665,7 @@ Acceptance criteria:
 - Opening the authenticated plans screen from inside the app uses an app-only URL such as `/billing/plans`, not `/pricing`.
 - There is only one pricing display source of truth for feature order, labels, hidden features, and price formatting.
 - Bundle prices shown in the authenticated billing/plans screen always match the user's current plan after checkout, portal return, upgrade, downgrade, or billing success.
-- Sitemap includes only indexable SSR-backed pages, including eligible author pages.
+- Sitemap includes only indexable SSR-backed pages; eligible author pages still need sitemap inclusion.
 - `/u/:token`, `/welcome`, `/register`, `/auth/*`, `/billing/success`, `/dashboard`, `/wizard`, `/me/*`, `/children`, `/characters`, `/profile`, `/settings/*`, and `/admin/*` are not indexable.
 - Unknown public URLs do not return a successful indexable SPA shell.
 

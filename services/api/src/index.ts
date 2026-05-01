@@ -22,6 +22,7 @@ import publicUnlistedRoutes from './routes/publicUnlisted';
 import meStoriesRoutes from './routes/meStories';
 import ssrStoriesRoutes from './routes/ssrStories';
 import ssrUnlistedRoutes from './routes/ssrUnlisted';
+import ssrAuthorsRoutes from './routes/ssrAuthors';
 import ssrLandingRoutes from './routes/ssrLanding';
 import ssrPricingRoutes from './routes/ssrPricing';
 import ssrLegalRoutes from './routes/ssrLegal';
@@ -189,6 +190,7 @@ app.use('/api/v1/public/authors', apiLimiter, publicAuthorsRoutes); // Public au
 app.use('/api/v1/public/u', apiLimiter, publicUnlistedRoutes); // Unlisted by token
 app.use('/ssr/stories', ssrStoriesRoutes); // SSR HTML (no auth, cached)
 app.use('/ssr/u', ssrUnlistedRoutes); // SSR for unlisted
+app.use('/ssr/authors', ssrAuthorsRoutes); // SSR for public author pages
 app.use('/ssr/landing', ssrLandingRoutes); // Static landing page for SEO
 app.use('/ssr/pricing', ssrPricingRoutes); // Static pricing page for SEO
 app.use('/ssr/legal', ssrLegalRoutes); // Terms of Service, Privacy Policy

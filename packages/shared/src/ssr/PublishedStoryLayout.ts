@@ -17,7 +17,7 @@ export interface PublishedStoryLayoutParams {
 }
 
 export function renderPublishedStoryLayout(params: PublishedStoryLayoutParams): string {
-  const { story, apiBase } = params;
+  const { story, apiBase, webAppUrl } = params;
 
   const publishedAt = story.publishedAt
     ? new Date(story.publishedAt).toLocaleDateString('uk-UA', {
@@ -66,6 +66,13 @@ export function renderPublishedStoryLayout(params: PublishedStoryLayoutParams): 
   const sidebar = sidebarContent
     ? `<aside class="sidebar"><div class="sidebar-sticky">${sidebarContent}</div></aside>`
     : '';
+  const authorName = escapeHtml(story.authorDisplayName || 'Anonymous');
+  const authorHref = story.author?.id
+    ? `${webAppUrl.replace(/\/$/, '')}/authors/${encodeURIComponent(story.author.id)}`
+    : null;
+  const authorHtml = authorHref
+    ? `<a class="author-link" href="${escapeHtml(authorHref)}">${authorName}</a>`
+    : authorName;
 
   return `
   <div class="nav-rail"></div>
@@ -76,7 +83,7 @@ export function renderPublishedStoryLayout(params: PublishedStoryLayoutParams): 
   <div class="page">
     <div class="layout">
       <div class="main">
-        <p class="meta">${escapeHtml(story.authorDisplayName || 'Anonymous')} · ${escapeHtml(publishedAt)}</p>
+        <p class="meta">${authorHtml} · ${escapeHtml(publishedAt)}</p>
         ${scenesHtml}
       </div>
       ${sidebar}
