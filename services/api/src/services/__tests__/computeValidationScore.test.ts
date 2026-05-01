@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import type { ImageValidationResult } from '../../ai/types';
 import type { SceneVisual } from '../types';
-import { computeValidationScore } from '../storyOrchestrationService';
+import { computeValidationScore, evaluateGeneratedImageSafety } from '../storyOrchestrationService';
 import { config } from '../../config';
 
 type ScoringOverride = typeof config.image.validationScoring;
@@ -216,6 +216,68 @@ function testHamsterRegression() {
   );
 }
 
+function testGeneratedImageSafetyAllowsValidatedOrDisabledImages() {
+  assert.deepStrictEqual(
+    evaluateGeneratedImageSafety({
+      imageValidationEnabled: false,
+      acceptedByValidationScore: false,
+      finalValidationScore: null,
+      minAcceptScore: 85,
+      attempts: 0,
+    }),
+    { allowed: true },
+    'validation-disabled environments may persist images without a validation score'
+  );
+
+  assert.deepStrictEqual(
+    evaluateGeneratedImageSafety({
+      imageValidationEnabled: true,
+      acceptedByValidationScore: true,
+      finalValidationScore: 92,
+      minAcceptScore: 85,
+      attempts: 1,
+    }),
+    { allowed: true },
+    'images accepted by validation score may be persisted'
+  );
+}
+
+function testGeneratedImageSafetyBlocksFailedOrUnvalidatedImages() {
+  assert.deepStrictEqual(
+    evaluateGeneratedImageSafety({
+      imageValidationEnabled: true,
+      acceptedByValidationScore: false,
+      finalValidationScore: 84,
+      minAcceptScore: 85,
+      attempts: 3,
+    }),
+    {
+      allowed: false,
+      code: 'IMAGE_VALIDATION_FAILED',
+      message: 'Image validation failed after 3 attempt(s). The generated image was not saved.',
+      details: { attempts: 3, minAcceptScore: 85, score: 84 },
+    },
+    'images at or below the threshold must not be persisted as completed assets'
+  );
+
+  assert.deepStrictEqual(
+    evaluateGeneratedImageSafety({
+      imageValidationEnabled: true,
+      acceptedByValidationScore: false,
+      finalValidationScore: null,
+      minAcceptScore: 85,
+      attempts: 0,
+    }),
+    {
+      allowed: false,
+      code: 'IMAGE_VALIDATION_NOT_COMPLETED',
+      message: 'Image validation did not complete. The generated image was not saved.',
+      details: { attempts: 0, minAcceptScore: 85, score: null },
+    },
+    'validation transport failures must fail closed before asset upload'
+  );
+}
+
 testBaselineCleanResult();
 testKindMismatchUsesConfigurablePenalty();
 testNoKindMismatchOnEqualKinds();
@@ -223,4 +285,6 @@ testHumanWithRefOnlyWhenBothHuman();
 testNonHumanWithRefAppliesEquallyToAnimalAndImaginary();
 testLeniencyCoversIdentityBooleansAndSilhouette();
 testHamsterRegression();
+testGeneratedImageSafetyAllowsValidatedOrDisabledImages();
+testGeneratedImageSafetyBlocksFailedOrUnvalidatedImages();
 console.log('computeValidationScore tests passed');

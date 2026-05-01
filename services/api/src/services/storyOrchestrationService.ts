@@ -3090,6 +3090,56 @@ interface ScoredAttempt {
   attempt: number;
 }
 
+export type GeneratedImageSafetyDecision =
+  | { allowed: true }
+  | {
+      allowed: false;
+      code: 'IMAGE_VALIDATION_NOT_COMPLETED' | 'IMAGE_VALIDATION_FAILED';
+      message: string;
+      details: {
+        attempts: number;
+        minAcceptScore: number;
+        score: number | null;
+      };
+    };
+
+export function evaluateGeneratedImageSafety(input: {
+  imageValidationEnabled: boolean;
+  acceptedByValidationScore: boolean;
+  finalValidationScore: number | null | undefined;
+  minAcceptScore: number;
+  attempts: number;
+}): GeneratedImageSafetyDecision {
+  if (!input.imageValidationEnabled || input.acceptedByValidationScore) {
+    return { allowed: true };
+  }
+
+  const score = input.finalValidationScore ?? null;
+  if (score == null) {
+    return {
+      allowed: false,
+      code: 'IMAGE_VALIDATION_NOT_COMPLETED',
+      message: 'Image validation did not complete. The generated image was not saved.',
+      details: {
+        attempts: input.attempts,
+        minAcceptScore: input.minAcceptScore,
+        score,
+      },
+    };
+  }
+
+  return {
+    allowed: false,
+    code: 'IMAGE_VALIDATION_FAILED',
+    message: `Image validation failed after ${input.attempts} attempt(s). The generated image was not saved.`,
+    details: {
+      attempts: input.attempts,
+      minAcceptScore: input.minAcceptScore,
+      score,
+    },
+  };
+}
+
 /**
  * Save a rejected (validation-failed) image to disk for debugging.
  * Layout under uploads: {env}/{userId}/{storyId}/rejected/scene{sceneId}_attempt{attempt}.ext
@@ -3685,8 +3735,26 @@ async function generateSceneImageWithReference(
           })),
           selectedFeedback: best.validation.overallFeedback,
           selectedBestInsteadOfLast: !isLastAttempt,
-        }, `All ${maxAttempts} attempts failed validation — selected attempt ${best.attempt} (score ${best.score}/100)`);
+        }, `All ${maxAttempts} attempts failed validation — best failed attempt ${best.attempt} (score ${best.score}/100)`);
       }
+    }
+
+    const imageSafetyDecision = evaluateGeneratedImageSafety({
+      imageValidationEnabled: config.image.enableValidation,
+      acceptedByValidationScore: acceptByValidationScore,
+      finalValidationScore: finalValidationMeta?.score ?? null,
+      minAcceptScore: config.image.validationMinAcceptScore,
+      attempts: scoredAttempts.length,
+    });
+
+    if (imageSafetyDecision.allowed === false) {
+      logger.warn({
+        storyId,
+        sceneId: scene.sceneId,
+        code: imageSafetyDecision.code,
+        details: imageSafetyDecision.details,
+      }, 'Generated image blocked before asset upload');
+      throw new Error(imageSafetyDecision.message);
     }
 
     // Upload original image to storage
@@ -5026,19 +5094,10 @@ export async function regenerateSceneImage(
   // Get user plan
   const userPlan = await getPlanFeatures(story.userId);
   
-  // Delete old image asset
+  // Keep the old image until the replacement passes validation and is saved.
   const oldAssets = await getAssetRepository().findBySceneId(scene.id, 'image');
   
   const assetStorage = getAssetStorageService();
-  
-  for (const oldAsset of oldAssets) {
-    try {
-      await assetStorage.deleteAsset(oldAsset.storagePath);
-    } catch (error) {
-      logger.warn({ error, assetId: oldAsset.id }, 'Failed to delete old asset from storage');
-    }
-    await getAssetRepository().deleteById(oldAsset.id);
-  }
   
   // Get characters from story metadata
   const metadata = story.metadata as any;
@@ -5352,6 +5411,15 @@ export async function regenerateSceneImage(
     await getSceneRepository().update(scene.id, {
       imageUrl: imageResult.imageUrl,
     });
+  }
+
+  for (const oldAsset of oldAssets) {
+    try {
+      await assetStorage.deleteAsset(oldAsset.storagePath);
+    } catch (error) {
+      logger.warn({ error, assetId: oldAsset.id }, 'Failed to delete old asset from storage');
+    }
+    await getAssetRepository().deleteById(oldAsset.id);
   }
 
   logger.info({ storyId, sceneId }, 'Scene image regenerated successfully');
