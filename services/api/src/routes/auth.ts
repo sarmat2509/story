@@ -21,6 +21,7 @@ import {
   validateRegistrationConsents,
   type ConsentAuditContext,
 } from '../services/consentService';
+import { oauthLimiter, passwordResetLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -118,8 +119,22 @@ function buildConsentAuditContext(req: Request, source: string): ConsentAuditCon
   };
 }
 
+function hasConfiguredOAuthValue(value: string | undefined): boolean {
+  const normalized = (value || '').trim().toLowerCase();
+  return (
+    normalized.length > 0 &&
+    !normalized.startsWith('your_') &&
+    !normalized.startsWith('your-') &&
+    !normalized.includes('placeholder')
+  );
+}
+
+function isAppleOAuthConfigured(): boolean {
+  return hasConfiguredOAuthValue(config.oauth.apple.clientId);
+}
+
 // Google OAuth - Start
-router.get('/google/start', (req: Request, res: Response, next) => {
+router.get('/google/start', oauthLimiter, (req: Request, res: Response, next) => {
   passport.authenticate('google', {
     scope: ['profile', 'email'],
     session: false,
@@ -129,6 +144,7 @@ router.get('/google/start', (req: Request, res: Response, next) => {
 // Google OAuth - Callback
 router.get(
   '/google/callback',
+  oauthLimiter,
   passport.authenticate('google', { session: false, failureRedirect: '/auth/error' }),
   async (req: Request, res: Response) => {
     try {
@@ -176,7 +192,7 @@ router.get(
 // Google OAuth - Mobile token exchange
 // For React Native apps using @react-native-google-signin/google-signin
 // Mobile app gets idToken from Google SDK and sends it here for verification
-router.post('/google/token', async (req: Request, res: Response) => {
+router.post('/google/token', oauthLimiter, async (req: Request, res: Response) => {
   try {
     const { idToken, deviceName, deviceType } = req.body;
     
@@ -268,7 +284,15 @@ router.post('/google/token', async (req: Request, res: Response) => {
 });
 
 // Apple OAuth - Start
-router.get('/apple/start', (req: Request, res: Response) => {
+router.get('/apple/start', oauthLimiter, (req: Request, res: Response) => {
+  if (!isAppleOAuthConfigured()) {
+    return res.status(404).json({
+      status: 'error',
+      code: 'APPLE_OAUTH_NOT_CONFIGURED',
+      message: 'Apple sign in is not configured',
+    });
+  }
+
   const redirectUri = req.query.redirect_uri as string;
   
   // Generate Apple OAuth URL
@@ -288,8 +312,16 @@ router.get('/apple/start', (req: Request, res: Response) => {
 });
 
 // Apple OAuth - Callback (Web)
-router.post('/apple/callback', async (req: Request, res: Response) => {
+router.post('/apple/callback', oauthLimiter, async (req: Request, res: Response) => {
   try {
+    if (!isAppleOAuthConfigured()) {
+      return res.status(404).json({
+        status: 'error',
+        code: 'APPLE_OAUTH_NOT_CONFIGURED',
+        message: 'Apple sign in is not configured',
+      });
+    }
+
     const { code, id_token, user, state } = req.body;
     
     if (!id_token) {
@@ -367,8 +399,16 @@ router.post('/apple/callback', async (req: Request, res: Response) => {
 
 // Apple OAuth - Mobile token exchange
 // For React Native apps using @invertase/react-native-apple-authentication
-router.post('/apple/token', async (req: Request, res: Response) => {
+router.post('/apple/token', oauthLimiter, async (req: Request, res: Response) => {
   try {
+    if (!isAppleOAuthConfigured()) {
+      return res.status(404).json({
+        status: 'error',
+        code: 'APPLE_OAUTH_NOT_CONFIGURED',
+        message: 'Apple sign in is not configured',
+      });
+    }
+
     const { identityToken, authorizationCode, user, deviceName, deviceType } = req.body;
     
     if (!identityToken) {
@@ -588,7 +628,7 @@ router.post('/register', async (req: Request, res: Response) => {
 });
 
 // Forgot password
-router.post('/forgot-password', async (req: Request, res: Response) => {
+router.post('/forgot-password', passwordResetLimiter, async (req: Request, res: Response) => {
   try {
     const validationResult = forgotPasswordSchema.safeParse(req.body);
     if (!validationResult.success) {

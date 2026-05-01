@@ -44,6 +44,7 @@ export default function WelcomeScreen() {
   const isLoading = oauthLoading || emailLoginMutation.isPending;
   const emailValid = EMAIL_REGEX.test(email);
   const canSubmitEmail = emailValid && password.length >= 8;
+  const showAppleSignIn = Platform.OS === 'ios';
 
   const handleError = (message: string, err: unknown) => {
     setError(message);
@@ -222,20 +223,22 @@ export default function WelcomeScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.button, styles.appleButton]}
-              onPress={handleAppleLogin}
-              disabled={isLoading}
-            >
-              {oauthLoading ? (
-                <ActivityIndicator color={theme.colors.text.inverse} />
-              ) : (
-                <>
-                  <Ionicons name="logo-apple" size={22} color={theme.colors.text.inverse} />
-                  <Text style={styles.buttonText}>{t('welcome.sign_in_apple')}</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {showAppleSignIn && (
+              <TouchableOpacity
+                style={[styles.button, styles.appleButton]}
+                onPress={handleAppleLogin}
+                disabled={isLoading}
+              >
+                {oauthLoading ? (
+                  <ActivityIndicator color={theme.colors.text.inverse} />
+                ) : (
+                  <>
+                    <Ionicons name="logo-apple" size={22} color={theme.colors.text.inverse} />
+                    <Text style={styles.buttonText}>{t('welcome.sign_in_apple')}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
 
           <TouchableOpacity

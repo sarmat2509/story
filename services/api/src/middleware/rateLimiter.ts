@@ -68,6 +68,22 @@ export const oauthLimiter = rateLimit({
     message: 'Too many OAuth attempts from this IP, please try again in an hour',
   },
   skipSuccessfulRequests: false, // Count all requests
+  skip: () => process.env.NODE_ENV === 'development',
+});
+
+// Password reset emails can be abused even when the endpoint returns 200 for privacy.
+export const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req),
+  message: {
+    status: 'error',
+    message: 'Too many password reset requests from this IP, please try again later',
+  },
+  skipSuccessfulRequests: false,
+  skip: () => process.env.NODE_ENV === 'development',
 });
 
 // Rate limiter for public story rating (POST /rating)
