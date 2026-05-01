@@ -867,7 +867,7 @@ Required work:
 - Parent-only action for public publishing.
 - Confirmation dialog before making a story public.
 - Remove child-created story from public catalog until parent approval.
-- Add unpublish action.
+- Keep unpublish action returning stories to the private visibility state.
 - Add report story action if public catalog remains enabled.
 - Make `/api/v1/public/stories`, `/api/v1/public/authors/:authorId`, SSR story routes, SSR author routes, and sitemap use the same public predicate: `is_published=true`, `visibility='public'`, `published_slug IS NOT NULL`, `hidden=false`, moderation passed, and parent review approved when applicable.
 - Make `/api/v1/public/u/:token` and `/ssr/u/:token` use the unlisted predicate: `is_published=true`, `visibility='unlisted'`, `share_token IS NOT NULL`, `hidden=false`, moderation passed, and parent review approved when applicable.
@@ -881,6 +881,8 @@ Completed locally:
 - `/api/v1/public/u/:token`, `/ssr/u/:token`, share-card lookup, and direct unlisted story assets now require the same unlisted predicate plus the matching share token where appropriate.
 - Direct public story asset access now also requires `policy_checks.textValidated=true` and parent review status `not_required` or `approved`; owner/admin and signed private preview paths remain available for non-public access.
 - Public predicate tests are included in `scripts/launch-gate.sh`.
+- Unpublishing now clears `visibility` back to `null`, removes public/unlisted share fields, and clears home-page featuring when present.
+- `pnpm launch:gate` now includes a publish service regression test for the unpublish private-state patch.
 
 Acceptance criteria:
 

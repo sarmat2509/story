@@ -61,6 +61,28 @@ export interface PublishResult {
   publishedStoriesCount?: number;
 }
 
+export interface UnpublishStoryUpdate {
+  isPublished: false;
+  publishedAt: null;
+  publishedSlug: null;
+  authorDisplayName: null;
+  visibility: null;
+  shareToken: null;
+  showOnHomePage?: false;
+}
+
+export function buildUnpublishStoryUpdate(story: { showOnHomePage?: boolean | null }): UnpublishStoryUpdate {
+  return {
+    isPublished: false,
+    publishedAt: null,
+    publishedSlug: null,
+    authorDisplayName: null,
+    visibility: null,
+    shareToken: null,
+    ...(story.showOnHomePage === true ? { showOnHomePage: false } : {}),
+  };
+}
+
 /**
  * Publish a story. Sets published_at, published_slug or share_token.
  * visibility: 'public' = in catalog (slug), 'unlisted' = by link only (share_token).
@@ -177,15 +199,7 @@ export async function unpublishStory(storyId: string, userId: string): Promise<b
   const slug = story.publishedSlug;
   const shouldClearHomePageFlag = story.showOnHomePage === true;
 
-  await storyRepo.updateStory(storyId, {
-    isPublished: false,
-    publishedAt: null,
-    publishedSlug: null,
-    authorDisplayName: null,
-    visibility: 'public',
-    shareToken: null,
-    ...(shouldClearHomePageFlag ? { showOnHomePage: false } : {}),
-  });
+  await storyRepo.updateStory(storyId, buildUnpublishStoryUpdate(story));
 
   if (slug) {
     await storyRepo.incrementPublicRenderVersion(storyId);
