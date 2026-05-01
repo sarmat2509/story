@@ -37,6 +37,15 @@ import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { ExpandableCard } from '@/components/ExpandableCard';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
+import {
+  formatPricingPrice,
+  getCombinedPricingUsageHighlight,
+  getPricingFeatureLabel,
+  isPricingFeatureAvailable,
+  normalizePricingLocale,
+  sortPricingFeatureEntries,
+  type PricingTranslate,
+} from '@wondertales/shared';
 
 const cardDelay = (i: number) => Math.min(120 + i * 120, 420);
 
@@ -108,58 +117,6 @@ export default function PlansScreen() {
   const isLoading = effectiveIsAuthenticated ? authPlansQuery.isLoading : publicPlansQuery.isLoading;
   const error = effectiveIsAuthenticated ? authPlansQuery.error : publicPlansQuery.error;
   
-  // Fixed feature order - same for all plans
-  const FEATURE_ORDER = [
-    'stories_per_day',
-    'images_per_story',
-    'premium_voices',
-    'child_profiles_limit',
-    'series_enabled',
-    'export_pdf',
-    'export_video',
-    'share_enabled',
-  ];
-  
-  // Sort features: available first, unavailable last, in fixed order
-  const sortFeatures = (features: Record<string, unknown> | Array<{ name?: string; value?: unknown }>) => {
-    const asRecord = Array.isArray(features)
-      ? Object.fromEntries((features as Array<{ name?: string; value?: unknown }>).map((f) => [f.name ?? '', f]))
-      : features as Record<string, unknown>;
-    const entries = Object.entries(asRecord);
-    
-    // Separate available and unavailable features
-    const available: Array<[string, any]> = [];
-    const unavailable: Array<[string, any]> = [];
-    
-    entries.forEach(([slug, feature]: [string, any]) => {
-      if (slug === 'audio_stories_per_month') return; // Skip highlighted feature
-      if (slug === 'story_from_drawing') return; // Removed: same as Instant mode, avoid confusion
-      if (slug === 'image_quality') return; // Removed: quality is same across plans
-      
-      const isAvailable = feature.value?.enabled !== false &&
-                         (feature.value?.limit === undefined || feature.value?.limit == null || feature.value?.limit > 0);
-      
-      if (isAvailable) {
-        available.push([slug, feature]);
-      } else {
-        unavailable.push([slug, feature]);
-      }
-    });
-    
-    // Sort each group by FEATURE_ORDER
-    const sortByOrder = (a: [string, any], b: [string, any]) => {
-      const indexA = FEATURE_ORDER.indexOf(a[0]);
-      const indexB = FEATURE_ORDER.indexOf(b[0]);
-      return indexA - indexB;
-    };
-    
-    available.sort(sortByOrder);
-    unavailable.sort(sortByOrder);
-    
-    // Concatenate: available first, unavailable last
-    return [...available, ...unavailable];
-  };
-  
   // Handle upgrade: Stripe (web) or stub (mobile / when disabled)
   const handleUpgrade = async () => {
     if (!selectedPlan) return;
@@ -191,39 +148,17 @@ export default function PlansScreen() {
     }
   };
   
+  const pricingLocale = normalizePricingLocale(i18n.language);
+  const translatePricing = useCallback<PricingTranslate>(
+    (key, params, defaultValue) =>
+      String(t(`plans.${key}` as never, { ...(params ?? {}), defaultValue } as never)),
+    [t]
+  );
+
   // Helper to format price
   const formatPrice = useCallback((priceMonthly: number, currency: string) => {
-    if (priceMonthly === 0) return t('plans.free');
-    // UAH: kopiykas; USD: cents — both stored as integer, divide by 100
-    const amount = (currency === 'UAH' || currency === 'USD') ? priceMonthly / 100 : priceMonthly;
-    const symbol = currency === 'UAH' ? '₴' : currency === 'USD' ? '$' : '€';
-    return `${symbol}${amount.toFixed(currency === 'USD' ? 2 : 0)}`;
-  }, [t]);
-
-  // Helper to render feature value
-  const renderFeatureValue = (feature: any) => {
-    const value = feature.value;
-
-    if ('limit' in value) {
-      if (value.limit == null) return '∞';
-      return `${value.limit} ${value.unit || ''}`;
-    }
-    if ('enabled' in value) {
-      return value.enabled ? '✓' : '✗';
-    }
-    if ('selected' in value) {
-      return value.selected;
-    }
-    return String(value);
-  };
-  
-  // Helper to check if feature is available
-  const isFeatureAvailable = (feature: any) => {
-    const value = feature.value;
-    if ('enabled' in value) return value.enabled;
-    if ('limit' in value) return value.limit == null || value.limit > 0;
-    return true;
-  };
+    return formatPricingPrice(pricingLocale, priceMonthly, currency, t('plans.free'));
+  }, [pricingLocale, t]);
 
   const handleBundlePurchase = useCallback(
     async (bundleSlug: string) => {
@@ -348,7 +283,11 @@ export default function PlansScreen() {
         {plans?.map((plan, planIndex) => {
           const isCurrent = isAuthenticated && 'isCurrent' in plan && plan.isCurrent;
           const isFreePlan = plan.slug === 'free';
-          const audioFeature = (plan.features as unknown as Record<string, { value?: { limit?: number } }>)['audio_stories_per_month']; // CHANGED from audio_minutes_per_month
+          const usageHighlight = getCombinedPricingUsageHighlight(
+            pricingLocale,
+            translatePricing,
+            plan.features as Record<string, any>
+          );
           
           // Determine button type
           let buttonType: 'subscribe' | 'upgrade' | 'downgrade' | 'current' = 'subscribe';
@@ -394,54 +333,42 @@ export default function PlansScreen() {
                 )}
               </View>
               
-              {/* Audio stories highlight */}
-              {audioFeature && (
+              {usageHighlight && (
                 <View style={styles.highlightFeature}>
                   <Ionicons 
-                    name="musical-notes" 
+                    name="sparkles"
                     size={20} 
                     color={theme.colors.interactive.primary}
                   />
-                  <Text style={styles.highlightFeatureText}>
-                    {t('plans.audio_stories', { 
-                      count: audioFeature?.value?.limit ?? 0
-                    })}
-                  </Text>
+                  <Text style={styles.highlightFeatureText}>{usageHighlight}</Text>
                 </View>
               )}
               
               {/* Features list */}
               <View style={styles.featuresContainer}>
-                {sortFeatures(plan.features as Record<string, any>).map(([slug, feature]: [string, any]) => {
-                  const available = isFeatureAvailable(feature);
+                {sortPricingFeatureEntries(plan.features as Record<string, any>).map(
+                  ([slug, feature]: [string, any]) => {
+                    const available = isPricingFeatureAvailable(feature);
                   
-                  return (
-                    <View key={slug} style={styles.featureRow}>
-                      <Ionicons 
-                        name={available ? 'checkmark-circle' : 'close-circle'}
-                        size={16}
-                        color={available ? theme.colors.status.success : theme.colors.text.tertiary}
-                      />
-                      <Text 
-                        style={[
-                          styles.featureText,
-                          !available && styles.featureTextDisabled
-                        ]}
-                      >
-                        {slug === 'child_profiles_limit' && feature.value?.limit == null
-                          ? t('plans.features.child_profiles_limit_unlimited')
-                          : slug === 'child_profiles_limit' && feature.value?.limit === 1
-                          ? t('plans.features.child_profiles_limit_one')
-                          : slug === 'images_per_story' && typeof feature.value?.limit === 'number'
-                          ? t('plans.features.images_per_story', { value: feature.value.limit, count: feature.value.limit })
-                          : t(`plans.features.${slug}`, { 
-                              defaultValue: feature.name,
-                              value: renderFeatureValue(feature)
-                            })}
-                      </Text>
-                    </View>
-                  );
-                })}
+                    return (
+                      <View key={slug} style={styles.featureRow}>
+                        <Ionicons
+                          name={available ? 'checkmark-circle' : 'close-circle'}
+                          size={16}
+                          color={available ? theme.colors.status.success : theme.colors.text.tertiary}
+                        />
+                        <Text
+                          style={[
+                            styles.featureText,
+                            !available && styles.featureTextDisabled
+                          ]}
+                        >
+                          {getPricingFeatureLabel(pricingLocale, translatePricing, slug, feature)}
+                        </Text>
+                      </View>
+                    );
+                  }
+                )}
               </View>
               
               {/* Action button based on user state and plan tier */}
@@ -591,32 +518,24 @@ export default function PlansScreen() {
                 </Text>
                 <View style={styles.featuresList}>
                   <Text style={styles.featuresTitle}>{t('plans.new_features')}</Text>
-                  {selectedPlan && sortFeatures(selectedPlan.features).map(([slug, feature]: [string, any]) => {
-                    const available = feature.value?.enabled !== false && 
-                                     (feature.value?.limit === undefined || feature.value?.limit > 0);
-                    if (!available) return null;
-                    return (
-                      <View key={slug} style={styles.featureRow}>
-                        <Ionicons 
-                          name="checkmark-circle"
-                          size={16}
-                          color={theme.colors.status.success}
-                        />
-                        <Text style={styles.featureText}>
-                          {slug === 'child_profiles_limit' && feature.value?.limit == null
-                            ? t('plans.features.child_profiles_limit_unlimited')
-                            : slug === 'child_profiles_limit' && feature.value?.limit === 1
-                            ? t('plans.features.child_profiles_limit_one')
-                            : slug === 'images_per_story' && typeof feature.value?.limit === 'number'
-                            ? t('plans.features.images_per_story', { value: feature.value.limit, count: feature.value.limit })
-                            : t(`plans.features.${slug}`, { 
-                                defaultValue: feature.name,
-                                value: feature.value?.limit ?? renderFeatureValue(feature)
-                              })}
-                        </Text>
-                      </View>
-                    );
-                  })}
+                  {selectedPlan && sortPricingFeatureEntries(selectedPlan.features).map(
+                    ([slug, feature]: [string, any]) => {
+                      const available = isPricingFeatureAvailable(feature);
+                      if (!available) return null;
+                      return (
+                        <View key={slug} style={styles.featureRow}>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={16}
+                            color={theme.colors.status.success}
+                          />
+                          <Text style={styles.featureText}>
+                            {getPricingFeatureLabel(pricingLocale, translatePricing, slug, feature)}
+                          </Text>
+                        </View>
+                      );
+                    }
+                  )}
                 </View>
                 <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
                   <Text style={styles.modalButtonText}>{t('common.got_it')}</Text>

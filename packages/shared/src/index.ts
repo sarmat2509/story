@@ -12,6 +12,7 @@ export * from './constants/imaginaryTraits';
 export * from './utils/policyHelpers';
 export * from './utils/readingTime';
 export * from './utils/ratingEmojis';
+export * from './utils/planPresentation';
 export * from './utils/stripCharacterId';
 export * from './utils/stripMarkdownEmphasis';
 export * from './ssr';

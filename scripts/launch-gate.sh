@@ -22,6 +22,7 @@ API_TESTS=(
   src/jobs/__tests__/ConcurrentJobQueue.test.ts
   src/jobs/__tests__/orphanStorageCleanupSchedulerJob.test.ts
   src/middleware/__tests__/authMiddlewareParentSession.test.ts
+  src/ssr/__tests__/pricingPresentation.test.ts
   src/ssr/__tests__/publicSeoLocales.test.ts
   src/ssr/__tests__/renderPublicAuthorHtml.test.ts
   src/services/__tests__/assetAccessService.test.ts

@@ -595,7 +595,7 @@ Current code findings:
 
 - `/pricing` and `/{locale}/pricing` are already routed through API SSR in `nginx/includes/common-ssr-routes.conf`.
 - `services/api/src/ssr/renderPricingHtml.ts` renders an indexable pricing document with canonical and alternate links.
-- `apps/universal-app/src/screens/plans/PlansScreen.tsx` renders a separate React pricing/billing layout with its own feature order, hidden features, price formatting, bundles, and checkout behavior.
+- `apps/universal-app/src/screens/plans/PlansScreen.tsx` remains the authenticated billing/plans UI, but feature order, hidden-feature rules, price formatting, feature labels, and usage highlight rules now come from shared pricing presenter helpers.
 - React Navigation maps the authenticated app `Plans` screen to `/billing/plans`, while `/pricing` and `/{locale}/pricing` stay owned by API SSR.
 - Bundle catalog data is now cached client-side by current plan slug and invalidated after subscription checkout, bundle checkout, portal return, plan upgrade/downgrade, and billing success.
 - `/stories` is currently included in the sitemap, but exact `/stories` is routed to the SPA catalog, not an SSR catalog.
@@ -643,9 +643,7 @@ Required code changes:
 - Rename or conceptually separate `PlansScreen` into an authenticated billing/plans screen; it may still be reached from paywalls, profile, billing success, and child-mode parent gates, but not via the public `/pricing` URL.
 - Keep public pricing CTA links pointing to `/welcome` or `/register` with an optional selected plan parameter, not to the authenticated app billing screen.
 - Keep bundle pricing data plan-aware in the client cache by including the current plan slug in the query key and invalidating bundles on any plan/subscription mutation.
-- Extract a single pricing presenter so SSR and React do not duplicate feature sorting, hidden-feature rules, price labels, highlight text, and CTA labels. Acceptable options:
-  - extend `buildPlansWithFeatures` to return display-ready fields consumed by both SSR and React;
-  - or move pricing display helpers into a shared package and use them from both `renderPricingHtml` and `PlansScreen`.
+- Keep pricing display helpers in the shared package so SSR and React do not duplicate feature sorting, hidden-feature rules, price labels, and usage highlight text. CTA behavior remains UI-specific because public SSR links to `/welcome` while authenticated billing opens upgrade/checkout flows.
 - Create one route ownership manifest for SEO/public/app-only paths and use it consistently in sitemap generation, nginx route comments/config, React linking, and tests.
 - Add SSR for `/stories` catalog if it remains in sitemap. Otherwise remove `/stories` from sitemap until the SSR catalog exists.
 - Keep `/u/:token` rendered with `noindex,nofollow` and out of sitemap.
@@ -664,7 +662,7 @@ Acceptance criteria:
 - `curl https://wondertales.art/pricing` returns SSR HTML with pricing content, canonical URL, alternate links, and `index,follow`.
 - `curl https://wondertales.art/authors/:authorId` returns SSR HTML with author metadata and public story links for authors with public stories.
 - Opening the authenticated plans screen from inside the app uses an app-only URL such as `/billing/plans`, not `/pricing`.
-- There is only one pricing display source of truth for feature order, labels, hidden features, and price formatting.
+- There is one shared pricing display source of truth for feature order, labels, hidden features, usage highlights, and price formatting.
 - Bundle prices shown in the authenticated billing/plans screen always match the user's current plan after checkout, portal return, upgrade, downgrade, or billing success.
 - Sitemap includes only indexable SSR-backed pages, including eligible default-locale author pages.
 - `/u/:token`, `/welcome`, `/register`, `/auth/*`, `/billing/success`, `/dashboard`, `/wizard`, `/me/*`, `/children`, `/characters`, `/profile`, `/settings/*`, and `/admin/*` are not indexable.
