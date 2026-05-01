@@ -14,7 +14,7 @@ import {
 } from '@wondertales/shared';
 import type * as schema from '../db/schema';
 
-const SITEMAP_CACHE_KEY = 'sitemap:xml:v2';
+const SITEMAP_CACHE_KEY = 'sitemap:xml:v3';
 const SITEMAP_TTL = 3600; // 1 hour
 
 function escapeXml(str: string): string {

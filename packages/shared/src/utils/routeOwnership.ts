@@ -38,6 +38,13 @@ export const PUBLIC_STATIC_ROUTE_CONTRACTS = [
     sitemap: true,
   },
   {
+    id: 'stories-catalog',
+    path: '/stories',
+    owner: 'api-ssr',
+    robots: 'index,follow',
+    sitemap: true,
+  },
+  {
     id: 'terms',
     path: '/terms',
     owner: 'api-ssr',
@@ -78,13 +85,6 @@ export const PUBLIC_DYNAMIC_ROUTE_CONTRACTS = [
 ] as const satisfies readonly DynamicRouteContract[];
 
 export const PUBLIC_ACCESSIBLE_NOINDEX_ROUTES = [
-  {
-    id: 'stories-catalog',
-    path: '/stories',
-    owner: 'spa',
-    robots: 'noindex,nofollow',
-    sitemap: false,
-  },
   {
     id: 'welcome',
     path: '/welcome',
@@ -170,6 +170,11 @@ export function buildPublicPricingPath(locale?: string | null): string {
   return normalized === DEFAULT_PUBLIC_SEO_LOCALE ? '/pricing' : `/${normalized}/pricing`;
 }
 
+export function buildPublicStoriesPath(locale?: string | null): string {
+  const normalized = normalizePublicSeoLocale(locale);
+  return normalized === DEFAULT_PUBLIC_SEO_LOCALE ? '/stories' : `/${normalized}/stories`;
+}
+
 export function buildAbsoluteRouteUrl(baseUrl: string, path: string): string {
   const base = baseUrl.replace(/\/$/, '');
   if (!base) return path;
@@ -178,7 +183,7 @@ export function buildAbsoluteRouteUrl(baseUrl: string, path: string): string {
 }
 
 export function buildPublicSeoSitemapStaticRoutes(): Array<{
-  id: 'landing' | 'pricing';
+  id: 'landing' | 'pricing' | 'stories-catalog';
   path: string;
   locale: PublicSeoLocale;
   changefreq: 'weekly';
@@ -198,6 +203,13 @@ export function buildPublicSeoSitemapStaticRoutes(): Array<{
       locale,
       changefreq: 'weekly' as const,
       priority: locale === DEFAULT_PUBLIC_SEO_LOCALE ? '0.95' : '0.85',
+    },
+    {
+      id: 'stories-catalog' as const,
+      path: buildPublicStoriesPath(locale),
+      locale,
+      changefreq: 'weekly' as const,
+      priority: locale === DEFAULT_PUBLIC_SEO_LOCALE ? '0.85' : '0.75',
     },
   ]));
 }

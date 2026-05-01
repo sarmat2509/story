@@ -548,6 +548,30 @@ export function usePublishedStories(params?: {
   readingTimeMax?: number;
 }) {
   const { limit = 20, offset = 0, hasAudio, scenarioCardId, language, ageGroup, readingTimeMin, readingTimeMax } = params ?? {};
+  const canUseInitialStories =
+    typeof window !== 'undefined' &&
+    limit === 24 &&
+    offset === 0 &&
+    hasAudio !== true &&
+    !scenarioCardId &&
+    !language &&
+    !ageGroup &&
+    typeof readingTimeMin !== 'number' &&
+    typeof readingTimeMax !== 'number';
+  const initialStoriesRef = React.useRef<{
+    stories: any[];
+    pagination: { limit: number; offset: number; total: number };
+  } | null>(null);
+  if (
+    canUseInitialStories &&
+    !initialStoriesRef.current &&
+    typeof window !== 'undefined' &&
+    (window as any).__INITIAL_STORIES__
+  ) {
+    initialStoriesRef.current = (window as any).__INITIAL_STORIES__;
+    delete (window as any).__INITIAL_STORIES__;
+  }
+  const hasInitialStories = !!initialStoriesRef.current;
 
   const searchParams: Record<string, string | number> = { limit, offset };
   if (hasAudio === true) searchParams.has_audio = 'true';
@@ -570,6 +594,8 @@ export function usePublishedStories(params?: {
         pagination: response.data.pagination,
       };
     },
+    enabled: !hasInitialStories,
+    initialData: hasInitialStories ? initialStoriesRef.current ?? undefined : undefined,
   });
 }
 

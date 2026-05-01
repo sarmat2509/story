@@ -1,15 +1,51 @@
 /**
  * SSR Stories Routes
+ * GET /ssr/stories - Rendered HTML for the published stories catalog
  * GET /ssr/stories/:slug - Rendered HTML for published story (OG, JSON-LD, __INITIAL_STORY__)
  */
 
 import { Router, Request, Response } from 'express';
-import { getPublicStoryBySlug } from '../services/publicStoryService';
+import crypto from 'crypto';
+import { normalizePublicSeoLocale } from '@wondertales/shared';
+import { getPublicStoryBySlug, listPublicStories } from '../services/publicStoryService';
 import { getCachedHtml, setCachedHtml } from '../ssr/storyCache';
 import { renderPublishedStoryHtml } from '../ssr/renderPublishedStoryHtml';
+import { renderPublicStoriesCatalogHtml } from '../ssr/renderPublicStoriesCatalogHtml';
 import { logger } from '../utils/logger';
 
 const router = Router();
+
+export function buildStoriesCatalogEtag(html: string): string {
+  return `"stories-catalog-${crypto.createHash('sha1').update(html).digest('hex').slice(0, 12)}"`;
+}
+
+async function handleStoriesCatalog(req: Request, res: Response) {
+  const locale = normalizePublicSeoLocale(req.params.locale);
+
+  try {
+    const { items, total } = await listPublicStories({ limit: 24, offset: 0 });
+    const html = renderPublicStoriesCatalogHtml({ locale, stories: items, total });
+    const etag = buildStoriesCatalogEtag(html);
+
+    if (req.headers['if-none-match'] === etag) {
+      res.status(304);
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', 'public, no-cache, must-revalidate');
+      return res.end();
+    }
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'public, no-cache, must-revalidate');
+    res.send(html);
+  } catch (error) {
+    logger.error({ err: error, locale }, 'SSR stories catalog failed');
+    res.status(500).send('Internal server error');
+  }
+}
+
+router.get('/', handleStoriesCatalog);
+router.get('/catalog/:locale', handleStoriesCatalog);
 
 /**
  * GET /ssr/stories/:slug

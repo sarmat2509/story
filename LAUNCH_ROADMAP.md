@@ -602,7 +602,7 @@ Current code findings:
 - `packages/shared/src/utils/routeOwnership.ts` now defines the launch SEO locales, public route contracts, app route paths, app-only noindex prefixes, and sitemap static SEO paths; sitemap generation and React Navigation consume this shared contract.
 - `services/api/src/ssr/__tests__/routeOwnership.test.ts` now runs in `pnpm launch:gate` and verifies the shared route contract against sitemap output plus dev/prod nginx route ownership/noindex guardrails.
 - Bundle catalog data is now cached client-side by current plan slug and invalidated after subscription checkout, bundle checkout, portal return, plan upgrade/downgrade, and billing success.
-- Exact `/stories` is kept out of the sitemap and remains a noindex SPA catalog until an SSR catalog exists.
+- Exact `/stories` and `/en/stories` are now API SSR catalog pages with canonical/hreflang metadata, lightweight hydration data, and sitemap entries.
 - `/stories/:slug` is correctly routed to API SSR and should remain indexable only for intentionally published stories.
 - `/u/:token` is routed to SSR with `noindex,nofollow` response/header handling and remains out of the sitemap.
 - `/authors/:authorId` is now routed through API SSR from nginx for authors with at least one public catalog story; missing, invalid, or zero-public-story authors return 404 with `noindex,nofollow`.
@@ -649,7 +649,7 @@ Required code changes:
 - Keep bundle pricing data plan-aware in the client cache by including the current plan slug in the query key and invalidating bundles on any plan/subscription mutation.
 - Keep pricing display helpers in the shared package so SSR and React do not duplicate feature sorting, hidden-feature rules, price labels, and usage highlight text. CTA behavior remains UI-specific because public SSR links to `/welcome` while authenticated billing opens upgrade/checkout flows.
 - Keep the shared route ownership manifest for SEO/public/app-only paths wired into sitemap generation, React linking, and launch-gate nginx/sitemap tests.
-- Add SSR for `/stories` catalog before making exact `/stories` indexable or adding it back to the sitemap.
+- Keep the SSR `/stories` catalog indexable and in the sitemap now that it has API-rendered HTML.
 - Keep `/u/:token` rendered with `noindex,nofollow` and out of sitemap.
 - Keep `/authors/:authorId` SSR routed from nginx and include only eligible default-locale author URLs in sitemap.
 - Public story SSR and React pages link the author name/avatar to `/authors/:authorId` when `author.id` is present.
@@ -669,7 +669,7 @@ Acceptance criteria:
 - Opening the authenticated plans screen from inside the app uses an app-only URL such as `/billing/plans`, not `/pricing`.
 - There is one shared pricing display source of truth for feature order, labels, hidden features, usage highlights, and price formatting.
 - Bundle prices shown in the authenticated billing/plans screen always match the user's current plan after checkout, portal return, upgrade, downgrade, or billing success.
-- Sitemap includes only indexable SSR-backed pages, including eligible default-locale author pages.
+- Sitemap includes only indexable SSR-backed pages, including `/stories`, `/en/stories`, and eligible default-locale author pages.
 - `/u/:token`, `/welcome`, `/register`, `/auth/*`, `/billing/success`, `/dashboard`, `/wizard`, `/me/*`, `/children`, `/characters`, `/profile`, `/settings/*`, and `/admin/*` are not indexable.
 - Unknown public URLs do not return a successful indexable SPA shell.
 
