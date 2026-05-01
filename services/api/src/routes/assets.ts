@@ -1,8 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { DEFAULT_LOCALE, isPhotoType, isValidLocale } from '@wondertales/shared';
-import { getAssetRepository } from '../repositories';
+import { getAssetRepository, getStoryRepository } from '../repositories';
 import { verifyToken } from '../services/jwtService';
 import { getSessionWithUser } from '../services/sessionService';
+import {
+  decideStoryAssetAccess,
+  type AssetAccessDecision,
+  type AssetAccessSession,
+} from '../services/assetAccessService';
 import { logger } from '../utils/logger';
 import fs from 'fs/promises';
 import path from 'path';
@@ -50,6 +55,118 @@ async function sendPublicFile(res: Response, relativePath: string, mimeType?: st
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
   res.sendFile(fullPath);
+}
+
+async function sendPrivateFile(res: Response, relativePath: string, mimeType?: string) {
+  const fullPath = path.resolve(UPLOADS_DIR, relativePath);
+
+  await fs.access(fullPath);
+
+  res.setHeader('Content-Type', mimeType || getMimeTypeForFile(fullPath));
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+
+  res.sendFile(fullPath);
+}
+
+function getStringQueryParam(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+  return null;
+}
+
+async function getAssetRequestSession(req: Request): Promise<AssetAccessSession | null> {
+  const cookieToken = req.cookies?.wt_session as string | undefined;
+  const bearerToken = req.headers.authorization?.startsWith('Bearer ')
+    ? req.headers.authorization.slice(7)
+    : undefined;
+  const jwt = cookieToken || bearerToken;
+
+  if (!jwt) return null;
+
+  const decoded = verifyToken(jwt);
+  if (!decoded) return null;
+
+  const session = await getSessionWithUser(decoded.sessionId);
+  if (!session) return null;
+
+  return {
+    userId: session.user.id,
+    role: session.user.role,
+  };
+}
+
+function sendAssetAccessDenied(res: Response, decision: AssetAccessDecision) {
+  if (decision.allowed) {
+    return res.status(403).json({
+      status: 'error',
+      message: 'Access denied',
+    });
+  }
+
+  const denied = decision as Extract<AssetAccessDecision, { allowed: false }>;
+  return res.status(denied.status).json({
+    status: 'error',
+    message:
+      denied.status === 401
+        ? 'Authentication required'
+        : denied.status === 404
+          ? 'Asset not found'
+          : 'Access denied',
+  });
+}
+
+async function serveRejectedDebugAsset(req: Request, res: Response, assetPath: string) {
+  const pathParts = assetPath.split('/');
+
+  // Expected format: {env}/{userId}/{storyId}/rejected/{filename}
+  if (pathParts.length < 5 || pathParts[3] !== 'rejected') {
+    return res.status(404).json({
+      status: 'error',
+      message: 'Asset not found',
+    });
+  }
+
+  const userId = pathParts[1];
+  const storyId = pathParts[2];
+
+  if (!isUUID(storyId)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Invalid story ID format',
+    });
+  }
+
+  const session = await getAssetRequestSession(req);
+  const story = await getStoryRepository().findById(storyId);
+
+  if (!story || story.userId !== userId) {
+    return res.status(404).json({
+      status: 'error',
+      message: 'Asset not found',
+    });
+  }
+
+  const decision = decideStoryAssetAccess({ story, session });
+  if (!decision.allowed) {
+    return sendAssetAccessDenied(res, decision);
+  }
+  if (decision.cacheControl !== 'private') {
+    return sendAssetAccessDenied(res, {
+      allowed: false,
+      status: 403,
+      reason: 'debug_asset_requires_private_access',
+    });
+  }
+
+  try {
+    await sendPrivateFile(res, assetPath);
+    return;
+  } catch {
+    return res.status(404).json({
+      status: 'error',
+      message: 'Asset file not found',
+    });
+  }
 }
 
 /**
@@ -314,28 +431,26 @@ router.get('/voice-samples/:language/:filename', async (req: Request, res: Respo
 /**
  * GET /api/v1/assets/*
  * Serve story assets (images, audio from generated stories)
- * Public access — no auth required. Signed URLs accepted for backward compat.
+ * Access:
+ * - public catalog stories are public;
+ * - unlisted stories require shareToken query;
+ * - private stories require owner/admin session;
+ * - signed URLs are accepted for backward compatibility.
  */
 router.get('/*', async (req: Request, res: Response) => {
   try {
     const assetPath = req.params[0];
-    const { token, expires } = req.query;
+    const token = getStringQueryParam(req.query.token);
+    const expires = getStringQueryParam(req.query.expires);
+    const shareToken =
+      getStringQueryParam(req.query.shareToken) ||
+      getStringQueryParam(req.query.share_token);
     
     if (!assetPath) {
       return res.status(400).json({
         status: 'error',
         message: 'Asset path is required'
       });
-    }
-    
-    // Optional: verify signed URL if present (backward compat with cached URLs)
-    if (token && expires) {
-      if (!verifySignedUrl(assetPath, token as string, expires as string)) {
-        return res.status(401).json({
-          status: 'error',
-          message: 'Invalid or expired signature'
-        });
-      }
     }
     
     // Path containment check to prevent directory traversal
@@ -363,19 +478,22 @@ router.get('/*', async (req: Request, res: Response) => {
     }
 
     if (assetPath.includes('/rejected/')) {
-      try {
-        await sendPublicFile(res, assetPath);
-        return;
-      } catch {
-        return res.status(404).json({
+      return serveRejectedDebugAsset(req, res, assetPath);
+    }
+
+    let hasValidSignedUrl = false;
+    if (token && expires) {
+      if (!verifySignedUrl(assetPath, token, expires)) {
+        return res.status(401).json({
           status: 'error',
-          message: 'Rejected debug asset not found',
+          message: 'Invalid or expired signature'
         });
       }
+      hasValidSignedUrl = true;
     }
-    
+
     const pathParts = assetPath.split('/');
-    
+
     // Expected format: {env}/{userId}/{storyId}/{assetType}/{filename}
     if (pathParts.length < 5) {
       return res.status(400).json({
@@ -403,9 +521,47 @@ router.get('/*', async (req: Request, res: Response) => {
         message: 'Asset not found'
       });
     }
+
+    const story = await getStoryRepository().findById(asset.storyId);
+    if (!story) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Asset not found'
+      });
+    }
+
+    const publicDecision = decideStoryAssetAccess({
+      story,
+      shareToken,
+      hasValidSignedUrl,
+    });
+
+    if (publicDecision.allowed) {
+      try {
+        await sendPublicFile(res, assetPath, asset.mimeType);
+        return;
+      } catch {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Asset file not found'
+        });
+      }
+    }
+
+    const session = await getAssetRequestSession(req);
+    const authenticatedDecision = decideStoryAssetAccess({
+      story,
+      session,
+      shareToken,
+      hasValidSignedUrl,
+    });
+
+    if (!authenticatedDecision.allowed) {
+      return sendAssetAccessDenied(res, authenticatedDecision);
+    }
     
     try {
-      await sendPublicFile(res, assetPath, asset.mimeType);
+      await sendPrivateFile(res, assetPath, asset.mimeType);
       return;
     } catch {
       return res.status(404).json({

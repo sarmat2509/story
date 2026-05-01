@@ -71,6 +71,12 @@ function getOgImageUrl(story: any, apiBase: string, slugOrToken: string, isUnlis
   return `${webAppUrl}/favicon.png`;
 }
 
+function appendUnlistedShareToken(url: string | null, shareToken?: string): string | null {
+  if (!url || !shareToken || !String(url).includes('/api/v1/assets/')) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}shareToken=${encodeURIComponent(shareToken)}`;
+}
+
 export async function buildStoryPublicView(
   story: any,
   slug: string,
@@ -102,7 +108,7 @@ export async function buildStoryPublicView(
     return {
       sceneId: s.sceneId,
       text: stripAllTags(s.text || ''),
-      imageUrl,
+      imageUrl: appendUnlistedShareToken(imageUrl, options?.shareToken),
     };
   });
 
@@ -123,7 +129,7 @@ export async function buildStoryPublicView(
     publishedAt: story.publishedAt ? story.publishedAt.toISOString?.() ?? String(story.publishedAt) : null,
     audio: audioUrl
       ? {
-          url: audioUrl,
+          url: appendUnlistedShareToken(audioUrl, options?.shareToken) || audioUrl,
           ...(alignment && { alignment }),
           ...(duration != null && { duration }),
         }

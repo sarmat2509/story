@@ -75,6 +75,7 @@ export class StoryRepository {
         eq(schema.stories.publishedSlug, slug),
         eq(schema.stories.isPublished, true),
         eq(schema.stories.visibility, 'public'),
+        eq(schema.stories.hidden, false),
       ))
       .limit(1);
     return story || null;
@@ -86,7 +87,9 @@ export class StoryRepository {
       .from(schema.stories)
       .where(and(
         eq(schema.stories.shareToken, token),
-        eq(schema.stories.isPublished, true)
+        eq(schema.stories.isPublished, true),
+        eq(schema.stories.visibility, 'unlisted'),
+        eq(schema.stories.hidden, false)
       ))
       .limit(1);
     return story || null;
@@ -120,6 +123,7 @@ export class StoryRepository {
       eq(schema.stories.isPublished, true),
       isNotNull(schema.stories.publishedSlug),
       eq(schema.stories.visibility, 'public'),
+      eq(schema.stories.hidden, false),
     ];
     if (showOnHomePage) {
       conditions.push(eq(schema.stories.showOnHomePage, true));
@@ -180,6 +184,7 @@ export class StoryRepository {
       eq(schema.stories.isPublished, true),
       isNotNull(schema.stories.publishedSlug),
       eq(schema.stories.visibility, 'public'),
+      eq(schema.stories.hidden, false),
     ];
     if (showOnHomePage) {
       conditions.push(eq(schema.stories.showOnHomePage, true));
