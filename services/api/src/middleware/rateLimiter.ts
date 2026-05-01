@@ -27,6 +27,14 @@ const getClientIp = (req: Request): string => {
   return req.ip || 'unknown';
 };
 
+const isDevelopment = (): boolean => process.env.NODE_ENV === 'development';
+
+const isReadOnlyRequest = (req: Request): boolean => (
+  req.method === 'GET' ||
+  req.method === 'HEAD' ||
+  req.method === 'OPTIONS'
+);
+
 // Global rate limiter for all endpoints
 export const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -39,7 +47,7 @@ export const globalLimiter = rateLimit({
     message: 'Too many requests from this IP, please try again later',
   },
   // Skip rate limiting in development
-  skip: () => process.env.NODE_ENV === 'development',
+  skip: isDevelopment,
 });
 
 // Stricter rate limiter for authentication endpoints
@@ -68,7 +76,7 @@ export const oauthLimiter = rateLimit({
     message: 'Too many OAuth attempts from this IP, please try again in an hour',
   },
   skipSuccessfulRequests: false, // Count all requests
-  skip: () => process.env.NODE_ENV === 'development',
+  skip: isDevelopment,
 });
 
 // Password reset emails can be abused even when the endpoint returns 200 for privacy.
@@ -83,7 +91,7 @@ export const passwordResetLimiter = rateLimit({
     message: 'Too many password reset requests from this IP, please try again later',
   },
   skipSuccessfulRequests: false,
-  skip: () => process.env.NODE_ENV === 'development',
+  skip: isDevelopment,
 });
 
 // Rate limiter for public story rating (POST /rating)
@@ -97,7 +105,49 @@ export const ratingLimiter = rateLimit({
     status: 'error',
     message: 'Too many rating requests from this IP, please try again later',
   },
-  skip: () => process.env.NODE_ENV === 'development',
+  skip: isDevelopment,
+});
+
+// Expensive story writes: creation, continuation, audio, regeneration, publishing, deletion.
+export const storyWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req),
+  message: {
+    status: 'error',
+    message: 'Too many story write requests from this IP, please try again later',
+  },
+  skip: (req) => isDevelopment() || isReadOnlyRequest(req),
+});
+
+// Uploads are memory-buffered and can be abused independently of authenticated API reads.
+export const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req),
+  message: {
+    status: 'error',
+    message: 'Too many upload requests from this IP, please try again later',
+  },
+  skip: isDevelopment,
+});
+
+// Billing actions can create external provider sessions and should be low-volume.
+export const billingLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => getClientIp(req),
+  message: {
+    status: 'error',
+    message: 'Too many billing requests from this IP, please try again later',
+  },
+  skip: isDevelopment,
 });
 
 // Rate limiter for API endpoints (after auth)
@@ -112,5 +162,5 @@ export const apiLimiter = rateLimit({
     message: 'API rate limit exceeded',
   },
   // Skip rate limiting in development
-  skip: () => process.env.NODE_ENV === 'development',
+  skip: isDevelopment,
 });
