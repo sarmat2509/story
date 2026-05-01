@@ -1,4 +1,8 @@
 import { USER_ROLE_ADMIN } from '../constants/userRoles';
+import {
+  isPublicCatalogStoryRecord,
+  isUnlistedShareStoryRecord,
+} from '../utils/storyVisibilityPolicy';
 
 export interface AssetAccessStory {
   userId: string;
@@ -7,6 +11,8 @@ export interface AssetAccessStory {
   publishedSlug: string | null;
   shareToken: string | null;
   hidden: boolean | null;
+  parentReviewStatus?: string | null;
+  policyChecks?: unknown;
 }
 
 export interface AssetAccessSession {
@@ -26,22 +32,11 @@ export type AssetAccessDecision =
   | { allowed: false; status: 401 | 403 | 404; reason: string };
 
 export function isPublicCatalogStory(story: AssetAccessStory): boolean {
-  return (
-    story.hidden !== true &&
-    story.isPublished === true &&
-    story.visibility === 'public' &&
-    !!story.publishedSlug
-  );
+  return isPublicCatalogStoryRecord(story);
 }
 
 export function isValidUnlistedShare(story: AssetAccessStory, shareToken?: string | null): boolean {
-  return (
-    story.hidden !== true &&
-    story.isPublished === true &&
-    story.visibility === 'unlisted' &&
-    !!story.shareToken &&
-    shareToken === story.shareToken
-  );
+  return isUnlistedShareStoryRecord(story, shareToken);
 }
 
 export function isAdminSession(session?: AssetAccessSession | null): boolean {
@@ -84,4 +79,3 @@ export function decideStoryAssetAccess(input: AssetAccessInput): AssetAccessDeci
 
   return { allowed: false, status: 403, reason: 'access_denied' };
 }
-

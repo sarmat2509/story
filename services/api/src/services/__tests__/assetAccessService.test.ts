@@ -12,6 +12,8 @@ void (async function main() {
     publishedSlug: null,
     shareToken: null,
     hidden: false,
+    parentReviewStatus: 'not_required',
+    policyChecks: { textValidated: true },
   };
 
   assert.deepStrictEqual(
@@ -45,6 +47,34 @@ void (async function main() {
     'public catalog story assets are public'
   );
 
+  assert.deepStrictEqual(
+    decideStoryAssetAccess({
+      story: {
+        ...privateStory,
+        isPublished: true,
+        visibility: 'public',
+        publishedSlug: 'unsafe-slug',
+        policyChecks: { textValidated: false },
+      },
+    }),
+    { allowed: false, status: 401, reason: 'authentication_required' },
+    'public catalog assets require text moderation to pass'
+  );
+
+  assert.deepStrictEqual(
+    decideStoryAssetAccess({
+      story: {
+        ...privateStory,
+        isPublished: true,
+        visibility: 'public',
+        publishedSlug: 'pending-child-slug',
+        parentReviewStatus: 'pending',
+      },
+    }),
+    { allowed: false, status: 401, reason: 'authentication_required' },
+    'public catalog assets require parent review approval when applicable'
+  );
+
   const unlistedStory = {
     ...privateStory,
     isPublished: true,
@@ -65,6 +95,18 @@ void (async function main() {
   );
 
   assert.deepStrictEqual(
+    decideStoryAssetAccess({
+      story: {
+        ...unlistedStory,
+        policyChecks: { textValidated: false },
+      },
+      shareToken: 'share-secret',
+    }),
+    { allowed: false, status: 401, reason: 'authentication_required' },
+    'unlisted story assets require text moderation to pass even with a matching token'
+  );
+
+  assert.deepStrictEqual(
     decideStoryAssetAccess({ story: privateStory, hasValidSignedUrl: true }),
     { allowed: true, cacheControl: 'public', reason: 'signed_asset_url' },
     'valid signed URLs remain supported for private assets'
@@ -82,4 +124,3 @@ void (async function main() {
 
   console.log('assetAccessService tests passed');
 })();
-

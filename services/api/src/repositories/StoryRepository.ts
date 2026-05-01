@@ -2,6 +2,11 @@ import type { StoryAudioMetadata } from '@wondertales/shared';
 import { eq, and, desc, asc, sql, isNotNull, inArray, gte, lte, ilike, or } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
+import {
+  publicCatalogStorySqlConditions,
+  shareablePublishedStorySqlConditions,
+  unlistedShareStorySqlConditions,
+} from '../utils/storyVisibilityPolicy';
 
 /** Matches DB varchar length on story_characters.role (after migration 0065). */
 const STORY_CHARACTER_ROLE_MAX_LEN = 255;
@@ -22,13 +27,6 @@ function buildReadingTimeMinutesSql() {
       ELSE GREATEST(1, ROUND(char_length(${sanitizedText}) / 800.0))
     END
   `;
-}
-
-function parentReviewPublicCondition() {
-  return or(
-    eq(schema.stories.parentReviewStatus, 'not_required'),
-    eq(schema.stories.parentReviewStatus, 'approved')
-  )!;
 }
 
 export class StoryRepository {
@@ -80,10 +78,7 @@ export class StoryRepository {
       .from(schema.stories)
       .where(and(
         eq(schema.stories.publishedSlug, slug),
-        eq(schema.stories.isPublished, true),
-        eq(schema.stories.visibility, 'public'),
-        eq(schema.stories.hidden, false),
-        parentReviewPublicCondition(),
+        ...publicCatalogStorySqlConditions(),
       ))
       .limit(1);
     return story || null;
@@ -95,10 +90,7 @@ export class StoryRepository {
       .from(schema.stories)
       .where(and(
         eq(schema.stories.shareToken, token),
-        eq(schema.stories.isPublished, true),
-        eq(schema.stories.visibility, 'unlisted'),
-        eq(schema.stories.hidden, false),
-        parentReviewPublicCondition(),
+        ...unlistedShareStorySqlConditions(),
       ))
       .limit(1);
     return story || null;
@@ -128,13 +120,7 @@ export class StoryRepository {
       authorId,
       showOnHomePage,
     } = options;
-    const conditions = [
-      eq(schema.stories.isPublished, true),
-      isNotNull(schema.stories.publishedSlug),
-      eq(schema.stories.visibility, 'public'),
-      eq(schema.stories.hidden, false),
-      parentReviewPublicCondition(),
-    ];
+    const conditions = publicCatalogStorySqlConditions();
     if (showOnHomePage) {
       conditions.push(eq(schema.stories.showOnHomePage, true));
     }
@@ -190,13 +176,7 @@ export class StoryRepository {
     showOnHomePage?: boolean;
   } = {}): Promise<number> {
     const { hasAudio, scenarioCardId, language, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage } = options;
-    const conditions = [
-      eq(schema.stories.isPublished, true),
-      isNotNull(schema.stories.publishedSlug),
-      eq(schema.stories.visibility, 'public'),
-      eq(schema.stories.hidden, false),
-      parentReviewPublicCondition(),
-    ];
+    const conditions = publicCatalogStorySqlConditions();
     if (showOnHomePage) {
       conditions.push(eq(schema.stories.showOnHomePage, true));
     }
@@ -240,7 +220,7 @@ export class StoryRepository {
       .from(schema.stories)
       .where(and(
         eq(schema.stories.userId, userId),
-        eq(schema.stories.isPublished, true)
+        ...shareablePublishedStorySqlConditions(),
       ));
     return Number(result[0]?.count ?? 0);
   }

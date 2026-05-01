@@ -852,6 +852,14 @@ Required work:
 - Remove or deprecate older duplicate public endpoints that do not return the same shape or predicate as `/api/v1/public/stories`.
 - Ensure public author metadata exposes only safe fields: public author id, pseudonym/display name, avatar, about text, and public story count. Never expose email, account settings, child profile data, private story count, or unlisted story count.
 
+Completed locally:
+
+- Public and unlisted story predicates now share backend policy helpers for moderation and parent review.
+- `/api/v1/public/stories`, `/api/v1/public/authors/:authorId`, public SSR story routes, SSR author routes, sitemap author/story eligibility, and older `/api/v1/stories/published` endpoints all flow through `StoryRepository` public catalog predicates.
+- `/api/v1/public/u/:token`, `/ssr/u/:token`, share-card lookup, and direct unlisted story assets now require the same unlisted predicate plus the matching share token where appropriate.
+- Direct public story asset access now also requires `policy_checks.textValidated=true` and parent review status `not_required` or `approved`; owner/admin and signed private preview paths remain available for non-public access.
+- Public predicate tests are included in `scripts/launch-gate.sh`.
+
 Acceptance criteria:
 
 - Stories are private by default.
