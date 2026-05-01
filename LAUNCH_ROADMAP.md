@@ -596,8 +596,8 @@ Current code findings:
 - `/pricing` and `/{locale}/pricing` are already routed through API SSR in `nginx/includes/common-ssr-routes.conf`.
 - `services/api/src/ssr/renderPricingHtml.ts` renders an indexable pricing document with canonical and alternate links.
 - `apps/universal-app/src/screens/plans/PlansScreen.tsx` renders a separate React pricing/billing layout with its own feature order, hidden features, price formatting, bundles, and checkout behavior.
-- React Navigation maps the app `Plans` screen to the public `pricing` path in `apps/universal-app/src/App.tsx`, so the same semantic route is owned by both SSR and the app.
-- Bundle catalog data is cached client-side under `['bundles']` and is not invalidated after subscription checkout, portal return, or plan changes, so bundle prices can become stale after a user changes plan.
+- React Navigation maps the authenticated app `Plans` screen to `/billing/plans`, while `/pricing` and `/{locale}/pricing` stay owned by API SSR.
+- Bundle catalog data is now cached client-side by current plan slug and invalidated after subscription checkout, bundle checkout, portal return, plan upgrade/downgrade, and billing success.
 - `/stories` is currently included in the sitemap, but exact `/stories` is routed to the SPA catalog, not an SSR catalog.
 - `/stories/:slug` is correctly routed to API SSR and should remain indexable only for intentionally published stories.
 - `/u/:token` is routed to SSR but currently reuses the published story renderer with `index,follow`; unlisted links must be `noindex,nofollow`.
@@ -635,11 +635,11 @@ Required public route contract:
 
 Required code changes:
 
-- Move the authenticated app `Plans` route away from `pricing`; use an app-only path such as `/billing/plans` or `/account/plans`.
+- Keep the authenticated app `Plans` route on the app-only `/billing/plans` path.
 - Keep `/pricing` and `/{locale}/pricing` owned only by API SSR.
 - Rename or conceptually separate `PlansScreen` into an authenticated billing/plans screen; it may still be reached from paywalls, profile, billing success, and child-mode parent gates, but not via the public `/pricing` URL.
 - Keep public pricing CTA links pointing to `/welcome` or `/register` with an optional selected plan parameter, not to the authenticated app billing screen.
-- Make bundle pricing data plan-aware in the client cache, for example by including the current plan slug in the query key or by always invalidating bundles on any plan/subscription mutation.
+- Keep bundle pricing data plan-aware in the client cache by including the current plan slug in the query key and invalidating bundles on any plan/subscription mutation.
 - Extract a single pricing presenter so SSR and React do not duplicate feature sorting, hidden-feature rules, price labels, highlight text, and CTA labels. Acceptable options:
   - extend `buildPlansWithFeatures` to return display-ready fields consumed by both SSR and React;
   - or move pricing display helpers into a shared package and use them from both `renderPricingHtml` and `PlansScreen`.
@@ -671,7 +671,7 @@ Acceptance criteria:
 
 Current bundle purchase review findings:
 
-- Bundle checkout cancel URL currently points to `/plans`, but the public web pricing route is `/pricing` and the authenticated app billing screen must become an app-only route.
+- Bundle checkout cancel URL now points to `/billing/plans`; Stripe test-mode verification still needs to confirm cancel/success returns in the hosted checkout flow.
 
 Required work:
 

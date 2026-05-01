@@ -59,7 +59,6 @@ export default function PlansScreen() {
   const upgradePlan = useUpgradePlan();
   const createCheckoutSession = useCreateCheckoutSession();
   const createBundleCheckout = useCreateBundleCheckoutSession();
-  const bundlesQuery = useBundles(isAuthenticated);
   const { data: subscriptionUsage } = useSubscriptionUsage(isAuthenticated);
   const periodEndFormatted = useMemo(
     () =>
@@ -69,12 +68,6 @@ export default function PlansScreen() {
       ),
     [subscriptionUsage?.currentPeriodEnd, subscriptionUsage?.resetsAt, i18n.language]
   );
-
-  const sortedBundles = useMemo(() => {
-    const rows = bundlesQuery.data;
-    if (!rows?.length) return [];
-    return [...rows].sort((a, b) => a.extraStories - b.extraStories);
-  }, [bundlesQuery.data]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -86,7 +79,7 @@ export default function PlansScreen() {
   
   // Fetch plans - use authenticated hook if logged in, otherwise public
   const publicPlansQuery = usePlans();
-  const authPlansQuery = usePlansWithAuth();
+  const authPlansQuery = usePlansWithAuth(isAuthenticated);
   
   // Select appropriate query based on auth state
   const authData = authPlansQuery.data;
@@ -97,6 +90,18 @@ export default function PlansScreen() {
   const plans = effectiveIsAuthenticated
     ? (authData && 'plans' in authData ? authData.plans : authData)
     : publicPlansQuery.data;
+  const currentPlanSlug = useMemo(() => {
+    if (!effectiveIsAuthenticated || !Array.isArray(plans)) return null;
+    return (
+      (plans.find((plan: any) => 'isCurrent' in plan && plan.isCurrent) as any)?.slug ?? null
+    );
+  }, [effectiveIsAuthenticated, plans]);
+  const bundlesQuery = useBundles(effectiveIsAuthenticated, currentPlanSlug);
+  const sortedBundles = useMemo(() => {
+    const rows = bundlesQuery.data;
+    if (!rows?.length) return [];
+    return [...rows].sort((a, b) => a.extraStories - b.extraStories);
+  }, [bundlesQuery.data]);
   const enableRealPayments = effectiveIsAuthenticated && authData && 'enableRealPayments' in authData
     ? authData.enableRealPayments
     : false;

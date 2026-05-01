@@ -64,7 +64,7 @@ export const useSubscriptionUsage = (enabled: boolean = true) => {
 };
 
 // Get plans with current plan info (authenticated only)
-export const usePlansWithAuth = () => {
+export const usePlansWithAuth = (enabled: boolean = true) => {
   const locale = i18n.language || APP_CONFIG.defaultLanguage;
 
   return useQuery({
@@ -83,14 +83,15 @@ export const usePlansWithAuth = () => {
         enableRealPayments: response.data.enableRealPayments ?? false,
       };
     },
+    enabled,
   });
 };
 
 // Create Stripe Checkout Session (web only, when enableRealPayments)
 /** GET /api/v1/bundles — extra story+audio packs for current plan */
-export const useBundles = (enabled: boolean) => {
+export const useBundles = (enabled: boolean, currentPlanSlug?: string | null) => {
   return useQuery({
-    queryKey: ['bundles'],
+    queryKey: ['bundles', currentPlanSlug ?? 'unknown-plan'],
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
@@ -98,7 +99,7 @@ export const useBundles = (enabled: boolean) => {
       }>('/api/v1/bundles');
       return response.data.bundles;
     },
-    enabled,
+    enabled: enabled && !!currentPlanSlug,
   });
 };
 
@@ -132,6 +133,7 @@ export const useCreateCheckoutSession = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['plans'] });
+      queryClient.invalidateQueries({ queryKey: ['bundles'] });
       queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
     },
   });
@@ -149,6 +151,7 @@ export const useCreatePortalSession = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['plans'] });
+      queryClient.invalidateQueries({ queryKey: ['bundles'] });
       queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
     },
   });
@@ -172,6 +175,7 @@ export const useUpgradePlan = () => {
       // Invalidate plans cache to refetch with new current plan
       queryClient.invalidateQueries({ queryKey: ['plans'] });
       queryClient.invalidateQueries({ queryKey: ['plans', 'with-auth'] });
+      queryClient.invalidateQueries({ queryKey: ['bundles'] });
       queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
     },
   });

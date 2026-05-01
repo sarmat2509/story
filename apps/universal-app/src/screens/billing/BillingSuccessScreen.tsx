@@ -21,6 +21,7 @@ export default function BillingSuccessScreen() {
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ['plans'] });
     queryClient.invalidateQueries({ queryKey: ['plans', 'with-auth'] });
+    queryClient.invalidateQueries({ queryKey: ['bundles'] });
     queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
   }, [queryClient]);
 
