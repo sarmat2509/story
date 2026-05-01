@@ -9,6 +9,7 @@ type AdminRouteName =
   | 'AdminStories'
   | 'AdminUsers'
   | 'AdminFeedback'
+  | 'AdminPrivacyRequests'
   | 'AdminValidations'
   | 'AdminContentConfig'
   | 'AdminVoices';
@@ -24,6 +25,7 @@ const sections: Array<{
       { key: 'AdminStories', label: 'Stories', routeName: 'AdminStories' },
       { key: 'AdminUsers', label: 'Users', routeName: 'AdminUsers' },
       { key: 'AdminFeedback', label: 'Feedback', routeName: 'AdminFeedback' },
+      { key: 'AdminPrivacyRequests', label: 'Privacy Requests', routeName: 'AdminPrivacyRequests' },
       { key: 'AdminValidations', label: 'Validations', routeName: 'AdminValidations' },
     ],
   },

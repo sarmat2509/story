@@ -465,6 +465,7 @@ Done:
 - Deletion tests exist for story, account, and child profile behavior.
 - Parent-only data privacy request endpoints now let users create/list export or deletion requests.
 - Admin-only privacy request endpoints now let support list/filter and mark requests `open`, `in_review`, `fulfilled`, `rejected`, or `canceled`.
+- Web admin now includes `/admin/privacy-requests` for filtering, reviewing, and updating export/deletion support requests.
 
 Remaining:
 

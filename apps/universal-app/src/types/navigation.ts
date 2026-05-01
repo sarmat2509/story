@@ -11,6 +11,7 @@ export type AdminStackParamList = {
   AdminStories: undefined;
   AdminUsers: undefined;
   AdminFeedback: undefined;
+  AdminPrivacyRequests: undefined;
   AdminValidations: undefined;
   AdminContentConfig: undefined;
   AdminVoices: undefined;

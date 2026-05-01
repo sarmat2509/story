@@ -42,6 +42,29 @@ export type AdminFeedbackListItem = {
   createdAt: string;
 };
 
+export type AdminDataPrivacyRequestType = 'export' | 'deletion';
+export type AdminDataPrivacyRequestStatus =
+  | 'open'
+  | 'in_review'
+  | 'fulfilled'
+  | 'rejected'
+  | 'canceled';
+
+export type AdminDataPrivacyRequestItem = {
+  id: string;
+  userId: string | null;
+  requesterEmail: string | null;
+  requestType: AdminDataPrivacyRequestType | string;
+  status: AdminDataPrivacyRequestStatus | string;
+  message: string | null;
+  adminNotes: string | null;
+  reviewedByUserId: string | null;
+  reviewedAt: string | null;
+  fulfilledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AdminImageValidationItem = {
   id: string;
   storyId: string;
@@ -340,6 +363,57 @@ export function useAdminFeedback(params: {
         },
       });
       return response.data.data;
+    },
+  });
+}
+
+export function useAdminDataPrivacyRequests(params: {
+  limit: number;
+  offset: number;
+  search?: string;
+  requestType?: AdminDataPrivacyRequestType;
+  status?: AdminDataPrivacyRequestStatus;
+}) {
+  const { limit, offset, search, requestType, status } = params;
+  return useQuery({
+    queryKey: ['admin', 'privacy-requests', limit, offset, search ?? '', requestType ?? '', status ?? ''],
+    queryFn: async () => {
+      const response = await apiClient.get<PaginatedResponse<AdminDataPrivacyRequestItem>>(
+        '/api/v1/admin/privacy-requests',
+        {
+          params: {
+            limit,
+            offset,
+            search: search || undefined,
+            requestType: requestType || undefined,
+            status: status || undefined,
+          },
+        }
+      );
+      return response.data.data;
+    },
+  });
+}
+
+export function useUpdateAdminDataPrivacyRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      requestId: string;
+      status: AdminDataPrivacyRequestStatus;
+      adminNotes?: string | null;
+    }) => {
+      const response = await apiClient.patch<{ status: string; data: AdminDataPrivacyRequestItem }>(
+        `/api/v1/admin/privacy-requests/${params.requestId}`,
+        {
+          status: params.status,
+          adminNotes: params.adminNotes ?? null,
+        },
+      );
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'privacy-requests'] });
     },
   });
 }
