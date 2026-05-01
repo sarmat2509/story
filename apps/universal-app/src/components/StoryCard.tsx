@@ -273,7 +273,6 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.45)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
-    textWrap: 'balance',
     maxWidth: '70%',
   },
   audioBadge: {
