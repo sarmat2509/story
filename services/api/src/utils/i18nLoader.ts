@@ -1,10 +1,23 @@
-import fs from 'fs';
-import path from 'path';
 import { DEFAULT_LOCALE, isValidLocale, type Locale } from '@wondertales/shared';
+import ukTranslations from '@wondertales/shared/i18n/uk.json';
+import ruTranslations from '@wondertales/shared/i18n/ru.json';
+import enTranslations from '@wondertales/shared/i18n/en.json';
+import esTranslations from '@wondertales/shared/i18n/es.json';
+import frTranslations from '@wondertales/shared/i18n/fr.json';
+import deTranslations from '@wondertales/shared/i18n/de.json';
+import plTranslations from '@wondertales/shared/i18n/pl.json';
 import { logger } from './logger';
 
-const TRANSLATIONS_DIR = path.join(__dirname, '../../../..', 'packages/shared/src/i18n');
 const translationCache = new Map<string, any>();
+const TRANSLATIONS_BY_LOCALE: Record<Locale, any> = {
+  uk: ukTranslations,
+  ru: ruTranslations,
+  en: enTranslations,
+  es: esTranslations,
+  fr: frTranslations,
+  de: deTranslations,
+  pl: plTranslations,
+};
 
 function normalizeTranslationLocale(language: string): Locale {
   const normalized = language?.slice(0, 2).toLowerCase() || DEFAULT_LOCALE;
@@ -17,8 +30,7 @@ function loadTranslations(language: string): any {
     return translationCache.get(locale);
   }
 
-  const filePath = path.join(TRANSLATIONS_DIR, `${locale}.json`);
-  const translations = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  const translations = TRANSLATIONS_BY_LOCALE[locale] ?? TRANSLATIONS_BY_LOCALE[DEFAULT_LOCALE];
   translationCache.set(locale, translations);
   return translations;
 }

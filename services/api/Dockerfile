@@ -110,6 +110,7 @@ COPY services/api/src/db ./services/api/src/db
 COPY services/api/src/scripts ./services/api/src/scripts
 COPY services/api/src/config ./services/api/src/config
 COPY services/api/src/utils ./services/api/src/utils
+COPY services/api/src/legal ./services/api/legal
 COPY services/api/src/services/assetStorageService.ts ./services/api/src/services/assetStorageService.ts
 
 WORKDIR /app/services/api
