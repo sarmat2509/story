@@ -17,6 +17,7 @@ import {
 } from '../services/storyOrchestrationService';
 import { publishStory, unpublishStory } from '../services/publishStoryService';
 import { PublishSafetyError } from '../services/storyPublishSafetyService';
+import { assertPromptSafety, assertStoryPromptSafety, isPromptSafetyError } from '../services/promptSafetyService';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
 import { logger } from '../utils/logger';
 import { stripAllTags } from '../utils/audioTags';
@@ -68,6 +69,21 @@ function sendStoryQuotaError(res: Response, error: unknown): boolean {
   return true;
 }
 
+function sendPromptSafetyError(res: Response, error: unknown): boolean {
+  if (!isPromptSafetyError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    message: error.message,
+    category: error.category,
+    source: error.source,
+  });
+  return true;
+}
+
 // ── Input Validation Schemas ──
 
 const AudioGenerationSchema = z.object({
@@ -98,6 +114,12 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
     // Validate request body
     const validatedData = CreateStoryRequestSchema.parse(req.body);
+
+    assertStoryPromptSafety({
+      userId: req.user!.id,
+      goal: validatedData.goal,
+      userNotes: validatedData.userNotes,
+    });
     
     // Enforce per-user concurrent job limit
     try {
@@ -134,6 +156,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
+    if (sendPromptSafetyError(res, error)) return;
     if (sendStoryQuotaError(res, error)) return;
 
     logger.error({ err: error, userId: req.user?.id }, 'Create story request failed');
@@ -179,6 +202,14 @@ router.post('/instant', requireAuth, async (req: Request, res: Response) => {
   try {
     // Validate request body
     const validatedData = GenerateFromPhotosSchema.parse(req.body);
+
+    assertStoryPromptSafety({
+      userId: req.user!.id,
+      goal: validatedData.goals?.filter(Boolean).join('\n'),
+      userNotes: validatedData.notes,
+      goalSource: 'instant_story_goal',
+      notesSource: 'instant_story_notes',
+    });
     
     // Enforce per-user concurrent job limit
     try {
@@ -252,6 +283,7 @@ router.post('/instant', requireAuth, async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
+    if (sendPromptSafetyError(res, error)) return;
     if (sendStoryQuotaError(res, error)) return;
 
     logger.error({ err: error, userId: req.user?.id }, 'Generate from photos failed');
@@ -806,6 +838,7 @@ router.post('/:id/continue', requireAuth, async (req: Request, res: Response) =>
       }
     });
   } catch (error) {
+    if (sendPromptSafetyError(res, error)) return;
     if (sendStoryQuotaError(res, error)) return;
 
     logger.error({ 
@@ -1518,6 +1551,12 @@ router.post('/:id/scenes/:sceneId/regenerate', requireAuth, async (req: Request,
         message: 'Scene not found'
       });
     }
+
+    assertPromptSafety({
+      text: visualPrompt,
+      source: 'scene_regeneration_prompt',
+      userId: req.user!.id,
+    });
     
     // Enforce per-user concurrent job limit
     try {
@@ -1550,6 +1589,8 @@ router.post('/:id/scenes/:sceneId/regenerate', requireAuth, async (req: Request,
       jobId
     });
   } catch (error) {
+    if (sendPromptSafetyError(res, error)) return;
+
     logger.error({ 
       err: error, 
       userId: req.user?.id, 

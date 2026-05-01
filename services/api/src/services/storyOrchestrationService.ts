@@ -115,6 +115,7 @@ import {
   isStoryQuotaError,
   type StoryQuotaReservationSource,
 } from './storyQuotaService';
+import { assertStoryPromptSafety, isPromptSafetyError } from './promptSafetyService';
 
 const ESTIMATED_SCENE_COUNT_BY_AGE_GROUP: Record<string, number> = {
   '0-1': 5,
@@ -305,6 +306,14 @@ export async function createStoryRequest(
   try {
     logger.info({ userId, language: input.storyLanguage }, 'Creating story request');
 
+    assertStoryPromptSafety({
+      userId,
+      goal: input.goal,
+      userNotes: input.userNotes,
+      goalSource: options?.quotaSource === 'instant' ? 'instant_story_goal' : 'story_goal',
+      notesSource: options?.quotaSource === 'instant' ? 'instant_story_notes' : 'story_user_notes',
+    });
+
     const requestData = {
       userId,
       childProfileId: input.childProfileId,
@@ -327,7 +336,7 @@ export async function createStoryRequest(
     logger.info({ requestId }, 'Story request created');
     return requestId;
   } catch (error) {
-    if (isStoryQuotaError(error)) {
+    if (isStoryQuotaError(error) || isPromptSafetyError(error)) {
       throw error;
     }
     logger.error({ error, userId, stack: error instanceof Error ? error.stack : undefined }, 'Failed to create story request');
@@ -367,6 +376,12 @@ export async function createContinuationRequest(
       seriesId: input.seriesId,
       partNumber: input.partNumber,
     }, 'Creating continuation request');
+
+    assertStoryPromptSafety({
+      userId,
+      userNotes: input.userNotes,
+      notesSource: 'story_continuation_notes',
+    });
     
     const requestData = {
       userId,
@@ -401,7 +416,7 @@ export async function createContinuationRequest(
     logger.info({ requestId, seriesId: input.seriesId }, 'Continuation request created');
     return requestId;
   } catch (error) {
-    if (isStoryQuotaError(error)) {
+    if (isStoryQuotaError(error) || isPromptSafetyError(error)) {
       throw error;
     }
     logger.error({
