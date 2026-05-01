@@ -6,7 +6,7 @@ import config from '../config';
 import { handleGoogleCallback, handleAppleCallback } from '../services/oauthService';
 import { createSession, deleteSession, deleteAllUserSessions } from '../services/sessionService';
 import { generateToken } from '../services/jwtService';
-import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
+import { requireAuth, requireChildSession, requireParentSession } from '../middleware/authMiddleware';
 import { logger } from '../utils/logger';
 import { setSessionCookie, clearSessionCookie } from '../utils/sessionCookie';
 import {
@@ -46,6 +46,10 @@ const forgotPasswordSchema = z.object({
 const resetPasswordSchema = z.object({
   token: z.string().min(1),
   password: z.string().min(8).max(128),
+});
+
+const parentGateSchema = z.object({
+  password: z.string().min(1).max(128),
 });
 
 // Configure Google OAuth strategy
@@ -688,6 +692,80 @@ router.post('/reset-password', async (req: Request, res: Response) => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to reset password',
+    });
+  }
+});
+
+// Parent gate: child session -> parent session via adult password re-authentication
+router.post('/parent-gate', requireAuth, requireChildSession, async (req: Request, res: Response) => {
+  try {
+    if (!req.user || !req.sessionId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Not authenticated',
+        code: 'AUTHENTICATION_REQUIRED',
+      });
+    }
+
+    const validationResult = parentGateSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid request data',
+        details: validationResult.error.errors,
+      });
+    }
+
+    if (!req.user.passwordHash) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Password parent gate is unavailable for this account',
+        code: 'PARENT_GATE_PASSWORD_UNAVAILABLE',
+      });
+    }
+
+    const parentUser = await loginWithPassword(req.user.email, validationResult.data.password);
+    if (!parentUser || parentUser.id !== req.user.id) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Parent gate failed',
+        code: 'PARENT_GATE_FAILED',
+      });
+    }
+
+    const deviceInfo = extractDeviceInfo(req);
+    const parentSession = await createSession({
+      userId: parentUser.id,
+      mode: 'parent',
+      parentUserId: parentUser.id,
+      ...deviceInfo,
+    });
+    const token = generateToken({
+      userId: parentUser.id,
+      sessionId: parentSession.id,
+    });
+
+    await deleteSession(req.sessionId);
+
+    logger.info({
+      userId: parentUser.id,
+      previousChildSessionId: req.sessionId,
+      parentSessionId: parentSession.id,
+      childProfileId: req.childProfileId,
+    }, 'Parent gate completed from child session');
+
+    setSessionCookie(res, token);
+    res.json({
+      token,
+      user: parentUser,
+      expiresAt: parentSession.expiresAt.getTime(),
+      sessionMode: 'parent',
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id, sessionId: req.sessionId }, 'Parent gate failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Parent gate failed',
     });
   }
 });

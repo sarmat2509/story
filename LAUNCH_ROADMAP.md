@@ -336,10 +336,11 @@ Done:
 - `story_requests` and `stories` now carry child-mode attribution and parent review fields; the async story pipeline propagates these fields when a child-created request is introduced.
 - `requireChildSession` and `requireSessionScope` middleware are available for future child-safe endpoints.
 - `POST /api/v1/stories/child-mode` creates queued story requests from scoped child sessions and enforces child-mode profile, free-text, theme, language, character, sibling, and daily/monthly limit controls.
+- `POST /api/v1/auth/parent-gate` lets password-authenticated adults re-enter Parent Mode from a child session and revokes the previous child session.
 
 Remaining:
 
-- No parent gate UI/API for returning from Child Mode to Parent Mode is implemented.
+- Parent gate UI is not implemented yet, and OAuth-only accounts still need a non-password gate path.
 - Parent controls are enforced for the child-safe generation route, but UI start/return flow and review-management UI are not complete.
 - `/children` still needs allowed-theme/language/character/sibling controls and a safe start/return gate before Child Mode is user-facing.
 - Child-created story marking is schema/service-ready, but still needs the actual child-safe generation endpoint and parent review workflow UI.
