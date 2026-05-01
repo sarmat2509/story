@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
-import { useChildren, useDeleteChild } from '@/api/children';
+import { useChildren, useDeleteChild, useRevokeChildModeSessions, useUpdateChildModeControls } from '@/api/children';
 import { ChildFormModal } from '@/components/ChildFormModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
@@ -51,6 +51,8 @@ export default function ChildrenScreen() {
   const enterKey = useScreenEnter();
   const { data, isLoading, error } = useChildren();
   const deleteChild = useDeleteChild();
+  const updateChildModeControls = useUpdateChildModeControls();
+  const revokeChildModeSessions = useRevokeChildModeSessions();
   const columns = useColumns();
   const paddingHorizontal = theme.spacing[6] * 2;
   const gap = theme.spacing[4];
@@ -74,6 +76,20 @@ export default function ChildrenScreen() {
 
   const children = data?.children ?? [];
   const canCreateMore = data?.canCreateMore ?? false;
+  const childModeLabels = {
+    title: t('children_screen.child_mode_title'),
+    enabled: t('children_screen.child_mode_enabled'),
+    disabled: t('children_screen.child_mode_disabled'),
+    dailyLimit: t('children_screen.child_mode_daily_limit'),
+    monthlyLimit: t('children_screen.child_mode_monthly_limit'),
+    noLimit: t('children_screen.child_mode_no_limit'),
+    freeText: t('children_screen.child_mode_free_text'),
+    audio: t('children_screen.child_mode_audio'),
+    review: t('children_screen.child_mode_review'),
+    familyStories: t('children_screen.child_mode_family_stories'),
+    activeSessions: t('children_screen.child_mode_active_sessions'),
+    revoke: t('children_screen.child_mode_revoke_sessions'),
+  };
 
   const handleEditChild = (child: Record<string, unknown>) => {
     setEditingChild({
@@ -86,6 +102,27 @@ export default function ChildrenScreen() {
   const handleDelete = (childId: string, childName: string) => {
     setChildToDelete({ id: childId, name: childName });
     setDeleteDialogVisible(true);
+  };
+
+  const handleChildModeEnabledChange = (childId: string, enabled: boolean) => {
+    updateChildModeControls.mutate({
+      id: childId,
+      data: { childModeEnabled: enabled },
+    });
+  };
+
+  const handleChildModeSettingsChange = (
+    childId: string,
+    settings: Record<string, boolean | number | null>
+  ) => {
+    updateChildModeControls.mutate({
+      id: childId,
+      data: { childModeSettings: settings },
+    });
+  };
+
+  const handleRevokeChildModeSessions = (childId: string) => {
+    revokeChildModeSessions.mutate(childId);
   };
 
   const confirmDelete = () => {
@@ -157,12 +194,23 @@ export default function ChildrenScreen() {
                 birthdate: child.birthdate as string | undefined,
                 turnaroundSheet: child.turnaroundSheet as { url: string; frontUrl?: string } | undefined,
                 referencePhotos: child.referencePhotos as { url: string }[] | undefined,
+                childModeEnabled: child.childModeEnabled as boolean | undefined,
+                childModeSettings: child.childModeSettings as any,
+                childModeActiveSessionCount: typeof child.childModeActiveSessionCount === 'number'
+                  ? child.childModeActiveSessionCount
+                  : 0,
               };
               const cardContent = (
                 <ChildCard
                   child={childData}
                   onPress={() => handleEditChild(child)}
                   onDelete={handleDelete}
+                  childModeLabels={childModeLabels}
+                  onChildModeEnabledChange={handleChildModeEnabledChange}
+                  onChildModeSettingsChange={handleChildModeSettingsChange}
+                  onRevokeChildModeSessions={handleRevokeChildModeSessions}
+                  isChildModeUpdating={updateChildModeControls.isPending}
+                  isRevokingChildSessions={revokeChildModeSessions.isPending}
                 />
               );
               return Platform.OS === 'web' ? (
