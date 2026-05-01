@@ -116,6 +116,7 @@ import {
   type StoryQuotaReservationSource,
 } from './storyQuotaService';
 import { assertStoryPromptSafety, isPromptSafetyError } from './promptSafetyService';
+import { assertVoiceAccessForUser } from './voiceAccessService';
 
 const ESTIMATED_SCENE_COUNT_BY_AGE_GROUP: Record<string, number> = {
   '0-1': 5,
@@ -5457,6 +5458,8 @@ export async function generateStoryAudio(
     logger.info({ storyId }, 'Audio already exists, skipping generation');
     return;
   }
+
+  await assertVoiceAccessForUser(story.userId, voiceId);
 
   try {
     // Get audio domain service

@@ -30,6 +30,7 @@ import { getStoryRepository, getAssetRepository } from '../repositories';
 import { getStoryCacheStats, getStoryCost, getStoryCostBreakdown } from '../services/aiUsageService';
 import { isStoryQuotaError } from '../services/storyQuotaService';
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
+import { assertVoiceAccessForUser, isVoiceAccessError } from '../services/voiceAccessService';
 
 /**
  * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
@@ -113,6 +114,19 @@ function sendPhotoInputSafetyError(res: Response, error: unknown): boolean {
     code: error.code,
     message: error.message,
     index: error.index,
+  });
+  return true;
+}
+
+function sendVoiceAccessError(res: Response, error: unknown): boolean {
+  if (!isVoiceAccessError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    message: error.message,
   });
   return true;
 }
@@ -1142,6 +1156,8 @@ router.post('/:id/audio', requireAuth, async (req: Request, res: Response) => {
         previousError: audioMetadata.errorMessage 
       }, 'Previous audio generation failed - allowing retry');
     }
+
+    await assertVoiceAccessForUser(req.user!.id, voiceId);
     
     // Check plan limits
     const { getPlanFeatures, getUserSubscription } = await import('../services/planService');
@@ -1224,6 +1240,8 @@ router.post('/:id/audio', requireAuth, async (req: Request, res: Response) => {
       jobId
     });
   } catch (error) {
+    if (sendVoiceAccessError(res, error)) return;
+
     logger.error({ err: error, userId: req.user?.id, storyId: req.params.id }, 'Audio generation request failed');
     res.status(500).json({
       status: 'error',
@@ -1705,6 +1723,8 @@ router.post('/:id/tts', requireAuth, async (req: Request, res: Response) => {
       message: 'Audio generated successfully'
     });
   } catch (error) {
+    if (sendVoiceAccessError(res, error)) return;
+
     logger.error({ 
       err: error, 
       userId: req.user?.id, 
