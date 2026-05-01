@@ -608,7 +608,7 @@ Current code findings:
 - `/authors/:authorId` is now routed through API SSR from nginx for authors with at least one public catalog story; missing, invalid, or zero-public-story authors return 404 with `noindex,nofollow`.
 - Public author avatar files can be served without auth only when the requested profile image matches the author's public avatar and the author has at least one public catalog story.
 - `sitemap.xml` now includes default-locale `/authors/:authorId` URLs derived only from the same public catalog story rows used for `/stories/:slug`.
-- `/terms` and `/privacy` are SSR, but only `en` and `uk` markdown files exist. Other launch locales must either get legal content or stay out of indexed/legal alternate routes.
+- `/terms`, `/privacy`, `/en/terms`, and `/en/privacy` are path-owned API SSR legal pages with canonical/hreflang metadata; only `en` and `uk` legal alternates are exposed.
 - Local Docker logs after route checks show successful public/app responses; dev nginx now resolves Metro with IPv6 disabled to avoid noisy `host.docker.internal:8082` fallback warnings.
 
 Required public route contract:
@@ -745,6 +745,14 @@ Current risk:
 - The app has known missing translation coverage in several locales.
 - Legal markdown exists only for `uk` and `en`.
 - Localized public pages must not mix URL locale, rendered text locale, canonical URL, hreflang links, and app language state.
+
+Completed locally:
+
+- Public SEO locale ownership is path-based for landing, pricing, stories catalog, and legal pages.
+- Default legal URLs `/terms` and `/privacy` render Ukrainian legal markdown with default canonical URLs.
+- English legal URLs `/en/terms` and `/en/privacy` render English legal markdown with English canonical URLs.
+- Legal pages expose only `uk`, `en`, and `x-default` alternates; unsupported locales such as `ru`, `es`, `de`, `fr`, and `pl` remain outside indexed legal routes.
+- Public SSR footers now preserve the active public SEO locale for home, pricing, stories, terms, and privacy links.
 
 Required work:
 

@@ -3,6 +3,7 @@ import { buildLandingAlternateLinks, PUBLIC_SEO_LOCALES } from '../landingConten
 import { renderPricingHtml } from '../renderPricingHtml';
 import { resolveLandingRouteLocale } from '../../routes/ssrLanding';
 import { resolvePricingRouteLocale } from '../../routes/ssrPricing';
+import { resolveLegalRouteLocale } from '../../routes/ssrLegal';
 
 const unsupportedLocales = ['ru', 'es', 'de', 'fr', 'pl'];
 
@@ -33,9 +34,11 @@ assert.equal(resolveLandingRouteLocale(undefined), 'uk');
 assert.equal(resolvePricingRouteLocale(undefined), 'uk');
 assert.equal(resolveLandingRouteLocale('en'), 'en');
 assert.equal(resolvePricingRouteLocale('en'), 'en');
+assert.equal(resolveLegalRouteLocale('en'), 'en');
 for (const locale of unsupportedLocales) {
   assert.equal(resolveLandingRouteLocale(locale), 'uk');
   assert.equal(resolvePricingRouteLocale(locale), 'uk');
+  assert.equal(resolveLegalRouteLocale(locale), 'uk');
 }
 
 console.log('publicSeoLocales tests passed');

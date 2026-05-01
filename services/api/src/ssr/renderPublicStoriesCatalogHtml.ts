@@ -253,7 +253,7 @@ export function renderPublicStoriesCatalogHtml(params: {
           : `<section class="empty"><h2>${escapeHtml(copy.emptyTitle)}</h2><p>${escapeHtml(copy.emptyBody)}</p></section>`
       }
     </main>
-    ${renderPublicPageFooter(webAppUrl)}
+    ${renderPublicPageFooter(webAppUrl, locale)}
   </div>
   <script>window.__INITIAL_STORIES__ = ${initialCatalogJson};</script>
   <script src="${escapeHtml(fullWebBundleUrl)}" defer></script>

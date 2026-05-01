@@ -175,6 +175,13 @@ export function buildPublicStoriesPath(locale?: string | null): string {
   return normalized === DEFAULT_PUBLIC_SEO_LOCALE ? '/stories' : `/${normalized}/stories`;
 }
 
+export type PublicLegalDoc = 'terms' | 'privacy';
+
+export function buildPublicLegalPath(doc: PublicLegalDoc, locale?: string | null): string {
+  const normalized = normalizePublicSeoLocale(locale);
+  return normalized === DEFAULT_PUBLIC_SEO_LOCALE ? `/${doc}` : `/${normalized}/${doc}`;
+}
+
 export function buildAbsoluteRouteUrl(baseUrl: string, path: string): string {
   const base = baseUrl.replace(/\/$/, '');
   if (!base) return path;

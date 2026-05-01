@@ -1,3 +1,12 @@
+import {
+  buildAbsoluteRouteUrl,
+  buildPublicLandingPath,
+  buildPublicLegalPath,
+  buildPublicPricingPath,
+  buildPublicStoriesPath,
+  normalizePublicSeoLocale,
+} from '@wondertales/shared';
+
 export const PUBLIC_FOOTER_STYLES = `
 .site-footer{border-top:1px solid rgba(148,163,184,.35);padding:28px 24px;text-align:center;color:#64748b;background:rgba(255,255,255,.88)}
 .site-footer nav{display:flex;flex-wrap:wrap;justify-content:center;gap:16px 24px;margin-bottom:12px}
@@ -15,19 +24,15 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#039;');
 }
 
-function buildUrl(webAppUrl: string, path: string): string {
-  const base = webAppUrl.replace(/\/$/, '');
-  return base ? `${base}${path}` : path;
-}
-
-export function renderPublicPageFooter(webAppUrl: string): string {
+export function renderPublicPageFooter(webAppUrl: string, locale?: string | null): string {
+  const normalizedLocale = normalizePublicSeoLocale(locale);
   const links = [
-    { href: buildUrl(webAppUrl, '/'), label: 'Home' },
-    { href: buildUrl(webAppUrl, '/pricing'), label: 'Pricing' },
-    { href: buildUrl(webAppUrl, '/stories'), label: 'Stories' },
-    { href: buildUrl(webAppUrl, '/terms'), label: 'Terms' },
-    { href: buildUrl(webAppUrl, '/privacy'), label: 'Privacy' },
-    { href: buildUrl(webAppUrl, '/support'), label: 'Support' },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLandingPath(normalizedLocale)), label: 'Home' },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicPricingPath(normalizedLocale)), label: 'Pricing' },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath(normalizedLocale)), label: 'Stories' },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('terms', normalizedLocale)), label: 'Terms' },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', normalizedLocale)), label: 'Privacy' },
+    { href: buildAbsoluteRouteUrl(webAppUrl, '/support'), label: 'Support' },
   ];
 
   return `

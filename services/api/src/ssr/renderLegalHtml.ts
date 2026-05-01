@@ -6,7 +6,14 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { marked } from 'marked';
-import { DEFAULT_LOCALE, isValidLocale } from '@wondertales/shared';
+import {
+  PUBLIC_SEO_LOCALES,
+  buildAbsoluteRouteUrl,
+  buildPublicLandingPath,
+  buildPublicLegalPath,
+  normalizePublicSeoLocale,
+  type PublicSeoLocale,
+} from '@wondertales/shared';
 import { config } from '../config';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
@@ -48,13 +55,35 @@ export interface RenderLegalOptions {
   locale: string;
 }
 
-function resolveLocale(locale: string): string {
-  const normalized = locale?.slice(0, 2)?.toLowerCase() || DEFAULT_LOCALE;
-  return isValidLocale(normalized) ? normalized : DEFAULT_LOCALE;
+const LEGAL_COPY: Record<PublicSeoLocale, {
+  termsTitle: string;
+  termsDescription: string;
+  privacyTitle: string;
+  privacyDescription: string;
+  backToSite: string;
+}> = {
+  uk: {
+    termsTitle: 'Умови користування — WonderTales',
+    termsDescription: 'Умови користування сервісом WonderTales',
+    privacyTitle: 'Політика приватності — WonderTales',
+    privacyDescription: 'Як WonderTales збирає та використовує персональні дані',
+    backToSite: '← На головну',
+  },
+  en: {
+    termsTitle: 'Terms of Service — WonderTales',
+    termsDescription: 'Terms of use of the WonderTales service',
+    privacyTitle: 'Privacy Policy — WonderTales',
+    privacyDescription: 'How WonderTales collects and uses personal data',
+    backToSite: '← Back to site',
+  },
+};
+
+export function resolveLegalLocale(locale?: string | null): PublicSeoLocale {
+  return normalizePublicSeoLocale(locale);
 }
 
 async function loadMarkdown(doc: 'terms' | 'privacy', locale: string): Promise<string> {
-  const resolved = resolveLocale(locale);
+  const resolved = resolveLegalLocale(locale);
   const path = join(LEGAL_DIR, doc, `${resolved}.md`);
   try {
     return await readFile(path, 'utf-8');
@@ -72,42 +101,55 @@ async function loadMarkdown(doc: 'terms' | 'privacy', locale: string): Promise<s
     : '# Privacy Policy\n\nContent not available.';
 }
 
+function buildLegalAlternateLinks(webAppUrl: string, doc: 'terms' | 'privacy'): string {
+  const defaultUrl = escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath(doc, 'uk')));
+  const alternates = PUBLIC_SEO_LOCALES.map((locale) => {
+    const href = buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath(doc, locale));
+    return `<link rel="alternate" hreflang="${locale}" href="${escapeHtml(href)}">`;
+  });
+  alternates.push(`<link rel="alternate" hreflang="x-default" href="${defaultUrl}">`);
+  return alternates.join('\n  ');
+}
+
 export async function renderLegalHtml(options: RenderLegalOptions): Promise<string> {
   const { doc, locale } = options;
+  const resolvedLocale = resolveLegalLocale(locale);
+  const copy = LEGAL_COPY[resolvedLocale];
   const webAppUrl = (config.web?.webAppUrl || '').replace(/\/$/, '') || '';
-  const safeAppUrl = escapeHtml(webAppUrl);
+  const landingUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicLandingPath(resolvedLocale));
+  const legalUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath(doc, resolvedLocale));
 
-  const markdown = await loadMarkdown(doc, locale);
+  const markdown = await loadMarkdown(doc, resolvedLocale);
   const bodyHtml = (await marked.parse(markdown)) as string;
 
-  const title = doc === 'terms' ? 'Terms of Service — WonderTales' : 'Privacy Policy — WonderTales';
-  const description =
-    doc === 'terms'
-      ? 'Terms of use of the WonderTales service'
-      : 'How WonderTales collects and uses personal data';
+  const title = doc === 'terms' ? copy.termsTitle : copy.privacyTitle;
+  const description = doc === 'terms' ? copy.termsDescription : copy.privacyDescription;
 
   return `<!DOCTYPE html>
-<html lang="${escapeHtml(resolveLocale(locale))}">
+<html lang="${escapeHtml(resolvedLocale)}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>
   <meta name="description" content="${escapeHtml(description)}">
+  <meta name="robots" content="index,follow">
   ${PUBLIC_HEAD_ASSET_LINKS}
+  <link rel="canonical" href="${escapeHtml(legalUrl)}">
+  ${buildLegalAlternateLinks(webAppUrl, doc)}
   <style>${LEGAL_STYLES}</style>
 </head>
 <body>
   <div class="legal-wrapper">
     <header class="legal-header">
       <div class="legal-header-inner">
-        <a href="${safeAppUrl}" class="legal-brand">WonderTales</a>
-        <a href="${safeAppUrl}" class="legal-back">← Back to app</a>
+        <a href="${escapeHtml(landingUrl)}" class="legal-brand">WonderTales</a>
+        <a href="${escapeHtml(landingUrl)}" class="legal-back">${escapeHtml(copy.backToSite)}</a>
       </div>
     </header>
     <main class="legal-content">
       ${bodyHtml}
     </main>
-    ${renderPublicPageFooter(webAppUrl)}
+    ${renderPublicPageFooter(webAppUrl, resolvedLocale)}
   </div>
 </body>
 </html>`;

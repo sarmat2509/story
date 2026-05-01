@@ -187,7 +187,7 @@ export function renderPricingHtml(params: {
         <p>${escapeHtml(plansI18n.billing_note_refunds || 'Refund requests are reviewed through support and do not happen automatically when a subscription is canceled.')}</p>
       </section>
     </div>
-    ${renderPublicPageFooter(webAppUrl)}
+    ${renderPublicPageFooter(webAppUrl, locale)}
   </div>
 </body>
 </html>`;

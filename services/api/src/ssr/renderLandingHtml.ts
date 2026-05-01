@@ -708,7 +708,7 @@ export function renderLandingHtml(params?: {
       ${renderFaq(webAppUrl, content, locale)}
       ${renderFinalCta(webAppUrl, content, locale)}
     </div>
-    ${renderPublicPageFooter(webAppUrl)}
+    ${renderPublicPageFooter(webAppUrl, locale)}
   </div>`;
 
   return `<!DOCTYPE html>

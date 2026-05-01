@@ -4,6 +4,7 @@ import path from 'node:path';
 import {
   APP_ROUTE_PATHS,
   PUBLIC_SEO_LOCALES,
+  buildPublicLegalPath,
   buildPublicSeoSitemapStaticRoutes,
   buildPublicStoriesPath,
 } from '@wondertales/shared';
@@ -55,9 +56,17 @@ assert.doesNotMatch(emptySitemap, /<loc>https:\/\/wondertales\.art\/billing\//);
 
 assert.equal(buildPublicStoriesPath('uk'), '/stories');
 assert.equal(buildPublicStoriesPath('en'), '/en/stories');
+assert.equal(buildPublicLegalPath('terms', 'uk'), '/terms');
+assert.equal(buildPublicLegalPath('terms', 'en'), '/en/terms');
+assert.equal(buildPublicLegalPath('privacy', 'uk'), '/privacy');
+assert.equal(buildPublicLegalPath('privacy', 'en'), '/en/privacy');
 
 for (const { name, value } of nginxConfigs) {
   assert.match(value, /location = \/pricing\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/pricing/, `${name} should route public pricing to API SSR`);
+  assert.match(value, /location = \/terms\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/terms/, `${name} should route default terms to API SSR`);
+  assert.match(value, /location = \/privacy\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/privacy/, `${name} should route default privacy to API SSR`);
+  assert.match(value, /location ~ \^\/en\/terms\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/terms\/en/, `${name} should route localized terms to API SSR`);
+  assert.match(value, /location ~ \^\/en\/privacy\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/privacy\/en/, `${name} should route localized privacy to API SSR`);
   assert.match(value, /location = \/stories\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/stories/, `${name} should route exact /stories to API SSR`);
   assert.match(value, /location ~ \^\/en\/stories\/\?\$\s*\{[\s\S]*?\/ssr\/stories\/catalog\/en/, `${name} should route localized /en/stories to API SSR`);
   assert.match(value, /location \^~ \/stories\/\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/stories\//, `${name} should route story detail pages to API SSR`);
@@ -69,6 +78,10 @@ for (const { name, value } of nginxConfigs) {
 }
 
 assert.match(commonSsrRoutes, /location = \/pricing\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/pricing/);
+assert.match(commonSsrRoutes, /location = \/terms\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/terms/);
+assert.match(commonSsrRoutes, /location = \/privacy\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/privacy/);
+assert.match(commonSsrRoutes, /location ~ \^\/en\/terms\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/terms\/en/);
+assert.match(commonSsrRoutes, /location ~ \^\/en\/privacy\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/privacy\/en/);
 assert.match(commonSsrRoutes, /location = \/stories\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/stories/);
 assert.match(commonSsrRoutes, /location ~ \^\/en\/stories\/\?\$\s*\{[\s\S]*?\/ssr\/stories\/catalog\/en/);
 assert.match(commonSsrRoutes, /location \^~ \/stories\/\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/stories\//);
