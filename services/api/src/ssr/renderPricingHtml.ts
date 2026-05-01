@@ -2,6 +2,7 @@ import { config } from '../config';
 import type { PresentedPlan, PresentedPlanFeature } from '../services/planPresentationService';
 import { getPlansI18n } from '../utils/i18nLoader';
 import { LANDING_LOCALES, normalizeLandingLocale, type LandingLocale } from './landingContent';
+import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
 
 const FEATURE_ORDER = [
   'stories_per_day',
@@ -45,6 +46,7 @@ a{text-decoration:none}
 .btn:hover{opacity:.92}
 @media (max-width: 1180px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width: 680px){.wrap{padding:18px}.nav{flex-direction:column;align-items:flex-start}.grid{grid-template-columns:1fr}.desc{min-height:0}}
+${PUBLIC_FOOTER_STYLES}
 `;
 
 function escapeHtml(value: string): string {
@@ -323,6 +325,7 @@ export function renderPricingHtml(params: {
         }).join('')}
       </section>
     </div>
+    ${renderPublicPageFooter(webAppUrl)}
   </div>
 </body>
 </html>`;

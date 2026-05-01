@@ -8,6 +8,7 @@ import { join } from 'path';
 import { marked } from 'marked';
 import { DEFAULT_LOCALE, isValidLocale } from '@wondertales/shared';
 import { config } from '../config';
+import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
 
 const LEGAL_DIR = join(__dirname, '../legal');
 
@@ -38,9 +39,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .legal-content li{margin-bottom:8px}
 .legal-content a{color:#0ea5e9;text-decoration:none}
 .legal-content a:hover{text-decoration:underline}
-.legal-footer{background:#fff;border-top:1px solid #e2e8f0;padding:24px;text-align:center}
-.legal-footer a{color:#0ea5e9;text-decoration:none;font-size:14px}
-.legal-footer a:hover{text-decoration:underline}
+${PUBLIC_FOOTER_STYLES}
 `;
 
 export interface RenderLegalOptions {
@@ -106,9 +105,7 @@ export async function renderLegalHtml(options: RenderLegalOptions): Promise<stri
     <main class="legal-content">
       ${bodyHtml}
     </main>
-    <footer class="legal-footer">
-      <a href="${safeAppUrl}">Return to WonderTales</a>
-    </footer>
+    ${renderPublicPageFooter(webAppUrl)}
   </div>
 </body>
 </html>`;

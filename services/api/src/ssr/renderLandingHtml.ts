@@ -16,6 +16,7 @@ import {
   type LandingExampleStory,
   type LandingLocale,
 } from './landingContent';
+import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
 
 /** Plan with stories/audio/images limits for landing display */
 interface PlanWithLimits {
@@ -171,6 +172,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 @media(max-width:900px){.value-cards,.benefit-cards{grid-template-columns:repeat(2,1fr)}.flow-steps{grid-template-columns:repeat(2,1fr)}.plans-grid{grid-template-columns:repeat(2,1fr)}.story-cards,.testimonial-cards{grid-template-columns:1fr}.voice-cards{position:static;min-height:0;display:grid;grid-template-columns:repeat(2,1fr);gap:16px}.voice-card{position:static;width:100%;left:auto;top:auto;margin:0}.feature-sticky{grid-template-columns:1fr}.feature-sticky-titles{position:static}}
 @media(max-width:600px){.hero h2{font-size:28px}.value-cards,.benefit-cards,.flow-steps,.safety-points{grid-template-columns:1fr}.plans-grid,.story-cards,.testimonial-cards{grid-template-columns:1fr}.voice-cards{grid-template-columns:1fr}.announcement-bar{flex-direction:column;gap:12px}.feature-sticky-card-inner .feature-item-image{aspect-ratio:4/3}}
 @media(prefers-reduced-motion:reduce){.faq-accordion-item summary::before{transition:none}}
+${PUBLIC_FOOTER_STYLES}
 `;
 
 function escapeHtml(s: string): string {
@@ -704,6 +706,7 @@ export function renderLandingHtml(params?: {
       ${renderFaq(webAppUrl, content, locale)}
       ${renderFinalCta(webAppUrl, content, locale)}
     </div>
+    ${renderPublicPageFooter(webAppUrl)}
   </div>`;
 
   return `<!DOCTYPE html>
