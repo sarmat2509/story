@@ -38,6 +38,7 @@ import {
   findExpectedForValidationChar,
 } from '../domain/image/imageValidationRun';
 import { logger } from '../utils/logger';
+import { incrementLandingRenderVersion, removePublishedSlug } from '../ssr/storyCache';
 import { extractClosingKeepsakeFromEpisodeText, stripCharacterIds, stripAllTags } from '../utils/audioTags';
 import {
   isNaturalAppearanceOutfit,
@@ -71,6 +72,8 @@ import crypto from 'crypto';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { config } from '../config';
+import { deleteStoryStorageFiles } from './storyDeletionService';
+import { invalidateSitemapCache } from './sitemapService';
 import {
   flattenCameraComposition,
   type StoryRequestData,
@@ -4745,11 +4748,28 @@ export async function deleteStory(storyId: string, userId: string): Promise<bool
     const { removeStoryFromSeries } = await import('./seriesService');
     await removeStoryFromSeries(storyId, story.seriesId);
   }
+
+  const storageDeletion = await deleteStoryStorageFiles(storyId);
   
   // Delete the story
   await getStoryRepository().deleteStory(storyId, userId);
+
+  if (story.publishedSlug) {
+    await removePublishedSlug(story.publishedSlug);
+    await invalidateSitemapCache();
+  }
+
+  if (story.showOnHomePage === true) {
+    await incrementLandingRenderVersion();
+  }
   
-  logger.info({ storyId, userId, hadSeries: !!story.seriesId }, 'Story deleted');
+  logger.info({
+    storyId,
+    userId,
+    hadSeries: !!story.seriesId,
+    storageFilesAttempted: storageDeletion.attempted,
+    storageFilesDeleted: storageDeletion.deleted,
+  }, 'Story deleted');
   
   return true;
 }

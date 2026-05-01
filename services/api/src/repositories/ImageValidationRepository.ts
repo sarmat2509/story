@@ -61,6 +61,13 @@ export class ImageValidationRepository {
       .where(inArray(schema.imageValidationResults.imageStoragePath, storagePaths));
   }
 
+  async listAllByStoryId(storyId: string): Promise<schema.ImageValidationResultRow[]> {
+    return this.db
+      .select()
+      .from(schema.imageValidationResults)
+      .where(eq(schema.imageValidationResults.storyId, storyId));
+  }
+
   async countByStoryId(storyId: string): Promise<number> {
     const [row] = await this.db
       .select({ n: sql<number>`count(*)::int` })
