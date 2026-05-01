@@ -3,14 +3,14 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import * as bundleService from '../services/bundleService';
 import { logger } from '../utils/logger';
 
 const router = Router();
 
 // GET /api/v1/bundles — list bundles for current user's plan
-router.get('/', requireAuth, async (req: Request, res: Response) => {
+router.get('/', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const bundles = await bundleService.listBundlesForUser(userId);

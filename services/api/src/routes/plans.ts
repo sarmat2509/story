@@ -2,7 +2,7 @@ import { Request, Router } from 'express';
 import { DEFAULT_LOCALE } from '@wondertales/shared';
 import * as planService from '../services/planService';
 import { logger } from '../utils/logger';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import config from '../config';
 import { buildPlansWithFeatures, normalizePlanLocale } from '../services/planPresentationService';
 
@@ -45,7 +45,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/v1/plans/with-features - Get all plans with feature details (authenticated)
-router.get('/with-features', requireAuth, async (req, res) => {
+router.get('/with-features', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const locale = resolveAuthenticatedLocale(req);
@@ -70,7 +70,7 @@ router.get('/with-features', requireAuth, async (req, res) => {
 });
 
 // PUT /api/v1/plans/upgrade - Upgrade user plan (stub when enableRealPayments=false; 501 when true)
-router.put('/upgrade', requireAuth, async (req, res) => {
+router.put('/upgrade', requireAuth, requireParentSession, async (req, res) => {
   try {
     if (config.features.enableRealPayments) {
       return res.status(501).json({
