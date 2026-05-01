@@ -61,7 +61,7 @@ All billing, refund, cancellation, quota, and support paths must work end to end
 
 ### P0 Status Snapshot - 2026-05-01
 
-Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, but P0 is not fully green for external families until production-only checks and child-mode product controls are finished.
+Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, but P0 is not fully green for external families until production-only checks and final operator/legal confirmations are finished.
 
 Completed or ready for closed-beta verification:
 
@@ -74,14 +74,15 @@ Completed or ready for closed-beta verification:
 - Story/account/child-profile deletion behavior was hardened and documented.
 - Parent-session guards now block child sessions from billing, plan actions, profile editing, uploads, and story writes.
 - Sensitive route rate limits, credentialed CORS restrictions, upload validation, admin health guards, and debug route guards are in place.
-- API build, web type-check, and web export passed after the P0 fixes.
+- Child Mode now has scoped sessions, parent controls, child-safe story request enforcement, attribution, password and OAuth-only parent-gate fallbacks, start/return UI, child-safe story creation UI, allowed content selectors, and parent review workflow UI.
+- Scheduled orphan-file cleanup exists with disabled/dry-run defaults, retention-age gating, and launch-gate coverage.
+- API build, web type-check, web export, and `pnpm launch:gate` passed after the P0 fixes.
 
 Remaining P0 bottlenecks:
 
 - Production-only web checks are still required: `wondertales.art`, `www.wondertales.art`, HTTPS redirect, TLS certificate, real nginx/proxy behavior, and production SSR route status.
 - Google OAuth and password-reset email must be verified against production callback URLs, sender domain/DNS, and real email delivery. Apple is hidden on web, but native/mobile Apple remains out of this web launch scope.
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
-- Child Mode now has scoped sessions, parent controls, child-safe story request enforcement, attribution, password and OAuth-only parent-gate fallbacks, start/return UI, child-safe story creation UI, allowed content selectors, and parent review workflow UI.
 - CI/release gating now exists locally and in CI for API build, web type-check/export, critical tests, migration-file checks, and client-bundle secret scans; it still needs to be proven on the real production deployment path.
 
 Solutions not yet applied:
@@ -320,7 +321,7 @@ Acceptance criteria:
 
 ### 6. Parent-Owned Child Mode
 
-Status on 2026-05-01: Safety fail-closed baseline and backend parent-control/session lifecycle foundation are ready; full Child Mode product is not ready.
+Status on 2026-05-01: Ready for closed-beta verification; production OAuth callback verification remains tracked under Auth and Onboarding.
 
 Done:
 
@@ -344,10 +345,11 @@ Done:
 - Child-created story requests now record `reservationSource: child_mode` in quota reservation metadata and reuse child-mode prompt safety source labels through the shared orchestration path.
 - Child-created stories that require review now surface review badges in the library, expose approve/reject controls in the story viewer, block publishing/sharing until approved, and are excluded from public/unlisted lookup predicates while pending or rejected.
 - `POST /api/v1/auth/parent-gate` lets password-authenticated adults re-enter Parent Mode from a child session and revokes the previous child session.
+- OAuth-only parent gate fallback is implemented for web Google re-auth and native Google/Apple token re-auth; callback URLs still need production live verification.
 
 Remaining:
 
-- OAuth-only accounts still need a non-password parent gate path.
+- Verify the OAuth-only parent gate fallback against production callback URLs after deploy.
 
 If children can use the app themselves, they must do so inside a supervised mode controlled by an adult account.
 
