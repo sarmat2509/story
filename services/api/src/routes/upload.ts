@@ -1,9 +1,10 @@
-import { Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import { isPhotoTypeUserUpload } from '@wondertales/shared';
 import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import { getAssetStorageService } from '../services/assetStorageService';
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
+import { isAllowedUserPhotoMimeType } from '../services/uploadValidationService';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -32,20 +33,53 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024, // 10MB max
   },
   fileFilter: (req, file, cb) => {
-    // Only allow images
-    if (!file.mimetype.startsWith('image/')) {
-      cb(new Error('Only image files are allowed'));
+    if (!isAllowedUserPhotoMimeType(file.mimetype)) {
+      cb(new Error('UNSUPPORTED_PHOTO_TYPE'));
       return;
     }
     cb(null, true);
   }
 });
 
+function handlePhotoUpload(req: Request, res: Response, next: NextFunction): void {
+  upload.single('photo')(req, res, (error: unknown) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+      res.status(413).json({
+        status: 'error',
+        code: 'PHOTO_TOO_LARGE',
+        error: 'Photo must be 10MB or smaller',
+      });
+      return;
+    }
+
+    if (error instanceof Error && error.message === 'UNSUPPORTED_PHOTO_TYPE') {
+      res.status(400).json({
+        status: 'error',
+        code: 'UNSUPPORTED_PHOTO_TYPE',
+        error: 'Photo must be a JPEG, PNG, WebP, HEIC, or HEIF image',
+      });
+      return;
+    }
+
+    logger.warn({ error }, 'Photo upload rejected by multer');
+    res.status(400).json({
+      status: 'error',
+      code: 'PHOTO_UPLOAD_INVALID',
+      error: 'Invalid photo upload',
+    });
+  });
+}
+
 /**
  * POST /api/v1/upload/photo
  * Upload user photo (profile, character, child reference photo)
  */
-router.post('/photo', requireAuth, requireParentSession, upload.single('photo'), async (req, res) => {
+router.post('/photo', requireAuth, requireParentSession, handlePhotoUpload, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -82,7 +116,17 @@ router.post('/photo', requireAuth, requireParentSession, upload.single('photo'),
 
     // Preprocess image (auto-orient, resize, enhance exposure, convert to JPEG)
     const storageService = getAssetStorageService();
-    const preprocessedBuffer = await storageService.preprocessImage(req.file.buffer);
+    let preprocessedBuffer: Buffer;
+    try {
+      preprocessedBuffer = await storageService.preprocessImage(req.file.buffer);
+    } catch (preprocessError) {
+      logger.warn({ err: preprocessError, userId, photoType }, 'Uploaded file could not be decoded as an image');
+      return res.status(400).json({
+        status: 'error',
+        code: 'INVALID_IMAGE_FILE',
+        error: 'Uploaded file is not a valid image',
+      });
+    }
 
     // Upload to storage
     const result = await storageService.uploadUserPhoto({
