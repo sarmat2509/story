@@ -798,6 +798,12 @@ Required work:
 - Fix PWA manifest from `Kazka+` to `WonderTales`.
 - Add structured data for software/pricing/FAQ if not already present.
 
+Completed locally:
+
+- PWA manifest source and exported web manifest now use WonderTales branding instead of `Kazka+`.
+- Public SSR head assets now include `/manifest.json`, so landing, pricing, legal, support, story catalog, author, and story pages expose the same install metadata as the SPA shell.
+- `pnpm launch:gate` now checks the source and exported web manifests for stale brand names, required icons, `start_url`, standalone display mode, and index.html manifest links.
+
 Acceptance criteria:
 
 - A new visitor can answer: who is this for, what does it cost, is it safe, what data is used, how to delete data, how to contact support.

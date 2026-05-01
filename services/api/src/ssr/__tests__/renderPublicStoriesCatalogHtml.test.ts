@@ -30,6 +30,7 @@ assert.match(ukHtml, /<html lang="uk">/);
 assert.match(ukHtml, /<meta name="robots" content="index,follow">/);
 assert.match(ukHtml, /<link rel="canonical" href="https:\/\/app\.wondertales\.com\/stories">/);
 assert.match(ukHtml, /hreflang="en" href="https:\/\/app\.wondertales\.com\/en\/stories"/);
+assert.match(ukHtml, /<link rel="manifest" href="\/manifest\.json">/);
 assert.match(ukHtml, /href="https:\/\/app\.wondertales\.com\/stories\/moonlit-garden"/);
 assert.match(ukHtml, /href="https:\/\/app\.wondertales\.com\/authors\/11111111-1111-4111-8111-111111111111"/);
 assert.match(ukHtml, /window\.__INITIAL_STORIES__/);

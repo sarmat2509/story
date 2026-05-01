@@ -36,6 +36,7 @@ void (async function main() {
 
   assert.match(html, /<meta name="robots" content="index,follow">/);
   assert.match(html, /<link rel="canonical" href="[^"]+\/authors\/author-1">/);
+  assert.match(html, /<link rel="manifest" href="\/manifest\.json">/);
   assert.match(html, /Ava Author/);
   assert.match(html, /The Moonlit Garden/);
   assert.match(html, /\/stories\/moonlit-garden/);

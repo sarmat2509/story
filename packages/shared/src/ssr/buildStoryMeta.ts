@@ -38,5 +38,6 @@ export function buildStoryMeta(params: StoryMetaParams): string {
   <meta name="twitter:image" content="${safeImage}">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
   <link rel="canonical" href="${safeUrl}">`.trim();
 }

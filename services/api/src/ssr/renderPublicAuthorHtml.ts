@@ -2,6 +2,7 @@ import { escapeHtml, getReadingTimeMinutes } from '@wondertales/shared';
 import type { PublicAuthorView } from '@wondertales/shared';
 import type { PublicStoryListItem } from '../services/publicStoryService';
 import { config } from '../config';
+import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 
 const AUTHOR_STYLES = `
 *{box-sizing:border-box}
@@ -108,6 +109,7 @@ export function renderPublicAuthorHtml(params: {
   <meta property="og:description" content="${escapeHtml(description)}">
   <meta property="og:url" content="${escapeHtml(authorUrl)}">
   ${avatarUrl ? `<meta property="og:image" content="${escapeHtml(avatarUrl)}">` : ''}
+  ${PUBLIC_HEAD_ASSET_LINKS}
   <style>${AUTHOR_STYLES}</style>
 </head>
 <body>
