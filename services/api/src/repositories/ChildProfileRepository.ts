@@ -96,6 +96,24 @@ export class ChildProfileRepository {
       ));
   }
 
+  async anonymizeAndSoftDelete(
+    id: string,
+    userId: string,
+    data: Partial<Omit<schema.NewChildProfile, 'userId'>>
+  ): Promise<void> {
+    await this.db
+      .update(schema.childProfiles)
+      .set({
+        ...data,
+        isActive: false,
+        updatedAt: new Date(),
+      } as Partial<schema.NewChildProfile>)
+      .where(and(
+        eq(schema.childProfiles.id, id),
+        eq(schema.childProfiles.userId, userId)
+      ));
+  }
+
   async hardDelete(id: string, userId: string): Promise<void> {
     await this.db
       .delete(schema.childProfiles)

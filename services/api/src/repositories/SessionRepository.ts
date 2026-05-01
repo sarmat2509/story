@@ -101,6 +101,13 @@ export class SessionRepository {
     return result.rowCount || 0;
   }
 
+  async deleteByChildProfileId(childProfileId: string): Promise<number> {
+    const result = await this.db
+      .delete(schema.sessions)
+      .where(eq(schema.sessions.childProfileId, childProfileId));
+    return result.rowCount || 0;
+  }
+
   async deleteExpired(): Promise<number> {
     const result = await this.db
       .delete(schema.sessions)

@@ -1,4 +1,4 @@
-import { getChildProfileRepository } from '../repositories';
+import { getChildProfileRepository, getSessionRepository } from '../repositories';
 import type { ChildProfile, NewChildProfile } from '../db/schema';
 import { logger } from '../utils/logger';
 import { recordUsage } from './aiUsageService';
@@ -61,6 +61,27 @@ export function calculateAgeGroup(ageMonths: number): string {
   if (ageMonths < 72) return '4-5';
   if (ageMonths < 108) return '6-8';
   return '9-12';
+}
+
+export function buildDeletedChildProfileTombstone(): Partial<Omit<NewChildProfile, 'userId'>> {
+  return {
+    name: 'Deleted child profile',
+    birthDate: '1970-01-01',
+    languages: [],
+    referencePhotos: null,
+    appearanceTraits: null,
+    personality: null,
+    interests: null,
+    sensitivities: null,
+    familyCast: null,
+    aiGeneratedDescription: null,
+    descriptionEn: null,
+    descriptionLanguage: null,
+    clothing: null,
+    distinctiveFeatures: null,
+    turnaroundSheet: null,
+    isActive: false,
+  } as Partial<Omit<NewChildProfile, 'userId'>>;
 }
 
 /**
@@ -163,16 +184,21 @@ export async function deleteChildProfile(id: string, userId: string): Promise<vo
   }
 
   const usageCount = await childProfileRepo.countStoryUsage(id, userId);
-  if (usageCount > 0) {
-    await childProfileRepo.softDelete(id, userId);
-    logger.info({ userId, profileId: id, usageCount }, 'Child profile archived because it is used in stories or requests');
-    return;
-  }
-
   const assetPaths = collectEntityAssetPaths({
     referencePhotos: existing.referencePhotos,
     turnaroundSheet: existing.turnaroundSheet,
   });
+
+  if (usageCount > 0) {
+    await deleteEntityAssets(assetPaths);
+    const revokedSessionCount = await getSessionRepository().deleteByChildProfileId(id);
+    await childProfileRepo.anonymizeAndSoftDelete(id, userId, buildDeletedChildProfileTombstone());
+    logger.info(
+      { userId, profileId: id, usageCount, deletedAssetCount: assetPaths.length, revokedSessionCount },
+      'Child profile anonymized because it is used in stories or requests'
+    );
+    return;
+  }
 
   await deleteEntityAssets(assetPaths);
   await childProfileRepo.hardDelete(id, userId);
