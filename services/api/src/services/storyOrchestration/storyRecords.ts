@@ -154,11 +154,7 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
       logger.info({ storyId, sceneCount: params.text.scenes.length, characterCount: characterIdsToLink.size }, 'Story enriched with content');
     });
 
-    const { recordUsageEvent } = await import('../usageEventsService');
-    await recordUsageEvent(params.userId, 'story_created', 1, {
-      childProfileId: params.childProfileId,
-      metadata: { storyId },
-    });
+    // Monthly story quota is reserved when the request is accepted for queueing.
   } catch (error) {
     logger.error({ error, storyId, storyRequestId: params.storyRequestId }, 'Failed to enrich story');
     throw error;
@@ -310,12 +306,7 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
       return story.id;
     });
 
-    // Record usage event for entitlements/analytics
-    const { recordUsageEvent } = await import('../usageEventsService');
-    await recordUsageEvent(params.userId, 'story_created', 1, {
-      childProfileId: params.childProfileId,
-      metadata: { storyId },
-    });
+    // Monthly story quota is reserved when the request is accepted for queueing.
 
     return storyId;
   } catch (error) {

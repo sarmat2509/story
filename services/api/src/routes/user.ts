@@ -105,6 +105,7 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
   try {
     const { getPlanFeatures, getUserSubscription } = await import('../services/planService');
     const { getUsageForPeriod } = await import('../services/usageEventsService');
+    const { getBundleBonusForPeriod } = await import('../services/bundleService');
     const features = await getPlanFeatures(req.user!.id);
     const subscription = await getUserSubscription(req.user!.id);
 
@@ -119,12 +120,20 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
     const currentPeriodStart = subscription.currentPeriodStart;
     const currentPeriodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
 
+    const bundleBonus = await getBundleBonusForPeriod(
+      req.user!.id,
+      currentPeriodStart,
+      currentPeriodEnd
+    );
+
     const [storiesUsed, audioUsed] = await Promise.all([
       getUsageForPeriod(req.user!.id, currentPeriodStart, currentPeriodEnd, 'story_created'),
       getUsageForPeriod(req.user!.id, currentPeriodStart, currentPeriodEnd, 'audio_synthesized'),
     ]);
-    const storiesLimit = features.storiesPerMonth;
-    const audioLimit = features.audioStoriesPerMonth;
+    const storiesPlanLimit = features.storiesPerMonth;
+    const audioPlanLimit = features.audioStoriesPerMonth;
+    const storiesLimit = storiesPlanLimit + bundleBonus.extraStories;
+    const audioLimit = audioPlanLimit + bundleBonus.extraAudio;
 
     const { default: config } = await import('../config');
 
@@ -135,11 +144,15 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
           used: storiesUsed,
           limit: storiesLimit,
           remaining: Math.max(0, storiesLimit - storiesUsed),
+          plan_limit: storiesPlanLimit,
+          bundle_bonus: bundleBonus.extraStories,
         },
         audio: {
           used: audioUsed,
           limit: audioLimit,
           remaining: Math.max(0, audioLimit - audioUsed),
+          plan_limit: audioPlanLimit,
+          bundle_bonus: bundleBonus.extraAudio,
         },
         resetsAt: subscription.resetAt,
         currentPeriodEnd: subscription.currentPeriodEnd,

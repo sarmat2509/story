@@ -532,6 +532,18 @@ export type VoiceApi = CamelizeKeys<Voice>;
 export type StorySummaryApi = CamelizeKeys<StorySummary>;
 export type StoryApi = CamelizeKeys<Story>;
 
+/** Item from GET /api/v1/bundles (camelCase after client transform) */
+export interface StoryBundleListItemApi {
+  slug: string;
+  name: string;
+  extraStories: number;
+  extraAudio: number;
+  sortOrder: number;
+  priceMinor: number;
+  pricingCurrency: string;
+  stripePriceConfigured: boolean;
+}
+
 /** GET /api/v1/me/stories/languages */
 export interface UserStoryLanguagesResponse {
   status: 'success';

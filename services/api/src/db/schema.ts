@@ -195,6 +195,62 @@ export const userSubscriptions = pgTable('user_subscriptions', {
   };
 });
 
+// Story bundles (extra story + audio quota for current billing period)
+export const storyBundles = pgTable('story_bundles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: varchar('slug', { length: 64 }).notNull().unique(),
+  name: varchar('name', { length: 200 }).notNull(),
+  extraStories: integer('extra_stories').notNull(),
+  extraAudio: integer('extra_audio').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  activeSortIdx: index('story_bundles_active_sort_idx').on(table.isActive, table.sortOrder),
+}));
+
+export const planBundlePrices = pgTable('plan_bundle_prices', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  planId: uuid('plan_id').references(() => plans.id, { onDelete: 'cascade' }).notNull(),
+  bundleId: uuid('bundle_id').references(() => storyBundles.id, { onDelete: 'cascade' }).notNull(),
+  priceMinor: integer('price_minor').notNull(),
+  pricingCurrency: varchar('pricing_currency', { length: 3 }).notNull().default('USD'),
+  stripePriceId: varchar('stripe_price_id', { length: 255 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  planBundleUnique: uniqueIndex('plan_bundle_prices_plan_bundle_uidx').on(table.planId, table.bundleId),
+  planIdIdx: index('plan_bundle_prices_plan_id_idx').on(table.planId),
+  bundleIdIdx: index('plan_bundle_prices_bundle_id_idx').on(table.bundleId),
+}));
+
+export const userBundleGrants = pgTable('user_bundle_grants', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  bundleId: uuid('bundle_id').references(() => storyBundles.id, { onDelete: 'restrict' }).notNull(),
+  subscriptionPeriodStart: timestamp('subscription_period_start').notNull(),
+  subscriptionPeriodEnd: timestamp('subscription_period_end').notNull(),
+  extraStories: integer('extra_stories').notNull(),
+  extraAudio: integer('extra_audio').notNull(),
+  source: varchar('source', { length: 20 }).notNull().default('stripe'),
+  stripeCheckoutSessionId: varchar('stripe_checkout_session_id', { length: 255 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  userPeriodIdx: index('user_bundle_grants_user_period_idx').on(
+    table.userId,
+    table.subscriptionPeriodStart,
+    table.subscriptionPeriodEnd
+  ),
+}));
+
+export type StoryBundle = typeof storyBundles.$inferSelect;
+export type NewStoryBundle = typeof storyBundles.$inferInsert;
+export type PlanBundlePrice = typeof planBundlePrices.$inferSelect;
+export type NewPlanBundlePrice = typeof planBundlePrices.$inferInsert;
+export type UserBundleGrant = typeof userBundleGrants.$inferSelect;
+export type NewUserBundleGrant = typeof userBundleGrants.$inferInsert;
+
 // Child profiles table
 export const childProfiles = pgTable('child_profiles', {
   id: uuid('id').primaryKey().defaultRandom(),

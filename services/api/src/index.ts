@@ -28,6 +28,7 @@ import ssrLegalRoutes from './routes/ssrLegal';
 import shareCardRoutes from './routes/shareCard';
 import sitemapRoute from './routes/sitemap';
 import billingRoutes from './routes/billing';
+import bundlesRoutes from './routes/bundles';
 import billingWebhookRoutes from './routes/billingWebhook';
 import assetsRoutes from './routes/assets';
 import voicesRoutes from './routes/voices';
@@ -133,7 +134,8 @@ app.use('/api/v1/assets', apiLimiter, assetsRoutes); // M4: asset serving (local
 app.use('/api/v1/voices', apiLimiter, voicesRoutes); // M5: TTS voices
 app.use('/api/v1/upload', apiLimiter, uploadRoutes); // M6: photo upload
 app.use('/api/v1/feedback', feedbackRoutes); // Feedback has its own rate limiter
-app.use('/api/v1/billing', apiLimiter, billingRoutes); // M1: Stripe checkout, portal
+app.use('/api/v1/billing', apiLimiter, billingRoutes); // M1: Stripe checkout, portal, bundle checkout
+app.use('/api/v1/bundles', apiLimiter, bundlesRoutes);
 app.use('/api/v1', indexRoutes);
 
 // Root redirect to API

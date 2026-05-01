@@ -25,6 +25,7 @@ import { config } from '../config';
 import { startTask, completeTask, STORY_TASKS } from '../services/storyProgress';
 import { getStoryRepository, getAssetRepository } from '../repositories';
 import { getStoryCacheStats, getStoryCost, getStoryCostBreakdown } from '../services/aiUsageService';
+import { isStoryQuotaError } from '../services/storyQuotaService';
 
 /**
  * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
@@ -47,6 +48,24 @@ function parseSceneVisual(scene: any): { sceneVisual?: any; visualPrompt?: strin
 }
 
 const router = Router();
+
+function sendStoryQuotaError(res: Response, error: unknown): boolean {
+  if (!isStoryQuotaError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    message: error.message,
+    featureSlug: error.featureSlug,
+    limit: error.limit,
+    used: error.used,
+    remaining: error.remaining,
+    resetsAt: error.resetsAt?.toISOString() ?? null,
+  });
+  return true;
+}
 
 // ── Input Validation Schemas ──
 
@@ -90,7 +109,9 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     }
     
     // Create story request
-    const requestId = await createStoryRequest(req.user!.id, validatedData);
+    const requestId = await createStoryRequest(req.user!.id, validatedData, {
+      quotaSource: 'wizard',
+    });
     
     // Add job to queue for async processing
     const jobId = await storyJobQueue.addJob(requestId);
@@ -112,6 +133,8 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
+    if (sendStoryQuotaError(res, error)) return;
+
     logger.error({ err: error, userId: req.user?.id }, 'Create story request failed');
     
     if (error instanceof Error && 'issues' in error) {
@@ -186,7 +209,9 @@ router.post('/instant', requireAuth, async (req: Request, res: Response) => {
       childProfileId: undefined,
     };
     
-    const requestId = await createStoryRequest(req.user!.id, storyRequestData);
+    const requestId = await createStoryRequest(req.user!.id, storyRequestData, {
+      quotaSource: 'instant',
+    });
     
     // Store photos, ageGroup and instant mode flag in intermediate_data
     await getStoryRepository().updateRequest(requestId, {
@@ -226,6 +251,8 @@ router.post('/instant', requireAuth, async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
+    if (sendStoryQuotaError(res, error)) return;
+
     logger.error({ err: error, userId: req.user?.id }, 'Generate from photos failed');
     
     if (error instanceof Error && 'issues' in error) {
@@ -712,8 +739,7 @@ router.post('/:id/continue', requireAuth, async (req: Request, res: Response) =>
       });
     }
     
-    // 2. NO LIMIT CHECK - continuations are unlimited!
-    // Users can create as many parts as they want
+    // 2. Continuations consume the same monthly story quota as other generation entrypoints.
     
     // 3. Get or create series
     const { seriesId, partNumber, continuationContext } = await getOrCreateSeries(storyId);
@@ -771,6 +797,8 @@ router.post('/:id/continue', requireAuth, async (req: Request, res: Response) =>
       }
     });
   } catch (error) {
+    if (sendStoryQuotaError(res, error)) return;
+
     logger.error({ 
       err: error, 
       userId: req.user?.id, 
@@ -1042,18 +1070,29 @@ router.post('/:id/audio', requireAuth, async (req: Request, res: Response) => {
     }
     
     const currentPeriodStart = subscription.currentPeriodStart;
-    const storiesGenerated = await getStoryRepository().countAudioStoriesByUserInPeriod(
+    const currentPeriodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
+    const { getUsageForPeriod } = await import('../services/usageEventsService');
+    const { getBundleBonusForPeriod } = await import('../services/bundleService');
+    const bundleBonus = await getBundleBonusForPeriod(
       req.user!.id,
-      currentPeriodStart
+      currentPeriodStart,
+      currentPeriodEnd
     );
-    
-    if (storiesGenerated >= features.audioStoriesPerMonth) {
+    const effectiveAudioLimit = features.audioStoriesPerMonth + bundleBonus.extraAudio;
+    const audioUsed = await getUsageForPeriod(
+      req.user!.id,
+      currentPeriodStart,
+      currentPeriodEnd,
+      'audio_synthesized'
+    );
+
+    if (audioUsed >= effectiveAudioLimit) {
       return res.status(403).json({
         status: 'error',
         message: 'You have reached your monthly audio story limit',
         code: 'AUDIO_LIMIT_EXCEEDED',
-        limit: features.audioStoriesPerMonth,
-        used: storiesGenerated,
+        limit: effectiveAudioLimit,
+        used: audioUsed,
         resetsAt: subscription.resetAt
       });
     }
@@ -1076,12 +1115,12 @@ router.post('/:id/audio', requireAuth, async (req: Request, res: Response) => {
       voiceParams: { voiceId, speed, nightMode }
     });
     
-    logger.info({ 
-      userId: req.user!.id, 
-      storyId, 
+    logger.info({
+      userId: req.user!.id,
+      storyId,
       jobId,
-      storiesUsed: storiesGenerated,
-      storiesLimit: features.audioStoriesPerMonth
+      audioUsed,
+      audioLimit: effectiveAudioLimit,
     }, 'Audio generation job created');
     
     res.status(202).json({

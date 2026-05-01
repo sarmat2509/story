@@ -416,6 +416,21 @@ export const config = {
         if (slug && priceId) acc[slug] = priceId;
         return acc;
       }, {}),
+    /** Keys `bundleSlug:planSlug` → Stripe Price ID (one-time). Example: bundle_small:free:price_xxx */
+    bundlePriceIds: (process.env.STRIPE_BUNDLE_PRICE_IDS || '')
+      .split(',')
+      .reduce<Record<string, string>>((acc, part) => {
+        const t = part.trim();
+        if (!t) return acc;
+        const i = t.indexOf(':');
+        const j = t.indexOf(':', i + 1);
+        if (i < 1 || j <= i + 1) return acc;
+        const bundleSlug = t.slice(0, i);
+        const planSlug = t.slice(i + 1, j);
+        const priceId = t.slice(j + 1);
+        if (bundleSlug && planSlug && priceId) acc[`${bundleSlug}:${planSlug}`] = priceId;
+        return acc;
+      }, {}),
   },
 
   // Job Queue Concurrency (fallbacks if rate limiter unavailable)

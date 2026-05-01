@@ -5,9 +5,10 @@
 
 import Stripe from 'stripe';
 import config from '../config';
-import { getUserRepository } from '../repositories';
-import { getPlanRepository } from '../repositories';
+import { getUserRepository, getPlanRepository, getBundleRepository } from '../repositories';
 import * as planService from './planService';
+import * as bundleService from './bundleService';
+import { BUNDLE_CHECKOUT_METADATA_KIND } from './bundleService';
 import { logger } from '../utils/logger';
 
 let stripeClient: Stripe | null = null;
@@ -97,6 +98,86 @@ export async function createCheckoutSession(
 }
 
 /**
+ * One-time Checkout for a story+audio bundle (extra limits until current period end).
+ */
+export async function createBundleCheckoutSession(
+  userId: string,
+  bundleSlug: string,
+  email: string,
+  successUrl: string,
+  cancelUrl: string
+): Promise<{ sessionId: string; url: string }> {
+  const planRepo = getPlanRepository();
+  const bundleRepo = getBundleRepository();
+
+  const subscription = await planRepo.findSubscriptionByUserId(userId);
+  if (!subscription) {
+    throw new Error('No subscription found');
+  }
+
+  const plan = await planRepo.findPlanById(subscription.planId);
+  if (!plan) {
+    throw new Error('Plan not found');
+  }
+
+  const bundle = await bundleRepo.findBundleBySlug(bundleSlug);
+  if (!bundle || !bundle.isActive) {
+    throw new Error(`Unknown or inactive bundle: ${bundleSlug}`);
+  }
+
+  const priceRow = await bundleRepo.findPriceForPlanAndBundle(plan.id, bundle.id);
+  if (!priceRow) {
+    throw new Error(`No bundle price for plan ${plan.slug} and bundle ${bundleSlug}`);
+  }
+
+  const stripePriceId = bundleService.resolveBundleStripePriceId(
+    bundle.slug,
+    plan.slug,
+    priceRow.stripePriceId
+  );
+  if (!stripePriceId) {
+    throw new Error(
+      `No Stripe price for bundle ${bundleSlug} on plan ${plan.slug}. Set plan_bundle_prices.stripe_price_id or STRIPE_BUNDLE_PRICE_IDS.`
+    );
+  }
+
+  const customerId = await getOrCreateStripeCustomer(userId, email);
+  const stripe = getStripe();
+
+  const periodStart = subscription.currentPeriodStart;
+  const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
+
+  const session = await stripe.checkout.sessions.create({
+    customer: customerId,
+    mode: 'payment',
+    payment_method_types: ['card'],
+    line_items: [{ price: stripePriceId, quantity: 1 }],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    metadata: {
+      checkoutKind: BUNDLE_CHECKOUT_METADATA_KIND,
+      userId,
+      bundleSlug: bundle.slug,
+      planSlug: plan.slug,
+      extraStories: String(bundle.extraStories),
+      extraAudio: String(bundle.extraAudio),
+      subscriptionPeriodStart: periodStart.toISOString(),
+      subscriptionPeriodEnd: periodEnd.toISOString(),
+    },
+  });
+
+  if (!session.url) {
+    throw new Error('Stripe Checkout Session URL not returned');
+  }
+
+  logger.info(
+    { userId, bundleSlug, sessionId: session.id },
+    'Created Stripe bundle Checkout Session'
+  );
+  return { sessionId: session.id, url: session.url };
+}
+
+/**
  * Create Stripe Customer Portal session for managing subscription.
  */
 export async function createPortalSession(userId: string, returnUrl: string): Promise<string> {
@@ -156,9 +237,18 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string): P
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
+
+      if (
+        session.mode === 'payment' &&
+        session.metadata?.checkoutKind === BUNDLE_CHECKOUT_METADATA_KIND
+      ) {
+        await bundleService.applyPaidBundleFromCheckoutSession(session);
+        break;
+      }
+
       const userId = session.metadata?.userId;
       const planSlug = session.metadata?.planSlug;
-      const subscriptionId = session.subscription as string;
+      const subscriptionId = session.subscription as string | null;
 
       if (!userId || !planSlug || !subscriptionId) {
         logger.warn({ sessionId: session.id }, 'Checkout session missing metadata or subscription');
@@ -166,20 +256,25 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string): P
       }
 
       const stripeSub = await stripe.subscriptions.retrieve(subscriptionId);
-      await planService.updateSubscriptionFromStripe(userId, {
-        id: stripeSub.id,
-        current_period_start: stripeSub.current_period_start,
-        current_period_end: stripeSub.current_period_end,
-        cancel_at_period_end: stripeSub.cancel_at_period_end,
-        status: stripeSub.status,
-      }, planSlug);
+      await planService.updateSubscriptionFromStripe(
+        userId,
+        {
+          id: stripeSub.id,
+          current_period_start: stripeSub.current_period_start,
+          current_period_end: stripeSub.current_period_end,
+          cancel_at_period_end: stripeSub.cancel_at_period_end,
+          status: stripeSub.status,
+        },
+        planSlug
+      );
       break;
     }
 
     case 'customer.subscription.updated': {
       const stripeSub = event.data.object as Stripe.Subscription;
       const priceId = stripeSub.items.data[0]?.price?.id;
-      const planSlug = stripeSub.metadata?.planSlug ?? (priceId ? getPlanSlugFromPriceId(priceId) : null);
+      const planSlug =
+        stripeSub.metadata?.planSlug ?? (priceId ? getPlanSlugFromPriceId(priceId) : null);
 
       if (!planSlug) {
         logger.warn({ subscriptionId: stripeSub.id }, 'Could not resolve plan from subscription');
@@ -191,17 +286,24 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string): P
       const userId = existing?.userId ?? stripeSub.metadata?.userId;
 
       if (!userId) {
-        logger.warn({ subscriptionId: stripeSub.id }, 'Could not find user for subscription update');
+        logger.warn(
+          { subscriptionId: stripeSub.id },
+          'Could not find user for subscription update'
+        );
         return;
       }
 
-      await planService.updateSubscriptionFromStripe(userId, {
-        id: stripeSub.id,
-        current_period_start: stripeSub.current_period_start,
-        current_period_end: stripeSub.current_period_end,
-        cancel_at_period_end: stripeSub.cancel_at_period_end,
-        status: stripeSub.status,
-      }, planSlug);
+      await planService.updateSubscriptionFromStripe(
+        userId,
+        {
+          id: stripeSub.id,
+          current_period_start: stripeSub.current_period_start,
+          current_period_end: stripeSub.current_period_end,
+          cancel_at_period_end: stripeSub.cancel_at_period_end,
+          status: stripeSub.status,
+        },
+        planSlug
+      );
       break;
     }
 
@@ -213,7 +315,10 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string): P
 
     case 'invoice.payment_failed': {
       const invoice = event.data.object as Stripe.Invoice;
-      logger.warn({ invoiceId: invoice.id, subscriptionId: invoice.subscription }, 'Stripe invoice payment failed');
+      logger.warn(
+        { invoiceId: invoice.id, subscriptionId: invoice.subscription },
+        'Stripe invoice payment failed'
+      );
       break;
     }
 

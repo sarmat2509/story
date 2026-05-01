@@ -1,4 +1,5 @@
 import { getPlanRepository } from '../repositories';
+import { getBundleBonusForPeriod } from './bundleService';
 import type {
   Plan,
   Feature,
@@ -62,6 +63,13 @@ export async function getFeatureById(id: string): Promise<Feature | null> {
 
 export async function getPlanFeaturesByPlanId(planId: string) {
   return getPlanRepository().findPlanFeatures(planId);
+}
+
+/** Slug + value for each feature on a plan (for entitlements API). */
+export async function listPlanFeatureSlugsAndValues(
+  planId: string
+): Promise<Array<{ slug: string; value: unknown }>> {
+  return getPlanRepository().findAllFeaturesForPlan(planId);
 }
 
 export async function getFeatureValue(planId: string, featureSlug: string): Promise<any | null> {
@@ -311,17 +319,27 @@ export async function checkUsageLimit(
     return { allowed: true, remaining: Infinity };
   }
 
+  const periodStart = subscription.currentPeriodStart;
+  const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
+
+  let bundleBonus = 0;
+  if (featureSlug === 'stories_per_month' || featureSlug === 'audio_stories_per_month') {
+    const bonus = await getBundleBonusForPeriod(userId, periodStart, periodEnd);
+    bundleBonus =
+      featureSlug === 'stories_per_month' ? bonus.extraStories : bonus.extraAudio;
+  }
+
+  const effectiveLimit = limit + bundleBonus;
+
   // Get current usage from usage_events
   let currentUsage = 0;
   const eventType = FEATURE_SLUG_TO_EVENT_TYPE[featureSlug];
   if (eventType) {
     const { getUsageForPeriod } = await import('./usageEventsService');
-    const periodStart = subscription.currentPeriodStart;
-    const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
     currentUsage = await getUsageForPeriod(userId, periodStart, periodEnd, eventType);
   }
 
-  const remaining = limit - currentUsage;
+  const remaining = effectiveLimit - currentUsage;
   const allowed = remaining >= requestedQty;
 
   return { allowed, remaining: Math.max(0, remaining) };

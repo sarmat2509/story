@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/authMiddleware';
 import * as planService from '../services/planService';
+import { getBundleBonusForPeriod } from '../services/bundleService';
 import { getUsageForPeriod } from '../services/usageEventsService';
 import type { UsageEventType } from '../services/usageEventsService';
-import { getPlanRepository } from '../repositories';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -14,7 +14,12 @@ type BooleanFeatureValue = { enabled: boolean };
 type EnumFeatureValue = { selected: string };
 type FeatureValue = NumericFeatureValue | BooleanFeatureValue | EnumFeatureValue;
 
-type FeatureWithUsage = NumericFeatureValue & { used: number; remaining: number };
+type FeatureWithUsage = NumericFeatureValue & {
+  used: number;
+  remaining: number;
+  plan_limit?: number;
+  bundle_bonus?: number;
+};
 type FeatureOutput = FeatureWithUsage | BooleanFeatureValue | EnumFeatureValue;
 
 // Map feature slug to usage_events eventType
@@ -33,7 +38,7 @@ router.get('/', requireAuth, async (req, res) => {
     if (!subscription) {
       return res.status(404).json({
         status: 'error',
-        error: 'No subscription found'
+        error: 'No subscription found',
       });
     }
 
@@ -42,15 +47,15 @@ router.get('/', requireAuth, async (req, res) => {
     if (!plan) {
       return res.status(500).json({
         status: 'error',
-        error: 'Plan not found'
+        error: 'Plan not found',
       });
     }
 
-    // Get plan features with slug (from join)
-    const planRepo = getPlanRepository();
-    const allFeatures = await planRepo.findAllFeaturesForPlan(subscription.planId);
+    const allFeatures = await planService.listPlanFeatureSlugsAndValues(subscription.planId);
     const periodStart = subscription.currentPeriodStart;
     const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
+
+    const bundleBonus = await getBundleBonusForPeriod(userId, periodStart, periodEnd);
 
     // Build features object with usage data from usage_events
     const features: Record<string, FeatureOutput> = {};
@@ -59,41 +64,53 @@ router.get('/', requireAuth, async (req, res) => {
       const slug = pf.slug;
 
       if ('limit' in featureValue) {
-        const limit = featureValue.limit;
+        const planLimit = featureValue.limit;
+        let bundleBonusQty = 0;
+        if (slug === 'stories_per_month') {
+          bundleBonusQty = bundleBonus.extraStories;
+        } else if (slug === 'audio_stories_per_month') {
+          bundleBonusQty = bundleBonus.extraAudio;
+        }
+        const effectiveLimit = planLimit + bundleBonusQty;
         let used = 0;
         const eventType = FEATURE_SLUG_TO_EVENT_TYPE[slug];
         if (eventType) {
           used = await getUsageForPeriod(userId, periodStart, periodEnd, eventType);
         }
-        features[slug] = {
-          limit,
+        const row: FeatureWithUsage = {
+          limit: effectiveLimit,
           used,
-          remaining: Math.max(0, limit - used),
+          remaining: Math.max(0, effectiveLimit - used),
         };
+        if (slug === 'stories_per_month' || slug === 'audio_stories_per_month') {
+          row.plan_limit = planLimit;
+          row.bundle_bonus = bundleBonusQty;
+        }
+        features[slug] = row;
       } else {
         features[slug] = featureValue;
       }
     }
-    
+
     res.json({
       status: 'success',
       subscription: {
         plan: {
           slug: plan.slug,
-          name: plan.name
+          name: plan.name,
         },
         status: subscription.status,
         trialEndsAt: subscription.trialEndsAt,
-        currentPeriodEnd: subscription.currentPeriodEnd
+        currentPeriodEnd: subscription.currentPeriodEnd,
       },
       features,
-      resetAt: subscription.resetAt
+      resetAt: subscription.resetAt,
     });
   } catch (error) {
     logger.error({ error, userId: req.user?.id }, 'Error fetching entitlements');
     res.status(500).json({
       status: 'error',
-      error: 'Failed to fetch entitlements'
+      error: 'Failed to fetch entitlements',
     });
   }
 });

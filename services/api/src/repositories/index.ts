@@ -34,6 +34,7 @@ import { StoryDirectorSceneRepository } from './StoryDirectorSceneRepository';
 import { AdminConfigRepository } from './AdminConfigRepository';
 import { FeedbackRepository } from './FeedbackRepository';
 import { AdminDashboardRepository } from './AdminDashboardRepository';
+import { BundleRepository } from './BundleRepository';
 
 // Re-export classes for type usage
 export { UserRepository } from './UserRepository';
@@ -63,6 +64,7 @@ export { StoryDirectorSceneRepository } from './StoryDirectorSceneRepository';
 export { AdminConfigRepository } from './AdminConfigRepository';
 export { FeedbackRepository } from './FeedbackRepository';
 export { AdminDashboardRepository } from './AdminDashboardRepository';
+export { BundleRepository } from './BundleRepository';
 
 // Singleton instances
 let userRepo: UserRepository;
@@ -92,6 +94,7 @@ let storyDirectorSceneRepo: StoryDirectorSceneRepository;
 let adminConfigRepo: AdminConfigRepository;
 let feedbackRepo: FeedbackRepository;
 let adminDashboardRepo: AdminDashboardRepository;
+let bundleRepo: BundleRepository;
 
 export function getUserRepository(): UserRepository {
   if (!userRepo) userRepo = new UserRepository(db);
@@ -229,4 +232,9 @@ export function getFeedbackRepository(): FeedbackRepository {
 export function getAdminDashboardRepository(): AdminDashboardRepository {
   if (!adminDashboardRepo) adminDashboardRepo = new AdminDashboardRepository(db);
   return adminDashboardRepo;
+}
+
+export function getBundleRepository(): BundleRepository {
+  if (!bundleRepo) bundleRepo = new BundleRepository(db);
+  return bundleRepo;
 }

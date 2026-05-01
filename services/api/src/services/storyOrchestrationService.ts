@@ -107,6 +107,11 @@ import { validateStoryScenes } from './storyOrchestration/validation';
 import { mergeDirectorIntoText, extractLlmCharactersFromText, getIllustrationSceneIds, getIllustrationBlockStartSceneIds, composeScenesIntoBlocks } from './storyOrchestration/utilities';
 import { persistImageValidationResult } from './imageValidationPersistenceService';
 import { persistStoryDirectorScenes } from './storyDirectorScenePersistenceService';
+import {
+  createStoryRequestWithQuotaReservation,
+  isStoryQuotaError,
+  type StoryQuotaReservationSource,
+} from './storyQuotaService';
 
 const ESTIMATED_SCENE_COUNT_BY_AGE_GROUP: Record<string, number> = {
   '0-1': 5,
@@ -291,16 +296,13 @@ function calculateAgeGroup(birthDate: Date): string {
  */
 export async function createStoryRequest(
   userId: string, 
-  input: CreateStoryRequestInput
+  input: CreateStoryRequestInput,
+  options?: { quotaSource?: StoryQuotaReservationSource }
 ): Promise<string> {
   try {
     logger.info({ userId, language: input.storyLanguage }, 'Creating story request');
-    
-    // TODO M3: Check feature limits (stories_per_day)
-    // For now, just create the request
-    
-    // Create story request
-    const request = await getStoryRepository().createRequest({
+
+    const requestData = {
       userId,
       childProfileId: input.childProfileId,
       uiLocale: input.uiLocale,
@@ -313,11 +315,18 @@ export async function createStoryRequest(
       selectedChildren: (input as any).selectedChildren ? (input as any).selectedChildren : null, // NEW: Save selected children
       status: 'pending',
       progress: 0
+    };
+
+    const { requestId } = await createStoryRequestWithQuotaReservation(userId, requestData, {
+      source: options?.quotaSource ?? 'wizard',
     });
     
-    logger.info({ requestId: request.id }, 'Story request created');
-    return request.id;
+    logger.info({ requestId }, 'Story request created');
+    return requestId;
   } catch (error) {
+    if (isStoryQuotaError(error)) {
+      throw error;
+    }
     logger.error({ error, userId, stack: error instanceof Error ? error.stack : undefined }, 'Failed to create story request');
     // Don't expose internal details to client
     throw new Error('Failed to create story request. Please try again.');
@@ -356,8 +365,7 @@ export async function createContinuationRequest(
       partNumber: input.partNumber,
     }, 'Creating continuation request');
     
-    // Create a special story request for continuation
-    const request = await getStoryRepository().createRequest({
+    const requestData = {
       userId,
       childProfileId: input.childProfileId,
       uiLocale: 'uk', // Use default, doesn't affect story
@@ -381,11 +389,18 @@ export async function createContinuationRequest(
           scheduleId: input.scheduleId,
         }),
       },
+    };
+
+    const { requestId } = await createStoryRequestWithQuotaReservation(userId, requestData, {
+      source: input.isScheduledContinuation ? 'scheduled_continuation' : 'continuation',
     });
     
-    logger.info({ requestId: request.id, seriesId: input.seriesId }, 'Continuation request created');
-    return request.id;
+    logger.info({ requestId, seriesId: input.seriesId }, 'Continuation request created');
+    return requestId;
   } catch (error) {
+    if (isStoryQuotaError(error)) {
+      throw error;
+    }
     logger.error({
       error,
       userId,

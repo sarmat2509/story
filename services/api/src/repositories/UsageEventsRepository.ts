@@ -3,7 +3,7 @@
  * Records story_created, image_generated, audio_synthesized, plan_upgraded events.
  */
 
-import { eq, and, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, gte, lt, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -47,7 +47,7 @@ export class UsageEventsRepository {
     const conditions = [
       eq(schema.usageEvents.userId, userId),
       gte(schema.usageEvents.createdAt, startDate),
-      lte(schema.usageEvents.createdAt, endDate),
+      lt(schema.usageEvents.createdAt, endDate),
     ];
     if (eventType) {
       conditions.push(eq(schema.usageEvents.eventType, eventType));
@@ -59,6 +59,33 @@ export class UsageEventsRepository {
       })
       .from(schema.usageEvents)
       .where(and(...conditions));
+    return Number(row?.total ?? 0);
+  }
+
+  /**
+   * Sum audio_synthesized quantity for one story in a billing window (metadata.storyId).
+   * Used to bill at most once per story per period — regenerations should not inflate usage.
+   */
+  async sumAudioSynthesizedForStoryInPeriod(
+    userId: string,
+    storyId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<number> {
+    const [row] = await this.db
+      .select({
+        total: sql<number>`COALESCE(SUM(${schema.usageEvents.quantity}), 0)::integer`,
+      })
+      .from(schema.usageEvents)
+      .where(
+        and(
+          eq(schema.usageEvents.userId, userId),
+          eq(schema.usageEvents.eventType, 'audio_synthesized'),
+          gte(schema.usageEvents.createdAt, startDate),
+          lt(schema.usageEvents.createdAt, endDate),
+          sql`(${schema.usageEvents.metadata}->>'storyId') = ${storyId}`
+        )
+      );
     return Number(row?.total ?? 0);
   }
 }

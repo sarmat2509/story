@@ -7,7 +7,7 @@ import { logger } from '../utils/logger';
 import { getStoryRepository } from '../repositories';
 import { createContinuationRequest } from '../services/storyOrchestrationService';
 import { getOrCreateSeries } from '../services/seriesService';
-import { checkUsageLimit } from '../services/planService';
+import { isStoryQuotaError } from '../services/storyQuotaService';
 import { textQueue } from './storyJobProcessor';
 
 const CADENCE_DAYS: Record<string, number> = {
@@ -31,12 +31,6 @@ export async function runScheduledContinuationScheduler(): Promise<void> {
 
   for (const schedule of due) {
     try {
-      const { allowed } = await checkUsageLimit(schedule.userId, 'stories_per_month', 1);
-      if (!allowed) {
-        logger.warn({ scheduleId: schedule.id, userId: schedule.userId }, 'Quota exceeded, skipping schedule');
-        continue;
-      }
-
       const series = await getStoryRepository().findSeriesById(schedule.seriesId);
       if (!series || !series.storyIds?.length) {
         logger.warn({ scheduleId: schedule.id, seriesId: schedule.seriesId }, 'Series not found or empty');
@@ -87,6 +81,14 @@ export async function runScheduledContinuationScheduler(): Promise<void> {
 
       logger.info({ scheduleId: schedule.id, requestId, nextRun: nextRun.toISOString() }, 'Scheduled continuation created');
     } catch (err) {
+      if (isStoryQuotaError(err)) {
+        logger.warn(
+          { scheduleId: schedule.id, userId: schedule.userId, code: err.code },
+          'Scheduled continuation skipped due to story quota'
+        );
+        continue;
+      }
+
       logger.error({ err, scheduleId: schedule.id }, 'Failed to create scheduled continuation');
     }
   }

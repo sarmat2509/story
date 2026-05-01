@@ -16,7 +16,12 @@ import { logger } from '../utils/logger';
 import { recordUsage } from '../services/aiUsageService';
 import { ConcurrentJobQueue, type BaseJob } from './ConcurrentJobQueue';
 import { config } from '../config';
-import { getStoryRepository, getSceneRepository, getVoiceRepository } from '../repositories';
+import {
+  getStoryRepository,
+  getSceneRepository,
+  getVoiceRepository,
+  getUsageEventsRepository,
+} from '../repositories';
 import { isGrokBlockedForStoryLanguage } from '../providers/audio/grok/supportedLocales';
 
 const ESTIMATED_SCENE_COUNT_BY_AGE_GROUP: Record<string, number> = {
@@ -413,11 +418,29 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
     const durationMinutes = Math.ceil(result.duration / 60);
     await incrementUsage(job.userId, 'audio', durationMinutes);
 
-    // Record usage event for entitlements/analytics
+    // Record usage event for entitlements (one credit per story per billing period; not per regeneration)
     const { recordUsageEvent } = await import('../services/usageEventsService');
-    await recordUsageEvent(job.userId, 'audio_synthesized', 1, {
-      metadata: { storyId: job.storyId },
-    });
+    let alreadyBilledThisPeriod = 0;
+    if (subscription) {
+      const periodStart = subscription.currentPeriodStart;
+      const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
+      alreadyBilledThisPeriod = await getUsageEventsRepository().sumAudioSynthesizedForStoryInPeriod(
+        job.userId,
+        job.storyId,
+        periodStart,
+        periodEnd
+      );
+    }
+    if (alreadyBilledThisPeriod === 0) {
+      await recordUsageEvent(job.userId, 'audio_synthesized', 1, {
+        metadata: { storyId: job.storyId },
+      });
+    } else {
+      logger.info(
+        { userId: job.userId, storyId: job.storyId },
+        'Skipping audio_synthesized usage event — already counted this billing period (regeneration)'
+      );
+    }
 
     logger.info({
       storyId: job.storyId,
