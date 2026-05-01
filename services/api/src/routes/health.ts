@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { checkDatabaseHealth } from '../db';
 import { getImageRateLimiter } from '../services/aiService';
 import { logger } from '../utils/logger';
+import { requireAdmin, requireAuth } from '../middleware/authMiddleware';
 
 const router = Router();
 
@@ -26,7 +27,7 @@ router.get('/', async (req: Request, res: Response) => {
 /**
  * Detailed health check with all services
  */
-router.get('/detailed', async (req: Request, res: Response) => {
+router.get('/detailed', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   const dbHealthy = await checkDatabaseHealth();
   
   // Get rate limiter stats
@@ -79,7 +80,7 @@ router.get('/detailed', async (req: Request, res: Response) => {
  * Job queue statistics (text, image, audio)
  * Useful for debugging freezes and stuck jobs
  */
-router.get('/queues', async (req: Request, res: Response) => {
+router.get('/queues', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { textQueue, imageQueue, audioQueue, storyJobQueue } = await import('../jobs/storyJobProcessor');
     const textStats = textQueue.getStats();
@@ -109,7 +110,7 @@ router.get('/queues', async (req: Request, res: Response) => {
  * Image generation rate limiter statistics
  * Useful for monitoring and debugging
  */
-router.get('/image-rate-limiter', async (req: Request, res: Response) => {
+router.get('/image-rate-limiter', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const limiter = getImageRateLimiter();
     const stats = limiter.getStats();
