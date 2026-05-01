@@ -16,6 +16,7 @@ import { logger } from '../utils/logger';
 import { recordUsage } from '../services/aiUsageService';
 import { ConcurrentJobQueue, type BaseJob } from './ConcurrentJobQueue';
 import { config } from '../config';
+import { assertUserPhotoInputs } from '../services/photoInputSafetyService';
 import {
   getStoryRepository,
   getSceneRepository,
@@ -547,6 +548,12 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     if (photos.length === 0) {
       throw new Error('No photos found in intermediate data');
     }
+
+    assertUserPhotoInputs({
+      photos,
+      userId: request.userId,
+      allowedPhotoTypes: ['character', 'child'],
+    });
     
     // Check if already processed (idempotency)
     if (intermediateData.characterSetupComplete === true) {

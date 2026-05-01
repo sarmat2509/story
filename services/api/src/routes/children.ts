@@ -11,8 +11,27 @@ import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider'
 import { config } from '../config';
 import { generateTurnaroundSheetFromReference, generateTurnaroundSheetFromDescription, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
+import {
+  assertUserPhotoInputs,
+  getReferencePhotoUrls,
+  isPhotoInputSafetyError,
+} from '../services/photoInputSafetyService';
 
 const router = Router();
+
+function sendPhotoInputSafetyError(res: Parameters<typeof requireAuth>[1], error: unknown): boolean {
+  if (!isPhotoInputSafetyError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    error: error.message,
+    index: error.index,
+  });
+  return true;
+}
 
 // Initialize analysis service
 const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
@@ -65,6 +84,12 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
         error: 'Photos array is required and must not be empty'
       });
     }
+
+    assertUserPhotoInputs({
+      photos,
+      userId: req.user!.id,
+      allowedPhotoTypes: ['child'],
+    });
     
     logger.info({ 
       userId: req.user!.id, 
@@ -99,6 +124,8 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
       analysis
     });
   } catch (error) {
+    if (sendPhotoInputSafetyError(res, error)) return;
+
     logger.error({ 
       error: error instanceof Error ? {
         message: error.message,
@@ -176,6 +203,12 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
     const data = validation.data;
     if (!(await requireChildDataConsent(req, res, 'child_profile_create'))) return;
 
+    assertUserPhotoInputs({
+      photos: getReferencePhotoUrls(data.referencePhotos),
+      userId,
+      allowedPhotoTypes: ['child'],
+    });
+
     const dataForCreate = {
       ...data,
       birthDate: data.birthDate instanceof Date ? data.birthDate.toISOString().split('T')[0] : data.birthDate,
@@ -251,6 +284,8 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
       child: profileWithAge
     });
   } catch (error: unknown) {
+    if (sendPhotoInputSafetyError(res, error)) return;
+
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes('limit reached')) {
       return res.status(403).json({

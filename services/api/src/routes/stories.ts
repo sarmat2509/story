@@ -18,6 +18,7 @@ import {
 import { publishStory, unpublishStory } from '../services/publishStoryService';
 import { PublishSafetyError } from '../services/storyPublishSafetyService';
 import { assertPromptSafety, assertStoryPromptSafety, isPromptSafetyError } from '../services/promptSafetyService';
+import { assertUserPhotoInputs, isPhotoInputSafetyError } from '../services/photoInputSafetyService';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
 import { logger } from '../utils/logger';
 import { stripAllTags } from '../utils/audioTags';
@@ -28,6 +29,7 @@ import { startTask, completeTask, STORY_TASKS } from '../services/storyProgress'
 import { getStoryRepository, getAssetRepository } from '../repositories';
 import { getStoryCacheStats, getStoryCost, getStoryCostBreakdown } from '../services/aiUsageService';
 import { isStoryQuotaError } from '../services/storyQuotaService';
+import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
 
 /**
  * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
@@ -50,6 +52,23 @@ function parseSceneVisual(scene: any): { sceneVisual?: any; visualPrompt?: strin
 }
 
 const router = Router();
+
+function buildConsentAuditContext(req: Request, source: string): ConsentAuditContext {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const ipAddress =
+    (typeof forwardedFor === 'string' ? forwardedFor.split(',')[0]?.trim() : null) ||
+    req.socket.remoteAddress ||
+    null;
+  return {
+    ipAddress,
+    userAgent: req.headers['user-agent'] || null,
+    context: { source },
+  };
+}
+
+function getChildDataConsentValue(body: Record<string, unknown>): unknown {
+  return body.childDataConsentAccepted ?? body.child_data_consent_accepted ?? body.parentalConsentAccepted;
+}
 
 function sendStoryQuotaError(res: Response, error: unknown): boolean {
   if (!isStoryQuotaError(error)) {
@@ -84,6 +103,20 @@ function sendPromptSafetyError(res: Response, error: unknown): boolean {
   return true;
 }
 
+function sendPhotoInputSafetyError(res: Response, error: unknown): boolean {
+  if (!isPhotoInputSafetyError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    message: error.message,
+    index: error.index,
+  });
+  return true;
+}
+
 // ── Input Validation Schemas ──
 
 const AudioGenerationSchema = z.object({
@@ -93,7 +126,7 @@ const AudioGenerationSchema = z.object({
 });
 
 const GenerateFromPhotosSchema = z.object({
-  photos: z.array(z.string().url().min(1).max(5)),
+  photos: z.array(z.string().url().min(1)).min(1).max(5),
   ageGroup: z.enum(['2-3', '4-5', '6-7', '8-9', '10-12']),
   scenario: z.string(),
   language: LocaleSchema,
@@ -198,10 +231,29 @@ function selectDefaultImageStyle(ageGroup: string): string {
  * Create a story from uploaded photos (Instant Mode)
  * Auto-creates hidden characters from photos and generates story
  */
-router.post('/instant', requireAuth, async (req: Request, res: Response) => {
+router.post('/instant', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     // Validate request body
     const validatedData = GenerateFromPhotosSchema.parse(req.body);
+
+    const hasChildDataConsent = await ensureChildDataConsent(
+      req.user!.id,
+      getChildDataConsentValue(req.body as Record<string, unknown>),
+      buildConsentAuditContext(req, 'instant_photo_story')
+    );
+    if (!hasChildDataConsent) {
+      return res.status(403).json({
+        status: 'error',
+        code: 'CHILD_DATA_CONSENT_REQUIRED',
+        message: 'Child data consent required',
+      });
+    }
+
+    assertUserPhotoInputs({
+      photos: validatedData.photos,
+      userId: req.user!.id,
+      allowedPhotoTypes: ['character', 'child'],
+    });
 
     assertStoryPromptSafety({
       userId: req.user!.id,
@@ -283,6 +335,7 @@ router.post('/instant', requireAuth, async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
+    if (sendPhotoInputSafetyError(res, error)) return;
     if (sendPromptSafetyError(res, error)) return;
     if (sendStoryQuotaError(res, error)) return;
 

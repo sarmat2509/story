@@ -3,6 +3,11 @@ import { requireAuth, requireParentSession } from '../middleware/authMiddleware'
 import * as characterService from '../services/characterService';
 import { CreateCharacterSchema, UpdateCharacterSchema } from '@wondertales/shared';
 import { logger } from '../utils/logger';
+import {
+  assertUserPhotoInputs,
+  getReferencePhotoUrls,
+  isPhotoInputSafetyError,
+} from '../services/photoInputSafetyService';
 
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
@@ -10,6 +15,20 @@ import { config } from '../config';
 import { generateTurnaroundSheetFromReference, generateLlmCharacterTurnaround, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
 
 const router = Router();
+
+function sendPhotoInputSafetyError(res: Parameters<typeof requireAuth>[1], error: unknown): boolean {
+  if (!isPhotoInputSafetyError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    error: error.message,
+    index: error.index,
+  });
+  return true;
+}
 
 // Initialize analysis service
 const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
@@ -34,6 +53,12 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
         error: 'Valid characterType is required (person, animal, or imaginary)'
       });
     }
+
+    assertUserPhotoInputs({
+      photos,
+      userId: req.user!.id,
+      allowedPhotoTypes: ['character'],
+    });
     
     logger.info({ 
       userId: req.user!.id, 
@@ -100,6 +125,8 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
       analysis
     });
   } catch (error) {
+    if (sendPhotoInputSafetyError(res, error)) return;
+
     logger.error({ 
       error: error instanceof Error ? {
         message: error.message,
@@ -212,6 +239,12 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
     }
     
     const data = validation.data;
+
+    assertUserPhotoInputs({
+      photos: getReferencePhotoUrls(data.referencePhotos),
+      userId,
+      allowedPhotoTypes: ['character'],
+    });
     
     logger.info({ 
       userId,
@@ -282,6 +315,8 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
       character: characterToReturn,
     });
   } catch (error) {
+    if (sendPhotoInputSafetyError(res, error)) return;
+
     logger.error({ error, userId: req.user?.id }, 'Error creating character');
     res.status(500).json({
       status: 'error',
