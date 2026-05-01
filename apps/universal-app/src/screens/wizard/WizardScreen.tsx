@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
@@ -28,6 +28,7 @@ import { GlassPrimaryButton } from '@/components/GlassPrimaryButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
+import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 
 export default function WizardScreen() {
   const { t } = useTranslation();
@@ -65,6 +66,10 @@ export default function WizardScreen() {
   const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
   const { data: usage } = useSubscriptionUsage();
   const [showPaywall, setShowPaywall] = useState(false);
+  const periodEndFormatted = useMemo(
+    () => formatSubscriptionPeriodEnd(usage?.currentPeriodEnd ?? usage?.resetsAt, i18n.language),
+    [usage?.currentPeriodEnd, usage?.resetsAt, i18n.language]
+  );
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -294,6 +299,7 @@ export default function WizardScreen() {
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
         limitInfo={usage ? { used: usage.stories.used, limit: usage.stories.limit } : undefined}
+        periodEndFormatted={periodEndFormatted}
       />
 
       <FeedbackModal

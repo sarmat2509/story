@@ -18,6 +18,8 @@ export interface PaywallModalProps {
   title?: string;
   message?: string;
   limitInfo?: { used: number; limit: number };
+  /** Locale-formatted billing period end; when missing, copy falls back without a date. */
+  periodEndFormatted?: string | null;
 }
 
 export function PaywallModal({
@@ -26,6 +28,7 @@ export function PaywallModal({
   title,
   message,
   limitInfo,
+  periodEndFormatted,
 }: PaywallModalProps) {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
@@ -39,6 +42,9 @@ export function PaywallModal({
   const displayMessage = message ?? (limitInfo
     ? t('paywall.stories_limit_message', { used: limitInfo.used, limit: limitInfo.limit })
     : t('paywall.stories_limit_message_default'));
+  const bundleHintText = periodEndFormatted
+    ? t('paywall.bundle_hint', { periodEnd: periodEndFormatted })
+    : t('paywall.bundle_hint_no_date');
 
   return (
     <Modal
@@ -54,6 +60,16 @@ export function PaywallModal({
           </View>
           <Text style={styles.title}>{displayTitle}</Text>
           <Text style={styles.message}>{displayMessage}</Text>
+          <Text style={styles.bundleHint}>{bundleHintText}</Text>
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={() => {
+              onClose();
+              navigation.navigate('Plans');
+            }}
+          >
+            <Text style={styles.linkButtonText}>{t('paywall.bundle_pricing_link')}</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
             <Text style={styles.upgradeButtonText}>{t('paywall.upgrade_button')}</Text>
           </TouchableOpacity>
@@ -96,7 +112,24 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.secondary,
     textAlign: 'center',
-    marginBottom: theme.spacing[6],
+    marginBottom: theme.spacing[3],
+  },
+  bundleHint: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
+    textAlign: 'center',
+    marginBottom: theme.spacing[2],
+    lineHeight: 20,
+  },
+  linkButton: {
+    marginBottom: theme.spacing[4],
+    paddingVertical: theme.spacing[2],
+  },
+  linkButtonText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.interactive.primary,
+    textAlign: 'center',
+    textDecorationLine: 'underline',
   },
   upgradeButton: {
     backgroundColor: theme.colors.interactive.primary,

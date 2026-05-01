@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,7 @@ import { GlassPrimaryButton } from '@/components/GlassPrimaryButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
+import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import type { MainDrawerParamList } from '@/types/navigation';
 
 type AgeGroup = '2-3' | '4-5' | '6-7' | '8-9' | '10-12';
@@ -61,6 +62,10 @@ export default function InstantWizardScreen() {
   // API hooks
   const { data: themesData, isLoading: themesLoading } = useStoryThemes();
   const { data: usage } = useSubscriptionUsage();
+  const periodEndFormatted = useMemo(
+    () => formatSubscriptionPeriodEnd(usage?.currentPeriodEnd ?? usage?.resetsAt, i18n.language),
+    [usage?.currentPeriodEnd, usage?.resetsAt, i18n.language]
+  );
   const createStoryFromPhotos = useCreateStoryFromPhotos();
   const retryStoryImages = useRetryStoryImages();
   const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
@@ -282,6 +287,7 @@ export default function InstantWizardScreen() {
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
         limitInfo={usage ? { used: usage.stories.used, limit: usage.stories.limit } : undefined}
+        periodEndFormatted={periodEndFormatted}
       />
     </ScrollView>
   );

@@ -621,6 +621,9 @@
     "audio_remaining": "Remaining: {{remaining}} of {{limit}} audio stories this month",
     "upgrade_plan": "Upgrade Plan",
     "next_plan_benefit": "Higher tiers offer more audio stories",
+    "bundle_hint": "Buy a bundle on Pricing — more until {{periodEnd}}.",
+    "bundle_hint_no_date": "Buy a bundle on Pricing for more stories & audio.",
+    "bundle_pricing_link": "Pricing & bundles",
     "audio_generation_failed": "Audio generation failed",
     "audio_generation_failed_inline": "Something went wrong during generation",
     "audio_error_default": "Something went wrong. Please try again.",
@@ -910,6 +913,41 @@
       "export_video": "Export to video (coming soon)",
       "share_enabled": "Publication and sharing",
       "story_from_drawing": "Story from child's drawing (coming soon)"
+    },
+    "bundles": {
+      "section_title": "Extra stories & audio",
+      "section_subtitle": "More limits until {{periodEnd}}. Illustrations per story unchanged.",
+      "faq_title": "Pricing, plans & bundles",
+      "faq_1_q": "What's the difference between my plan and a bundle?",
+      "faq_1_a": "Your subscription sets the base monthly limits for stories and audio. Bundles are one-time add-ons that raise those limits until the end of your current billing period.",
+      "faq_2_q": "How long do bundle bonuses last?",
+      "faq_2_a": "Extra credits from bundles apply until {{periodEnd}}. Anything you don’t use expires then and does not roll over.",
+      "faq_2_a_no_date": "They apply until the end of your current billing period and do not roll over.",
+      "faq_3_q": "Can I buy more than one bundle?",
+      "faq_3_a": "Yes. Purchases in the same billing period stack—the extra stories and audio add together.",
+      "faq_4_q": "Why is the bundle price different on higher plans?",
+      "faq_4_a": "Higher plans include more illustrations per story, so generation costs more. Bundle prices follow the plan you’re on.",
+      "faq_5_q": "Where can I pay for a bundle?",
+      "faq_5_a": "When payments are enabled, checkout runs on the web. Open this page in a browser and use Buy on a card (mobile in-app purchase for bundles may follow later).",
+      "faq_6_q": "Do bundles change image quality, style, or voices?",
+      "faq_6_a": "No. Only your story and audio limits change. Illustration quality, style, and narrator voices stay the same as your plan.",
+      "slug_titles": {
+        "bundle_small": "First Spark",
+        "bundle_boost_10": "Ten Wishes",
+        "bundle_medium": "Star Path",
+        "bundle_boost_20": "Moon River",
+        "bundle_large": "Wonder Chest"
+      },
+      "stories_word": "stories",
+      "plus_audio": "+{{count}} audio",
+      "line_quota": "+{{stories}} stories · +{{audio}} audio",
+      "buy_button": "Buy",
+      "one_time_note": "One-time; valid until {{periodEnd}}.",
+      "section_subtitle_no_date": "More limits this billing period. Illustrations per story unchanged.",
+      "one_time_note_no_date": "One-time; valid until period end.",
+      "stripe_required": "Bundle purchase is available on the web when payments are enabled.",
+      "loading": "Loading bundles…",
+      "empty": "No bundles available for your plan."
     }
   },
   "children_screen": {
@@ -985,7 +1023,10 @@
     "stories_limit_title": "Story limit reached",
     "stories_limit_message": "You've used {{used}} of {{limit}} stories this month.",
     "stories_limit_message_default": "Your monthly story limit has been reached.",
-    "upgrade_button": "Upgrade plan"
+    "upgrade_button": "Upgrade plan",
+    "bundle_hint": "Need more? Bundle on Pricing — until {{periodEnd}}.",
+    "bundle_hint_no_date": "Need more? Bundle on Pricing.",
+    "bundle_pricing_link": "Pricing & bundles"
   },
   "transactional_emails": {
     "welcome": {

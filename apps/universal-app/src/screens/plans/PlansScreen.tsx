@@ -1,27 +1,56 @@
-import React, { useState, useLayoutEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Modal, type ViewStyle } from 'react-native';
+import React, { useState, useLayoutEffect, useMemo, useCallback } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Platform,
+  Modal,
+  Alert,
+  useWindowDimensions,
+  type ViewStyle,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
-import { usePlans, usePlansWithAuth, useUpgradePlan, useCreateCheckoutSession } from '@/api/plans';
+import {
+  usePlans,
+  usePlansWithAuth,
+  useUpgradePlan,
+  useCreateCheckoutSession,
+  useBundles,
+  useCreateBundleCheckoutSession,
+  useSubscriptionUsage,
+} from '@/api/plans';
+import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
+import { hexAlpha } from '@/theme/colorAlpha';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
+import { ExpandableCard } from '@/components/ExpandableCard';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 
 const cardDelay = (i: number) => Math.min(120 + i * 120, 420);
 
+const BUNDLE_CARD_WIDTH = 276;
+
 export default function PlansScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const insets = useSafeAreaInsets();
   const { isAuthenticated } = useAuthStore();
   const enterKey = useScreenEnter();
+  const { width: windowWidth } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const bundleGridLayout = isWeb || windowWidth >= 720;
   
   // Modal state for upgrade flow
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -29,6 +58,23 @@ export default function PlansScreen() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const upgradePlan = useUpgradePlan();
   const createCheckoutSession = useCreateCheckoutSession();
+  const createBundleCheckout = useCreateBundleCheckoutSession();
+  const bundlesQuery = useBundles(isAuthenticated);
+  const { data: subscriptionUsage } = useSubscriptionUsage(isAuthenticated);
+  const periodEndFormatted = useMemo(
+    () =>
+      formatSubscriptionPeriodEnd(
+        subscriptionUsage?.currentPeriodEnd ?? subscriptionUsage?.resetsAt,
+        i18n.language
+      ),
+    [subscriptionUsage?.currentPeriodEnd, subscriptionUsage?.resetsAt, i18n.language]
+  );
+
+  const sortedBundles = useMemo(() => {
+    const rows = bundlesQuery.data;
+    if (!rows?.length) return [];
+    return [...rows].sort((a, b) => a.extraStories - b.extraStories);
+  }, [bundlesQuery.data]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -112,8 +158,7 @@ export default function PlansScreen() {
   // Handle upgrade: Stripe (web) or stub (mobile / when disabled)
   const handleUpgrade = async () => {
     if (!selectedPlan) return;
-    
-    const isWeb = Platform.OS === 'web';
+
     if (enableRealPayments && isWeb) {
       try {
         const { url } = await createCheckoutSession.mutateAsync(selectedPlan.slug);
@@ -131,7 +176,7 @@ export default function PlansScreen() {
       // Mobile: RevenueCat not yet implemented - show coming soon
       return;
     }
-    
+
     try {
       await upgradePlan.mutateAsync(selectedPlan.slug);
       const { getAnalytics } = await import('@/services/analytics');
@@ -142,13 +187,13 @@ export default function PlansScreen() {
   };
   
   // Helper to format price
-  const formatPrice = (priceMonthly: number, currency: string) => {
+  const formatPrice = useCallback((priceMonthly: number, currency: string) => {
     if (priceMonthly === 0) return t('plans.free');
     // UAH: kopiykas; USD: cents — both stored as integer, divide by 100
     const amount = (currency === 'UAH' || currency === 'USD') ? priceMonthly / 100 : priceMonthly;
     const symbol = currency === 'UAH' ? '₴' : currency === 'USD' ? '$' : '€';
     return `${symbol}${amount.toFixed(currency === 'USD' ? 2 : 0)}`;
-  };
+  }, [t]);
 
   // Helper to render feature value
   const renderFeatureValue = (feature: any) => {
@@ -174,7 +219,75 @@ export default function PlansScreen() {
     if ('limit' in value) return value.limit == null || value.limit > 0;
     return true;
   };
-  
+
+  const handleBundlePurchase = useCallback(
+    async (bundleSlug: string) => {
+      if (enableRealPayments && isWeb) {
+        try {
+          const { url } = await createBundleCheckout.mutateAsync(bundleSlug);
+          if (typeof window !== 'undefined' && url) {
+            window.location.href = url;
+          }
+        } catch (err) {
+          console.error('Bundle checkout failed:', err);
+        }
+        return;
+      }
+      if (enableRealPayments && !isWeb) {
+        Alert.alert('', t('plans.bundles.stripe_required'));
+      }
+    },
+    [enableRealPayments, isWeb, createBundleCheckout, t]
+  );
+
+  const bundleCardEls = useMemo(
+    () =>
+      sortedBundles.map((b, idx) => {
+        const canBuy = enableRealPayments && isWeb && b.stripePriceConfigured;
+        const featured =
+          sortedBundles.length >= 3 && idx === Math.floor(sortedBundles.length / 2);
+        return (
+          <View
+            key={b.slug}
+            style={[
+              styles.bundleCard,
+              { width: BUNDLE_CARD_WIDTH },
+              featured && styles.bundleCardFeatured,
+            ]}
+          >
+            <LinearGradient
+              colors={[theme.colors.primary[400], theme.colors.primary[600]]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.bundleCardAccent}
+            />
+            <View style={styles.bundleCardBody}>
+              <Text style={styles.bundleName}>
+                {t(`plans.bundles.slug_titles.${b.slug}` as never, { defaultValue: b.name })}
+              </Text>
+              <Text style={styles.bundleStoriesHero}>+{b.extraStories}</Text>
+              <Text style={styles.bundleStoriesHint}>{t('plans.bundles.stories_word')}</Text>
+              <View style={styles.bundleMetaRow}>
+                <Ionicons name="headset-outline" size={15} color={theme.colors.text.tertiary} />
+                <Text style={styles.bundleMetaText}>
+                  {t('plans.bundles.plus_audio', { count: b.extraAudio })}
+                </Text>
+              </View>
+              <Text style={styles.bundlePrice}>{formatPrice(b.priceMinor, b.pricingCurrency)}</Text>
+              <TouchableOpacity
+                style={[styles.bundleBuyButton, !canBuy && styles.bundleBuyButtonDisabled]}
+                disabled={!canBuy || createBundleCheckout.isPending}
+                onPress={() => handleBundlePurchase(b.slug)}
+              >
+                <Text style={styles.bundleBuyButtonText}>{t('plans.bundles.buy_button')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      }),
+    [sortedBundles, enableRealPayments, isWeb, t, formatPrice, handleBundlePurchase, createBundleCheckout.isPending]
+  );
+
   if (isLoading) {
     return (
       <View style={[styles.centerContainer, { paddingTop: theme.spacing[6] + insets.top }]}>
@@ -198,8 +311,7 @@ export default function PlansScreen() {
       </View>
     );
   }
-  
-  const isWeb = Platform.OS === 'web';
+
   const useStripeFlow = enableRealPayments && isWeb;
   const modalPending = useStripeFlow ? createCheckoutSession.isPending : upgradePlan.isPending;
   const modalError = useStripeFlow ? createCheckoutSession.isError : upgradePlan.isError;
@@ -372,7 +484,74 @@ export default function PlansScreen() {
           );
         })}
       </View>
-      
+
+      {effectiveIsAuthenticated && (
+        <AnimatedSection delay={80} trigger={enterKey}>
+          <View style={styles.bundleSection}>
+            <View style={styles.bundleShell}>
+              <View style={styles.bundleHeaderBlock}>
+                <Text style={styles.bundleSectionTitle}>{t('plans.bundles.section_title')}</Text>
+                <Text style={styles.bundleSectionSubtitle}>
+                  {periodEndFormatted
+                    ? t('plans.bundles.section_subtitle', { periodEnd: periodEndFormatted })
+                    : t('plans.bundles.section_subtitle_no_date')}
+                </Text>
+              </View>
+
+              {bundlesQuery.isLoading ? (
+                <View style={styles.bundleLoadingBox}>
+                  <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+                </View>
+              ) : sortedBundles.length > 0 ? (
+                bundleGridLayout ? (
+                  <View style={styles.bundleCardsGrid}>{bundleCardEls}</View>
+                ) : (
+                  <ScrollView
+                    horizontal
+                    nestedScrollEnabled
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.bundleCardsScroll}
+                    contentContainerStyle={styles.bundleCardsScrollInner}
+                  >
+                    {bundleCardEls}
+                  </ScrollView>
+                )
+              ) : (
+                <Text style={styles.bundleEmpty}>{t('plans.bundles.empty')}</Text>
+              )}
+
+              {!bundlesQuery.isLoading && (
+                <View style={styles.bundleFaqSection}>
+                  <Text style={styles.bundleFaqSectionTitle}>{t('plans.bundles.faq_title')}</Text>
+                  <ExpandableCard title={t('plans.bundles.faq_1_q')} icon="layers-outline">
+                    <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_1_a')}</Text>
+                  </ExpandableCard>
+                  <ExpandableCard title={t('plans.bundles.faq_2_q')} icon="calendar-outline">
+                    <Text style={styles.bundleFaqAnswer}>
+                      {periodEndFormatted
+                        ? t('plans.bundles.faq_2_a', { periodEnd: periodEndFormatted })
+                        : t('plans.bundles.faq_2_a_no_date')}
+                    </Text>
+                  </ExpandableCard>
+                  <ExpandableCard title={t('plans.bundles.faq_3_q')} icon="add-circle-outline">
+                    <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_3_a')}</Text>
+                  </ExpandableCard>
+                  <ExpandableCard title={t('plans.bundles.faq_4_q')} icon="pricetag-outline">
+                    <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_4_a')}</Text>
+                  </ExpandableCard>
+                  <ExpandableCard title={t('plans.bundles.faq_5_q')} icon="card-outline">
+                    <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_5_a')}</Text>
+                  </ExpandableCard>
+                  <ExpandableCard title={t('plans.bundles.faq_6_q')} icon="image-outline">
+                    <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_6_a')}</Text>
+                  </ExpandableCard>
+                </View>
+              )}
+            </View>
+          </View>
+        </AnimatedSection>
+      )}
+
       {/* Upgrade Modal */}
       <Modal
         visible={showUpgradeModal}
@@ -733,5 +912,182 @@ const styles = StyleSheet.create({
   },
   modalButtonTextSecondary: {
     color: theme.colors.text.primary,
+  },
+  bundleSection: {
+    marginTop: theme.spacing[8],
+    marginBottom: theme.spacing[6],
+    paddingHorizontal: theme.spacing[1],
+  },
+  bundleShell: {
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: theme.spacing[6],
+    paddingBottom: theme.spacing[5],
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.colors.primary[900],
+        shadowOpacity: 0.08,
+        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 10 },
+      },
+      android: { elevation: 3 },
+      web: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        boxShadow: `0 20px 48px -24px ${hexAlpha(theme.colors.primary[900], 0.12)}` as any,
+      },
+    }),
+  },
+  bundleHeaderBlock: {
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    marginBottom: theme.spacing[5],
+  },
+  bundleSectionTitle: {
+    fontSize: theme.typography.fontSize['2xl'],
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    letterSpacing: -0.3,
+    marginBottom: theme.spacing[2],
+    textAlign: 'center',
+    alignSelf: 'stretch',
+  },
+  bundleSectionSubtitle: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 22,
+    textAlign: 'center',
+    maxWidth: 520,
+    alignSelf: 'center',
+  },
+  bundleLoadingBox: {
+    minHeight: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing[2],
+  },
+  bundleCardsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: theme.spacing[4],
+    marginBottom: theme.spacing[2],
+  },
+  bundleCardsScroll: {
+    marginHorizontal: -theme.spacing[2],
+    marginBottom: theme.spacing[2],
+  },
+  bundleCardsScrollInner: {
+    flexDirection: 'row',
+    gap: theme.spacing[3],
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+  },
+  bundleCard: {
+    backgroundColor: theme.colors.background.primary,
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    overflow: 'hidden',
+  },
+  bundleCardFeatured: {
+    borderColor: theme.colors.primary[300],
+    borderWidth: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.colors.primary[500],
+        shadowOpacity: 0.25,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+      },
+      android: { elevation: 6 },
+      web: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        boxShadow: `0 16px 40px -12px ${hexAlpha(theme.colors.primary[500], 0.35)}` as any,
+      },
+    }),
+  },
+  bundleCardAccent: {
+    height: 4,
+    width: '100%',
+  },
+  bundleCardBody: {
+    padding: theme.spacing[4],
+    paddingTop: theme.spacing[4],
+  },
+  bundleName: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.tertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginBottom: theme.spacing[1],
+  },
+  bundleStoriesHero: {
+    fontSize: theme.typography.fontSize['5xl'],
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.interactive.primary,
+    letterSpacing: -1,
+    lineHeight: theme.typography.fontSize['5xl'] * 1.05,
+  },
+  bundleStoriesHint: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    marginTop: -theme.spacing[1],
+    marginBottom: theme.spacing[2],
+  },
+  bundleMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    marginBottom: theme.spacing[3],
+  },
+  bundleMetaText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+  },
+  bundlePrice: {
+    fontSize: theme.typography.fontSize['2xl'],
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing[4],
+  },
+  bundleBuyButton: {
+    backgroundColor: theme.colors.interactive.primary,
+    paddingVertical: theme.spacing[3],
+    borderRadius: theme.borders.radius.md,
+    alignItems: 'center',
+  },
+  bundleBuyButtonDisabled: {
+    opacity: 0.45,
+  },
+  bundleBuyButtonText: {
+    color: theme.colors.text.inverse,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  bundleFaqSection: {
+    marginTop: theme.spacing[6],
+    alignSelf: 'stretch',
+  },
+  bundleFaqSectionTitle: {
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+    marginBottom: theme.spacing[4],
+  },
+  bundleFaqAnswer: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 22,
+  },
+  bundleEmpty: {
+    marginTop: theme.spacing[2],
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
+    textAlign: 'center',
   },
 });

@@ -280,10 +280,13 @@
     "audio_generating_almost_done": "Fast fertig...",
     "audio_title": "Audiogeschichte",
     "audio_limit_reached": "Audiogeschichten-Limit Erreicht",
-    "audio_limit_message": "Diese Audiogeschichte benötigt {{minutes}} Minuten, aber das Limit Ihres Tarifs ist erschöpft.",
+    "audio_limit_message": "Sie haben {{used}} von {{limit}} Audiogeschichten in diesem Monat genutzt.",
     "audio_remaining": "Verbleibend: {{remaining}} von {{limit}} Audiogeschichten in diesem Monat",
     "upgrade_plan": "Tarif Upgraden",
-    "next_plan_benefit": "Höhere Tarife bieten mehr Audio-Minuten",
+    "next_plan_benefit": "Höhere Tarife bieten mehr Audiogeschichten",
+    "bundle_hint": "Paket unter Tarifen — bis {{periodEnd}}.",
+    "bundle_hint_no_date": "Paket unter Tarifen.",
+    "bundle_pricing_link": "Tarife & Pakete",
     "audio_generation_failed": "Audio-Generierung fehlgeschlagen",
     "audio_generation_failed_inline": "Bei der Generierung ist etwas schief gelaufen",
     "audio_error_default": "Etwas ist schief gelaufen. Bitte versuchen Sie es erneut.",
@@ -397,6 +400,41 @@
       "export_video": "Als Video exportieren (demnächst)",
       "share_enabled": "Veröffentlichung und Teilen",
       "story_from_drawing": "Geschichte aus Kinderzeichnung (demnächst)"
+    },
+    "bundles": {
+      "section_title": "Extra Geschichten & Audio",
+      "section_subtitle": "Mehr Limits bis {{periodEnd}}. Illustrationen pro Geschichte unverändert.",
+      "faq_title": "Preise, Tarife & Pakete",
+      "faq_1_q": "Was ist der Unterschied zwischen Tarif und Paket?",
+      "faq_1_a": "Ihr Abo legt die monatlichen Basislimits für Geschichten und Audio fest. Pakete sind einmalige Zusatzkontingente, die diese Limits bis zum Ende der aktuellen Abrechnungsperiode erhöhen.",
+      "faq_2_q": "Wie lange gelten Paket-Boni?",
+      "faq_2_a": "Extra-Kontingente gelten bis {{periodEnd}}. Ungenutztes verfällt danach und wird nicht übertragen.",
+      "faq_2_a_no_date": "Sie gelten bis zum Ende der aktuellen Abrechnungsperiode und werden nicht übertragen.",
+      "faq_3_q": "Kann ich mehrere Pakete kaufen?",
+      "faq_3_a": "Ja. Käufe in derselben Periode addieren sich – die zusätzlichen Geschichten und Audio-Slots summieren sich.",
+      "faq_4_q": "Warum kostet ein Paket auf höheren Tarifen mehr?",
+      "faq_4_a": "Höhere Tarife haben mehr Illustrationen pro Geschichte, daher ist die Erzeugung teurer. Paketpreise richten sich nach Ihrem aktuellen Tarif.",
+      "faq_5_q": "Wo bezahle ich ein Paket?",
+      "faq_5_a": "Wenn Zahlungen aktiv sind, läuft der Checkout im Web. Öffnen Sie diese Seite im Browser und tippen Sie auf «Kaufen» (In-App kann später folgen).",
+      "faq_6_q": "Ändern Pakete Bildqualität, Stil oder Stimmen?",
+      "faq_6_a": "Nein. Es ändern sich nur die Limits für Geschichten und Audio. Qualität, Stil und Sprecherstimmen bleiben wie im Tarif.",
+      "slug_titles": {
+        "bundle_small": "Erster Funke",
+        "bundle_boost_10": "Zehn Wünsche",
+        "bundle_medium": "Sternenpfad",
+        "bundle_boost_20": "Mondfluss",
+        "bundle_large": "Wundertruhe"
+      },
+      "stories_word": "Geschichten",
+      "plus_audio": "+{{count}} Audio",
+      "line_quota": "+{{stories}} Geschichten · +{{audio}} Audio",
+      "buy_button": "Kaufen",
+      "one_time_note": "Einmalig; gültig bis {{periodEnd}}.",
+      "section_subtitle_no_date": "Mehr Limits in dieser Periode. Illustrationen unverändert.",
+      "one_time_note_no_date": "Einmalig; bis Periodenende.",
+      "stripe_required": "Paketkauf im Web, wenn Zahlungen aktiv sind.",
+      "loading": "Pakete werden geladen…",
+      "empty": "Keine Pakete für Ihren Tarif."
     }
   },
   "children_screen": {
@@ -622,7 +660,10 @@
     "stories_limit_title": "Geschichtenlimit erreicht",
     "stories_limit_message": "Sie haben {{used}} von {{limit}} Geschichten diesen Monat verwendet.",
     "stories_limit_message_default": "Ihr monatliches Geschichtenlimit wurde erreicht.",
-    "upgrade_button": "Plan upgraden"
+    "upgrade_button": "Plan upgraden",
+    "bundle_hint": "Mehr nötig? Paket unter Tarifen — bis {{periodEnd}}.",
+    "bundle_hint_no_date": "Mehr nötig? Paket unter Tarifen.",
+    "bundle_pricing_link": "Tarife & Pakete"
   },
   "transactional_emails": {
     "welcome": {

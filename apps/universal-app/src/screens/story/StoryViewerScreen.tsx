@@ -25,7 +25,7 @@ import { useResponsive } from '@/hooks/useResponsive';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 import { getOrdinal } from '@/utils/ordinal';
-import i18n from '@/config/i18n';
+import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import type { MainDrawerParamList } from '@/types/navigation';
 import AudioPlayer from '@/components/AudioPlayer';
 import VoiceSelector from '@/components/VoiceSelector';
@@ -65,7 +65,7 @@ export default function StoryViewerScreen() {
   const route = useRoute<StoryViewerRouteProp>();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isTabletPortrait, isMobile } = useResponsive();
   const { user } = useAuthStore();
   const isArtisanMode = user?.mode === 'artisan';
@@ -164,7 +164,17 @@ export default function StoryViewerScreen() {
         resetsAt: subscriptionUsage.resetsAt,
       }
     : undefined;
-  
+
+  const bundleHintText = useMemo(() => {
+    const pe = formatSubscriptionPeriodEnd(
+      subscriptionUsage?.currentPeriodEnd ?? subscriptionUsage?.resetsAt,
+      i18n.language
+    );
+    return pe
+      ? t('story_viewer.bundle_hint', { periodEnd: pe })
+      : t('story_viewer.bundle_hint_no_date');
+  }, [subscriptionUsage?.currentPeriodEnd, subscriptionUsage?.resetsAt, i18n.language, t]);
+
   // Track which story is currently being viewed so MiniAudioPlayer can hide.
   // useFocusEffect (not useEffect) because Drawer/Tab navigators keep screens
   // mounted when navigating away — cleanup must fire on blur, not just unmount.
@@ -1014,6 +1024,12 @@ export default function StoryViewerScreen() {
             <Text style={styles.limitExceededDetails}>
               {t('story_viewer.next_plan_benefit')}
             </Text>
+            <Text style={styles.limitExceededDetails}>
+              {bundleHintText}
+            </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Plans' as any)}>
+              <Text style={styles.bundlePricingLink}>{t('story_viewer.bundle_pricing_link')}</Text>
+            </TouchableOpacity>
           </View>
         ) : showGeneratingBlock ? (
           // Show loading state during generation with queue info
@@ -1876,6 +1892,15 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
     textAlign: 'center',
+    marginTop: theme.spacing[2],
+  },
+  bundlePricingLink: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.interactive.primary,
+    textAlign: 'center',
+    textDecorationLine: 'underline',
+    marginTop: theme.spacing[2],
+    marginBottom: theme.spacing[2],
   },
   inlineWarning: {
     flexDirection: 'row',

@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
+import {
   PlanPublicApi,
-  PlanAuthenticatedApi 
+  PlanAuthenticatedApi,
+  type StoryBundleListItemApi,
 } from '@wondertales/shared';
 import { APP_CONFIG } from '@/config/constants';
 import apiClient from './client';
@@ -28,8 +29,20 @@ export const usePlans = () => {
 };
 
 export interface SubscriptionUsageData {
-  stories: { used: number; limit: number; remaining: number };
-  audio: { used: number; limit: number; remaining: number };
+  stories: {
+    used: number;
+    limit: number;
+    remaining: number;
+    planLimit?: number;
+    bundleBonus?: number;
+  };
+  audio: {
+    used: number;
+    limit: number;
+    remaining: number;
+    planLimit?: number;
+    bundleBonus?: number;
+  };
   resetsAt: string;
   currentPeriodEnd?: string;
   cancelAtPeriodEnd?: boolean;
@@ -37,7 +50,7 @@ export interface SubscriptionUsageData {
   enableRealPayments?: boolean;
 }
 
-export const useSubscriptionUsage = () => {
+export const useSubscriptionUsage = (enabled: boolean = true) => {
   return useQuery({
     queryKey: ['subscription-usage'],
     queryFn: async () => {
@@ -46,6 +59,7 @@ export const useSubscriptionUsage = () => {
       );
       return response.data.data;
     },
+    enabled,
   });
 };
 
@@ -73,6 +87,39 @@ export const usePlansWithAuth = () => {
 };
 
 // Create Stripe Checkout Session (web only, when enableRealPayments)
+/** GET /api/v1/bundles — extra story+audio packs for current plan */
+export const useBundles = (enabled: boolean) => {
+  return useQuery({
+    queryKey: ['bundles'],
+    queryFn: async () => {
+      const response = await apiClient.get<{
+        status: string;
+        bundles: StoryBundleListItemApi[];
+      }>('/api/v1/bundles');
+      return response.data.bundles;
+    },
+    enabled,
+  });
+};
+
+export const useCreateBundleCheckoutSession = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (bundleSlug: string) => {
+      const response = await apiClient.post<{ status: string; sessionId: string; url: string }>(
+        '/api/v1/billing/bundle-checkout',
+        { bundleSlug }
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bundles'] });
+      queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+    },
+  });
+};
+
 export const useCreateCheckoutSession = () => {
   const queryClient = useQueryClient();
   return useMutation({
