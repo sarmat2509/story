@@ -691,6 +691,7 @@
     "share_message": "Read my story \"{{title}}\" on WonderTales! Your child is the hero of their own tale 🎭",
     "publish_share_dialog_title": "Publish story",
     "publish_share_dialog_message": "To share the story, it needs to be published. It will become available to all users.",
+    "visibility_public_notice": "Public stories can appear in the catalog and be seen by anyone. Choose link-only for private sharing.",
     "publish_share_dialog_published": "Published",
     "publish_and_share": "Publish and share",
     "publishing_under_pseudonym": "Publishing under pseudonym",

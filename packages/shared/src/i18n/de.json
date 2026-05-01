@@ -345,6 +345,7 @@
     "parent_review_error": "Prüfstatus konnte nicht aktualisiert werden",
     "parent_review_pending_share_blocked": "Genehmigen Sie diese Kindergeschichte vor dem Teilen oder Veröffentlichen.",
     "parent_review_rejected_share_blocked": "Abgelehnte Kindergeschichten können nicht geteilt werden.",
+    "visibility_public_notice": "Öffentliche Geschichten können im Katalog erscheinen und für alle sichtbar sein. Wählen Sie Linkzugriff für privates Teilen.",
     "publishing_under_pseudonym": "Veröffentlichung unter Pseudonym",
     "publish_success_ordinal": "Veröffentlicht! Das ist deine {{ordinal}} Geschichte. Weiter so!",
     "publication_title": "Veröffentlichung",

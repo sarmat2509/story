@@ -342,6 +342,7 @@
     "parent_review_error": "Impossible de mettre à jour la validation",
     "parent_review_pending_share_blocked": "Approuvez cette histoire enfant avant de la partager ou publier.",
     "parent_review_rejected_share_blocked": "Les histoires enfant rejetées ne peuvent pas être partagées.",
+    "visibility_public_notice": "Les histoires publiques peuvent apparaître dans le catalogue et être visibles par tous. Choisissez l'accès par lien pour un partage privé.",
     "publishing_under_pseudonym": "Publication sous pseudonyme",
     "publish_success_ordinal": "Publié ! C'est votre {{ordinal}} histoire. Continuez !",
     "publication_title": "Publication",

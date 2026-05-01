@@ -29,6 +29,7 @@ API_TESTS=(
   src/ssr/__tests__/renderLandingStructuredData.test.ts
   src/ssr/__tests__/renderLandingTrustLayer.test.ts
   src/ssr/__tests__/renderLegalHtml.test.ts
+  src/ssr/__tests__/publishConfirmationI18n.test.ts
   src/ssr/__tests__/renderPublicAuthorHtml.test.ts
   src/ssr/__tests__/renderPublicStoriesCatalogHtml.test.ts
   src/ssr/__tests__/routeOwnership.test.ts

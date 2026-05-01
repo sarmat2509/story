@@ -688,6 +688,7 @@
     "share_message": "Przeczytaj moja historie \"{{title}}\" w WonderTales! Twoje dziecko jest bohaterem wlasnej opowiesci 🎭",
     "publish_share_dialog_title": "Opublikuj historie",
     "publish_share_dialog_message": "Aby udostepnic historie, trzeba ja opublikowac. Bedzie dostepna dla wszystkich uzytkownikow.",
+    "visibility_public_notice": "Historie publiczne moga pojawic sie w katalogu i byc widoczne dla kazdego. Wybierz dostep przez link, aby udostepniac prywatnie.",
     "publish_share_dialog_published": "Opublikowano",
     "publish_and_share": "Opublikuj i udostepnij",
     "publishing_under_pseudonym": "Publikacja pod pseudonimem",

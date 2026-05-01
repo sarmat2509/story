@@ -293,6 +293,15 @@ export function PublishShareDialog({
                 </TouchableOpacity>
               </View>
 
+              {selectedVisibility === 'public' && (
+                <View style={styles.publicVisibilityNotice} accessibilityRole="text">
+                  <Ionicons name="information-circle-outline" size={18} color={theme.colors.status.warning} />
+                  <Text style={styles.publicVisibilityNoticeText}>
+                    {t('story_viewer.visibility_public_notice', 'Public stories can appear in the catalog and be seen by anyone. Choose link-only for private sharing.')}
+                  </Text>
+                </View>
+              )}
+
               <TouchableOpacity
                 style={styles.confirmButton}
                 onPress={() =>
@@ -439,6 +448,22 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
     marginTop: theme.spacing[1],
+  },
+  publicVisibilityNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: `${theme.colors.status.warning}15`,
+    marginBottom: theme.spacing[4],
+  },
+  publicVisibilityNoticeText: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: theme.typography.fontSize.sm * 1.35,
+    color: theme.colors.text.secondary,
   },
   pseudonymText: {
     fontSize: theme.typography.fontSize.sm,

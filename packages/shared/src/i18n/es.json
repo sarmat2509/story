@@ -680,6 +680,7 @@
     "parent_review_error": "No se pudo actualizar la revisión",
     "parent_review_pending_share_blocked": "Aprueba esta historia infantil antes de publicarla o compartirla.",
     "parent_review_rejected_share_blocked": "Las historias infantiles rechazadas no se pueden compartir.",
+    "visibility_public_notice": "Las historias públicas pueden aparecer en el catálogo y ser visibles para cualquiera. Elige acceso por enlace para compartir en privado.",
     "publishing_under_pseudonym": "Publicando con seudónimo",
     "publish_success_ordinal": "¡Publicado! Esta es tu {{ordinal}} historia. ¡Sigue así!",
     "publication_title": "Publicación",

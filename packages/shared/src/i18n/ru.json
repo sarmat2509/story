@@ -679,6 +679,7 @@
     "parent_review_error": "Не удалось обновить статус проверки",
     "parent_review_pending_share_blocked": "Одобрите детскую историю перед публикацией или отправкой ссылки.",
     "parent_review_rejected_share_blocked": "Отклонённые детские истории нельзя публиковать или отправлять.",
+    "visibility_public_notice": "Публичные истории могут появиться в каталоге и быть видны всем. Для приватного доступа выберите ссылку.",
     "publishing_under_pseudonym": "Публикуем под псевдонимом",
     "publish_success_ordinal": "Опубликовано! Это ваша {{ordinal}} история. Так держать!",
     "publication_title": "Публикация",
