@@ -68,6 +68,19 @@ export interface BatchValidationResult {
   }>;
 }
 
+function isProviderContentBlockedError(message: string): boolean {
+  return /PROHIBITED_CONTENT|blocked|content filter/i.test(message);
+}
+
+function buildProviderBlockedViolation() {
+  return {
+    category: 'content_policy' as const,
+    severity: 'critical' as const,
+    message: 'Provider content filter blocked validation. Regenerate this scene before showing it.',
+    suggestion: 'Rewrite with gentler, age-appropriate wording.',
+  };
+}
+
 export class StoryDomainService {
   constructor(
     private textProvider: ITextProvider,
@@ -370,15 +383,15 @@ export class StoryDomainService {
       return validation;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      if (errorMsg.includes('PROHIBITED_CONTENT') || errorMsg.includes('blocked')) {
+      if (isProviderContentBlockedError(errorMsg)) {
         logger.warn(
           { sceneId: sceneText.sceneId, error: errorMsg },
-          'Scene validation blocked - auto-passing as safe',
+          'Scene validation blocked by provider content filter - failing closed',
         );
         return {
           sceneId: sceneText.sceneId,
-          isValid: true,
-          violations: [],
+          isValid: false,
+          violations: [buildProviderBlockedViolation()],
         };
       }
 
@@ -448,9 +461,14 @@ export class StoryDomainService {
       return { failedScenes: result.failedScenes ?? [] };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      if (errorMsg.includes('PROHIBITED_CONTENT') || errorMsg.includes('blocked')) {
-        logger.warn({ error: errorMsg }, 'Batch validation blocked - auto-passing all scenes');
-        return { failedScenes: [] };
+      if (isProviderContentBlockedError(errorMsg)) {
+        logger.warn({ error: errorMsg }, 'Batch validation blocked by provider content filter - failing closed');
+        return {
+          failedScenes: scenes.map((scene) => ({
+            sceneId: scene.sceneId,
+            violations: [buildProviderBlockedViolation()],
+          })),
+        };
       }
       logger.error({ error }, 'Batch validation failed');
       throw new Error(`Batch validation failed: ${errorMsg}`);

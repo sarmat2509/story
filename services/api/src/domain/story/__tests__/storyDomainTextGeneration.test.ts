@@ -136,9 +136,64 @@ async function testGenerateTextUsesDomainAndBuildsFullText() {
   assert.strictEqual(stub.lastGenerateStructuredRequest!.operation, 'text_structured');
 }
 
+class BlockedValidationStubTextProvider implements ITextProvider {
+  public lastGenerateStructuredRequest: GenerateStructuredRequest<unknown> | null = null;
+
+  async generateText(_request: GenerateTextRequest): Promise<string> {
+    throw new Error('generateText must not be called for validation');
+  }
+
+  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
+    this.lastGenerateStructuredRequest = request;
+    throw new Error('Content blocked by Gemini: PROHIBITED_CONTENT');
+  }
+}
+
+async function testValidateSceneFailsClosedWhenProviderBlocksValidation() {
+  const stub = new BlockedValidationStubTextProvider();
+  const domain = new StoryDomainService(stub, stub, stub);
+
+  const result = await domain.validateScene(
+    {
+      sceneId: 1,
+      text: 'The scene needs validation.',
+    } as any,
+    STATIC_POLICY,
+    false,
+  );
+
+  assert.strictEqual(result.isValid, false, 'blocked validation must not auto-pass as safe');
+  assert.strictEqual(result.violations.length, 1);
+  assert.strictEqual(result.violations[0].category, 'content_policy');
+  assert.strictEqual(result.violations[0].severity, 'critical');
+  assert.strictEqual(stub.lastGenerateStructuredRequest!.operation, 'validateScene');
+}
+
+async function testValidateScenesBatchFailsClosedWhenProviderBlocksValidation() {
+  const stub = new BlockedValidationStubTextProvider();
+  const domain = new StoryDomainService(stub, stub, stub);
+
+  const result = await domain.validateScenesBatch(
+    [
+      { sceneId: 1, text: 'First scene.' } as any,
+      { sceneId: 2, text: 'Second scene.' } as any,
+    ],
+    STATIC_POLICY,
+  );
+
+  assert.strictEqual(result.failedScenes.length, 2, 'all scenes fail closed when batch validation is blocked');
+  assert.deepStrictEqual(
+    result.failedScenes.map((scene) => scene.sceneId),
+    [1, 2],
+  );
+  assert.ok(result.failedScenes.every((scene) => scene.violations[0]?.category === 'content_policy'));
+}
+
 void (async () => {
   await testGenerateTextPlainUsesDomainAndParsesScenes();
   await testGenerateTextUsesDomainAndBuildsFullText();
+  await testValidateSceneFailsClosedWhenProviderBlocksValidation();
+  await testValidateScenesBatchFailsClosedWhenProviderBlocksValidation();
   console.log('storyDomainTextGeneration tests OK');
 })().catch((err) => {
   console.error(err);

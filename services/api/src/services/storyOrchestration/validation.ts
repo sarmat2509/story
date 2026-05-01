@@ -328,10 +328,24 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
     }
 
     if (scenesToRegenerate.size > 0) {
+      const finalFailedSceneIds = Array.from(scenesToRegenerate.keys());
+      const finalFailures = finalFailedSceneIds.map((sceneId) => {
+        const validation = validations.find((v) => v.sceneId === sceneId);
+        return {
+          sceneId,
+          categories: validation?.violations.map((violation) => violation.category) ?? [],
+        };
+      });
+
       logger.warn({
         requestId,
-        failedSceneIds: Array.from(scenesToRegenerate.keys()),
+        failedSceneIds: finalFailedSceneIds,
+        failures: finalFailures,
       }, 'Some scenes still failing validation after max retries');
+
+      throw new Error(
+        `Story text validation failed after safety retries for ${finalFailedSceneIds.length} scene(s). Please try again with a gentler idea.`
+      );
     }
   }
 
