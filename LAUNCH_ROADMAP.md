@@ -806,13 +806,17 @@ Required work:
 - Add child self-use explanation only if Child Mode is ready.
 - Add sample stories in English or hide the empty English examples section.
 - Fix PWA manifest from `Kazka+` to `WonderTales`.
-- Add structured data for software/pricing/FAQ if not already present.
+- Keep structured data for software/pricing/FAQ aligned with public copy and plan data.
 
 Completed locally:
 
 - PWA manifest source and exported web manifest now use WonderTales branding instead of `Kazka+`.
 - Public SSR head assets now include `/manifest.json`, so landing, pricing, legal, support, story catalog, author, and story pages expose the same install metadata as the SPA shell.
 - `pnpm launch:gate` now checks the source and exported web manifests for stale brand names, required icons, `start_url`, standalone display mode, and index.html manifest links.
+- Landing SSR now exposes SoftwareApplication and FAQPage JSON-LD with localized pricing URLs.
+- Public pricing SSR now exposes Product/OfferCatalog JSON-LD generated from the rendered plan list.
+- English landing pricing CTAs and FAQ pricing links now preserve `/en/pricing` instead of falling back to `/pricing`.
+- Dev and production nginx configs now route nested `/landing/*` image assets so SSR landing pages do not fall through to unknown-route 404s for visible trust imagery.
 
 Acceptance criteria:
 

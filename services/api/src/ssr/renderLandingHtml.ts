@@ -4,6 +4,7 @@
  */
 
 import { config } from '../config';
+import { buildAbsoluteRouteUrl, buildPublicPricingPath } from '@wondertales/shared';
 import {
   buildLandingAlternateLinks,
   buildPlanDescription,
@@ -23,6 +24,7 @@ import {
   buildPublicFooterLanguageLinks,
   renderPublicPageFooter,
 } from './publicPageFooter';
+import { renderLandingStructuredData } from './publicStructuredData';
 
 /** Plan with stories/audio/images limits for landing display */
 interface PlanWithLimits {
@@ -194,13 +196,17 @@ function getLocalizedWelcomeUrl(webAppUrl: string, locale?: string): string {
   return `${webAppUrl}${locale && locale !== 'uk' ? `/${locale}/welcome` : '/welcome'}`;
 }
 
+function getLocalizedPricingUrl(webAppUrl: string, locale?: string | null): string {
+  return buildAbsoluteRouteUrl(webAppUrl, buildPublicPricingPath(locale));
+}
+
 function renderAnnouncementBar(webAppUrl: string, locale?: string): string {
   return `
   <div class="announcement-bar">
     
     <div class="nav-links">
       <a href="${escapeHtml(webAppUrl)}/stories">Приклади історій</a>
-      <a href="${escapeHtml(webAppUrl)}/pricing">Тарифи</a>
+      <a href="${escapeHtml(getLocalizedPricingUrl(webAppUrl, locale))}">Тарифи</a>
       <a href="${escapeHtml(getLocalizedWelcomeUrl(webAppUrl, locale))}" class="cta-purple">Реєстрація →</a>
     </div>
   </div>`;
@@ -613,15 +619,16 @@ function renderPricing(webAppUrl: string, dbPlans: PlanWithLimits[], content: La
     </div>
     <p class="pricing-reassurance">${escapeHtml(content.pricing.reassurance)}</p>
     <div class="cta-block">
-      <a href="${escapeHtml(webAppUrl)}/pricing" class="cta-purple">${escapeHtml(content.pricing.cta)}</a>
+      <a href="${escapeHtml(getLocalizedPricingUrl(webAppUrl, locale))}" class="cta-purple">${escapeHtml(content.pricing.cta)}</a>
     </div>
   </section>`;
 }
 
 function renderFaq(webAppUrl: string, content: LandingContent, locale?: string): string {
+  const pricingUrl = getLocalizedPricingUrl(webAppUrl, locale);
   const faqItems = content.faq.items.map((item) => ({
     ...item,
-    a: item.allowHtml ? item.a.split('/pricing').join(`${escapeHtml(webAppUrl)}/pricing`) : item.a,
+    a: item.allowHtml ? item.a.split('/pricing').join(escapeHtml(pricingUrl)) : item.a,
   }));
   return `
   <section class="section">
@@ -649,7 +656,7 @@ function renderFinalCta(webAppUrl: string, content: LandingContent, locale?: str
     <p class="final-subheadline">${escapeHtml(content.finalCta.subtitle)}</p>
     <div class="actions">
       <a href="${escapeHtml(getLocalizedWelcomeUrl(webAppUrl, locale))}" class="cta-purple">${escapeHtml(content.finalCta.primaryCta)}</a>
-      <a href="${escapeHtml(webAppUrl)}/pricing" class="cta-purple-outline">${escapeHtml(content.finalCta.secondaryCta)}</a>
+      <a href="${escapeHtml(getLocalizedPricingUrl(webAppUrl, locale))}" class="cta-purple-outline">${escapeHtml(content.finalCta.secondaryCta)}</a>
     </div>
   </section>`;
 }
@@ -674,6 +681,13 @@ export function renderLandingHtml(params?: {
   const safeUrl = escapeHtml(landingUrl);
   const safeImage = escapeHtml(ogImageUrl);
   const alternateLinks = buildLandingAlternateLinks(webAppUrl);
+  const pricingUrl = getLocalizedPricingUrl(webAppUrl, locale);
+  const structuredData = renderLandingStructuredData({
+    content,
+    landingUrl,
+    pricingUrl,
+    ogImageUrl,
+  });
 
   const meta = `
   <meta charset="utf-8">
@@ -695,7 +709,8 @@ export function renderLandingHtml(params?: {
   <meta name="twitter:image" content="${safeImage}">
   ${PUBLIC_HEAD_ASSET_LINKS}
   <link rel="canonical" href="${safeUrl}">
-  ${alternateLinks}`.trim();
+  ${alternateLinks}
+  ${structuredData}`.trim();
 
   const bodyHtml = `
   <div class="landing-wrapper" id="landing-wrapper">

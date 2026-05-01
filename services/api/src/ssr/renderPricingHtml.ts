@@ -8,6 +8,7 @@ import {
   buildPublicFooterLanguageLinks,
   renderPublicPageFooter,
 } from './publicPageFooter';
+import { renderPricingStructuredData } from './publicStructuredData';
 import {
   buildPublicPricingPath,
   formatPricingPrice,
@@ -125,6 +126,13 @@ export function renderPricingHtml(params: {
   const paymentsEnabled = params.paymentsEnabled ?? true;
 
   const plans = (params.plans || []).slice().sort((a, b) => a.sortOrder - b.sortOrder);
+  const structuredData = renderPricingStructuredData({
+    pricingUrl,
+    title,
+    subtitle,
+    locale,
+    plans,
+  });
 
   return `<!DOCTYPE html>
 <html lang="${escapeHtml(locale)}">
@@ -144,6 +152,7 @@ export function renderPricingHtml(params: {
   ${PUBLIC_HEAD_ASSET_LINKS}
   <link rel="canonical" href="${escapeHtml(pricingUrl)}">
   ${alternateLinks}
+  ${structuredData}
   <style>${PRICING_STYLES}</style>
 </head>
 <body>

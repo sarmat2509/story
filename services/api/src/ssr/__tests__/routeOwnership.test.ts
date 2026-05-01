@@ -77,6 +77,17 @@ for (const { name, value } of nginxConfigs) {
   assert.match(value, /location \/\s*\{[\s\S]*?X-Robots-Tag "noindex,nofollow"[\s\S]*?return 404;/, `${name} unknown public routes should be noindex 404`);
 }
 
+assert.match(
+  devNginx,
+  /location \^~ \/landing\/\s*\{[\s\S]*?root \/usr\/share\/nginx\/html;[\s\S]*?try_files \$uri =404;/,
+  'dev nginx should serve nested landing assets without falling through to unknown-route 404'
+);
+assert.match(
+  prodNginx,
+  /location \^~ \/landing\/\s*\{[\s\S]*?spa-proxy-prod\.conf;/,
+  'prod nginx should route nested landing assets to the web app static backend'
+);
+
 assert.match(commonSsrRoutes, /location = \/pricing\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/pricing/);
 assert.match(commonSsrRoutes, /location = \/terms\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/terms/);
 assert.match(commonSsrRoutes, /location = \/privacy\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/privacy/);

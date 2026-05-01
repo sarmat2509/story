@@ -32,6 +32,11 @@ const features = {
   premium_voices: { name: 'Premium voices', value: { enabled: false }, category: 'audio' },
 };
 
+function extractJsonLd(html: string): any[] {
+  return [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+    .map((match) => JSON.parse(match[1]));
+}
+
 void (async function main() {
   assert.strictEqual(
     getCombinedPricingUsageHighlight('en', translate, features),
@@ -74,6 +79,16 @@ void (async function main() {
   assert.match(html, /<option value="https:\/\/app\.wondertales\.com\/en\/pricing" selected>English<\/option>/);
   assert.doesNotMatch(html, /onchange=/);
 
+  const pricingJsonLd = extractJsonLd(html);
+  const product = pricingJsonLd.find((entry) => entry['@type'] === 'Product');
+  assert.ok(product, 'pricing page should expose Product structured data');
+  assert.strictEqual(product.name, 'WonderTales');
+  assert.strictEqual(product.url, 'https://app.wondertales.com/en/pricing');
+  assert.strictEqual(product.offers['@type'], 'OfferCatalog');
+  assert.strictEqual(product.offers.itemListElement[0].name, 'Family');
+  assert.strictEqual(product.offers.itemListElement[0].price, '5.00');
+  assert.strictEqual(product.offers.itemListElement[0].priceCurrency, 'USD');
+
   const paymentsDisabledHtml = renderPricingHtml({
     locale: 'en',
     paymentsEnabled: false,
@@ -101,7 +116,8 @@ void (async function main() {
     ],
   });
 
-  const paidCard = paymentsDisabledHtml.slice(paymentsDisabledHtml.indexOf('Family'));
+  const paidCardStart = paymentsDisabledHtml.indexOf('<div class="name">Family</div>');
+  const paidCard = paymentsDisabledHtml.slice(paidCardStart, paymentsDisabledHtml.indexOf('</article>', paidCardStart));
   assert.match(paymentsDisabledHtml, /Paid checkout is not enabled yet/);
   assert.match(paidCard, /Payments coming soon/);
   assert.doesNotMatch(paidCard, /href="[^"]*\/welcome"/);
