@@ -147,7 +147,10 @@ export const useEnterChildMode = () => {
     onSuccess: async (result) => {
       await storage.setAuthToken(result.token);
       queryClient.clear();
-      enterChildSession(result.token, result.child);
+      enterChildSession(result.token, {
+        ...result.child,
+        childMode: result.childMode,
+      });
     },
   });
 };

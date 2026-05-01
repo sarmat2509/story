@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CommonActions } from '@react-navigation/native';
-import type { UserApi } from '@wondertales/shared';
+import type { ChildModeSettings, UserApi } from '@wondertales/shared';
 import { navigationRef } from '@/navigation/navigationRef';
 
 export type User = UserApi;
@@ -10,6 +10,11 @@ export type SessionMode = 'parent' | 'child';
 export type ActiveChildSession = {
   id: string;
   name: string;
+  childMode?: {
+    childModeEnabled: boolean;
+    childModeSettings: ChildModeSettings;
+    activeSessionCount?: number;
+  };
 };
 
 interface AuthState {

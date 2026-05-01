@@ -8,6 +8,7 @@ import type {
   StoryAudioMetadata,
   CreateStoryRequestInput,
   UserStoryLanguagesResponse,
+  RequestStatus,
 } from '@wondertales/shared';
 import apiClient from './client';
 
@@ -15,6 +16,16 @@ import apiClient from './client';
 export type Story = StoryApi;
 export type StorySummary = StorySummaryApi;
 export type CreateStoryRequest = CreateStoryRequestInput;
+
+export interface ChildModeStoryRequestResult {
+  id: string;
+  status?: RequestStatus;
+  progress?: number;
+  createdAt?: string;
+  createdByMode?: 'child';
+  createdByChildProfileId?: string;
+  parentReviewRequired?: boolean;
+}
 
 interface CreateStoryFromPhotosRequest {
   photos: string[];
@@ -206,6 +217,24 @@ export const useCreateStory = () => {
     mutationFn: async (data: CreateStoryRequest) => {
       const response = await apiClient.post<{ status: string; request: { id: string } }>(
         '/api/v1/stories',
+        data
+      );
+      return response.data.request;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+    },
+  });
+};
+
+// Create story from a scoped Child Mode session
+export const useCreateChildModeStory = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: CreateStoryRequest) => {
+      const response = await apiClient.post<{ status: string; request: ChildModeStoryRequestResult }>(
+        '/api/v1/stories/child-mode',
         data
       );
       return response.data.request;

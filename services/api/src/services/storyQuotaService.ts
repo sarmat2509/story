@@ -11,6 +11,7 @@ import {
 export type StoryQuotaReservationSource =
   | 'wizard'
   | 'instant'
+  | 'child_mode'
   | 'continuation'
   | 'scheduled_continuation';
 

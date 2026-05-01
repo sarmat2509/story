@@ -411,7 +411,7 @@ router.post(
         ...validatedData,
         childProfileId,
       }, {
-        quotaSource: 'wizard',
+        quotaSource: 'child_mode',
         createdByMode: 'child',
         createdByChildProfileId: childProfileId,
         parentReviewRequired: policyDecision.parentReviewRequired,

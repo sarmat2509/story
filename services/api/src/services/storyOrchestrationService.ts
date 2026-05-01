@@ -317,12 +317,21 @@ export async function createStoryRequest(
   try {
     logger.info({ userId, language: input.storyLanguage }, 'Creating story request');
 
+    const quotaSource = options?.quotaSource;
     assertStoryPromptSafety({
       userId,
       goal: input.goal,
       userNotes: input.userNotes,
-      goalSource: options?.quotaSource === 'instant' ? 'instant_story_goal' : 'story_goal',
-      notesSource: options?.quotaSource === 'instant' ? 'instant_story_notes' : 'story_user_notes',
+      goalSource: quotaSource === 'instant'
+        ? 'instant_story_goal'
+        : quotaSource === 'child_mode'
+          ? 'child_mode_story_goal'
+          : 'story_goal',
+      notesSource: quotaSource === 'instant'
+        ? 'instant_story_notes'
+        : quotaSource === 'child_mode'
+          ? 'child_mode_story_notes'
+          : 'story_user_notes',
     });
 
     const attribution = buildStoryCreationAttribution({
