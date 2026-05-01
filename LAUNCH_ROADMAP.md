@@ -1,6 +1,6 @@
 # WonderTales Web Launch Roadmap
 
-Last updated: 2026-05-01
+Last updated: 2026-05-02
 
 This roadmap describes what must be finished before opening WonderTales to real web users.
 It intentionally focuses on launch blockers only. Improvements that can happen after real usage starts are separated into later priorities.
@@ -59,9 +59,9 @@ All billing, refund, cancellation, quota, and support paths must work end to end
 
 ## P0 - External User Blockers
 
-### P0 Status Snapshot - 2026-05-01
+### P0 Status Snapshot - 2026-05-02
 
-Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, but P0 is not fully green for external families until production-only checks and final operator/legal confirmations are finished.
+Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, and the main production web/TLS/SSR/security path has been verified on `wondertales.art`. P0 is not fully green for external families until production OAuth/email flows, final operator/legal confirmations, and approved cleanup policy are finished.
 
 Completed or ready for closed-beta verification:
 
@@ -77,24 +77,23 @@ Completed or ready for closed-beta verification:
 - Child Mode now has scoped sessions, parent controls, child-safe story request enforcement, attribution, password and OAuth-only parent-gate fallbacks, start/return UI, child-safe story creation UI, allowed content selectors, and parent review workflow UI.
 - Scheduled orphan-file cleanup exists with disabled/dry-run defaults, retention-age gating, and launch-gate coverage.
 - API build, web type-check, web export, and `pnpm launch:gate` passed after the P0 fixes.
+- Production deploy path was exercised on 2026-05-02: API/webapp/nginx deployed, 15 pending migrations applied, production SSR pricing/legal/stories/sitemap routes smoke-tested, security headers captured, and DevTools live checks completed.
+- Production `www.wondertales.art` certificate coverage and canonical redirect to `wondertales.art` were fixed and verified.
+- Production API and Postgres ports are now bound to `127.0.0.1`; public access goes through nginx/TLS.
 
 Remaining P0 bottlenecks:
 
-- Production-only web checks are still required: `wondertales.art`, `www.wondertales.art`, HTTPS redirect, TLS certificate, real nginx/proxy behavior, and production SSR route status.
 - Google OAuth and password-reset email must be verified against production callback URLs, sender domain/DNS, and real email delivery. Apple is hidden on web, but native/mobile Apple remains out of this web launch scope.
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
-- CI/release gating now exists locally and in CI for API build, web type-check/export, critical tests, migration-file checks, and client-bundle secret scans; it still needs to be proven on the real production deployment path.
 
 Solutions not yet applied:
 
 - OAuth-only parent gate fallback is implemented locally for web Google re-auth and native Google/Apple token re-auth; production OAuth callback URLs still need live verification.
 - Scheduled orphan-file cleanup policy/job is implemented with disabled/dry-run defaults and a retention-age gate; production apply mode still requires live dry-run review and operator approval.
-- No production-domain secrets/client-bundle scan has been recorded after deploy.
-- No live production-domain CSP/security-header capture has been recorded after deploy.
 
 ### 1. Stabilize Public Web Routes
 
-Status on 2026-05-01: Partially ready; local/server code fixes are done, production verification remains.
+Status on 2026-05-02: Ready for closed-beta verification; local/server code fixes are done and production domain smoke checks passed.
 
 Done:
 
@@ -104,14 +103,14 @@ Done:
 - `robots.txt` and sitemap behavior were tightened to avoid indexing API/app-only paths.
 - Footer links now include legal, pricing, and support routes.
 - Public SSR pages now declare favicon/apple-touch-icon links, and dev nginx serves core public icon assets without requiring Metro.
+- Production `/`, `/en/`, `/pricing`, `/en/pricing`, `/terms`, `/en/terms`, `/privacy`, `/en/privacy`, `/stories`, `/sitemap.xml`, `/health`, and a sample public story returned expected statuses after deploy.
+- `www.wondertales.art` now has valid TLS and redirects to the apex domain.
 
 Remaining:
 
-- Re-run production `curl -I` and browser checks after deploy for `/`, `/en/`, `/pricing`, `/en/pricing`, `/terms`, `/privacy`, `/stories`, sample story pages, and unknown routes.
-- Confirm `www.wondertales.art` TLS/redirect behavior in production.
-- Keep `/stories` non-indexable until an SSR catalog exists; this is also tracked under P1 SEO routing.
+- Keep monitoring production SSR route logs during the first external beta window.
 
-Historical production findings that triggered this work and must be re-checked after deploy:
+Historical production findings that triggered this work and were re-checked after deploy:
 
 - `https://wondertales.art/pricing` timed out / returned `504`.
 - `https://wondertales.art/en/pricing` returned `502`.
@@ -120,7 +119,7 @@ Historical production findings that triggered this work and must be re-checked a
 - Unknown routes return the SPA shell with HTTP 200, creating soft-404s.
 - `robots.txt` currently allows all paths.
 
-Required work:
+Completed required work:
 
 - Fix `/pricing` and localized pricing routes.
 - Fix `/terms` and `/privacy`.
