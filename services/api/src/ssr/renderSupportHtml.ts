@@ -1,4 +1,5 @@
 import { config } from '../config';
+import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
 
 const SUPPORT_STYLES = `
@@ -49,6 +50,7 @@ export function renderSupportHtml(): string {
   <meta name="robots" content="noindex,follow">
   <title>Support — WonderTales</title>
   <meta name="description" content="Contact WonderTales support for account, billing, safety, privacy, and data requests.">
+  ${PUBLIC_HEAD_ASSET_LINKS}
   <link rel="canonical" href="${escapeHtml(supportUrl)}">
   <style>${SUPPORT_STYLES}</style>
 </head>

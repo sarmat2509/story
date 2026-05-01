@@ -2,6 +2,7 @@ import { config } from '../config';
 import type { PresentedPlan, PresentedPlanFeature } from '../services/planPresentationService';
 import { getPlansI18n } from '../utils/i18nLoader';
 import { LANDING_LOCALES, normalizeLandingLocale, type LandingLocale } from './landingContent';
+import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
 
 const FEATURE_ORDER = [
@@ -287,6 +288,7 @@ export function renderPricingHtml(params: {
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${escapeHtml(`${title} — WonderTales`)}">
   <meta name="twitter:description" content="${escapeHtml(subtitle)}">
+  ${PUBLIC_HEAD_ASSET_LINKS}
   <link rel="canonical" href="${escapeHtml(pricingUrl)}">
   ${alternateLinks}
   <style>${PRICING_STYLES}</style>

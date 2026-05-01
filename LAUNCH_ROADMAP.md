@@ -102,6 +102,7 @@ Done:
 - Unknown public routes and app-only routes received noindex/404 guardrails.
 - `robots.txt` and sitemap behavior were tightened to avoid indexing API/app-only paths.
 - Footer links now include legal, pricing, and support routes.
+- Public SSR pages now declare favicon/apple-touch-icon links, and dev nginx serves core public icon assets without requiring Metro.
 
 Remaining:
 

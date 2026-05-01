@@ -16,6 +16,7 @@ import {
   type LandingExampleStory,
   type LandingLocale,
 } from './landingContent';
+import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
 
 /** Plan with stories/audio/images limits for landing display */
@@ -687,6 +688,7 @@ export function renderLandingHtml(params?: {
   <meta name="twitter:title" content="${safeTitle}">
   <meta name="twitter:description" content="${safeDesc}">
   <meta name="twitter:image" content="${safeImage}">
+  ${PUBLIC_HEAD_ASSET_LINKS}
   <link rel="canonical" href="${safeUrl}">
   ${alternateLinks}`.trim();
 

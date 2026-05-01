@@ -74,6 +74,7 @@ services:
       - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d.dev:/etc/nginx/conf.d:ro
       - ./nginx/includes:/etc/nginx/includes:ro
+      - ./apps/universal-app/public:/usr/share/nginx/html:ro
     depends_on:
       - api
     # Allows nginx container to reach Metro server running on the host (port 8081)

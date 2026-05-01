@@ -8,6 +8,7 @@ import { join } from 'path';
 import { marked } from 'marked';
 import { DEFAULT_LOCALE, isValidLocale } from '@wondertales/shared';
 import { config } from '../config';
+import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
 
 const LEGAL_DIR = join(__dirname, '../legal');
@@ -92,6 +93,7 @@ export async function renderLegalHtml(options: RenderLegalOptions): Promise<stri
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>
   <meta name="description" content="${escapeHtml(description)}">
+  ${PUBLIC_HEAD_ASSET_LINKS}
   <style>${LEGAL_STYLES}</style>
 </head>
 <body>
