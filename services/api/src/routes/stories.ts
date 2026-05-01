@@ -1,6 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { requireAuth, requireParentSession, optionalAuth } from '../middleware/authMiddleware';
+import {
+  requireAuth,
+  requireChildSession,
+  requireParentSession,
+  requireSessionScope,
+  optionalAuth,
+} from '../middleware/authMiddleware';
 import { CreateStoryRequestSchema, LocaleSchema } from '@wondertales/shared';
 import { 
   createStoryRequest, 
@@ -35,6 +41,10 @@ import { getStoryCacheStats, getStoryCost, getStoryCostBreakdown } from '../serv
 import { isStoryQuotaError, releaseStoryQuotaReservationForRequest } from '../services/storyQuotaService';
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
 import { assertVoiceAccessForUser, isVoiceAccessError } from '../services/voiceAccessService';
+import {
+  assertChildStoryRequestAllowed,
+  ChildModePolicyError,
+} from '../services/childModePolicyService';
 import {
   isAudioQuotaError,
   releaseAudioQuotaReservationForStory,
@@ -112,6 +122,19 @@ function sendAudioQuotaError(res: Response, error: unknown): boolean {
     used: error.used,
     remaining: error.remaining,
     resetsAt: error.resetsAt?.toISOString() ?? null,
+  });
+  return true;
+}
+
+function sendChildModePolicyError(res: Response, error: unknown): boolean {
+  if (!(error instanceof ChildModePolicyError)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    message: error.message,
   });
   return true;
 }
@@ -339,6 +362,109 @@ router.post('/', requireAuth, requireParentSession, async (req: Request, res: Re
     });
   }
 });
+
+/**
+ * POST /api/v1/stories/child-mode
+ * Create a story request from a scoped child session.
+ */
+router.post(
+  '/child-mode',
+  requireAuth,
+  requireChildSession,
+  requireSessionScope('child_mode'),
+  async (req: Request, res: Response) => {
+    let requestId: string | undefined;
+    let queued = false;
+    try {
+      const validatedData = CreateStoryRequestSchema.parse(req.body);
+      const childProfileId = req.childProfileId!;
+      const parentUserId = req.parentUserId || req.user!.id;
+      const policyInput = {
+        ...validatedData,
+        childProfileId: validatedData.childProfileId ?? childProfileId,
+      };
+
+      const policyDecision = await assertChildStoryRequestAllowed({
+        parentUserId,
+        sessionChildProfileId: childProfileId,
+        input: policyInput,
+      });
+
+      assertStoryPromptSafety({
+        userId: parentUserId,
+        goal: validatedData.goal,
+        userNotes: validatedData.userNotes,
+        goalSource: 'child_mode_story_goal',
+        notesSource: 'child_mode_story_notes',
+      });
+
+      try {
+        await enforceUserJobLimit(parentUserId);
+      } catch (limitError) {
+        return res.status(429).json({
+          status: 'error',
+          message: (limitError as Error).message,
+        });
+      }
+
+      requestId = await createStoryRequest(parentUserId, {
+        ...validatedData,
+        childProfileId,
+      }, {
+        quotaSource: 'wizard',
+        createdByMode: 'child',
+        createdByChildProfileId: childProfileId,
+        parentReviewRequired: policyDecision.parentReviewRequired,
+      });
+
+      const jobId = await storyJobQueue.addJob(requestId);
+      queued = true;
+
+      logger.info({
+        userId: parentUserId,
+        childProfileId,
+        requestId,
+        jobId,
+        parentReviewRequired: policyDecision.parentReviewRequired,
+      }, 'Child Mode story request created');
+
+      res.status(201).json({
+        status: 'success',
+        request: {
+          id: requestId,
+          status: 'pending',
+          progress: 0,
+          createdAt: new Date().toISOString(),
+          createdByMode: 'child',
+          createdByChildProfileId: childProfileId,
+          parentReviewRequired: policyDecision.parentReviewRequired,
+        },
+      });
+    } catch (error) {
+      if (!queued) {
+        await releaseStoryQuotaReservationOnCreateFailure(requestId, error);
+      }
+      if (sendChildModePolicyError(res, error)) return;
+      if (sendPromptSafetyError(res, error)) return;
+      if (sendStoryQuotaError(res, error)) return;
+
+      logger.error({ err: error, userId: req.user?.id, childProfileId: req.childProfileId }, 'Create Child Mode story request failed');
+
+      if (error instanceof Error && 'issues' in error) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Validation failed',
+          errors: (error as any).issues,
+        });
+      }
+
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to create Child Mode story request',
+      });
+    }
+  }
+);
 
 /**
  * Select appropriate default image style based on age group (for instant mode)

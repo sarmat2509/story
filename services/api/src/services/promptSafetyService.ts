@@ -14,6 +14,8 @@ export type PromptSafetySource =
   | 'story_user_notes'
   | 'instant_story_goal'
   | 'instant_story_notes'
+  | 'child_mode_story_goal'
+  | 'child_mode_story_notes'
   | 'story_continuation_notes'
   | 'scene_regeneration_prompt';
 
@@ -169,10 +171,10 @@ export function assertStoryPromptSafety(input: {
   userId?: string;
   goal?: string | null;
   userNotes?: string | null;
-  goalSource?: Extract<PromptSafetySource, 'story_goal' | 'instant_story_goal'>;
+  goalSource?: Extract<PromptSafetySource, 'story_goal' | 'instant_story_goal' | 'child_mode_story_goal'>;
   notesSource?: Extract<
     PromptSafetySource,
-    'story_user_notes' | 'instant_story_notes' | 'story_continuation_notes'
+    'story_user_notes' | 'instant_story_notes' | 'child_mode_story_notes' | 'story_continuation_notes'
   >;
 }): void {
   assertPromptSafety({

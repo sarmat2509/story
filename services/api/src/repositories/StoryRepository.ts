@@ -609,6 +609,23 @@ export class StoryRepository {
     return Number(result[0]?.count ?? 0);
   }
 
+  async countChildCreatedRequestsSince(
+    userId: string,
+    childProfileId: string,
+    since: Date
+  ): Promise<number> {
+    const result = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.storyRequests)
+      .where(and(
+        eq(schema.storyRequests.userId, userId),
+        eq(schema.storyRequests.createdByMode, 'child'),
+        eq(schema.storyRequests.createdByChildProfileId, childProfileId),
+        gte(schema.storyRequests.createdAt, since)
+      ));
+    return Number(result[0]?.count ?? 0);
+  }
+
   /**
    * Lock and count active requests for a user (for concurrency limits).
    * Uses a subquery to avoid FOR UPDATE with aggregates.
