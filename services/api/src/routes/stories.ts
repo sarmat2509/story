@@ -35,6 +35,7 @@ import { getStoryCacheStats, getStoryCost, getStoryCostBreakdown } from '../serv
 import { isStoryQuotaError } from '../services/storyQuotaService';
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
 import { assertVoiceAccessForUser, isVoiceAccessError } from '../services/voiceAccessService';
+import { isAudioQuotaError, reserveAudioQuotaForStory } from '../services/audioQuotaReservationService';
 
 /**
  * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
@@ -77,6 +78,24 @@ function getChildDataConsentValue(body: Record<string, unknown>): unknown {
 
 function sendStoryQuotaError(res: Response, error: unknown): boolean {
   if (!isStoryQuotaError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    message: error.message,
+    featureSlug: error.featureSlug,
+    limit: error.limit,
+    used: error.used,
+    remaining: error.remaining,
+    resetsAt: error.resetsAt?.toISOString() ?? null,
+  });
+  return true;
+}
+
+function sendAudioQuotaError(res: Response, error: unknown): boolean {
+  if (!isAudioQuotaError(error)) {
     return false;
   }
 
@@ -1182,55 +1201,6 @@ router.post('/:id/audio', requireAuth, async (req: Request, res: Response) => {
 
     await assertVoiceAccessForUser(req.user!.id, voiceId);
     
-    // Check plan limits
-    const { getPlanFeatures, getUserSubscription } = await import('../services/planService');
-    const features = await getPlanFeatures(req.user!.id);
-    const subscription = await getUserSubscription(req.user!.id);
-    
-    if (features.audioStoriesPerMonth === 0) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Audio generation not available in your plan',
-        code: 'AUDIO_NOT_AVAILABLE'
-      });
-    }
-    
-    if (!subscription) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'No active subscription found',
-        code: 'NO_SUBSCRIPTION'
-      });
-    }
-    
-    const currentPeriodStart = subscription.currentPeriodStart;
-    const currentPeriodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
-    const { getUsageForPeriod } = await import('../services/usageEventsService');
-    const { getBundleBonusForPeriod } = await import('../services/bundleService');
-    const bundleBonus = await getBundleBonusForPeriod(
-      req.user!.id,
-      currentPeriodStart,
-      currentPeriodEnd
-    );
-    const effectiveAudioLimit = features.audioStoriesPerMonth + bundleBonus.extraAudio;
-    const audioUsed = await getUsageForPeriod(
-      req.user!.id,
-      currentPeriodStart,
-      currentPeriodEnd,
-      'audio_synthesized'
-    );
-
-    if (audioUsed >= effectiveAudioLimit) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'You have reached your monthly audio story limit',
-        code: 'AUDIO_LIMIT_EXCEEDED',
-        limit: effectiveAudioLimit,
-        used: audioUsed,
-        resetsAt: subscription.resetAt
-      });
-    }
-    
     // Enforce per-user concurrent job limit
     try {
       await enforceUserJobLimit(req.user!.id);
@@ -1240,6 +1210,10 @@ router.post('/:id/audio', requireAuth, async (req: Request, res: Response) => {
         message: (limitError as Error).message,
       });
     }
+
+    const audioQuotaReservation = await reserveAudioQuotaForStory(req.user!.id, storyId, {
+      source: 'manual',
+    });
     
     // Add job to queue
     const jobId = await storyJobQueue.addJob({
@@ -1253,8 +1227,10 @@ router.post('/:id/audio', requireAuth, async (req: Request, res: Response) => {
       userId: req.user!.id,
       storyId,
       jobId,
-      audioUsed,
-      audioLimit: effectiveAudioLimit,
+      audioQuotaReserved: audioQuotaReservation.reserved,
+      audioAlreadyReservedForStory: audioQuotaReservation.alreadyReservedForStory,
+      audioUsed: audioQuotaReservation.used,
+      audioLimit: audioQuotaReservation.limit,
     }, 'Audio generation job created');
     
     res.status(202).json({
@@ -1264,6 +1240,7 @@ router.post('/:id/audio', requireAuth, async (req: Request, res: Response) => {
     });
   } catch (error) {
     if (sendVoiceAccessError(res, error)) return;
+    if (sendAudioQuotaError(res, error)) return;
 
     logger.error({ err: error, userId: req.user?.id, storyId: req.params.id }, 'Audio generation request failed');
     res.status(500).json({
