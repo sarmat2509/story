@@ -1,5 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CreateChildProfileInput, ChildProfileApi } from '@wondertales/shared';
+import {
+  ChildModeSettingsInput,
+  ChildProfileApi,
+  CreateChildProfileInput,
+  UpdateChildModeControlsInput,
+} from '@wondertales/shared';
 import apiClient from './client';
 
 // Use shared type
@@ -12,6 +17,29 @@ export interface UseChildrenResult {
   children: ChildProfile[];
   limit: number | null;
   canCreateMore: boolean;
+}
+
+export interface ChildModeSettings extends Required<ChildModeSettingsInput> {}
+
+export interface ChildModeControls {
+  childModeEnabled: boolean;
+  childModeSettings: ChildModeSettings;
+  activeSessionCount: number;
+}
+
+export interface ChildModeSessionResponse {
+  token: string;
+  expiresAt: number;
+  child: Pick<ChildProfile, 'id' | 'name'>;
+  session: {
+    id: string;
+    mode: 'child';
+    parentUserId: string | null;
+    childProfileId: string | null;
+    scopes: string[];
+    expiresAt: string;
+  };
+  childMode: ChildModeControls;
 }
 
 // List child profiles
@@ -68,6 +96,71 @@ export const useUpdateChild = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['children'] });
+    },
+  });
+};
+
+export const useChildModeControls = (childId?: string) => {
+  return useQuery({
+    queryKey: ['children', childId, 'child-mode'],
+    enabled: Boolean(childId),
+    queryFn: async (): Promise<ChildModeControls> => {
+      const response = await apiClient.get<{ status: string; childMode: ChildModeControls }>(
+        `/api/v1/children/${childId}/child-mode`
+      );
+      return response.data.childMode;
+    },
+  });
+};
+
+export const useUpdateChildModeControls = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: UpdateChildModeControlsInput }) => {
+      const response = await apiClient.patch<{ status: string; childMode: ChildModeControls }>(
+        `/api/v1/children/${id}/child-mode`,
+        data
+      );
+      return response.data.childMode;
+    },
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['children'] });
+      queryClient.invalidateQueries({ queryKey: ['children', variables.id, 'child-mode'] });
+    },
+  });
+};
+
+export const useEnterChildMode = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.post<{ status: string } & ChildModeSessionResponse>(
+        `/api/v1/children/${id}/child-mode/sessions`
+      );
+      return response.data;
+    },
+    onSuccess: (_result, id) => {
+      queryClient.invalidateQueries({ queryKey: ['children'] });
+      queryClient.invalidateQueries({ queryKey: ['children', id, 'child-mode'] });
+    },
+  });
+};
+
+export const useRevokeChildModeSessions = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.delete<{ status: string; revokedCount: number }>(
+        `/api/v1/children/${id}/child-mode/sessions`
+      );
+      return response.data.revokedCount;
+    },
+    onSuccess: (_result, id) => {
+      queryClient.invalidateQueries({ queryKey: ['children'] });
+      queryClient.invalidateQueries({ queryKey: ['children', id, 'child-mode'] });
     },
   });
 };

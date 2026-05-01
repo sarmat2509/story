@@ -5,6 +5,7 @@ import { recordUsage } from './aiUsageService';
 import * as planService from './planService';
 import { collectEntityAssetPaths, deleteEntityAssets } from './entityAssetCleanupService';
 import { translateChildDescription } from './translationService';
+import { DEFAULT_CHILD_MODE_SETTINGS } from './childModeControlsService';
 
 // Age calculation helpers
 export interface AgeData {
@@ -80,6 +81,8 @@ export function buildDeletedChildProfileTombstone(): Partial<Omit<NewChildProfil
     clothing: null,
     distinctiveFeatures: null,
     turnaroundSheet: null,
+    childModeEnabled: false,
+    childModeSettings: DEFAULT_CHILD_MODE_SETTINGS,
     isActive: false,
   } as Partial<Omit<NewChildProfile, 'userId'>>;
 }

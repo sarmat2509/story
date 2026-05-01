@@ -81,12 +81,12 @@ Remaining P0 bottlenecks:
 - Production-only web checks are still required: `wondertales.art`, `www.wondertales.art`, HTTPS redirect, TLS certificate, real nginx/proxy behavior, and production SSR route status.
 - Google OAuth and password-reset email must be verified against production callback URLs, sender domain/DNS, and real email delivery. Apple is hidden on web, but native/mobile Apple remains out of this web launch scope.
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
-- Child Mode is currently fail-closed for dangerous actions. A full scoped child-mode product implementation is still not done: parent gate UI, child-safe scopes, parent controls, child-created-story metadata, and review state need schema/API/UI work.
+- Child Mode is currently fail-closed for dangerous actions. Parent-control storage/API and child-session entry/revocation now exist, but a full scoped child-mode product implementation is still not done: parent gate UI, child-safe generation enforcement, child-created-story metadata, and review state still need work.
 - CI/release gating now exists locally and in CI for API build, web type-check/export, critical tests, migration-file checks, and client-bundle secret scans; it still needs to be proven on the real production deployment path.
 
 Solutions not yet applied:
 
-- No complete parent-control policy engine for child sessions.
+- No complete parent-control policy engine applies child-mode settings to generation yet.
 - No scheduled production orphan-file cleanup policy/job is enabled yet; a dry-run scanner exists.
 - No production-domain secrets/client-bundle scan has been recorded after deploy.
 - No final CSP allowlist review against production analytics/payment/OAuth domains has been recorded.
@@ -320,7 +320,7 @@ Acceptance criteria:
 
 ### 6. Parent-Owned Child Mode
 
-Status on 2026-05-01: Safety fail-closed baseline is ready; full Child Mode product is not ready.
+Status on 2026-05-01: Safety fail-closed baseline and backend parent-control/session lifecycle foundation are ready; full Child Mode product is not ready.
 
 Done:
 
@@ -329,12 +329,15 @@ Done:
 - Billing endpoints, bundle checkout, customer portal, plan upgrade, and bundle catalog reject child sessions.
 - Child profile deletion revokes active child sessions for that profile.
 - Live smoke tests verified child sessions receive `PARENT_SESSION_REQUIRED` on plan/bundle and story-write routes.
+- Child profiles now store Child Mode enablement and parent-control settings.
+- Parent-only child-mode endpoints can read/update controls, enter Child Mode by creating a child session, and revoke active child sessions for a child profile.
+- `/children` includes normalized child-mode controls and active child-session counts.
 
 Remaining:
 
 - No child-safe generation endpoint/scoped authorization layer is implemented yet.
 - No parent gate UI/API for returning from Child Mode to Parent Mode is implemented.
-- No parent controls for daily/monthly caps, themes, languages, characters, free-text, audio, review, siblings, or shared-family viewing.
+- Parent controls are stored and exposed by API, but are not yet enforced in child-safe generation flows.
 - Child-created stories are not yet marked with `created_by_mode`, `created_by_child_profile_id`, or parent review state.
 - `/children` still needs the expanded family profile management UI for child-mode status, limits, and active sessions.
 

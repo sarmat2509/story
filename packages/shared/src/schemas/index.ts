@@ -217,6 +217,24 @@ export const CreateChildProfileSchema = BaseChildProfileSchema.refine(
 // Update schema: omit referencePhotos (read-only on edit)
 export const UpdateChildProfileSchema = BaseChildProfileSchema.omit({ referencePhotos: true }).partial();
 
+export const ChildModeSettingsSchema = z.object({
+  dailyGenerationLimit: z.number().int().min(0).max(100).nullable().optional(),
+  monthlyGenerationLimit: z.number().int().min(0).max(1000).nullable().optional(),
+  allowedThemeSlugs: z.array(z.string().min(1).max(80)).max(50).optional(),
+  allowedLanguageCodes: z.array(LocaleSchema).max(10).optional(),
+  allowedCharacterIds: z.array(z.string().uuid()).max(50).optional(),
+  freeTextPromptsEnabled: z.boolean().optional(),
+  audioGenerationEnabled: z.boolean().optional(),
+  parentReviewRequired: z.boolean().optional(),
+  allowSiblingCharacters: z.boolean().optional(),
+  allowSharedFamilyStories: z.boolean().optional(),
+});
+
+export const UpdateChildModeControlsSchema = z.object({
+  childModeEnabled: z.boolean().optional(),
+  childModeSettings: ChildModeSettingsSchema.optional(),
+});
+
 // Character Schemas (Type-specific)
 
 // Base character schema
@@ -349,6 +367,8 @@ export const UpdateCharacterSchema = BaseCharacterSchema.omit({ referencePhotos:
 // Type exports
 export type CreateChildProfileInput = z.infer<typeof CreateChildProfileSchema>;
 export type UpdateChildProfileInput = z.infer<typeof UpdateChildProfileSchema>;
+export type ChildModeSettingsInput = z.infer<typeof ChildModeSettingsSchema>;
+export type UpdateChildModeControlsInput = z.infer<typeof UpdateChildModeControlsSchema>;
 export type CreateCharacterInput = z.infer<typeof CreateCharacterSchema>;
 export type UpdateCharacterInput = z.infer<typeof UpdateCharacterSchema>;
 

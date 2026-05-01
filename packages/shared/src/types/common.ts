@@ -41,6 +41,22 @@ export interface ChildProfileData {
   sensitivities?: any;
   familyCast?: any;
   isActive: boolean;
+  childModeEnabled?: boolean;
+  childModeSettings?: ChildModeSettings;
+  childModeActiveSessionCount?: number;
+}
+
+export interface ChildModeSettings {
+  dailyGenerationLimit: number | null;
+  monthlyGenerationLimit: number | null;
+  allowedThemeSlugs: string[];
+  allowedLanguageCodes: string[];
+  allowedCharacterIds: string[];
+  freeTextPromptsEnabled: boolean;
+  audioGenerationEnabled: boolean;
+  parentReviewRequired: boolean;
+  allowSiblingCharacters: boolean;
+  allowSharedFamilyStories: boolean;
 }
 
 /**

@@ -25,6 +25,7 @@ API_TESTS=(
   src/services/__tests__/audioQuotaReservationService.test.ts
   src/services/__tests__/bundlePeriodOverlap.test.ts
   src/services/__tests__/childProfileService.test.ts
+  src/services/__tests__/childModeControlsService.test.ts
   src/services/__tests__/consentService.test.ts
   src/services/__tests__/dataPrivacyRequestService.test.ts
   src/services/__tests__/orphanStorageCleanupService.test.ts

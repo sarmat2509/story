@@ -334,6 +334,19 @@ export const childProfiles = pgTable('child_profiles', {
   clothing: jsonb('clothing'), // Structured clothing data
   distinctiveFeatures: jsonb('distinctive_features'), // Array of distinctive features
   turnaroundSheet: jsonb('turnaround_sheet'), // { url, generatedAt, sourcePhotoUrl } for 3D turnaround model sheet
+  childModeEnabled: boolean('child_mode_enabled').notNull().default(false),
+  childModeSettings: jsonb('child_mode_settings').notNull().default({
+    dailyGenerationLimit: null,
+    monthlyGenerationLimit: null,
+    allowedThemeSlugs: [],
+    allowedLanguageCodes: [],
+    allowedCharacterIds: [],
+    freeTextPromptsEnabled: false,
+    audioGenerationEnabled: false,
+    parentReviewRequired: true,
+    allowSiblingCharacters: false,
+    allowSharedFamilyStories: false,
+  }),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -341,6 +354,7 @@ export const childProfiles = pgTable('child_profiles', {
   return {
     userIdIdx: index('child_profiles_user_id_idx').on(table.userId),
     birthDateIdx: index('child_profiles_birth_date_idx').on(table.birthDate),
+    childModeEnabledIdx: index('child_profiles_child_mode_enabled_idx').on(table.childModeEnabled),
     isActiveIdx: index('child_profiles_is_active_idx').on(table.isActive),
   };
 });

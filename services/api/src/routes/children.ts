@@ -1,10 +1,13 @@
 import { Router } from 'express';
 import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import * as childProfileService from '../services/childProfileService';
+import * as childModeControlsService from '../services/childModeControlsService';
 import * as planService from '../services/planService';
-import { CreateChildProfileSchema, UpdateChildProfileSchema } from '@wondertales/shared';
+import { CreateChildProfileSchema, UpdateChildModeControlsSchema, UpdateChildProfileSchema } from '@wondertales/shared';
 import { logger } from '../utils/logger';
 import { sanitizeChildProfileBody, sanitizeAnalysisAppearance } from '../utils/sanitizeChildProfile';
+import { generateToken } from '../services/jwtService';
+import { setSessionCookie } from '../utils/sessionCookie';
 
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
@@ -49,6 +52,41 @@ function sendStoryFromDrawingAccessError(res: Parameters<typeof requireAuth>[1],
     featureSlug: error.featureSlug,
   });
   return true;
+}
+
+function sendChildModeError(res: Parameters<typeof requireAuth>[1], error: unknown): boolean {
+  if (!(error instanceof childModeControlsService.ChildModeError)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    error: error.message,
+  });
+  return true;
+}
+
+function extractDeviceInfo(req: Parameters<typeof requireAuth>[0]) {
+  const userAgent = req.headers['user-agent'] || '';
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const ipAddress =
+    (typeof forwardedFor === 'string' ? forwardedFor.split(',')[0]?.trim() : null) ||
+    req.socket.remoteAddress ||
+    '';
+
+  let deviceType: 'ios' | 'android' | 'web' = 'web';
+  let deviceName = 'Child Mode Web';
+
+  if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
+    deviceType = 'ios';
+    deviceName = userAgent.includes('iPad') ? 'Child Mode iPad' : 'Child Mode iPhone';
+  } else if (userAgent.includes('Android')) {
+    deviceType = 'android';
+    deviceName = 'Child Mode Android';
+  }
+
+  return { deviceType, deviceName, ipAddress, userAgent };
 }
 
 // Initialize analysis service
@@ -174,11 +212,21 @@ router.get('/', requireAuth, requireParentSession, async (req, res) => {
     // Get limit for display
     const limit = await planService.getFeatureLimit(userId, 'child_profiles_limit');
     const canCreateMore = limit === null || profiles.length < limit;
+    const childModeSessionCounts = await childModeControlsService.getChildModeSessionCounts(
+      profiles.map((profile) => profile.id)
+    );
     
     const profilesWithAge = profiles.map(profile => {
       const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
+      const childModeControls = childModeControlsService.buildChildModeControls(
+        profile,
+        childModeSessionCounts.get(profile.id) || 0
+      );
       return {
         ...profile,
+        childModeEnabled: childModeControls.childModeEnabled,
+        childModeSettings: childModeControls.childModeSettings,
+        childModeActiveSessionCount: childModeControls.activeSessionCount,
         age: {
           years: ageData.ageYears,
           months: ageData.remainingMonths,
@@ -327,6 +375,118 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
     res.status(500).json({
       status: 'error',
       error: 'Failed to create child profile'
+    });
+  }
+});
+
+// GET /api/v1/children/:id/child-mode - Get Child Mode controls
+router.get('/:id/child-mode', requireAuth, requireParentSession, async (req, res) => {
+  try {
+    const controls = await childModeControlsService.getChildModeControls(req.user!.id, req.params.id);
+    res.json({
+      status: 'success',
+      childMode: controls,
+    });
+  } catch (error) {
+    if (sendChildModeError(res, error)) return;
+    logger.error({ error, userId: req.user?.id, childId: req.params.id }, 'Error fetching child mode controls');
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to fetch child mode controls',
+    });
+  }
+});
+
+// PATCH /api/v1/children/:id/child-mode - Update Child Mode controls
+router.patch('/:id/child-mode', requireAuth, requireParentSession, async (req, res) => {
+  try {
+    const validation = UpdateChildModeControlsSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({
+        status: 'error',
+        error: 'Validation failed',
+        details: validation.error.format(),
+      });
+    }
+
+    const controls = await childModeControlsService.updateChildModeControls(
+      req.user!.id,
+      req.params.id,
+      validation.data
+    );
+
+    res.json({
+      status: 'success',
+      childMode: controls,
+    });
+  } catch (error) {
+    if (sendChildModeError(res, error)) return;
+    logger.error({ error, userId: req.user?.id, childId: req.params.id }, 'Error updating child mode controls');
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to update child mode controls',
+    });
+  }
+});
+
+// POST /api/v1/children/:id/child-mode/sessions - Enter Child Mode for this child
+router.post('/:id/child-mode/sessions', requireAuth, requireParentSession, async (req, res) => {
+  try {
+    const { profile, session } = await childModeControlsService.createChildModeSession({
+      userId: req.user!.id,
+      childProfileId: req.params.id,
+      ...extractDeviceInfo(req),
+    });
+    const token = generateToken({
+      userId: req.user!.id,
+      sessionId: session.id,
+    });
+
+    setSessionCookie(res, token);
+    const controls = await childModeControlsService.getChildModeControls(req.user!.id, req.params.id);
+
+    res.status(201).json({
+      status: 'success',
+      token,
+      expiresAt: session.expiresAt.getTime(),
+      child: {
+        id: profile.id,
+        name: profile.name,
+      },
+      session: {
+        id: session.id,
+        mode: session.mode,
+        parentUserId: session.parentUserId,
+        childProfileId: session.childProfileId,
+        scopes: session.scopes,
+        expiresAt: session.expiresAt,
+      },
+      childMode: controls,
+    });
+  } catch (error) {
+    if (sendChildModeError(res, error)) return;
+    logger.error({ error, userId: req.user?.id, childId: req.params.id }, 'Error creating child mode session');
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to create child mode session',
+    });
+  }
+});
+
+// DELETE /api/v1/children/:id/child-mode/sessions - Revoke active Child Mode sessions
+router.delete('/:id/child-mode/sessions', requireAuth, requireParentSession, async (req, res) => {
+  try {
+    const revokedCount = await childModeControlsService.revokeChildModeSessions(req.user!.id, req.params.id);
+    res.json({
+      status: 'success',
+      revokedCount,
+    });
+  } catch (error) {
+    if (sendChildModeError(res, error)) return;
+    logger.error({ error, userId: req.user?.id, childId: req.params.id }, 'Error revoking child mode sessions');
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to revoke child mode sessions',
     });
   }
 });

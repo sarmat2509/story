@@ -1,4 +1,4 @@
-import { eq, and, lt, gt, desc, isNull, or } from 'drizzle-orm';
+import { eq, and, lt, gt, desc, isNull, or, inArray, count } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -76,6 +76,30 @@ export class SessionRepository {
         isNull(schema.sessions.revokedAt)
       ))
       .orderBy(desc(schema.sessions.lastActiveAt));
+  }
+
+  async countActiveChildSessionsByProfileIds(childProfileIds: string[]): Promise<Map<string, number>> {
+    if (childProfileIds.length === 0) return new Map();
+
+    const rows = await this.db
+      .select({
+        childProfileId: schema.sessions.childProfileId,
+        count: count(),
+      })
+      .from(schema.sessions)
+      .where(and(
+        eq(schema.sessions.mode, 'child'),
+        inArray(schema.sessions.childProfileId, childProfileIds),
+        gt(schema.sessions.expiresAt, new Date()),
+        isNull(schema.sessions.revokedAt)
+      ))
+      .groupBy(schema.sessions.childProfileId);
+
+    return new Map(
+      rows
+        .filter((row): row is { childProfileId: string; count: number } => typeof row.childProfileId === 'string')
+        .map((row) => [row.childProfileId, Number(row.count)])
+    );
   }
 
   async updateLastActive(token: string): Promise<void> {
