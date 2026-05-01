@@ -17,6 +17,38 @@ DROPLET_PATH="/var/www/kazka"
 echo "🚀 Starting webapp deployment..."
 echo "   Project root: $PROJECT_ROOT"
 
+sync_nginx_config() {
+  echo "🔧 Syncing nginx and compose config..."
+  local nginx_tarball="/tmp/kazka-nginx-config.tar.gz"
+
+  COPYFILE_DISABLE=1 tar -czf "$nginx_tarball" \
+    docker-compose.prod.yml \
+    nginx/nginx.conf \
+    nginx/conf.d \
+    nginx/includes \
+    apps/universal-app/nginx.conf
+
+  ssh ${DROPLET_USER}@${DROPLET_IP} "mkdir -p ${DROPLET_PATH}/nginx/conf.d ${DROPLET_PATH}/nginx/includes ${DROPLET_PATH}/apps/universal-app"
+  scp "$nginx_tarball" ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/
+  rm -f "$nginx_tarball"
+
+  ssh ${DROPLET_USER}@${DROPLET_IP} << EOF
+cd ${DROPLET_PATH}
+tar -xzf kazka-nginx-config.tar.gz
+rm -f kazka-nginx-config.tar.gz
+docker run --rm \
+  --add-host api:127.0.0.1 \
+  --add-host webapp:127.0.0.1 \
+  -v ${DROPLET_PATH}/nginx/nginx.conf:/etc/nginx/nginx.conf:ro \
+  -v ${DROPLET_PATH}/nginx/conf.d:/etc/nginx/conf.d:ro \
+  -v ${DROPLET_PATH}/nginx/includes:/etc/nginx/includes:ro \
+  -v ${DROPLET_PATH}/certbot/conf:/etc/letsencrypt:ro \
+  -v ${DROPLET_PATH}/certbot/www:/var/www/certbot:ro \
+  nginx:alpine nginx -t
+docker compose -f docker-compose.prod.yml up -d --force-recreate nginx
+EOF
+}
+
 # 1. Build webapp locally (clear all caches to avoid stale builds)
 echo "📦 Building webapp locally..."
 cd apps/universal-app
@@ -60,8 +92,11 @@ cd "$PROJECT_ROOT"
 echo "⬆️  Uploading to droplet..."
 scp apps/universal-app/dist.tar.gz ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/
 
-# 5. Extract on droplet and restart
-echo "🔄 Extracting and restarting services..."
+# 5. Sync nginx/compose before recreating webapp, so new volume mounts apply
+sync_nginx_config
+
+# 6. Extract on droplet and recreate
+echo "🔄 Extracting and recreating services..."
 ssh ${DROPLET_USER}@${DROPLET_IP} << 'EOF'
 cd /var/www/kazka
 mkdir -p apps/universal-app
@@ -73,12 +108,11 @@ if [ -e dist ]; then
   rm -rf dist
   ln -sfn apps/universal-app/dist dist
 fi
-docker compose -f docker-compose.prod.yml restart webapp
-docker compose -f docker-compose.prod.yml restart nginx
+docker compose -f docker-compose.prod.yml up -d --force-recreate webapp
 docker compose -f docker-compose.prod.yml ps
 EOF
 
-# 6. Cleanup
+# 7. Cleanup
 echo "🧹 Cleaning up..."
 rm apps/universal-app/dist.tar.gz
 

@@ -435,7 +435,9 @@ deploy_webapp() {
   scp -o ControlPath=${SSH_CONTROL_PATH} apps/universal-app/dist.tar.gz ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/
   rm apps/universal-app/dist.tar.gz
 
-  print_step "Extracting and restarting webapp..."
+  sync_nginx_config
+
+  print_step "Extracting and recreating webapp..."
   ssh_droplet << 'EOF'
 cd /var/www/kazka
 mkdir -p apps/universal-app
@@ -446,10 +448,9 @@ if [ -e dist ]; then
   rm -rf dist
   ln -sfn apps/universal-app/dist dist
 fi
-docker compose -f docker-compose.prod.yml restart webapp
+docker compose -f docker-compose.prod.yml up -d --force-recreate webapp
 EOF
 
-  sync_nginx_config
   echo "✅ Webapp deployed"
 }
 

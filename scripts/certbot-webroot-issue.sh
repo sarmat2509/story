@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Issue Let's Encrypt cert via webroot (HTTP-01). Intended to run ON THE DROPLET
-# from /var/www/kazka after: DNS A for wondertales.art → this host, port 80 open,
+# from /var/www/kazka after: DNS A/AAAA for wondertales.art and www → this host, port 80 open,
 # nginx container up (serves /.well-known/acme-challenge/ from certbot/www).
 #
 # Usage on server:
@@ -35,9 +35,7 @@ if [[ ! -d "${DROPLET_PATH}/certbot/conf" || ! -d "${DROPLET_PATH}/certbot/www" 
   exit 1
 fi
 
-DOMAINS=( -d wondertales.art )
-# Uncomment if DNS + nginx cover www:
-# DOMAINS+=( -d www.wondertales.art )
+DOMAINS=( -d wondertales.art -d www.wondertales.art )
 
 echo "Using webroot: ${DROPLET_PATH}/certbot/www"
 echo "Using LE config: ${DROPLET_PATH}/certbot/conf"
@@ -50,6 +48,7 @@ docker run --rm \
   certbot/certbot certonly \
   --webroot -w /var/www/certbot \
   "${DOMAINS[@]}" \
+  --expand \
   --email "${EMAIL}" \
   --agree-tos \
   -n \
