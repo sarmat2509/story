@@ -889,6 +889,12 @@ Required work:
 - Verify logs and error monitoring.
 - Verify admin/support access.
 
+Completed locally:
+
+- Public story SSR Redis cache runtime dependency is now declared in the API package.
+- Dev API image was rebuilt and verified to initialize Redis successfully after an SSR story request.
+- Docker log checks are now part of the local launch verification loop for each batch.
+
 Acceptance criteria:
 
 - Restore plan exists for database and uploaded/generated files.
