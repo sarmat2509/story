@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { calculateAudioQuota } from '../audioQuotaReservationService';
+import { getQuotaReservationReleaseQuantity } from '../quotaReservationReleaseUtils';
 
 assert.deepStrictEqual(
   calculateAudioQuota({
@@ -75,6 +76,18 @@ assert.deepStrictEqual(
     remaining: null,
   },
   'missing numeric audio feature limit preserves unlimited behavior'
+);
+
+assert.equal(
+  getQuotaReservationReleaseQuantity(1),
+  -1,
+  'audio reservation release uses a compensating negative usage event'
+);
+
+assert.equal(
+  getQuotaReservationReleaseQuantity(-1),
+  0,
+  'audio reservation release is idempotent after a prior release'
 );
 
 console.log('audioQuotaReservationService tests passed');

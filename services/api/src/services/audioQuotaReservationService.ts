@@ -2,6 +2,11 @@ import { and, eq, gt, gte, lt, sql } from 'drizzle-orm';
 import { getStoryRepository } from '../repositories';
 import * as schema from '../db/schema';
 import { logger } from '../utils/logger';
+import {
+  getQuotaReservationReleaseQuantity,
+  truncateQuotaReleaseErrorMessage,
+  type QuotaReservationReleaseReason,
+} from './quotaReservationReleaseUtils';
 
 export type AudioQuotaReservationSource = 'manual';
 
@@ -273,6 +278,83 @@ export async function reserveAudioQuotaForStory(
       used: currentUsage + 1,
       remaining: quota.remaining === null ? null : Math.max(0, quota.remaining - 1),
       resetsAt: periodEnd,
+    };
+  });
+}
+
+export async function releaseAudioQuotaReservationForStory(
+  userId: string,
+  storyId: string,
+  options: {
+    reason: QuotaReservationReleaseReason;
+    errorMessage?: string;
+  }
+): Promise<{
+  released: boolean;
+  netReserved: number;
+  skippedReason?: 'no_active_reservation';
+}> {
+  const storyRepo = getStoryRepository();
+
+  return storyRepo.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`audio_quota:${userId}`})::bigint)`);
+
+    const [reservationRow] = await tx
+      .select({
+        netReserved: sql<number>`COALESCE(SUM(${schema.usageEvents.quantity}), 0)::integer`,
+      })
+      .from(schema.usageEvents)
+      .where(
+        and(
+          eq(schema.usageEvents.userId, userId),
+          eq(schema.usageEvents.eventType, 'audio_synthesized'),
+          sql`(${schema.usageEvents.metadata}->>'storyId') = ${storyId}`,
+          sql`(${schema.usageEvents.metadata}->>'quotaReservation') = 'true'`
+        )
+      );
+
+    const netReserved = Number(reservationRow?.netReserved ?? 0);
+    const releaseQuantity = getQuotaReservationReleaseQuantity(netReserved);
+    if (releaseQuantity === 0) {
+      return {
+        released: false,
+        netReserved,
+        skippedReason: 'no_active_reservation' as const,
+      };
+    }
+
+    const errorMessage = truncateQuotaReleaseErrorMessage(options.errorMessage);
+    await tx.insert(schema.usageEvents).values({
+      userId,
+      childProfileId: null,
+      eventType: 'audio_synthesized',
+      resourceType: 'audio',
+      quantity: releaseQuantity,
+      metadata: {
+        storyId,
+        quotaReservation: true,
+        quotaReservationRelease: true,
+        releaseReason: options.reason,
+        releasedAt: new Date().toISOString(),
+        reservationBehavior: 'released_on_downstream_failure',
+        ...(errorMessage && { errorMessage }),
+      },
+    });
+
+    logger.info(
+      {
+        userId,
+        storyId,
+        netReservedBeforeRelease: netReserved,
+        releaseQuantity,
+        reason: options.reason,
+      },
+      'Released monthly audio story quota reservation'
+    );
+
+    return {
+      released: true,
+      netReserved,
     };
   });
 }

@@ -69,6 +69,7 @@ Completed or ready for closed-beta verification:
 - Legal pages and consent gates exist for the current beta flow.
 - Private asset access is enforced for generated and uploaded child-related assets.
 - Story, audio, bundle, premium voice, child-profile, image-count, and story-from-drawing limits are now enforced server-side.
+- Story/audio quota reservations now release through compensating usage events when queue enqueue or final generation fails before a usable artifact is created.
 - Prompt, generated-text, generated-image, photo-input, and publishing safety gates are in place.
 - Story/account/child-profile deletion behavior was hardened and documented.
 - Parent-session guards now block child sessions from billing, plan actions, profile editing, uploads, and story writes.
@@ -85,7 +86,6 @@ Remaining P0 bottlenecks:
 
 Solutions not yet applied:
 
-- No automated refund/release of story/audio quota reservations for failed jobs; the current behavior is documented as "consumed on queue acceptance".
 - No complete parent-control policy engine for child sessions.
 - No support/admin workflow for data export requests and no background orphan-file cleanup job.
 - No production secrets/client-bundle scan has been recorded.
@@ -222,13 +222,15 @@ Acceptance criteria:
 
 ### 4. Server-Side Quota Enforcement
 
-Status on 2026-05-01: Core API enforcement is ready; reservation/refund semantics are documented but not automated.
+Status on 2026-05-01: Core API enforcement is ready; reservation release is implemented for queue enqueue failures and permanent generation failures before a usable story/audio artifact is created.
 
 Done:
 
 - Story creation now uses atomic monthly quota reservation with bundle support before queueing.
 - Bundle grants use half-open billing period overlap, with a boundary test for exact period handoff.
 - Audio generation now reserves `audio_synthesized` quota before queueing and uses a per-user advisory lock.
+- Story and audio reservation release now uses append-only compensating `usage_events` rows with `quantity: -1`, preserving audit history without destructive updates.
+- Queue permanent-failure hooks release story/audio quota only after retries are exhausted; enqueue failures release immediately.
 - Images-per-story limits are enforced in generation planning.
 - Child profile count is enforced server-side.
 - Premium voice access is enforced in API and service/job paths.
@@ -238,7 +240,7 @@ Done:
 Remaining:
 
 - Error codes are user-safe, but not all quota/paywall messages are localized in the app.
-- Failed jobs currently consume story/audio quota when the request is accepted for queueing; this is documented but no automatic refund/release mechanism exists.
+- Live provider failure paths still need production smoke verification to observe release behavior with real queue retries and provider errors.
 - Child-mode generation is fail-closed for now; scoped child quota controls still need the Child Mode implementation.
 
 The UI paywall is not enough. Story generation, audio generation, images per story, premium voices, child profile count, story-from-drawing, and bundles must be enforced by the API.
@@ -275,7 +277,7 @@ Acceptance criteria:
 - Concurrent requests cannot exceed quota.
 - Bundle bonuses increase the effective story/audio limit only for the intended billing period.
 - Bundle bonuses stop applying at the exact next billing period boundary.
-- Failed jobs do not incorrectly consume final quota, or the refund/reservation behavior is documented and tested.
+- Failed pre-artifact jobs do not incorrectly consume final quota; reservation release behavior is documented and covered by targeted quota tests.
 - Usage shown in the UI matches server-side accounting.
 
 ### 5. Account, Auth, and Recovery

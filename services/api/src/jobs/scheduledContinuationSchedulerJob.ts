@@ -7,7 +7,7 @@ import { logger } from '../utils/logger';
 import { getStoryRepository } from '../repositories';
 import { createContinuationRequest } from '../services/storyOrchestrationService';
 import { getOrCreateSeries } from '../services/seriesService';
-import { isStoryQuotaError } from '../services/storyQuotaService';
+import { isStoryQuotaError, releaseStoryQuotaReservationForRequest } from '../services/storyQuotaService';
 import { textQueue } from './storyJobProcessor';
 
 const CADENCE_DAYS: Record<string, number> = {
@@ -30,6 +30,8 @@ export async function runScheduledContinuationScheduler(): Promise<void> {
   logger.info({ count: due.length }, 'Scheduled continuation scheduler: processing due schedules');
 
   for (const schedule of due) {
+    let requestId: string | undefined;
+    let queued = false;
     try {
       const series = await getStoryRepository().findSeriesById(schedule.seriesId);
       if (!series || !series.storyIds?.length) {
@@ -50,7 +52,7 @@ export async function runScheduledContinuationScheduler(): Promise<void> {
         ? await getStoryRepository().findRequestById(story.storyRequestId)
         : null;
 
-      const requestId = await createContinuationRequest(schedule.userId, {
+      requestId = await createContinuationRequest(schedule.userId, {
         language: story.language,
         ageGroup: story.ageGroup,
         childProfileId: story.childProfileId,
@@ -72,6 +74,7 @@ export async function runScheduledContinuationScheduler(): Promise<void> {
         requestId,
         isContinuation: true,
       });
+      queued = true;
 
       const days = CADENCE_DAYS[schedule.cadence] ?? 1;
       const nextRun = new Date(schedule.nextRunAt);
@@ -81,6 +84,20 @@ export async function runScheduledContinuationScheduler(): Promise<void> {
 
       logger.info({ scheduleId: schedule.id, requestId, nextRun: nextRun.toISOString() }, 'Scheduled continuation created');
     } catch (err) {
+      if (requestId && !queued) {
+        try {
+          await releaseStoryQuotaReservationForRequest(requestId, {
+            reason: 'queue_enqueue_failed',
+            errorMessage: err instanceof Error ? err.message : String(err),
+          });
+        } catch (releaseErr) {
+          logger.error(
+            { err: releaseErr, requestId, scheduleId: schedule.id },
+            'Failed to release scheduled continuation quota reservation after queue failure'
+          );
+        }
+      }
+
       if (isStoryQuotaError(err)) {
         logger.warn(
           { scheduleId: schedule.id, userId: schedule.userId, code: err.code },

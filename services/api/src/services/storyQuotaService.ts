@@ -2,6 +2,11 @@ import { and, eq, gt, gte, lt, sql } from 'drizzle-orm';
 import { getStoryRepository } from '../repositories';
 import * as schema from '../db/schema';
 import { logger } from '../utils/logger';
+import {
+  getQuotaReservationReleaseQuantity,
+  truncateQuotaReleaseErrorMessage,
+  type QuotaReservationReleaseReason,
+} from './quotaReservationReleaseUtils';
 
 export type StoryQuotaReservationSource =
   | 'wizard'
@@ -232,6 +237,140 @@ export async function createStoryRequestWithQuotaReservation(
       requestId: request.id,
       limit: quota.effectiveLimit,
       remaining: quota.remaining === null ? null : Math.max(0, quota.remaining - 1),
+    };
+  });
+}
+
+export async function releaseStoryQuotaReservationForRequest(
+  requestId: string,
+  options: {
+    reason: QuotaReservationReleaseReason;
+    errorMessage?: string;
+  }
+): Promise<{
+  released: boolean;
+  netReserved: number;
+  userId: string | null;
+  skippedReason?: 'request_not_found' | 'story_already_created' | 'no_active_reservation';
+}> {
+  const storyRepo = getStoryRepository();
+
+  return storyRepo.transaction(async (tx) => {
+    const [request] = await tx
+      .select({
+        id: schema.storyRequests.id,
+        userId: schema.storyRequests.userId,
+        childProfileId: schema.storyRequests.childProfileId,
+        status: schema.storyRequests.status,
+        storyId: schema.storyRequests.storyId,
+      })
+      .from(schema.storyRequests)
+      .where(eq(schema.storyRequests.id, requestId))
+      .limit(1);
+
+    if (!request) {
+      return {
+        released: false,
+        netReserved: 0,
+        userId: null,
+        skippedReason: 'request_not_found' as const,
+      };
+    }
+
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`story_quota:${request.userId}`})::bigint)`);
+
+    const [completedStory] = await tx
+      .select({
+        id: schema.stories.id,
+        title: schema.stories.title,
+        fullText: schema.stories.fullText,
+      })
+      .from(schema.stories)
+      .where(eq(schema.stories.storyRequestId, requestId))
+      .limit(1);
+
+    if (
+      completedStory &&
+      completedStory.title !== 'Generating...' &&
+      completedStory.fullText.trim().length > 0
+    ) {
+      logger.info(
+        {
+          requestId,
+          userId: request.userId,
+          storyId: completedStory.id,
+          reason: options.reason,
+        },
+        'Skipped story quota reservation release because story was already created'
+      );
+      return {
+        released: false,
+        netReserved: 0,
+        userId: request.userId,
+        skippedReason: 'story_already_created' as const,
+      };
+    }
+
+    const [reservationRow] = await tx
+      .select({
+        netReserved: sql<number>`COALESCE(SUM(${schema.usageEvents.quantity}), 0)::integer`,
+      })
+      .from(schema.usageEvents)
+      .where(
+        and(
+          eq(schema.usageEvents.userId, request.userId),
+          eq(schema.usageEvents.eventType, 'story_created'),
+          sql`(${schema.usageEvents.metadata}->>'requestId') = ${requestId}`,
+          sql`(${schema.usageEvents.metadata}->>'quotaReservation') = 'true'`
+        )
+      );
+
+    const netReserved = Number(reservationRow?.netReserved ?? 0);
+    const releaseQuantity = getQuotaReservationReleaseQuantity(netReserved);
+    if (releaseQuantity === 0) {
+      return {
+        released: false,
+        netReserved,
+        userId: request.userId,
+        skippedReason: 'no_active_reservation' as const,
+      };
+    }
+
+    const errorMessage = truncateQuotaReleaseErrorMessage(options.errorMessage);
+    await tx.insert(schema.usageEvents).values({
+      userId: request.userId,
+      childProfileId: request.childProfileId ?? null,
+      eventType: 'story_created',
+      resourceType: 'story',
+      quantity: releaseQuantity,
+      metadata: {
+        requestId,
+        ...(request.storyId && { storyId: request.storyId }),
+        quotaReservation: true,
+        quotaReservationRelease: true,
+        releaseReason: options.reason,
+        releasedAt: new Date().toISOString(),
+        reservationBehavior: 'released_on_downstream_failure',
+        originalRequestStatus: request.status,
+        ...(errorMessage && { errorMessage }),
+      },
+    });
+
+    logger.info(
+      {
+        requestId,
+        userId: request.userId,
+        netReservedBeforeRelease: netReserved,
+        releaseQuantity,
+        reason: options.reason,
+      },
+      'Released monthly story quota reservation'
+    );
+
+    return {
+      released: true,
+      netReserved,
+      userId: request.userId,
     };
   });
 }

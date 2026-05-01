@@ -21,7 +21,6 @@ Reviewed the P0 launch section in `LAUNCH_ROADMAP.md` against the recent impleme
 
 ## Solutions Not Yet Applied
 
-- Automatic refund/release for queued story/audio quota reservations when downstream generation fails.
 - Full child-mode parent-control engine, including scoped generation permissions and review states.
 - Support/admin export workflows and periodic orphaned asset cleanup.
 - Final production secrets/client-bundle scan and CSP allowlist review.

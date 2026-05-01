@@ -49,6 +49,7 @@ export interface ConcurrentJobQueueOptions<T extends BaseJob> {
   maxConcurrency: number | (() => number);
   processor: (job: T) => Promise<void>;
   groupKeyFn?: (job: T) => string;
+  onPermanentFailure?: (job: T, error: unknown) => Promise<void> | void;
   maxRetries?: number;
   pollIntervalMs?: number;
   completedRetentionMs?: number;
@@ -68,6 +69,7 @@ export class ConcurrentJobQueue<T extends BaseJob> {
   private readonly maxConcurrencyFn: () => number;
   private readonly processor: (job: T) => Promise<void>;
   private readonly groupKeyFn?: (job: T) => string;
+  private readonly onPermanentFailure?: (job: T, error: unknown) => Promise<void> | void;
   private readonly maxRetries: number;
   private readonly pollIntervalMs: number;
   private readonly completedRetentionMs: number;
@@ -80,6 +82,7 @@ export class ConcurrentJobQueue<T extends BaseJob> {
       : () => options.maxConcurrency as number;
     this.processor = options.processor;
     this.groupKeyFn = options.groupKeyFn;
+    this.onPermanentFailure = options.onPermanentFailure;
     this.maxRetries = options.maxRetries ?? 2;
     this.pollIntervalMs = options.pollIntervalMs ?? 1000;
     this.completedRetentionMs = options.completedRetentionMs ?? 60000;
@@ -211,6 +214,23 @@ export class ConcurrentJobQueue<T extends BaseJob> {
       } else {
         job.status = 'failed';
         job.error = error instanceof Error ? error.message : 'Unknown error';
+
+        if (this.onPermanentFailure) {
+          try {
+            await this.onPermanentFailure(job, error);
+          } catch (failureHandlerError) {
+            logger.error(
+              {
+                queue: this.name,
+                jobId: job.id,
+                error: failureHandlerError instanceof Error
+                  ? failureHandlerError.message
+                  : String(failureHandlerError),
+              },
+              'Permanent failure handler failed'
+            );
+          }
+        }
 
         setTimeout(() => {
           this.queue.delete(job.id);

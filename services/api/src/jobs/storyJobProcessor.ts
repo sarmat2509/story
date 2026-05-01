@@ -18,6 +18,8 @@ import { ConcurrentJobQueue, type BaseJob } from './ConcurrentJobQueue';
 import { config } from '../config';
 import { assertUserPhotoInputs } from '../services/photoInputSafetyService';
 import { assertStoryFromDrawingAccessForPhotos } from '../services/storyFromDrawingAccessService';
+import { releaseAudioQuotaReservationForStory } from '../services/audioQuotaReservationService';
+import { releaseStoryQuotaReservationForRequest } from '../services/storyQuotaService';
 import {
   getStoryRepository,
   getSceneRepository,
@@ -149,6 +151,31 @@ interface RegenerateSceneImageInput {
   visualPrompt?: string;
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function releaseStoryQuotaAfterPermanentFailure(
+  requestId: string,
+  reason: 'generation_failed' | 'instant_setup_failed',
+  error: unknown
+): Promise<void> {
+  const result = await releaseStoryQuotaReservationForRequest(requestId, {
+    reason,
+    errorMessage: errorMessage(error),
+  });
+  logger.info(
+    {
+      requestId,
+      reason,
+      released: result.released,
+      skippedReason: result.skippedReason,
+      netReserved: result.netReserved,
+    },
+    'Story quota reservation permanent-failure release checked'
+  );
+}
+
 // ── New Queue Instances ──
 
 /**
@@ -159,6 +186,8 @@ export const textQueue = new ConcurrentJobQueue<TextGenerationJob>({
   name: 'text',
   maxConcurrency: () => config.queue.textConcurrency,
   processor: processTextGeneration,
+  onPermanentFailure: (job, error) =>
+    releaseStoryQuotaAfterPermanentFailure(job.requestId, 'generation_failed', error),
   pollIntervalMs: config.queue.pollIntervalMs,
 });
 
@@ -195,6 +224,22 @@ export const audioQueue = new ConcurrentJobQueue<AudioGenerationJob>({
   name: 'audio',
   maxConcurrency: () => config.queue.audioConcurrency,
   processor: processAudioGeneration,
+  onPermanentFailure: async (job, error) => {
+    const result = await releaseAudioQuotaReservationForStory(job.userId, job.storyId, {
+      reason: 'audio_generation_failed',
+      errorMessage: errorMessage(error),
+    });
+    logger.info(
+      {
+        storyId: job.storyId,
+        userId: job.userId,
+        released: result.released,
+        skippedReason: result.skippedReason,
+        netReserved: result.netReserved,
+      },
+      'Audio quota reservation permanent-failure release checked'
+    );
+  },
   pollIntervalMs: config.queue.pollIntervalMs,
 });
 
@@ -207,6 +252,8 @@ export const instantQueue = new ConcurrentJobQueue<InstantCharacterSetupJob>({
   name: 'instant-character-setup',
   maxConcurrency: () => config.queue.instantConcurrency || 3,
   processor: processInstantCharacterSetup,
+  onPermanentFailure: (job, error) =>
+    releaseStoryQuotaAfterPermanentFailure(job.requestId, 'instant_setup_failed', error),
   pollIntervalMs: config.queue.pollIntervalMs,
 });
 

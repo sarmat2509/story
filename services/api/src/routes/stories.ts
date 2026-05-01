@@ -32,10 +32,14 @@ import { config } from '../config';
 import { startTask, completeTask, STORY_TASKS } from '../services/storyProgress';
 import { getStoryRepository, getAssetRepository } from '../repositories';
 import { getStoryCacheStats, getStoryCost, getStoryCostBreakdown } from '../services/aiUsageService';
-import { isStoryQuotaError } from '../services/storyQuotaService';
+import { isStoryQuotaError, releaseStoryQuotaReservationForRequest } from '../services/storyQuotaService';
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
 import { assertVoiceAccessForUser, isVoiceAccessError } from '../services/voiceAccessService';
-import { isAudioQuotaError, reserveAudioQuotaForStory } from '../services/audioQuotaReservationService';
+import {
+  isAudioQuotaError,
+  releaseAudioQuotaReservationForStory,
+  reserveAudioQuotaForStory,
+} from '../services/audioQuotaReservationService';
 
 /**
  * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
@@ -110,6 +114,75 @@ function sendAudioQuotaError(res: Response, error: unknown): boolean {
     resetsAt: error.resetsAt?.toISOString() ?? null,
   });
   return true;
+}
+
+async function releaseStoryQuotaReservationOnCreateFailure(
+  requestId: string | undefined,
+  error: unknown
+): Promise<void> {
+  if (!requestId) {
+    return;
+  }
+
+  try {
+    const result = await releaseStoryQuotaReservationForRequest(requestId, {
+      reason: 'queue_enqueue_failed',
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    logger.info(
+      {
+        requestId,
+        released: result.released,
+        skippedReason: result.skippedReason,
+        netReserved: result.netReserved,
+      },
+      'Story quota reservation release checked after create/queue failure'
+    );
+  } catch (releaseError) {
+    logger.error(
+      {
+        err: releaseError,
+        requestId,
+      },
+      'Failed to release story quota reservation after create/queue failure'
+    );
+  }
+}
+
+async function releaseAudioQuotaReservationOnCreateFailure(
+  userId: string | undefined,
+  storyId: string | undefined,
+  error: unknown
+): Promise<void> {
+  if (!userId || !storyId) {
+    return;
+  }
+
+  try {
+    const result = await releaseAudioQuotaReservationForStory(userId, storyId, {
+      reason: 'queue_enqueue_failed',
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    logger.info(
+      {
+        userId,
+        storyId,
+        released: result.released,
+        skippedReason: result.skippedReason,
+        netReserved: result.netReserved,
+      },
+      'Audio quota reservation release checked after queue failure'
+    );
+  } catch (releaseError) {
+    logger.error(
+      {
+        err: releaseError,
+        userId,
+        storyId,
+      },
+      'Failed to release audio quota reservation after queue failure'
+    );
+  }
 }
 
 function sendPromptSafetyError(res: Response, error: unknown): boolean {
@@ -195,6 +268,8 @@ const RegenerateSceneSchema = z.object({
  * Create a new story request
  */
 router.post('/', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+  let requestId: string | undefined;
+  let queued = false;
   try {
     // Validate request body
     const validatedData = CreateStoryRequestSchema.parse(req.body);
@@ -216,12 +291,13 @@ router.post('/', requireAuth, requireParentSession, async (req: Request, res: Re
     }
     
     // Create story request
-    const requestId = await createStoryRequest(req.user!.id, validatedData, {
+    requestId = await createStoryRequest(req.user!.id, validatedData, {
       quotaSource: 'wizard',
     });
     
     // Add job to queue for async processing
     const jobId = await storyJobQueue.addJob(requestId);
+    queued = true;
     
     logger.info({ 
       userId: req.user!.id, 
@@ -240,6 +316,9 @@ router.post('/', requireAuth, requireParentSession, async (req: Request, res: Re
       }
     });
   } catch (error) {
+    if (!queued) {
+      await releaseStoryQuotaReservationOnCreateFailure(requestId, error);
+    }
     if (sendPromptSafetyError(res, error)) return;
     if (sendStoryQuotaError(res, error)) return;
 
@@ -283,6 +362,8 @@ function selectDefaultImageStyle(ageGroup: string): string {
  * Auto-creates hidden characters from photos and generates story
  */
 router.post('/instant', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+  let requestId: string | undefined;
+  let queued = false;
   try {
     // Validate request body
     const validatedData = GenerateFromPhotosSchema.parse(req.body);
@@ -348,7 +429,7 @@ router.post('/instant', requireAuth, requireParentSession, async (req: Request, 
       childProfileId: undefined,
     };
     
-    const requestId = await createStoryRequest(req.user!.id, storyRequestData, {
+    requestId = await createStoryRequest(req.user!.id, storyRequestData, {
       quotaSource: 'instant',
     });
     
@@ -370,6 +451,7 @@ router.post('/instant', requireAuth, requireParentSession, async (req: Request, 
     
     // Add job to queue (will be routed to instantQueue)
     const jobId = await storyJobQueue.addJob(requestId);
+    queued = true;
     
     logger.info({ 
       userId: req.user!.id, 
@@ -390,6 +472,9 @@ router.post('/instant', requireAuth, requireParentSession, async (req: Request, 
       }
     });
   } catch (error) {
+    if (!queued) {
+      await releaseStoryQuotaReservationOnCreateFailure(requestId, error);
+    }
     if (sendPhotoInputSafetyError(res, error)) return;
     if (sendStoryFromDrawingAccessError(res, error)) return;
     if (sendPromptSafetyError(res, error)) return;
@@ -851,6 +936,8 @@ router.delete('/:id', requireAuth, requireParentSession, async (req: Request, re
  * Generate a continuation for a story (M8)
  */
 router.post('/:id/continue', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+  let requestId: string | undefined;
+  let queued = false;
   try {
     const { id: storyId } = req.params;
     const userId = req.user!.id;
@@ -909,7 +996,7 @@ router.post('/:id/continue', requireAuth, requireParentSession, async (req: Requ
       ? await getStoryRepository().findRequestById(story.storyRequestId)
       : null;
     
-    const requestId = await createContinuationRequest(userId, {
+    requestId = await createContinuationRequest(userId, {
       language: story.language,
       ageGroup: story.ageGroup,
       childProfileId: story.childProfileId,
@@ -928,6 +1015,7 @@ router.post('/:id/continue', requireAuth, requireParentSession, async (req: Requ
     
     // 5. Queue job
     const jobId = await storyJobQueue.addJob(requestId);
+    queued = true;
     
     logger.info({ 
       userId, 
@@ -947,6 +1035,9 @@ router.post('/:id/continue', requireAuth, requireParentSession, async (req: Requ
       }
     });
   } catch (error) {
+    if (!queued) {
+      await releaseStoryQuotaReservationOnCreateFailure(requestId, error);
+    }
     if (sendPromptSafetyError(res, error)) return;
     if (sendStoryQuotaError(res, error)) return;
 
@@ -1148,6 +1239,8 @@ router.get('/:id/series', requireAuth, async (req: Request, res: Response) => {
  * Generate audio for a story (M5)
  */
 router.post('/:id/audio', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+  let reservedAudioStoryId: string | undefined;
+  let queued = false;
   try {
     const { id: storyId } = req.params;
     
@@ -1214,6 +1307,7 @@ router.post('/:id/audio', requireAuth, requireParentSession, async (req: Request
     const audioQuotaReservation = await reserveAudioQuotaForStory(req.user!.id, storyId, {
       source: 'manual',
     });
+    reservedAudioStoryId = storyId;
     
     // Add job to queue
     const jobId = await storyJobQueue.addJob({
@@ -1222,6 +1316,7 @@ router.post('/:id/audio', requireAuth, requireParentSession, async (req: Request
       userId: req.user!.id,
       voiceParams: { voiceId, speed, nightMode }
     });
+    queued = true;
     
     logger.info({
       userId: req.user!.id,
@@ -1239,6 +1334,9 @@ router.post('/:id/audio', requireAuth, requireParentSession, async (req: Request
       jobId
     });
   } catch (error) {
+    if (!queued) {
+      await releaseAudioQuotaReservationOnCreateFailure(req.user?.id, reservedAudioStoryId, error);
+    }
     if (sendVoiceAccessError(res, error)) return;
     if (sendAudioQuotaError(res, error)) return;
 
