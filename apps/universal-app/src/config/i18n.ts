@@ -6,6 +6,7 @@ import { initReactI18next } from 'react-i18next';
 import { isValidLocale } from '@wondertales/shared';
 import { storage } from '@/utils/storage';
 import { APP_CONFIG } from '@/config/constants';
+import { getPublicSeoLocaleOverrideFromPath } from '@/utils/publicSeoLocale';
 
 // Import translations from shared package
 import ukTranslations from '@wondertales/shared/i18n/uk.json';
@@ -29,6 +30,11 @@ const resources = {
 function getLocaleFromUrl(): string | null {
   if (typeof window === 'undefined') {
     return null;
+  }
+
+  const publicSeoLocale = getPublicSeoLocaleOverrideFromPath(window.location.pathname);
+  if (publicSeoLocale) {
+    return publicSeoLocale;
   }
 
   const firstSegment = window.location.pathname

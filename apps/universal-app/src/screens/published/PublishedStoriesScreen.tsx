@@ -23,11 +23,27 @@ import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { storage } from '@/utils/storage';
+import { getPublicSeoLocaleOverrideFromPath } from '@/utils/publicSeoLocale';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
+import {
+  DEFAULT_PUBLIC_SEO_LOCALE,
+  PUBLIC_SEO_LOCALES,
+  buildPublicStoriesPath,
+  normalizePublicSeoLocale,
+  type PublicSeoLocale,
+} from '@wondertales/shared';
 
 const ITEMS_PER_PAGE = 24;
 const cardDelay = (i: number) => Math.min(i * 35, 260);
+const PUBLIC_LANGUAGE_LABELS: Record<PublicSeoLocale, string> = {
+  uk: 'Українська',
+  en: 'English',
+};
+const PUBLIC_LANGUAGE_CONTROL_LABELS: Record<PublicSeoLocale, string> = {
+  uk: 'Мова',
+  en: 'Language',
+};
 const READING_TIME_OPTIONS = [
   { value: null, min: undefined, max: undefined },
   { value: 'short', min: undefined, max: 5 },
@@ -39,8 +55,49 @@ function getAgeGroupTranslationKey(slug: string): string {
   return `story.age_${slug.replace(/-/g, '_')}`;
 }
 
+function getCurrentPublicStoriesLocale(): PublicSeoLocale {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') {
+    return DEFAULT_PUBLIC_SEO_LOCALE;
+  }
+
+  return getPublicSeoLocaleOverrideFromPath(window.location.pathname) || DEFAULT_PUBLIC_SEO_LOCALE;
+}
+
+function renderPublicLanguageSwitcher(
+  currentLocale: PublicSeoLocale,
+  onLocaleChange: (locale: PublicSeoLocale) => void
+) {
+  if (Platform.OS !== 'web') {
+    return null;
+  }
+
+  const label = PUBLIC_LANGUAGE_CONTROL_LABELS[currentLocale];
+
+  return React.createElement(
+    'label',
+    { className: 'public-language-switcher', style: webLanguageSwitcherStyles.label },
+    React.createElement('span', { style: webLanguageSwitcherStyles.labelText }, label),
+    React.createElement(
+      'select',
+      {
+        'aria-label': label,
+        id: 'public-language-switcher',
+        name: 'public-language-switcher',
+        value: currentLocale,
+        onChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
+          onLocaleChange(normalizePublicSeoLocale(event.currentTarget.value));
+        },
+        style: webLanguageSwitcherStyles.select,
+      },
+      PUBLIC_SEO_LOCALES.map((locale) => (
+        React.createElement('option', { key: locale, value: locale }, PUBLIC_LANGUAGE_LABELS[locale])
+      ))
+    )
+  );
+}
+
 export default function PublishedStoriesScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { width } = useWindowDimensions();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -53,6 +110,7 @@ export default function PublishedStoriesScreen() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const audioToggleRef = useRef<AudioFilterToggleRef>(null);
   const enterKey = useScreenEnter();
+  const currentPublicLocale = getCurrentPublicStoriesLocale();
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -112,6 +170,21 @@ export default function PublishedStoriesScreen() {
     setReadingTimeFilter(value);
     setCurrentPage(1);
   }, []);
+
+  const handlePublicLocaleChange = useCallback((locale: PublicSeoLocale) => {
+    const targetPath = buildPublicStoriesPath(locale);
+
+    void i18n.changeLanguage(locale);
+    void storage.setLanguage(locale);
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (window.location.pathname !== targetPath) {
+      window.location.assign(`${window.location.origin}${targetPath}`);
+    }
+  }, [i18n]);
 
   const offset = useMemo(() => (currentPage - 1) * ITEMS_PER_PAGE, [currentPage]);
   const selectedReadingRange = useMemo(
@@ -220,6 +293,10 @@ export default function PublishedStoriesScreen() {
         selectedReadingTime={readingTimeFilter}
         onReadingTimeChange={handleReadingTimeFilterChange}
       />
+
+      <View style={styles.publicLanguageRow}>
+        {renderPublicLanguageSwitcher(currentPublicLocale, handlePublicLocaleChange)}
+      </View>
 
       {!stories.length ? (
         <View style={styles.centerContainer}>
@@ -332,6 +409,12 @@ const styles = StyleSheet.create({
   grid: {
     padding: theme.spacing[4],
   },
+  publicLanguageRow: {
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: theme.spacing[2],
+    paddingBottom: theme.spacing[1],
+    alignItems: 'flex-end',
+  },
   gridContainer: Platform.select({
     web: {
       display: 'grid' as any,
@@ -344,3 +427,27 @@ const styles = StyleSheet.create({
     },
   }),
 });
+
+const webLanguageSwitcherStyles = {
+  label: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    color: theme.colors.text.secondary,
+    fontSize: 13,
+    fontWeight: 600,
+  } as any,
+  labelText: {
+    fontWeight: 700,
+  } as any,
+  select: {
+    minHeight: 34,
+    border: `1px solid ${theme.colors.border.medium}`,
+    borderRadius: 8,
+    backgroundColor: theme.colors.background.primary,
+    color: theme.colors.text.primary,
+    padding: '0 10px',
+    font: 'inherit',
+    fontWeight: 600,
+  } as any,
+};

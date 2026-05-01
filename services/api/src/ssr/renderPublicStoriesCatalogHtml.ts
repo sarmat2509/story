@@ -12,7 +12,11 @@ import type { PublicStoryListItem } from '../services/publicStoryService';
 import { config } from '../config';
 import { formatLandingAgeGroup, formatLandingDuration } from './landingContent';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
-import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
+import {
+  PUBLIC_FOOTER_STYLES,
+  buildPublicFooterLanguageLinks,
+  renderPublicPageFooter,
+} from './publicPageFooter';
 
 const CATALOG_COPY: Record<PublicSeoLocale, {
   title: string;
@@ -253,7 +257,7 @@ export function renderPublicStoriesCatalogHtml(params: {
           : `<section class="empty"><h2>${escapeHtml(copy.emptyTitle)}</h2><p>${escapeHtml(copy.emptyBody)}</p></section>`
       }
     </main>
-    ${renderPublicPageFooter(webAppUrl, locale)}
+    ${renderPublicPageFooter(webAppUrl, locale, buildPublicFooterLanguageLinks(webAppUrl, buildPublicStoriesPath))}
   </div>
   <script>window.__INITIAL_STORIES__ = ${initialCatalogJson};</script>
   <script src="${escapeHtml(fullWebBundleUrl)}" defer></script>

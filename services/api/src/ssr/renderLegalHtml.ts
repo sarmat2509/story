@@ -16,7 +16,11 @@ import {
 } from '@wondertales/shared';
 import { config } from '../config';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
-import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
+import {
+  PUBLIC_FOOTER_STYLES,
+  buildPublicFooterLanguageLinks,
+  renderPublicPageFooter,
+} from './publicPageFooter';
 
 const LEGAL_DIR = join(__dirname, '../legal');
 
@@ -149,7 +153,11 @@ export async function renderLegalHtml(options: RenderLegalOptions): Promise<stri
     <main class="legal-content">
       ${bodyHtml}
     </main>
-    ${renderPublicPageFooter(webAppUrl, resolvedLocale)}
+    ${renderPublicPageFooter(
+      webAppUrl,
+      resolvedLocale,
+      buildPublicFooterLanguageLinks(webAppUrl, (footerLocale) => buildPublicLegalPath(doc, footerLocale))
+    )}
   </div>
 </body>
 </html>`;

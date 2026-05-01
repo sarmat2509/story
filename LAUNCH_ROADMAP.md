@@ -753,6 +753,9 @@ Completed locally:
 - English legal URLs `/en/terms` and `/en/privacy` render English legal markdown with English canonical URLs.
 - Legal pages expose only `uk`, `en`, and `x-default` alternates; unsupported locales such as `ru`, `es`, `de`, `fr`, and `pl` remain outside indexed legal routes.
 - Public SSR footers now preserve the active public SEO locale for home, pricing, stories, terms, and privacy links.
+- Public SSR footers now include a language dropdown for launch-ready SEO locales only (`uk` and `en`) on landing, pricing, stories catalog, terms, and privacy pages.
+- The public language dropdown switches to the equivalent localized URL for the current route instead of sending users to the app shell or a different public page.
+- The hydrated public stories catalog now keeps a `uk`/`en` language dropdown after React hydration and syncs default public SEO routes such as `/stories` back to the default `uk` UI locale.
 
 Required work:
 
@@ -777,8 +780,7 @@ Required work:
 - Add SSR entry points for every indexable route in every launch SEO locale.
 - Add `hreflang` alternates for every localized public page, including `x-default`.
 - Add localized canonical links that match the current page language and URL.
-- Add a public language dropdown that lists only launch-ready public locales.
-- The language dropdown should switch to the equivalent localized URL where one exists, not to the app shell or a different route.
+- Extend the public language dropdown to any additional localized public SSR route before that route is indexed.
 - Persist the selected UI language for authenticated users and keep it in sync with localized URL prefixes on web.
 - Prevent accidental language drift: internal links, CTAs, redirects, auth return URLs, checkout success URLs, and share links must not unexpectedly switch the user to another language.
 - Add tests or smoke checks that crawl public SSR pages and verify `html[lang]`, canonical, hreflang, visible language, and internal links agree.

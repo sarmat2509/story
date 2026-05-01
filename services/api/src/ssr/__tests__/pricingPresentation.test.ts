@@ -69,6 +69,10 @@ void (async function main() {
   assert.match(html, /Billing details/);
   assert.match(html, /Paid subscriptions renew monthly until canceled/);
   assert.match(html, /Unused bundle credits expire at period end and do not roll over/);
+  assert.match(html, /<select aria-label="Language"/);
+  assert.match(html, /<option value="https:\/\/app\.wondertales\.com\/pricing">Українська<\/option>/);
+  assert.match(html, /<option value="https:\/\/app\.wondertales\.com\/en\/pricing" selected>English<\/option>/);
+  assert.doesNotMatch(html, /onchange=/);
 
   const paymentsDisabledHtml = renderPricingHtml({
     locale: 'en',

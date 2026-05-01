@@ -9,6 +9,7 @@ import {
   buildPlanDescription,
   formatPlanPrice,
   getLandingContent,
+  getLandingPath,
   getLandingUrl,
   getPlanDisplayName,
   normalizeLandingLocale,
@@ -17,7 +18,11 @@ import {
   type LandingLocale,
 } from './landingContent';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
-import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
+import {
+  PUBLIC_FOOTER_STYLES,
+  buildPublicFooterLanguageLinks,
+  renderPublicPageFooter,
+} from './publicPageFooter';
 
 /** Plan with stories/audio/images limits for landing display */
 interface PlanWithLimits {
@@ -708,7 +713,7 @@ export function renderLandingHtml(params?: {
       ${renderFaq(webAppUrl, content, locale)}
       ${renderFinalCta(webAppUrl, content, locale)}
     </div>
-    ${renderPublicPageFooter(webAppUrl, locale)}
+    ${renderPublicPageFooter(webAppUrl, locale, buildPublicFooterLanguageLinks(webAppUrl, getLandingPath))}
   </div>`;
 
   return `<!DOCTYPE html>

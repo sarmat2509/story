@@ -22,6 +22,7 @@ import { navigationRef } from '@/navigation/navigationRef';
 import { pushNotificationService } from '@/services/pushNotificationService';
 import RootNavigator from '@/navigation/RootNavigator';
 import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
+import { getPublicSeoLocaleOverrideFromPath } from '@/utils/publicSeoLocale';
 import type { MainTabParamList } from '@/types/navigation';
 import { APP_ROUTE_PATHS, isValidLocale } from '@wondertales/shared';
 
@@ -118,7 +119,9 @@ function preserveOriginalPathOnFocusedRoute(state: any, originalPath: string): a
 
 function getPreferredWebLocale(): string | null {
   if (typeof window !== 'undefined') {
-    const localeFromPath = getLocaleFromWebPath(window.location.pathname);
+    const localeFromPath =
+      getPublicSeoLocaleOverrideFromPath(window.location.pathname) ||
+      getLocaleFromWebPath(window.location.pathname);
     if (localeFromPath) {
       return localeFromPath;
     }
@@ -249,7 +252,9 @@ export default function App() {
     }
 
     const syncLanguageFromPath = () => {
-      const locale = getLocaleFromWebPath(window.location.pathname);
+      const locale =
+        getPublicSeoLocaleOverrideFromPath(window.location.pathname) ||
+        getLocaleFromWebPath(window.location.pathname);
       if (!locale || i18n.language === locale) {
         return;
       }

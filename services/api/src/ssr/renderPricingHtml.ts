@@ -3,7 +3,11 @@ import type { PresentedPlan } from '../services/planPresentationService';
 import { getPlansI18n } from '../utils/i18nLoader';
 import { PUBLIC_SEO_LOCALES, normalizeLandingLocale, type LandingLocale } from './landingContent';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
-import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
+import {
+  PUBLIC_FOOTER_STYLES,
+  buildPublicFooterLanguageLinks,
+  renderPublicPageFooter,
+} from './publicPageFooter';
 import {
   buildPublicPricingPath,
   formatPricingPrice,
@@ -187,7 +191,7 @@ export function renderPricingHtml(params: {
         <p>${escapeHtml(plansI18n.billing_note_refunds || 'Refund requests are reviewed through support and do not happen automatically when a subscription is canceled.')}</p>
       </section>
     </div>
-    ${renderPublicPageFooter(webAppUrl, locale)}
+    ${renderPublicPageFooter(webAppUrl, locale, buildPublicFooterLanguageLinks(webAppUrl, buildPublicPricingPath))}
   </div>
 </body>
 </html>`;

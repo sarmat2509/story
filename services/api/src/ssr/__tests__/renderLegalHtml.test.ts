@@ -17,6 +17,9 @@ void (async function main() {
   assert.match(ukTerms, /hreflang="en" href="https:\/\/app\.wondertales\.com\/en\/terms"/);
   assert.match(ukTerms, /hreflang="x-default" href="https:\/\/app\.wondertales\.com\/terms"/);
   assert.match(ukTerms, /href="https:\/\/app\.wondertales\.com\/privacy"/);
+  assert.match(ukTerms, /class="site-footer-language"/);
+  assert.match(ukTerms, /<option value="https:\/\/app\.wondertales\.com\/terms" selected>Українська<\/option>/);
+  assert.match(ukTerms, /<option value="https:\/\/app\.wondertales\.com\/en\/terms">English<\/option>/);
   assert.doesNotMatch(ukTerms, /Content not available/);
 
   const enPrivacy = await renderLegalHtml({ doc: 'privacy', locale: 'en' });
@@ -27,6 +30,10 @@ void (async function main() {
   assert.match(enPrivacy, /href="https:\/\/app\.wondertales\.com\/en\/terms"/);
   assert.match(enPrivacy, /href="https:\/\/app\.wondertales\.com\/en\/pricing"/);
   assert.match(enPrivacy, /href="https:\/\/app\.wondertales\.com\/en\/stories"/);
+  assert.match(enPrivacy, /<select aria-label="Language"/);
+  assert.match(enPrivacy, /<option value="https:\/\/app\.wondertales\.com\/privacy">Українська<\/option>/);
+  assert.match(enPrivacy, /<option value="https:\/\/app\.wondertales\.com\/en\/privacy" selected>English<\/option>/);
+  assert.doesNotMatch(enPrivacy, /onchange=/);
   assert.doesNotMatch(enPrivacy, /Content not available/);
 
   for (const locale of unsupportedLocales) {
