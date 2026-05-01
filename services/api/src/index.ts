@@ -46,6 +46,52 @@ import { logger } from './utils/logger';
 
 const app: Application = express();
 
+function normalizeOrigin(value: string | undefined | null): string | null {
+  const raw = value?.trim();
+  if (!raw) return null;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
+}
+
+function splitCorsAllowedOrigins(value: string | undefined): string[] {
+  return (value || '')
+    .split(',')
+    .map(normalizeOrigin)
+    .filter((origin): origin is string => !!origin);
+}
+
+const allowedCorsOrigins = new Set([
+  ...splitCorsAllowedOrigins(config.web.corsAllowedOrigins),
+  ...splitCorsAllowedOrigins(config.web.webAppUrl),
+]);
+
+function isLocalDevelopmentOrigin(origin: string): boolean {
+  if (config.nodeEnv === 'production') return false;
+  try {
+    const { protocol, hostname } = new URL(origin);
+    return (
+      (protocol === 'http:' || protocol === 'https:') &&
+      (hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '[::1]' ||
+        hostname === '::1')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isAllowedCorsOrigin(origin: string | undefined): boolean {
+  // No Origin header: server-to-server, mobile runtimes, curl, and health probes.
+  if (!origin) return true;
+  const normalizedOrigin = normalizeOrigin(origin);
+  if (!normalizedOrigin) return false;
+  return allowedCorsOrigins.has(normalizedOrigin) || isLocalDevelopmentOrigin(normalizedOrigin);
+}
+
 // Security middleware
 // CSP is configured to allow SSR hydration:
 // - 'unsafe-inline' for window.__INITIAL_STORY__ injection
@@ -77,7 +123,9 @@ app.use(helmet({
   },
 }));
 app.use(cors({
-  origin: true,
+  origin(origin, callback) {
+    callback(null, isAllowedCorsOrigin(origin));
+  },
   credentials: true,
 }));
 

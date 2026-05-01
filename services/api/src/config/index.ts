@@ -387,6 +387,11 @@ export const config = {
       process.env.WEB_APP_URL ||
       process.env.EXPO_PUBLIC_WEB_APP_URL ||
       'https://app.wondertales.com',
+    corsAllowedOrigins:
+      process.env.CORS_ALLOWED_ORIGINS ||
+      process.env.WEB_APP_URL ||
+      process.env.EXPO_PUBLIC_WEB_APP_URL ||
+      '',
     apiPublicUrl:
       process.env.API_PUBLIC_URL ||
       process.env.WEB_APP_URL ||
