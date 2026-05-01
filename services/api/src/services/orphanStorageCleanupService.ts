@@ -12,7 +12,15 @@ export interface OrphanStorageScanResult {
   scannedFiles: number;
   referencedPaths: number;
   orphanPaths: string[];
+  eligibleOrphanPaths: string[];
+  skippedYoungOrphanPaths: string[];
   deletedPaths: string[];
+  minAgeMs: number;
+}
+
+export interface OrphanStorageFileInfo {
+  relativePath: string;
+  mtimeMs: number;
 }
 
 export function shouldScanStorageFile(relativePath: string): boolean {
@@ -43,6 +51,31 @@ export function resolveStorageFilePath(storageRoot: string, relativePath: string
   return resolved;
 }
 
+export function filterOrphanStoragePathsByMinimumAge(
+  orphanPaths: string[],
+  files: Iterable<OrphanStorageFileInfo>,
+  minAgeMs: number | undefined,
+  now = new Date()
+): string[] {
+  const ageMs = Number.isFinite(minAgeMs) && (minAgeMs ?? 0) > 0 ? Math.floor(minAgeMs ?? 0) : 0;
+  const normalizedOrphanPaths = orphanPaths.map((item) => item.replace(/\\/g, '/'));
+
+  if (ageMs <= 0) {
+    return normalizedOrphanPaths;
+  }
+
+  const fileMtimes = new Map<string, number>();
+  for (const file of files) {
+    fileMtimes.set(file.relativePath.replace(/\\/g, '/'), file.mtimeMs);
+  }
+
+  const cutoffMs = now.getTime() - ageMs;
+  return normalizedOrphanPaths.filter((orphanPath) => {
+    const mtimeMs = fileMtimes.get(orphanPath);
+    return typeof mtimeMs === 'number' && Number.isFinite(mtimeMs) && mtimeMs <= cutoffMs;
+  });
+}
+
 function addPath(paths: Set<string>, raw: unknown): void {
   if (typeof raw !== 'string') return;
   const normalized = normalizeAssetStoragePath(raw);
@@ -65,9 +98,9 @@ function collectPathsFromUnknown(value: unknown, paths: Set<string>): void {
   }
 }
 
-async function listStorageFiles(storageRoot: string): Promise<string[]> {
+async function listStorageFiles(storageRoot: string): Promise<OrphanStorageFileInfo[]> {
   const root = path.resolve(storageRoot);
-  const files: string[] = [];
+  const files: OrphanStorageFileInfo[] = [];
 
   async function walk(dir: string): Promise<void> {
     let entries: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
@@ -83,7 +116,11 @@ async function listStorageFiles(storageRoot: string): Promise<string[]> {
       if (entry.isDirectory()) {
         await walk(fullPath);
       } else if (entry.isFile()) {
-        files.push(path.relative(root, fullPath).replace(/\\/g, '/'));
+        const stat = await fs.stat(fullPath);
+        files.push({
+          relativePath: path.relative(root, fullPath).replace(/\\/g, '/'),
+          mtimeMs: stat.mtimeMs,
+        });
       }
     }
   }
@@ -177,17 +214,30 @@ export async function scanOrphanStorageFiles(options: {
   storageRoot?: string;
   apply?: boolean;
   maxDelete?: number;
+  minAgeMs?: number;
 } = {}): Promise<OrphanStorageScanResult> {
   const storageRoot = path.resolve(options.storageRoot ?? path.join(process.cwd(), 'uploads'));
-  const files = await listStorageFiles(storageRoot);
+  const fileInfos = await listStorageFiles(storageRoot);
+  const files = fileInfos.map((file) => file.relativePath);
   const referencedPaths = await collectReferencedStoragePaths();
   const orphanPaths = findOrphanStoragePaths(files, referencedPaths);
+  const minAgeMs =
+    Number.isFinite(options.minAgeMs) && (options.minAgeMs ?? 0) > 0
+      ? Math.floor(options.minAgeMs ?? 0)
+      : 0;
+  const eligibleOrphanPaths = filterOrphanStoragePathsByMinimumAge(
+    orphanPaths,
+    fileInfos,
+    minAgeMs
+  );
+  const eligibleSet = new Set(eligibleOrphanPaths);
+  const skippedYoungOrphanPaths = orphanPaths.filter((orphanPath) => !eligibleSet.has(orphanPath));
   const dryRun = options.apply !== true;
   const maxDelete = Math.max(0, options.maxDelete ?? 100);
   const deletedPaths: string[] = [];
 
   if (!dryRun) {
-    for (const orphanPath of orphanPaths.slice(0, maxDelete)) {
+    for (const orphanPath of eligibleOrphanPaths.slice(0, maxDelete)) {
       const fullPath = resolveStorageFilePath(storageRoot, orphanPath);
       if (!fullPath) {
         logger.warn({ orphanPath }, 'Skipped unsafe orphan storage path');
@@ -204,17 +254,26 @@ export async function scanOrphanStorageFiles(options: {
     scannedFiles: files.filter(shouldScanStorageFile).length,
     referencedPaths: referencedPaths.size,
     orphanPaths,
+    eligibleOrphanPaths,
+    skippedYoungOrphanPaths,
     deletedPaths,
+    minAgeMs,
   };
 
-  logger.info({
-    storageRoot,
-    dryRun,
-    scannedFiles: result.scannedFiles,
-    referencedPaths: result.referencedPaths,
-    orphanCount: orphanPaths.length,
-    deletedCount: deletedPaths.length,
-  }, 'Orphan storage scan completed');
+  logger.info(
+    {
+      storageRoot,
+      dryRun,
+      scannedFiles: result.scannedFiles,
+      referencedPaths: result.referencedPaths,
+      orphanCount: orphanPaths.length,
+      eligibleOrphanCount: eligibleOrphanPaths.length,
+      skippedYoungOrphanCount: skippedYoungOrphanPaths.length,
+      deletedCount: deletedPaths.length,
+      minAgeMs,
+    },
+    'Orphan storage scan completed'
+  );
 
   return result;
 }

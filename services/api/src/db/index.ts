@@ -168,6 +168,14 @@ async function gracefulShutdown(signal: string) {
       logger.warn({ err }, 'Failed to stop scheduled continuation scheduler during shutdown');
     }
 
+    // Stop orphan storage cleanup scheduler
+    try {
+      const { stopOrphanStorageCleanupScheduler } = await import('../jobs/orphanStorageCleanupSchedulerJob');
+      stopOrphanStorageCleanupScheduler();
+    } catch (err) {
+      logger.warn({ err }, 'Failed to stop orphan storage cleanup scheduler during shutdown');
+    }
+
     // Stop rate limiter intervals
     try {
       const { stopAllRateLimiters } = await import('../services/aiService');
@@ -214,4 +222,3 @@ if (!signalHandlersRegistered && process.env.WT_SKIP_PROCESS_SIGNAL_HANDLERS !==
 }
 
 export default db;
-

@@ -49,6 +49,7 @@ import { startSessionCleanupJob } from './services/sessionService';
 import { startAllQueues } from './jobs/storyJobProcessor';
 import { startBatchImageWorker } from './jobs/batchImageWorkerJob';
 import { startScheduledContinuationScheduler } from './jobs/scheduledContinuationSchedulerJob';
+import { startOrphanStorageCleanupScheduler } from './jobs/orphanStorageCleanupSchedulerJob';
 import { checkDatabaseHealth } from './db';
 import { logger } from './utils/logger';
 
@@ -237,6 +238,9 @@ const server = app.listen(PORT, async () => {
 
   // Start scheduled continuation scheduler (hourly)
   startScheduledContinuationScheduler();
+
+  // Start orphan storage cleanup scheduler when explicitly enabled
+  startOrphanStorageCleanupScheduler();
 });
 
 /**

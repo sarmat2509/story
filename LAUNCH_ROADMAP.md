@@ -87,7 +87,7 @@ Remaining P0 bottlenecks:
 Solutions not yet applied:
 
 - OAuth-only parent gate fallback is implemented locally for web Google re-auth and native Google/Apple token re-auth; production OAuth callback URLs still need live verification.
-- No scheduled production orphan-file cleanup policy/job is enabled yet; a dry-run scanner exists.
+- Scheduled orphan-file cleanup policy/job is implemented with disabled/dry-run defaults and a retention-age gate; production apply mode still requires live dry-run review and operator approval.
 - No production-domain secrets/client-bundle scan has been recorded after deploy.
 - No live production-domain CSP/security-header capture has been recorded after deploy.
 
@@ -204,7 +204,7 @@ Done:
 Remaining:
 
 - Re-test against the final production storage/CDN topology if local storage is replaced or fronted by a CDN.
-- Background orphan-file cleanup is still a retention hardening item under P0 deletion.
+- Production apply-mode orphan-file cleanup still needs target-environment dry-run review before activation.
 
 Generated images/audio and uploaded child-related files must not be public by raw storage path unless the story is explicitly public.
 
@@ -465,7 +465,7 @@ Acceptance criteria:
 
 ### 8. Data Deletion and Retention
 
-Status on 2026-05-01: Core deletion behavior, support/admin request intake, admin export package generation, and orphan-file dry-run scanning are ready; export delivery policy and scheduled cleanup rollout remain.
+Status on 2026-05-01: Core deletion behavior, support/admin request intake, admin export package generation, orphan-file dry-run scanning, and the disabled-by-default scheduled cleanup job are ready; export delivery policy and production cleanup apply-mode approval remain.
 
 Done:
 
@@ -479,11 +479,12 @@ Done:
 - Web admin now includes `/admin/privacy-requests` for filtering, reviewing, and updating export/deletion support requests.
 - Admin-only export package generation returns JSON for `export` privacy requests while omitting password hashes, OAuth/session/reset tokens, story share tokens, and signed asset URLs.
 - `scanOrphanStorageFiles.ts` can dry-run local storage, compare files against DB-referenced asset paths, and only deletes with explicit `--apply`.
+- Scheduled orphan-file cleanup now starts from API lifecycle only when `ORPHAN_STORAGE_CLEANUP_ENABLED=true`, defaults to dry-run, and requires an age gate before any apply-mode deletion.
 
 Remaining:
 
 - Secure delivery of generated export packages is still a manual support operation after admin review.
-- Scheduled/background orphan-file cleanup is not enabled in production yet; deletion policy and operator approval are still required before using `--apply`.
+- Production cleanup apply mode is not enabled yet; deletion policy, dry-run review, and operator approval are still required before using `--apply` or `ORPHAN_STORAGE_CLEANUP_APPLY=true`.
 - Billing-record retention needs final legal/operator confirmation before paid launch.
 
 Required work:
@@ -492,7 +493,7 @@ Required work:
 - Deleting a child profile deletes or anonymizes associated child-specific data according to policy.
 - Deleting an account deletes user data and storage files except legally required billing records.
 - Provide support/admin process for deletion and export requests.
-- Add scheduled background cleanup for orphaned files after production dry-run review and retention approval.
+- Run scheduled background cleanup for orphaned files in dry-run first, then enable apply mode only after production dry-run review and retention approval.
 
 Acceptance criteria:
 

@@ -375,6 +375,20 @@ export const config = {
     cdnUrl: process.env.STORAGE_CDN_URL || '',
   },
 
+  // Orphan storage cleanup scheduler
+  orphanStorageCleanup: {
+    enabled: process.env.ORPHAN_STORAGE_CLEANUP_ENABLED === 'true',
+    apply: process.env.ORPHAN_STORAGE_CLEANUP_APPLY === 'true',
+    storageRoot: process.env.ORPHAN_STORAGE_CLEANUP_STORAGE_ROOT || '',
+    intervalMs: parseInt(process.env.ORPHAN_STORAGE_CLEANUP_INTERVAL_MS || '86400000', 10),
+    initialDelayMs: parseInt(
+      process.env.ORPHAN_STORAGE_CLEANUP_INITIAL_DELAY_MS || '300000',
+      10
+    ),
+    maxDelete: parseInt(process.env.ORPHAN_STORAGE_CLEANUP_MAX_DELETE || '100', 10),
+    minAgeHours: parseFloat(process.env.ORPHAN_STORAGE_CLEANUP_MIN_AGE_HOURS || '168'),
+  },
+
   // Email (Resend)
   email: {
     resendApiKey: process.env.RESEND_API_KEY || '',
