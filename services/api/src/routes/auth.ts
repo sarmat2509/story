@@ -16,6 +16,11 @@ import {
   resetPassword,
 } from '../services/authCredentialsService';
 import { getUserByEmail } from '../services/userService';
+import {
+  recordRegistrationConsents,
+  validateRegistrationConsents,
+  type ConsentAuditContext,
+} from '../services/consentService';
 
 const router = Router();
 
@@ -28,6 +33,9 @@ const loginSchema = z.object({
 const registerSchema = z.object({
   email: z.string().email().max(255),
   password: z.string().min(8).max(128),
+  termsAccepted: z.union([z.boolean(), z.string()]).optional(),
+  privacyAccepted: z.union([z.boolean(), z.string()]).optional(),
+  isAdultGuardian: z.union([z.boolean(), z.string()]).optional(),
 });
 
 const forgotPasswordSchema = z.object({
@@ -95,6 +103,19 @@ function extractDeviceInfo(req: Request) {
   }
   
   return { deviceType, deviceName, ipAddress, userAgent };
+}
+
+function buildConsentAuditContext(req: Request, source: string): ConsentAuditContext {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const ipAddress =
+    (typeof forwardedFor === 'string' ? forwardedFor.split(',')[0]?.trim() : null) ||
+    req.socket.remoteAddress ||
+    null;
+  return {
+    ipAddress,
+    userAgent: req.headers['user-agent'] || null,
+    context: { source },
+  };
 }
 
 // Google OAuth - Start
@@ -511,9 +532,24 @@ router.post('/register', async (req: Request, res: Response) => {
         details: validationResult.error.errors,
       });
     }
-    const { email, password } = validationResult.data;
+    const { email, password, termsAccepted, privacyAccepted, isAdultGuardian } = validationResult.data;
+
+    const missingConsents = validateRegistrationConsents({
+      termsAccepted,
+      privacyAccepted,
+      isAdultGuardian,
+    });
+    if (missingConsents.length > 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Required legal consent is missing',
+        code: 'CONSENT_REQUIRED',
+        missingConsents,
+      });
+    }
 
     const { user, isNewUser } = await register(email, password);
+    await recordRegistrationConsents(user.id, buildConsentAuditContext(req, 'email_register'));
 
     const deviceInfo = extractDeviceInfo(req);
     const session = await createSession({

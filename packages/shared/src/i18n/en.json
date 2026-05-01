@@ -51,7 +51,12 @@
     "email_already_registered": "This email is already registered",
     "passwords_must_match": "Passwords must match",
     "invalid_or_expired_token": "Link is invalid or has expired",
-    "request_new_link": "Request new link"
+    "request_new_link": "Request new link",
+    "consent_adult_guardian": "I confirm that I am an adult parent or legal guardian.",
+    "consent_terms": "I agree to the",
+    "consent_privacy": "I have read and agree to the",
+    "terms_link": "Terms of Service",
+    "privacy_link": "Privacy Policy"
   },
   "welcome": {
     "slogan": "Turn drawings into characters. Listen, read along. Create and publish.",
@@ -363,6 +368,9 @@
     "generating_remaining_sec": "~{{count}} sec",
     "generating_almost_done": "Almost done...",
     "photos_title": "Photos",
+    "child_data_consent": "I am the parent or legal guardian and consent to storing and processing this child's profile, photos, drawings, generated images, story text, and narration for WonderTales features.",
+    "child_data_consent_required_title": "Consent required",
+    "child_data_consent_required_message": "Please confirm parental consent before adding child data.",
     "current_image": "Avatar",
     "description": "Description",
     "description_placeholder": "Physical appearance description...",

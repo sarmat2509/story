@@ -4,6 +4,9 @@ import apiClient from './client';
 
 // Use shared type
 type ChildProfile = ChildProfileApi;
+type CreateChildProfileRequest = CreateChildProfileInput & {
+  childDataConsentAccepted?: boolean;
+};
 
 export interface UseChildrenResult {
   children: ChildProfile[];
@@ -36,7 +39,7 @@ export const useCreateChild = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (data: CreateChildProfileInput) => {
+    mutationFn: async (data: CreateChildProfileRequest) => {
       const response = await apiClient.post<{ status: string; child: ChildProfile }>(
         '/api/v1/children',
         data,
@@ -112,4 +115,3 @@ export const useAnalyzeChild = () => {
     },
   });
 };
-

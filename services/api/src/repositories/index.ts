@@ -35,6 +35,7 @@ import { AdminConfigRepository } from './AdminConfigRepository';
 import { FeedbackRepository } from './FeedbackRepository';
 import { AdminDashboardRepository } from './AdminDashboardRepository';
 import { BundleRepository } from './BundleRepository';
+import { UserConsentRepository } from './UserConsentRepository';
 
 // Re-export classes for type usage
 export { UserRepository } from './UserRepository';
@@ -65,6 +66,7 @@ export { AdminConfigRepository } from './AdminConfigRepository';
 export { FeedbackRepository } from './FeedbackRepository';
 export { AdminDashboardRepository } from './AdminDashboardRepository';
 export { BundleRepository } from './BundleRepository';
+export { UserConsentRepository } from './UserConsentRepository';
 
 // Singleton instances
 let userRepo: UserRepository;
@@ -95,6 +97,7 @@ let adminConfigRepo: AdminConfigRepository;
 let feedbackRepo: FeedbackRepository;
 let adminDashboardRepo: AdminDashboardRepository;
 let bundleRepo: BundleRepository;
+let userConsentRepo: UserConsentRepository;
 
 export function getUserRepository(): UserRepository {
   if (!userRepo) userRepo = new UserRepository(db);
@@ -237,4 +240,9 @@ export function getAdminDashboardRepository(): AdminDashboardRepository {
 export function getBundleRepository(): BundleRepository {
   if (!bundleRepo) bundleRepo = new BundleRepository(db);
   return bundleRepo;
+}
+
+export function getUserConsentRepository(): UserConsentRepository {
+  if (!userConsentRepo) userConsentRepo = new UserConsentRepository(db);
+  return userConsentRepo;
 }

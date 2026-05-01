@@ -17,6 +17,7 @@ interface PhotoUploadGridProps {
   maxPhotos?: number;
   disabled?: boolean;
   photoType?: PhotoTypeUserUpload;
+  childDataConsentAccepted?: boolean;
   formatUrl?: (url: string) => string | null; // Optional URL formatter for native platforms
 }
 
@@ -26,6 +27,7 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
   maxPhotos = 5,
   disabled = false,
   photoType = 'character',
+  childDataConsentAccepted = false,
   formatUrl,
 }) => {
   const [, setUploadingIndex] = useState<number | null>(null);
@@ -70,7 +72,9 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
 
         try {
           // Завантажуємо на сервер
-          const uploadedPhoto = await uploadPhoto(localUri, photoType);
+          const uploadedPhoto = await uploadPhoto(localUri, photoType, {
+            childDataConsentAccepted: photoType === 'child' ? childDataConsentAccepted : undefined,
+          });
           
           // Замінюємо тимчасове фото на завантажене
           const updatedPhotos = [...photos];

@@ -110,6 +110,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
   const [photos, setPhotos] = useState<UploadPhotoResult[]>([]);
   const [description, setDescription] = useState('');
   const [descriptionLanguage, setDescriptionLanguage] = useState<string | undefined>(undefined);
+  const [childDataConsentAccepted, setChildDataConsentAccepted] = useState(false);
 
   const [appearance, setAppearance] = useState({
     hairColor: undefined as HairColor | undefined,
@@ -170,6 +171,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
       }
       setDescription(initialData.aiGeneratedDescription || '');
       setDescriptionLanguage(initialData.descriptionLanguage || undefined);
+      setChildDataConsentAccepted(!!childId);
       if (initialData.appearanceTraits) {
         setAppearance({
           hairColor: initialData.appearanceTraits.hairColor as HairColor | undefined,
@@ -214,6 +216,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
       setPhotos([]);
       setDescription('');
       setDescriptionLanguage(undefined);
+      setChildDataConsentAccepted(false);
       setAppearance({
         hairColor: undefined,
         hairLength: undefined,
@@ -277,6 +280,13 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
   }, [currentStep]);
 
   const handleContinue = () => {
+    if (!childId && !childDataConsentAccepted) {
+      Alert.alert(
+        t('child_form.child_data_consent_required_title'),
+        t('child_form.child_data_consent_required_message')
+      );
+      return;
+    }
     if (!name.trim()) {
       Alert.alert(t('error') || 'Error', t('child_form.name_required') || 'Name is required');
       return;
@@ -383,7 +393,10 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
           );
           return;
         }
-        await createChild.mutateAsync(result.data);
+        await createChild.mutateAsync({
+          ...result.data,
+          childDataConsentAccepted,
+        });
       }
       onSuccess();
     } catch {
@@ -492,11 +505,27 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
 
             <View style={styles.field}>
               <Text style={styles.label}>{t('child_form.photos_title')}</Text>
+              {!childId && (
+                <TouchableOpacity
+                  style={styles.consentRow}
+                  onPress={() => setChildDataConsentAccepted((value) => !value)}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.checkbox, childDataConsentAccepted && styles.checkboxChecked]}>
+                    {childDataConsentAccepted && (
+                      <Ionicons name="checkmark" size={16} color={theme.colors.text.inverse} />
+                    )}
+                  </View>
+                  <Text style={styles.consentText}>{t('child_form.child_data_consent')}</Text>
+                </TouchableOpacity>
+              )}
               <PhotoUploadGrid
                 photos={photos}
                 onPhotosChange={setPhotos}
                 maxPhotos={5}
                 photoType="child"
+                disabled={!childId && !childDataConsentAccepted}
+                childDataConsentAccepted={childDataConsentAccepted}
                 formatUrl={formatAssetUrl}
               />
             </View>
@@ -614,7 +643,13 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
             <GlassPrimaryButton
               title={t('child_form.save_button')}
               onPress={handleSubmit}
-              disabled={createChild.isPending || updateChild.isPending || (!childId && !description.trim()) || (!childId && analyzeChild.isPending)}
+              disabled={
+                createChild.isPending ||
+                updateChild.isPending ||
+                (!childId && !childDataConsentAccepted) ||
+                (!childId && !description.trim()) ||
+                (!childId && analyzeChild.isPending)
+              }
               loading={createChild.isPending || updateChild.isPending}
               size="footer"
               style={styles.button}
@@ -691,6 +726,33 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[2],
+  },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing[3],
+    marginBottom: theme.spacing[4],
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: theme.borders.radius.sm,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.secondary,
+    marginTop: 1,
+  },
+  checkboxChecked: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  consentText: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
+    color: theme.colors.text.secondary,
   },
   input: {
     borderWidth: theme.borders.width.thin,

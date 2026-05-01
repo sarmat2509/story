@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +18,7 @@ import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useRegister } from '@/api/auth';
 import { getPasswordStrength, meetsMinRequirements } from '@/utils/passwordStrength';
+import { LEGAL_URLS } from '@/config/constants';
 import { theme } from '@/theme';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -29,6 +31,9 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [isAdultGuardian, setIsAdultGuardian] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const emailValid = EMAIL_REGEX.test(email);
@@ -36,13 +41,22 @@ export default function RegisterScreen() {
   const canSubmit =
     emailValid &&
     meetsMinRequirements(password) &&
+    termsAccepted &&
+    privacyAccepted &&
+    isAdultGuardian &&
     !registerMutation.isPending;
 
   const handleRegister = async () => {
     if (!canSubmit) return;
     try {
       setError(null);
-      await registerMutation.mutateAsync({ email, password });
+      await registerMutation.mutateAsync({
+        email,
+        password,
+        termsAccepted,
+        privacyAccepted,
+        isAdultGuardian,
+      });
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string; code?: string } } };
       const code = e?.response?.data?.code;
@@ -67,6 +81,34 @@ export default function RegisterScreen() {
       : strength === 'medium'
         ? theme.colors.warning[500]
         : theme.colors.status.success;
+
+  const renderCheckbox = (
+    checked: boolean,
+    onToggle: () => void,
+    label: string,
+    linkLabel?: string,
+    linkUrl?: string
+  ) => (
+    <TouchableOpacity style={styles.consentRow} onPress={onToggle} activeOpacity={0.75}>
+      <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+        {checked && <Ionicons name="checkmark" size={16} color={theme.colors.text.inverse} />}
+      </View>
+      <Text style={styles.consentText}>
+        {label}
+        {linkLabel && linkUrl ? (
+          <Text
+            style={styles.consentLink}
+            onPress={(event) => {
+              event.stopPropagation();
+              Linking.openURL(linkUrl);
+            }}
+          >
+            {` ${linkLabel}`}
+          </Text>
+        ) : null}
+      </Text>
+    </TouchableOpacity>
+  );
 
   return (
     <KeyboardAvoidingView
@@ -137,6 +179,28 @@ export default function RegisterScreen() {
           </View>
           <Text style={[styles.strengthLabel, { color: strengthColor }]}>{strengthLabel}</Text>
           <Text style={styles.requirementsText}>{t('auth.password_requirements')}</Text>
+
+          <View style={styles.consentSection}>
+            {renderCheckbox(
+              isAdultGuardian,
+              () => setIsAdultGuardian((value) => !value),
+              t('auth.consent_adult_guardian')
+            )}
+            {renderCheckbox(
+              termsAccepted,
+              () => setTermsAccepted((value) => !value),
+              t('auth.consent_terms'),
+              t('auth.terms_link'),
+              LEGAL_URLS.terms
+            )}
+            {renderCheckbox(
+              privacyAccepted,
+              () => setPrivacyAccepted((value) => !value),
+              t('auth.consent_privacy'),
+              t('auth.privacy_link'),
+              LEGAL_URLS.privacy
+            )}
+          </View>
 
           <TouchableOpacity
             style={[styles.button, !canSubmit && styles.buttonDisabled]}
@@ -254,12 +318,47 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     marginTop: theme.spacing[1],
   },
+  consentSection: {
+    gap: theme.spacing[3],
+    marginTop: theme.spacing[4],
+    marginBottom: theme.spacing[5],
+  },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing[3],
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: theme.borders.radius.sm,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.secondary,
+    marginTop: 1,
+  },
+  checkboxChecked: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  consentText: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
+    color: theme.colors.text.secondary,
+  },
+  consentLink: {
+    color: theme.colors.interactive.primary,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
   button: {
     backgroundColor: theme.colors.interactive.primary,
     padding: theme.spacing[4],
     borderRadius: theme.borders.radius.md,
     alignItems: 'center',
-    marginTop: theme.spacing[8],
+    marginTop: theme.spacing[2],
   },
   buttonDisabled: {
     opacity: 0.6,

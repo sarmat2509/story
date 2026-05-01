@@ -33,7 +33,12 @@
     "sign_in_with_oauth": "Mit Google oder Apple anmelden",
     "google_failed": "Google-Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
     "apple_failed": "Apple-Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
-    "or": "oder"
+    "or": "oder",
+    "consent_adult_guardian": "Ich bestätige, dass ich ein erwachsener Elternteil oder gesetzlicher Vormund bin.",
+    "consent_terms": "Ich akzeptiere die",
+    "consent_privacy": "Ich habe gelesen und akzeptiere die",
+    "terms_link": "Nutzungsbedingungen",
+    "privacy_link": "Datenschutzerklärung"
   },
   "welcome": {
     "slogan": "Zeichnungen zu Charakteren. Hören, mitlesen, veröffentlichen.",
@@ -500,6 +505,9 @@
     "sample_error": "Beispiel konnte nicht geladen werden"
   },
   "child_form": {
+    "child_data_consent": "Ich bin Elternteil oder gesetzlicher Vormund und stimme der Speicherung und Verarbeitung des Kinderprofils, Fotos, Zeichnungen, generierten Bilder, Geschichtentexte und Erzählungen für WonderTales-Funktionen zu.",
+    "child_data_consent_required_title": "Einwilligung erforderlich",
+    "child_data_consent_required_message": "Bitte bestätigen Sie die elterliche Einwilligung, bevor Sie Kinderdaten hinzufügen.",
     "creating_character": "Kinderprofil wird erstellt",
     "generating_remaining_sec": "~{{count}} Sek",
     "generating_almost_done": "Fast fertig...",

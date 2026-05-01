@@ -49,7 +49,13 @@ export const useRegister = () => {
   const { login } = useAuthStore();
 
   return useMutation({
-    mutationFn: async (data: { email: string; password: string }) => {
+    mutationFn: async (data: {
+      email: string;
+      password: string;
+      termsAccepted: boolean;
+      privacyAccepted: boolean;
+      isAdultGuardian: boolean;
+    }) => {
       const response = await apiClient.post<AuthResponse>(
         '/api/v1/auth/register',
         data

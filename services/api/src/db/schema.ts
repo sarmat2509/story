@@ -113,6 +113,35 @@ export type NewSession = typeof sessions.$inferInsert;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type NewPasswordResetToken = typeof passwordResetTokens.$inferInsert;
 
+// User consent records (legal/account/child data consent audit log)
+export const userConsentRecords = pgTable('user_consent_records', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  consentType: varchar('consent_type', { length: 64 }).notNull(),
+  documentVersion: varchar('document_version', { length: 64 }).notNull(),
+  acceptedAt: timestamp('accepted_at', { withTimezone: true }).defaultNow().notNull(),
+  ipAddress: inet('ip_address'),
+  userAgent: text('user_agent'),
+  context: jsonb('context').default({}).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+  return {
+    userTypeIdx: index('user_consent_records_user_type_idx').on(
+      table.userId,
+      table.consentType,
+      table.acceptedAt
+    ),
+    uniqueUserTypeVersionIdx: uniqueIndex('user_consent_records_user_type_version_uidx').on(
+      table.userId,
+      table.consentType,
+      table.documentVersion
+    ),
+  };
+});
+
+export type UserConsentRecord = typeof userConsentRecords.$inferSelect;
+export type NewUserConsentRecord = typeof userConsentRecords.$inferInsert;
+
 // Plans table
 export const plans = pgTable('plans', {
   id: uuid('id').primaryKey().defaultRandom(),

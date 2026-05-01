@@ -51,6 +51,11 @@
     "passwords_must_match": "Паролі повинні збігатися",
     "invalid_or_expired_token": "Посилання недійсне або закінчився термін дії",
     "request_new_link": "Запросити нове посилання",
+    "consent_adult_guardian": "Я підтверджую, що я дорослий батько/мати або законний опікун.",
+    "consent_terms": "Я погоджуюся з",
+    "consent_privacy": "Я прочитав/прочитала і погоджуюся з",
+    "terms_link": "Умовами користування",
+    "privacy_link": "Політикою конфіденційності",
     "reset_password_subtitle": "Введіть новий пароль"
   },
   "welcome": {
@@ -367,6 +372,9 @@
     "generating_remaining_sec": "~{{count}} сек",
     "generating_almost_done": "Майже готово...",
     "photos_title": "Фотографії",
+    "child_data_consent": "Я є батьком/матір'ю або законним опікуном і даю згоду на зберігання та обробку профілю дитини, фото, малюнків, згенерованих зображень, текстів історій і озвучення для функцій WonderTales.",
+    "child_data_consent_required_title": "Потрібна згода",
+    "child_data_consent_required_message": "Підтвердьте батьківську згоду перед додаванням даних дитини.",
     "current_image": "Аватар",
     "description": "Опис",
     "description_placeholder": "Опис зовнішності...",

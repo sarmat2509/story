@@ -10,6 +10,7 @@ import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
 import { generateTurnaroundSheetFromReference, generateTurnaroundSheetFromDescription, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
+import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
 
 const router = Router();
 
@@ -17,11 +18,46 @@ const router = Router();
 const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
 const analysisService = new CharacterAnalysisService(geminiProvider);
 
+function buildConsentAuditContext(req: Parameters<typeof requireAuth>[0], source: string): ConsentAuditContext {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const ipAddress =
+    (typeof forwardedFor === 'string' ? forwardedFor.split(',')[0]?.trim() : null) ||
+    req.socket.remoteAddress ||
+    null;
+  return {
+    ipAddress,
+    userAgent: req.headers['user-agent'] || null,
+    context: { source },
+  };
+}
+
+function getChildDataConsentValue(body: Record<string, unknown>): unknown {
+  return body.childDataConsentAccepted ?? body.child_data_consent_accepted ?? body.parentalConsentAccepted;
+}
+
+async function requireChildDataConsent(req: Parameters<typeof requireAuth>[0], res: Parameters<typeof requireAuth>[1], source: string): Promise<boolean> {
+  const accepted = await ensureChildDataConsent(
+    req.user!.id,
+    getChildDataConsentValue(req.body as Record<string, unknown>),
+    buildConsentAuditContext(req, source)
+  );
+  if (accepted) return true;
+
+  res.status(403).json({
+    status: 'error',
+    error: 'Child data consent required',
+    code: 'CHILD_DATA_CONSENT_REQUIRED',
+  });
+  return false;
+}
+
 // POST /api/v1/children/analyze - Analyze child photos
 router.post('/analyze', requireAuth, async (req, res) => {
   const { photos, language } = req.body;
   
   try {
+    if (!(await requireChildDataConsent(req, res, 'child_photo_analysis'))) return;
+
     // Validation
     if (!photos || !Array.isArray(photos) || photos.length === 0) {
       return res.status(400).json({
@@ -138,6 +174,8 @@ router.post('/', requireAuth, async (req, res) => {
     }
     
     const data = validation.data;
+    if (!(await requireChildDataConsent(req, res, 'child_profile_create'))) return;
+
     const dataForCreate = {
       ...data,
       birthDate: data.birthDate instanceof Date ? data.birthDate.toISOString().split('T')[0] : data.birthDate,

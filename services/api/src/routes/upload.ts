@@ -3,9 +3,27 @@ import multer from 'multer';
 import { isPhotoTypeUserUpload } from '@wondertales/shared';
 import { requireAuth } from '../middleware/authMiddleware';
 import { getAssetStorageService } from '../services/assetStorageService';
+import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
 import { logger } from '../utils/logger';
 
 const router = Router();
+
+function buildConsentAuditContext(req: Parameters<typeof requireAuth>[0], source: string): ConsentAuditContext {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const ipAddress =
+    (typeof forwardedFor === 'string' ? forwardedFor.split(',')[0]?.trim() : null) ||
+    req.socket.remoteAddress ||
+    null;
+  return {
+    ipAddress,
+    userAgent: req.headers['user-agent'] || null,
+    context: { source },
+  };
+}
+
+function getChildDataConsentValue(body: Record<string, unknown>): unknown {
+  return body.childDataConsentAccepted ?? body.child_data_consent_accepted ?? body.parentalConsentAccepted;
+}
 
 // Configure multer for memory storage
 const upload = multer({
@@ -45,6 +63,21 @@ router.post('/photo', requireAuth, upload.single('photo'), async (req, res) => {
         status: 'error',
         error: 'Invalid photoType. Must be: profile, character, child, or feedback'
       });
+    }
+
+    if (photoType === 'child') {
+      const hasConsent = await ensureChildDataConsent(
+        userId,
+        getChildDataConsentValue(req.body as Record<string, unknown>),
+        buildConsentAuditContext(req, 'child_photo_upload')
+      );
+      if (!hasConsent) {
+        return res.status(403).json({
+          status: 'error',
+          error: 'Child data consent required',
+          code: 'CHILD_DATA_CONSENT_REQUIRED',
+        });
+      }
     }
 
     // Preprocess image (auto-orient, resize, enhance exposure, convert to JPEG)

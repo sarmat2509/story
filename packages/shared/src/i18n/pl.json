@@ -51,7 +51,12 @@
     "email_already_registered": "Ten email jest juz zarejestrowany",
     "passwords_must_match": "Hasla musza byc takie same",
     "invalid_or_expired_token": "Link jest nieprawidlowy lub wygasl",
-    "request_new_link": "Popros o nowy link"
+    "request_new_link": "Popros o nowy link",
+    "consent_adult_guardian": "Potwierdzam, ze jestem doroslym rodzicem lub opiekunem prawnym.",
+    "consent_terms": "Akceptuje",
+    "consent_privacy": "Przeczytalem/am i akceptuje",
+    "terms_link": "Regulamin",
+    "privacy_link": "Polityke prywatnosci"
   },
   "welcome": {
     "slogan": "Zmien rysunki w bohaterow. Sluchaj, czytaj razem. Tworz i publikuj.",
@@ -363,6 +368,9 @@
     "generating_remaining_sec": "~{{count}} s",
     "generating_almost_done": "Prawie gotowe...",
     "photos_title": "Zdjecia",
+    "child_data_consent": "Jestem rodzicem lub opiekunem prawnym i wyrazam zgode na przechowywanie oraz przetwarzanie profilu dziecka, zdjec, rysunkow, wygenerowanych obrazow, tekstow historii i narracji dla funkcji WonderTales.",
+    "child_data_consent_required_title": "Wymagana zgoda",
+    "child_data_consent_required_message": "Potwierdz zgode rodzica przed dodaniem danych dziecka.",
     "current_image": "Awatar",
     "description": "Opis",
     "description_placeholder": "Opis wygladu fizycznego...",

@@ -17,7 +17,8 @@ export interface UploadPhotoResult {
  */
 export async function uploadPhoto(
   uri: string,
-  photoType: PhotoTypeUserUpload = 'character'
+  photoType: PhotoTypeUserUpload = 'character',
+  options: { childDataConsentAccepted?: boolean } = {}
 ): Promise<UploadPhotoResult> {
   try {
     // Create FormData
@@ -43,6 +44,9 @@ export async function uploadPhoto(
     }
     
     formData.append('photoType', photoType);
+    if (options.childDataConsentAccepted) {
+      formData.append('childDataConsentAccepted', 'true');
+    }
 
     // Send to server (do NOT set Content-Type — fetch sets multipart/form-data with boundary automatically)
     const response = await apiClient.post<{ status: string; photo: UploadPhotoResult }>(

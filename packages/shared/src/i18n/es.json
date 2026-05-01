@@ -33,7 +33,12 @@
     "sign_in_with_oauth": "Inicia sesión con Google o Apple",
     "google_failed": "Error al iniciar sesión con Google. Inténtalo de nuevo.",
     "apple_failed": "Error al iniciar sesión con Apple. Inténtalo de nuevo.",
-    "or": "o"
+    "or": "o",
+    "consent_adult_guardian": "Confirmo que soy un padre, madre o tutor legal adulto.",
+    "consent_terms": "Acepto los",
+    "consent_privacy": "He leído y acepto la",
+    "terms_link": "Términos de servicio",
+    "privacy_link": "Política de privacidad"
   },
   "welcome": {
     "slogan": "Dibujos en personajes. Escucha, lee, publica.",
@@ -251,6 +256,9 @@
     "generating_remaining_sec": "~{{count}} s",
     "generating_almost_done": "Casi listo...",
     "photos_title": "Fotos",
+    "child_data_consent": "Soy el padre, madre o tutor legal y doy mi consentimiento para almacenar y procesar el perfil del niño, fotos, dibujos, imágenes generadas, texto de historias y narración para las funciones de WonderTales.",
+    "child_data_consent_required_title": "Consentimiento requerido",
+    "child_data_consent_required_message": "Confirma el consentimiento parental antes de añadir datos del niño.",
     "current_image": "Avatar",
     "description": "Descripción",
     "description_placeholder": "Descripción de la apariencia física...",
