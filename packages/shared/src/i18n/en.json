@@ -820,6 +820,7 @@
       "characters": "Characters",
       "plans": "Plans",
       "profile": "Profile",
+      "published_story": "Public story",
       "other": "Other"
     },
     "category": "Category",
@@ -844,7 +845,8 @@
     "submit": "Submit",
     "success": "Thank you!",
     "success_message": "Your feedback has been sent. We'll look into it.",
-    "report_this_issue": "Report this issue"
+    "report_this_issue": "Report this issue",
+    "report_story": "Report story"
   },
   "mode_selection": {
     "title": "Choose Your Experience",

@@ -797,6 +797,7 @@
       "characters": "Персонажи",
       "plans": "Тарифы",
       "profile": "Профиль",
+      "published_story": "Публичная история",
       "other": "Другое"
     },
     "category": "Категория",
@@ -821,7 +822,8 @@
     "submit": "Отправить",
     "success": "Спасибо!",
     "success_message": "Ваш отзыв отправлен. Мы его рассмотрим.",
-    "report_this_issue": "Сообщить о проблеме"
+    "report_this_issue": "Сообщить о проблеме",
+    "report_story": "Пожаловаться на историю"
   },
   "mode_selection": {
     "title": "Выберите свой опыт",

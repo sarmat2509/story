@@ -166,6 +166,10 @@ export default function PublishedStoryScreen() {
     setCurrentPosition(position);
   }, []);
 
+  const handleReportStory = useCallback(() => {
+    setShowFeedbackModal(true);
+  }, []);
+
   // ── Early returns after all hooks ─────────────────────────────────────────
   if (!slug && !token) {
     return (
@@ -212,6 +216,17 @@ export default function PublishedStoryScreen() {
     if (!authorId) return;
     navigation.navigate('AuthorProfile', { authorId });
   };
+
+  const renderReportStoryButton = () => (
+    <TouchableOpacity
+      style={styles.reportStoryButton}
+      onPress={handleReportStory}
+      accessibilityRole="button"
+    >
+      <Ionicons name="flag-outline" size={18} color={theme.colors.text.secondary} />
+      <Text style={styles.reportStoryButtonText}>{t('feedback.report_story')}</Text>
+    </TouchableOpacity>
+  );
 
   const renderMainContent = () => (
     <>
@@ -286,6 +301,8 @@ export default function PublishedStoryScreen() {
           onVoted={refetch}
         />
       )}
+
+      {!useDesktopLayout && renderReportStoryButton()}
 
       <View style={styles.scenesSection}>
         {(story.scenes ?? []).map((scene: any, index: number) => {
@@ -409,6 +426,7 @@ export default function PublishedStoryScreen() {
         rating={story.rating}
         onVoted={refetch}
       />
+      {renderReportStoryButton()}
       {isAuthenticated && isOwner && (
         <TouchableOpacity
           style={styles.editButtonSidebar}
@@ -438,7 +456,7 @@ export default function PublishedStoryScreen() {
         <FeedbackModal
           visible={showFeedbackModal}
           onClose={() => setShowFeedbackModal(false)}
-          initialReportedScreen="other"
+          initialReportedScreen="published_story"
         />
       </View>
     );
@@ -452,7 +470,7 @@ export default function PublishedStoryScreen() {
       <FeedbackModal
         visible={showFeedbackModal}
         onClose={() => setShowFeedbackModal(false)}
-        initialReportedScreen="other"
+        initialReportedScreen="published_story"
       />
     </>
   );
@@ -666,5 +684,23 @@ const styles = StyleSheet.create({
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.interactive.primary,
     backgroundColor: theme.colors.background.primary,
+  },
+  reportStoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+    marginBottom: theme.spacing[4],
+  },
+  reportStoryButtonText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.text.secondary,
   },
 });

@@ -725,6 +725,7 @@
       "characters": "Charaktere",
       "plans": "Tarife",
       "profile": "Profil",
+      "published_story": "Oeffentliche Geschichte",
       "other": "Sonstiges"
     },
     "category": "Kategorie",
@@ -749,7 +750,8 @@
     "submit": "Absenden",
     "success": "Vielen Dank!",
     "success_message": "Ihr Feedback wurde gesendet. Wir werden es prüfen.",
-    "report_this_issue": "Problem melden"
+    "report_this_issue": "Problem melden",
+    "report_story": "Geschichte melden"
   },
   "billing": {
     "success_title": "Abonnement erfolgreich!",

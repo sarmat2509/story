@@ -546,6 +546,7 @@
       "characters": "Personajes",
       "plans": "Planes",
       "profile": "Perfil",
+      "published_story": "Historia publica",
       "other": "Otro"
     },
     "category": "Categoría",
@@ -570,7 +571,8 @@
     "submit": "Enviar",
     "success": "¡Gracias!",
     "success_message": "Tu comentario ha sido enviado. Lo revisaremos.",
-    "report_this_issue": "Reportar este problema"
+    "report_this_issue": "Reportar este problema",
+    "report_story": "Reportar historia"
   },
   "navigation": {
     "dashboard": "Inicio",

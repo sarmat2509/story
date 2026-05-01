@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 
 const router = Router();
 
-const REPORTED_SCREENS = [
+export const REPORTED_SCREENS = [
   'dashboard',
   'wizard',
   'story_viewer',
@@ -16,6 +16,7 @@ const REPORTED_SCREENS = [
   'characters',
   'plans',
   'profile',
+  'published_story',
   'other',
 ] as const;
 

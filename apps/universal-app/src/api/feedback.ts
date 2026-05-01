@@ -11,6 +11,7 @@ export type ReportedScreen =
   | 'characters'
   | 'plans'
   | 'profile'
+  | 'published_story'
   | 'other';
 
 export interface SubmitFeedbackInput {

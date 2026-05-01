@@ -30,6 +30,7 @@ const REPORTED_SCREENS: ReportedScreen[] = [
   'characters',
   'plans',
   'profile',
+  'published_story',
   'other',
 ];
 

@@ -817,6 +817,7 @@
       "characters": "Postacie",
       "plans": "Plany",
       "profile": "Profil",
+      "published_story": "Historia publiczna",
       "other": "Inne"
     },
     "category": "Kategoria",
@@ -841,7 +842,8 @@
     "submit": "Wyslij",
     "success": "Dziekujemy!",
     "success_message": "Twoja opinia zostala wyslana. Przyjrzymy sie temu.",
-    "report_this_issue": "Zglos ten problem"
+    "report_this_issue": "Zglos ten problem",
+    "report_story": "Zglos historie"
   },
   "mode_selection": {
     "title": "Wybierz swoj sposob korzystania",

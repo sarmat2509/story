@@ -687,6 +687,7 @@
       "characters": "Personnages",
       "plans": "Tarifs",
       "profile": "Profil",
+      "published_story": "Histoire publique",
       "other": "Autre"
     },
     "category": "Catégorie",
@@ -711,7 +712,8 @@
     "submit": "Envoyer",
     "success": "Merci !",
     "success_message": "Votre commentaire a été envoyé. Nous l'examinerons.",
-    "report_this_issue": "Signaler ce problème"
+    "report_this_issue": "Signaler ce problème",
+    "report_story": "Signaler l'histoire"
   },
   "billing": {
     "success_title": "Abonnement réussi !",

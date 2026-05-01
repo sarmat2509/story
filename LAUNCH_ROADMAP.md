@@ -868,7 +868,7 @@ Required work:
 - Confirmation dialog before making a story public.
 - Remove child-created story from public catalog until parent approval.
 - Keep unpublish action returning stories to the private visibility state.
-- Add report story action if public catalog remains enabled.
+- Keep a visible report story action for public catalog and unlisted story pages.
 - Make `/api/v1/public/stories`, `/api/v1/public/authors/:authorId`, SSR story routes, SSR author routes, and sitemap use the same public predicate: `is_published=true`, `visibility='public'`, `published_slug IS NOT NULL`, `hidden=false`, moderation passed, and parent review approved when applicable.
 - Make `/api/v1/public/u/:token` and `/ssr/u/:token` use the unlisted predicate: `is_published=true`, `visibility='unlisted'`, `share_token IS NOT NULL`, `hidden=false`, moderation passed, and parent review approved when applicable.
 - Remove or deprecate older duplicate public endpoints that do not return the same shape or predicate as `/api/v1/public/stories`.
@@ -883,6 +883,8 @@ Completed locally:
 - Public predicate tests are included in `scripts/launch-gate.sh`.
 - Unpublishing now clears `visibility` back to `null`, removes public/unlisted share fields, and clears home-page featuring when present.
 - `pnpm launch:gate` now includes a publish service regression test for the unpublish private-state patch.
+- Public and unlisted story pages now expose an explicit report story button that opens the existing feedback workflow with `published_story` context.
+- Feedback API and admin feedback context now accept `published_story` as a reported screen, with launch-gate coverage.
 
 Acceptance criteria:
 
