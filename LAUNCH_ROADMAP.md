@@ -603,6 +603,7 @@ Current code findings:
 - `/u/:token` is routed to SSR with `noindex,nofollow` response/header handling and remains out of the sitemap.
 - `/authors/:authorId` is now routed through API SSR from nginx for authors with at least one public catalog story; missing, invalid, or zero-public-story authors return 404 with `noindex,nofollow`.
 - Public author avatar files can be served without auth only when the requested profile image matches the author's public avatar and the author has at least one public catalog story.
+- `sitemap.xml` now includes default-locale `/authors/:authorId` URLs derived only from the same public catalog story rows used for `/stories/:slug`.
 - `/terms` and `/privacy` are SSR, but only `en` and `uk` markdown files exist. Other launch locales must either get legal content or stay out of indexed/legal alternate routes.
 - Local Docker logs after author SSR checks show successful author/avatar responses; dev nginx still emits non-fatal IPv6 fallback warnings for `host.docker.internal:8082` before retrying successfully.
 
@@ -648,11 +649,11 @@ Required code changes:
 - Create one route ownership manifest for SEO/public/app-only paths and use it consistently in sitemap generation, nginx route comments/config, React linking, and tests.
 - Add SSR for `/stories` catalog if it remains in sitemap. Otherwise remove `/stories` from sitemap until the SSR catalog exists.
 - Keep `/u/:token` rendered with `noindex,nofollow` and out of sitemap.
-- Keep `/authors/:authorId` SSR routed from nginx; add author pages to sitemap only after the sitemap author eligibility query is implemented.
+- Keep `/authors/:authorId` SSR routed from nginx and include only eligible default-locale author URLs in sitemap.
 - Public story SSR and React pages link the author name/avatar to `/authors/:authorId` when `author.id` is present.
 - Author pages must list only public catalog stories, never private, draft, hidden, child-review-pending, or unlisted stories.
 - Author pages with zero public catalog stories should return 404 or `noindex,nofollow`.
-- Sitemap may include author pages only for authors with at least one public catalog story.
+- Sitemap includes author pages only for authors with at least one public catalog story.
 - Add `X-Robots-Tag: noindex,nofollow` for app-only route prefixes at nginx or app-server level.
 - Return real 404/noindex for unknown public routes instead of serving the SPA shell with HTTP 200.
 - Split public SEO locales from app-supported story languages. Sitemap, alternate links, and nginx localized SSR routes must use only launch-ready SEO locales.
@@ -665,7 +666,7 @@ Acceptance criteria:
 - Opening the authenticated plans screen from inside the app uses an app-only URL such as `/billing/plans`, not `/pricing`.
 - There is only one pricing display source of truth for feature order, labels, hidden features, and price formatting.
 - Bundle prices shown in the authenticated billing/plans screen always match the user's current plan after checkout, portal return, upgrade, downgrade, or billing success.
-- Sitemap includes only indexable SSR-backed pages; eligible author pages still need sitemap inclusion.
+- Sitemap includes only indexable SSR-backed pages, including eligible default-locale author pages.
 - `/u/:token`, `/welcome`, `/register`, `/auth/*`, `/billing/success`, `/dashboard`, `/wizard`, `/me/*`, `/children`, `/characters`, `/profile`, `/settings/*`, and `/admin/*` are not indexable.
 - Unknown public URLs do not return a successful indexable SPA shell.
 
