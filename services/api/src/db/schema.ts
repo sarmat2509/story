@@ -48,6 +48,10 @@ export const oauthIdentities = pgTable('oauth_identities', {
 export const sessions = pgTable('sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  mode: varchar('mode', { length: 20 }).default('parent').notNull(), // 'parent' | 'child'
+  parentUserId: uuid('parent_user_id').references(() => users.id, { onDelete: 'cascade' }),
+  childProfileId: uuid('child_profile_id').references(() => childProfiles.id, { onDelete: 'cascade' }),
+  scopes: jsonb('scopes').default([]).notNull(),
   token: varchar('token', { length: 255 }).notNull().unique(),
   deviceName: varchar('device_name', { length: 255 }),
   deviceType: varchar('device_type', { length: 50 }), // 'ios' | 'android' | 'web'
@@ -56,11 +60,16 @@ export const sessions = pgTable('sessions', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   lastActiveAt: timestamp('last_active_at').defaultNow().notNull(),
   expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
 }, (table) => {
   return {
     tokenIdx: uniqueIndex('sessions_token_idx').on(table.token),
     userIdIdx: index('sessions_user_id_idx').on(table.userId),
+    modeIdx: index('sessions_mode_idx').on(table.mode),
+    parentUserIdIdx: index('sessions_parent_user_id_idx').on(table.parentUserId),
+    childProfileIdIdx: index('sessions_child_profile_id_idx').on(table.childProfileId),
     expiresAtIdx: index('sessions_expires_at_idx').on(table.expiresAt),
+    revokedAtIdx: index('sessions_revoked_at_idx').on(table.revokedAt),
   };
 });
 

@@ -4,7 +4,7 @@
 
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import config from '../config';
 import * as billingService from '../services/billingService';
 import { logger } from '../utils/logger';
@@ -16,7 +16,7 @@ const bundleCheckoutBodySchema = z.object({
 const router = Router();
 
 // POST /api/v1/billing/checkout-session - Create Stripe Checkout Session (subscription)
-router.post('/checkout-session', requireAuth, async (req: Request, res: Response) => {
+router.post('/checkout-session', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     if (!config.features.enableRealPayments) {
       return res.status(501).json({
@@ -65,7 +65,7 @@ router.post('/checkout-session', requireAuth, async (req: Request, res: Response
 });
 
 // POST /api/v1/billing/bundle-checkout — one-time payment for extra story + audio limits (current period)
-router.post('/bundle-checkout', requireAuth, async (req: Request, res: Response) => {
+router.post('/bundle-checkout', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     if (!config.features.enableRealPayments) {
       return res.status(501).json({
@@ -117,7 +117,7 @@ router.post('/bundle-checkout', requireAuth, async (req: Request, res: Response)
 });
 
 // POST /api/v1/billing/portal-session - Create Stripe Customer Portal session
-router.post('/portal-session', requireAuth, async (req: Request, res: Response) => {
+router.post('/portal-session', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     if (!config.features.enableRealPayments) {
       return res.status(501).json({

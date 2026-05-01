@@ -1,4 +1,4 @@
-import { eq, and, lt, gt, desc } from 'drizzle-orm';
+import { eq, and, lt, gt, desc, isNull, or } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -29,7 +29,8 @@ export class SessionRepository {
       .where(
         and(
           eq(schema.sessions.token, token),
-          gt(schema.sessions.expiresAt, new Date())
+          gt(schema.sessions.expiresAt, new Date()),
+          isNull(schema.sessions.revokedAt)
         )
       )
       .limit(1);
@@ -46,7 +47,8 @@ export class SessionRepository {
       .where(
         and(
           eq(schema.sessions.id, sessionId),
-          gt(schema.sessions.expiresAt, new Date())
+          gt(schema.sessions.expiresAt, new Date()),
+          isNull(schema.sessions.revokedAt)
         )
       )
       .limit(1);
@@ -69,7 +71,10 @@ export class SessionRepository {
     return this.db
       .select()
       .from(schema.sessions)
-      .where(eq(schema.sessions.userId, userId))
+      .where(and(
+        eq(schema.sessions.userId, userId),
+        isNull(schema.sessions.revokedAt)
+      ))
       .orderBy(desc(schema.sessions.lastActiveAt));
   }
 
@@ -83,7 +88,10 @@ export class SessionRepository {
   async deleteByToken(token: string): Promise<void> {
     await this.db
       .delete(schema.sessions)
-      .where(eq(schema.sessions.token, token));
+      .where(or(
+        eq(schema.sessions.token, token),
+        eq(schema.sessions.id, token)
+      ));
   }
 
   async deleteByUserId(userId: string): Promise<number> {

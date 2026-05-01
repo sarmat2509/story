@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import * as childProfileService from '../services/childProfileService';
 import * as planService from '../services/planService';
 import { CreateChildProfileSchema, UpdateChildProfileSchema } from '@wondertales/shared';
@@ -52,7 +52,7 @@ async function requireChildDataConsent(req: Parameters<typeof requireAuth>[0], r
 }
 
 // POST /api/v1/children/analyze - Analyze child photos
-router.post('/analyze', requireAuth, async (req, res) => {
+router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
   const { photos, language } = req.body;
   
   try {
@@ -116,7 +116,7 @@ router.post('/analyze', requireAuth, async (req, res) => {
 });
 
 // GET /api/v1/children - List child profiles
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const profiles = await childProfileService.getChildProfiles(userId);
@@ -156,7 +156,7 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // POST /api/v1/children - Create child profile
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
 
@@ -268,7 +268,7 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 // PATCH /api/v1/children/:id - Update child profile
-router.patch('/:id', requireAuth, async (req, res) => {
+router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
@@ -332,7 +332,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
 });
 
 // DELETE /api/v1/children/:id - Delete child profile
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/:id', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;

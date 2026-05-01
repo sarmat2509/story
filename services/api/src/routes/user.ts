@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { THEME_PALETTE_IDS } from '@wondertales/shared';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import { getUserWithOAuth, updateUser, deleteUser, countUserOAuthIdentities } from '../services/userService';
 import { getUserSessions, deleteSession } from '../services/sessionService';
 import { unlinkOAuthProvider } from '../services/oauthService';
@@ -21,7 +21,7 @@ const updateUserSchema = z.object({
 });
 
 // Get current user
-router.get('/', requireAuth, async (req: Request, res: Response) => {
+router.get('/', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     const userWithOAuth = await getUserWithOAuth(req.user!.id);
     
@@ -39,7 +39,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
 });
 
 // Update current user
-router.patch('/', requireAuth, async (req: Request, res: Response) => {
+router.patch('/', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     // Validate request body
     const validationResult = updateUserSchema.safeParse(req.body);
@@ -81,7 +81,7 @@ router.patch('/', requireAuth, async (req: Request, res: Response) => {
 });
 
 // Delete account
-router.delete('/', requireAuth, async (req: Request, res: Response) => {
+router.delete('/', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     await deleteUser(req.user!.id);
     
@@ -101,7 +101,7 @@ router.delete('/', requireAuth, async (req: Request, res: Response) => {
 });
 
 // Get subscription usage (stories + audio remaining, resetsAt)
-router.get('/subscription-usage', requireAuth, async (req: Request, res: Response) => {
+router.get('/subscription-usage', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     const { getPlanFeatures, getUserSubscription } = await import('../services/planService');
     const { getUsageForPeriod } = await import('../services/usageEventsService');
@@ -171,7 +171,7 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
 });
 
 // Get active sessions
-router.get('/sessions', requireAuth, async (req: Request, res: Response) => {
+router.get('/sessions', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     const sessions = await getUserSessions(req.user!.id);
     
@@ -200,7 +200,7 @@ router.get('/sessions', requireAuth, async (req: Request, res: Response) => {
 });
 
 // Revoke specific session
-router.delete('/sessions/:sessionToken', requireAuth, async (req: Request, res: Response) => {
+router.delete('/sessions/:sessionToken', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     const { sessionToken } = req.params;
     
@@ -222,7 +222,7 @@ router.delete('/sessions/:sessionToken', requireAuth, async (req: Request, res: 
 });
 
 // List user's story series (requires series_enabled feature)
-router.get('/series', requireAuth, async (req: Request, res: Response) => {
+router.get('/series', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const { hasFeature } = await import('../services/planService');
@@ -253,7 +253,7 @@ router.get('/series', requireAuth, async (req: Request, res: Response) => {
 });
 
 // Get linked OAuth providers
-router.get('/oauth-providers', requireAuth, async (req: Request, res: Response) => {
+router.get('/oauth-providers', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     const userWithOAuth = await getUserWithOAuth(req.user!.id);
     
@@ -271,7 +271,7 @@ router.get('/oauth-providers', requireAuth, async (req: Request, res: Response) 
 });
 
 // Link additional OAuth provider
-router.post('/oauth-providers', requireAuth, async (req: Request, res: Response) => {
+router.post('/oauth-providers', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     // TODO: Implement OAuth linking flow
     res.status(501).json({
@@ -288,7 +288,7 @@ router.post('/oauth-providers', requireAuth, async (req: Request, res: Response)
 });
 
 // Unlink OAuth provider
-router.delete('/oauth-providers/:provider', requireAuth, async (req: Request, res: Response) => {
+router.delete('/oauth-providers/:provider', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     const { provider } = req.params;
     

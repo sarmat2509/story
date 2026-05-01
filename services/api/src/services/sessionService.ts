@@ -4,8 +4,14 @@ import type { Session, User, NewSession } from '../db/schema';
 import config from '../config';
 import { logger } from '../utils/logger';
 
+export type SessionMode = 'parent' | 'child';
+
 export interface CreateSessionInput {
   userId: string;
+  mode?: SessionMode;
+  parentUserId?: string;
+  childProfileId?: string;
+  scopes?: string[];
   deviceName?: string;
   deviceType?: 'ios' | 'android' | 'web';
   ipAddress?: string;
@@ -15,6 +21,10 @@ export interface CreateSessionInput {
 export interface SessionData {
   id: string;
   userId: string;
+  mode: SessionMode;
+  parentUserId: string | null;
+  childProfileId: string | null;
+  scopes: string[];
   token: string;
   deviceName: string | null;
   deviceType: string | null;
@@ -23,6 +33,7 @@ export interface SessionData {
   createdAt: Date;
   lastActiveAt: Date;
   expiresAt: Date;
+  revokedAt: Date | null;
 }
 
 // Parse session expires duration (e.g., "30d" -> 30 days in ms)
@@ -53,6 +64,10 @@ export async function createSession(input: CreateSessionInput): Promise<SessionD
   
   const newSession: NewSession = {
     userId: input.userId,
+    mode: input.mode || 'parent',
+    parentUserId: input.parentUserId || input.userId,
+    childProfileId: input.childProfileId || null,
+    scopes: input.scopes || [],
     token,
     deviceName: input.deviceName || null,
     deviceType: input.deviceType || null,

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import * as planService from '../services/planService';
 import { getBundleBonusForPeriod } from '../services/bundleService';
 import { getUsageForPeriod } from '../services/usageEventsService';
@@ -29,7 +29,7 @@ const FEATURE_SLUG_TO_EVENT_TYPE: Record<string, UsageEventType> = {
 };
 
 // GET /api/v1/entitlements - Get current user's subscription, features, and usage
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
 

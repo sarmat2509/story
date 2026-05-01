@@ -2,8 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../services/jwtService';
 import { getSessionWithUser, updateLastActive } from '../services/sessionService';
 import { logger } from '../utils/logger';
-import type { User } from '../db/schema';
+import type { Session, User } from '../db/schema';
 import { USER_ROLE_ADMIN } from '../constants/userRoles';
+import type { SessionMode } from '../services/sessionService';
 
 // Extend Express Request type
 declare global {
@@ -11,8 +12,36 @@ declare global {
     interface Request {
       user?: User;
       sessionId?: string;
+      sessionMode?: SessionMode;
+      parentUserId?: string;
+      childProfileId?: string;
+      sessionScopes?: string[];
     }
   }
+}
+
+function normalizeSessionMode(mode: Session['mode']): SessionMode {
+  return mode === 'child' ? 'child' : 'parent';
+}
+
+function normalizeSessionScopes(scopes: Session['scopes']): string[] {
+  if (!Array.isArray(scopes)) {
+    return [];
+  }
+  return scopes.filter((scope): scope is string => typeof scope === 'string');
+}
+
+function attachAuthenticatedSession(
+  req: Request,
+  result: { session: Session; user: User },
+  sessionId: string
+): void {
+  req.user = result.user;
+  req.sessionId = sessionId;
+  req.sessionMode = normalizeSessionMode(result.session.mode);
+  req.parentUserId = result.session.parentUserId || result.user.id;
+  req.childProfileId = result.session.childProfileId || undefined;
+  req.sessionScopes = normalizeSessionScopes(result.session.scopes);
 }
 
 // Extract JWT from Authorization header
@@ -77,11 +106,15 @@ export async function requireAuth(
       logger.error({ err, sessionId: decoded.sessionId }, 'Failed to update last active');
     });
     
-    // Attach user and session to request
-    req.user = result.user;
-    req.sessionId = decoded.sessionId;
+    // Attach user and session context to request
+    attachAuthenticatedSession(req, result, decoded.sessionId);
     
-    logger.debug({ userId: req.user.id, sessionId: req.sessionId }, 'User authenticated');
+    logger.debug({
+      userId: req.user.id,
+      sessionId: req.sessionId,
+      sessionMode: req.sessionMode,
+      childProfileId: req.childProfileId,
+    }, 'User authenticated');
     
     next();
   } catch (error) {
@@ -91,6 +124,29 @@ export async function requireAuth(
       message: 'Internal authentication error',
     });
   }
+}
+
+/** Use after requireAuth. Blocks child sessions from parent-only account operations. */
+export function requireParentSession(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({
+      status: 'error',
+      message: 'Not authenticated',
+      code: 'AUTHENTICATION_REQUIRED',
+    });
+    return;
+  }
+
+  if (req.sessionMode === 'child') {
+    res.status(403).json({
+      status: 'error',
+      message: 'Parent session required',
+      code: 'PARENT_SESSION_REQUIRED',
+    });
+    return;
+  }
+
+  next();
 }
 
 /** Use after requireAuth. Returns 403 unless users.role is admin. */
@@ -137,8 +193,7 @@ export async function optionalAuth(
     const result = await getSessionWithUser(decoded.sessionId);
     
     if (result) {
-      req.user = result.user;
-      req.sessionId = decoded.sessionId;
+      attachAuthenticatedSession(req, result, decoded.sessionId);
       
       // Update last active (async)
       updateLastActive(decoded.sessionId).catch((err) => {

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import * as characterService from '../services/characterService';
 import { CreateCharacterSchema, UpdateCharacterSchema } from '@wondertales/shared';
 import { logger } from '../utils/logger';
@@ -16,7 +16,7 @@ const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.mo
 const analysisService = new CharacterAnalysisService(geminiProvider);
 
 // POST /api/v1/characters/analyze - Analyze character photos
-router.post('/analyze', requireAuth, async (req, res) => {
+router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
   const { photos, characterType, language } = req.body;
   
   try {
@@ -161,7 +161,7 @@ function extractSecondaryColor(traits: any): string | undefined {
 }
 
 // GET /api/v1/characters - List characters (optionally filtered by type)
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const type = req.query.type as characterService.CharacterType | undefined;
@@ -182,7 +182,7 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // POST /api/v1/characters - Create character
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     
@@ -291,7 +291,7 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 // GET /api/v1/characters/:id - Get single character
-router.get('/:id', requireAuth, async (req, res) => {
+router.get('/:id', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
@@ -319,7 +319,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 });
 
 // DELETE /api/v1/characters/:id - Delete or hide character
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/:id', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
@@ -362,7 +362,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 });
 
 // PATCH /api/v1/characters/:id - Update character
-router.patch('/:id', requireAuth, async (req, res) => {
+router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;

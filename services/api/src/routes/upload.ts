@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { isPhotoTypeUserUpload } from '@wondertales/shared';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import { getAssetStorageService } from '../services/assetStorageService';
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
 import { logger } from '../utils/logger';
@@ -45,7 +45,7 @@ const upload = multer({
  * POST /api/v1/upload/photo
  * Upload user photo (profile, character, child reference photo)
  */
-router.post('/photo', requireAuth, upload.single('photo'), async (req, res) => {
+router.post('/photo', requireAuth, requireParentSession, upload.single('photo'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -123,7 +123,7 @@ router.post('/photo', requireAuth, upload.single('photo'), async (req, res) => {
  * DELETE /api/v1/upload/photo
  * Delete an uploaded photo (cleanup for cancelled character creation)
  */
-router.delete('/photo', requireAuth, async (req, res) => {
+router.delete('/photo', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { url } = req.body;

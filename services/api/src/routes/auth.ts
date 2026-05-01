@@ -6,7 +6,7 @@ import config from '../config';
 import { handleGoogleCallback, handleAppleCallback } from '../services/oauthService';
 import { createSession, deleteSession, deleteAllUserSessions } from '../services/sessionService';
 import { generateToken } from '../services/jwtService';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import { logger } from '../utils/logger';
 import { setSessionCookie, clearSessionCookie } from '../utils/sessionCookie';
 import {
@@ -693,7 +693,7 @@ router.post('/reset-password', async (req: Request, res: Response) => {
 });
 
 // Delete all sessions (logout from all devices)
-router.delete('/sessions', requireAuth, async (req: Request, res: Response) => {
+router.delete('/sessions', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     if (!req.user) {
       res.status(401).json({

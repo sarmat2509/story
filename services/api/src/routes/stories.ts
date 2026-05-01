@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { requireAuth, optionalAuth } from '../middleware/authMiddleware';
+import { requireAuth, requireParentSession, optionalAuth } from '../middleware/authMiddleware';
 import { CreateStoryRequestSchema, LocaleSchema } from '@wondertales/shared';
 import { 
   createStoryRequest, 
@@ -537,7 +537,7 @@ const PublishStorySchema = z.object({
  * PATCH /api/v1/stories/:id
  * Publish or unpublish a story
  */
-router.patch('/:id', requireAuth, async (req: Request, res: Response) => {
+router.patch('/:id', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     const id = req.params['id'];
     if (typeof id !== 'string' || !id) {
