@@ -6,6 +6,35 @@ import { storage } from '@/utils/storage';
 import apiClient from '@/api/client';
 import { navigationRef } from '@/navigation/navigationRef';
 
+type PersistedAuthStore = typeof useAuthStore & {
+  persist?: {
+    hasHydrated: () => boolean;
+    onFinishHydration: (callback: () => void) => () => void;
+  };
+};
+
+function waitForAuthHydration(): Promise<void> {
+  const store = useAuthStore as PersistedAuthStore;
+  if (!store.persist || store.persist.hasHydrated()) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    let finished = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let unsubscribe = () => {};
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      unsubscribe();
+      clearTimeout(timeoutId);
+      resolve();
+    };
+    unsubscribe = store.persist!.onFinishHydration(finish);
+    timeoutId = setTimeout(finish, 1000);
+  });
+}
+
 export default function OAuthCallbackScreen() {
   const { login } = useAuthStore();
 
@@ -17,11 +46,13 @@ export default function OAuthCallbackScreen() {
         // Get token from URL
         let token: string | null = null;
         let isNewUser = false;
+        let parentGate = false;
 
         if (Platform.OS === 'web' && typeof window !== 'undefined') {
           const params = new URLSearchParams(window.location.search);
           token = params.get('token');
           isNewUser = params.get('isNewUser') === 'true';
+          parentGate = params.get('parentGate') === 'true';
           console.log('Token from URL:', token ? 'Found' : 'Missing');
           console.log('Is new user:', isNewUser);
         }
@@ -49,6 +80,7 @@ export default function OAuthCallbackScreen() {
           throw new Error('No user data received');
         }
 
+        await waitForAuthHydration();
         await storage.setUser(user);
         login(user, token);
         
@@ -66,12 +98,29 @@ export default function OAuthCallbackScreen() {
 
         // Explicitly navigate to Dashboard (HP for authenticated users)
         if (navigationRef.isReady()) {
+          const tabName = parentGate ? 'Children' : 'Dashboard';
           navigationRef.dispatch(
             CommonActions.reset({
               index: 0,
-              routes: [{ name: 'Main', state: { routes: [{ name: 'Dashboard' }], index: 0 } }],
+              routes: [{ name: 'Main', state: { routes: [{ name: tabName }], index: 0 } }],
             })
           );
+        } else if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          window.localStorage?.setItem(
+            'auth-storage',
+            JSON.stringify({
+              state: {
+                user,
+                token,
+                sessionMode: 'parent',
+                activeChild: null,
+                isAuthenticated: true,
+                isLoading: false,
+              },
+              version: 0,
+            })
+          );
+          window.location.replace(parentGate ? '/children' : '/dashboard');
         }
       } catch (error) {
         console.error('OAuth callback error:', error);

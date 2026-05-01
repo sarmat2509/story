@@ -27,6 +27,18 @@ export interface OAuthResult {
   isNewIdentity: boolean;
 }
 
+export type OAuthParentGateErrorCode =
+  | 'PARENT_GATE_OAUTH_IDENTITY_REQUIRED'
+  | 'PARENT_GATE_ACCOUNT_MISMATCH'
+  | 'PARENT_GATE_USER_NOT_FOUND';
+
+export class OAuthParentGateError extends Error {
+  constructor(public code: OAuthParentGateErrorCode) {
+    super(code);
+    this.name = 'OAuthParentGateError';
+  }
+}
+
 // Generic OAuth profile (normalized)
 interface NormalizedOAuthProfile {
   providerId: string;
@@ -167,6 +179,39 @@ async function handleOAuthCallback(
   };
 }
 
+export function assertParentGateOAuthIdentity(
+  identity: Pick<OAuthIdentity, 'userId'> | null,
+  parentUserId: string
+): asserts identity is Pick<OAuthIdentity, 'userId'> {
+  if (!identity) {
+    throw new OAuthParentGateError('PARENT_GATE_OAUTH_IDENTITY_REQUIRED');
+  }
+
+  if (identity.userId !== parentUserId) {
+    throw new OAuthParentGateError('PARENT_GATE_ACCOUNT_MISMATCH');
+  }
+}
+
+async function handleOAuthParentGateCallback(
+  provider: 'google' | 'apple',
+  parentUserId: string,
+  profile: NormalizedOAuthProfile,
+  tokens: OAuthTokens,
+  rawUserInfo: any
+): Promise<User> {
+  const existingIdentity = await findOAuthIdentity(provider, profile.providerId);
+  assertParentGateOAuthIdentity(existingIdentity, parentUserId);
+
+  await updateOAuthTokens(existingIdentity.id, tokens, rawUserInfo);
+
+  const user = await getUserByIdentityUserId(parentUserId);
+  if (!user) {
+    throw new OAuthParentGateError('PARENT_GATE_USER_NOT_FOUND');
+  }
+
+  return user;
+}
+
 // Handle Google OAuth callback with account linking
 export async function handleGoogleCallback(
   profile: GoogleProfile,
@@ -187,6 +232,29 @@ export async function handleGoogleCallback(
   };
   
   return handleOAuthCallback('google', normalizedProfile, tokens, profile);
+}
+
+// Handle Google OAuth parent gate re-authentication without linking or creating users
+export async function handleGoogleParentGateCallback(
+  parentUserId: string,
+  profile: GoogleProfile,
+  accessToken: string,
+  refreshToken?: string
+): Promise<User> {
+  const normalizedProfile: NormalizedOAuthProfile = {
+    providerId: profile.id,
+    email: profile.email,
+    displayName: profile.name,
+    avatarUrl: profile.picture,
+  };
+
+  const tokens: OAuthTokens = {
+    accessToken,
+    refreshToken,
+    expiresAt: new Date(Date.now() + 3600 * 1000),
+  };
+
+  return handleOAuthParentGateCallback('google', parentUserId, normalizedProfile, tokens, profile);
 }
 
 // Handle Apple OAuth callback with account linking
@@ -212,6 +280,32 @@ export async function handleAppleCallback(
   };
   
   return handleOAuthCallback('apple', normalizedProfile, tokens, profile);
+}
+
+// Handle Apple OAuth parent gate re-authentication without linking or creating users
+export async function handleAppleParentGateCallback(
+  parentUserId: string,
+  profile: AppleProfile,
+  idToken: string
+): Promise<User> {
+  const displayName = profile.name
+    ? `${profile.name.firstName || ''} ${profile.name.lastName || ''}`.trim()
+    : undefined;
+
+  const normalizedProfile: NormalizedOAuthProfile = {
+    providerId: profile.sub,
+    email: profile.email || `apple_${profile.sub}@privaterelay.appleid.com`,
+    displayName: displayName || 'Apple User',
+    avatarUrl: undefined,
+  };
+
+  const tokens: OAuthTokens = {
+    accessToken: idToken,
+    refreshToken: undefined,
+    expiresAt: undefined,
+  };
+
+  return handleOAuthParentGateCallback('apple', parentUserId, normalizedProfile, tokens, profile);
 }
 
 // Link OAuth provider to existing user

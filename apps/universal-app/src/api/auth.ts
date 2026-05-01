@@ -11,6 +11,10 @@ type AuthResponse = AuthResponseApi;
 type ParentGateResponse = AuthResponse & {
   sessionMode: 'parent';
 };
+type ParentGateOAuthStartResponse = {
+  status: string;
+  url: string;
+};
 
 /**
  * Mirror the user's server-side theme palette preference into the local
@@ -25,6 +29,18 @@ function syncPaletteFromUser(user: User): void {
   if (serverPalette !== getActivePaletteId()) {
     setActivePaletteId(serverPalette);
   }
+}
+
+async function applyParentGateResponse(
+  data: ParentGateResponse,
+  queryClient: ReturnType<typeof useQueryClient>,
+  returnToParentSession: (user: User, token: string) => void
+): Promise<void> {
+  await storage.setAuthToken(data.token);
+  await storage.setUser(data.user);
+  syncPaletteFromUser(data.user);
+  queryClient.clear();
+  returnToParentSession(data.user, data.token);
 }
 
 // Email/password mutations
@@ -158,11 +174,63 @@ export const useParentGate = () => {
       return response.data;
     },
     onSuccess: async (data) => {
-      await storage.setAuthToken(data.token);
-      await storage.setUser(data.user);
-      syncPaletteFromUser(data.user);
-      queryClient.clear();
-      returnToParentSession(data.user, data.token);
+      await applyParentGateResponse(data, queryClient, returnToParentSession);
+    },
+  });
+};
+
+export const useParentGateGoogleStart = () => {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post<ParentGateOAuthStartResponse>(
+        '/api/v1/auth/parent-gate/google/start',
+        {},
+        { skipAuthLogoutOn401: true }
+      );
+      return response.data;
+    },
+  });
+};
+
+export const useParentGateGoogle = () => {
+  const queryClient = useQueryClient();
+  const { returnToParentSession } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async (data: { idToken: string; deviceName?: string; deviceType?: string }) => {
+      const response = await apiClient.post<ParentGateResponse>(
+        '/api/v1/auth/parent-gate/google-token',
+        data,
+        { skipAuthLogoutOn401: true }
+      );
+      return response.data;
+    },
+    onSuccess: async (data) => {
+      await applyParentGateResponse(data, queryClient, returnToParentSession);
+    },
+  });
+};
+
+export const useParentGateApple = () => {
+  const queryClient = useQueryClient();
+  const { returnToParentSession } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async (data: {
+      identityToken: string;
+      user?: any;
+      deviceName?: string;
+      deviceType?: string;
+    }) => {
+      const response = await apiClient.post<ParentGateResponse>(
+        '/api/v1/auth/parent-gate/apple-token',
+        data,
+        { skipAuthLogoutOn401: true }
+      );
+      return response.data;
+    },
+    onSuccess: async (data) => {
+      await applyParentGateResponse(data, queryClient, returnToParentSession);
     },
   });
 };

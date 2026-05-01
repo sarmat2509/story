@@ -1,6 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
+  OAuthCallback: { provider: 'google' | 'apple' };
   ModeSelection: undefined;
   ChildMode: undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;

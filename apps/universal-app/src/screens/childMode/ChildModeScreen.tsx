@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,13 +21,20 @@ import {
   isValidLocale,
   type Locale,
 } from '@wondertales/shared';
-import { useLogout, useParentGate } from '@/api/auth';
+import {
+  useLogout,
+  useParentGate,
+  useParentGateApple,
+  useParentGateGoogle,
+  useParentGateGoogleStart,
+} from '@/api/auth';
 import { useStoryThemes } from '@/api/dictionaries';
 import { useCreateChildModeStory, useStoryStatus } from '@/api/stories';
 import i18n from '@/config/i18n';
 import { APP_CONFIG } from '@/config/constants';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
+import { oauth } from '@/utils/oauth';
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -35,6 +43,12 @@ function getParentGateErrorMessage(t: Translate, error: unknown): string {
   const code = err.response?.data?.code;
   if (code === 'PARENT_GATE_PASSWORD_UNAVAILABLE') {
     return t('child_mode.parent_gate_unavailable');
+  }
+  if (code === 'PARENT_GATE_OAUTH_IDENTITY_REQUIRED' || code === 'PARENT_GATE_ACCOUNT_MISMATCH') {
+    return t('child_mode.parent_gate_oauth_mismatch');
+  }
+  if (code === 'GOOGLE_OAUTH_NOT_CONFIGURED' || code === 'APPLE_OAUTH_NOT_CONFIGURED') {
+    return t('child_mode.parent_gate_oauth_unavailable');
   }
   if (err.response?.status === 401 || code === 'PARENT_GATE_FAILED') {
     return t('child_mode.parent_gate_wrong_password');
@@ -81,6 +95,9 @@ export default function ChildModeScreen() {
   const sessionMode = useAuthStore((state) => state.sessionMode);
   const user = useAuthStore((state) => state.user);
   const parentGate = useParentGate();
+  const parentGateGoogleStart = useParentGateGoogleStart();
+  const parentGateGoogle = useParentGateGoogle();
+  const parentGateApple = useParentGateApple();
   const logout = useLogout();
   const createChildStory = useCreateChildModeStory();
   const { data: themesData, isLoading: themesLoading } = useStoryThemes();
@@ -143,7 +160,11 @@ export default function ChildModeScreen() {
   const [storyErrorText, setStoryErrorText] = useState<string | null>(null);
   const { data: storyStatus } = useStoryStatus(requestId || '', Boolean(requestId));
 
-  const canSubmitGate = password.trim().length > 0 && !parentGate.isPending;
+  const googleGatePending = parentGateGoogleStart.isPending || parentGateGoogle.isPending;
+  const appleGatePending = parentGateApple.isPending;
+  const oauthGatePending = googleGatePending || appleGatePending;
+  const gatePending = parentGate.isPending || oauthGatePending;
+  const canSubmitGate = password.trim().length > 0 && !gatePending;
   const activeGenerationStatus = storyStatus?.status ?? (requestId ? 'pending' : null);
   const generationInFlight =
     createChildStory.isPending ||
@@ -195,6 +216,51 @@ export default function ChildModeScreen() {
     setErrorText(null);
     try {
       await parentGate.mutateAsync({ password });
+      setGateVisible(false);
+      setPassword('');
+    } catch (error) {
+      setErrorText(getParentGateErrorMessage(t, error));
+    }
+  };
+
+  const handleParentGateGoogle = async () => {
+    if (gatePending) return;
+    setErrorText(null);
+    try {
+      if (Platform.OS === 'web') {
+        const result = await parentGateGoogleStart.mutateAsync();
+        if (typeof window !== 'undefined') {
+          window.sessionStorage?.setItem('oauth_redirect', 'parent_gate_google');
+          window.location.href = result.url;
+        }
+        return;
+      }
+
+      const idToken = await oauth.handleGoogleSignIn();
+      if (!idToken) {
+        throw new Error('Google token was not returned');
+      }
+      await parentGateGoogle.mutateAsync({ idToken, deviceType: Platform.OS === 'ios' ? 'ios' : 'android' });
+      setGateVisible(false);
+      setPassword('');
+    } catch (error) {
+      setErrorText(getParentGateErrorMessage(t, error));
+    }
+  };
+
+  const handleParentGateApple = async () => {
+    if (gatePending || Platform.OS !== 'ios') return;
+    setErrorText(null);
+    try {
+      const result = await oauth.handleAppleSignIn();
+      if (!result?.identityToken) {
+        throw new Error('Apple identity token was not returned');
+      }
+      await parentGateApple.mutateAsync({
+        identityToken: result.identityToken,
+        user: result.user,
+        deviceType: 'ios',
+      });
       setGateVisible(false);
       setPassword('');
     } catch (error) {
@@ -525,6 +591,50 @@ export default function ChildModeScreen() {
               autoCorrect={false}
               onSubmitEditing={handleParentGate}
             />
+
+            <View style={styles.oauthGateSection}>
+              <View style={styles.oauthDivider}>
+                <View style={styles.oauthDividerLine} />
+                <Text style={styles.oauthDividerText}>{t('auth.or')}</Text>
+                <View style={styles.oauthDividerLine} />
+              </View>
+              <TouchableOpacity
+                style={[styles.oauthGateButton, styles.googleGateButton, gatePending && styles.buttonDisabled]}
+                onPress={handleParentGateGoogle}
+                activeOpacity={0.82}
+                disabled={gatePending}
+              >
+                {googleGatePending ? (
+                  <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+                ) : (
+                  <>
+                    <Ionicons name="logo-google" size={20} color={theme.colors.text.inverse} />
+                    <Text style={styles.oauthGateButtonText}>
+                      {t('child_mode.parent_gate_continue_google')}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              {Platform.OS === 'ios' ? (
+                <TouchableOpacity
+                  style={[styles.oauthGateButton, styles.appleGateButton, gatePending && styles.buttonDisabled]}
+                  onPress={handleParentGateApple}
+                  activeOpacity={0.82}
+                  disabled={gatePending}
+                >
+                  {appleGatePending ? (
+                    <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+                  ) : (
+                    <>
+                      <Ionicons name="logo-apple" size={21} color={theme.colors.text.inverse} />
+                      <Text style={styles.oauthGateButtonText}>
+                        {t('child_mode.parent_gate_continue_apple')}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ) : null}
+            </View>
 
             {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
 
@@ -893,6 +1003,46 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.primary,
     backgroundColor: theme.colors.background.secondary,
+  },
+  oauthGateSection: {
+    marginTop: theme.spacing[5],
+    gap: theme.spacing[3],
+  },
+  oauthDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+  },
+  oauthDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.border.light,
+  },
+  oauthDividerText: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.tertiary,
+    textTransform: 'uppercase',
+  },
+  oauthGateButton: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    borderRadius: theme.borders.radius.md,
+    paddingHorizontal: theme.spacing[4],
+  },
+  googleGateButton: {
+    backgroundColor: '#2563eb',
+  },
+  appleGateButton: {
+    backgroundColor: '#111827',
+  },
+  oauthGateButtonText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
   },
   errorText: {
     marginTop: theme.spacing[3],

@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { LogBox } from 'react-native';
+import { LogBox, Platform } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { initI18n } from '@/config/i18n';
 import i18n from '@/config/i18n';
@@ -21,6 +21,7 @@ import { useMainNavigationStore } from '@/store/mainNavigationStore';
 import { navigationRef } from '@/navigation/navigationRef';
 import { pushNotificationService } from '@/services/pushNotificationService';
 import RootNavigator from '@/navigation/RootNavigator';
+import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
 import type { MainTabParamList } from '@/types/navigation';
 import { isValidLocale } from '@wondertales/shared';
 
@@ -148,6 +149,11 @@ function addLocalePrefix(path: string): string {
   return path.startsWith(`/${locale}/`) || path === `/${locale}` ? path : `/${locale}${path}`;
 }
 
+function isWebOAuthCallbackPath(): boolean {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  return /^\/(?:[a-z]{2}\/)?auth\/[^/]+\/callback\/?$/.test(window.location.pathname);
+}
+
 const linking: any = {
   prefixes: ['wondertales://', 'http://localhost:8081', 'https://app.wondertales.com'],
   getStateFromPath(path: string, options: any) {
@@ -160,6 +166,7 @@ const linking: any = {
   },
   config: {
     screens: {
+      OAuthCallback: 'auth/:provider/callback',
       ModeSelection: 'mode-selection',
       ChildMode: 'child-mode',
       Main: {
@@ -169,7 +176,6 @@ const linking: any = {
           Register: 'register',
           ForgotPassword: 'auth/forgot-password',
           ResetPassword: 'auth/reset-password',
-          OAuthCallback: 'auth/:provider/callback',
           Dashboard: 'dashboard',
           Wizard: 'wizard',
           Library: 'me/stories',
@@ -276,25 +282,35 @@ export default function App() {
     return null;
   }
 
+  const isOAuthCallback = isWebOAuthCallbackPath();
+
   return (
     <AnalyticsProvider>
       <SafeAreaProvider>
         <ErrorBoundary>
           <GestureHandlerRootView style={{ flex: 1 }}>
             <QueryClientProvider client={queryClient}>
-              <NavigationContainer
-                ref={navigationRef}
-                linking={linking}
-                onStateChange={(state) => {
-                  if (useMainNavigationStore.getState().isLayoutTransitionInProgress) return;
-                  const route = getActiveMainRouteFromState(state);
-                  useMainNavigationStore.getState().setLastMainRoute(route);
-                }}
-              >
-              <StatusBar style="auto" />
-              <AnalyticsIdentity />
-              <RootNavigator />
-              </NavigationContainer>
+              {isOAuthCallback ? (
+                <>
+                  <StatusBar style="auto" />
+                  <AnalyticsIdentity />
+                  <OAuthCallbackScreen />
+                </>
+              ) : (
+                <NavigationContainer
+                  ref={navigationRef}
+                  linking={linking}
+                  onStateChange={(state) => {
+                    if (useMainNavigationStore.getState().isLayoutTransitionInProgress) return;
+                    const route = getActiveMainRouteFromState(state);
+                    useMainNavigationStore.getState().setLastMainRoute(route);
+                  }}
+                >
+                  <StatusBar style="auto" />
+                  <AnalyticsIdentity />
+                  <RootNavigator />
+                </NavigationContainer>
+              )}
             </QueryClientProvider>
           </GestureHandlerRootView>
           <Toast />

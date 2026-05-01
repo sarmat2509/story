@@ -3,7 +3,15 @@ import { z } from 'zod';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import config from '../config';
-import { handleGoogleCallback, handleAppleCallback } from '../services/oauthService';
+import {
+  handleGoogleCallback,
+  handleAppleCallback,
+  handleGoogleParentGateCallback,
+  handleAppleParentGateCallback,
+  OAuthParentGateError,
+  type GoogleProfile,
+  type AppleProfile,
+} from '../services/oauthService';
 import { createSession, deleteSession, deleteAllUserSessions } from '../services/sessionService';
 import { generateToken } from '../services/jwtService';
 import { requireAuth, requireChildSession, requireParentSession } from '../middleware/authMiddleware';
@@ -22,6 +30,11 @@ import {
   type ConsentAuditContext,
 } from '../services/consentService';
 import { oauthLimiter, passwordResetLimiter } from '../middleware/rateLimiter';
+import {
+  createParentGateOAuthState,
+  parseParentGateOAuthState,
+  ParentGateOAuthStateError,
+} from '../services/oauthParentGateStateService';
 
 const router = Router();
 
@@ -50,6 +63,20 @@ const resetPasswordSchema = z.object({
 
 const parentGateSchema = z.object({
   password: z.string().min(1).max(128),
+});
+
+const parentGateGoogleTokenSchema = z.object({
+  idToken: z.string().min(1),
+  deviceName: z.string().max(255).optional(),
+  deviceType: z.enum(['ios', 'android', 'web']).optional(),
+});
+
+const parentGateAppleTokenSchema = z.object({
+  identityToken: z.string().min(1),
+  authorizationCode: z.string().optional(),
+  user: z.unknown().optional(),
+  deviceName: z.string().max(255).optional(),
+  deviceType: z.enum(['ios', 'android', 'web']).optional(),
 });
 
 // Configure Google OAuth strategy
@@ -137,6 +164,180 @@ function isAppleOAuthConfigured(): boolean {
   return hasConfiguredOAuthValue(config.oauth.apple.clientId);
 }
 
+function buildGoogleOAuthUrl(state?: string): string {
+  const params = new URLSearchParams({
+    client_id: config.oauth.google.clientId,
+    redirect_uri: config.oauth.google.callbackUrl,
+    response_type: 'code',
+    scope: 'profile email',
+    prompt: 'select_account',
+  });
+
+  if (state) {
+    params.set('state', state);
+  }
+
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
+
+function buildAppleOAuthUrl(state: string): string {
+  const params = new URLSearchParams({
+    client_id: config.oauth.apple.clientId,
+    redirect_uri: config.oauth.apple.callbackUrl,
+    response_type: 'code id_token',
+    response_mode: 'form_post',
+    scope: 'name email',
+    state,
+  });
+
+  return `https://appleid.apple.com/auth/authorize?${params.toString()}`;
+}
+
+function buildWebOAuthCallbackUrl(provider: 'google' | 'apple', token: string, options: {
+  isNewUser?: boolean;
+  parentGate?: boolean;
+} = {}): URL {
+  const callbackConfig =
+    provider === 'google' ? config.oauth.google.callbackUrl : config.oauth.apple.callbackUrl;
+  const cbUrl = new URL(callbackConfig);
+  const callbackUrl = new URL(`${cbUrl.origin}/auth/${provider}/callback`);
+  callbackUrl.searchParams.set('token', token);
+  callbackUrl.searchParams.set('isNewUser', (options.isNewUser ?? false).toString());
+  if (options.parentGate) {
+    callbackUrl.searchParams.set('parentGate', 'true');
+  }
+  return callbackUrl;
+}
+
+function buildWebAuthErrorUrl(provider: 'google' | 'apple', message: string, code?: string): URL {
+  const callbackConfig =
+    provider === 'google' ? config.oauth.google.callbackUrl : config.oauth.apple.callbackUrl;
+  const cbUrl = new URL(callbackConfig);
+  const errorUrl = new URL(`${cbUrl.origin}/auth/error`);
+  errorUrl.searchParams.set('message', message);
+  if (code) {
+    errorUrl.searchParams.set('code', code);
+  }
+  return errorUrl;
+}
+
+function buildFinalDeviceInfo(req: Request, input?: { deviceName?: string; deviceType?: 'ios' | 'android' | 'web' }) {
+  const deviceInfo = extractDeviceInfo(req);
+  return {
+    deviceType: input?.deviceType || deviceInfo.deviceType,
+    deviceName: input?.deviceName || deviceInfo.deviceName,
+    ipAddress: deviceInfo.ipAddress,
+    userAgent: deviceInfo.userAgent,
+  };
+}
+
+async function createParentGateSession(
+  req: Request,
+  parentUser: NonNullable<Request['user']>,
+  previousChildSessionId: string,
+  input?: { deviceName?: string; deviceType?: 'ios' | 'android' | 'web' }
+) {
+  const finalDeviceInfo = buildFinalDeviceInfo(req, input);
+  const parentSession = await createSession({
+    userId: parentUser.id,
+    mode: 'parent',
+    parentUserId: parentUser.id,
+    ...finalDeviceInfo,
+  });
+  const token = generateToken({
+    userId: parentUser.id,
+    sessionId: parentSession.id,
+  });
+
+  await deleteSession(previousChildSessionId);
+
+  logger.info({
+    userId: parentUser.id,
+    previousChildSessionId,
+    parentSessionId: parentSession.id,
+    childProfileId: req.childProfileId,
+    deviceType: finalDeviceInfo.deviceType,
+  }, 'Parent gate completed from child session');
+
+  return {
+    token,
+    user: parentUser,
+    expiresAt: parentSession.expiresAt.getTime(),
+    sessionMode: 'parent' as const,
+  };
+}
+
+async function verifyGoogleIdTokenProfile(idToken: string): Promise<GoogleProfile> {
+  const { OAuth2Client } = require('google-auth-library');
+  const client = new OAuth2Client();
+
+  const ticket = await client.verifyIdToken({
+    idToken,
+    audience: [
+      config.oauth.google.clientId,
+      config.oauth.google.iosClientId,
+      config.oauth.google.androidClientId,
+    ].filter(Boolean),
+  });
+
+  const payload = ticket.getPayload();
+
+  if (!payload || !payload.email) {
+    throw new Error('Invalid token payload');
+  }
+
+  return {
+    id: payload.sub!,
+    email: payload.email,
+    name: payload.name || payload.email.split('@')[0],
+    picture: payload.picture,
+  };
+}
+
+async function verifyAppleIdentityTokenProfile(identityToken: string, user: unknown): Promise<AppleProfile> {
+  const appleSignin = require('apple-signin-auth');
+
+  const payload = await appleSignin.verifyIdToken(identityToken, {
+    audience: config.oauth.apple.clientId,
+    ignoreExpiration: false,
+  });
+
+  if (!payload) {
+    throw new Error('Invalid identity token');
+  }
+
+  let displayName: string | undefined;
+  let email = payload.email;
+
+  if (user) {
+    const userData = typeof user === 'string' ? JSON.parse(user) : user as any;
+    if (userData.name) {
+      displayName = `${userData.name.firstName || ''} ${userData.name.lastName || ''}`.trim();
+    }
+    if (userData.email) {
+      email = userData.email;
+    }
+  }
+
+  return {
+    sub: payload.sub,
+    email,
+    name: displayName
+      ? {
+          firstName: displayName.split(' ')[0],
+          lastName: displayName.split(' ').slice(1).join(' '),
+        }
+      : undefined,
+  };
+}
+
+function getParentGateErrorCode(error: unknown): string | undefined {
+  if (error instanceof OAuthParentGateError || error instanceof ParentGateOAuthStateError) {
+    return error.code;
+  }
+  return undefined;
+}
+
 // Google OAuth - Start
 router.get('/google/start', oauthLimiter, (req: Request, res: Response, next) => {
   passport.authenticate('google', {
@@ -153,41 +354,57 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const { profile, accessToken, refreshToken } = req.user as any;
-      
-      // Handle OAuth callback
+
+      const parentGateState = parseParentGateOAuthState(req.query.state, 'google');
+      if (parentGateState) {
+        const parentUser = await handleGoogleParentGateCallback(
+          parentGateState.parentUserId,
+          profile,
+          accessToken,
+          refreshToken
+        );
+        const gateResult = await createParentGateSession(
+          req,
+          parentUser,
+          parentGateState.childSessionId
+        );
+        const callbackUrl = buildWebOAuthCallbackUrl('google', gateResult.token, {
+          parentGate: true,
+        });
+
+        logger.info({
+          userId: parentUser.id,
+          redirectTo: callbackUrl.toString(),
+        }, 'Google parent gate callback - redirecting with token');
+        setSessionCookie(res, gateResult.token);
+        res.redirect(callbackUrl.toString());
+        return;
+      }
+
       const result = await handleGoogleCallback(profile, accessToken, refreshToken);
-      
-      // Extract device info
       const deviceInfo = extractDeviceInfo(req);
-      
-      // Create session
       const session = await createSession({
         userId: result.user.id,
         ...deviceInfo,
       });
-      
-      // Generate JWT
       const token = generateToken({
         userId: result.user.id,
-        sessionId: session.id, // Use session.id (UUID), not session.token
+        sessionId: session.id,
       });
-      
-      // Derive web origin from the configured callback URL
-      const cbUrl = new URL(config.oauth.google.callbackUrl);
-      const origin = cbUrl.origin;
-      
-      const callbackUrl = new URL(`${origin}/auth/google/callback`);
-      callbackUrl.searchParams.set('token', token);
-      callbackUrl.searchParams.set('isNewUser', result.isNewUser.toString());
-      
+      const callbackUrl = buildWebOAuthCallbackUrl('google', token, {
+        isNewUser: result.isNewUser,
+      });
+
       logger.info({ userId: result.user.id, redirectTo: callbackUrl.toString() }, 'OAuth callback - redirecting with token');
       setSessionCookie(res, token);
       res.redirect(callbackUrl.toString());
     } catch (error) {
       logger.error({ err: error }, 'Google OAuth callback failed');
-      const cbUrl = new URL(config.oauth.google.callbackUrl);
-      const errorUrl = new URL(`${cbUrl.origin}/auth/error`);
-      errorUrl.searchParams.set('message', 'Authentication failed');
+      const errorUrl = buildWebAuthErrorUrl(
+        'google',
+        'Authentication failed',
+        getParentGateErrorCode(error)
+      );
       res.redirect(errorUrl.toString());
     }
   }
@@ -207,36 +424,7 @@ router.post('/google/token', oauthLimiter, async (req: Request, res: Response) =
       });
     }
     
-    // Verify ID token using google-auth-library
-    const { OAuth2Client } = require('google-auth-library');
-    const client = new OAuth2Client();
-    
-    // Verify token against all client IDs (web, iOS, Android)
-    const ticket = await client.verifyIdToken({
-      idToken,
-      audience: [
-        config.oauth.google.clientId,           // Web client ID
-        config.oauth.google.iosClientId,        // iOS client ID
-        config.oauth.google.androidClientId,    // Android client ID
-      ].filter(Boolean), // Remove undefined values
-    });
-    
-    const payload = ticket.getPayload();
-    
-    if (!payload || !payload.email) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Invalid token payload',
-      });
-    }
-    
-    // Normalize to GoogleProfile format
-    const profile = {
-      id: payload.sub!,
-      email: payload.email,
-      name: payload.name || payload.email.split('@')[0],
-      picture: payload.picture,
-    };
+    const profile = await verifyGoogleIdTokenProfile(idToken);
     
     // Use same OAuth callback logic as web flow
     const result = await handleGoogleCallback(profile, idToken, undefined);
@@ -335,36 +523,33 @@ router.post('/apple/callback', oauthLimiter, async (req: Request, res: Response)
       });
     }
     
-    // Verify Apple ID token using apple-signin-auth
-    const appleSignin = require('apple-signin-auth');
-    
-    const payload = await appleSignin.verifyIdToken(id_token, {
-      audience: config.oauth.apple.clientId,
-      ignoreExpiration: false,
-    });
-    
-    // Extract profile
-    let displayName: string | undefined;
-    let email = payload.email;
-    
-    // Apple only sends name on FIRST authorization (user object only sent once)
-    if (user) {
-      const userData = typeof user === 'string' ? JSON.parse(user) : user;
-      if (userData.name) {
-        displayName = `${userData.name.firstName || ''} ${userData.name.lastName || ''}`.trim();
-      }
+    const profile = await verifyAppleIdentityTokenProfile(id_token, user);
+
+    const parentGateState = parseParentGateOAuthState(state, 'apple');
+    if (parentGateState) {
+      const parentUser = await handleAppleParentGateCallback(
+        parentGateState.parentUserId,
+        profile,
+        id_token
+      );
+      const gateResult = await createParentGateSession(
+        req,
+        parentUser,
+        parentGateState.childSessionId
+      );
+      const callbackUrl = parentGateState.redirectUri
+        ? new URL(parentGateState.redirectUri)
+        : buildWebOAuthCallbackUrl('apple', gateResult.token, { parentGate: true });
+      callbackUrl.searchParams.set('token', gateResult.token);
+      callbackUrl.searchParams.set('isNewUser', 'false');
+      callbackUrl.searchParams.set('parentGate', 'true');
+
+      logger.info({ userId: parentUser.id }, 'Apple parent gate callback successful');
+      setSessionCookie(res, gateResult.token);
+      res.redirect(callbackUrl.toString());
+      return;
     }
-    
-    const profile = {
-      sub: payload.sub,
-      email: email,
-      name: displayName ? { 
-        firstName: displayName.split(' ')[0], 
-        lastName: displayName.split(' ').slice(1).join(' ') 
-      } : undefined,
-    };
-    
-    // Use OAuth callback logic
+
     const result = await handleAppleCallback(profile, id_token);
     
     // Create session
@@ -397,6 +582,10 @@ router.post('/apple/callback', oauthLimiter, async (req: Request, res: Response)
     logger.error({ err: error }, 'Apple OAuth callback failed');
     const errorUrl = new URL('wondertales://auth/error');
     errorUrl.searchParams.set('message', 'Apple authentication failed');
+    const code = getParentGateErrorCode(error);
+    if (code) {
+      errorUrl.searchParams.set('code', code);
+    }
     res.redirect(errorUrl.toString());
   }
 });
@@ -422,44 +611,7 @@ router.post('/apple/token', oauthLimiter, async (req: Request, res: Response) =>
       });
     }
     
-    // Verify Apple identity token
-    const appleSignin = require('apple-signin-auth');
-    
-    const payload = await appleSignin.verifyIdToken(identityToken, {
-      audience: config.oauth.apple.clientId,
-      ignoreExpiration: false,
-    });
-    
-    if (!payload) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Invalid identity token',
-      });
-    }
-    
-    // Extract profile
-    let displayName: string | undefined;
-    let email = payload.email;
-    
-    // Handle first-time user data (only sent once by Apple)
-    if (user) {
-      const userData = typeof user === 'string' ? JSON.parse(user) : user;
-      if (userData.name) {
-        displayName = `${userData.name.firstName || ''} ${userData.name.lastName || ''}`.trim();
-      }
-      if (userData.email) {
-        email = userData.email;
-      }
-    }
-    
-    const profile = {
-      sub: payload.sub,
-      email: email,
-      name: displayName ? { 
-        firstName: displayName.split(' ')[0], 
-        lastName: displayName.split(' ').slice(1).join(' ') 
-      } : undefined,
-    };
+    const profile = await verifyAppleIdentityTokenProfile(identityToken, user);
     
     // Use same OAuth callback logic
     const result = await handleAppleCallback(profile, identityToken);
@@ -696,6 +848,189 @@ router.post('/reset-password', async (req: Request, res: Response) => {
   }
 });
 
+router.post('/parent-gate/google/start', oauthLimiter, requireAuth, requireChildSession, async (req: Request, res: Response) => {
+  try {
+    if (!req.user || !req.sessionId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Not authenticated',
+        code: 'AUTHENTICATION_REQUIRED',
+      });
+    }
+
+    if (!config.oauth.google.clientId || !config.oauth.google.clientSecret) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Google sign in is not configured',
+        code: 'GOOGLE_OAUTH_NOT_CONFIGURED',
+      });
+    }
+
+    const state = createParentGateOAuthState({
+      provider: 'google',
+      parentUserId: req.user.id,
+      childSessionId: req.sessionId,
+    });
+
+    res.json({
+      status: 'success',
+      url: buildGoogleOAuthUrl(state),
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id, sessionId: req.sessionId }, 'Google parent gate start failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Google parent gate failed',
+    });
+  }
+});
+
+router.post('/parent-gate/apple/start', oauthLimiter, requireAuth, requireChildSession, async (req: Request, res: Response) => {
+  try {
+    if (!req.user || !req.sessionId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Not authenticated',
+        code: 'AUTHENTICATION_REQUIRED',
+      });
+    }
+
+    if (!isAppleOAuthConfigured()) {
+      return res.status(404).json({
+        status: 'error',
+        code: 'APPLE_OAUTH_NOT_CONFIGURED',
+        message: 'Apple sign in is not configured',
+      });
+    }
+
+    const redirectUri =
+      typeof req.body?.redirectUri === 'string'
+        ? req.body.redirectUri
+        : typeof req.body?.redirect_uri === 'string'
+          ? req.body.redirect_uri
+          : undefined;
+    const state = createParentGateOAuthState({
+      provider: 'apple',
+      parentUserId: req.user.id,
+      childSessionId: req.sessionId,
+      redirectUri,
+    });
+
+    res.json({
+      status: 'success',
+      url: buildAppleOAuthUrl(state),
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id, sessionId: req.sessionId }, 'Apple parent gate start failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Apple parent gate failed',
+    });
+  }
+});
+
+router.post('/parent-gate/google-token', oauthLimiter, requireAuth, requireChildSession, async (req: Request, res: Response) => {
+  try {
+    if (!req.user || !req.sessionId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Not authenticated',
+        code: 'AUTHENTICATION_REQUIRED',
+      });
+    }
+
+    const validationResult = parentGateGoogleTokenSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid request data',
+        details: validationResult.error.errors,
+      });
+    }
+
+    const profile = await verifyGoogleIdTokenProfile(validationResult.data.idToken);
+    const parentUser = await handleGoogleParentGateCallback(
+      req.user.id,
+      profile,
+      validationResult.data.idToken,
+      undefined
+    );
+    const gateResult = await createParentGateSession(
+      req,
+      parentUser,
+      req.sessionId,
+      validationResult.data
+    );
+
+    setSessionCookie(res, gateResult.token);
+    res.json(gateResult);
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id, sessionId: req.sessionId }, 'Google parent gate token failed');
+    const code = getParentGateErrorCode(error);
+    res.status(code ? 403 : 500).json({
+      status: 'error',
+      message: 'Google parent gate failed',
+      ...(code ? { code } : {}),
+    });
+  }
+});
+
+router.post('/parent-gate/apple-token', oauthLimiter, requireAuth, requireChildSession, async (req: Request, res: Response) => {
+  try {
+    if (!req.user || !req.sessionId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Not authenticated',
+        code: 'AUTHENTICATION_REQUIRED',
+      });
+    }
+
+    if (!isAppleOAuthConfigured()) {
+      return res.status(404).json({
+        status: 'error',
+        code: 'APPLE_OAUTH_NOT_CONFIGURED',
+        message: 'Apple sign in is not configured',
+      });
+    }
+
+    const validationResult = parentGateAppleTokenSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid request data',
+        details: validationResult.error.errors,
+      });
+    }
+
+    const profile = await verifyAppleIdentityTokenProfile(
+      validationResult.data.identityToken,
+      validationResult.data.user
+    );
+    const parentUser = await handleAppleParentGateCallback(
+      req.user.id,
+      profile,
+      validationResult.data.identityToken
+    );
+    const gateResult = await createParentGateSession(
+      req,
+      parentUser,
+      req.sessionId,
+      validationResult.data
+    );
+
+    setSessionCookie(res, gateResult.token);
+    res.json(gateResult);
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id, sessionId: req.sessionId }, 'Apple parent gate token failed');
+    const code = getParentGateErrorCode(error);
+    res.status(code ? 403 : 500).json({
+      status: 'error',
+      message: 'Apple parent gate failed',
+      ...(code ? { code } : {}),
+    });
+  }
+});
+
 // Parent gate: child session -> parent session via adult password re-authentication
 router.post('/parent-gate', requireAuth, requireChildSession, async (req: Request, res: Response) => {
   try {
@@ -733,34 +1068,10 @@ router.post('/parent-gate', requireAuth, requireChildSession, async (req: Reques
       });
     }
 
-    const deviceInfo = extractDeviceInfo(req);
-    const parentSession = await createSession({
-      userId: parentUser.id,
-      mode: 'parent',
-      parentUserId: parentUser.id,
-      ...deviceInfo,
-    });
-    const token = generateToken({
-      userId: parentUser.id,
-      sessionId: parentSession.id,
-    });
+    const gateResult = await createParentGateSession(req, parentUser, req.sessionId);
 
-    await deleteSession(req.sessionId);
-
-    logger.info({
-      userId: parentUser.id,
-      previousChildSessionId: req.sessionId,
-      parentSessionId: parentSession.id,
-      childProfileId: req.childProfileId,
-    }, 'Parent gate completed from child session');
-
-    setSessionCookie(res, token);
-    res.json({
-      token,
-      user: parentUser,
-      expiresAt: parentSession.expiresAt.getTime(),
-      sessionMode: 'parent',
-    });
+    setSessionCookie(res, gateResult.token);
+    res.json(gateResult);
   } catch (error) {
     logger.error({ err: error, userId: req.user?.id, sessionId: req.sessionId }, 'Parent gate failed');
     res.status(500).json({

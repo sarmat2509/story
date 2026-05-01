@@ -7,9 +7,15 @@ import MainNavigator from './MainNavigator';
 import AdminNavigator from '@/admin/navigation/AdminNavigator';
 import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
 import ChildModeScreen from '@/screens/childMode/ChildModeScreen';
+import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
 import type { RootStackParamList } from '@/types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+function isWebOAuthCallbackPath(): boolean {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  return /^\/(?:[a-z]{2}\/)?auth\/[^/]+\/callback\/?$/.test(window.location.pathname);
+}
 
 export default function RootNavigator() {
   const { isAuthenticated, isLoading, user, sessionMode } = useAuthStore();
@@ -26,10 +32,23 @@ export default function RootNavigator() {
     );
   }
 
-  const isChildSession = isAuthenticated && sessionMode === 'child';
-  const navigatorKey = isChildSession ? 'child-mode' : needsModeSelection ? 'mode-selection' : 'main';
+  const isOAuthCallback = isWebOAuthCallbackPath();
+  const isChildSession = isAuthenticated && sessionMode === 'child' && !isOAuthCallback;
+  const navigatorKey = isOAuthCallback
+    ? 'oauth-callback'
+    : isChildSession
+      ? 'child-mode'
+      : needsModeSelection
+        ? 'mode-selection'
+        : 'main';
 
-  const initialRoute = isChildSession ? 'ChildMode' : needsModeSelection ? 'ModeSelection' : 'Main';
+  const initialRoute = isOAuthCallback
+    ? 'OAuthCallback'
+    : isChildSession
+      ? 'ChildMode'
+      : needsModeSelection
+        ? 'ModeSelection'
+        : 'Main';
 
   return (
     <Stack.Navigator
@@ -37,6 +56,7 @@ export default function RootNavigator() {
       screenOptions={{ headerShown: false }}
       initialRouteName={initialRoute}
     >
+      <Stack.Screen name="OAuthCallback" component={OAuthCallbackScreen} />
       <Stack.Screen name="ChildMode" component={ChildModeScreen} />
       <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
       {isChildSession ? null : (
