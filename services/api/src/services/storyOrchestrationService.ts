@@ -117,6 +117,11 @@ import {
 } from './storyQuotaService';
 import { assertStoryPromptSafety, isPromptSafetyError } from './promptSafetyService';
 import { assertVoiceAccessForUser } from './voiceAccessService';
+import {
+  buildStoryCreationAttribution,
+  getStoryCreationAttributionInputFromRequest,
+  type StoryCreatedByMode,
+} from './storyCreationAttributionService';
 
 const ESTIMATED_SCENE_COUNT_BY_AGE_GROUP: Record<string, number> = {
   '0-1': 5,
@@ -302,7 +307,12 @@ function calculateAgeGroup(birthDate: Date): string {
 export async function createStoryRequest(
   userId: string, 
   input: CreateStoryRequestInput,
-  options?: { quotaSource?: StoryQuotaReservationSource }
+  options?: {
+    quotaSource?: StoryQuotaReservationSource;
+    createdByMode?: StoryCreatedByMode;
+    createdByChildProfileId?: string | null;
+    parentReviewRequired?: boolean;
+  }
 ): Promise<string> {
   try {
     logger.info({ userId, language: input.storyLanguage }, 'Creating story request');
@@ -315,9 +325,19 @@ export async function createStoryRequest(
       notesSource: options?.quotaSource === 'instant' ? 'instant_story_notes' : 'story_user_notes',
     });
 
+    const attribution = buildStoryCreationAttribution({
+      createdByMode: options?.createdByMode,
+      createdByChildProfileId: options?.createdByChildProfileId,
+      fallbackChildProfileId: input.childProfileId,
+      parentReviewRequired: options?.parentReviewRequired,
+    });
+
     const requestData = {
       userId,
       childProfileId: input.childProfileId,
+      createdByMode: attribution.createdByMode,
+      createdByChildProfileId: attribution.createdByChildProfileId,
+      parentReviewRequired: attribution.parentReviewRequired,
       uiLocale: input.uiLocale,
       storyLanguage: input.storyLanguage,
       goal: input.goal,
@@ -532,6 +552,7 @@ export async function processStoryRequest(requestId: string): Promise<{
           userId: request.userId,
           storyRequestId: request.id,
           childProfileId: request.childProfileId,
+          ...getStoryCreationAttributionInputFromRequest(request),
           spec,
           ...(isContinuation && seriesId && partNumber && { seriesData: { seriesId, partNumber } }),
           isScheduledContinuation,
@@ -769,6 +790,7 @@ export async function processStoryRequest(requestId: string): Promise<{
         userId: request.userId,
         storyRequestId: request.id,
         childProfileId: request.childProfileId,
+        ...getStoryCreationAttributionInputFromRequest(request),
         text,
         spec,
         characters: mergedCharacters,
@@ -4189,7 +4211,15 @@ function buildReferenceInstructionText(meta: ReferenceMetadata): string {
  * Uses transaction for atomic operations
  */
 async function saveStory(
-  request: { id: string; userId: string; childProfileId?: string | null; goal?: string | null },
+  request: {
+    id: string;
+    userId: string;
+    childProfileId?: string | null;
+    goal?: string | null;
+    createdByMode?: string | null;
+    createdByChildProfileId?: string | null;
+    parentReviewRequired?: boolean | null;
+  },
   spec: StorySpec,
   text: { title: string; language: string; scenes: any[]; fullText: string; wordCount: number; characters?: any[] },
   mergedCharacters: CharacterReference[],
@@ -4206,6 +4236,12 @@ async function saveStory(
   try {
     // Extract LLM-generated characters
     const llmCharacters = (text as any).characters || [];
+    const attribution = buildStoryCreationAttribution({
+      createdByMode: request.createdByMode,
+      createdByChildProfileId: request.createdByChildProfileId,
+      fallbackChildProfileId: request.childProfileId,
+      parentReviewRequired: request.parentReviewRequired,
+    });
     
     // Use transaction for atomic story creation
     const storyId = await getStoryRepository().transaction(async (tx) => {
@@ -4214,6 +4250,9 @@ async function saveStory(
         userId: request.userId,
         childProfileId: request.childProfileId,
         storyRequestId: request.id,
+        createdByMode: attribution.createdByMode,
+        createdByChildProfileId: attribution.createdByChildProfileId,
+        parentReviewStatus: attribution.parentReviewStatus,
         title: text.title,
         language: text.language,
         ageGroup: spec.ageGroup,

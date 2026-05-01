@@ -541,6 +541,9 @@ export const storyRequests = pgTable('story_requests', {
   userNotes: text('user_notes'),
   selectedCharacters: jsonb('selected_characters'), // Array of character UUIDs selected by user
   selectedChildren: jsonb('selected_children'), // NEW: Array of child profile UUIDs to include in story
+  createdByMode: varchar('created_by_mode', { length: 20 }).notNull().default('parent'), // 'parent' | 'child'
+  createdByChildProfileId: uuid('created_by_child_profile_id').references(() => childProfiles.id, { onDelete: 'set null' }),
+  parentReviewRequired: boolean('parent_review_required').notNull().default(false),
   
   status: varchar('status', { length: 20 }).notNull().default('pending'),
   progress: integer('progress').default(0),
@@ -557,6 +560,8 @@ export const storyRequests = pgTable('story_requests', {
 }, (table) => {
   return {
     userIdIdx: index('story_requests_user_id_idx').on(table.userId),
+    createdByModeIdx: index('story_requests_created_by_mode_idx').on(table.createdByMode),
+    createdByChildProfileIdIdx: index('story_requests_created_by_child_profile_id_idx').on(table.createdByChildProfileId),
     statusIdx: index('story_requests_status_idx').on(table.status),
     createdAtIdx: index('story_requests_created_at_idx').on(table.createdAt),
   };
@@ -633,6 +638,9 @@ export const stories = pgTable('stories', {
   policyChecks: jsonb('policy_checks'),
   metadata: jsonb('metadata'), // NEW: llmGeneratedCharacters, imageStyle, etc
   audioMetadata: jsonb('audio_metadata'), // M5: { voiceId, voiceName, totalDuration, generatedAt, nightMode }
+  createdByMode: varchar('created_by_mode', { length: 20 }).notNull().default('parent'), // 'parent' | 'child'
+  createdByChildProfileId: uuid('created_by_child_profile_id').references(() => childProfiles.id, { onDelete: 'set null' }),
+  parentReviewStatus: varchar('parent_review_status', { length: 20 }).notNull().default('not_required'), // 'not_required' | 'pending' | 'approved' | 'rejected'
   
   // Series support (M8)
   seriesId: uuid('series_id').references(() => storySeries.id, { onDelete: 'set null' }),
@@ -661,6 +669,9 @@ export const stories = pgTable('stories', {
   return {
     userIdIdx: index('stories_user_id_idx').on(table.userId),
     childProfileIdIdx: index('stories_child_profile_id_idx').on(table.childProfileId),
+    createdByModeIdx: index('stories_created_by_mode_idx').on(table.createdByMode),
+    createdByChildProfileIdIdx: index('stories_created_by_child_profile_id_idx').on(table.createdByChildProfileId),
+    parentReviewStatusIdx: index('stories_parent_review_status_idx').on(table.parentReviewStatus),
     languageIdx: index('stories_language_idx').on(table.language),
     ageGroupIdx: index('stories_age_group_idx').on(table.ageGroup),
     createdAtIdx: index('stories_created_at_idx').on(table.createdAt),

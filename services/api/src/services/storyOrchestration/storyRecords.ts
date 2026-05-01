@@ -11,16 +11,26 @@ import { findOrCreateLlmCharacter, mapLlmTypeToCharacterType } from './llmCharac
 import { createSceneRecords } from './utilities';
 import type { CreateStoryParams, CreateStoryStubParams } from './types';
 import type { CharacterData } from '../types';
+import { buildStoryCreationAttribution } from '../storyCreationAttributionService';
 
 /**
  * Create minimal story stub before text generation.
  * Returns storyId for AI usage tracking. On success, call enrichStoryRecord to fill content.
  */
 export async function createStoryStub(params: CreateStoryStubParams): Promise<string> {
+  const attribution = buildStoryCreationAttribution({
+    createdByMode: params.createdByMode,
+    createdByChildProfileId: params.createdByChildProfileId,
+    fallbackChildProfileId: params.childProfileId,
+    parentReviewRequired: params.parentReviewRequired,
+  });
   const story = await getStoryRepository().createStory({
     userId: params.userId,
     childProfileId: params.childProfileId,
     storyRequestId: params.storyRequestId,
+    createdByMode: attribution.createdByMode,
+    createdByChildProfileId: attribution.createdByChildProfileId,
+    parentReviewStatus: attribution.parentReviewStatus,
     title: 'Generating...',
     language: params.spec.language,
     ageGroup: params.spec.ageGroup,
@@ -59,6 +69,12 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
     }
 
     const llmCharacters = (params.text as any).characters || [];
+    const attribution = buildStoryCreationAttribution({
+      createdByMode: params.createdByMode,
+      createdByChildProfileId: params.createdByChildProfileId,
+      fallbackChildProfileId: params.childProfileId,
+      parentReviewRequired: params.parentReviewRequired,
+    });
 
     const closingKeepsakeLabel = extractClosingKeepsakeFromEpisodeText({
       fullText: params.text.fullText,
@@ -70,6 +86,9 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
         storyId,
         {
           title: stripCharacterIds(params.text.title),
+          createdByMode: attribution.createdByMode,
+          createdByChildProfileId: attribution.createdByChildProfileId,
+          parentReviewStatus: attribution.parentReviewStatus,
           moralTheme: params.goal,
           scenes: params.text.scenes,
           fullText: stripCharacterIds(params.text.fullText),
@@ -189,6 +208,12 @@ export async function syncStoryClosingKeepsakeLabel(storyId: string): Promise<vo
 export async function createStoryRecord(params: CreateStoryParams): Promise<string> {
   try {
     const llmCharacters = (params.text as any).characters || [];
+    const attribution = buildStoryCreationAttribution({
+      createdByMode: params.createdByMode,
+      createdByChildProfileId: params.createdByChildProfileId,
+      fallbackChildProfileId: params.childProfileId,
+      parentReviewRequired: params.parentReviewRequired,
+    });
     const closingKeepsakeLabel = extractClosingKeepsakeFromEpisodeText({
       fullText: params.text.fullText,
       scenes: params.text.scenes as Array<{ text?: string }> | undefined,
@@ -200,6 +225,9 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
         userId: params.userId,
         childProfileId: params.childProfileId,
         storyRequestId: params.storyRequestId,
+        createdByMode: attribution.createdByMode,
+        createdByChildProfileId: attribution.createdByChildProfileId,
+        parentReviewStatus: attribution.parentReviewStatus,
         title: stripCharacterIds(params.text.title),
         language: params.text.language,
         ageGroup: params.spec.ageGroup,

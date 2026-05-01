@@ -333,6 +333,7 @@ Done:
 - Parent-only child-mode endpoints can read/update controls, enter Child Mode by creating a child session, and revoke active child sessions for a child profile.
 - `/children` includes normalized child-mode controls and active child-session counts.
 - `/children` UI now exposes Child Mode enablement, daily/monthly limits, free-text/audio/review/family-story toggles, active child-session counts, and session revocation.
+- `story_requests` and `stories` now carry child-mode attribution and parent review fields; the async story pipeline propagates these fields when a child-created request is introduced.
 
 Remaining:
 
@@ -340,7 +341,7 @@ Remaining:
 - No parent gate UI/API for returning from Child Mode to Parent Mode is implemented.
 - Parent controls are stored and exposed by API, but are not yet enforced in child-safe generation flows.
 - `/children` still needs allowed-theme/language/character/sibling controls and a safe start/return gate before Child Mode is user-facing.
-- Child-created stories are not yet marked with `created_by_mode`, `created_by_child_profile_id`, or parent review state.
+- Child-created story marking is schema/service-ready, but still needs the actual child-safe generation endpoint and parent review workflow UI.
 
 If children can use the app themselves, they must do so inside a supervised mode controlled by an adult account.
 

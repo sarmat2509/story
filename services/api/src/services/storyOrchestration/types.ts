@@ -49,6 +49,9 @@ export interface CreateStoryParams {
   userId: string;
   storyRequestId: string;
   childProfileId?: string | null;
+  createdByMode?: string | null;
+  createdByChildProfileId?: string | null;
+  parentReviewRequired?: boolean | null;
   text: any;
   spec: StorySpec;
   characters: CharacterData[];
@@ -76,6 +79,9 @@ export interface CreateStoryStubParams {
   userId: string;
   storyRequestId: string;
   childProfileId?: string | null;
+  createdByMode?: string | null;
+  createdByChildProfileId?: string | null;
+  parentReviewRequired?: boolean | null;
   spec: StorySpec;
   seriesData?: {
     seriesId: string;

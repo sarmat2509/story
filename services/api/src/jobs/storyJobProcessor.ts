@@ -20,6 +20,7 @@ import { assertUserPhotoInputs } from '../services/photoInputSafetyService';
 import { assertStoryFromDrawingAccessForPhotos } from '../services/storyFromDrawingAccessService';
 import { releaseAudioQuotaReservationForStory } from '../services/audioQuotaReservationService';
 import { releaseStoryQuotaReservationForRequest } from '../services/storyQuotaService';
+import { getStoryCreationAttributionInputFromRequest } from '../services/storyCreationAttributionService';
 import {
   getStoryRepository,
   getSceneRepository,
@@ -638,6 +639,7 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
         userId: request.userId,
         storyRequestId: request.id,
         childProfileId: request.childProfileId,
+        ...getStoryCreationAttributionInputFromRequest(request),
         spec: { language: request.storyLanguage || DEFAULT_LOCALE, ageGroup, characters: [] } as any,
       });
       await getStoryRepository().updateRequest(requestId, {

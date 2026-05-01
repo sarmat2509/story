@@ -16,6 +16,7 @@ import { validateStoryScenes } from './validation';
 import { saveStoryStubCheckpoint, saveTextGenerationCheckpoint, saveValidationCheckpoint, saveStoryCreationCheckpoint } from './checkpoints';
 import type { GenerateTextParams, GenerateTextResult } from './types';
 import type { CharacterData } from '../types';
+import { getStoryCreationAttributionInputFromRequest } from '../storyCreationAttributionService';
 
 /**
  * Unified text generation for both standard and continuation flows
@@ -49,6 +50,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       userId: request.userId,
       storyRequestId: request.id,
       childProfileId: request.childProfileId,
+      ...getStoryCreationAttributionInputFromRequest(request),
       spec,
       ...(generationType === 'continuation' && continuationContext && {
         seriesData: {
@@ -172,6 +174,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       userId: request.userId,
       storyRequestId: request.id,
       childProfileId: request.childProfileId,
+      ...getStoryCreationAttributionInputFromRequest(request),
       text: validatedText,
       spec,
       characters: mergedCharacters,

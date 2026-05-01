@@ -126,6 +126,9 @@ export interface TokenPayload {
 export interface StoryRequest {
   request_id: string;
   child_id: string;
+  created_by_mode?: 'parent' | 'child';
+  created_by_child_profile_id?: string | null;
+  parent_review_required?: boolean;
   mode: 'single' | 'series';
   ui_locale: Locale;
   story_language: Locale;
@@ -461,6 +464,9 @@ export interface StorySummary {
   title: string;
   language: string;
   status: 'draft' | 'generating' | 'ready' | 'failed';
+  created_by_mode?: 'parent' | 'child';
+  created_by_child_profile_id?: string | null;
+  parent_review_status?: 'not_required' | 'pending' | 'approved' | 'rejected';
   cover_image_url?: string;
   cover_thumbnail_url?: string;
   has_audio: boolean;
