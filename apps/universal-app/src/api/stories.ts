@@ -263,6 +263,31 @@ export const useCreateStoryFromPhotos = () => {
   });
 };
 
+export function useReviewChildStory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      storyId,
+      status,
+    }: {
+      storyId: string;
+      status: 'approved' | 'rejected';
+    }) => {
+      const response = await apiClient.patch<{
+        status: string;
+        story: { id: string; parentReviewStatus: 'approved' | 'rejected' };
+      }>(`/api/v1/stories/${storyId}/parent-review`, { status });
+      return response.data.story;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['story', variables.storyId] });
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['published-stories'] });
+    },
+  });
+}
+
 // Retry image generation only (for failed requests where text succeeded)
 export const useRetryStoryImages = () => {
   const queryClient = useQueryClient();

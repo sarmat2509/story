@@ -265,6 +265,11 @@
     "thank_you": "Merci, votre vote a été accepté",
     "already_voted": "Vous avez déjà voté"
   },
+  "story_card": {
+    "parent_review_pending": "À vérifier",
+    "parent_review_approved": "Approuvée",
+    "parent_review_rejected": "Rejetée"
+  },
   "story_viewer": {
     "create_audio": "Créer une Histoire Audio",
     "audio_generating": "Préparation de l'histoire audio...",
@@ -324,6 +329,19 @@
     "character_type_child": "Enfant",
     "image_preparing": "préparation de l'image",
     "image_failed": "échec de la génération de l'image",
+    "parent_review_pending_title": "Validation parentale requise",
+    "parent_review_pending_message": "Cette histoire a été créée en mode enfant. Lisez-la avant de l'approuver; le partage et la publication restent bloqués jusque-là.",
+    "parent_review_approved_title": "Approuvée par un parent",
+    "parent_review_approved_message": "Cette histoire créée par l'enfant peut maintenant être partagée ou publiée.",
+    "parent_review_rejected_title": "Rejetée par un parent",
+    "parent_review_rejected_message": "L'histoire reste privée et ne peut pas être partagée. Vous pouvez la supprimer si elle ne doit pas rester dans la bibliothèque.",
+    "parent_review_approve": "Approuver",
+    "parent_review_reject": "Rejeter",
+    "parent_review_approved_toast": "Histoire approuvée",
+    "parent_review_rejected_toast": "Histoire rejetée",
+    "parent_review_error": "Impossible de mettre à jour la validation",
+    "parent_review_pending_share_blocked": "Approuvez cette histoire enfant avant de la partager ou publier.",
+    "parent_review_rejected_share_blocked": "Les histoires enfant rejetées ne peuvent pas être partagées.",
     "publishing_under_pseudonym": "Publication sous pseudonyme",
     "publish_success_ordinal": "Publié ! C'est votre {{ordinal}} histoire. Continuez !",
     "publication_title": "Publication",

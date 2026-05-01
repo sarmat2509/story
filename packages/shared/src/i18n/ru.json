@@ -596,6 +596,11 @@
     "thank_you": "Спасибо, ваш голос принят",
     "already_voted": "Вы уже проголосовали"
   },
+  "story_card": {
+    "parent_review_pending": "Нужна проверка",
+    "parent_review_approved": "Одобрено",
+    "parent_review_rejected": "Отклонено"
+  },
   "story_viewer": {
     "untitled_story": "История",
     "create_audio": "Создать аудиосказку",
@@ -661,6 +666,19 @@
     "character_type_friend": "Друг",
     "image_preparing": "готовим изображение",
     "image_failed": "не удалось сгенерировать изображение",
+    "parent_review_pending_title": "Нужна проверка родителя",
+    "parent_review_pending_message": "Эта история создана в детском режиме. Прочитайте её перед одобрением: публикация и отправка ссылки заблокированы, пока вы не одобрите историю.",
+    "parent_review_approved_title": "Одобрено родителем",
+    "parent_review_approved_message": "Эту детскую историю теперь можно публиковать или отправлять по ссылке.",
+    "parent_review_rejected_title": "Отклонено родителем",
+    "parent_review_rejected_message": "История останется приватной и не сможет быть опубликована. Если её не нужно хранить в библиотеке, её можно удалить.",
+    "parent_review_approve": "Одобрить",
+    "parent_review_reject": "Отклонить",
+    "parent_review_approved_toast": "История одобрена",
+    "parent_review_rejected_toast": "История отклонена",
+    "parent_review_error": "Не удалось обновить статус проверки",
+    "parent_review_pending_share_blocked": "Одобрите детскую историю перед публикацией или отправкой ссылки.",
+    "parent_review_rejected_share_blocked": "Отклонённые детские истории нельзя публиковать или отправлять.",
     "publishing_under_pseudonym": "Публикуем под псевдонимом",
     "publish_success_ordinal": "Опубликовано! Это ваша {{ordinal}} история. Так держать!",
     "publication_title": "Публикация",

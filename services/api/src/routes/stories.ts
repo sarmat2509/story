@@ -23,6 +23,10 @@ import {
 } from '../services/storyOrchestrationService';
 import { publishStory, unpublishStory } from '../services/publishStoryService';
 import { PublishSafetyError } from '../services/storyPublishSafetyService';
+import {
+  reviewChildCreatedStory,
+  StoryParentReviewError,
+} from '../services/storyParentReviewService';
 import { assertPromptSafety, assertStoryPromptSafety, isPromptSafetyError } from '../services/promptSafetyService';
 import { assertUserPhotoInputs, isPhotoInputSafetyError } from '../services/photoInputSafetyService';
 import {
@@ -884,6 +888,61 @@ const PublishStorySchema = z.object({
   isPublished: z.boolean(),
   visibility: z.enum(['public', 'unlisted']).optional().default('public'),
   shareCardSceneId: z.number().int().min(0).optional(),
+});
+
+const ParentReviewStorySchema = z.object({
+  status: z.enum(['approved', 'rejected']),
+});
+
+/**
+ * PATCH /api/v1/stories/:id/parent-review
+ * Approve or reject a child-created story before sharing.
+ */
+router.patch('/:id/parent-review', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+  try {
+    const id = req.params['id'];
+    if (typeof id !== 'string' || !id) {
+      return res.status(400).json({ status: 'error', message: 'Invalid story ID' });
+    }
+    const body = ParentReviewStorySchema.parse(req.body);
+    const result = await reviewChildCreatedStory({
+      storyId: id,
+      userId: req.user!.id,
+      status: body.status,
+    });
+
+    if (!result) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Story not found',
+      });
+    }
+
+    return res.json({
+      status: 'success',
+      story: result,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Validation failed',
+        errors: error.issues,
+      });
+    }
+    if (error instanceof StoryParentReviewError) {
+      return res.status(error.statusCode).json({
+        status: 'error',
+        message: error.message,
+        code: error.code,
+      });
+    }
+    logger.error({ err: error, userId: req.user?.id, storyId: req.params.id }, 'Review child-created story failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to review story',
+    });
+  }
 });
 
 /**

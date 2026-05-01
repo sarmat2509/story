@@ -24,6 +24,13 @@ function buildReadingTimeMinutesSql() {
   `;
 }
 
+function parentReviewPublicCondition() {
+  return or(
+    eq(schema.stories.parentReviewStatus, 'not_required'),
+    eq(schema.stories.parentReviewStatus, 'approved')
+  )!;
+}
+
 export class StoryRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
@@ -76,6 +83,7 @@ export class StoryRepository {
         eq(schema.stories.isPublished, true),
         eq(schema.stories.visibility, 'public'),
         eq(schema.stories.hidden, false),
+        parentReviewPublicCondition(),
       ))
       .limit(1);
     return story || null;
@@ -89,7 +97,8 @@ export class StoryRepository {
         eq(schema.stories.shareToken, token),
         eq(schema.stories.isPublished, true),
         eq(schema.stories.visibility, 'unlisted'),
-        eq(schema.stories.hidden, false)
+        eq(schema.stories.hidden, false),
+        parentReviewPublicCondition(),
       ))
       .limit(1);
     return story || null;
@@ -124,6 +133,7 @@ export class StoryRepository {
       isNotNull(schema.stories.publishedSlug),
       eq(schema.stories.visibility, 'public'),
       eq(schema.stories.hidden, false),
+      parentReviewPublicCondition(),
     ];
     if (showOnHomePage) {
       conditions.push(eq(schema.stories.showOnHomePage, true));
@@ -185,6 +195,7 @@ export class StoryRepository {
       isNotNull(schema.stories.publishedSlug),
       eq(schema.stories.visibility, 'public'),
       eq(schema.stories.hidden, false),
+      parentReviewPublicCondition(),
     ];
     if (showOnHomePage) {
       conditions.push(eq(schema.stories.showOnHomePage, true));
@@ -321,6 +332,9 @@ export class StoryRepository {
     createdAt: Date;
     scenarioCardId: string | null;
     partNumber: number | null;
+    createdByMode: string;
+    createdByChildProfileId: string | null;
+    parentReviewStatus: string;
   }>> {
     const { limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId, language } = options;
     const conditions = [
@@ -346,6 +360,9 @@ export class StoryRepository {
       createdAt: schema.stories.createdAt,
       scenarioCardId: schema.storyRequests.scenarioCardId,
       partNumber: schema.stories.partNumber,
+      createdByMode: schema.stories.createdByMode,
+      createdByChildProfileId: schema.stories.createdByChildProfileId,
+      parentReviewStatus: schema.stories.parentReviewStatus,
     };
     const orderBy = seriesId
       ? asc(schema.stories.partNumber)

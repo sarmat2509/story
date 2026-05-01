@@ -4835,6 +4835,9 @@ export async function listUserStorySummaries(
       hasAudio: !!(story.audioMetadata as any)?.finalAssetId,
       scenarioCardId: story.scenarioCardId ?? null,
       partNumber: (story as any).partNumber ?? null,
+      createdByMode: story.createdByMode,
+      createdByChildProfileId: story.createdByChildProfileId ?? null,
+      parentReviewStatus: story.parentReviewStatus,
       createdAt: story.createdAt,
     };
   });
@@ -4981,6 +4984,9 @@ export async function getStoryManifest(storyId: string) {
         ? `${webAppUrl.replace(/\/$/, '')}/u/${story.shareToken}`
         : null,
     shareCardSceneId: story.shareCardSceneId ?? null,
+    createdByMode: story.createdByMode,
+    createdByChildProfileId: story.createdByChildProfileId ?? null,
+    parentReviewStatus: story.parentReviewStatus,
     fullText: stripAllTags(story.fullText || ''),
     audioMetadata,
     // M8: Series fields

@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Image, StyleSheet, ActivityIndicator, Touchable
 import { useRoute, RouteProp, useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
-import { useStory, useStoryGenerationStatus, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useDeleteStory, useSeriesInfo, usePublishStory } from '@/api/stories';
+import { useStory, useStoryGenerationStatus, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useDeleteStory, useSeriesInfo, usePublishStory, useReviewChildStory } from '@/api/stories';
 import { useUpdateMe } from '@/api/auth';
 import { useSubscriptionUsage } from '@/api/plans';
 import { useVoices } from '@/api/voices';
@@ -226,7 +226,12 @@ export default function StoryViewerScreen() {
   // Delete story mutation
   const deleteStory = useDeleteStory();
   const publishStory = usePublishStory();
+  const reviewChildStory = useReviewChildStory();
   const updateMe = useUpdateMe();
+  const parentReviewStatus = story?.createdByMode === 'child'
+    ? story.parentReviewStatus
+    : 'not_required';
+  const parentReviewBlocksSharing = parentReviewStatus === 'pending' || parentReviewStatus === 'rejected';
   
   // Delete dialog state
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
@@ -671,6 +676,15 @@ export default function StoryViewerScreen() {
 
   // Share: if not published show PublishShareDialog; if published: web -> post-publish popup, native -> Share.share
   const handleShare = useCallback(async () => {
+    if (parentReviewBlocksSharing) {
+      toastService.error(
+        parentReviewStatus === 'rejected'
+          ? t('story_viewer.parent_review_rejected_share_blocked')
+          : t('story_viewer.parent_review_pending_share_blocked')
+      );
+      return;
+    }
+
     const isPublished = !!story?.isPublished;
     const shareUrl = story?.shareUrl;
     const title = story?.title || t('story_viewer.untitled_story');
@@ -694,11 +708,19 @@ export default function StoryViewerScreen() {
       await Share.share({ url: shareUrl, message, title: shareTitle });
       getAnalytics().capture('story_shared', { story_id: storyId, story_title: title });
     } catch (_) {}
-  }, [story, storyId, t]);
+  }, [parentReviewBlocksSharing, parentReviewStatus, story, storyId, t]);
 
   const handlePublishAndShare = useCallback(
     async (visibility: 'public' | 'unlisted' = 'public', shareCardSceneId?: number, pseudonym?: string) => {
       try {
+        if (parentReviewBlocksSharing) {
+          toastService.error(
+            parentReviewStatus === 'rejected'
+              ? t('story_viewer.parent_review_rejected_share_blocked')
+              : t('story_viewer.parent_review_pending_share_blocked')
+          );
+          return;
+        }
         if (!user?.pseudonym && pseudonym) {
           await updateMe.mutateAsync({ pseudonym });
         }
@@ -737,15 +759,23 @@ export default function StoryViewerScreen() {
         }
       } catch (_) {}
     },
-    [storyId, story?.title, user?.pseudonym, publishStory, updateMe, t]
+    [parentReviewBlocksSharing, parentReviewStatus, storyId, story?.title, user?.pseudonym, publishStory, updateMe, t]
   );
 
   // Open PublishShareDialog (pre-publish or update visibility)
   const handleOpenPublishDialog = useCallback(() => {
+    if (parentReviewBlocksSharing) {
+      toastService.error(
+        parentReviewStatus === 'rejected'
+          ? t('story_viewer.parent_review_rejected_share_blocked')
+          : t('story_viewer.parent_review_pending_share_blocked')
+      );
+      return;
+    }
     setPublishShareUrl(null);
     setPublishDialogOpenedFromShare(false);
     setPublishShareDialogVisible(true);
-  }, []);
+  }, [parentReviewBlocksSharing, parentReviewStatus, t]);
 
   const handleUnpublish = useCallback(() => {
     setUnpublishDialogVisible(true);
@@ -757,6 +787,23 @@ export default function StoryViewerScreen() {
     setPublishShareDialogVisible(false);
     setPublishShareUrl(null);
   }, [storyId, publishStory]);
+
+  const handleParentReview = useCallback(
+    async (status: 'approved' | 'rejected') => {
+      if (!storyId) return;
+      try {
+        await reviewChildStory.mutateAsync({ storyId, status });
+        toastService.success(
+          status === 'approved'
+            ? t('story_viewer.parent_review_approved_toast')
+            : t('story_viewer.parent_review_rejected_toast')
+        );
+      } catch (_) {
+        toastService.error(t('story_viewer.parent_review_error'));
+      }
+    },
+    [reviewChildStory, storyId, t]
+  );
   
   // M6: Get active scene index from sentence metadata
   const activeSceneIndex = activeSentenceIndex !== null
@@ -1166,6 +1213,83 @@ export default function StoryViewerScreen() {
     )
   );
 
+  const renderParentReviewPanel = () => {
+    if (story?.createdByMode !== 'child' || parentReviewStatus === 'not_required') {
+      return null;
+    }
+
+    const isPendingReview = parentReviewStatus === 'pending';
+    const isRejected = parentReviewStatus === 'rejected';
+    const isApproved = parentReviewStatus === 'approved';
+    const iconName = isApproved
+      ? 'checkmark-circle-outline'
+      : isRejected
+        ? 'close-circle-outline'
+        : 'time-outline';
+
+    return (
+      <View
+        style={[
+          styles.parentReviewPanel,
+          isApproved && styles.parentReviewPanelApproved,
+          isRejected && styles.parentReviewPanelRejected,
+        ]}
+      >
+        <View style={styles.parentReviewHeader}>
+          <Ionicons
+            name={iconName}
+            size={22}
+            color={
+              isApproved
+                ? theme.colors.status.success
+                : isRejected
+                  ? theme.colors.status.error
+                  : theme.colors.status.warning
+            }
+          />
+          <Text style={styles.parentReviewTitle}>
+            {isApproved
+              ? t('story_viewer.parent_review_approved_title')
+              : isRejected
+                ? t('story_viewer.parent_review_rejected_title')
+                : t('story_viewer.parent_review_pending_title')}
+          </Text>
+        </View>
+        <Text style={styles.parentReviewMessage}>
+          {isApproved
+            ? t('story_viewer.parent_review_approved_message')
+            : isRejected
+              ? t('story_viewer.parent_review_rejected_message')
+              : t('story_viewer.parent_review_pending_message')}
+        </Text>
+        {isPendingReview && (
+          <View style={styles.parentReviewActions}>
+            <TouchableOpacity
+              style={[styles.parentReviewButton, styles.parentReviewRejectButton]}
+              onPress={() => handleParentReview('rejected')}
+              disabled={reviewChildStory.isPending}
+            >
+              <Ionicons name="close-outline" size={18} color={theme.colors.status.error} />
+              <Text style={styles.parentReviewRejectText}>{t('story_viewer.parent_review_reject')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.parentReviewButton, styles.parentReviewApproveButton]}
+              onPress={() => handleParentReview('approved')}
+              disabled={reviewChildStory.isPending}
+            >
+              {reviewChildStory.isPending ? (
+                <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+              ) : (
+                <Ionicons name="checkmark-outline" size={18} color={theme.colors.text.inverse} />
+              )}
+              <Text style={styles.parentReviewApproveText}>{t('story_viewer.parent_review_approve')}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   // M6: Helper to render scene text with sentence/word wrappers
   const renderSceneTextWithHighlight = (sceneText: string, sceneIndex: number) => {
     const cleanedSceneText = removeAudioTags(sceneText);
@@ -1296,6 +1420,7 @@ export default function StoryViewerScreen() {
     });
   };
   
+  const parentReviewPanel = renderParentReviewPanel();
 
   return (
     <View style={styles.container}>
@@ -1316,6 +1441,11 @@ export default function StoryViewerScreen() {
                     {t('story_viewer.reading_time', { minutes: readingTimeMinutes })}
                   </Text>
                 </View>
+              </View>
+            )}
+            {parentReviewPanel && (
+              <View style={styles.mobileSectionWrapper}>
+                {parentReviewPanel}
               </View>
             )}
             {/* Audio Generation Section */}
@@ -1443,14 +1573,19 @@ export default function StoryViewerScreen() {
               
               {/* Characters Section */}
               {charactersSection}
+
+              {parentReviewPanel}
               
               {/* Publication block */}
               <View style={styles.publicationSection}>
                 {!story?.isPublished ? (
                   <TouchableOpacity
-                    style={styles.publishButton}
+                    style={[
+                      styles.publishButton,
+                      (publishStory.isPending || parentReviewBlocksSharing) && styles.publishButtonDisabled,
+                    ]}
                     onPress={handleOpenPublishDialog}
-                    disabled={publishStory.isPending}
+                    disabled={publishStory.isPending || parentReviewBlocksSharing}
                   >
                     <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.text.inverse} />
                     <Text style={styles.publishButtonText}>{t('story_viewer.publish')}</Text>
@@ -1471,14 +1606,26 @@ export default function StoryViewerScreen() {
                       </Text>
                     </View>
                     <View style={styles.publicationButtonsRow}>
-                      <TouchableOpacity style={[styles.shareButton, styles.publicationButtonFlex]} onPress={handleShare}>
+                      <TouchableOpacity
+                        style={[
+                          styles.shareButton,
+                          styles.publicationButtonFlex,
+                          parentReviewBlocksSharing && styles.shareButtonDisabled,
+                        ]}
+                        onPress={handleShare}
+                        disabled={parentReviewBlocksSharing}
+                      >
                         <Ionicons name="share-social-outline" size={20} color={theme.colors.interactive.primary} />
                         <Text style={styles.shareButtonText}>{t('story_viewer.share_title')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[styles.updatePublicationButton, styles.publicationButtonFlex]}
+                        style={[
+                          styles.updatePublicationButton,
+                          styles.publicationButtonFlex,
+                          (publishStory.isPending || parentReviewBlocksSharing) && styles.shareButtonDisabled,
+                        ]}
                         onPress={handleOpenPublishDialog}
-                        disabled={publishStory.isPending}
+                        disabled={publishStory.isPending || parentReviewBlocksSharing}
                       >
                         <Ionicons name="create-outline" size={20} color={theme.colors.interactive.primary} />
                         <Text style={styles.updatePublicationButtonText}>{t('story_viewer.update_publication')}</Text>
@@ -1631,6 +1778,71 @@ const styles = StyleSheet.create({
   publicationSection: {
     marginBottom: theme.spacing[4],
   },
+  parentReviewPanel: {
+    padding: theme.spacing[4],
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.status.warning,
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.secondary,
+    marginBottom: theme.spacing[4],
+  },
+  parentReviewPanelApproved: {
+    borderColor: theme.colors.status.success,
+  },
+  parentReviewPanelRejected: {
+    borderColor: theme.colors.status.error,
+  },
+  parentReviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    marginBottom: theme.spacing[2],
+  },
+  parentReviewTitle: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  parentReviewMessage: {
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
+    color: theme.colors.text.secondary,
+  },
+  parentReviewActions: {
+    flexDirection: 'row',
+    gap: theme.spacing[3],
+    marginTop: theme.spacing[4],
+  },
+  parentReviewButton: {
+    flex: 1,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.md,
+  },
+  parentReviewRejectButton: {
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.status.error,
+    backgroundColor: theme.colors.background.primary,
+  },
+  parentReviewApproveButton: {
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  parentReviewRejectText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.status.error,
+  },
+  parentReviewApproveText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
+  },
   publicationSectionTitle: {
     fontSize: theme.typography.fontSize.lg,
     fontWeight: theme.typography.fontWeight.semibold,
@@ -1696,6 +1908,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.borders.radius.md,
     backgroundColor: theme.colors.interactive.primary,
   },
+  publishButtonDisabled: {
+    opacity: 0.55,
+  },
   publishButtonText: {
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
@@ -1712,6 +1927,9 @@ const styles = StyleSheet.create({
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.interactive.primary,
     backgroundColor: theme.colors.background.primary,
+  },
+  shareButtonDisabled: {
+    opacity: 0.55,
   },
   shareButtonText: {
     fontSize: theme.typography.fontSize.base,

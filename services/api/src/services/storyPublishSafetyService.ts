@@ -4,6 +4,8 @@ import { config } from '../config';
 
 export type PublishSafetyCode =
   | 'STORY_HIDDEN'
+  | 'PARENT_REVIEW_PENDING'
+  | 'PARENT_REVIEW_REJECTED'
   | 'STORY_INCOMPLETE'
   | 'STORY_TEXT_NOT_VALIDATED'
   | 'IMAGE_VALIDATION_REQUIRED'
@@ -33,6 +35,8 @@ export class PublishSafetyError extends Error {
 
 export interface PublishSafetyStoryLike {
   hidden?: boolean | null;
+  createdByMode?: string | null;
+  parentReviewStatus?: string | null;
   fullText?: string | null;
   policyChecks?: unknown;
 }
@@ -65,6 +69,24 @@ export function evaluateStoryPublishSafety(input: {
       code: 'STORY_HIDDEN',
       message: 'Hidden stories cannot be published',
     };
+  }
+
+  if (story.createdByMode === 'child') {
+    const reviewStatus = story.parentReviewStatus ?? 'pending';
+    if (reviewStatus === 'pending') {
+      return {
+        allowed: false,
+        code: 'PARENT_REVIEW_PENDING',
+        message: 'A parent must approve this child-created story before it can be shared',
+      };
+    }
+    if (reviewStatus === 'rejected') {
+      return {
+        allowed: false,
+        code: 'PARENT_REVIEW_REJECTED',
+        message: 'Rejected child-created stories cannot be shared',
+      };
+    }
   }
 
   if (!story.fullText || story.fullText.trim().length === 0) {

@@ -42,6 +42,41 @@ void (async function main() {
   assert.deepStrictEqual(
     evaluateStoryPublishSafety({
       ...baseInput,
+      story: { ...baseInput.story, createdByMode: 'child', parentReviewStatus: 'pending' },
+    }),
+    {
+      allowed: false,
+      code: 'PARENT_REVIEW_PENDING',
+      message: 'A parent must approve this child-created story before it can be shared',
+    },
+    'child-created stories pending parent review cannot publish'
+  );
+
+  assert.deepStrictEqual(
+    evaluateStoryPublishSafety({
+      ...baseInput,
+      story: { ...baseInput.story, createdByMode: 'child', parentReviewStatus: 'rejected' },
+    }),
+    {
+      allowed: false,
+      code: 'PARENT_REVIEW_REJECTED',
+      message: 'Rejected child-created stories cannot be shared',
+    },
+    'rejected child-created stories cannot publish'
+  );
+
+  assert.deepStrictEqual(
+    evaluateStoryPublishSafety({
+      ...baseInput,
+      story: { ...baseInput.story, createdByMode: 'child', parentReviewStatus: 'approved' },
+    }),
+    { allowed: true },
+    'approved child-created stories can publish'
+  );
+
+  assert.deepStrictEqual(
+    evaluateStoryPublishSafety({
+      ...baseInput,
       story: { ...baseInput.story, fullText: '' },
     }),
     {

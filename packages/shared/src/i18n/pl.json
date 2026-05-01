@@ -604,6 +604,11 @@
     "thank_you": "Dziekujemy, Twoj glos zostal przyjety",
     "already_voted": "Juz oddales glos"
   },
+  "story_card": {
+    "parent_review_pending": "Wymaga sprawdzenia",
+    "parent_review_approved": "Zatwierdzona",
+    "parent_review_rejected": "Odrzucona"
+  },
   "story_viewer": {
     "untitled_story": "Historia",
     "create_audio": "Utworz historie audio",
@@ -666,6 +671,19 @@
     "character_type_friend": "Przyjaciel",
     "image_preparing": "przygotowanie obrazu",
     "image_failed": "nie udalo sie wygenerowac obrazu",
+    "parent_review_pending_title": "Wymagana kontrola rodzica",
+    "parent_review_pending_message": "Ta historia powstala w trybie dziecka. Przeczytaj ja przed zatwierdzeniem; udostepnianie i publikacja sa zablokowane do czasu zatwierdzenia.",
+    "parent_review_approved_title": "Zatwierdzona przez rodzica",
+    "parent_review_approved_message": "Te historie utworzona przez dziecko mozna teraz publikowac lub udostepniac linkiem.",
+    "parent_review_rejected_title": "Odrzucona przez rodzica",
+    "parent_review_rejected_message": "Historia pozostaje prywatna i nie mozna jej udostepnic. Mozesz ja usunac, jesli nie powinna zostac w bibliotece.",
+    "parent_review_approve": "Zatwierdz",
+    "parent_review_reject": "Odrzuc",
+    "parent_review_approved_toast": "Historia zatwierdzona",
+    "parent_review_rejected_toast": "Historia odrzucona",
+    "parent_review_error": "Nie udalo sie zaktualizowac statusu sprawdzenia",
+    "parent_review_pending_share_blocked": "Zatwierdz te historie dziecka przed publikacja lub udostepnieniem.",
+    "parent_review_rejected_share_blocked": "Odrzuconych historii dziecka nie mozna udostepniac.",
     "share_title": "Udostepnij historie",
     "share_message": "Przeczytaj moja historie \"{{title}}\" w WonderTales! Twoje dziecko jest bohaterem wlasnej opowiesci 🎭",
     "publish_share_dialog_title": "Opublikuj historie",

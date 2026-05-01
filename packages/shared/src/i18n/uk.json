@@ -788,6 +788,11 @@
     "thank_you": "Дякуємо, ваш голос прийнято",
     "already_voted": "Ви вже проголосували"
   },
+  "story_card": {
+    "parent_review_pending": "Потрібна перевірка",
+    "parent_review_approved": "Схвалено",
+    "parent_review_rejected": "Відхилено"
+  },
   "story_viewer": {
     "untitled_story": "Історія",
     "create_audio": "Створити аудіоказку",
@@ -853,6 +858,19 @@
     "character_type_friend": "Друг",
     "image_preparing": "готуємо зображення",
     "image_failed": "не вдалося згенерувати зображення",
+    "parent_review_pending_title": "Потрібна перевірка батьків",
+    "parent_review_pending_message": "Цю історію створено в дитячому режимі. Прочитайте її перед схваленням: публікація й посилання заблоковані, доки ви її не схвалите.",
+    "parent_review_approved_title": "Схвалено батьками",
+    "parent_review_approved_message": "Цю дитячу історію тепер можна публікувати або надсилати за посиланням.",
+    "parent_review_rejected_title": "Відхилено батьками",
+    "parent_review_rejected_message": "Історія залишиться приватною і не зможе бути опублікована. Якщо її не потрібно зберігати в бібліотеці, її можна видалити.",
+    "parent_review_approve": "Схвалити",
+    "parent_review_reject": "Відхилити",
+    "parent_review_approved_toast": "Історію схвалено",
+    "parent_review_rejected_toast": "Історію відхилено",
+    "parent_review_error": "Не вдалося оновити статус перевірки",
+    "parent_review_pending_share_blocked": "Схваліть дитячу історію перед публікацією або надсиланням посилання.",
+    "parent_review_rejected_share_blocked": "Відхилені дитячі історії не можна публікувати або надсилати.",
     "share_title": "Поділитися історією",
     "share_message": "Читай мою історію «{{title}}» в WonderTales! Твоя дитина — герой власної казки 🎭",
     "publish_share_dialog_title": "Опублікувати історію",

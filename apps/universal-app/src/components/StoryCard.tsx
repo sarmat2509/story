@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TouchableOpacity, View, Text, Image, StyleSheet, Pressable, Platform } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import type { StoryAudioMetadata } from '@wondertales/shared';
@@ -17,6 +18,8 @@ interface Props {
     scenes?: Array<{ image?: { url?: string } }>;
     hasAudio?: boolean;
     audioMetadata?: StoryAudioMetadata | null;
+    createdByMode?: 'parent' | 'child';
+    parentReviewStatus?: 'not_required' | 'pending' | 'approved' | 'rejected';
   };
   onPress: (id: string) => void;
   onDelete?: (storyId: string, title: string) => void;
@@ -25,6 +28,7 @@ interface Props {
 
 const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Props) => {
   const [gridHovered, setGridHovered] = useState(false);
+  const { t } = useTranslation();
 
   // Prefer thumbnail for library (smaller, faster loading), fallback to full image
   const thumbnailRaw = story.coverThumbnailUrl
@@ -33,6 +37,46 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
     || null;
   const thumbnail = formatAssetUrl(thumbnailRaw);
   const hasAudio = story.hasAudio || !!story.audioMetadata?.finalAssetId;
+  const reviewStatus = story.createdByMode === 'child' ? story.parentReviewStatus : undefined;
+  const reviewBadge =
+    reviewStatus && reviewStatus !== 'not_required'
+      ? (
+        <View style={[
+          styles.reviewBadge,
+          reviewStatus === 'pending' && styles.reviewBadgePending,
+          reviewStatus === 'approved' && styles.reviewBadgeApproved,
+          reviewStatus === 'rejected' && styles.reviewBadgeRejected,
+        ]}>
+          <Ionicons
+            name={
+              reviewStatus === 'approved'
+                ? 'checkmark-circle-outline'
+                : reviewStatus === 'rejected'
+                  ? 'close-circle-outline'
+                  : 'time-outline'
+            }
+            size={14}
+            color={
+              reviewStatus === 'approved'
+                ? theme.colors.status.success
+                : reviewStatus === 'rejected'
+                  ? theme.colors.status.error
+                  : theme.colors.status.warning
+            }
+          />
+          <Text
+            style={[
+              styles.reviewBadgeText,
+              reviewStatus === 'approved' && styles.reviewBadgeTextApproved,
+              reviewStatus === 'rejected' && styles.reviewBadgeTextRejected,
+            ]}
+            numberOfLines={1}
+          >
+            {t(`story_card.parent_review_${reviewStatus}`)}
+          </Text>
+        </View>
+      )
+      : null;
   
   // Grid variant: cover image + title overlaid in white, bottom gradient for contrast
   if (variant === 'grid') {
@@ -81,9 +125,15 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
           </View>
         </Pressable>
 
+        {reviewBadge && (
+          <View style={styles.reviewBadgeGrid}>
+            {reviewBadge}
+          </View>
+        )}
+
         {/* Audio badge - top left corner */}
         {hasAudio && (
-          <View style={styles.audioBadge}>
+          <View style={[styles.audioBadge, reviewBadge && styles.audioBadgeWithReview]}>
             <Ionicons name="headset" size={18} color={theme.colors.interactive.primary} />
           </View>
         )}
@@ -112,6 +162,7 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
         <View style={styles.content}>
           <Text style={styles.title} numberOfLines={2}>{story.title}</Text>
           <Text style={styles.meta}>{story.language} • {story.status}</Text>
+          {reviewBadge && <View style={styles.reviewBadgeList}>{reviewBadge}</View>}
         </View>
       </TouchableOpacity>
       
@@ -137,6 +188,8 @@ const areEqual = (prevProps: Props, nextProps: Props) => {
     prevProps.story.status === nextProps.story.status &&
     prevProps.story.coverImageUrl === nextProps.story.coverImageUrl &&
     prevProps.story.coverThumbnailUrl === nextProps.story.coverThumbnailUrl &&
+    prevProps.story.createdByMode === nextProps.story.createdByMode &&
+    prevProps.story.parentReviewStatus === nextProps.story.parentReviewStatus &&
     prevProps.variant === nextProps.variant &&
     prevProps.onPress === nextProps.onPress &&
     prevProps.onDelete === nextProps.onDelete &&
@@ -174,6 +227,42 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
+  },
+  reviewBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[1],
+    maxWidth: 180,
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[2],
+    borderRadius: theme.borders.radius.full,
+    borderWidth: theme.borders.width.thin,
+    backgroundColor: theme.colors.background.primary,
+  },
+  reviewBadgePending: {
+    borderColor: theme.colors.status.warning,
+  },
+  reviewBadgeApproved: {
+    borderColor: theme.colors.status.success,
+  },
+  reviewBadgeRejected: {
+    borderColor: theme.colors.status.error,
+  },
+  reviewBadgeText: {
+    flexShrink: 1,
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.status.warning,
+  },
+  reviewBadgeTextApproved: {
+    color: theme.colors.status.success,
+  },
+  reviewBadgeTextRejected: {
+    color: theme.colors.status.error,
+  },
+  reviewBadgeList: {
+    marginTop: theme.spacing[2],
+    alignSelf: 'flex-start',
   },
   gridRoot: {
     position: 'relative',
@@ -275,6 +364,12 @@ const styles = StyleSheet.create({
     textShadowRadius: 6,
     maxWidth: '70%',
   },
+  reviewBadgeGrid: {
+    position: 'absolute',
+    top: theme.spacing[2],
+    left: theme.spacing[2],
+    zIndex: 11,
+  },
   audioBadge: {
     position: 'absolute',
     top: theme.spacing[2],
@@ -288,6 +383,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
+  },
+  audioBadgeWithReview: {
+    top: theme.spacing[10],
   },
   deleteButtonGrid: {
     position: 'absolute',

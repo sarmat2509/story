@@ -604,6 +604,11 @@
     "thank_you": "Thank you, your vote has been accepted",
     "already_voted": "You have already voted"
   },
+  "story_card": {
+    "parent_review_pending": "Needs review",
+    "parent_review_approved": "Approved",
+    "parent_review_rejected": "Rejected"
+  },
   "story_viewer": {
     "untitled_story": "Story",
     "create_audio": "Create Audio Story",
@@ -669,6 +674,19 @@
     "character_type_friend": "Friend",
     "image_preparing": "preparing image",
     "image_failed": "failed to generate image",
+    "parent_review_pending_title": "Parent review needed",
+    "parent_review_pending_message": "This story was created in Child Mode. Read it before approving; sharing and publishing stay locked until you approve it.",
+    "parent_review_approved_title": "Approved by parent",
+    "parent_review_approved_message": "This child-created story can now be shared or published.",
+    "parent_review_rejected_title": "Rejected by parent",
+    "parent_review_rejected_message": "This story stays private and cannot be shared. You can delete it if it should not remain in the library.",
+    "parent_review_approve": "Approve",
+    "parent_review_reject": "Reject",
+    "parent_review_approved_toast": "Story approved",
+    "parent_review_rejected_toast": "Story rejected",
+    "parent_review_error": "Could not update review status",
+    "parent_review_pending_share_blocked": "Approve this child-created story before sharing it.",
+    "parent_review_rejected_share_blocked": "Rejected child-created stories cannot be shared.",
     "share_title": "Share story",
     "share_message": "Read my story \"{{title}}\" on WonderTales! Your child is the hero of their own tale 🎭",
     "publish_share_dialog_title": "Publish story",
