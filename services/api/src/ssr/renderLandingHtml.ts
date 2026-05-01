@@ -4,7 +4,13 @@
  */
 
 import { config } from '../config';
-import { buildAbsoluteRouteUrl, buildPublicPricingPath } from '@wondertales/shared';
+import {
+  buildAbsoluteRouteUrl,
+  buildPublicLegalPath,
+  buildPublicPricingPath,
+  normalizePublicSeoLocale,
+  type PublicSeoLocale,
+} from '@wondertales/shared';
 import {
   buildLandingAlternateLinks,
   buildPlanDescription,
@@ -36,6 +42,78 @@ interface PlanWithLimits {
   audioStoriesPerMonth: number;
   imagesPerStory: number;
 }
+
+interface ParentTrustCard {
+  title: string;
+  body: string;
+  href?: string;
+  linkLabel?: string;
+}
+
+const PARENT_TRUST_COPY: Record<PublicSeoLocale, {
+  title: string;
+  subtitle: string;
+  cards: ParentTrustCard[];
+}> = {
+  uk: {
+    title: 'Батьківський контроль і приватність з першої історії',
+    subtitle:
+      'WonderTales створений для сімей: дорослий керує акаунтом, дані дитини залишаються приватними, а підтримка допомагає з приватністю чи видаленням.',
+    cards: [
+      {
+        title: 'Акаунт належить дорослому',
+        body:
+          'Діти користуються профілями всередині батьківського акаунта. Оплата, налаштування, публікація та видалення залишаються за батьками.',
+      },
+      {
+        title: 'Приватно за замовчуванням',
+        body:
+          'Профілі дітей, завантаження, створені казки, аудіо та ілюстрації не публікуються, доки батьки самі не оберуть публікацію або приватне посилання.',
+        linkLabel: 'Політика приватності',
+      },
+      {
+        title: 'Дитячий режим з межами',
+        body:
+          'Дитина може створювати лише в межах налаштувань батьків: вік, дозволені теми, ліміт історій і перегляд батьками перед поширенням.',
+      },
+      {
+        title: 'Видалення даних і підтримка',
+        body:
+          'Батьки можуть звернутися до підтримки щодо акаунта, експорту, видалення або приватності будь-коли.',
+        linkLabel: 'Написати в підтримку',
+      },
+    ],
+  },
+  en: {
+    title: 'Parent control and privacy from the first story',
+    subtitle:
+      'WonderTales is built for families: adults own the account, child data stays private, and support can help with privacy or deletion requests.',
+    cards: [
+      {
+        title: 'Parent-owned accounts',
+        body:
+          'Children use profiles inside an adult account. Billing, settings, publishing, and destructive actions stay behind parent access.',
+      },
+      {
+        title: 'Private by default',
+        body:
+          'Child profiles, uploads, generated stories, audio, and images are not public unless a parent chooses to publish or share an unlisted link.',
+        linkLabel: 'Privacy policy',
+      },
+      {
+        title: 'Child Mode with boundaries',
+        body:
+          'Child Mode lets a child create inside parent settings. Requests are limited by age, allowed themes, quota, and parent review before sharing.',
+      },
+      {
+        title: 'Deletion and support',
+        body:
+          'Parents can ask support for account help, export, deletion, or privacy questions at any time.',
+        linkLabel: 'Contact support',
+      },
+    ],
+  },
+};
 
 /** Inline SVG icons for trust chips (currentColor = inherits white from .trust-chip) */
 const TRUST_CHIP_ICONS = {
@@ -135,6 +213,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .safety-points{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
 .safety-point{display:flex;align-items:center;gap:12px;color:#475569;font-size:15px}
 .safety-point::before{content:"✓";color:#10b981;font-weight:700;font-size:18px}
+.parent-trust-grid{max-width:1000px;margin:0 auto 32px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.parent-trust-card{background:rgba(255,255,255,0.92);border:1px solid rgba(139,124,184,0.22);border-radius:8px;padding:20px;box-shadow:0 4px 18px rgba(15,23,42,0.06)}
+.parent-trust-card h3{font-size:17px;line-height:1.35;color:#1e293b;margin:0 0 10px}
+.parent-trust-card p{font-size:14px;line-height:1.6;color:#475569;margin:0}
+.parent-trust-card a{display:inline-flex;margin-top:12px;color:#7a6ba8;font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .multilingual-bullets{max-width:360px;margin:0 auto 32px;list-style:none;padding:0}
 .multilingual-bullets li{display:flex;align-items:center;gap:12px;margin-bottom:16px;color:#64748b;font-size:16px}
 .multilingual-bullets li::before{content:"🌐";font-size:20px}
@@ -177,8 +260,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .final-cta .final-subheadline{font-size:18px;color:#64748b;max-width:560px;margin:0 auto 32px;line-height:1.6}
 .final-cta .trust-line{font-size:14px;color:#94a3b8;margin-top:24px}
 .cta-block{text-align:center;margin-top:32px}
-@media(max-width:900px){.value-cards,.benefit-cards{grid-template-columns:repeat(2,1fr)}.flow-steps{grid-template-columns:repeat(2,1fr)}.plans-grid{grid-template-columns:repeat(2,1fr)}.story-cards,.testimonial-cards{grid-template-columns:1fr}.voice-cards{position:static;min-height:0;display:grid;grid-template-columns:repeat(2,1fr);gap:16px}.voice-card{position:static;width:100%;left:auto;top:auto;margin:0}.feature-sticky{grid-template-columns:1fr}.feature-sticky-titles{position:static}}
-@media(max-width:600px){.hero h2{font-size:28px}.value-cards,.benefit-cards,.flow-steps,.safety-points{grid-template-columns:1fr}.plans-grid,.story-cards,.testimonial-cards{grid-template-columns:1fr}.voice-cards{grid-template-columns:1fr}.announcement-bar{flex-direction:column;gap:12px}.feature-sticky-card-inner .feature-item-image{aspect-ratio:4/3}}
+@media(max-width:900px){.value-cards,.benefit-cards{grid-template-columns:repeat(2,1fr)}.flow-steps{grid-template-columns:repeat(2,1fr)}.plans-grid{grid-template-columns:repeat(2,1fr)}.parent-trust-grid{grid-template-columns:repeat(2,1fr)}.story-cards,.testimonial-cards{grid-template-columns:1fr}.voice-cards{position:static;min-height:0;display:grid;grid-template-columns:repeat(2,1fr);gap:16px}.voice-card{position:static;width:100%;left:auto;top:auto;margin:0}.feature-sticky{grid-template-columns:1fr}.feature-sticky-titles{position:static}}
+@media(max-width:600px){.hero h2{font-size:28px}.value-cards,.benefit-cards,.flow-steps,.safety-points,.parent-trust-grid{grid-template-columns:1fr}.plans-grid,.story-cards,.testimonial-cards{grid-template-columns:1fr}.voice-cards{grid-template-columns:1fr}.announcement-bar{flex-direction:column;gap:12px}.feature-sticky-card-inner .feature-item-image{aspect-ratio:4/3}}
 @media(prefers-reduced-motion:reduce){.faq-accordion-item summary::before{transition:none}}
 ${PUBLIC_FOOTER_STYLES}
 `;
@@ -472,6 +555,31 @@ function renderSafetyTrust(_webAppUrl: string, content: LandingContent): string 
   </section>`;
 }
 
+function renderParentTrust(webAppUrl: string, locale?: string): string {
+  const seoLocale = normalizePublicSeoLocale(locale);
+  const copy = PARENT_TRUST_COPY[seoLocale];
+  const privacyUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', seoLocale));
+  const supportUrl = buildAbsoluteRouteUrl(webAppUrl, '/support');
+  const cards = copy.cards.map((card, index) => {
+    const href = card.href || (index === 1 ? privacyUrl : index === 3 ? supportUrl : undefined);
+    return `
+      <article class="parent-trust-card">
+        <h3>${escapeHtml(card.title)}</h3>
+        <p>${escapeHtml(card.body)}</p>
+        ${href && card.linkLabel ? `<a href="${escapeHtml(href)}">${escapeHtml(card.linkLabel)}</a>` : ''}
+      </article>`;
+  }).join('');
+
+  return `
+  <section class="section" aria-labelledby="parent-trust-title">
+    <h2 id="parent-trust-title">${escapeHtml(copy.title)}</h2>
+    <p class="section-subtitle">${escapeHtml(copy.subtitle)}</p>
+    <div class="parent-trust-grid">
+      ${cards}
+    </div>
+  </section>`;
+}
+
 /** Voice for landing display (from DB or fallback) */
 interface LandingVoice {
   id: string;
@@ -722,6 +830,7 @@ export function renderLandingHtml(params?: {
       ${renderMadeForChildren(webAppUrl, content)}
       ${renderFeatureGrid(webAppUrl, content)}
       ${renderSafetyTrust(webAppUrl, content)}
+      ${renderParentTrust(webAppUrl, locale)}
       ${renderVoicesSection(webAppUrl, voices, content)}
       ${renderMultilingual(webAppUrl, content)}
       ${renderPricing(webAppUrl, plans, content, locale || 'uk')}
