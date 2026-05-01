@@ -82,12 +82,12 @@ Remaining P0 bottlenecks:
 - Google OAuth and password-reset email must be verified against production callback URLs, sender domain/DNS, and real email delivery. Apple is hidden on web, but native/mobile Apple remains out of this web launch scope.
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
 - Child Mode is currently fail-closed for dangerous actions. A full scoped child-mode product implementation is still not done: parent gate UI, child-safe scopes, parent controls, child-created-story metadata, and review state need schema/API/UI work.
-- CI/release gating is not yet proven: local builds/tests pass, but deployment should block on API build, web type-check/export, critical tests, and migration checks.
+- CI/release gating now exists locally and in CI for API build, web type-check/export, critical tests, migration-file checks, and client-bundle secret scans; it still needs to be proven on the real production deployment path.
 
 Solutions not yet applied:
 
 - No complete parent-control policy engine for child sessions.
-- No background orphan-file cleanup job.
+- No scheduled production orphan-file cleanup policy/job is enabled yet; a dry-run scanner exists.
 - No production-domain secrets/client-bundle scan has been recorded after deploy.
 - No final CSP allowlist review against production analytics/payment/OAuth domains has been recorded.
 
@@ -454,7 +454,7 @@ Acceptance criteria:
 
 ### 8. Data Deletion and Retention
 
-Status on 2026-05-01: Core deletion behavior, support/admin request intake, and admin export package generation are ready; export delivery policy and orphan cleanup remain.
+Status on 2026-05-01: Core deletion behavior, support/admin request intake, admin export package generation, and orphan-file dry-run scanning are ready; export delivery policy and scheduled cleanup rollout remain.
 
 Done:
 
@@ -467,11 +467,12 @@ Done:
 - Admin-only privacy request endpoints now let support list/filter and mark requests `open`, `in_review`, `fulfilled`, `rejected`, or `canceled`.
 - Web admin now includes `/admin/privacy-requests` for filtering, reviewing, and updating export/deletion support requests.
 - Admin-only export package generation returns JSON for `export` privacy requests while omitting password hashes, OAuth/session/reset tokens, story share tokens, and signed asset URLs.
+- `scanOrphanStorageFiles.ts` can dry-run local storage, compare files against DB-referenced asset paths, and only deletes with explicit `--apply`.
 
 Remaining:
 
 - Secure delivery of generated export packages is still a manual support operation after admin review.
-- Background cleanup for orphaned files is not implemented.
+- Scheduled/background orphan-file cleanup is not enabled in production yet; deletion policy and operator approval are still required before using `--apply`.
 - Billing-record retention needs final legal/operator confirmation before paid launch.
 
 Required work:
@@ -480,7 +481,7 @@ Required work:
 - Deleting a child profile deletes or anonymizes associated child-specific data according to policy.
 - Deleting an account deletes user data and storage files except legally required billing records.
 - Provide support/admin process for deletion and export requests.
-- Add background cleanup for orphaned files.
+- Add scheduled background cleanup for orphaned files after production dry-run review and retention approval.
 
 Acceptance criteria:
 

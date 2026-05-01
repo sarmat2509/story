@@ -2,7 +2,7 @@ import { getAssetStorageService } from './assetStorageService';
 
 const ASSET_ROUTE_PREFIX = '/api/v1/assets/';
 
-function normalizeAssetStoragePath(raw: string): string | null {
+export function normalizeAssetStoragePath(raw: string): string | null {
   const withoutQuery = raw.split('?')[0].split('#')[0].trim();
   if (!withoutQuery) return null;
 
@@ -30,7 +30,7 @@ function normalizeAssetStoragePath(raw: string): string | null {
   return normalized;
 }
 
-function shouldDeleteStoragePath(storagePath: string): boolean {
+export function shouldDeleteStoragePath(storagePath: string): boolean {
   if (!storagePath) return false;
   if (storagePath.startsWith('llm_turnaround_cache/')) return false;
   return true;

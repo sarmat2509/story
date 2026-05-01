@@ -27,6 +27,7 @@ API_TESTS=(
   src/services/__tests__/childProfileService.test.ts
   src/services/__tests__/consentService.test.ts
   src/services/__tests__/dataPrivacyRequestService.test.ts
+  src/services/__tests__/orphanStorageCleanupService.test.ts
   src/services/__tests__/photoInputSafetyService.test.ts
   src/services/__tests__/promptSafetyService.test.ts
   src/services/__tests__/storyDeletionService.test.ts
