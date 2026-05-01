@@ -1,7 +1,105 @@
 # Політика приватності WonderTales
 
-Останнє оновлення: 2025
+Останнє оновлення: 2026-05-01
 
-Цей документ описує, як WonderTales збирає та використовує персональні дані.
+Ця Політика приватності пояснює, як WonderTales збирає, використовує, передає та видаляє персональні дані під час публічної web beta-версії. Її потрібно юридично перевірити перед платним публічним запуском.
 
-[Текст буде додано юристом.]
+## Контролер і контакт
+
+WonderTales є постачальником сервісу для цієї beta-версії. Остаточну назву юридичного оператора, зареєстровану адресу та дані merchant of record потрібно підтвердити до зовнішнього платного використання.
+
+З питань приватності, дитячих даних, видалення, доступу, виправлення, заперечення або підтримки пишіть на support@wondertales.art.
+
+## Які дані ми збираємо
+
+Ми можемо збирати:
+
+- дані акаунта: email, display name, password credentials або OAuth identity, preferred language, settings, role та session information;
+- записи згоди дорослого: прийняті document versions, timestamps, IP address, user agent і consent context;
+- дані дитячого профілю, які додає дорослий власник акаунта: ім'я або nickname, age range, language, preferences, descriptions, child photos і drawings;
+- дані історій: prompts, selected characters, scenes, generated text, generated images, narration, alignment data, ratings, visibility settings, public slugs і share tokens;
+- завантажені файли: profile images, character references, child reference photos, drawings і feedback screenshots;
+- billing data: plan, subscription, bundle, customer identifiers, checkout/portal session identifiers, usage counters і payment-provider event records. Повні номери карток обробляє платіжний провайдер, а не WonderTales;
+- support і feedback data: messages, category, reported screen, optional email і attached screenshots;
+- технічні дані: IP address, device/browser information, logs, request metadata, cookies, analytics events і security signals.
+
+## Навіщо ми використовуємо дані
+
+Ми використовуємо дані, щоб:
+
+- створювати та захищати акаунти і sessions;
+- генерувати, перевіряти, озвучувати, зберігати та показувати історії;
+- персоналізувати історії на основі дитячих профілів і персонажів, доданих дорослим;
+- застосовувати quotas, subscriptions, bundles і feature access;
+- обробляти payments, cancellations, refunds і billing support;
+- розділяти приватний, unlisted і публічний доступ до історій;
+- модерувати контент і зменшувати ризик небезпечних або неприйнятних результатів;
+- відповідати на support, privacy, safety і deletion requests;
+- діагностувати помилки, запобігати зловживанням і покращувати надійність;
+- виконувати legal, tax, accounting, security і dispute obligations.
+
+## Правові підстави
+
+Залежно від вашого місця проживання ми можемо покладатися на виконання договору, згоду дорослого, законні інтереси, такі як безпека сервісу й запобігання зловживанням, та юридичні обов'язки, наприклад billing і tax recordkeeping.
+
+Коли подаються дитячі дані, WonderTales вимагає згоду дорослого батька, матері або опікуна перед їх обробкою для вибраних story-функцій.
+
+## Дитяча приватність
+
+WonderTales створений для сімейних акаунтів, якими володіє дорослий. Діти не створюють незалежних акаунтів на цьому етапі запуску.
+
+Дорослий має мати право надавати дитячі дані, фото, малюнки або вподобання. Дорослий може запросити видалення дитячих даних, написавши на support@wondertales.art.
+
+Якщо закон вимагає згоди батьків або опікунів для дитячих онлайн-даних, WonderTales використовує adult consent gates перед збором дитячих даних. Віковий поріг може відрізнятися залежно від країни.
+
+## AI і сервісні провайдери
+
+Щоб надавати сервіс, WonderTales може надсилати необхідний контент провайдерам, які допомагають із AI text, image, narration, alignment, moderation, hosting, storage, analytics, email, payments і support operations. Залежно від конфігурації це можуть бути, наприклад, OpenAI, Google, ElevenLabs, Stripe, Resend, PostHog, hosting infrastructure і storage providers.
+
+Ми намагаємося надсилати лише ті дані, які потрібні для конкретної функції. Не завантажуйте контент, який ви не маєте права передавати таким processors.
+
+## Публічне та unlisted поширення
+
+Приватні історії призначені для authenticated account access.
+
+Unlisted історії може відкрити будь-хто, хто має посилання. Вони не призначені для search indexing, але будь-хто з посиланням може їх переглянути.
+
+Публічні історії можуть з'являтися на public pages, share cards, catalogs, search engines і social previews. Перед публікацією приберіть приватні дитячі деталі або чутливу сімейну інформацію.
+
+Зняття з публікації або видалення історії прибирає звичайний публічний доступ, але search engines, recipients, screenshots, caches або third parties можуть певний час зберігати копії.
+
+## Cookies і аналітика
+
+WonderTales може використовувати cookies або подібні технології для sessions, security, preferences, analytics і product diagnostics. Аналітика допомагає нам розуміти page visits, conversion, errors і feature usage.
+
+Ви можете обмежити cookies у налаштуваннях браузера, але частина account, security і payment функцій може не працювати без required cookies.
+
+## Зберігання та видалення
+
+Ми зберігаємо дані лише стільки, скільки потрібно для описаних вище цілей, якщо довший строк не потрібен для billing, tax, accounting, security, abuse prevention, dispute resolution або legal claims.
+
+Ви можете запросити видалення акаунта, дитячих профілів, uploads і stories, написавши на support@wondertales.art. Ми відповімо без невиправданої затримки. Деякі records можуть зберігатися, якщо це юридично потрібно або обґрунтовано необхідно, наприклад payment records, consent logs, security logs і записи для розслідування зловживань або вирішення спорів.
+
+Backups і logs можуть видалятися довше.
+
+## Ваші права
+
+Залежно від вашого місця проживання ви можете мати право на доступ, виправлення, видалення, експорт, обмеження або заперечення проти обробки ваших даних, а також на відкликання згоди, якщо обробка базується на згоді.
+
+Ви також можете мати право подати скаргу до органу із захисту даних.
+
+## Безпека
+
+Ми використовуємо технічні та організаційні заходи для захисту даних, зокрема authenticated access controls, private asset rules, moderation checks, rate limits і operational logging. Жоден онлайн-сервіс не може гарантувати ідеальну безпеку.
+
+## Міжнародні передачі
+
+WonderTales і його провайдери можуть обробляти дані в різних країнах. Якщо це потрібно, ми використовуємо відповідні safeguards через agreements із service providers і platform controls.
+
+## Зміни
+
+Ми можемо оновлювати цю Політику приватності, коли змінюється сервіс, провайдери, законодавство або launch stage. Найновіша версія матиме дату оновлення вище.
+
+## Контакт
+
+Запити щодо приватності: support@wondertales.art
