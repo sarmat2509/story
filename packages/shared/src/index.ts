@@ -15,5 +15,6 @@ export * from './utils/ratingEmojis';
 export * from './utils/planPresentation';
 export * from './utils/stripCharacterId';
 export * from './utils/stripMarkdownEmphasis';
+export * from './utils/routeOwnership';
 export * from './ssr';
 // export * from './i18n/config'; // Excluded for now - JSON import issue

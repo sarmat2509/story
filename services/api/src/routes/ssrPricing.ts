@@ -1,16 +1,22 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
+import { normalizePublicSeoLocale, type PublicSeoLocale } from '@wondertales/shared';
 import { buildPlansWithFeatures, normalizePlanLocale } from '../services/planPresentationService';
 import { renderPricingHtml } from '../ssr/renderPricingHtml';
 
 const router = Router();
 
+export function buildPricingEtag(html: string): string {
+  return `"pricing-${crypto.createHash('sha1').update(html).digest('hex').slice(0, 12)}"`;
+}
+
+export function resolvePricingRouteLocale(routeLocale?: string | null): PublicSeoLocale {
+  return normalizePublicSeoLocale(routeLocale);
+}
+
 function resolveLocale(req: Request): string {
   const routeLocale = typeof req.params.locale === 'string' ? req.params.locale : undefined;
-  const headerLocale = typeof req.headers['accept-language'] === 'string'
-    ? req.headers['accept-language'].split(',')[0]
-    : undefined;
-  return normalizePlanLocale(routeLocale || headerLocale);
+  return normalizePlanLocale(resolvePricingRouteLocale(routeLocale));
 }
 
 async function handlePricing(req: Request, res: Response) {
@@ -24,7 +30,7 @@ async function handlePricing(req: Request, res: Response) {
   }
 
   const html = renderPricingHtml({ locale, plans });
-  const etag = `"pricing-${crypto.createHash('sha1').update(locale).digest('hex').slice(0, 8)}"`;
+  const etag = buildPricingEtag(html);
   if (req.headers['if-none-match'] === etag) {
     res.status(304);
     res.setHeader('ETag', etag);

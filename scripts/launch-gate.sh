@@ -25,6 +25,8 @@ API_TESTS=(
   src/ssr/__tests__/pricingPresentation.test.ts
   src/ssr/__tests__/publicSeoLocales.test.ts
   src/ssr/__tests__/renderPublicAuthorHtml.test.ts
+  src/ssr/__tests__/routeOwnership.test.ts
+  src/ssr/__tests__/seoEtag.test.ts
   src/services/__tests__/assetAccessService.test.ts
   src/services/__tests__/audioQuotaReservationService.test.ts
   src/services/__tests__/bundlePeriodOverlap.test.ts

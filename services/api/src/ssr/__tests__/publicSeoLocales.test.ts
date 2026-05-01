@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { buildLandingAlternateLinks, PUBLIC_SEO_LOCALES } from '../landingContent';
 import { renderPricingHtml } from '../renderPricingHtml';
+import { resolveLandingRouteLocale } from '../../routes/ssrLanding';
+import { resolvePricingRouteLocale } from '../../routes/ssrPricing';
 
 const unsupportedLocales = ['ru', 'es', 'de', 'fr', 'pl'];
 
@@ -25,6 +27,15 @@ assert.match(pricingHtml, /hreflang="x-default"/);
 for (const locale of unsupportedLocales) {
   assert.doesNotMatch(pricingHtml, new RegExp(`/${locale}/pricing`));
   assert.doesNotMatch(pricingHtml, new RegExp(`hreflang="${locale}"`));
+}
+
+assert.equal(resolveLandingRouteLocale(undefined), 'uk');
+assert.equal(resolvePricingRouteLocale(undefined), 'uk');
+assert.equal(resolveLandingRouteLocale('en'), 'en');
+assert.equal(resolvePricingRouteLocale('en'), 'en');
+for (const locale of unsupportedLocales) {
+  assert.equal(resolveLandingRouteLocale(locale), 'uk');
+  assert.equal(resolvePricingRouteLocale(locale), 'uk');
 }
 
 console.log('publicSeoLocales tests passed');

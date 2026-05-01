@@ -1,8 +1,15 @@
-export const DEFAULT_LANDING_LOCALE = 'uk' as const;
-export const LANDING_LOCALES = ['uk', 'ru', 'en', 'es', 'de', 'fr', 'pl'] as const;
-export type LandingLocale = typeof LANDING_LOCALES[number];
-export const PUBLIC_SEO_LOCALES = ['uk', 'en'] as const satisfies readonly LandingLocale[];
-export type PublicSeoLocale = typeof PUBLIC_SEO_LOCALES[number];
+import {
+  APP_SUPPORTED_LOCALES,
+  DEFAULT_PUBLIC_SEO_LOCALE,
+  PUBLIC_SEO_LOCALES,
+  type AppSupportedLocale,
+  type PublicSeoLocale,
+} from '@wondertales/shared';
+
+export const DEFAULT_LANDING_LOCALE = DEFAULT_PUBLIC_SEO_LOCALE;
+export const LANDING_LOCALES = APP_SUPPORTED_LOCALES;
+export type LandingLocale = AppSupportedLocale;
+export { PUBLIC_SEO_LOCALES, type PublicSeoLocale };
 
 type PlanSlug = 'free' | 'silver' | 'golden' | 'fairyworld';
 

@@ -8,13 +8,11 @@ import { getStoryRepository } from '../repositories';
 import { getRedisClient } from '../utils/redisClient';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { getLandingUrl, PUBLIC_SEO_LOCALES } from '../ssr/landingContent';
+import {
+  buildAbsoluteRouteUrl,
+  buildPublicSeoSitemapStaticRoutes,
+} from '@wondertales/shared';
 import type * as schema from '../db/schema';
-
-function getPricingUrl(webAppUrl: string, locale: string): string {
-  const base = webAppUrl.replace(/\/$/, '');
-  return locale === 'uk' ? `${base}/pricing` : `${base}/${locale}/pricing`;
-}
 
 const SITEMAP_CACHE_KEY = 'sitemap:xml:v2';
 const SITEMAP_TTL = 3600; // 1 hour
@@ -66,22 +64,10 @@ export function buildSitemapXmlForStories(
     return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.6</priority>\n  </url>`;
   });
 
-  const landingUrls = PUBLIC_SEO_LOCALES.map((locale) => {
-    const loc = escapeXml(getLandingUrl(baseUrl, locale));
-    const priority = locale === 'uk' ? '1.0' : '0.9';
-    return `  <url>\n    <loc>${loc}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
+  const staticUrls = buildPublicSeoSitemapStaticRoutes().map((route) => {
+    const loc = escapeXml(buildAbsoluteRouteUrl(baseUrl, route.path));
+    return `  <url>\n    <loc>${loc}</loc>\n    <changefreq>${route.changefreq}</changefreq>\n    <priority>${route.priority}</priority>\n  </url>`;
   });
-
-  const pricingUrls = PUBLIC_SEO_LOCALES.map((locale) => {
-    const loc = escapeXml(getPricingUrl(baseUrl, locale));
-    const priority = locale === 'uk' ? '0.95' : '0.85';
-    return `  <url>\n    <loc>${loc}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
-  });
-
-  const staticUrls = [
-    ...landingUrls,
-    ...pricingUrls,
-  ];
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">

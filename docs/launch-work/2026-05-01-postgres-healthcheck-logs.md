@@ -17,4 +17,5 @@ Date: 2026-05-01
 ## Verification
 
 - Static compose inspection confirms all Postgres healthchecks now include `-d`.
-- Running containers need a compose recreate before their embedded healthcheck command changes.
+- The already-running dev Postgres container still had the old embedded healthcheck command, so it was recreated on the existing named volume with `docker compose -f docker-compose.dev.yml up -d --no-deps --force-recreate postgres`.
+- Fresh Docker logs after the recreate no longer show the repeated `database "kazka" does not exist` healthcheck noise.

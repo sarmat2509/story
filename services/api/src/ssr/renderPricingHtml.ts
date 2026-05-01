@@ -5,6 +5,7 @@ import { PUBLIC_SEO_LOCALES, normalizeLandingLocale, type LandingLocale } from '
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
 import {
+  buildPublicPricingPath,
   formatPricingPrice,
   getCombinedPricingUsageHighlight,
   getPricingFeatureLabel,
@@ -58,8 +59,7 @@ function escapeHtml(value: string): string {
 }
 
 function getPricingPath(locale?: string | null): string {
-  const normalized = normalizeLandingLocale(locale);
-  return normalized === 'uk' ? '/pricing' : `/${normalized}/pricing`;
+  return buildPublicPricingPath(locale);
 }
 
 function getPricingUrl(webAppUrl: string, locale?: string | null): string {

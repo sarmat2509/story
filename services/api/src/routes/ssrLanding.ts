@@ -6,7 +6,11 @@
 
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
-import { getReadingTimeMinutes } from '@wondertales/shared';
+import {
+  getReadingTimeMinutes,
+  normalizePublicSeoLocale,
+  type PublicSeoLocale,
+} from '@wondertales/shared';
 import { renderLandingHtml } from '../ssr/renderLandingHtml';
 import {
   formatLandingAgeGroup,
@@ -16,13 +20,20 @@ import {
 import { listPublicStories } from '../services/publicStoryService';
 import * as planService from '../services/planService';
 import { getVoiceRepository } from '../repositories';
-import { getLandingRenderVersion } from '../ssr/storyCache';
 
 const router = Router();
 
 type LandingVoices = Awaited<
   ReturnType<ReturnType<typeof getVoiceRepository>['findActiveByLanguage']>
 >;
+
+export function buildLandingEtag(html: string): string {
+  return `"landing-${crypto.createHash('sha1').update(html).digest('hex').slice(0, 12)}"`;
+}
+
+export function resolveLandingRouteLocale(routeLocale?: string | null): PublicSeoLocale {
+  return normalizePublicSeoLocale(routeLocale);
+}
 
 /**
  * Format story duration for display.
@@ -43,10 +54,7 @@ function formatStoryTime(
 
 function resolveLocale(req: Request): string {
   const routeLocale = typeof req.params.locale === 'string' ? req.params.locale : undefined;
-  const headerLocale = typeof req.headers['accept-language'] === 'string'
-    ? req.headers['accept-language'].split(',')[0]
-    : undefined;
-  return normalizeLandingLocale(routeLocale || headerLocale);
+  return normalizeLandingLocale(resolveLandingRouteLocale(routeLocale));
 }
 
 /**
@@ -56,7 +64,6 @@ function resolveLocale(req: Request): string {
  */
 async function handleLanding(req: Request, res: Response) {
   const locale = resolveLocale(req);
-  const landingRenderVersion = await getLandingRenderVersion();
   let exampleStories: Array<{ age: string; title: string; time: string; slug: string; thumbnailUrl: string | null }> = [];
 
   let plans: Awaited<ReturnType<typeof planService.getPlansWithLimits>> = [];
@@ -89,7 +96,7 @@ async function handleLanding(req: Request, res: Response) {
   }
 
   const html = renderLandingHtml({ locale, exampleStories, plans, voices });
-  const etag = `"landing-${landingRenderVersion}-${crypto.createHash('sha1').update(locale).digest('hex').slice(0, 8)}"`;
+  const etag = buildLandingEtag(html);
   if (req.headers['if-none-match'] === etag) {
     res.status(304);
     res.setHeader('ETag', etag);

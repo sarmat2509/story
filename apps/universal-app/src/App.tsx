@@ -23,7 +23,7 @@ import { pushNotificationService } from '@/services/pushNotificationService';
 import RootNavigator from '@/navigation/RootNavigator';
 import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
 import type { MainTabParamList } from '@/types/navigation';
-import { isValidLocale } from '@wondertales/shared';
+import { APP_ROUTE_PATHS, isValidLocale } from '@wondertales/shared';
 
 import interopRequireDefault from '@babel/runtime/helpers/interopRequireDefault';
 console.log('interopRequireDefault OK', typeof interopRequireDefault);
@@ -167,34 +167,34 @@ const linking: any = {
   config: {
     screens: {
       OAuthCallback: 'auth/:provider/callback',
-      ModeSelection: 'mode-selection',
-      ChildMode: 'child-mode',
+      ModeSelection: APP_ROUTE_PATHS.modeSelection,
+      ChildMode: APP_ROUTE_PATHS.childMode,
       Main: {
         path: '',
         screens: {
-          Welcome: 'welcome',
-          Register: 'register',
+          Welcome: APP_ROUTE_PATHS.welcome,
+          Register: APP_ROUTE_PATHS.register,
           ForgotPassword: 'auth/forgot-password',
           ResetPassword: 'auth/reset-password',
-          Dashboard: 'dashboard',
-          Wizard: 'wizard',
-          Library: 'me/stories',
+          Dashboard: APP_ROUTE_PATHS.dashboard,
+          Wizard: APP_ROUTE_PATHS.wizard,
+          Library: APP_ROUTE_PATHS.library,
           LibraryRedirect: 'library',
-          Series: 'me/series',
+          Series: APP_ROUTE_PATHS.series,
           SeriesDetail: 'me/series/:seriesId',
-          Story: 'me/stories/:storyId',
-          StoryRedirect: 'story/:storyId',
-          Stories: 'stories',
-          PublishedStory: 'stories/:slug',
-          AuthorProfile: 'authors/:authorId',
-          UnlistedStory: 'u/:token',
-          Children: 'children',
-          Characters: 'characters',
-          Plans: 'billing/plans',
-          Profile: 'profile',
-          LanguageSettings: 'settings/language',
-          ThemeSettings: 'settings/theme',
-          BillingSuccess: 'billing/success',
+          Story: APP_ROUTE_PATHS.story,
+          StoryRedirect: APP_ROUTE_PATHS.storyRedirect,
+          Stories: APP_ROUTE_PATHS.storiesCatalog,
+          PublishedStory: APP_ROUTE_PATHS.publishedStory,
+          AuthorProfile: APP_ROUTE_PATHS.authorProfile,
+          UnlistedStory: APP_ROUTE_PATHS.unlistedStory,
+          Children: APP_ROUTE_PATHS.children,
+          Characters: APP_ROUTE_PATHS.characters,
+          Plans: APP_ROUTE_PATHS.billingPlans,
+          Profile: APP_ROUTE_PATHS.profile,
+          LanguageSettings: APP_ROUTE_PATHS.languageSettings,
+          ThemeSettings: APP_ROUTE_PATHS.themeSettings,
+          BillingSuccess: APP_ROUTE_PATHS.billingSuccess,
           NotFound: '404',
         },
       },
