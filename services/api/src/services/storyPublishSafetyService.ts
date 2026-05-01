@@ -1,0 +1,163 @@
+import type { Story } from '../db/schema';
+import { getAssetRepository, getImageValidationRepository } from '../repositories';
+import { config } from '../config';
+
+export type PublishSafetyCode =
+  | 'STORY_HIDDEN'
+  | 'STORY_INCOMPLETE'
+  | 'STORY_TEXT_NOT_VALIDATED'
+  | 'IMAGE_VALIDATION_REQUIRED'
+  | 'IMAGE_VALIDATION_FAILED';
+
+export type PublishSafetyDecision =
+  | { allowed: true }
+  | {
+      allowed: false;
+      code: PublishSafetyCode;
+      message: string;
+      details?: Record<string, unknown>;
+    };
+
+export class PublishSafetyError extends Error {
+  readonly code: PublishSafetyCode;
+  readonly statusCode = 409;
+  readonly details?: Record<string, unknown>;
+
+  constructor(decision: Exclude<PublishSafetyDecision, { allowed: true }>) {
+    super(decision.message);
+    this.name = 'PublishSafetyError';
+    this.code = decision.code;
+    this.details = decision.details;
+  }
+}
+
+export interface PublishSafetyStoryLike {
+  hidden?: boolean | null;
+  fullText?: string | null;
+  policyChecks?: unknown;
+}
+
+export interface PublishImageValidationScore {
+  storagePath: string;
+  score: number;
+}
+
+function getPolicyFlag(policyChecks: unknown, key: string): boolean {
+  if (!policyChecks || typeof policyChecks !== 'object') {
+    return false;
+  }
+  return (policyChecks as Record<string, unknown>)[key] === true;
+}
+
+export function evaluateStoryPublishSafety(input: {
+  story: PublishSafetyStoryLike;
+  visibility: 'public' | 'unlisted';
+  imageValidationEnabled: boolean;
+  imageValidationMinAcceptScore: number;
+  completedImageStoragePaths: string[];
+  imageValidationScores: PublishImageValidationScore[];
+}): PublishSafetyDecision {
+  const { story } = input;
+
+  if (story.hidden === true) {
+    return {
+      allowed: false,
+      code: 'STORY_HIDDEN',
+      message: 'Hidden stories cannot be published',
+    };
+  }
+
+  if (!story.fullText || story.fullText.trim().length === 0) {
+    return {
+      allowed: false,
+      code: 'STORY_INCOMPLETE',
+      message: 'Story is not ready to publish',
+    };
+  }
+
+  if (!getPolicyFlag(story.policyChecks, 'textValidated')) {
+    return {
+      allowed: false,
+      code: 'STORY_TEXT_NOT_VALIDATED',
+      message: 'Story text has not passed validation',
+    };
+  }
+
+  if (
+    input.visibility === 'public' &&
+    input.imageValidationEnabled &&
+    input.completedImageStoragePaths.length > 0
+  ) {
+    const bestScoreByPath = new Map<string, number>();
+    for (const row of input.imageValidationScores) {
+      const previous = bestScoreByPath.get(row.storagePath);
+      if (previous == null || row.score > previous) {
+        bestScoreByPath.set(row.storagePath, row.score);
+      }
+    }
+
+    const missingValidation = input.completedImageStoragePaths.filter(
+      (storagePath) => !bestScoreByPath.has(storagePath)
+    );
+    if (missingValidation.length > 0) {
+      return {
+        allowed: false,
+        code: 'IMAGE_VALIDATION_REQUIRED',
+        message: 'Story images must pass validation before public publishing',
+        details: { missingValidationCount: missingValidation.length },
+      };
+    }
+
+    const failedImages = input.completedImageStoragePaths
+      .map((storagePath) => ({
+        storagePath,
+        score: bestScoreByPath.get(storagePath) ?? 0,
+      }))
+      .filter((row) => row.score <= input.imageValidationMinAcceptScore);
+
+    if (failedImages.length > 0) {
+      return {
+        allowed: false,
+        code: 'IMAGE_VALIDATION_FAILED',
+        message: 'Story images did not pass validation for public publishing',
+        details: {
+          failedImageCount: failedImages.length,
+          minAcceptScore: input.imageValidationMinAcceptScore,
+        },
+      };
+    }
+  }
+
+  return { allowed: true };
+}
+
+export async function assertStoryPublishSafety(
+  story: Story,
+  visibility: 'public' | 'unlisted'
+): Promise<void> {
+  const completedImageAssets = (await getAssetRepository().findByStoryId(story.id, 'image'))
+    .filter((asset) => asset.status === 'completed')
+    .filter((asset) => !asset.storagePath.includes('/rejected/'));
+  const completedImageStoragePaths = completedImageAssets.map((asset) => asset.storagePath);
+
+  const validationRows =
+    visibility === 'public' && config.image.enableValidation && completedImageStoragePaths.length > 0
+      ? await getImageValidationRepository().listByStoragePaths(completedImageStoragePaths)
+      : [];
+
+  const decision = evaluateStoryPublishSafety({
+    story,
+    visibility,
+    imageValidationEnabled: config.image.enableValidation,
+    imageValidationMinAcceptScore: config.image.validationMinAcceptScore,
+    completedImageStoragePaths,
+    imageValidationScores: validationRows.map((row) => ({
+      storagePath: row.imageStoragePath,
+      score: row.validationScore,
+    })),
+  });
+
+  if (decision.allowed === false) {
+    throw new PublishSafetyError(decision);
+  }
+}

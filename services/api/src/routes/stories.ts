@@ -16,6 +16,7 @@ import {
   enrichAllStoriesWithImages,
 } from '../services/storyOrchestrationService';
 import { publishStory, unpublishStory } from '../services/publishStoryService';
+import { PublishSafetyError } from '../services/storyPublishSafetyService';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
 import { logger } from '../utils/logger';
 import { stripAllTags } from '../utils/audioTags';
@@ -578,6 +579,14 @@ router.patch('/:id', requireAuth, requireParentSession, async (req: Request, res
         status: 'error',
         message: 'Validation failed',
         errors: error.issues,
+      });
+    }
+    if (error instanceof PublishSafetyError) {
+      return res.status(error.statusCode).json({
+        status: 'error',
+        message: error.message,
+        code: error.code,
+        ...(error.details ? { details: error.details } : {}),
       });
     }
     logger.error({ err: error, userId: req.user?.id, storyId: req.params.id }, 'Publish story failed');

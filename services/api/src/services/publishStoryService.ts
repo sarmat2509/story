@@ -9,6 +9,7 @@ import { addPublishedSlug, incrementLandingRenderVersion, removePublishedSlug } 
 import { invalidateSitemapCache } from './sitemapService';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { assertStoryPublishSafety } from './storyPublishSafetyService';
 import crypto from 'crypto';
 import anyAscii from 'any-ascii';
 
@@ -75,6 +76,7 @@ export async function publishStory(
 
   const story = await storyRepo.findByIdAndUser(storyId, userId);
   if (!story) return null;
+  await assertStoryPublishSafety(story, visibility);
 
   const webAppUrl = config.web.webAppUrl.replace(/\/$/, '');
   const currentVisibility = story.visibility || (story.publishedSlug ? 'public' : 'unlisted');

@@ -2,7 +2,7 @@
  * Persist and query vision image validation results (analytics).
  */
 
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -48,6 +48,17 @@ export class ImageValidationRepository {
       .orderBy(desc(schema.imageValidationResults.createdAt))
       .limit(limit)
       .offset(offset);
+  }
+
+  async listByStoragePaths(storagePaths: string[]): Promise<schema.ImageValidationResultRow[]> {
+    if (storagePaths.length === 0) {
+      return [];
+    }
+
+    return this.db
+      .select()
+      .from(schema.imageValidationResults)
+      .where(inArray(schema.imageValidationResults.imageStoragePath, storagePaths));
   }
 
   async countByStoryId(storyId: string): Promise<number> {
