@@ -40,6 +40,7 @@ COPY --from=builder /app/apps/universal-app/dist /usr/share/nginx/html
 
 # Copy custom nginx config
 COPY apps/universal-app/nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx/includes/webapp-security-headers.conf /etc/nginx/includes/webapp-security-headers.conf
 
 EXPOSE 80
 

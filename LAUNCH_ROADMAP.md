@@ -81,15 +81,15 @@ Remaining P0 bottlenecks:
 - Production-only web checks are still required: `wondertales.art`, `www.wondertales.art`, HTTPS redirect, TLS certificate, real nginx/proxy behavior, and production SSR route status.
 - Google OAuth and password-reset email must be verified against production callback URLs, sender domain/DNS, and real email delivery. Apple is hidden on web, but native/mobile Apple remains out of this web launch scope.
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
-- Child Mode is currently fail-closed for dangerous actions. Parent-control storage/API and child-session entry/revocation now exist, but a full scoped child-mode product implementation is still not done: parent gate UI, child-safe generation enforcement, child-created-story metadata, and review state still need work.
+- Child Mode backend now has scoped sessions, parent controls, child-safe story request enforcement, attribution, and password parent-gate API. The full product is still not ready because parent gate UI, OAuth-only gate fallback, start/return UX, and parent review workflow UI remain.
 - CI/release gating now exists locally and in CI for API build, web type-check/export, critical tests, migration-file checks, and client-bundle secret scans; it still needs to be proven on the real production deployment path.
 
 Solutions not yet applied:
 
-- No complete parent-control policy engine applies child-mode settings to generation yet.
+- No parent gate UI, OAuth-only gate fallback, or parent review workflow UI is implemented yet.
 - No scheduled production orphan-file cleanup policy/job is enabled yet; a dry-run scanner exists.
 - No production-domain secrets/client-bundle scan has been recorded after deploy.
-- No final CSP allowlist review against production analytics/payment/OAuth domains has been recorded.
+- No live production-domain CSP/security-header capture has been recorded after deploy.
 
 ### 1. Stabilize Public Web Routes
 
@@ -343,7 +343,7 @@ Remaining:
 - Parent gate UI is not implemented yet, and OAuth-only accounts still need a non-password gate path.
 - Parent controls are enforced for the child-safe generation route, but UI start/return flow and review-management UI are not complete.
 - `/children` still needs allowed-theme/language/character/sibling controls and a safe start/return gate before Child Mode is user-facing.
-- Child-created story marking is schema/service-ready, but still needs the actual child-safe generation endpoint and parent review workflow UI.
+- Child-created story marking is schema/service-ready and wired to the child-safe generation endpoint, but still needs parent review workflow UI.
 
 If children can use the app themselves, they must do so inside a supervised mode controlled by an adult account.
 
@@ -505,17 +505,19 @@ Done:
 
 - Credentialed CORS is restricted to approved origins.
 - Helmet/CSP security headers are enabled.
+- The production webapp nginx config now serves the exported SPA with a reviewed CSP/security header allowlist for self-hosted assets, PostHog subresource calls, media/CDN assets, and redirect-only Stripe/OAuth flows.
 - Session cookies are HttpOnly, SameSite=Lax, and secure in production.
 - Rate limits cover auth, OAuth, password reset, story writes, billing, uploads, feedback, and public ratings.
 - Uploads are parent-session protected, size-limited, and restricted to JPEG/PNG/WebP/HEIC/HEIF with explicit 400/413 errors.
 - Detailed health, queue, rate limiter, image validation debug, admin, and sensitive routes are protected.
 - `pnpm launch:scan-client-secrets` scans the exported web client bundle for server-side secret markers and now runs inside `pnpm launch:gate`.
+- `pnpm launch:check-security-headers` validates the production webapp CSP/security header include, deployment mounts, Dockerfile copy, and API Helmet connect-src shape; it now runs inside `pnpm launch:gate`.
 
 Remaining:
 
 - Fix or verify `www.wondertales.art` TLS and redirect-to-apex behavior in production.
 - Verify HTTPS redirect and security headers on the deployed domain.
-- Review the final CSP allowlist against production analytics, payment, OAuth, asset, and API domains.
+- Capture and archive deployed CSP/security headers for `wondertales.art` and `www.wondertales.art` after release deploy.
 - Run and record the same secrets scan against the exact deployed production artifact after release deploy.
 - Confirm arbitrary `Origin` requests get no credentialed CORS headers on the deployed stack.
 
@@ -525,7 +527,7 @@ Required work:
 - Fix `www.wondertales.art` TLS or redirect safely to apex.
 - Keep HTTPS redirect working.
 - Keep security headers enabled.
-- Review CSP for required sources only.
+- Keep CSP restricted to required subresource sources only.
 - Ensure cookies/tokens use secure settings.
 - Add rate limits for auth, generation, billing, upload, and public share/rating endpoints.
 - Ensure upload size/type validation.
@@ -550,7 +552,7 @@ Done:
 - `pnpm --filter wondertales-universal-app build:web` passed.
 - Critical targeted tests were run for quota, bundles, legal/consent, assets, deletion, moderation, parent sessions, upload validation, and admin guards.
 - The original `StoryCard.tsx` `textWrap` type-check blocker is fixed.
-- `pnpm launch:gate` now runs shared build, critical API tests, static migration safety checks, API build, web type-check, and web export.
+- `pnpm launch:gate` now runs shared build, critical API tests, static migration safety checks, API build, web type-check, web export, client-bundle secret scan, and security-header checks.
 - GitHub deploy workflow now requires the launch gate before the remote deploy job.
 - GitHub deploy workflow now applies tracked SQL migrations with `runAllMigrations.ts` instead of forcing a Drizzle schema push.
 

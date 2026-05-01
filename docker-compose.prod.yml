@@ -70,6 +70,7 @@ services:
     volumes:
       - ./apps/universal-app/dist:/usr/share/nginx/html:ro
       - ./apps/universal-app/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/includes:/etc/nginx/includes:ro
     environment:
       NODE_ENV: production
 

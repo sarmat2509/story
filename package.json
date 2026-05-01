@@ -21,6 +21,7 @@
     "build": "pnpm -r build",
     "launch:gate": "bash scripts/launch-gate.sh",
     "launch:scan-client-secrets": "bash scripts/scan-client-bundle-secrets.sh",
+    "launch:check-security-headers": "bash scripts/check-security-headers.sh",
     "lint": "pnpm -r lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "clean": "pnpm -r clean && rm -rf node_modules",
