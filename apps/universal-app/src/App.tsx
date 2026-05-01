@@ -183,7 +183,7 @@ const linking: any = {
           UnlistedStory: 'u/:token',
           Children: 'children',
           Characters: 'characters',
-          Plans: 'pricing',
+          Plans: 'billing/plans',
           Profile: 'profile',
           LanguageSettings: 'settings/language',
           ThemeSettings: 'settings/theme',
