@@ -8,6 +8,10 @@ import {
   getReferencePhotoUrls,
   isPhotoInputSafetyError,
 } from '../services/photoInputSafetyService';
+import {
+  assertStoryFromDrawingAccessForPhotos,
+  isStoryFromDrawingAccessError,
+} from '../services/storyFromDrawingAccessService';
 
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
@@ -26,6 +30,20 @@ function sendPhotoInputSafetyError(res: Parameters<typeof requireAuth>[1], error
     code: error.code,
     error: error.message,
     index: error.index,
+  });
+  return true;
+}
+
+function sendStoryFromDrawingAccessError(res: Parameters<typeof requireAuth>[1], error: unknown): boolean {
+  if (!isStoryFromDrawingAccessError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    error: error.message,
+    featureSlug: error.featureSlug,
   });
   return true;
 }
@@ -58,6 +76,10 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
       photos,
       userId: req.user!.id,
       allowedPhotoTypes: ['character'],
+    });
+    await assertStoryFromDrawingAccessForPhotos({
+      userId: req.user!.id,
+      photoCount: photos.length,
     });
     
     logger.info({ 
@@ -126,6 +148,7 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
     });
   } catch (error) {
     if (sendPhotoInputSafetyError(res, error)) return;
+    if (sendStoryFromDrawingAccessError(res, error)) return;
 
     logger.error({ 
       error: error instanceof Error ? {
@@ -240,10 +263,15 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
     
     const data = validation.data;
 
+    const referencePhotoUrls = getReferencePhotoUrls(data.referencePhotos);
     assertUserPhotoInputs({
-      photos: getReferencePhotoUrls(data.referencePhotos),
+      photos: referencePhotoUrls,
       userId,
       allowedPhotoTypes: ['character'],
+    });
+    await assertStoryFromDrawingAccessForPhotos({
+      userId,
+      photoCount: referencePhotoUrls.length,
     });
     
     logger.info({ 
@@ -316,6 +344,7 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
     });
   } catch (error) {
     if (sendPhotoInputSafetyError(res, error)) return;
+    if (sendStoryFromDrawingAccessError(res, error)) return;
 
     logger.error({ error, userId: req.user?.id }, 'Error creating character');
     res.status(500).json({

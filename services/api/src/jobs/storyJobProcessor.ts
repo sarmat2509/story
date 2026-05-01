@@ -17,6 +17,7 @@ import { recordUsage } from '../services/aiUsageService';
 import { ConcurrentJobQueue, type BaseJob } from './ConcurrentJobQueue';
 import { config } from '../config';
 import { assertUserPhotoInputs } from '../services/photoInputSafetyService';
+import { assertStoryFromDrawingAccessForPhotos } from '../services/storyFromDrawingAccessService';
 import {
   getStoryRepository,
   getSceneRepository,
@@ -553,6 +554,10 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
       photos,
       userId: request.userId,
       allowedPhotoTypes: ['character', 'child'],
+    });
+    await assertStoryFromDrawingAccessForPhotos({
+      userId: request.userId,
+      photoCount: photos.length,
     });
     
     // Check if already processed (idempotency)

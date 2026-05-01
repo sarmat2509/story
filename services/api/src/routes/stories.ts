@@ -19,6 +19,10 @@ import { publishStory, unpublishStory } from '../services/publishStoryService';
 import { PublishSafetyError } from '../services/storyPublishSafetyService';
 import { assertPromptSafety, assertStoryPromptSafety, isPromptSafetyError } from '../services/promptSafetyService';
 import { assertUserPhotoInputs, isPhotoInputSafetyError } from '../services/photoInputSafetyService';
+import {
+  assertStoryFromDrawingAccessForPhotos,
+  isStoryFromDrawingAccessError,
+} from '../services/storyFromDrawingAccessService';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
 import { logger } from '../utils/logger';
 import { stripAllTags } from '../utils/audioTags';
@@ -127,6 +131,20 @@ function sendVoiceAccessError(res: Response, error: unknown): boolean {
     status: 'error',
     code: error.code,
     message: error.message,
+  });
+  return true;
+}
+
+function sendStoryFromDrawingAccessError(res: Response, error: unknown): boolean {
+  if (!isStoryFromDrawingAccessError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    message: error.message,
+    featureSlug: error.featureSlug,
   });
   return true;
 }
@@ -268,6 +286,10 @@ router.post('/instant', requireAuth, requireParentSession, async (req: Request, 
       userId: req.user!.id,
       allowedPhotoTypes: ['character', 'child'],
     });
+    await assertStoryFromDrawingAccessForPhotos({
+      userId: req.user!.id,
+      photoCount: validatedData.photos.length,
+    });
 
     assertStoryPromptSafety({
       userId: req.user!.id,
@@ -350,6 +372,7 @@ router.post('/instant', requireAuth, requireParentSession, async (req: Request, 
     });
   } catch (error) {
     if (sendPhotoInputSafetyError(res, error)) return;
+    if (sendStoryFromDrawingAccessError(res, error)) return;
     if (sendPromptSafetyError(res, error)) return;
     if (sendStoryQuotaError(res, error)) return;
 

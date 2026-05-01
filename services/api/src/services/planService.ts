@@ -185,12 +185,18 @@ export async function getPlanFeatures(userId: string): Promise<PlanFeatures> {
   // Build feature map
   const featureMap = new Map(allFeatures.map(f => [f.slug, f.value]));
   
+  const storyFromDrawingEnabled = getBooleanFeature(featureMap, 'story_from_drawing', false);
+
   // Extract image-related features with defaults
   const result: PlanFeatures = {
     imagesPerStory: getNumericFeature(featureMap, 'images_per_story', 3),
     imageQuality: getEnumFeature(featureMap, 'image_quality', 'low'),
     imageRegenerationPerDay: getNumericFeature(featureMap, 'image_regeneration_per_day', 0),
-    allowReferencePhotos: getBooleanFeature(featureMap, 'allow_reference_photos', false),
+    allowReferencePhotos: getBooleanFeature(
+      featureMap,
+      'allow_reference_photos',
+      storyFromDrawingEnabled
+    ),
     storiesPerMonth: getNumericFeature(featureMap, 'stories_per_month', 3),
     audioStoriesPerMonth: getNumericFeature(featureMap, 'audio_stories_per_month', 1),
   };

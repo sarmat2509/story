@@ -16,6 +16,10 @@ import {
   getReferencePhotoUrls,
   isPhotoInputSafetyError,
 } from '../services/photoInputSafetyService';
+import {
+  assertStoryFromDrawingAccessForPhotos,
+  isStoryFromDrawingAccessError,
+} from '../services/storyFromDrawingAccessService';
 
 const router = Router();
 
@@ -29,6 +33,20 @@ function sendPhotoInputSafetyError(res: Parameters<typeof requireAuth>[1], error
     code: error.code,
     error: error.message,
     index: error.index,
+  });
+  return true;
+}
+
+function sendStoryFromDrawingAccessError(res: Parameters<typeof requireAuth>[1], error: unknown): boolean {
+  if (!isStoryFromDrawingAccessError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    error: error.message,
+    featureSlug: error.featureSlug,
   });
   return true;
 }
@@ -90,6 +108,10 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
       userId: req.user!.id,
       allowedPhotoTypes: ['child'],
     });
+    await assertStoryFromDrawingAccessForPhotos({
+      userId: req.user!.id,
+      photoCount: photos.length,
+    });
     
     logger.info({ 
       userId: req.user!.id, 
@@ -125,6 +147,7 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
     });
   } catch (error) {
     if (sendPhotoInputSafetyError(res, error)) return;
+    if (sendStoryFromDrawingAccessError(res, error)) return;
 
     logger.error({ 
       error: error instanceof Error ? {
@@ -203,10 +226,15 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
     const data = validation.data;
     if (!(await requireChildDataConsent(req, res, 'child_profile_create'))) return;
 
+    const referencePhotoUrls = getReferencePhotoUrls(data.referencePhotos);
     assertUserPhotoInputs({
-      photos: getReferencePhotoUrls(data.referencePhotos),
+      photos: referencePhotoUrls,
       userId,
       allowedPhotoTypes: ['child'],
+    });
+    await assertStoryFromDrawingAccessForPhotos({
+      userId,
+      photoCount: referencePhotoUrls.length,
     });
 
     const dataForCreate = {
@@ -285,6 +313,7 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
     });
   } catch (error: unknown) {
     if (sendPhotoInputSafetyError(res, error)) return;
+    if (sendStoryFromDrawingAccessError(res, error)) return;
 
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes('limit reached')) {
