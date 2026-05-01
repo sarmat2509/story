@@ -1,8 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../middleware/authMiddleware';
-import { USER_ROLE_ADMIN } from '../constants/userRoles';
-import { getStoryRepository } from '../repositories';
+import { requireAdmin, requireAuth } from '../middleware/authMiddleware';
 import {
   listAllImageValidations,
   listImageValidationsForStory,
@@ -44,9 +42,10 @@ function rowToDto(row: {
 
 /**
  * GET /api/v1/image-validations?story_id=&limit=&offset=
- * With story_id: story owner only. Without story_id: admin only (all rows).
+ * Admin-only debug/moderation endpoint. User-facing flows should not expose
+ * raw image validation internals.
  */
-router.get('/', requireAuth, async (req: Request, res: Response) => {
+router.get('/', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
     const parsed = ListQuerySchema.safeParse(req.query);
     if (!parsed.success) {
@@ -58,16 +57,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     }
 
     const { storyId, limit, offset } = parsed.data;
-    const userId = req.user!.id;
-
     if (storyId) {
-      const story = await getStoryRepository().findByIdAndUser(storyId, userId);
-      if (!story) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Story not found',
-        });
-      }
       const { items, total } = await listImageValidationsForStory(storyId, limit, offset);
       return res.json({
         status: 'success',
@@ -75,13 +65,6 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
           items: items.map(rowToDto),
           meta: { limit, offset, total },
         },
-      });
-    }
-
-    if (req.user!.role !== USER_ROLE_ADMIN) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Forbidden',
       });
     }
 
