@@ -54,6 +54,9 @@ import {
   releaseAudioQuotaReservationForStory,
   reserveAudioQuotaForStory,
 } from '../services/audioQuotaReservationService';
+import {
+  setLegacyPublicStoriesDeprecationHeaders,
+} from '../utils/deprecatedPublicStoryRoutes';
 
 /**
  * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
@@ -697,10 +700,11 @@ router.post('/requests/:id/retry-images', requireAuth, requireParentSession, asy
 
 /**
  * GET /api/v1/stories/published
- * List published stories (public, no auth)
+ * Deprecated public catalog endpoint. Use /api/v1/public/stories instead.
  */
 router.get('/published', async (req: Request, res: Response) => {
   try {
+    setLegacyPublicStoriesDeprecationHeaders(res);
     const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
     const offset = parseInt(String(req.query.offset || '0'), 10) || 0;
 
@@ -769,11 +773,15 @@ router.get('/published', async (req: Request, res: Response) => {
 
 /**
  * GET /api/v1/stories/published/:slug
- * Get a published story by slug (public, optional auth for isOwner)
+ * Deprecated public story endpoint. Use /api/v1/public/stories/:slug instead.
  */
 router.get('/published/:slug', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
+    setLegacyPublicStoriesDeprecationHeaders(
+      res,
+      `/api/v1/public/stories/${encodeURIComponent(slug)}`
+    );
     const storyRepo = getStoryRepository();
     const story = await storyRepo.findByPublishedSlug(slug);
 

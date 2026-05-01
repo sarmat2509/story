@@ -885,6 +885,7 @@ Completed locally:
 - `pnpm launch:gate` now includes a publish service regression test for the unpublish private-state patch.
 - Public and unlisted story pages now expose an explicit report story button that opens the existing feedback workflow with `published_story` context.
 - Feedback API and admin feedback context now accept `published_story` as a reported screen, with launch-gate coverage.
+- Legacy `/api/v1/stories/published` and `/api/v1/stories/published/:slug` endpoints now emit standard deprecation headers pointing clients to `/api/v1/public/stories` successors, with launch-gate coverage.
 
 Acceptance criteria:
 

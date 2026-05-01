@@ -58,6 +58,7 @@ API_TESTS=(
   src/services/__tests__/userDataExportService.test.ts
   src/services/__tests__/userDeletionService.test.ts
   src/services/__tests__/voiceAccessService.test.ts
+  src/utils/__tests__/deprecatedPublicStoryRoutes.test.ts
   src/utils/__tests__/storyVisibilityPolicy.test.ts
 )
 
