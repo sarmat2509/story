@@ -1,6 +1,7 @@
 import { getUserRepository, getOAuthRepository } from '../repositories';
 import type { User, OAuthIdentity } from '../db/schema';
 import type { ThemePaletteId } from '@wondertales/shared';
+import { deleteUserData } from './userDeletionService';
 
 export interface CreateUserInput {
   email: string;
@@ -52,7 +53,7 @@ export async function updateUser(id: string, data: UpdateUserInput): Promise<Use
 
 // Delete user (cascades to oauth_identities and sessions)
 export async function deleteUser(id: string): Promise<void> {
-  return getUserRepository().delete(id);
+  await deleteUserData(id);
 }
 
 // Get user with OAuth providers

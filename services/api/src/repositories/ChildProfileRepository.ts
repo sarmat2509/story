@@ -15,6 +15,13 @@ export class ChildProfileRepository {
       ));
   }
 
+  async findAllByUserId(userId: string): Promise<schema.ChildProfile[]> {
+    return this.db
+      .select()
+      .from(schema.childProfiles)
+      .where(eq(schema.childProfiles.userId, userId));
+  }
+
   async findById(id: string, userId: string): Promise<schema.ChildProfile | null> {
     const [profile] = await this.db
       .select()

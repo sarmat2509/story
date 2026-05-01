@@ -42,12 +42,15 @@ export interface DeleteStoryStorageResult {
   deleted: number;
 }
 
-export async function deleteStoryStorageFiles(storyId: string): Promise<DeleteStoryStorageResult> {
+export async function collectStoryStoragePathsForDeletion(storyId: string): Promise<string[]> {
   const [assets, imageValidationRows] = await Promise.all([
     getAssetRepository().findByStoryId(storyId),
     getImageValidationRepository().listAllByStoryId(storyId),
   ]);
-  const storagePaths = collectStoryDeletionStoragePaths({ assets, imageValidationRows });
+  return collectStoryDeletionStoragePaths({ assets, imageValidationRows });
+}
+
+export async function deleteStoragePaths(storagePaths: string[]): Promise<DeleteStoryStorageResult> {
   const storage = getAssetStorageService();
 
   let deleted = 0;
@@ -58,17 +61,30 @@ export async function deleteStoryStorageFiles(storyId: string): Promise<DeleteSt
 
   logger.info(
     {
-      storyId,
       attempted: storagePaths.length,
       deleted,
-      assetRows: assets.length,
-      imageValidationRows: imageValidationRows.length,
     },
-    'Story storage files deleted'
+    'Storage files deleted'
   );
 
   return {
     attempted: storagePaths.length,
     deleted,
   };
+}
+
+export async function deleteStoryStorageFiles(storyId: string): Promise<DeleteStoryStorageResult> {
+  const storagePaths = await collectStoryStoragePathsForDeletion(storyId);
+  const result = await deleteStoragePaths(storagePaths);
+
+  logger.info(
+    {
+      storyId,
+      attempted: result.attempted,
+      deleted: result.deleted,
+    },
+    'Story storage files deleted'
+  );
+
+  return result;
 }

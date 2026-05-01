@@ -19,6 +19,13 @@ export class CharacterRepository {
       .where(and(...conditions));
   }
 
+  async findAllByUserId(userId: string): Promise<schema.Character[]> {
+    return this.db
+      .select()
+      .from(schema.characters)
+      .where(eq(schema.characters.userId, userId));
+  }
+
   async findById(id: string, userId: string): Promise<schema.Character | null> {
     const [character] = await this.db
       .select()

@@ -293,6 +293,14 @@ export class StoryRepository {
       .offset(offset);
   }
 
+  async findAllByUserId(userId: string): Promise<schema.Story[]> {
+    return this.db
+      .select()
+      .from(schema.stories)
+      .where(eq(schema.stories.userId, userId))
+      .orderBy(desc(schema.stories.createdAt));
+  }
+
   async findSummariesByUser(
     userId: string,
     options: {
