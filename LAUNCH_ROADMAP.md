@@ -876,6 +876,9 @@ Required work:
 
 Completed locally:
 
+- Visibility states are documented in this roadmap as private/draft, public catalog, unlisted, home-page featured, and hidden/deleted behavior.
+- Public publishing/unpublishing remains guarded by `requireParentSession`, so child sessions cannot directly publish or unpublish stories.
+- Child-created stories remain blocked from public/unlisted sharing until parent review is approved; launch-gate coverage exists in story publish safety and parent review tests.
 - Public and unlisted story predicates now share backend policy helpers for moderation and parent review.
 - `/api/v1/public/stories`, `/api/v1/public/authors/:authorId`, public SSR story routes, SSR author routes, sitemap author/story eligibility, and older `/api/v1/stories/published` endpoints all flow through `StoryRepository` public catalog predicates.
 - `/api/v1/public/u/:token`, `/ssr/u/:token`, share-card lookup, and direct unlisted story assets now require the same unlisted predicate plus the matching share token where appropriate.
@@ -888,6 +891,7 @@ Completed locally:
 - Legacy `/api/v1/stories/published` and `/api/v1/stories/published/:slug` endpoints now emit standard deprecation headers pointing clients to `/api/v1/public/stories` successors, with launch-gate coverage.
 - Public author API metadata is now built through a safe-field helper that only returns public id, display name, avatar, and about text; regression coverage guards against email, role, billing, private story count, unlisted story count, and child profile leaks.
 - Publishing confirmation UI now shows an explicit public-catalog warning when `public` visibility is selected, with localized copy for app-supported locales.
+- Public Sharing Controls are locally code-complete; remaining risk is production smoke verification after deploy.
 
 Acceptance criteria:
 
