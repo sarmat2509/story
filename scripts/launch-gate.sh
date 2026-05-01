@@ -61,6 +61,7 @@ fi
 run_in services/api pnpm build
 run_in apps/universal-app pnpm type-check
 run_in apps/universal-app pnpm build:web
+run bash scripts/scan-client-bundle-secrets.sh
 
 echo
 echo "Launch gate passed."

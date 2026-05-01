@@ -88,7 +88,7 @@ Solutions not yet applied:
 
 - No complete parent-control policy engine for child sessions.
 - No automated data export package generator and no background orphan-file cleanup job.
-- No production secrets/client-bundle scan has been recorded.
+- No production-domain secrets/client-bundle scan has been recorded after deploy.
 - No final CSP allowlist review against production analytics/payment/OAuth domains has been recorded.
 
 ### 1. Stabilize Public Web Routes
@@ -499,13 +499,14 @@ Done:
 - Rate limits cover auth, OAuth, password reset, story writes, billing, uploads, feedback, and public ratings.
 - Uploads are parent-session protected, size-limited, and restricted to JPEG/PNG/WebP/HEIC/HEIF with explicit 400/413 errors.
 - Detailed health, queue, rate limiter, image validation debug, admin, and sensitive routes are protected.
+- `pnpm launch:scan-client-secrets` scans the exported web client bundle for server-side secret markers and now runs inside `pnpm launch:gate`.
 
 Remaining:
 
 - Fix or verify `www.wondertales.art` TLS and redirect-to-apex behavior in production.
 - Verify HTTPS redirect and security headers on the deployed domain.
 - Review the final CSP allowlist against production analytics, payment, OAuth, asset, and API domains.
-- Run and record a production/client-bundle secrets scan.
+- Run and record the same secrets scan against the exact deployed production artifact after release deploy.
 - Confirm arbitrary `Origin` requests get no credentialed CORS headers on the deployed stack.
 
 Required work:
