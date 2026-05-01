@@ -528,7 +528,7 @@ Acceptance criteria:
 
 ### 10. Build and CI Health
 
-Status on 2026-05-01: Local build/type-check is ready; CI/release gate still needs enforcement.
+Status on 2026-05-01: Local build/type-check is ready; deploy CI now has a launch gate before production deployment.
 
 Done:
 
@@ -537,10 +537,13 @@ Done:
 - `pnpm --filter wondertales-universal-app build:web` passed.
 - Critical targeted tests were run for quota, bundles, legal/consent, assets, deletion, moderation, parent sessions, upload validation, and admin guards.
 - The original `StoryCard.tsx` `textWrap` type-check blocker is fixed.
+- `pnpm launch:gate` now runs shared build, critical API tests, static migration safety checks, API build, web type-check, and web export.
+- GitHub deploy workflow now requires the launch gate before the remote deploy job.
+- GitHub deploy workflow now applies tracked SQL migrations with `runAllMigrations.ts` instead of forcing a Drizzle schema push.
 
 Remaining:
 
-- Add or verify a CI/release gate that blocks deploy unless API build, web type-check/export, critical tests, and migration checks pass.
+- Live replay of the full historical migration folder on a fresh database is not yet clean because early baseline migrations overlap; production deployment now uses the tracked migration runner against the existing deployment database.
 - Run migration checks against the exact deployment database before release.
 
 Historical local finding, now fixed and kept as regression context:

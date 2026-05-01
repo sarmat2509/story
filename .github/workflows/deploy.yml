@@ -6,12 +6,37 @@ on:
       - main
 
 jobs:
+  quality_gate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run launch gate
+        run: pnpm launch:gate
+
   deploy:
+    needs: quality_gate
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.8.0
@@ -29,7 +54,7 @@ jobs:
             docker compose -f docker-compose.prod.yml build api
             docker compose -f docker-compose.prod.yml up -d api
             echo "Running database migrations..."
-            docker exec wondertales-api-prod sh -c 'cd /app/services/api && npx drizzle-kit push:pg --force'
+            docker exec wondertales-api-prod sh -c 'cd /app/services/api && npx tsx src/scripts/runAllMigrations.ts'
             echo "Deployment completed!"
           EOF
       

@@ -9,6 +9,13 @@ import fs from 'fs';
 import path from 'path';
 
 function applyEnvLines(content: string, override: boolean): void {
+  const preserveKeys = new Set(
+    (process.env.WT_ENV_PRESERVE_KEYS || '')
+      .split(',')
+      .map((key) => key.trim())
+      .filter(Boolean)
+  );
+
   for (const line of content.split('\n')) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
@@ -21,6 +28,9 @@ function applyEnvLines(content: string, override: boolean): void {
       (val.startsWith("'") && val.endsWith("'"))
     ) {
       val = val.slice(1, -1);
+    }
+    if (preserveKeys.has(key) && process.env[key] !== undefined) {
+      continue;
     }
     if (override || process.env[key] === undefined) {
       process.env[key] = val;

@@ -19,6 +19,7 @@
     "dev:mobile": "pnpm --filter mobile dev",
     "dev:landing": "pnpm --filter web-landing dev",
     "build": "pnpm -r build",
+    "launch:gate": "bash scripts/launch-gate.sh",
     "lint": "pnpm -r lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "clean": "pnpm -r clean && rm -rf node_modules",
