@@ -59,9 +59,57 @@ All billing, refund, cancellation, quota, and support paths must work end to end
 
 ## P0 - External User Blockers
 
+### P0 Status Snapshot - 2026-05-01
+
+Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, but P0 is not fully green for external families until production-only checks and child-mode product controls are finished.
+
+Completed or ready for closed-beta verification:
+
+- Public route guardrails for pricing/legal/footer/support/noindex/robots were implemented and locally verified.
+- Legal pages and consent gates exist for the current beta flow.
+- Private asset access is enforced for generated and uploaded child-related assets.
+- Story, audio, bundle, premium voice, child-profile, image-count, and story-from-drawing limits are now enforced server-side.
+- Prompt, generated-text, generated-image, photo-input, and publishing safety gates are in place.
+- Story/account/child-profile deletion behavior was hardened and documented.
+- Parent-session guards now block child sessions from billing, plan actions, profile editing, uploads, and story writes.
+- Sensitive route rate limits, credentialed CORS restrictions, upload validation, admin health guards, and debug route guards are in place.
+- API build, web type-check, and web export passed after the P0 fixes.
+
+Remaining P0 bottlenecks:
+
+- Production-only web checks are still required: `wondertales.art`, `www.wondertales.art`, HTTPS redirect, TLS certificate, real nginx/proxy behavior, and production SSR route status.
+- Google OAuth and password-reset email must be verified against production callback URLs, sender domain/DNS, and real email delivery. Apple is hidden on web, but native/mobile Apple remains out of this web launch scope.
+- Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
+- Child Mode is currently fail-closed for dangerous actions. A full scoped child-mode product implementation is still not done: parent gate UI, child-safe scopes, parent controls, child-created-story metadata, and review state need schema/API/UI work.
+- CI/release gating is not yet proven: local builds/tests pass, but deployment should block on API build, web type-check/export, critical tests, and migration checks.
+
+Solutions not yet applied:
+
+- No automated refund/release of story/audio quota reservations for failed jobs; the current behavior is documented as "consumed on queue acceptance".
+- No complete parent-control policy engine for child sessions.
+- No support/admin workflow for data export requests and no background orphan-file cleanup job.
+- No production secrets/client-bundle scan has been recorded.
+- No final CSP allowlist review against production analytics/payment/OAuth domains has been recorded.
+
 ### 1. Stabilize Public Web Routes
 
-Current live findings:
+Status on 2026-05-01: Partially ready; local/server code fixes are done, production verification remains.
+
+Done:
+
+- `/pricing` and localized pricing ownership were separated from the React billing screen.
+- `/terms` and `/privacy` now render real SSR legal content instead of placeholders.
+- Unknown public routes and app-only routes received noindex/404 guardrails.
+- `robots.txt` and sitemap behavior were tightened to avoid indexing API/app-only paths.
+- Footer links now include legal, pricing, and support routes.
+
+Remaining:
+
+- Re-run production `curl -I` and browser checks after deploy for `/`, `/en/`, `/pricing`, `/en/pricing`, `/terms`, `/privacy`, `/stories`, sample story pages, and unknown routes.
+- Confirm `www.wondertales.art` TLS/redirect behavior in production.
+- Keep `/stories` non-indexable until an SSR catalog exists; this is also tracked under P1 SEO routing.
+
+Historical production findings that triggered this work and must be re-checked after deploy:
 
 - `https://wondertales.art/pricing` timed out / returned `504`.
 - `https://wondertales.art/en/pricing` returned `502`.
@@ -87,6 +135,24 @@ Acceptance criteria:
 - Sitemap contains only routes that are ready for indexing.
 
 ### 2. Legal, Privacy, and Consent Content
+
+Status on 2026-05-01: Mostly ready for closed beta; legal/entity and locale decisions remain.
+
+Done:
+
+- Terms and Privacy markdown exist for `en` and `uk`.
+- The documents cover child data, photos/drawings, AI content, public sharing, cancellation/refunds, cookies, deletion/retention, and support contact.
+- Sign-up requires Terms, Privacy, and adult guardian confirmation.
+- Child data/photo flows require explicit child data consent.
+- Public publishing requires explicit publish consent and safety checks.
+- Consent records store user, consent type, document version, timestamp, and audit context.
+
+Remaining:
+
+- Finalize the legal operator/entity/Merchant-of-Record disclosure before paid launch.
+- Add real legal content for every indexed launch locale, or keep unsupported legal locale alternates out of indexing.
+- Child self-use consent remains blocked by the unfinished Child Mode product flow.
+- Cookie/analytics consent UI still needs a jurisdiction review before broader public acquisition.
 
 WonderTales handles child profiles, child names, drawings, photos, generated images, generated story text, narration/audio, and sharing. Empty legal pages are a launch blocker.
 
@@ -123,6 +189,21 @@ Acceptance criteria:
 
 ### 3. Private-by-Default Asset Access
 
+Status on 2026-05-01: Ready for closed-beta verification.
+
+Done:
+
+- Private story assets now require authenticated ownership.
+- Public asset access is limited to published stories and valid unlisted/share-token contexts.
+- Rejected/debug/moderation assets are not exposed as public child-facing assets.
+- Story deletion, unpublish, and account deletion paths clean up or revoke asset access.
+- Asset access and deletion tests were added/updated.
+
+Remaining:
+
+- Re-test against the final production storage/CDN topology if local storage is replaced or fronted by a CDN.
+- Background orphan-file cleanup is still a retention hardening item under P0 deletion.
+
 Generated images/audio and uploaded child-related files must not be public by raw storage path unless the story is explicitly public.
 
 Required work:
@@ -141,9 +222,28 @@ Acceptance criteria:
 
 ### 4. Server-Side Quota Enforcement
 
+Status on 2026-05-01: Core API enforcement is ready; reservation/refund semantics are documented but not automated.
+
+Done:
+
+- Story creation now uses atomic monthly quota reservation with bundle support before queueing.
+- Bundle grants use half-open billing period overlap, with a boundary test for exact period handoff.
+- Audio generation now reserves `audio_synthesized` quota before queueing and uses a per-user advisory lock.
+- Images-per-story limits are enforced in generation planning.
+- Child profile count is enforced server-side.
+- Premium voice access is enforced in API and service/job paths.
+- Story-from-drawing/photo generation access is enforced before expensive photo analysis/generation.
+- Quota, bundle, audio, premium voice, and story-from-drawing tests exist.
+
+Remaining:
+
+- Error codes are user-safe, but not all quota/paywall messages are localized in the app.
+- Failed jobs currently consume story/audio quota when the request is accepted for queueing; this is documented but no automatic refund/release mechanism exists.
+- Child-mode generation is fail-closed for now; scoped child quota controls still need the Child Mode implementation.
+
 The UI paywall is not enough. Story generation, audio generation, images per story, premium voices, child profile count, story-from-drawing, and bundles must be enforced by the API.
 
-Current bundle purchase review findings:
+Historical bundle purchase review findings, now fixed in code and kept as regression context:
 
 - Main story creation endpoints currently create and queue story requests without a server-side `checkUsageLimit('stories_per_month')` gate.
 - Bundle grant period matching currently uses inclusive interval overlap, which can make a bundle bought in the previous Stripe billing period count in the next period when `old_period_end === new_period_start`.
@@ -180,6 +280,23 @@ Acceptance criteria:
 
 ### 5. Account, Auth, and Recovery
 
+Status on 2026-05-01: Partially ready; production OAuth/email verification remains.
+
+Done:
+
+- Email/password registration and sign-in paths exist and were used repeatedly in local live smoke tests.
+- Sign-up cannot complete without Terms, Privacy, and adult guardian consent.
+- Auth, OAuth, and password reset endpoints have stricter rate limits.
+- Apple sign-in is hidden on web (`WelcomeScreen` only renders it on iOS).
+- Child-owned accounts are not part of the launch model; child sessions attach to parent-owned accounts.
+
+Remaining:
+
+- Verify Google OAuth on the production domain with the final callback URL.
+- Verify password reset email in production with real Resend/API key, sender domain DNS, and deliverability.
+- Confirm auth routes are noindexed in the deployed route stack.
+- Decide whether IP-only rate limits are sufficient for beta or whether CAPTCHA/WAF bot protection is required before public acquisition.
+
 Required work:
 
 - Ensure email/password sign-up and sign-in work.
@@ -198,6 +315,24 @@ Acceptance criteria:
 - Auth routes are not indexed.
 
 ### 6. Parent-Owned Child Mode
+
+Status on 2026-05-01: Safety fail-closed baseline is ready; full Child Mode product is not ready.
+
+Done:
+
+- Session schema supports explicit `parent` and `child` modes with parent/child context.
+- `requireParentSession` blocks child sessions from account settings, billing, plan changes, entitlements, profile management, uploads, publishing, and story write/expensive generation routes.
+- Billing endpoints, bundle checkout, customer portal, plan upgrade, and bundle catalog reject child sessions.
+- Child profile deletion revokes active child sessions for that profile.
+- Live smoke tests verified child sessions receive `PARENT_SESSION_REQUIRED` on plan/bundle and story-write routes.
+
+Remaining:
+
+- No child-safe generation endpoint/scoped authorization layer is implemented yet.
+- No parent gate UI/API for returning from Child Mode to Parent Mode is implemented.
+- No parent controls for daily/monthly caps, themes, languages, characters, free-text, audio, review, siblings, or shared-family viewing.
+- Child-created stories are not yet marked with `created_by_mode`, `created_by_child_profile_id`, or parent review state.
+- `/children` still needs the expanded family profile management UI for child-mode status, limits, and active sessions.
 
 If children can use the app themselves, they must do so inside a supervised mode controlled by an adult account.
 
@@ -279,6 +414,23 @@ Acceptance criteria:
 
 ### 7. Safety and Moderation
 
+Status on 2026-05-01: Mostly ready for closed-beta verification.
+
+Done:
+
+- Unsafe user prompts are blocked before expensive story jobs are queued.
+- Generated story validation now fails closed on provider/content-policy failures.
+- Generated image validation blocks failed/low-score assets before they become child-facing assets.
+- Uploaded photo/drawing inputs must be owned WonderTales assets and match allowed photo types.
+- Public publishing is blocked unless story, image, visibility, and consent safety checks pass.
+- Raw image validation debug routes are admin-only.
+
+Remaining:
+
+- Support-facing moderation review logs/workflows are not fully productized.
+- Fallback behavior for failed generated moderation is partly fail-safe/blocked, but not a polished rewrite/regenerate/refusal UX across every path.
+- Continue live provider testing for edge cases around vision/text moderation failures.
+
 Required work:
 
 - Moderate user prompts before generation.
@@ -298,6 +450,22 @@ Acceptance criteria:
 
 ### 8. Data Deletion and Retention
 
+Status on 2026-05-01: Core deletion behavior is ready; support/export/orphan cleanup remains.
+
+Done:
+
+- Story deletion removes generated storage files and validation/debug image paths tied to the story.
+- Account deletion removes user-owned storage files and owned data that should not be retained.
+- Child profile deletion hard-deletes unused profiles and anonymizes used profiles while scrubbing child-specific fields/assets.
+- Child profile deletion revokes active sessions attached to that child profile.
+- Deletion tests exist for story, account, and child profile behavior.
+
+Remaining:
+
+- Support/admin process for data export requests is not implemented.
+- Background cleanup for orphaned files is not implemented.
+- Billing-record retention needs final legal/operator confirmation before paid launch.
+
 Required work:
 
 - Deleting a story deletes associated generated images, audio, thumbnails, and derived files.
@@ -314,6 +482,25 @@ Acceptance criteria:
 - Deletion behavior is tested.
 
 ### 9. Production Security Baseline
+
+Status on 2026-05-01: Many code-level controls are ready; production infrastructure verification remains.
+
+Done:
+
+- Credentialed CORS is restricted to approved origins.
+- Helmet/CSP security headers are enabled.
+- Session cookies are HttpOnly, SameSite=Lax, and secure in production.
+- Rate limits cover auth, OAuth, password reset, story writes, billing, uploads, feedback, and public ratings.
+- Uploads are parent-session protected, size-limited, and restricted to JPEG/PNG/WebP/HEIC/HEIF with explicit 400/413 errors.
+- Detailed health, queue, rate limiter, image validation debug, admin, and sensitive routes are protected.
+
+Remaining:
+
+- Fix or verify `www.wondertales.art` TLS and redirect-to-apex behavior in production.
+- Verify HTTPS redirect and security headers on the deployed domain.
+- Review the final CSP allowlist against production analytics, payment, OAuth, asset, and API domains.
+- Run and record a production/client-bundle secrets scan.
+- Confirm arbitrary `Origin` requests get no credentialed CORS headers on the deployed stack.
 
 Required work:
 
@@ -337,7 +524,22 @@ Acceptance criteria:
 
 ### 10. Build and CI Health
 
-Current local finding:
+Status on 2026-05-01: Local build/type-check is ready; CI/release gate still needs enforcement.
+
+Done:
+
+- `pnpm --filter wondertales-api build` passed after the P0 changes.
+- `pnpm --filter wondertales-universal-app type-check` passed.
+- `pnpm --filter wondertales-universal-app build:web` passed.
+- Critical targeted tests were run for quota, bundles, legal/consent, assets, deletion, moderation, parent sessions, upload validation, and admin guards.
+- The original `StoryCard.tsx` `textWrap` type-check blocker is fixed.
+
+Remaining:
+
+- Add or verify a CI/release gate that blocks deploy unless API build, web type-check/export, critical tests, and migration checks pass.
+- Run migration checks against the exact deployment database before release.
+
+Historical local finding, now fixed and kept as regression context:
 
 - Web type-check fails in `apps/universal-app/src/components/StoryCard.tsx` because `textWrap` is not a valid React Native style property.
 
