@@ -1,10 +1,12 @@
-import React, { useState, useLayoutEffect } from 'react';
+import React, { useMemo, useState, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { useChildren, useDeleteChild, useEnterChildMode, useRevokeChildModeSessions, useUpdateChildModeControls } from '@/api/children';
+import { useCharacters } from '@/api/characters';
+import { useStoryThemes } from '@/api/dictionaries';
 import { ChildFormModal } from '@/components/ChildFormModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
@@ -12,10 +14,11 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChildCard } from './components/ChildCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
+import { APP_CONFIG } from '@/config/constants';
 import { theme } from '@/theme';
 
 const cardDelay = (i: number) => Math.min(120 + i * 40, 360);
-import type { ReferencePhoto } from '@wondertales/shared';
+import { SUPPORTED_LANGUAGES, type ChildModeSettingsInput, type ReferencePhoto } from '@wondertales/shared';
 import type { ChildFormInitialData } from '@/components/ChildFormContent';
 import type { MainDrawerParamList } from '@/types/navigation';
 
@@ -50,6 +53,8 @@ export default function ChildrenScreen() {
   const { width } = useWindowDimensions();
   const enterKey = useScreenEnter();
   const { data, isLoading, error } = useChildren();
+  const { data: themesData } = useStoryThemes();
+  const { data: characters = [] } = useCharacters();
   const deleteChild = useDeleteChild();
   const updateChildModeControls = useUpdateChildModeControls();
   const enterChildMode = useEnterChildMode();
@@ -87,6 +92,14 @@ export default function ChildrenScreen() {
     freeText: t('children_screen.child_mode_free_text'),
     audio: t('children_screen.child_mode_audio'),
     review: t('children_screen.child_mode_review'),
+    themes: t('children_screen.child_mode_allowed_themes'),
+    languages: t('children_screen.child_mode_allowed_languages'),
+    characters: t('children_screen.child_mode_allowed_characters'),
+    siblings: t('children_screen.child_mode_siblings'),
+    anyTheme: t('children_screen.child_mode_any_theme'),
+    anyLanguage: t('children_screen.child_mode_any_language'),
+    anyCharacter: t('children_screen.child_mode_any_character'),
+    noCharacters: t('children_screen.child_mode_no_characters'),
     familyStories: t('children_screen.child_mode_family_stories'),
     activeSessions: t('children_screen.child_mode_active_sessions'),
     revoke: t('children_screen.child_mode_revoke_sessions'),
@@ -94,6 +107,39 @@ export default function ChildrenScreen() {
     starting: t('children_screen.child_mode_starting'),
     enableToStart: t('children_screen.child_mode_enable_to_start'),
   };
+
+  const childModeThemeOptions = useMemo(
+    () =>
+      (themesData?.goals ?? []).map((goal) => ({
+        value: goal.slug,
+        label: goal.name,
+      })),
+    [themesData?.goals]
+  );
+
+  const childModeLanguageOptions = useMemo(
+    () =>
+      APP_CONFIG.supportedLanguages.map((code) => {
+        const config = SUPPORTED_LANGUAGES[code];
+        return {
+          value: code,
+          label: t(`language_names.${code}`, { defaultValue: config.nativeName }),
+          icon: config.flag,
+        };
+      }),
+    [t]
+  );
+
+  const childModeCharacterOptions = useMemo(
+    () =>
+      characters
+        .filter((character) => character.isActive !== false && character.isHidden !== true)
+        .map((character) => ({
+          value: character.id,
+          label: character.name,
+        })),
+    [characters]
+  );
 
   const handleEditChild = (child: Record<string, unknown>) => {
     setEditingChild({
@@ -117,7 +163,7 @@ export default function ChildrenScreen() {
 
   const handleChildModeSettingsChange = (
     childId: string,
-    settings: Record<string, boolean | number | null>
+    settings: Partial<ChildModeSettingsInput>
   ) => {
     updateChildModeControls.mutate({
       id: childId,
@@ -214,6 +260,9 @@ export default function ChildrenScreen() {
                   onPress={() => handleEditChild(child)}
                   onDelete={handleDelete}
                   childModeLabels={childModeLabels}
+                  childModeThemeOptions={childModeThemeOptions}
+                  childModeLanguageOptions={childModeLanguageOptions}
+                  childModeCharacterOptions={childModeCharacterOptions}
                   onChildModeEnabledChange={handleChildModeEnabledChange}
                   onChildModeSettingsChange={handleChildModeSettingsChange}
                   onEnterChildMode={handleEnterChildMode}

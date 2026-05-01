@@ -81,12 +81,12 @@ Remaining P0 bottlenecks:
 - Production-only web checks are still required: `wondertales.art`, `www.wondertales.art`, HTTPS redirect, TLS certificate, real nginx/proxy behavior, and production SSR route status.
 - Google OAuth and password-reset email must be verified against production callback URLs, sender domain/DNS, and real email delivery. Apple is hidden on web, but native/mobile Apple remains out of this web launch scope.
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
-- Child Mode now has scoped sessions, parent controls, child-safe story request enforcement, attribution, password parent-gate API, start/return UI, and a child-safe story creation UI. The full product is still not ready because the richer OAuth-only gate fallback, allowed content selectors, and parent review workflow UI remain.
+- Child Mode now has scoped sessions, parent controls, child-safe story request enforcement, attribution, password parent-gate API, start/return UI, child-safe story creation UI, and allowed content selectors. The full product is still not ready because the richer OAuth-only gate fallback and parent review workflow UI remain.
 - CI/release gating now exists locally and in CI for API build, web type-check/export, critical tests, migration-file checks, and client-bundle secret scans; it still needs to be proven on the real production deployment path.
 
 Solutions not yet applied:
 
-- No richer OAuth-only gate fallback, allowed content selector UI, or parent review workflow UI is implemented yet.
+- No richer OAuth-only gate fallback or parent review workflow UI is implemented yet.
 - No scheduled production orphan-file cleanup policy/job is enabled yet; a dry-run scanner exists.
 - No production-domain secrets/client-bundle scan has been recorded after deploy.
 - No live production-domain CSP/security-header capture has been recorded after deploy.
@@ -340,6 +340,7 @@ Done:
 - `POST /api/v1/stories/child-mode` creates queued story requests from scoped child sessions and enforces child-mode profile, free-text, theme, language, character, sibling, and daily/monthly limit controls.
 - Child sessions now persist their normalized Child Mode controls locally so the child UI can render only allowed languages/themes and hide free-text prompts when disabled.
 - Child Mode now includes a child-safe story creation UI with theme, language, illustration style, optional free-text idea, safe progress states, limit/error messaging, and parent-review handoff copy.
+- `/children` now lets parents configure allowed story themes, story languages, saved characters, and sibling inclusion for Child Mode.
 - Child-created story requests now record `reservationSource: child_mode` in quota reservation metadata and reuse child-mode prompt safety source labels through the shared orchestration path.
 - `POST /api/v1/auth/parent-gate` lets password-authenticated adults re-enter Parent Mode from a child session and revokes the previous child session.
 
@@ -347,7 +348,6 @@ Remaining:
 
 - OAuth-only accounts still need a non-password parent gate path.
 - Parent controls are enforced for the child-safe generation route, and the child story creation UI can queue scoped requests. Review-management UI is not complete.
-- `/children` still needs allowed-theme/language/character/sibling controls before Child Mode is fully user-facing.
 - Child-created story marking is schema/service-ready and wired to the child-safe generation endpoint, but still needs parent review workflow UI.
 
 If children can use the app themselves, they must do so inside a supervised mode controlled by an adult account.

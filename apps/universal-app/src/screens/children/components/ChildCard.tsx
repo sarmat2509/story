@@ -34,6 +34,9 @@ interface Props {
   onPress: () => void;
   onDelete?: (childId: string, childName: string) => void;
   childModeLabels?: ChildModeLabels;
+  childModeThemeOptions?: ChildModeOption[];
+  childModeLanguageOptions?: ChildModeOption[];
+  childModeCharacterOptions?: ChildModeOption[];
   onChildModeEnabledChange?: (childId: string, enabled: boolean) => void;
   onChildModeSettingsChange?: (childId: string, settings: Partial<ChildModeSettings>) => void;
   onEnterChildMode?: (childId: string, childName: string) => void;
@@ -46,9 +49,13 @@ interface Props {
 interface ChildModeSettings {
   dailyGenerationLimit: number | null;
   monthlyGenerationLimit: number | null;
+  allowedThemeSlugs: string[];
+  allowedLanguageCodes: string[];
+  allowedCharacterIds: string[];
   freeTextPromptsEnabled: boolean;
   audioGenerationEnabled: boolean;
   parentReviewRequired: boolean;
+  allowSiblingCharacters: boolean;
   allowSharedFamilyStories: boolean;
 }
 
@@ -62,6 +69,14 @@ interface ChildModeLabels {
   freeText: string;
   audio: string;
   review: string;
+  themes: string;
+  languages: string;
+  characters: string;
+  siblings: string;
+  anyTheme: string;
+  anyLanguage: string;
+  anyCharacter: string;
+  noCharacters: string;
   familyStories: string;
   activeSessions: string;
   revoke: string;
@@ -70,30 +85,46 @@ interface ChildModeLabels {
   enableToStart: string;
 }
 
+interface ChildModeOption {
+  value: string;
+  label: string;
+  icon?: string;
+}
+
 const DEFAULT_CHILD_MODE_SETTINGS: ChildModeSettings = {
   dailyGenerationLimit: null,
   monthlyGenerationLimit: null,
+  allowedThemeSlugs: [],
+  allowedLanguageCodes: [],
+  allowedCharacterIds: [],
   freeTextPromptsEnabled: false,
   audioGenerationEnabled: false,
   parentReviewRequired: true,
+  allowSiblingCharacters: false,
   allowSharedFamilyStories: false,
 };
 
 function normalizeChildModeSettings(settings?: Partial<ChildModeSettings>): ChildModeSettings {
+  const raw = settings || {};
   return {
     ...DEFAULT_CHILD_MODE_SETTINGS,
-    ...(settings || {}),
+    ...raw,
+    allowedThemeSlugs: Array.isArray(raw.allowedThemeSlugs) ? raw.allowedThemeSlugs : [],
+    allowedLanguageCodes: Array.isArray(raw.allowedLanguageCodes) ? raw.allowedLanguageCodes : [],
+    allowedCharacterIds: Array.isArray(raw.allowedCharacterIds) ? raw.allowedCharacterIds : [],
   };
 }
 
 function LimitInput({
   label,
+  nativeID,
   value,
   placeholder,
   disabled,
   onCommit,
 }: {
   label: string;
+  nativeID: string;
   value: number | null;
   placeholder: string;
   disabled?: boolean;
@@ -119,6 +150,7 @@ function LimitInput({
     <View style={styles.limitField}>
       <Text style={styles.limitLabel} numberOfLines={1}>{label}</Text>
       <TextInput
+        nativeID={nativeID}
         style={[styles.limitInput, disabled && styles.controlDisabled]}
         value={draft}
         placeholder={placeholder}
@@ -159,11 +191,100 @@ function SettingSwitch({
   );
 }
 
+function MultiSelectChips({
+  label,
+  selectedValues,
+  options,
+  allLabel,
+  emptyText,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  selectedValues: string[];
+  options: ChildModeOption[];
+  allLabel: string;
+  emptyText?: string;
+  disabled?: boolean;
+  onChange: (value: string[]) => void;
+}) {
+  const selectedSet = new Set(selectedValues);
+  const displayedOptions: ChildModeOption[] = [
+    ...options,
+    ...selectedValues
+      .filter((value) => !options.some((option) => option.value === value))
+      .map((value) => ({ value, label: value.replace(/_/g, ' ') })),
+  ];
+  const toggleValue = (value: string) => {
+    if (selectedSet.has(value)) {
+      onChange(selectedValues.filter((item) => item !== value));
+      return;
+    }
+    onChange([...selectedValues, value]);
+  };
+
+  return (
+    <View style={styles.multiSelectBlock}>
+      <Text style={styles.multiSelectLabel} numberOfLines={1}>{label}</Text>
+      <View style={styles.optionChips}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.optionChip,
+            selectedValues.length === 0 && styles.optionChipSelected,
+            (pressed || disabled) && styles.optionChipPressed,
+          ]}
+          disabled={disabled}
+          onPress={() => onChange([])}
+        >
+          <Text
+            style={[
+              styles.optionChipText,
+              selectedValues.length === 0 && styles.optionChipTextSelected,
+            ]}
+            numberOfLines={1}
+          >
+            {allLabel}
+          </Text>
+        </Pressable>
+        {options.length === 0 && emptyText ? (
+          <Text style={styles.optionEmptyText} numberOfLines={2}>{emptyText}</Text>
+        ) : null}
+        {displayedOptions.map((option) => {
+          const selected = selectedSet.has(option.value);
+          return (
+            <Pressable
+              key={option.value}
+              style={({ pressed }) => [
+                styles.optionChip,
+                selected && styles.optionChipSelected,
+                (pressed || disabled) && styles.optionChipPressed,
+              ]}
+              disabled={disabled}
+              onPress={() => toggleValue(option.value)}
+            >
+              {option.icon ? <Text style={styles.optionChipIcon}>{option.icon}</Text> : null}
+              <Text
+                style={[styles.optionChipText, selected && styles.optionChipTextSelected]}
+                numberOfLines={1}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export function ChildCard({
   child,
   onPress,
   onDelete,
   childModeLabels,
+  childModeThemeOptions = [],
+  childModeLanguageOptions = [],
+  childModeCharacterOptions = [],
   onChildModeEnabledChange,
   onChildModeSettingsChange,
   onEnterChildMode,
@@ -264,6 +385,7 @@ export function ChildCard({
             <View style={styles.limitRow}>
               <LimitInput
                 label={labels.dailyLimit}
+                nativeID={`child-mode-${child.id}-daily-limit`}
                 value={childModeSettings.dailyGenerationLimit}
                 placeholder={labels.noLimit}
                 disabled={controlsDisabled}
@@ -271,6 +393,7 @@ export function ChildCard({
               />
               <LimitInput
                 label={labels.monthlyLimit}
+                nativeID={`child-mode-${child.id}-monthly-limit`}
                 value={childModeSettings.monthlyGenerationLimit}
                 placeholder={labels.noLimit}
                 disabled={controlsDisabled}
@@ -295,6 +418,37 @@ export function ChildCard({
               value={childModeSettings.parentReviewRequired}
               disabled={controlsDisabled}
               onValueChange={(parentReviewRequired) => onChildModeSettingsChange?.(child.id, { parentReviewRequired })}
+            />
+            <MultiSelectChips
+              label={labels.themes}
+              selectedValues={childModeSettings.allowedThemeSlugs}
+              options={childModeThemeOptions}
+              allLabel={labels.anyTheme}
+              disabled={controlsDisabled}
+              onChange={(allowedThemeSlugs) => onChildModeSettingsChange?.(child.id, { allowedThemeSlugs })}
+            />
+            <MultiSelectChips
+              label={labels.languages}
+              selectedValues={childModeSettings.allowedLanguageCodes}
+              options={childModeLanguageOptions}
+              allLabel={labels.anyLanguage}
+              disabled={controlsDisabled}
+              onChange={(allowedLanguageCodes) => onChildModeSettingsChange?.(child.id, { allowedLanguageCodes })}
+            />
+            <MultiSelectChips
+              label={labels.characters}
+              selectedValues={childModeSettings.allowedCharacterIds}
+              options={childModeCharacterOptions}
+              allLabel={labels.anyCharacter}
+              emptyText={labels.noCharacters}
+              disabled={controlsDisabled}
+              onChange={(allowedCharacterIds) => onChildModeSettingsChange?.(child.id, { allowedCharacterIds })}
+            />
+            <SettingSwitch
+              label={labels.siblings}
+              value={childModeSettings.allowSiblingCharacters}
+              disabled={controlsDisabled}
+              onValueChange={(allowSiblingCharacters) => onChildModeSettingsChange?.(child.id, { allowSiblingCharacters })}
             />
             <SettingSwitch
               label={labels.familyStories}
@@ -365,6 +519,16 @@ const styles = StyleSheet.create<{
   controlDisabled: ViewStyle | TextStyle;
   settingRow: ViewStyle;
   settingLabel: TextStyle;
+  multiSelectBlock: ViewStyle;
+  multiSelectLabel: TextStyle;
+  optionChips: ViewStyle;
+  optionChip: ViewStyle;
+  optionChipSelected: ViewStyle;
+  optionChipPressed: ViewStyle;
+  optionChipIcon: TextStyle;
+  optionChipText: TextStyle;
+  optionChipTextSelected: TextStyle;
+  optionEmptyText: TextStyle;
   sessionsRow: ViewStyle;
   sessionsText: TextStyle;
   revokeButton: ViewStyle;
@@ -507,6 +671,55 @@ const styles = StyleSheet.create<{
     fontSize: theme.typography.fontSize.xs,
     color: theme.colors.text.secondary,
     lineHeight: 16,
+  },
+  multiSelectBlock: {
+    gap: theme.spacing[2],
+  },
+  multiSelectLabel: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+  },
+  optionChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[2],
+  },
+  optionChip: {
+    minHeight: 30,
+    maxWidth: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[1],
+    borderRadius: theme.borders.radius.full,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+  },
+  optionChipSelected: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  optionChipPressed: {
+    opacity: 0.65,
+  },
+  optionChipIcon: {
+    fontSize: theme.typography.fontSize.sm,
+  },
+  optionChipText: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.text.primary,
+  },
+  optionChipTextSelected: {
+    color: theme.colors.text.inverse,
+  },
+  optionEmptyText: {
+    flexBasis: '100%',
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.tertiary,
   },
   sessionsRow: {
     flexDirection: 'row',
