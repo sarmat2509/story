@@ -8,6 +8,9 @@
  *   pnpm --filter wondertales-api exec tsx src/scripts/runStoryDeferredProsody.ts -- --story-id=<uuid>
  *   pnpm --filter wondertales-api exec tsx src/scripts/runStoryDeferredProsody.ts -- <uuid> [--out=./tagged.txt] [--provider=google]
  *
+ * Compare full-text vs index-json branches (same as production parallel LLM), save raw index JSON:
+ *   ... -- --story-id=<uuid> --compare-branches [--index-out=./story-uuid-index-raw.txt]
+ *
  * When `stories.full_text` is empty, scene text is grouped like audio jobs (`groupScenesIntoChunks`;
  * concurrency defaults to 2, override with `DEFER_TTS_CONCURRENCY=5`).
  */
@@ -62,6 +65,25 @@ function parseProvider(): string {
   const raw = process.argv.find((a) => a.startsWith('--provider='));
   const v = raw ? raw.slice('--provider='.length).trim().toLowerCase() : '';
   return v || 'google';
+}
+
+function parseCompareBranches(): boolean {
+  return process.argv.includes('--compare-branches');
+}
+
+function parseIndexOutPath(storyId: string): string | null {
+  if (!parseCompareBranches()) return null;
+  const raw = process.argv.find((a) => a.startsWith('--index-out='));
+  if (!raw) {
+    const apiRoot = path.resolve(__dirname, '../..');
+    return path.join(apiRoot, `story-${storyId}-deferred-prosody-index-raw.txt`);
+  }
+  const p = raw.slice('--index-out='.length).trim();
+  if (!p) {
+    const apiRoot = path.resolve(__dirname, '../..');
+    return path.join(apiRoot, `story-${storyId}-deferred-prosody-index-raw.txt`);
+  }
+  return path.isAbsolute(p) ? p : path.resolve(process.cwd(), p);
 }
 
 function assertTextProviderConfigured(): void {
@@ -148,15 +170,20 @@ async function main(): Promise<void> {
   // Warm / verify text provider (matches verifyDeferredTtsProsody pattern)
   getTextProvider();
 
+  const compareBranches = parseCompareBranches();
+  const indexOutPath = parseIndexOutPath(storyId);
+
   const enriched = await enrichDeferredProsodyForTtsChunk({
     canonText: fullCanon,
     catalog,
     language,
     storyId,
     includeVendorStylePromptEn: providerName === 'google',
+    captureBranchDiagnostics: compareBranches,
   });
 
   const ok = validateTaggedAgainstCanon(enriched.taggedText, fullCanon, catalog, language);
+  const diag = enriched.branchDiagnostics;
   const lines: string[] = [
     'Deferred TTS prosody — from DB story',
     `storyId: ${storyId}`,
@@ -165,6 +192,13 @@ async function main(): Promise<void> {
     `markupModel: ${catalog.markupModel}`,
     `usedLlm: ${enriched.usedLlm}`,
     `canonValidationOk: ${ok}`,
+    ...(diag
+      ? [
+          `branchCompare: parallelIndex=${String(diag.deferredProsodyParallelIndex)} productionWinner=${diag.winner}`,
+          `fullTextBranch: status=${diag.fullText.status} finalizeOk=${String(diag.fullText.finalizeOk)}`,
+          `indexJsonBranch: status=${diag.indexJson.status} finalizeOk=${String(diag.indexJson.finalizeOk)}`,
+        ]
+      : []),
     '',
     '=== CANON (normalized narration) ===',
     fullCanon,
@@ -176,6 +210,21 @@ async function main(): Promise<void> {
 
   if (enriched.vendorStylePromptEn?.trim()) {
     lines.push('=== VENDOR_STYLE_PROMPT_EN ===', enriched.vendorStylePromptEn.trim(), '');
+  }
+
+  if (diag) {
+    lines.push(
+      '=== BRANCH: FULL TEXT (after finalize) ===',
+      diag.fullText.taggedAfterFinalize,
+      '',
+      '=== BRANCH: INDEX JSON (after finalize) ===',
+      diag.indexJson.taggedAfterFinalize,
+      '',
+      '=== BRANCH NOTES ===',
+      `fullText raw keys: ${diag.fullText.rawParsed ? Object.keys(diag.fullText.rawParsed).join(', ') : '(none)'}`,
+      `indexJson applied before finalize: ${diag.indexJson.appliedBeforeFinalize ? 'yes' : 'no'}`,
+      ''
+    );
   }
 
   if (!ok) {
@@ -210,6 +259,22 @@ async function main(): Promise<void> {
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, lines.join('\n'), 'utf8');
   console.log('Wrote:', outPath);
+
+  if (indexOutPath && diag) {
+    const indexPayload = {
+      written: new Date().toISOString(),
+      storyId,
+      provider: providerName,
+      indexJsonStatus: diag.indexJson.status,
+      indexJsonFinalizeOk: diag.indexJson.finalizeOk,
+      productionWinner: diag.winner,
+      rawParsed: diag.indexJson.rawParsed ?? null,
+    };
+    fs.mkdirSync(path.dirname(indexOutPath), { recursive: true });
+    fs.writeFileSync(indexOutPath, JSON.stringify(indexPayload, null, 2), 'utf8');
+    console.log('Wrote index branch raw JSON:', indexOutPath);
+  }
+
   if (!ok) process.exit(1);
 }
 

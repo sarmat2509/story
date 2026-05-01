@@ -28,7 +28,7 @@ export type TaggedCanonRepairResult = {
   revalidated: boolean;
 };
 
-type ChSrc = { ch: string; src: number };
+export type ChSrc = { ch: string; src: number };
 
 function joinUnits(u: ChSrc[]): { s: string; o: number[] } {
   return { s: u.map((x) => x.ch).join(''), o: u.map((x) => x.src) };
@@ -256,7 +256,7 @@ function provenanceThroughNormalize(
 }
 
 /** Same pipeline as `normalizeCanonLikeAudioDomain(canonPlain)` with per-char index into `canonPlain`. */
-function provenanceCanonPlain(canonPlain: string, language: string): ChSrc[] | null {
+export function provenanceCanonPlain(canonPlain: string, language: string): ChSrc[] | null {
   const units = canonPlain.split('').map((ch, i) => ({ ch, src: i }));
   const u1 = stripForAudioLexicalUnits(units);
   if (!u1) return null;

@@ -19,10 +19,18 @@ import {
 } from '../utils/ttsProsodyTaggedText';
 import { attemptRepairTaggedTextToMatchCanon } from '../utils/ttsProsodyCanonRepair';
 import { evaluateProsodyLexicalDiffPolicy } from '../utils/ttsProsodyCanonLexicalDiff';
+import { projectApprovedBracketTagsOntoCanon } from '../utils/ttsProsodyTagProjection';
+import {
+  applyDeferredProsodyIndexInsertions,
+} from '../utils/ttsProsodyIndexInsertions';
+export { applyDeferredProsodyIndexInsertions };
 import { USAGE_OP_TTS_PROSODY_TAGS } from './aiUsageService';
 
 /** Max length for vendorStylePromptEn after LLM return (trim); aligned with schema description and post-parse trim. */
 export const DEFER_STYLE_PROMPT_MAX_CHARS = 2000;
+
+/** Low temperature: stricter adherence to verbatim canon (fewer paraphrases / reorderings). */
+const DEFERRED_PROSODY_LLM_TEMPERATURE = 0.05;
 
 const TAGGED_TEXT_ONLY_SCHEMA: JsonSchema = {
   type: 'object',
@@ -34,6 +42,56 @@ const TAGGED_TEXT_ONLY_SCHEMA: JsonSchema = {
     },
   },
   required: ['taggedText'],
+  additionalProperties: false,
+};
+
+const TAG_INSERTIONS_ITEMS_SCHEMA: JsonSchema = {
+  type: 'array',
+  maxItems: 400,
+  items: {
+    type: 'object',
+    properties: {
+      utf16OffsetBefore: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 500000,
+        description:
+          'Insert this tag immediately BEFORE this UTF-16 code unit index in STORY_TEXT_TO_TAG (JavaScript string indexing: 0 = before first char; storyText.length = after last char).',
+      },
+      tagInner: {
+        type: 'string',
+        minLength: 1,
+        maxLength: 96,
+        description:
+          'Inner text of one allowed bracket tag from the vendor list (e.g. short pause). Do not include square brackets.',
+      },
+    },
+    required: ['utf16OffsetBefore', 'tagInner'],
+    additionalProperties: false,
+  },
+};
+
+const TAG_INDEX_ONLY_SCHEMA: JsonSchema = {
+  type: 'object',
+  properties: {
+    tagInsertions: TAG_INSERTIONS_ITEMS_SCHEMA,
+  },
+  required: ['tagInsertions'],
+  additionalProperties: false,
+};
+
+const TAG_INDEX_PLUS_VENDOR_STYLE_SCHEMA: JsonSchema = {
+  type: 'object',
+  description: `Single JSON object: tagInsertions array plus vendorStylePromptEn (max ${DEFER_STYLE_PROMPT_MAX_CHARS} chars).`,
+  properties: {
+    tagInsertions: TAG_INSERTIONS_ITEMS_SCHEMA,
+    vendorStylePromptEn: {
+      type: 'string',
+      maxLength: DEFER_STYLE_PROMPT_MAX_CHARS,
+      description: `Required. English only. One coherent paragraph. Same role as in full-text mode (e.g. Gemini-TTS prompt). Hard maximum ${DEFER_STYLE_PROMPT_MAX_CHARS} characters.`,
+    },
+  },
+  required: ['tagInsertions', 'vendorStylePromptEn'],
   additionalProperties: false,
 };
 
@@ -66,10 +124,23 @@ function responseSchemaForCatalog(
   return TAGGED_TEXT_ONLY_SCHEMA;
 }
 
+function responseIndexSchemaForCatalog(
+  catalog: TtsSpeechTagCatalog,
+  includeVendorStylePromptEn: boolean
+): JsonSchema {
+  if (includeVendorStylePromptEn && catalog.deferredProsodyStylePromptLlm) {
+    return TAG_INDEX_PLUS_VENDOR_STYLE_SCHEMA;
+  }
+  return TAG_INDEX_ONLY_SCHEMA;
+}
+
+export type DeferredProsodyLlmOutputMode = 'full_tagged_text' | 'tag_index_json';
+
 function buildSystemPrompt(
   catalog: TtsSpeechTagCatalog,
   language: string,
-  includeVendorStylePromptEn: boolean
+  includeVendorStylePromptEn: boolean,
+  outputMode: DeferredProsodyLlmOutputMode = 'full_tagged_text'
 ): string {
   const wantsStyleBlock =
     includeVendorStylePromptEn && catalog.deferredProsodyStylePromptLlm === true;
@@ -175,16 +246,24 @@ function buildSystemPrompt(
     'Quoted lines with clear vocal verbs need acoustic/pacing cues on the quoted words, not only emotion; layer when both delivery and emotion apply; keep quote-bound delivery tags before the quote (or vendor wrap), never between closing quote and attribution.',
   ].join('\n');
 
-  const styleBlock = wantsStyleBlock
-    ? [
-        'STYLE PROMPT FIELD (vendorStylePromptEn):',
-        'Required for this vendor on every call: you MUST return vendorStylePromptEn alongside taggedText.',
-        '',
-        'Use vendorStylePromptEn as the main place for overall performance direction: narrator tone, broad pacing, emotional arc, genre mood, and character voice contrast when clear from the passage. It must include any major global voice arc that inline tags may not fully control, such as a character becoming braver, a reveal becoming louder or brighter, or the ending becoming softer. Mention performance arcs without retelling plot events in detail. Keep loud or intense moments child-friendly and brief, not harsh or aggressive.',
-        '',
-        'vendorStylePromptEn must be one coherent paragraph, not multiple alternatives or drafts. It should be vendor-facing, not a plot summary. Do not quote the story. English only. Keep vendorStylePromptEn concise, ideally 400–900 characters, unless the passage truly needs more (hard maximum is enforced by the schema).',
-      ].join('\n')
-    : '';
+  const styleBlock =
+    wantsStyleBlock && outputMode === 'full_tagged_text'
+      ? [
+          'STYLE PROMPT FIELD (vendorStylePromptEn):',
+          'Required for this vendor on every call: you MUST return vendorStylePromptEn alongside taggedText.',
+          '',
+          'Use vendorStylePromptEn as the main place for overall performance direction: narrator tone, broad pacing, emotional arc, genre mood, and character voice contrast when clear from the passage. It must include any major global voice arc that inline tags may not fully control, such as a character becoming braver, a reveal becoming louder or brighter, or the ending becoming softer. Mention performance arcs without retelling plot events in detail. Keep loud or intense moments child-friendly and brief, not harsh or aggressive.',
+          '',
+          'vendorStylePromptEn must be one coherent paragraph, not multiple alternatives or drafts. It should be vendor-facing, not a plot summary. Do not quote the story. English only. Keep vendorStylePromptEn concise, ideally 400–900 characters, unless the passage truly needs more (hard maximum is enforced by the schema).',
+        ].join('\n')
+      : wantsStyleBlock && outputMode === 'tag_index_json'
+        ? [
+            'STYLE PROMPT FIELD (vendorStylePromptEn):',
+            'Required for this vendor on every call: you MUST return vendorStylePromptEn alongside tagInsertions.',
+            '',
+            'Use vendorStylePromptEn as the main place for overall performance direction (same rules as full-text mode). English only; one coherent paragraph; hard maximum enforced by the schema.',
+          ].join('\n')
+        : '';
 
   const parts: string[] = [
     "You are a TTS markup assistant for children's audiobooks.",
@@ -247,19 +326,50 @@ function buildSystemPrompt(
     '- ONLY insert markup from the allowed vendor markup list below (exact tokens and forms). Do not invent tags, wrappers, SSML, or instructions outside that list.',
     '- Do NOT invent new prose; markup tokens themselves are not new prose when used exactly as allowed.',
     '- Preserve all original prose characters exactly.',
-    '',
-    'OUTPUT FORMAT:',
-    'The API supplies a structured JSON schema for this call — match it exactly: required keys, types, and field descriptions. Return one JSON object only: no markdown code fences, no commentary before or after.',
-    '',
-    'VENDOR MARKUP:',
-    'Use only the following allowed vendor markup tokens and forms. Do not invent or approximate markup.',
-    '',
-    allowedMarkup,
-    '',
-    'VENDOR-SPECIFIC CONSTRAINTS:',
-    '',
-    vendorConstraints
+    ...(outputMode === 'tag_index_json'
+      ? [
+          '- INDEX JSON MODE: every utf16OffsetBefore must refer to the unchanged STORY_TEXT_TO_TAG string using JavaScript UTF-16 code unit indices (String length / indexing). Do not echo the story text in JSON.',
+        ]
+      : [])
   );
+
+  if (outputMode === 'full_tagged_text') {
+    parts.push(
+      '',
+      'OUTPUT FORMAT:',
+      'The API supplies a structured JSON schema for this call — match it exactly: required keys, types, and field descriptions. Return one JSON object only: no markdown code fences, no commentary before or after.',
+      '',
+      'VENDOR MARKUP:',
+      'Use only the following allowed vendor markup tokens and forms. Do not invent or approximate markup.',
+      '',
+      allowedMarkup,
+      '',
+      'VENDOR-SPECIFIC CONSTRAINTS:',
+      '',
+      vendorConstraints
+    );
+  } else {
+    parts.push(
+      '',
+      'OUTPUT FORMAT (INDEX JSON):',
+      'Return one JSON object only (no markdown code fences, no commentary). Match the API schema exactly.',
+      '',
+      'Field tagInsertions (array): each element describes one allowed bracket tag to insert into STORY_TEXT_TO_TAG:',
+      '- utf16OffsetBefore (integer, 0 .. storyText.length inclusive): insert the tag immediately BEFORE this UTF-16 index. Use storyText.length to append after the final character.',
+      '- tagInner (string): inner text of exactly one allowed `[...]` tag from the vendor list (e.g. short pause). Do not include `[` or `]` in tagInner.',
+      '- You may list insertions in any order; the server sorts them. Multiple tags at the same index are allowed (same-beat stacks) in the order you list them.',
+      '- Do NOT include a full tagged transcript string; only tagInsertions (and vendorStylePromptEn when required).',
+      '',
+      'VENDOR MARKUP:',
+      'Use only the following allowed vendor markup tokens and forms. Do not invent or approximate markup.',
+      '',
+      allowedMarkup,
+      '',
+      'VENDOR-SPECIFIC CONSTRAINTS:',
+      '',
+      vendorConstraints
+    );
+  }
 
   return parts.join('\n');
 }
@@ -281,7 +391,22 @@ export function composeDeferredProsodyLlmPrompt(params: {
   const requestLlmStylePrompt =
     params.includeVendorStylePromptEn === true &&
     params.catalog.deferredProsodyStylePromptLlm === true;
-  const system = buildSystemPrompt(params.catalog, params.language, requestLlmStylePrompt);
+  const system = buildSystemPrompt(params.catalog, params.language, requestLlmStylePrompt, 'full_tagged_text');
+  const user = buildUserPrompt(params.canonText);
+  return `${system}\n\n---\n\n${user}`;
+}
+
+/** Same markup rules as `composeDeferredProsodyLlmPrompt`, but JSON output is `tagInsertions` (+ optional style), not full `taggedText`. */
+export function composeDeferredProsodyIndexLlmPrompt(params: {
+  canonText: string;
+  catalog: TtsSpeechTagCatalog;
+  language: string;
+  includeVendorStylePromptEn?: boolean;
+}): string {
+  const requestLlmStylePrompt =
+    params.includeVendorStylePromptEn === true &&
+    params.catalog.deferredProsodyStylePromptLlm === true;
+  const system = buildSystemPrompt(params.catalog, params.language, requestLlmStylePrompt, 'tag_index_json');
   const user = buildUserPrompt(params.canonText);
   return `${system}\n\n---\n\n${user}`;
 }
@@ -298,6 +423,36 @@ export interface DeferredProsodyEnrichParams {
    * for catalogs that do not use a separate style prompt — the model then only returns `taggedText`.
    */
   includeVendorStylePromptEn?: boolean;
+  /**
+   * When true, `branchDiagnostics` is filled with per-branch LLM payloads and post-finalize outcomes
+   * (for scripts / A/B comparison). Production callers should omit.
+   */
+  captureBranchDiagnostics?: boolean;
+}
+
+/** Populated when `captureBranchDiagnostics` was true on the request. */
+export interface DeferredProsodyBranchDiagnostics {
+  deferredProsodyParallelIndex: boolean;
+  winner: 'index_json' | 'full_text' | 'none';
+  fullText: {
+    status: 'fulfilled' | 'rejected';
+    errorMessage?: string;
+    rawParsed?: Record<string, unknown>;
+    finalizeOk: boolean;
+    /** String after sanitize/repair/projection pipeline (may equal canon if finalize failed). */
+    taggedAfterFinalize: string;
+    style?: string;
+  };
+  indexJson: {
+    status: 'fulfilled' | 'rejected' | 'skipped';
+    errorMessage?: string;
+    rawParsed?: Record<string, unknown>;
+    /** Result of `applyDeferredProsodyIndexInsertions` before finalize; null if none applied. */
+    appliedBeforeFinalize: string | null;
+    finalizeOk: boolean;
+    taggedAfterFinalize: string;
+    style?: string;
+  };
 }
 
 export interface DeferredProsodyEnrichResult {
@@ -305,6 +460,76 @@ export interface DeferredProsodyEnrichResult {
   /** Set when caller requested style prompt and catalog supports it; passed to synthesis as `synthesizeStylePromptEn` (e.g. Gemini-TTS `prompt`). */
   vendorStylePromptEn?: string;
   usedLlm: boolean;
+  branchDiagnostics?: DeferredProsodyBranchDiagnostics;
+}
+
+function trimVendorStyleFromParsed(
+  parsed: Record<string, unknown> | undefined,
+  storyId?: string
+): string | undefined {
+  if (!parsed) return undefined;
+  const rawStyle =
+    (typeof parsed.vendorStylePromptEn === 'string' ? parsed.vendorStylePromptEn : '') ||
+    (typeof parsed.geminiStylePromptEn === 'string' ? parsed.geminiStylePromptEn : '');
+  let vendorStylePromptEn = rawStyle.trim();
+  if (vendorStylePromptEn.length > DEFER_STYLE_PROMPT_MAX_CHARS) {
+    const prevLen = vendorStylePromptEn.length;
+    vendorStylePromptEn = vendorStylePromptEn.slice(0, DEFER_STYLE_PROMPT_MAX_CHARS).trim();
+    logger.warn(
+      { storyId, prevLen, newLen: vendorStylePromptEn.length },
+      `Trimmed vendorStylePromptEn to ${DEFER_STYLE_PROMPT_MAX_CHARS} chars`
+    );
+  }
+  return vendorStylePromptEn || undefined;
+}
+
+function finalizeTaggedProsodyOnCanon(params: {
+  taggedIn: string;
+  canonText: string;
+  catalog: TtsSpeechTagCatalog;
+  language: string;
+  storyId?: string;
+  sourceLabel: 'full_text' | 'index_json';
+}): { ok: boolean; tagged: string } {
+  const { taggedIn, canonText, catalog, language, storyId, sourceLabel } = params;
+  let tagged = taggedIn.trim();
+  if (!tagged) return { ok: false, tagged: canonText };
+  const { text: sanitized } = sanitizeVendorMarkup(tagged, catalog);
+  tagged = sanitized;
+
+  if (!validateTaggedAgainstCanon(tagged, canonText, catalog, language)) {
+    const repair = attemptRepairTaggedTextToMatchCanon(tagged, canonText, catalog, language);
+    if (repair.repaired) {
+      tagged = repair.text;
+    }
+    if (!validateTaggedAgainstCanon(tagged, canonText, catalog, language)) {
+      const projected = projectApprovedBracketTagsOntoCanon(tagged, canonText, catalog, language);
+      if (projected.ok) {
+        tagged = projected.text;
+        logger.info(
+          {
+            storyId,
+            tagCount: projected.tagCount,
+            reason: projected.reason,
+            prosodySource: sourceLabel,
+          },
+          'Prosody: applied bracket tags from LLM output onto canon (alignment projection)'
+        );
+      }
+    }
+    if (!validateTaggedAgainstCanon(tagged, canonText, catalog, language)) {
+      logger.debug(
+        {
+          storyId,
+          prosodySource: sourceLabel,
+          mismatchIndex: explainTaggedCanonMismatch(tagged, canonText, catalog, language).index,
+        },
+        'Prosody branch failed canon after repair/projection'
+      );
+      return { ok: false, tagged: canonText };
+    }
+  }
+  return { ok: true, tagged };
 }
 
 /**
@@ -313,7 +538,15 @@ export interface DeferredProsodyEnrichResult {
 export async function enrichDeferredProsodyForTtsChunk(
   params: DeferredProsodyEnrichParams
 ): Promise<DeferredProsodyEnrichResult> {
-  const { canonText, catalog, language, storyId, onUsage, includeVendorStylePromptEn } = params;
+  const {
+    canonText,
+    catalog,
+    language,
+    storyId,
+    onUsage,
+    includeVendorStylePromptEn,
+    captureBranchDiagnostics: captureDiag,
+  } = params;
 
   if (catalog.markupModel === 'none_use_instructions') {
     return { taggedText: canonText, usedLlm: false };
@@ -326,20 +559,17 @@ export async function enrichDeferredProsodyForTtsChunk(
   const requestLlmStylePrompt =
     includeVendorStylePromptEn === true && catalog.deferredProsodyStylePromptLlm === true;
 
-  const prompt = composeDeferredProsodyLlmPrompt({
-    canonText,
-    catalog,
-    language,
-    includeVendorStylePromptEn,
-  });
-
   try {
     const textProvider = getTextProvider();
-    const schema = responseSchemaForCatalog(catalog, requestLlmStylePrompt);
+    const schemaFull = responseSchemaForCatalog(catalog, requestLlmStylePrompt);
+    const schemaIndex = responseIndexSchemaForCatalog(catalog, requestLlmStylePrompt);
     const baseBudget = Math.min(65536, Math.max(32768, Math.ceil(canonText.length * 1.5) + 20000));
     /** 1.5× headroom vs truncation on long tagged JSON + Gemini “thinking” against output budget. */
     const maxTokens = Math.min(98304, Math.ceil(baseBudget * 1.5));
     const prosodyModel = config.ai.ttsProsodyTagsModel;
+
+    const parallelIndex =
+      catalog.wrappingTagNames.length === 0 && catalog.inlineBracketTags.length > 0;
 
     logger.info(
       {
@@ -348,41 +578,191 @@ export async function enrichDeferredProsodyForTtsChunk(
         canonChars: canonText.length,
         maxTokens,
         requestLlmStylePrompt,
+        deferredProsodyParallelIndex: parallelIndex,
       },
-      'Deferred prosody: calling structured LLM'
+      'Deferred prosody: calling structured LLM(s)'
     );
 
-    const parsed = await textProvider.generateStructured<{
-      taggedText: string;
-      vendorStylePromptEn?: string;
-    }>({
-      prompt,
-      schema,
-      model: prosodyModel,
-      temperature: 0.15,
-      // Large system prompt + JSON echo of full input; Gemini "thinking" counts toward output budget — cap high.
-      maxTokens,
-      operation: USAGE_OP_TTS_PROSODY_TAGS,
-      onUsage,
+    const promptFull = composeDeferredProsodyLlmPrompt({
+      canonText,
+      catalog,
+      language,
+      includeVendorStylePromptEn,
+    });
+    const promptIndex = composeDeferredProsodyIndexLlmPrompt({
+      canonText,
+      catalog,
+      language,
+      includeVendorStylePromptEn,
     });
 
-    let tagged = (parsed?.taggedText ?? '').trim();
-    if (!tagged) {
-      logger.error({ storyId }, 'Prosody LLM returned empty taggedText');
-      return { taggedText: canonText, usedLlm: false };
+    const runFull = async (): Promise<{
+      tagged: string;
+      style?: string;
+      raw?: Record<string, unknown>;
+    } | null> => {
+      const parsed = await textProvider.generateStructured<{
+        taggedText: string;
+        vendorStylePromptEn?: string;
+      }>({
+        prompt: promptFull,
+        schema: schemaFull,
+        model: prosodyModel,
+        temperature: DEFERRED_PROSODY_LLM_TEMPERATURE,
+        maxTokens,
+        operation: USAGE_OP_TTS_PROSODY_TAGS,
+        onUsage,
+      });
+      const raw = captureDiag ? ({ ...(parsed as object) } as Record<string, unknown>) : undefined;
+      const tagged = (parsed?.taggedText ?? '').trim();
+      if (!tagged) {
+        return captureDiag && raw ? { tagged: '', style: undefined, raw } : null;
+      }
+      return {
+        tagged,
+        style: trimVendorStyleFromParsed(parsed as Record<string, unknown>, storyId),
+        ...(raw ? { raw } : {}),
+      };
+    };
+
+    const runIndex = async (): Promise<{
+      tagged: string;
+      style?: string;
+      raw?: Record<string, unknown>;
+      appliedBeforeFinalize: string | null;
+    } | null> => {
+      const parsed = await textProvider.generateStructured<{
+        tagInsertions?: unknown;
+        vendorStylePromptEn?: string;
+      }>({
+        prompt: promptIndex,
+        schema: schemaIndex,
+        model: prosodyModel,
+        temperature: DEFERRED_PROSODY_LLM_TEMPERATURE,
+        maxTokens,
+        operation: USAGE_OP_TTS_PROSODY_TAGS,
+        onUsage,
+      });
+      const raw = captureDiag ? ({ ...(parsed as object) } as Record<string, unknown>) : undefined;
+      const applied = applyDeferredProsodyIndexInsertions(
+        canonText,
+        parsed?.tagInsertions,
+        catalog
+      );
+      const appliedBeforeFinalize = applied?.trim() ? applied : null;
+      if (!appliedBeforeFinalize) {
+        return captureDiag && raw
+          ? { tagged: '', style: undefined, raw, appliedBeforeFinalize: null }
+          : null;
+      }
+      return {
+        tagged: appliedBeforeFinalize,
+        style: trimVendorStyleFromParsed(parsed as Record<string, unknown>, storyId),
+        ...(raw ? { raw } : {}),
+        appliedBeforeFinalize,
+      };
+    };
+
+    const fullP = runFull();
+    const indexP = parallelIndex ? runIndex() : Promise.resolve(null);
+    const [fullSettled, indexSettled] = await Promise.allSettled([fullP, indexP]);
+
+    const fullVal = fullSettled.status === 'fulfilled' ? fullSettled.value : null;
+    const indexVal = indexSettled.status === 'fulfilled' ? indexSettled.value : null;
+
+    const fullRaw = fullVal?.raw;
+    const indexRaw = indexVal?.raw;
+
+    if (fullSettled.status === 'rejected') {
+      logger.warn({ err: fullSettled.reason, storyId }, 'Deferred prosody full-text LLM rejected');
+    }
+    if (parallelIndex && indexSettled.status === 'rejected') {
+      logger.warn({ err: indexSettled.reason, storyId }, 'Deferred prosody index-json LLM rejected');
     }
 
-    const { text: sanitized } = sanitizeVendorMarkup(tagged, catalog);
-    tagged = sanitized;
+    const fullFinal = fullVal
+      ? finalizeTaggedProsodyOnCanon({
+          taggedIn: fullVal.tagged,
+          canonText,
+          catalog,
+          language,
+          storyId,
+          sourceLabel: 'full_text',
+        })
+      : { ok: false, tagged: canonText };
+    const indexFinal = indexVal
+      ? finalizeTaggedProsodyOnCanon({
+          taggedIn: indexVal.tagged,
+          canonText,
+          catalog,
+          language,
+          storyId,
+          sourceLabel: 'index_json',
+        })
+      : { ok: false, tagged: canonText };
 
-    if (!validateTaggedAgainstCanon(tagged, canonText, catalog, language)) {
-      const repair = attemptRepairTaggedTextToMatchCanon(tagged, canonText, catalog, language);
-      if (repair.repaired) {
-        tagged = repair.text;
+    let winner: 'index_json' | 'full_text' | 'none' = 'none';
+    let tagged = canonText;
+    let vendorStylePromptEn: string | undefined;
+
+    if (indexFinal.ok) {
+      winner = 'index_json';
+      tagged = indexFinal.tagged;
+      vendorStylePromptEn = indexVal?.style;
+    } else if (fullFinal.ok) {
+      winner = 'full_text';
+      tagged = fullFinal.tagged;
+      vendorStylePromptEn = fullVal?.style;
+    }
+
+    if (requestLlmStylePrompt) {
+      if (winner === 'index_json' && !vendorStylePromptEn?.trim() && fullVal?.style) {
+        vendorStylePromptEn = fullVal.style;
+      } else if (winner === 'full_text' && !vendorStylePromptEn?.trim() && indexVal?.style) {
+        vendorStylePromptEn = indexVal.style;
       }
-      if (!validateTaggedAgainstCanon(tagged, canonText, catalog, language)) {
-        const detail = explainTaggedCanonMismatch(tagged, canonText, catalog, language);
-        const lexicalDiff = evaluateProsodyLexicalDiffPolicy(tagged, canonText, catalog, language);
+    }
+
+    const branchDiagnostics: DeferredProsodyBranchDiagnostics | undefined = captureDiag
+      ? {
+          deferredProsodyParallelIndex: parallelIndex,
+          winner,
+          fullText: {
+            status: fullSettled.status,
+            errorMessage:
+              fullSettled.status === 'rejected'
+                ? String((fullSettled.reason as Error)?.message ?? fullSettled.reason)
+                : undefined,
+            rawParsed: fullRaw,
+            finalizeOk: fullFinal.ok,
+            taggedAfterFinalize: fullFinal.tagged,
+            style: fullVal?.style,
+          },
+          indexJson: {
+            status: parallelIndex ? indexSettled.status : 'skipped',
+            errorMessage:
+              parallelIndex && indexSettled.status === 'rejected'
+                ? String((indexSettled.reason as Error)?.message ?? indexSettled.reason)
+                : undefined,
+            rawParsed: indexRaw,
+            appliedBeforeFinalize: indexVal?.appliedBeforeFinalize ?? null,
+            finalizeOk: indexFinal.ok,
+            taggedAfterFinalize: indexFinal.tagged,
+            style: indexVal?.style,
+          },
+        }
+      : undefined;
+
+    if (winner === 'none') {
+      let failedTagged = '';
+      if (fullVal?.tagged) {
+        failedTagged = sanitizeVendorMarkup(fullVal.tagged, catalog).text;
+      } else if (indexVal?.tagged) {
+        failedTagged = indexVal.tagged;
+      }
+      if (failedTagged.trim()) {
+        const detail = explainTaggedCanonMismatch(failedTagged, canonText, catalog, language);
+        const lexicalDiff = evaluateProsodyLexicalDiffPolicy(failedTagged, canonText, catalog, language);
         const diffSnippet = lexicalDiff.unifiedDiffLexicalNormalized.slice(0, 12_000);
         logger.error(
           {
@@ -397,37 +777,27 @@ export async function enrichDeferredProsodyForTtsChunk(
             prosodyLexicalPolicy: lexicalDiff.policySummary,
             approvedBracketTagCount: lexicalDiff.approvedBracketTagCount,
             unifiedDiffLexicalNormalized: diffSnippet,
+            deferredProsodyParallelIndex: parallelIndex,
           },
-          'Prosody LLM output failed canon validation — falling back to untagged text'
+          'Prosody LLM parallel outputs failed canon validation — falling back to untagged text'
         );
-        return { taggedText: canonText, usedLlm: false };
+      } else {
+        logger.error({ storyId, deferredProsodyParallelIndex: parallelIndex }, 'Prosody LLM returned empty output');
       }
+      return {
+        taggedText: canonText,
+        usedLlm: false,
+        ...(branchDiagnostics ? { branchDiagnostics } : {}),
+      };
     }
 
-    let vendorStylePromptEn: string | undefined;
-    if (requestLlmStylePrompt) {
-      const p = parsed as Record<string, unknown> | undefined;
-      const rawStyle =
-        (typeof p?.vendorStylePromptEn === 'string' ? p.vendorStylePromptEn : '') ||
-        (typeof p?.geminiStylePromptEn === 'string' ? p.geminiStylePromptEn : '');
-      vendorStylePromptEn = rawStyle.trim();
-      if (vendorStylePromptEn.length > DEFER_STYLE_PROMPT_MAX_CHARS) {
-        const prevLen = vendorStylePromptEn.length;
-        vendorStylePromptEn = vendorStylePromptEn.slice(0, DEFER_STYLE_PROMPT_MAX_CHARS).trim();
-        logger.warn(
-          { storyId, prevLen, newLen: vendorStylePromptEn.length },
-          `Trimmed vendorStylePromptEn to ${DEFER_STYLE_PROMPT_MAX_CHARS} chars`
-        );
-      }
-      if (!vendorStylePromptEn) {
-        vendorStylePromptEn = undefined;
-      }
-    }
+    logger.info({ storyId, deferredProsodyWinner: winner, deferredProsodyParallelIndex: parallelIndex }, 'Deferred prosody: chose LLM branch');
 
     return {
       taggedText: tagged,
       vendorStylePromptEn,
       usedLlm: true,
+      ...(branchDiagnostics ? { branchDiagnostics } : {}),
     };
   } catch (err) {
     logger.error(
