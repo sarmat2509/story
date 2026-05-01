@@ -24,6 +24,7 @@ API_TESTS=(
   src/middleware/__tests__/authMiddlewareParentSession.test.ts
   src/ssr/__tests__/pricingPresentation.test.ts
   src/ssr/__tests__/publicSeoLocales.test.ts
+  src/ssr/__tests__/renderLandingExamples.test.ts
   src/ssr/__tests__/renderLandingStructuredData.test.ts
   src/ssr/__tests__/renderLandingTrustLayer.test.ts
   src/ssr/__tests__/renderLegalHtml.test.ts

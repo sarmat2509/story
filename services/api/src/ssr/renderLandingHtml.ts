@@ -8,6 +8,7 @@ import {
   buildAbsoluteRouteUrl,
   buildPublicLegalPath,
   buildPublicPricingPath,
+  buildPublicStoriesPath,
   normalizePublicSeoLocale,
   type PublicSeoLocale,
 } from '@wondertales/shared';
@@ -283,6 +284,10 @@ function getLocalizedPricingUrl(webAppUrl: string, locale?: string | null): stri
   return buildAbsoluteRouteUrl(webAppUrl, buildPublicPricingPath(locale));
 }
 
+function getLocalizedStoriesUrl(webAppUrl: string, locale?: string | null): string {
+  return buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath(locale));
+}
+
 function renderAnnouncementBar(webAppUrl: string, locale?: string): string {
   return `
   <div class="announcement-bar">
@@ -406,6 +411,10 @@ function renderExampleStories(
   const normalizedLocale = normalizeLandingLocale(locale);
 
   if (stories.length === 0) {
+    if (normalizedLocale === 'en') {
+      return '';
+    }
+
     const emptyState = EMPTY_EXAMPLE_STORIES_COPY[normalizedLocale];
     return `
   <section class="section">
@@ -453,7 +462,7 @@ function renderExampleStories(
       }).join('')}
     </div>
     <div class="cta-block">
-      <a href="${escapeHtml(webAppUrl)}/stories" class="cta-purple">${escapeHtml(content.exampleStories.allStoriesCta)}</a>
+      <a href="${escapeHtml(getLocalizedStoriesUrl(webAppUrl, normalizedLocale))}" class="cta-purple">${escapeHtml(content.exampleStories.allStoriesCta)}</a>
     </div>
   </section>`;
 }

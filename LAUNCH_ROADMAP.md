@@ -803,7 +803,7 @@ Required work:
 - Add Terms/Privacy/Cookies/Pricing links.
 - Keep clear "private by default" and parent-owned account copy visible on public landing pages.
 - Keep child self-use copy aligned with the shipped Child Mode controls and parent review flow.
-- Add sample stories in English or hide the empty English examples section.
+- Add real sample stories in English when content is ready.
 - Fix PWA manifest from `Kazka+` to `WonderTales`.
 - Keep structured data for software/pricing/FAQ aligned with public copy and plan data.
 
@@ -818,6 +818,7 @@ Completed locally:
 - Dev and production nginx configs now route nested `/landing/*` image assets so SSR landing pages do not fall through to unknown-route 404s for visible trust imagery.
 - Landing SSR now has a public trust section for `uk` and `en` that explains parent-owned accounts, private-by-default stories and child data, Child Mode boundaries, and support/deletion paths.
 - `pnpm launch:gate` now includes a regression test for landing trust copy and localized privacy/support links.
+- Empty English landing story examples are hidden until real English public examples exist, and the populated English examples CTA now preserves `/en/stories`.
 
 Acceptance criteria:
 
