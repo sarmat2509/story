@@ -62,7 +62,6 @@ export async function generateSitemapXml(): Promise<string> {
   const staticUrls = [
     ...landingUrls,
     ...pricingUrls,
-    `  <url>\n    <loc>${escapeXml(`${webAppUrl}/stories`)}</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`,
   ];
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>

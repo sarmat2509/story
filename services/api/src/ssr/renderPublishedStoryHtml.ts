@@ -65,10 +65,11 @@ audio{width:100%;display:block}
 export interface RenderParams {
   story: StoryPublicView;
   useStaticBody?: boolean; // If true, render full story content for crawlers; else minimal div for SPA
+  robots?: 'index,follow' | 'noindex,nofollow';
 }
 
 export function renderPublishedStoryHtml(params: RenderParams): string {
-  const { story, useStaticBody = true } = params;
+  const { story, useStaticBody = true, robots = 'index,follow' } = params;
   const apiBase = config.web?.apiPublicUrl?.replace(/\/$/, '') || '';
   const webAppUrl = config.web?.webAppUrl?.replace(/\/$/, '') || '';
   const webBundleUrl = config.web?.webBundleUrl || '/static/js/bundle.js';
@@ -99,7 +100,7 @@ export function renderPublishedStoryHtml(params: RenderParams): string {
     baseUrl: apiBase,
     webBundleUrl: fullWebBundleUrl,
     bodyHtml,
-    robots: 'index,follow',
+    robots,
     headStyles: useStaticBody ? LAYOUT_STYLES : undefined,
   });
 }

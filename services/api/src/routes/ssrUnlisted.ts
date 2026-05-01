@@ -18,13 +18,19 @@ const router = Router();
 router.get('/:token', async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
+    res.setHeader('X-Robots-Tag', 'noindex,nofollow');
+
     const story = await getPublicStoryByShareToken(token);
 
     if (!story) {
       return res.status(404).send('Story not found');
     }
 
-    const html = renderPublishedStoryHtml({ story, useStaticBody: true });
+    const html = renderPublishedStoryHtml({
+      story,
+      useStaticBody: true,
+      robots: 'noindex,nofollow',
+    });
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);

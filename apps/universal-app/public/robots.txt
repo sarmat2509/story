@@ -1,4 +1,6 @@
 User-agent: *
+Disallow: /api/
+Disallow: /health
 Allow: /
 
 Sitemap: https://wondertales.art/sitemap.xml
