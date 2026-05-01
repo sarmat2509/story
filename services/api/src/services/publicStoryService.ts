@@ -16,18 +16,16 @@ import { stripAllTags } from '../utils/audioTags';
 import { config } from '../config';
 import { getReadingTimeMinutes } from '@wondertales/shared';
 import { normalizeAssetStoragePath } from './entityAssetCleanupService';
+import {
+  buildPublicAuthorView,
+  resolvePublicAuthorDisplayName,
+} from '../utils/publicAuthorView';
 import type {
   AlignmentData,
   PublicAuthorView,
   StoryPublicView,
   StoryAudioMetadata,
 } from '@wondertales/shared';
-
-function resolveAuthorDisplayName(
-  author?: { pseudonym?: string | null; displayName?: string | null } | null
-): string {
-  return author?.pseudonym || author?.displayName || 'Anonymous';
-}
 
 export function isValidPublicAuthorId(authorId: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -319,7 +317,7 @@ export async function listPublicStories(options: {
         language: s.language,
         ageGroup: s.ageGroup,
         authorId: s.userId,
-        authorDisplayName: resolveAuthorDisplayName(authorById.get(s.userId)),
+        authorDisplayName: resolvePublicAuthorDisplayName(authorById.get(s.userId)),
         authorAvatarUrl: authorById.get(s.userId)?.avatarUrl ?? null,
         publishedAt: s.publishedAt ? s.publishedAt.toISOString?.() ?? String(s.publishedAt) : null,
         publishedSlug: s.publishedSlug!,
@@ -339,12 +337,7 @@ export async function getPublicAuthorById(authorId: string): Promise<PublicAutho
   if (!isValidPublicAuthorId(authorId)) return null;
   const author = await getUserRepository().findPublicAuthorById(authorId);
   if (!author) return null;
-  return {
-    id: author.id,
-    displayName: resolveAuthorDisplayName(author),
-    avatarUrl: author.avatarUrl ?? null,
-    aboutMe: author.aboutMe ?? null,
-  };
+  return buildPublicAuthorView(author);
 }
 
 export async function isPublicAuthorAvatarPath(
