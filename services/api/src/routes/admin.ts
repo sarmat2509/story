@@ -24,6 +24,7 @@ import { updateAdminUserSettings } from '../services/adminUserService';
 import {
   DATA_PRIVACY_REQUEST_STATUSES,
   DATA_PRIVACY_REQUEST_TYPES,
+  buildAdminDataExportForPrivacyRequest,
   listAdminDataPrivacyRequests,
   updateAdminDataPrivacyRequest,
 } from '../services/dataPrivacyRequestService';
@@ -647,6 +648,74 @@ router.get('/privacy-requests', async (req: Request, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to list privacy requests',
+    });
+  }
+});
+
+router.get('/privacy-requests/:requestId/export', async (req: Request, res: Response) => {
+  try {
+    const parsedParams = DataPrivacyRequestIdParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid params',
+        details: parsedParams.error.flatten(),
+      });
+    }
+
+    const result = await buildAdminDataExportForPrivacyRequest(parsedParams.data.requestId);
+    if (result.outcome === 'not_found') {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Privacy request not found',
+      });
+    }
+    if (result.outcome === 'wrong_type') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Privacy request is not an export request',
+        data: { request: result.request },
+      });
+    }
+    if (result.outcome === 'detached_user') {
+      return res.status(409).json({
+        status: 'error',
+        message: 'Privacy request is no longer attached to a user',
+        data: { request: result.request },
+      });
+    }
+    if (result.outcome === 'user_not_found') {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User for privacy request not found',
+        data: { request: result.request },
+      });
+    }
+
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="wondertales-user-export-${result.exportPackage.userId}-${date}.json"`
+    );
+
+    logger.info({
+      adminUserId: req.user?.id,
+      requestId: result.request.id,
+      exportedUserId: result.exportPackage.userId,
+    }, 'Admin data privacy export generated');
+
+    return res.json({
+      status: 'success',
+      data: {
+        request: result.request,
+        export: result.exportPackage,
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin privacy request export failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to build privacy export',
     });
   }
 });

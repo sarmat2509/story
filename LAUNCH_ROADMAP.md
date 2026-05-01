@@ -87,7 +87,7 @@ Remaining P0 bottlenecks:
 Solutions not yet applied:
 
 - No complete parent-control policy engine for child sessions.
-- No automated data export package generator and no background orphan-file cleanup job.
+- No background orphan-file cleanup job.
 - No production-domain secrets/client-bundle scan has been recorded after deploy.
 - No final CSP allowlist review against production analytics/payment/OAuth domains has been recorded.
 
@@ -454,7 +454,7 @@ Acceptance criteria:
 
 ### 8. Data Deletion and Retention
 
-Status on 2026-05-01: Core deletion behavior and support/admin request intake are ready; export fulfillment automation and orphan cleanup remain.
+Status on 2026-05-01: Core deletion behavior, support/admin request intake, and admin export package generation are ready; export delivery policy and orphan cleanup remain.
 
 Done:
 
@@ -466,10 +466,11 @@ Done:
 - Parent-only data privacy request endpoints now let users create/list export or deletion requests.
 - Admin-only privacy request endpoints now let support list/filter and mark requests `open`, `in_review`, `fulfilled`, `rejected`, or `canceled`.
 - Web admin now includes `/admin/privacy-requests` for filtering, reviewing, and updating export/deletion support requests.
+- Admin-only export package generation returns JSON for `export` privacy requests while omitting password hashes, OAuth/session/reset tokens, story share tokens, and signed asset URLs.
 
 Remaining:
 
-- Actual export package generation/delivery is still a manual support operation after an admin marks an export request in review/fulfilled.
+- Secure delivery of generated export packages is still a manual support operation after admin review.
 - Background cleanup for orphaned files is not implemented.
 - Billing-record retention needs final legal/operator confirmation before paid launch.
 

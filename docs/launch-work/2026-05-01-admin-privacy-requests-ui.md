@@ -10,6 +10,7 @@ Added a web admin screen for support review of data export and deletion requests
 - Added `AdminPrivacyRequestsScreen`.
 - Added the screen to admin navigation, sidebar, and web linking at `/admin/privacy-requests`.
 - The screen supports search, type/status filters, request cards, and inline status/admin-note updates.
+- Export requests can generate and download the admin JSON export package from the review panel.
 
 ## Verification
 

@@ -65,6 +65,11 @@ export type AdminDataPrivacyRequestItem = {
   updatedAt: string;
 };
 
+export type AdminDataPrivacyExportPayload = {
+  request: AdminDataPrivacyRequestItem;
+  export: Record<string, unknown>;
+};
+
 export type AdminImageValidationItem = {
   id: string;
   storyId: string;
@@ -414,6 +419,17 @@ export function useUpdateAdminDataPrivacyRequest() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'privacy-requests'] });
+    },
+  });
+}
+
+export function useBuildAdminDataPrivacyExport() {
+  return useMutation({
+    mutationFn: async (params: { requestId: string }) => {
+      const response = await apiClient.get<{ status: string; data: AdminDataPrivacyExportPayload }>(
+        `/api/v1/admin/privacy-requests/${params.requestId}/export`,
+      );
+      return response.data.data;
     },
   });
 }

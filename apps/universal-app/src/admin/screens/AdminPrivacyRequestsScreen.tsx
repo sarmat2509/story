@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import {
+  useBuildAdminDataPrivacyExport,
   useAdminDataPrivacyRequests,
   useUpdateAdminDataPrivacyRequest,
   type AdminDataPrivacyRequestItem,
@@ -55,6 +56,22 @@ function getStatusMeta(status: string) {
     default:
       return { color: theme.colors.interactive.primary, backgroundColor: theme.colors.primary[50] };
   }
+}
+
+function downloadJsonFile(filename: string, payload: unknown) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') {
+    return;
+  }
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function PrivacyRequestCard({
@@ -144,6 +161,7 @@ export default function AdminPrivacyRequestsScreen() {
     status: status || undefined,
   });
   const updateRequest = useUpdateAdminDataPrivacyRequest();
+  const buildExport = useBuildAdminDataPrivacyExport();
   const items = useMemo(() => query.data?.items ?? [], [query.data?.items]);
 
   const selectRequest = (item: AdminDataPrivacyRequestItem) => {
@@ -272,23 +290,49 @@ export default function AdminPrivacyRequestsScreen() {
               {updateRequest.error ? (
                 <Text style={styles.errorText}>{(updateRequest.error as Error).message}</Text>
               ) : null}
+              {buildExport.error ? (
+                <Text style={styles.errorText}>{(buildExport.error as Error).message}</Text>
+              ) : null}
 
-              <TouchableOpacity
-                style={[styles.primaryButton, updateRequest.isPending && styles.buttonDisabled]}
-                disabled={updateRequest.isPending}
-                onPress={async () => {
-                  const updated = await updateRequest.mutateAsync({
-                    requestId: selectedRequest.id,
-                    status: draftStatus,
-                    adminNotes: draftNotes,
-                  });
-                  setSelectedRequest(updated);
-                }}
-              >
-                <Text style={styles.primaryButtonText}>
-                  {updateRequest.isPending ? 'Saving...' : 'Save review'}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.actionsRow}>
+                <TouchableOpacity
+                  style={[styles.primaryButton, updateRequest.isPending && styles.buttonDisabled]}
+                  disabled={updateRequest.isPending}
+                  onPress={async () => {
+                    const updated = await updateRequest.mutateAsync({
+                      requestId: selectedRequest.id,
+                      status: draftStatus,
+                      adminNotes: draftNotes,
+                    });
+                    setSelectedRequest(updated);
+                  }}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {updateRequest.isPending ? 'Saving...' : 'Save review'}
+                  </Text>
+                </TouchableOpacity>
+
+                {selectedRequest.requestType === 'export' ? (
+                  <TouchableOpacity
+                    style={[styles.secondaryButton, buildExport.isPending && styles.buttonDisabled]}
+                    disabled={buildExport.isPending}
+                    onPress={async () => {
+                      const payload = await buildExport.mutateAsync({ requestId: selectedRequest.id });
+                      const exportUserId =
+                        typeof payload.export.userId === 'string' ? payload.export.userId : selectedRequest.userId;
+                      const date = new Date().toISOString().slice(0, 10);
+                      downloadJsonFile(
+                        `wondertales-user-export-${exportUserId ?? selectedRequest.id}-${date}.json`,
+                        payload.export
+                      );
+                    }}
+                  >
+                    <Text style={styles.secondaryButtonText}>
+                      {buildExport.isPending ? 'Generating...' : 'Download export JSON'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </View>
           ) : null}
 
@@ -507,6 +551,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     backgroundColor: theme.colors.interactive.primary,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 10,
   },
   primaryButtonText: {
     color: theme.colors.text.inverse,

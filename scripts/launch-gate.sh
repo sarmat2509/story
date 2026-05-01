@@ -34,6 +34,7 @@ API_TESTS=(
   src/services/__tests__/storyPublishSafetyService.test.ts
   src/services/__tests__/storyQuotaReservation.test.ts
   src/services/__tests__/uploadValidationService.test.ts
+  src/services/__tests__/userDataExportService.test.ts
   src/services/__tests__/userDeletionService.test.ts
   src/services/__tests__/voiceAccessService.test.ts
 )

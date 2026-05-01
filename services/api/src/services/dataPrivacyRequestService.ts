@@ -1,5 +1,6 @@
 import { getDataPrivacyRequestRepository } from '../repositories';
 import type { DataPrivacyRequest } from '../db/schema';
+import { buildUserDataExport, type UserDataExportPackage } from './userDataExportService';
 
 export const DATA_PRIVACY_REQUEST_TYPES = ['export', 'deletion'] as const;
 export const DATA_PRIVACY_REQUEST_STATUSES = [
@@ -27,6 +28,17 @@ export interface DataPrivacyRequestItem {
   createdAt: string;
   updatedAt: string;
 }
+
+export type AdminDataPrivacyExportResult =
+  | { outcome: 'not_found' }
+  | { outcome: 'wrong_type'; request: DataPrivacyRequestItem }
+  | { outcome: 'detached_user'; request: DataPrivacyRequestItem }
+  | { outcome: 'user_not_found'; request: DataPrivacyRequestItem }
+  | {
+      outcome: 'ready';
+      request: DataPrivacyRequestItem;
+      exportPackage: UserDataExportPackage;
+    };
 
 interface DataPrivacyRequestRepositoryLike {
   create(data: {
@@ -176,4 +188,33 @@ export async function updateAdminDataPrivacyRequest(
   });
 
   return updated ? formatDataPrivacyRequest(updated) : null;
+}
+
+export async function buildAdminDataExportForPrivacyRequest(
+  requestId: string,
+  repository?: DataPrivacyRequestRepositoryLike
+): Promise<AdminDataPrivacyExportResult> {
+  const request = await getRepository(repository).findById(requestId);
+  if (!request) {
+    return { outcome: 'not_found' };
+  }
+
+  const formattedRequest = formatDataPrivacyRequest(request);
+  if (request.requestType !== 'export') {
+    return { outcome: 'wrong_type', request: formattedRequest };
+  }
+  if (!request.userId) {
+    return { outcome: 'detached_user', request: formattedRequest };
+  }
+
+  const exportPackage = await buildUserDataExport(request.userId);
+  if (!exportPackage) {
+    return { outcome: 'user_not_found', request: formattedRequest };
+  }
+
+  return {
+    outcome: 'ready',
+    request: formattedRequest,
+    exportPackage,
+  };
 }
