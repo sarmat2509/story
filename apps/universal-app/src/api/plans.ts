@@ -12,6 +12,11 @@ import i18n from '@/config/i18n';
 type PlanPublic = PlanPublicApi;
 type PlanAuthenticated = PlanAuthenticatedApi;
 
+export interface PlansCatalogData {
+  plans: PlanPublic[];
+  enableRealPayments: boolean;
+}
+
 // Get plans with features (public, works for all users)
 export const usePlans = () => {
   const locale = i18n.language || APP_CONFIG.defaultLanguage;
@@ -24,6 +29,25 @@ export const usePlans = () => {
         { params: { locale } }
       );
       return response.data.plans;
+    },
+  });
+};
+
+export const usePlansCatalog = () => {
+  const locale = i18n.language || APP_CONFIG.defaultLanguage;
+
+  return useQuery({
+    queryKey: ['plans', 'catalog', locale],
+    queryFn: async (): Promise<PlansCatalogData> => {
+      const response = await apiClient.get<{
+        status: string;
+        plans: PlanPublic[];
+        enableRealPayments?: boolean;
+      }>('/api/v1/plans', { params: { locale } });
+      return {
+        plans: response.data.plans,
+        enableRealPayments: response.data.enableRealPayments ?? false,
+      };
     },
   });
 };

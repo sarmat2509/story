@@ -678,6 +678,8 @@ Acceptance criteria:
 Current bundle purchase review findings:
 
 - Bundle checkout cancel URL now points to `/billing/plans`; Stripe test-mode verification still needs to confirm cancel/success returns in the hosted checkout flow.
+- Public SSR pricing and authenticated billing/plans now explain monthly auto-renewal, cancellation via billing portal where available, support-reviewed refunds, and bundle non-rollover/current-period behavior.
+- Public SSR pricing and the app plans screen now suppress paid CTAs when real payments are disabled, while keeping free access available.
 
 Required work:
 
@@ -691,8 +693,8 @@ Required work:
   - story-from-drawing;
   - sharing/publishing;
   - PDF/video export if visible.
-- Explain auto-renewal, cancellation, refund policy, and non-rollover behavior.
-- Hide paid CTAs if real payments are disabled.
+- Keep auto-renewal, cancellation, refund policy, and non-rollover behavior visible on public SSR pricing and authenticated billing/plans.
+- Keep paid CTAs hidden or non-clickable if real payments are disabled.
 - Keep locked paid-feature blocks visible where they help explain availability, including in Child Mode.
 - In Child Mode, locked-feature CTAs must open the parent gate before any plan, pricing, checkout, or settings flow.
 - Show current plan and usage in the authenticated billing/plans screen.

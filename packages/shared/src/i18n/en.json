@@ -923,6 +923,12 @@
     "confirm_upgrade": "Confirm Upgrade",
     "confirm_upgrade_message": "Are you sure you want to upgrade to {{planName}}?",
     "confirm": "Confirm",
+    "payments_disabled_button": "Payments coming soon",
+    "payments_disabled_notice": "Paid checkout is not enabled yet. Free access remains available while we finish billing verification.",
+    "billing_note_title": "Billing details",
+    "billing_note_renewal": "Paid subscriptions renew monthly until canceled. You can manage or cancel billing in the billing portal where available.",
+    "billing_note_bundles": "Bundles are one-time add-ons for the current billing period. Unused bundle credits expire at period end and do not roll over.",
+    "billing_note_refunds": "Refund requests are reviewed through support and do not happen automatically when a subscription is canceled.",
     "features": {
       "stories_per_day": "Up to {{value}} stories per day",
       "stories_per_month": "{{value}} stories per month",

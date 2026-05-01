@@ -44,6 +44,10 @@ a{text-decoration:none}
 .feature-text.disabled{color:#9ca3af}
 .btn{display:flex;align-items:center;justify-content:center;min-height:46px;margin-top:22px;padding:0 18px;border-radius:999px;background:#111827;color:#fff;font-size:15px;font-weight:700}
 .btn:hover{opacity:.92}
+.btn-disabled{display:flex;align-items:center;justify-content:center;min-height:46px;margin-top:22px;padding:0 18px;border-radius:999px;background:#e5e7eb;color:#6b7280;font-size:15px;font-weight:700}
+.billing-note{max-width:920px;margin:36px auto 0;padding:22px 24px;border:1px solid #e5e7eb;border-radius:18px;background:#fff;color:#374151;box-shadow:0 14px 32px rgba(15,23,42,.05)}
+.billing-note h2{margin:0 0 12px;font-size:22px;line-height:1.2;color:#111827}
+.billing-note p{margin:8px 0 0;font-size:15px;line-height:1.6}
 @media (max-width: 1180px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width: 680px){.wrap{padding:18px}.nav{flex-direction:column;align-items:flex-start}.grid{grid-template-columns:1fr}.desc{min-height:0}}
 ${PUBLIC_FOOTER_STYLES}
@@ -104,6 +108,7 @@ function buildPricingTranslate(plansI18n: any): PricingTranslate {
 export function renderPricingHtml(params: {
   locale?: string | null;
   plans?: PresentedPlan[];
+  paymentsEnabled?: boolean;
 }): string {
   const locale = normalizeLandingLocale(params.locale);
   const webAppUrl = (config.web?.webAppUrl || '').replace(/\/$/, '');
@@ -113,6 +118,7 @@ export function renderPricingHtml(params: {
   const title = plansI18n.title || 'Pricing Plans';
   const subtitle = plansI18n.subtitle || '';
   const alternateLinks = buildPricingAlternateLinks(webAppUrl);
+  const paymentsEnabled = params.paymentsEnabled ?? true;
 
   const plans = (params.plans || []).slice().sort((a, b) => a.sortOrder - b.sortOrder);
 
@@ -150,10 +156,14 @@ export function renderPricingHtml(params: {
       <section class="grid">
         ${plans.map((plan) => {
           const usageHighlight = getCombinedPricingUsageHighlight(locale, translatePricing, plan.features);
+          const isPaidPlan = plan.priceMonthly > 0;
           const featureRows = sortPricingFeatureEntries(plan.features).map(([slug, feature]) => {
             const available = isPricingFeatureAvailable(feature);
             return `<div class="feature"><span class="feature-icon">${available ? '✓' : '✕'}</span><span class="feature-text${available ? '' : ' disabled'}">${escapeHtml(getPricingFeatureLabel(locale, translatePricing, slug, feature))}</span></div>`;
           }).join('');
+          const action = !paymentsEnabled && isPaidPlan
+            ? `<span class="btn-disabled">${escapeHtml(plansI18n.payments_disabled_button || 'Payments coming soon')}</span>`
+            : `<a class="btn" href="${escapeHtml(getWelcomeUrl(webAppUrl, locale))}">${escapeHtml(plansI18n.subscribe_button)}</a>`;
 
           return `
           <article class="card">
@@ -165,9 +175,16 @@ export function renderPricingHtml(params: {
             </div>
             ${usageHighlight ? `<div class="highlights"><div class="highlight"><span class="dot"></span><span>${escapeHtml(usageHighlight)}</span></div></div>` : ''}
             <div class="features">${featureRows}</div>
-            <a class="btn" href="${escapeHtml(getWelcomeUrl(webAppUrl, locale))}">${escapeHtml(plansI18n.subscribe_button)}</a>
+            ${action}
           </article>`;
         }).join('')}
+      </section>
+      <section class="billing-note" aria-label="${escapeHtml(plansI18n.billing_note_title || 'Billing details')}">
+        <h2>${escapeHtml(plansI18n.billing_note_title || 'Billing details')}</h2>
+        ${!paymentsEnabled ? `<p>${escapeHtml(plansI18n.payments_disabled_notice || 'Paid checkout is not enabled yet. Free access remains available.')}</p>` : ''}
+        <p>${escapeHtml(plansI18n.billing_note_renewal || 'Paid subscriptions renew monthly until canceled. You can manage or cancel billing in the billing portal where available.')}</p>
+        <p>${escapeHtml(plansI18n.billing_note_bundles || 'Bundles are one-time add-ons for the current billing period. Unused bundle credits expire at period end and do not roll over.')}</p>
+        <p>${escapeHtml(plansI18n.billing_note_refunds || 'Refund requests are reviewed through support and do not happen automatically when a subscription is canceled.')}</p>
       </section>
     </div>
     ${renderPublicPageFooter(webAppUrl)}

@@ -66,6 +66,41 @@ void (async function main() {
   assert.match(html, /Unlimited child profiles/);
   assert.doesNotMatch(html, /Story from drawing/);
   assert.doesNotMatch(html, /Image quality/);
+  assert.match(html, /Billing details/);
+  assert.match(html, /Paid subscriptions renew monthly until canceled/);
+  assert.match(html, /Unused bundle credits expire at period end and do not roll over/);
+
+  const paymentsDisabledHtml = renderPricingHtml({
+    locale: 'en',
+    paymentsEnabled: false,
+    plans: [
+      {
+        id: 'free',
+        slug: 'free',
+        name: 'Free',
+        description: 'Start here',
+        priceMonthly: 0,
+        pricingCurrency: 'USD',
+        sortOrder: 0,
+        features,
+      },
+      {
+        id: 'paid',
+        slug: 'family',
+        name: 'Family',
+        description: 'For launch families',
+        priceMonthly: 500,
+        pricingCurrency: 'USD',
+        sortOrder: 1,
+        features,
+      },
+    ],
+  });
+
+  const paidCard = paymentsDisabledHtml.slice(paymentsDisabledHtml.indexOf('Family'));
+  assert.match(paymentsDisabledHtml, /Paid checkout is not enabled yet/);
+  assert.match(paidCard, /Payments coming soon/);
+  assert.doesNotMatch(paidCard, /href="[^"]*\/welcome"/);
 
   console.log('pricingPresentation tests passed');
 })();

@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { normalizePublicSeoLocale, type PublicSeoLocale } from '@wondertales/shared';
 import { buildPlansWithFeatures, normalizePlanLocale } from '../services/planPresentationService';
 import { renderPricingHtml } from '../ssr/renderPricingHtml';
+import config from '../config';
 
 const router = Router();
 
@@ -29,7 +30,11 @@ async function handlePricing(req: Request, res: Response) {
     // Fallback to static pricing cards in renderPricingHtml
   }
 
-  const html = renderPricingHtml({ locale, plans });
+  const html = renderPricingHtml({
+    locale,
+    plans,
+    paymentsEnabled: config.features.enableRealPayments,
+  });
   const etag = buildPricingEtag(html);
   if (req.headers['if-none-match'] === etag) {
     res.status(304);

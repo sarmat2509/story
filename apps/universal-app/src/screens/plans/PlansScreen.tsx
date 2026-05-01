@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import {
-  usePlans,
+  usePlansCatalog,
   usePlansWithAuth,
   useUpgradePlan,
   useCreateCheckoutSession,
@@ -87,7 +87,7 @@ export default function PlansScreen() {
   }, [navigation]);
   
   // Fetch plans - use authenticated hook if logged in, otherwise public
-  const publicPlansQuery = usePlans();
+  const publicPlansQuery = usePlansCatalog();
   const authPlansQuery = usePlansWithAuth(isAuthenticated);
   
   // Select appropriate query based on auth state
@@ -98,7 +98,7 @@ export default function PlansScreen() {
 
   const plans = effectiveIsAuthenticated
     ? (authData && 'plans' in authData ? authData.plans : authData)
-    : publicPlansQuery.data;
+    : publicPlansQuery.data?.plans;
   const currentPlanSlug = useMemo(() => {
     if (!effectiveIsAuthenticated || !Array.isArray(plans)) return null;
     return (
@@ -113,13 +113,14 @@ export default function PlansScreen() {
   }, [bundlesQuery.data]);
   const enableRealPayments = effectiveIsAuthenticated && authData && 'enableRealPayments' in authData
     ? authData.enableRealPayments
-    : false;
+    : publicPlansQuery.data?.enableRealPayments ?? false;
   const isLoading = effectiveIsAuthenticated ? authPlansQuery.isLoading : publicPlansQuery.isLoading;
   const error = effectiveIsAuthenticated ? authPlansQuery.error : publicPlansQuery.error;
   
   // Handle upgrade: Stripe (web) or stub (mobile / when disabled)
   const handleUpgrade = async () => {
     if (!selectedPlan) return;
+    if (!enableRealPayments && selectedPlan.priceMonthly > 0) return;
 
     if (enableRealPayments && isWeb) {
       try {
@@ -283,6 +284,8 @@ export default function PlansScreen() {
         {plans?.map((plan, planIndex) => {
           const isCurrent = isAuthenticated && 'isCurrent' in plan && plan.isCurrent;
           const isFreePlan = plan.slug === 'free';
+          const isPaidPlan = plan.priceMonthly > 0;
+          const paidCtaDisabled = isPaidPlan && !enableRealPayments;
           const usageHighlight = getCombinedPricingUsageHighlight(
             pricingLocale,
             translatePricing,
@@ -378,6 +381,12 @@ export default function PlansScreen() {
                     {t('plans.your_plan')}
                   </Text>
                 </View>
+              ) : paidCtaDisabled ? (
+                <View style={styles.unavailablePlanButton}>
+                  <Text style={styles.unavailablePlanButtonText}>
+                    {t('plans.payments_disabled_button', { defaultValue: 'Payments coming soon' })}
+                  </Text>
+                </View>
               ) : buttonType === 'upgrade' ? (
                 <TouchableOpacity 
                   style={styles.upgradeButton}
@@ -416,6 +425,36 @@ export default function PlansScreen() {
           );
         })}
       </View>
+
+      <AnimatedSection delay={120} trigger={enterKey}>
+        <View style={styles.billingNotice}>
+          <Text style={styles.billingNoticeTitle}>
+            {t('plans.billing_note_title', { defaultValue: 'Billing details' })}
+          </Text>
+          {!enableRealPayments && (
+            <Text style={styles.billingNoticeText}>
+              {t('plans.payments_disabled_notice', {
+                defaultValue: 'Paid checkout is not enabled yet. Free access remains available while we finish billing verification.',
+              })}
+            </Text>
+          )}
+          <Text style={styles.billingNoticeText}>
+            {t('plans.billing_note_renewal', {
+              defaultValue: 'Paid subscriptions renew monthly until canceled. You can manage or cancel billing in the billing portal where available.',
+            })}
+          </Text>
+          <Text style={styles.billingNoticeText}>
+            {t('plans.billing_note_bundles', {
+              defaultValue: 'Bundles are one-time add-ons for the current billing period. Unused bundle credits expire at period end and do not roll over.',
+            })}
+          </Text>
+          <Text style={styles.billingNoticeText}>
+            {t('plans.billing_note_refunds', {
+              defaultValue: 'Refund requests are reviewed through support and do not happen automatically when a subscription is canceled.',
+            })}
+          </Text>
+        </View>
+      </AnimatedSection>
 
       {effectiveIsAuthenticated && (
         <AnimatedSection delay={80} trigger={enterKey}>
@@ -745,6 +784,40 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
+  },
+  unavailablePlanButton: {
+    backgroundColor: theme.colors.background.tertiary,
+    paddingVertical: theme.spacing[3],
+    borderRadius: theme.borders.radius.md,
+    alignItems: 'center',
+  },
+  unavailablePlanButtonText: {
+    color: theme.colors.text.tertiary,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  billingNotice: {
+    marginTop: theme.spacing[8],
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    padding: theme.spacing[5],
+    maxWidth: 920,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  billingNoticeTitle: {
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing[2],
+  },
+  billingNoticeText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 22,
+    marginTop: theme.spacing[2],
   },
   loadingText: {
     marginTop: theme.spacing[4],
