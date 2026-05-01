@@ -36,8 +36,10 @@ interface Props {
   childModeLabels?: ChildModeLabels;
   onChildModeEnabledChange?: (childId: string, enabled: boolean) => void;
   onChildModeSettingsChange?: (childId: string, settings: Partial<ChildModeSettings>) => void;
+  onEnterChildMode?: (childId: string, childName: string) => void;
   onRevokeChildModeSessions?: (childId: string, childName: string) => void;
   isChildModeUpdating?: boolean;
+  isEnteringChildMode?: boolean;
   isRevokingChildSessions?: boolean;
 }
 
@@ -63,6 +65,9 @@ interface ChildModeLabels {
   familyStories: string;
   activeSessions: string;
   revoke: string;
+  start: string;
+  starting: string;
+  enableToStart: string;
 }
 
 const DEFAULT_CHILD_MODE_SETTINGS: ChildModeSettings = {
@@ -161,8 +166,10 @@ export function ChildCard({
   childModeLabels,
   onChildModeEnabledChange,
   onChildModeSettingsChange,
+  onEnterChildMode,
   onRevokeChildModeSessions,
   isChildModeUpdating,
+  isEnteringChildMode,
   isRevokingChildSessions,
 }: Props) {
   const avatarUrl =
@@ -184,28 +191,30 @@ export function ChildCard({
 
   return (
     <View style={styles.cardWrapper}>
-      <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
-        <View style={[styles.imageContainer, imageContainerWebStyle]}>
-          {avatarUrl ? (
-            <Image
-              source={{ uri: formatAssetUrl(avatarUrl) ?? avatarUrl }}
-              style={styles.image}
-              resizeMode="contain"
-            />
-          ) : (
-            <View style={styles.placeholder}>
-              <Text style={styles.placeholderIcon}>👶</Text>
-            </View>
-          )}
-        </View>
-        <Text style={styles.name} numberOfLines={2}>
-          {child.name}
-        </Text>
-        {subline ? (
-          <Text style={styles.subline} numberOfLines={1}>
-            {subline}
+      <View style={styles.card}>
+        <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+          <View style={[styles.imageContainer, imageContainerWebStyle]}>
+            {avatarUrl ? (
+              <Image
+                source={{ uri: formatAssetUrl(avatarUrl) ?? avatarUrl }}
+                style={styles.image}
+                resizeMode="contain"
+              />
+            ) : (
+              <View style={styles.placeholder}>
+                <Text style={styles.placeholderIcon}>👶</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.name} numberOfLines={2}>
+            {child.name}
           </Text>
-        ) : null}
+          {subline ? (
+            <Text style={styles.subline} numberOfLines={1}>
+              {subline}
+            </Text>
+          ) : null}
+        </TouchableOpacity>
 
         {labels ? (
           <View style={styles.childModeSection}>
@@ -230,6 +239,27 @@ export function ChildCard({
             <Text style={styles.childModeStatus} numberOfLines={1}>
               {childModeEnabled ? labels.enabled : labels.disabled}
             </Text>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.startChildModeButton,
+                (!childModeEnabled || isEnteringChildMode || !onEnterChildMode) && styles.startChildModeButtonDisabled,
+                pressed && childModeEnabled && !isEnteringChildMode && styles.startChildModeButtonPressed,
+              ]}
+              disabled={!childModeEnabled || isEnteringChildMode || !onEnterChildMode}
+              onPress={() => onEnterChildMode?.(child.id, child.name)}
+            >
+              <Ionicons
+                name={isEnteringChildMode ? 'hourglass-outline' : 'play-circle-outline'}
+                size={18}
+                color={theme.colors.text.inverse}
+              />
+              <Text style={styles.startChildModeButtonText} numberOfLines={1}>
+                {childModeEnabled
+                  ? isEnteringChildMode ? labels.starting : labels.start
+                  : labels.enableToStart}
+              </Text>
+            </Pressable>
 
             <View style={styles.limitRow}>
               <LimitInput
@@ -293,7 +323,7 @@ export function ChildCard({
             </View>
           </View>
         ) : null}
-      </TouchableOpacity>
+      </View>
 
       {onDelete && (
         <Pressable
@@ -324,6 +354,10 @@ const styles = StyleSheet.create<{
   childModeTitleRow: ViewStyle;
   childModeTitle: TextStyle;
   childModeStatus: TextStyle;
+  startChildModeButton: ViewStyle;
+  startChildModeButtonDisabled: ViewStyle;
+  startChildModeButtonPressed: ViewStyle;
+  startChildModeButtonText: TextStyle;
   limitRow: ViewStyle;
   limitField: ViewStyle;
   limitLabel: TextStyle;
@@ -412,6 +446,27 @@ const styles = StyleSheet.create<{
   childModeStatus: {
     fontSize: theme.typography.fontSize.xs,
     color: theme.colors.text.tertiary,
+  },
+  startChildModeButton: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.interactive.primary,
+    paddingHorizontal: theme.spacing[3],
+  },
+  startChildModeButtonDisabled: {
+    opacity: 0.55,
+  },
+  startChildModeButtonPressed: {
+    opacity: 0.85,
+  },
+  startChildModeButtonText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
   },
   limitRow: {
     flexDirection: 'row',

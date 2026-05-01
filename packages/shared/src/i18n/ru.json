@@ -962,8 +962,26 @@
     "child_mode_family_stories": "Семейные истории",
     "child_mode_active_sessions": "Активные сессии",
     "child_mode_revoke_sessions": "Отозвать",
+    "child_mode_start": "Запустить детский режим",
+    "child_mode_starting": "Запускаем...",
+    "child_mode_enable_to_start": "Включите для запуска",
     "delete_confirm_title": "Удалить профиль ребёнка?",
     "delete_confirm_message": "Вы уверены, что хотите удалить {{name}}? Профиль будет удалён."
+  },
+  "child_mode": {
+    "title": "Детский режим",
+    "subtitle": "Для этого ребёнка открыт отдельный безопасный режим. Родительские разделы остаются закрытыми, пока взрослый не вернётся.",
+    "child_fallback_name": "Ребёнок",
+    "return_to_parent": "Вернуться в родительскую зону",
+    "sign_out": "Выйти",
+    "signed_in_as": "Аккаунт:",
+    "parent_gate_title": "Родительский доступ",
+    "parent_gate_subtitle": "Введите пароль аккаунта, чтобы открыть родительские настройки.",
+    "parent_gate_password_placeholder": "Пароль аккаунта",
+    "parent_gate_unlock": "Открыть",
+    "parent_gate_wrong_password": "Этот пароль не открыл родительский доступ.",
+    "parent_gate_unavailable": "Для этого аккаунта пока нет входа по паролю. Выйдите и войдите снова как родитель.",
+    "parent_gate_failed": "Не удалось открыть родительский доступ. Попробуйте ещё раз."
   },
   "gender_values": {
     "girl": "Девочка",

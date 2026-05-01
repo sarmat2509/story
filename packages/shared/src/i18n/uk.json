@@ -1169,8 +1169,26 @@
     "child_mode_family_stories": "Сімейні історії",
     "child_mode_active_sessions": "Активні сесії",
     "child_mode_revoke_sessions": "Відкликати",
+    "child_mode_start": "Запустити дитячий режим",
+    "child_mode_starting": "Запускаємо...",
+    "child_mode_enable_to_start": "Увімкніть для запуску",
     "delete_confirm_title": "Видалити профіль дитини?",
     "delete_confirm_message": "Ви впевнені, що хочете видалити {{name}}? Профіль буде видалено."
+  },
+  "child_mode": {
+    "title": "Дитячий режим",
+    "subtitle": "Для цієї дитини відкрито окремий безпечний режим. Батьківські розділи залишаються закритими, доки дорослий не повернеться.",
+    "child_fallback_name": "Дитина",
+    "return_to_parent": "Повернутися до батьківської зони",
+    "sign_out": "Вийти",
+    "signed_in_as": "Акаунт:",
+    "parent_gate_title": "Батьківський доступ",
+    "parent_gate_subtitle": "Введіть пароль акаунта, щоб відкрити батьківські налаштування.",
+    "parent_gate_password_placeholder": "Пароль акаунта",
+    "parent_gate_unlock": "Відкрити",
+    "parent_gate_wrong_password": "Цей пароль не відкрив батьківський доступ.",
+    "parent_gate_unavailable": "Для цього акаунта поки немає входу за паролем. Вийдіть і увійдіть знову як дорослий.",
+    "parent_gate_failed": "Не вдалося відкрити батьківський доступ. Спробуйте ще раз."
   },
   "gender_values": {
     "girl": "Дівчинка",

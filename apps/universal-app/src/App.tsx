@@ -161,6 +161,7 @@ const linking: any = {
   config: {
     screens: {
       ModeSelection: 'mode-selection',
+      ChildMode: 'child-mode',
       Main: {
         path: '',
         screens: {

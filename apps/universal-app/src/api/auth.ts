@@ -8,6 +8,9 @@ import { getActivePaletteId, setActivePaletteId } from '@/theme/activePalette';
 // Use shared types
 type User = UserApi;
 type AuthResponse = AuthResponseApi;
+type ParentGateResponse = AuthResponse & {
+  sessionMode: 'parent';
+};
 
 /**
  * Mirror the user's server-side theme palette preference into the local
@@ -137,6 +140,29 @@ export const useAppleLogin = () => {
       await storage.setUser(data.user);
       login(data.user, data.token);
       syncPaletteFromUser(data.user);
+    },
+  });
+};
+
+export const useParentGate = () => {
+  const queryClient = useQueryClient();
+  const { returnToParentSession } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async (data: { password: string }) => {
+      const response = await apiClient.post<ParentGateResponse>(
+        '/api/v1/auth/parent-gate',
+        data,
+        { skipAuthLogoutOn401: true }
+      );
+      return response.data;
+    },
+    onSuccess: async (data) => {
+      await storage.setAuthToken(data.token);
+      await storage.setUser(data.user);
+      syncPaletteFromUser(data.user);
+      queryClient.clear();
+      returnToParentSession(data.user, data.token);
     },
   });
 };

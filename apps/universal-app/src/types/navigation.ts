@@ -2,6 +2,7 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
   ModeSelection: undefined;
+  ChildMode: undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   Admin: NavigatorScreenParams<AdminStackParamList> | undefined;
 };

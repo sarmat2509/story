@@ -6,12 +6,13 @@ import { theme } from '@/theme';
 import MainNavigator from './MainNavigator';
 import AdminNavigator from '@/admin/navigation/AdminNavigator';
 import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
+import ChildModeScreen from '@/screens/childMode/ChildModeScreen';
 import type { RootStackParamList } from '@/types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
-  const { isAuthenticated, isLoading, user } = useAuthStore();
+  const { isAuthenticated, isLoading, user, sessionMode } = useAuthStore();
   
   // Check if user needs to select a mode
   const needsModeSelection = isAuthenticated && !user?.mode;
@@ -25,9 +26,10 @@ export default function RootNavigator() {
     );
   }
 
-  const navigatorKey = needsModeSelection ? 'mode-selection' : 'main';
+  const isChildSession = isAuthenticated && sessionMode === 'child';
+  const navigatorKey = isChildSession ? 'child-mode' : needsModeSelection ? 'mode-selection' : 'main';
 
-  const initialRoute = needsModeSelection ? 'ModeSelection' : 'Main';
+  const initialRoute = isChildSession ? 'ChildMode' : needsModeSelection ? 'ModeSelection' : 'Main';
 
   return (
     <Stack.Navigator
@@ -35,11 +37,16 @@ export default function RootNavigator() {
       screenOptions={{ headerShown: false }}
       initialRouteName={initialRoute}
     >
+      <Stack.Screen name="ChildMode" component={ChildModeScreen} />
       <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
-      <Stack.Screen name="Main" component={MainNavigator} />
-      {Platform.OS === 'web' ? (
-        <Stack.Screen name="Admin" component={AdminNavigator} />
-      ) : null}
+      {isChildSession ? null : (
+        <>
+          <Stack.Screen name="Main" component={MainNavigator} />
+          {Platform.OS === 'web' ? (
+            <Stack.Screen name="Admin" component={AdminNavigator} />
+          ) : null}
+        </>
+      )}
     </Stack.Navigator>
   );
 }

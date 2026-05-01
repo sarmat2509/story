@@ -6,6 +6,8 @@ import {
   UpdateChildModeControlsInput,
 } from '@wondertales/shared';
 import apiClient from './client';
+import { useAuthStore } from '@/store/authStore';
+import { storage } from '@/utils/storage';
 
 // Use shared type
 type ChildProfile = ChildProfileApi;
@@ -133,6 +135,7 @@ export const useUpdateChildModeControls = () => {
 
 export const useEnterChildMode = () => {
   const queryClient = useQueryClient();
+  const { enterChildSession } = useAuthStore();
 
   return useMutation({
     mutationFn: async (id: string) => {
@@ -141,9 +144,10 @@ export const useEnterChildMode = () => {
       );
       return response.data;
     },
-    onSuccess: (_result, id) => {
-      queryClient.invalidateQueries({ queryKey: ['children'] });
-      queryClient.invalidateQueries({ queryKey: ['children', id, 'child-mode'] });
+    onSuccess: async (result) => {
+      await storage.setAuthToken(result.token);
+      queryClient.clear();
+      enterChildSession(result.token, result.child);
     },
   });
 };

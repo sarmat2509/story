@@ -984,8 +984,26 @@
     "child_mode_family_stories": "Family stories",
     "child_mode_active_sessions": "Active sessions",
     "child_mode_revoke_sessions": "Revoke",
+    "child_mode_start": "Start Child Mode",
+    "child_mode_starting": "Starting...",
+    "child_mode_enable_to_start": "Enable to start",
     "delete_confirm_title": "Delete child profile?",
     "delete_confirm_message": "Are you sure you want to delete {{name}}? The profile will be removed."
+  },
+  "child_mode": {
+    "title": "Child Mode",
+    "subtitle": "A focused space is active for this child. Parent areas stay locked until an adult returns.",
+    "child_fallback_name": "Child",
+    "return_to_parent": "Return to parent area",
+    "sign_out": "Sign out",
+    "signed_in_as": "Account:",
+    "parent_gate_title": "Parent gate",
+    "parent_gate_subtitle": "Enter the account password to unlock parent controls.",
+    "parent_gate_password_placeholder": "Account password",
+    "parent_gate_unlock": "Unlock",
+    "parent_gate_wrong_password": "That password did not unlock parent controls.",
+    "parent_gate_unavailable": "This account does not have a password gate yet. Sign out and sign in again as the parent.",
+    "parent_gate_failed": "Could not unlock parent controls. Please try again."
   },
   "gender_values": {
     "girl": "Girl",

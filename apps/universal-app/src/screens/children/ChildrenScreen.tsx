@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
-import { useChildren, useDeleteChild, useRevokeChildModeSessions, useUpdateChildModeControls } from '@/api/children';
+import { useChildren, useDeleteChild, useEnterChildMode, useRevokeChildModeSessions, useUpdateChildModeControls } from '@/api/children';
 import { ChildFormModal } from '@/components/ChildFormModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
@@ -52,6 +52,7 @@ export default function ChildrenScreen() {
   const { data, isLoading, error } = useChildren();
   const deleteChild = useDeleteChild();
   const updateChildModeControls = useUpdateChildModeControls();
+  const enterChildMode = useEnterChildMode();
   const revokeChildModeSessions = useRevokeChildModeSessions();
   const columns = useColumns();
   const paddingHorizontal = theme.spacing[6] * 2;
@@ -89,6 +90,9 @@ export default function ChildrenScreen() {
     familyStories: t('children_screen.child_mode_family_stories'),
     activeSessions: t('children_screen.child_mode_active_sessions'),
     revoke: t('children_screen.child_mode_revoke_sessions'),
+    start: t('children_screen.child_mode_start'),
+    starting: t('children_screen.child_mode_starting'),
+    enableToStart: t('children_screen.child_mode_enable_to_start'),
   };
 
   const handleEditChild = (child: Record<string, unknown>) => {
@@ -123,6 +127,10 @@ export default function ChildrenScreen() {
 
   const handleRevokeChildModeSessions = (childId: string) => {
     revokeChildModeSessions.mutate(childId);
+  };
+
+  const handleEnterChildMode = (childId: string) => {
+    enterChildMode.mutate(childId);
   };
 
   const confirmDelete = () => {
@@ -208,8 +216,10 @@ export default function ChildrenScreen() {
                   childModeLabels={childModeLabels}
                   onChildModeEnabledChange={handleChildModeEnabledChange}
                   onChildModeSettingsChange={handleChildModeSettingsChange}
+                  onEnterChildMode={handleEnterChildMode}
                   onRevokeChildModeSessions={handleRevokeChildModeSessions}
                   isChildModeUpdating={updateChildModeControls.isPending}
+                  isEnteringChildMode={enterChildMode.isPending && enterChildMode.variables === childId}
                   isRevokingChildSessions={revokeChildModeSessions.isPending}
                 />
               );

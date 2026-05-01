@@ -81,12 +81,12 @@ Remaining P0 bottlenecks:
 - Production-only web checks are still required: `wondertales.art`, `www.wondertales.art`, HTTPS redirect, TLS certificate, real nginx/proxy behavior, and production SSR route status.
 - Google OAuth and password-reset email must be verified against production callback URLs, sender domain/DNS, and real email delivery. Apple is hidden on web, but native/mobile Apple remains out of this web launch scope.
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
-- Child Mode backend now has scoped sessions, parent controls, child-safe story request enforcement, attribution, and password parent-gate API. The full product is still not ready because parent gate UI, OAuth-only gate fallback, start/return UX, and parent review workflow UI remain.
+- Child Mode now has scoped sessions, parent controls, child-safe story request enforcement, attribution, password parent-gate API, and a start/return UI shell. The full product is still not ready because the child-safe generation UI, richer OAuth-only gate fallback, allowed content selectors, and parent review workflow UI remain.
 - CI/release gating now exists locally and in CI for API build, web type-check/export, critical tests, migration-file checks, and client-bundle secret scans; it still needs to be proven on the real production deployment path.
 
 Solutions not yet applied:
 
-- No parent gate UI, OAuth-only gate fallback, or parent review workflow UI is implemented yet.
+- No child-safe generation UI, richer OAuth-only gate fallback, allowed content selector UI, or parent review workflow UI is implemented yet.
 - No scheduled production orphan-file cleanup policy/job is enabled yet; a dry-run scanner exists.
 - No production-domain secrets/client-bundle scan has been recorded after deploy.
 - No live production-domain CSP/security-header capture has been recorded after deploy.
@@ -333,6 +333,8 @@ Done:
 - Parent-only child-mode endpoints can read/update controls, enter Child Mode by creating a child session, and revoke active child sessions for a child profile.
 - `/children` includes normalized child-mode controls and active child-session counts.
 - `/children` UI now exposes Child Mode enablement, daily/monthly limits, free-text/audio/review/family-story toggles, active child-session counts, and session revocation.
+- `/children` can now start Child Mode for enabled child profiles, and child sessions render a dedicated Child Mode shell with parent app navigation hidden.
+- Parent gate UI now lets password-authenticated adults return from Child Mode without logging out; OAuth-only accounts get a safe sign-out recovery path.
 - `story_requests` and `stories` now carry child-mode attribution and parent review fields; the async story pipeline propagates these fields when a child-created request is introduced.
 - `requireChildSession` and `requireSessionScope` middleware are available for future child-safe endpoints.
 - `POST /api/v1/stories/child-mode` creates queued story requests from scoped child sessions and enforces child-mode profile, free-text, theme, language, character, sibling, and daily/monthly limit controls.
@@ -340,9 +342,9 @@ Done:
 
 Remaining:
 
-- Parent gate UI is not implemented yet, and OAuth-only accounts still need a non-password gate path.
-- Parent controls are enforced for the child-safe generation route, but UI start/return flow and review-management UI are not complete.
-- `/children` still needs allowed-theme/language/character/sibling controls and a safe start/return gate before Child Mode is user-facing.
+- OAuth-only accounts still need a non-password parent gate path.
+- Parent controls are enforced for the child-safe generation route, but child story creation UI and review-management UI are not complete.
+- `/children` still needs allowed-theme/language/character/sibling controls before Child Mode is fully user-facing.
 - Child-created story marking is schema/service-ready and wired to the child-safe generation endpoint, but still needs parent review workflow UI.
 
 If children can use the app themselves, they must do so inside a supervised mode controlled by an adult account.
