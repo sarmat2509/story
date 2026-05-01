@@ -1,6 +1,8 @@
 export const DEFAULT_LANDING_LOCALE = 'uk' as const;
 export const LANDING_LOCALES = ['uk', 'ru', 'en', 'es', 'de', 'fr', 'pl'] as const;
 export type LandingLocale = typeof LANDING_LOCALES[number];
+export const PUBLIC_SEO_LOCALES = ['uk', 'en'] as const satisfies readonly LandingLocale[];
+export type PublicSeoLocale = typeof PUBLIC_SEO_LOCALES[number];
 
 type PlanSlug = 'free' | 'silver' | 'golden' | 'fairyworld';
 
@@ -1920,7 +1922,7 @@ export function getLandingUrl(webAppUrl: string, locale?: string | null): string
 
 export function buildLandingAlternateLinks(webAppUrl: string): string {
   const defaultUrl = escapeHtml(getLandingUrl(webAppUrl, DEFAULT_LANDING_LOCALE));
-  const alternates = LANDING_LOCALES.map((locale) => {
+  const alternates = PUBLIC_SEO_LOCALES.map((locale) => {
     const href = escapeHtml(getLandingUrl(webAppUrl, locale));
     return `<link rel="alternate" hreflang="${locale}" href="${href}">`;
   });

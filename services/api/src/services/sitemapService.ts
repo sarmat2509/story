@@ -8,7 +8,7 @@ import { getStoryRepository } from '../repositories';
 import { getRedisClient } from '../utils/redisClient';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { getLandingUrl, LANDING_LOCALES } from '../ssr/landingContent';
+import { getLandingUrl, PUBLIC_SEO_LOCALES } from '../ssr/landingContent';
 
 function getPricingUrl(webAppUrl: string, locale: string): string {
   const base = webAppUrl.replace(/\/$/, '');
@@ -47,13 +47,13 @@ export async function generateSitemapXml(): Promise<string> {
       return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.8</priority>\n  </url>`;
     });
 
-  const landingUrls = LANDING_LOCALES.map((locale) => {
+  const landingUrls = PUBLIC_SEO_LOCALES.map((locale) => {
     const loc = escapeXml(getLandingUrl(webAppUrl || 'https://wondertales.art', locale));
     const priority = locale === 'uk' ? '1.0' : '0.9';
     return `  <url>\n    <loc>${loc}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
   });
 
-  const pricingUrls = LANDING_LOCALES.map((locale) => {
+  const pricingUrls = PUBLIC_SEO_LOCALES.map((locale) => {
     const loc = escapeXml(getPricingUrl(webAppUrl || 'https://wondertales.art', locale));
     const priority = locale === 'uk' ? '0.95' : '0.85';
     return `  <url>\n    <loc>${loc}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;

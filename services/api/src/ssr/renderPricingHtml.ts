@@ -1,7 +1,7 @@
 import { config } from '../config';
 import type { PresentedPlan, PresentedPlanFeature } from '../services/planPresentationService';
 import { getPlansI18n } from '../utils/i18nLoader';
-import { LANDING_LOCALES, normalizeLandingLocale, type LandingLocale } from './landingContent';
+import { PUBLIC_SEO_LOCALES, normalizeLandingLocale, type LandingLocale } from './landingContent';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import { PUBLIC_FOOTER_STYLES, renderPublicPageFooter } from './publicPageFooter';
 
@@ -83,7 +83,7 @@ function getWelcomeUrl(webAppUrl: string, locale?: string | null): string {
 
 function buildPricingAlternateLinks(webAppUrl: string): string {
   const defaultUrl = escapeHtml(getPricingUrl(webAppUrl, 'uk'));
-  const alternates = LANDING_LOCALES.map((locale) => (
+  const alternates = PUBLIC_SEO_LOCALES.map((locale) => (
     `<link rel="alternate" hreflang="${locale}" href="${escapeHtml(getPricingUrl(webAppUrl, locale))}">`
   ));
   alternates.push(`<link rel="alternate" hreflang="x-default" href="${defaultUrl}">`);

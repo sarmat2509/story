@@ -147,11 +147,12 @@ Done:
 - Child data/photo flows require explicit child data consent.
 - Public publishing requires explicit publish consent and safety checks.
 - Consent records store user, consent type, document version, timestamp, and audit context.
+- Public SEO locale exposure is now limited to `uk` and `en`, matching the current launch-ready legal content set.
 
 Remaining:
 
 - Finalize the legal operator/entity/Merchant-of-Record disclosure before paid launch.
-- Add real legal content for every indexed launch locale, or keep unsupported legal locale alternates out of indexing.
+- Add real legal content before adding any more indexed launch locale beyond `uk` and `en`.
 - Child self-use consent remains blocked by the unfinished Child Mode product flow.
 - Cookie/analytics consent UI still needs a jurisdiction review before broader public acquisition.
 
@@ -628,6 +629,7 @@ Required code changes:
 - Add `X-Robots-Tag: noindex,nofollow` for app-only route prefixes at nginx or app-server level.
 - Return real 404/noindex for unknown public routes instead of serving the SPA shell with HTTP 200.
 - Split public SEO locales from app-supported story languages. Sitemap, alternate links, and nginx localized SSR routes must use only launch-ready SEO locales.
+- Current launch SEO locale set is `uk` default plus `en`; app/story languages can remain broader without becoming indexable public SEO locales.
 
 Acceptance criteria:
 
@@ -714,8 +716,8 @@ Current risk:
 Required work:
 
 - Decide launch UI locales.
-- Decide launch SEO locales separately from app-supported story languages.
-- Hide incomplete UI locales from selectors, sitemap, SSR alternate links, and nginx localized SEO routes.
+- Decide launch SEO locales separately from app-supported story languages. Current code uses `uk` and `en` only for public SEO routes.
+- Hide incomplete UI locales from selectors, sitemap, SSR alternate links, and nginx localized SEO routes. Sitemap, SSR alternate links, and nginx localized SSR routes now use only `uk`/`en`.
 - Ensure every launch SEO locale has real translations for public SSR entry points:
   - landing;
   - pricing;
