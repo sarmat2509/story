@@ -109,6 +109,31 @@ export const userFeedback = pgTable('user_feedback', {
 export type UserFeedback = typeof userFeedback.$inferSelect;
 export type NewUserFeedback = typeof userFeedback.$inferInsert;
 
+// Data privacy request queue for export/deletion support workflows
+export const dataPrivacyRequests = pgTable('data_privacy_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  requesterEmail: varchar('requester_email', { length: 255 }),
+  requestType: varchar('request_type', { length: 20 }).notNull(), // 'export' | 'deletion'
+  status: varchar('status', { length: 20 }).notNull().default('open'), // 'open' | 'in_review' | 'fulfilled' | 'rejected' | 'canceled'
+  message: text('message'),
+  adminNotes: text('admin_notes'),
+  reviewedByUserId: uuid('reviewed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  fulfilledAt: timestamp('fulfilled_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index('data_privacy_requests_user_id_idx').on(table.userId, table.createdAt),
+    statusIdx: index('data_privacy_requests_status_idx').on(table.status, table.createdAt),
+    requestTypeIdx: index('data_privacy_requests_request_type_idx').on(table.requestType, table.createdAt),
+  };
+});
+
+export type DataPrivacyRequest = typeof dataPrivacyRequests.$inferSelect;
+export type NewDataPrivacyRequest = typeof dataPrivacyRequests.$inferInsert;
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;

@@ -21,6 +21,12 @@ import {
   updateAdminVoiceActive,
 } from '../services/adminService';
 import { updateAdminUserSettings } from '../services/adminUserService';
+import {
+  DATA_PRIVACY_REQUEST_STATUSES,
+  DATA_PRIVACY_REQUEST_TYPES,
+  listAdminDataPrivacyRequests,
+  updateAdminDataPrivacyRequest,
+} from '../services/dataPrivacyRequestService';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -39,6 +45,18 @@ const FeedbackListQuerySchema = ListQuerySchema.extend({
   hasScreenshot: z.coerce.boolean().optional(),
 });
 
+const DataPrivacyRequestListQuerySchema = ListQuerySchema.extend({
+  requestType: z.enum(DATA_PRIVACY_REQUEST_TYPES).optional(),
+  status: z.enum(DATA_PRIVACY_REQUEST_STATUSES).optional(),
+});
+
+const UpdateDataPrivacyRequestBodySchema = z
+  .object({
+    status: z.enum(DATA_PRIVACY_REQUEST_STATUSES),
+    adminNotes: z.string().max(2000).nullable().optional(),
+  })
+  .strict();
+
 const DashboardQuerySchema = z.object({
   days: z.coerce.number().int().min(0).max(3650).default(30),
 });
@@ -49,6 +67,10 @@ const StoryIdParamsSchema = z.object({
 
 const UserIdParamsSchema = z.object({
   userId: z.string().uuid(),
+});
+
+const DataPrivacyRequestIdParamsSchema = z.object({
+  requestId: z.string().uuid(),
 });
 
 const VoiceIdParamsSchema = z.object({
@@ -592,6 +614,92 @@ router.get('/feedback', async (req: Request, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to list feedback',
+    });
+  }
+});
+
+router.get('/privacy-requests', async (req: Request, res: Response) => {
+  try {
+    const parsed = DataPrivacyRequestListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid query',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const { limit, offset, requestType, status, search } = parsed.data;
+    const data = await listAdminDataPrivacyRequests({
+      limit,
+      offset,
+      requestType,
+      status,
+      search,
+    });
+
+    return res.json({
+      status: 'success',
+      data,
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin privacy requests list failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to list privacy requests',
+    });
+  }
+});
+
+router.patch('/privacy-requests/:requestId', async (req: Request, res: Response) => {
+  try {
+    const parsedParams = DataPrivacyRequestIdParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid params',
+        details: parsedParams.error.flatten(),
+      });
+    }
+
+    const parsedBody = UpdateDataPrivacyRequestBodySchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid body',
+        details: parsedBody.error.flatten(),
+      });
+    }
+
+    const data = await updateAdminDataPrivacyRequest({
+      requestId: parsedParams.data.requestId,
+      status: parsedBody.data.status,
+      adminNotes: parsedBody.data.adminNotes,
+      actorUserId: req.user!.id,
+    });
+
+    if (!data) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Privacy request not found',
+      });
+    }
+
+    logger.info({
+      adminUserId: req.user?.id,
+      requestId: data.id,
+      status: data.status,
+    }, 'Admin privacy request updated');
+
+    return res.json({
+      status: 'success',
+      data,
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin privacy request update failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to update privacy request',
     });
   }
 });

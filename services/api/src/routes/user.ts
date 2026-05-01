@@ -5,6 +5,11 @@ import { requireAuth, requireParentSession } from '../middleware/authMiddleware'
 import { getUserWithOAuth, updateUser, deleteUser, countUserOAuthIdentities } from '../services/userService';
 import { getUserSessions, deleteSession } from '../services/sessionService';
 import { unlinkOAuthProvider } from '../services/oauthService';
+import {
+  DATA_PRIVACY_REQUEST_TYPES,
+  createDataPrivacyRequest,
+  listUserDataPrivacyRequests,
+} from '../services/dataPrivacyRequestService';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -19,6 +24,13 @@ const updateUserSchema = z.object({
   aboutMe: z.string().max(1000).nullable().optional(),
   themePalette: z.enum(THEME_PALETTE_IDS).optional(),
 });
+
+const DataPrivacyRequestBodySchema = z
+  .object({
+    requestType: z.enum(DATA_PRIVACY_REQUEST_TYPES),
+    message: z.string().max(2000).nullable().optional(),
+  })
+  .strict();
 
 // Get current user
 router.get('/', requireAuth, requireParentSession, async (req: Request, res: Response) => {
@@ -96,6 +108,62 @@ router.delete('/', requireAuth, requireParentSession, async (req: Request, res: 
     res.status(500).json({
       status: 'error',
       message: 'Failed to delete account',
+    });
+  }
+});
+
+// List current user's data privacy requests
+router.get('/privacy-requests', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+  try {
+    const requests = await listUserDataPrivacyRequests(req.user!.id);
+
+    res.json({
+      status: 'success',
+      data: requests,
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'List data privacy requests failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to list privacy requests',
+    });
+  }
+});
+
+// Create export/deletion support request
+router.post('/privacy-requests', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+  try {
+    const parsed = DataPrivacyRequestBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid request data',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const request = await createDataPrivacyRequest({
+      userId: req.user!.id,
+      requesterEmail: req.user!.email,
+      requestType: parsed.data.requestType,
+      message: parsed.data.message,
+    });
+
+    logger.info({
+      userId: req.user!.id,
+      requestId: request.id,
+      requestType: request.requestType,
+    }, 'Data privacy request created');
+
+    return res.status(201).json({
+      status: 'success',
+      data: request,
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Create data privacy request failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to create privacy request',
     });
   }
 });

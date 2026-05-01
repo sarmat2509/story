@@ -87,7 +87,7 @@ Remaining P0 bottlenecks:
 Solutions not yet applied:
 
 - No complete parent-control policy engine for child sessions.
-- No support/admin workflow for data export requests and no background orphan-file cleanup job.
+- No automated data export package generator and no background orphan-file cleanup job.
 - No production secrets/client-bundle scan has been recorded.
 - No final CSP allowlist review against production analytics/payment/OAuth domains has been recorded.
 
@@ -454,7 +454,7 @@ Acceptance criteria:
 
 ### 8. Data Deletion and Retention
 
-Status on 2026-05-01: Core deletion behavior is ready; support/export/orphan cleanup remains.
+Status on 2026-05-01: Core deletion behavior and support/admin request intake are ready; export fulfillment automation and orphan cleanup remain.
 
 Done:
 
@@ -463,10 +463,12 @@ Done:
 - Child profile deletion hard-deletes unused profiles and anonymizes used profiles while scrubbing child-specific fields/assets.
 - Child profile deletion revokes active sessions attached to that child profile.
 - Deletion tests exist for story, account, and child profile behavior.
+- Parent-only data privacy request endpoints now let users create/list export or deletion requests.
+- Admin-only privacy request endpoints now let support list/filter and mark requests `open`, `in_review`, `fulfilled`, `rejected`, or `canceled`.
 
 Remaining:
 
-- Support/admin process for data export requests is not implemented.
+- Actual export package generation/delivery is still a manual support operation after an admin marks an export request in review/fulfilled.
 - Background cleanup for orphaned files is not implemented.
 - Billing-record retention needs final legal/operator confirmation before paid launch.
 
