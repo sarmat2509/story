@@ -605,7 +605,7 @@ Current code findings:
 - Public author avatar files can be served without auth only when the requested profile image matches the author's public avatar and the author has at least one public catalog story.
 - `sitemap.xml` now includes default-locale `/authors/:authorId` URLs derived only from the same public catalog story rows used for `/stories/:slug`.
 - `/terms` and `/privacy` are SSR, but only `en` and `uk` markdown files exist. Other launch locales must either get legal content or stay out of indexed/legal alternate routes.
-- Local Docker logs after author SSR checks show successful author/avatar responses; dev nginx still emits non-fatal IPv6 fallback warnings for `host.docker.internal:8082` before retrying successfully.
+- Local Docker logs after route checks show successful public/app responses; dev nginx now resolves Metro with IPv6 disabled to avoid noisy `host.docker.internal:8082` fallback warnings.
 
 Required public route contract:
 
