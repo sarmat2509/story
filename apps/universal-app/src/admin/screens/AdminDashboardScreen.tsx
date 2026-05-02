@@ -7,6 +7,7 @@ import {
   type AdminDashboardDailyPoint,
   type AdminDashboardImageBucket,
   type AdminDashboardOperationBreakdown,
+  type AdminDashboardStatus,
 } from '@/admin/api/admin';
 import { AdminLayout } from '@/admin/components/AdminLayout';
 import { AdminErrorState, AdminLoadingState } from '@/admin/components/AdminState';
@@ -59,6 +60,23 @@ function formatDateLabel(value: string) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function formatShortId(value: string | null) {
+  if (!value) return 'None';
+  return `${value.slice(0, 8)}...`;
+}
+
+function statusLabel(status: AdminDashboardStatus) {
+  if (status === 'critical') return 'Critical';
+  if (status === 'warning') return 'Warning';
+  return 'Healthy';
+}
+
+function statusTone(status: AdminDashboardStatus): 'success' | 'warning' | 'critical' {
+  if (status === 'critical') return 'critical';
+  if (status === 'warning') return 'warning';
+  return 'success';
+}
+
 function formatBucketLabel(bucket: string) {
   if (bucket === '0') return 'No images';
   if (bucket === '1') return '1 image';
@@ -88,13 +106,15 @@ function MetricCard({
   label: string;
   value: string;
   helper?: string;
-  tone?: 'default' | 'success' | 'warning';
+  tone?: 'default' | 'success' | 'warning' | 'critical';
 }) {
   const toneStyle =
     tone === 'success'
       ? styles.metricCardSuccess
       : tone === 'warning'
         ? styles.metricCardWarning
+        : tone === 'critical'
+          ? styles.metricCardCritical
         : null;
 
   return (
@@ -279,6 +299,15 @@ function buildOperationBars(items: AdminDashboardOperationBreakdown[]) {
   }));
 }
 
+function buildQueueBars(queues: Array<{ name: string; queued: number; processing: number; failed: number; maxConcurrency: number }>) {
+  return queues.map((item) => ({
+    key: item.name,
+    label: item.name,
+    value: item.queued,
+    helper: `${formatNumber(item.processing)} active • ${formatNumber(item.failed)} failed • ${formatNumber(item.maxConcurrency)} concurrency`,
+  }));
+}
+
 export default function AdminDashboardScreen() {
   const navigation = useNavigation<NavigationProp<AdminStackParamList>>();
   const [days, setDays] = useState<number>(30);
@@ -362,6 +391,62 @@ export default function AdminDashboardScreen() {
               value={formatDuration(overview.avgGenerationTimeMs)}
               helper={`${formatCompactNumber(overview.avgWordCount)} words/story • ${formatPercent(overview.audioAttachRate)} with audio`}
             />
+            <MetricCard
+              label="Cost guardrail"
+              value={statusLabel(data.costControls.status)}
+              helper={`${formatUsd(data.costControls.projectedMonthlyCostUsd)} projected monthly • ${formatNumber(data.costControls.highCostStoryCount)} high-cost stories`}
+              tone={statusTone(data.costControls.status)}
+            />
+            <MetricCard
+              label="Queue backlog"
+              value={formatNumber(data.queueHealth.totalQueued)}
+              helper={`${formatNumber(data.queueHealth.totalProcessing)} active • warn at ${formatNumber(data.queueHealth.thresholdQueued)} queued`}
+              tone={statusTone(data.queueHealth.status)}
+            />
+          </View>
+
+          <View style={styles.sectionGrid}>
+            <SectionCard
+              title="Cost guardrails"
+              subtitle={`Story warn ${formatUsd(data.costControls.thresholds.storyWarnUsd)} • daily warn ${formatUsd(data.costControls.thresholds.dailyWarnUsd)} • monthly warn ${formatUsd(data.costControls.thresholds.monthlyWarnUsd)}`}
+            >
+              <View style={styles.highlightList}>
+                <View style={styles.highlightItem}>
+                  <Text style={styles.highlightLabel}>Daily average spend</Text>
+                  <Text style={styles.highlightValue}>{formatUsd(data.costControls.dailyAverageCostUsd)}</Text>
+                </View>
+                <View style={styles.highlightItem}>
+                  <Text style={styles.highlightLabel}>Projected monthly spend</Text>
+                  <Text style={styles.highlightValue}>{formatUsd(data.costControls.projectedMonthlyCostUsd)}</Text>
+                </View>
+                <View style={styles.highlightItem}>
+                  <Text style={styles.highlightLabel}>Max story cost</Text>
+                  <Text style={styles.highlightValue}>{formatUsd(data.costControls.maxStoryCostUsd)}</Text>
+                </View>
+                <View style={styles.highlightItem}>
+                  <Text style={styles.highlightLabel}>Unpriced AI events</Text>
+                  <Text style={styles.highlightValue}>{formatNumber(data.costControls.unpricedEventCount)}</Text>
+                </View>
+                <View style={styles.highlightItem}>
+                  <Text style={styles.highlightLabel}>Top user cost, 24h</Text>
+                  <Text style={styles.highlightValue}>
+                    {formatUsd(data.costControls.topUser24hCostUsd)} • {formatShortId(data.costControls.topUser24hUserId)}
+                  </Text>
+                </View>
+              </View>
+            </SectionCard>
+
+            <SectionCard
+              title="Queue depth"
+              subtitle="Live in-memory text, image, audio, and legacy queue pressure"
+            >
+              <HorizontalBreakdown
+                items={buildQueueBars(data.queueHealth.queues)}
+                color={theme.colors.warning[500]}
+                labelFormatter={prettifyBreakdownValue}
+                valueFormatter={formatNumber}
+              />
+            </SectionCard>
           </View>
 
           <View style={styles.sectionGrid}>
@@ -540,6 +625,9 @@ const styles = StyleSheet.create({
   },
   metricCardWarning: {
     borderColor: theme.colors.warning[500],
+  },
+  metricCardCritical: {
+    borderColor: theme.colors.error[500],
   },
   metricLabel: {
     fontSize: 12,

@@ -470,6 +470,14 @@ export const config = {
     pollIntervalMs: parseInt(process.env.QUEUE_POLL_INTERVAL_MS || '1000', 10),
   },
 
+  costControls: {
+    storyWarnUsd: parseFloat(process.env.COST_CONTROL_STORY_WARN_USD || '1.25'),
+    dailyWarnUsd: parseFloat(process.env.COST_CONTROL_DAILY_WARN_USD || '25'),
+    monthlyWarnUsd: parseFloat(process.env.COST_CONTROL_MONTHLY_WARN_USD || '500'),
+    userDailyWarnUsd: parseFloat(process.env.COST_CONTROL_USER_DAILY_WARN_USD || '15'),
+    queueDepthWarn: parseInt(process.env.COST_CONTROL_QUEUE_DEPTH_WARN || '20', 10),
+  },
+
   // Text Generation Rate Limiting
   text: {
     rpmDefaultLimit: parseInt(process.env.TEXT_RPM_DEFAULT_LIMIT || '10', 10),

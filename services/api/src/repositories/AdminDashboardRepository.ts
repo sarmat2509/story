@@ -1,6 +1,13 @@
 import { sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
+import { config } from '../config';
+import {
+  classifyCostControlStatus,
+  normalizeCostControlThresholds,
+  type CostControlStatus,
+  type CostControlThresholds,
+} from '../services/costControlService';
 
 export type AdminDashboardOverview = {
   totalStories: number;
@@ -56,9 +63,24 @@ export type AdminDashboardBreakdownItem = {
   share: number;
 };
 
+export type AdminDashboardCostControls = {
+  status: CostControlStatus;
+  thresholds: CostControlThresholds;
+  dailyAverageCostUsd: number;
+  projectedMonthlyCostUsd: number;
+  highCostStoryCount: number;
+  maxStoryCostUsd: number;
+  unpricedEventCount: number;
+  topUser24hUserId: string | null;
+  topUser24hCostUsd: number;
+  topUser24hEventCount: number;
+  topUser24hStoryCount: number;
+};
+
 export type AdminDashboardData = {
   rangeDays: number;
   overview: AdminDashboardOverview;
+  costControls: AdminDashboardCostControls;
   daily: AdminDashboardDailyPoint[];
   costByImageCount: AdminDashboardImageBucket[];
   costByOperation: AdminDashboardCostOperation[];
@@ -81,9 +103,17 @@ export class AdminDashboardRepository {
       : sql``;
   }
 
+  private buildUnpricedAiUsageWhereClause(days: number) {
+    return days > 0
+      ? sql`WHERE aue.created_at >= NOW() - (${days} * INTERVAL '1 day') AND aue.cost_usd IS NULL`
+      : sql`WHERE aue.cost_usd IS NULL`;
+  }
+
   async getDashboard(days: number): Promise<AdminDashboardData> {
     const storyWhereClause = this.buildStoryWhereClause(days);
     const requestWhereClause = this.buildRequestWhereClause(days);
+    const unpricedAiUsageWhereClause = this.buildUnpricedAiUsageWhereClause(days);
+    const thresholds = normalizeCostControlThresholds(config.costControls);
 
     const overviewResult = await this.db.execute(sql`
       WITH story_base AS (
@@ -365,13 +395,66 @@ export class AdminDashboardRepository {
       LIMIT 8
     `);
 
+    const costControlResult = await this.db.execute(sql`
+      WITH story_base AS (
+        SELECT s.id
+        FROM stories s
+        ${storyWhereClause}
+      ),
+      cost_by_story AS (
+        SELECT
+          sb.id AS story_id,
+          COALESCE(SUM(aue.cost_usd), 0)::numeric AS total_cost_usd
+        FROM story_base sb
+        LEFT JOIN ai_usage_events aue ON aue.story_id = sb.id
+        GROUP BY sb.id
+      ),
+      story_costs AS (
+        SELECT
+          COUNT(*) FILTER (WHERE total_cost_usd >= ${thresholds.storyWarnUsd})::int AS high_cost_story_count,
+          COALESCE(MAX(total_cost_usd), 0)::numeric AS max_story_cost_usd
+        FROM cost_by_story
+      ),
+      unpriced_events AS (
+        SELECT COUNT(*)::int AS unpriced_event_count
+        FROM ai_usage_events aue
+        ${unpricedAiUsageWhereClause}
+      ),
+      top_user_24h AS (
+        SELECT
+          aue.user_id,
+          COALESCE(SUM(aue.cost_usd), 0)::numeric AS total_cost_usd,
+          COUNT(*)::int AS event_count,
+          COUNT(DISTINCT aue.story_id)::int AS story_count
+        FROM ai_usage_events aue
+        WHERE aue.user_id IS NOT NULL
+          AND aue.created_at >= NOW() - INTERVAL '24 hours'
+        GROUP BY aue.user_id
+        ORDER BY total_cost_usd DESC, event_count DESC
+        LIMIT 1
+      )
+      SELECT
+        sc.high_cost_story_count,
+        sc.max_story_cost_usd,
+        ue.unpriced_event_count,
+        tu.user_id AS top_user_24h_user_id,
+        COALESCE(tu.total_cost_usd, 0)::numeric AS top_user_24h_cost_usd,
+        COALESCE(tu.event_count, 0)::int AS top_user_24h_event_count,
+        COALESCE(tu.story_count, 0)::int AS top_user_24h_story_count
+      FROM story_costs sc
+      CROSS JOIN unpriced_events ue
+      LEFT JOIN top_user_24h tu ON true
+    `);
+
     const overviewRows = (overviewResult.rows ?? []) as Array<Record<string, unknown>>;
     const dailyRows = (dailyResult.rows ?? []) as Array<Record<string, unknown>>;
     const costByImageCountRows = (costByImageCountResult.rows ?? []) as Array<Record<string, unknown>>;
     const costByOperationRows = (costByOperationResult.rows ?? []) as Array<Record<string, unknown>>;
     const languageRows = (languagesResult.rows ?? []) as Array<Record<string, unknown>>;
     const imageStyleRows = (imageStylesResult.rows ?? []) as Array<Record<string, unknown>>;
+    const costControlRows = (costControlResult.rows ?? []) as Array<Record<string, unknown>>;
     const overviewRow = overviewRows[0] ?? {};
+    const costControlRow = costControlRows[0] ?? {};
 
     const totalStories = Number(overviewRow.total_stories ?? 0);
     const totalRequests = Number(overviewRow.total_requests ?? 0);
@@ -424,6 +507,41 @@ export class AdminDashboardRepository {
       totalCostUsd: Number(row.total_cost_usd ?? 0),
     }));
 
+    const dailyAverageDenominator = days > 0 ? Math.max(days, 1) : Math.max(dailyRows.length, 1);
+    const dailyAverageCostUsd = overview.totalCostUsd / dailyAverageDenominator;
+    const projectedMonthlyCostUsd = dailyAverageCostUsd * 30;
+    const highCostStoryCount = Number(costControlRow.high_cost_story_count ?? 0);
+    const maxStoryCostUsd = Number(costControlRow.max_story_cost_usd ?? 0);
+    const unpricedEventCount = Number(costControlRow.unpriced_event_count ?? 0);
+    const topUser24hCostUsd = Number(costControlRow.top_user_24h_cost_usd ?? 0);
+
+    const costControls: AdminDashboardCostControls = {
+      status: classifyCostControlStatus(
+        {
+          projectedMonthlyCostUsd,
+          dailyAverageCostUsd,
+          highCostStoryCount,
+          maxStoryCostUsd,
+          unpricedEventCount,
+          topUser24hCostUsd,
+        },
+        thresholds
+      ),
+      thresholds,
+      dailyAverageCostUsd,
+      projectedMonthlyCostUsd,
+      highCostStoryCount,
+      maxStoryCostUsd,
+      unpricedEventCount,
+      topUser24hUserId:
+        typeof costControlRow.top_user_24h_user_id === 'string'
+          ? costControlRow.top_user_24h_user_id
+          : null,
+      topUser24hCostUsd,
+      topUser24hEventCount: Number(costControlRow.top_user_24h_event_count ?? 0),
+      topUser24hStoryCount: Number(costControlRow.top_user_24h_story_count ?? 0),
+    };
+
     const toBreakdown = (rows: any[]): AdminDashboardBreakdownItem[] =>
       rows.map((row) => {
         const storyCount = Number(row.story_count ?? 0);
@@ -439,6 +557,7 @@ export class AdminDashboardRepository {
     return {
       rangeDays: days,
       overview,
+      costControls,
       daily,
       costByImageCount,
       costByOperation,

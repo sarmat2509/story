@@ -149,6 +149,45 @@ export type AdminDashboardOverview = {
   audioAttachRate: number;
 };
 
+export type AdminDashboardStatus = 'healthy' | 'warning' | 'critical';
+
+export type AdminDashboardCostControls = {
+  status: AdminDashboardStatus;
+  thresholds: {
+    storyWarnUsd: number;
+    dailyWarnUsd: number;
+    monthlyWarnUsd: number;
+    userDailyWarnUsd: number;
+    queueDepthWarn: number;
+  };
+  dailyAverageCostUsd: number;
+  projectedMonthlyCostUsd: number;
+  highCostStoryCount: number;
+  maxStoryCostUsd: number;
+  unpricedEventCount: number;
+  topUser24hUserId: string | null;
+  topUser24hCostUsd: number;
+  topUser24hEventCount: number;
+  topUser24hStoryCount: number;
+};
+
+export type AdminDashboardQueueHealth = {
+  status: AdminDashboardStatus;
+  thresholdQueued: number;
+  totalQueued: number;
+  totalProcessing: number;
+  totalFailed: number;
+  queues: Array<{
+    name: string;
+    total: number;
+    queued: number;
+    processing: number;
+    completed: number;
+    failed: number;
+    maxConcurrency: number;
+  }>;
+};
+
 export type AdminDashboardDailyPoint = {
   date: string;
   storyCount: number;
@@ -183,6 +222,8 @@ export type AdminDashboardBreakdownItem = {
 export type AdminDashboardData = {
   rangeDays: number;
   overview: AdminDashboardOverview;
+  costControls: AdminDashboardCostControls;
+  queueHealth: AdminDashboardQueueHealth;
   daily: AdminDashboardDailyPoint[];
   costByImageCount: AdminDashboardImageBucket[];
   costByOperation: AdminDashboardOperationBreakdown[];

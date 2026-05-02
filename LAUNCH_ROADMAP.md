@@ -1053,13 +1053,21 @@ Acceptance criteria:
 
 ### 4. Cost Controls
 
-Required work:
+Status on 2026-05-02: Admin-visible cost guardrails and live queue pressure are now deployed. The dashboard tracks generation cost per story, retry/failure cost signals, high-cost story count, unpriced AI usage events, projected monthly spend, top-user 24h spend, and text/image/audio/legacy queue depth. Production smoke confirmed the API fields, dashboard rendering, browser console, and API docker logs.
 
-- Track generation cost per story.
-- Track failed/retry cost.
+Completed locally:
+
+- Cost-control thresholds are configurable through environment variables with conservative defaults.
+- Admin dashboard data includes daily average spend, projected monthly spend, max story cost, high-cost story count, unpriced AI event count, and top-user 24h spend.
+- Admin dashboard data includes live queue health for text, image, audio, and legacy queues.
+- Admin UI shows cost guardrail status and queue backlog status with healthy/warning/critical bands.
+- Launch gate now runs the focused cost-control service regression.
+- Production `/admin/dashboard` DevTools smoke verified the new dashboard sections after deploy.
+
+Remaining work:
+
 - Alert on unusual usage.
 - Rate-limit high-cost endpoints.
-- Add queue depth monitoring.
 - Add per-user abuse detection.
 
 Acceptance criteria:

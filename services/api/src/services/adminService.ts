@@ -12,7 +12,10 @@ import {
   getUserRepository,
   getVoiceRepository,
 } from '../repositories';
+import { textQueue, imageQueue, audioQueue, storyJobQueue } from '../jobs/storyJobProcessor';
 import type { AdminConfigResource } from '../repositories/AdminConfigRepository';
+import { config } from '../config';
+import { classifyQueueStatus, normalizeCostControlThresholds } from './costControlService';
 import { getAssetStorageService } from './assetStorageService';
 import {
   getImageValidationById,
@@ -31,7 +34,41 @@ import { clearStoryAudioData, type ClearStoryAudioResult } from './storyAudioCle
 import { logger } from '../utils/logger';
 
 export async function getAdminDashboard(days: number) {
-  return getAdminDashboardRepository().getDashboard(days);
+  const dashboard = await getAdminDashboardRepository().getDashboard(days);
+  const thresholds = normalizeCostControlThresholds(config.costControls);
+  const queueStats = [
+    textQueue.getStats(),
+    imageQueue.getStats(),
+    audioQueue.getStats(),
+    {
+      name: 'legacy',
+      maxConcurrency: 1,
+      ...storyJobQueue.getStats(),
+    },
+  ];
+  const totalQueued = queueStats.reduce((sum, item) => sum + item.queued, 0);
+  const totalProcessing = queueStats.reduce((sum, item) => sum + item.processing, 0);
+  const totalFailed = queueStats.reduce((sum, item) => sum + item.failed, 0);
+
+  return {
+    ...dashboard,
+    queueHealth: {
+      status: classifyQueueStatus(totalQueued, thresholds.queueDepthWarn),
+      thresholdQueued: thresholds.queueDepthWarn,
+      totalQueued,
+      totalProcessing,
+      totalFailed,
+      queues: queueStats.map((item) => ({
+        name: item.name,
+        total: item.total,
+        queued: item.queued,
+        processing: item.processing,
+        completed: item.completed,
+        failed: item.failed,
+        maxConcurrency: item.maxConcurrency,
+      })),
+    },
+  };
 }
 
 export async function listAdminStories(params: {
