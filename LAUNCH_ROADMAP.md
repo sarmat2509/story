@@ -89,7 +89,7 @@ Completed or ready for closed-beta verification:
 - A production password-reset email was requested for an owned Gmail-backed production account, delivered to Gmail, and its reset link opened the production reset screen successfully.
 - Email/password login and registration now reset the web app to `/dashboard` after a successful auth mutation; DevTools verified the production redirect in a clean browser context.
 - Real production Google OAuth completed with a Google account: the callback returned to the app, the user was authenticated, an app route opened, and `/api/v1/me` returned the current user without sensitive fields.
-- Google OAuth callback logging was hardened so token-bearing app callback URLs are no longer written to API logs; the web callback also clears the token from the URL immediately and uses the shared authenticated-route reset helper.
+- Google OAuth callback logging was hardened and deployed so token-bearing app callback URLs are no longer written to API logs; the web callback also clears the token from the URL immediately and uses the shared authenticated-route reset helper.
 - Stripe bundle checkout now works even when no static Stripe bundle Price ID is configured, using inline Checkout `price_data` derived from the production bundle catalog.
 
 Remaining P0 bottlenecks:
@@ -313,7 +313,7 @@ Done:
 - Welcome and password-reset emails share the branded transactional renderer, so future account emails can reuse one layout and support/reply-to behavior.
 - A production account registered with a Gmail address received the password-reset email in Gmail, and the reset link loaded the production reset screen.
 - Real production Google OAuth completed through the callback, persisted the session, opened an authenticated app route, and returned a safe `/api/v1/me` user response.
-- Google OAuth callback logs no longer include token-bearing callback URLs, and launch-gate coverage now guards this behavior.
+- Google OAuth callback logs no longer include token-bearing callback URLs, launch-gate coverage now guards this behavior, and the fix was deployed with post-deploy auth/log checks.
 - Deployed `/welcome`, `/register`, `/auth/forgot-password`, and `/auth/reset-password?token=bad` return app-shell HTML with `noindex,nofollow` in the production smoke script.
 - Full production smoke re-ran with a temporary account and covered login, authenticated APIs, read-only admin APIs, Stripe checkout-session creation, hosted Checkout loading, and DevTools checks for `/profile`, `/wizard`, `/admin/dashboard`, and `/settings/language`.
 

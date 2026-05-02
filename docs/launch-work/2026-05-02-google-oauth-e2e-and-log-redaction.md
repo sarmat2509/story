@@ -31,11 +31,22 @@ before continuing launch work.
   first-login error; only known web/runtime warnings were present.
 - `pnpm --filter wondertales-api exec tsx src/routes/__tests__/oauthCallbackSafety.test.ts`
   passed.
+- `pnpm --filter wondertales-api build`, `pnpm --filter wondertales-universal-app type-check`,
+  `pnpm --filter wondertales-universal-app build:web`, and `./scripts/launch-gate.sh`
+  passed.
+- Deployed API and web with `./scripts/deploy.sh --api --web`; all migrations were
+  already applied.
+- `./scripts/check-production-auth.sh` passed with `0` failures and `0` warnings.
+- Fresh post-deploy API logs only showed Google OAuth strategy startup and
+  Google/Gemini API-key selection notices; no OAuth callback, email, or backend
+  error was present.
+- Fresh post-deploy nginx/web logs only showed the expected smoke-test `400` for
+  an intentionally invalid reset token.
+- DevTools verified `/api/v1/me` from an authenticated production app page returns
+  `200` with no sensitive user fields.
 
 ## Follow-Up
 
-- Redeploy API and web so production logs stop recording token-bearing callback
-  URLs.
 - If the first-login alert appears again after redeploy, capture the browser
   console immediately from the OAuth callback tab; server logs did not show a
   corresponding backend failure.
