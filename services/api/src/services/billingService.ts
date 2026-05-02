@@ -135,23 +135,35 @@ export async function createBundleCheckoutSession(
     plan.slug,
     priceRow.stripePriceId
   );
-  if (!stripePriceId) {
-    throw new Error(
-      `No Stripe price for bundle ${bundleSlug} on plan ${plan.slug}. Set plan_bundle_prices.stripe_price_id or STRIPE_BUNDLE_PRICE_IDS.`
-    );
-  }
 
   const customerId = await getOrCreateStripeCustomer(userId, email);
   const stripe = getStripe();
 
   const periodStart = subscription.currentPeriodStart;
   const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
+  const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = stripePriceId
+    ? { price: stripePriceId, quantity: 1 }
+    : {
+        price_data: {
+          currency: priceRow.pricingCurrency.toLowerCase(),
+          unit_amount: priceRow.priceMinor,
+          product_data: {
+            name: bundle.name,
+            description: `${bundle.extraStories} extra stories and ${bundle.extraAudio} extra audio stories`,
+            metadata: {
+              bundleSlug: bundle.slug,
+              planSlug: plan.slug,
+            },
+          },
+        },
+        quantity: 1,
+      };
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: 'payment',
     payment_method_types: ['card'],
-    line_items: [{ price: stripePriceId, quantity: 1 }],
+    line_items: [lineItem],
     success_url: successUrl,
     cancel_url: cancelUrl,
     metadata: {
