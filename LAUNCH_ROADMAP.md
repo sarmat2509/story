@@ -1159,21 +1159,19 @@ Acceptance criteria:
 
 ## Current Live-Site Snapshot
 
-Observed on 2026-05-01:
+Observed on 2026-05-02 after the latest web/API deployment and production verification refresh:
 
-- Landing page at `https://wondertales.art/` returns 200 and renders Ukrainian SSR content.
-- English landing page at `https://wondertales.art/en/` returns 200 and renders English SSR content.
-- Public sample story pages return SSR content with Open Graph metadata.
-- `robots.txt` currently allows all paths.
-- `sitemap.xml` includes all public locales, pricing routes, story catalog, and sample stories.
-- `/privacy` body is `Content not available.`
-- `/terms` is unstable and content is not available when it renders.
-- `/pricing` and `/en/pricing` are unstable or broken.
-- Auth routes return SPA shell with generic metadata.
-- Unknown routes return SPA shell with HTTP 200.
-- `www.wondertales.art` has a TLS certificate mismatch.
-- CORS reflects arbitrary origins with credentials.
-- PWA manifest still uses `Kazka+`.
+- `./scripts/check-production-smoke.sh` with authenticated QA user, admin read-only checks, and Stripe test checkout creation passed with `0` failures and `0` warnings.
+- Ukrainian and English SSR landing, pricing, stories catalog, terms, and privacy pages return 200 with deterministic `html[lang]`, canonical URLs, `uk`/`en` hreflang alternates, and no incomplete locale alternates.
+- `/support` returns SSR HTML with the support address and `noindex,follow`.
+- App-only and auth routes return SPA HTML with `noindex,nofollow`.
+- Public stories, public author pages, share cards, sitemap entries, legacy public endpoint deprecation headers, and missing unlisted routes passed the production smoke.
+- CORS no longer reflects an untrusted `Origin`.
+- Public and authenticated API smoke checks passed for `/api/v1`, plans, dictionaries, `/api/v1/me`, library, subscription usage, privacy requests, children, characters, entitlements, bundles, and voices.
+- Admin read-only API smoke checks passed for detailed health, queue health, image rate limiter, dashboard, stories, users, feedback, privacy requests, voices, image validations, and content config.
+- Production DevTools screen sweep rendered the main authenticated screens, public stories catalog, and admin screens without runtime console errors.
+- A Stripe sandbox bundle payment completed through hosted Checkout, returned to `/billing/success?kind=bundle&session_id=...`, and the webhook recorded a `user_bundle_grant`.
+- Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Remaining log noise is nginx temporary-buffer warnings for large static/media responses.
 
 ## Recommended Launch Gates
 
