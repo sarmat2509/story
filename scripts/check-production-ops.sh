@@ -9,6 +9,7 @@
 # Usage:
 #   ./scripts/check-production-ops.sh
 #   ./scripts/check-production-ops.sh --backup-smoke
+#   ./scripts/check-production-ops.sh --local
 #   EXPECTED_STRIPE_MODE=live ./scripts/check-production-ops.sh
 
 set -euo pipefail
@@ -29,6 +30,7 @@ LOG_SERVICES="${LOG_SERVICES:-api webapp nginx}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 EXPECTED_STRIPE_MODE="${EXPECTED_STRIPE_MODE:-test}"
 RUN_BACKUP_SMOKE=0
+RUN_LOCAL=0
 
 SSH_CONTROL_PATH="/tmp/wondertales-ops-ssh-ctl-$$"
 SSH_OPTS="-o ControlMaster=auto -o ControlPath=${SSH_CONTROL_PATH} -o ControlPersist=120 -o BatchMode=no"
@@ -40,36 +42,62 @@ for arg in "$@"; do
     --backup-smoke)
       RUN_BACKUP_SMOKE=1
       ;;
+    --local)
+      RUN_LOCAL=1
+      ;;
     -h|--help)
       sed -n '1,18p' "$0"
       exit 0
       ;;
     *)
       echo "Unknown argument: $arg" >&2
-      echo "Usage: $0 [--backup-smoke]" >&2
+      echo "Usage: $0 [--backup-smoke] [--local]" >&2
       exit 1
       ;;
   esac
 done
 
 cleanup() {
-  ssh -O exit -o ControlPath="${SSH_CONTROL_PATH}" "${DROPLET_USER}@${DROPLET_IP}" 2>/dev/null || true
+  if [[ "$RUN_LOCAL" != "1" ]]; then
+    ssh -O exit -o ControlPath="${SSH_CONTROL_PATH}" "${DROPLET_USER}@${DROPLET_IP}" 2>/dev/null || true
+  fi
 }
 
 trap cleanup EXIT
 
 echo "Production ops readiness check"
-echo "Target: ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}"
+if [[ "$RUN_LOCAL" == "1" ]]; then
+  echo "Target: local:${DROPLET_PATH}"
+else
+  echo "Target: ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}"
+fi
 if [[ "$RUN_BACKUP_SMOKE" == "1" ]]; then
   echo "Mode: backup smoke enabled"
 else
   echo "Mode: read-only"
 fi
 
-ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" true
+run_check_body() {
+  if [[ "$RUN_LOCAL" == "1" ]]; then
+    DROPLET_PATH="${DROPLET_PATH}" \
+    COMPOSE_FILE="${COMPOSE_FILE}" \
+    MIN_ROOT_FREE_MB="${MIN_ROOT_FREE_MB}" \
+    MIN_DOCKER_FREE_MB="${MIN_DOCKER_FREE_MB}" \
+    MIN_PROJECT_FREE_MB="${MIN_PROJECT_FREE_MB}" \
+    LOG_SINCE="${LOG_SINCE}" \
+    LOG_SERVICES="${LOG_SERVICES}" \
+    RUN_BACKUP_SMOKE="${RUN_BACKUP_SMOKE}" \
+    BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS}" \
+    EXPECTED_STRIPE_MODE="${EXPECTED_STRIPE_MODE}" \
+    bash -s
+  else
+    ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" true < /dev/null
+    ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" \
+      "DROPLET_PATH='${DROPLET_PATH}' COMPOSE_FILE='${COMPOSE_FILE}' MIN_ROOT_FREE_MB='${MIN_ROOT_FREE_MB}' MIN_DOCKER_FREE_MB='${MIN_DOCKER_FREE_MB}' MIN_PROJECT_FREE_MB='${MIN_PROJECT_FREE_MB}' LOG_SINCE='${LOG_SINCE}' LOG_SERVICES='${LOG_SERVICES}' RUN_BACKUP_SMOKE='${RUN_BACKUP_SMOKE}' BACKUP_RETENTION_DAYS='${BACKUP_RETENTION_DAYS}' EXPECTED_STRIPE_MODE='${EXPECTED_STRIPE_MODE}' bash -s"
+  fi
+}
 
-ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" \
-  "DROPLET_PATH='${DROPLET_PATH}' COMPOSE_FILE='${COMPOSE_FILE}' MIN_ROOT_FREE_MB='${MIN_ROOT_FREE_MB}' MIN_DOCKER_FREE_MB='${MIN_DOCKER_FREE_MB}' MIN_PROJECT_FREE_MB='${MIN_PROJECT_FREE_MB}' LOG_SINCE='${LOG_SINCE}' LOG_SERVICES='${LOG_SERVICES}' RUN_BACKUP_SMOKE='${RUN_BACKUP_SMOKE}' BACKUP_RETENTION_DAYS='${BACKUP_RETENTION_DAYS}' EXPECTED_STRIPE_MODE='${EXPECTED_STRIPE_MODE}' bash -s" <<'REMOTE'
+run_check_body <<'REMOTE'
 set -u
 
 failures=0

@@ -29,6 +29,7 @@
     "launch:check-production-ops:backup-smoke": "bash scripts/check-production-ops.sh --backup-smoke",
     "launch:monitor-production-ops": "bash scripts/monitor-production-ops.sh",
     "launch:run-production-backup-retention": "bash scripts/run-production-backup-retention.sh",
+    "launch:install-production-ops-cron": "bash scripts/install-production-ops-cron.sh",
     "launch:check-production-admin-alerts": "bash scripts/check-production-admin-alerts.sh",
     "lint": "pnpm -r lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",

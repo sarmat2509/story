@@ -9,6 +9,7 @@
 # Usage:
 #   ./scripts/run-production-backup-retention.sh
 #   ./scripts/run-production-backup-retention.sh --apply --skip-offsite
+#   ./scripts/run-production-backup-retention.sh --local --apply --skip-offsite
 #   OFFSITE_BACKUP_RCLONE_TARGET=remote:wondertales/prod ./scripts/run-production-backup-retention.sh --apply
 
 set -euo pipefail
@@ -31,6 +32,7 @@ RUN_APPLY=0
 INCLUDE_DB=1
 INCLUDE_UPLOADS=1
 SKIP_OFFSITE=0
+RUN_LOCAL=0
 
 SSH_CONTROL_PATH="/tmp/wondertales-backup-ssh-ctl-$$"
 SSH_OPTS="-o ControlMaster=auto -o ControlPath=${SSH_CONTROL_PATH} -o ControlPersist=120 -o BatchMode=no"
@@ -60,6 +62,9 @@ for arg in "$@"; do
     --skip-offsite)
       SKIP_OFFSITE=1
       ;;
+    --local)
+      RUN_LOCAL=1
+      ;;
     -h|--help)
       usage
       exit 0
@@ -78,23 +83,47 @@ if [[ "$INCLUDE_DB" != "1" && "$INCLUDE_UPLOADS" != "1" ]]; then
 fi
 
 cleanup() {
-  ssh -O exit -o ControlPath="${SSH_CONTROL_PATH}" "${DROPLET_USER}@${DROPLET_IP}" 2>/dev/null || true
+  if [[ "$RUN_LOCAL" != "1" ]]; then
+    ssh -O exit -o ControlPath="${SSH_CONTROL_PATH}" "${DROPLET_USER}@${DROPLET_IP}" 2>/dev/null || true
+  fi
 }
 
 trap cleanup EXIT
 
 echo "Production backup retention"
-echo "Target: ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}"
+if [[ "$RUN_LOCAL" == "1" ]]; then
+  echo "Target: local:${DROPLET_PATH}"
+else
+  echo "Target: ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}"
+fi
 if [[ "$RUN_APPLY" == "1" ]]; then
   echo "Mode: apply"
 else
   echo "Mode: dry-run"
 fi
 
-ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" true
+run_backup_body() {
+  if [[ "$RUN_LOCAL" == "1" ]]; then
+    DROPLET_PATH="${DROPLET_PATH}" \
+    COMPOSE_FILE="${COMPOSE_FILE}" \
+    RUN_APPLY="${RUN_APPLY}" \
+    INCLUDE_DB="${INCLUDE_DB}" \
+    INCLUDE_UPLOADS="${INCLUDE_UPLOADS}" \
+    SKIP_OFFSITE="${SKIP_OFFSITE}" \
+    BACKUP_PREFIX="${BACKUP_PREFIX}" \
+    BACKUP_LOCAL_RETENTION_DAYS="${BACKUP_LOCAL_RETENTION_DAYS}" \
+    BACKUP_OFFSITE_RETENTION_DAYS="${BACKUP_OFFSITE_RETENTION_DAYS}" \
+    OFFSITE_BACKUP_RCLONE_TARGET="${OFFSITE_BACKUP_RCLONE_TARGET}" \
+    BACKUP_ARCHIVE_IMAGE="${BACKUP_ARCHIVE_IMAGE}" \
+    bash -s
+  else
+    ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" true < /dev/null
+    ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" \
+      "DROPLET_PATH='${DROPLET_PATH}' COMPOSE_FILE='${COMPOSE_FILE}' RUN_APPLY='${RUN_APPLY}' INCLUDE_DB='${INCLUDE_DB}' INCLUDE_UPLOADS='${INCLUDE_UPLOADS}' SKIP_OFFSITE='${SKIP_OFFSITE}' BACKUP_PREFIX='${BACKUP_PREFIX}' BACKUP_LOCAL_RETENTION_DAYS='${BACKUP_LOCAL_RETENTION_DAYS}' BACKUP_OFFSITE_RETENTION_DAYS='${BACKUP_OFFSITE_RETENTION_DAYS}' OFFSITE_BACKUP_RCLONE_TARGET='${OFFSITE_BACKUP_RCLONE_TARGET}' BACKUP_ARCHIVE_IMAGE='${BACKUP_ARCHIVE_IMAGE}' bash -s"
+  fi
+}
 
-ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" \
-  "DROPLET_PATH='${DROPLET_PATH}' COMPOSE_FILE='${COMPOSE_FILE}' RUN_APPLY='${RUN_APPLY}' INCLUDE_DB='${INCLUDE_DB}' INCLUDE_UPLOADS='${INCLUDE_UPLOADS}' SKIP_OFFSITE='${SKIP_OFFSITE}' BACKUP_PREFIX='${BACKUP_PREFIX}' BACKUP_LOCAL_RETENTION_DAYS='${BACKUP_LOCAL_RETENTION_DAYS}' BACKUP_OFFSITE_RETENTION_DAYS='${BACKUP_OFFSITE_RETENTION_DAYS}' OFFSITE_BACKUP_RCLONE_TARGET='${OFFSITE_BACKUP_RCLONE_TARGET}' BACKUP_ARCHIVE_IMAGE='${BACKUP_ARCHIVE_IMAGE}' bash -s" <<'REMOTE'
+run_backup_body <<'REMOTE'
 set -euo pipefail
 
 pass() {

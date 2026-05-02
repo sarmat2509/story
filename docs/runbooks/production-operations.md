@@ -108,6 +108,28 @@ Example crontab:
 
 The webhook payload is plain JSON with a `text` field, so it can be used with Slack-style webhooks, Discord-compatible relays, or a small custom endpoint.
 
+For the single-droplet launch setup, install droplet-local cron jobs from the tracked installer:
+
+```bash
+pnpm launch:install-production-ops-cron -- --dry-run
+pnpm launch:install-production-ops-cron -- --apply
+```
+
+The installer uploads the ops scripts to `/var/www/kazka/scripts` and writes `/etc/cron.d/wondertales-production-ops`. The installed commands use `--local`, so cron on the droplet runs Docker/health/log checks directly instead of opening SSH back to the same server.
+
+Default installed jobs:
+
+- daily `run-production-backup-retention.sh --local --apply --skip-offsite` with one-day local retention;
+- `monitor-production-ops.sh --local` every 30 minutes with output in `/var/www/kazka/logs/production-ops-monitor.log`.
+
+Admin dashboard alerts are opt-in:
+
+```bash
+pnpm launch:install-production-ops-cron -- --apply --include-admin-alerts
+```
+
+Only enable that after `/etc/wondertales/admin-alert.env` contains the admin alert token or credentials and `ADMIN_ALERT_WEBHOOK_URL` or `OPS_ALERT_WEBHOOK_URL`.
+
 ## Admin dashboard alerts
 
 Use the admin dashboard checker when cost, queue, or quality-review signals should notify an external system instead of relying only on manual dashboard review:
@@ -205,6 +227,8 @@ Run it from a trusted scheduler once per day. Example crontab on the operator ma
 ```cron
 15 2 * * * cd /path/to/story && mkdir -p logs && OFFSITE_BACKUP_RCLONE_TARGET=remote:wondertales/prod ./scripts/run-production-backup-retention.sh --apply >> logs/production-backup-retention.log 2>&1
 ```
+
+On the droplet itself, use the installer above. It schedules the same backup runner in `--local` mode and skips offsite delivery until a real rclone target is configured.
 
 `scripts/check-production-ops.sh` warns when it cannot find a backup retention scheduler reference or an `OFFSITE_BACKUP_RCLONE_TARGET` reference on the droplet. If scheduling runs from a separate ops host, keep that host's scheduler documented in the launch notes and expect the droplet-local check to warn.
 

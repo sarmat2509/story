@@ -8,6 +8,7 @@
 # Usage:
 #   OPS_ALERT_WEBHOOK_URL=https://example.com/webhook ./scripts/monitor-production-ops.sh
 #   OPS_ALERT_WEBHOOK_URL=https://example.com/webhook OPS_ALERT_ON_WARNINGS=1 ./scripts/monitor-production-ops.sh --backup-smoke
+#   ./scripts/monitor-production-ops.sh --local
 #   ./scripts/monitor-production-ops.sh --test-alert --dry-run-alert
 
 set -euo pipefail
@@ -36,6 +37,9 @@ for arg in "$@"; do
       ;;
     --backup-smoke)
       CHECK_ARGS+=("--backup-smoke")
+      ;;
+    --local)
+      CHECK_ARGS+=("--local")
       ;;
     --dry-run-alert)
       DRY_RUN_ALERT=1

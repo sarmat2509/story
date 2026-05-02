@@ -989,6 +989,7 @@ Completed locally and in production:
 - The production ops check now warns when backup retention, offsite backup target, ops monitor, or admin dashboard alert scheduler references are not discoverable on the droplet.
 - Production ops, backup retention, ops monitor, and admin-dashboard alert scripts now have `pnpm launch:*` entrypoints, and their argument parsers tolerate pnpm's `--` separator.
 - Production ops log coverage now scans api/webapp/nginx by default, with `LOG_SERVICES` available for focused checks.
+- Production ops scripts now support droplet-local `--local` execution, and `pnpm launch:install-production-ops-cron` installed daily backup retention plus 30-minute ops monitor cron entries on the droplet without requiring SSH from cron back into the same server. The follow-up backup-smoke ops check created and validated a `3.0 MB` PostgreSQL dump and now reports only the external offsite/admin-alert warnings.
 - Production deploy archives now suppress local macOS extended attributes with `COPYFILE_DISABLE=1 tar --no-xattrs`; a real web deploy confirmed the previous `LIBARCHIVE.xattr` tar warnings are gone, followed by healthy `/health`, live security artifact scan, and clean Docker log checks.
 - Share-card nginx responses no longer spill into proxy temp files; production nginx config-only deploy validated the config, share-card JPEG delivery, production smoke, security artifact scan, and clean api/webapp/nginx logs.
 - Large `/api/v1/assets/` responses now use a dedicated nginx route with response buffering disabled; production asset smoke returned a `1.6 MB` PNG and the following ops log scan stayed clean.
@@ -997,8 +998,8 @@ Completed locally and in production:
 
 Remaining work:
 
-- Configure a real offsite backup target and daily backup scheduler before relying on paid production data/media.
-- Configure the real external alert webhook and scheduler for `scripts/monitor-production-ops.sh` before depending on unattended disk/error monitoring.
+- Configure a real offsite backup target before relying on paid production media durability.
+- Configure the real external alert webhook and admin alert credentials before depending on unattended admin-dashboard monitoring.
 
 Completed locally:
 
