@@ -943,6 +943,7 @@
     "upgrade_success": "Plan Upgraded!",
     "upgrade_success_message": "You have successfully upgraded to {{planName}}",
     "new_features": "New features:",
+    "feature_unlocked_on": "Available from {{planName}}",
     "confirm_upgrade": "Confirm Upgrade",
     "confirm_upgrade_message": "Are you sure you want to upgrade to {{planName}}?",
     "confirm": "Confirm",
@@ -1132,6 +1133,7 @@
     "select_voice": "Select Voice",
     "usage_info": "Remaining: {{remaining}} of {{limit}} audio stories this month",
     "upgrade_to_unlock": "Upgrade Plan",
+    "premium_locked_reason": "Premium voices require the Fairy World plan.",
     "close": "Close",
     "gender": {
       "male": "Male",

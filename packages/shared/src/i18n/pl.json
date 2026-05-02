@@ -926,6 +926,7 @@
     "upgrade_success": "Plan ulepszony!",
     "upgrade_success_message": "Pomyslnie przeszedles na plan {{planName}}",
     "new_features": "Nowe funkcje:",
+    "feature_unlocked_on": "Dostepne od planu {{planName}}",
     "confirm_upgrade": "Potwierdz ulepszenie",
     "confirm_upgrade_message": "Czy na pewno chcesz przejsc na plan {{planName}}?",
     "confirm": "Potwierdz",
@@ -1074,6 +1075,7 @@
     "select_voice": "Wybierz glos",
     "usage_info": "Pozostalo: {{remaining}} z {{limit}} historii audio w tym miesiacu",
     "upgrade_to_unlock": "Ulepsz plan",
+    "premium_locked_reason": "Glosy premium wymagaja planu Fairy World.",
     "close": "Zamknij",
     "gender": {
       "male": "Meski",

@@ -906,6 +906,7 @@
     "upgrade_success": "План обновлен!",
     "upgrade_success_message": "Вы успешно перешли на план {{planName}}",
     "new_features": "Новые возможности:",
+    "feature_unlocked_on": "Доступно с тарифа {{planName}}",
     "confirm_upgrade": "Подтвердите обновление",
     "confirm_upgrade_message": "Вы уверены, что хотите перейти на план {{planName}}?",
     "confirm": "Подтвердить",
@@ -1090,6 +1091,7 @@
     "select_voice": "Выберите голос",
     "usage_info": "Осталось: {{remaining}} из {{limit}} аудиосказок в этом месяце",
     "upgrade_to_unlock": "Обновить план",
+    "premium_locked_reason": "Премиум-голоса доступны в тарифе Сказочный мир.",
     "close": "Закрыть",
     "gender": {
       "male": "Мужской",

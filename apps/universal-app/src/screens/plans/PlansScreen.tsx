@@ -100,6 +100,20 @@ export default function PlansScreen() {
   const plans = effectiveIsAuthenticated
     ? (authData && 'plans' in authData ? authData.plans : authData)
     : publicPlansQuery.data?.plans;
+  const featureUnlockPlanNames = useMemo(() => {
+    const unlockMap: Record<string, string> = {};
+    const sortedPlans = [...(plans ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+
+    for (const plan of sortedPlans) {
+      for (const [slug, feature] of sortPricingFeatureEntries(plan.features as Record<string, any>)) {
+        if (!unlockMap[slug] && isPricingFeatureAvailable(feature)) {
+          unlockMap[slug] = plan.name;
+        }
+      }
+    }
+
+    return unlockMap;
+  }, [plans]);
   const currentPlanSlug = useMemo(() => {
     if (!effectiveIsAuthenticated || !Array.isArray(plans)) return null;
     return (
@@ -353,6 +367,7 @@ export default function PlansScreen() {
                 {sortPricingFeatureEntries(plan.features as Record<string, any>).map(
                   ([slug, feature]: [string, any]) => {
                     const available = isPricingFeatureAvailable(feature);
+                    const unlockPlanName = !available ? featureUnlockPlanNames[slug] : null;
                   
                     return (
                       <View key={slug} style={styles.featureRow}>
@@ -361,14 +376,21 @@ export default function PlansScreen() {
                           size={16}
                           color={available ? theme.colors.status.success : theme.colors.text.tertiary}
                         />
-                        <Text
-                          style={[
-                            styles.featureText,
-                            !available && styles.featureTextDisabled
-                          ]}
-                        >
-                          {getPricingFeatureLabel(pricingLocale, translatePricing, slug, feature)}
-                        </Text>
+                        <View style={styles.featureCopy}>
+                          <Text
+                            style={[
+                              styles.featureText,
+                              !available && styles.featureTextDisabled
+                            ]}
+                          >
+                            {getPricingFeatureLabel(pricingLocale, translatePricing, slug, feature)}
+                          </Text>
+                          {unlockPlanName ? (
+                            <Text style={styles.featureLockedReason}>
+                              {t('plans.feature_unlocked_on', { planName: unlockPlanName })}
+                            </Text>
+                          ) : null}
+                        </View>
                       </View>
                     );
                   }
@@ -754,14 +776,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing[2],
   },
+  featureCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
   featureText: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
-    flex: 1,
+    flexShrink: 1,
   },
   featureTextDisabled: {
     color: theme.colors.text.tertiary,
     textDecorationLine: 'line-through',
+  },
+  featureLockedReason: {
+    marginTop: 2,
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.tertiary,
   },
   subscribeButton: {
     backgroundColor: theme.colors.interactive.primary,

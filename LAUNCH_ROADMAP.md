@@ -1030,12 +1030,12 @@ Completed locally:
 - `/profile` shows usage inside the subscription section without nesting extra cards.
 - `/wizard` and Instant Wizard show usage before generation.
 - The usage card shows reset/current period, stories remaining, audio stories remaining, plan limits, and active bundle credits when present.
+- Locked plan features on `/billing/plans` now explain which plan unlocks the feature, and locked premium voices explain that the Fairy World plan is required.
 - Usage copy is localized for `uk`, `en`, `ru`, `es`, `fr`, `de`, and `pl`.
 - Production smoke verified the deployed UI, browser console, and API docker logs.
 
 Required work:
 
-- Show why a feature is locked.
 - In Child Mode, explain locked features in child-safe language and route CTAs through the parent gate.
 - Do not expose checkout, customer portal, billing settings, or adult account settings directly in Child Mode.
 

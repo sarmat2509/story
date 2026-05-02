@@ -1127,6 +1127,7 @@
     "upgrade_success": "План оновлено!",
     "upgrade_success_message": "Ви успішно перейшли на план {{planName}}",
     "new_features": "Нові можливості:",
+    "feature_unlocked_on": "Доступно з тарифу {{planName}}",
     "confirm_upgrade": "Підтвердіть оновлення",
     "confirm_upgrade_message": "Ви впевнені, що хочете перейти на план {{planName}}?",
     "confirm": "Підтвердити",
@@ -1317,6 +1318,7 @@
     "select_voice": "Оберіть голос",
     "usage_info": "Залишилось: {{remaining}} з {{limit}} аудіоказок цього місяця",
     "upgrade_to_unlock": "Оновити план",
+    "premium_locked_reason": "Преміум голоси доступні в тарифі Казковий світ.",
     "close": "Закрити",
     "gender": {
       "male": "Чоловічий",

@@ -203,6 +203,9 @@ export default function VoiceSelector({
                           <Text style={styles.voiceItemGender}>
                             {t(`voice_selector.gender.${voice.gender}`)}
                           </Text>
+                          <Text style={styles.lockedReason}>
+                            {t('voice_selector.premium_locked_reason')}
+                          </Text>
                         </View>
                         
                         {onUpgrade && (
@@ -406,6 +409,11 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: theme.colors.border.medium,
     opacity: 0.8,
+  },
+  lockedReason: {
+    marginTop: theme.spacing[1],
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.tertiary,
   },
   voiceItemContent: {
     flex: 1,

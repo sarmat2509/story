@@ -402,6 +402,7 @@
     "upgrade_success": "Forfait mis à niveau!",
     "upgrade_success_message": "Vous êtes passé avec succès au forfait {{planName}}",
     "new_features": "Nouvelles fonctionnalités:",
+    "feature_unlocked_on": "Disponible avec {{planName}}",
     "confirm_upgrade": "Confirmer la mise à niveau",
     "confirm_upgrade_message": "Êtes-vous sûr de vouloir passer au forfait {{planName}}?",
     "confirm": "Confirmer",
@@ -550,6 +551,7 @@
     "select_voice": "Sélectionner la voix",
     "usage_info": "Restant: {{remaining}} sur {{limit}} histoires audio ce mois-ci",
     "upgrade_to_unlock": "Mettre à niveau",
+    "premium_locked_reason": "Les voix premium nécessitent le plan Fairy World.",
     "close": "Fermer",
     "gender": {
       "male": "Masculin",
