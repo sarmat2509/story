@@ -1137,7 +1137,7 @@ Acceptance criteria:
 
 ### 6. Analytics with Consent
 
-Status on 2026-05-02: Web and native analytics now require an explicit opt-in before PostHog initializes or analytics events are captured. The consent banner is localized across visible app locales, and analytics identity/event payloads are scrubbed for email, display name, story title, raw messages, prompts, photos, child names, story text, narration, and media URLs. Web consent was deployed and verified with DevTools in fresh accept/decline browser contexts; native consent gating is implemented and type/build verified before mobile release.
+Status on 2026-05-02: Web and native analytics now require an explicit opt-in before PostHog initializes or analytics events are captured. The consent banner is localized across visible app locales, analytics identity/event payloads are scrubbed for email, display name, story title, raw messages, prompts, photos, child names, story text, narration, and media URLs, and launch-gate now audits app analytics payload keys for future drift. Web consent was deployed and verified with DevTools in fresh accept/decline browser contexts; native consent gating is implemented and type/build verified before mobile release.
 
 Completed locally:
 
@@ -1152,10 +1152,11 @@ Completed locally:
 - Verified production accept/decline paths with DevTools and checked nginx/webapp/api docker logs after deployment.
 - Added a web profile preference to change analytics consent later; disabling consent opts out and resets the initialized PostHog client.
 - Native consent uses the same stored choice and profile toggle semantics, with MMKV-backed synchronous reads so PostHog is not created during app startup before consent.
+- `scripts/check-analytics-payloads.js` audits app-side `capture()` and `identify()` payload keys for risky names and now runs inside `scripts/launch-gate.sh`.
 
 Required work:
 
-- Keep auditing future analytics events for product-safe payloads.
+- Keep expanding the analytics payload audit if new event conventions introduce safe aggregate keys.
 
 Acceptance criteria:
 
