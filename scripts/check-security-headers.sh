@@ -28,6 +28,9 @@ require_regex() {
 
 WEBAPP_HEADERS="nginx/includes/webapp-security-headers.conf"
 SPA_PROXY_PROD="nginx/includes/spa-proxy-prod.conf"
+SSR_ROUTES="nginx/includes/common-ssr-routes.conf"
+PROD_NGINX="nginx/conf.d/kazka.conf"
+DEV_NGINX="nginx/conf.d.dev/wondertales.conf"
 WEBAPP_NGINX="apps/universal-app/nginx.conf"
 WEBAPP_DOCKERFILE="apps/universal-app/Dockerfile"
 PROD_COMPOSE="docker-compose.prod.yml"
@@ -35,6 +38,9 @@ API_INDEX="services/api/src/index.ts"
 
 require_file "${WEBAPP_HEADERS}"
 require_file "${SPA_PROXY_PROD}"
+require_file "${SSR_ROUTES}"
+require_file "${PROD_NGINX}"
+require_file "${DEV_NGINX}"
 require_file "${WEBAPP_NGINX}"
 require_file "${WEBAPP_DOCKERFILE}"
 require_file "${PROD_COMPOSE}"
@@ -79,6 +85,12 @@ require_text "${SPA_PROXY_PROD}" "proxy_buffer_size 64k;"
 require_text "${SPA_PROXY_PROD}" "proxy_buffers 32 256k;"
 require_text "${SPA_PROXY_PROD}" "proxy_busy_buffers_size 512k;"
 require_text "${SPA_PROXY_PROD}" "proxy_max_temp_file_size 0;"
+
+for path in "${SSR_ROUTES}" "${PROD_NGINX}" "${DEV_NGINX}"; do
+  require_text "${path}" "location ^~ /share-card/"
+  require_text "${path}" "proxy_buffering off;"
+  require_text "${path}" "proxy_max_temp_file_size 0;"
+done
 
 include_count="$(grep -Fc "include /etc/nginx/includes/webapp-security-headers.conf;" "${ROOT_DIR}/${WEBAPP_NGINX}")"
 if [[ "${include_count}" -lt 4 ]]; then

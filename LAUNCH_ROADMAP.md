@@ -984,6 +984,8 @@ Completed locally and in production:
 - The monitor wrapper's test alert dry-run was validated locally without hitting a real provider webhook.
 - The production ops check now warns when backup retention, offsite backup target, ops monitor, or admin dashboard alert scheduler references are not discoverable on the droplet.
 - Production deploy archives now suppress local macOS extended attributes with `COPYFILE_DISABLE=1 tar --no-xattrs`; a real web deploy confirmed the previous `LIBARCHIVE.xattr` tar warnings are gone, followed by healthy `/health`, live security artifact scan, and clean Docker log checks.
+- Share-card nginx responses no longer spill into proxy temp files; production nginx config-only deploy validated the config, share-card JPEG delivery, production smoke, security artifact scan, and clean api/webapp/nginx logs.
+- `./scripts/deploy.sh --nginx` now supports nginx/compose config-only deploys, and `./scripts/deploy.sh --help` shows usage without opening SSH.
 
 Remaining work:
 
@@ -1223,7 +1225,7 @@ Observed on 2026-05-02 after the latest web/API deployment and production verifi
 - External admin dashboard alert checker dry-run passed against production with no active cost, queue, or quality-review findings.
 - Public pricing SSR now renders with a bounded plan-data load, has a static launch-plan fallback, and production `/en/pricing` DevTools/curl verification showed plural-correct usage copy.
 - A Stripe sandbox bundle payment completed through hosted Checkout, returned to `/billing/success?kind=bundle&session_id=...`, and the webhook recorded a `user_bundle_grant`.
-- Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Nginx SPA proxy buffering was tuned after the web locale deploy, and a fresh large-bundle fetch no longer produced temporary-file warning noise in the checked Docker log window.
+- Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Nginx SPA and share-card proxy buffering were tuned, and fresh asset/share-card fetches no longer produced temporary-file warning noise in the checked Docker log window.
 - The latest auth/support checks show Google OAuth E2E, Resend sender DNS, Zoho inbound MX, root SPF, DMARC, support SMTP reachability, and real Gmail password-reset delivery are configured and verified.
 - Production security artifact audit passed after the latest deploy: live headers were captured for apex SSR, pricing SSR, app/auth SPA routes, and `www` redirect behavior; the deployed web JS/CSS/HTML/JSON scan found no server-side secret markers.
 - Production `/ru/auth/forgot-password` now renders Russian UI with `document.documentElement.lang="ru"` and `dir="ltr"` after the web document-locale sync deploy; DevTools console stayed clean.

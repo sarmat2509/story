@@ -254,6 +254,12 @@ pnpm launch:gate
 ./scripts/check-production-ops.sh --backup-smoke
 ```
 
+Nginx or compose-config-only deploy, without rebuilding API or webapp:
+
+```bash
+./scripts/deploy.sh --nginx
+```
+
 Deploy archives are created with `COPYFILE_DISABLE=1 tar --no-xattrs` so local macOS metadata does not flood remote extraction logs. Treat any new tar warning during deploy as a signal to inspect the archive path before continuing with launch verification.
 
 Rollback for code-only regressions:

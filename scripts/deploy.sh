@@ -2,9 +2,10 @@
 
 # Full deployment: API + webapp + migrations
 # Usage:
-#   ./scripts/deploy.sh          # Deploy everything (API + webapp + migrations)
-#   ./scripts/deploy.sh --api    # API + migrations only
-#   ./scripts/deploy.sh --web    # Webapp only
+#   ./scripts/deploy.sh            # Deploy everything (API + webapp + migrations)
+#   ./scripts/deploy.sh --api      # API + migrations only
+#   ./scripts/deploy.sh --web      # Webapp only
+#   ./scripts/deploy.sh --nginx    # Nginx/compose config only
 #   ./scripts/deploy.sh --migrate  # Migrations only (no rebuild/redeploy)
 
 set -Eeuo pipefail
@@ -52,17 +53,11 @@ on_error() {
   exit "${exit_code}"
 }
 
-# Open master connection once (triggers passphrase prompt if needed)
-ssh $SSH_OPTS -o BatchMode=no "${DROPLET_USER}@${DROPLET_IP}" true
-
-# Cleanup master connection on exit
-trap cleanup EXIT
-trap 'on_error "${LINENO}" "${BASH_COMMAND}"' ERR
-
 # Parse flags
 DEPLOY_API=false
 DEPLOY_WEB=false
 DEPLOY_MIGRATE=false
+DEPLOY_NGINX=false
 
 if [[ $# -eq 0 ]]; then
   DEPLOY_API=true
@@ -74,10 +69,22 @@ for arg in "$@"; do
   case "$arg" in
     --api)     DEPLOY_API=true; DEPLOY_MIGRATE=true ;;
     --web)     DEPLOY_WEB=true ;;
+    --nginx)   DEPLOY_NGINX=true ;;
     --migrate) DEPLOY_MIGRATE=true ;;
-    *) echo "Unknown argument: $arg"; echo "Usage: $0 [--api] [--web] [--migrate]"; exit 1 ;;
+    -h|--help)
+      sed -n '1,9p' "$0"
+      exit 0
+      ;;
+    *) echo "Unknown argument: $arg"; echo "Usage: $0 [--api] [--web] [--nginx] [--migrate]"; exit 1 ;;
   esac
 done
+
+# Open master connection once (triggers passphrase prompt if needed)
+ssh $SSH_OPTS -o BatchMode=no "${DROPLET_USER}@${DROPLET_IP}" true
+
+# Cleanup master connection on exit
+trap cleanup EXIT
+trap 'on_error "${LINENO}" "${BASH_COMMAND}"' ERR
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -468,6 +475,7 @@ EOF
 echo "Deploy started"
 echo "   API:      $DEPLOY_API"
 echo "   Webapp:   $DEPLOY_WEB"
+echo "   Nginx:    $DEPLOY_NGINX"
 echo "   Migrate:  $DEPLOY_MIGRATE"
 echo "   Droplet:  ${DROPLET_USER}@${DROPLET_IP}"
 
@@ -487,6 +495,11 @@ fi
 # Deploy webapp
 if $DEPLOY_WEB; then
   deploy_webapp
+fi
+
+# Deploy nginx/compose config without rebuilding API or webapp.
+if $DEPLOY_NGINX; then
+  sync_nginx_config
 fi
 
 # Final status
