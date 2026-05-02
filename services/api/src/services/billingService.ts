@@ -277,17 +277,7 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string): P
       }
 
       const stripeSub = await stripe.subscriptions.retrieve(subscriptionId);
-      await planService.updateSubscriptionFromStripe(
-        userId,
-        {
-          id: stripeSub.id,
-          current_period_start: stripeSub.current_period_start,
-          current_period_end: stripeSub.current_period_end,
-          cancel_at_period_end: stripeSub.cancel_at_period_end,
-          status: stripeSub.status,
-        },
-        planSlug
-      );
+      await planService.updateSubscriptionFromStripe(userId, stripeSub, planSlug);
       break;
     }
 
@@ -314,17 +304,7 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string): P
         return;
       }
 
-      await planService.updateSubscriptionFromStripe(
-        userId,
-        {
-          id: stripeSub.id,
-          current_period_start: stripeSub.current_period_start,
-          current_period_end: stripeSub.current_period_end,
-          cancel_at_period_end: stripeSub.cancel_at_period_end,
-          status: stripeSub.status,
-        },
-        planSlug
-      );
+      await planService.updateSubscriptionFromStripe(userId, stripeSub, planSlug);
       break;
     }
 

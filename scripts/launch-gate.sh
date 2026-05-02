@@ -55,6 +55,7 @@ API_TESTS=(
   src/services/__tests__/storyParentReviewService.test.ts
   src/services/__tests__/storyPublishSafetyService.test.ts
   src/services/__tests__/storyQuotaReservation.test.ts
+  src/services/__tests__/stripeSubscriptionPeriod.test.ts
   src/services/__tests__/subscriptionPeriodService.test.ts
   src/services/__tests__/uploadValidationService.test.ts
   src/services/__tests__/userDataExportService.test.ts

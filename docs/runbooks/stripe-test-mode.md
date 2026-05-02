@@ -73,10 +73,13 @@ Expected log sequence:
 5. Complete a sandbox subscription payment.
 6. Verify webhook logs and `/api/v1/me/subscription-usage` reflect the paid plan.
 7. Open the customer portal from profile and verify cancellation/management flow.
+8. Cancel the subscription in the portal or trigger a test-mode `customer.subscription.updated` event.
+9. Confirm `/api/v1/me/subscription-usage` reports `cancelAtPeriodEnd: true` and the profile shows cancellation-pending copy.
 
 ## Failure Signals
 
 - Checkout opens but no webhook log appears: check Stripe endpoint existence and `STRIPE_WEBHOOK_SECRET`.
 - Webhook appears but no grant/subscription update is recorded: check event metadata and API logs.
+- `customer.subscription.updated` fails with `Invalid time value`: check whether Stripe sent period timestamps on subscription items instead of the top-level subscription object.
 - Bundle payment succeeds but `bundle_bonus` is unchanged: check `user_bundle_grants` period overlap and subscription period dates.
 - Success page says subscription text after bundle payment: verify `kind=bundle` in the success URL and frontend bundle success copy.

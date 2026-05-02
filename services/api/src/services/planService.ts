@@ -408,15 +408,49 @@ export async function changePlan(userId: string, newPlanSlug: string): Promise<U
  * M1: Update subscription from Stripe webhook (checkout.session.completed, subscription.updated, subscription.deleted).
  * Resets usage when period changes (renewal).
  */
+export interface StripeSubscriptionPeriodPayload {
+  id: string;
+  current_period_start?: number | null;
+  current_period_end?: number | null;
+  cancel_at_period_end: boolean;
+  status: string;
+  items?: {
+    data?: Array<{
+      id?: string;
+      current_period_start?: number | null;
+      current_period_end?: number | null;
+    }>;
+  };
+}
+
+export function resolveStripeSubscriptionPeriodSeconds(
+  stripeSubscription: StripeSubscriptionPeriodPayload
+): { periodStartSeconds: number; periodEndSeconds: number } {
+  const itemPeriod = stripeSubscription.items?.data?.find(
+    (item) =>
+      Number.isFinite(item.current_period_start) &&
+      Number.isFinite(item.current_period_end)
+  );
+  const periodStartSeconds =
+    stripeSubscription.current_period_start ?? itemPeriod?.current_period_start;
+  const periodEndSeconds =
+    stripeSubscription.current_period_end ?? itemPeriod?.current_period_end;
+
+  if (!Number.isFinite(periodStartSeconds) || !Number.isFinite(periodEndSeconds)) {
+    throw new Error(
+      `Stripe subscription ${stripeSubscription.id} is missing current period timestamps`
+    );
+  }
+
+  return {
+    periodStartSeconds,
+    periodEndSeconds,
+  };
+}
+
 export async function updateSubscriptionFromStripe(
   userId: string,
-  stripeSubscription: {
-    id: string;
-    current_period_start: number;
-    current_period_end: number;
-    cancel_at_period_end: boolean;
-    status: string;
-  },
+  stripeSubscription: StripeSubscriptionPeriodPayload,
   planSlug: string
 ): Promise<UserSubscription | null> {
   const planRepo = getPlanRepository();
@@ -432,8 +466,10 @@ export async function updateSubscriptionFromStripe(
     return null;
   }
 
-  const periodStart = new Date(stripeSubscription.current_period_start * 1000);
-  const periodEnd = new Date(stripeSubscription.current_period_end * 1000);
+  const { periodStartSeconds, periodEndSeconds } =
+    resolveStripeSubscriptionPeriodSeconds(stripeSubscription);
+  const periodStart = new Date(periodStartSeconds * 1000);
+  const periodEnd = new Date(periodEndSeconds * 1000);
   const isNewPeriod = periodStart.getTime() > subscription.currentPeriodStart.getTime();
 
   const updateData: Partial<{

@@ -694,6 +694,9 @@ Current bundle purchase review findings:
 - Production smoke creates Stripe test-mode subscription and bundle Checkout Sessions successfully; bundle checkout now falls back to inline Stripe `price_data` when no static bundle Price ID is configured.
 - DevTools verified hosted Stripe checkout loads for subscription and bundle sessions with sandbox UI, line item details, prefilled QA email, and card form.
 - DevTools completed a Stripe sandbox bundle payment; the app returns to `/billing/success?kind=bundle&session_id=...`, shows bundle-specific success copy, and primary navigation returns to billing/plans.
+- DevTools completed a Stripe sandbox subscription payment for the `silver` plan; the app returns to `/billing/success?kind=subscription&session_id=...`, usage reflects paid limits, and the profile shows the paid plan.
+- DevTools verified Stripe Customer Portal opens from profile, shows the active subscription, payment method, invoice history, and cancellation flow.
+- Customer Portal cancellation now updates local subscription state through `customer.subscription.updated`; the profile shows `cancelAtPeriodEnd` copy after webhook processing.
 - Non-Stripe subscription periods now roll forward before usage/quota/bundle calculations; Stripe-backed expired periods are not auto-extended without webhook data.
 
 Required work:
@@ -742,25 +745,27 @@ Verified so far on 2026-05-02:
 - Stripe test webhook endpoint is configured for `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed`.
 - A real Stripe test-mode bundle payment completed with card sandbox data; production API logs show `checkout.session.completed` followed by `Recorded user_bundle_grant from Stripe bundle checkout`.
 - Authenticated usage API showed the expected bundle grant after webhook processing: `+5` stories and `+2` audio for the current billing period.
+- A real Stripe test-mode subscription payment completed with card sandbox data; production API logs show `checkout.session.completed` and the authenticated usage API showed `silver` plan limits plus the existing bundle bonus.
+- Subscription checkout cancel return was verified in DevTools and lands back on `/billing/plans`.
+- Stripe Customer Portal opened from the production profile, showed the `silver` subscription, card, invoice, and cancellation action, and returned to `/profile`.
+- Customer Portal cancellation was verified; API usage now reports `cancelAtPeriodEnd: true`, and the profile shows the cancellation-pending state through the period end.
+- The Stripe webhook handler now accepts both top-level subscription period timestamps and the newer item-level period timestamps sent by `customer.subscription.updated` events.
 - `docs/runbooks/stripe-test-mode.md` records the repeatable test-mode verification process.
-- Production API logs show expected checkout session creation and webhook events with no matching error/warn lines after smoke.
+- Production API logs show expected checkout session creation and webhook events with no matching error/warn lines after smoke and after the subscription update retry.
 
 Still required:
 
-- Complete subscription checkout payment success and cancel browser returns.
-- Verify subscription created/updated/canceled, payment failed, customer portal, and refund/support flows.
+- Verify payment failed behavior.
+- Verify refund/support flows.
 - Decide whether to keep the test webhook endpoint active for beta or replace it during live-mode setup.
 
 Required work:
 
-- Verify subscription checkout.
-- Verify checkout success return.
-- Verify checkout cancel return for subscriptions and bundles.
+- Keep subscription and bundle checkout success/cancel covered in recurring smoke.
 - Verify webhook signature verification.
-- Verify subscription created/updated/canceled.
+- Keep subscription created/updated/canceled covered in recurring smoke.
 - Verify payment failed behavior.
-- Verify customer portal.
-- Verify bundle/credit purchases.
+- Keep customer portal and bundle/credit purchases covered in recurring smoke.
 - Verify refund/support policy path.
 - Verify test mode before live mode.
 
