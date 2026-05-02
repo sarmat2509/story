@@ -66,6 +66,10 @@ function validateProductionConfig() {
       'DATABASE_URL',
       'GOOGLE_CLIENT_ID',
       'GOOGLE_CLIENT_SECRET',
+      'GOOGLE_CALLBACK_URL',
+      'WEB_APP_URL',
+      'RESEND_API_KEY',
+      'FROM_EMAIL',
     ];
 
     const missing = required.filter((key) => !process.env[key]);
@@ -89,6 +93,10 @@ function validateProductionConfig() {
     // Warn about default values
     if (process.env.JWT_SECRET?.includes('change_in_production')) {
       throw new Error('JWT_SECRET must be changed from default value in production');
+    }
+
+    if (process.env.FROM_EMAIL === 'noreply@wondertales.com') {
+      throw new Error('FROM_EMAIL must be changed from default value in production');
     }
 
     const textVendor = process.env.AI_TEXT_VENDOR || 'gemini';

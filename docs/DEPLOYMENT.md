@@ -66,6 +66,8 @@ nano .env.production
 - `ENCRYPTION_KEY`: Generate 64 character hex string
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: From Google Cloud Console
 - `GOOGLE_CALLBACK_URL`: Update to your domain
+- `WEB_APP_URL`: Public app origin, used for OAuth/reset links
+- `RESEND_API_KEY`, `FROM_EMAIL`: Transactional email provider and verified sender
 - `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`: From Apple Developer
 - `GEMINI_API_KEY`: From Google AI Studio
 - `ELEVENLABS_API_KEY`: From ElevenLabs dashboard
