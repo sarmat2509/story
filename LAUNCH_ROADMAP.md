@@ -76,6 +76,7 @@ Completed or ready for closed-beta verification:
 - Sensitive route rate limits, credentialed CORS restrictions, upload validation, admin health guards, and debug route guards are in place.
 - Child Mode now has scoped sessions, parent controls, child-safe story request enforcement, attribution, password and OAuth-only parent-gate fallbacks, start/return UI, child-safe story creation UI, allowed content selectors, and parent review workflow UI.
 - Scheduled orphan-file cleanup exists with disabled/dry-run defaults, retention-age gating, and launch-gate coverage.
+- Production orphan-file cleanup dry-run was reviewed on the droplet with a 168-hour age gate: `1356` files scanned, `1025` referenced paths, `361` orphan candidates, `361` age-eligible candidates, and `0` deleted files.
 - API build, web type-check, web export, and `pnpm launch:gate` passed after the P0 fixes.
 - Production deploy path was exercised on 2026-05-02: API/webapp/nginx deployed, 15 pending migrations applied, production SSR pricing/legal/stories/sitemap routes smoke-tested, security headers captured, and DevTools live checks completed.
 - Production `www.wondertales.art` certificate coverage and canonical redirect to `wondertales.art` were fixed and verified.
@@ -95,12 +96,12 @@ Completed or ready for closed-beta verification:
 Remaining P0 bottlenecks:
 
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
-- Scheduled orphan-file cleanup apply mode still needs live dry-run review and operator approval.
+- Scheduled orphan-file cleanup apply mode still needs operator approval for retention policy and deletion window.
 - OAuth-only parent gate fallback is implemented locally and needs a live production parent-gate pass if OAuth-only parent return must be certified before beta.
 
 Solutions not yet applied:
 
-- Scheduled orphan-file cleanup policy/job is implemented with disabled/dry-run defaults and a retention-age gate; production apply mode still requires live dry-run review and operator approval.
+- Scheduled orphan-file cleanup policy/job is implemented with disabled/dry-run defaults and a retention-age gate; production apply mode still requires operator approval.
 
 ### 1. Stabilize Public Web Routes
 
@@ -215,7 +216,7 @@ Done:
 Remaining:
 
 - Re-test against the final production storage/CDN topology if local storage is replaced or fronted by a CDN.
-- Production apply-mode orphan-file cleanup still needs target-environment dry-run review before activation.
+- Production orphan-file cleanup dry-run has been reviewed; apply mode still requires operator approval for retention policy and deletion window before activation.
 
 Generated images/audio and uploaded child-related files must not be public by raw storage path unless the story is explicitly public.
 
@@ -486,7 +487,7 @@ Acceptance criteria:
 
 ### 8. Data Deletion and Retention
 
-Status on 2026-05-01: Core deletion behavior, support/admin request intake, admin export package generation, orphan-file dry-run scanning, and the disabled-by-default scheduled cleanup job are ready; export delivery policy and production cleanup apply-mode approval remain.
+Status on 2026-05-02: Core deletion behavior, support/admin request intake, admin export package generation, orphan-file dry-run scanning, target-environment dry-run review, and the disabled-by-default scheduled cleanup job are ready; export delivery policy and production cleanup apply-mode approval remain.
 
 Done:
 
@@ -501,11 +502,12 @@ Done:
 - Admin-only export package generation returns JSON for `export` privacy requests while omitting password hashes, OAuth/session/reset tokens, story share tokens, and signed asset URLs.
 - `scanOrphanStorageFiles.ts` can dry-run local storage, compare files against DB-referenced asset paths, and only deletes with explicit `--apply`.
 - Scheduled orphan-file cleanup now starts from API lifecycle only when `ORPHAN_STORAGE_CLEANUP_ENABLED=true`, defaults to dry-run, and requires an age gate before any apply-mode deletion.
+- Production cleanup dry-run now runs through `scripts/check-production-orphan-cleanup.sh` using the bundled production scanner and verifies `dryRun=true` plus `deletedCount=0`.
 
 Remaining:
 
 - Secure delivery of generated export packages is still a manual support operation after admin review.
-- Production cleanup apply mode is not enabled yet; deletion policy, dry-run review, and operator approval are still required before using `--apply` or `ORPHAN_STORAGE_CLEANUP_APPLY=true`.
+- Production cleanup apply mode is not enabled yet; deletion policy and operator approval are still required before using `--apply` or `ORPHAN_STORAGE_CLEANUP_APPLY=true`.
 - Billing-record retention needs final legal/operator confirmation before paid launch.
 
 Required work:
