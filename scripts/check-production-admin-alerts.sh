@@ -32,6 +32,8 @@ usage() {
 
 for arg in "$@"; do
   case "$arg" in
+    --)
+      ;;
     --dry-run-alert)
       DRY_RUN_ALERT=1
       ;;

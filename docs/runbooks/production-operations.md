@@ -10,6 +10,7 @@ Run this before launch windows, after production deploys, and after billing or g
 
 ```bash
 ./scripts/check-production-ops.sh --backup-smoke
+pnpm launch:check-production-ops:backup-smoke
 ```
 
 The check verifies:
@@ -30,6 +31,7 @@ Run the broader HTTP/API smoke separately:
 
 ```bash
 ./scripts/check-production-smoke.sh
+pnpm launch:check-production-smoke
 ```
 
 The remote Docker log tail at the end of this smoke is best-effort. If SSH is unavailable in the current shell, the script reports a warning and preserves the HTTP/API smoke result. Use `--no-remote` or `CHECK_PROD_REMOTE=0` when logs are checked separately.
@@ -68,6 +70,7 @@ Use the cron-friendly wrapper when the check should notify an external system:
 
 ```bash
 OPS_ALERT_WEBHOOK_URL=https://example.com/webhook ./scripts/monitor-production-ops.sh
+OPS_ALERT_WEBHOOK_URL=https://example.com/webhook pnpm launch:monitor-production-ops
 ```
 
 By default it sends an alert when the ops check fails. To also alert on warnings, including disk threshold warnings, run:
@@ -80,6 +83,7 @@ Dry-run the payload without sending:
 
 ```bash
 ./scripts/monitor-production-ops.sh --test-alert --dry-run-alert
+pnpm launch:monitor-production-ops -- --test-alert --dry-run-alert
 ```
 
 ## CAPTCHA and WAF
@@ -108,6 +112,7 @@ Use the admin dashboard checker when cost, queue, or quality-review signals shou
 
 ```bash
 PROD_ADMIN_ALERT_TOKEN=... ADMIN_ALERT_WEBHOOK_URL=https://example.com/webhook ./scripts/check-production-admin-alerts.sh
+PROD_ADMIN_ALERT_TOKEN=... ADMIN_ALERT_WEBHOOK_URL=https://example.com/webhook pnpm launch:check-production-admin-alerts
 ```
 
 The script reads `/api/v1/admin/dashboard?days=7` and sends a compact JSON webhook with a `text` field when it finds critical dashboard findings. It checks:
@@ -127,6 +132,8 @@ Dry-run the payload without sending:
 ```bash
 PROD_ADMIN_ALERT_TOKEN=... ADMIN_ALERT_ON_WARNINGS=1 ./scripts/check-production-admin-alerts.sh --dry-run-alert
 ./scripts/check-production-admin-alerts.sh --test-alert --dry-run-alert
+PROD_ADMIN_ALERT_TOKEN=... ADMIN_ALERT_ON_WARNINGS=1 pnpm launch:check-production-admin-alerts -- --dry-run-alert
+pnpm launch:check-production-admin-alerts -- --test-alert --dry-run-alert
 ```
 
 If a long-lived token is not available, the checker can create an admin session from smoke credentials:
@@ -167,6 +174,7 @@ The repeatable retention runner is:
 
 ```bash
 ./scripts/run-production-backup-retention.sh --apply
+pnpm launch:run-production-backup-retention -- --apply
 ```
 
 By default it:

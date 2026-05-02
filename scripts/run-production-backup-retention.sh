@@ -41,6 +41,8 @@ usage() {
 
 for arg in "$@"; do
   case "$arg" in
+    --)
+      ;;
     --apply)
       RUN_APPLY=1
       ;;

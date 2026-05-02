@@ -34,6 +34,8 @@ SSH_OPTS="-o ControlMaster=auto -o ControlPath=${SSH_CONTROL_PATH} -o ControlPer
 
 for arg in "$@"; do
   case "$arg" in
+    --)
+      ;;
     --backup-smoke)
       RUN_BACKUP_SMOKE=1
       ;;
