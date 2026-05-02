@@ -57,6 +57,7 @@ import {
 import {
   setLegacyPublicStoriesDeprecationHeaders,
 } from '../utils/deprecatedPublicStoryRoutes';
+import { expensiveGenerationLimiter } from '../middleware/rateLimiter';
 
 /**
  * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
@@ -297,7 +298,7 @@ const RegenerateSceneSchema = z.object({
  * POST /api/v1/stories
  * Create a new story request
  */
-router.post('/', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+router.post('/', requireAuth, requireParentSession, expensiveGenerationLimiter, async (req: Request, res: Response) => {
   let requestId: string | undefined;
   let queued = false;
   try {
@@ -379,6 +380,7 @@ router.post(
   requireAuth,
   requireChildSession,
   requireSessionScope('child_mode'),
+  expensiveGenerationLimiter,
   async (req: Request, res: Response) => {
     let requestId: string | undefined;
     let queued = false;
@@ -494,7 +496,7 @@ function selectDefaultImageStyle(ageGroup: string): string {
  * Create a story from uploaded photos (Instant Mode)
  * Auto-creates hidden characters from photos and generates story
  */
-router.post('/instant', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+router.post('/instant', requireAuth, requireParentSession, expensiveGenerationLimiter, async (req: Request, res: Response) => {
   let requestId: string | undefined;
   let queued = false;
   try {
@@ -665,7 +667,7 @@ router.get('/requests/:id/status', requireAuth, async (req: Request, res: Respon
  * POST /api/v1/stories/requests/:id/retry-images
  * Retry image generation only (for requests that failed at image phase, e.g. IMAGE_OTHER)
  */
-router.post('/requests/:id/retry-images', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+router.post('/requests/:id/retry-images', requireAuth, requireParentSession, expensiveGenerationLimiter, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const status = await retryStoryImages(id, req.user!.id);
@@ -1128,7 +1130,7 @@ router.delete('/:id', requireAuth, requireParentSession, async (req: Request, re
  * POST /api/v1/stories/:id/continue
  * Generate a continuation for a story (M8)
  */
-router.post('/:id/continue', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+router.post('/:id/continue', requireAuth, requireParentSession, expensiveGenerationLimiter, async (req: Request, res: Response) => {
   let requestId: string | undefined;
   let queued = false;
   try {
@@ -1431,7 +1433,7 @@ router.get('/:id/series', requireAuth, async (req: Request, res: Response) => {
  * POST /api/v1/stories/:id/audio
  * Generate audio for a story (M5)
  */
-router.post('/:id/audio', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+router.post('/:id/audio', requireAuth, requireParentSession, expensiveGenerationLimiter, async (req: Request, res: Response) => {
   let reservedAudioStoryId: string | undefined;
   let queued = false;
   try {
@@ -1603,7 +1605,7 @@ router.get('/:id/audio-status', requireAuth, async (req: Request, res: Response)
  * POST /api/v1/stories/:id/alignment
  * Generate forced alignment for existing audio (M6)
  */
-router.post('/:id/alignment', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+router.post('/:id/alignment', requireAuth, requireParentSession, expensiveGenerationLimiter, async (req: Request, res: Response) => {
   try {
     const { id: storyId } = req.params;
     
@@ -1878,7 +1880,7 @@ router.get('/:id/generation-status', requireAuth, async (req: Request, res: Resp
  * POST /api/v1/stories/:id/scenes/:sceneId/regenerate
  * Regenerate image for a specific scene (M4)
  */
-router.post('/:id/scenes/:sceneId/regenerate', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+router.post('/:id/scenes/:sceneId/regenerate', requireAuth, requireParentSession, expensiveGenerationLimiter, async (req: Request, res: Response) => {
   try {
     const { id, sceneId } = req.params;
     
@@ -1970,7 +1972,7 @@ router.post('/:id/scenes/:sceneId/regenerate', requireAuth, requireParentSession
  * POST /api/v1/stories/:id/tts
  * Generate audio for story (M5)
  */
-router.post('/:id/tts', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+router.post('/:id/tts', requireAuth, requireParentSession, expensiveGenerationLimiter, async (req: Request, res: Response) => {
   try {
     const { id: storyId } = req.params;
     const { voiceId, speed, nightMode } = req.body;

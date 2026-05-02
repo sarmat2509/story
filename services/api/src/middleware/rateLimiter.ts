@@ -29,6 +29,15 @@ const getClientIp = (req: Request): string => {
 
 const isDevelopment = (): boolean => process.env.NODE_ENV === 'development';
 
+const parsePositiveInteger = (value: string | undefined, fallback: number): number => {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
 const isReadOnlyRequest = (req: Request): boolean => (
   req.method === 'GET' ||
   req.method === 'HEAD' ||
@@ -108,7 +117,7 @@ export const ratingLimiter = rateLimit({
   skip: isDevelopment,
 });
 
-// Expensive story writes: creation, continuation, audio, regeneration, publishing, deletion.
+// Broad write limiter for story mutations before route-specific authentication runs.
 export const storyWriteLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 60,
@@ -120,6 +129,26 @@ export const storyWriteLimiter = rateLimit({
     message: 'Too many story write requests from this IP, please try again later',
   },
   skip: (req) => isDevelopment() || isReadOnlyRequest(req),
+});
+
+export const getExpensiveGenerationRateLimitKey = (req: Request): string => {
+  const ownerUserId = req.parentUserId || req.user?.id;
+  return ownerUserId ? `user:${ownerUserId}` : `ip:${getClientIp(req)}`;
+};
+
+// Provider-costly operations: story generation, continuations, image retries/regeneration, audio, and alignment.
+export const expensiveGenerationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: parsePositiveInteger(process.env.EXPENSIVE_GENERATION_RATE_LIMIT_MAX, 20),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getExpensiveGenerationRateLimitKey,
+  message: {
+    status: 'error',
+    code: 'EXPENSIVE_GENERATION_RATE_LIMITED',
+    message: 'Too many generation requests. Please try again later.',
+  },
+  skip: isDevelopment,
 });
 
 // Uploads are memory-buffered and can be abused independently of authenticated API reads.

@@ -1047,7 +1047,7 @@ Acceptance criteria:
 
 ### 4. Cost Controls
 
-Status on 2026-05-02: Admin-visible cost guardrails and live queue pressure are now deployed. The dashboard tracks generation cost per story, retry/failure cost signals, high-cost story count, unpriced AI usage events, projected monthly spend, top-user 24h spend, and text/image/audio/legacy queue depth. Production smoke confirmed the API fields, dashboard rendering, browser console, and API docker logs.
+Status on 2026-05-02: Admin-visible cost guardrails, live queue pressure, and per-user throttles for provider-costly generation routes are now deployed. The dashboard tracks generation cost per story, retry/failure cost signals, high-cost story count, unpriced AI usage events, projected monthly spend, top-user 24h spend, and text/image/audio/legacy queue depth. Production smoke confirmed the API fields, dashboard rendering, browser console, and API docker logs.
 
 Completed locally:
 
@@ -1057,12 +1057,14 @@ Completed locally:
 - Admin UI shows cost guardrail status and queue backlog status with healthy/warning/critical bands.
 - Launch gate now runs the focused cost-control service regression.
 - Production `/admin/dashboard` DevTools smoke verified the new dashboard sections after deploy.
+- High-cost story generation, child-mode generation, instant generation, image retry/regeneration, continuation, audio, legacy TTS, and alignment routes now have a per-owner hourly limiter after authentication.
+- The expensive-generation limiter keys child sessions by parent owner id, with real-IP fallback only when user context is missing.
+- Launch gate now includes focused rate-limiter key regression coverage.
 
 Remaining work:
 
 - Alert on unusual usage.
-- Rate-limit high-cost endpoints.
-- Add per-user abuse detection.
+- Add notification/escalation workflows for repeated per-user abuse signals.
 
 Acceptance criteria:
 
