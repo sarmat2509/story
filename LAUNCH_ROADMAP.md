@@ -1040,7 +1040,7 @@ Acceptance criteria:
 
 ### 3. Usage Transparency
 
-Status on 2026-05-02: Usage transparency is deployed for the launch flows. Billing plans, profile subscription state, both parent story creation modes, and Child Mode now show story/audio remaining or child-safe story chances from the server-side usage endpoint. Production DevTools smoke confirmed the usage card on `/billing/plans`, `/profile`, and `/wizard`; API docker logs after the sweep had no usage-related errors.
+Status on 2026-05-02: Usage transparency is deployed for the launch flows. Billing plans, profile subscription state, both parent story creation modes, and Child Mode now show story/audio remaining or child-safe story chances from the server-side usage endpoint. Production DevTools smoke confirmed the usage card on `/billing/plans`, `/profile`, and `/wizard`; a real production Child Mode fixture now verifies a child session can read child-safe usage while parent-only APIs stay blocked.
 
 Completed locally:
 
@@ -1051,11 +1051,12 @@ Completed locally:
 - The usage card shows reset/current period, stories remaining, audio stories remaining, plan limits, and active bundle credits when present.
 - Locked plan features on `/billing/plans` now explain which plan unlocks the feature, and locked premium voices explain that the Fairy World plan is required.
 - Child Mode now explains story limits with child-safe "story chances" copy and routes exhausted-credit help through the parent gate instead of billing or account settings.
+- Child sessions can now read `/api/v1/me/subscription-usage` only as a child-safe payload for story chances; billing/provider/status fields, plan base limits, and bundle bonus details are omitted from child-session responses.
 - Usage copy is localized for `uk`, `en`, `ru`, `es`, `fr`, `de`, and `pl`.
-- Production smoke verified the deployed UI, browser console, and API docker logs.
+- Production smoke verified the deployed UI, browser console, API docker logs, and a temporary Child Mode fixture with child-profile cleanup.
 
 Required work:
-- Production Child Mode smoke still needs a real child-profile fixture; the current deployment can be render-checked with a simulated child session in DevTools.
+- Keep the Child Mode live fixture covered in production smoke when running full launch verification.
 
 Acceptance criteria:
 
@@ -1186,6 +1187,7 @@ Observed on 2026-05-02 after the latest web/API deployment and production verifi
 - Public stories, public author pages, share cards, sitemap entries, legacy public endpoint deprecation headers, and missing unlisted routes passed the production smoke.
 - CORS no longer reflects an untrusted `Origin`.
 - Public and authenticated API smoke checks passed for `/api/v1`, plans, dictionaries, `/api/v1/me`, library, subscription usage, privacy requests, children, characters, entitlements, bundles, and voices.
+- Production Child Mode smoke now creates a temporary child profile, enables Child Mode, creates a real child session, verifies child-safe subscription usage, confirms parent-only APIs stay blocked for child sessions, and cleans up the child profile.
 - Admin read-only API smoke checks passed for detailed health, queue health, image rate limiter, dashboard, stories, users, feedback, privacy requests, voices, image validations, and content config.
 - Production DevTools screen sweep rendered the main authenticated screens, public stories catalog, and admin screens without runtime console errors.
 - Public pricing SSR now renders with a bounded plan-data load, has a static launch-plan fallback, and production `/en/pricing` DevTools/curl verification showed plural-correct usage copy.

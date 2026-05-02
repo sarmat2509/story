@@ -9,6 +9,7 @@
 #   PROD_SMOKE_TOKEN=... PROD_ADMIN_SMOKE_TOKEN=... ./scripts/check-production-smoke.sh
 #   PROD_SMOKE_CHECKOUT=1 PROD_SMOKE_EMAIL=... PROD_SMOKE_PASSWORD=... ./scripts/check-production-smoke.sh
 #   PROD_SMOKE_CHECKOUT=1 PROD_SMOKE_LOAD_CHECKOUT=0 ... ./scripts/check-production-smoke.sh
+#   PROD_SMOKE_CHILD_MODE=1 PROD_SMOKE_TOKEN=... ./scripts/check-production-smoke.sh
 
 set -euo pipefail
 
@@ -21,6 +22,7 @@ export PROD_ADMIN_SMOKE_PASSWORD="${PROD_ADMIN_SMOKE_PASSWORD:-}"
 export PROD_ADMIN_SMOKE_TOKEN="${PROD_ADMIN_SMOKE_TOKEN:-}"
 export PROD_SMOKE_CHECKOUT="${PROD_SMOKE_CHECKOUT:-0}"
 export PROD_SMOKE_LOAD_CHECKOUT="${PROD_SMOKE_LOAD_CHECKOUT:-1}"
+export PROD_SMOKE_CHILD_MODE="${PROD_SMOKE_CHILD_MODE:-0}"
 export PROD_SMOKE_CHECKOUT_URL_FILE="${PROD_SMOKE_CHECKOUT_URL_FILE:-/tmp/wondertales-production-checkout-urls.json}"
 DROPLET_IP="${DROPLET_IP:-167.172.102.75}"
 DROPLET_USER="${DROPLET_USER:-root}"
@@ -39,6 +41,7 @@ const adminPassword = process.env.PROD_ADMIN_SMOKE_PASSWORD;
 const adminTokenFromEnv = process.env.PROD_ADMIN_SMOKE_TOKEN;
 const createCheckout = process.env.PROD_SMOKE_CHECKOUT === '1';
 const loadHostedCheckout = process.env.PROD_SMOKE_LOAD_CHECKOUT !== '0';
+const checkChildMode = process.env.PROD_SMOKE_CHILD_MODE === '1';
 const checkoutUrlFile = process.env.PROD_SMOKE_CHECKOUT_URL_FILE;
 
 let failures = 0;
@@ -289,6 +292,40 @@ async function postJson({ path, label, token, body, expectedStatus = 200, predic
   }
 
   return json;
+}
+
+async function patchJson({ path, label, token, body, expectedStatus = 200, predicate }) {
+  const headers = { 'content-type': 'application/json' };
+  if (token) headers.authorization = `Bearer ${token}`;
+  const { res, text, json } = await request('PATCH', path, {
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (res.status === expectedStatus) {
+    pass(`${label} ${path} returned ${res.status}`);
+  } else {
+    fail(`${label} ${path} returned ${res.status}, expected ${expectedStatus}; ${preview(text)}`);
+    return null;
+  }
+
+  if (predicate && !predicate(json)) {
+    fail(`${label} ${path} JSON shape mismatch: ${preview(text)}`);
+  } else {
+    pass(`${label} ${path} JSON shape ok`);
+  }
+
+  return json;
+}
+
+async function deleteStatus({ path, label, token, expectedStatus = 204 }) {
+  const headers = token ? { authorization: `Bearer ${token}` } : undefined;
+  const { res, text } = await request('DELETE', path, { headers });
+  if (res.status === expectedStatus) {
+    pass(`${label} ${path} returned ${res.status}`);
+  } else {
+    fail(`${label} ${path} returned ${res.status}, expected ${expectedStatus}; ${preview(text)}`);
+  }
 }
 
 async function login(email, password, label) {
@@ -724,6 +761,97 @@ async function main() {
       }
     } else {
       warn('Skipping Stripe checkout creation; set PROD_SMOKE_CHECKOUT=1');
+    }
+
+    if (checkChildMode) {
+      let smokeChildId = null;
+      try {
+        const child = await postJson({
+          path: '/api/v1/children',
+          label: 'Child Mode smoke child profile',
+          token: userToken,
+          expectedStatus: 201,
+          body: {
+            name: 'Codex Smoke Child',
+            birthDate: '2020-05-02',
+            languages: ['uk'],
+            aiGeneratedDescription: 'A cheerful child who likes bedtime stories, puzzles, and gentle magical adventures.',
+            descriptionLanguage: 'en',
+            childDataConsentAccepted: true,
+          },
+          predicate: (body) => body?.status === 'success' && typeof body?.child?.id === 'string',
+        });
+        smokeChildId = child?.child?.id || null;
+
+        if (smokeChildId) {
+          await patchJson({
+            path: `/api/v1/children/${encodeURIComponent(smokeChildId)}/child-mode`,
+            label: 'Child Mode controls update',
+            token: userToken,
+            body: {
+              childModeEnabled: true,
+              childModeSettings: {
+                dailyGenerationLimit: 5,
+                monthlyGenerationLimit: 30,
+                allowedLanguageCodes: ['uk'],
+                freeTextPromptsEnabled: true,
+                audioGenerationEnabled: false,
+                parentReviewRequired: true,
+              },
+            },
+            predicate: (body) => body?.status === 'success' && body?.childMode?.childModeEnabled === true,
+          });
+
+          const childSession = await postJson({
+            path: `/api/v1/children/${encodeURIComponent(smokeChildId)}/child-mode/sessions`,
+            label: 'Child Mode session creation',
+            token: userToken,
+            expectedStatus: 201,
+            body: {},
+            predicate: (body) =>
+              body?.status === 'success' &&
+              typeof body?.token === 'string' &&
+              body?.session?.mode === 'child' &&
+              body?.session?.childProfileId === smokeChildId,
+          });
+
+          const childToken = childSession?.token;
+          if (childToken) {
+            await checkJson({
+              path: '/api/v1/me/subscription-usage',
+              label: 'Child Mode child-safe usage API',
+              token: childToken,
+              predicate: (body) =>
+                body?.status === 'success' &&
+                typeof body?.data?.stories?.remaining === 'number' &&
+                typeof body?.data?.audio?.remaining === 'number' &&
+                body.data.subscriptionStatus === undefined &&
+                body.data.paymentProvider === undefined &&
+                body.data.enableRealPayments === undefined &&
+                body.data.stories.plan_limit === undefined &&
+                body.data.stories.bundle_bonus === undefined,
+            });
+
+            await checkJson({
+              path: '/api/v1/children',
+              label: 'Child Mode parent API guard',
+              token: childToken,
+              expectedStatus: 403,
+              predicate: (body) => body?.status === 'error' && body?.code === 'PARENT_SESSION_REQUIRED',
+            });
+          }
+        }
+      } finally {
+        if (smokeChildId) {
+          await deleteStatus({
+            path: `/api/v1/children/${encodeURIComponent(smokeChildId)}`,
+            label: 'Child Mode smoke child cleanup',
+            token: userToken,
+          });
+        }
+      }
+    } else {
+      console.log('INFO Skipping optional Child Mode live fixture checks; set PROD_SMOKE_CHILD_MODE=1');
     }
   }
 

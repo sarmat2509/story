@@ -10,6 +10,7 @@ import {
   createDataPrivacyRequest,
   listUserDataPrivacyRequests,
 } from '../services/dataPrivacyRequestService';
+import { toChildSafeSubscriptionUsageView, type SubscriptionUsageView } from '../services/subscriptionUsageView';
 import { logger } from '../utils/logger';
 import { toUserResponse } from '../utils/userResponse';
 
@@ -170,13 +171,15 @@ router.post('/privacy-requests', requireAuth, requireParentSession, async (req: 
 });
 
 // Get subscription usage (stories + audio remaining, resetsAt)
-router.get('/subscription-usage', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+router.get('/subscription-usage', requireAuth, async (req: Request, res: Response) => {
   try {
     const { getPlanFeatures, getUserSubscription } = await import('../services/planService');
     const { getUsageForPeriod } = await import('../services/usageEventsService');
     const { getBundleBonusForPeriod } = await import('../services/bundleService');
-    const features = await getPlanFeatures(req.user!.id);
-    const subscription = await getUserSubscription(req.user!.id);
+    const usageOwnerId = req.parentUserId || req.user!.id;
+    const childSafe = req.sessionMode === 'child';
+    const features = await getPlanFeatures(usageOwnerId);
+    const subscription = await getUserSubscription(usageOwnerId);
 
     if (!subscription) {
       return res.status(403).json({
@@ -190,14 +193,14 @@ router.get('/subscription-usage', requireAuth, requireParentSession, async (req:
     const currentPeriodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
 
     const bundleBonus = await getBundleBonusForPeriod(
-      req.user!.id,
+      usageOwnerId,
       currentPeriodStart,
       currentPeriodEnd
     );
 
     const [storiesUsed, audioUsed] = await Promise.all([
-      getUsageForPeriod(req.user!.id, currentPeriodStart, currentPeriodEnd, 'story_created'),
-      getUsageForPeriod(req.user!.id, currentPeriodStart, currentPeriodEnd, 'audio_synthesized'),
+      getUsageForPeriod(usageOwnerId, currentPeriodStart, currentPeriodEnd, 'story_created'),
+      getUsageForPeriod(usageOwnerId, currentPeriodStart, currentPeriodEnd, 'audio_synthesized'),
     ]);
     const storiesPlanLimit = features.storiesPerMonth;
     const audioPlanLimit = features.audioStoriesPerMonth;
@@ -206,30 +209,32 @@ router.get('/subscription-usage', requireAuth, requireParentSession, async (req:
 
     const { default: config } = await import('../config');
 
+    const data: SubscriptionUsageView = {
+      stories: {
+        used: storiesUsed,
+        limit: storiesLimit,
+        remaining: Math.max(0, storiesLimit - storiesUsed),
+        plan_limit: storiesPlanLimit,
+        bundle_bonus: bundleBonus.extraStories,
+      },
+      audio: {
+        used: audioUsed,
+        limit: audioLimit,
+        remaining: Math.max(0, audioLimit - audioUsed),
+        plan_limit: audioPlanLimit,
+        bundle_bonus: bundleBonus.extraAudio,
+      },
+      resetsAt: subscription.resetAt,
+      currentPeriodEnd: subscription.currentPeriodEnd,
+      subscriptionStatus: subscription.status,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      paymentProvider: subscription.paymentProvider,
+      enableRealPayments: config.features.enableRealPayments,
+    };
+
     res.json({
       status: 'success',
-      data: {
-        stories: {
-          used: storiesUsed,
-          limit: storiesLimit,
-          remaining: Math.max(0, storiesLimit - storiesUsed),
-          plan_limit: storiesPlanLimit,
-          bundle_bonus: bundleBonus.extraStories,
-        },
-        audio: {
-          used: audioUsed,
-          limit: audioLimit,
-          remaining: Math.max(0, audioLimit - audioUsed),
-          plan_limit: audioPlanLimit,
-          bundle_bonus: bundleBonus.extraAudio,
-        },
-        resetsAt: subscription.resetAt,
-        currentPeriodEnd: subscription.currentPeriodEnd,
-        subscriptionStatus: subscription.status,
-        cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-        paymentProvider: subscription.paymentProvider,
-        enableRealPayments: config.features.enableRealPayments,
-      },
+      data: childSafe ? toChildSafeSubscriptionUsageView(data) : data,
     });
   } catch (error) {
     logger.error({ err: error, userId: req.user?.id }, 'Get subscription usage failed');
