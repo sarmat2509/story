@@ -6,16 +6,21 @@
 # Usage:
 #   ./scripts/check-production-smoke.sh
 #   PROD_SMOKE_EMAIL=qa.free_user@wondertales.test PROD_SMOKE_PASSWORD=... ./scripts/check-production-smoke.sh
+#   PROD_SMOKE_TOKEN=... PROD_ADMIN_SMOKE_TOKEN=... ./scripts/check-production-smoke.sh
 #   PROD_SMOKE_CHECKOUT=1 PROD_SMOKE_EMAIL=... PROD_SMOKE_PASSWORD=... ./scripts/check-production-smoke.sh
+#   PROD_SMOKE_CHECKOUT=1 PROD_SMOKE_LOAD_CHECKOUT=0 ... ./scripts/check-production-smoke.sh
 
 set -euo pipefail
 
 export BASE_URL="${BASE_URL:-https://wondertales.art}"
 export PROD_SMOKE_EMAIL="${PROD_SMOKE_EMAIL:-}"
 export PROD_SMOKE_PASSWORD="${PROD_SMOKE_PASSWORD:-}"
+export PROD_SMOKE_TOKEN="${PROD_SMOKE_TOKEN:-}"
 export PROD_ADMIN_SMOKE_EMAIL="${PROD_ADMIN_SMOKE_EMAIL:-}"
 export PROD_ADMIN_SMOKE_PASSWORD="${PROD_ADMIN_SMOKE_PASSWORD:-}"
+export PROD_ADMIN_SMOKE_TOKEN="${PROD_ADMIN_SMOKE_TOKEN:-}"
 export PROD_SMOKE_CHECKOUT="${PROD_SMOKE_CHECKOUT:-0}"
+export PROD_SMOKE_LOAD_CHECKOUT="${PROD_SMOKE_LOAD_CHECKOUT:-1}"
 export PROD_SMOKE_CHECKOUT_URL_FILE="${PROD_SMOKE_CHECKOUT_URL_FILE:-/tmp/wondertales-production-checkout-urls.json}"
 DROPLET_IP="${DROPLET_IP:-167.172.102.75}"
 DROPLET_USER="${DROPLET_USER:-root}"
@@ -28,9 +33,12 @@ const fs = require('node:fs');
 const baseUrl = process.env.BASE_URL.replace(/\/$/, '');
 const smokeEmail = process.env.PROD_SMOKE_EMAIL;
 const smokePassword = process.env.PROD_SMOKE_PASSWORD;
+const smokeToken = process.env.PROD_SMOKE_TOKEN;
 const adminEmail = process.env.PROD_ADMIN_SMOKE_EMAIL;
 const adminPassword = process.env.PROD_ADMIN_SMOKE_PASSWORD;
+const adminTokenFromEnv = process.env.PROD_ADMIN_SMOKE_TOKEN;
 const createCheckout = process.env.PROD_SMOKE_CHECKOUT === '1';
+const loadHostedCheckout = process.env.PROD_SMOKE_LOAD_CHECKOUT !== '0';
 const checkoutUrlFile = process.env.PROD_SMOKE_CHECKOUT_URL_FILE;
 
 let failures = 0;
@@ -221,6 +229,26 @@ async function checkStatus({ path, label, expectedStatus }) {
   return { res, text };
 }
 
+async function checkHostedCheckoutUrl(url, label) {
+  if (!loadHostedCheckout) {
+    warn(`${label} hosted checkout load skipped; set PROD_SMOKE_LOAD_CHECKOUT=1 to enable`);
+    return;
+  }
+
+  const { res, text } = await request('GET', url, {
+    redirect: 'follow',
+    headers: {
+      'user-agent': 'WonderTales production smoke check',
+    },
+  });
+  const contentType = res.headers.get('content-type') || '';
+  if (res.status === 200 && contentType.includes('text/html') && /stripe|checkout/i.test(text)) {
+    pass(`${label} hosted checkout page loaded`);
+  } else {
+    fail(`${label} hosted checkout returned ${res.status} ${contentType || 'missing content-type'}; ${preview(text)}`);
+  }
+}
+
 async function checkLegacyPublicStoryEndpoint(path, successorPath) {
   const { res, text } = await request('GET', path);
   if (res.status === 200) {
@@ -299,15 +327,45 @@ async function main() {
     { path: '/', label: 'SSR landing', robots: 'index,follow', contains: ['WonderTales'] },
     { path: '/en', label: 'SSR localized landing', robots: 'index,follow', contains: ['WonderTales'] },
     { path: '/pricing', label: 'SSR pricing', robots: 'index,follow', contains: ['WonderTales'] },
+    { path: '/en/pricing', label: 'SSR localized pricing', robots: 'index,follow', contains: ['WonderTales'] },
     { path: '/stories', label: 'SSR stories catalog', robots: 'index,follow', contains: ['WonderTales'] },
+    { path: '/en/stories', label: 'SSR localized stories catalog', robots: 'index,follow', contains: ['WonderTales'] },
     { path: '/terms', label: 'SSR terms', robots: 'index,follow', contains: ['WonderTales'] },
+    { path: '/en/terms', label: 'SSR localized terms', robots: 'index,follow', contains: ['WonderTales'] },
     { path: '/privacy', label: 'SSR privacy', robots: 'index,follow', contains: ['WonderTales'] },
+    { path: '/en/privacy', label: 'SSR localized privacy', robots: 'index,follow', contains: ['WonderTales'] },
     { path: '/support', label: 'SSR support', robots: 'noindex,follow', contains: ['support@wondertales.art'] },
     { path: '/welcome', label: 'SPA welcome', robots: 'noindex,nofollow' },
+    { path: '/en/welcome', label: 'SPA localized welcome', robots: 'noindex,nofollow' },
     { path: '/register', label: 'SPA register', robots: 'noindex,nofollow' },
     { path: '/auth/forgot-password', label: 'SPA forgot password', robots: 'noindex,nofollow' },
     { path: '/auth/reset-password?token=bad', label: 'SPA reset password', robots: 'noindex,nofollow' },
+    { path: '/dashboard', label: 'SPA dashboard', robots: 'noindex,nofollow' },
+    { path: '/ru/dashboard', label: 'SPA localized dashboard', robots: 'noindex,nofollow' },
+    { path: '/wizard', label: 'SPA story wizard', robots: 'noindex,nofollow' },
+    { path: '/me/stories', label: 'SPA story library', robots: 'noindex,nofollow' },
+    { path: '/me/series', label: 'SPA story series', robots: 'noindex,nofollow' },
+    { path: '/children', label: 'SPA children', robots: 'noindex,nofollow' },
+    { path: '/characters', label: 'SPA characters', robots: 'noindex,nofollow' },
+    { path: '/mode-selection', label: 'SPA mode selection', robots: 'noindex,nofollow' },
+    { path: '/child-mode', label: 'SPA child mode', robots: 'noindex,nofollow' },
     { path: '/billing/plans', label: 'SPA billing plans', robots: 'noindex,nofollow' },
+    { path: '/billing/success?kind=bundle&session_id=cs_test_smoke', label: 'SPA billing success', robots: 'noindex,nofollow' },
+    { path: '/profile', label: 'SPA profile', robots: 'noindex,nofollow' },
+    { path: '/settings/language', label: 'SPA language settings', robots: 'noindex,nofollow' },
+    { path: '/en/settings/language', label: 'SPA localized language settings', robots: 'noindex,nofollow' },
+    { path: '/ru/settings/language', label: 'SPA non-SEO localized language settings', robots: 'noindex,nofollow' },
+    { path: '/settings/theme', label: 'SPA theme settings', robots: 'noindex,nofollow' },
+    { path: '/admin/dashboard', label: 'SPA admin dashboard', robots: 'noindex,nofollow' },
+    { path: '/admin/stories', label: 'SPA admin stories', robots: 'noindex,nofollow' },
+    { path: '/admin/feedback', label: 'SPA admin feedback', robots: 'noindex,nofollow' },
+    { path: '/admin/privacy-requests', label: 'SPA admin privacy requests', robots: 'noindex,nofollow' },
+    { path: '/admin/voices', label: 'SPA admin voices', robots: 'noindex,nofollow' },
+    { path: '/admin/users', label: 'SPA admin users', robots: 'noindex,nofollow' },
+    { path: '/admin/validations', label: 'SPA admin validations', robots: 'noindex,nofollow' },
+    { path: '/admin/scenes', label: 'SPA admin scenes', robots: 'noindex,nofollow' },
+    { path: '/ru/pricing', label: 'Unsupported localized public pricing', expectedStatus: 404, robots: 'noindex,nofollow' },
+    { path: '/not-a-real-public-route-smoke', label: 'Unknown public route', expectedStatus: 404, robots: 'noindex,nofollow' },
   ];
   for (const page of pages) await checkPage(page);
 
@@ -569,10 +627,13 @@ async function main() {
   });
 
   let userToken = null;
-  if (smokeEmail && smokePassword) {
+  if (smokeToken) {
+    userToken = smokeToken;
+    pass('Using provided authenticated smoke token');
+  } else if (smokeEmail && smokePassword) {
     userToken = await login(smokeEmail, smokePassword, 'Smoke user');
   } else {
-    warn('Skipping authenticated user checks; set PROD_SMOKE_EMAIL and PROD_SMOKE_PASSWORD');
+    warn('Skipping authenticated user checks; set PROD_SMOKE_TOKEN or PROD_SMOKE_EMAIL and PROD_SMOKE_PASSWORD');
   }
 
   if (userToken) {
@@ -634,6 +695,7 @@ async function main() {
           body.url.includes('checkout.stripe.com'),
       });
       if (checkout?.url) checkoutUrls.push({ kind: 'subscription', url: checkout.url });
+      if (checkout?.url) await checkHostedCheckoutUrl(checkout.url, 'Stripe subscription checkout');
 
       const bundles = await checkJson({
         path: '/api/v1/bundles',
@@ -656,6 +718,7 @@ async function main() {
             body.url.includes('checkout.stripe.com'),
         });
         if (bundleCheckout?.url) checkoutUrls.push({ kind: 'bundle', url: bundleCheckout.url });
+        if (bundleCheckout?.url) await checkHostedCheckoutUrl(bundleCheckout.url, 'Stripe bundle checkout');
       } else {
         warn('No active bundle available for bundle checkout smoke');
       }
@@ -664,8 +727,9 @@ async function main() {
     }
   }
 
-  if (adminEmail && adminPassword) {
-    const adminToken = await login(adminEmail, adminPassword, 'Admin smoke user');
+  if (adminTokenFromEnv || (adminEmail && adminPassword)) {
+    const adminToken = adminTokenFromEnv || await login(adminEmail, adminPassword, 'Admin smoke user');
+    if (adminTokenFromEnv) pass('Using provided admin smoke token');
     if (adminToken) {
       const adminChecks = [
         ['/health/detailed', 'Detailed health API'],
@@ -691,7 +755,7 @@ async function main() {
       }
     }
   } else {
-    warn('Skipping admin read-only checks; set PROD_ADMIN_SMOKE_EMAIL and PROD_ADMIN_SMOKE_PASSWORD');
+    warn('Skipping admin read-only checks; set PROD_ADMIN_SMOKE_TOKEN or PROD_ADMIN_SMOKE_EMAIL and PROD_ADMIN_SMOKE_PASSWORD');
   }
 
   if (checkoutUrls.length > 0) {

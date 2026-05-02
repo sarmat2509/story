@@ -623,6 +623,7 @@ Current code findings:
 - `sitemap.xml` now includes default-locale `/authors/:authorId` URLs derived only from the same public catalog story rows used for `/stories/:slug`.
 - `/terms`, `/privacy`, `/en/terms`, and `/en/privacy` are path-owned API SSR legal pages with canonical/hreflang metadata; only `en` and `uk` legal alternates are exposed.
 - Local Docker logs after route checks show successful public/app responses; dev nginx now resolves Metro with IPv6 disabled to avoid noisy `host.docker.internal:8082` fallback warnings.
+- Production smoke now covers the direct SPA screen route surface with `noindex,nofollow`, including localized app-only prefixes such as `/en/settings/language` and `/ru/settings/language`, admin route shells, billing success, Child Mode, unknown public 404s, and unsupported non-launch public locale routes such as `/ru/pricing`.
 
 Required public route contract:
 
@@ -758,6 +759,8 @@ Verified so far on 2026-05-02:
 - A fresh `customer.subscription.updated` event restores the local subscription back to `active` after the payment-failure smoke, keeping the QA account in its cancel-at-period-end state.
 - `docs/runbooks/stripe-test-mode.md` records the repeatable test-mode verification process.
 - Production API logs show expected checkout session creation and webhook events with no matching error/warn lines after smoke and after the subscription update retry.
+- Production smoke now creates Stripe test-mode subscription and bundle checkout sessions and can load the hosted Stripe checkout HTML after session creation.
+- A fresh production Stripe sandbox bundle payment completed on 2026-05-02; the app returned to `/billing/success?kind=bundle&session_id=...`, usage showed the expected `+5` story and `+2` audio bundle bonuses, and API logs recorded the Stripe webhook plus `user_bundle_grant`.
 
 Still required:
 
