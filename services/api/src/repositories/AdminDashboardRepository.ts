@@ -3,8 +3,10 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 import { config } from '../config';
 import {
+  buildCostControlAlerts,
   classifyCostControlStatus,
   normalizeCostControlThresholds,
+  type CostControlAlert,
   type CostControlStatus,
   type CostControlThresholds,
 } from '../services/costControlService';
@@ -79,6 +81,7 @@ export type AdminDashboardCostControls = {
   topUser24hCostUsd: number;
   topUser24hEventCount: number;
   topUser24hStoryCount: number;
+  alerts: CostControlAlert[];
 };
 
 export type AdminDashboardQualityReview = QualityReviewSummary;
@@ -581,32 +584,32 @@ export class AdminDashboardRepository {
     const maxStoryCostUsd = Number(costControlRow.max_story_cost_usd ?? 0);
     const unpricedEventCount = Number(costControlRow.unpriced_event_count ?? 0);
     const topUser24hCostUsd = Number(costControlRow.top_user_24h_cost_usd ?? 0);
+    const topUser24hUserId =
+      typeof costControlRow.top_user_24h_user_id === 'string'
+        ? costControlRow.top_user_24h_user_id
+        : null;
+    const costControlMetrics = {
+      projectedMonthlyCostUsd,
+      dailyAverageCostUsd,
+      highCostStoryCount,
+      maxStoryCostUsd,
+      unpricedEventCount,
+      topUser24hCostUsd,
+    };
 
     const costControls: AdminDashboardCostControls = {
-      status: classifyCostControlStatus(
-        {
-          projectedMonthlyCostUsd,
-          dailyAverageCostUsd,
-          highCostStoryCount,
-          maxStoryCostUsd,
-          unpricedEventCount,
-          topUser24hCostUsd,
-        },
-        thresholds
-      ),
+      status: classifyCostControlStatus(costControlMetrics, thresholds),
       thresholds,
       dailyAverageCostUsd,
       projectedMonthlyCostUsd,
       highCostStoryCount,
       maxStoryCostUsd,
       unpricedEventCount,
-      topUser24hUserId:
-        typeof costControlRow.top_user_24h_user_id === 'string'
-          ? costControlRow.top_user_24h_user_id
-          : null,
+      topUser24hUserId,
       topUser24hCostUsd,
       topUser24hEventCount: Number(costControlRow.top_user_24h_event_count ?? 0),
       topUser24hStoryCount: Number(costControlRow.top_user_24h_story_count ?? 0),
+      alerts: buildCostControlAlerts(costControlMetrics, thresholds, { topUser24hUserId }),
     };
 
     const qualityReview = buildQualityReviewSummary({

@@ -1057,7 +1057,7 @@ Acceptance criteria:
 
 ### 4. Cost Controls
 
-Status on 2026-05-02: Admin-visible cost guardrails, live queue pressure, and per-user throttles for provider-costly generation routes are now deployed. The dashboard tracks generation cost per story, retry/failure cost signals, high-cost story count, unpriced AI usage events, projected monthly spend, top-user 24h spend, and text/image/audio/legacy queue depth. Production smoke confirmed the API fields, dashboard rendering, browser console, and API docker logs.
+Status on 2026-05-02: Admin-visible cost guardrails, live queue pressure, unusual-usage alerts, and per-user throttles for provider-costly generation routes are now deployed. The dashboard tracks generation cost per story, retry/failure cost signals, high-cost story count, unpriced AI usage events, projected monthly spend, top-user 24h spend, text/image/audio/legacy queue depth, and actionable warning/critical cost alerts. Production smoke confirmed the API fields, dashboard rendering, browser console, and Docker logs.
 
 Completed locally:
 
@@ -1065,6 +1065,8 @@ Completed locally:
 - Admin dashboard data includes daily average spend, projected monthly spend, max story cost, high-cost story count, unpriced AI event count, and top-user 24h spend.
 - Admin dashboard data includes live queue health for text, image, audio, and legacy queues.
 - Admin UI shows cost guardrail status and queue backlog status with healthy/warning/critical bands.
+- Admin dashboard API now returns actionable cost-control alerts for projected monthly spend, daily average spend, top-user 24h spend, high-cost stories, max story cost, and unpriced AI events.
+- Admin UI renders the active warning/critical alert queue, with operator action text and review destinations; healthy periods show an explicit empty state.
 - Launch gate now runs the focused cost-control service regression.
 - Production `/admin/dashboard` DevTools smoke verified the new dashboard sections after deploy.
 - High-cost story generation, child-mode generation, instant generation, image retry/regeneration, continuation, audio, legacy TTS, and alignment routes now have a per-owner hourly limiter after authentication.
@@ -1073,8 +1075,7 @@ Completed locally:
 
 Remaining work:
 
-- Alert on unusual usage.
-- Add notification/escalation workflows for repeated per-user abuse signals.
+- Add external notification/escalation workflows for repeated per-user abuse signals and sustained critical dashboard alerts if beta traffic grows beyond manual dashboard checks.
 
 Acceptance criteria:
 

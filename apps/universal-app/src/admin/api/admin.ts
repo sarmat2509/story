@@ -169,6 +169,16 @@ export type AdminDashboardCostControls = {
   topUser24hCostUsd: number;
   topUser24hEventCount: number;
   topUser24hStoryCount: number;
+  alerts: Array<{
+    key: string;
+    severity: Exclude<AdminDashboardStatus, 'healthy'>;
+    title: string;
+    detail: string;
+    action: string;
+    reviewUrl: string;
+    metricValue: number;
+    thresholdValue: number;
+  }>;
 };
 
 export type AdminDashboardQueueHealth = {

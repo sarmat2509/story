@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import {
   useAdminDashboard,
   type AdminDashboardBreakdownItem,
+  type AdminDashboardCostControls,
   type AdminDashboardDailyPoint,
   type AdminDashboardImageBucket,
   type AdminDashboardOperationBreakdown,
@@ -260,6 +261,48 @@ function BreakdownList({
   );
 }
 
+function CostControlAlerts({ alerts }: { alerts: AdminDashboardCostControls['alerts'] }) {
+  if (alerts.length === 0) {
+    return (
+      <View style={styles.alertEmpty}>
+        <Text style={styles.alertEmptyText}>No active cost alerts.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.alertList}>
+      {alerts.map((alert) => {
+        const isCritical = alert.severity === 'critical';
+        return (
+          <View
+            key={alert.key}
+            style={[
+              styles.alertItem,
+              isCritical ? styles.alertItemCritical : styles.alertItemWarning,
+            ]}
+          >
+            <View style={styles.alertHeaderRow}>
+              <Text
+                style={[
+                  styles.alertSeverity,
+                  isCritical ? styles.alertSeverityCritical : styles.alertSeverityWarning,
+                ]}
+              >
+                {prettifyPriority(alert.severity)}
+              </Text>
+              <Text style={styles.alertReviewUrl}>{alert.reviewUrl}</Text>
+            </View>
+            <Text style={styles.alertTitle}>{alert.title}</Text>
+            <Text style={styles.alertDetail}>{alert.detail}</Text>
+            <Text style={styles.alertAction}>{alert.action}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 function buildRetryBars(totalStories: number, anyRetryStories: number, requestRetryStories: number, imageRetryStories: number, bothRetryStories: number) {
   const requestOnly = Math.max(requestRetryStories - bothRetryStories, 0);
   const imageOnly = Math.max(imageRetryStories - bothRetryStories, 0);
@@ -456,6 +499,7 @@ export default function AdminDashboardScreen() {
                   </Text>
                 </View>
               </View>
+              <CostControlAlerts alerts={data.costControls.alerts} />
             </SectionCard>
 
             <SectionCard
@@ -872,6 +916,70 @@ const styles = StyleSheet.create({
   highlightValue: {
     fontSize: 14,
     fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  alertEmpty: {
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    borderRadius: 10,
+    padding: 12,
+    backgroundColor: theme.colors.background.primary,
+  },
+  alertEmptyText: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+  },
+  alertList: {
+    gap: 10,
+  },
+  alertItem: {
+    borderLeftWidth: 4,
+    borderRadius: 10,
+    padding: 12,
+    gap: 6,
+    backgroundColor: theme.colors.background.primary,
+  },
+  alertItemWarning: {
+    borderLeftColor: theme.colors.warning[500],
+  },
+  alertItemCritical: {
+    borderLeftColor: theme.colors.error[500],
+  },
+  alertHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    alignItems: 'center',
+  },
+  alertSeverity: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+  },
+  alertSeverityWarning: {
+    color: theme.colors.warning[600],
+  },
+  alertSeverityCritical: {
+    color: theme.colors.error[700],
+  },
+  alertReviewUrl: {
+    fontSize: 11,
+    color: theme.colors.text.tertiary,
+  },
+  alertTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  alertDetail: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.text.secondary,
+  },
+  alertAction: {
+    fontSize: 13,
+    lineHeight: 18,
     color: theme.colors.text.primary,
   },
 });
