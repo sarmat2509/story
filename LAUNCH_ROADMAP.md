@@ -938,7 +938,7 @@ Acceptance criteria:
 
 ### 7. Operational Readiness
 
-Status on 2026-05-02: Core production operations checks are now repeatable and verified on the droplet. `scripts/check-production-ops.sh --backup-smoke` passed with `0` failures and `0` warnings after validating containers, localhost-only API/Postgres bindings, health endpoints, disk thresholds, production volumes, required env presence, recent API logs, and a real `pg_dump -Fc` backup readable by `pg_restore -l`. The deploy/backup/restore/rollback runbook is documented in `docs/runbooks/production-operations.md`.
+Status on 2026-05-02: Core production operations checks are now repeatable and verified on the droplet. `scripts/check-production-ops.sh --backup-smoke` passed with `0` failures and `0` warnings after validating containers, localhost-only API/Postgres bindings, health endpoints, disk thresholds, production volumes, required env presence, recent API logs, and a real `pg_dump -Fc` backup readable by `pg_restore -l`. A production backup-retention runner now creates validated database and uploads-volume artifacts with scoped local retention and optional rclone offsite delivery. The deploy/backup/restore/rollback runbook is documented in `docs/runbooks/production-operations.md`.
 
 Completed locally and in production:
 
@@ -952,11 +952,13 @@ Completed locally and in production:
 - Admin/support access is covered by production smoke, admin dashboard, and support feedback checks.
 - Deploy, rollback, backup, and restore guidance is documented in a runbook.
 - Production smoke now accepts both expected series entitlement outcomes: a `SERIES_ACCESS_REQUIRED` gate for free QA users or an empty/successful series list when the mutable QA account has paid-series access.
+- `scripts/run-production-backup-retention.sh` now provides dry-run and apply modes for database dumps, uploads-volume archives, SHA-256 sidecars, scoped local retention, and optional rclone offsite delivery.
+- Production backup-retention apply-smoke created and validated a `3.1 MB` database dump and a `1008 MB` uploads archive; the follow-up ops check still passed with `0` failures and `0` warnings, but only about `2169 MB` remained free, identifying media backups and droplet disk as the current backup bottleneck.
+- `scripts/check-production-ops.sh` now warns when no recent uploads-volume archive exists in addition to checking recent database backups.
 
 Remaining work:
 
-- Configure recurring/offsite database backup retention before relying on paid production data.
-- Configure recurring/offsite upload-volume backup retention before relying on paid production media.
+- Configure a real offsite backup target and daily scheduler before relying on paid production data/media.
 - Add external disk/error monitoring alerts if beta traffic grows beyond manual checks.
 
 Completed locally:

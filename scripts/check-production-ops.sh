@@ -270,6 +270,13 @@ if [[ -d backups ]]; then
   else
     warn "no database backup file found in backups/ from the last 7 days"
   fi
+
+  recent_upload_backup_count="$(find backups -maxdepth 1 -type f -name 'wondertales_production_uploads_*.tar.gz' -mtime -7 2>/dev/null | wc -l | tr -d ' ')"
+  if [[ "$recent_upload_backup_count" =~ ^[0-9]+$ ]] && (( recent_upload_backup_count > 0 )); then
+    pass "recent upload-volume backup archive exists (${recent_upload_backup_count} in last 7 days)"
+  else
+    warn "no upload-volume backup archive found in backups/ from the last 7 days"
+  fi
 else
   warn "project backups directory is missing"
 fi

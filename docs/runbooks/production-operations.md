@@ -49,7 +49,42 @@ It uses custom format (`pg_dump -Fc`) and validates the archive with:
 pg_restore -l /backups/<backup-file>.dump
 ```
 
-Keep launch backups on the droplet only as a short-term safety net. For paid launch, copy backups to an external encrypted storage location and define retention outside this repo.
+Keep launch backups on the droplet only as a short-term safety net. For paid launch, copy backups to an external encrypted storage location.
+
+The repeatable retention runner is:
+
+```bash
+./scripts/run-production-backup-retention.sh --apply
+```
+
+By default it:
+
+- creates and validates a PostgreSQL custom-format dump;
+- archives and validates the API uploads Docker volume;
+- writes SHA-256 sidecar files for created artifacts;
+- removes only `wondertales_production_*` backup artifacts older than `BACKUP_LOCAL_RETENTION_DAYS` from the droplet backup directory;
+- copies artifacts to `OFFSITE_BACKUP_RCLONE_TARGET` when that rclone target is configured.
+
+Useful launch variants:
+
+```bash
+./scripts/run-production-backup-retention.sh --dry-run --skip-offsite
+./scripts/run-production-backup-retention.sh --apply --skip-offsite
+OFFSITE_BACKUP_RCLONE_TARGET=remote:wondertales/prod ./scripts/run-production-backup-retention.sh --apply
+```
+
+Recommended beta retention defaults:
+
+- `BACKUP_LOCAL_RETENTION_DAYS=1`
+- `BACKUP_OFFSITE_RETENTION_DAYS=90`
+
+Run it from a trusted scheduler once per day. Example crontab on the operator machine or a dedicated ops runner:
+
+```cron
+15 2 * * * cd /path/to/story && mkdir -p logs && OFFSITE_BACKUP_RCLONE_TARGET=remote:wondertales/prod ./scripts/run-production-backup-retention.sh --apply >> logs/production-backup-retention.log 2>&1
+```
+
+The 2026-05-02 production apply-smoke created a 3.1 MB database dump and a 1008 MB uploads archive. The droplet had about 2169 MB free after the run, so the local backup directory should be treated only as a short staging area. Treat the uploads volume as the main backup-time, disk-space, and offsite-transfer bottleneck until media storage moves to S3/CDN or an incremental backup process.
 
 ## Restore plan
 
@@ -74,6 +109,8 @@ Generated and uploaded assets currently live in the `api_uploads` Docker volume 
 ```
 
 The ops check verifies the volume is readable and reports its size. For paid launch, add an external copy/backup process for this volume before relying on it as durable user storage.
+
+`scripts/run-production-backup-retention.sh` now archives this Docker volume into `backups/wondertales_production_uploads_YYYYMMDDTHHMMSSZ.tar.gz` and validates the tarball. `scripts/check-production-ops.sh` warns when no recent upload-volume archive exists.
 
 ## Logs and incidents
 
