@@ -706,7 +706,7 @@ export default function StoryViewerScreen() {
     const shareTitle = t('story_viewer.share_title');
     try {
       await Share.share({ url: shareUrl, message, title: shareTitle });
-      getAnalytics().capture('story_shared', { story_id: storyId, story_title: title });
+      getAnalytics().capture('story_shared', { story_id: storyId });
     } catch (_) {}
   }, [parentReviewBlocksSharing, parentReviewStatus, story, storyId, t]);
 
@@ -754,7 +754,6 @@ export default function StoryViewerScreen() {
           await Share.share({ url: result.shareUrl, message, title: shareTitle });
           getAnalytics().capture('story_shared', {
             story_id: storyId,
-            story_title: story?.title || t('story_viewer.untitled_story'),
           });
         }
       } catch (_) {}

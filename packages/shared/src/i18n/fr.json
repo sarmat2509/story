@@ -17,6 +17,12 @@
     "yes": "Oui",
     "no": "Non"
   },
+  "analytics_consent": {
+    "title": "Analytique facultative",
+    "body": "Aidez-nous à améliorer WonderTales avec l'analytique produit. Nous n'envoyons pas les noms d'enfants, photos, invites, textes d'histoires ni narration.",
+    "accept": "Autoriser l'analytique",
+    "decline": "Pas maintenant"
+  },
   "auth": {
     "login": "Se connecter",
     "logout": "Se déconnecter",

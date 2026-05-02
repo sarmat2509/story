@@ -139,7 +139,6 @@ export default function InstantWizardScreen() {
         wizard_type: 'instant',
         scenario_card_id: scenarioCardId ?? undefined,
         has_photos: photos.length > 0,
-        error_message: error instanceof Error ? error.message : String(error),
       });
       setIsGenerating(false);
       const status = (error as { response?: { status?: number } })?.response?.status;

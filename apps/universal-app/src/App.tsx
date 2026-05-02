@@ -16,6 +16,7 @@ import {
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AnalyticsProvider } from '@/components/AnalyticsProvider';
 import { AnalyticsIdentity } from '@/components/AnalyticsIdentity';
+import { AnalyticsConsentBanner } from '@/components/AnalyticsConsentBanner';
 import { useAuthStore, waitForAuthStoreHydration } from '@/store/authStore';
 import { useMainNavigationStore } from '@/store/mainNavigationStore';
 import { navigationRef } from '@/navigation/navigationRef';
@@ -306,6 +307,7 @@ export default function App() {
                   <StatusBar style="auto" />
                   <AnalyticsIdentity />
                   <RootNavigator />
+                  <AnalyticsConsentBanner />
                 </NavigationContainer>
               )}
             </QueryClientProvider>

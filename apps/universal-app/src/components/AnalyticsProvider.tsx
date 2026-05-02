@@ -7,6 +7,7 @@
 import React from 'react';
 import { Platform } from 'react-native';
 import { getPostHogClient } from '@/services/analytics/posthogProvider';
+import { isAnalyticsAllowed } from '@/services/analytics/consent';
 
 const vendor = process.env.EXPO_PUBLIC_ANALYTICS_VENDOR ?? 'none';
 
@@ -17,7 +18,9 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
 
   // Web: posthog-js initializes on first capture, no provider wrapper needed
   if (Platform.OS === 'web') {
-    getPostHogClient(); // Ensure init
+    if (isAnalyticsAllowed()) {
+      getPostHogClient(); // Ensure init only after analytics consent
+    }
     return <>{children}</>;
   }
 
