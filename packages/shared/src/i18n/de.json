@@ -734,6 +734,11 @@
     "categories": {
       "bug": "Fehler",
       "feature": "Funktionswunsch",
+      "billing": "Zahlung/Abrechnung",
+      "refund": "Rueckerstattungsanfrage",
+      "unsafe_content": "Unsicherer Inhalt",
+      "generation_failed": "Erstellung fehlgeschlagen",
+      "account_privacy": "Konto oder Daten",
       "other": "Sonstiges"
     },
     "message": "Beschreibung",

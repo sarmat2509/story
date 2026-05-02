@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import { FEEDBACK_CATEGORIES, FEEDBACK_TOPICS } from '@wondertales/shared';
 import { requireAdmin, requireAuth } from '../middleware/authMiddleware';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
 import { getStoryRepository } from '../repositories';
@@ -42,7 +43,8 @@ const ListQuerySchema = z.object({
 });
 
 const FeedbackListQuerySchema = ListQuerySchema.extend({
-  category: z.enum(['bug', 'feature', 'other']).optional(),
+  category: z.enum(FEEDBACK_CATEGORIES).optional(),
+  supportTopic: z.enum(FEEDBACK_TOPICS).optional(),
   hasScreenshot: z.coerce.boolean().optional(),
 });
 
@@ -603,8 +605,15 @@ router.get('/feedback', async (req: Request, res: Response) => {
       });
     }
 
-    const { limit, offset, search, category, hasScreenshot } = parsed.data;
-    const data = await listAdminFeedback({ limit, offset, search, category, hasScreenshot });
+    const { limit, offset, search, category, supportTopic, hasScreenshot } = parsed.data;
+    const data = await listAdminFeedback({
+      limit,
+      offset,
+      search,
+      category,
+      supportTopic,
+      hasScreenshot,
+    });
 
     return res.json({
       status: 'success',

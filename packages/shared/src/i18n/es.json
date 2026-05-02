@@ -554,6 +554,11 @@
     "categories": {
       "bug": "Error",
       "feature": "Solicitud de función",
+      "billing": "Pagos/facturación",
+      "refund": "Solicitud de reembolso",
+      "unsafe_content": "Contenido no seguro",
+      "generation_failed": "Error al generar historia",
+      "account_privacy": "Cuenta o datos",
       "other": "Otro"
     },
     "message": "Descripción",

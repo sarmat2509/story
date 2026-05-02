@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { Platform } from 'react-native';
+import type { FeedbackCategory, FeedbackTopic } from '@wondertales/shared';
 import apiClient from './client';
 
 export type ReportedScreen =
@@ -15,7 +16,8 @@ export type ReportedScreen =
   | 'other';
 
 export interface SubmitFeedbackInput {
-  category: 'bug' | 'feature' | 'other';
+  category: FeedbackCategory;
+  supportTopic?: FeedbackTopic;
   message: string;
   email?: string;
   screenshotUrl?: string;

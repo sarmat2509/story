@@ -5,10 +5,11 @@
 import { db } from '../db';
 import { userFeedback } from '../db/schema';
 import { logger } from '../utils/logger';
+import type { FeedbackCategory, FeedbackTopic } from '@wondertales/shared';
 
 export interface CreateFeedbackInput {
   userId?: string;
-  category: 'bug' | 'feature' | 'other';
+  category: FeedbackCategory;
   message: string;
   email?: string;
   screenshotUrl?: string;
@@ -17,6 +18,7 @@ export interface CreateFeedbackInput {
     userAgent?: string;
     url?: string;
     reportedScreen?: string;
+    supportTopic?: FeedbackTopic;
   };
 }
 
@@ -42,6 +44,7 @@ export async function createFeedback(input: CreateFeedbackInput): Promise<{ id: 
       feedbackId: row.id,
       userId: input.userId,
       category: input.category,
+      supportTopic: input.context?.supportTopic,
       hasScreenshot: !!input.screenshotUrl,
     },
     'User feedback submitted'

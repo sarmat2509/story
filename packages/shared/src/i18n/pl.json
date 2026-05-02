@@ -826,6 +826,11 @@
     "categories": {
       "bug": "Blad",
       "feature": "Propozycja funkcji",
+      "billing": "Platnosc/rozliczenia",
+      "refund": "Prosba o zwrot",
+      "unsafe_content": "Niebezpieczna tresc",
+      "generation_failed": "Generowanie nieudane",
+      "account_privacy": "Konto lub dane",
       "other": "Inne"
     },
     "message": "Opis",

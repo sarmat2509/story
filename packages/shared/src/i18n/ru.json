@@ -806,6 +806,11 @@
     "categories": {
       "bug": "Ошибка",
       "feature": "Предложение",
+      "billing": "Оплата",
+      "refund": "Возврат средств",
+      "unsafe_content": "Небезопасный контент",
+      "generation_failed": "Не удалось создать историю",
+      "account_privacy": "Аккаунт или данные",
       "other": "Другое"
     },
     "message": "Описание",

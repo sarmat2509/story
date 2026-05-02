@@ -10,6 +10,7 @@ export class FeedbackRepository {
     offset: number;
     search?: string;
     category?: string;
+    supportTopic?: string;
     hasScreenshot?: boolean;
   }): Promise<
     Array<{
@@ -24,9 +25,10 @@ export class FeedbackRepository {
       createdAt: Date;
     }>
   > {
-    const { limit, offset, search, category, hasScreenshot } = options;
+    const { limit, offset, search, category, supportTopic, hasScreenshot } = options;
     const normalizedSearch = search?.trim();
     const normalizedCategory = category?.trim();
+    const normalizedSupportTopic = supportTopic?.trim();
     const filters = [];
 
     if (normalizedSearch) {
@@ -42,6 +44,9 @@ export class FeedbackRepository {
     }
     if (normalizedCategory) {
       filters.push(eq(schema.userFeedback.category, normalizedCategory));
+    }
+    if (normalizedSupportTopic) {
+      filters.push(sql`${schema.userFeedback.context}->>'supportTopic' = ${normalizedSupportTopic}`);
     }
     if (hasScreenshot) {
       filters.push(and(isNotNull(schema.userFeedback.screenshotUrl), sql`length(trim(${schema.userFeedback.screenshotUrl})) > 0`));
@@ -72,9 +77,16 @@ export class FeedbackRepository {
     return query.where(and(...filters));
   }
 
-  async countAll(search?: string, category?: string, hasScreenshot?: boolean): Promise<number> {
+  async countAll(options: {
+    search?: string;
+    category?: string;
+    supportTopic?: string;
+    hasScreenshot?: boolean;
+  }): Promise<number> {
+    const { search, category, supportTopic, hasScreenshot } = options;
     const normalizedSearch = search?.trim();
     const normalizedCategory = category?.trim();
+    const normalizedSupportTopic = supportTopic?.trim();
     const filters = [];
     const baseQuery = this.db
       .select({ count: sql<number>`count(*)` })
@@ -94,6 +106,9 @@ export class FeedbackRepository {
     }
     if (normalizedCategory) {
       filters.push(eq(schema.userFeedback.category, normalizedCategory));
+    }
+    if (normalizedSupportTopic) {
+      filters.push(sql`${schema.userFeedback.context}->>'supportTopic' = ${normalizedSupportTopic}`);
     }
     if (hasScreenshot) {
       filters.push(and(isNotNull(schema.userFeedback.screenshotUrl), sql`length(trim(${schema.userFeedback.screenshotUrl})) > 0`));

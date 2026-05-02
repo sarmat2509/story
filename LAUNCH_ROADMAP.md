@@ -757,7 +757,6 @@ Verified so far on 2026-05-02:
 
 Still required:
 
-- Verify refund/support flows.
 - Decide whether to keep the test webhook endpoint active for beta or replace it during live-mode setup.
 
 Required work:
@@ -767,7 +766,7 @@ Required work:
 - Keep subscription created/updated/canceled covered in recurring smoke.
 - Keep payment failed behavior covered in recurring smoke.
 - Keep customer portal and bundle/credit purchases covered in recurring smoke.
-- Verify refund/support policy path.
+- Keep refund/support policy path covered in production smoke.
 - Verify test mode before live mode.
 
 Acceptance criteria:
@@ -1014,12 +1013,21 @@ Acceptance criteria:
 
 ### 2. Support and Incident Process
 
+Status on 2026-05-02: Core support intake now exists through the existing feedback/admin workflow, with support topics for billing, refunds, unsafe content, failed generation, and account/privacy. Operator templates and incident checklists are documented in `docs/runbooks/support-incident-process.md`. Production smoke confirmed billing-page feedback topic UI, refund-topic submission, admin feedback filtering/display, and API docker log recording.
+
+Completed locally:
+
+- Feedback submissions can include a `supportTopic` in JSON context without changing the existing `user_feedback.category` database constraint.
+- Feedback modal defaults relevant screens to support topics: plans/profile to billing, public stories to unsafe content, and story creation to generation failed.
+- Admin feedback shows support topic metadata and can filter by support topic.
+- Stripe runbook now includes the refund/support review path.
+- Launch-gate feedback regression covers required support topics.
+- Production `/billing/plans` and `/admin/feedback` DevTools smoke verified the support topic path after deploy.
+
 Required work:
 
-- Support email inbox ready.
-- Templates for payment issues, deletion requests, unsafe content reports, failed generation, and refund requests.
-- Admin process for finding user, subscription, story, job, and assets.
-- Incident checklist for outage, payment failure, unsafe generation, data leak, and queue backlog.
+- Confirm the support email inbox is actually receiving external mail.
+- Assign an incident owner/escalation contact for launch operations.
 
 Acceptance criteria:
 

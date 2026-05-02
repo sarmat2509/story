@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
+import { FEEDBACK_TOPICS, type FeedbackCategory, type FeedbackTopic } from '@wondertales/shared';
 import { useAdminFeedback, type AdminFeedbackListItem } from '@/admin/api/admin';
 import { AdminPagination, AdminSearchBar } from '@/admin/components/AdminControls';
 import { AdminLayout } from '@/admin/components/AdminLayout';
@@ -21,12 +22,28 @@ import type { AdminStackParamList } from '@/types/navigation';
 import { formatAssetUrl } from '@/utils/assetUrl';
 
 const PAGE_SIZE = 20;
-const CATEGORY_OPTIONS = [
+const CATEGORY_OPTIONS: Array<{ label: string; value: '' | FeedbackCategory }> = [
   { label: 'All', value: '' },
   { label: 'Bug', value: 'bug' },
   { label: 'Feature', value: 'feature' },
   { label: 'Other', value: 'other' },
 ] as const;
+
+const TOPIC_LABELS: Record<FeedbackTopic, string> = {
+  bug: 'Bug',
+  feature: 'Feature',
+  billing: 'Billing',
+  refund: 'Refund',
+  unsafe_content: 'Unsafe content',
+  generation_failed: 'Generation failed',
+  account_privacy: 'Account/privacy',
+  other: 'Other',
+};
+
+const TOPIC_OPTIONS: Array<{ label: string; value: '' | FeedbackTopic }> = [
+  { label: 'All topics', value: '' },
+  ...FEEDBACK_TOPICS.map((topic) => ({ label: TOPIC_LABELS[topic], value: topic })),
+];
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -58,6 +75,48 @@ function getCategoryMeta(category: AdminFeedbackListItem['category']) {
   }
 }
 
+function getTopicMeta(topic: string | null | undefined, fallbackCategory: string) {
+  switch (topic ?? fallbackCategory) {
+    case 'billing':
+      return {
+        label: 'Billing',
+        icon: 'card-outline' as const,
+        color: theme.colors.interactive.primary,
+        backgroundColor: theme.colors.primary[50],
+      };
+    case 'refund':
+      return {
+        label: 'Refund',
+        icon: 'receipt-outline' as const,
+        color: theme.colors.status.warning,
+        backgroundColor: theme.colors.warning[50],
+      };
+    case 'unsafe_content':
+      return {
+        label: 'Unsafe content',
+        icon: 'shield-checkmark-outline' as const,
+        color: theme.colors.status.error,
+        backgroundColor: theme.colors.error[50],
+      };
+    case 'generation_failed':
+      return {
+        label: 'Generation failed',
+        icon: 'sparkles-outline' as const,
+        color: theme.colors.status.error,
+        backgroundColor: theme.colors.error[50],
+      };
+    case 'account_privacy':
+      return {
+        label: 'Account/privacy',
+        icon: 'person-circle-outline' as const,
+        color: theme.colors.text.secondary,
+        backgroundColor: theme.colors.background.primary,
+      };
+    default:
+      return getCategoryMeta(fallbackCategory);
+  }
+}
+
 function truncateMessage(message: string, maxLength = 30) {
   const normalized = message.trim().replace(/\s+/g, ' ');
   if (normalized.length <= maxLength) {
@@ -76,10 +135,12 @@ function FeedbackCard({ item }: { item: AdminFeedbackListItem }) {
   const screenshotSource = getScreenshotSource(item.screenshotUrl);
   const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
-  const categoryMeta = getCategoryMeta(item.category);
+  const topicMeta = getTopicMeta(item.context.supportTopic, item.category);
   const headerTitle = truncateMessage(item.message);
   const headerDate = new Date(item.createdAt).toLocaleDateString();
   const contextRows = [
+    { label: 'Support topic', value: item.context.supportTopic },
+    { label: 'Category', value: item.category },
     { label: 'Reported screen', value: item.context.reportedScreen },
     { label: 'Platform', value: item.context.platform },
     { label: 'URL', value: item.context.url },
@@ -118,10 +179,10 @@ function FeedbackCard({ item }: { item: AdminFeedbackListItem }) {
     <View style={styles.card}>
       <TouchableOpacity style={styles.accordionHeader} onPress={toggleExpanded} activeOpacity={0.8}>
         <View style={styles.accordionHeaderLeft}>
-          <View style={[styles.categoryBadge, { backgroundColor: categoryMeta.backgroundColor }]}>
-            <Ionicons name={categoryMeta.icon} size={14} color={categoryMeta.color} />
-            <Text style={[styles.categoryBadgeText, { color: categoryMeta.color }]}>
-              {categoryMeta.label}
+          <View style={[styles.categoryBadge, { backgroundColor: topicMeta.backgroundColor }]}>
+            <Ionicons name={topicMeta.icon} size={14} color={topicMeta.color} />
+            <Text style={[styles.categoryBadgeText, { color: topicMeta.color }]}>
+              {topicMeta.label}
             </Text>
           </View>
           {!isExpanded ? <Text style={styles.accordionMeta}>{headerDate}</Text> : null}
@@ -201,13 +262,15 @@ export default function AdminFeedbackScreen() {
   const navigation = useNavigation<NavigationProp<AdminStackParamList>>();
   const [search, setSearch] = useState('');
   const [offset, setOffset] = useState(0);
-  const [category, setCategory] = useState<'' | 'bug' | 'feature' | 'other'>('');
+  const [category, setCategory] = useState<'' | FeedbackCategory>('');
+  const [supportTopic, setSupportTopic] = useState<'' | FeedbackTopic>('');
   const [hasScreenshot, setHasScreenshot] = useState(false);
   const { data, isLoading, error } = useAdminFeedback({
     limit: PAGE_SIZE,
     offset,
     search,
     category: category || undefined,
+    supportTopic: supportTopic || undefined,
     hasScreenshot,
   });
 
@@ -234,6 +297,26 @@ export default function AdminFeedbackScreen() {
                 style={[styles.filterChip, isActive && styles.filterChipActive]}
                 onPress={() => {
                   setCategory(option.value);
+                  setOffset(0);
+                }}
+              >
+                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={styles.filterGroup}>
+          {TOPIC_OPTIONS.map((option) => {
+            const isActive = supportTopic === option.value;
+            return (
+              <TouchableOpacity
+                key={option.value || 'all_topics'}
+                style={[styles.filterChip, isActive && styles.filterChipActive]}
+                onPress={() => {
+                  setSupportTopic(option.value);
                   setOffset(0);
                 }}
               >

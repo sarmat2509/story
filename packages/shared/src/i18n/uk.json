@@ -1022,6 +1022,11 @@
     "categories": {
       "bug": "Помилка",
       "feature": "Пропозиція",
+      "billing": "Оплата",
+      "refund": "Повернення коштів",
+      "unsafe_content": "Небезпечний контент",
+      "generation_failed": "Не вдалося створити історію",
+      "account_privacy": "Акаунт або дані",
       "other": "Інше"
     },
     "message": "Опис",

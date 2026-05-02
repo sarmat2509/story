@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { FeedbackCategory, FeedbackTopic } from '@wondertales/shared';
 import apiClient from '@/api/client';
 
 export type AdminStoryListItem = {
@@ -29,7 +30,7 @@ export type AdminFeedbackListItem = {
   id: string;
   userId: string | null;
   userEmail: string | null;
-  category: 'bug' | 'feature' | 'other' | string;
+  category: FeedbackCategory | string;
   message: string;
   email: string | null;
   screenshotUrl: string | null;
@@ -38,6 +39,7 @@ export type AdminFeedbackListItem = {
     userAgent: string | null;
     url: string | null;
     reportedScreen: string | null;
+    supportTopic: FeedbackTopic | string | null;
   };
   createdAt: string;
 };
@@ -351,12 +353,22 @@ export function useAdminFeedback(params: {
   limit: number;
   offset: number;
   search?: string;
-  category?: 'bug' | 'feature' | 'other';
+  category?: FeedbackCategory;
+  supportTopic?: FeedbackTopic;
   hasScreenshot?: boolean;
 }) {
-  const { limit, offset, search, category, hasScreenshot } = params;
+  const { limit, offset, search, category, supportTopic, hasScreenshot } = params;
   return useQuery({
-    queryKey: ['admin', 'feedback', limit, offset, search ?? '', category ?? '', hasScreenshot ?? false],
+    queryKey: [
+      'admin',
+      'feedback',
+      limit,
+      offset,
+      search ?? '',
+      category ?? '',
+      supportTopic ?? '',
+      hasScreenshot ?? false,
+    ],
     queryFn: async () => {
       const response = await apiClient.get<PaginatedResponse<AdminFeedbackListItem>>('/api/v1/admin/feedback', {
         params: {
@@ -364,6 +376,7 @@ export function useAdminFeedback(params: {
           offset,
           search: search || undefined,
           category: category || undefined,
+          supportTopic: supportTopic || undefined,
           hasScreenshot: hasScreenshot || undefined,
         },
       });

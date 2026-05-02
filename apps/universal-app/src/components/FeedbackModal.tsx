@@ -16,6 +16,11 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { captureScreen } from 'react-native-view-shot';
 import { useTranslation } from 'react-i18next';
+import {
+  FEEDBACK_TOPICS,
+  getFeedbackCategoryForTopic,
+  type FeedbackTopic,
+} from '@wondertales/shared';
 import { theme } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useSubmitFeedback, type ReportedScreen } from '@/api/feedback';
@@ -38,6 +43,23 @@ interface FeedbackModalProps {
   visible: boolean;
   onClose: () => void;
   initialReportedScreen?: ReportedScreen;
+  initialTopic?: FeedbackTopic;
+}
+
+function getDefaultFeedbackTopic(screen: ReportedScreen): FeedbackTopic {
+  if (screen === 'plans' || screen === 'profile') {
+    return 'billing';
+  }
+
+  if (screen === 'published_story') {
+    return 'unsafe_content';
+  }
+
+  if (screen === 'wizard') {
+    return 'generation_failed';
+  }
+
+  return 'bug';
 }
 
 async function captureCurrentViewportDataUrl(): Promise<string> {
@@ -133,13 +155,16 @@ export function FeedbackModal({
   visible,
   onClose,
   initialReportedScreen = 'profile',
+  initialTopic,
 }: FeedbackModalProps) {
   const { t } = useTranslation();
   const { user } = useAuthStore();
   const submitFeedback = useSubmitFeedback();
 
   const [reportedScreen, setReportedScreen] = useState<ReportedScreen>(initialReportedScreen);
-  const [category, setCategory] = useState<'bug' | 'feature' | 'other'>('bug');
+  const [supportTopic, setSupportTopic] = useState<FeedbackTopic>(
+    initialTopic ?? getDefaultFeedbackTopic(initialReportedScreen)
+  );
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
   const [screenshotUri, setScreenshotUri] = useState<string | null>(null);
@@ -157,7 +182,7 @@ export function FeedbackModal({
   useEffect(() => {
     if (visible) {
       setReportedScreen(initialReportedScreen);
-      setCategory('bug');
+      setSupportTopic(initialTopic ?? getDefaultFeedbackTopic(initialReportedScreen));
       setMessage('');
       setEmail('');
       setScreenshotUri(null);
@@ -171,7 +196,7 @@ export function FeedbackModal({
       setIsPreparingModal(false);
       setIsUploadingScreenshot(false);
     }
-  }, [visible, initialReportedScreen]);
+  }, [visible, initialReportedScreen, initialTopic]);
 
   useEffect(() => {
     if (!visible || !showScreenshotField || hasAttemptedAutoCapture) {
@@ -317,7 +342,8 @@ export function FeedbackModal({
 
     try {
       await submitFeedback.mutateAsync({
-        category,
+        category: getFeedbackCategoryForTopic(supportTopic),
+        supportTopic,
         message: trimmedMessage,
         email: showEmailField ? email.trim() : undefined,
         screenshotUrl: screenshotStoragePath || undefined,
@@ -408,19 +434,19 @@ export function FeedbackModal({
             {/* Category */}
             <Text style={styles.label}>{t('feedback.category')} *</Text>
             <View style={styles.pickerRow}>
-              {(['bug', 'feature', 'other'] as const).map((cat) => (
+              {FEEDBACK_TOPICS.map((topic) => (
                 <TouchableOpacity
-                  key={cat}
-                  style={[styles.pill, category === cat && styles.pillSelected]}
-                  onPress={() => setCategory(cat)}
+                  key={topic}
+                  style={[styles.pill, supportTopic === topic && styles.pillSelected]}
+                  onPress={() => setSupportTopic(topic)}
                 >
                   <Text
                     style={[
                       styles.pillText,
-                      category === cat && styles.pillTextSelected,
+                      supportTopic === topic && styles.pillTextSelected,
                     ]}
                   >
-                    {t(`feedback.categories.${cat}`)}
+                    {t(`feedback.categories.${topic}`)}
                   </Text>
                 </TouchableOpacity>
               ))}

@@ -88,6 +88,15 @@ Expected result:
 - The profile shows payment-issue copy and still leaves the customer portal available.
 - A later `customer.subscription.updated` event from Stripe can restore the local status to `active`.
 
+## Refund and Support Path
+
+1. Ask the parent to submit in-app feedback from `/billing/plans` or `/profile` and choose a billing or refund topic, or email `support@wondertales.art`.
+2. Open `/admin/feedback` and filter by `Billing` or `Refund`.
+3. Match the request to the account email, Stripe customer, subscription, invoice, and charge.
+4. Review plan usage for the current period before deciding whether a refund is appropriate.
+5. Use Stripe for any actual refund operation; do not update local subscription state manually unless the owner approves a support exception.
+6. Record the outcome in the support thread. Cancellation does not automatically imply a refund.
+
 ## Failure Signals
 
 - Checkout opens but no webhook log appears: check Stripe endpoint existence and `STRIPE_WEBHOOK_SECRET`.

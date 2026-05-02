@@ -843,6 +843,11 @@
     "categories": {
       "bug": "Bug",
       "feature": "Feature request",
+      "billing": "Billing/payment",
+      "refund": "Refund request",
+      "unsafe_content": "Unsafe content",
+      "generation_failed": "Story generation failed",
+      "account_privacy": "Account or data request",
       "other": "Other"
     },
     "message": "Description",

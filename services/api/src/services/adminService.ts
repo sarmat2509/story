@@ -182,13 +182,14 @@ export async function listAdminFeedback(params: {
   offset: number;
   search?: string;
   category?: string;
+  supportTopic?: string;
   hasScreenshot?: boolean;
 }) {
-  const { limit, offset, search, category, hasScreenshot } = params;
+  const { limit, offset, search, category, supportTopic, hasScreenshot } = params;
   const repo = getFeedbackRepository();
   const [items, total] = await Promise.all([
-    repo.listAllPaginated({ limit, offset, search, category, hasScreenshot }),
-    repo.countAll(search, category, hasScreenshot),
+    repo.listAllPaginated({ limit, offset, search, category, supportTopic, hasScreenshot }),
+    repo.countAll({ search, category, supportTopic, hasScreenshot }),
   ]);
   const assetStorage = getAssetStorageService();
 
@@ -217,6 +218,8 @@ export async function listAdminFeedback(params: {
             url: typeof context.url === 'string' ? context.url : null,
             reportedScreen:
               typeof context.reportedScreen === 'string' ? context.reportedScreen : null,
+            supportTopic:
+              typeof context.supportTopic === 'string' ? context.supportTopic : null,
           },
           createdAt: item.createdAt.toISOString(),
         };

@@ -1,5 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import {
+  FEEDBACK_CATEGORIES,
+  FEEDBACK_TOPICS,
+  getFeedbackCategoryForTopic,
+} from '@wondertales/shared';
 import { optionalAuth } from '../middleware/authMiddleware';
 import { createFeedback } from '../services/feedbackService';
 import { logger } from '../utils/logger';
@@ -21,7 +26,8 @@ export const REPORTED_SCREENS = [
 ] as const;
 
 const feedbackSchema = z.object({
-  category: z.enum(['bug', 'feature', 'other']),
+  category: z.enum(FEEDBACK_CATEGORIES).optional(),
+  supportTopic: z.enum(FEEDBACK_TOPICS).optional(),
   message: z.string().min(10).max(2000),
   email: z.string().email().optional().or(z.literal('')),
   screenshotUrl: z.string().max(500).optional(),
@@ -72,7 +78,11 @@ router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Respon
       });
     }
 
-    const { category, message, email, screenshotUrl, reportedScreen } = parsed.data;
+    const { message, email, screenshotUrl, reportedScreen } = parsed.data;
+    const supportTopic = parsed.data.supportTopic ?? parsed.data.category ?? 'other';
+    const category = parsed.data.supportTopic
+      ? getFeedbackCategoryForTopic(parsed.data.supportTopic)
+      : parsed.data.category ?? 'other';
 
     const userId = req.user?.id;
     if (!userId && !email) {
@@ -100,6 +110,7 @@ router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Respon
         userAgent,
         url,
         reportedScreen,
+        supportTopic,
       },
     });
 

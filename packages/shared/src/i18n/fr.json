@@ -696,6 +696,11 @@
     "categories": {
       "bug": "Bug",
       "feature": "Demande de fonctionnalité",
+      "billing": "Paiement/facturation",
+      "refund": "Demande de remboursement",
+      "unsafe_content": "Contenu dangereux",
+      "generation_failed": "Échec de génération",
+      "account_privacy": "Compte ou données",
       "other": "Autre"
     },
     "message": "Description",
