@@ -25,6 +25,7 @@ reject_text() {
 
 require_text "services/api/Dockerfile" "COPY --from=builder /app/packages/shared/dist ./packages/shared/dist"
 require_text "services/api/Dockerfile" "COPY services/api/src/legal ./services/api/legal"
+require_text "services/api/package.json" "src/scripts/scanOrphanStorageFiles.ts"
 require_text "services/api/src/utils/i18nLoader.ts" "@wondertales/shared/i18n/uk.json"
 reject_text "services/api/src/utils/i18nLoader.ts" "packages/shared/src/i18n"
 
