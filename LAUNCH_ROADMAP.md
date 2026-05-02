@@ -92,6 +92,7 @@ Completed or ready for closed-beta verification:
 - Real production Google OAuth completed with a Google account: the callback returned to the app, the user was authenticated, an app route opened, and `/api/v1/me` returned the current user without sensitive fields.
 - Google OAuth callback logging was hardened and deployed so token-bearing app callback URLs are no longer written to API logs; the web callback also clears the token from the URL immediately and uses the shared authenticated-route reset helper.
 - Stripe bundle checkout now works even when no static Stripe bundle Price ID is configured, using inline Checkout `price_data` derived from the production bundle catalog.
+- Production security artifact audit now checks the exact deployed headers and client bundle from `wondertales.art`, including apex SSR pages, app/auth SPA routes, `www` redirect behavior, `noindex` auth/app route headers, and server-side secret markers in deployed JS/CSS/HTML/JSON.
 
 Remaining P0 bottlenecks:
 
@@ -547,11 +548,12 @@ Done:
 - Production smoke confirms arbitrary untrusted `Origin` requests do not receive credentialed CORS access.
 - Production auth/current-user responses were hardened and smoke-tested to omit sensitive user fields.
 - Transactional email structured logs were hardened to avoid raw recipient email addresses.
+- `pnpm launch:check-production-security-artifacts` fetches the live production artifact and verifies deployed SSR/SPA security headers, apex/`www` redirect behavior, auth/app `noindex,nofollow`, and exact deployed HTML/JS/CSS/JSON secret markers.
+- Production header captures for `/`, `/pricing`, `/welcome`, `/auth/forgot-password`, and `www.wondertales.art` were archived under `docs/launch-work/artifacts/production-security-2026-05-02/`; the live scan checked `10` deployed files/assets with `0` forbidden marker failures.
 
 Remaining:
 
-- Capture and archive deployed CSP/security headers for `wondertales.art` and `www.wondertales.art` after release deploy.
-- Run and record the same secrets scan against the exact deployed production artifact after release deploy.
+- Re-run the production security artifact checker after release deploys that change nginx headers, SSR HTML, or the exported web bundle.
 
 Required work:
 
@@ -1216,6 +1218,7 @@ Observed on 2026-05-02 after the latest web/API deployment and production verifi
 - A Stripe sandbox bundle payment completed through hosted Checkout, returned to `/billing/success?kind=bundle&session_id=...`, and the webhook recorded a `user_bundle_grant`.
 - Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Remaining log noise is nginx temporary-buffer warnings for large static/media responses.
 - The latest auth/support checks show Google OAuth E2E, Resend sender DNS, Zoho inbound MX, root SPF, DMARC, support SMTP reachability, and real Gmail password-reset delivery are configured and verified.
+- Production security artifact audit passed after the latest deploy: live headers were captured for apex SSR, pricing SSR, app/auth SPA routes, and `www` redirect behavior; the deployed web JS/CSS/HTML/JSON scan found no server-side secret markers.
 
 ## Recommended Launch Gates
 

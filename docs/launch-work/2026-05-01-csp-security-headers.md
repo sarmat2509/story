@@ -25,7 +25,10 @@
   - `pnpm --filter wondertales-api build`
   - `pnpm --filter wondertales-universal-app type-check`
   - `pnpm --filter wondertales-universal-app build:web`
+- Production artifact follow-up on 2026-05-02:
+  - `pnpm launch:check-production-security-artifacts`
+  - `pnpm launch:check-production-security-artifacts -- --output-dir docs/launch-work/artifacts/production-security-2026-05-02`
 
 ## Follow-up
 
-- After production deploy, capture `curl -I` output for `https://wondertales.art/`, `https://wondertales.art/welcome`, and the `www` host once TLS/redirect behavior is finalized.
+- Re-run the production artifact checker after release deploys that change nginx headers, SSR HTML, or the exported web bundle.

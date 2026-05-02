@@ -26,6 +26,11 @@ complete accidentally without a support note.
 - `pnpm --filter wondertales-api exec tsx src/services/__tests__/dataPrivacyRequestService.test.ts`
 - `pnpm --filter wondertales-api build`
 - `pnpm --filter wondertales-universal-app type-check`
+- `pnpm --filter wondertales-universal-app build:web`
+- `./scripts/deploy.sh --api --web`
+- `curl -fsS https://wondertales.art/health`
+- Production API/webapp Docker log scan after deploy found no `error`, `warn`,
+  `failed`, `panic`, `unhandled`, or `exception` lines in the checked window.
 
 ## Migration Notes
 

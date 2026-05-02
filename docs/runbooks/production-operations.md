@@ -33,6 +33,14 @@ Run the broader HTTP/API smoke separately:
 
 Set the documented smoke credentials when authenticated, admin, or Stripe checkout checks are needed.
 
+After a web or nginx deploy, capture the exact deployed security headers and scan the live client artifact, not only the local build:
+
+```bash
+pnpm launch:check-production-security-artifacts -- --output-dir docs/launch-work/artifacts/production-security-YYYY-MM-DD
+```
+
+The checker fetches production SSR and SPA routes, verifies the apex/`www` behavior, confirms auth/app routes stay `noindex,nofollow`, and scans the deployed HTML/JS/CSS/JSON artifacts for server-side secret markers without printing secret values.
+
 ## Monitoring alerts
 
 Use the cron-friendly wrapper when the check should notify an external system:
