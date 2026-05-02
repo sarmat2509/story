@@ -944,24 +944,25 @@ Acceptance criteria:
 
 ### 7. Operational Readiness
 
-Required work:
+Status on 2026-05-02: Core production operations checks are now repeatable and verified on the droplet. `scripts/check-production-ops.sh --backup-smoke` passed with `0` failures and `0` warnings after validating containers, localhost-only API/Postgres bindings, health endpoints, disk thresholds, production volumes, required env presence, recent API logs, and a real `pg_dump -Fc` backup readable by `pg_restore -l`. The deploy/backup/restore/rollback runbook is documented in `docs/runbooks/production-operations.md`.
 
-- Commit and deploy all required migrations.
-- Verify production environment variables:
-  - database;
-  - JWT/auth secrets;
-  - encryption key;
-  - AI provider keys;
-  - TTS provider keys;
-  - Stripe keys;
-  - Stripe webhook secret;
-  - email provider keys;
-  - web app URL / callback URLs.
-- Verify database backups.
-- Verify upload volume backups.
-- Verify disk monitoring.
-- Verify logs and error monitoring.
-- Verify admin/support access.
+Completed locally and in production:
+
+- Required migrations are run through the tracked deploy flow.
+- Production env presence is checked without printing secret values.
+- Manual database backup smoke creates a custom-format dump in the production backup mount and validates archive readability.
+- Upload and log volumes are checked for readability and current size.
+- Disk thresholds are checked for root, Docker, and project filesystems.
+- API and Postgres localhost-only bindings are checked.
+- Recent API logs are scanned for error/warn/failed lines.
+- Admin/support access is covered by production smoke, admin dashboard, and support feedback checks.
+- Deploy, rollback, backup, and restore guidance is documented in a runbook.
+
+Remaining work:
+
+- Configure recurring/offsite database backup retention before relying on paid production data.
+- Configure recurring/offsite upload-volume backup retention before relying on paid production media.
+- Add external disk/error monitoring alerts if beta traffic grows beyond manual checks.
 
 Completed locally:
 
