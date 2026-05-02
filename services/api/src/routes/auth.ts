@@ -35,6 +35,7 @@ import {
   parseParentGateOAuthState,
   ParentGateOAuthStateError,
 } from '../services/oauthParentGateStateService';
+import { toUserResponse } from '../utils/userResponse';
 
 const router = Router();
 
@@ -261,7 +262,7 @@ async function createParentGateSession(
 
   return {
     token,
-    user: parentUser,
+    user: toUserResponse(parentUser),
     expiresAt: parentSession.expiresAt.getTime(),
     sessionMode: 'parent' as const,
   };
@@ -461,7 +462,7 @@ router.post('/google/token', oauthLimiter, async (req: Request, res: Response) =
     setSessionCookie(res, token);
     res.json({
       token,
-      user: result.user,
+      user: toUserResponse(result.user),
       expiresAt: session.expiresAt.getTime(),
       isNewUser: result.isNewUser,
     });
@@ -646,7 +647,7 @@ router.post('/apple/token', oauthLimiter, async (req: Request, res: Response) =>
     setSessionCookie(res, token);
     res.json({
       token,
-      user: result.user,
+      user: toUserResponse(result.user),
       expiresAt: session.expiresAt.getTime(),
       isNewUser: result.isNewUser,
     });
@@ -703,7 +704,7 @@ router.post('/sessions', async (req: Request, res: Response) => {
     setSessionCookie(res, token);
     res.json({
       token,
-      user,
+      user: toUserResponse(user),
       expiresAt: session.expiresAt.getTime(),
       isNewUser: false,
     });
@@ -761,7 +762,7 @@ router.post('/register', async (req: Request, res: Response) => {
     setSessionCookie(res, token);
     res.json({
       token,
-      user,
+      user: toUserResponse(user),
       expiresAt: session.expiresAt.getTime(),
       isNewUser,
     });

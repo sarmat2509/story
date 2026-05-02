@@ -11,6 +11,7 @@ import {
   listUserDataPrivacyRequests,
 } from '../services/dataPrivacyRequestService';
 import { logger } from '../utils/logger';
+import { toUserResponse } from '../utils/userResponse';
 
 const router = Router();
 
@@ -39,7 +40,7 @@ router.get('/', requireAuth, requireParentSession, async (req: Request, res: Res
     
     res.json({
       status: 'success',
-      user: userWithOAuth,
+      user: userWithOAuth ? toUserResponse(userWithOAuth) : null,
     });
   } catch (error) {
     logger.error({ err: error, userId: req.user?.id }, 'Get user failed');
@@ -81,7 +82,7 @@ router.patch('/', requireAuth, requireParentSession, async (req: Request, res: R
     
     res.json({
       status: 'success',
-      user: updatedUser,
+      user: toUserResponse(updatedUser),
     });
   } catch (error) {
     logger.error({ err: error, userId: req.user?.id }, 'Update user failed');
