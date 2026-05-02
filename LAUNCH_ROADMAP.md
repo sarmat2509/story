@@ -981,6 +981,7 @@ Completed locally and in production:
 - `scripts/monitor-production-ops.sh` wraps the ops check for cron, prints the full report, and emits compact JSON webhook alerts for failures or warning-level disk/backup/log issues when `OPS_ALERT_ON_WARNINGS=1`.
 - The monitor wrapper's test alert dry-run was validated locally without hitting a real provider webhook.
 - The production ops check now warns when backup retention, offsite backup target, ops monitor, or admin dashboard alert scheduler references are not discoverable on the droplet.
+- Production deploy archives now suppress local macOS extended attributes with `COPYFILE_DISABLE=1 tar --no-xattrs`; a real web deploy confirmed the previous `LIBARCHIVE.xattr` tar warnings are gone, followed by healthy `/health`, live security artifact scan, and clean Docker log checks.
 
 Remaining work:
 

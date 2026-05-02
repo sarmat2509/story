@@ -126,6 +126,13 @@ ssh_droplet() {
   ssh $SSH_OPTS "${DROPLET_USER}@${DROPLET_IP}" "$@"
 }
 
+create_deploy_tarball() {
+  local output="$1"
+  shift
+
+  COPYFILE_DISABLE=1 tar --no-xattrs -czf "${output}" "$@"
+}
+
 upload_google_credentials() {
   local credentials_target credentials_filename local_credentials_path
 
@@ -268,7 +275,7 @@ sync_nginx_config() {
 
   local nginx_tarball="/tmp/kazka-nginx-config.tar.gz"
 
-  COPYFILE_DISABLE=1 tar -czf "${nginx_tarball}" \
+  create_deploy_tarball "${nginx_tarball}" \
     docker-compose.prod.yml \
     nginx/nginx.conf \
     nginx/conf.d \
@@ -430,7 +437,7 @@ deploy_webapp() {
 
   print_step "Uploading webapp to droplet..."
   cd apps/universal-app
-  tar -czf dist.tar.gz dist/
+  create_deploy_tarball dist.tar.gz dist/
   cd "$PROJECT_ROOT"
   scp -o ControlPath=${SSH_CONTROL_PATH} apps/universal-app/dist.tar.gz ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/
   rm apps/universal-app/dist.tar.gz

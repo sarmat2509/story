@@ -17,11 +17,18 @@ DROPLET_PATH="/var/www/kazka"
 echo "🚀 Starting webapp deployment..."
 echo "   Project root: $PROJECT_ROOT"
 
+create_deploy_tarball() {
+  local output="$1"
+  shift
+
+  COPYFILE_DISABLE=1 tar --no-xattrs -czf "$output" "$@"
+}
+
 sync_nginx_config() {
   echo "🔧 Syncing nginx and compose config..."
   local nginx_tarball="/tmp/kazka-nginx-config.tar.gz"
 
-  COPYFILE_DISABLE=1 tar -czf "$nginx_tarball" \
+  create_deploy_tarball "$nginx_tarball" \
     docker-compose.prod.yml \
     nginx/nginx.conf \
     nginx/conf.d \
@@ -85,7 +92,7 @@ echo "   ✓ Created SSR compatibility bundle at /static/js/bundle.js"
 # 3. Create tarball
 echo "📦 Creating tarball..."
 cd apps/universal-app
-tar -czf dist.tar.gz dist/
+create_deploy_tarball dist.tar.gz dist/
 cd "$PROJECT_ROOT"
 
 # 4. Upload to droplet
