@@ -10,6 +10,10 @@ import deTranslations from '@wondertales/shared/i18n/de.json';
 import plTranslations from '@wondertales/shared/i18n/pl.json';
 import config from '../config';
 import { logger } from '../utils/logger';
+import {
+  renderTransactionalEmail,
+  type TransactionalEmailContent,
+} from './transactionalEmailRenderer';
 
 let resendClient: Resend | null = null;
 const SUPPORTED_EMAIL_LOCALES = LOCALE_IDS;
@@ -17,11 +21,7 @@ const SUPPORTED_EMAIL_LOCALES = LOCALE_IDS;
 type SupportedEmailLocale = Locale;
 type SignupMethod = 'password' | 'google' | 'apple';
 
-interface EmailContent {
-  subject: string;
-  html: string;
-  text: string;
-}
+type EmailContent = TransactionalEmailContent;
 
 interface TransactionalEmailOptions extends EmailContent {
   to: string;
@@ -122,20 +122,6 @@ function normalizeLocale(locale?: string | null): SupportedEmailLocale {
   );
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function getRecipientName(displayName?: string | null): string {
-  const trimmed = displayName?.trim();
-  return trimmed ? escapeHtml(trimmed) : 'there';
-}
-
 function getWelcomeEmailCopy(locale: SupportedEmailLocale): WelcomeEmailCopy {
   const copy = TRANSLATIONS[locale]?.transactional_emails?.welcome;
   const fallbackCopy = TRANSLATIONS.en?.transactional_emails?.welcome;
@@ -178,6 +164,7 @@ async function sendTransactionalEmail(options: TransactionalEmailOptions): Promi
   const { error } = await resend.emails.send({
     from: config.email.fromEmail,
     to: [options.to],
+    replyTo: config.web.supportEmail,
     subject: options.subject,
     html: options.html,
     text: options.text,
@@ -198,87 +185,34 @@ function buildWelcomeEmail(
   const locale = normalizeLocale(recipient.preferredLocale);
   const copy = getWelcomeEmailCopy(locale);
   const appUrl = config.web.webAppUrl;
-  const safeName = getRecipientName(recipient.displayName);
-  const tipsHtml = copy.tips
-    .map((tip) => `<li style="margin: 0 0 10px;">${escapeHtml(tip)}</li>`)
-    .join('');
-  const tipsText = copy.tips.map((tip) => `- ${tip}`).join('\n');
-  const previewText = escapeHtml(copy.preview);
   const securityBody = copy.security_body[options.signupMethod];
   const intro = copy.intro[options.signupMethod];
+  const displayName = recipient.displayName?.trim();
 
-  return {
+  return renderTransactionalEmail({
     subject: copy.subject,
-    text: [
-      copy.greeting,
-      '',
-      intro,
-      '',
-      copy.tips_title,
-      tipsText,
-      '',
-      `${copy.cta}: ${appUrl}`,
-      '',
-      `${copy.security_title}: ${securityBody}`,
-      '',
-      copy.footer,
-    ].join('\n'),
-    html: `
-      <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
-        ${previewText}
-      </div>
-      <div style="margin:0;padding:24px 12px;background:#f4efe6;font-family:Arial,sans-serif;color:#1f2937;">
-        <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #eadfcd;">
-          <div style="padding:32px;background:linear-gradient(135deg,#f6d8a8 0%,#f4efe6 100%);">
-            <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#7c5a2d;margin-bottom:12px;">
-              WonderTales
-            </div>
-            <h1 style="margin:0;font-size:28px;line-height:1.2;color:#1f2937;">
-              ${escapeHtml(copy.greeting)}
-            </h1>
-            <p style="margin:16px 0 0;font-size:16px;line-height:1.6;color:#374151;">
-              ${escapeHtml(intro)}
-            </p>
-          </div>
-
-          <div style="padding:32px;">
-            <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#374151;">
-              ${safeName !== 'there' ? `${safeName}, ` : ''}${previewText}
-            </p>
-
-            <div style="margin:24px 0;">
-              <a
-                href="${escapeHtml(appUrl)}"
-                style="display:inline-block;background:#1f2937;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:999px;font-weight:600;"
-              >
-                ${escapeHtml(copy.cta)}
-              </a>
-            </div>
-
-            <h2 style="margin:0 0 12px;font-size:18px;color:#1f2937;">
-              ${escapeHtml(copy.tips_title)}
-            </h2>
-            <ul style="padding-left:20px;margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
-              ${tipsHtml}
-            </ul>
-
-            <div style="padding:16px 18px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;">
-              <strong style="display:block;margin-bottom:8px;color:#111827;">
-                ${escapeHtml(copy.security_title)}
-              </strong>
-              <span style="font-size:14px;line-height:1.6;color:#4b5563;">
-                ${escapeHtml(securityBody)}
-              </span>
-            </div>
-          </div>
-
-          <div style="padding:20px 32px;border-top:1px solid #f3f4f6;font-size:12px;line-height:1.6;color:#6b7280;">
-            ${escapeHtml(copy.footer)}
-          </div>
-        </div>
-      </div>
-    `,
-  };
+    preview: copy.preview,
+    title: copy.greeting,
+    intro: displayName ? `${displayName}, ${intro}` : intro,
+    action: {
+      label: copy.cta,
+      url: appUrl,
+    },
+    sections: [
+      {
+        title: copy.tips_title,
+        items: copy.tips,
+        tone: 'warm',
+      },
+      {
+        title: copy.security_title,
+        body: securityBody,
+        tone: 'security',
+      },
+    ],
+    footer: copy.footer,
+    supportEmail: config.web.supportEmail,
+  });
 }
 
 export async function sendPasswordResetEmail(
@@ -288,72 +222,36 @@ export async function sendPasswordResetEmail(
 ): Promise<void> {
   const locale = normalizeLocale(preferredLocale);
   const copy = getPasswordResetEmailCopy(locale);
-  const previewText = escapeHtml(copy.preview);
+
+  const content = renderTransactionalEmail({
+    subject: copy.subject,
+    preview: copy.preview,
+    title: copy.subject,
+    intro: copy.intro,
+    action: {
+      label: copy.cta,
+      url: resetLink,
+    },
+    notices: [
+      {
+        text: copy.expires_notice,
+        tone: 'warning',
+      },
+      {
+        text: copy.ignore_notice,
+        tone: 'quiet',
+      },
+    ],
+    footer: copy.footer,
+    supportEmail: config.web.supportEmail,
+  });
 
   await sendTransactionalEmail({
     to,
     logContext: { ...buildSafeEmailLogContext(to), type: 'password-reset', locale },
     successMessage: 'Password reset email sent',
     failureMessage: 'Failed to send password reset email',
-    subject: copy.subject,
-    text: [
-      copy.intro,
-      '',
-      `${copy.cta}: ${resetLink}`,
-      '',
-      copy.expires_notice,
-      '',
-      copy.ignore_notice,
-      '',
-      copy.footer,
-    ].join('\n'),
-    html: `
-      <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
-        ${previewText}
-      </div>
-      <div style="margin:0;padding:24px 12px;background:#f4efe6;font-family:Arial,sans-serif;color:#1f2937;">
-        <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #eadfcd;">
-          <div style="padding:32px;background:linear-gradient(135deg,#dbeafe 0%,#f8fafc 100%);">
-            <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#1d4ed8;margin-bottom:12px;">
-              WonderTales
-            </div>
-            <h1 style="margin:0;font-size:28px;line-height:1.2;color:#1f2937;">
-              ${escapeHtml(copy.subject)}
-            </h1>
-            <p style="margin:16px 0 0;font-size:16px;line-height:1.6;color:#374151;">
-              ${escapeHtml(copy.intro)}
-            </p>
-          </div>
-
-          <div style="padding:32px;">
-            <div style="margin:0 0 24px;">
-              <a
-                href="${escapeHtml(resetLink)}"
-                style="display:inline-block;background:#1f2937;color:#ffffff;text-decoration:none;padding:14px 22px;border-radius:999px;font-weight:600;"
-              >
-                ${escapeHtml(copy.cta)}
-              </a>
-            </div>
-
-            <div style="padding:16px 18px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;margin-bottom:16px;">
-              <span style="font-size:14px;line-height:1.6;color:#4b5563;">
-                ${escapeHtml(copy.expires_notice)}
-              </span>
-            </div>
-
-            <div style="padding:16px 18px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;">
-              <span style="font-size:14px;line-height:1.6;color:#4b5563;">
-                ${escapeHtml(copy.ignore_notice)}
-              </span>
-            </div>
-          </div>
-
-          <div style="padding:20px 32px;border-top:1px solid #f3f4f6;font-size:12px;line-height:1.6;color:#6b7280;">
-            ${escapeHtml(copy.footer)}
-          </div>
-        </div>
-      </div>
-    `,
+    ...content,
   });
 }
 

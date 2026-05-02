@@ -66,6 +66,7 @@ API_TESTS=(
   src/services/__tests__/stripeSubscriptionPeriod.test.ts
   src/services/__tests__/subscriptionPeriodService.test.ts
   src/services/__tests__/subscriptionUsageView.test.ts
+  src/services/__tests__/transactionalEmailRenderer.test.ts
   src/services/__tests__/uploadValidationService.test.ts
   src/services/__tests__/userDataExportService.test.ts
   src/services/__tests__/userDeletionService.test.ts
