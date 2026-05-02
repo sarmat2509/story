@@ -82,7 +82,7 @@ Completed or ready for closed-beta verification:
 - Production API and Postgres ports are now bound to `127.0.0.1`; public access goes through nginx/TLS.
 - Production Google OAuth start now redirects from the web UI to Google with `redirect_uri=https://wondertales.art/api/v1/auth/google/callback`; DevTools reaches the Google sign-in screen without redirect mismatch.
 - Production password reset endpoints return the expected privacy-preserving and invalid-token responses; the deployed API has `RESEND_API_KEY` and `FROM_EMAIL` configured.
-- Production full smoke on 2026-05-02 passed with `0` failures and `0` warnings across SSR pages, app-only noindex pages, public APIs, authenticated user APIs, admin read-only APIs, CORS, and Stripe test-mode subscription/bundle checkout creation.
+- Production full smoke on 2026-05-02 passed with `0` failures and `0` warnings across SSR pages, app-only noindex pages, public APIs, authenticated user APIs, admin read-only APIs, CORS, and Stripe test-mode subscription/bundle checkout creation. A fresh temporary smoke account was created, elevated for read-only admin API checks, verified in DevTools, and deleted after the run.
 - Auth/login, register, parent-gate, and `/api/v1/me` user responses now omit sensitive fields such as `passwordHash` and `stripeCustomerId`; production smoke verifies the omission.
 - Email/password login and registration now reset the web app to `/dashboard` after a successful auth mutation; DevTools verified the production redirect in a clean browser context.
 - Stripe bundle checkout now works even when no static Stripe bundle Price ID is configured, using inline Checkout `price_data` derived from the production bundle catalog.
@@ -90,7 +90,7 @@ Completed or ready for closed-beta verification:
 Remaining P0 bottlenecks:
 
 - Google OAuth still needs a real account completion check through the callback, session cookie, and post-login app route.
-- Password-reset email still needs sender DNS (`SPF`, `DMARC`, Resend DKIM) and real inbox delivery verification for `noreply@wondertales.art`.
+- Password-reset and welcome email delivery are blocked until sender DNS and Resend domain verification are complete: production auth smoke found no `SPF`, `DMARC`, or common Resend DKIM records, and Docker logs show Resend rejecting `noreply@wondertales.art` because the domain is not verified.
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
 
 Solutions not yet applied:
@@ -291,7 +291,7 @@ Acceptance criteria:
 
 ### 5. Account, Auth, and Recovery
 
-Status on 2026-05-02: Partially ready; production email/password auth, OAuth start, noindex auth routes, sensitive response filtering, and reset endpoint smoke checks pass, but real Google callback completion and email deliverability remain.
+Status on 2026-05-02: Partially ready; production email/password auth, OAuth start, noindex auth routes, sensitive response filtering, and reset endpoint smoke checks pass, but real Google callback completion and email deliverability remain. Resend currently rejects production mail because `wondertales.art` is not verified, and public DNS is still missing SPF, DMARC, and common Resend DKIM records.
 
 Done:
 
@@ -306,11 +306,12 @@ Done:
 - Production email/password login and registration now navigate to `/dashboard` after successful authentication.
 - Login/register/current-user JSON responses no longer expose password hashes or Stripe customer ids.
 - Deployed `/welcome`, `/register`, `/auth/forgot-password`, and `/auth/reset-password?token=bad` return app-shell HTML with `noindex,nofollow` in the production smoke script.
+- Full production smoke re-ran with a temporary account and covered login, authenticated APIs, read-only admin APIs, Stripe checkout-session creation, hosted Checkout loading, and DevTools checks for `/profile`, `/wizard`, `/admin/dashboard`, and `/settings/language`.
 
 Remaining:
 
 - Complete Google OAuth on the production domain with a real account and verify callback/session persistence after Google returns to the app.
-- Add/verify password-reset sender DNS (`SPF`, `DMARC`, Resend DKIM) and confirm real inbox delivery.
+- Add/verify password-reset sender DNS (`SPF`, `DMARC`, Resend DKIM), verify the domain in Resend, and confirm real inbox delivery.
 - Decide whether IP-only rate limits are sufficient for beta or whether CAPTCHA/WAF bot protection is required before public acquisition.
 
 Required work:
@@ -1178,6 +1179,7 @@ Acceptance criteria:
 Observed on 2026-05-02 after the latest web/API deployment and production verification refresh:
 
 - `./scripts/check-production-smoke.sh` with authenticated QA user, admin read-only checks, and Stripe test checkout creation passed with `0` failures and `0` warnings.
+- A fresh full-production verification run created a temporary smoke account, elevated it for read-only admin checks, loaded hosted Stripe subscription and bundle Checkout pages, rendered authenticated DevTools screens, and deleted the temporary account after verification.
 - Ukrainian and English SSR landing, pricing, stories catalog, terms, and privacy pages return 200 with deterministic `html[lang]`, canonical URLs, `uk`/`en` hreflang alternates, and no incomplete locale alternates.
 - `/support` returns SSR HTML with the support address and `noindex,follow`.
 - App-only and auth routes return SPA HTML with `noindex,nofollow`.
@@ -1189,6 +1191,7 @@ Observed on 2026-05-02 after the latest web/API deployment and production verifi
 - Public pricing SSR now renders with a bounded plan-data load, has a static launch-plan fallback, and production `/en/pricing` DevTools/curl verification showed plural-correct usage copy.
 - A Stripe sandbox bundle payment completed through hosted Checkout, returned to `/billing/success?kind=bundle&session_id=...`, and the webhook recorded a `user_bundle_grant`.
 - Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Remaining log noise is nginx temporary-buffer warnings for large static/media responses.
+- The latest auth/ops checks show a real email-deliverability blocker: Resend rejects `noreply@wondertales.art` until the domain is verified, and DNS currently lacks SPF, DMARC, and common Resend DKIM records.
 
 ## Recommended Launch Gates
 
