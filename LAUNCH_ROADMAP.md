@@ -747,6 +747,8 @@ Verified so far on 2026-05-02:
 - Authenticated usage API showed the expected bundle grant after webhook processing: `+5` stories and `+2` audio for the current billing period.
 - A real Stripe test-mode subscription payment completed with card sandbox data; production API logs show `checkout.session.completed` and the authenticated usage API showed `silver` plan limits plus the existing bundle bonus.
 - Subscription checkout cancel return was verified in DevTools and lands back on `/billing/plans`.
+- Production DevTools re-verified subscription checkout cancel/success for the `golden` plan and caught a client response-normalization gap where bundle credits were included in usage totals but not shown as `plan + bundle`; subscription usage now normalizes the API's snake_case usage fields before rendering without changing dynamic pricing feature slug maps.
+- After the response-normalization fix, `/billing/plans` shows plan limits and bundle credits separately instead of folding bundle credits into the plan limit.
 - Stripe Customer Portal opened from the production profile, showed the `silver` subscription, card, invoice, and cancellation action, and returned to `/profile`.
 - Customer Portal cancellation was verified; API usage now reports `cancelAtPeriodEnd: true`, and the profile shows the cancellation-pending state through the period end.
 - The Stripe webhook handler now accepts both top-level subscription period timestamps and the newer item-level period timestamps sent by `customer.subscription.updated` events.

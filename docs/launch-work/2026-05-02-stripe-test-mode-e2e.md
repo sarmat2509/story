@@ -22,11 +22,14 @@ Date: 2026-05-02
 - The success screen title, header, body, and primary action show bundle-specific copy.
 - Production API logs show `checkout.session.completed` and `Recorded user_bundle_grant from Stripe bundle checkout`.
 - `/api/v1/me/subscription-usage` showed the expected bundle bonus: `+5` stories and `+2` audio.
+- DevTools completed a Stripe sandbox subscription payment.
+- The browser returned to `/billing/success?kind=subscription&session_id=...`.
+- The authenticated usage API reported an active Stripe subscription with paid plan limits plus the existing bundle bonus.
+- A follow-up UI smoke caught and fixed subscription usage response normalization, so plan and bundle credits render separately in the usage card without rewriting dynamic pricing feature slug maps.
 - Final production smoke passed with `0` failures and `0` warnings.
 - Docker log tail after smoke showed expected checkout/webhook records and no matching error/warn lines.
 
 ## Remaining
 
-- Complete subscription payment success/cancel verification.
 - Verify customer portal, cancellation, subscription update/delete, payment-failed, and refund/support paths.
 - Decide final live-mode Stripe webhook setup before paid launch.

@@ -75,14 +75,55 @@ export interface SubscriptionUsageData {
   enableRealPayments?: boolean;
 }
 
+type SubscriptionUsageApiData = SubscriptionUsageData & {
+  current_period_end?: string;
+  subscription_status?: string;
+  cancel_at_period_end?: boolean;
+  payment_provider?: string | null;
+  enable_real_payments?: boolean;
+  stories: SubscriptionUsageData['stories'] & {
+    plan_limit?: number;
+    bundle_bonus?: number;
+  };
+  audio: SubscriptionUsageData['audio'] & {
+    plan_limit?: number;
+    bundle_bonus?: number;
+  };
+};
+
+function normalizeUsageBucket(
+  bucket: SubscriptionUsageApiData['stories']
+): SubscriptionUsageData['stories'] {
+  return {
+    used: bucket.used,
+    limit: bucket.limit,
+    remaining: bucket.remaining,
+    planLimit: bucket.planLimit ?? bucket.plan_limit,
+    bundleBonus: bucket.bundleBonus ?? bucket.bundle_bonus,
+  };
+}
+
+function normalizeSubscriptionUsage(data: SubscriptionUsageApiData): SubscriptionUsageData {
+  return {
+    stories: normalizeUsageBucket(data.stories),
+    audio: normalizeUsageBucket(data.audio),
+    resetsAt: data.resetsAt,
+    currentPeriodEnd: data.currentPeriodEnd ?? data.current_period_end,
+    subscriptionStatus: data.subscriptionStatus ?? data.subscription_status,
+    cancelAtPeriodEnd: data.cancelAtPeriodEnd ?? data.cancel_at_period_end,
+    paymentProvider: data.paymentProvider ?? data.payment_provider,
+    enableRealPayments: data.enableRealPayments ?? data.enable_real_payments,
+  };
+}
+
 export const useSubscriptionUsage = (enabled: boolean = true) => {
   return useQuery({
     queryKey: ['subscription-usage'],
     queryFn: async () => {
-      const response = await apiClient.get<{ status: string; data: SubscriptionUsageData }>(
+      const response = await apiClient.get<{ status: string; data: SubscriptionUsageApiData }>(
         '/api/v1/me/subscription-usage'
       );
-      return response.data.data;
+      return normalizeSubscriptionUsage(response.data.data);
     },
     enabled,
   });
