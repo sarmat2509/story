@@ -27,12 +27,14 @@ require_regex() {
 }
 
 WEBAPP_HEADERS="nginx/includes/webapp-security-headers.conf"
+SPA_PROXY_PROD="nginx/includes/spa-proxy-prod.conf"
 WEBAPP_NGINX="apps/universal-app/nginx.conf"
 WEBAPP_DOCKERFILE="apps/universal-app/Dockerfile"
 PROD_COMPOSE="docker-compose.prod.yml"
 API_INDEX="services/api/src/index.ts"
 
 require_file "${WEBAPP_HEADERS}"
+require_file "${SPA_PROXY_PROD}"
 require_file "${WEBAPP_NGINX}"
 require_file "${WEBAPP_DOCKERFILE}"
 require_file "${PROD_COMPOSE}"
@@ -72,6 +74,10 @@ require_text "${WEBAPP_HEADERS}" "Stripe Checkout/Portal, Google OAuth, and Appl
 require_text "${WEBAPP_NGINX}" "include /etc/nginx/includes/webapp-security-headers.conf;"
 require_text "${WEBAPP_DOCKERFILE}" "COPY nginx/includes/webapp-security-headers.conf /etc/nginx/includes/webapp-security-headers.conf"
 require_text "${PROD_COMPOSE}" "./nginx/includes:/etc/nginx/includes:ro"
+require_text "${SPA_PROXY_PROD}" "proxy_buffer_size 64k;"
+require_text "${SPA_PROXY_PROD}" "proxy_buffers 32 256k;"
+require_text "${SPA_PROXY_PROD}" "proxy_busy_buffers_size 512k;"
+require_text "${SPA_PROXY_PROD}" "proxy_max_temp_file_size 0;"
 
 include_count="$(grep -Fc "include /etc/nginx/includes/webapp-security-headers.conf;" "${ROOT_DIR}/${WEBAPP_NGINX}")"
 if [[ "${include_count}" -lt 4 ]]; then

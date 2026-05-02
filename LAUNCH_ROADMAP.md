@@ -1217,7 +1217,7 @@ Observed on 2026-05-02 after the latest web/API deployment and production verifi
 - External admin dashboard alert checker dry-run passed against production with no active cost, queue, or quality-review findings.
 - Public pricing SSR now renders with a bounded plan-data load, has a static launch-plan fallback, and production `/en/pricing` DevTools/curl verification showed plural-correct usage copy.
 - A Stripe sandbox bundle payment completed through hosted Checkout, returned to `/billing/success?kind=bundle&session_id=...`, and the webhook recorded a `user_bundle_grant`.
-- Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Remaining log noise is nginx temporary-buffer warnings for large static/media responses.
+- Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Nginx SPA proxy buffering was tuned after the web locale deploy, and a fresh large-bundle fetch no longer produced temporary-file warning noise in the checked Docker log window.
 - The latest auth/support checks show Google OAuth E2E, Resend sender DNS, Zoho inbound MX, root SPF, DMARC, support SMTP reachability, and real Gmail password-reset delivery are configured and verified.
 - Production security artifact audit passed after the latest deploy: live headers were captured for apex SSR, pricing SSR, app/auth SPA routes, and `www` redirect behavior; the deployed web JS/CSS/HTML/JSON scan found no server-side secret markers.
 - Production `/ru/auth/forgot-password` now renders Russian UI with `document.documentElement.lang="ru"` and `dir="ltr"` after the web document-locale sync deploy; DevTools console stayed clean.
