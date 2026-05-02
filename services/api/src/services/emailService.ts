@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Resend } from 'resend';
 import { LOCALE_IDS, Locale } from '@wondertales/shared';
 import ukTranslations from '@wondertales/shared/i18n/uk.json';
@@ -62,6 +63,11 @@ interface PasswordResetEmailCopy {
   footer: string;
 }
 
+export interface SafeEmailLogContext {
+  recipientDomain: string;
+  recipientHash: string;
+}
+
 interface TranslationShape {
   transactional_emails?: {
     welcome?: WelcomeEmailCopy;
@@ -78,6 +84,24 @@ const TRANSLATIONS: Record<SupportedEmailLocale, TranslationShape> = {
   fr: frTranslations as TranslationShape,
   pl: plTranslations as TranslationShape,
 };
+
+export function buildSafeEmailLogContext(email: string): SafeEmailLogContext {
+  const normalizedEmail = email.trim().toLowerCase();
+  const atIndex = normalizedEmail.lastIndexOf('@');
+  const recipientDomain =
+    atIndex >= 0 && normalizedEmail.slice(atIndex + 1).length > 0
+      ? normalizedEmail.slice(atIndex + 1)
+      : 'invalid';
+
+  return {
+    recipientDomain,
+    recipientHash: crypto
+      .createHash('sha256')
+      .update(normalizedEmail)
+      .digest('hex')
+      .slice(0, 16),
+  };
+}
 
 function getResend(): Resend | null {
   if (!config.email.resendApiKey) {
@@ -268,7 +292,7 @@ export async function sendPasswordResetEmail(
 
   await sendTransactionalEmail({
     to,
-    logContext: { to, type: 'password-reset', locale },
+    logContext: { ...buildSafeEmailLogContext(to), type: 'password-reset', locale },
     successMessage: 'Password reset email sent',
     failureMessage: 'Failed to send password reset email',
     subject: copy.subject,
@@ -338,11 +362,12 @@ export async function sendWelcomeEmail(
   options: WelcomeEmailOptions
 ): Promise<void> {
   const content = buildWelcomeEmail(recipient, options);
+  const emailLogContext = buildSafeEmailLogContext(recipient.email);
 
   await sendTransactionalEmail({
     to: recipient.email,
     logContext: {
-      to: recipient.email,
+      ...emailLogContext,
       type: 'welcome',
       locale: normalizeLocale(recipient.preferredLocale),
       signupMethod: options.signupMethod,
@@ -361,7 +386,7 @@ export function enqueueWelcomeEmail(
     logger.error(
       {
         err: error,
-        to: recipient.email,
+        ...buildSafeEmailLogContext(recipient.email),
         type: 'welcome',
         signupMethod: options.signupMethod,
       },

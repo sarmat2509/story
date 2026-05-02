@@ -47,6 +47,7 @@ API_TESTS=(
   src/services/__tests__/consentService.test.ts
   src/services/__tests__/costControlService.test.ts
   src/services/__tests__/dataPrivacyRequestService.test.ts
+  src/services/__tests__/emailServiceLogContext.test.ts
   src/services/__tests__/orphanStorageCleanupService.test.ts
   src/services/__tests__/oauthParentGateService.test.ts
   src/services/__tests__/oauthParentGateStateService.test.ts

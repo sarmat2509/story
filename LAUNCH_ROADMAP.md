@@ -84,6 +84,7 @@ Completed or ready for closed-beta verification:
 - Production password reset endpoints return the expected privacy-preserving and invalid-token responses; the deployed API has `RESEND_API_KEY` and `FROM_EMAIL` configured.
 - Production full smoke on 2026-05-02 passed with `0` failures and `0` warnings across SSR pages, app-only noindex pages, public APIs, authenticated user APIs, admin read-only APIs, CORS, and Stripe test-mode subscription/bundle checkout creation. A fresh temporary smoke account was created, elevated for read-only admin API checks, verified in DevTools, and deleted after the run.
 - Auth/login, register, parent-gate, and `/api/v1/me` user responses now omit sensitive fields such as `passwordHash` and `stripeCustomerId`; production smoke verifies the omission.
+- Deployed transactional password-reset and welcome email logs no longer include raw recipient email addresses; they use recipient domain plus a short normalized hash for correlation.
 - Email/password login and registration now reset the web app to `/dashboard` after a successful auth mutation; DevTools verified the production redirect in a clean browser context.
 - Stripe bundle checkout now works even when no static Stripe bundle Price ID is configured, using inline Checkout `price_data` derived from the production bundle catalog.
 
@@ -305,6 +306,7 @@ Done:
 - Production API startup now requires `GOOGLE_CALLBACK_URL`, `WEB_APP_URL`, `RESEND_API_KEY`, and `FROM_EMAIL` instead of silently booting with broken auth/recovery links.
 - Production email/password login and registration now navigate to `/dashboard` after successful authentication.
 - Login/register/current-user JSON responses no longer expose password hashes or Stripe customer ids.
+- Password-reset and welcome email logs use safe recipient domain/hash context instead of raw email addresses, and the production API was redeployed with that change.
 - Deployed `/welcome`, `/register`, `/auth/forgot-password`, and `/auth/reset-password?token=bad` return app-shell HTML with `noindex,nofollow` in the production smoke script.
 - Full production smoke re-ran with a temporary account and covered login, authenticated APIs, read-only admin APIs, Stripe checkout-session creation, hosted Checkout loading, and DevTools checks for `/profile`, `/wizard`, `/admin/dashboard`, and `/settings/language`.
 
@@ -534,6 +536,7 @@ Done:
 - `www.wondertales.art` has valid certificate coverage and redirects to `wondertales.art`.
 - Production smoke confirms arbitrary untrusted `Origin` requests do not receive credentialed CORS access.
 - Production auth/current-user responses were hardened and smoke-tested to omit sensitive user fields.
+- Transactional email structured logs were hardened to avoid raw recipient email addresses.
 
 Remaining:
 
