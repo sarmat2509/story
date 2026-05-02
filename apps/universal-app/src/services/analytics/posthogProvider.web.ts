@@ -5,37 +5,17 @@
 import posthog, { type CaptureResult } from 'posthog-js';
 import type { IAnalyticsProvider } from './types';
 import { isAnalyticsAllowed } from './consent';
+import { scrubAnalyticsProperties } from './privacy';
 
 const API_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY ?? '';
 const HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';
 
 let initialized = false;
 
-const SENSITIVE_ANALYTICS_PROPERTY_NAMES = new Set([
-  'childname',
-  'child_name',
-  'displayname',
-  'display_name',
-  'email',
-  'errormessage',
-  'error_message',
-  'message',
-  'prompt',
-  'storytitle',
-  'story_title',
-]);
-
 function scrubAnalyticsEvent(event: CaptureResult | null): CaptureResult | null {
   if (!event?.properties) return event;
 
-  const properties = { ...event.properties };
-  for (const key of Object.keys(properties)) {
-    if (SENSITIVE_ANALYTICS_PROPERTY_NAMES.has(key.toLowerCase())) {
-      delete properties[key];
-    }
-  }
-
-  return { ...event, properties };
+  return { ...event, properties: scrubAnalyticsProperties(event.properties) };
 }
 
 function ensureInit(): boolean {
@@ -98,19 +78,19 @@ export function disablePostHogClient(): void {
 export class PostHogProvider implements IAnalyticsProvider {
   identify(userId: string, traits?: Record<string, unknown>): void {
     if (ensureInit()) {
-      posthog.identify(userId, traits);
+      posthog.identify(userId, scrubAnalyticsProperties(traits));
     }
   }
 
   capture(event: string, properties?: Record<string, unknown>): void {
     if (ensureInit()) {
-      posthog.capture(event, properties);
+      posthog.capture(event, scrubAnalyticsProperties(properties));
     }
   }
 
   screen(name: string, properties?: Record<string, unknown>): void {
     if (ensureInit()) {
-      posthog.capture('$screen', { name, ...properties });
+      posthog.capture('$screen', scrubAnalyticsProperties({ name, ...properties }));
     }
   }
 

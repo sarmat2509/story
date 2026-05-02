@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { disablePostHogClient, getPostHogClient } from '@/services/analytics/posthogProvider';
 import {
@@ -18,7 +18,7 @@ export function AnalyticsConsentBanner() {
     setConsent(getAnalyticsConsent());
   }), []);
 
-  if (Platform.OS !== 'web' || consent) {
+  if (consent) {
     return null;
   }
 

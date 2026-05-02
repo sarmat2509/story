@@ -4,6 +4,8 @@
 
 import PostHog from 'posthog-react-native';
 import type { IAnalyticsProvider } from './types';
+import { isAnalyticsAllowed } from './consent';
+import { scrubAnalyticsProperties } from './privacy';
 
 const API_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY ?? '';
 const HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';
@@ -49,8 +51,9 @@ function toJsonType(value: unknown): JsonValue | undefined {
 function toPostHogProperties(
   properties?: Record<string, unknown>,
 ): PostHogEventProperties | undefined {
-  if (!properties) return undefined;
-  const normalized = Object.entries(properties)
+  const scrubbedProperties = scrubAnalyticsProperties(properties);
+  if (!scrubbedProperties) return undefined;
+  const normalized = Object.entries(scrubbedProperties)
     .map(([key, value]) => {
       const jsonValue = toJsonType(value);
       return jsonValue === undefined ? null : [key, jsonValue] as const;
@@ -64,6 +67,7 @@ function toPostHogProperties(
 /** Get or create PostHog client. Shared with App's PostHogProvider when used. */
 export function getPostHogClient(): PostHog | null {
   if (!API_KEY) return null;
+  if (!isAnalyticsAllowed()) return null;
   if (!client) {
     client = new PostHog(API_KEY, {
       host: HOST,

@@ -1121,24 +1121,24 @@ Acceptance criteria:
 
 ### 6. Analytics with Consent
 
-Status on 2026-05-02: Web analytics now requires an explicit opt-in before PostHog initializes or analytics events are captured. The consent banner is localized across visible app locales, and analytics identity/event payloads no longer include email, display name, story title, raw error messages, prompts, photos, child names, story text, or narration. Deployed to production and verified with DevTools in fresh accept/decline browser contexts.
+Status on 2026-05-02: Web and native analytics now require an explicit opt-in before PostHog initializes or analytics events are captured. The consent banner is localized across visible app locales, and analytics identity/event payloads are scrubbed for email, display name, story title, raw messages, prompts, photos, child names, story text, narration, and media URLs. Web consent was deployed and verified with DevTools in fresh accept/decline browser contexts; native consent gating is implemented and type/build verified before mobile release.
 
 Completed locally:
 
-- Added a web-only analytics consent banner with accept/decline persistence.
-- Gated PostHog web initialization behind granted analytics consent.
+- Added an analytics consent banner with accept/decline persistence on web and native.
+- Gated PostHog web and native initialization behind granted analytics consent.
 - Kept analytics calls as no-ops before consent or after decline.
 - Re-identifies the signed-in user after consent changes without sending email or display name.
 - Removed story title and raw generation error message properties from analytics events.
 - Disabled PostHog autocapture, replay, surveys, product tours, dead-click capture, heatmaps, remote flags, and external dependency loading on the web client.
-- Added a `before_send` scrubber for high-risk analytics property names.
+- Added shared web/native scrubbing for high-risk analytics property names.
 - Localized consent copy for `uk`, `en`, `ru`, `es`, `fr`, `de`, and `pl`.
 - Verified production accept/decline paths with DevTools and checked nginx/webapp/api docker logs after deployment.
 - Added a web profile preference to change analytics consent later; disabling consent opts out and resets the initialized PostHog client.
+- Native consent uses the same stored choice and profile toggle semantics, with MMKV-backed synchronous reads so PostHog is not created during app startup before consent.
 
 Required work:
 
-- Decide whether native app analytics should require the same explicit opt-in before mobile launch.
 - Keep auditing future analytics events for product-safe payloads.
 
 Acceptance criteria:
