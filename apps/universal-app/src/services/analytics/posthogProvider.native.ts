@@ -75,6 +75,11 @@ export function getPostHogClient(): PostHog | null {
   return client;
 }
 
+export function disablePostHogClient(): void {
+  const c = client;
+  if (c) c.reset();
+}
+
 export class PostHogProvider implements IAnalyticsProvider {
   identify(userId: string, traits?: Record<string, unknown>): void {
     const c = getPostHogClient();

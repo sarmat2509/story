@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Platform, Linking, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Platform, Linking, Image, Alert, Switch } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
@@ -17,6 +17,13 @@ import { useUpdateMe } from '@/api/auth';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import { formatAssetUrl, isServerAssetUrl, toCanonicalAssetUrl } from '@/utils/assetUrl';
 import { uploadPhoto, deletePhoto } from '@/utils/uploadPhoto';
+import {
+  getAnalyticsConsent,
+  onAnalyticsConsentChange,
+  setAnalyticsConsent as setStoredAnalyticsConsent,
+  type AnalyticsConsent,
+} from '@/services/analytics/consent';
+import { disablePostHogClient, getPostHogClient } from '@/services/analytics/posthogProvider';
 
 const PAYMENT_ISSUE_STATUSES = new Set(['past_due', 'unpaid', 'incomplete', 'incomplete_expired']);
 
@@ -38,6 +45,7 @@ export default function ProfileScreen() {
   const [isAvatarBusy, setIsAvatarBusy] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [analyticsConsent, setAnalyticsConsentState] = useState<AnalyticsConsent>(() => getAnalyticsConsent());
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -58,6 +66,10 @@ export default function ProfileScreen() {
   useEffect(() => {
     setAboutMe(user?.aboutMe ?? '');
   }, [user?.aboutMe]);
+
+  useEffect(() => onAnalyticsConsentChange(() => {
+    setAnalyticsConsentState(getAnalyticsConsent());
+  }), []);
 
   // Get current subscription plan
   const currentPlan = plans?.find(plan => plan.isCurrent);
@@ -185,6 +197,17 @@ export default function ProfileScreen() {
       Alert.alert(t('common.error'), t('profile.avatar_remove_error'));
     } finally {
       setIsAvatarBusy(false);
+    }
+  };
+
+  const handleAnalyticsConsentChange = (enabled: boolean) => {
+    const nextConsent = enabled ? 'granted' : 'denied';
+    setStoredAnalyticsConsent(nextConsent);
+    setAnalyticsConsentState(nextConsent);
+    if (enabled) {
+      getPostHogClient();
+    } else {
+      disablePostHogClient();
     }
   };
 
@@ -359,6 +382,28 @@ export default function ProfileScreen() {
           <Text style={styles.settingText}>{t('profile.notification_settings')}</Text>
           <Text style={styles.settingArrow}>›</Text>
         </TouchableOpacity>
+
+        {Platform.OS === 'web' ? (
+          <View style={styles.settingButton}>
+            <View style={styles.settingLeft}>
+              <Text style={styles.settingText}>{t('profile.analytics_settings')}</Text>
+              <Text style={styles.settingValue}>
+                {analyticsConsent === 'granted'
+                  ? t('profile.analytics_enabled')
+                  : t('profile.analytics_disabled')}
+              </Text>
+            </View>
+            <Switch
+              value={analyticsConsent === 'granted'}
+              onValueChange={handleAnalyticsConsentChange}
+              trackColor={{
+                false: theme.colors.neutral[300],
+                true: theme.colors.interactive.primary,
+              }}
+              thumbColor={theme.colors.background.primary}
+            />
+          </View>
+        ) : null}
       </AnimatedSection>
 
       <AnimatedSection delay={320} trigger={enterKey} style={styles.section}>

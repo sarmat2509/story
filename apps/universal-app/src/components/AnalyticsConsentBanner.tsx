@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { getPostHogClient } from '@/services/analytics/posthogProvider';
+import { disablePostHogClient, getPostHogClient } from '@/services/analytics/posthogProvider';
 import {
   getAnalyticsConsent,
+  onAnalyticsConsentChange,
   setAnalyticsConsent,
   type AnalyticsConsent,
 } from '@/services/analytics/consent';
@@ -12,6 +13,10 @@ import { theme } from '@/theme';
 export function AnalyticsConsentBanner() {
   const { t } = useTranslation();
   const [consent, setConsent] = useState<AnalyticsConsent>(() => getAnalyticsConsent());
+
+  useEffect(() => onAnalyticsConsentChange(() => {
+    setConsent(getAnalyticsConsent());
+  }), []);
 
   if (Platform.OS !== 'web' || consent) {
     return null;
@@ -22,6 +27,8 @@ export function AnalyticsConsentBanner() {
     setConsent(choice);
     if (choice === 'granted') {
       getPostHogClient();
+    } else {
+      disablePostHogClient();
     }
   };
 

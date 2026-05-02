@@ -1113,11 +1113,11 @@ Completed locally:
 - Added a `before_send` scrubber for high-risk analytics property names.
 - Localized consent copy for `uk`, `en`, `ru`, `es`, `fr`, `de`, and `pl`.
 - Verified production accept/decline paths with DevTools and checked nginx/webapp/api docker logs after deployment.
+- Added a web profile preference to change analytics consent later; disabling consent opts out and resets the initialized PostHog client.
 
 Required work:
 
 - Decide whether native app analytics should require the same explicit opt-in before mobile launch.
-- Add a settings/profile control to change a previous analytics consent choice.
 - Keep auditing future analytics events for product-safe payloads.
 
 Acceptance criteria:

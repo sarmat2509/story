@@ -11,6 +11,10 @@ export function getPostHogClient(): unknown | null {
   return getPostHogModule().getPostHogClient();
 }
 
+export function disablePostHogClient(): void {
+  getPostHogModule().disablePostHogClient();
+}
+
 export class PostHogProvider implements IAnalyticsProvider {
   private readonly provider: IAnalyticsProvider;
 

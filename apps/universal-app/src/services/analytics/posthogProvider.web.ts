@@ -41,6 +41,10 @@ function scrubAnalyticsEvent(event: CaptureResult | null): CaptureResult | null 
 function ensureInit(): boolean {
   if (!API_KEY) return false;
   if (!isAnalyticsAllowed()) return false;
+  if (initialized) {
+    posthog.opt_in_capturing();
+    return true;
+  }
   if (!initialized) {
     posthog.init(API_KEY, {
       api_host: HOST,
@@ -75,6 +79,7 @@ function ensureInit(): boolean {
       save_campaign_params: false,
       save_referrer: false,
     });
+    posthog.opt_in_capturing();
     initialized = true;
   }
   return true;
@@ -82,6 +87,12 @@ function ensureInit(): boolean {
 
 export function getPostHogClient(): typeof posthog | null {
   return ensureInit() ? posthog : null;
+}
+
+export function disablePostHogClient(): void {
+  if (!initialized) return;
+  posthog.opt_out_capturing();
+  posthog.reset();
 }
 
 export class PostHogProvider implements IAnalyticsProvider {
