@@ -20,6 +20,7 @@ import { useRegister } from '@/api/auth';
 import { getPasswordStrength, meetsMinRequirements } from '@/utils/passwordStrength';
 import { LEGAL_URLS } from '@/config/constants';
 import { theme } from '@/theme';
+import { resetToMainRoute } from '@/navigation/navigationRef';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -57,6 +58,12 @@ export default function RegisterScreen() {
         privacyAccepted,
         isAdultGuardian,
       });
+      if (!resetToMainRoute({ name: 'Dashboard' })) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Dashboard' }],
+        });
+      }
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string; code?: string } } };
       const code = e?.response?.data?.code;

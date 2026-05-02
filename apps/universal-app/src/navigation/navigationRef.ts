@@ -1,4 +1,4 @@
-import { createNavigationContainerRef } from '@react-navigation/native';
+import { CommonActions, createNavigationContainerRef } from '@react-navigation/native';
 import type { RootStackParamList } from '@/types/navigation';
 import type { LastMainRoute } from '@/store/mainNavigationStore';
 
@@ -16,6 +16,29 @@ export function navigateToMainRoute(route: LastMainRoute): void {
     screen: route.name,
     params: route.params,
   });
+}
+
+/**
+ * Reset the root navigator to a Main route.
+ * This keeps auth transitions from getting stranded on a now-hidden public route.
+ */
+export function resetToMainRoute(route: Exclude<LastMainRoute, null>): boolean {
+  if (!navigationRef.isReady()) return false;
+  navigationRef.dispatch(
+    CommonActions.reset({
+      index: 0,
+      routes: [
+        {
+          name: 'Main',
+          state: {
+            routes: [{ name: route.name, params: route.params }],
+            index: 0,
+          },
+        },
+      ],
+    })
+  );
+  return true;
 }
 
 /**

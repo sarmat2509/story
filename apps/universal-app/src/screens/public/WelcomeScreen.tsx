@@ -25,6 +25,7 @@ import { GlassCard, IRIDESCENT_BORDER_COLORS } from '@/components/GlassCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { InteractiveSurface } from '@/components/InteractiveSurface';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
+import { resetToMainRoute } from '@/navigation/navigationRef';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -58,6 +59,12 @@ export default function WelcomeScreen() {
       setError(null);
       setShowSkipOption(false);
       await emailLoginMutation.mutateAsync({ email, password });
+      if (!resetToMainRoute({ name: 'Dashboard' })) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Dashboard' }],
+        });
+      }
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string; code?: string } } };
       const msg = e?.response?.data?.message;
