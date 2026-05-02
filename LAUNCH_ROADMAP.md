@@ -941,7 +941,7 @@ Acceptance criteria:
 
 ### 7. Operational Readiness
 
-Status on 2026-05-02: Core production operations checks are now repeatable and verified on the droplet. `scripts/check-production-ops.sh --backup-smoke` passed with `0` failures and `0` warnings after validating containers, localhost-only API/Postgres bindings, health endpoints, disk thresholds, production volumes, required env presence, recent API logs, and a real `pg_dump -Fc` backup readable by `pg_restore -l`. A production backup-retention runner now creates validated database and uploads-volume artifacts with scoped local retention and optional rclone offsite delivery. The deploy/backup/restore/rollback runbook is documented in `docs/runbooks/production-operations.md`.
+Status on 2026-05-02: Core production operations checks are now repeatable and verified on the droplet. `scripts/check-production-ops.sh --backup-smoke` passed with `0` failures and `0` warnings after validating containers, localhost-only API/Postgres bindings, health endpoints, disk thresholds, production volumes, required env presence, recent API logs, and a real `pg_dump -Fc` backup readable by `pg_restore -l`. A production backup-retention runner now creates validated database and uploads-volume artifacts with scoped local retention and optional rclone offsite delivery. A cron-friendly monitor wrapper can now send external webhook alerts for failures, and optionally warnings, around the production ops check. The deploy/backup/restore/rollback runbook is documented in `docs/runbooks/production-operations.md`.
 
 Completed locally and in production:
 
@@ -958,11 +958,13 @@ Completed locally and in production:
 - `scripts/run-production-backup-retention.sh` now provides dry-run and apply modes for database dumps, uploads-volume archives, SHA-256 sidecars, scoped local retention, and optional rclone offsite delivery.
 - Production backup-retention apply-smoke created and validated a `3.1 MB` database dump and a `1008 MB` uploads archive; the follow-up ops check still passed with `0` failures and `0` warnings, but only about `2169 MB` remained free, identifying media backups and droplet disk as the current backup bottleneck.
 - `scripts/check-production-ops.sh` now warns when no recent uploads-volume archive exists in addition to checking recent database backups.
+- `scripts/monitor-production-ops.sh` wraps the ops check for cron, prints the full report, and emits compact JSON webhook alerts for failures or warning-level disk/backup/log issues when `OPS_ALERT_ON_WARNINGS=1`.
+- The monitor wrapper's test alert dry-run was validated locally without hitting a real provider webhook.
 
 Remaining work:
 
-- Configure a real offsite backup target and daily scheduler before relying on paid production data/media.
-- Add external disk/error monitoring alerts if beta traffic grows beyond manual checks.
+- Configure a real offsite backup target and daily backup scheduler before relying on paid production data/media.
+- Configure the real external alert webhook and scheduler for `scripts/monitor-production-ops.sh` before depending on unattended disk/error monitoring.
 
 Completed locally:
 

@@ -33,6 +33,34 @@ Run the broader HTTP/API smoke separately:
 
 Set the documented smoke credentials when authenticated, admin, or Stripe checkout checks are needed.
 
+## Monitoring alerts
+
+Use the cron-friendly wrapper when the check should notify an external system:
+
+```bash
+OPS_ALERT_WEBHOOK_URL=https://example.com/webhook ./scripts/monitor-production-ops.sh
+```
+
+By default it sends an alert when the ops check fails. To also alert on warnings, including disk threshold warnings, run:
+
+```bash
+OPS_ALERT_WEBHOOK_URL=https://example.com/webhook OPS_ALERT_ON_WARNINGS=1 ./scripts/monitor-production-ops.sh
+```
+
+Dry-run the payload without sending:
+
+```bash
+./scripts/monitor-production-ops.sh --test-alert --dry-run-alert
+```
+
+Example crontab:
+
+```cron
+*/30 * * * * cd /path/to/story && OPS_ALERT_WEBHOOK_URL=https://example.com/webhook OPS_ALERT_ON_WARNINGS=1 ./scripts/monitor-production-ops.sh >> logs/production-ops-monitor.log 2>&1
+```
+
+The webhook payload is plain JSON with a `text` field, so it can be used with Slack-style webhooks, Discord-compatible relays, or a small custom endpoint.
+
 ## Database backup
 
 The production compose file mounts `./backups` into the Postgres container at `/backups`.
