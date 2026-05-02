@@ -61,7 +61,7 @@ All billing, refund, cancellation, quota, and support paths must work end to end
 
 ### P0 Status Snapshot - 2026-05-02
 
-Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, and the main production web/TLS/SSR/security path has been verified on `wondertales.art`. P0 is not fully green for external families until production OAuth/email flows, final operator/legal confirmations, and approved cleanup policy are finished.
+Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, and the main production web/TLS/SSR/security path has been verified on `wondertales.art`. P0 is not fully green for external families until full Google OAuth completion, password-reset inbox delivery, final operator/legal confirmations, and approved cleanup policy are finished.
 
 Completed or ready for closed-beta verification:
 
@@ -80,15 +80,22 @@ Completed or ready for closed-beta verification:
 - Production deploy path was exercised on 2026-05-02: API/webapp/nginx deployed, 15 pending migrations applied, production SSR pricing/legal/stories/sitemap routes smoke-tested, security headers captured, and DevTools live checks completed.
 - Production `www.wondertales.art` certificate coverage and canonical redirect to `wondertales.art` were fixed and verified.
 - Production API and Postgres ports are now bound to `127.0.0.1`; public access goes through nginx/TLS.
+- Production Google OAuth start now redirects from the web UI to Google with `redirect_uri=https://wondertales.art/api/v1/auth/google/callback`; DevTools reaches the Google sign-in screen without redirect mismatch.
+- Production password reset endpoints return the expected privacy-preserving and invalid-token responses; the deployed API has `RESEND_API_KEY` and `FROM_EMAIL` configured.
+- Production full smoke on 2026-05-02 passed with `0` failures and `0` warnings across SSR pages, app-only noindex pages, public APIs, authenticated user APIs, admin read-only APIs, CORS, and Stripe test-mode subscription/bundle checkout creation.
+- Auth/login, register, parent-gate, and `/api/v1/me` user responses now omit sensitive fields such as `passwordHash` and `stripeCustomerId`; production smoke verifies the omission.
+- Email/password login and registration now reset the web app to `/dashboard` after a successful auth mutation; DevTools verified the production redirect in a clean browser context.
+- Stripe bundle checkout now works even when no static Stripe bundle Price ID is configured, using inline Checkout `price_data` derived from the production bundle catalog.
 
 Remaining P0 bottlenecks:
 
-- Google OAuth and password-reset email must be verified against production callback URLs, sender domain/DNS, and real email delivery. Apple is hidden on web, but native/mobile Apple remains out of this web launch scope.
+- Google OAuth still needs a real account completion check through the callback, session cookie, and post-login app route.
+- Password-reset email still needs sender DNS (`SPF`, `DMARC`, Resend DKIM) and real inbox delivery verification for `noreply@wondertales.art`.
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
 
 Solutions not yet applied:
 
-- OAuth-only parent gate fallback is implemented locally for web Google re-auth and native Google/Apple token re-auth; production OAuth callback URLs still need live verification.
+- OAuth-only parent gate fallback is implemented locally for web Google re-auth and native Google/Apple token re-auth; production still needs a real-account Google callback completion check.
 - Scheduled orphan-file cleanup policy/job is implemented with disabled/dry-run defaults and a retention-age gate; production apply mode still requires live dry-run review and operator approval.
 
 ### 1. Stabilize Public Web Routes
@@ -284,7 +291,7 @@ Acceptance criteria:
 
 ### 5. Account, Auth, and Recovery
 
-Status on 2026-05-01: Partially ready; production OAuth/email verification remains.
+Status on 2026-05-02: Partially ready; production email/password auth, OAuth start, noindex auth routes, sensitive response filtering, and reset endpoint smoke checks pass, but real Google callback completion and email deliverability remain.
 
 Done:
 
@@ -293,12 +300,17 @@ Done:
 - Auth, OAuth, and password reset endpoints have stricter rate limits.
 - Apple sign-in is hidden on web (`WelcomeScreen` only renders it on iOS).
 - Child-owned accounts are not part of the launch model; child sessions attach to parent-owned accounts.
+- Production Google OAuth start redirects to Google with the correct `wondertales.art` callback URL and no redirect mismatch in DevTools.
+- Production forgot/reset password endpoints return expected responses for safe smoke cases.
+- Production API startup now requires `GOOGLE_CALLBACK_URL`, `WEB_APP_URL`, `RESEND_API_KEY`, and `FROM_EMAIL` instead of silently booting with broken auth/recovery links.
+- Production email/password login and registration now navigate to `/dashboard` after successful authentication.
+- Login/register/current-user JSON responses no longer expose password hashes or Stripe customer ids.
+- Deployed `/welcome`, `/register`, `/auth/forgot-password`, and `/auth/reset-password?token=bad` return app-shell HTML with `noindex,nofollow` in the production smoke script.
 
 Remaining:
 
-- Verify Google OAuth on the production domain with the final callback URL.
-- Verify password reset email in production with real Resend/API key, sender domain DNS, and deliverability.
-- Confirm auth routes are noindexed in the deployed route stack.
+- Complete Google OAuth on the production domain with a real account and verify callback/session persistence after Google returns to the app.
+- Add/verify password-reset sender DNS (`SPF`, `DMARC`, Resend DKIM) and confirm real inbox delivery.
 - Decide whether IP-only rate limits are sufficient for beta or whether CAPTCHA/WAF bot protection is required before public acquisition.
 
 Required work:
@@ -505,7 +517,7 @@ Acceptance criteria:
 
 ### 9. Production Security Baseline
 
-Status on 2026-05-01: Many code-level controls are ready; production infrastructure verification remains.
+Status on 2026-05-02: Ready for closed-beta verification; production TLS, HTTPS, CORS, headers, protected health/admin routes, localhost-only API/Postgres binding, and sensitive auth response filtering have been verified.
 
 Done:
 
@@ -518,14 +530,14 @@ Done:
 - Detailed health, queue, rate limiter, image validation debug, admin, and sensitive routes are protected.
 - `pnpm launch:scan-client-secrets` scans the exported web client bundle for server-side secret markers and now runs inside `pnpm launch:gate`.
 - `pnpm launch:check-security-headers` validates the production webapp CSP/security header include, deployment mounts, Dockerfile copy, and API Helmet connect-src shape; it now runs inside `pnpm launch:gate`.
+- `www.wondertales.art` has valid certificate coverage and redirects to `wondertales.art`.
+- Production smoke confirms arbitrary untrusted `Origin` requests do not receive credentialed CORS access.
+- Production auth/current-user responses were hardened and smoke-tested to omit sensitive user fields.
 
 Remaining:
 
-- Fix or verify `www.wondertales.art` TLS and redirect-to-apex behavior in production.
-- Verify HTTPS redirect and security headers on the deployed domain.
 - Capture and archive deployed CSP/security headers for `wondertales.art` and `www.wondertales.art` after release deploy.
 - Run and record the same secrets scan against the exact deployed production artifact after release deploy.
-- Confirm arbitrary `Origin` requests get no credentialed CORS headers on the deployed stack.
 
 Required work:
 
@@ -676,9 +688,11 @@ Acceptance criteria:
 
 Current bundle purchase review findings:
 
-- Bundle checkout cancel URL now points to `/billing/plans`; Stripe test-mode verification still needs to confirm cancel/success returns in the hosted checkout flow.
+- Bundle checkout cancel URL now points to `/billing/plans`; Stripe hosted checkout was opened in test mode for both subscription and bundle purchases, but cancel/success returns still need full browser completion checks.
 - Public SSR pricing and authenticated billing/plans now explain monthly auto-renewal, cancellation via billing portal where available, support-reviewed refunds, and bundle non-rollover/current-period behavior.
 - Public SSR pricing and the app plans screen now suppress paid CTAs when real payments are disabled, while keeping free access available.
+- Production smoke creates Stripe test-mode subscription and bundle Checkout Sessions successfully; bundle checkout now falls back to inline Stripe `price_data` when no static bundle Price ID is configured.
+- DevTools verified hosted Stripe checkout loads for subscription and bundle sessions with sandbox UI, line item details, prefilled QA email, and card form. No payment was completed during smoke.
 
 Required work:
 
@@ -715,6 +729,19 @@ Acceptance criteria:
 - Public SSR pricing copy and authenticated billing/plans copy match actual API enforcement.
 
 ### 3. Stripe End-to-End Verification
+
+Verified so far on 2026-05-02:
+
+- Production test-mode subscription Checkout Session creation for the `silver` plan returns a `cs_test_*` session and hosted Stripe URL.
+- Production test-mode bundle Checkout Session creation for the first active bundle returns a `cs_test_*` session and hosted Stripe URL.
+- Hosted Stripe checkout pages loaded in DevTools for subscription and bundle flows.
+- Production API logs show expected checkout session creation events and no matching error/warn lines after smoke.
+
+Still required:
+
+- Complete checkout success and cancel browser returns for subscriptions and bundles.
+- Verify webhook signature handling against real Stripe test events.
+- Verify subscription created/updated/canceled, payment failed, customer portal, and refund/support flows.
 
 Required work:
 
@@ -755,6 +782,8 @@ Completed locally:
 - Public SSR footers now include a language dropdown for launch-ready SEO locales only (`uk` and `en`) on landing, pricing, stories catalog, terms, and privacy pages.
 - The public language dropdown switches to the equivalent localized URL for the current route instead of sending users to the app shell or a different public page.
 - The hydrated public stories catalog now keeps a `uk`/`en` language dropdown after React hydration and syncs default public SEO routes such as `/stories` back to the default `uk` UI locale.
+- Production DevTools screen sweep found and fixed visible Ukrainian UI fallbacks in the authenticated web app: photo upload controls, library empty/loading/error states, library view-toggle accessibility label, billing portal wording, and profile pseudonym spelling.
+- Production DevTools re-check verified `/wizard`, `/me/stories`, and `/billing/plans` render the fixed Ukrainian copy after deploy.
 
 Required work:
 
