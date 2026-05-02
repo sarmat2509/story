@@ -77,6 +77,7 @@ for arg in "$@"; do
   esac
 done
 
+set +e
 node <<'NODE'
 const fs = require('node:fs');
 
@@ -962,12 +963,18 @@ main().catch((error) => {
   process.exitCode = 1;
 });
 NODE
+smoke_status=$?
+set -e
 
 if [[ "$CHECK_PROD_REMOTE" == "1" ]]; then
   echo
   echo "Remote docker log tail"
-  ssh -o BatchMode=no "${DROPLET_USER}@${DROPLET_IP}" \
-    "cd ${DROPLET_PATH} && docker compose -f docker-compose.prod.yml logs api --since 20m 2>&1 | grep -i -E 'error|warn|checkout|stripe|oauth|password reset|forgot password|resend|failed' | sed -E 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/[email]/g' || true"
+  if ! ssh -o BatchMode=no "${DROPLET_USER}@${DROPLET_IP}" \
+    "cd ${DROPLET_PATH} && docker compose -f docker-compose.prod.yml logs api --since 20m 2>&1 | grep -i -E 'error|warn|checkout|stripe|oauth|password reset|forgot password|resend|failed' | sed -E 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/[email]/g' || true"; then
+    echo "WARN Remote docker log tail unavailable; rerun with --no-remote or check SSH/key access separately"
+  fi
 else
   echo "WARN Skipped remote docker log tail because CHECK_PROD_REMOTE=0"
 fi
+
+exit "${smoke_status}"

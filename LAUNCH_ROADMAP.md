@@ -93,6 +93,7 @@ Completed or ready for closed-beta verification:
 - Google OAuth callback logging was hardened and deployed so token-bearing app callback URLs are no longer written to API logs; the web callback also clears the token from the URL immediately and uses the shared authenticated-route reset helper.
 - Stripe bundle checkout now works even when no static Stripe bundle Price ID is configured, using inline Checkout `price_data` derived from the production bundle catalog.
 - Production security artifact audit now checks the exact deployed headers and client bundle from `wondertales.art`, including apex SSR pages, app/auth SPA routes, `www` redirect behavior, `noindex` auth/app route headers, and server-side secret markers in deployed JS/CSS/HTML/JSON.
+- Production smoke now treats optional remote Docker log tail SSH failures as warnings while preserving true HTTP/API smoke failures.
 
 Remaining P0 bottlenecks:
 
@@ -976,6 +977,7 @@ Completed locally and in production:
 - Admin/support access is covered by production smoke, admin dashboard, and support feedback checks.
 - Deploy, rollback, backup, and restore guidance is documented in a runbook.
 - Production smoke now accepts both expected series entitlement outcomes: a `SERIES_ACCESS_REQUIRED` gate for free QA users or an empty/successful series list when the mutable QA account has paid-series access.
+- Production smoke preserves the core HTTP/API exit code when the optional remote Docker log tail cannot open SSH, so release checks no longer fail solely because logs were checked from a shell without the droplet key.
 - `scripts/run-production-backup-retention.sh` now provides dry-run and apply modes for database dumps, uploads-volume archives, SHA-256 sidecars, scoped local retention, and optional rclone offsite delivery.
 - Production backup-retention apply-smoke created and validated a `3.1 MB` database dump and a `1008 MB` uploads archive; the follow-up ops check still passed with `0` failures and `0` warnings, but only about `2169 MB` remained free, identifying media backups and droplet disk as the current backup bottleneck.
 - `scripts/check-production-ops.sh` now warns when no recent uploads-volume archive exists in addition to checking recent database backups.

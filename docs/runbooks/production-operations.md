@@ -32,6 +32,8 @@ Run the broader HTTP/API smoke separately:
 ./scripts/check-production-smoke.sh
 ```
 
+The remote Docker log tail at the end of this smoke is best-effort. If SSH is unavailable in the current shell, the script reports a warning and preserves the HTTP/API smoke result. Use `--no-remote` or `CHECK_PROD_REMOTE=0` when logs are checked separately.
+
 Set the documented smoke credentials when authenticated, admin, or Stripe checkout checks are needed.
 
 For a release-grade pass, provide production smoke user and admin credentials or short-lived tokens, then run full mode. Full mode requires authenticated and admin checks, creates Stripe test-mode Checkout Sessions, runs the temporary Child Mode fixture, and fails if those branches cannot run:
