@@ -10,6 +10,7 @@
 #   PROD_SMOKE_CHECKOUT=1 PROD_SMOKE_EMAIL=... PROD_SMOKE_PASSWORD=... ./scripts/check-production-smoke.sh
 #   PROD_SMOKE_CHECKOUT=1 PROD_SMOKE_LOAD_CHECKOUT=0 ... ./scripts/check-production-smoke.sh
 #   PROD_SMOKE_CHILD_MODE=1 PROD_SMOKE_TOKEN=... ./scripts/check-production-smoke.sh
+#   ./scripts/check-production-smoke.sh --full
 
 set -euo pipefail
 
@@ -23,11 +24,58 @@ export PROD_ADMIN_SMOKE_TOKEN="${PROD_ADMIN_SMOKE_TOKEN:-}"
 export PROD_SMOKE_CHECKOUT="${PROD_SMOKE_CHECKOUT:-0}"
 export PROD_SMOKE_LOAD_CHECKOUT="${PROD_SMOKE_LOAD_CHECKOUT:-1}"
 export PROD_SMOKE_CHILD_MODE="${PROD_SMOKE_CHILD_MODE:-0}"
+export PROD_SMOKE_REQUIRE_AUTH="${PROD_SMOKE_REQUIRE_AUTH:-0}"
+export PROD_SMOKE_REQUIRE_ADMIN="${PROD_SMOKE_REQUIRE_ADMIN:-0}"
 export PROD_SMOKE_CHECKOUT_URL_FILE="${PROD_SMOKE_CHECKOUT_URL_FILE:-/tmp/wondertales-production-checkout-urls.json}"
 DROPLET_IP="${DROPLET_IP:-167.172.102.75}"
 DROPLET_USER="${DROPLET_USER:-root}"
 DROPLET_PATH="${DROPLET_PATH:-/var/www/kazka}"
 CHECK_PROD_REMOTE="${CHECK_PROD_REMOTE:-1}"
+
+usage() {
+  sed -n '1,13p' "$0"
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --)
+      ;;
+    --full)
+      export PROD_SMOKE_CHECKOUT=1
+      export PROD_SMOKE_CHILD_MODE=1
+      export PROD_SMOKE_REQUIRE_AUTH=1
+      export PROD_SMOKE_REQUIRE_ADMIN=1
+      ;;
+    --checkout)
+      export PROD_SMOKE_CHECKOUT=1
+      ;;
+    --child-mode)
+      export PROD_SMOKE_CHILD_MODE=1
+      export PROD_SMOKE_REQUIRE_AUTH=1
+      ;;
+    --require-auth)
+      export PROD_SMOKE_REQUIRE_AUTH=1
+      ;;
+    --require-admin)
+      export PROD_SMOKE_REQUIRE_ADMIN=1
+      ;;
+    --skip-hosted-checkout)
+      export PROD_SMOKE_LOAD_CHECKOUT=0
+      ;;
+    --no-remote)
+      CHECK_PROD_REMOTE=0
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $arg" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
 
 node <<'NODE'
 const fs = require('node:fs');
@@ -42,6 +90,8 @@ const adminTokenFromEnv = process.env.PROD_ADMIN_SMOKE_TOKEN;
 const createCheckout = process.env.PROD_SMOKE_CHECKOUT === '1';
 const loadHostedCheckout = process.env.PROD_SMOKE_LOAD_CHECKOUT !== '0';
 const checkChildMode = process.env.PROD_SMOKE_CHILD_MODE === '1';
+const requireAuth = process.env.PROD_SMOKE_REQUIRE_AUTH === '1';
+const requireAdmin = process.env.PROD_SMOKE_REQUIRE_ADMIN === '1';
 const checkoutUrlFile = process.env.PROD_SMOKE_CHECKOUT_URL_FILE;
 
 let failures = 0;
@@ -670,7 +720,12 @@ async function main() {
   } else if (smokeEmail && smokePassword) {
     userToken = await login(smokeEmail, smokePassword, 'Smoke user');
   } else {
-    warn('Skipping authenticated user checks; set PROD_SMOKE_TOKEN or PROD_SMOKE_EMAIL and PROD_SMOKE_PASSWORD');
+    const message = 'Skipping authenticated user checks; set PROD_SMOKE_TOKEN or PROD_SMOKE_EMAIL and PROD_SMOKE_PASSWORD';
+    if (requireAuth || createCheckout || checkChildMode) {
+      fail(`${message}; auth is required for the requested smoke mode`);
+    } else {
+      warn(message);
+    }
   }
 
   if (userToken) {
@@ -883,7 +938,12 @@ async function main() {
       }
     }
   } else {
-    warn('Skipping admin read-only checks; set PROD_ADMIN_SMOKE_TOKEN or PROD_ADMIN_SMOKE_EMAIL and PROD_ADMIN_SMOKE_PASSWORD');
+    const message = 'Skipping admin read-only checks; set PROD_ADMIN_SMOKE_TOKEN or PROD_ADMIN_SMOKE_EMAIL and PROD_ADMIN_SMOKE_PASSWORD';
+    if (requireAdmin) {
+      fail(`${message}; admin auth is required for the requested smoke mode`);
+    } else {
+      warn(message);
+    }
   }
 
   if (checkoutUrls.length > 0) {

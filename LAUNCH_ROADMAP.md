@@ -823,6 +823,7 @@ Completed locally:
 - Production DevTools screen sweep found and fixed visible Ukrainian UI fallbacks in the authenticated web app: photo upload controls, library empty/loading/error states, library view-toggle accessibility label, billing portal wording, and profile pseudonym spelling.
 - Production DevTools re-check verified `/wizard`, `/me/stories`, and `/billing/plans` render the fixed Ukrainian copy after deploy.
 - Production smoke now crawls `/`, `/en`, `/pricing`, `/en/pricing`, `/stories`, `/en/stories`, `/terms`, `/en/terms`, `/privacy`, and `/en/privacy` and verifies `html[lang]`, canonical URLs, `uk`/`en` hreflang alternates, `x-default`, and absence of incomplete locale alternates.
+- Production smoke now has a `--full` release mode, also available as `pnpm launch:check-production-smoke:full`, that requires smoke user/admin auth and enables Stripe checkout plus the temporary Child Mode fixture instead of silently skipping those branches.
 - DevTools verified live English `/en/pricing` content, footer links, and the `uk`/`en` language selector.
 - Authenticated language changes now persist locally, update the server-side `preferredLocale`, and rewrite the current web URL locale prefix in place.
 - Successful email/password, registration, OAuth, and parent-gate auth responses now apply the user's stored `preferredLocale` to i18n/local storage and the web URL prefix.
@@ -1076,9 +1077,10 @@ Completed locally:
 - Child sessions can now read `/api/v1/me/subscription-usage` only as a child-safe payload for story chances; billing/provider/status fields, plan base limits, and bundle bonus details are omitted from child-session responses.
 - Usage copy is localized for `uk`, `en`, `ru`, `es`, `fr`, `de`, and `pl`.
 - Production smoke verified the deployed UI, browser console, API docker logs, and a temporary Child Mode fixture with child-profile cleanup.
+- Full production smoke mode now requires the temporary Child Mode fixture, so release-grade verification fails if the child-safe usage check cannot run.
 
 Required work:
-- Keep the Child Mode live fixture covered in production smoke when running full launch verification.
+- Keep running full production smoke with smoke user/admin credentials during launch windows.
 
 Acceptance criteria:
 

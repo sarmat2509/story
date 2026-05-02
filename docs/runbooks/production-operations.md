@@ -34,6 +34,16 @@ Run the broader HTTP/API smoke separately:
 
 Set the documented smoke credentials when authenticated, admin, or Stripe checkout checks are needed.
 
+For a release-grade pass, provide production smoke user and admin credentials or short-lived tokens, then run full mode. Full mode requires authenticated and admin checks, creates Stripe test-mode Checkout Sessions, runs the temporary Child Mode fixture, and fails if those branches cannot run:
+
+```bash
+PROD_SMOKE_TOKEN=... \
+PROD_ADMIN_SMOKE_TOKEN=... \
+./scripts/check-production-smoke.sh --full
+```
+
+The equivalent package script is `pnpm launch:check-production-smoke:full`.
+
 For paid live-mode readiness, make the expected Stripe mode explicit:
 
 ```bash

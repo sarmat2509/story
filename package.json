@@ -23,6 +23,8 @@
     "launch:scan-client-secrets": "bash scripts/scan-client-bundle-secrets.sh",
     "launch:check-security-headers": "bash scripts/check-security-headers.sh",
     "launch:check-production-security-artifacts": "node scripts/check-production-security-artifacts.js",
+    "launch:check-production-smoke": "bash scripts/check-production-smoke.sh",
+    "launch:check-production-smoke:full": "bash scripts/check-production-smoke.sh --full",
     "lint": "pnpm -r lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "clean": "pnpm -r clean && rm -rf node_modules",

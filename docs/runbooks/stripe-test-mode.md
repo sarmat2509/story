@@ -38,6 +38,16 @@ CHECK_PROD_REMOTE=0 \
 
 Expected result: `Summary: 0 failure(s), 0 warning(s)`.
 
+For the broader release smoke, prefer:
+
+```bash
+PROD_SMOKE_TOKEN=... \
+PROD_ADMIN_SMOKE_TOKEN=... \
+pnpm launch:check-production-smoke:full
+```
+
+This enables checkout creation plus the temporary Child Mode fixture and fails if either the smoke user or admin credentials are missing.
+
 ## Bundle Checkout
 
 1. Open `https://wondertales.art/billing/plans` as a signed-in QA parent.
