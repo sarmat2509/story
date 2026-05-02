@@ -61,7 +61,7 @@ All billing, refund, cancellation, quota, and support paths must work end to end
 
 ### P0 Status Snapshot - 2026-05-02
 
-Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, and the main production web/TLS/SSR/security path has been verified on `wondertales.art`. P0 is not fully green for external families until full Google OAuth completion, password-reset inbox delivery, final operator/legal confirmations, and approved cleanup policy are finished.
+Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, and the main production web/TLS/SSR/security path has been verified on `wondertales.art`. P0 is not fully green for external families until full Google OAuth completion, final operator/legal confirmations, and approved cleanup policy are finished.
 
 Completed or ready for closed-beta verification:
 
@@ -86,13 +86,14 @@ Completed or ready for closed-beta verification:
 - Auth/login, register, parent-gate, and `/api/v1/me` user responses now omit sensitive fields such as `passwordHash` and `stripeCustomerId`; production smoke verifies the omission.
 - Deployed transactional password-reset and welcome email logs no longer include raw recipient email addresses; they use recipient domain plus a short normalized hash for correlation.
 - Account transactional emails now use a shared branded renderer with preheader text, plain-text fallback, support footer, CTA fallback URL, escaped HTML output, and support `replyTo`.
+- A production password-reset email was requested for an owned Gmail-backed production account, delivered to Gmail, and its reset link opened the production reset screen successfully.
 - Email/password login and registration now reset the web app to `/dashboard` after a successful auth mutation; DevTools verified the production redirect in a clean browser context.
 - Stripe bundle checkout now works even when no static Stripe bundle Price ID is configured, using inline Checkout `price_data` derived from the production bundle catalog.
 
 Remaining P0 bottlenecks:
 
 - Google OAuth still needs a real account completion check through the callback, session cookie, and post-login app route.
-- Password-reset and welcome sender DNS is now configured for the beta domain: Resend verifies `wondertales.art`, root SPF/DMARC are present, Resend DKIM TXT is present, and production API logs no longer show Resend domain-verification failures. A final real-inbox password-reset delivery check remains.
+- Password-reset and welcome sender DNS is now configured for the beta domain: Resend verifies `wondertales.art`, root SPF/DMARC are present, Resend DKIM TXT is present, production API logs no longer show Resend domain-verification failures, and real Gmail password-reset delivery has been verified.
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
 
 Solutions not yet applied:
@@ -293,7 +294,7 @@ Acceptance criteria:
 
 ### 5. Account, Auth, and Recovery
 
-Status on 2026-05-02: Partially ready; production email/password auth, OAuth start, noindex auth routes, sensitive response filtering, sender DNS, Resend domain verification, and reset endpoint smoke checks pass. Real Google callback completion and one real-inbox password-reset delivery check remain.
+Status on 2026-05-02: Partially ready; production email/password auth, OAuth start, noindex auth routes, sensitive response filtering, sender DNS, Resend domain verification, reset endpoint smoke checks, and real Gmail password-reset delivery pass. Real Google callback completion remains.
 
 Done:
 
@@ -309,13 +310,13 @@ Done:
 - Login/register/current-user JSON responses no longer expose password hashes or Stripe customer ids.
 - Password-reset and welcome email logs use safe recipient domain/hash context instead of raw email addresses, and the production API was redeployed with that change.
 - Welcome and password-reset emails share the branded transactional renderer, so future account emails can reuse one layout and support/reply-to behavior.
+- A production account registered with a Gmail address received the password-reset email in Gmail, and the reset link loaded the production reset screen.
 - Deployed `/welcome`, `/register`, `/auth/forgot-password`, and `/auth/reset-password?token=bad` return app-shell HTML with `noindex,nofollow` in the production smoke script.
 - Full production smoke re-ran with a temporary account and covered login, authenticated APIs, read-only admin APIs, Stripe checkout-session creation, hosted Checkout loading, and DevTools checks for `/profile`, `/wizard`, `/admin/dashboard`, and `/settings/language`.
 
 Remaining:
 
 - Complete Google OAuth on the production domain with a real account and verify callback/session persistence after Google returns to the app.
-- Confirm password-reset delivery to a real account-controlled inbox after Resend sender DNS verification.
 - Decide whether IP-only rate limits are sufficient for beta or whether CAPTCHA/WAF bot protection is required before public acquisition.
 
 Required work:
@@ -1205,7 +1206,7 @@ Observed on 2026-05-02 after the latest web/API deployment and production verifi
 - Public pricing SSR now renders with a bounded plan-data load, has a static launch-plan fallback, and production `/en/pricing` DevTools/curl verification showed plural-correct usage copy.
 - A Stripe sandbox bundle payment completed through hosted Checkout, returned to `/billing/success?kind=bundle&session_id=...`, and the webhook recorded a `user_bundle_grant`.
 - Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Remaining log noise is nginx temporary-buffer warnings for large static/media responses.
-- The latest auth/support checks show Resend sender DNS, Zoho inbound MX, root SPF, DMARC, and support SMTP reachability are configured. Remaining email verification is one real password-reset delivery test from the app.
+- The latest auth/support checks show Resend sender DNS, Zoho inbound MX, root SPF, DMARC, support SMTP reachability, and real Gmail password-reset delivery are configured and verified.
 
 ## Recommended Launch Gates
 

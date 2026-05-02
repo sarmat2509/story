@@ -13,11 +13,10 @@
 - DevTools web UI check from `https://wondertales.art/welcome` reaches the Google sign-in screen for `wondertales.art`; no redirect mismatch appeared.
 - `POST /api/v1/auth/forgot-password` returns the privacy-preserving success response for an unknown smoke-test email.
 - `POST /api/v1/auth/reset-password` rejects an invalid token with `INVALID_OR_EXPIRED_TOKEN`.
+- A production account registered with a Gmail address received a real password-reset email in Gmail, and the reset link opened the production reset screen.
 - Cross-origin smoke from `https://evil.example` did not receive an `access-control-allow-origin` reflection.
 - Recent API docker logs were checked after the smoke tests.
 
 ## Remaining launch blockers
 
 - Complete a real Google OAuth login in production and verify callback/session persistence after Google returns to the app.
-- Add and verify sender DNS for `noreply@wondertales.art`: SPF, DMARC, and Resend DKIM records were not visible via public DNS during this check.
-- Confirm real password-reset inbox delivery using an owned test account.

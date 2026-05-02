@@ -32,6 +32,6 @@ Date: 2026-05-02
 ## Remaining
 
 - Complete a real production Google OAuth callback with a human-owned test account.
-- Verify real password-reset inbox delivery after SPF, DMARC, and Resend DKIM records are configured.
+- Real password-reset Gmail delivery was completed later on 2026-05-02; see `2026-05-02-gmail-password-reset-e2e.md`.
 - Complete Stripe success/cancel return checks, webhook event checks, customer portal, failed payment, and refund/support runbook verification.
 - Continue broader UI localization cleanup for non-launch app locales if they remain visible in the language selector.
