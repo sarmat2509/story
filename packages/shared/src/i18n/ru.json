@@ -1110,6 +1110,16 @@
     "view_plans": "Смотреть планы",
     "manage_subscription": "Управление подпиской"
   },
+  "usage_summary": {
+    "title": "Использование за период",
+    "resets_on": "Обновится {{date}}",
+    "resets_unknown": "Текущий платежный период",
+    "stories": "Сказки",
+    "audio": "Аудиосказки",
+    "remaining_of_limit": "Осталось {{remaining}} из {{limit}}",
+    "plan_limit": "Лимит тарифа {{plan}}",
+    "plan_plus_bundle": "Тариф {{plan}} + пакет {{bundle}}"
+  },
   "paywall": {
     "stories_limit_title": "Достигнут лимит историй",
     "stories_limit_message": "Вы использовали {{used}} из {{limit}} историй в этом месяце.",

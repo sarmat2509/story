@@ -1094,6 +1094,16 @@
     "view_plans": "Zobacz plany",
     "manage_subscription": "Zarzadzaj subskrypcja"
   },
+  "usage_summary": {
+    "title": "Uzycie w tym okresie",
+    "resets_on": "Odnowi sie {{date}}",
+    "resets_unknown": "Biezacy okres rozliczeniowy",
+    "stories": "Historie",
+    "audio": "Historie audio",
+    "remaining_of_limit": "Pozostalo {{remaining}} z {{limit}}",
+    "plan_limit": "Limit planu {{plan}}",
+    "plan_plus_bundle": "Plan {{plan}} + pakiet {{bundle}}"
+  },
   "paywall": {
     "stories_limit_title": "Osiagnieto limit historii",
     "stories_limit_message": "Wykorzystales {{used}} z {{limit}} historii w tym miesiacu.",

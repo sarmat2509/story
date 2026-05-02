@@ -1019,11 +1019,20 @@ Acceptance criteria:
 
 ### 3. Usage Transparency
 
+Status on 2026-05-02: Parent-facing usage transparency is deployed for the launch flows. Billing plans, profile subscription state, and both story creation modes now show stories/audio remaining, the current reset date, and plan + bundle credit composition from the server-side usage endpoint. Production DevTools smoke confirmed the usage card on `/billing/plans`, `/profile`, and `/wizard`; API docker logs after the sweep had no usage-related errors.
+
+Completed locally:
+
+- Added a reusable web usage summary card backed by `useSubscriptionUsage`.
+- `/billing/plans` shows usage before bundle purchase options.
+- `/profile` shows usage inside the subscription section without nesting extra cards.
+- `/wizard` and Instant Wizard show usage before generation.
+- The usage card shows reset/current period, stories remaining, audio stories remaining, plan limits, and active bundle credits when present.
+- Usage copy is localized for `uk`, `en`, `ru`, `es`, `fr`, `de`, and `pl`.
+- Production smoke verified the deployed UI, browser console, and API docker logs.
+
 Required work:
 
-- Show remaining stories/audio clearly.
-- Show when limits reset.
-- Show active bundle credits.
 - Show why a feature is locked.
 - In Child Mode, explain locked features in child-safe language and route CTAs through the parent gate.
 - Do not expose checkout, customer portal, billing settings, or adult account settings directly in Child Mode.

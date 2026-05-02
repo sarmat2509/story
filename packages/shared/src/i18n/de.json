@@ -769,6 +769,16 @@
     "view_plans": "Tarife ansehen",
     "manage_subscription": "Abonnement verwalten"
   },
+  "usage_summary": {
+    "title": "Nutzung in diesem Zeitraum",
+    "resets_on": "Wird am {{date}} erneuert",
+    "resets_unknown": "Aktueller Abrechnungszeitraum",
+    "stories": "Geschichten",
+    "audio": "Audiogeschichten",
+    "remaining_of_limit": "{{remaining}} von {{limit}} uebrig",
+    "plan_limit": "Tariflimit {{plan}}",
+    "plan_plus_bundle": "Tarif {{plan}} + Paket {{bundle}}"
+  },
   "paywall": {
     "stories_limit_title": "Geschichtenlimit erreicht",
     "stories_limit_message": "Sie haben {{used}} von {{limit}} Geschichten diesen Monat verwendet.",

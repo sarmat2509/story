@@ -1337,6 +1337,16 @@
     "view_plans": "Переглянути тарифи",
     "manage_subscription": "Керувати підпискою"
   },
+  "usage_summary": {
+    "title": "Використання за період",
+    "resets_on": "Оновиться {{date}}",
+    "resets_unknown": "Поточний платіжний період",
+    "stories": "Казки",
+    "audio": "Аудіоказки",
+    "remaining_of_limit": "Залишилось {{remaining}} з {{limit}}",
+    "plan_limit": "Ліміт тарифу {{plan}}",
+    "plan_plus_bundle": "Тариф {{plan}} + пакет {{bundle}}"
+  },
   "paywall": {
     "stories_limit_title": "Досягнуто ліміту історій",
     "stories_limit_message": "Ви використали {{used}} з {{limit}} історій цього місяця.",

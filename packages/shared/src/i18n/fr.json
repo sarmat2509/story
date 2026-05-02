@@ -731,6 +731,16 @@
     "view_plans": "Voir les formules",
     "manage_subscription": "Gérer l'abonnement"
   },
+  "usage_summary": {
+    "title": "Utilisation de la periode",
+    "resets_on": "Se renouvelle le {{date}}",
+    "resets_unknown": "Periode de facturation actuelle",
+    "stories": "Histoires",
+    "audio": "Histoires audio",
+    "remaining_of_limit": "{{remaining}} sur {{limit}} restantes",
+    "plan_limit": "Limite de la formule {{plan}}",
+    "plan_plus_bundle": "Formule {{plan}} + pack {{bundle}}"
+  },
   "paywall": {
     "stories_limit_title": "Limite d'histoires atteint",
     "stories_limit_message": "Vous avez utilisé {{used}} sur {{limit}} histoires ce mois-ci.",

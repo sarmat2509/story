@@ -8,18 +8,20 @@ import { useAuthStore } from '@/store/authStore';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { UsageSummaryCard } from '@/components/UsageSummaryCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
 import { usePlansWithAuth, useSubscriptionUsage, useCreatePortalSession } from '@/api/plans';
 import { useUpdateMe } from '@/api/auth';
+import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import { formatAssetUrl, isServerAssetUrl, toCanonicalAssetUrl } from '@/utils/assetUrl';
 import { uploadPhoto, deletePhoto } from '@/utils/uploadPhoto';
 
 const PAYMENT_ISSUE_STATUSES = new Set(['past_due', 'unpaid', 'incomplete', 'incomplete_expired']);
 
 export default function ProfileScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, logout } = useAuthStore();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const enterKey = useScreenEnter();
@@ -68,9 +70,10 @@ export default function ProfileScreen() {
     || user?.email?.trim().charAt(0)
     || 'U';
 
-  const formattedPeriodEnd = usage?.currentPeriodEnd
-    ? new Date(usage.currentPeriodEnd).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    : '';
+  const formattedPeriodEnd = formatSubscriptionPeriodEnd(
+    usage?.currentPeriodEnd ?? usage?.resetsAt,
+    i18n.language
+  );
   const hasPaidPlan = currentPlan && (currentPlan.priceMonthly ?? 0) > 0;
   const canManageSubscription = enableRealPayments && usage?.paymentProvider === 'stripe' && hasPaidPlan;
   const hasPaymentIssue = usage?.subscriptionStatus
@@ -384,12 +387,11 @@ export default function ProfileScreen() {
               </Text>
             ) : null}
             {usage ? (
-              <Text style={styles.subscriptionDetail}>
-                {t('profile.usage_remaining_short', {
-                  stories: usage.stories.remaining,
-                  audio: usage.audio.remaining,
-                })}
-              </Text>
+              <UsageSummaryCard
+                usage={usage}
+                periodEndFormatted={formattedPeriodEnd}
+                variant="embedded"
+              />
             ) : usageLoading ? (
               <Text style={styles.subscriptionDetail}>{t('common.loading')}</Text>
             ) : (

@@ -1152,6 +1152,16 @@
     "view_plans": "View plans",
     "manage_subscription": "Manage subscription"
   },
+  "usage_summary": {
+    "title": "Usage this period",
+    "resets_on": "Resets on {{date}}",
+    "resets_unknown": "Current billing period",
+    "stories": "Stories",
+    "audio": "Audio stories",
+    "remaining_of_limit": "{{remaining}} of {{limit}} left",
+    "plan_limit": "Plan limit {{plan}}",
+    "plan_plus_bundle": "Plan {{plan}} + bundle {{bundle}}"
+  },
   "paywall": {
     "stories_limit_title": "Story limit reached",
     "stories_limit_message": "You've used {{used}} of {{limit}} stories this month.",
