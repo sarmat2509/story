@@ -55,6 +55,30 @@ function preview(text) {
   return text.replace(/\s+/g, ' ').slice(0, 180);
 }
 
+function findForbiddenKeys(value, forbiddenKeys, path = '$') {
+  if (!value || typeof value !== 'object') return [];
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => findForbiddenKeys(item, forbiddenKeys, `${path}[${index}]`));
+  }
+
+  const hits = [];
+  for (const [key, child] of Object.entries(value)) {
+    const childPath = `${path}.${key}`;
+    if (forbiddenKeys.includes(key)) hits.push(childPath);
+    hits.push(...findForbiddenKeys(child, forbiddenKeys, childPath));
+  }
+  return hits;
+}
+
+function assertNoForbiddenKeys(label, value, forbiddenKeys) {
+  const hits = findForbiddenKeys(value, forbiddenKeys);
+  if (hits.length === 0) {
+    pass(`${label} omits sensitive fields`);
+  } else {
+    fail(`${label} leaked forbidden field(s): ${hits.slice(0, 8).join(', ')}`);
+  }
+}
+
 async function request(method, path, options = {}) {
   const url = path.startsWith('http') ? path : `${baseUrl}${path}`;
   const res = await fetch(url, {
@@ -137,6 +161,34 @@ async function checkJson({ path, label, expectedStatus = 200, token, predicate }
   return json;
 }
 
+async function checkStatus({ path, label, expectedStatus }) {
+  const { res, text } = await request('GET', path);
+  if (res.status === expectedStatus) {
+    pass(`${label} ${path} returned ${res.status}`);
+  } else {
+    fail(`${label} ${path} returned ${res.status}, expected ${expectedStatus}; ${preview(text)}`);
+  }
+  return { res, text };
+}
+
+async function checkLegacyPublicStoryEndpoint(path, successorPath) {
+  const { res, text } = await request('GET', path);
+  if (res.status === 200) {
+    pass(`Legacy public endpoint ${path} returned 200`);
+  } else {
+    fail(`Legacy public endpoint ${path} returned ${res.status}; ${preview(text)}`);
+    return;
+  }
+
+  const deprecated = res.headers.get('x-deprecated-endpoint') || '';
+  const link = res.headers.get('link') || '';
+  if (deprecated.includes(successorPath) && link.includes(successorPath)) {
+    pass(`Legacy public endpoint ${path} points to ${successorPath}`);
+  } else {
+    fail(`Legacy public endpoint ${path} missing successor headers`);
+  }
+}
+
 async function postJson({ path, label, token, body, expectedStatus = 200, predicate }) {
   const headers = { 'content-type': 'application/json' };
   if (token) headers.authorization = `Bearer ${token}`;
@@ -214,6 +266,15 @@ async function main() {
     label: 'Public stories API',
     predicate: (body) => body?.status === 'success' && Array.isArray(body?.stories),
   });
+  assertNoForbiddenKeys('Public stories API', publicStories, [
+    'passwordHash',
+    'stripeCustomerId',
+    'email',
+    'shareToken',
+    'childProfileId',
+    'privateStoryCount',
+    'unlistedStoryCount',
+  ]);
   const firstStory = publicStories?.stories?.[0] || null;
   if (firstStory?.publishedSlug) {
     const slug = firstStory.publishedSlug;
@@ -227,7 +288,25 @@ async function main() {
       path: `/api/v1/public/stories/${encodeURIComponent(slug)}`,
       label: 'Public story detail API',
       predicate: (body) => body?.status === 'success' && body?.story?.id === firstStory.id,
-    });
+    }).then((body) =>
+      assertNoForbiddenKeys('Public story detail API', body, [
+        'passwordHash',
+        'stripeCustomerId',
+        'email',
+        'shareToken',
+        'childProfileId',
+        'privateStoryCount',
+        'unlistedStoryCount',
+      ])
+    );
+    await checkLegacyPublicStoryEndpoint(
+      '/api/v1/stories/published',
+      '/api/v1/public/stories'
+    );
+    await checkLegacyPublicStoryEndpoint(
+      `/api/v1/stories/published/${encodeURIComponent(slug)}`,
+      `/api/v1/public/stories/${encodeURIComponent(slug)}`
+    );
     const share = await request('GET', `/share-card/${encodeURIComponent(slug)}`);
     if (share.res.status === 200 && (share.res.headers.get('content-type') || '').includes('image/jpeg')) {
       pass('Share-card image returned JPEG');
@@ -249,7 +328,47 @@ async function main() {
       path: `/api/v1/public/authors/${encodeURIComponent(firstStory.authorId)}`,
       label: 'Public author API',
       predicate: (body) => body?.status === 'success',
-    });
+    }).then((body) =>
+      assertNoForbiddenKeys('Public author API', body, [
+        'email',
+        'role',
+        'stripeCustomerId',
+        'privateStoryCount',
+        'unlistedStoryCount',
+        'childProfiles',
+        'settings',
+      ])
+    );
+  }
+
+  const missingUnlistedToken = 'not-a-real-share-token';
+  await checkStatus({
+    path: `/u/${missingUnlistedToken}`,
+    label: 'Missing unlisted SSR',
+    expectedStatus: 404,
+  });
+  await checkJson({
+    path: `/api/v1/public/u/${missingUnlistedToken}`,
+    label: 'Missing unlisted API',
+    expectedStatus: 404,
+    predicate: (body) => body?.status === 'error',
+  });
+  await checkStatus({
+    path: `/share-card/u/${missingUnlistedToken}`,
+    label: 'Missing unlisted share-card',
+    expectedStatus: 404,
+  });
+
+  const sitemap = await request('GET', '/sitemap.xml');
+  if (sitemap.res.status === 200 && sitemap.text.includes('/stories')) {
+    pass('Sitemap includes public story surfaces');
+  } else {
+    fail(`Sitemap did not include public story surfaces; status ${sitemap.res.status}`);
+  }
+  if (!sitemap.text.includes('/u/')) {
+    pass('Sitemap excludes unlisted share links');
+  } else {
+    fail('Sitemap unexpectedly includes unlisted share links');
   }
 
   await checkJson({

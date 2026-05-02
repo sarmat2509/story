@@ -932,7 +932,7 @@ Completed locally:
 - Legacy `/api/v1/stories/published` and `/api/v1/stories/published/:slug` endpoints now emit standard deprecation headers pointing clients to `/api/v1/public/stories` successors, with launch-gate coverage.
 - Public author API metadata is now built through a safe-field helper that only returns public id, display name, avatar, and about text; regression coverage guards against email, role, billing, private story count, unlisted story count, and child profile leaks.
 - Publishing confirmation UI now shows an explicit public-catalog warning when `public` visibility is selected, with localized copy for app-supported locales.
-- Public Sharing Controls are locally code-complete; remaining risk is production smoke verification after deploy.
+- Public Sharing Controls are production-smoke verified: public story/author SSR and APIs return expected responses, public APIs omit sensitive fields, legacy endpoints emit successor deprecation headers, invalid unlisted routes return 404, sitemap excludes `/u/`, story share-card returns JPEG, and DevTools confirmed the public story report modal opens with public-story context.
 
 Acceptance criteria:
 
