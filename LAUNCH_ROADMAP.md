@@ -628,6 +628,7 @@ Current code findings:
 - Public landing/pricing SSR locale ownership is path-based: `/` and `/pricing` resolve to default `uk`, while `/en/` and `/en/pricing` resolve to `en`; browser `Accept-Language` no longer changes canonical ownership for those public SEO URLs.
 - Public landing/pricing ETags now hash the rendered HTML, so SEO metadata changes cannot stay hidden behind stale `304 Not Modified` responses.
 - Public pricing SSR now has a bounded plan-data load and a static launch-plan fallback, so `/pricing` can still return complete indexable pricing HTML when plan data is slow or temporarily unavailable.
+- Pricing plan presentation now loads all plan features through one joined repository query instead of per-plan/per-feature lookups, reducing `/pricing` and `/api/v1/plans` latency pressure before the bounded SSR fallback is needed.
 - `apps/universal-app/src/screens/plans/PlansScreen.tsx` remains the authenticated billing/plans UI, but feature order, hidden-feature rules, price formatting, feature labels, and usage highlight rules now come from shared pricing presenter helpers.
 - React Navigation maps the authenticated app `Plans` screen to `/billing/plans`, while `/pricing` and `/{locale}/pricing` stay owned by API SSR.
 - Authenticated app deep links now wait for persisted auth-store hydration before protected-route guards can redirect to `/welcome`.
@@ -991,6 +992,7 @@ Completed locally and in production:
 - Production deploy archives now suppress local macOS extended attributes with `COPYFILE_DISABLE=1 tar --no-xattrs`; a real web deploy confirmed the previous `LIBARCHIVE.xattr` tar warnings are gone, followed by healthy `/health`, live security artifact scan, and clean Docker log checks.
 - Share-card nginx responses no longer spill into proxy temp files; production nginx config-only deploy validated the config, share-card JPEG delivery, production smoke, security artifact scan, and clean api/webapp/nginx logs.
 - Large `/api/v1/assets/` responses now use a dedicated nginx route with response buffering disabled; production asset smoke returned a `1.6 MB` PNG and the following ops log scan stayed clean.
+- Pricing presenter query fan-out was reduced to one joined plan-feature query, addressing the latest production ops warning source where `/pricing` occasionally fell back to static plan cards after the 900ms bounded SSR load window; the follow-up API deploy, public smoke, security artifact scan, and fresh api/webapp/nginx log window passed cleanly.
 - `./scripts/deploy.sh --nginx` now supports nginx/compose config-only deploys, and `./scripts/deploy.sh --help` shows usage without opening SSH.
 
 Remaining work:
@@ -1230,6 +1232,7 @@ Observed on 2026-05-02 after the latest web/API deployment and production verifi
 - Production DevTools screen sweep rendered the main authenticated screens, public stories catalog, and admin screens without runtime console errors.
 - External admin dashboard alert checker dry-run passed against production with no active cost, queue, or quality-review findings.
 - Public pricing SSR now renders with a bounded plan-data load, has a static launch-plan fallback, and production `/en/pricing` DevTools/curl verification showed plural-correct usage copy.
+- Pricing plan presentation now avoids per-feature database fan-out, lowering the risk of static fallback under normal production load; the production post-deploy ops log scan stayed clean after fresh `/pricing`, `/en/pricing`, and `/api/v1/plans` requests.
 - A Stripe sandbox bundle payment completed through hosted Checkout, returned to `/billing/success?kind=bundle&session_id=...`, and the webhook recorded a `user_bundle_grant`.
 - Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Nginx SPA and share-card proxy buffering were tuned, and fresh asset/share-card fetches no longer produced temporary-file warning noise in the checked Docker log window.
 - The latest auth/support checks show Google OAuth E2E, Resend sender DNS, Zoho inbound MX, root SPF, DMARC, support SMTP reachability, and real Gmail password-reset delivery are configured and verified.

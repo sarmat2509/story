@@ -1,6 +1,15 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
+
+export interface PlanFeatureWithDetails {
+  planId: string;
+  featureId: string;
+  slug: string;
+  name: string;
+  value: unknown;
+  category: string;
+}
 
 export class PlanRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
@@ -57,6 +66,25 @@ export class PlanRepository {
       .select()
       .from(schema.planFeatures)
       .where(eq(schema.planFeatures.planId, planId));
+  }
+
+  async findFeaturesForPlans(planIds: string[]): Promise<PlanFeatureWithDetails[]> {
+    if (planIds.length === 0) {
+      return [];
+    }
+
+    return this.db
+      .select({
+        planId: schema.planFeatures.planId,
+        featureId: schema.planFeatures.featureId,
+        slug: schema.features.slug,
+        name: schema.features.name,
+        value: schema.planFeatures.value,
+        category: schema.features.category,
+      })
+      .from(schema.planFeatures)
+      .innerJoin(schema.features, eq(schema.planFeatures.featureId, schema.features.id))
+      .where(inArray(schema.planFeatures.planId, planIds));
   }
 
   async findFeatureValue(planId: string, featureSlug: string): Promise<unknown | null> {

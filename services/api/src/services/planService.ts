@@ -1,4 +1,5 @@
 import { getPlanRepository } from '../repositories';
+import type { PlanFeatureWithDetails } from '../repositories/PlanRepository';
 import { getBundleBonusForPeriod } from './bundleService';
 import type {
   Plan,
@@ -64,6 +65,10 @@ export async function getFeatureById(id: string): Promise<Feature | null> {
 
 export async function getPlanFeaturesByPlanId(planId: string) {
   return getPlanRepository().findPlanFeatures(planId);
+}
+
+export async function getFeaturesForPlans(planIds: string[]): Promise<PlanFeatureWithDetails[]> {
+  return getPlanRepository().findFeaturesForPlans(planIds);
 }
 
 /** Slug + value for each feature on a plan (for entitlements API). */

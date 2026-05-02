@@ -1,4 +1,5 @@
 import { DEFAULT_LOCALE, LOCALE_IDS, isValidLocale, type Locale } from '@wondertales/shared';
+import type { Plan } from '../db/schema';
 import { getDictionaryRepository } from '../repositories';
 import * as planService from './planService';
 
@@ -22,6 +23,14 @@ export interface PresentedPlan {
   isCurrent?: boolean;
 }
 
+export interface PlanFeaturePresentationRow {
+  planId: string;
+  slug: string;
+  name: string;
+  value: unknown;
+  category: string;
+}
+
 export function normalizePlanLocale(input?: string | null): Locale {
   const normalized = input?.slice(0, 2).toLowerCase() || DEFAULT_LOCALE;
   return isValidLocale(normalized) && SUPPORTED_LOCALES.has(normalized) ? normalized : DEFAULT_LOCALE;
@@ -42,46 +51,63 @@ async function getPlanTranslations(planSlugs: string[], locale: Locale): Promise
   return translationsMap;
 }
 
+export function buildPresentedPlans(
+  plans: Plan[],
+  translations: Map<string, Map<string, string>>,
+  featureRows: PlanFeaturePresentationRow[],
+  currentPlanId?: string
+): PresentedPlan[] {
+  const featuresByPlanId = new Map<string, PlanFeaturePresentationRow[]>();
+
+  for (const row of featureRows) {
+    const rows = featuresByPlanId.get(row.planId) ?? [];
+    rows.push(row);
+    featuresByPlanId.set(row.planId, rows);
+  }
+
+  const plansWithFeatures = plans.map((plan) => {
+    const featuresMap: Record<string, PresentedPlanFeature> = {};
+    for (const feature of featuresByPlanId.get(plan.id) ?? []) {
+      featuresMap[feature.slug] = {
+        name: feature.name,
+        value: feature.value,
+        category: feature.category,
+      };
+    }
+
+    const planTranslations = translations.get(plan.slug);
+
+    return {
+      id: plan.id,
+      slug: plan.slug,
+      name: planTranslations?.get('name') || plan.name,
+      description: planTranslations?.get('description') || plan.description || null,
+      priceMonthly: plan.priceMonthly,
+      pricingCurrency: plan.pricingCurrency,
+      sortOrder: plan.sortOrder,
+      features: featuresMap,
+      isCurrent: currentPlanId ? plan.id === currentPlanId : undefined,
+    };
+  });
+
+  plansWithFeatures.sort((a, b) => a.sortOrder - b.sortOrder);
+  return plansWithFeatures;
+}
+
 export async function buildPlansWithFeatures(options?: {
   currentPlanId?: string;
   locale?: string | null;
 }): Promise<PresentedPlan[]> {
   const plans = await planService.getActivePlans();
+  if (plans.length === 0) {
+    return [];
+  }
+
   const locale = normalizePlanLocale(options?.locale || DEFAULT_LOCALE);
-  const translations = await getPlanTranslations(plans.map((plan) => plan.slug), locale);
+  const [translations, featureRows] = await Promise.all([
+    getPlanTranslations(plans.map((plan) => plan.slug), locale),
+    planService.getFeaturesForPlans(plans.map((plan) => plan.id)),
+  ]);
 
-  const plansWithFeatures = await Promise.all(
-    plans.map(async (plan) => {
-      const planFeatures = await planService.getPlanFeaturesByPlanId(plan.id);
-      const featuresMap: Record<string, PresentedPlanFeature> = {};
-
-      for (const pf of planFeatures) {
-        const feature = await planService.getFeatureById(pf.featureId);
-        if (feature) {
-          featuresMap[feature.slug] = {
-            name: feature.name,
-            value: pf.value,
-            category: feature.category,
-          };
-        }
-      }
-
-      const planTranslations = translations.get(plan.slug);
-
-      return {
-        id: plan.id,
-        slug: plan.slug,
-        name: planTranslations?.get('name') || plan.name,
-        description: planTranslations?.get('description') || plan.description || null,
-        priceMonthly: plan.priceMonthly,
-        pricingCurrency: plan.pricingCurrency,
-        sortOrder: plan.sortOrder,
-        features: featuresMap,
-        isCurrent: options?.currentPlanId ? plan.id === options.currentPlanId : undefined,
-      };
-    })
-  );
-
-  plansWithFeatures.sort((a, b) => a.sortOrder - b.sortOrder);
-  return plansWithFeatures;
+  return buildPresentedPlans(plans, translations, featureRows, options?.currentPlanId);
 }
