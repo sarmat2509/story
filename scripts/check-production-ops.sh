@@ -25,6 +25,7 @@ MIN_ROOT_FREE_MB="${MIN_ROOT_FREE_MB:-2048}"
 MIN_DOCKER_FREE_MB="${MIN_DOCKER_FREE_MB:-2048}"
 MIN_PROJECT_FREE_MB="${MIN_PROJECT_FREE_MB:-1024}"
 LOG_SINCE="${LOG_SINCE:-30m}"
+LOG_SERVICES="${LOG_SERVICES:-api webapp nginx}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 EXPECTED_STRIPE_MODE="${EXPECTED_STRIPE_MODE:-test}"
 RUN_BACKUP_SMOKE=0
@@ -68,7 +69,7 @@ fi
 ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" true
 
 ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" \
-  "DROPLET_PATH='${DROPLET_PATH}' COMPOSE_FILE='${COMPOSE_FILE}' MIN_ROOT_FREE_MB='${MIN_ROOT_FREE_MB}' MIN_DOCKER_FREE_MB='${MIN_DOCKER_FREE_MB}' MIN_PROJECT_FREE_MB='${MIN_PROJECT_FREE_MB}' LOG_SINCE='${LOG_SINCE}' RUN_BACKUP_SMOKE='${RUN_BACKUP_SMOKE}' BACKUP_RETENTION_DAYS='${BACKUP_RETENTION_DAYS}' EXPECTED_STRIPE_MODE='${EXPECTED_STRIPE_MODE}' bash -s" <<'REMOTE'
+  "DROPLET_PATH='${DROPLET_PATH}' COMPOSE_FILE='${COMPOSE_FILE}' MIN_ROOT_FREE_MB='${MIN_ROOT_FREE_MB}' MIN_DOCKER_FREE_MB='${MIN_DOCKER_FREE_MB}' MIN_PROJECT_FREE_MB='${MIN_PROJECT_FREE_MB}' LOG_SINCE='${LOG_SINCE}' LOG_SERVICES='${LOG_SERVICES}' RUN_BACKUP_SMOKE='${RUN_BACKUP_SMOKE}' BACKUP_RETENTION_DAYS='${BACKUP_RETENTION_DAYS}' EXPECTED_STRIPE_MODE='${EXPECTED_STRIPE_MODE}' bash -s" <<'REMOTE'
 set -u
 
 failures=0
@@ -402,12 +403,17 @@ fi
 
 echo
 echo "== Recent logs =="
-log_matches="$(compose logs api --since "$LOG_SINCE" 2>&1 | grep -i -E 'error|warn|failed|panic|unhandled|exception' | sed -E 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/[email]/g' || true)"
+read -r -a log_services <<<"$LOG_SERVICES"
+if [[ "${#log_services[@]}" == "0" ]]; then
+  log_services=(api webapp nginx)
+fi
+
+log_matches="$(compose logs "${log_services[@]}" --since "$LOG_SINCE" 2>&1 | grep -i -E 'error|warn|failed|panic|unhandled|exception|temporary file' | sed -E 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/[email]/g' || true)"
 if [[ -n "$log_matches" ]]; then
-  warn "recent API logs contain notable lines since $LOG_SINCE"
+  warn "recent ${LOG_SERVICES} logs contain notable lines since $LOG_SINCE"
   printf '%s\n' "$log_matches"
 else
-  pass "recent API logs have no error/warn/failed lines since $LOG_SINCE"
+  pass "recent ${LOG_SERVICES} logs have no error/warn/failed/temporary-file lines since $LOG_SINCE"
 fi
 
 echo

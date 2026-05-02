@@ -973,7 +973,7 @@ Completed locally and in production:
 - Upload and log volumes are checked for readability and current size.
 - Disk thresholds are checked for root, Docker, and project filesystems.
 - API and Postgres localhost-only bindings are checked.
-- Recent API logs are scanned for error/warn/failed lines.
+- Recent API, webapp, and nginx logs are scanned for error/warn/failed/temporary-file lines.
 - Admin/support access is covered by production smoke, admin dashboard, and support feedback checks.
 - Deploy, rollback, backup, and restore guidance is documented in a runbook.
 - Production smoke now accepts both expected series entitlement outcomes: a `SERIES_ACCESS_REQUIRED` gate for free QA users or an empty/successful series list when the mutable QA account has paid-series access.
@@ -986,6 +986,7 @@ Completed locally and in production:
 - The monitor wrapper's test alert dry-run was validated locally without hitting a real provider webhook.
 - The production ops check now warns when backup retention, offsite backup target, ops monitor, or admin dashboard alert scheduler references are not discoverable on the droplet.
 - Production ops, backup retention, ops monitor, and admin-dashboard alert scripts now have `pnpm launch:*` entrypoints, and their argument parsers tolerate pnpm's `--` separator.
+- Production ops log coverage now scans api/webapp/nginx by default, with `LOG_SERVICES` available for focused checks.
 - Production deploy archives now suppress local macOS extended attributes with `COPYFILE_DISABLE=1 tar --no-xattrs`; a real web deploy confirmed the previous `LIBARCHIVE.xattr` tar warnings are gone, followed by healthy `/health`, live security artifact scan, and clean Docker log checks.
 - Share-card nginx responses no longer spill into proxy temp files; production nginx config-only deploy validated the config, share-card JPEG delivery, production smoke, security artifact scan, and clean api/webapp/nginx logs.
 - `./scripts/deploy.sh --nginx` now supports nginx/compose config-only deploys, and `./scripts/deploy.sh --help` shows usage without opening SSH.

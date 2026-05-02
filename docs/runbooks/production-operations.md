@@ -25,7 +25,7 @@ The check verifies:
 - A custom-format PostgreSQL backup can be created and read by `pg_restore -l`.
 - Required production environment variables are present without printing secret values.
 - Stripe secret-key mode matches `EXPECTED_STRIPE_MODE` without printing the key value.
-- Recent API logs do not contain error, warning, failed, panic, unhandled, or exception lines.
+- Recent `api`, `webapp`, and `nginx` Docker logs do not contain error, warning, failed, panic, unhandled, exception, or proxy temporary-file lines.
 
 Run the broader HTTP/API smoke separately:
 
@@ -55,6 +55,8 @@ EXPECTED_STRIPE_MODE=live ./scripts/check-production-ops.sh
 ```
 
 The default remains `EXPECTED_STRIPE_MODE=test` for the current test-mode beta verification path.
+
+Use `LOG_SERVICES=api` or another space-separated service list for a focused log scan. The default is `api webapp nginx`.
 
 After a web or nginx deploy, capture the exact deployed security headers and scan the live client artifact, not only the local build:
 
