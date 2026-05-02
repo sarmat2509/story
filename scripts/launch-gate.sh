@@ -23,6 +23,7 @@ API_TESTS=(
   src/jobs/__tests__/orphanStorageCleanupSchedulerJob.test.ts
   src/middleware/__tests__/authMiddlewareParentSession.test.ts
   src/middleware/__tests__/rateLimiter.test.ts
+  src/routes/__tests__/billingReturnUrls.test.ts
   src/routes/__tests__/feedbackReportedScreens.test.ts
   src/ssr/__tests__/appErrorI18n.test.ts
   src/ssr/__tests__/pricingPresentation.test.ts

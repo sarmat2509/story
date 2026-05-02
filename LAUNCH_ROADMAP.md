@@ -698,6 +698,7 @@ Current bundle purchase review findings:
 - Production smoke creates Stripe test-mode subscription and bundle Checkout Sessions successfully; bundle checkout now falls back to inline Stripe `price_data` when no static bundle Price ID is configured.
 - DevTools verified hosted Stripe checkout loads for subscription and bundle sessions with sandbox UI, line item details, prefilled QA email, and card form.
 - DevTools completed a Stripe sandbox bundle payment; the app returns to `/billing/success?kind=bundle&session_id=...`, shows bundle-specific success copy, and primary navigation returns to billing/plans.
+- Stripe checkout success/cancel URLs and Customer Portal return URLs now preserve the authenticated user's app `preferredLocale`, so non-default locales return to paths such as `/ru/billing/success`, `/ru/billing/plans`, and `/ru/profile`.
 - DevTools completed a Stripe sandbox subscription payment for the `silver` plan; the app returns to `/billing/success?kind=subscription&session_id=...`, usage reflects paid limits, and the profile shows the paid plan.
 - DevTools verified Stripe Customer Portal opens from profile, shows the active subscription, payment method, invoice history, and cancellation flow.
 - Customer Portal cancellation now updates local subscription state through `customer.subscription.updated`; the profile shows `cancelAtPeriodEnd` copy after webhook processing.
@@ -811,12 +812,13 @@ Completed locally:
 - Auth, billing, and quota-style API errors now map server error codes to localized app copy across visible app locales instead of surfacing English API messages.
 - OAuth callback completion now uses localized loading/error copy and applies the user's stored `preferredLocale` before entering the app.
 - Production DevTools verified the Russian invalid-login flow on `/ru/welcome`: the form keeps user input, shows localized copy (`Неверный email или пароль`), and no longer emits raw React Query `HTTP Error 401` logs for the expected `401`.
+- Production DevTools and Stripe API verification confirmed billing checkout and Customer Portal return paths preserve the user's `preferredLocale` for app-only routes.
 
 Remaining work:
 
 - Decide launch UI locales.
 - Extend the public language dropdown to any additional localized public SSR route before that route is indexed.
-- Prevent accidental language drift: internal links, CTAs, redirects, auth return URLs, checkout success URLs, and share links must not unexpectedly switch the user to another language.
+- Continue monitoring for accidental language drift in newly added internal links, CTAs, auth return URLs, and share links.
 
 Acceptance criteria:
 

@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE } from '../config/languages';
+
 export const DEFAULT_PUBLIC_SEO_LOCALE = 'uk' as const;
 
 export const PUBLIC_SEO_LOCALES = ['uk', 'en'] as const;
@@ -158,6 +160,44 @@ export function normalizePublicSeoLocale(locale?: string | null): PublicSeoLocal
 
 export function isPublicSeoLocale(locale?: string | null): locale is PublicSeoLocale {
   return PUBLIC_SEO_LOCALES.includes(locale as PublicSeoLocale);
+}
+
+export function normalizeAppSupportedLocale(locale?: string | null): AppSupportedLocale {
+  const normalized = locale?.slice(0, 2).toLowerCase();
+  return APP_SUPPORTED_LOCALES.includes(normalized as AppSupportedLocale)
+    ? (normalized as AppSupportedLocale)
+    : (DEFAULT_LOCALE as AppSupportedLocale);
+}
+
+function stripAppLocalePrefix(path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const [pathname, suffix = ''] = normalizedPath.split(/([?#].*)/, 2);
+  const firstSegment = pathname
+    .split('/')
+    .filter(Boolean)[0]
+    ?.toLowerCase();
+
+  if (!firstSegment || !APP_SUPPORTED_LOCALES.includes(firstSegment as AppSupportedLocale)) {
+    return normalizedPath;
+  }
+
+  const stripped = pathname.replace(new RegExp(`^/${firstSegment}(?=/|$)`), '') || '/';
+  const cleanPath = stripped.startsWith('/') ? stripped : `/${stripped}`;
+  return `${cleanPath}${suffix}`;
+}
+
+export function buildLocalizedAppPath(path: string, locale?: string | null): string {
+  const normalizedLocale = normalizeAppSupportedLocale(locale);
+  const stripped = stripAppLocalePrefix(path);
+  if (normalizedLocale === DEFAULT_LOCALE) {
+    return stripped;
+  }
+
+  if (stripped === '/') {
+    return `/${normalizedLocale}`;
+  }
+
+  return `/${normalizedLocale}${stripped}`;
 }
 
 export function buildPublicLandingPath(locale?: string | null): string {

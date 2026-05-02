@@ -8,6 +8,10 @@ import { requireAuth, requireParentSession } from '../middleware/authMiddleware'
 import config from '../config';
 import * as billingService from '../services/billingService';
 import { logger } from '../utils/logger';
+import {
+  buildBillingCheckoutReturnUrls,
+  buildBillingPortalReturnUrl,
+} from './billingReturnUrls';
 
 const bundleCheckoutBodySchema = z.object({
   bundleSlug: z.string().min(1).max(64),
@@ -37,9 +41,11 @@ router.post('/checkout-session', requireAuth, requireParentSession, async (req: 
       });
     }
 
-    const webAppUrl = (config.web?.webAppUrl || '').replace(/\/$/, '');
-    const successUrl = `${webAppUrl}/billing/success?kind=subscription&session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${webAppUrl}/billing/plans`;
+    const { successUrl, cancelUrl } = buildBillingCheckoutReturnUrls(
+      config.web?.webAppUrl || '',
+      req.user!.preferredLocale,
+      'subscription'
+    );
 
     const { sessionId, url } = await billingService.createCheckoutSession(
       userId,
@@ -87,9 +93,11 @@ router.post('/bundle-checkout', requireAuth, requireParentSession, async (req: R
     const email = req.user!.email;
     const { bundleSlug } = parsed.data;
 
-    const webAppUrl = (config.web?.webAppUrl || '').replace(/\/$/, '');
-    const successUrl = `${webAppUrl}/billing/success?kind=bundle&session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${webAppUrl}/billing/plans`;
+    const { successUrl, cancelUrl } = buildBillingCheckoutReturnUrls(
+      config.web?.webAppUrl || '',
+      req.user!.preferredLocale,
+      'bundle'
+    );
 
     const { sessionId, url } = await billingService.createBundleCheckoutSession(
       userId,
@@ -128,8 +136,10 @@ router.post('/portal-session', requireAuth, requireParentSession, async (req: Re
     }
 
     const userId = req.user!.id;
-    const webAppUrl = (config.web?.webAppUrl || '').replace(/\/$/, '');
-    const returnUrl = `${webAppUrl}/profile`;
+    const returnUrl = buildBillingPortalReturnUrl(
+      config.web?.webAppUrl || '',
+      req.user!.preferredLocale
+    );
 
     const url = await billingService.createPortalSession(userId, returnUrl);
 
