@@ -106,6 +106,11 @@ function hasRobots(text, headerValue, expected) {
   );
 }
 
+function getHtmlAttr(tag, attr) {
+  const match = tag?.match(new RegExp(`${attr}=["']([^"']+)["']`, 'i'));
+  return match?.[1] || '';
+}
+
 async function checkPage({ path, label, expectedStatus = 200, robots, contains = [] }) {
   const { res, text } = await request('GET', path);
   if (res.status === expectedStatus) {
@@ -133,6 +138,51 @@ async function checkPage({ path, label, expectedStatus = 200, robots, contains =
       pass(`${label} ${path} contains ${needle}`);
     } else {
       fail(`${label} ${path} missing ${needle}`);
+    }
+  }
+}
+
+async function checkLocalizedSeo({ path, label, lang, canonical, alternates }) {
+  const { res, text } = await request('GET', path);
+  if (res.status !== 200) {
+    fail(`${label} ${path} returned ${res.status}, expected 200; ${preview(text)}`);
+    return;
+  }
+
+  const htmlTag = text.match(/<html\b[^>]*>/i)?.[0] || '';
+  const actualLang = getHtmlAttr(htmlTag, 'lang');
+  if (actualLang === lang) {
+    pass(`${label} ${path} html lang=${lang}`);
+  } else {
+    fail(`${label} ${path} html lang=${actualLang || 'missing'}, expected ${lang}`);
+  }
+
+  const linkTags = text.match(/<link\b[^>]*>/gi) || [];
+  const canonicalTag = linkTags.find((tag) => getHtmlAttr(tag, 'rel').toLowerCase() === 'canonical');
+  const actualCanonical = getHtmlAttr(canonicalTag, 'href');
+  if (actualCanonical === canonical) {
+    pass(`${label} ${path} canonical matches`);
+  } else {
+    fail(`${label} ${path} canonical=${actualCanonical || 'missing'}, expected ${canonical}`);
+  }
+
+  const alternateByLang = new Map();
+  for (const tag of linkTags) {
+    if (getHtmlAttr(tag, 'rel').toLowerCase() !== 'alternate') continue;
+    alternateByLang.set(getHtmlAttr(tag, 'hreflang'), getHtmlAttr(tag, 'href'));
+  }
+
+  for (const [hreflang, href] of Object.entries(alternates)) {
+    if (alternateByLang.get(hreflang) === href) {
+      pass(`${label} ${path} hreflang ${hreflang} matches`);
+    } else {
+      fail(`${label} ${path} hreflang ${hreflang}=${alternateByLang.get(hreflang) || 'missing'}, expected ${href}`);
+    }
+  }
+
+  for (const hiddenLocale of ['ru', 'es', 'de', 'fr', 'pl']) {
+    if (alternateByLang.has(hiddenLocale)) {
+      fail(`${label} ${path} exposes incomplete hreflang ${hiddenLocale}`);
     }
   }
 }
@@ -260,6 +310,120 @@ async function main() {
     { path: '/billing/plans', label: 'SPA billing plans', robots: 'noindex,nofollow' },
   ];
   for (const page of pages) await checkPage(page);
+
+  const localizedSeoPages = [
+    {
+      path: '/',
+      label: 'SSR landing SEO',
+      lang: 'uk',
+      canonical: `${baseUrl}`,
+      alternates: {
+        uk: `${baseUrl}`,
+        en: `${baseUrl}/en/`,
+        'x-default': `${baseUrl}`,
+      },
+    },
+    {
+      path: '/en',
+      label: 'SSR localized landing SEO',
+      lang: 'en',
+      canonical: `${baseUrl}/en/`,
+      alternates: {
+        uk: `${baseUrl}`,
+        en: `${baseUrl}/en/`,
+        'x-default': `${baseUrl}`,
+      },
+    },
+    {
+      path: '/pricing',
+      label: 'SSR pricing SEO',
+      lang: 'uk',
+      canonical: `${baseUrl}/pricing`,
+      alternates: {
+        uk: `${baseUrl}/pricing`,
+        en: `${baseUrl}/en/pricing`,
+        'x-default': `${baseUrl}/pricing`,
+      },
+    },
+    {
+      path: '/en/pricing',
+      label: 'SSR localized pricing SEO',
+      lang: 'en',
+      canonical: `${baseUrl}/en/pricing`,
+      alternates: {
+        uk: `${baseUrl}/pricing`,
+        en: `${baseUrl}/en/pricing`,
+        'x-default': `${baseUrl}/pricing`,
+      },
+    },
+    {
+      path: '/stories',
+      label: 'SSR stories catalog SEO',
+      lang: 'uk',
+      canonical: `${baseUrl}/stories`,
+      alternates: {
+        uk: `${baseUrl}/stories`,
+        en: `${baseUrl}/en/stories`,
+        'x-default': `${baseUrl}/stories`,
+      },
+    },
+    {
+      path: '/en/stories',
+      label: 'SSR localized stories catalog SEO',
+      lang: 'en',
+      canonical: `${baseUrl}/en/stories`,
+      alternates: {
+        uk: `${baseUrl}/stories`,
+        en: `${baseUrl}/en/stories`,
+        'x-default': `${baseUrl}/stories`,
+      },
+    },
+    {
+      path: '/terms',
+      label: 'SSR terms SEO',
+      lang: 'uk',
+      canonical: `${baseUrl}/terms`,
+      alternates: {
+        uk: `${baseUrl}/terms`,
+        en: `${baseUrl}/en/terms`,
+        'x-default': `${baseUrl}/terms`,
+      },
+    },
+    {
+      path: '/en/terms',
+      label: 'SSR localized terms SEO',
+      lang: 'en',
+      canonical: `${baseUrl}/en/terms`,
+      alternates: {
+        uk: `${baseUrl}/terms`,
+        en: `${baseUrl}/en/terms`,
+        'x-default': `${baseUrl}/terms`,
+      },
+    },
+    {
+      path: '/privacy',
+      label: 'SSR privacy SEO',
+      lang: 'uk',
+      canonical: `${baseUrl}/privacy`,
+      alternates: {
+        uk: `${baseUrl}/privacy`,
+        en: `${baseUrl}/en/privacy`,
+        'x-default': `${baseUrl}/privacy`,
+      },
+    },
+    {
+      path: '/en/privacy',
+      label: 'SSR localized privacy SEO',
+      lang: 'en',
+      canonical: `${baseUrl}/en/privacy`,
+      alternates: {
+        uk: `${baseUrl}/privacy`,
+        en: `${baseUrl}/en/privacy`,
+        'x-default': `${baseUrl}/privacy`,
+      },
+    },
+  ];
+  for (const page of localizedSeoPages) await checkLocalizedSeo(page);
 
   const publicStories = await checkJson({
     path: '/api/v1/public/stories?limit=1',

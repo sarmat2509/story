@@ -797,34 +797,16 @@ Completed locally:
 - The hydrated public stories catalog now keeps a `uk`/`en` language dropdown after React hydration and syncs default public SEO routes such as `/stories` back to the default `uk` UI locale.
 - Production DevTools screen sweep found and fixed visible Ukrainian UI fallbacks in the authenticated web app: photo upload controls, library empty/loading/error states, library view-toggle accessibility label, billing portal wording, and profile pseudonym spelling.
 - Production DevTools re-check verified `/wizard`, `/me/stories`, and `/billing/plans` render the fixed Ukrainian copy after deploy.
+- Production smoke now crawls `/`, `/en`, `/pricing`, `/en/pricing`, `/stories`, `/en/stories`, `/terms`, `/en/terms`, `/privacy`, and `/en/privacy` and verifies `html[lang]`, canonical URLs, `uk`/`en` hreflang alternates, `x-default`, and absence of incomplete locale alternates.
+- DevTools verified live English `/en/pricing` content, footer links, and the `uk`/`en` language selector.
 
-Required work:
+Remaining work:
 
 - Decide launch UI locales.
-- Decide launch SEO locales separately from app-supported story languages. Current code uses `uk` and `en` only for public SEO routes.
-- Hide incomplete UI locales from selectors, sitemap, SSR alternate links, and nginx localized SEO routes. Sitemap, SSR alternate links, and nginx localized SSR routes now use only `uk`/`en`.
-- Ensure every launch SEO locale has real translations for public SSR entry points:
-  - landing;
-  - pricing;
-  - legal pages;
-  - public story chrome;
-  - public author pages;
-  - public stories catalog, if indexed.
-- Ensure legal pages exist for every visible public SEO locale. If a legal page falls back to English, this must be explicit in the page copy and that fallback locale should not be advertised as fully localized.
-- Ensure pricing and billing copy is localized where visible.
 - Ensure app error messages for auth/billing/quota are localized.
-- Define canonical localized URL rules:
-  - default locale may live at `/`, `/pricing`, `/terms`, `/privacy`, `/stories`, `/authors/:authorId`;
-  - non-default locales live at `/{locale}/`, `/{locale}/pricing`, `/{locale}/terms`, `/{locale}/privacy`, `/{locale}/stories`, `/{locale}/authors/:authorId`;
-  - public links generated from an SSR page preserve the active locale unless intentionally switching language;
-  - authenticated app links preserve the user's selected UI language.
-- Add SSR entry points for every indexable route in every launch SEO locale.
-- Add `hreflang` alternates for every localized public page, including `x-default`.
-- Add localized canonical links that match the current page language and URL.
 - Extend the public language dropdown to any additional localized public SSR route before that route is indexed.
 - Persist the selected UI language for authenticated users and keep it in sync with localized URL prefixes on web.
 - Prevent accidental language drift: internal links, CTAs, redirects, auth return URLs, checkout success URLs, and share links must not unexpectedly switch the user to another language.
-- Add tests or smoke checks that crawl public SSR pages and verify `html[lang]`, canonical, hreflang, visible language, and internal links agree.
 
 Acceptance criteria:
 
