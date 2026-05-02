@@ -3,6 +3,7 @@ import { UserApi, AuthResponseApi, type ThemePaletteId } from '@wondertales/shar
 import apiClient from './client';
 import { useAuthStore } from '@/store/authStore';
 import { storage } from '@/utils/storage';
+import { applyUserPreferredLocale } from '@/utils/localePreference';
 import { getActivePaletteId, setActivePaletteId } from '@/theme/activePalette';
 
 // Use shared types
@@ -38,6 +39,7 @@ async function applyParentGateResponse(
 ): Promise<void> {
   await storage.setAuthToken(data.token);
   await storage.setUser(data.user);
+  await applyUserPreferredLocale(data.user);
   syncPaletteFromUser(data.user);
   queryClient.clear();
   returnToParentSession(data.user, data.token);
@@ -58,6 +60,7 @@ export const useEmailLogin = () => {
     onSuccess: async (data) => {
       await storage.setAuthToken(data.token);
       await storage.setUser(data.user);
+      await applyUserPreferredLocale(data.user);
       login(data.user, data.token);
       syncPaletteFromUser(data.user);
     },
@@ -84,6 +87,7 @@ export const useRegister = () => {
     onSuccess: async (data) => {
       await storage.setAuthToken(data.token);
       await storage.setUser(data.user);
+      await applyUserPreferredLocale(data.user);
       login(data.user, data.token);
       syncPaletteFromUser(data.user);
     },
@@ -129,6 +133,7 @@ export const useGoogleLogin = () => {
     onSuccess: async (data) => {
       await storage.setAuthToken(data.token);
       await storage.setUser(data.user);
+      await applyUserPreferredLocale(data.user);
       login(data.user, data.token);
       syncPaletteFromUser(data.user);
     },
@@ -154,6 +159,7 @@ export const useAppleLogin = () => {
     onSuccess: async (data) => {
       await storage.setAuthToken(data.token);
       await storage.setUser(data.user);
+      await applyUserPreferredLocale(data.user);
       login(data.user, data.token);
       syncPaletteFromUser(data.user);
     },

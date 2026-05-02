@@ -8,7 +8,7 @@ import { APP_CONFIG } from '@/config/constants';
 import { DEFAULT_LOCALE, SUPPORTED_LANGUAGES, isValidLocale } from '@wondertales/shared';
 import type { Locale } from '@wondertales/shared';
 import { theme } from '@/theme';
-import { storage } from '@/utils/storage';
+import { applyPreferredLocale } from '@/utils/localePreference';
 import { useAuthStore } from '@/store/authStore';
 import apiClient from '@/api/client';
 import { FeedbackModal } from '@/components/FeedbackModal';
@@ -45,11 +45,7 @@ export default function LanguageSettingsScreen() {
     try {
       setIsChanging(true);
       
-      // Update i18n
-      await i18n.changeLanguage(languageCode);
-      
-      // Save to storage
-      await storage.setLanguage(languageCode);
+      await applyPreferredLocale(languageCode);
       
       // Update user preference in API
       const response = await apiClient.patch('/api/v1/me', {

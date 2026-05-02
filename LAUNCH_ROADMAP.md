@@ -803,13 +803,14 @@ Completed locally:
 - Production DevTools re-check verified `/wizard`, `/me/stories`, and `/billing/plans` render the fixed Ukrainian copy after deploy.
 - Production smoke now crawls `/`, `/en`, `/pricing`, `/en/pricing`, `/stories`, `/en/stories`, `/terms`, `/en/terms`, `/privacy`, and `/en/privacy` and verifies `html[lang]`, canonical URLs, `uk`/`en` hreflang alternates, `x-default`, and absence of incomplete locale alternates.
 - DevTools verified live English `/en/pricing` content, footer links, and the `uk`/`en` language selector.
+- Authenticated language changes now persist locally, update the server-side `preferredLocale`, and rewrite the current web URL locale prefix in place.
+- Successful email/password, registration, OAuth, and parent-gate auth responses now apply the user's stored `preferredLocale` to i18n/local storage and the web URL prefix.
 
 Remaining work:
 
 - Decide launch UI locales.
 - Ensure app error messages for auth/billing/quota are localized.
 - Extend the public language dropdown to any additional localized public SSR route before that route is indexed.
-- Persist the selected UI language for authenticated users and keep it in sync with localized URL prefixes on web.
 - Prevent accidental language drift: internal links, CTAs, redirects, auth return URLs, checkout success URLs, and share links must not unexpectedly switch the user to another language.
 
 Acceptance criteria:
