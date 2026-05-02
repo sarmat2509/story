@@ -607,15 +607,17 @@ async function main() {
         }
       }
     }
-    const series = await checkJson({
-      path: '/api/v1/me/series',
-      label: 'Current user series entitlement gate API',
-      token: userToken,
-      expectedStatus: 403,
-      predicate: (json) => json?.code === 'SERIES_ACCESS_REQUIRED',
+    const seriesResponse = await request('GET', '/api/v1/me/series', {
+      headers: { authorization: `Bearer ${userToken}` },
     });
-    if (series) {
-      pass('Current user series endpoint is covered by expected entitlement gate');
+    if (seriesResponse.res.status === 403 && seriesResponse.json?.code === 'SERIES_ACCESS_REQUIRED') {
+      pass('Current user series endpoint returned the expected entitlement gate');
+    } else if (seriesResponse.res.status === 200 && Array.isArray(seriesResponse.json?.series)) {
+      pass('Current user series endpoint returned the entitled user series list');
+    } else {
+      fail(
+        `Current user series endpoint returned ${seriesResponse.res.status}, expected entitlement gate or success list; ${preview(seriesResponse.text)}`
+      );
     }
 
     if (createCheckout) {

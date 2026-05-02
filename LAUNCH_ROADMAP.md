@@ -941,6 +941,7 @@ Completed locally and in production:
 - Recent API logs are scanned for error/warn/failed lines.
 - Admin/support access is covered by production smoke, admin dashboard, and support feedback checks.
 - Deploy, rollback, backup, and restore guidance is documented in a runbook.
+- Production smoke now accepts both expected series entitlement outcomes: a `SERIES_ACCESS_REQUIRED` gate for free QA users or an empty/successful series list when the mutable QA account has paid-series access.
 
 Remaining work:
 
