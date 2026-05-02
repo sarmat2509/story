@@ -26,6 +26,7 @@ API_TESTS=(
   src/routes/__tests__/billingReturnUrls.test.ts
   src/routes/__tests__/feedbackReportedScreens.test.ts
   src/ssr/__tests__/appErrorI18n.test.ts
+  src/ssr/__tests__/appUiI18nCoverage.test.ts
   src/ssr/__tests__/pricingPresentation.test.ts
   src/ssr/__tests__/publicSeoLocales.test.ts
   src/ssr/__tests__/renderLandingExamples.test.ts

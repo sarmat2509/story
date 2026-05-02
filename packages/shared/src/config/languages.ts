@@ -61,6 +61,16 @@ export type Locale = keyof typeof SUPPORTED_LANGUAGES;
 export const LOCALE_IDS = Object.keys(SUPPORTED_LANGUAGES) as Locale[];
 
 /**
+ * Launch-ready interface locales.
+ *
+ * Story/content generation can support every locale in LOCALE_IDS, but the
+ * app UI should only expose locales with complete launch translation coverage.
+ */
+export const APP_UI_LOCALES = ['uk', 'en', 'ru', 'pl'] as const satisfies readonly Locale[];
+
+export type AppUiLocale = typeof APP_UI_LOCALES[number];
+
+/**
  * Language configuration type
  */
 export type LanguageConfig = typeof SUPPORTED_LANGUAGES[Locale];
@@ -95,4 +105,15 @@ export function getLanguageFullDisplay(locale: Locale): string {
  */
 export function isValidLocale(locale: string): locale is Locale {
   return locale in SUPPORTED_LANGUAGES;
+}
+
+export function isAppUiLocale(locale: string): locale is AppUiLocale {
+  return APP_UI_LOCALES.includes(locale as AppUiLocale);
+}
+
+export function normalizeAppUiLocale(locale?: string | null): AppUiLocale {
+  const normalized = locale?.slice(0, 2).toLowerCase();
+  return normalized && isAppUiLocale(normalized)
+    ? normalized
+    : (DEFAULT_LOCALE as AppUiLocale);
 }

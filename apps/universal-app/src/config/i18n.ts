@@ -3,7 +3,7 @@ import 'intl-pluralrules';
 
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import { isValidLocale } from '@wondertales/shared';
+import { isAppUiLocale } from '@wondertales/shared';
 import { storage } from '@/utils/storage';
 import { APP_CONFIG } from '@/config/constants';
 import { getPublicSeoLocaleOverrideFromPath } from '@/utils/publicSeoLocale';
@@ -42,13 +42,18 @@ function getLocaleFromUrl(): string | null {
     .filter(Boolean)[0]
     ?.toLowerCase();
 
-  return firstSegment && isValidLocale(firstSegment) ? firstSegment : null;
+  return firstSegment && isAppUiLocale(firstSegment) ? firstSegment : null;
+}
+
+function normalizeUiLanguage(language?: string | null): string | null {
+  const normalized = language?.split('-')[0]?.toLowerCase();
+  return normalized && isAppUiLocale(normalized) ? normalized : null;
 }
 
 export async function initI18n() {
   // On web, locale in the URL should win over saved preference so public routes
   // like /en/welcome can be rendered in the requested language before login.
-  const savedLanguage = await storage.getLanguage();
+  const savedLanguage = normalizeUiLanguage(await storage.getLanguage());
   const urlLanguage = getLocaleFromUrl();
   const initialLanguage = urlLanguage || savedLanguage || APP_CONFIG.defaultLanguage;
 
@@ -62,7 +67,7 @@ export async function initI18n() {
       resources,
       lng: initialLanguage,
       fallbackLng: APP_CONFIG.defaultLanguage,
-      supportedLngs: APP_CONFIG.supportedLanguages,
+      supportedLngs: APP_CONFIG.uiLanguages,
       interpolation: {
         escapeValue: false, // React already escapes
       },

@@ -42,8 +42,13 @@ import {
 }
 
 assert.equal(
+  buildBillingPortalReturnUrl('https://wondertales.art/', 'pl'),
+  'https://wondertales.art/pl/profile'
+);
+
+assert.equal(
   buildBillingPortalReturnUrl('https://wondertales.art/', 'es'),
-  'https://wondertales.art/es/profile'
+  'https://wondertales.art/profile'
 );
 
 assert.equal(

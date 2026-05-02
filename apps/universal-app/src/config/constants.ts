@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE, LOCALE_IDS } from '@wondertales/shared';
+import { APP_UI_LOCALES, DEFAULT_LOCALE, LOCALE_IDS } from '@wondertales/shared';
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3000';
 export const WEB_APP_URL = process.env.EXPO_PUBLIC_WEB_APP_URL || 'https://app.wondertales.com';
@@ -36,6 +36,7 @@ export const APP_CONFIG = {
   name: 'WonderTales',
   scheme: 'wondertales',
   supportedLanguages: LOCALE_IDS,
+  uiLanguages: APP_UI_LOCALES,
   defaultLanguage: DEFAULT_LOCALE,
 };
 

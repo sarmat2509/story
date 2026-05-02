@@ -136,7 +136,17 @@
     "ready": "Сказка готова!",
     "read": "Читать",
     "listen": "Слушать",
-    "share": "Поделиться"
+    "share": "Поделиться",
+    "tasks": {
+      "analyzing_photos": "Анализируем фотографии",
+      "generating_outline": "Создаём план истории",
+      "generating_text": "Пишем историю",
+      "producing_visuals": "Готовим сцены для иллюстраций",
+      "validating": "Проверяем безопасность контента",
+      "generating_portraits": "Создаём портреты персонажей ({{current}} из {{total}})",
+      "generating_images": "Рисуем иллюстрации ({{current}} из {{total}})",
+      "generating_audio": "Записываем озвучку ({{current}} из {{total}})"
+    }
   },
   "library": {
     "title": "Библиотека",
@@ -160,7 +170,11 @@
     "all_reading_times": "Любое время чтения",
     "reading_time_up_to_5": "До 5 мин",
     "reading_time_6_10": "6-10 мин",
-    "reading_time_11_plus": "11+ мин"
+    "reading_time_11_plus": "11+ мин",
+    "loading": "Загружаем истории...",
+    "error_title": "Не удалось загрузить истории",
+    "switch_to_list_view": "Переключить на список",
+    "switch_to_grid_view": "Переключить на сетку"
   },
   "series": {
     "title": "Серии",
@@ -248,7 +262,9 @@
     "retry_error": "Не удалось повторить генерацию иллюстраций. Попробуйте ещё раз.",
     "advanced_settings": "Дополнительные настройки",
     "add_characters": "Добавить персонажей",
-    "child_badge": "Ребёнок"
+    "child_badge": "Ребёнок",
+    "select_hint": "Выберите вариант, чтобы продолжить",
+    "story_context_hint": "Добавьте несколько деталей для будущей истории"
   },
   "instant_wizard": {
     "title": "Создать историю",
@@ -887,7 +903,18 @@
     "schedule_cadence_every_2_days": "Каждые 2 дня",
     "schedule_cadence_twice_weekly": "Дважды в неделю",
     "schedule_cadence_weekly": "Раз в неделю",
-    "schedule_button": "Запланировать"
+    "schedule_button": "Запланировать",
+    "character_type_imaginary_friend": "Воображаемый друг",
+    "share_title": "Поделиться историей",
+    "share_message": "Читайте мою историю «{{title}}» в WonderTales! Ваш ребёнок — герой собственной сказки.",
+    "publish_share_dialog_title": "Опубликовать историю",
+    "publish_share_dialog_message": "Чтобы поделиться историей, её нужно опубликовать. Она станет доступна всем пользователям.",
+    "publish_share_dialog_published": "Опубликовано",
+    "publish_and_share": "Опубликовать и поделиться",
+    "url_copied": "Ссылка скопирована",
+    "copy": "Копировать",
+    "publish": "Опубликовать",
+    "cancel": "Отмена"
   },
   "toast": {
     "audio_ready_title": "Аудиосказка готова!",
@@ -1124,7 +1151,9 @@
       "export_pdf": "Экспорт в PDF (скоро)",
       "export_video": "Экспорт в видео (скоро)",
       "share_enabled": "Публикация и распространение",
-      "story_from_drawing": "История из рисунка ребенка (скоро)"
+      "story_from_drawing": "История из рисунка ребенка (скоро)",
+      "stories_per_month_other": "{{value}} историй в месяц",
+      "images_per_story_other": "{{value}} иллюстраций в истории"
     },
     "bundles": {
       "section_title": "Дополнительные истории и аудио",
@@ -1161,7 +1190,14 @@
       "loading": "Загрузка пакетов…",
       "empty": "Нет доступных пакетов для вашего тарифа."
     },
-    "bundle_checkout_error": "Не удалось начать оплату пакета. Попробуйте ещё раз."
+    "bundle_checkout_error": "Не удалось начать оплату пакета. Попробуйте ещё раз.",
+    "audio_stories_other": "{{count}} аудиоисторий в месяц",
+    "payments_disabled_button": "Оплата скоро появится",
+    "payments_disabled_notice": "Платная оплата пока не включена. Бесплатный доступ остаётся доступным, пока мы завершаем проверку биллинга.",
+    "billing_note_title": "Детали оплаты",
+    "billing_note_renewal": "Платные подписки продлеваются ежемесячно до отмены. Управлять оплатой и отменой можно в платёжном портале, когда он доступен.",
+    "billing_note_bundles": "Пакеты — это разовые дополнения на текущий расчётный период. Неиспользованные бонусы сгорают в конце периода и не переносятся.",
+    "billing_note_refunds": "Запросы на возврат рассматриваются через поддержку и не происходят автоматически при отмене подписки."
   },
   "children_screen": {
     "title": "Профили детей",
@@ -1392,5 +1428,20 @@
     "feature_not_available": "Эта функция недоступна на текущем тарифе.",
     "expensive_generation_rate_limited": "Слишком много запросов на генерацию. Немного подождите и попробуйте ещё раз.",
     "child_data_consent_required": "Подтвердите родительское согласие перед добавлением данных ребёнка."
+  },
+  "published_story": {
+    "cta_title": "Ваш ребёнок — герой собственной сказки",
+    "cta_description": "Создайте историю, где ваш ребёнок станет главным персонажем. Картинки и аудио будут готовы за несколько минут.",
+    "cta_button": "Войти и создать"
+  },
+  "photo_upload": {
+    "permission_title": "Нужно разрешение",
+    "permission_message": "Разрешите доступ к фотогалерее.",
+    "upload_error_title": "Ошибка",
+    "upload_error_message": "Не удалось загрузить фото. Попробуйте ещё раз.",
+    "pick_error_title": "Ошибка",
+    "pick_error_message": "Не удалось выбрать изображение",
+    "add_photo": "Добавить фото",
+    "counter": "{{count}} / {{max}} фото"
   }
 }

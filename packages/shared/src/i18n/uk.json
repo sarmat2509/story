@@ -913,7 +913,8 @@
     "schedule_cadence_every_2_days": "Кожні 2 дні",
     "schedule_cadence_twice_weekly": "Двічі на тиждень",
     "schedule_cadence_weekly": "Раз на тиждень",
-    "schedule_button": "Запланувати"
+    "schedule_button": "Запланувати",
+    "character_type_imaginary_friend": "Уявний друг"
   },
   "toast": {
     "audio_ready_title": "Аудіоказка готова!",
@@ -1171,7 +1172,9 @@
       "export_pdf": "Експорт в PDF (скоро)",
       "export_video": "Експорт в відео (скоро)",
       "share_enabled": "Публікація й поширення",
-      "story_from_drawing": "Історія з малюнка дитини (скоро)"
+      "story_from_drawing": "Історія з малюнка дитини (скоро)",
+      "stories_per_month_other": "{{value}} історій на місяць",
+      "images_per_story_other": "{{value}} ілюстрацій в історії"
     },
     "bundles": {
       "section_title": "Додаткові історії та аудіо",
@@ -1208,7 +1211,8 @@
       "loading": "Завантаження пакетів…",
       "empty": "Немає доступних пакетів для вашого тарифу."
     },
-    "bundle_checkout_error": "Не вдалося розпочати оплату пакета. Спробуйте ще раз."
+    "bundle_checkout_error": "Не вдалося розпочати оплату пакета. Спробуйте ще раз.",
+    "audio_stories_other": "{{count}} аудіоісторій на місяць"
   },
   "children_screen": {
     "title": "Профілі дітей",

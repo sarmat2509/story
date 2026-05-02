@@ -170,7 +170,11 @@
     "all_reading_times": "Dowolny czas czytania",
     "reading_time_up_to_5": "Do 5 min",
     "reading_time_6_10": "6-10 min",
-    "reading_time_11_plus": "11+ min"
+    "reading_time_11_plus": "11+ min",
+    "loading": "Ladowanie historii...",
+    "error_title": "Nie udalo sie zaladowac historii",
+    "switch_to_list_view": "Przelacz na liste",
+    "switch_to_grid_view": "Przelacz na siatke"
   },
   "series": {
     "title": "Serie",
@@ -188,7 +192,9 @@
     "parts_count_one": "{{count}} czesc",
     "parts_count_other": "{{count}} czesci",
     "expecting_part": "Oczekuje na czesc {{number}}",
-    "detail_title": "Seria"
+    "detail_title": "Seria",
+    "parts_count_few": "{{count}} czesci",
+    "parts_count_many": "{{count}} czesci"
   },
   "profiles": {
     "title": "Profile",
@@ -256,7 +262,9 @@
     "retry_error": "Nie udalo sie ponowic generacji obrazow. Sprobuj ponownie.",
     "advanced_settings": "Ustawienia zaawansowane",
     "add_characters": "Dodaj postacie",
-    "child_badge": "Dziecko"
+    "child_badge": "Dziecko",
+    "select_hint": "Wybierz opcje, aby kontynuowac",
+    "story_context_hint": "Dodaj kilka szczegolow, ktore poprowadza historie"
   },
   "instant_wizard": {
     "title": "Utworz historie",
@@ -902,7 +910,11 @@
     "schedule_cadence_every_2_days": "Co 2 dni",
     "schedule_cadence_twice_weekly": "Dwa razy w tygodniu",
     "schedule_cadence_weekly": "Raz w tygodniu",
-    "schedule_button": "Zaplanuj"
+    "schedule_button": "Zaplanuj",
+    "bundle_hint": "Kup pakiet w Cenniku — wiecej do {{periodEnd}}.",
+    "bundle_hint_no_date": "Kup pakiet w Cenniku, aby miec wiecej historii i audio.",
+    "bundle_pricing_link": "Cennik i pakiety",
+    "character_type_imaginary_friend": "Wymyslony przyjaciel"
   },
   "published_story": {
     "cta_title": "Twoje dziecko jest bohaterem wlasnej opowiesci",
@@ -1143,9 +1155,54 @@
       "export_pdf": "Eksport do PDF (wkrotce)",
       "export_video": "Eksport do wideo (wkrotce)",
       "share_enabled": "Publikacja i udostepnianie",
-      "story_from_drawing": "Historia z rysunku dziecka (wkrotce)"
+      "story_from_drawing": "Historia z rysunku dziecka (wkrotce)",
+      "stories_per_month_few": "{{value}} historie miesiecznie",
+      "images_per_story_few": "{{value}} ilustracje w historii",
+      "images_per_story_many": "{{value}} ilustracji w historii"
     },
-    "bundle_checkout_error": "Nie udalo sie rozpoczac platnosci za pakiet. Sprobuj ponownie."
+    "bundle_checkout_error": "Nie udalo sie rozpoczac platnosci za pakiet. Sprobuj ponownie.",
+    "bundles": {
+      "section_title": "Dodatkowe historie i audio",
+      "section_subtitle": "Wiecej limitow do {{periodEnd}}. Liczba ilustracji w historii bez zmian.",
+      "faq_title": "Ceny, plany i pakiety",
+      "faq_1_q": "Czym rozni sie moj plan od pakietu?",
+      "faq_1_a": "Subskrypcja ustala podstawowe miesieczne limity historii i audio. Pakiety to jednorazowe dodatki, ktore zwiekszaja te limity do konca obecnego okresu rozliczeniowego.",
+      "faq_2_q": "Jak dlugo dzialaja bonusy z pakietu?",
+      "faq_2_a": "Dodatkowe kredyty z pakietow dzialaja do {{periodEnd}}. Niewykorzystane kredyty wtedy wygasaja i nie przechodza dalej.",
+      "faq_2_a_no_date": "Dzialaja do konca obecnego okresu rozliczeniowego i nie przechodza dalej.",
+      "faq_3_q": "Czy moge kupic wiecej niz jeden pakiet?",
+      "faq_3_a": "Tak. Zakupy w tym samym okresie rozliczeniowym sumuja sie — dodatkowe historie i audio dodaja sie razem.",
+      "faq_4_q": "Dlaczego cena pakietu jest inna w wyzszych planach?",
+      "faq_4_a": "Wyzsze plany zawieraja wiecej ilustracji w historii, wiec generowanie kosztuje wiecej. Ceny pakietow zaleza od aktualnego planu.",
+      "faq_5_q": "Gdzie moge zaplacic za pakiet?",
+      "faq_5_a": "Gdy platnosci sa wlaczone, kasa dziala w przegladarce. Otworz te strone w przegladarce i uzyj przycisku Kup.",
+      "faq_6_q": "Czy pakiety zmieniaja jakosc obrazow, styl albo glosy?",
+      "faq_6_a": "Nie. Zmieniaja sie tylko limity historii i audio. Jakosc ilustracji, styl i glosy narratora zostaja takie jak w Twoim planie.",
+      "slug_titles": {
+        "bundle_small": "Pierwsza iskra",
+        "bundle_boost_10": "Dziesiec zyczen",
+        "bundle_medium": "Gwiezdna sciezka",
+        "bundle_boost_20": "Ksiezycowa rzeka",
+        "bundle_large": "Skrzynia cudow"
+      },
+      "stories_word": "historie",
+      "plus_audio": "+{{count}} audio",
+      "line_quota": "+{{stories}} historii - +{{audio}} audio",
+      "buy_button": "Kup",
+      "one_time_note": "Jednorazowo; wazne do {{periodEnd}}.",
+      "section_subtitle_no_date": "Wiecej limitow w tym okresie rozliczeniowym. Liczba ilustracji w historii bez zmian.",
+      "one_time_note_no_date": "Jednorazowo; wazne do konca okresu.",
+      "stripe_required": "Zakup pakietu jest dostepny w przegladarce, gdy platnosci sa wlaczone.",
+      "loading": "Ladowanie pakietow...",
+      "empty": "Brak pakietow dla Twojego planu."
+    },
+    "payments_disabled_button": "Platnosci wkrotce",
+    "payments_disabled_notice": "Platne zamowienia nie sa jeszcze wlaczone. Darmowy dostep pozostaje dostepny podczas koncowej weryfikacji rozliczen.",
+    "billing_note_title": "Szczegoly rozliczen",
+    "billing_note_renewal": "Platne subskrypcje odnawiaja sie co miesiac do anulowania. Mozesz zarzadzac rozliczeniami lub anulowac je w portalu platnosci, gdy jest dostepny.",
+    "billing_note_bundles": "Pakiety to jednorazowe dodatki na obecny okres rozliczeniowy. Niewykorzystane kredyty wygasaja na koniec okresu i nie przechodza dalej.",
+    "billing_note_refunds": "Prosby o zwrot sa sprawdzane przez wsparcie i nie dzieja sie automatycznie po anulowaniu subskrypcji.",
+    "audio_stories_few": "{{count}} historie audio miesiecznie"
   },
   "children_screen": {
     "title": "Profile dzieci",
@@ -1316,7 +1373,10 @@
     "stories_limit_title": "Osiagnieto limit historii",
     "stories_limit_message": "Wykorzystales {{used}} z {{limit}} historii w tym miesiacu.",
     "stories_limit_message_default": "Twoj miesieczny limit historii zostal osiagniety.",
-    "upgrade_button": "Ulepsz plan"
+    "upgrade_button": "Ulepsz plan",
+    "bundle_hint": "Potrzebujesz wiecej? Pakiet w Cenniku — do {{periodEnd}}.",
+    "bundle_hint_no_date": "Potrzebujesz wiecej? Pakiet w Cenniku.",
+    "bundle_pricing_link": "Cennik i pakiety"
   },
   "transactional_emails": {
     "welcome": {
@@ -1373,5 +1433,15 @@
     "feature_not_available": "Ta funkcja nie jest dostepna w obecnym planie.",
     "expensive_generation_rate_limited": "Za duzo zadan generowania. Poczekaj chwile i sprobuj ponownie.",
     "child_data_consent_required": "Potwierdz zgode rodzicielska przed dodaniem danych dziecka."
+  },
+  "photo_upload": {
+    "permission_title": "Wymagane uprawnienie",
+    "permission_message": "Zezwol na dostep do biblioteki zdjec.",
+    "upload_error_title": "Blad",
+    "upload_error_message": "Nie udalo sie przeslac zdjecia. Sprobuj ponownie.",
+    "pick_error_title": "Blad",
+    "pick_error_message": "Nie udalo sie wybrac obrazu",
+    "add_photo": "Dodaj zdjecie",
+    "counter": "{{count}} / {{max}} zdjec"
   }
 }

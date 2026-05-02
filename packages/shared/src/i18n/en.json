@@ -192,7 +192,9 @@
     "parts_count_one": "{{count}} part",
     "parts_count_other": "{{count}} parts",
     "expecting_part": "Expecting part {{number}}",
-    "detail_title": "Series"
+    "detail_title": "Series",
+    "parts_count_few": "{{count}} parts",
+    "parts_count_many": "{{count}} parts"
   },
   "profiles": {
     "title": "Profiles",
@@ -260,7 +262,9 @@
     "retry_error": "Failed to retry image generation. Please try again.",
     "advanced_settings": "Advanced Settings",
     "add_characters": "Add Characters",
-    "child_badge": "Child"
+    "child_badge": "Child",
+    "select_hint": "Choose an option to continue",
+    "story_context_hint": "Add a few details to guide the story"
   },
   "instant_wizard": {
     "title": "Create Story",
@@ -909,7 +913,8 @@
     "schedule_cadence_every_2_days": "Every 2 days",
     "schedule_cadence_twice_weekly": "Twice weekly",
     "schedule_cadence_weekly": "Weekly",
-    "schedule_button": "Schedule"
+    "schedule_button": "Schedule",
+    "character_type_imaginary_friend": "Imaginary friend"
   },
   "published_story": {
     "cta_title": "Your child is the hero of their own tale",
@@ -1164,7 +1169,11 @@
       "export_pdf": "Export to PDF (coming soon)",
       "export_video": "Export to video (coming soon)",
       "share_enabled": "Publication and sharing",
-      "story_from_drawing": "Story from child's drawing (coming soon)"
+      "story_from_drawing": "Story from child's drawing (coming soon)",
+      "stories_per_month_few": "{{value}} stories per month",
+      "stories_per_month_many": "{{value}} stories per month",
+      "images_per_story_few": "{{value}} illustrations in story",
+      "images_per_story_many": "{{value}} illustrations in story"
     },
     "bundles": {
       "section_title": "Extra stories & audio",
@@ -1201,7 +1210,9 @@
       "loading": "Loading bundles…",
       "empty": "No bundles available for your plan."
     },
-    "bundle_checkout_error": "Could not start bundle checkout. Please try again."
+    "bundle_checkout_error": "Could not start bundle checkout. Please try again.",
+    "audio_stories_few": "{{count}} audio stories per month",
+    "audio_stories_many": "{{count}} audio stories per month"
   },
   "children_screen": {
     "title": "Child Profiles",

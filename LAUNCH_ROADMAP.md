@@ -813,10 +813,13 @@ Completed locally:
 - OAuth callback completion now uses localized loading/error copy and applies the user's stored `preferredLocale` before entering the app.
 - Production DevTools verified the Russian invalid-login flow on `/ru/welcome`: the form keeps user input, shows localized copy (`Неверный email или пароль`), and no longer emits raw React Query `HTTP Error 401` logs for the expected `401`.
 - Production DevTools and Stripe API verification confirmed billing checkout and Customer Portal return paths preserve the user's `preferredLocale` for app-only routes.
+- Launch UI locales are now explicitly limited to `uk`, `en`, `ru`, and `pl`; story/content languages remain broader, but incomplete `es`, `de`, and `fr` UI locales are no longer exposed in Language Settings or accepted from stored app UI preferences.
+- `pnpm launch:gate` now checks complete app UI translation key coverage for the launch UI locale set.
+- Billing checkout and Customer Portal return URLs now normalize to launch-ready UI locales, so incomplete UI locales cannot create app return paths such as `/es/profile`.
 
 Remaining work:
 
-- Decide launch UI locales.
+- Complete `es`, `de`, and `fr` UI translation coverage before exposing them as app interface locales.
 - Extend the public language dropdown to any additional localized public SSR route before that route is indexed.
 - Continue monitoring for accidental language drift in newly added internal links, CTAs, auth return URLs, and share links.
 

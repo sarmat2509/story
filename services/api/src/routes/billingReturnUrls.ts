@@ -1,4 +1,8 @@
-import { buildAbsoluteRouteUrl, buildLocalizedAppPath } from '@wondertales/shared';
+import {
+  buildAbsoluteRouteUrl,
+  buildLocalizedAppPath,
+  normalizeAppUiLocale,
+} from '@wondertales/shared';
 
 type CheckoutKind = 'subscription' | 'bundle';
 
@@ -12,8 +16,9 @@ export function buildBillingCheckoutReturnUrls(
   kind: CheckoutKind
 ): { successUrl: string; cancelUrl: string } {
   const baseUrl = normalizeWebAppUrl(webAppUrl);
-  const successPath = buildLocalizedAppPath('/billing/success', preferredLocale);
-  const cancelPath = buildLocalizedAppPath('/billing/plans', preferredLocale);
+  const locale = normalizeAppUiLocale(preferredLocale);
+  const successPath = buildLocalizedAppPath('/billing/success', locale);
+  const cancelPath = buildLocalizedAppPath('/billing/plans', locale);
 
   return {
     successUrl: `${buildAbsoluteRouteUrl(baseUrl, successPath)}?kind=${kind}&session_id={CHECKOUT_SESSION_ID}`,
@@ -27,6 +32,6 @@ export function buildBillingPortalReturnUrl(
 ): string {
   return buildAbsoluteRouteUrl(
     normalizeWebAppUrl(webAppUrl),
-    buildLocalizedAppPath('/profile', preferredLocale)
+    buildLocalizedAppPath('/profile', normalizeAppUiLocale(preferredLocale))
   );
 }

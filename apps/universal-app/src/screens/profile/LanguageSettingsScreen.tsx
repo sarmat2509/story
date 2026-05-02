@@ -5,8 +5,8 @@ import type { NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { APP_CONFIG } from '@/config/constants';
-import { DEFAULT_LOCALE, SUPPORTED_LANGUAGES, isValidLocale } from '@wondertales/shared';
-import type { Locale } from '@wondertales/shared';
+import { DEFAULT_LOCALE, SUPPORTED_LANGUAGES, isAppUiLocale } from '@wondertales/shared';
+import type { AppUiLocale } from '@wondertales/shared';
 import { theme } from '@/theme';
 import { applyPreferredLocale } from '@/utils/localePreference';
 import { useAuthStore } from '@/store/authStore';
@@ -21,11 +21,11 @@ export default function LanguageSettingsScreen() {
   const { user: _user, setUser } = useAuthStore();
   const normalizedCurrentLanguage = i18n.language?.split('-')[0]?.toLowerCase() || DEFAULT_LOCALE;
   const [selectedLanguage, setSelectedLanguage] = useState(
-    isValidLocale(normalizedCurrentLanguage) ? normalizedCurrentLanguage : DEFAULT_LOCALE
+    isAppUiLocale(normalizedCurrentLanguage) ? normalizedCurrentLanguage : DEFAULT_LOCALE
   );
   const [isChanging, setIsChanging] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const languages = APP_CONFIG.supportedLanguages.map((code) => ({
+  const languages = APP_CONFIG.uiLanguages.map((code) => ({
     code,
     name: t(`language_names.${code}`, { defaultValue: SUPPORTED_LANGUAGES[code].nativeName }),
     flag: SUPPORTED_LANGUAGES[code].flag,
@@ -39,7 +39,7 @@ export default function LanguageSettingsScreen() {
     });
   }, [navigation]);
 
-  const handleLanguageChange = async (languageCode: Locale) => {
+  const handleLanguageChange = async (languageCode: AppUiLocale) => {
     if (isChanging || selectedLanguage === languageCode) return;
     
     try {

@@ -1,4 +1,9 @@
-import { DEFAULT_LOCALE, isValidLocale, type Locale } from '@wondertales/shared';
+import {
+  DEFAULT_LOCALE,
+  isAppUiLocale,
+  isValidLocale,
+  type AppUiLocale,
+} from '@wondertales/shared';
 import i18n from '@/config/i18n';
 import { storage } from '@/utils/storage';
 
@@ -6,9 +11,9 @@ type LocaleUser = {
   preferredLocale?: string | null;
 };
 
-function normalizeLocale(value?: string | null): Locale | null {
+function normalizeLocale(value?: string | null): AppUiLocale | null {
   const normalized = value?.split('-')[0]?.toLowerCase();
-  return normalized && isValidLocale(normalized) ? normalized : null;
+  return normalized && isAppUiLocale(normalized) ? normalized : null;
 }
 
 function stripLocalePrefix(pathname: string): string {
@@ -25,7 +30,7 @@ function stripLocalePrefix(pathname: string): string {
   return stripped.startsWith('/') ? stripped : `/${stripped}`;
 }
 
-export function buildLocalizedWebPath(pathname: string, locale: Locale): string {
+export function buildLocalizedWebPath(pathname: string, locale: AppUiLocale): string {
   const stripped = stripLocalePrefix(pathname);
   if (locale === DEFAULT_LOCALE) {
     return stripped;
@@ -38,7 +43,7 @@ export function buildLocalizedWebPath(pathname: string, locale: Locale): string 
   return `/${locale}${stripped}`;
 }
 
-export function replaceWebLocalePrefix(locale: Locale): void {
+export function replaceWebLocalePrefix(locale: AppUiLocale): void {
   if (typeof window === 'undefined') {
     return;
   }
@@ -51,7 +56,10 @@ export function replaceWebLocalePrefix(locale: Locale): void {
   }
 }
 
-export async function applyPreferredLocale(locale: Locale, options?: { updateWebPath?: boolean }): Promise<void> {
+export async function applyPreferredLocale(
+  locale: AppUiLocale,
+  options?: { updateWebPath?: boolean }
+): Promise<void> {
   const currentLocale = normalizeLocale(i18n.language);
   if (currentLocale !== locale) {
     await i18n.changeLanguage(locale);
