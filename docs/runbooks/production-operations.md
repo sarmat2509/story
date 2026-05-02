@@ -61,6 +61,47 @@ Example crontab:
 
 The webhook payload is plain JSON with a `text` field, so it can be used with Slack-style webhooks, Discord-compatible relays, or a small custom endpoint.
 
+## Admin dashboard alerts
+
+Use the admin dashboard checker when cost, queue, or quality-review signals should notify an external system instead of relying only on manual dashboard review:
+
+```bash
+PROD_ADMIN_ALERT_TOKEN=... ADMIN_ALERT_WEBHOOK_URL=https://example.com/webhook ./scripts/check-production-admin-alerts.sh
+```
+
+The script reads `/api/v1/admin/dashboard?days=7` and sends a compact JSON webhook with a `text` field when it finds critical dashboard findings. It checks:
+
+- cost-control alerts returned by the admin dashboard API;
+- warning or critical queue health status;
+- warning or critical quality-review status.
+
+To include warning-level findings in notifications:
+
+```bash
+PROD_ADMIN_ALERT_TOKEN=... ADMIN_ALERT_ON_WARNINGS=1 ADMIN_ALERT_WEBHOOK_URL=https://example.com/webhook ./scripts/check-production-admin-alerts.sh
+```
+
+Dry-run the payload without sending:
+
+```bash
+PROD_ADMIN_ALERT_TOKEN=... ADMIN_ALERT_ON_WARNINGS=1 ./scripts/check-production-admin-alerts.sh --dry-run-alert
+./scripts/check-production-admin-alerts.sh --test-alert --dry-run-alert
+```
+
+If a long-lived token is not available, the checker can create an admin session from smoke credentials:
+
+```bash
+PROD_ADMIN_ALERT_EMAIL=admin@example.com PROD_ADMIN_ALERT_PASSWORD=... ADMIN_ALERT_WEBHOOK_URL=https://example.com/webhook ./scripts/check-production-admin-alerts.sh
+```
+
+Example crontab:
+
+```cron
+*/15 * * * * cd /path/to/story && PROD_ADMIN_ALERT_TOKEN=... ADMIN_ALERT_ON_WARNINGS=1 ADMIN_ALERT_WEBHOOK_URL=https://example.com/webhook ./scripts/check-production-admin-alerts.sh >> logs/admin-dashboard-alerts.log 2>&1
+```
+
+Keep the token or credentials in the scheduler secret store. Do not commit them to the repository or write them into runbook notes.
+
 ## Database backup
 
 The production compose file mounts `./backups` into the Postgres container at `/backups`.

@@ -1066,7 +1066,7 @@ Acceptance criteria:
 
 ### 4. Cost Controls
 
-Status on 2026-05-02: Admin-visible cost guardrails, live queue pressure, unusual-usage alerts, and per-user throttles for provider-costly generation routes are now deployed. The dashboard tracks generation cost per story, retry/failure cost signals, high-cost story count, unpriced AI usage events, projected monthly spend, top-user 24h spend, text/image/audio/legacy queue depth, and actionable warning/critical cost alerts. Production smoke confirmed the API fields, dashboard rendering, browser console, and Docker logs.
+Status on 2026-05-02: Admin-visible cost guardrails, live queue pressure, unusual-usage alerts, and per-user throttles for provider-costly generation routes are now deployed. The dashboard tracks generation cost per story, retry/failure cost signals, high-cost story count, unpriced AI usage events, projected monthly spend, top-user 24h spend, text/image/audio/legacy queue depth, and actionable warning/critical cost alerts. A cron-friendly external admin-dashboard alert checker now covers cost, queue, and quality-review alerts. Production smoke confirmed the API fields, dashboard rendering, browser console, Docker logs, and a no-alert dry-run of the external checker.
 
 Completed locally:
 
@@ -1081,10 +1081,13 @@ Completed locally:
 - High-cost story generation, child-mode generation, instant generation, image retry/regeneration, continuation, audio, legacy TTS, and alignment routes now have a per-owner hourly limiter after authentication.
 - The expensive-generation limiter keys child sessions by parent owner id, with real-IP fallback only when user context is missing.
 - Launch gate now includes focused rate-limiter key regression coverage.
+- `scripts/check-production-admin-alerts.sh` can notify an external webhook for critical admin dashboard findings, with optional warning-level escalation.
+- Production dry-run of the admin alert checker with a temporary elevated smoke account reported no active cost, queue, or quality findings.
 
 Remaining work:
 
-- Add external notification/escalation workflows for repeated per-user abuse signals and sustained critical dashboard alerts if beta traffic grows beyond manual dashboard checks.
+- Configure the real scheduler and external webhook destination for admin dashboard alerts before paid public launch.
+- Add escalation workflow for repeated per-user abuse signals if beta traffic grows beyond manual review.
 
 Acceptance criteria:
 
@@ -1190,6 +1193,7 @@ Observed on 2026-05-02 after the latest web/API deployment and production verifi
 - Production Child Mode smoke now creates a temporary child profile, enables Child Mode, creates a real child session, verifies child-safe subscription usage, confirms parent-only APIs stay blocked for child sessions, and cleans up the child profile.
 - Admin read-only API smoke checks passed for detailed health, queue health, image rate limiter, dashboard, stories, users, feedback, privacy requests, voices, image validations, and content config.
 - Production DevTools screen sweep rendered the main authenticated screens, public stories catalog, and admin screens without runtime console errors.
+- External admin dashboard alert checker dry-run passed against production with no active cost, queue, or quality-review findings.
 - Public pricing SSR now renders with a bounded plan-data load, has a static launch-plan fallback, and production `/en/pricing` DevTools/curl verification showed plural-correct usage copy.
 - A Stripe sandbox bundle payment completed through hosted Checkout, returned to `/billing/success?kind=bundle&session_id=...`, and the webhook recorded a `user_bundle_grant`.
 - Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Remaining log noise is nginx temporary-buffer warnings for large static/media responses.
