@@ -210,6 +210,15 @@ function buildWebOAuthCallbackUrl(provider: 'google' | 'apple', token: string, o
   return callbackUrl;
 }
 
+function buildSafeOAuthCallbackLogContext(provider: 'google' | 'apple', callbackUrl: URL) {
+  return {
+    provider,
+    callbackPath: callbackUrl.pathname,
+    isNewUser: callbackUrl.searchParams.get('isNewUser') === 'true',
+    parentGate: callbackUrl.searchParams.get('parentGate') === 'true',
+  };
+}
+
 function buildWebAuthErrorUrl(provider: 'google' | 'apple', message: string, code?: string): URL {
   const callbackConfig =
     provider === 'google' ? config.oauth.google.callbackUrl : config.oauth.apple.callbackUrl;
@@ -375,8 +384,8 @@ router.get(
 
         logger.info({
           userId: parentUser.id,
-          redirectTo: callbackUrl.toString(),
-        }, 'Google parent gate callback - redirecting with token');
+          ...buildSafeOAuthCallbackLogContext('google', callbackUrl),
+        }, 'Google parent gate callback - redirecting to app callback');
         setSessionCookie(res, gateResult.token);
         res.redirect(callbackUrl.toString());
         return;
@@ -396,7 +405,10 @@ router.get(
         isNewUser: result.isNewUser,
       });
 
-      logger.info({ userId: result.user.id, redirectTo: callbackUrl.toString() }, 'OAuth callback - redirecting with token');
+      logger.info({
+        userId: result.user.id,
+        ...buildSafeOAuthCallbackLogContext('google', callbackUrl),
+      }, 'OAuth callback - redirecting to app callback');
       setSessionCookie(res, token);
       res.redirect(callbackUrl.toString());
     } catch (error) {

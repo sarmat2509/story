@@ -61,7 +61,7 @@ All billing, refund, cancellation, quota, and support paths must work end to end
 
 ### P0 Status Snapshot - 2026-05-02
 
-Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, and the main production web/TLS/SSR/security path has been verified on `wondertales.art`. P0 is not fully green for external families until full Google OAuth completion, final operator/legal confirmations, and approved cleanup policy are finished.
+Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, and the main production web/TLS/SSR/security path has been verified on `wondertales.art`. P0 is not fully green for external families until final operator/legal confirmations, approved cleanup policy, and any required live parent-gate OAuth fallback verification are finished.
 
 Completed or ready for closed-beta verification:
 
@@ -88,17 +88,18 @@ Completed or ready for closed-beta verification:
 - Account transactional emails now use a shared branded renderer with preheader text, plain-text fallback, support footer, CTA fallback URL, escaped HTML output, and support `replyTo`.
 - A production password-reset email was requested for an owned Gmail-backed production account, delivered to Gmail, and its reset link opened the production reset screen successfully.
 - Email/password login and registration now reset the web app to `/dashboard` after a successful auth mutation; DevTools verified the production redirect in a clean browser context.
+- Real production Google OAuth completed with a Google account: the callback returned to the app, the user was authenticated, an app route opened, and `/api/v1/me` returned the current user without sensitive fields.
+- Google OAuth callback logging was hardened so token-bearing app callback URLs are no longer written to API logs; the web callback also clears the token from the URL immediately and uses the shared authenticated-route reset helper.
 - Stripe bundle checkout now works even when no static Stripe bundle Price ID is configured, using inline Checkout `price_data` derived from the production bundle catalog.
 
 Remaining P0 bottlenecks:
 
-- Google OAuth still needs a real account completion check through the callback, session cookie, and post-login app route.
-- Password-reset and welcome sender DNS is now configured for the beta domain: Resend verifies `wondertales.art`, root SPF/DMARC are present, Resend DKIM TXT is present, production API logs no longer show Resend domain-verification failures, and real Gmail password-reset delivery has been verified.
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
+- Scheduled orphan-file cleanup apply mode still needs live dry-run review and operator approval.
+- OAuth-only parent gate fallback is implemented locally and needs a live production parent-gate pass if OAuth-only parent return must be certified before beta.
 
 Solutions not yet applied:
 
-- OAuth-only parent gate fallback is implemented locally for web Google re-auth and native Google/Apple token re-auth; production still needs a real-account Google callback completion check.
 - Scheduled orphan-file cleanup policy/job is implemented with disabled/dry-run defaults and a retention-age gate; production apply mode still requires live dry-run review and operator approval.
 
 ### 1. Stabilize Public Web Routes
@@ -294,7 +295,7 @@ Acceptance criteria:
 
 ### 5. Account, Auth, and Recovery
 
-Status on 2026-05-02: Partially ready; production email/password auth, OAuth start, noindex auth routes, sensitive response filtering, sender DNS, Resend domain verification, reset endpoint smoke checks, and real Gmail password-reset delivery pass. Real Google callback completion remains.
+Status on 2026-05-02: Ready for closed-beta verification; production email/password auth, Google OAuth start/callback, noindex auth routes, sensitive response filtering, sender DNS, Resend domain verification, reset endpoint smoke checks, and real Gmail password-reset delivery pass.
 
 Done:
 
@@ -311,12 +312,13 @@ Done:
 - Password-reset and welcome email logs use safe recipient domain/hash context instead of raw email addresses, and the production API was redeployed with that change.
 - Welcome and password-reset emails share the branded transactional renderer, so future account emails can reuse one layout and support/reply-to behavior.
 - A production account registered with a Gmail address received the password-reset email in Gmail, and the reset link loaded the production reset screen.
+- Real production Google OAuth completed through the callback, persisted the session, opened an authenticated app route, and returned a safe `/api/v1/me` user response.
+- Google OAuth callback logs no longer include token-bearing callback URLs, and launch-gate coverage now guards this behavior.
 - Deployed `/welcome`, `/register`, `/auth/forgot-password`, and `/auth/reset-password?token=bad` return app-shell HTML with `noindex,nofollow` in the production smoke script.
 - Full production smoke re-ran with a temporary account and covered login, authenticated APIs, read-only admin APIs, Stripe checkout-session creation, hosted Checkout loading, and DevTools checks for `/profile`, `/wizard`, `/admin/dashboard`, and `/settings/language`.
 
 Remaining:
 
-- Complete Google OAuth on the production domain with a real account and verify callback/session persistence after Google returns to the app.
 - Decide whether IP-only rate limits are sufficient for beta or whether CAPTCHA/WAF bot protection is required before public acquisition.
 
 Required work:
@@ -338,7 +340,7 @@ Acceptance criteria:
 
 ### 6. Parent-Owned Child Mode
 
-Status on 2026-05-01: Ready for closed-beta verification; production OAuth callback verification remains tracked under Auth and Onboarding.
+Status on 2026-05-02: Ready for closed-beta verification; normal production Google OAuth callback is verified under Auth, while OAuth-only parent-gate fallback still needs a live production parent-gate pass.
 
 Done:
 
@@ -362,7 +364,7 @@ Done:
 - Child-created story requests now record `reservationSource: child_mode` in quota reservation metadata and reuse child-mode prompt safety source labels through the shared orchestration path.
 - Child-created stories that require review now surface review badges in the library, expose approve/reject controls in the story viewer, block publishing/sharing until approved, and are excluded from public/unlisted lookup predicates while pending or rejected.
 - `POST /api/v1/auth/parent-gate` lets password-authenticated adults re-enter Parent Mode from a child session and revokes the previous child session.
-- OAuth-only parent gate fallback is implemented for web Google re-auth and native Google/Apple token re-auth; callback URLs still need production live verification.
+- OAuth-only parent gate fallback is implemented for web Google re-auth and native Google/Apple token re-auth; normal Google callback URLs are production-verified, and parent-gate callback flow still needs a dedicated live pass.
 
 Remaining:
 
@@ -1206,7 +1208,7 @@ Observed on 2026-05-02 after the latest web/API deployment and production verifi
 - Public pricing SSR now renders with a bounded plan-data load, has a static launch-plan fallback, and production `/en/pricing` DevTools/curl verification showed plural-correct usage copy.
 - A Stripe sandbox bundle payment completed through hosted Checkout, returned to `/billing/success?kind=bundle&session_id=...`, and the webhook recorded a `user_bundle_grant`.
 - Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Remaining log noise is nginx temporary-buffer warnings for large static/media responses.
-- The latest auth/support checks show Resend sender DNS, Zoho inbound MX, root SPF, DMARC, support SMTP reachability, and real Gmail password-reset delivery are configured and verified.
+- The latest auth/support checks show Google OAuth E2E, Resend sender DNS, Zoho inbound MX, root SPF, DMARC, support SMTP reachability, and real Gmail password-reset delivery are configured and verified.
 
 ## Recommended Launch Gates
 
