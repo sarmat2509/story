@@ -102,6 +102,8 @@ Example crontab:
 
 Keep the token or credentials in the scheduler secret store. Do not commit them to the repository or write them into runbook notes.
 
+`scripts/check-production-ops.sh` warns when it cannot find droplet-local scheduler references for `monitor-production-ops.sh` and `check-production-admin-alerts.sh`. If those monitors run from a separate ops host, record that location in the launch notes before treating the warnings as acknowledged.
+
 ## Database backup
 
 The production compose file mounts `./backups` into the Postgres container at `/backups`.
@@ -152,6 +154,8 @@ Run it from a trusted scheduler once per day. Example crontab on the operator ma
 ```cron
 15 2 * * * cd /path/to/story && mkdir -p logs && OFFSITE_BACKUP_RCLONE_TARGET=remote:wondertales/prod ./scripts/run-production-backup-retention.sh --apply >> logs/production-backup-retention.log 2>&1
 ```
+
+`scripts/check-production-ops.sh` warns when it cannot find a backup retention scheduler reference or an `OFFSITE_BACKUP_RCLONE_TARGET` reference on the droplet. If scheduling runs from a separate ops host, keep that host's scheduler documented in the launch notes and expect the droplet-local check to warn.
 
 The 2026-05-02 production apply-smoke created a 3.1 MB database dump and a 1008 MB uploads archive. The droplet had about 2169 MB free after the run, so the local backup directory should be treated only as a short staging area. Treat the uploads volume as the main backup-time, disk-space, and offsite-transfer bottleneck until media storage moves to S3/CDN or an incremental backup process.
 

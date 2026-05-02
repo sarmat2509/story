@@ -961,6 +961,7 @@ Completed locally and in production:
 - `scripts/check-production-ops.sh` now warns when no recent uploads-volume archive exists in addition to checking recent database backups.
 - `scripts/monitor-production-ops.sh` wraps the ops check for cron, prints the full report, and emits compact JSON webhook alerts for failures or warning-level disk/backup/log issues when `OPS_ALERT_ON_WARNINGS=1`.
 - The monitor wrapper's test alert dry-run was validated locally without hitting a real provider webhook.
+- The production ops check now warns when backup retention, offsite backup target, ops monitor, or admin dashboard alert scheduler references are not discoverable on the droplet.
 
 Remaining work:
 

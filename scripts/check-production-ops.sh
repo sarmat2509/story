@@ -306,6 +306,56 @@ check_env_any "image/text provider" GEMINI_API_KEY GOOGLE_API_KEY OPENAI_API_KEY
 check_env_any "tts provider" ELEVENLABS_API_KEY GOOGLE_TTS_MODEL OPENAI_TTS_MODEL
 
 echo
+echo "== Schedulers and external targets =="
+scheduler_config="$(
+  {
+    if command -v crontab >/dev/null 2>&1; then
+      crontab -l 2>/dev/null || true
+    fi
+    if [[ -d /etc/cron.d ]]; then
+      grep -RhsE 'wondertales|kazka|backup|monitor|alert|OFFSITE_BACKUP_RCLONE_TARGET|OPS_ALERT_WEBHOOK_URL|ADMIN_ALERT_WEBHOOK_URL' /etc/cron.d 2>/dev/null || true
+    fi
+    if command -v systemctl >/dev/null 2>&1; then
+      systemctl list-timers --all --no-pager 2>/dev/null | grep -Ei 'wondertales|kazka|backup|monitor|alert' || true
+    fi
+    if [[ -d /etc/systemd/system ]]; then
+      find /etc/systemd/system -maxdepth 1 -type f \( \
+        -name '*wondertales*' -o \
+        -name '*kazka*' -o \
+        -name '*backup*' -o \
+        -name '*monitor*' -o \
+        -name '*alert*' \
+      \) -print -exec sed -n '1,160p' {} \; 2>/dev/null || true
+    fi
+    grep -E 'OFFSITE_BACKUP_RCLONE_TARGET|OPS_ALERT_WEBHOOK_URL|ADMIN_ALERT_WEBHOOK_URL' .env.production 2>/dev/null | sed -E 's/(=).+/\1set/' || true
+  } | sed -E 's#(https?://)[^[:space:]]+#\1[redacted]#g; s#(TOKEN|PASSWORD|SECRET|KEY|WEBHOOK_URL)=([^[:space:]]+)#\1=[redacted]#g'
+)"
+
+if grep -Eq 'run-production-backup-retention\.sh' <<<"$scheduler_config"; then
+  pass "backup retention scheduler reference found"
+else
+  warn "backup retention scheduler reference not found; configure daily run-production-backup-retention.sh before relying on paid data"
+fi
+
+if grep -Eq 'OFFSITE_BACKUP_RCLONE_TARGET' <<<"$scheduler_config"; then
+  pass "offsite backup target reference found"
+else
+  warn "offsite backup target reference not found; configure OFFSITE_BACKUP_RCLONE_TARGET before relying on single-droplet media durability"
+fi
+
+if grep -Eq 'monitor-production-ops\.sh' <<<"$scheduler_config"; then
+  pass "ops monitor scheduler reference found"
+else
+  warn "ops monitor scheduler reference not found; configure monitor-production-ops.sh with external alerting"
+fi
+
+if grep -Eq 'check-production-admin-alerts\.sh' <<<"$scheduler_config"; then
+  pass "admin dashboard alert scheduler reference found"
+else
+  warn "admin dashboard alert scheduler reference not found; configure check-production-admin-alerts.sh with external alerting"
+fi
+
+echo
 echo "== Recent logs =="
 log_matches="$(compose logs api --since "$LOG_SINCE" 2>&1 | grep -i -E 'error|warn|failed|panic|unhandled|exception' | sed -E 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/[email]/g' || true)"
 if [[ -n "$log_matches" ]]; then
