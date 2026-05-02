@@ -92,6 +92,11 @@ for path in "${SSR_ROUTES}" "${PROD_NGINX}" "${DEV_NGINX}"; do
   require_text "${path}" "proxy_max_temp_file_size 0;"
 done
 
+for path in "${PROD_NGINX}" "${DEV_NGINX}"; do
+  require_text "${path}" "location ^~ /api/v1/assets/"
+  require_text "${path}" "Generated/uploaded assets can be large"
+done
+
 include_count="$(grep -Fc "include /etc/nginx/includes/webapp-security-headers.conf;" "${ROOT_DIR}/${WEBAPP_NGINX}")"
 if [[ "${include_count}" -lt 4 ]]; then
   fail "${WEBAPP_NGINX} should include security headers at server level and add_header locations"

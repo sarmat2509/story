@@ -990,6 +990,7 @@ Completed locally and in production:
 - Production ops log coverage now scans api/webapp/nginx by default, with `LOG_SERVICES` available for focused checks.
 - Production deploy archives now suppress local macOS extended attributes with `COPYFILE_DISABLE=1 tar --no-xattrs`; a real web deploy confirmed the previous `LIBARCHIVE.xattr` tar warnings are gone, followed by healthy `/health`, live security artifact scan, and clean Docker log checks.
 - Share-card nginx responses no longer spill into proxy temp files; production nginx config-only deploy validated the config, share-card JPEG delivery, production smoke, security artifact scan, and clean api/webapp/nginx logs.
+- Large `/api/v1/assets/` responses now use a dedicated nginx route with response buffering disabled; production asset smoke returned a `1.6 MB` PNG and the following ops log scan stayed clean.
 - `./scripts/deploy.sh --nginx` now supports nginx/compose config-only deploys, and `./scripts/deploy.sh --help` shows usage without opening SSH.
 
 Remaining work:
