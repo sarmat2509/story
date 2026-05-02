@@ -28,6 +28,12 @@ const API_ERROR_KEY_BY_CODE: Record<string, string> = {
   FEATURE_NOT_AVAILABLE: 'feature_not_available',
   EXPENSIVE_GENERATION_RATE_LIMITED: 'expensive_generation_rate_limited',
   CHILD_DATA_CONSENT_REQUIRED: 'child_data_consent_required',
+  PROMPT_SAFETY_BLOCKED: 'prompt_safety_blocked',
+  PROMPT_SAFETY_REJECTED: 'prompt_safety_blocked',
+  PHOTO_URL_NOT_ALLOWED: 'photo_input_invalid',
+  PHOTO_PATH_INVALID: 'photo_input_invalid',
+  PHOTO_TYPE_NOT_ALLOWED: 'photo_input_invalid',
+  PHOTO_OWNER_MISMATCH: 'photo_owner_mismatch',
 };
 
 export function getApiErrorCode(error: unknown): string | null {

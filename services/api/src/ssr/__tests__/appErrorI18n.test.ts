@@ -30,6 +30,9 @@ const requiredApiErrorKeys = [
   'feature_not_available',
   'expensive_generation_rate_limited',
   'child_data_consent_required',
+  'prompt_safety_blocked',
+  'photo_input_invalid',
+  'photo_owner_mismatch',
 ] as const;
 
 const requiredAuthKeys = [

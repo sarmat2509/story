@@ -1447,6 +1447,9 @@
     "series_access_required": "Story series are available on a higher plan.",
     "feature_not_available": "This feature is not available on the current plan.",
     "expensive_generation_rate_limited": "Too many generation requests. Please wait a bit and try again.",
-    "child_data_consent_required": "Please confirm parental consent before adding child data."
+    "child_data_consent_required": "Please confirm parental consent before adding child data.",
+    "prompt_safety_blocked": "This idea is not safe for a children's story. Please choose a gentler topic or rewrite it with a grown-up.",
+    "photo_input_invalid": "Use a photo uploaded inside WonderTales for this action.",
+    "photo_owner_mismatch": "This photo belongs to another account. Please upload it again from this account."
   }
 }

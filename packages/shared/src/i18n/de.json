@@ -868,6 +868,9 @@
     "series_access_required": "Geschichtenserien sind in einem höheren Tarif verfügbar.",
     "feature_not_available": "Diese Funktion ist im aktuellen Tarif nicht verfügbar.",
     "expensive_generation_rate_limited": "Zu viele Generierungsanfragen. Bitte warte kurz und versuche es erneut.",
-    "child_data_consent_required": "Bitte bestätige die elterliche Einwilligung, bevor du Kinderdaten hinzufügst."
+    "child_data_consent_required": "Bitte bestätige die elterliche Einwilligung, bevor du Kinderdaten hinzufügst.",
+    "prompt_safety_blocked": "Diese Idee ist nicht sicher für eine Kindergeschichte. Wähle ein sanfteres Thema oder formuliere sie mit einem Erwachsenen um.",
+    "photo_input_invalid": "Verwende für diese Aktion ein in WonderTales hochgeladenes Foto.",
+    "photo_owner_mismatch": "Dieses Foto gehört zu einem anderen Konto. Lade es erneut von diesem Konto hoch."
   }
 }

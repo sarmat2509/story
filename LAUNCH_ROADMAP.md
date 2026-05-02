@@ -464,13 +464,14 @@ Done:
 - Generated story validation now fails closed on provider/content-policy failures.
 - Generated image validation blocks failed/low-score assets before they become child-facing assets.
 - Uploaded photo/drawing inputs must be owned WonderTales assets and match allowed photo types.
+- Prompt and photo-input safety API errors now map to localized app copy, so parent-facing flows show rewrite/upload guidance instead of generic retry text.
 - Public publishing is blocked unless story, image, visibility, and consent safety checks pass.
 - Raw image validation debug routes are admin-only.
 
 Remaining:
 
 - Support-facing moderation review logs/workflows are not fully productized.
-- Fallback behavior for failed generated moderation is partly fail-safe/blocked, but not a polished rewrite/regenerate/refusal UX across every path.
+- Fallback behavior for failed generated moderation is fail-safe/blocked with better localized prompt/photo guidance, but rewrite/regenerate/refusal UX is not fully polished across provider failure paths.
 - Continue live provider testing for edge cases around vision/text moderation failures.
 
 Required work:

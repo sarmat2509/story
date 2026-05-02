@@ -827,6 +827,9 @@
     "series_access_required": "Les séries d’histoires sont disponibles avec une formule supérieure.",
     "feature_not_available": "Cette fonction n’est pas disponible avec la formule actuelle.",
     "expensive_generation_rate_limited": "Trop de demandes de génération. Patientez un peu puis réessayez.",
-    "child_data_consent_required": "Veuillez confirmer le consentement parental avant d’ajouter les données de l’enfant."
+    "child_data_consent_required": "Veuillez confirmer le consentement parental avant d’ajouter les données de l’enfant.",
+    "prompt_safety_blocked": "Cette idée n’est pas sûre pour une histoire d’enfant. Choisissez un sujet plus doux ou reformulez-la avec un adulte.",
+    "photo_input_invalid": "Utilisez une photo téléversée dans WonderTales pour cette action.",
+    "photo_owner_mismatch": "Cette photo appartient à un autre compte. Téléversez-la à nouveau depuis ce compte."
   }
 }

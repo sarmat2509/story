@@ -1437,7 +1437,10 @@
     "series_access_required": "Serie historii sa dostepne w wyzszym planie.",
     "feature_not_available": "Ta funkcja nie jest dostepna w obecnym planie.",
     "expensive_generation_rate_limited": "Za duzo zadan generowania. Poczekaj chwile i sprobuj ponownie.",
-    "child_data_consent_required": "Potwierdz zgode rodzicielska przed dodaniem danych dziecka."
+    "child_data_consent_required": "Potwierdz zgode rodzicielska przed dodaniem danych dziecka.",
+    "prompt_safety_blocked": "Ten pomysl nie jest bezpieczny dla historii dla dzieci. Wybierz lagodniejszy temat albo popraw go z doroslym.",
+    "photo_input_invalid": "Uzyj zdjecia przeslanego w WonderTales dla tej akcji.",
+    "photo_owner_mismatch": "To zdjecie nalezy do innego konta. Przeslij je ponownie z tego konta."
   },
   "photo_upload": {
     "permission_title": "Wymagane uprawnienie",
