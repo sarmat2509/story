@@ -188,6 +188,33 @@ export type AdminDashboardQueueHealth = {
   }>;
 };
 
+export type AdminDashboardQualityReview = {
+  status: AdminDashboardStatus;
+  thresholds: {
+    failedRequestRateWarn: number;
+    imageRetryRateWarn: number;
+    unsafeReportCritical: number;
+    moderationFailureCritical: number;
+    generationFeedbackWarn: number;
+    publicReportWarn: number;
+  };
+  failedRequestRate: number;
+  imageRetryStoryRate: number;
+  moderationFailureCount: number;
+  unsafeReportCount: number;
+  generationFailureReportCount: number;
+  publicStoryReportCount: number;
+  sampleCandidateCount: number;
+  queues: Array<{
+    key: string;
+    label: string;
+    count: number;
+    priority: 'low' | 'medium' | 'high' | 'critical';
+    reviewUrl: string;
+    helper: string;
+  }>;
+};
+
 export type AdminDashboardDailyPoint = {
   date: string;
   storyCount: number;
@@ -224,6 +251,7 @@ export type AdminDashboardData = {
   overview: AdminDashboardOverview;
   costControls: AdminDashboardCostControls;
   queueHealth: AdminDashboardQueueHealth;
+  qualityReview: AdminDashboardQualityReview;
   daily: AdminDashboardDailyPoint[];
   costByImageCount: AdminDashboardImageBucket[];
   costByOperation: AdminDashboardOperationBreakdown[];

@@ -8,6 +8,10 @@ import {
   type CostControlStatus,
   type CostControlThresholds,
 } from '../services/costControlService';
+import {
+  buildQualityReviewSummary,
+  type QualityReviewSummary,
+} from '../services/qualityReviewService';
 
 export type AdminDashboardOverview = {
   totalStories: number;
@@ -77,10 +81,13 @@ export type AdminDashboardCostControls = {
   topUser24hStoryCount: number;
 };
 
+export type AdminDashboardQualityReview = QualityReviewSummary;
+
 export type AdminDashboardData = {
   rangeDays: number;
   overview: AdminDashboardOverview;
   costControls: AdminDashboardCostControls;
+  qualityReview: AdminDashboardQualityReview;
   daily: AdminDashboardDailyPoint[];
   costByImageCount: AdminDashboardImageBucket[];
   costByOperation: AdminDashboardCostOperation[];
@@ -446,6 +453,64 @@ export class AdminDashboardRepository {
       LEFT JOIN top_user_24h tu ON true
     `);
 
+    const qualityReviewResult = await this.db.execute(sql`
+      WITH failed_generation AS (
+        SELECT
+          COUNT(*) FILTER (
+            WHERE sr.status = 'failed'
+              AND LOWER(COALESCE(sr.error_message, '')) ~ '(unsafe|moderation|policy|content)'
+          )::int AS moderation_request_failure_count
+        FROM story_requests sr
+        WHERE (${days} <= 0 OR sr.created_at >= NOW() - (${days} * INTERVAL '1 day'))
+      ),
+      story_policy_failures AS (
+        SELECT COUNT(*)::int AS story_policy_failure_count
+        FROM stories s
+        WHERE (${days} <= 0 OR s.created_at >= NOW() - (${days} * INTERVAL '1 day'))
+          AND (s.policy_checks->>'textValidated') = 'false'
+      ),
+      feedback_reports AS (
+        SELECT
+          COUNT(*) FILTER (
+            WHERE COALESCE(uf.context->>'supportTopic', '') = 'unsafe_content'
+          )::int AS unsafe_report_count,
+          COUNT(*) FILTER (
+            WHERE COALESCE(uf.context->>'supportTopic', '') = 'generation_failed'
+          )::int AS generation_failure_report_count,
+          COUNT(*) FILTER (
+            WHERE COALESCE(uf.context->>'reportedScreen', '') = 'published_story'
+          )::int AS public_story_report_count
+        FROM user_feedback uf
+        WHERE (${days} <= 0 OR uf.created_at >= NOW() - (${days} * INTERVAL '1 day'))
+      ),
+      sample_candidates AS (
+        SELECT COUNT(*)::int AS sample_candidate_count
+        FROM stories s
+        WHERE (${days} <= 0 OR s.created_at >= NOW() - (${days} * INTERVAL '1 day'))
+          AND s.is_published = true
+          AND s.visibility = 'public'
+          AND s.published_slug IS NOT NULL
+          AND s.published_slug <> ''
+          AND s.hidden = false
+          AND (s.policy_checks->>'textValidated') = 'true'
+          AND s.parent_review_status IN ('not_required', 'approved')
+          AND s.show_on_home_page = false
+      )
+      SELECT
+        (
+          COALESCE(fg.moderation_request_failure_count, 0)
+          + COALESCE(spf.story_policy_failure_count, 0)
+        )::int AS moderation_failure_count,
+        COALESCE(fr.unsafe_report_count, 0)::int AS unsafe_report_count,
+        COALESCE(fr.generation_failure_report_count, 0)::int AS generation_failure_report_count,
+        COALESCE(fr.public_story_report_count, 0)::int AS public_story_report_count,
+        COALESCE(sc.sample_candidate_count, 0)::int AS sample_candidate_count
+      FROM failed_generation fg
+      CROSS JOIN story_policy_failures spf
+      CROSS JOIN feedback_reports fr
+      CROSS JOIN sample_candidates sc
+    `);
+
     const overviewRows = (overviewResult.rows ?? []) as Array<Record<string, unknown>>;
     const dailyRows = (dailyResult.rows ?? []) as Array<Record<string, unknown>>;
     const costByImageCountRows = (costByImageCountResult.rows ?? []) as Array<Record<string, unknown>>;
@@ -453,8 +518,10 @@ export class AdminDashboardRepository {
     const languageRows = (languagesResult.rows ?? []) as Array<Record<string, unknown>>;
     const imageStyleRows = (imageStylesResult.rows ?? []) as Array<Record<string, unknown>>;
     const costControlRows = (costControlResult.rows ?? []) as Array<Record<string, unknown>>;
+    const qualityReviewRows = (qualityReviewResult.rows ?? []) as Array<Record<string, unknown>>;
     const overviewRow = overviewRows[0] ?? {};
     const costControlRow = costControlRows[0] ?? {};
+    const qualityReviewRow = qualityReviewRows[0] ?? {};
 
     const totalStories = Number(overviewRow.total_stories ?? 0);
     const totalRequests = Number(overviewRow.total_requests ?? 0);
@@ -542,6 +609,18 @@ export class AdminDashboardRepository {
       topUser24hStoryCount: Number(costControlRow.top_user_24h_story_count ?? 0),
     };
 
+    const qualityReview = buildQualityReviewSummary({
+      totalStories,
+      totalRequests,
+      failedRequests: overview.failedRequests,
+      imageRetryStories: overview.imageRetryStories,
+      moderationFailureCount: Number(qualityReviewRow.moderation_failure_count ?? 0),
+      unsafeReportCount: Number(qualityReviewRow.unsafe_report_count ?? 0),
+      generationFailureReportCount: Number(qualityReviewRow.generation_failure_report_count ?? 0),
+      publicStoryReportCount: Number(qualityReviewRow.public_story_report_count ?? 0),
+      sampleCandidateCount: Number(qualityReviewRow.sample_candidate_count ?? 0),
+    });
+
     const toBreakdown = (rows: any[]): AdminDashboardBreakdownItem[] =>
       rows.map((row) => {
         const storyCount = Number(row.story_count ?? 0);
@@ -558,6 +637,7 @@ export class AdminDashboardRepository {
       rangeDays: days,
       overview,
       costControls,
+      qualityReview,
       daily,
       costByImageCount,
       costByOperation,

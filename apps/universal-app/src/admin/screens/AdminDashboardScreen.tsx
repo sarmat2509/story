@@ -7,6 +7,7 @@ import {
   type AdminDashboardDailyPoint,
   type AdminDashboardImageBucket,
   type AdminDashboardOperationBreakdown,
+  type AdminDashboardQualityReview,
   type AdminDashboardStatus,
 } from '@/admin/api/admin';
 import { AdminLayout } from '@/admin/components/AdminLayout';
@@ -93,6 +94,12 @@ function prettifyOperation(operation: string) {
 function prettifyBreakdownValue(value: string) {
   if (!value || value === 'unknown') return 'Unknown';
   return value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function prettifyPriority(priority: string) {
+  return priority
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
@@ -308,6 +315,15 @@ function buildQueueBars(queues: Array<{ name: string; queued: number; processing
   }));
 }
 
+function buildQualityReviewBars(review: AdminDashboardQualityReview) {
+  return review.queues.map((item) => ({
+    key: item.key,
+    label: item.label,
+    value: item.count,
+    helper: `${prettifyPriority(item.priority)} • ${item.helper}`,
+  }));
+}
+
 export default function AdminDashboardScreen() {
   const navigation = useNavigation<NavigationProp<AdminStackParamList>>();
   const [days, setDays] = useState<number>(30);
@@ -403,6 +419,12 @@ export default function AdminDashboardScreen() {
               helper={`${formatNumber(data.queueHealth.totalProcessing)} active • warn at ${formatNumber(data.queueHealth.thresholdQueued)} queued`}
               tone={statusTone(data.queueHealth.status)}
             />
+            <MetricCard
+              label="Quality review"
+              value={statusLabel(data.qualityReview.status)}
+              helper={`${formatNumber(data.qualityReview.unsafeReportCount)} unsafe reports • ${formatPercent(data.qualityReview.imageRetryStoryRate)} image-retry stories`}
+              tone={statusTone(data.qualityReview.status)}
+            />
           </View>
 
           <View style={styles.sectionGrid}>
@@ -446,6 +468,58 @@ export default function AdminDashboardScreen() {
                 labelFormatter={prettifyBreakdownValue}
                 valueFormatter={formatNumber}
               />
+            </SectionCard>
+          </View>
+
+          <View style={styles.sectionGrid}>
+            <SectionCard
+              title="Quality & safety review loop"
+              subtitle={`Weekly queue • failed request warn ${formatPercent(data.qualityReview.thresholds.failedRequestRateWarn)} • image retry warn ${formatPercent(data.qualityReview.thresholds.imageRetryRateWarn)}`}
+            >
+              <HorizontalBreakdown
+                items={buildQualityReviewBars(data.qualityReview)}
+                color={theme.colors.error[500]}
+                labelFormatter={prettifyBreakdownValue}
+                valueFormatter={formatNumber}
+              />
+              <View style={styles.inlineMetricRow}>
+                <View style={styles.inlineMetric}>
+                  <Text style={styles.inlineMetricLabel}>Failed request rate</Text>
+                  <Text style={styles.inlineMetricValue}>{formatPercent(data.qualityReview.failedRequestRate)}</Text>
+                </View>
+                <View style={styles.inlineMetric}>
+                  <Text style={styles.inlineMetricLabel}>Moderation failures</Text>
+                  <Text style={styles.inlineMetricValue}>{formatNumber(data.qualityReview.moderationFailureCount)}</Text>
+                </View>
+                <View style={styles.inlineMetric}>
+                  <Text style={styles.inlineMetricLabel}>Sample candidates</Text>
+                  <Text style={styles.inlineMetricValue}>{formatNumber(data.qualityReview.sampleCandidateCount)}</Text>
+                </View>
+              </View>
+            </SectionCard>
+
+            <SectionCard
+              title="Quality review cadence"
+              subtitle="Operator checklist for active beta traffic"
+            >
+              <View style={styles.highlightList}>
+                <View style={styles.highlightItem}>
+                  <Text style={styles.highlightLabel}>Unsafe reports</Text>
+                  <Text style={styles.highlightValue}>{formatNumber(data.qualityReview.unsafeReportCount)}</Text>
+                </View>
+                <View style={styles.highlightItem}>
+                  <Text style={styles.highlightLabel}>Generation reports</Text>
+                  <Text style={styles.highlightValue}>{formatNumber(data.qualityReview.generationFailureReportCount)}</Text>
+                </View>
+                <View style={styles.highlightItem}>
+                  <Text style={styles.highlightLabel}>Public story reports</Text>
+                  <Text style={styles.highlightValue}>{formatNumber(data.qualityReview.publicStoryReportCount)}</Text>
+                </View>
+                <View style={styles.highlightItem}>
+                  <Text style={styles.highlightLabel}>Image retry rate</Text>
+                  <Text style={styles.highlightValue}>{formatPercent(data.qualityReview.imageRetryStoryRate)}</Text>
+                </View>
+              </View>
             </SectionCard>
           </View>
 

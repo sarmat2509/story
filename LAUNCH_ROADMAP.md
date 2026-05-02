@@ -1075,13 +1075,23 @@ Acceptance criteria:
 
 ### 5. Content Quality and Safety Review Loop
 
+Status on 2026-05-02: The admin dashboard now exposes a quality/safety review loop for beta operations. It aggregates unsafe-content reports, moderation-like failures, generation-failure reports, image validation retry pressure, public story reports, and public sample candidates, with status thresholds and a weekly runbook. Deployed to production and verified with API smoke, DevTools, production smoke, and docker logs.
+
+Completed locally:
+
+- Added `qualityReview` to `/api/v1/admin/dashboard` without adding new tables or migrations.
+- Added dashboard UI for quality review status, review queues, failed request rate, image retry rate, unsafe reports, moderation failures, generation-failure reports, public story reports, and sample candidates.
+- Added launch-gate coverage for quality review status classification.
+- Documented the weekly operator process in `docs/runbooks/content-quality-review.md`.
+- Production verified `/api/v1/admin/dashboard`, `/admin/dashboard`, broad production smoke with Stripe checkout creation, and nginx/webapp/api logs.
+
 Required work:
 
-- Review failed moderation cases.
-- Review poor generation cases.
-- Improve prompts and retry strategy.
-- Add sample story curation.
-- Add public story report/removal path.
+- Keep reviewing failed moderation cases weekly and immediately after unsafe reports.
+- Keep reviewing poor generation cases and repeated image validation retries.
+- Improve prompts and retry strategy as review patterns emerge.
+- Curate sample stories before adding them to landing-page examples.
+- Keep public story report/removal path verified in production smoke.
 
 Acceptance criteria:
 
