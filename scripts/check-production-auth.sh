@@ -129,6 +129,7 @@ rm -f "$evil_headers"
 
 root_txt="$(dig +short TXT wondertales.art @1.1.1.1 || true)"
 dmarc_txt="$(dig +short TXT _dmarc.wondertales.art @1.1.1.1 || true)"
+dkim_txt="$(dig +short TXT resend._domainkey.wondertales.art @1.1.1.1 || true)"
 dkim_cname="$(for name in resend._domainkey.wondertales.art selector1._domainkey.wondertales.art selector2._domainkey.wondertales.art; do dig +short CNAME "$name" @1.1.1.1; done || true)"
 
 if printf '%s\n' "$root_txt" | grep -qi 'v=spf1'; then
@@ -143,10 +144,12 @@ else
   warn "No DMARC TXT found for wondertales.art"
 fi
 
-if [[ -n "$dkim_cname" ]]; then
-  pass "DKIM CNAME candidate exists for wondertales.art"
+if printf '%s\n' "$dkim_txt" | grep -Eq 'p=|v=DKIM1'; then
+  pass "Resend DKIM TXT exists for wondertales.art"
+elif [[ -n "$dkim_cname" ]]; then
+  pass "Resend DKIM CNAME candidate exists for wondertales.art"
 else
-  warn "No common Resend DKIM CNAME candidates found for wondertales.art"
+  warn "No Resend DKIM TXT or common DKIM CNAME candidates found for wondertales.art"
 fi
 
 support_domain="${PROD_SUPPORT_EMAIL##*@}"

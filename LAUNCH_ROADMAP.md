@@ -90,7 +90,7 @@ Completed or ready for closed-beta verification:
 Remaining P0 bottlenecks:
 
 - Google OAuth still needs a real account completion check through the callback, session cookie, and post-login app route.
-- Password-reset and welcome email delivery are blocked until sender DNS and Resend domain verification are complete: production auth smoke found no `SPF`, `DMARC`, or common Resend DKIM records, and Docker logs show Resend rejecting `noreply@wondertales.art` because the domain is not verified.
+- Password-reset and welcome sender DNS is now configured for the beta domain: Resend verifies `wondertales.art`, root SPF/DMARC are present, Resend DKIM TXT is present, and production API logs no longer show Resend domain-verification failures. A final real-inbox password-reset delivery check remains.
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
 
 Solutions not yet applied:
@@ -291,7 +291,7 @@ Acceptance criteria:
 
 ### 5. Account, Auth, and Recovery
 
-Status on 2026-05-02: Partially ready; production email/password auth, OAuth start, noindex auth routes, sensitive response filtering, and reset endpoint smoke checks pass, but real Google callback completion and email deliverability remain. Resend currently rejects production mail because `wondertales.art` is not verified, and public DNS is still missing SPF, DMARC, and common Resend DKIM records.
+Status on 2026-05-02: Partially ready; production email/password auth, OAuth start, noindex auth routes, sensitive response filtering, sender DNS, Resend domain verification, and reset endpoint smoke checks pass. Real Google callback completion and one real-inbox password-reset delivery check remain.
 
 Done:
 
@@ -311,7 +311,7 @@ Done:
 Remaining:
 
 - Complete Google OAuth on the production domain with a real account and verify callback/session persistence after Google returns to the app.
-- Add/verify password-reset sender DNS (`SPF`, `DMARC`, Resend DKIM), verify the domain in Resend, and confirm real inbox delivery.
+- Confirm password-reset delivery to a real account-controlled inbox after Resend sender DNS verification.
 - Decide whether IP-only rate limits are sufficient for beta or whether CAPTCHA/WAF bot protection is required before public acquisition.
 
 Required work:
@@ -1018,7 +1018,7 @@ Acceptance criteria:
 
 ### 2. Support and Incident Process
 
-Status on 2026-05-02: Core support intake now exists through the existing feedback/admin workflow, with support topics for billing, refunds, unsafe content, failed generation, and account/privacy. Operator templates and incident checklists are documented in `docs/runbooks/support-incident-process.md`. Production smoke confirmed billing-page feedback topic UI, refund-topic submission, admin feedback filtering/display, and API docker log recording. The repeatable auth/support smoke now checks support inbox MX and SMTP reachability; current DNS points `support@wondertales.art` at `mail.wondertales.art`, but SMTP port `25` timed out from the smoke runner, so real inbound support mail remains unverified.
+Status on 2026-05-02: Core support intake now exists through the existing feedback/admin workflow, with support topics for billing, refunds, unsafe content, failed generation, and account/privacy. Operator templates and incident checklists are documented in `docs/runbooks/support-incident-process.md`. Production smoke confirmed billing-page feedback topic UI, refund-topic submission, admin feedback filtering/display, and API docker log recording. Zoho Mail now handles `support@wondertales.art`; public DNS points root MX to Zoho, SMTP reachability passes, and a real external test message reached the support inbox with support as the sender.
 
 Completed locally:
 
@@ -1029,10 +1029,10 @@ Completed locally:
 - Launch-gate feedback regression covers required support topics.
 - Production `/billing/plans` and `/admin/feedback` DevTools smoke verified the support topic path after deploy.
 - `scripts/check-production-auth.sh` now checks support inbox MX records, MX address resolution, and SMTP `25` reachability.
+- `support@wondertales.art` is hosted in Zoho Mail and verified with an external inbound/outbound mailbox test.
 
 Required work:
 
-- Configure and confirm the support email inbox is actually receiving external mail.
 - Assign an incident owner/escalation contact for launch operations.
 
 Acceptance criteria:
@@ -1199,8 +1199,7 @@ Observed on 2026-05-02 after the latest web/API deployment and production verifi
 - Public pricing SSR now renders with a bounded plan-data load, has a static launch-plan fallback, and production `/en/pricing` DevTools/curl verification showed plural-correct usage copy.
 - A Stripe sandbox bundle payment completed through hosted Checkout, returned to `/billing/success?kind=bundle&session_id=...`, and the webhook recorded a `user_bundle_grant`.
 - Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Remaining log noise is nginx temporary-buffer warnings for large static/media responses.
-- The latest auth/ops checks show a real email-deliverability blocker: Resend rejects `noreply@wondertales.art` until the domain is verified, and DNS currently lacks SPF, DMARC, and common Resend DKIM records.
-- The latest support inbox smoke shows `support@wondertales.art` has an MX that resolves to the droplet, but SMTP port `25` timed out from the smoke runner, so inbound support mail is not verified.
+- The latest auth/support checks show Resend sender DNS, Zoho inbound MX, root SPF, DMARC, and support SMTP reachability are configured. Remaining email verification is one real password-reset delivery test from the app.
 
 ## Recommended Launch Gates
 
