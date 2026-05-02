@@ -489,7 +489,7 @@ Acceptance criteria:
 
 ### 8. Data Deletion and Retention
 
-Status on 2026-05-02: Core deletion behavior, support/admin request intake, admin export package generation, orphan-file dry-run scanning, target-environment dry-run review, and the disabled-by-default scheduled cleanup job are ready; export delivery policy and production cleanup apply-mode approval remain.
+Status on 2026-05-02: Core deletion behavior, support/admin request intake, admin export package generation, export delivery hygiene, orphan-file dry-run scanning, target-environment dry-run review, and the disabled-by-default scheduled cleanup job are ready; final export delivery policy and production cleanup apply-mode approval remain.
 
 Done:
 
@@ -502,13 +502,14 @@ Done:
 - Admin-only privacy request endpoints now let support list/filter and mark requests `open`, `in_review`, `fulfilled`, `rejected`, or `canceled`.
 - Web admin now includes `/admin/privacy-requests` for filtering, reviewing, and updating export/deletion support requests.
 - Admin-only export package generation returns JSON for `export` privacy requests while omitting password hashes, OAuth/session/reset tokens, story share tokens, and signed asset URLs.
+- Admin export filenames now use the privacy request id instead of the exported user id, and the admin review panel includes a delivery checklist before fulfillment.
 - `scanOrphanStorageFiles.ts` can dry-run local storage, compare files against DB-referenced asset paths, and only deletes with explicit `--apply`.
 - Scheduled orphan-file cleanup now starts from API lifecycle only when `ORPHAN_STORAGE_CLEANUP_ENABLED=true`, defaults to dry-run, and requires an age gate before any apply-mode deletion.
 - Production cleanup dry-run now runs through `scripts/check-production-orphan-cleanup.sh` using the bundled production scanner and verifies `dryRun=true` plus `deletedCount=0`.
 
 Remaining:
 
-- Secure delivery of generated export packages is still a manual support operation after admin review.
+- Secure delivery of generated export packages is still a manual support operation after admin review, but the admin UI now guides the review/delivery note workflow.
 - Production cleanup apply mode is not enabled yet; deletion policy and operator approval are still required before using `--apply` or `ORPHAN_STORAGE_CLEANUP_APPLY=true`.
 - Billing-record retention needs final legal/operator confirmation before paid launch.
 

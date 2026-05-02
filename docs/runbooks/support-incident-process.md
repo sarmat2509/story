@@ -62,6 +62,13 @@ We received your data request. For account, child-profile, upload, or story expo
 
 Some billing, security, consent, legal, or abuse-prevention records may be retained where required or reasonably necessary.
 
+Admin handling note:
+
+- Use `/admin/privacy-requests` for the request status and internal notes.
+- Export filenames use the privacy request id, not the exported user id.
+- Download export JSON only from the admin screen.
+- Record delivery method/date before marking an export request fulfilled.
+
 ### Unsafe content report
 
 Subject: WonderTales safety report

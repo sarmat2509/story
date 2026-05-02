@@ -40,6 +40,13 @@ const REVIEW_STATUS_OPTIONS: AdminDataPrivacyRequestStatus[] = [
   'canceled',
 ];
 
+const EXPORT_DELIVERY_CHECKLIST = [
+  'Verify the requester controls the account before sending files.',
+  'Download the JSON only from this admin screen; do not paste raw data into tickets.',
+  'Send through the verified support mailbox and record delivery method/date in admin notes.',
+  'Mark fulfilled only after delivery is complete.',
+];
+
 function formatStatus(status: string) {
   return status.replace(/_/g, ' ');
 }
@@ -294,6 +301,15 @@ export default function AdminPrivacyRequestsScreen() {
                 <Text style={styles.errorText}>{(buildExport.error as Error).message}</Text>
               ) : null}
 
+              {selectedRequest.requestType === 'export' ? (
+                <View style={styles.deliveryChecklist}>
+                  <Text style={styles.deliveryTitle}>Export delivery checklist</Text>
+                  {EXPORT_DELIVERY_CHECKLIST.map((step) => (
+                    <Text key={step} style={styles.deliveryStep}>- {step}</Text>
+                  ))}
+                </View>
+              ) : null}
+
               <View style={styles.actionsRow}>
                 <TouchableOpacity
                   style={[styles.primaryButton, updateRequest.isPending && styles.buttonDisabled]}
@@ -318,11 +334,9 @@ export default function AdminPrivacyRequestsScreen() {
                     disabled={buildExport.isPending}
                     onPress={async () => {
                       const payload = await buildExport.mutateAsync({ requestId: selectedRequest.id });
-                      const exportUserId =
-                        typeof payload.export.userId === 'string' ? payload.export.userId : selectedRequest.userId;
                       const date = new Date().toISOString().slice(0, 10);
                       downloadJsonFile(
-                        `wondertales-user-export-${exportUserId ?? selectedRequest.id}-${date}.json`,
+                        `wondertales-user-export-${selectedRequest.id}-${date}.json`,
                         payload.export
                       );
                     }}
@@ -557,6 +571,24 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: 10,
+  },
+  deliveryChecklist: {
+    gap: 6,
+    borderWidth: 1,
+    borderColor: theme.colors.warning[500],
+    borderRadius: 8,
+    backgroundColor: theme.colors.warning[50],
+    padding: 12,
+  },
+  deliveryTitle: {
+    color: theme.colors.text.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  deliveryStep: {
+    color: theme.colors.text.secondary,
+    fontSize: 12,
+    lineHeight: 17,
   },
   primaryButtonText: {
     color: theme.colors.text.inverse,

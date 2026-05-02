@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import {
+  buildDataExportDownloadFilename,
   createDataPrivacyRequest,
   listAdminDataPrivacyRequests,
   normalizeDataPrivacyRequestMessage,
@@ -31,6 +32,17 @@ void (async function main() {
   assert.strictEqual(normalizeDataPrivacyRequestMessage('   '), null);
   assert.strictEqual(normalizeDataPrivacyRequestMessage(undefined), null);
   assert.strictEqual(normalizeDataPrivacyRequestMessage('a'.repeat(2105))?.length, 2000);
+  assert.strictEqual(
+    buildDataExportDownloadFilename(
+      '11111111-1111-4111-8111-111111111111',
+      new Date('2026-05-02T15:00:00.000Z')
+    ),
+    'wondertales-user-export-11111111-1111-4111-8111-111111111111-2026-05-02.json'
+  );
+  assert.strictEqual(
+    buildDataExportDownloadFilename('../bad/request', new Date('2026-05-02T15:00:00.000Z')),
+    'wondertales-user-export-badrequest-2026-05-02.json'
+  );
 
   const createdPayloads: any[] = [];
   const listPayloads: any[] = [];

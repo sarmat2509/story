@@ -26,6 +26,7 @@ import {
   DATA_PRIVACY_REQUEST_STATUSES,
   DATA_PRIVACY_REQUEST_TYPES,
   buildAdminDataExportForPrivacyRequest,
+  buildDataExportDownloadFilename,
   listAdminDataPrivacyRequests,
   updateAdminDataPrivacyRequest,
 } from '../services/dataPrivacyRequestService';
@@ -701,10 +702,9 @@ router.get('/privacy-requests/:requestId/export', async (req: Request, res: Resp
       });
     }
 
-    const date = new Date().toISOString().slice(0, 10);
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="wondertales-user-export-${result.exportPackage.userId}-${date}.json"`
+      `attachment; filename="${buildDataExportDownloadFilename(result.request.id)}"`
     );
 
     logger.info({

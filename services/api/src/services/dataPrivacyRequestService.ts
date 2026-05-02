@@ -29,6 +29,12 @@ export interface DataPrivacyRequestItem {
   updatedAt: string;
 }
 
+export function buildDataExportDownloadFilename(requestId: string, generatedAt: Date = new Date()): string {
+  const safeRequestId = requestId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80) || 'request';
+  const date = generatedAt.toISOString().slice(0, 10);
+  return `wondertales-user-export-${safeRequestId}-${date}.json`;
+}
+
 export type AdminDataPrivacyExportResult =
   | { outcome: 'not_found' }
   | { outcome: 'wrong_type'; request: DataPrivacyRequestItem }
