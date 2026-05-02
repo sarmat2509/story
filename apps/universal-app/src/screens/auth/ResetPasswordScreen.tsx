@@ -17,6 +17,7 @@ import type { MainDrawerParamList } from '@/types/navigation';
 import { useResetPassword } from '@/api/auth';
 import { getPasswordStrength, meetsMinRequirements } from '@/utils/passwordStrength';
 import { theme } from '@/theme';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 
 type ResetPasswordRouteProp = RouteProp<MainDrawerParamList, 'ResetPassword'>;
 
@@ -102,12 +103,7 @@ export default function ResetPasswordScreen() {
       await resetPasswordMutation.mutateAsync({ token, password });
       setSuccess(true);
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { code?: string } } };
-      if (e?.response?.data?.code === 'INVALID_OR_EXPIRED_TOKEN') {
-        setError(t('auth.invalid_or_expired_token'));
-      } else {
-        setError(t('common.error'));
-      }
+      setError(getLocalizedApiError(t, err, 'common.error'));
     }
   };
 
@@ -163,6 +159,7 @@ export default function ResetPasswordScreen() {
         <Text style={styles.inputLabel}>{t('auth.password')}</Text>
         <View style={styles.passwordRow}>
           <TextInput
+            nativeID="reset-password"
             style={[styles.input, styles.passwordInput]}
             value={password}
             onChangeText={setPassword}
@@ -170,6 +167,7 @@ export default function ResetPasswordScreen() {
             placeholderTextColor={theme.colors.text.tertiary}
             secureTextEntry={!showPassword}
             autoComplete="new-password"
+            textContentType="newPassword"
           />
           <TouchableOpacity
             style={styles.eyeButton}

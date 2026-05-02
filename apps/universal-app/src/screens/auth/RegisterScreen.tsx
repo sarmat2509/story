@@ -21,6 +21,7 @@ import { getPasswordStrength, meetsMinRequirements } from '@/utils/passwordStren
 import { LEGAL_URLS } from '@/config/constants';
 import { theme } from '@/theme';
 import { resetToMainRoute } from '@/navigation/navigationRef';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -65,13 +66,7 @@ export default function RegisterScreen() {
         });
       }
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string; code?: string } } };
-      const code = e?.response?.data?.code;
-      if (code === 'EMAIL_ALREADY_REGISTERED') {
-        setError(t('auth.email_already_registered'));
-      } else {
-        setError(e?.response?.data?.message || t('common.error'));
-      }
+      setError(getLocalizedApiError(t, err, 'common.error'));
     }
   };
 
@@ -140,6 +135,7 @@ export default function RegisterScreen() {
 
           <Text style={styles.inputLabel}>{t('auth.email')}</Text>
           <TextInput
+            nativeID="register-email"
             style={styles.input}
             value={email}
             onChangeText={setEmail}
@@ -148,11 +144,13 @@ export default function RegisterScreen() {
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
+            textContentType="emailAddress"
           />
 
           <Text style={[styles.inputLabel, styles.inputLabelMargin]}>{t('auth.password')}</Text>
           <View style={styles.passwordRow}>
             <TextInput
+              nativeID="register-password"
               style={[styles.input, styles.passwordInput]}
               value={password}
               onChangeText={setPassword}
@@ -160,6 +158,7 @@ export default function RegisterScreen() {
               placeholderTextColor={theme.colors.text.tertiary}
               secureTextEntry={!showPassword}
               autoComplete="new-password"
+              textContentType="newPassword"
             />
             <TouchableOpacity
               style={styles.eyeButton}

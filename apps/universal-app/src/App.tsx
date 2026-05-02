@@ -43,6 +43,10 @@ const queryClient = new QueryClient({
     },
     mutations: {
       onError: (error: any) => {
+        const status = error?.response?.status;
+        if (typeof status === 'number' && status >= 400 && status < 500) {
+          return;
+        }
         console.error('Query error:', error);
       },
     },

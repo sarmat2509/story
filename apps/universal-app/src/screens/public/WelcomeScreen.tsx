@@ -26,6 +26,7 @@ import { AnimatedSection } from '@/components/AnimatedSection';
 import { InteractiveSurface } from '@/components/InteractiveSurface';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { resetToMainRoute } from '@/navigation/navigationRef';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -47,10 +48,9 @@ export default function WelcomeScreen() {
   const canSubmitEmail = emailValid && password.length >= 8;
   const showAppleSignIn = Platform.OS === 'ios';
 
-  const handleError = (message: string, err: unknown) => {
+  const handleError = (message: string) => {
     setError(message);
     setShowSkipOption(true);
-    console.error(err);
   };
 
   const handleEmailLogin = async () => {
@@ -66,14 +66,7 @@ export default function WelcomeScreen() {
         });
       }
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string; code?: string } } };
-      const msg = e?.response?.data?.message;
-      const code = e?.response?.data?.code;
-      if (code === 'OAUTH_ONLY') {
-        handleError(t('auth.sign_in_with_oauth'), err);
-      } else {
-        handleError(msg || t('auth.invalid_credentials'), err);
-      }
+      handleError(getLocalizedApiError(t, err, 'auth.invalid_credentials'));
     }
   };
 
@@ -84,9 +77,9 @@ export default function WelcomeScreen() {
       await signInWithGoogle();
     } catch (err: unknown) {
       const message = (err as Error)?.message?.includes('expo-dev-client')
-        ? 'Native OAuth requires Custom Dev Client. Please use web version or run: npx expo run:ios'
+        ? t('auth.native_oauth_dev_client_required')
         : t('auth.google_failed');
-      handleError(message, err);
+      handleError(message);
     }
   };
 
@@ -97,9 +90,9 @@ export default function WelcomeScreen() {
       await signInWithApple();
     } catch (err: unknown) {
       const message = (err as Error)?.message?.includes('expo-dev-client')
-        ? 'Native OAuth requires Custom Dev Client. Please use web version or run: npx expo run:ios'
+        ? t('auth.native_oauth_dev_client_required')
         : t('auth.apple_failed');
-      handleError(message, err);
+      handleError(message);
     }
   };
 
@@ -157,6 +150,7 @@ export default function WelcomeScreen() {
           <View style={styles.formSection}>
             <Text style={styles.inputLabel}>{t('auth.email')}</Text>
             <TextInput
+              nativeID="login-email"
               style={styles.input}
               value={email}
               onChangeText={setEmail}
@@ -165,19 +159,22 @@ export default function WelcomeScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
+              textContentType="emailAddress"
               autoCorrect={false}
             />
 
             <Text style={[styles.inputLabel, styles.inputLabelMargin]}>{t('auth.password')}</Text>
             <View style={styles.passwordRow}>
               <TextInput
+                nativeID="login-password"
                 style={[styles.input, styles.passwordInput]}
                 value={password}
                 onChangeText={setPassword}
                 placeholder={t('auth.password_placeholder')}
                 placeholderTextColor={theme.colors.text.tertiary}
                 secureTextEntry={!showPassword}
-                autoComplete="password"
+                autoComplete="current-password"
+                textContentType="password"
               />
               <TouchableOpacity
                 style={styles.eyeButton}

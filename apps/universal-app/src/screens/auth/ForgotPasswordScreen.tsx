@@ -15,6 +15,7 @@ import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useForgotPassword } from '@/api/auth';
 import { theme } from '@/theme';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -36,8 +37,8 @@ export default function ForgotPasswordScreen() {
       setError(null);
       await forgotPasswordMutation.mutateAsync(email);
       setSubmitted(true);
-    } catch {
-      setError(t('common.error'));
+    } catch (err: unknown) {
+      setError(getLocalizedApiError(t, err, 'common.error'));
     }
   };
 
@@ -73,6 +74,7 @@ export default function ForgotPasswordScreen() {
 
             <Text style={styles.inputLabel}>{t('auth.email')}</Text>
             <TextInput
+              nativeID="forgot-password-email"
               style={styles.input}
               value={email}
               onChangeText={setEmail}
@@ -81,6 +83,7 @@ export default function ForgotPasswordScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
+              textContentType="emailAddress"
             />
 
             <TouchableOpacity

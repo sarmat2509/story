@@ -38,6 +38,7 @@ import { AnimatedSection } from '@/components/AnimatedSection';
 import { ExpandableCard } from '@/components/ExpandableCard';
 import { UsageSummaryCard } from '@/components/UsageSummaryCard';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 import {
   formatPricingPrice,
   getCombinedPricingUsageHighlight,
@@ -66,6 +67,7 @@ export default function PlansScreen() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [bundleError, setBundleError] = useState<string | null>(null);
   const upgradePlan = useUpgradePlan();
   const createCheckoutSession = useCreateCheckoutSession();
   const createBundleCheckout = useCreateBundleCheckoutSession();
@@ -178,6 +180,7 @@ export default function PlansScreen() {
 
   const handleBundlePurchase = useCallback(
     async (bundleSlug: string) => {
+      setBundleError(null);
       if (enableRealPayments && isWeb) {
         try {
           const { url } = await createBundleCheckout.mutateAsync(bundleSlug);
@@ -186,6 +189,7 @@ export default function PlansScreen() {
           }
         } catch (err) {
           console.error('Bundle checkout failed:', err);
+          setBundleError(getLocalizedApiError(t, err, 'plans.bundle_checkout_error'));
         }
         return;
       }
@@ -500,6 +504,9 @@ export default function PlansScreen() {
                     ? t('plans.bundles.section_subtitle', { periodEnd: periodEndFormatted })
                     : t('plans.bundles.section_subtitle_no_date')}
                 </Text>
+                {bundleError ? (
+                  <Text style={styles.bundleErrorText}>{bundleError}</Text>
+                ) : null}
               </View>
 
               {bundlesQuery.isLoading ? (
@@ -575,7 +582,7 @@ export default function PlansScreen() {
                 <Ionicons name="alert-circle" size={48} color={theme.colors.status.error} />
                 <Text style={styles.modalTitle}>{t('plans.upgrade_error')}</Text>
                 <Text style={styles.modalMessage}>
-                  {(modalErrorData as { response?: { data?: { message?: string } } })?.response?.data?.message || t('plans.upgrade_error_message')}
+                  {getLocalizedApiError(t, modalErrorData, 'plans.upgrade_error_message')}
                 </Text>
                 <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
                   <Text style={styles.modalButtonText}>{t('common.close')}</Text>
@@ -1000,6 +1007,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 520,
     alignSelf: 'center',
+  },
+  bundleErrorText: {
+    marginTop: theme.spacing[3],
+    color: theme.colors.status.error,
+    fontSize: theme.typography.fontSize.sm,
+    textAlign: 'center',
+    maxWidth: 520,
   },
   bundleLoadingBox: {
     minHeight: 120,

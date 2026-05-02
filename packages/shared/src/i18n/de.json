@@ -44,7 +44,10 @@
     "consent_terms": "Ich akzeptiere die",
     "consent_privacy": "Ich habe gelesen und akzeptiere die",
     "terms_link": "Nutzungsbedingungen",
-    "privacy_link": "Datenschutzerklärung"
+    "privacy_link": "Datenschutzerklärung",
+    "oauth_callback_loading": "Anmeldung wird abgeschlossen...",
+    "oauth_callback_error": "Authentifizierung fehlgeschlagen. Bitte versuche es erneut.",
+    "native_oauth_dev_client_required": "Native OAuth benötigt einen Custom Dev Client. Nutze die Webversion oder starte einen nativen Dev-Build."
   },
   "welcome": {
     "slogan": "Zeichnungen zu Charakteren. Hören, mitlesen, veröffentlichen.",
@@ -470,7 +473,8 @@
       "stripe_required": "Paketkauf im Web, wenn Zahlungen aktiv sind.",
       "loading": "Pakete werden geladen…",
       "empty": "Keine Pakete für Ihren Tarif."
-    }
+    },
+    "bundle_checkout_error": "Bundle-Checkout konnte nicht gestartet werden. Bitte versuche es erneut."
   },
   "children_screen": {
     "title": "Kinderprofile",
@@ -844,5 +848,26 @@
       "ignore_notice": "Falls du das nicht angefordert hast, kannst du diese E-Mail einfach ignorieren.",
       "footer": "Dies ist eine transaktionale E-Mail zum Kontozugriff."
     }
+  },
+  "api_errors": {
+    "authentication_required": "Melde dich erneut an, um fortzufahren.",
+    "parent_session_required": "Für diese Aktion ist eine Bestätigung durch einen Erwachsenen erforderlich.",
+    "oauth_only": "Melde dich für dieses Konto mit Google oder Apple an.",
+    "email_already_registered": "Diese E-Mail ist bereits registriert.",
+    "consent_required": "Bitte bestätige die erforderlichen Eltern- und Rechtseinwilligungen.",
+    "invalid_or_expired_token": "Dieser Reset-Link ist ungültig oder abgelaufen.",
+    "google_oauth_not_configured": "Google-Anmeldung ist derzeit nicht verfügbar.",
+    "apple_oauth_not_configured": "Apple-Anmeldung ist derzeit nicht verfügbar.",
+    "parent_gate_password_unavailable": "Dieses Konto hat kein Passwort-Gate. Nutze den verknüpften Anmeldeanbieter.",
+    "parent_gate_failed": "Elternkontrollen konnten nicht entsperrt werden. Bitte versuche es erneut.",
+    "real_payments_disabled": "Bezahlter Checkout ist noch nicht aktiviert.",
+    "no_subscription": "Für dieses Konto wurde kein aktives Abonnement gefunden.",
+    "subscription_period_expired": "Der aktuelle Abrechnungszeitraum ist abgelaufen. Aktualisiere den Tarifstatus.",
+    "story_limit_exceeded": "Dein monatliches Geschichtenlimit ist erreicht.",
+    "audio_limit_exceeded": "Dein monatliches Audio-Geschichtenlimit ist erreicht.",
+    "series_access_required": "Geschichtenserien sind in einem höheren Tarif verfügbar.",
+    "feature_not_available": "Diese Funktion ist im aktuellen Tarif nicht verfügbar.",
+    "expensive_generation_rate_limited": "Zu viele Generierungsanfragen. Bitte warte kurz und versuche es erneut.",
+    "child_data_consent_required": "Bitte bestätige die elterliche Einwilligung, bevor du Kinderdaten hinzufügst."
   }
 }

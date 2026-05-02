@@ -53,7 +53,8 @@ export const useEmailLogin = () => {
     mutationFn: async (data: { email: string; password: string }) => {
       const response = await apiClient.post<AuthResponse>(
         '/api/v1/auth/sessions',
-        data
+        data,
+        { skipAuthLogoutOn401: true }
       );
       return response.data;
     },
@@ -126,7 +127,8 @@ export const useGoogleLogin = () => {
     mutationFn: async (idToken: string) => {
       const response = await apiClient.post<AuthResponse>(
         '/api/v1/auth/google/token',
-        { idToken }
+        { idToken },
+        { skipAuthLogoutOn401: true }
       );
       return response.data;
     },
@@ -152,7 +154,8 @@ export const useAppleLogin = () => {
     }) => {
       const response = await apiClient.post<AuthResponse>(
         '/api/v1/auth/apple/token',
-        data
+        data,
+        { skipAuthLogoutOn401: true }
       );
       return response.data;
     },

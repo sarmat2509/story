@@ -1,10 +1,12 @@
 import React, { useEffect } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { CommonActions } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
 import { storage } from '@/utils/storage';
 import apiClient from '@/api/client';
 import { navigationRef } from '@/navigation/navigationRef';
+import { applyUserPreferredLocale } from '@/utils/localePreference';
 
 type PersistedAuthStore = typeof useAuthStore & {
   persist?: {
@@ -37,6 +39,7 @@ function waitForAuthHydration(): Promise<void> {
 
 export default function OAuthCallbackScreen() {
   const { login } = useAuthStore();
+  const { t } = useTranslation();
 
   useEffect(() => {
     async function handleCallback() {
@@ -73,7 +76,6 @@ export default function OAuthCallbackScreen() {
           },
         });
         
-        console.log('User response:', response.data);
         const user = response.data.user;
 
         if (!user) {
@@ -82,6 +84,7 @@ export default function OAuthCallbackScreen() {
 
         await waitForAuthHydration();
         await storage.setUser(user);
+        await applyUserPreferredLocale(user);
         login(user, token);
         
         console.log('Login successful!');
@@ -127,17 +130,17 @@ export default function OAuthCallbackScreen() {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('Error details:', errorMessage);
         // On error, show alert; user can navigate back to Login from drawer/tabs
-        alert('Authentication failed. Please try again.');
+        alert(t('auth.oauth_callback_error'));
       }
     }
 
     handleCallback();
-  }, [login]);
+  }, [login, t]);
 
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color="#0ea5e9" />
-      <Text style={styles.text}>Completing sign in...</Text>
+      <Text style={styles.text}>{t('auth.oauth_callback_loading')}</Text>
     </View>
   );
 }

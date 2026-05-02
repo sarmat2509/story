@@ -44,7 +44,10 @@
     "consent_terms": "J'accepte les",
     "consent_privacy": "J'ai lu et j'accepte la",
     "terms_link": "Conditions d'utilisation",
-    "privacy_link": "Politique de confidentialité"
+    "privacy_link": "Politique de confidentialité",
+    "oauth_callback_loading": "Connexion en cours...",
+    "oauth_callback_error": "Échec de l’authentification. Veuillez réessayer.",
+    "native_oauth_dev_client_required": "OAuth natif nécessite un custom dev client. Utilisez la version web ou lancez une build native de développement."
   },
   "welcome": {
     "slogan": "Dessins en personnages. Écoute, lis, publie.",
@@ -432,7 +435,8 @@
       "export_video": "Exporter en vidéo (bientôt)",
       "share_enabled": "Publication et partage",
       "story_from_drawing": "Histoire à partir du dessin de l'enfant (bientôt)"
-    }
+    },
+    "bundle_checkout_error": "Impossible de démarrer le paiement du pack. Veuillez réessayer."
   },
   "children_screen": {
     "title": "Profils d'Enfants",
@@ -803,5 +807,26 @@
       "ignore_notice": "Si vous n etes pas a l origine de cette demande, vous pouvez ignorer cet email en toute securite.",
       "footer": "Ceci est un email transactionnel lie a l acces a votre compte."
     }
+  },
+  "api_errors": {
+    "authentication_required": "Veuillez vous reconnecter pour continuer.",
+    "parent_session_required": "Une confirmation adulte est requise pour cette action.",
+    "oauth_only": "Connectez-vous avec Google ou Apple pour ce compte.",
+    "email_already_registered": "Cet e-mail est déjà enregistré.",
+    "consent_required": "Veuillez confirmer les consentements parentaux et légaux requis.",
+    "invalid_or_expired_token": "Ce lien de réinitialisation est invalide ou expiré.",
+    "google_oauth_not_configured": "La connexion Google n’est pas disponible pour le moment.",
+    "apple_oauth_not_configured": "La connexion Apple n’est pas disponible pour le moment.",
+    "parent_gate_password_unavailable": "Ce compte n’a pas d’accès parent par mot de passe. Utilisez le fournisseur de connexion lié.",
+    "parent_gate_failed": "Impossible de déverrouiller les contrôles parent. Veuillez réessayer.",
+    "real_payments_disabled": "Le paiement payant n’est pas encore activé.",
+    "no_subscription": "Aucun abonnement actif n’a été trouvé pour ce compte.",
+    "subscription_period_expired": "La période de facturation actuelle est terminée. Actualisez le statut de votre formule.",
+    "story_limit_exceeded": "Votre limite mensuelle d’histoires est atteinte.",
+    "audio_limit_exceeded": "Votre limite mensuelle d’histoires audio est atteinte.",
+    "series_access_required": "Les séries d’histoires sont disponibles avec une formule supérieure.",
+    "feature_not_available": "Cette fonction n’est pas disponible avec la formule actuelle.",
+    "expensive_generation_rate_limited": "Trop de demandes de génération. Patientez un peu puis réessayez.",
+    "child_data_consent_required": "Veuillez confirmer le consentement parental avant d’ajouter les données de l’enfant."
   }
 }

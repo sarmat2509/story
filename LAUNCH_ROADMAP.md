@@ -808,11 +808,13 @@ Completed locally:
 - DevTools verified live English `/en/pricing` content, footer links, and the `uk`/`en` language selector.
 - Authenticated language changes now persist locally, update the server-side `preferredLocale`, and rewrite the current web URL locale prefix in place.
 - Successful email/password, registration, OAuth, and parent-gate auth responses now apply the user's stored `preferredLocale` to i18n/local storage and the web URL prefix.
+- Auth, billing, and quota-style API errors now map server error codes to localized app copy across visible app locales instead of surfacing English API messages.
+- OAuth callback completion now uses localized loading/error copy and applies the user's stored `preferredLocale` before entering the app.
+- Production DevTools verified the Russian invalid-login flow on `/ru/welcome`: the form keeps user input, shows localized copy (`Неверный email или пароль`), and no longer emits raw React Query `HTTP Error 401` logs for the expected `401`.
 
 Remaining work:
 
 - Decide launch UI locales.
-- Ensure app error messages for auth/billing/quota are localized.
 - Extend the public language dropdown to any additional localized public SSR route before that route is indexed.
 - Prevent accidental language drift: internal links, CTAs, redirects, auth return URLs, checkout success URLs, and share links must not unexpectedly switch the user to another language.
 
