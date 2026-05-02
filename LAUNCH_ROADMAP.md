@@ -688,11 +688,13 @@ Acceptance criteria:
 
 Current bundle purchase review findings:
 
-- Bundle checkout cancel URL now points to `/billing/plans`; Stripe hosted checkout was opened in test mode for both subscription and bundle purchases, but cancel/success returns still need full browser completion checks.
+- Bundle checkout cancel URL now points to `/billing/plans`; DevTools verified cancel returns from hosted Stripe back to the authenticated billing screen.
 - Public SSR pricing and authenticated billing/plans now explain monthly auto-renewal, cancellation via billing portal where available, support-reviewed refunds, and bundle non-rollover/current-period behavior.
 - Public SSR pricing and the app plans screen now suppress paid CTAs when real payments are disabled, while keeping free access available.
 - Production smoke creates Stripe test-mode subscription and bundle Checkout Sessions successfully; bundle checkout now falls back to inline Stripe `price_data` when no static bundle Price ID is configured.
-- DevTools verified hosted Stripe checkout loads for subscription and bundle sessions with sandbox UI, line item details, prefilled QA email, and card form. No payment was completed during smoke.
+- DevTools verified hosted Stripe checkout loads for subscription and bundle sessions with sandbox UI, line item details, prefilled QA email, and card form.
+- DevTools completed a Stripe sandbox bundle payment; the app returns to `/billing/success?kind=bundle&session_id=...`, shows bundle-specific success copy, and primary navigation returns to billing/plans.
+- Non-Stripe subscription periods now roll forward before usage/quota/bundle calculations; Stripe-backed expired periods are not auto-extended without webhook data.
 
 Required work:
 
@@ -735,13 +737,19 @@ Verified so far on 2026-05-02:
 - Production test-mode subscription Checkout Session creation for the `silver` plan returns a `cs_test_*` session and hosted Stripe URL.
 - Production test-mode bundle Checkout Session creation for the first active bundle returns a `cs_test_*` session and hosted Stripe URL.
 - Hosted Stripe checkout pages loaded in DevTools for subscription and bundle flows.
-- Production API logs show expected checkout session creation events and no matching error/warn lines after smoke.
+- Bundle checkout cancel return was verified in DevTools and lands on `/billing/plans`.
+- Bundle checkout success return was verified in DevTools and lands on `/billing/success?kind=bundle&session_id=...`.
+- Stripe test webhook endpoint is configured for `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed`.
+- A real Stripe test-mode bundle payment completed with card sandbox data; production API logs show `checkout.session.completed` followed by `Recorded user_bundle_grant from Stripe bundle checkout`.
+- Authenticated usage API showed the expected bundle grant after webhook processing: `+5` stories and `+2` audio for the current billing period.
+- `docs/runbooks/stripe-test-mode.md` records the repeatable test-mode verification process.
+- Production API logs show expected checkout session creation and webhook events with no matching error/warn lines after smoke.
 
 Still required:
 
-- Complete checkout success and cancel browser returns for subscriptions and bundles.
-- Verify webhook signature handling against real Stripe test events.
+- Complete subscription checkout payment success and cancel browser returns.
 - Verify subscription created/updated/canceled, payment failed, customer portal, and refund/support flows.
+- Decide whether to keep the test webhook endpoint active for beta or replace it during live-mode setup.
 
 Required work:
 

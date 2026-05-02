@@ -3,10 +3,10 @@
  * Displays success message and redirects to Plans or Profile.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { NavigationProp } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { NavigationProp, RouteProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,7 +16,14 @@ import { theme } from '@/theme';
 export default function BillingSuccessScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const route = useRoute<RouteProp<MainDrawerParamList, 'BillingSuccess'>>();
   const queryClient = useQueryClient();
+  const checkoutKind =
+    route.params?.kind ??
+    (typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('kind')
+      : null);
+  const isBundleSuccess = checkoutKind === 'bundle';
 
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ['plans'] });
@@ -27,20 +34,36 @@ export default function BillingSuccessScreen() {
 
   const handleGoToPlans = () => navigation.navigate('Plans');
   const handleGoToProfile = () => navigation.navigate('Profile');
+  const handlePrimary = isBundleSuccess ? handleGoToPlans : handleGoToProfile;
+  const handleSecondary = isBundleSuccess ? handleGoToProfile : handleGoToPlans;
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: t(isBundleSuccess ? 'billing.bundle_success_title' : 'billing.success_title'),
+    });
+  }, [isBundleSuccess, navigation, t]);
 
   return (
     <View style={styles.container}>
       <View style={styles.iconContainer}>
         <Ionicons name="checkmark-circle" size={80} color={theme.colors.status.success} />
       </View>
-      <Text style={styles.title}>{t('billing.success_title')}</Text>
-      <Text style={styles.message}>{t('billing.success_message')}</Text>
+      <Text style={styles.title}>
+        {t(isBundleSuccess ? 'billing.bundle_success_title' : 'billing.success_title')}
+      </Text>
+      <Text style={styles.message}>
+        {t(isBundleSuccess ? 'billing.bundle_success_message' : 'billing.success_message')}
+      </Text>
       <View style={styles.buttons}>
-        <TouchableOpacity style={styles.primaryButton} onPress={handleGoToProfile}>
-          <Text style={styles.primaryButtonText}>{t('billing.go_to_profile')}</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={handlePrimary}>
+          <Text style={styles.primaryButtonText}>
+            {t(isBundleSuccess ? 'billing.view_plans' : 'billing.go_to_profile')}
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={handleGoToPlans}>
-          <Text style={styles.secondaryButtonText}>{t('billing.view_plans')}</Text>
+        <TouchableOpacity style={styles.secondaryButton} onPress={handleSecondary}>
+          <Text style={styles.secondaryButtonText}>
+            {t(isBundleSuccess ? 'billing.go_to_profile' : 'billing.view_plans')}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

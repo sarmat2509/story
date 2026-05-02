@@ -38,7 +38,7 @@ router.post('/checkout-session', requireAuth, requireParentSession, async (req: 
     }
 
     const webAppUrl = (config.web?.webAppUrl || '').replace(/\/$/, '');
-    const successUrl = `${webAppUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
+    const successUrl = `${webAppUrl}/billing/success?kind=subscription&session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${webAppUrl}/billing/plans`;
 
     const { sessionId, url } = await billingService.createCheckoutSession(
@@ -88,7 +88,7 @@ router.post('/bundle-checkout', requireAuth, requireParentSession, async (req: R
     const { bundleSlug } = parsed.data;
 
     const webAppUrl = (config.web?.webAppUrl || '').replace(/\/$/, '');
-    const successUrl = `${webAppUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
+    const successUrl = `${webAppUrl}/billing/success?kind=bundle&session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${webAppUrl}/billing/plans`;
 
     const { sessionId, url } = await billingService.createBundleCheckoutSession(

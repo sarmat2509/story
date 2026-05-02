@@ -184,7 +184,7 @@ export default function PlansScreen() {
   const bundleCardEls = useMemo(
     () =>
       sortedBundles.map((b, idx) => {
-        const canBuy = enableRealPayments && isWeb && b.stripePriceConfigured;
+        const canBuy = enableRealPayments && isWeb;
         const featured =
           sortedBundles.length >= 3 && idx === Math.floor(sortedBundles.length / 2);
         return (

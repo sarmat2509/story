@@ -902,6 +902,8 @@
   "billing": {
     "success_title": "¡Suscripción realizada!",
     "success_message": "¡Gracias! Tu plan se ha actualizado. Ya tienes acceso a todas las ventajas de tu nuevo plan.",
+    "bundle_success_title": "¡Paquete añadido!",
+    "bundle_success_message": "¡Gracias! Tus créditos extra de historias y audio se han añadido para el periodo de facturación actual.",
     "go_to_profile": "Ir al perfil",
     "view_plans": "Ver planes",
     "manage_subscription": "Gestionar suscripción"

@@ -757,6 +757,8 @@
   "billing": {
     "success_title": "Abonnement erfolgreich!",
     "success_message": "Danke! Ihr Tarif wurde aktualisiert. Sie haben nun Zugriff auf alle Vorteile Ihres neuen Plans.",
+    "bundle_success_title": "Paket hinzugefügt!",
+    "bundle_success_message": "Danke! Ihre zusätzlichen Geschichten- und Audioguthaben wurden für den aktuellen Abrechnungszeitraum hinzugefügt.",
     "go_to_profile": "Zum Profil",
     "view_plans": "Tarife ansehen",
     "manage_subscription": "Abonnement verwalten"

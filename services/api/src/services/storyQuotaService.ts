@@ -7,6 +7,7 @@ import {
   truncateQuotaReleaseErrorMessage,
   type QuotaReservationReleaseReason,
 } from './quotaReservationReleaseUtils';
+import { resolveActiveSubscriptionPeriod } from './subscriptionPeriodService';
 
 export type StoryQuotaReservationSource =
   | 'wizard'
@@ -30,7 +31,7 @@ export interface StoryQuotaCalculation {
 
 export class StoryQuotaError extends Error {
   readonly statusCode: number;
-  readonly code: 'NO_SUBSCRIPTION' | 'STORY_LIMIT_EXCEEDED';
+  readonly code: 'NO_SUBSCRIPTION' | 'SUBSCRIPTION_PERIOD_EXPIRED' | 'STORY_LIMIT_EXCEEDED';
   readonly featureSlug = 'stories_per_month';
   readonly limit: number | null;
   readonly used: number;
@@ -38,7 +39,7 @@ export class StoryQuotaError extends Error {
   readonly resetsAt: Date | null;
 
   constructor(params: {
-    code: 'NO_SUBSCRIPTION' | 'STORY_LIMIT_EXCEEDED';
+    code: 'NO_SUBSCRIPTION' | 'SUBSCRIPTION_PERIOD_EXPIRED' | 'STORY_LIMIT_EXCEEDED';
     message: string;
     statusCode: number;
     limit?: number | null;
@@ -119,6 +120,7 @@ export async function createStoryRequestWithQuotaReservation(
         currentPeriodStart: schema.userSubscriptions.currentPeriodStart,
         currentPeriodEnd: schema.userSubscriptions.currentPeriodEnd,
         resetAt: schema.userSubscriptions.resetAt,
+        paymentProvider: schema.userSubscriptions.paymentProvider,
       })
       .from(schema.userSubscriptions)
       .where(eq(schema.userSubscriptions.userId, userId))
@@ -132,8 +134,24 @@ export async function createStoryRequestWithQuotaReservation(
       });
     }
 
-    const periodStart = subscription.currentPeriodStart;
-    const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt;
+    const activePeriod = resolveActiveSubscriptionPeriod(subscription);
+    if (activePeriod.expiredStripePeriod) {
+      throw new StoryQuotaError({
+        code: 'SUBSCRIPTION_PERIOD_EXPIRED',
+        message: 'Subscription billing period is expired',
+        statusCode: 403,
+        resetsAt: activePeriod.periodEnd,
+      });
+    }
+    if (activePeriod.shouldReset && activePeriod.resetPatch) {
+      await tx
+        .update(schema.userSubscriptions)
+        .set(activePeriod.resetPatch)
+        .where(eq(schema.userSubscriptions.userId, userId));
+    }
+
+    const periodStart = activePeriod.periodStart;
+    const periodEnd = activePeriod.periodEnd;
 
     const [featureRow] = await tx
       .select({

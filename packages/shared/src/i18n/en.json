@@ -1140,6 +1140,8 @@
   "billing": {
     "success_title": "Subscription successful!",
     "success_message": "Thank you! Your plan has been updated. You now have access to all benefits of your new plan.",
+    "bundle_success_title": "Bundle added!",
+    "bundle_success_message": "Thank you! Your extra story and audio credits have been added for the current billing period.",
     "go_to_profile": "Go to profile",
     "view_plans": "View plans",
     "manage_subscription": "Manage subscription"

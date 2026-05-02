@@ -7,6 +7,7 @@ import type {
   NewUserSubscription
 } from '../db/schema';
 import { logger } from '../utils/logger';
+import { resolveActiveSubscriptionPeriod } from './subscriptionPeriodService';
 
 // Plan queries
 export async function getActivePlans(): Promise<Plan[]> {
@@ -78,7 +79,18 @@ export async function getFeatureValue(planId: string, featureSlug: string): Prom
 
 // User subscription
 export async function getUserSubscription(userId: string): Promise<UserSubscription | null> {
-  return getPlanRepository().findSubscriptionByUserId(userId);
+  const planRepo = getPlanRepository();
+  const subscription = await planRepo.findSubscriptionByUserId(userId);
+  if (!subscription) {
+    return null;
+  }
+
+  const period = resolveActiveSubscriptionPeriod(subscription);
+  if (period.shouldReset && period.resetPatch) {
+    return planRepo.updateSubscription(userId, period.resetPatch);
+  }
+
+  return subscription;
 }
 
 export async function initializeUserSubscription(
@@ -313,8 +325,7 @@ export async function checkUsageLimit(
   featureSlug: string,
   requestedQty: number
 ): Promise<{ allowed: boolean; remaining: number }> {
-  const planRepo = getPlanRepository();
-  const subscription = await planRepo.findSubscriptionByUserId(userId);
+  const subscription = await getUserSubscription(userId);
   if (!subscription) {
     return { allowed: false, remaining: 0 };
   }

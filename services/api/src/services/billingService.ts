@@ -9,6 +9,7 @@ import { getUserRepository, getPlanRepository, getBundleRepository } from '../re
 import * as planService from './planService';
 import * as bundleService from './bundleService';
 import { BUNDLE_CHECKOUT_METADATA_KIND } from './bundleService';
+import { resolveActiveSubscriptionPeriod } from './subscriptionPeriodService';
 import { logger } from '../utils/logger';
 
 let stripeClient: Stripe | null = null;
@@ -139,8 +140,16 @@ export async function createBundleCheckoutSession(
   const customerId = await getOrCreateStripeCustomer(userId, email);
   const stripe = getStripe();
 
-  const periodStart = subscription.currentPeriodStart;
-  const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
+  const period = resolveActiveSubscriptionPeriod(subscription);
+  if (period.expiredStripePeriod) {
+    throw new Error('Subscription billing period is expired; wait for Stripe status refresh before buying bundles.');
+  }
+  if (period.shouldReset && period.resetPatch) {
+    await planRepo.updateSubscription(userId, period.resetPatch);
+  }
+
+  const periodStart = period.periodStart;
+  const periodEnd = period.periodEnd;
   const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = stripePriceId
     ? { price: stripePriceId, quantity: 1 }
     : {

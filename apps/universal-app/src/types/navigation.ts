@@ -45,7 +45,7 @@ export type MainDrawerParamList = {
   Characters: undefined;
   Plans: undefined;
   Profile: undefined;
-  BillingSuccess: undefined;
+  BillingSuccess: { kind?: 'subscription' | 'bundle'; session_id?: string } | undefined;
   LanguageSettings: undefined;
   ThemeSettings: undefined;
   ModeSelection: undefined;

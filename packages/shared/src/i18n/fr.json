@@ -719,6 +719,8 @@
   "billing": {
     "success_title": "Abonnement réussi !",
     "success_message": "Merci ! Votre formule a été mise à jour. Vous bénéficiez désormais de tous les avantages de votre nouveau plan.",
+    "bundle_success_title": "Pack ajouté !",
+    "bundle_success_message": "Merci ! Vos crédits supplémentaires d'histoires et d'audio ont été ajoutés pour la période de facturation en cours.",
     "go_to_profile": "Aller au profil",
     "view_plans": "Voir les formules",
     "manage_subscription": "Gérer l'abonnement"

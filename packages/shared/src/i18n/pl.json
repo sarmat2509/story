@@ -1082,6 +1082,8 @@
   "billing": {
     "success_title": "Subskrypcja udana!",
     "success_message": "Dziekujemy! Twoj plan zostal zaktualizowany. Masz teraz dostep do wszystkich korzysci nowego planu.",
+    "bundle_success_title": "Pakiet dodany!",
+    "bundle_success_message": "Dziekujemy! Dodatkowe kredyty na historie i audio zostaly dodane na obecny okres rozliczeniowy.",
     "go_to_profile": "Przejdz do profilu",
     "view_plans": "Zobacz plany",
     "manage_subscription": "Zarzadzaj subskrypcja"
