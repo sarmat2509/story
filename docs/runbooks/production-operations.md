@@ -23,6 +23,7 @@ The check verifies:
 - Postgres data, database backup mount, upload volume, and API log volume are readable.
 - A custom-format PostgreSQL backup can be created and read by `pg_restore -l`.
 - Required production environment variables are present without printing secret values.
+- Stripe secret-key mode matches `EXPECTED_STRIPE_MODE` without printing the key value.
 - Recent API logs do not contain error, warning, failed, panic, unhandled, or exception lines.
 
 Run the broader HTTP/API smoke separately:
@@ -32,6 +33,14 @@ Run the broader HTTP/API smoke separately:
 ```
 
 Set the documented smoke credentials when authenticated, admin, or Stripe checkout checks are needed.
+
+For paid live-mode readiness, make the expected Stripe mode explicit:
+
+```bash
+EXPECTED_STRIPE_MODE=live ./scripts/check-production-ops.sh
+```
+
+The default remains `EXPECTED_STRIPE_MODE=test` for the current test-mode beta verification path.
 
 After a web or nginx deploy, capture the exact deployed security headers and scan the live client artifact, not only the local build:
 

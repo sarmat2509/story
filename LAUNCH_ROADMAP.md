@@ -778,6 +778,7 @@ Verified so far on 2026-05-02:
 - Production API logs show expected checkout session creation and webhook events with no matching error/warn lines after smoke and after the subscription update retry.
 - Production smoke now creates Stripe test-mode subscription and bundle checkout sessions and can load the hosted Stripe checkout HTML after session creation.
 - A fresh production Stripe sandbox bundle payment completed on 2026-05-02; the app returned to `/billing/success?kind=bundle&session_id=...`, usage showed the expected `+5` story and `+2` audio bundle bonuses, and API logs recorded the Stripe webhook plus `user_bundle_grant`.
+- Production ops checks now verify the configured Stripe secret-key mode without printing the key value. `EXPECTED_STRIPE_MODE=test ./scripts/check-production-ops.sh` passed against production with `0` failures and confirmed the current test-mode Stripe key; `EXPECTED_STRIPE_MODE=live` can guard live paid-launch readiness after provider-side key/webhook changes.
 
 Still required:
 
@@ -976,6 +977,7 @@ Completed locally and in production:
 - `scripts/run-production-backup-retention.sh` now provides dry-run and apply modes for database dumps, uploads-volume archives, SHA-256 sidecars, scoped local retention, and optional rclone offsite delivery.
 - Production backup-retention apply-smoke created and validated a `3.1 MB` database dump and a `1008 MB` uploads archive; the follow-up ops check still passed with `0` failures and `0` warnings, but only about `2169 MB` remained free, identifying media backups and droplet disk as the current backup bottleneck.
 - `scripts/check-production-ops.sh` now warns when no recent uploads-volume archive exists in addition to checking recent database backups.
+- `scripts/check-production-ops.sh` now checks Stripe test/live key mode against `EXPECTED_STRIPE_MODE` without printing secret values.
 - `scripts/monitor-production-ops.sh` wraps the ops check for cron, prints the full report, and emits compact JSON webhook alerts for failures or warning-level disk/backup/log issues when `OPS_ALERT_ON_WARNINGS=1`.
 - The monitor wrapper's test alert dry-run was validated locally without hitting a real provider webhook.
 - The production ops check now warns when backup retention, offsite backup target, ops monitor, or admin dashboard alert scheduler references are not discoverable on the droplet.

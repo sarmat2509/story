@@ -9,6 +9,7 @@
 # Usage:
 #   ./scripts/check-production-ops.sh
 #   ./scripts/check-production-ops.sh --backup-smoke
+#   EXPECTED_STRIPE_MODE=live ./scripts/check-production-ops.sh
 
 set -euo pipefail
 
@@ -25,6 +26,7 @@ MIN_DOCKER_FREE_MB="${MIN_DOCKER_FREE_MB:-2048}"
 MIN_PROJECT_FREE_MB="${MIN_PROJECT_FREE_MB:-1024}"
 LOG_SINCE="${LOG_SINCE:-30m}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
+EXPECTED_STRIPE_MODE="${EXPECTED_STRIPE_MODE:-test}"
 RUN_BACKUP_SMOKE=0
 
 SSH_CONTROL_PATH="/tmp/wondertales-ops-ssh-ctl-$$"
@@ -64,7 +66,7 @@ fi
 ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" true
 
 ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" \
-  "DROPLET_PATH='${DROPLET_PATH}' COMPOSE_FILE='${COMPOSE_FILE}' MIN_ROOT_FREE_MB='${MIN_ROOT_FREE_MB}' MIN_DOCKER_FREE_MB='${MIN_DOCKER_FREE_MB}' MIN_PROJECT_FREE_MB='${MIN_PROJECT_FREE_MB}' LOG_SINCE='${LOG_SINCE}' RUN_BACKUP_SMOKE='${RUN_BACKUP_SMOKE}' BACKUP_RETENTION_DAYS='${BACKUP_RETENTION_DAYS}' bash -s" <<'REMOTE'
+  "DROPLET_PATH='${DROPLET_PATH}' COMPOSE_FILE='${COMPOSE_FILE}' MIN_ROOT_FREE_MB='${MIN_ROOT_FREE_MB}' MIN_DOCKER_FREE_MB='${MIN_DOCKER_FREE_MB}' MIN_PROJECT_FREE_MB='${MIN_PROJECT_FREE_MB}' LOG_SINCE='${LOG_SINCE}' RUN_BACKUP_SMOKE='${RUN_BACKUP_SMOKE}' BACKUP_RETENTION_DAYS='${BACKUP_RETENTION_DAYS}' EXPECTED_STRIPE_MODE='${EXPECTED_STRIPE_MODE}' bash -s" <<'REMOTE'
 set -u
 
 failures=0
@@ -180,6 +182,43 @@ check_env_any() {
     fi
   done
   fail "api env group $label has no configured key: $*"
+}
+
+check_stripe_mode() {
+  local expected="$1"
+  local key_value mode
+
+  if [[ "$expected" != "test" && "$expected" != "live" && "$expected" != "any" ]]; then
+    fail "EXPECTED_STRIPE_MODE must be one of: test, live, any"
+    return
+  fi
+
+  key_value="$(compose_exec api sh -lc 'printenv STRIPE_SECRET_KEY || true' 2>/dev/null || true)"
+  if [[ -z "$key_value" ]]; then
+    fail "api Stripe secret key mode cannot be checked because STRIPE_SECRET_KEY is empty"
+    return
+  fi
+
+  case "$key_value" in
+    sk_test_*|rk_test_*)
+      mode="test"
+      ;;
+    sk_live_*|rk_live_*)
+      mode="live"
+      ;;
+    *)
+      fail "api Stripe secret key has an unknown prefix; expected sk_test/sk_live/rk_test/rk_live without printing the value"
+      return
+      ;;
+  esac
+
+  if [[ "$expected" == "any" ]]; then
+    pass "api Stripe secret key mode is $mode (EXPECTED_STRIPE_MODE=any)"
+  elif [[ "$mode" == "$expected" ]]; then
+    pass "api Stripe secret key mode is $mode as expected"
+  else
+    fail "api Stripe secret key mode is $mode, expected $expected"
+  fi
 }
 
 echo
@@ -304,6 +343,10 @@ done
 check_env_any "cors allowlist" CORS_ALLOWED_ORIGINS WEB_APP_URL
 check_env_any "image/text provider" GEMINI_API_KEY GOOGLE_API_KEY OPENAI_API_KEY
 check_env_any "tts provider" ELEVENLABS_API_KEY GOOGLE_TTS_MODEL OPENAI_TTS_MODEL
+
+echo
+echo "== Payment provider mode =="
+check_stripe_mode "$EXPECTED_STRIPE_MODE"
 
 echo
 echo "== Schedulers and external targets =="

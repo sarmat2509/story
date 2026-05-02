@@ -14,6 +14,14 @@ Use this runbook before public web beta and after any billing deploy. Do not use
   - `invoice.payment_failed`
 - QA parent account can sign in on `https://wondertales.art`.
 
+Before using this runbook, confirm production is intentionally in Stripe test mode without printing secret values:
+
+```bash
+EXPECTED_STRIPE_MODE=test ./scripts/check-production-ops.sh
+```
+
+Before live paid launch, rerun the same check with `EXPECTED_STRIPE_MODE=live` after swapping Stripe keys and webhook endpoint configuration.
+
 ## Smoke Check
 
 Run the broad non-destructive smoke:
