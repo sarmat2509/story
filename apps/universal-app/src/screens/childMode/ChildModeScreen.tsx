@@ -29,12 +29,14 @@ import {
   useParentGateGoogleStart,
 } from '@/api/auth';
 import { useStoryThemes } from '@/api/dictionaries';
+import { useSubscriptionUsage } from '@/api/plans';
 import { useCreateChildModeStory, useStoryStatus } from '@/api/stories';
 import i18n from '@/config/i18n';
 import { APP_CONFIG } from '@/config/constants';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
 import { oauth } from '@/utils/oauth';
+import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -101,6 +103,7 @@ export default function ChildModeScreen() {
   const logout = useLogout();
   const createChildStory = useCreateChildModeStory();
   const { data: themesData, isLoading: themesLoading } = useStoryThemes();
+  const { data: usage, isLoading: usageLoading } = useSubscriptionUsage();
 
   const settings = activeChild?.childMode?.childModeSettings;
   const freeTextEnabled = settings?.freeTextPromptsEnabled === true;
@@ -165,12 +168,18 @@ export default function ChildModeScreen() {
   const oauthGatePending = googleGatePending || appleGatePending;
   const gatePending = parentGate.isPending || oauthGatePending;
   const canSubmitGate = password.trim().length > 0 && !gatePending;
+  const storyCreditsRemaining = usage?.stories.remaining;
+  const storyCreditsExhausted = typeof storyCreditsRemaining === 'number' && storyCreditsRemaining <= 0;
+  const periodEndFormatted = useMemo(
+    () => formatSubscriptionPeriodEnd(usage?.currentPeriodEnd ?? usage?.resetsAt, i18n.language),
+    [usage?.currentPeriodEnd, usage?.resetsAt, i18n.language]
+  );
   const activeGenerationStatus = storyStatus?.status ?? (requestId ? 'pending' : null);
   const generationInFlight =
     createChildStory.isPending ||
     activeGenerationStatus === 'pending' ||
     activeGenerationStatus === 'processing';
-  const canCreateStory = Boolean(activeChild?.id && storyLanguage) && !generationInFlight;
+  const canCreateStory = Boolean(activeChild?.id && storyLanguage) && !generationInFlight && !storyCreditsExhausted;
   const generationProgress = Math.round(
     storyStatus?.progressData?.overallProgress ?? storyStatus?.progress ?? 0
   );
@@ -373,6 +382,53 @@ export default function ChildModeScreen() {
     );
   };
 
+  const renderUsageGate = () => {
+    if (usageLoading && !usage) {
+      return (
+        <View style={styles.usageGate}>
+          <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+          <Text style={styles.usageGateText}>{t('child_mode.story_chances_loading')}</Text>
+        </View>
+      );
+    }
+
+    if (!usage) return null;
+
+    return (
+      <View style={[styles.usageGate, storyCreditsExhausted && styles.usageGateWarning]}>
+        <Ionicons
+          name={storyCreditsExhausted ? 'lock-closed-outline' : 'sparkles-outline'}
+          size={20}
+          color={storyCreditsExhausted ? theme.colors.status.warning : theme.colors.interactive.primary}
+        />
+        <View style={styles.usageGateCopy}>
+          <Text style={styles.usageGateTitle}>
+            {storyCreditsExhausted
+              ? t('child_mode.story_chances_empty_title')
+              : t('child_mode.story_chances_title')}
+          </Text>
+          <Text style={styles.usageGateText}>
+            {storyCreditsExhausted
+              ? t('child_mode.story_chances_empty_body')
+              : t('child_mode.story_chances_body', {
+                  remaining: usage.stories.remaining,
+                  resetDate: periodEndFormatted ?? t('child_mode.story_chances_reset_later'),
+                })}
+          </Text>
+        </View>
+        {storyCreditsExhausted ? (
+          <TouchableOpacity
+            style={styles.usageGateButton}
+            onPress={handleOpenGate}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.usageGateButtonText}>{t('child_mode.story_chances_ask_parent')}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -417,6 +473,8 @@ export default function ChildModeScreen() {
               </Text>
             </View>
           </View>
+
+          {renderUsageGate()}
 
           <View style={styles.creator}>
             <View style={styles.sectionHeader}>
@@ -768,6 +826,52 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.text.secondary,
+  },
+  usageGate: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    marginTop: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+    padding: theme.spacing[4],
+  },
+  usageGateWarning: {
+    borderColor: theme.colors.warning[500],
+    backgroundColor: theme.colors.warning[50],
+  },
+  usageGateCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: theme.spacing[1],
+  },
+  usageGateTitle: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  usageGateText: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: theme.typography.lineHeight.relaxed * theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+  },
+  usageGateButton: {
+    minHeight: 38,
+    justifyContent: 'center',
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.primary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+    paddingHorizontal: theme.spacing[3],
+  },
+  usageGateButtonText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
   },
   creator: {
     marginTop: theme.spacing[6],

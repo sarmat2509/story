@@ -1023,7 +1023,7 @@ Acceptance criteria:
 
 ### 3. Usage Transparency
 
-Status on 2026-05-02: Parent-facing usage transparency is deployed for the launch flows. Billing plans, profile subscription state, and both story creation modes now show stories/audio remaining, the current reset date, and plan + bundle credit composition from the server-side usage endpoint. Production DevTools smoke confirmed the usage card on `/billing/plans`, `/profile`, and `/wizard`; API docker logs after the sweep had no usage-related errors.
+Status on 2026-05-02: Usage transparency is deployed for the launch flows. Billing plans, profile subscription state, both parent story creation modes, and Child Mode now show story/audio remaining or child-safe story chances from the server-side usage endpoint. Production DevTools smoke confirmed the usage card on `/billing/plans`, `/profile`, and `/wizard`; API docker logs after the sweep had no usage-related errors.
 
 Completed locally:
 
@@ -1033,13 +1033,12 @@ Completed locally:
 - `/wizard` and Instant Wizard show usage before generation.
 - The usage card shows reset/current period, stories remaining, audio stories remaining, plan limits, and active bundle credits when present.
 - Locked plan features on `/billing/plans` now explain which plan unlocks the feature, and locked premium voices explain that the Fairy World plan is required.
+- Child Mode now explains story limits with child-safe "story chances" copy and routes exhausted-credit help through the parent gate instead of billing or account settings.
 - Usage copy is localized for `uk`, `en`, `ru`, `es`, `fr`, `de`, and `pl`.
 - Production smoke verified the deployed UI, browser console, and API docker logs.
 
 Required work:
-
-- In Child Mode, explain locked features in child-safe language and route CTAs through the parent gate.
-- Do not expose checkout, customer portal, billing settings, or adult account settings directly in Child Mode.
+- Production Child Mode smoke still needs a real child-profile fixture; the current deployment can be render-checked with a simulated child session in DevTools.
 
 Acceptance criteria:
 
