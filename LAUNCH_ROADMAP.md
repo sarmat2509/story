@@ -818,6 +818,7 @@ Completed locally:
 - Auth, billing, and quota-style API errors now map server error codes to localized app copy across visible app locales instead of surfacing English API messages.
 - OAuth callback completion now uses localized loading/error copy and applies the user's stored `preferredLocale` before entering the app.
 - Production DevTools verified the Russian invalid-login flow on `/ru/welcome`: the form keeps user input, shows localized copy (`Неверный email или пароль`), and no longer emits raw React Query `HTTP Error 401` logs for the expected `401`.
+- Forgot-password post-submit UX now shows a clear localized confirmation card with the submitted email, inbox/spam guidance, reset-link expiry context, privacy-safe wording, and actions for returning to login or using another email; production DevTools verified the flow after web deploy.
 - Production DevTools and Stripe API verification confirmed billing checkout and Customer Portal return paths preserve the user's `preferredLocale` for app-only routes.
 - Launch UI locales are now explicitly limited to `uk`, `en`, `ru`, and `pl`; story/content languages remain broader, but incomplete `es`, `de`, and `fr` UI locales are no longer exposed in Language Settings or accepted from stored app UI preferences.
 - `pnpm launch:gate` now checks complete app UI translation key coverage for the launch UI locale set.
