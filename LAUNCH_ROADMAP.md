@@ -833,6 +833,7 @@ Completed locally:
 - Launch UI locales are now explicitly limited to `uk`, `en`, `ru`, and `pl`; story/content languages remain broader, but incomplete `es`, `de`, and `fr` UI locales are no longer exposed in Language Settings or accepted from stored app UI preferences.
 - `pnpm launch:gate` now checks complete app UI translation key coverage for the launch UI locale set.
 - Billing checkout and Customer Portal return URLs now normalize to launch-ready UI locales, so incomplete UI locales cannot create app return paths such as `/es/profile`.
+- The web SPA now syncs `document.documentElement.lang` and `dir` with i18next language changes, so auth/app routes no longer keep the static Expo shell's default `lang="en"` after rendering another visible UI locale.
 
 Remaining work:
 
@@ -1219,6 +1220,7 @@ Observed on 2026-05-02 after the latest web/API deployment and production verifi
 - Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Remaining log noise is nginx temporary-buffer warnings for large static/media responses.
 - The latest auth/support checks show Google OAuth E2E, Resend sender DNS, Zoho inbound MX, root SPF, DMARC, support SMTP reachability, and real Gmail password-reset delivery are configured and verified.
 - Production security artifact audit passed after the latest deploy: live headers were captured for apex SSR, pricing SSR, app/auth SPA routes, and `www` redirect behavior; the deployed web JS/CSS/HTML/JSON scan found no server-side secret markers.
+- Production `/ru/auth/forgot-password` now renders Russian UI with `document.documentElement.lang="ru"` and `dir="ltr"` after the web document-locale sync deploy; DevTools console stayed clean.
 
 ## Recommended Launch Gates
 

@@ -7,6 +7,7 @@ import { isAppUiLocale } from '@wondertales/shared';
 import { storage } from '@/utils/storage';
 import { APP_CONFIG } from '@/config/constants';
 import { getPublicSeoLocaleOverrideFromPath } from '@/utils/publicSeoLocale';
+import { syncWebDocumentLocale } from '@/utils/documentLocale';
 
 // Import translations from shared package
 import ukTranslations from '@wondertales/shared/i18n/uk.json';
@@ -26,6 +27,8 @@ const resources = {
   de: { translation: deTranslations },
   pl: { translation: plTranslations },
 };
+
+let documentLocaleSyncBound = false;
 
 function getLocaleFromUrl(): string | null {
   if (typeof window === 'undefined') {
@@ -75,6 +78,12 @@ export async function initI18n() {
         useSuspense: false,
       },
     });
+
+  syncWebDocumentLocale(i18n.language);
+  if (!documentLocaleSyncBound) {
+    i18n.on('languageChanged', syncWebDocumentLocale);
+    documentLocaleSyncBound = true;
+  }
 
   return i18n;
 }
