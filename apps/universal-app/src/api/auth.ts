@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { storage } from '@/utils/storage';
 import { applyUserPreferredLocale } from '@/utils/localePreference';
 import { getActivePaletteId, setActivePaletteId } from '@/theme/activePalette';
+import { getCaptchaToken } from '@/utils/captcha';
 
 // Use shared types
 type User = UserApi;
@@ -51,9 +52,10 @@ export const useEmailLogin = () => {
 
   return useMutation({
     mutationFn: async (data: { email: string; password: string }) => {
+      const captchaToken = await getCaptchaToken('login');
       const response = await apiClient.post<AuthResponse>(
         '/api/v1/auth/sessions',
-        data,
+        { ...data, captchaToken },
         { skipAuthLogoutOn401: true }
       );
       return response.data;
@@ -79,9 +81,10 @@ export const useRegister = () => {
       privacyAccepted: boolean;
       isAdultGuardian: boolean;
     }) => {
+      const captchaToken = await getCaptchaToken('register');
       const response = await apiClient.post<AuthResponse>(
         '/api/v1/auth/register',
-        data
+        { ...data, captchaToken }
       );
       return response.data;
     },
@@ -98,9 +101,10 @@ export const useRegister = () => {
 export const useForgotPassword = () => {
   return useMutation({
     mutationFn: async (email: string) => {
+      const captchaToken = await getCaptchaToken('password_reset');
       const response = await apiClient.post<{ status: string; message: string }>(
         '/api/v1/auth/forgot-password',
-        { email }
+        { email, captchaToken }
       );
       return response.data;
     },

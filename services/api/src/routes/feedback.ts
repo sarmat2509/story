@@ -10,6 +10,7 @@ import { createFeedback } from '../services/feedbackService';
 import { logger } from '../utils/logger';
 import { createRateLimitHandler } from '../middleware/rateLimiter';
 import rateLimit from 'express-rate-limit';
+import { CaptchaVerificationError, requireCaptcha } from '../services/captchaService';
 
 const router = Router();
 
@@ -33,6 +34,7 @@ const feedbackSchema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   screenshotUrl: z.string().max(500).optional(),
   reportedScreen: z.enum(REPORTED_SCREENS),
+  captchaToken: z.string().max(4096).optional(),
 });
 
 function getClientIp(req: Request): string {
@@ -94,6 +96,8 @@ router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Respon
       });
     }
 
+    await requireCaptcha('feedback', parsed.data.captchaToken, req);
+
     const platform =
       (req.headers['x-platform'] as string) ||
       (req.body.platform as string) ||
@@ -121,6 +125,13 @@ router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Respon
       feedback: { id: result.id },
     });
   } catch (error) {
+    if (error instanceof CaptchaVerificationError) {
+      return res.status(error.statusCode).json({
+        status: 'error',
+        message: error.message,
+        code: error.code,
+      });
+    }
     logger.error({ err: error }, 'Feedback submission failed');
     const errorMessage = error instanceof Error ? error.message : 'Failed to submit feedback';
     res.status(500).json({

@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 import type { FeedbackCategory, FeedbackTopic } from '@wondertales/shared';
 import apiClient from './client';
+import { getCaptchaToken } from '@/utils/captcha';
 
 export type ReportedScreen =
   | 'dashboard'
@@ -28,6 +29,7 @@ export function useSubmitFeedback() {
   return useMutation({
     mutationFn: async (input: SubmitFeedbackInput) => {
       const platform = Platform.OS === 'web' ? 'web' : Platform.OS;
+      const captchaToken = await getCaptchaToken('feedback');
       const url =
         Platform.OS === 'web' && typeof window !== 'undefined'
           ? window.location.pathname
@@ -39,6 +41,7 @@ export function useSubmitFeedback() {
           ...input,
           platform,
           url,
+          captchaToken,
         }
       );
       return response.data.feedback;

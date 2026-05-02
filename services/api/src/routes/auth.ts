@@ -30,6 +30,7 @@ import {
   type ConsentAuditContext,
 } from '../services/consentService';
 import { oauthLimiter, passwordResetLimiter } from '../middleware/rateLimiter';
+import { CaptchaVerificationError, requireCaptcha } from '../services/captchaService';
 import {
   createParentGateOAuthState,
   parseParentGateOAuthState,
@@ -43,6 +44,7 @@ const router = Router();
 const loginSchema = z.object({
   email: z.string().email().max(255),
   password: z.string().min(8).max(128),
+  captchaToken: z.string().max(4096).optional(),
 });
 
 const registerSchema = z.object({
@@ -51,10 +53,12 @@ const registerSchema = z.object({
   termsAccepted: z.union([z.boolean(), z.string()]).optional(),
   privacyAccepted: z.union([z.boolean(), z.string()]).optional(),
   isAdultGuardian: z.union([z.boolean(), z.string()]).optional(),
+  captchaToken: z.string().max(4096).optional(),
 });
 
 const forgotPasswordSchema = z.object({
   email: z.string().email().max(255),
+  captchaToken: z.string().max(4096).optional(),
 });
 
 const resetPasswordSchema = z.object({
@@ -79,6 +83,16 @@ const parentGateAppleTokenSchema = z.object({
   deviceName: z.string().max(255).optional(),
   deviceType: z.enum(['ios', 'android', 'web']).optional(),
 });
+
+function sendCaptchaError(res: Response, error: unknown): boolean {
+  if (!(error instanceof CaptchaVerificationError)) return false;
+  res.status(error.statusCode).json({
+    status: 'error',
+    message: error.message,
+    code: error.code,
+  });
+  return true;
+}
 
 // Configure Google OAuth strategy
 if (config.oauth.google.clientId && config.oauth.google.clientSecret) {
@@ -684,7 +698,9 @@ router.post('/sessions', async (req: Request, res: Response) => {
         details: validationResult.error.errors,
       });
     }
-    const { email, password } = validationResult.data;
+    const { email, password, captchaToken } = validationResult.data;
+
+    await requireCaptcha('login', captchaToken, req);
 
     const user = await loginWithPassword(email, password);
     if (!user) {
@@ -721,6 +737,7 @@ router.post('/sessions', async (req: Request, res: Response) => {
       isNewUser: false,
     });
   } catch (error) {
+    if (sendCaptchaError(res, error)) return;
     logger.error({ err: error }, 'Email login failed');
     res.status(500).json({
       status: 'error',
@@ -741,7 +758,7 @@ router.post('/register', async (req: Request, res: Response) => {
         details: validationResult.error.errors,
       });
     }
-    const { email, password, termsAccepted, privacyAccepted, isAdultGuardian } = validationResult.data;
+    const { email, password, termsAccepted, privacyAccepted, isAdultGuardian, captchaToken } = validationResult.data;
 
     const missingConsents = validateRegistrationConsents({
       termsAccepted,
@@ -756,6 +773,8 @@ router.post('/register', async (req: Request, res: Response) => {
         missingConsents,
       });
     }
+
+    await requireCaptcha('register', captchaToken, req);
 
     const { user, isNewUser } = await register(email, password);
     await recordRegistrationConsents(user.id, buildConsentAuditContext(req, 'email_register'));
@@ -779,6 +798,7 @@ router.post('/register', async (req: Request, res: Response) => {
       isNewUser,
     });
   } catch (error) {
+    if (sendCaptchaError(res, error)) return;
     const err = error as Error;
     if (err.message === 'EMAIL_ALREADY_REGISTERED') {
       return res.status(409).json({
@@ -807,7 +827,9 @@ router.post('/forgot-password', passwordResetLimiter, async (req: Request, res: 
         details: validationResult.error.errors,
       });
     }
-    const { email } = validationResult.data;
+    const { email, captchaToken } = validationResult.data;
+
+    await requireCaptcha('password_reset', captchaToken, req);
 
     await requestPasswordReset(email);
 
@@ -816,6 +838,7 @@ router.post('/forgot-password', passwordResetLimiter, async (req: Request, res: 
       message: 'If the email exists, you will receive a reset link',
     });
   } catch (error) {
+    if (sendCaptchaError(res, error)) return;
     logger.error({ err: error }, 'Forgot password failed');
     res.status(500).json({
       status: 'error',

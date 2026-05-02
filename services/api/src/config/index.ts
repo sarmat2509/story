@@ -5,6 +5,21 @@ import path from 'path';
 
 /** Monorepo root (`story/`), from `services/api/src/config` → `config` → `src` → `api` → `services` → repo. */
 const REPO_ROOT_FOR_SECRETS = path.join(__dirname, '../../../../');
+const CAPTCHA_ACTIONS = ['login', 'register', 'password_reset', 'feedback'] as const;
+
+function parseCaptchaRequiredActions(raw: string | undefined): string[] {
+  const values = (raw || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const invalid = values.filter((value) => !CAPTCHA_ACTIONS.includes(value as typeof CAPTCHA_ACTIONS[number]));
+  if (invalid.length > 0) {
+    throw new Error(
+      `CAPTCHA_REQUIRED_ACTIONS contains unsupported action(s): ${invalid.join(', ')}`
+    );
+  }
+  return Array.from(new Set(values));
+}
 
 /**
  * When `.env.local` reuses Docker's `GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/foo.json`
@@ -97,6 +112,11 @@ function validateProductionConfig() {
 
     if (process.env.FROM_EMAIL === 'noreply@wondertales.com') {
       throw new Error('FROM_EMAIL must be changed from default value in production');
+    }
+
+    const captchaActions = parseCaptchaRequiredActions(process.env.CAPTCHA_REQUIRED_ACTIONS);
+    if (captchaActions.length > 0 && !process.env.TURNSTILE_SECRET_KEY?.trim()) {
+      throw new Error('TURNSTILE_SECRET_KEY is required when CAPTCHA_REQUIRED_ACTIONS is set');
     }
 
     const textVendor = process.env.AI_TEXT_VENDOR || 'gemini';
@@ -401,6 +421,12 @@ export const config = {
   email: {
     resendApiKey: process.env.RESEND_API_KEY || '',
     fromEmail: process.env.FROM_EMAIL || 'noreply@wondertales.com',
+  },
+
+  // Human verification (Cloudflare Turnstile)
+  captcha: {
+    turnstileSecretKey: process.env.TURNSTILE_SECRET_KEY || '',
+    requiredActions: parseCaptchaRequiredActions(process.env.CAPTCHA_REQUIRED_ACTIONS),
   },
 
   // Published stories (static HTML output + SSR)

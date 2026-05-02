@@ -42,6 +42,7 @@ API_TESTS=(
   src/services/__tests__/assetAccessService.test.ts
   src/services/__tests__/audioQuotaReservationService.test.ts
   src/services/__tests__/bundlePeriodOverlap.test.ts
+  src/services/__tests__/captchaService.test.ts
   src/services/__tests__/childProfileService.test.ts
   src/services/__tests__/childModeControlsService.test.ts
   src/services/__tests__/childModePolicyService.test.ts

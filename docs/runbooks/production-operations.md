@@ -80,6 +80,18 @@ Dry-run the payload without sending:
 ./scripts/monitor-production-ops.sh --test-alert --dry-run-alert
 ```
 
+## CAPTCHA and WAF
+
+Rate limits and abuse-signal logs are enough for closed beta, but Cloudflare Turnstile can be enabled for public acquisition without changing code:
+
+```bash
+EXPO_PUBLIC_TURNSTILE_SITE_KEY=<public-site-key>
+TURNSTILE_SECRET_KEY=<secret-key>
+CAPTCHA_REQUIRED_ACTIONS=register,password_reset,feedback
+```
+
+Supported `CAPTCHA_REQUIRED_ACTIONS` values are `login`, `register`, `password_reset`, and `feedback`. Start with registration, password reset, and anonymous feedback; add login only after checking the sign-in UX. If `CAPTCHA_REQUIRED_ACTIONS` is set in production, API startup requires `TURNSTILE_SECRET_KEY`.
+
 Example crontab:
 
 ```cron

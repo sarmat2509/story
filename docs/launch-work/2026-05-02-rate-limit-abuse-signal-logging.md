@@ -60,6 +60,11 @@ Before public acquisition or broad paid launch, add one of:
 - provider-side WAF rules for repeated 429s by IP/country/ASN; or
 - both, if production logs show repeated scripted traffic.
 
+Update on 2026-05-02: a feature-flagged Cloudflare Turnstile path now exists for
+`login`, `register`, `password_reset`, and `feedback`. It remains inactive until
+`EXPO_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and
+`CAPTCHA_REQUIRED_ACTIONS` are configured.
+
 ## Verification
 
 - `pnpm --filter wondertales-api exec tsx src/middleware/__tests__/rateLimiter.test.ts`

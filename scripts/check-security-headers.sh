@@ -66,11 +66,12 @@ do
   require_text "${WEBAPP_HEADERS}" "${directive}"
 done
 
-for source in "https://*.i.posthog.com" "https://*.posthog.com"; do
+for source in "https://*.i.posthog.com" "https://*.posthog.com" "https://challenges.cloudflare.com"; do
   require_text "${WEBAPP_HEADERS}" "${source}"
 done
 
 require_text "${WEBAPP_HEADERS}" "Stripe Checkout/Portal, Google OAuth, and Apple OAuth use top-level redirects"
+require_text "${WEBAPP_HEADERS}" "Cloudflare Turnstile is optional"
 require_text "${WEBAPP_NGINX}" "include /etc/nginx/includes/webapp-security-headers.conf;"
 require_text "${WEBAPP_DOCKERFILE}" "COPY nginx/includes/webapp-security-headers.conf /etc/nginx/includes/webapp-security-headers.conf"
 require_text "${PROD_COMPOSE}" "./nginx/includes:/etc/nginx/includes:ro"

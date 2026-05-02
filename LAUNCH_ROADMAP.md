@@ -320,10 +320,11 @@ Done:
 - Full production smoke re-ran with a temporary account and covered login, authenticated APIs, read-only admin APIs, Stripe checkout-session creation, hosted Checkout loading, and DevTools checks for `/profile`, `/wizard`, `/admin/dashboard`, and `/settings/language`.
 - Rate-limit exceedances now emit safe structured `abuseSignal=true` logs with limiter name, mounted route base, user id when authenticated, and hashed client IP; raw IPs, email addresses, URLs, OAuth codes, reset tokens, request bodies, prompts, and child data are not logged by this handler.
 - `scripts/check-production-abuse-signals.sh` scans recent production API Docker logs for these signals without changing server state.
+- Feature-flagged Cloudflare Turnstile support is ready for login, registration, password reset, and feedback submission; it is inactive by default and can be enabled with `EXPO_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and `CAPTCHA_REQUIRED_ACTIONS`.
 
 Remaining:
 
-- Closed beta can proceed with current rate limits plus manual abuse-signal review; CAPTCHA/WAF should be enabled before public acquisition if production logs show repeated scripted auth, password-reset, feedback, upload, or rating traffic.
+- Closed beta can proceed with current rate limits plus manual abuse-signal review; CAPTCHA/WAF keys/actions should be configured before public acquisition if production logs show repeated scripted auth, password-reset, feedback, upload, or rating traffic.
 
 Required work:
 
