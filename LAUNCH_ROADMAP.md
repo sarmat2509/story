@@ -610,6 +610,7 @@ Current code findings:
 - Public landing/pricing ETags now hash the rendered HTML, so SEO metadata changes cannot stay hidden behind stale `304 Not Modified` responses.
 - `apps/universal-app/src/screens/plans/PlansScreen.tsx` remains the authenticated billing/plans UI, but feature order, hidden-feature rules, price formatting, feature labels, and usage highlight rules now come from shared pricing presenter helpers.
 - React Navigation maps the authenticated app `Plans` screen to `/billing/plans`, while `/pricing` and `/{locale}/pricing` stay owned by API SSR.
+- Authenticated app deep links now wait for persisted auth-store hydration before protected-route guards can redirect to `/welcome`.
 - `packages/shared/src/utils/routeOwnership.ts` now defines the launch SEO locales, public route contracts, app route paths, app-only noindex prefixes, and sitemap static SEO paths; sitemap generation and React Navigation consume this shared contract.
 - `services/api/src/ssr/__tests__/routeOwnership.test.ts` now runs in `pnpm launch:gate` and verifies the shared route contract against sitemap output plus dev/prod nginx route ownership/noindex guardrails.
 - Bundle catalog data is now cached client-side by current plan slug and invalidated after subscription checkout, bundle checkout, portal return, plan upgrade/downgrade, and billing success.

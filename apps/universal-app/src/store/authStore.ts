@@ -36,6 +36,13 @@ interface AuthState {
   loadFromStorage: () => Promise<void>;
 }
 
+type PersistedAuthStore = {
+  persist?: {
+    hasHydrated: () => boolean;
+    onFinishHydration: (listener: (state: AuthState) => void) => () => void;
+  };
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, _get) => ({
@@ -126,3 +133,27 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+export function hasAuthStoreHydrated(): boolean {
+  return ((useAuthStore as PersistedAuthStore).persist?.hasHydrated() ?? true);
+}
+
+export function waitForAuthStoreHydration(): Promise<void> {
+  const persistApi = (useAuthStore as PersistedAuthStore).persist;
+
+  if (!persistApi || persistApi.hasHydrated()) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const unsubscribe = persistApi.onFinishHydration(() => {
+      unsubscribe();
+      resolve();
+    });
+
+    if (persistApi.hasHydrated()) {
+      unsubscribe();
+      resolve();
+    }
+  });
+}

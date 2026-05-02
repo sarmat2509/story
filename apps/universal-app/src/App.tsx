@@ -16,7 +16,7 @@ import {
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AnalyticsProvider } from '@/components/AnalyticsProvider';
 import { AnalyticsIdentity } from '@/components/AnalyticsIdentity';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, waitForAuthStoreHydration } from '@/store/authStore';
 import { useMainNavigationStore } from '@/store/mainNavigationStore';
 import { navigationRef } from '@/navigation/navigationRef';
 import { pushNotificationService } from '@/services/pushNotificationService';
@@ -224,9 +224,9 @@ export default function App() {
         // Initialize i18n
         await initI18n();
         
-        // Auth state is automatically loaded by Zustand persist middleware
-        // Wait for hydration
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Auth state is loaded by Zustand persist middleware; wait for it before
+        // mounting deep-linked protected routes so guards do not redirect early.
+        await waitForAuthStoreHydration();
       } catch (error) {
         console.error('Error during app initialization:', error);
       } finally {
