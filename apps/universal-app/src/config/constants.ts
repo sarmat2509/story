@@ -20,10 +20,6 @@ export const LEGAL_URLS = {
   },
 };
 
-// Debug: Log API URL on app start
-console.log('🔗 API_BASE_URL:', API_BASE_URL);
-console.log('🔗 EXPO_PUBLIC_API_BASE_URL:', process.env.EXPO_PUBLIC_API_BASE_URL);
-
 // Use EXPO_PUBLIC_ prefix - Expo inlines only these into the client bundle
 export const OAUTH_CONFIG = {
   google: {

@@ -161,7 +161,11 @@
     "all_reading_times": "Any reading time",
     "reading_time_up_to_5": "Up to 5 min",
     "reading_time_6_10": "6-10 min",
-    "reading_time_11_plus": "11+ min"
+    "reading_time_11_plus": "11+ min",
+    "loading": "Loading stories...",
+    "error_title": "Failed to load stories",
+    "switch_to_list_view": "Switch to list view",
+    "switch_to_grid_view": "Switch to grid view"
   },
   "series": {
     "title": "Series",
@@ -735,6 +739,16 @@
     "audio_not_available_message": "Upgrade your plan to enable audio stories",
     "audio_limit_title": "Limit exceeded",
     "audio_limit_message": "Monthly audio story limit reached"
+  },
+  "photo_upload": {
+    "permission_title": "Permission Required",
+    "permission_message": "Please grant permission to access your photo library.",
+    "upload_error_title": "Error",
+    "upload_error_message": "Failed to upload photo. Please try again.",
+    "pick_error_title": "Error",
+    "pick_error_message": "Failed to pick image",
+    "add_photo": "Add photo",
+    "counter": "{{count}} / {{max}} photos"
   },
   "profile": {
     "title": "Profile",

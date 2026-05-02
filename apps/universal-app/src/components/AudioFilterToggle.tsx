@@ -33,31 +33,21 @@ const AudioFilterToggleComponent = forwardRef<AudioFilterToggleRef, Props>(({
   onToggle 
 }, ref) => {
   // LOCAL state - initialized ONLY on first render (lazy initialization)
-  const [isActive, setIsActive] = useState(() => {
-    console.log('[AudioFilterToggle] useState initializer - using initialValue:', initialValue);
-    return initialValue;
-  });
-  
-  console.log('[AudioFilterToggle] RENDER', { initialValue, currentIsActive: isActive });
+  const [isActive, setIsActive] = useState(() => initialValue);
   
   // Expose imperative method to parent (no re-render)
   useImperativeHandle(ref, () => ({
     setValue: (value: boolean) => {
-      console.log('[AudioFilterToggle] setValue called:', value);
       setIsActive(value);
     }
   }));
   
   // Handle click - update local state and notify parent
   const handleToggle = () => {
-    console.log('[AudioFilterToggle] handleToggle - START, current isActive:', isActive);
     const newValue = !isActive;
-    console.log('[AudioFilterToggle] handleToggle - new value:', newValue);
     
     setIsActive(newValue);
-    console.log('[AudioFilterToggle] handleToggle - calling onToggle callback');
     onToggle(newValue);
-    console.log('[AudioFilterToggle] handleToggle - DONE (CSS transition will animate)');
   };
   
   return (
@@ -133,13 +123,6 @@ const AudioFilterToggleComponent = forwardRef<AudioFilterToggleRef, Props>(({
 // Memoize to prevent re-renders when parent re-renders (e.g., totalPages change)
 // Only re-render when labels or onToggle change
 export const AudioFilterToggle = React.memo(AudioFilterToggleComponent, (prevProps, nextProps) => {
-  console.log('[AudioFilterToggle] memo check', {
-    labelsChanged: prevProps.allStoriesLabel !== nextProps.allStoriesLabel || 
-                   prevProps.audioOnlyLabel !== nextProps.audioOnlyLabel,
-    onToggleChanged: prevProps.onToggle !== nextProps.onToggle,
-    initialValueChanged: prevProps.initialValue !== nextProps.initialValue,
-  });
-  
   return (
     prevProps.allStoriesLabel === nextProps.allStoriesLabel &&
     prevProps.audioOnlyLabel === nextProps.audioOnlyLabel &&

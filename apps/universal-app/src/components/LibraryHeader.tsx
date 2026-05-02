@@ -322,7 +322,9 @@ const LibraryHeaderComponent = ({
         )}
         <Pressable
           onPress={onToggleViewMode}
-          accessibilityLabel={`Switch to ${viewMode === 'grid' ? 'list' : 'grid'} view`}
+          accessibilityLabel={t(
+            viewMode === 'grid' ? 'library.switch_to_list_view' : 'library.switch_to_grid_view'
+          )}
           focusable
           style={(state: ExtendedPressableState) => [
             styles.viewToggle,

@@ -26,9 +26,6 @@ import { getPublicSeoLocaleOverrideFromPath } from '@/utils/publicSeoLocale';
 import type { MainTabParamList } from '@/types/navigation';
 import { APP_ROUTE_PATHS, isValidLocale } from '@wondertales/shared';
 
-import interopRequireDefault from '@babel/runtime/helpers/interopRequireDefault';
-console.log('interopRequireDefault OK', typeof interopRequireDefault);
-
 // Suppress deprecation warnings from React Navigation / RN (library code, not ours)
 // pointerEvents: PR closed - style.pointerEvents breaks react-native-web
 LogBox.ignoreLogs([
@@ -46,11 +43,6 @@ const queryClient = new QueryClient({
     mutations: {
       onError: (error: any) => {
         console.error('Query error:', error);
-        // 401 = not authenticated (handled by api client interceptor → logout)
-        // 403 = forbidden (rate limit, permission denied, etc.) - not auth
-        if (error?.response?.status === 401) {
-          console.log('Authentication required - redirecting to login');
-        }
       },
     },
   },

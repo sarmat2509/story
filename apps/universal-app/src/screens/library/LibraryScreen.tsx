@@ -35,8 +35,6 @@ const cardDelay = (i: number) => Math.min(i * 35, 260);
 const ITEMS_PER_PAGE = 24;
 
 export default function LibraryScreen() {
-  console.log('[LibraryScreen] RENDER START');
-  
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const route = useRoute<RouteProp<MainDrawerParamList, 'Library'>>();
@@ -102,8 +100,6 @@ export default function LibraryScreen() {
     }
   }, [route.params?.scenarioCardId]);
   
-  console.log('[LibraryScreen] State:', { viewMode, audioFilter, currentPage });
-  
   // Load view mode and audio filter from storage
   useEffect(() => {
     storage.getLibraryViewMode().then(mode => {
@@ -111,7 +107,6 @@ export default function LibraryScreen() {
     });
     storage.getAudioFilter().then(filter => {
       if (filter !== null) {
-        console.log('[LibraryScreen] Loaded audioFilter from storage:', filter);
         setAudioFilter(filter);
       }
     });
@@ -128,12 +123,9 @@ export default function LibraryScreen() {
 
   // Handle audio filter toggle from child
   const handleAudioFilterToggle = useCallback((newValue: boolean) => {
-    console.log('[LibraryScreen] handleAudioFilterToggle called with:', newValue);
-    console.log('[LibraryScreen] handleAudioFilterToggle - updating state');
     setAudioFilter(newValue);
     setCurrentPage(1);
     storage.setAudioFilter(newValue);
-    console.log('[LibraryScreen] handleAudioFilterToggle - DONE');
   }, []);
   
   // Handle page change
@@ -162,12 +154,6 @@ export default function LibraryScreen() {
     hasAudio: audioFilter,
     scenarioCardId: scenarioFilter,
     language: languageFilter,
-  });
-  
-  console.log('[LibraryScreen] useStories result:', { 
-    storiesCount: data?.stories?.length, 
-    isLoading, 
-    hasError: !!error 
   });
   
   const stories = useMemo(() => data?.stories || [], [data?.stories]);
@@ -213,7 +199,6 @@ export default function LibraryScreen() {
   }, [queryClient]);
   
   const renderListItem = useCallback(({ item, index }: { item: any; index: number }) => {
-    console.log('[LibraryScreen] renderListItem called for:', item.id);
     return (
       <AnimatedSection delay={cardDelay(index)} trigger={enterKey}>
         <StoryCard
@@ -230,7 +215,7 @@ export default function LibraryScreen() {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
-        <Text style={styles.loadingText}>Loading stories...</Text>
+        <Text style={styles.loadingText}>{t('library.loading')}</Text>
       </View>
     );
   }
@@ -238,7 +223,7 @@ export default function LibraryScreen() {
   if (error) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorTitle}>Failed to load stories</Text>
+        <Text style={styles.errorTitle}>{t('library.error_title')}</Text>
         <Text style={styles.errorMessage}>{(error as Error).message}</Text>
       </View>
     );
@@ -271,8 +256,8 @@ export default function LibraryScreen() {
             color={theme.colors.text.tertiary}
             style={styles.emptyIcon}
           />
-          <Text style={styles.emptyText}>No stories yet</Text>
-          <Text style={styles.emptySubtext}>Create your first story!</Text>
+          <Text style={styles.emptyText}>{t('library.empty')}</Text>
+          <Text style={styles.emptySubtext}>{t('library.create_first')}</Text>
         </View>
 
         <FeedbackModal

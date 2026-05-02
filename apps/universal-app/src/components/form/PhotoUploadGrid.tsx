@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
 import { uploadPhoto, deletePhoto, UploadPhotoResult } from '@/utils/uploadPhoto';
 import { isServerAssetUrl } from '@/utils/assetUrl';
@@ -30,14 +31,15 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
   childDataConsentAccepted = false,
   formatUrl,
 }) => {
+  const { t } = useTranslation();
   const [, setUploadingIndex] = useState<number | null>(null);
   const requestPermission = async () => {
     if (Platform.OS !== 'web') {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(
-          'Permission Required',
-          'Please grant permission to access your photo library.'
+          t('photo_upload.permission_title'),
+          t('photo_upload.permission_message')
         );
         return false;
       }
@@ -86,14 +88,14 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
           setUploadingIndex(null);
         } catch (error) {
           // Видаляємо тимчасове фото при помилці
-          Alert.alert('Error', 'Failed to upload photo. Please try again.');
+          Alert.alert(t('photo_upload.upload_error_title'), t('photo_upload.upload_error_message'));
           onPhotosChange(photos.filter((_, i) => i !== tempIndex));
           setUploadingIndex(null);
         }
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      Alert.alert(t('photo_upload.pick_error_title'), t('photo_upload.pick_error_message'));
     }
   };
 
@@ -145,14 +147,14 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
             style={styles.addButton}
           >
             <Ionicons name="add-circle-outline" size={48} color={theme.colors.interactive.primary} />
-            <Text style={styles.addText}>Add Photo</Text>
+            <Text style={styles.addText}>{t('photo_upload.add_photo')}</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {/* Counter */}
       <Text style={styles.counter}>
-        {photos.length} / {maxPhotos} photos
+        {t('photo_upload.counter', { count: photos.length, max: maxPhotos })}
       </Text>
     </View>
   );
