@@ -402,6 +402,8 @@
     "error_title": "Échec du chargement des forfaits",
     "error_message": "Veuillez réessayer plus tard",
     "audio_stories": "{{count}} histoires audio par mois",
+    "audio_stories_one": "{{count}} histoire audio par mois",
+    "audio_stories_other": "{{count}} histoires audio par mois",
     "upgrading": "Mise à niveau du forfait...",
     "upgrade_error": "Erreur de mise à niveau",
     "upgrade_error_message": "Échec de la mise à niveau. Réessayez plus tard.",
@@ -415,6 +417,8 @@
     "features": {
       "stories_per_day": "Jusqu'à {{value}} histoires par jour",
       "stories_per_month": "{{value}} histoires par mois",
+      "stories_per_month_one": "{{value}} histoire par mois",
+      "stories_per_month_other": "{{value}} histoires par mois",
       "images_per_story": "{{value}} illustrations dans l'histoire",
       "images_per_story_one": "{{value}} illustration dans l'histoire",
       "images_per_story_other": "{{value}} illustrations dans l'histoire",

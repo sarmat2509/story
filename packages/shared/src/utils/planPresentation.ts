@@ -197,13 +197,23 @@ export function formatPricingPrice(
 }
 
 function getMetricHighlight(
+  locale: Locale,
   translate: PricingTranslate,
   key: string,
   feature?: PricingFeatureLike
 ): string | null {
   const limit = getFeatureValueObject(feature ?? {})?.limit;
   if (typeof limit !== 'number') return null;
-  const value = translate(key, { count: limit, value: limit }, '');
+  const fallback = translate(key, { count: limit, value: limit }, '');
+  const category = pluralCategory(locale, limit);
+  const pluralKey = category === 'one'
+    ? `${key}_one`
+    : category === 'few'
+      ? `${key}_few`
+      : category === 'many'
+        ? `${key}_many`
+        : `${key}_other`;
+  const value = translate(pluralKey, { count: limit, value: limit }, fallback);
   return value || null;
 }
 
@@ -220,8 +230,8 @@ export function getCombinedPricingUsageHighlight(
   features: Record<string, PricingFeatureLike>
 ): string | null {
   const locale = normalizePricingLocale(localeInput);
-  const stories = getMetricHighlight(translate, 'features.stories_per_month', features.stories_per_month);
-  const audio = getMetricHighlight(translate, 'audio_stories', features.audio_stories_per_month);
+  const stories = getMetricHighlight(locale, translate, 'features.stories_per_month', features.stories_per_month);
+  const audio = getMetricHighlight(locale, translate, 'audio_stories', features.audio_stories_per_month);
 
   if (!stories && !audio) return null;
   if (!stories) return audio;

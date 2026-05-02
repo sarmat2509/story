@@ -749,6 +749,8 @@
     "error_title": "Error al cargar planes",
     "error_message": "Por favor, intenta de nuevo más tarde",
     "audio_stories": "{{count}} audiocuentos por mes",
+    "audio_stories_one": "{{count}} audiocuento por mes",
+    "audio_stories_other": "{{count}} audiocuentos por mes",
     "upgrading": "Actualizando plan...",
     "upgrade_error": "Error de actualización",
     "upgrade_error_message": "No se pudo actualizar el plan. Inténtalo más tarde.",
@@ -762,6 +764,8 @@
     "features": {
       "stories_per_day": "Hasta {{value}} historias por día",
       "stories_per_month": "{{value}} historias por mes",
+      "stories_per_month_one": "{{value}} historia por mes",
+      "stories_per_month_other": "{{value}} historias por mes",
       "images_per_story": "{{value}} ilustraciones en historia",
       "images_per_story_one": "{{value}} ilustración en historia",
       "images_per_story_other": "{{value}} ilustraciones en historia",

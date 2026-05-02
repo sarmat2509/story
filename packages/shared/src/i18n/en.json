@@ -946,6 +946,8 @@
     "error_title": "Failed to load plans",
     "error_message": "Please try again later",
     "audio_stories": "{{count}} audio stories per month",
+    "audio_stories_one": "{{count}} audio story per month",
+    "audio_stories_other": "{{count}} audio stories per month",
     "upgrading": "Upgrading plan...",
     "upgrade_error": "Upgrade Error",
     "upgrade_error_message": "Failed to upgrade plan. Please try again later.",
@@ -965,6 +967,8 @@
     "features": {
       "stories_per_day": "Up to {{value}} stories per day",
       "stories_per_month": "{{value}} stories per month",
+      "stories_per_month_one": "{{value}} story per month",
+      "stories_per_month_other": "{{value}} stories per month",
       "images_per_story": "{{value}} illustrations in story",
       "images_per_story_one": "{{value}} illustration in story",
       "images_per_story_other": "{{value}} illustrations in story",

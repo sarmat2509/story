@@ -405,6 +405,8 @@
     "error_title": "Fehler beim Laden der Pläne",
     "error_message": "Bitte versuchen Sie es später erneut",
     "audio_stories": "{{count}} Audiogeschichten pro Monat",
+    "audio_stories_one": "{{count}} Audiogeschichte pro Monat",
+    "audio_stories_other": "{{count}} Audiogeschichten pro Monat",
     "upgrading": "Plan wird aktualisiert...",
     "upgrade_error": "Upgrade-Fehler",
     "upgrade_error_message": "Plan konnte nicht aktualisiert werden. Versuchen Sie es später.",
@@ -418,6 +420,8 @@
     "features": {
       "stories_per_day": "Bis zu {{value}} Geschichten pro Tag",
       "stories_per_month": "{{value}} Geschichten pro Monat",
+      "stories_per_month_one": "{{value}} Geschichte pro Monat",
+      "stories_per_month_other": "{{value}} Geschichten pro Monat",
       "images_per_story": "{{value}} Illustrationen in Geschichte",
       "images_per_story_one": "{{value}} Illustration in Geschichte",
       "images_per_story_other": "{{value}} Illustrationen in Geschichte",

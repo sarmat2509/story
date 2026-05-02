@@ -4,8 +4,10 @@ import { normalizePublicSeoLocale, type PublicSeoLocale } from '@wondertales/sha
 import { buildPlansWithFeatures, normalizePlanLocale } from '../services/planPresentationService';
 import { renderPricingHtml } from '../ssr/renderPricingHtml';
 import config from '../config';
+import { logger } from '../utils/logger';
 
 const router = Router();
+const PRICING_PLAN_LOAD_TIMEOUT_MS = 900;
 
 export function buildPricingEtag(html: string): string {
   return `"pricing-${crypto.createHash('sha1').update(html).digest('hex').slice(0, 12)}"`;
@@ -20,14 +22,34 @@ function resolveLocale(req: Request): string {
   return normalizePlanLocale(resolvePricingRouteLocale(routeLocale));
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`pricing plan load timed out after ${ms}ms`)), ms);
+    timeout.unref?.();
+    promise.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      }
+    );
+  });
+}
+
 async function handlePricing(req: Request, res: Response) {
   const locale = resolveLocale(req);
   let plans: Awaited<ReturnType<typeof buildPlansWithFeatures>> = [];
 
   try {
-    plans = await buildPlansWithFeatures({ locale });
-  } catch {
-    // Fallback to static pricing cards in renderPricingHtml
+    plans = await withTimeout(
+      buildPlansWithFeatures({ locale }),
+      PRICING_PLAN_LOAD_TIMEOUT_MS
+    );
+  } catch (error) {
+    logger.warn({ error, locale }, 'Falling back to static pricing plans for SSR pricing page');
   }
 
   const html = renderPricingHtml({

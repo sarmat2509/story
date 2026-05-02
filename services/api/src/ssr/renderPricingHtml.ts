@@ -1,7 +1,13 @@
 import { config } from '../config';
 import type { PresentedPlan } from '../services/planPresentationService';
 import { getPlansI18n } from '../utils/i18nLoader';
-import { PUBLIC_SEO_LOCALES, normalizeLandingLocale, type LandingLocale } from './landingContent';
+import {
+  PUBLIC_SEO_LOCALES,
+  buildPlanDescription,
+  getPlanDisplayName,
+  normalizeLandingLocale,
+  type LandingLocale,
+} from './landingContent';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import {
   PUBLIC_FOOTER_STYLES,
@@ -110,6 +116,100 @@ function buildPricingTranslate(plansI18n: any): PricingTranslate {
   };
 }
 
+const FALLBACK_PLAN_LIMITS = [
+  {
+    slug: 'free',
+    priceMonthly: 0,
+    sortOrder: 1,
+    stories: 3,
+    audio: 1,
+    images: 1,
+    children: 1,
+    series: false,
+    premiumVoices: false,
+    pdf: false,
+    video: false,
+  },
+  {
+    slug: 'silver',
+    priceMonthly: 599,
+    sortOrder: 2,
+    stories: 15,
+    audio: 5,
+    images: 3,
+    children: 1,
+    series: false,
+    premiumVoices: false,
+    pdf: true,
+    video: false,
+  },
+  {
+    slug: 'golden',
+    priceMonthly: 1999,
+    sortOrder: 3,
+    stories: 30,
+    audio: 10,
+    images: 5,
+    children: null,
+    series: true,
+    premiumVoices: false,
+    pdf: true,
+    video: false,
+  },
+  {
+    slug: 'fairyworld',
+    priceMonthly: 4999,
+    sortOrder: 4,
+    stories: 45,
+    audio: 15,
+    images: 8,
+    children: null,
+    series: true,
+    premiumVoices: true,
+    pdf: true,
+    video: true,
+  },
+] as const;
+
+function buildFallbackFeatures(input: typeof FALLBACK_PLAN_LIMITS[number]): PresentedPlan['features'] {
+  return {
+    stories_per_month: { name: 'Stories Per Month', value: { limit: input.stories }, category: 'stories' },
+    audio_stories_per_month: { name: 'Audio Stories Per Month', value: { limit: input.audio }, category: 'media' },
+    images_per_story: { name: 'Images Per Story', value: { limit: input.images }, category: 'media' },
+    child_profiles_limit: { name: 'Child Profiles Limit', value: { limit: input.children }, category: 'premium' },
+    premium_voices: { name: 'Premium Voice Selection', value: { enabled: input.premiumVoices }, category: 'media' },
+    series_enabled: { name: 'Story Series', value: { enabled: input.series }, category: 'stories' },
+    export_pdf: { name: 'Export as PDF', value: { enabled: input.pdf }, category: 'export' },
+    export_video: { name: 'Export as Video', value: { enabled: input.video }, category: 'export' },
+    share_enabled: { name: 'Share Story Links', value: { enabled: true }, category: 'export' },
+    story_from_drawing: {
+      name: 'Story From Child Drawing',
+      value: { enabled: input.slug !== 'free' },
+      category: 'premium',
+    },
+    image_quality: {
+      name: 'Image Quality',
+      value: {
+        selected: input.slug === 'free' ? 'low' : input.slug === 'silver' ? 'medium' : 'high',
+      },
+      category: 'media',
+    },
+  };
+}
+
+export function buildFallbackPricingPlans(locale: LandingLocale): PresentedPlan[] {
+  return FALLBACK_PLAN_LIMITS.map((plan) => ({
+    id: `fallback-${plan.slug}`,
+    slug: plan.slug,
+    name: getPlanDisplayName(locale, plan.slug, plan.slug),
+    description: buildPlanDescription(locale, plan.slug, plan.stories, plan.audio, plan.images),
+    priceMonthly: plan.priceMonthly,
+    pricingCurrency: 'USD',
+    sortOrder: plan.sortOrder,
+    features: buildFallbackFeatures(plan),
+  }));
+}
+
 export function renderPricingHtml(params: {
   locale?: string | null;
   plans?: PresentedPlan[];
@@ -125,7 +225,10 @@ export function renderPricingHtml(params: {
   const alternateLinks = buildPricingAlternateLinks(webAppUrl);
   const paymentsEnabled = params.paymentsEnabled ?? true;
 
-  const plans = (params.plans || []).slice().sort((a, b) => a.sortOrder - b.sortOrder);
+  const sourcePlans = params.plans && params.plans.length > 0
+    ? params.plans
+    : buildFallbackPricingPlans(locale);
+  const plans = sourcePlans.slice().sort((a, b) => a.sortOrder - b.sortOrder);
   const structuredData = renderPricingStructuredData({
     pricingUrl,
     title,

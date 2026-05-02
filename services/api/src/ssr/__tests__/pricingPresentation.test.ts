@@ -4,12 +4,16 @@ import {
   sortPricingFeatureEntries,
   type PricingTranslate,
 } from '@wondertales/shared';
-import { renderPricingHtml } from '../renderPricingHtml';
+import { buildFallbackPricingPlans, renderPricingHtml } from '../renderPricingHtml';
 
 const translate: PricingTranslate = (key, params = {}, defaultValue = '') => {
   const templates: Record<string, string> = {
     'features.stories_per_month': '{{count}} stories per month',
+    'features.stories_per_month_one': '{{count}} story per month',
+    'features.stories_per_month_other': '{{count}} stories per month',
+    audio_stories_one: '{{count}} audio story per month',
     audio_stories: '{{count}} audio stories per month',
+    audio_stories_other: '{{count}} audio stories per month',
     'features.images_per_story_one': '{{value}} illustration in story',
     'features.images_per_story_other': '{{value}} illustrations in story',
     'features.images_per_story': '{{value}} illustrations in story',
@@ -121,6 +125,31 @@ void (async function main() {
   assert.match(paymentsDisabledHtml, /Paid checkout is not enabled yet/);
   assert.match(paidCard, /Payments coming soon/);
   assert.doesNotMatch(paidCard, /href="[^"]*\/welcome"/);
+
+  const fallbackPlans = buildFallbackPricingPlans('en');
+  assert.deepStrictEqual(
+    fallbackPlans.map((plan) => [plan.slug, plan.priceMonthly]),
+    [
+      ['free', 0],
+      ['silver', 599],
+      ['golden', 1999],
+      ['fairyworld', 4999],
+    ],
+    'static pricing fallback should preserve launch plan order and prices'
+  );
+  assert.strictEqual(
+    (fallbackPlans.find((plan) => plan.slug === 'fairyworld')?.features.stories_per_month.value as { limit: number }).limit,
+    45,
+    'static pricing fallback should preserve Fairy World story limit'
+  );
+
+  const fallbackHtml = renderPricingHtml({ locale: 'en', plans: [] });
+  assert.match(fallbackHtml, /<div class="name">Free<\/div>/);
+  assert.match(fallbackHtml, /<div class="name">Silver Dreams<\/div>/);
+  assert.match(fallbackHtml, /<div class="name">Golden Stars<\/div>/);
+  assert.match(fallbackHtml, /<div class="name">Fairy World<\/div>/);
+  assert.match(fallbackHtml, /3 stories and 1 audio story per month/);
+  assert.match(fallbackHtml, /45 stories and 15 audio stories per month/);
 
   console.log('pricingPresentation tests passed');
 })();

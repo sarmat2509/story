@@ -608,6 +608,7 @@ Current code findings:
 - `services/api/src/ssr/renderPricingHtml.ts` renders an indexable pricing document with canonical and alternate links.
 - Public landing/pricing SSR locale ownership is path-based: `/` and `/pricing` resolve to default `uk`, while `/en/` and `/en/pricing` resolve to `en`; browser `Accept-Language` no longer changes canonical ownership for those public SEO URLs.
 - Public landing/pricing ETags now hash the rendered HTML, so SEO metadata changes cannot stay hidden behind stale `304 Not Modified` responses.
+- Public pricing SSR now has a bounded plan-data load and a static launch-plan fallback, so `/pricing` can still return complete indexable pricing HTML when plan data is slow or temporarily unavailable.
 - `apps/universal-app/src/screens/plans/PlansScreen.tsx` remains the authenticated billing/plans UI, but feature order, hidden-feature rules, price formatting, feature labels, and usage highlight rules now come from shared pricing presenter helpers.
 - React Navigation maps the authenticated app `Plans` screen to `/billing/plans`, while `/pricing` and `/{locale}/pricing` stay owned by API SSR.
 - Authenticated app deep links now wait for persisted auth-store hydration before protected-route guards can redirect to `/welcome`.
@@ -669,7 +670,7 @@ Required code changes:
 - Author pages with zero public catalog stories should return 404 or `noindex,nofollow`.
 - Sitemap includes author pages only for authors with at least one public catalog story.
 - Add `X-Robots-Tag: noindex,nofollow` for app-only route prefixes at nginx or app-server level.
-- Return real 404/noindex for unknown public routes instead of serving the SPA shell with HTTP 200.
+- Keep real `404` plus `X-Robots-Tag: noindex,nofollow` for unknown public routes instead of serving the SPA shell with HTTP 200.
 - Split public SEO locales from app-supported story languages. Sitemap, alternate links, and nginx localized SSR routes must use only launch-ready SEO locales.
 - Current launch SEO locale set is `uk` default plus `en`; app/story languages can remain broader without becoming indexable public SEO locales.
 - Keep public SSR route locale resolution path-based rather than `Accept-Language`-based, so canonical URLs stay deterministic.
@@ -689,6 +690,7 @@ Acceptance criteria:
 
 Current bundle purchase review findings:
 
+- Public pricing SSR now renders four static launch-plan cards if plan data times out or fails, and the usage highlight copy uses plural-aware story/audio labels across visible locales.
 - Bundle checkout cancel URL now points to `/billing/plans`; DevTools verified cancel returns from hosted Stripe back to the authenticated billing screen.
 - Public SSR pricing and authenticated billing/plans now explain monthly auto-renewal, cancellation via billing portal where available, support-reviewed refunds, and bundle non-rollover/current-period behavior.
 - Public SSR pricing and the app plans screen now suppress paid CTAs when real payments are disabled, while keeping free access available.
@@ -702,7 +704,6 @@ Current bundle purchase review findings:
 
 Required work:
 
-- Make pricing page SSR/static enough to load even if app API is temporarily slow.
 - Show plan limits clearly:
   - stories per month;
   - audio stories per month;
@@ -1169,6 +1170,7 @@ Observed on 2026-05-02 after the latest web/API deployment and production verifi
 - Public and authenticated API smoke checks passed for `/api/v1`, plans, dictionaries, `/api/v1/me`, library, subscription usage, privacy requests, children, characters, entitlements, bundles, and voices.
 - Admin read-only API smoke checks passed for detailed health, queue health, image rate limiter, dashboard, stories, users, feedback, privacy requests, voices, image validations, and content config.
 - Production DevTools screen sweep rendered the main authenticated screens, public stories catalog, and admin screens without runtime console errors.
+- Public pricing SSR now renders with a bounded plan-data load, has a static launch-plan fallback, and production `/en/pricing` DevTools/curl verification showed plural-correct usage copy.
 - A Stripe sandbox bundle payment completed through hosted Checkout, returned to `/billing/success?kind=bundle&session_id=...`, and the webhook recorded a `user_bundle_grant`.
 - Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Remaining log noise is nginx temporary-buffer warnings for large static/media responses.
 
