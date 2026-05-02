@@ -69,6 +69,7 @@ export interface SubscriptionUsageData {
   };
   resetsAt: string;
   currentPeriodEnd?: string;
+  subscriptionStatus?: string;
   cancelAtPeriodEnd?: boolean;
   paymentProvider?: string | null;
   enableRealPayments?: boolean;

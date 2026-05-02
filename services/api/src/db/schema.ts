@@ -236,7 +236,7 @@ export const userSubscriptions = pgTable('user_subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull().unique(),
   planId: uuid('plan_id').references(() => plans.id, { onDelete: 'restrict' }).notNull(),
-  status: varchar('status', { length: 20 }).notNull().default('active'), // 'active' | 'trialing' | 'canceled' | 'expired'
+  status: varchar('status', { length: 20 }).notNull().default('active'), // Stripe/app status: active, trialing, past_due, unpaid, canceled, expired
   trialEndsAt: timestamp('trial_ends_at'),
   storiesUsed: integer('stories_used').notNull().default(0),
   audioMinutesUsed: integer('audio_minutes_used').notNull().default(0),

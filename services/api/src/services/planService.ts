@@ -542,3 +542,24 @@ export async function updateSubscriptionDeletedFromStripe(stripeSubscriptionId: 
   logger.info({ userId: subscription.userId, stripeSubscriptionId }, 'Subscription downgraded to free from Stripe deletion');
   return true;
 }
+
+export async function markStripeSubscriptionPaymentFailed(
+  stripeSubscriptionId: string
+): Promise<boolean> {
+  const planRepo = getPlanRepository();
+  const subscription = await planRepo.findSubscriptionByStripeSubscriptionId(stripeSubscriptionId);
+  if (!subscription) {
+    logger.warn({ stripeSubscriptionId }, 'Subscription not found for Stripe payment failure');
+    return false;
+  }
+
+  await planRepo.updateSubscription(subscription.userId, {
+    status: 'past_due',
+  });
+
+  logger.warn(
+    { userId: subscription.userId, stripeSubscriptionId },
+    'Marked subscription past_due after Stripe invoice payment failed'
+  );
+  return true;
+}

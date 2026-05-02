@@ -750,12 +750,13 @@ Verified so far on 2026-05-02:
 - Stripe Customer Portal opened from the production profile, showed the `silver` subscription, card, invoice, and cancellation action, and returned to `/profile`.
 - Customer Portal cancellation was verified; API usage now reports `cancelAtPeriodEnd: true`, and the profile shows the cancellation-pending state through the period end.
 - The Stripe webhook handler now accepts both top-level subscription period timestamps and the newer item-level period timestamps sent by `customer.subscription.updated` events.
+- A signed production `invoice.payment_failed` test webhook marks the local subscription `past_due`, keeps paid-period limits available, and surfaces payment-issue copy in the profile.
+- A fresh `customer.subscription.updated` event restores the local subscription back to `active` after the payment-failure smoke, keeping the QA account in its cancel-at-period-end state.
 - `docs/runbooks/stripe-test-mode.md` records the repeatable test-mode verification process.
 - Production API logs show expected checkout session creation and webhook events with no matching error/warn lines after smoke and after the subscription update retry.
 
 Still required:
 
-- Verify payment failed behavior.
 - Verify refund/support flows.
 - Decide whether to keep the test webhook endpoint active for beta or replace it during live-mode setup.
 
@@ -764,7 +765,7 @@ Required work:
 - Keep subscription and bundle checkout success/cancel covered in recurring smoke.
 - Verify webhook signature verification.
 - Keep subscription created/updated/canceled covered in recurring smoke.
-- Verify payment failed behavior.
+- Keep payment failed behavior covered in recurring smoke.
 - Keep customer portal and bundle/credit purchases covered in recurring smoke.
 - Verify refund/support policy path.
 - Verify test mode before live mode.

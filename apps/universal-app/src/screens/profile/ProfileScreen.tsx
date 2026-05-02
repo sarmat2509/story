@@ -16,6 +16,8 @@ import { useUpdateMe } from '@/api/auth';
 import { formatAssetUrl, isServerAssetUrl, toCanonicalAssetUrl } from '@/utils/assetUrl';
 import { uploadPhoto, deletePhoto } from '@/utils/uploadPhoto';
 
+const PAYMENT_ISSUE_STATUSES = new Set(['past_due', 'unpaid', 'incomplete', 'incomplete_expired']);
+
 export default function ProfileScreen() {
   const { t } = useTranslation();
   const { user, logout } = useAuthStore();
@@ -71,6 +73,9 @@ export default function ProfileScreen() {
     : '';
   const hasPaidPlan = currentPlan && (currentPlan.priceMonthly ?? 0) > 0;
   const canManageSubscription = enableRealPayments && usage?.paymentProvider === 'stripe' && hasPaidPlan;
+  const hasPaymentIssue = usage?.subscriptionStatus
+    ? PAYMENT_ISSUE_STATUSES.has(usage.subscriptionStatus)
+    : false;
 
   const handleManageSubscription = async () => {
     if (!canManageSubscription) {
@@ -365,7 +370,11 @@ export default function ProfileScreen() {
             <Text style={styles.subscriptionPlan}>
               {currentPlanName}
             </Text>
-            {usage?.cancelAtPeriodEnd && formattedPeriodEnd ? (
+            {hasPaymentIssue ? (
+              <Text style={styles.subscriptionDetail}>
+                {t('profile.subscription_payment_issue')}
+              </Text>
+            ) : usage?.cancelAtPeriodEnd && formattedPeriodEnd ? (
               <Text style={styles.subscriptionDetail}>
                 {t('profile.subscription_canceling', { date: formattedPeriodEnd })}
               </Text>

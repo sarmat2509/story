@@ -741,6 +741,7 @@
     "subscription": "Подписка",
     "subscription_until": "Подписка до {{date}}",
     "subscription_canceling": "Подписка отменена, действует до {{date}}",
+    "subscription_payment_issue": "Проблема с оплатой. Обновите платежные данные в портале подписки.",
     "stories_per_month": "{{count}} историй в месяц",
     "usage_remaining": "Осталось {{stories}} сказок и {{audio}} аудиосказок до {{date}}",
     "usage_remaining_short": "Осталось {{stories}} сказок и {{audio}} аудиосказок",

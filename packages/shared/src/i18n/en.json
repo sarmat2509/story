@@ -778,6 +778,7 @@
     "subscription": "Subscription",
     "subscription_until": "Subscription until {{date}}",
     "subscription_canceling": "Subscription canceled, active until {{date}}",
+    "subscription_payment_issue": "Payment issue. Please update billing in the subscription portal.",
     "stories_per_month": "{{count}} stories per month",
     "usage_remaining": "{{stories}} stories and {{audio}} audio stories left until {{date}}",
     "usage_remaining_short": "{{stories}} stories and {{audio}} audio stories left",

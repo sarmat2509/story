@@ -497,6 +497,7 @@
     "subscription": "Suscripción",
     "subscription_until": "Suscripción hasta {{date}}",
     "subscription_canceling": "Suscripción cancelada, activa hasta {{date}}",
+    "subscription_payment_issue": "Problema de pago. Actualiza la facturación en el portal de suscripción.",
     "stories_per_month": "{{count}} historias por mes",
     "usage_remaining_short": "{{stories}} historias y {{audio}} historias de audio restantes",
     "upgrade_plan": "Actualizar plan",

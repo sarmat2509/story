@@ -234,6 +234,31 @@ function getPlanSlugFromPriceId(priceId: string): string | null {
   return null;
 }
 
+function getStripeObjectId(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'id' in value) {
+    const id = (value as { id?: unknown }).id;
+    return typeof id === 'string' ? id : null;
+  }
+  return null;
+}
+
+export function resolveStripeInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+  const invoiceWithParent = invoice as Stripe.Invoice & {
+    parent?: {
+      subscription_details?: {
+        subscription?: unknown;
+      };
+    } | null;
+  };
+
+  return (
+    getStripeObjectId(invoice.subscription) ??
+    getStripeObjectId(invoiceWithParent.parent?.subscription_details?.subscription) ??
+    null
+  );
+}
+
 /**
  * Handle Stripe webhook events.
  * Must be called with raw body (for signature verification).
@@ -316,10 +341,14 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string): P
 
     case 'invoice.payment_failed': {
       const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = resolveStripeInvoiceSubscriptionId(invoice);
       logger.warn(
-        { invoiceId: invoice.id, subscriptionId: invoice.subscription },
+        { invoiceId: invoice.id, subscriptionId },
         'Stripe invoice payment failed'
       );
+      if (subscriptionId) {
+        await planService.markStripeSubscriptionPaymentFailed(subscriptionId);
+      }
       break;
     }
 

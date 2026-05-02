@@ -677,6 +677,7 @@
     "subscription": "Abonnement",
     "subscription_until": "Abonnement bis {{date}}",
     "subscription_canceling": "Abonnement gekündigt, gültig bis {{date}}",
+    "subscription_payment_issue": "Zahlungsproblem. Bitte aktualisieren Sie die Abrechnung im Abonnementportal.",
     "stories_per_month": "{{count}} Geschichten pro Monat",
     "usage_remaining_short": "{{stories}} Geschichten und {{audio}} Audiogeschichten übrig",
     "upgrade_plan": "Plan upgraden",

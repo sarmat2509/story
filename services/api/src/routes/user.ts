@@ -225,6 +225,7 @@ router.get('/subscription-usage', requireAuth, requireParentSession, async (req:
         },
         resetsAt: subscription.resetAt,
         currentPeriodEnd: subscription.currentPeriodEnd,
+        subscriptionStatus: subscription.status,
         cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
         paymentProvider: subscription.paymentProvider,
         enableRealPayments: config.features.enableRealPayments,

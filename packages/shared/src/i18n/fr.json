@@ -639,6 +639,7 @@
     "subscription": "Abonnement",
     "subscription_until": "Abonnement jusqu'au {{date}}",
     "subscription_canceling": "Abonnement annulé, actif jusqu'au {{date}}",
+    "subscription_payment_issue": "Problème de paiement. Mettez à jour la facturation dans le portail d'abonnement.",
     "stories_per_month": "{{count}} histoires par mois",
     "usage_remaining_short": "{{stories}} histoires et {{audio}} histoires audio restantes",
     "upgrade_plan": "Mettre à niveau le plan",

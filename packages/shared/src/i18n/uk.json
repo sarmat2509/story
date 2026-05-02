@@ -956,6 +956,7 @@
     "subscription": "Підписка",
     "subscription_until": "Підписка до {{date}}",
     "subscription_canceling": "Підписка скасована, діє до {{date}}",
+    "subscription_payment_issue": "Проблема з оплатою. Оновіть платіжні дані в порталі підписки.",
     "stories_per_month": "{{count}} історій на місяць",
     "usage_remaining": "Залишилось {{stories}} казок та {{audio}} аудіоказок до {{date}}",
     "usage_remaining_short": "Залишилось {{stories}} казок та {{audio}} аудіоказок",

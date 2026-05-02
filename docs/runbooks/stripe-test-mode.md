@@ -76,6 +76,18 @@ Expected log sequence:
 8. Cancel the subscription in the portal or trigger a test-mode `customer.subscription.updated` event.
 9. Confirm `/api/v1/me/subscription-usage` reports `cancelAtPeriodEnd: true` and the profile shows cancellation-pending copy.
 
+## Payment Failed
+
+Use a signed test webhook or Stripe test-mode renewal failure to send `invoice.payment_failed` for an existing test subscription.
+
+Expected result:
+
+- API logs show `invoice.payment_failed`.
+- The local subscription status becomes `past_due`.
+- `/api/v1/me/subscription-usage` includes `subscriptionStatus: "past_due"`.
+- The profile shows payment-issue copy and still leaves the customer portal available.
+- A later `customer.subscription.updated` event from Stripe can restore the local status to `active`.
+
 ## Failure Signals
 
 - Checkout opens but no webhook log appears: check Stripe endpoint existence and `STRIPE_WEBHOOK_SECRET`.
