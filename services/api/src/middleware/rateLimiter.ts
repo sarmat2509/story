@@ -1,12 +1,14 @@
 import rateLimit from 'express-rate-limit';
-import { Request } from 'express';
+import crypto from 'crypto';
+import { Request, Response } from 'express';
+import { logger } from '../utils/logger';
 
 /**
  * Extract real client IP from proxy headers.
  * When behind Nginx reverse proxy, the actual client IP is in X-Forwarded-For or X-Real-IP headers.
  * This prevents all requests from being treated as coming from the Nginx container IP.
  */
-const getClientIp = (req: Request): string => {
+export const getClientIp = (req: Request): string => {
   // Check X-Forwarded-For header (set by Nginx)
   const forwarded = req.headers['x-forwarded-for'];
   if (forwarded) {
@@ -44,6 +46,47 @@ const isReadOnlyRequest = (req: Request): boolean => (
   req.method === 'OPTIONS'
 );
 
+export const hashRateLimitIdentity = (value: string): string => (
+  crypto.createHash('sha256').update(value).digest('hex').slice(0, 16)
+);
+
+export const getRateLimitLogContext = (req: Request, limiterName: string) => {
+  const ownerUserId = req.parentUserId || req.user?.id;
+  const clientIp = getClientIp(req);
+  const rateLimitState = (req as Request & {
+    rateLimit?: {
+      limit?: number;
+      used?: number;
+      remaining?: number;
+      resetTime?: Date;
+    };
+  }).rateLimit;
+
+  return {
+    abuseSignal: true,
+    limiterName,
+    method: req.method,
+    routeBase: req.baseUrl || '/',
+    keyScope: ownerUserId ? 'user' : 'ip',
+    userId: ownerUserId,
+    clientIpHash: hashRateLimitIdentity(clientIp),
+    limit: rateLimitState?.limit,
+    used: rateLimitState?.used,
+    remaining: rateLimitState?.remaining,
+    resetTime: rateLimitState?.resetTime?.toISOString(),
+  };
+};
+
+export const createRateLimitHandler = (limiterName: string) => (
+  req: Request,
+  res: Response,
+  _next: unknown,
+  options: { statusCode?: number; message?: unknown }
+) => {
+  logger.warn(getRateLimitLogContext(req, limiterName), 'Rate limit exceeded');
+  res.status(options.statusCode || 429).send(options.message);
+};
+
 // Global rate limiter for all endpoints
 export const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -55,6 +98,7 @@ export const globalLimiter = rateLimit({
     status: 'error',
     message: 'Too many requests from this IP, please try again later',
   },
+  handler: createRateLimitHandler('global'),
   // Skip rate limiting in development
   skip: isDevelopment,
 });
@@ -70,6 +114,7 @@ export const authLimiter = rateLimit({
     status: 'error',
     message: 'Too many authentication attempts from this IP, please try again later',
   },
+  handler: createRateLimitHandler('auth'),
   skipSuccessfulRequests: true, // Don't count successful requests
 });
 
@@ -84,6 +129,7 @@ export const oauthLimiter = rateLimit({
     status: 'error',
     message: 'Too many OAuth attempts from this IP, please try again in an hour',
   },
+  handler: createRateLimitHandler('oauth'),
   skipSuccessfulRequests: false, // Count all requests
   skip: isDevelopment,
 });
@@ -99,6 +145,7 @@ export const passwordResetLimiter = rateLimit({
     status: 'error',
     message: 'Too many password reset requests from this IP, please try again later',
   },
+  handler: createRateLimitHandler('password_reset'),
   skipSuccessfulRequests: false,
   skip: isDevelopment,
 });
@@ -114,6 +161,7 @@ export const ratingLimiter = rateLimit({
     status: 'error',
     message: 'Too many rating requests from this IP, please try again later',
   },
+  handler: createRateLimitHandler('rating'),
   skip: isDevelopment,
 });
 
@@ -128,6 +176,7 @@ export const storyWriteLimiter = rateLimit({
     status: 'error',
     message: 'Too many story write requests from this IP, please try again later',
   },
+  handler: createRateLimitHandler('story_write'),
   skip: (req) => isDevelopment() || isReadOnlyRequest(req),
 });
 
@@ -148,6 +197,7 @@ export const expensiveGenerationLimiter = rateLimit({
     code: 'EXPENSIVE_GENERATION_RATE_LIMITED',
     message: 'Too many generation requests. Please try again later.',
   },
+  handler: createRateLimitHandler('expensive_generation'),
   skip: isDevelopment,
 });
 
@@ -162,6 +212,7 @@ export const uploadLimiter = rateLimit({
     status: 'error',
     message: 'Too many upload requests from this IP, please try again later',
   },
+  handler: createRateLimitHandler('upload'),
   skip: isDevelopment,
 });
 
@@ -176,6 +227,7 @@ export const billingLimiter = rateLimit({
     status: 'error',
     message: 'Too many billing requests from this IP, please try again later',
   },
+  handler: createRateLimitHandler('billing'),
   skip: isDevelopment,
 });
 
@@ -190,6 +242,7 @@ export const apiLimiter = rateLimit({
     status: 'error',
     message: 'API rate limit exceeded',
   },
+  handler: createRateLimitHandler('api'),
   // Skip rate limiting in development
   skip: isDevelopment,
 });

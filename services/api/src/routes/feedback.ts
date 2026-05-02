@@ -8,6 +8,7 @@ import {
 import { optionalAuth } from '../middleware/authMiddleware';
 import { createFeedback } from '../services/feedbackService';
 import { logger } from '../utils/logger';
+import { createRateLimitHandler } from '../middleware/rateLimiter';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
@@ -59,6 +60,7 @@ const feedbackLimiter = rateLimit({
     status: 'error',
     message: 'Too many feedback submissions. Please try again later.',
   },
+  handler: createRateLimitHandler('feedback'),
   skip: () => process.env.NODE_ENV === 'development',
 });
 

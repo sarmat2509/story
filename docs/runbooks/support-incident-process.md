@@ -114,10 +114,28 @@ Thanks for reporting the failed generation. We are checking the story request, j
 - Pause broad retries if the provider is returning systematic failures.
 - Prioritize paid parent accounts and safety-related stuck work.
 
+### Repeated abuse or bot signals
+
+- Search recent API logs for `abuseSignal=true` or `Rate limit exceeded`.
+- For a quick read-only check, run
+  `LOG_SINCE=6h ./scripts/check-production-abuse-signals.sh`.
+- Group repeat events by `limiterName`, `userId`, and `clientIpHash`; do not ask
+  support to collect raw IP addresses from customers.
+- For `password_reset`, `auth`, or `oauth` bursts, check whether the affected
+  account received unexpected mail or login attempts before changing account
+  state.
+- For `expensive_generation` bursts, pair the `userId` with admin dashboard cost
+  signals, plan status, failed generation reports, and support history.
+- For anonymous `upload`, `feedback`, or `rating` bursts, pause public traffic
+  campaigns and enable WAF/CAPTCHA before scaling beyond manual beta review.
+
 ## Production verification
 
 - Submit a feedback item from `/billing/plans` with a billing/refund topic.
 - Confirm it appears in `/admin/feedback` with topic, screen, URL, user/contact, and screenshot where available.
 - Search/filter by topic and email.
 - Check production logs for the feedback insert with no errors.
+- If testing rate-limit handling, only use a temporary QA account and confirm
+  logs contain `abuseSignal=true` without raw URLs, reset tokens, email
+  addresses, request bodies, or raw client IPs.
 - For Stripe cases, pair the support item with the relevant Stripe customer/subscription/invoice and the steps in `docs/runbooks/stripe-test-mode.md`.

@@ -296,7 +296,7 @@ Acceptance criteria:
 
 ### 5. Account, Auth, and Recovery
 
-Status on 2026-05-02: Ready for closed-beta verification; production email/password auth, Google OAuth start/callback, noindex auth routes, sensitive response filtering, sender DNS, Resend domain verification, reset endpoint smoke checks, and real Gmail password-reset delivery pass.
+Status on 2026-05-02: Ready for closed-beta verification; production email/password auth, Google OAuth start/callback, noindex auth routes, sensitive response filtering, sender DNS, Resend domain verification, reset endpoint smoke checks, real Gmail password-reset delivery, and safe rate-limit abuse-signal logging pass.
 
 Done:
 
@@ -317,10 +317,12 @@ Done:
 - Google OAuth callback logs no longer include token-bearing callback URLs, launch-gate coverage now guards this behavior, and the fix was deployed with post-deploy auth/log checks.
 - Deployed `/welcome`, `/register`, `/auth/forgot-password`, and `/auth/reset-password?token=bad` return app-shell HTML with `noindex,nofollow` in the production smoke script.
 - Full production smoke re-ran with a temporary account and covered login, authenticated APIs, read-only admin APIs, Stripe checkout-session creation, hosted Checkout loading, and DevTools checks for `/profile`, `/wizard`, `/admin/dashboard`, and `/settings/language`.
+- Rate-limit exceedances now emit safe structured `abuseSignal=true` logs with limiter name, mounted route base, user id when authenticated, and hashed client IP; raw IPs, email addresses, URLs, OAuth codes, reset tokens, request bodies, prompts, and child data are not logged by this handler.
+- `scripts/check-production-abuse-signals.sh` scans recent production API Docker logs for these signals without changing server state.
 
 Remaining:
 
-- Decide whether IP-only rate limits are sufficient for beta or whether CAPTCHA/WAF bot protection is required before public acquisition.
+- Closed beta can proceed with current rate limits plus manual abuse-signal review; CAPTCHA/WAF should be enabled before public acquisition if production logs show repeated scripted auth, password-reset, feedback, upload, or rating traffic.
 
 Required work:
 
@@ -1079,7 +1081,7 @@ Acceptance criteria:
 
 ### 4. Cost Controls
 
-Status on 2026-05-02: Admin-visible cost guardrails, live queue pressure, unusual-usage alerts, and per-user throttles for provider-costly generation routes are now deployed. The dashboard tracks generation cost per story, retry/failure cost signals, high-cost story count, unpriced AI usage events, projected monthly spend, top-user 24h spend, text/image/audio/legacy queue depth, and actionable warning/critical cost alerts. A cron-friendly external admin-dashboard alert checker now covers cost, queue, and quality-review alerts. Production smoke confirmed the API fields, dashboard rendering, browser console, Docker logs, and a no-alert dry-run of the external checker.
+Status on 2026-05-02: Admin-visible cost guardrails, live queue pressure, unusual-usage alerts, per-user throttles for provider-costly generation routes, and safe repeated-abuse signal logging are deployed. The dashboard tracks generation cost per story, retry/failure cost signals, high-cost story count, unpriced AI usage events, projected monthly spend, top-user 24h spend, text/image/audio/legacy queue depth, and actionable warning/critical cost alerts. A cron-friendly external admin-dashboard alert checker now covers cost, queue, and quality-review alerts. Production smoke confirmed the API fields, dashboard rendering, browser console, Docker logs, and a no-alert dry-run of the external checker.
 
 Completed locally:
 
@@ -1096,11 +1098,12 @@ Completed locally:
 - Launch gate now includes focused rate-limiter key regression coverage.
 - `scripts/check-production-admin-alerts.sh` can notify an external webhook for critical admin dashboard findings, with optional warning-level escalation.
 - Production dry-run of the admin alert checker with a temporary elevated smoke account reported no active cost, queue, or quality findings.
+- Repeated API rate-limit exceedances now produce safe `abuseSignal=true` logs that can be grouped by `limiterName`, `userId`, and hashed client IP for manual beta escalation without logging raw IPs or request details.
+- `scripts/check-production-abuse-signals.sh` provides a repeatable Docker-log check for rate-limit and abuse-signal events.
 
 Remaining work:
 
 - Configure the real scheduler and external webhook destination for admin dashboard alerts before paid public launch.
-- Add escalation workflow for repeated per-user abuse signals if beta traffic grows beyond manual review.
 
 Acceptance criteria:
 
