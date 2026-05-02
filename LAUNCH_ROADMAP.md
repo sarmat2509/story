@@ -1017,7 +1017,7 @@ Acceptance criteria:
 
 ### 2. Support and Incident Process
 
-Status on 2026-05-02: Core support intake now exists through the existing feedback/admin workflow, with support topics for billing, refunds, unsafe content, failed generation, and account/privacy. Operator templates and incident checklists are documented in `docs/runbooks/support-incident-process.md`. Production smoke confirmed billing-page feedback topic UI, refund-topic submission, admin feedback filtering/display, and API docker log recording.
+Status on 2026-05-02: Core support intake now exists through the existing feedback/admin workflow, with support topics for billing, refunds, unsafe content, failed generation, and account/privacy. Operator templates and incident checklists are documented in `docs/runbooks/support-incident-process.md`. Production smoke confirmed billing-page feedback topic UI, refund-topic submission, admin feedback filtering/display, and API docker log recording. The repeatable auth/support smoke now checks support inbox MX and SMTP reachability; current DNS points `support@wondertales.art` at `mail.wondertales.art`, but SMTP port `25` timed out from the smoke runner, so real inbound support mail remains unverified.
 
 Completed locally:
 
@@ -1027,10 +1027,11 @@ Completed locally:
 - Stripe runbook now includes the refund/support review path.
 - Launch-gate feedback regression covers required support topics.
 - Production `/billing/plans` and `/admin/feedback` DevTools smoke verified the support topic path after deploy.
+- `scripts/check-production-auth.sh` now checks support inbox MX records, MX address resolution, and SMTP `25` reachability.
 
 Required work:
 
-- Confirm the support email inbox is actually receiving external mail.
+- Configure and confirm the support email inbox is actually receiving external mail.
 - Assign an incident owner/escalation contact for launch operations.
 
 Acceptance criteria:
@@ -1198,6 +1199,7 @@ Observed on 2026-05-02 after the latest web/API deployment and production verifi
 - A Stripe sandbox bundle payment completed through hosted Checkout, returned to `/billing/success?kind=bundle&session_id=...`, and the webhook recorded a `user_bundle_grant`.
 - Production logs for the payment flow show the expected Stripe checkout/webhook/grant sequence. Remaining log noise is nginx temporary-buffer warnings for large static/media responses.
 - The latest auth/ops checks show a real email-deliverability blocker: Resend rejects `noreply@wondertales.art` until the domain is verified, and DNS currently lacks SPF, DMARC, and common Resend DKIM records.
+- The latest support inbox smoke shows `support@wondertales.art` has an MX that resolves to the droplet, but SMTP port `25` timed out from the smoke runner, so inbound support mail is not verified.
 
 ## Recommended Launch Gates
 

@@ -5,6 +5,7 @@
 #   ./scripts/check-production-auth.sh
 #   CHECK_PROD_REMOTE=0 ./scripts/check-production-auth.sh
 #   PROD_AUTH_RESET_EMAIL=parent@example.com ./scripts/check-production-auth.sh
+#   PROD_SUPPORT_EMAIL=support@wondertales.art ./scripts/check-production-auth.sh
 
 set -euo pipefail
 
@@ -14,6 +15,7 @@ DROPLET_USER="${DROPLET_USER:-root}"
 DROPLET_PATH="${DROPLET_PATH:-/var/www/kazka}"
 CHECK_PROD_REMOTE="${CHECK_PROD_REMOTE:-1}"
 PROD_AUTH_RESET_EMAIL="${PROD_AUTH_RESET_EMAIL:-codex-smoke-nonexistent-20260502@wondertales.invalid}"
+PROD_SUPPORT_EMAIL="${PROD_SUPPORT_EMAIL:-support@wondertales.art}"
 
 failures=0
 warnings=0
@@ -146,6 +148,87 @@ if [[ -n "$dkim_cname" ]]; then
 else
   warn "No common Resend DKIM CNAME candidates found for wondertales.art"
 fi
+
+support_domain="${PROD_SUPPORT_EMAIL##*@}"
+support_mx_check="$(node - "$support_domain" <<'NODE'
+const dns = require('node:dns').promises;
+const net = require('node:net');
+
+const domain = process.argv[2];
+
+function line(level, message) {
+  console.log(`${level} ${message}`);
+}
+
+async function canConnect(host, port, timeoutMs = 5000) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ host, port });
+    let settled = false;
+
+    const finish = (ok, detail) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve({ ok, detail });
+    };
+
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => finish(true, 'connected'));
+    socket.once('timeout', () => finish(false, 'timeout'));
+    socket.once('error', (error) => finish(false, error.code || error.message));
+  });
+}
+
+async function main() {
+  if (!domain || domain === process.argv[1]) {
+    line('WARN', 'Support email domain is missing');
+    return;
+  }
+
+  let mx = [];
+  try {
+    mx = await dns.resolveMx(domain);
+  } catch (error) {
+    line('WARN', `Support email domain ${domain} has no readable MX records (${error.code || error.message})`);
+    return;
+  }
+
+  if (mx.length === 0) {
+    line('WARN', `Support email domain ${domain} has no MX records`);
+    return;
+  }
+
+  mx.sort((a, b) => a.priority - b.priority);
+  const primary = mx[0].exchange.replace(/\.$/, '');
+  line('PASS', `Support email domain ${domain} has MX ${primary}`);
+
+  try {
+    const addresses = await dns.lookup(primary, { all: true });
+    if (addresses.length > 0) {
+      line('PASS', `Support MX ${primary} resolves to ${addresses.map((item) => item.address).join(', ')}`);
+    } else {
+      line('WARN', `Support MX ${primary} did not resolve to an address`);
+    }
+  } catch (error) {
+    line('WARN', `Support MX ${primary} address lookup failed (${error.code || error.message})`);
+  }
+
+  const smtp = await canConnect(primary, 25);
+  if (smtp.ok) {
+    line('PASS', `Support MX ${primary}:25 accepted a TCP connection`);
+  } else {
+    line('WARN', `Support MX ${primary}:25 did not accept a TCP connection from this runner (${smtp.detail}); inbound support mail is not verified`);
+  }
+}
+
+main().catch((error) => {
+  line('WARN', `Support email MX check failed (${error?.message || error})`);
+});
+NODE
+)"
+printf '%s\n' "$support_mx_check"
+warnings=$((warnings + $(printf '%s\n' "$support_mx_check" | grep -c '^WARN ' || true)))
+failures=$((failures + $(printf '%s\n' "$support_mx_check" | grep -c '^FAIL ' || true)))
 
 if [[ "$CHECK_PROD_REMOTE" == "1" ]]; then
   printf '\nRemote container checks via %s@%s\n' "$DROPLET_USER" "$DROPLET_IP"
