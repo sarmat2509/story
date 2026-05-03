@@ -25,17 +25,21 @@ import { GlassCard, IRIDESCENT_BORDER_COLORS } from '@/components/GlassCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { InteractiveSurface } from '@/components/InteractiveSurface';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
+import { useAuthStore } from '@/store/authStore';
 import { resetToMainRoute } from '@/navigation/navigationRef';
+import { resolveBillingEntryTarget } from '@/utils/billingEntry';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function WelcomeScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { signInWithGoogle, signInWithApple, isLoading: oauthLoading } = useAuth();
   const emailLoginMutation = useEmailLogin();
   const enterKey = useScreenEnter();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const sessionMode = useAuthStore((state) => state.sessionMode);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -94,6 +98,29 @@ export default function WelcomeScreen() {
         : t('auth.apple_failed');
       handleError(message);
     }
+  };
+
+  const handleViewPlans = () => {
+    const target = resolveBillingEntryTarget({
+      isAuthenticated,
+      sessionMode,
+      platformOs: Platform.OS,
+      pathname: typeof window === 'undefined' ? undefined : window.location.pathname,
+      locale: i18n.language,
+      preferPublicPricingForGuests: true,
+    });
+
+    if (target.kind === 'public-web-pricing' && typeof window !== 'undefined') {
+      window.location.assign(target.href);
+      return;
+    }
+
+    if (target.kind === 'parent-gate') {
+      navigation.navigate('ChildMode' as never);
+      return;
+    }
+
+    navigation.navigate('Plans');
   };
 
   return (
@@ -267,7 +294,7 @@ export default function WelcomeScreen() {
 
             <InteractiveSurface
               style={styles.linkButton}
-              onPress={() => navigation.navigate('Plans')}
+              onPress={handleViewPlans}
               accessibilityLabel={t('welcome.view_plans')}
             >
               <Ionicons name="diamond-outline" size={24} color={theme.colors.interactive.primary} />

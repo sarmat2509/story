@@ -27,6 +27,29 @@ Run this checklist at least once per week during beta, and immediately after any
 - `user_feedback.context.supportTopic`: unsafe-content and generation-failure reports.
 - `stories` public visibility fields: sample story candidates eligible for manual curation.
 
+## Production smoke coverage
+
+The public story report and refund/support paths can be exercised from the production smoke script with an authenticated smoke user:
+
+```bash
+PROD_SMOKE_SUPPORT_FEEDBACK=1 PROD_SMOKE_TOKEN=... ./scripts/check-production-smoke.sh --require-auth
+./scripts/check-production-smoke.sh --support-feedback
+```
+
+When admin credentials or an admin token are also present, the smoke script verifies that the submitted `published_story` report appears in `/api/v1/admin/feedback?supportTopic=unsafe_content` and that the refund support smoke appears under `supportTopic=refund`.
+
+If feedback CAPTCHA is enabled in production, provide a fresh token for the smoke submission:
+
+```bash
+PROD_SMOKE_SUPPORT_FEEDBACK=1 \
+PROD_SMOKE_FEEDBACK_CAPTCHA_TOKEN=... \
+PROD_SMOKE_TOKEN=... \
+PROD_ADMIN_SMOKE_TOKEN=... \
+./scripts/check-production-smoke.sh --require-auth --require-admin
+```
+
+Without a CAPTCHA token, the smoke treats `CAPTCHA_REQUIRED` as a warning and does not create a support item.
+
 ## Notes
 
 - This review loop is operational only; it does not replace legal/safety policy review.

@@ -4,11 +4,22 @@ Last updated: 2026-05-02
 
 This runbook keeps common support cases inside admin, Stripe, and the feedback inbox instead of ad-hoc database access.
 
+## Launch ownership
+
+Paid launch requires an explicit incident owner and escalation contact. Verify them with:
+
+```bash
+WT_INCIDENT_OWNER=... WT_ESCALATION_CONTACT=... pnpm launch:check-paid-readiness
+```
+
+Do not rely on unattended paid operations until the owner, escalation contact, support inbox, ops alert webhook, and admin dashboard alert credentials are configured in the operator environment.
+
 ## Intake paths
 
 - In-app feedback modal: stores message, optional screenshot, reported screen, URL, user account, and `supportTopic`.
 - Support email: `support@wondertales.art`.
 - Privacy admin queue: `/admin/privacy-requests` for export and deletion requests.
+- Child-data deletion form: parent-only app flow from child profile management/Profile preferences that creates a scoped deletion request in the privacy admin queue; support email remains the fallback path.
 - Stripe dashboard: source of truth for charges, invoices, refunds, disputes, and hosted customer portal activity.
 
 ## Feedback topics
@@ -65,9 +76,11 @@ Some billing, security, consent, legal, or abuse-prevention records may be retai
 Admin handling note:
 
 - Use `/admin/privacy-requests` for the request status and internal notes.
+- For child-data deletion requests, prefer the dedicated parent-submitted form. Avoid asking the parent to send extra child details by email unless strictly needed for identification.
 - Export filenames use the privacy request id, not the exported user id.
 - Download export JSON only from the admin screen.
-- Record delivery method/date before marking an export request fulfilled.
+- Follow `docs/runbooks/data-export-delivery.md`; never send raw export JSON as a plain email attachment.
+- Record secure delivery method/date before marking an export request fulfilled.
 
 ### Unsafe content report
 

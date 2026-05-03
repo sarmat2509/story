@@ -31,6 +31,7 @@
     "launch:run-production-backup-retention": "bash scripts/run-production-backup-retention.sh",
     "launch:install-production-ops-cron": "bash scripts/install-production-ops-cron.sh",
     "launch:check-production-admin-alerts": "bash scripts/check-production-admin-alerts.sh",
+    "launch:check-paid-readiness": "bash scripts/check-paid-launch-readiness.sh",
     "lint": "pnpm -r lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "clean": "pnpm -r clean && rm -rf node_modules",

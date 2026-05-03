@@ -1,6 +1,8 @@
 const SENSITIVE_ANALYTICS_PROPERTY_NAMES = new Set([
   'audiouri',
   'audiourl',
+  'checkoutsessionid',
+  'checkouturl',
   'childname',
   'childnames',
   'childprofile',
@@ -17,9 +19,15 @@ const SENSITIVE_ANALYTICS_PROPERTY_NAMES = new Set([
   'photourl',
   'prompt',
   'rawprompt',
+  'resettoken',
+  'portalurl',
+  'sessionid',
+  'sessiontoken',
+  'sharetoken',
   'storytext',
   'storytitle',
   'text',
+  'token',
   'transcript',
 ]);
 

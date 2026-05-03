@@ -1,0 +1,27 @@
+HTTP 200 OK
+access-control-allow-credentials: true
+cache-control: public, no-cache, must-revalidate
+connection: keep-alive
+content-encoding: gzip
+content-security-policy: default-src 'self';script-src 'self' 'unsafe-inline' https://wondertales.art https://*.i.posthog.com https://*.posthog.com;script-src-elem 'self' 'unsafe-inline' https://wondertales.art https://*.i.posthog.com https://*.posthog.com;style-src 'self' 'unsafe-inline';img-src 'self' data: blob: https:;connect-src 'self' https://*.i.posthog.com https://*.posthog.com;font-src 'self' data: https:;media-src 'self' blob: https:;object-src 'none';frame-src 'none';base-uri 'self';form-action 'self';frame-ancestors 'self';script-src-attr 'none';upgrade-insecure-requests
+content-type: text/html; charset=utf-8
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+date: Sun, 03 May 2026 18:34:15 GMT
+etag: W/"landing-8d0c168e7dcd"
+origin-agent-cluster: ?1
+ratelimit-limit: 1000
+ratelimit-policy: 1000;w=900
+ratelimit-remaining: 960
+ratelimit-reset: 883
+referrer-policy: no-referrer
+server: nginx/1.29.5
+strict-transport-security: max-age=15552000; includeSubDomains
+transfer-encoding: chunked
+vary: Accept-Encoding, Origin
+x-content-type-options: nosniff
+x-dns-prefetch-control: off
+x-download-options: noopen
+x-frame-options: SAMEORIGIN
+x-permitted-cross-domain-policies: none
+x-xss-protection: 0

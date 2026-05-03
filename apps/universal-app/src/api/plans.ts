@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   PlanPublicApi,
   PlanAuthenticatedApi,
@@ -11,6 +11,13 @@ import i18n from '@/config/i18n';
 // Use shared types - renamed for clarity
 type PlanPublic = PlanPublicApi;
 type PlanAuthenticated = PlanAuthenticatedApi;
+
+export function invalidateBillingState(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: ['plans'] });
+  queryClient.invalidateQueries({ queryKey: ['plans', 'with-auth'] });
+  queryClient.invalidateQueries({ queryKey: ['bundles'] });
+  queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
+}
 
 export interface PlansCatalogData {
   plans: PlanPublic[];
@@ -180,9 +187,7 @@ export const useCreateBundleCheckoutSession = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bundles'] });
-      queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
-      queryClient.invalidateQueries({ queryKey: ['plans'] });
+      invalidateBillingState(queryClient);
     },
   });
 };
@@ -198,9 +203,7 @@ export const useCreateCheckoutSession = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['plans'] });
-      queryClient.invalidateQueries({ queryKey: ['bundles'] });
-      queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
+      invalidateBillingState(queryClient);
     },
   });
 };
@@ -216,9 +219,7 @@ export const useCreatePortalSession = () => {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['plans'] });
-      queryClient.invalidateQueries({ queryKey: ['bundles'] });
-      queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
+      invalidateBillingState(queryClient);
     },
   });
 };
@@ -238,11 +239,7 @@ export const useUpgradePlan = () => {
       return response.data;
     },
     onSuccess: () => {
-      // Invalidate plans cache to refetch with new current plan
-      queryClient.invalidateQueries({ queryKey: ['plans'] });
-      queryClient.invalidateQueries({ queryKey: ['plans', 'with-auth'] });
-      queryClient.invalidateQueries({ queryKey: ['bundles'] });
-      queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
+      invalidateBillingState(queryClient);
     },
   });
 };

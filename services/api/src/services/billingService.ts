@@ -47,6 +47,41 @@ export async function getOrCreateStripeCustomer(userId: string, email: string): 
   return customer.id;
 }
 
+export function isMissingStripeCustomerForActiveMode(error: unknown): boolean {
+  const maybeStripeError = error as {
+    code?: unknown;
+    param?: unknown;
+    message?: unknown;
+  } | null;
+  const message = typeof maybeStripeError?.message === 'string' ? maybeStripeError.message : '';
+
+  return (
+    maybeStripeError?.code === 'resource_missing' &&
+    maybeStripeError?.param === 'customer' &&
+    message.includes('No such customer')
+  );
+}
+
+async function replaceStripeCustomerForActiveMode(
+  userId: string,
+  email: string,
+  previousCustomerId: string
+): Promise<string> {
+  const stripe = getStripe();
+  const userRepo = getUserRepository();
+  const customer = await stripe.customers.create({
+    email,
+    metadata: { userId },
+  });
+
+  await userRepo.update(userId, { stripeCustomerId: customer.id });
+  logger.warn(
+    { userId, previousCustomerId, customerId: customer.id },
+    'Replaced Stripe customer for active key mode'
+  );
+  return customer.id;
+}
+
 /**
  * Create Stripe Checkout Session for subscription (recurring).
  * Returns URL to redirect user to Stripe Checkout.
@@ -63,32 +98,44 @@ export async function createCheckoutSession(
     throw new Error(`No Stripe price configured for plan: ${planSlug}`);
   }
 
-  const customerId = await getOrCreateStripeCustomer(userId, email);
+  let customerId = await getOrCreateStripeCustomer(userId, email);
   const stripe = getStripe();
 
-  const session = await stripe.checkout.sessions.create({
-    customer: customerId,
-    mode: 'subscription',
-    payment_method_types: ['card'],
-    line_items: [
-      {
-        price: priceId,
-        quantity: 1,
-      },
-    ],
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    metadata: {
-      userId,
-      planSlug,
-    },
-    subscription_data: {
+  const createSession = (customer: string) =>
+    stripe.checkout.sessions.create({
+      customer,
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       metadata: {
         userId,
         planSlug,
       },
-    },
-  });
+      subscription_data: {
+        metadata: {
+          userId,
+          planSlug,
+        },
+      },
+    });
+
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await createSession(customerId);
+  } catch (error) {
+    if (!isMissingStripeCustomerForActiveMode(error)) {
+      throw error;
+    }
+    customerId = await replaceStripeCustomerForActiveMode(userId, email, customerId);
+    session = await createSession(customerId);
+  }
 
   if (!session.url) {
     throw new Error('Stripe Checkout Session URL not returned');
@@ -137,7 +184,7 @@ export async function createBundleCheckoutSession(
     priceRow.stripePriceId
   );
 
-  const customerId = await getOrCreateStripeCustomer(userId, email);
+  let customerId = await getOrCreateStripeCustomer(userId, email);
   const stripe = getStripe();
 
   const period = resolveActiveSubscriptionPeriod(subscription);
@@ -168,24 +215,36 @@ export async function createBundleCheckoutSession(
         quantity: 1,
       };
 
-  const session = await stripe.checkout.sessions.create({
-    customer: customerId,
-    mode: 'payment',
-    payment_method_types: ['card'],
-    line_items: [lineItem],
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    metadata: {
-      checkoutKind: BUNDLE_CHECKOUT_METADATA_KIND,
-      userId,
-      bundleSlug: bundle.slug,
-      planSlug: plan.slug,
-      extraStories: String(bundle.extraStories),
-      extraAudio: String(bundle.extraAudio),
-      subscriptionPeriodStart: periodStart.toISOString(),
-      subscriptionPeriodEnd: periodEnd.toISOString(),
-    },
-  });
+  const createSession = (customer: string) =>
+    stripe.checkout.sessions.create({
+      customer,
+      mode: 'payment',
+      payment_method_types: ['card'],
+      line_items: [lineItem],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: {
+        checkoutKind: BUNDLE_CHECKOUT_METADATA_KIND,
+        userId,
+        bundleSlug: bundle.slug,
+        planSlug: plan.slug,
+        extraStories: String(bundle.extraStories),
+        extraAudio: String(bundle.extraAudio),
+        subscriptionPeriodStart: periodStart.toISOString(),
+        subscriptionPeriodEnd: periodEnd.toISOString(),
+      },
+    });
+
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await createSession(customerId);
+  } catch (error) {
+    if (!isMissingStripeCustomerForActiveMode(error)) {
+      throw error;
+    }
+    customerId = await replaceStripeCustomerForActiveMode(userId, email, customerId);
+    session = await createSession(customerId);
+  }
 
   if (!session.url) {
     throw new Error('Stripe Checkout Session URL not returned');

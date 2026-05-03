@@ -11,6 +11,8 @@ import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
+import { useAuthStore } from '@/store/authStore';
+import { resolveBillingEntryTarget } from '@/utils/billingEntry';
 
 export interface PaywallModalProps {
   visible: boolean;
@@ -32,10 +34,36 @@ export function PaywallModal({
 }: PaywallModalProps) {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const sessionMode = useAuthStore((state) => state.sessionMode);
+
+  const handleOpenPricing = () => {
+    const target = resolveBillingEntryTarget({
+      isAuthenticated,
+      sessionMode,
+      platformOs: typeof window === 'undefined' ? undefined : 'web',
+      pathname: typeof window === 'undefined' ? undefined : window.location.pathname,
+      locale: typeof document === 'undefined' ? undefined : document.documentElement.lang,
+      preferPublicPricingForGuests: true,
+    });
+
+    onClose();
+
+    if (target.kind === 'public-web-pricing' && typeof window !== 'undefined') {
+      window.location.assign(target.href);
+      return;
+    }
+
+    if (target.kind === 'parent-gate') {
+      navigation.navigate('ChildMode' as never);
+      return;
+    }
+
+    navigation.navigate('Plans');
+  };
 
   const handleUpgrade = () => {
-    onClose();
-    navigation.navigate('Plans');
+    handleOpenPricing();
   };
 
   const displayTitle = title ?? t('paywall.stories_limit_title');
@@ -63,10 +91,7 @@ export function PaywallModal({
           <Text style={styles.bundleHint}>{bundleHintText}</Text>
           <TouchableOpacity
             style={styles.linkButton}
-            onPress={() => {
-              onClose();
-              navigation.navigate('Plans');
-            }}
+            onPress={handleOpenPricing}
           >
             <Text style={styles.linkButtonText}>{t('paywall.bundle_pricing_link')}</Text>
           </TouchableOpacity>

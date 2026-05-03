@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { useMemo, useState, useEffect, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Platform, Linking, Image, Alert, Switch } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -13,9 +14,12 @@ import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
 import { usePlansWithAuth, useSubscriptionUsage, useCreatePortalSession } from '@/api/plans';
+import { useCreatePrivacyRequest, usePrivacyRequests, type PrivacyRequestType } from '@/api/privacyRequests';
 import { useUpdateMe } from '@/api/auth';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import { formatAssetUrl, isServerAssetUrl, toCanonicalAssetUrl } from '@/utils/assetUrl';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
+import { buildAccountDataPrivacyRequestMessage } from '@/utils/privacyRequestMessages';
 import { uploadPhoto, deletePhoto } from '@/utils/uploadPhoto';
 import {
   getAnalyticsConsent,
@@ -27,6 +31,14 @@ import { disablePostHogClient, getPostHogClient } from '@/services/analytics/pos
 
 const PAYMENT_ISSUE_STATUSES = new Set(['past_due', 'unpaid', 'incomplete', 'incomplete_expired']);
 
+type ProfilePrivacyRequestIntent = {
+  requestType: PrivacyRequestType;
+  title: string;
+  message: string;
+  confirmText: string;
+  successMessage: string;
+};
+
 export default function ProfileScreen() {
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuthStore();
@@ -34,6 +46,8 @@ export default function ProfileScreen() {
   const enterKey = useScreenEnter();
   const { data: plansData, isLoading: plansLoading } = usePlansWithAuth();
   const { data: usage, isLoading: usageLoading } = useSubscriptionUsage();
+  const privacyRequestsQuery = usePrivacyRequests();
+  const createPrivacyRequest = useCreatePrivacyRequest();
   const createPortalSession = useCreatePortalSession();
   const plans = plansData && 'plans' in plansData ? plansData.plans : plansData;
   const enableRealPayments = plansData && 'enableRealPayments' in plansData ? plansData.enableRealPayments : false;
@@ -45,6 +59,7 @@ export default function ProfileScreen() {
   const [isAvatarBusy, setIsAvatarBusy] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [privacyRequestIntent, setPrivacyRequestIntent] = useState<ProfilePrivacyRequestIntent | null>(null);
   const [analyticsConsent, setAnalyticsConsentState] = useState<AnalyticsConsent>(() => getAnalyticsConsent());
 
   useLayoutEffect(() => {
@@ -91,6 +106,73 @@ export default function ProfileScreen() {
   const hasPaymentIssue = usage?.subscriptionStatus
     ? PAYMENT_ISSUE_STATUSES.has(usage.subscriptionStatus)
     : false;
+  const recentPrivacyRequests = useMemo(
+    () => (privacyRequestsQuery.data ?? []).slice(0, 3),
+    [privacyRequestsQuery.data]
+  );
+
+  const getPrivacyRequestStatusLabel = (status: string) => {
+    switch (status) {
+      case 'in_review':
+        return t('profile.privacy_request_status_in_review');
+      case 'fulfilled':
+        return t('profile.privacy_request_status_fulfilled');
+      case 'rejected':
+        return t('profile.privacy_request_status_rejected');
+      case 'canceled':
+        return t('profile.privacy_request_status_canceled');
+      default:
+        return t('profile.privacy_request_status_open');
+    }
+  };
+
+  const getPrivacyRequestTypeLabel = (requestType: string) => {
+    return requestType === 'export'
+      ? t('profile.privacy_request_type_export')
+      : t('profile.privacy_request_type_deletion');
+  };
+
+  const openProfilePrivacyRequest = (requestType: PrivacyRequestType) => {
+    if (requestType === 'export') {
+      setPrivacyRequestIntent({
+        requestType,
+        title: t('profile.data_export_confirm_title'),
+        message: t('profile.data_export_confirm_message'),
+        confirmText: t('profile.request_data_export'),
+        successMessage: t('profile.data_export_success_message'),
+      });
+      return;
+    }
+
+    setPrivacyRequestIntent({
+      requestType,
+      title: t('profile.data_deletion_confirm_title'),
+      message: t('profile.data_deletion_confirm_message'),
+      confirmText: t('profile.request_data_deletion'),
+      successMessage: t('profile.data_deletion_success_message'),
+    });
+  };
+
+  const submitProfilePrivacyRequest = async () => {
+    if (!privacyRequestIntent || createPrivacyRequest.isPending) return;
+
+    try {
+      await createPrivacyRequest.mutateAsync({
+        requestType: privacyRequestIntent.requestType,
+        message: buildAccountDataPrivacyRequestMessage({
+          requestType: privacyRequestIntent.requestType,
+        }),
+      });
+      const successMessage = privacyRequestIntent.successMessage;
+      setPrivacyRequestIntent(null);
+      Alert.alert(t('profile.privacy_request_success_title'), successMessage);
+    } catch (err) {
+      Alert.alert(
+        t('common.error'),
+        getLocalizedApiError(t, err, 'profile.privacy_request_error')
+      );
+    }
+  };
 
   const handleManageSubscription = async () => {
     if (!canManageSubscription) {
@@ -404,6 +486,75 @@ export default function ProfileScreen() {
             />
           </View>
         ) : null}
+
+        <TouchableOpacity
+          style={styles.settingButton}
+          onPress={() => navigation.navigate('Children')}
+        >
+          <View style={styles.settingLeft}>
+            <Text style={styles.settingText}>{t('profile.child_data_deletion_requests')}</Text>
+            <Text style={styles.settingValue}>
+              {t('profile.child_data_deletion_requests_hint')}
+            </Text>
+          </View>
+          <Text style={styles.settingArrow}>›</Text>
+        </TouchableOpacity>
+
+        <View style={styles.privacyActionsPanel}>
+          <Text style={styles.privacyActionsTitle}>{t('profile.data_requests_title')}</Text>
+          <Text style={styles.privacyActionsBody}>{t('profile.data_requests_body')}</Text>
+          <View style={styles.privacyActionsRow}>
+            <TouchableOpacity
+              style={styles.privacyActionButton}
+              disabled={createPrivacyRequest.isPending}
+              onPress={() => openProfilePrivacyRequest('export')}
+            >
+              <Ionicons name="download-outline" size={16} color={theme.colors.interactive.primary} />
+              <Text style={styles.privacyActionButtonText}>
+                {t('profile.request_data_export')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.privacyActionButton, styles.privacyDangerActionButton]}
+              disabled={createPrivacyRequest.isPending}
+              onPress={() => openProfilePrivacyRequest('deletion')}
+            >
+              <Ionicons name="trash-outline" size={16} color={theme.colors.status.error} />
+              <Text style={[styles.privacyActionButtonText, styles.privacyDangerActionButtonText]}>
+                {t('profile.request_data_deletion')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {privacyRequestsQuery.isLoading || recentPrivacyRequests.length > 0 ? (
+          <View style={styles.privacyRequestsPanel}>
+            <Text style={styles.privacyRequestsTitle}>
+              {t('profile.privacy_requests_recent')}
+            </Text>
+            {privacyRequestsQuery.isLoading ? (
+              <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+            ) : (
+              recentPrivacyRequests.map((request) => (
+                <View key={request.id} style={styles.privacyRequestRow}>
+                  <View style={styles.privacyRequestInfo}>
+                    <Text style={styles.privacyRequestType}>
+                      {getPrivacyRequestTypeLabel(request.requestType)}
+                    </Text>
+                    <Text style={styles.privacyRequestDate}>
+                      {new Date(request.createdAt).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <View style={styles.privacyRequestStatusPill}>
+                    <Text style={styles.privacyRequestStatusText}>
+                      {getPrivacyRequestStatusLabel(request.status)}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        ) : null}
       </AnimatedSection>
 
       <AnimatedSection delay={320} trigger={enterKey} style={styles.section}>
@@ -484,6 +635,25 @@ export default function ProfileScreen() {
       onConfirm={() => { logout(); setShowLogoutConfirm(false); }}
       onCancel={() => setShowLogoutConfirm(false)}
       variant="danger"
+    />
+
+    <ConfirmDialog
+      visible={Boolean(privacyRequestIntent)}
+      title={privacyRequestIntent?.title ?? ''}
+      message={privacyRequestIntent?.message ?? ''}
+      confirmText={
+        createPrivacyRequest.isPending
+          ? t('profile.privacy_request_submitting')
+          : privacyRequestIntent?.confirmText ?? t('common.save')
+      }
+      cancelText={t('common.cancel')}
+      onConfirm={submitProfilePrivacyRequest}
+      onCancel={() => {
+        if (!createPrivacyRequest.isPending) {
+          setPrivacyRequestIntent(null);
+        }
+      }}
+      variant={privacyRequestIntent?.requestType === 'deletion' ? 'danger' : 'info'}
     />
 
     <FeedbackModal
@@ -672,6 +842,110 @@ const styles = StyleSheet.create({
   settingArrow: {
     fontSize: theme.typography.fontSize['2xl'],
     color: theme.colors.text.tertiary,
+  },
+  privacyActionsPanel: {
+    gap: theme.spacing[3],
+    padding: theme.spacing[4],
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    marginBottom: theme.spacing[2],
+  },
+  privacyActionsTitle: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  privacyActionsBody: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+  },
+  privacyActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[2],
+  },
+  privacyActionButton: {
+    minHeight: 40,
+    flexGrow: 1,
+    flexBasis: 180,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+    backgroundColor: theme.colors.background.primary,
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+  },
+  privacyDangerActionButton: {
+    borderColor: theme.colors.status.error,
+  },
+  privacyActionButtonText: {
+    flexShrink: 1,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.interactive.primary,
+    textAlign: 'center',
+  },
+  privacyDangerActionButtonText: {
+    color: theme.colors.status.error,
+  },
+  privacyRequestsPanel: {
+    gap: theme.spacing[2],
+    padding: theme.spacing[4],
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+  },
+  privacyRequestsTitle: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing[1],
+  },
+  privacyRequestRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
+    borderTopWidth: theme.borders.width.thin,
+    borderTopColor: theme.colors.border.light,
+  },
+  privacyRequestInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  privacyRequestType: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.text.primary,
+  },
+  privacyRequestDate: {
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.tertiary,
+    marginTop: theme.spacing[1],
+  },
+  privacyRequestStatusPill: {
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.background.primary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[3],
+  },
+  privacyRequestStatusText: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+    textTransform: 'capitalize',
   },
   subscriptionCard: {
     backgroundColor: theme.colors.background.secondary,

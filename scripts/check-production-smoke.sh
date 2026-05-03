@@ -10,6 +10,7 @@
 #   PROD_SMOKE_CHECKOUT=1 PROD_SMOKE_EMAIL=... PROD_SMOKE_PASSWORD=... ./scripts/check-production-smoke.sh
 #   PROD_SMOKE_CHECKOUT=1 PROD_SMOKE_LOAD_CHECKOUT=0 ... ./scripts/check-production-smoke.sh
 #   PROD_SMOKE_CHILD_MODE=1 PROD_SMOKE_TOKEN=... ./scripts/check-production-smoke.sh
+#   PROD_SMOKE_SUPPORT_FEEDBACK=1 PROD_SMOKE_TOKEN=... ./scripts/check-production-smoke.sh
 #   ./scripts/check-production-smoke.sh --full
 
 set -euo pipefail
@@ -24,6 +25,8 @@ export PROD_ADMIN_SMOKE_TOKEN="${PROD_ADMIN_SMOKE_TOKEN:-}"
 export PROD_SMOKE_CHECKOUT="${PROD_SMOKE_CHECKOUT:-0}"
 export PROD_SMOKE_LOAD_CHECKOUT="${PROD_SMOKE_LOAD_CHECKOUT:-1}"
 export PROD_SMOKE_CHILD_MODE="${PROD_SMOKE_CHILD_MODE:-0}"
+export PROD_SMOKE_SUPPORT_FEEDBACK="${PROD_SMOKE_SUPPORT_FEEDBACK:-0}"
+export PROD_SMOKE_FEEDBACK_CAPTCHA_TOKEN="${PROD_SMOKE_FEEDBACK_CAPTCHA_TOKEN:-}"
 export PROD_SMOKE_REQUIRE_AUTH="${PROD_SMOKE_REQUIRE_AUTH:-0}"
 export PROD_SMOKE_REQUIRE_ADMIN="${PROD_SMOKE_REQUIRE_ADMIN:-0}"
 export PROD_SMOKE_CHECKOUT_URL_FILE="${PROD_SMOKE_CHECKOUT_URL_FILE:-/tmp/wondertales-production-checkout-urls.json}"
@@ -51,6 +54,10 @@ for arg in "$@"; do
       ;;
     --child-mode)
       export PROD_SMOKE_CHILD_MODE=1
+      export PROD_SMOKE_REQUIRE_AUTH=1
+      ;;
+    --support-feedback)
+      export PROD_SMOKE_SUPPORT_FEEDBACK=1
       export PROD_SMOKE_REQUIRE_AUTH=1
       ;;
     --require-auth)
@@ -91,6 +98,8 @@ const adminTokenFromEnv = process.env.PROD_ADMIN_SMOKE_TOKEN;
 const createCheckout = process.env.PROD_SMOKE_CHECKOUT === '1';
 const loadHostedCheckout = process.env.PROD_SMOKE_LOAD_CHECKOUT !== '0';
 const checkChildMode = process.env.PROD_SMOKE_CHILD_MODE === '1';
+const checkSupportFeedback = process.env.PROD_SMOKE_SUPPORT_FEEDBACK === '1';
+const feedbackCaptchaToken = process.env.PROD_SMOKE_FEEDBACK_CAPTCHA_TOKEN;
 const requireAuth = process.env.PROD_SMOKE_REQUIRE_AUTH === '1';
 const requireAdmin = process.env.PROD_SMOKE_REQUIRE_ADMIN === '1';
 const checkoutUrlFile = process.env.PROD_SMOKE_CHECKOUT_URL_FILE;
@@ -98,6 +107,7 @@ const checkoutUrlFile = process.env.PROD_SMOKE_CHECKOUT_URL_FILE;
 let failures = 0;
 let warnings = 0;
 const checkoutUrls = [];
+const supportFeedbackSmokeItems = [];
 
 function pass(message) {
   console.log(`PASS ${message}`);
@@ -343,6 +353,37 @@ async function postJson({ path, label, token, body, expectedStatus = 200, predic
   }
 
   return json;
+}
+
+async function submitSupportFeedbackSmoke(token, { reportedScreen, supportTopic, category, message, url, label }) {
+  const body = {
+    reportedScreen,
+    supportTopic,
+    category,
+    message,
+    platform: 'web',
+    url,
+  };
+  if (feedbackCaptchaToken) body.captchaToken = feedbackCaptchaToken;
+
+  const headers = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
+  const { res, text, json } = await request('POST', '/api/v1/feedback', {
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (res.status === 201 && json?.status === 'success' && typeof json?.feedback?.id === 'string') {
+    supportFeedbackSmokeItems.push({ id: json.feedback.id, reportedScreen, supportTopic, label });
+    pass(`${label} smoke submitted`);
+    return;
+  }
+
+  if (res.status === 400 && json?.code === 'CAPTCHA_REQUIRED' && !feedbackCaptchaToken) {
+    warn(`${label} smoke reached CAPTCHA_REQUIRED; set PROD_SMOKE_FEEDBACK_CAPTCHA_TOKEN to submit through CAPTCHA-protected production feedback`);
+    return;
+  }
+
+  fail(`${label} smoke returned ${res.status}; ${preview(text)}`);
 }
 
 async function patchJson({ path, label, token, body, expectedStatus = 200, predicate }) {
@@ -819,6 +860,27 @@ async function main() {
       warn('Skipping Stripe checkout creation; set PROD_SMOKE_CHECKOUT=1');
     }
 
+    if (checkSupportFeedback) {
+      await submitSupportFeedbackSmoke(userToken, {
+        reportedScreen: 'published_story',
+        supportTopic: 'unsafe_content',
+        category: 'bug',
+        message: 'Production smoke public story report path verification. Safe to close.',
+        url: `${baseUrl}/stories/production-smoke-report-path`,
+        label: 'Public story report/support feedback',
+      });
+      await submitSupportFeedbackSmoke(userToken, {
+        reportedScreen: 'plans',
+        supportTopic: 'refund',
+        category: 'other',
+        message: 'Production smoke refund support path verification. Safe to close.',
+        url: `${baseUrl}/billing/plans`,
+        label: 'Refund support feedback',
+      });
+    } else {
+      console.log('INFO Skipping optional public story report/support feedback smoke; set PROD_SMOKE_SUPPORT_FEEDBACK=1');
+    }
+
     if (checkChildMode) {
       let smokeChildId = null;
       try {
@@ -846,6 +908,7 @@ async function main() {
             token: userToken,
             body: {
               childModeEnabled: true,
+              childModePasscode: 'codex-smoke-passcode',
               childModeSettings: {
                 dailyGenerationLimit: 5,
                 monthlyGenerationLimit: 30,
@@ -936,6 +999,26 @@ async function main() {
           token: adminToken,
           predicate: (json) => typeof json === 'object' && json !== null,
         });
+      }
+
+      if (supportFeedbackSmokeItems.length > 0) {
+        for (const smokeItem of supportFeedbackSmokeItems) {
+          await checkJson({
+            path: `/api/v1/admin/feedback?supportTopic=${encodeURIComponent(smokeItem.supportTopic)}&limit=10`,
+            label: `Admin ${smokeItem.label} filter`,
+            token: adminToken,
+            predicate: (json) =>
+              json?.status === 'success' &&
+              Array.isArray(json?.data?.items) &&
+              json.data.items.some((item) =>
+                item?.id === smokeItem.id &&
+                item?.context?.reportedScreen === smokeItem.reportedScreen &&
+                item?.context?.supportTopic === smokeItem.supportTopic
+              ),
+          });
+        }
+      } else if (checkSupportFeedback) {
+        warn('Skipping admin verification for support feedback smoke because no feedback id was created');
       }
     }
   } else {

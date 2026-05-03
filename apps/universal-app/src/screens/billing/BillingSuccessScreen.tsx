@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
+import { invalidateBillingState } from '@/api/plans';
 
 export default function BillingSuccessScreen() {
   const { t } = useTranslation();
@@ -26,10 +27,15 @@ export default function BillingSuccessScreen() {
   const isBundleSuccess = checkoutKind === 'bundle';
 
   useEffect(() => {
-    queryClient.invalidateQueries({ queryKey: ['plans'] });
-    queryClient.invalidateQueries({ queryKey: ['plans', 'with-auth'] });
-    queryClient.invalidateQueries({ queryKey: ['bundles'] });
-    queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('session_id')) {
+        url.searchParams.delete('session_id');
+        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+      }
+    }
+
+    invalidateBillingState(queryClient);
   }, [queryClient]);
 
   const handleGoToPlans = () => navigation.navigate('Plans');

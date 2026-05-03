@@ -56,6 +56,12 @@ EXPECTED_STRIPE_MODE=live ./scripts/check-production-ops.sh
 
 The default remains `EXPECTED_STRIPE_MODE=test` for the current test-mode beta verification path.
 
+Before enabling live paid checkout, also run the paid-launch gate. It checks operator-owned items that the normal ops check cannot infer, including legal/operator confirmation, incident ownership, offsite backup target, restore drill, and external alert credentials:
+
+```bash
+pnpm launch:check-paid-readiness
+```
+
 Use `LOG_SERVICES=api` or another space-separated service list for a focused log scan. The default is `api webapp nginx`.
 
 After a web or nginx deploy, capture the exact deployed security headers and scan the live client artifact, not only the local build:

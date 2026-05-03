@@ -43,7 +43,8 @@ const REVIEW_STATUS_OPTIONS: AdminDataPrivacyRequestStatus[] = [
 const EXPORT_DELIVERY_CHECKLIST = [
   'Verify the requester controls the account before sending files.',
   'Download the JSON only from this admin screen; do not paste raw data into tickets.',
-  'Send through the verified support mailbox and record delivery method/date in admin notes.',
+  'Do not send raw JSON as a plain email attachment.',
+  'Use the approved secure delivery method and record method/date in admin notes.',
   'Mark fulfilled only after delivery is complete.',
 ];
 

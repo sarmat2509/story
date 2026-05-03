@@ -65,6 +65,7 @@ API_TESTS=(
   src/services/__tests__/storyPublishSafetyService.test.ts
   src/services/__tests__/storyQuotaReservation.test.ts
   src/services/__tests__/stripeInvoiceSubscription.test.ts
+  src/services/__tests__/stripeCustomerMode.test.ts
   src/services/__tests__/stripeSubscriptionPeriod.test.ts
   src/services/__tests__/subscriptionPeriodService.test.ts
   src/services/__tests__/subscriptionUsageView.test.ts
@@ -100,6 +101,10 @@ fi
 
 run_in services/api pnpm build
 run_in services/api pnpm run build:fast
+run_in apps/universal-app pnpm exec tsx src/utils/__tests__/billingEntry.test.ts
+run_in apps/universal-app pnpm exec tsx src/utils/__tests__/childDataDeletionRequest.test.ts
+run_in apps/universal-app pnpm exec tsx src/utils/__tests__/privacyRequestMessages.test.ts
+run_in apps/universal-app pnpm exec tsx src/services/analytics/__tests__/privacy.test.ts
 run_in apps/universal-app pnpm type-check
 run_in apps/universal-app pnpm build:web
 run bash scripts/check-web-manifest-brand.sh

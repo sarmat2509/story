@@ -100,6 +100,8 @@ Completed or ready for closed-beta verification:
 - The 2026-05-03 quota/access hardening batch was deployed to production; API/web/nginx restart, migration runner, health check, public production smoke, DevTools welcome screen check, and fresh docker log scan passed.
 - Production security artifact audit now checks the exact deployed headers and client bundle from `wondertales.art`, including apex SSR pages, app/auth SPA routes, `www` redirect behavior, `noindex` auth/app route headers, and server-side secret markers in deployed JS/CSS/HTML/JSON.
 - Production smoke now treats optional remote Docker log tail SSH failures as warnings while preserving true HTTP/API smoke failures.
+- Production admin read-only smoke and the admin dashboard alert checker dry-run passed on 2026-05-03 with owner-supplied admin credentials and no active cost, queue, or quality-review findings.
+- Production Child Mode passcode E2E passed on 2026-05-03 with a disposable parent smoke account; the temporary child profile and temporary account were deleted after the run.
 
 Remaining P0 bottlenecks:
 
@@ -351,7 +353,7 @@ Acceptance criteria:
 
 ### 6. Parent-Owned Child Mode
 
-Status on 2026-05-03: Ready for closed-beta verification after local build/type-check/tests; normal production Google OAuth callback is verified under Auth, and Child Mode return now uses a per-child exit passcode instead of OAuth.
+Status on 2026-05-03: Ready for closed-beta verification after local build/type-check/tests and disposable production smoke; normal production Google OAuth callback is verified under Auth, and Child Mode return now uses a per-child exit passcode instead of OAuth.
 
 Done:
 
@@ -379,10 +381,11 @@ Done:
 - Child story listing/detail APIs now filter child sessions to the active child profile unless `allowSharedFamilyStories` grants the `family_stories:read` scope.
 - Child Mode passcode hashes and set timestamps are not returned from child-profile APIs or privacy export packages.
 - `POST /api/v1/auth/parent-gate` lets adults re-enter Parent Mode from a child session with the selected child's exit passcode and revokes the previous child session.
+- Production Child Mode passcode E2E passed with a disposable parent smoke account: child profile creation, controls update with exit passcode, child-session creation, child-safe usage, parent API guard, child cleanup, and temporary account deletion completed successfully.
 
 Remaining:
 
-- Run an authenticated production Child Mode passcode E2E with a temporary child profile when a disposable parent smoke credential is available.
+- Keep Child Mode in full production smoke with disposable parent accounts; do not use the long-lived admin account as the mutating fixture because child-profile limits can make the fixture fail for account-state reasons.
 
 If children can use the app themselves, they must do so inside a supervised mode controlled by an adult account.
 
@@ -502,7 +505,7 @@ Acceptance criteria:
 
 ### 8. Data Deletion and Retention
 
-Status on 2026-05-03: Core deletion behavior, support/admin request intake, admin export package generation, export delivery hygiene, orphan-file dry-run scanning, target-environment dry-run review, and the disabled-by-default scheduled cleanup job are ready; final export delivery policy and production cleanup apply-mode approval remain.
+Status on 2026-05-03: Core deletion behavior, support/admin request intake, parent child-data deletion form, admin export package generation, secure export delivery policy, orphan-file dry-run scanning, target-environment dry-run review, and the disabled-by-default scheduled cleanup job are ready; production cleanup apply-mode approval remains.
 
 Done:
 
@@ -512,17 +515,20 @@ Done:
 - Child profile deletion revokes active sessions attached to that child profile.
 - Deletion tests exist for story, account, and child profile behavior.
 - Parent-only data privacy request endpoints now let users create/list export or deletion requests.
+- Parent app now includes a child-data deletion request form linked from child profile management and Profile preferences; it creates scoped `requestType='deletion'` privacy requests for support/admin review.
+- Profile preferences now let parents submit account-level export and deletion-review requests without emailing support first.
+- Profile preferences now show the parent their recent export/deletion privacy request statuses from `/api/v1/me/privacy-requests`.
 - Admin-only privacy request endpoints now let support list/filter and mark requests `open`, `in_review`, `fulfilled`, `rejected`, or `canceled`.
 - Web admin now includes `/admin/privacy-requests` for filtering, reviewing, and updating export/deletion support requests.
 - Admin-only export package generation returns JSON for `export` privacy requests while omitting password hashes, Child Mode passcode hashes, OAuth/session/reset tokens, story share tokens, and signed asset URLs.
 - Admin export filenames now use the privacy request id instead of the exported user id, and the admin review panel includes a delivery checklist before fulfillment.
+- Secure export delivery policy is documented in `docs/runbooks/data-export-delivery.md`; paid-readiness now requires an approved delivery method before launch.
 - `scanOrphanStorageFiles.ts` can dry-run local storage, compare files against DB-referenced asset paths, and only deletes with explicit `--apply`.
 - Scheduled orphan-file cleanup now starts from API lifecycle only when `ORPHAN_STORAGE_CLEANUP_ENABLED=true`, defaults to dry-run, and requires an age gate before any apply-mode deletion.
 - Production cleanup dry-run now runs through `scripts/check-production-orphan-cleanup.sh` using the bundled production scanner and verifies `dryRun=true` plus `deletedCount=0`.
 
 Remaining:
 
-- Secure delivery of generated export packages is still a manual support operation after admin review, but the admin UI now guides the review/delivery note workflow.
 - Production cleanup apply mode is not enabled yet; deletion policy and operator approval are still required before using `--apply` or `ORPHAN_STORAGE_CLEANUP_APPLY=true`.
 - Billing-record retention needs final legal/operator confirmation before paid launch.
 
@@ -538,6 +544,7 @@ Acceptance criteria:
 
 - Account deletion removes DB records and local storage files that should not be retained.
 - Story deletion removes generated assets.
+- A parent can submit a scoped child-data deletion request from the app without emailing support, and support can review it in the privacy request queue.
 - Retained billing records are documented in Privacy/Retention policy.
 - Deletion behavior is tested.
 
@@ -602,6 +609,7 @@ Done:
 - `pnpm launch:gate` now runs shared build, critical API tests, static migration safety checks, API build, web type-check, web export, client-bundle secret scan, and security-header checks.
 - GitHub deploy workflow now requires the launch gate before the remote deploy job.
 - GitHub deploy workflow now applies tracked SQL migrations with `runAllMigrations.ts` instead of forcing a Drizzle schema push.
+- Static migration safety checks now require tracked migrations after `0052_create_schema_migrations.sql` to keep unique contiguous numeric prefixes, preventing new duplicate/gap drift on top of the historical baseline overlap.
 
 Remaining:
 
@@ -793,9 +801,11 @@ Verified so far on 2026-05-02:
 - Production smoke now creates Stripe test-mode subscription and bundle checkout sessions and can load the hosted Stripe checkout HTML after session creation.
 - A fresh production Stripe sandbox bundle payment completed on 2026-05-02; the app returned to `/billing/success?kind=bundle&session_id=...`, usage showed the expected `+5` story and `+2` audio bundle bonuses, and API logs recorded the Stripe webhook plus `user_bundle_grant`.
 - Production ops checks now verify the configured Stripe secret-key mode without printing the key value. `EXPECTED_STRIPE_MODE=test ./scripts/check-production-ops.sh` passed against production with `0` failures and confirmed the current test-mode Stripe key; `EXPECTED_STRIPE_MODE=live` can guard live paid-launch readiness after provider-side key/webhook changes.
+- Full production smoke on 2026-05-03 exposed a stored Stripe customer id from a different key mode on the long-lived admin account; local checkout code now detects that Stripe `resource_missing` customer error and retries once with a newly created customer for the active key mode.
 
 Still required:
 
+- Deploy the Stripe active-key-mode customer replacement fix and re-run full production checkout smoke.
 - Decide whether to keep the test webhook endpoint active for beta or replace it during live-mode setup.
 
 Required work:
@@ -1073,6 +1083,7 @@ Completed locally:
 - Production `/billing/plans` and `/admin/feedback` DevTools smoke verified the support topic path after deploy.
 - `scripts/check-production-auth.sh` now checks support inbox MX records, MX address resolution, and SMTP `25` reachability.
 - `support@wondertales.art` is hosted in Zoho Mail and verified with an external inbound/outbound mailbox test.
+- Parent child-data deletion request form now links from Profile preferences into child profile management and submits scoped deletion requests to the privacy admin queue.
 
 Required work:
 
@@ -1228,7 +1239,18 @@ Acceptance criteria:
 
 ## Current Live-Site Snapshot
 
-Observed on 2026-05-02 after the latest web/API deployment and production verification refresh:
+Observed on 2026-05-03 after the latest production checks and local follow-up fixes:
+
+- Admin read-only production smoke passed with owner-supplied admin credentials; the admin dashboard alert checker dry-run returned no active cost, queue, or quality-review findings.
+- Non-mutating authenticated/admin production smoke passed; full checkout smoke currently requires the local Stripe active-key-mode customer replacement fix to be deployed before the long-lived admin account can pass checkout creation again.
+- Disposable production Child Mode smoke passed end to end and cleaned up the temporary child profile and temporary account.
+- Production ops backup smoke passed with `0` failures and a readable custom-format PostgreSQL dump; remaining warnings are offsite backup target, admin-dashboard alert scheduler, and the known Stripe key-mode errors from the failed checkout branch.
+- Production security artifact audit passed and archived live header captures plus the deployed client-bundle scan under `docs/launch-work/artifacts/production-security-2026-05-03-admin-check/`.
+- `pnpm launch:gate` passed for the local batch that includes the Stripe active-key-mode retry and child-data deletion form. The first deploy attempt stopped during the local Docker image build before production upload/restart/migrations, but the retry completed successfully after restoring SSH-agent/Docker access.
+- Post-deploy public smoke, production security artifact scan, admin read-only smoke, admin alert dry-run, fresh API log scan, and production ops read-only check passed with `0` failures.
+- The deployed Stripe active-key-mode retry was verified on a disposable account by seeding a bad customer id, creating a `cs_test_*` Checkout Session, confirming customer replacement, expiring the session, deleting the created Stripe test customer, deleting the temporary account, and verifying no user row remained.
+
+Previous 2026-05-02 production verification baseline:
 
 - `./scripts/check-production-smoke.sh` with authenticated QA user, admin read-only checks, and Stripe test checkout creation passed with `0` failures and `0` warnings.
 - A fresh full-production verification run created a temporary smoke account, elevated it for read-only admin checks, loaded hosted Stripe subscription and bundle Checkout pages, rendered authenticated DevTools screens, and deleted the temporary account after verification.

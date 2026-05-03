@@ -34,6 +34,8 @@ interface Props {
   child: Child;
   onPress: () => void;
   onDelete?: (childId: string, childName: string) => void;
+  onRequestDataDeletion?: (childId: string, childName: string) => void;
+  dataDeletionRequestLabel?: string;
   childModeLabels?: ChildModeLabels;
   childModeThemeOptions?: ChildModeOption[];
   childModeLanguageOptions?: ChildModeOption[];
@@ -288,6 +290,8 @@ export function ChildCard({
   child,
   onPress,
   onDelete,
+  onRequestDataDeletion,
+  dataDeletionRequestLabel,
   childModeLabels,
   childModeThemeOptions = [],
   childModeLanguageOptions = [],
@@ -533,6 +537,20 @@ export function ChildCard({
             </View>
           </View>
         ) : null}
+        {onRequestDataDeletion && dataDeletionRequestLabel ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.privacyRequestButton,
+              pressed && styles.privacyRequestButtonPressed,
+            ]}
+            onPress={() => onRequestDataDeletion(child.id, child.name)}
+          >
+            <Ionicons name="shield-outline" size={16} color={theme.colors.interactive.primary} />
+            <Text style={styles.privacyRequestButtonText} numberOfLines={2}>
+              {dataDeletionRequestLabel}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {onDelete && (
@@ -594,6 +612,9 @@ const styles = StyleSheet.create<{
   revokeButton: ViewStyle;
   revokeButtonPressed: ViewStyle;
   revokeButtonText: TextStyle;
+  privacyRequestButton: ViewStyle;
+  privacyRequestButtonPressed: ViewStyle;
+  privacyRequestButtonText: TextStyle;
   deleteButton: ViewStyle;
   deleteButtonPressed: ViewStyle;
 }>({
@@ -832,6 +853,30 @@ const styles = StyleSheet.create<{
     fontSize: theme.typography.fontSize.xs,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.status.error,
+  },
+  privacyRequestButton: {
+    minHeight: 38,
+    marginTop: theme.spacing[4],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.secondary,
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+  },
+  privacyRequestButtonPressed: {
+    opacity: 0.75,
+  },
+  privacyRequestButtonText: {
+    flexShrink: 1,
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.interactive.primary,
+    textAlign: 'center',
   },
   deleteButton: {
     position: 'absolute',
