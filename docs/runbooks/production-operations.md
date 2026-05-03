@@ -114,6 +114,14 @@ Example crontab:
 
 The webhook payload is plain JSON with a `text` field, so it can be used with Slack-style webhooks, Discord-compatible relays, or a small custom endpoint.
 
+On the droplet, keep alert secrets out of the cron file itself:
+
+```bash
+/etc/wondertales/ops-alert.env
+OPS_ALERT_WEBHOOK_URL=https://example.com/webhook
+OPS_ALERT_ON_WARNINGS=1
+```
+
 For the single-droplet launch setup, install droplet-local cron jobs from the tracked installer:
 
 ```bash
@@ -125,8 +133,8 @@ The installer uploads the ops scripts to `/var/www/kazka/scripts` and writes `/e
 
 Default installed jobs:
 
-- daily `run-production-backup-retention.sh --local --apply --skip-offsite` with one-day local retention;
-- `monitor-production-ops.sh --local` every 30 minutes with output in `/var/www/kazka/logs/production-ops-monitor.log`.
+- daily `run-production-backup-retention.sh --local --apply` with one-day local retention and `.env.production` loaded first;
+- `monitor-production-ops.sh --local` every 30 minutes with `/etc/wondertales/ops-alert.env` loaded first and output in `/var/www/kazka/logs/production-ops-monitor.log`.
 
 Admin dashboard alerts are opt-in:
 
@@ -134,7 +142,7 @@ Admin dashboard alerts are opt-in:
 pnpm launch:install-production-ops-cron -- --apply --include-admin-alerts
 ```
 
-Only enable that after `/etc/wondertales/admin-alert.env` contains the admin alert token or credentials and `ADMIN_ALERT_WEBHOOK_URL` or `OPS_ALERT_WEBHOOK_URL`.
+Only enable that after `/etc/wondertales/admin-alert.env` contains the admin alert token or credentials and `ADMIN_ALERT_WEBHOOK_URL` or `OPS_ALERT_WEBHOOK_URL`. The installer also loads `/etc/wondertales/ops-alert.env` before the admin env file, so the admin checker can share the ops webhook unless `ADMIN_ALERT_WEBHOOK_URL` overrides it.
 
 ## Admin dashboard alerts
 

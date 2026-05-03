@@ -402,6 +402,7 @@ scheduler_config="$(
       \) -print -exec sed -n '1,160p' {} \; 2>/dev/null || true
     fi
     grep -E 'OFFSITE_BACKUP_RCLONE_TARGET|OPS_ALERT_WEBHOOK_URL|ADMIN_ALERT_WEBHOOK_URL' .env.production 2>/dev/null | sed -E 's/(=).+/\1set/' || true
+    grep -RhsE 'OPS_ALERT_WEBHOOK_URL|OPS_ALERT_ON_WARNINGS|ADMIN_ALERT_WEBHOOK_URL|ADMIN_ALERT_ON_WARNINGS|PROD_ADMIN_ALERT_TOKEN|PROD_ADMIN_ALERT_EMAIL|PROD_ADMIN_ALERT_PASSWORD' /etc/wondertales/*.env 2>/dev/null | sed -E 's/(=).+/\1set/' || true
   } | sed -E 's#(https?://)[^[:space:]]+#\1[redacted]#g; s#(TOKEN|PASSWORD|SECRET|KEY|WEBHOOK_URL)=([^[:space:]]+)#\1=[redacted]#g'
 )"
 
@@ -423,10 +424,28 @@ else
   warn "ops monitor scheduler reference not found; configure monitor-production-ops.sh with external alerting"
 fi
 
+if grep -Eq 'OPS_ALERT_WEBHOOK_URL' <<<"$scheduler_config"; then
+  pass "ops alert webhook reference found"
+else
+  warn "ops alert webhook reference not found; configure OPS_ALERT_WEBHOOK_URL before relying on unattended ops monitoring"
+fi
+
 if grep -Eq 'check-production-admin-alerts\.sh' <<<"$scheduler_config"; then
   pass "admin dashboard alert scheduler reference found"
 else
   warn "admin dashboard alert scheduler reference not found; configure check-production-admin-alerts.sh with external alerting"
+fi
+
+if grep -Eq 'ADMIN_ALERT_WEBHOOK_URL|OPS_ALERT_WEBHOOK_URL' <<<"$scheduler_config"; then
+  pass "admin dashboard alert webhook reference found"
+else
+  warn "admin dashboard alert webhook reference not found; configure ADMIN_ALERT_WEBHOOK_URL or OPS_ALERT_WEBHOOK_URL"
+fi
+
+if grep -Eq 'PROD_ADMIN_ALERT_TOKEN|PROD_ADMIN_ALERT_EMAIL' <<<"$scheduler_config"; then
+  pass "admin dashboard alert auth reference found"
+else
+  warn "admin dashboard alert auth reference not found; configure PROD_ADMIN_ALERT_TOKEN or PROD_ADMIN_ALERT_EMAIL/PROD_ADMIN_ALERT_PASSWORD"
 fi
 
 echo
