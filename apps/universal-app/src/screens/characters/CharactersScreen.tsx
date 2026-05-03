@@ -13,6 +13,7 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
+import { useAuthStore } from '@/store/authStore';
 
 const cardDelay = (i: number) => Math.min(i * 40, 320);
 import { CharacterSubtype, ReferencePhoto } from '@wondertales/shared';
@@ -30,6 +31,8 @@ export default function CharactersScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { width } = useWindowDimensions();
   const enterKey = useScreenEnter();
+  const sessionMode = useAuthStore((state) => state.sessionMode);
+  const isChildSession = sessionMode === 'child';
   const { data: characters, isLoading, error } = useCharacters();
   const columns = useColumns();
   const paddingHorizontal = theme.spacing[6] * 2;
@@ -56,11 +59,13 @@ export default function CharactersScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: isChildSession
+        ? undefined
+        : () => (
+            <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+          ),
     });
-  }, [navigation]);
+  }, [isChildSession, navigation]);
   
   const handleAddCharacter = () => {
     setEditingCharacter(undefined);
@@ -129,11 +134,13 @@ export default function CharactersScreen() {
             <View style={[styles.grid, Platform.OS === 'web' && { gridTemplateColumns: `repeat(${columns}, 1fr)` } as any]}>
               {characters.map((character, index) => {
                 const card = (
-                  <CharacterCard
-                    character={character}
-                    onPress={() => handleEditCharacter(character)}
-                    onDelete={handleDelete}
-                  />
+                    <CharacterCard
+                      character={character}
+                      onPress={() => {
+                        if (!isChildSession) handleEditCharacter(character);
+                      }}
+                      onDelete={isChildSession ? undefined : handleDelete}
+                    />
                 );
                 return Platform.OS === 'web' ? (
                   <AnimatedSection key={character.id} delay={cardDelay(index)} trigger={enterKey}>

@@ -1,5 +1,8 @@
-import crypto from 'crypto';
 import { logger } from '../utils/logger';
+import {
+  hashModerationSubject,
+  recordModerationDecision,
+} from './moderationDecisionService';
 
 export type PromptSafetyCategory =
   | 'child_exploitation'
@@ -116,10 +119,6 @@ function normalizePromptText(text: string): string {
   return text.normalize('NFKC').replace(/\s+/g, ' ').trim();
 }
 
-function hashPromptForSupport(text: string): string {
-  return crypto.createHash('sha256').update(text).digest('hex').slice(0, 16);
-}
-
 export function evaluatePromptSafety(text: string | null | undefined): PromptSafetyDecision {
   if (!text || text.trim().length === 0) {
     return { allowed: true };
@@ -152,6 +151,7 @@ export function assertPromptSafety(input: {
   }
 
   const normalizedText = normalizePromptText(input.text || '');
+  const promptHash = hashModerationSubject(normalizedText);
   logger.warn(
     {
       userId: input.userId,
@@ -159,10 +159,24 @@ export function assertPromptSafety(input: {
       category: decision.category,
       ruleId: decision.ruleId,
       promptLength: normalizedText.length,
-      promptHash: hashPromptForSupport(normalizedText),
+      promptHash,
     },
     'Unsafe prompt blocked before queueing'
   );
+  void recordModerationDecision({
+    userId: input.userId,
+    stage: 'prompt_pre_queue',
+    source: input.source,
+    subjectType: 'prompt',
+    subjectRefHash: promptHash,
+    decision: 'blocked',
+    code: decision.code,
+    category: decision.category,
+    ruleId: decision.ruleId,
+    metadata: {
+      promptLength: normalizedText.length,
+    },
+  });
 
   throw new PromptSafetyError(decision, input.source);
 }

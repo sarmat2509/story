@@ -6,6 +6,7 @@ import {
   StyleSheet,
   type ViewStyle,
   View,
+  Image,
 } from 'react-native';
 import {
   CommonActions,
@@ -20,10 +21,12 @@ import {
 import { PlatformPressable, Text } from '@react-navigation/elements';
 import { Ionicons } from '@expo/vector-icons';
 import Color from 'color';
+import { useTranslation } from 'react-i18next';
 import type { Route } from '@react-navigation/native';
 import { useDrawerCollapsedStore } from '@/store/drawerCollapsedStore';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
+import { formatAssetUrl } from '@/utils/assetUrl';
 import type { RootStackParamList } from '@/types/navigation';
 
 const LABEL_ANIMATION_DURATION = 250;
@@ -157,6 +160,9 @@ function CollapsibleDrawerItem({
 export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
   const { state, navigation, descriptors, ...rest } = props;
   const user = useAuthStore((s) => s.user);
+  const sessionMode = useAuthStore((s) => s.sessionMode);
+  const activeChild = useAuthStore((s) => s.activeChild);
+  const { t } = useTranslation();
   const focusedRoute = state.routes[state.index];
   const focusedDescriptor = descriptors[focusedRoute.key];
   const focusedOptions = focusedDescriptor.options;
@@ -171,6 +177,11 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
   const visibleRoutes = state.routes.filter(
     (route) => !isItemHidden(descriptors[route.key].options.drawerItemStyle)
   );
+  const isChildSession = sessionMode === 'child' && activeChild;
+  const activeChildAvatar =
+    activeChild?.turnaroundSheet?.frontUrl ??
+    activeChild?.turnaroundSheet?.url ??
+    activeChild?.referencePhotos?.[0]?.url;
 
   return (
     <DrawerContentScrollView
@@ -178,6 +189,31 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
       contentContainerStyle={drawerContentContainerStyle}
       style={drawerContentStyle}
     >
+      {isChildSession ? (
+        <View style={[styles.childSessionCard, collapsed && styles.childSessionCardCollapsed]}>
+          {activeChildAvatar ? (
+            <Image
+              source={{ uri: formatAssetUrl(activeChildAvatar) ?? activeChildAvatar }}
+              style={styles.childAvatar}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.childAvatarFallback}>
+              <Ionicons name="person-circle-outline" size={28} color={theme.colors.interactive.primary} />
+            </View>
+          )}
+          {!collapsed ? (
+            <View style={styles.childSessionCopy}>
+              <Text style={styles.childSessionLabel} numberOfLines={1}>
+                {t('child_mode.title')}
+              </Text>
+              <Text style={styles.childSessionName} numberOfLines={1}>
+                {activeChild?.name}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
       {visibleRoutes.map((route) => {
         const focused = state.routes[state.index].key === route.key;
         const onPress = () => {
@@ -284,5 +320,58 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     textAlignVertical: 'center',
     fontSize: theme.typography.fontSize.base,
+  },
+  childSessionCard: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    marginHorizontal: theme.spacing[3],
+    marginBottom: theme.spacing[3],
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: Color(theme.colors.interactive.primary).alpha(0.24).rgb().string(),
+    backgroundColor: Color(theme.colors.interactive.primary).alpha(0.08).rgb().string(),
+  },
+  childSessionCardCollapsed: {
+    width: COLLAPSED_HIGHLIGHT_SIZE,
+    height: COLLAPSED_HIGHLIGHT_SIZE,
+    minHeight: COLLAPSED_HIGHLIGHT_SIZE,
+    alignSelf: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderRadius: COLLAPSED_HIGHLIGHT_SIZE / 2,
+  },
+  childAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.background.tertiary,
+  },
+  childAvatarFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.primary,
+  },
+  childSessionCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  childSessionLabel: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.interactive.primary,
+  },
+  childSessionName: {
+    marginTop: 2,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
   },
 });

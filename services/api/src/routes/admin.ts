@@ -30,6 +30,7 @@ import {
   listAdminDataPrivacyRequests,
   updateAdminDataPrivacyRequest,
 } from '../services/dataPrivacyRequestService';
+import { listAdminModerationDecisionEvents } from '../services/moderationDecisionService';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -52,6 +53,13 @@ const FeedbackListQuerySchema = ListQuerySchema.extend({
 const DataPrivacyRequestListQuerySchema = ListQuerySchema.extend({
   requestType: z.enum(DATA_PRIVACY_REQUEST_TYPES).optional(),
   status: z.enum(DATA_PRIVACY_REQUEST_STATUSES).optional(),
+});
+
+const ModerationDecisionListQuerySchema = ListQuerySchema.extend({
+  decision: z.string().trim().min(1).max(40).optional(),
+  stage: z.string().trim().min(1).max(80).optional(),
+  userId: z.string().uuid().optional(),
+  storyId: z.string().uuid().optional(),
 });
 
 const UpdateDataPrivacyRequestBodySchema = z
@@ -625,6 +633,40 @@ router.get('/feedback', async (req: Request, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to list feedback',
+    });
+  }
+});
+
+router.get('/moderation-decisions', async (req: Request, res: Response) => {
+  try {
+    const parsed = ModerationDecisionListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid query',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const { limit, offset, decision, stage, userId, storyId } = parsed.data;
+    const data = await listAdminModerationDecisionEvents({
+      limit,
+      offset,
+      decision,
+      stage,
+      userId,
+      storyId,
+    });
+
+    return res.json({
+      status: 'success',
+      data,
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin moderation decisions list failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to list moderation decisions',
     });
   }
 });

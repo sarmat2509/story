@@ -366,6 +366,8 @@ export const config = {
   // Session
   session: {
     expiresIn: process.env.SESSION_EXPIRES_IN || '30d',
+    childExpiresIn: process.env.CHILD_SESSION_EXPIRES_IN || '8h',
+    childIdleTimeout: process.env.CHILD_SESSION_IDLE_TIMEOUT || '2h',
   },
 
   // Google APIs

@@ -101,6 +101,11 @@ export default function ChildrenScreen() {
     anyCharacter: t('children_screen.child_mode_any_character'),
     noCharacters: t('children_screen.child_mode_no_characters'),
     familyStories: t('children_screen.child_mode_family_stories'),
+    passcode: t('children_screen.child_mode_passcode'),
+    passcodePlaceholder: t('children_screen.child_mode_passcode_placeholder'),
+    passcodeConfigured: t('children_screen.child_mode_passcode_configured'),
+    passcodeSave: t('children_screen.child_mode_passcode_save'),
+    setPasscodeToStart: t('children_screen.child_mode_set_passcode_to_start'),
     activeSessions: t('children_screen.child_mode_active_sessions'),
     revoke: t('children_screen.child_mode_revoke_sessions'),
     start: t('children_screen.child_mode_start'),
@@ -154,10 +159,10 @@ export default function ChildrenScreen() {
     setDeleteDialogVisible(true);
   };
 
-  const handleChildModeEnabledChange = (childId: string, enabled: boolean) => {
+  const handleChildModeEnabledChange = (childId: string, enabled: boolean, passcode?: string) => {
     updateChildModeControls.mutate({
       id: childId,
-      data: { childModeEnabled: enabled },
+      data: { childModeEnabled: enabled, ...(passcode ? { childModePasscode: passcode } : {}) },
     });
   };
 
@@ -168,6 +173,13 @@ export default function ChildrenScreen() {
     updateChildModeControls.mutate({
       id: childId,
       data: { childModeSettings: settings },
+    });
+  };
+
+  const handleChildModePasscodeChange = (childId: string, passcode: string) => {
+    updateChildModeControls.mutate({
+      id: childId,
+      data: { childModePasscode: passcode },
     });
   };
 
@@ -250,6 +262,7 @@ export default function ChildrenScreen() {
                 referencePhotos: child.referencePhotos as { url: string }[] | undefined,
                 childModeEnabled: child.childModeEnabled as boolean | undefined,
                 childModeSettings: child.childModeSettings as any,
+                childModePasscodeConfigured: child.childModePasscodeConfigured === true,
                 childModeActiveSessionCount: typeof child.childModeActiveSessionCount === 'number'
                   ? child.childModeActiveSessionCount
                   : 0,
@@ -265,6 +278,7 @@ export default function ChildrenScreen() {
                   childModeCharacterOptions={childModeCharacterOptions}
                   onChildModeEnabledChange={handleChildModeEnabledChange}
                   onChildModeSettingsChange={handleChildModeSettingsChange}
+                  onChildModePasscodeChange={handleChildModePasscodeChange}
                   onEnterChildMode={handleEnterChildMode}
                   onRevokeChildModeSessions={handleRevokeChildModeSessions}
                   isChildModeUpdating={updateChildModeControls.isPending}

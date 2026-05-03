@@ -61,7 +61,7 @@ All billing, refund, cancellation, quota, and support paths must work end to end
 
 ### P0 Status Snapshot - 2026-05-03
 
-Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, and the main production web/TLS/SSR/security path has been verified on `wondertales.art`. P0 is not fully green for external families until final operator/legal confirmations, approved cleanup policy, and any required live parent-gate OAuth fallback verification are finished.
+Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, and the main production web/TLS/SSR/security path has been verified on `wondertales.art`. P0 is not fully green for external families until final operator/legal confirmations and approved cleanup policy are finished.
 
 Completed or ready for closed-beta verification:
 
@@ -75,7 +75,11 @@ Completed or ready for closed-beta verification:
 - Story/account/child-profile deletion behavior was hardened and documented.
 - Parent-session guards now block child sessions from billing, plan actions, profile editing, uploads, and story writes.
 - Sensitive route rate limits, credentialed CORS restrictions, upload validation, admin health guards, and debug route guards are in place.
-- Child Mode now has scoped sessions, parent controls, child-safe story request enforcement, attribution, password and OAuth-only parent-gate fallbacks, start/return UI, child-safe story creation UI, allowed content selectors, and parent review workflow UI.
+- Child Mode now has scoped sessions, parent controls, child-safe story request enforcement, attribution, a per-child exit passcode parent gate, start/return UI, child-safe story creation UI, allowed content selectors, parent review workflow UI, and full app-shell access to allowed library/characters/listening flows.
+- Child sessions can upload/list/select character photos for child-scoped character creation, browse/listen to allowed stories, and see the active child profile identity in navigation while billing/settings/support/destructive actions stay parent-only.
+- Child Mode exit no longer uses Google/Apple OAuth routes; legacy parent-gate OAuth endpoints return `PARENT_GATE_PASSCODE_REQUIRED` before hitting OAuth rate limits.
+- Child Mode passcode hashes are filtered from child-profile API responses and privacy export packages.
+- The Child Mode passcode/app-shell batch was deployed to production on 2026-05-03; migrations `0089` and `0090`, production health, security artifact check, production smoke, Docker log scan, and DevTools welcome redirect check passed.
 - Scheduled orphan-file cleanup exists with disabled/dry-run defaults, retention-age gating, and launch-gate coverage.
 - Production orphan-file cleanup dry-run was reviewed on the droplet with a 168-hour age gate: `1356` files scanned, `1025` referenced paths, `361` orphan candidates, `361` age-eligible candidates, and `0` deleted files.
 - API build, web type-check, web export, and `pnpm launch:gate` passed after the P0 fixes.
@@ -101,8 +105,6 @@ Remaining P0 bottlenecks:
 
 - Legal/operator details must be finalized before paid launch, and non-`en`/`uk` legal alternates must either receive real legal content or stay out of indexed launch routes.
 - Scheduled orphan-file cleanup apply mode still needs operator approval for retention policy and deletion window.
-- OAuth-only parent gate fallback is implemented locally and needs a live production parent-gate pass if OAuth-only parent return must be certified before beta.
-
 Solutions not yet applied:
 
 - Scheduled orphan-file cleanup policy/job is implemented with disabled/dry-run defaults and a retention-age gate; production apply mode still requires operator approval.
@@ -349,7 +351,7 @@ Acceptance criteria:
 
 ### 6. Parent-Owned Child Mode
 
-Status on 2026-05-02: Ready for closed-beta verification; normal production Google OAuth callback is verified under Auth, while OAuth-only parent-gate fallback still needs a live production parent-gate pass.
+Status on 2026-05-03: Ready for closed-beta verification after local build/type-check/tests; normal production Google OAuth callback is verified under Auth, and Child Mode return now uses a per-child exit passcode instead of OAuth.
 
 Done:
 
@@ -361,9 +363,11 @@ Done:
 - Child profiles now store Child Mode enablement and parent-control settings.
 - Parent-only child-mode endpoints can read/update controls, enter Child Mode by creating a child session, and revoke active child sessions for a child profile.
 - `/children` includes normalized child-mode controls and active child-session counts.
-- `/children` UI now exposes Child Mode enablement, daily/monthly limits, free-text/audio/review/family-story toggles, active child-session counts, and session revocation.
-- `/children` can now start Child Mode for enabled child profiles, and child sessions render a dedicated Child Mode shell with parent app navigation hidden.
-- Parent gate UI now lets password-authenticated adults return from Child Mode without logging out; OAuth-only accounts get a safe sign-out recovery path.
+- `/children` UI now exposes Child Mode enablement, per-child exit passcode setup, daily/monthly limits, free-text/audio/review/family-story toggles, active child-session counts, and session revocation.
+- `/children` can now start Child Mode only for child profiles with Child Mode enabled and an exit passcode configured.
+- Child sessions render the main app shell with child-scoped access instead of a one-page dead end: Dashboard/Wizard stay child-safe, Library/Story Viewer support existing stories and listening, Characters supports child-safe character upload/list/create, and navigation shows the active child avatar/name.
+- Parent gate UI now asks for the selected child's Child Mode exit passcode and returns to Parent Mode without using Google/Apple OAuth.
+- Legacy parent-gate Google/Apple endpoints return `PARENT_GATE_PASSCODE_REQUIRED`, so returning from Child Mode cannot consume OAuth limiter budget.
 - `story_requests` and `stories` now carry child-mode attribution and parent review fields; the async story pipeline propagates these fields when a child-created request is introduced.
 - `requireChildSession` and `requireSessionScope` middleware are available for future child-safe endpoints.
 - `POST /api/v1/stories/child-mode` creates queued story requests from scoped child sessions and enforces child-mode profile, free-text, theme, language, character, sibling, and daily/monthly limit controls.
@@ -372,12 +376,13 @@ Done:
 - `/children` now lets parents configure allowed story themes, story languages, saved characters, and sibling inclusion for Child Mode.
 - Child-created story requests now record `reservationSource: child_mode` in quota reservation metadata and reuse child-mode prompt safety source labels through the shared orchestration path.
 - Child-created stories that require review now surface review badges in the library, expose approve/reject controls in the story viewer, block publishing/sharing until approved, and are excluded from public/unlisted lookup predicates while pending or rejected.
-- `POST /api/v1/auth/parent-gate` lets password-authenticated adults re-enter Parent Mode from a child session and revokes the previous child session.
-- OAuth-only parent gate fallback is implemented for web Google re-auth and native Google/Apple token re-auth; normal Google callback URLs are production-verified, and parent-gate callback flow still needs a dedicated live pass.
+- Child story listing/detail APIs now filter child sessions to the active child profile unless `allowSharedFamilyStories` grants the `family_stories:read` scope.
+- Child Mode passcode hashes and set timestamps are not returned from child-profile APIs or privacy export packages.
+- `POST /api/v1/auth/parent-gate` lets adults re-enter Parent Mode from a child session with the selected child's exit passcode and revokes the previous child session.
 
 Remaining:
 
-- Verify the OAuth-only parent gate fallback against production callback URLs after deploy.
+- Run an authenticated production Child Mode passcode E2E with a temporary child profile when a disposable parent smoke credential is available.
 
 If children can use the app themselves, they must do so inside a supervised mode controlled by an adult account.
 
@@ -459,7 +464,7 @@ Acceptance criteria:
 
 ### 7. Safety and Moderation
 
-Status on 2026-05-01: Mostly ready for closed-beta verification.
+Status on 2026-05-03: Mostly ready for closed-beta verification; prompt/photo/image safety gates now record redacted moderation decision events for support review.
 
 Done:
 
@@ -470,10 +475,11 @@ Done:
 - Prompt and photo-input safety API errors now map to localized app copy, so parent-facing flows show rewrite/upload guidance instead of generic retry text.
 - Public publishing is blocked unless story, image, visibility, and consent safety checks pass.
 - Raw image validation debug routes are admin-only.
+- Moderation decision events are persisted with redacted hashes/metadata for prompt, photo, story validation, and image validation failures, and admin support can list them without exposing raw prompts or child data.
 
 Remaining:
 
-- Support-facing moderation review logs/workflows are not fully productized.
+- Support-facing moderation review UI/workflow remains lightweight; the redacted event store and admin listing endpoint exist, but case-management UX is not fully productized.
 - Fallback behavior for failed generated moderation is fail-safe/blocked with better localized prompt/photo guidance, but rewrite/regenerate/refusal UX is not fully polished across provider failure paths.
 - Continue live provider testing for edge cases around vision/text moderation failures.
 
@@ -496,7 +502,7 @@ Acceptance criteria:
 
 ### 8. Data Deletion and Retention
 
-Status on 2026-05-02: Core deletion behavior, support/admin request intake, admin export package generation, export delivery hygiene, orphan-file dry-run scanning, target-environment dry-run review, and the disabled-by-default scheduled cleanup job are ready; final export delivery policy and production cleanup apply-mode approval remain.
+Status on 2026-05-03: Core deletion behavior, support/admin request intake, admin export package generation, export delivery hygiene, orphan-file dry-run scanning, target-environment dry-run review, and the disabled-by-default scheduled cleanup job are ready; final export delivery policy and production cleanup apply-mode approval remain.
 
 Done:
 
@@ -508,7 +514,7 @@ Done:
 - Parent-only data privacy request endpoints now let users create/list export or deletion requests.
 - Admin-only privacy request endpoints now let support list/filter and mark requests `open`, `in_review`, `fulfilled`, `rejected`, or `canceled`.
 - Web admin now includes `/admin/privacy-requests` for filtering, reviewing, and updating export/deletion support requests.
-- Admin-only export package generation returns JSON for `export` privacy requests while omitting password hashes, OAuth/session/reset tokens, story share tokens, and signed asset URLs.
+- Admin-only export package generation returns JSON for `export` privacy requests while omitting password hashes, Child Mode passcode hashes, OAuth/session/reset tokens, story share tokens, and signed asset URLs.
 - Admin export filenames now use the privacy request id instead of the exported user id, and the admin review panel includes a delivery checklist before fulfillment.
 - `scanOrphanStorageFiles.ts` can dry-run local storage, compare files against DB-referenced asset paths, and only deletes with explicit `--apply`.
 - Scheduled orphan-file cleanup now starts from API lifecycle only when `ORPHAN_STORAGE_CLEANUP_ENABLED=true`, defaults to dry-run, and requires an age gate before any apply-mode deletion.
@@ -546,6 +552,7 @@ Done:
 - The production webapp nginx config now serves the exported SPA with a reviewed CSP/security header allowlist for self-hosted assets, PostHog subresource calls, media/CDN assets, and redirect-only Stripe/OAuth flows.
 - Session cookies are HttpOnly, SameSite=Lax, and secure in production.
 - Rate limits cover auth, OAuth, password reset, story writes, billing, uploads, feedback, and public ratings.
+- Child Mode parent return no longer calls OAuth endpoints, and legacy parent-gate OAuth routes return `PARENT_GATE_PASSCODE_REQUIRED` before OAuth limiter handling.
 - Uploads are parent-session protected, size-limited, and restricted to JPEG/PNG/WebP/HEIC/HEIF with explicit 400/413 errors.
 - Detailed health, queue, rate limiter, image validation debug, admin, and sensitive routes are protected.
 - `pnpm launch:scan-client-secrets` scans the exported web client bundle for server-side secret markers and now runs inside `pnpm launch:gate`.

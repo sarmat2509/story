@@ -37,7 +37,7 @@ export default function RootNavigator() {
   const navigatorKey = isOAuthCallback
     ? 'oauth-callback'
     : isChildSession
-      ? 'child-mode'
+      ? 'child-main'
       : needsModeSelection
         ? 'mode-selection'
         : 'main';
@@ -45,7 +45,7 @@ export default function RootNavigator() {
   const initialRoute = isOAuthCallback
     ? 'OAuthCallback'
     : isChildSession
-      ? 'ChildMode'
+      ? 'Main'
       : needsModeSelection
         ? 'ModeSelection'
         : 'Main';
@@ -59,14 +59,10 @@ export default function RootNavigator() {
       <Stack.Screen name="OAuthCallback" component={OAuthCallbackScreen} />
       <Stack.Screen name="ChildMode" component={ChildModeScreen} />
       <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
-      {isChildSession ? null : (
-        <>
-          <Stack.Screen name="Main" component={MainNavigator} />
-          {Platform.OS === 'web' ? (
-            <Stack.Screen name="Admin" component={AdminNavigator} />
-          ) : null}
-        </>
-      )}
+      <Stack.Screen name="Main" component={MainNavigator} />
+      {!isChildSession && Platform.OS === 'web' ? (
+        <Stack.Screen name="Admin" component={AdminNavigator} />
+      ) : null}
     </Stack.Navigator>
   );
 }

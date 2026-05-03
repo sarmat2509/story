@@ -7,6 +7,10 @@ import { getStoryDomainService } from '../aiService';
 import { recordUsage } from '../aiUsageService';
 import { startTask, completeTask, updateTaskProgress, STORY_TASKS } from '../storyProgress';
 import { getGenerationCoefficients } from '../generationTimeService';
+import {
+  hashModerationSubject,
+  recordModerationDecision,
+} from '../moderationDecisionService';
 import config from '../../config';
 import type { ValidateParams, ValidateResult } from './types';
 
@@ -50,6 +54,37 @@ function mergeCorrectedCameraComposition(
           : {}),
     })),
   };
+}
+
+function recordFailedSceneValidation(input: {
+  requestId: string;
+  userId: string;
+  storyId?: string;
+  validation: SceneValidationLike;
+  stage: 'generated_text_validation' | 'generated_text_revalidation' | 'generated_text_validation_final';
+  attempt?: number;
+}): void {
+  const categories = Array.from(new Set(input.validation.violations.map((violation) => violation.category)));
+  void recordModerationDecision({
+    userId: input.userId,
+    storyId: input.storyId,
+    storyRequestId: input.requestId,
+    stage: input.stage,
+    source: 'story_scene_validation',
+    subjectType: 'scene',
+    subjectRefHash: hashModerationSubject(`${input.requestId}:${input.validation.sceneId}`),
+    decision: input.stage === 'generated_text_validation_final' ? 'failed' : 'regenerated',
+    code: input.stage === 'generated_text_validation_final'
+      ? 'GENERATED_TEXT_VALIDATION_FAILED'
+      : 'GENERATED_TEXT_VALIDATION_REGENERATED',
+    category: categories.join(',') || undefined,
+    metadata: {
+      sceneId: input.validation.sceneId,
+      attempt: input.attempt,
+      violationCount: input.validation.violations.length,
+      violationCategories: categories,
+    },
+  });
 }
 
 async function runWithConcurrencyLimit<T, TResult>(
@@ -190,6 +225,16 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
   );
 
   if (failedScenes.length > 0) {
+    failedScenes.forEach((validation) => {
+      recordFailedSceneValidation({
+        requestId,
+        userId,
+        storyId,
+        validation,
+        stage: 'generated_text_validation',
+      });
+    });
+
     logger.info({
       requestId,
       failedCount: failedScenes.length,
@@ -317,6 +362,14 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
         if (validation.isValid) {
           scenesToRegenerate.delete(sceneId);
         } else {
+          recordFailedSceneValidation({
+            requestId,
+            userId,
+            storyId,
+            validation,
+            stage: 'generated_text_revalidation',
+            attempt: attempt + 1,
+          });
           const hasOther = validation.violations.some((viol: any) => viol.category !== 'camera_composition_incomplete');
           if (validation.correctedCameraComposition && !hasOther) {
             scenesToRegenerate.delete(sceneId);
@@ -342,6 +395,20 @@ export async function validateStoryScenes(params: ValidateParams): Promise<Valid
         failedSceneIds: finalFailedSceneIds,
         failures: finalFailures,
       }, 'Some scenes still failing validation after max retries');
+
+      finalFailedSceneIds.forEach((sceneId) => {
+        const validation = validations.find((candidate) => candidate.sceneId === sceneId);
+        if (validation) {
+          recordFailedSceneValidation({
+            requestId,
+            userId,
+            storyId,
+            validation,
+            stage: 'generated_text_validation_final',
+            attempt: maxRetries,
+          });
+        }
+      });
 
       throw new Error(
         `Story text validation failed after safety retries for ${finalFailedSceneIds.length} scene(s). Please try again with a gentler idea.`

@@ -33,6 +33,7 @@ import BillingSuccessScreen from '@/screens/billing/BillingSuccessScreen';
 import LanguageSettingsScreen from '@/screens/profile/LanguageSettingsScreen';
 import ThemeSettingsScreen from '@/screens/profile/ThemeSettingsScreen';
 import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
+import ChildModeScreen from '@/screens/childMode/ChildModeScreen';
 import { MiniAudioPlayer } from '@/components/MiniAudioPlayer';
 import { useMainNavigationStore } from '@/store/mainNavigationStore';
 import { useDrawerCollapsedStore } from '@/store/drawerCollapsedStore';
@@ -46,7 +47,14 @@ const Drawer = createDrawerNavigator<MainDrawerParamList>();
 
 // Wrapper components to avoid inline functions (prevents state loss and perf issues)
 function WizardScreenWithAuth() {
-  const { user } = useAuthStore();
+  const { user, sessionMode } = useAuthStore();
+  if (sessionMode === 'child') {
+    return (
+      <AuthGuard>
+        <ChildModeScreen />
+      </AuthGuard>
+    );
+  }
   const isInstantMode = user?.mode === 'instant';
   return (
     <AuthGuard>
@@ -55,6 +63,14 @@ function WizardScreenWithAuth() {
   );
 }
 function DashboardScreenWithAuth() {
+  const sessionMode = useAuthStore((state) => state.sessionMode);
+  if (sessionMode === 'child') {
+    return (
+      <AuthGuard>
+        <ChildModeScreen />
+      </AuthGuard>
+    );
+  }
   return (
     <AuthGuard>
       <DashboardScreen />
@@ -136,6 +152,9 @@ const TABLET_TAB_ORDER: (keyof MainTabParamList)[] = [
   'Profile',
 ];
 const MORE_MENU_ROUTES: (keyof MainTabParamList)[] = ['Series', 'Stories', 'Children', 'Plans', 'Profile'];
+const MOBILE_TAB_ORDER_CHILD: (keyof MainTabParamList)[] = ['Dashboard', 'Wizard', 'Library', 'Characters'];
+const TABLET_TAB_ORDER_CHILD: (keyof MainTabParamList)[] = ['Dashboard', 'Wizard', 'Library', 'Characters', 'Series'];
+const MORE_MENU_ROUTES_CHILD: (keyof MainTabParamList)[] = ['Series'];
 
 const MOBILE_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories', 'Plans'];
 const TABLET_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories', 'Plans'];
@@ -172,14 +191,25 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
   const { t } = useTranslation();
   const { isTablet } = useResponsive();
   const [moreVisible, setMoreVisible] = useState(false);
+  const sessionMode = useAuthStore((auth) => auth.sessionMode);
+  const activeChild = useAuthStore((auth) => auth.activeChild);
+  const isChildSession = isAuthenticated && sessionMode === 'child';
+  const childCanReadFamilyStories =
+    isChildSession && activeChild?.childMode?.childModeSettings?.allowSharedFamilyStories === true;
   const activeRouteName = state.routes[state.index]?.name;
-  const moreMenuRoutes = isAuthenticated ? MORE_MENU_ROUTES : MORE_MENU_ROUTES_PUBLIC;
+  const moreMenuRoutes = isChildSession
+    ? childCanReadFamilyStories ? MORE_MENU_ROUTES_CHILD : []
+    : isAuthenticated
+      ? MORE_MENU_ROUTES
+      : MORE_MENU_ROUTES_PUBLIC;
   const isMoreActive = moreMenuRoutes.includes(activeRouteName as keyof MainTabParamList);
 
-  const tabOrder = isAuthenticated
+  const tabOrder = isChildSession
+    ? (isTablet && childCanReadFamilyStories ? TABLET_TAB_ORDER_CHILD : MOBILE_TAB_ORDER_CHILD)
+    : isAuthenticated
     ? (isTablet ? TABLET_TAB_ORDER : MOBILE_TAB_ORDER)
     : (isTablet ? TABLET_TAB_ORDER_PUBLIC : MOBILE_TAB_ORDER_PUBLIC);
-  const showMoreButton = isAuthenticated && !isTablet;
+  const showMoreButton = isAuthenticated && !isTablet && moreMenuRoutes.length > 0;
 
   const handleTabPress = (name: keyof MainTabParamList) => {
     const event = navigation.emit({
@@ -197,7 +227,11 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
     setMoreVisible(false);
   };
 
-  const moreMenuItems: { name: keyof MainTabParamList; icon: keyof typeof Ionicons.glyphMap; labelKey: string }[] = isAuthenticated
+  const moreMenuItems: { name: keyof MainTabParamList; icon: keyof typeof Ionicons.glyphMap; labelKey: string }[] = isChildSession
+    ? childCanReadFamilyStories ? [
+        { name: 'Series', icon: 'layers-outline', labelKey: 'navigation.series' },
+      ] : []
+    : isAuthenticated
     ? [
         { name: 'Series', icon: 'layers-outline', labelKey: 'navigation.series' },
         { name: 'Stories', icon: 'newspaper-outline', labelKey: 'navigation.published_stories' },
@@ -339,12 +373,13 @@ const mobileTabBarStyles = StyleSheet.create({
 
 function TabNavigator() {
   const { t } = useTranslation();
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated, sessionMode } = useAuthStore();
   const isInstantMode = user?.mode === 'instant';
+  const isChildSession = isAuthenticated && sessionMode === 'child';
 
   return (
     <Tab.Navigator
-      key={isAuthenticated ? 'auth' : 'public'}
+      key={isChildSession ? 'child' : isAuthenticated ? 'auth' : 'public'}
       initialRouteName={isAuthenticated ? 'Dashboard' : 'Welcome'}
       backBehavior="history"
       screenOptions={{
@@ -505,7 +540,7 @@ function TabNavigator() {
           tabBarButton: () => null,
         }}
       />
-      {!isInstantMode && (
+      {!isInstantMode && !isChildSession && (
         <Tab.Screen 
           name="Children" 
           component={ChildrenScreenWithAuth}
@@ -519,7 +554,7 @@ function TabNavigator() {
           }}
         />
       )}
-      {!isInstantMode && (
+      {(!isInstantMode || isChildSession) && (
         <Tab.Screen 
           name="Characters" 
           component={CharactersScreenWithAuth}
@@ -550,6 +585,7 @@ function TabNavigator() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="diamond-outline" size={size} color={color} />
           ),
+          tabBarButton: isChildSession ? () => null : undefined,
         }}
       />
       <Tab.Screen 
@@ -561,7 +597,7 @@ function TabNavigator() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),
-          tabBarButton: !isAuthenticated ? () => null : undefined,
+          tabBarButton: !isAuthenticated || isChildSession ? () => null : undefined,
         }}
       />
 <Tab.Screen 
@@ -612,9 +648,12 @@ function DrawerBurgerButton() {
 function DrawerNavigator() {
   const { t } = useTranslation();
   const { isTablet, isDesktop } = useResponsive();
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated, sessionMode, activeChild } = useAuthStore();
   const collapsed = useDrawerCollapsedStore((s) => s.collapsed);
   const isInstantMode = user?.mode === 'instant';
+  const isChildSession = isAuthenticated && sessionMode === 'child';
+  const childCanReadFamilyStories =
+    isChildSession && activeChild?.childMode?.childModeSettings?.allowSharedFamilyStories === true;
 
   const drawerWidth = collapsed
     ? theme.layout.drawer.widthCollapsed
@@ -624,7 +663,7 @@ function DrawerNavigator() {
 
   return (
     <Drawer.Navigator
-      key={isAuthenticated ? 'auth' : 'public'}
+      key={isChildSession ? 'child' : isAuthenticated ? 'auth' : 'public'}
       initialRouteName={isAuthenticated ? 'Dashboard' : 'Welcome'}
       backBehavior="history"
       drawerContent={(props) => <CollapsibleDrawerContent {...props} />}
@@ -721,7 +760,9 @@ function DrawerNavigator() {
           drawerIcon: ({ color, size }) => (
             <Ionicons name="layers-outline" size={size} color={color} />
           ),
-          drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
+          drawerItemStyle: !isAuthenticated || (isChildSession && !childCanReadFamilyStories)
+            ? { display: 'none' }
+            : undefined,
         }}
       />
       <Drawer.Screen 
@@ -758,6 +799,7 @@ function DrawerNavigator() {
           drawerIcon: ({ color, size }) => (
             <Ionicons name="newspaper-outline" size={size} color={color} />
           ),
+          drawerItemStyle: isChildSession ? { display: 'none' } : undefined,
         }}
       />
       <Drawer.Screen 
@@ -784,7 +826,7 @@ function DrawerNavigator() {
           drawerItemStyle: { display: 'none' },
         }}
       />
-      {!isInstantMode && (
+      {!isInstantMode && !isChildSession && (
         <Drawer.Screen 
           name="Children" 
           component={ChildrenScreenWithAuth}
@@ -797,7 +839,7 @@ function DrawerNavigator() {
           }}
         />
       )}
-      {!isInstantMode && (
+      {(!isInstantMode || isChildSession) && (
         <Drawer.Screen 
           name="Characters" 
           component={CharactersScreenWithAuth}
@@ -826,6 +868,7 @@ function DrawerNavigator() {
           drawerIcon: ({ color, size }) => (
             <Ionicons name="diamond-outline" size={size} color={color} />
           ),
+          drawerItemStyle: isChildSession ? { display: 'none' } : undefined,
         }}
       />
       <Drawer.Screen 
@@ -836,7 +879,7 @@ function DrawerNavigator() {
           drawerIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),
-          drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
+          drawerItemStyle: !isAuthenticated || isChildSession ? { display: 'none' } : undefined,
         }}
       />
       <Drawer.Screen 

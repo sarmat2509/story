@@ -21,7 +21,7 @@ interface StoryBottomSheetProps {
   onPositionChange: (position: number) => void;
   onFinish: () => void;
   onActivateAudio: () => void | Promise<void>;
-  onDeleteStory: () => void;
+  onDeleteStory?: () => void;
   onReportProblem?: () => void;
   onPublish?: () => void;
   onShare?: () => void;
@@ -168,13 +168,15 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
           )}
           
           {/* Delete Story Button */}
-          <TouchableOpacity 
-            style={styles.deleteButton}
-            onPress={onDeleteStory}
-          >
-            <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
-            <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
-          </TouchableOpacity>
+          {onDeleteStory ? (
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={onDeleteStory}
+            >
+              <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
+              <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
+            </TouchableOpacity>
+          ) : null}
 
           {/* Report Problem */}
           {onReportProblem && (

@@ -1,5 +1,9 @@
 import type { PhotoTypeUserUpload } from '@wondertales/shared';
 import { isPhotoTypeUserUpload } from '@wondertales/shared';
+import {
+  hashModerationSubject,
+  recordModerationDecision,
+} from './moderationDecisionService';
 
 export type PhotoInputSafetyCode =
   | 'PHOTO_URL_NOT_ALLOWED'
@@ -152,6 +156,22 @@ export function assertUserPhotoInputs(input: {
   if (decision.allowed === true) {
     return decision.paths;
   }
+  const raw = input.photos[decision.index];
+  const subjectSeed = typeof raw === 'string' ? raw : `non-string:${typeof raw}:${decision.index}`;
+  void recordModerationDecision({
+    userId: input.userId,
+    stage: 'photo_input_pre_queue',
+    source: 'user_photo_input',
+    subjectType: 'uploaded_asset',
+    subjectRefHash: hashModerationSubject(subjectSeed),
+    decision: 'blocked',
+    code: decision.code,
+    metadata: {
+      index: decision.index,
+      inputType: typeof raw,
+      allowedPhotoTypes: input.allowedPhotoTypes,
+    },
+  });
   throw new PhotoInputSafetyError(decision);
 }
 

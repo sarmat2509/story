@@ -21,6 +21,7 @@ import { theme } from '@/theme';
 import { SeriesCard } from '@/components/SeriesCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
+import { useAuthStore } from '@/store/authStore';
 import type { MainDrawerParamList } from '@/types/navigation';
 
 const cardDelay = (i: number) => Math.min(i * 35, 260);
@@ -32,16 +33,21 @@ export default function SeriesListScreen() {
   const { width } = useWindowDimensions();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const enterKey = useScreenEnter();
+  const sessionMode = useAuthStore((state) => state.sessionMode);
+  const activeChild = useAuthStore((state) => state.activeChild);
+  const isChildSession = sessionMode === 'child';
+  const childCanReadFamilyStories =
+    isChildSession && activeChild?.childMode?.childModeSettings?.allowSharedFamilyStories === true;
 
   const { data: series, isLoading, error } = useSeriesList();
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: isChildSession
+        ? () => null
+        : () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
-  }, [navigation]);
+  }, [navigation, isChildSession]);
 
   useFocusEffect(
     useCallback(() => {
@@ -75,6 +81,20 @@ export default function SeriesListScreen() {
   if (error) {
     const is403 = (error as { response?: { status?: number } })?.response?.status === 403;
     if (is403) {
+      if (isChildSession && !childCanReadFamilyStories) {
+        return (
+          <View style={styles.centerContainer}>
+            <Text style={styles.upgradeTitle}>{t('series.child_unavailable_title')}</Text>
+            <Text style={styles.upgradeDescription}>{t('series.child_unavailable_subtext')}</Text>
+            <TouchableOpacity
+              style={styles.libraryButton}
+              onPress={handleGoToLibrary}
+            >
+              <Text style={styles.libraryButtonText}>{t('series.go_to_library')}</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      }
       return (
         <View style={styles.centerContainer}>
           <Text style={styles.upgradeTitle}>{t('story_viewer.series_locked_title')}</Text>
@@ -136,11 +156,13 @@ export default function SeriesListScreen() {
         )}
       </View>
     </ScrollView>
-    <FeedbackModal
-      visible={showFeedbackModal}
-      onClose={() => setShowFeedbackModal(false)}
-      initialReportedScreen="other"
-    />
+    {!isChildSession && (
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="other"
+      />
+    )}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import * as characterService from '../services/characterService';
 import { CreateCharacterSchema, UpdateCharacterSchema } from '@wondertales/shared';
@@ -19,6 +19,25 @@ import { config } from '../config';
 import { generateTurnaroundSheetFromReference, generateLlmCharacterTurnaround, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
 
 const router = Router();
+
+function requireParentOrScopedChildSession(req: Request, res: Response, next: NextFunction): void {
+  if (req.sessionMode !== 'child') {
+    next();
+    return;
+  }
+
+  if (!req.childProfileId || !req.sessionScopes?.includes('child_mode')) {
+    res.status(403).json({
+      status: 'error',
+      message: 'Child session scope required',
+      code: 'SESSION_SCOPE_REQUIRED',
+      requiredScope: 'child_mode',
+    });
+    return;
+  }
+
+  next();
+}
 
 function sendPhotoInputSafetyError(res: Parameters<typeof requireAuth>[1], error: unknown): boolean {
   if (!isPhotoInputSafetyError(error)) {
@@ -53,7 +72,7 @@ const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.mo
 const analysisService = new CharacterAnalysisService(geminiProvider);
 
 // POST /api/v1/characters/analyze - Analyze character photos
-router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
+router.post('/analyze', requireAuth, requireParentOrScopedChildSession, async (req, res) => {
   const { photos, characterType, language } = req.body;
   
   try {
@@ -211,7 +230,7 @@ function extractSecondaryColor(traits: any): string | undefined {
 }
 
 // GET /api/v1/characters - List characters (optionally filtered by type)
-router.get('/', requireAuth, requireParentSession, async (req, res) => {
+router.get('/', requireAuth, requireParentOrScopedChildSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const type = req.query.type as characterService.CharacterType | undefined;
@@ -232,7 +251,7 @@ router.get('/', requireAuth, requireParentSession, async (req, res) => {
 });
 
 // POST /api/v1/characters - Create character
-router.post('/', requireAuth, requireParentSession, async (req, res) => {
+router.post('/', requireAuth, requireParentOrScopedChildSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     
@@ -355,7 +374,7 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
 });
 
 // GET /api/v1/characters/:id - Get single character
-router.get('/:id', requireAuth, requireParentSession, async (req, res) => {
+router.get('/:id', requireAuth, requireParentOrScopedChildSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;

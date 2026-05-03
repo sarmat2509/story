@@ -417,7 +417,8 @@ export const useDeleteStory = () => {
 };
 
 // Schedule continuation for a story series
-export function useScheduleStatus(storyId: string | undefined) {
+export function useScheduleStatus(storyId: string | undefined, options?: { enabled?: boolean }) {
+  const { enabled = true } = options ?? {};
   return useQuery({
     queryKey: ['story', storyId, 'schedule'],
     queryFn: async () => {
@@ -427,7 +428,7 @@ export function useScheduleStatus(storyId: string | undefined) {
       }>(`/api/v1/stories/${storyId}/schedule`);
       return response.data.data;
     },
-    enabled: !!storyId,
+    enabled: enabled && !!storyId,
   });
 }
 

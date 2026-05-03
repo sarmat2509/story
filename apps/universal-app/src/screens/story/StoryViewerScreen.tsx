@@ -67,7 +67,8 @@ export default function StoryViewerScreen() {
   const queryClient = useQueryClient();
   const { t, i18n } = useTranslation();
   const { isTabletPortrait, isMobile } = useResponsive();
-  const { user } = useAuthStore();
+  const { user, sessionMode } = useAuthStore();
+  const isChildSession = sessionMode === 'child';
   const isArtisanMode = user?.mode === 'artisan';
   const storyId = route.params?.storyId;
   const autoPlay = route.params?.autoPlay;
@@ -252,11 +253,13 @@ export default function StoryViewerScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: isChildSession
+        ? undefined
+        : () => (
+            <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+          ),
     });
-  }, [navigation]);
+  }, [isChildSession, navigation]);
   
   // Default voice: keep last user choice across stories; if it is missing from this
   // catalog (e.g. other story language), restore from storage or first unlocked voice.
@@ -421,6 +424,7 @@ export default function StoryViewerScreen() {
   // M6: Proactive alignment generation
   // Automatically generate alignment if audio exists but alignment is missing
   useEffect(() => {
+    if (isChildSession) return;
     if (!story || !story.audioMetadata) return;
     
     const audioMetadata = story.audioMetadata;
@@ -438,7 +442,7 @@ export default function StoryViewerScreen() {
       console.log('[Alignment] Audio exists but no alignment - generating proactively');
       generateAlignment.mutate({ storyId });
     }
-  }, [story, storyId, generateAlignment, isGenerating]);
+  }, [isChildSession, story, storyId, generateAlignment, isGenerating]);
   
   // Optional: Show alignment generation status
   useEffect(() => {
@@ -646,7 +650,7 @@ export default function StoryViewerScreen() {
       <StoryCharactersSection
         characters={characters as StoryCharacter[]}
         savedCharacterIds={savedCharacterIdsArray}
-        isArtisanMode={isArtisanMode}
+        isArtisanMode={!isChildSession && isArtisanMode}
         onSaveCharacter={handleSaveCharacter}
         isSavePending={updateCharacterMutation.isPending}
       />
@@ -654,6 +658,7 @@ export default function StoryViewerScreen() {
   }, [
     story?.characters,
     savedCharacterIdsArray,
+    isChildSession,
     isArtisanMode,
     handleSaveCharacter,
     updateCharacterMutation.isPending,
@@ -1042,6 +1047,7 @@ export default function StoryViewerScreen() {
   // Render audio generation section (reusable component)
   // Hide when we have valid playerAudioData (API returned audioUrl) — prevents showing error + player together
   const renderAudioGenerationSection = () => (
+    isChildSession ? null :
     !playerAudioData && (!story.audioMetadata || audioFailed || showGeneratingBlock) && (
       <View style={styles.audioGenerationSection}>
         {audioLimitExceeded && limitInfo ? (
@@ -1442,7 +1448,7 @@ export default function StoryViewerScreen() {
                 </View>
               </View>
             )}
-            {parentReviewPanel && (
+            {!isChildSession && parentReviewPanel && (
               <View style={styles.mobileSectionWrapper}>
                 {parentReviewPanel}
               </View>
@@ -1500,14 +1506,14 @@ export default function StoryViewerScreen() {
               onPositionChange={handlePositionChangeWrapper}
               onFinish={handleAudioFinish}
               onActivateAudio={handleActivateAudio}
-              onDeleteStory={handleDeleteStory}
-              onReportProblem={() => setShowFeedbackModal(true)}
-              onPublish={handleOpenPublishDialog}
-              onShare={handleShare}
-              onUnpublish={handleUnpublish}
+              onDeleteStory={isChildSession ? undefined : handleDeleteStory}
+              onReportProblem={isChildSession ? undefined : () => setShowFeedbackModal(true)}
+              onPublish={isChildSession ? undefined : handleOpenPublishDialog}
+              onShare={isChildSession ? undefined : handleShare}
+              onUnpublish={isChildSession ? undefined : handleUnpublish}
               isPublishPending={publishStory.isPending}
               characters={story?.characters ?? []}
-              onSaveCharacter={isArtisanMode ? handleSaveCharacter : undefined}
+              onSaveCharacter={!isChildSession && isArtisanMode ? handleSaveCharacter : undefined}
               savedCharacterIds={savedCharacterIdsArray}
               userMode={user?.mode}
             />
@@ -1573,9 +1579,10 @@ export default function StoryViewerScreen() {
               {/* Characters Section */}
               {charactersSection}
 
-              {parentReviewPanel}
+              {!isChildSession ? parentReviewPanel : null}
               
               {/* Publication block */}
+              {!isChildSession ? (
               <View style={styles.publicationSection}>
                 {!story?.isPublished ? (
                   <TouchableOpacity
@@ -1636,8 +1643,10 @@ export default function StoryViewerScreen() {
                   </>
                 )}
               </View>
+              ) : null}
               
               {/* Delete Story Button */}
+              {!isChildSession ? (
               <TouchableOpacity 
                 style={styles.deleteButton}
                 onPress={handleDeleteStory}
@@ -1645,6 +1654,7 @@ export default function StoryViewerScreen() {
                 <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
                 <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
               </TouchableOpacity>
+              ) : null}
 
             </View>
           </ScrollView>

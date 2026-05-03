@@ -62,6 +62,13 @@ export function sanitizeStoryForDataExport(row: schema.Story): Record<string, un
   return omitKeys(row as unknown as Record<string, unknown>, ['shareToken']);
 }
 
+export function sanitizeChildProfileForDataExport(row: schema.ChildProfile): Record<string, unknown> {
+  return omitKeys(row as unknown as Record<string, unknown>, [
+    'childModePasscodeHash',
+    'childModePasscodeSetAt',
+  ]);
+}
+
 export function sanitizeAssetForDataExport(row: schema.Asset): Record<string, unknown> {
   return omitKeys(row as unknown as Record<string, unknown>, ['signedUrl', 'signedUrlExpiresAt']);
 }
@@ -220,6 +227,10 @@ export async function buildUserDataExport(userId: string): Promise<UserDataExpor
       'oauth_identities.refreshToken',
       'sessions.token',
       'password_reset_tokens.*',
+      'child_profiles.child_mode_passcode_hash',
+      'child_profiles.child_mode_passcode_set_at',
+      'child_profiles.childModePasscodeHash',
+      'child_profiles.childModePasscodeSetAt',
       'stories.shareToken',
       'assets.signedUrl',
       'assets.signedUrlExpiresAt',
@@ -231,7 +242,7 @@ export async function buildUserDataExport(userId: string): Promise<UserDataExpor
       consents,
     }),
     family: serializeForDataExport({
-      childProfiles,
+      childProfiles: childProfiles.map(sanitizeChildProfileForDataExport),
       characters,
     }),
     stories: serializeForDataExport({

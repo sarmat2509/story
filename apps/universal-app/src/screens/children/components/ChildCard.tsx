@@ -26,6 +26,7 @@ interface Child {
   referencePhotos?: Array<{ url: string }>;
   childModeEnabled?: boolean;
   childModeSettings?: Partial<ChildModeSettings>;
+  childModePasscodeConfigured?: boolean;
   childModeActiveSessionCount?: number;
 }
 
@@ -37,8 +38,9 @@ interface Props {
   childModeThemeOptions?: ChildModeOption[];
   childModeLanguageOptions?: ChildModeOption[];
   childModeCharacterOptions?: ChildModeOption[];
-  onChildModeEnabledChange?: (childId: string, enabled: boolean) => void;
+  onChildModeEnabledChange?: (childId: string, enabled: boolean, passcode?: string) => void;
   onChildModeSettingsChange?: (childId: string, settings: Partial<ChildModeSettings>) => void;
+  onChildModePasscodeChange?: (childId: string, passcode: string) => void;
   onEnterChildMode?: (childId: string, childName: string) => void;
   onRevokeChildModeSessions?: (childId: string, childName: string) => void;
   isChildModeUpdating?: boolean;
@@ -78,6 +80,11 @@ interface ChildModeLabels {
   anyCharacter: string;
   noCharacters: string;
   familyStories: string;
+  passcode: string;
+  passcodePlaceholder: string;
+  passcodeConfigured: string;
+  passcodeSave: string;
+  setPasscodeToStart: string;
   activeSessions: string;
   revoke: string;
   start: string;
@@ -287,6 +294,7 @@ export function ChildCard({
   childModeCharacterOptions = [],
   onChildModeEnabledChange,
   onChildModeSettingsChange,
+  onChildModePasscodeChange,
   onEnterChildMode,
   onRevokeChildModeSessions,
   isChildModeUpdating,
@@ -306,9 +314,23 @@ export function ChildCard({
     : '';
   const childModeSettings = normalizeChildModeSettings(child.childModeSettings);
   const childModeEnabled = child.childModeEnabled === true;
+  const childModePasscodeConfigured = child.childModePasscodeConfigured === true;
   const activeSessionCount = child.childModeActiveSessionCount ?? 0;
   const controlsDisabled = isChildModeUpdating || !onChildModeSettingsChange;
+  const passcodeDisabled = isChildModeUpdating || !onChildModePasscodeChange;
   const labels = childModeLabels;
+  const [passcodeDraft, setPasscodeDraft] = useState('');
+  const passcodeReadyForEnable = childModePasscodeConfigured || passcodeDraft.trim().length >= 4;
+  const childModeSwitchDisabled =
+    isChildModeUpdating || !onChildModeEnabledChange || (!childModeEnabled && !passcodeReadyForEnable);
+
+  const commitPasscode = () => {
+    const passcode = passcodeDraft.trim();
+    if (passcode.length >= 4) {
+      onChildModePasscodeChange?.(child.id, passcode);
+      setPasscodeDraft('');
+    }
+  };
 
   return (
     <View style={styles.cardWrapper}>
@@ -350,24 +372,58 @@ export function ChildCard({
               </View>
               <Switch
                 value={childModeEnabled}
-                disabled={isChildModeUpdating || !onChildModeEnabledChange}
-                onValueChange={(enabled) => onChildModeEnabledChange?.(child.id, enabled)}
+                disabled={childModeSwitchDisabled}
+                onValueChange={(enabled) => onChildModeEnabledChange?.(
+                  child.id,
+                  enabled,
+                  passcodeDraft.trim() || undefined
+                )}
                 trackColor={{ false: theme.colors.background.tertiary, true: theme.colors.interactive.secondary }}
                 thumbColor={childModeEnabled ? theme.colors.interactive.primary : theme.colors.text.inverse}
               />
             </View>
 
             <Text style={styles.childModeStatus} numberOfLines={1}>
-              {childModeEnabled ? labels.enabled : labels.disabled}
+              {childModeEnabled
+                ? `${labels.enabled} · ${childModePasscodeConfigured ? labels.passcodeConfigured : labels.setPasscodeToStart}`
+                : childModePasscodeConfigured ? labels.passcodeConfigured : labels.disabled}
             </Text>
+
+            <View style={styles.passcodeRow}>
+              <View style={styles.passcodeField}>
+                <Text style={styles.limitLabel} numberOfLines={1}>{labels.passcode}</Text>
+                <TextInput
+                  nativeID={`child-mode-${child.id}-passcode`}
+                  style={[styles.limitInput, passcodeDisabled && styles.controlDisabled]}
+                  value={passcodeDraft}
+                  placeholder={labels.passcodePlaceholder}
+                  placeholderTextColor={theme.colors.text.tertiary}
+                  secureTextEntry
+                  editable={!passcodeDisabled}
+                  maxLength={128}
+                  onChangeText={setPasscodeDraft}
+                  onSubmitEditing={commitPasscode}
+                />
+              </View>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.passcodeSaveButton,
+                  (pressed || passcodeDraft.trim().length < 4 || passcodeDisabled) && styles.optionChipPressed,
+                ]}
+                disabled={passcodeDraft.trim().length < 4 || passcodeDisabled}
+                onPress={commitPasscode}
+              >
+                <Text style={styles.passcodeSaveText} numberOfLines={1}>{labels.passcodeSave}</Text>
+              </Pressable>
+            </View>
 
             <Pressable
               style={({ pressed }) => [
                 styles.startChildModeButton,
-                (!childModeEnabled || isEnteringChildMode || !onEnterChildMode) && styles.startChildModeButtonDisabled,
+                (!childModeEnabled || !childModePasscodeConfigured || isEnteringChildMode || !onEnterChildMode) && styles.startChildModeButtonDisabled,
                 pressed && childModeEnabled && !isEnteringChildMode && styles.startChildModeButtonPressed,
               ]}
-              disabled={!childModeEnabled || isEnteringChildMode || !onEnterChildMode}
+              disabled={!childModeEnabled || !childModePasscodeConfigured || isEnteringChildMode || !onEnterChildMode}
               onPress={() => onEnterChildMode?.(child.id, child.name)}
             >
               <Ionicons
@@ -377,7 +433,7 @@ export function ChildCard({
               />
               <Text style={styles.startChildModeButtonText} numberOfLines={1}>
                 {childModeEnabled
-                  ? isEnteringChildMode ? labels.starting : labels.start
+                  ? !childModePasscodeConfigured ? labels.setPasscodeToStart : isEnteringChildMode ? labels.starting : labels.start
                   : labels.enableToStart}
               </Text>
             </Pressable>
@@ -516,6 +572,10 @@ const styles = StyleSheet.create<{
   limitField: ViewStyle;
   limitLabel: TextStyle;
   limitInput: TextStyle;
+  passcodeRow: ViewStyle;
+  passcodeField: ViewStyle;
+  passcodeSaveButton: ViewStyle;
+  passcodeSaveText: TextStyle;
   controlDisabled: ViewStyle | TextStyle;
   settingRow: ViewStyle;
   settingLabel: TextStyle;
@@ -655,6 +715,28 @@ const styles = StyleSheet.create<{
     color: theme.colors.text.primary,
     backgroundColor: theme.colors.background.secondary,
     outlineStyle: 'none' as any,
+  },
+  passcodeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: theme.spacing[2],
+  },
+  passcodeField: {
+    flex: 1,
+    minWidth: 0,
+    gap: theme.spacing[1],
+  },
+  passcodeSaveButton: {
+    minHeight: 38,
+    justifyContent: 'center',
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.tertiary,
+    paddingHorizontal: theme.spacing[3],
+  },
+  passcodeSaveText: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
   },
   controlDisabled: {
     opacity: 0.55,

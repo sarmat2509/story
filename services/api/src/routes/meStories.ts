@@ -16,7 +16,11 @@ import {
   getTotalUserStoriesCount,
   listUserStoryLanguages,
 } from '../services/storyOrchestrationService';
-import { getAlignmentRepository } from '../repositories';
+import { getAlignmentRepository, getStoryRepository } from '../repositories';
+import {
+  canReadStoryForSession,
+  getChildScopedStoryFilter,
+} from '../services/childStoryAccessService';
 import { stripAllTags } from '../utils/audioTags';
 import { logger } from '../utils/logger';
 
@@ -45,13 +49,33 @@ function parseLanguageQuery(raw: unknown): string | undefined {
   return raw;
 }
 
+function getStoryReadOptions(req: Request): { childProfileId?: string } {
+  const childProfileId = getChildScopedStoryFilter({
+    sessionMode: req.sessionMode,
+    childProfileId: req.childProfileId,
+    sessionScopes: req.sessionScopes,
+  });
+  return childProfileId ? { childProfileId } : {};
+}
+
+async function findReadableStoryForRequest(req: Request, storyId: string) {
+  const story = await getStoryRepository().findByIdAndUser(storyId, req.user!.id);
+  if (!story) {
+    return null;
+  }
+  if (!canReadStoryForSession(req, story)) {
+    return null;
+  }
+  return story;
+}
+
 /**
  * GET /api/v1/me/stories/languages
  * Distinct language codes for stories the user owns (at least one story per code).
  */
 router.get('/languages', requireAuth, async (req: Request, res: Response) => {
   try {
-    const languages = await listUserStoryLanguages(req.user!.id);
+    const languages = await listUserStoryLanguages(req.user!.id, getStoryReadOptions(req));
     return res.json({
       status: 'success',
       languages,
@@ -80,10 +104,18 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     const language = parseLanguageQuery(req.query.language);
     const view = req.query.view as string | undefined;
 
-    const totalCount = await getTotalUserStoriesCount(req.user!.id, { hasAudio, scenarioCardId, seriesId, language });
+    const storyReadOptions = getStoryReadOptions(req);
+    const totalCount = await getTotalUserStoriesCount(req.user!.id, {
+      ...storyReadOptions,
+      hasAudio,
+      scenarioCardId,
+      seriesId,
+      language,
+    });
 
     if (view === 'summary') {
       const summaries = await listUserStorySummaries(req.user!.id, {
+        ...storyReadOptions,
         limit,
         offset,
         hasAudio,
@@ -98,7 +130,15 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       });
     }
 
-    const stories = await listUserStories(req.user!.id, { limit, offset, hasAudio, scenarioCardId, seriesId, language });
+    const stories = await listUserStories(req.user!.id, {
+      ...storyReadOptions,
+      limit,
+      offset,
+      hasAudio,
+      scenarioCardId,
+      seriesId,
+      language,
+    });
 
     const storyForClient = stories.map((story: any) => ({
       ...story,
@@ -131,7 +171,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
 router.get('/:id/alignment', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const story = await getStory(id, req.user!.id);
+    const story = await findReadableStoryForRequest(req, id);
 
     if (!story) {
       return res.status(404).json({
@@ -171,7 +211,7 @@ router.get('/:id/alignment', requireAuth, async (req: Request, res: Response) =>
 router.get('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const story = await getStory(id, req.user!.id);
+    const story = await findReadableStoryForRequest(req, id);
 
     if (!story) {
       return res.status(404).json({

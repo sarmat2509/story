@@ -43,6 +43,7 @@ export interface ChildProfileData {
   isActive: boolean;
   childModeEnabled?: boolean;
   childModeSettings?: ChildModeSettings;
+  childModePasscodeConfigured?: boolean;
   childModeActiveSessionCount?: number;
 }
 

@@ -335,6 +335,8 @@ export const childProfiles = pgTable('child_profiles', {
   distinctiveFeatures: jsonb('distinctive_features'), // Array of distinctive features
   turnaroundSheet: jsonb('turnaround_sheet'), // { url, generatedAt, sourcePhotoUrl } for 3D turnaround model sheet
   childModeEnabled: boolean('child_mode_enabled').notNull().default(false),
+  childModePasscodeHash: text('child_mode_passcode_hash'),
+  childModePasscodeSetAt: timestamp('child_mode_passcode_set_at'),
   childModeSettings: jsonb('child_mode_settings').notNull().default({
     dailyGenerationLimit: null,
     monthlyGenerationLimit: null,
@@ -680,6 +682,33 @@ export const stories = pgTable('stories', {
   };
 });
 
+// Safe moderation audit trail for support review. Stores categories/codes and hashed refs, not raw child content.
+export const moderationDecisionEvents = pgTable('moderation_decision_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  storyId: uuid('story_id').references(() => stories.id, { onDelete: 'set null' }),
+  storyRequestId: uuid('story_request_id').references(() => storyRequests.id, { onDelete: 'set null' }),
+  childProfileId: uuid('child_profile_id').references(() => childProfiles.id, { onDelete: 'set null' }),
+  stage: varchar('stage', { length: 80 }).notNull(),
+  source: varchar('source', { length: 120 }).notNull(),
+  subjectType: varchar('subject_type', { length: 40 }).notNull(),
+  subjectRefHash: varchar('subject_ref_hash', { length: 64 }),
+  decision: varchar('decision', { length: 40 }).notNull(),
+  code: varchar('code', { length: 120 }),
+  category: varchar('category', { length: 120 }),
+  ruleId: varchar('rule_id', { length: 160 }),
+  metadata: jsonb('metadata').default({}).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+  return {
+    createdAtIdx: index('moderation_decision_events_created_at_idx').on(table.createdAt),
+    userCreatedAtIdx: index('moderation_decision_events_user_created_at_idx').on(table.userId, table.createdAt),
+    storyCreatedAtIdx: index('moderation_decision_events_story_created_at_idx').on(table.storyId, table.createdAt),
+    decisionCreatedAtIdx: index('moderation_decision_events_decision_created_at_idx').on(table.decision, table.createdAt),
+    stageCreatedAtIdx: index('moderation_decision_events_stage_created_at_idx').on(table.stage, table.createdAt),
+  };
+});
+
 // Story ratings (public voting, 1-5 emoji scale)
 export const storyRatings = pgTable('story_ratings', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -815,6 +844,9 @@ export type NewStorySeries = typeof storySeries.$inferInsert;
 
 export type Story = typeof stories.$inferSelect;
 export type NewStory = typeof stories.$inferInsert;
+
+export type ModerationDecisionEvent = typeof moderationDecisionEvents.$inferSelect;
+export type NewModerationDecisionEvent = typeof moderationDecisionEvents.$inferInsert;
 
 export type StoryCharacter = typeof storyCharacters.$inferSelect;
 export type NewStoryCharacter = typeof storyCharacters.$inferInsert;

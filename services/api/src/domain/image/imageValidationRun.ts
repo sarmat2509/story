@@ -16,6 +16,10 @@ import {
 } from '../../prompts/image/ImageValidationPrompt';
 import { IMAGE_VALIDATION_SCHEMA } from '../story/schemas';
 import { flattenCameraComposition, type SceneVisual } from '../../services/types';
+import {
+  hashModerationSubject,
+  recordModerationDecision,
+} from '../../services/moderationDecisionService';
 import { logger } from '../../utils/logger';
 
 export type ProductImageValidationInput = {
@@ -434,6 +438,23 @@ export async function runProductImageValidation(
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
 
     if (errorMsg.includes('PROHIBITED_CONTENT') || errorMsg.includes('blocked')) {
+      void recordModerationDecision({
+        storyId: input.logContext?.storyId,
+        stage: 'generated_image_validation',
+        source: 'image_validation_provider',
+        subjectType: 'scene_image',
+        subjectRefHash: hashModerationSubject(
+          `${input.logContext?.storyId ?? 'story'}:${input.logContext?.sceneId ?? 'scene'}:${input.logContext?.attempt ?? 'attempt'}`
+        ),
+        decision: 'blocked',
+        code: 'IMAGE_VALIDATION_PROVIDER_BLOCKED',
+        category: 'provider_safety_filter',
+        metadata: {
+          sceneId: input.logContext?.sceneId,
+          attempt: input.logContext?.attempt,
+          expectedCharacterCount: input.expectedCharacters.length,
+        },
+      });
       logger.warn(
         { ...input.logContext, error: errorMsg },
         'Image validation blocked by safety filter — returning skipped result (no auto-pass)'
@@ -468,6 +489,22 @@ export async function runProductImageValidation(
       };
     }
 
+    void recordModerationDecision({
+      storyId: input.logContext?.storyId,
+      stage: 'generated_image_validation',
+      source: 'image_validation_provider',
+      subjectType: 'scene_image',
+      subjectRefHash: hashModerationSubject(
+        `${input.logContext?.storyId ?? 'story'}:${input.logContext?.sceneId ?? 'scene'}:${input.logContext?.attempt ?? 'attempt'}`
+      ),
+      decision: 'failed',
+      code: 'IMAGE_VALIDATION_FAILED',
+      metadata: {
+        sceneId: input.logContext?.sceneId,
+        attempt: input.logContext?.attempt,
+        errorName: error instanceof Error ? error.name : typeof error,
+      },
+    });
     logger.error(
       {
         err:

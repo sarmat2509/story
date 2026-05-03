@@ -233,6 +233,7 @@ export const ChildModeSettingsSchema = z.object({
 export const UpdateChildModeControlsSchema = z.object({
   childModeEnabled: z.boolean().optional(),
   childModeSettings: ChildModeSettingsSchema.optional(),
+  childModePasscode: z.string().min(4).max(128).optional(),
 });
 
 // Character Schemas (Type-specific)

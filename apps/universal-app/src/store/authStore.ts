@@ -10,6 +10,8 @@ export type SessionMode = 'parent' | 'child';
 export type ActiveChildSession = {
   id: string;
   name: string;
+  referencePhotos?: Array<{ url: string }>;
+  turnaroundSheet?: { url: string; frontUrl?: string; generatedAt?: string };
   childMode?: {
     childModeEnabled: boolean;
     childModeSettings: ChildModeSettings;
@@ -78,7 +80,7 @@ export const useAuthStore = create<AuthState>()(
           navigationRef.dispatch(
             CommonActions.reset({
               index: 0,
-              routes: [{ name: 'ChildMode' }],
+              routes: [{ name: 'Main', state: { routes: [{ name: 'Dashboard' }], index: 0 } }],
             })
           );
         }

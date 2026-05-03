@@ -36,8 +36,8 @@ export interface SessionData {
   revokedAt: Date | null;
 }
 
-// Parse session expires duration (e.g., "30d" -> 30 days in ms)
-function parseExpiresDuration(duration: string): number {
+// Parse session duration (e.g., "30d" -> 30 days in ms)
+export function parseSessionDurationMs(duration: string): number {
   const match = duration.match(/^(\d+)([dhms])$/);
   if (!match) {
     throw new Error(`Invalid duration format: ${duration}`);
@@ -56,15 +56,46 @@ function parseExpiresDuration(duration: string): number {
   return value * multipliers[unit];
 }
 
+export function getSessionDurationMsForMode(mode: SessionMode): number {
+  return parseSessionDurationMs(
+    mode === 'child' ? config.session.childExpiresIn : config.session.expiresIn
+  );
+}
+
+export function getChildSessionIdleTimeoutMs(): number {
+  return parseSessionDurationMs(config.session.childIdleTimeout);
+}
+
+export function getChildSessionActiveAfter(now = new Date()): Date {
+  return new Date(now.getTime() - getChildSessionIdleTimeoutMs());
+}
+
+export function isSessionRecordActive(
+  session: Pick<SessionData, 'mode' | 'lastActiveAt' | 'expiresAt' | 'revokedAt'>,
+  now = new Date()
+): boolean {
+  if (session.revokedAt) {
+    return false;
+  }
+  if (session.expiresAt <= now) {
+    return false;
+  }
+  if (session.mode === 'child' && session.lastActiveAt <= getChildSessionActiveAfter(now)) {
+    return false;
+  }
+  return true;
+}
+
 // Create new session
 export async function createSession(input: CreateSessionInput): Promise<SessionData> {
   const token = uuidv4();
-  const expiresInMs = parseExpiresDuration(config.session.expiresIn);
+  const mode = input.mode || 'parent';
+  const expiresInMs = getSessionDurationMsForMode(mode);
   const expiresAt = new Date(Date.now() + expiresInMs);
   
   const newSession: NewSession = {
     userId: input.userId,
-    mode: input.mode || 'parent',
+    mode,
     parentUserId: input.parentUserId || input.userId,
     childProfileId: input.childProfileId || null,
     scopes: input.scopes || [],
@@ -96,7 +127,21 @@ export async function validateSession(token: string): Promise<boolean> {
 export async function getSessionWithUser(
   sessionId: string
 ): Promise<{ session: Session; user: User } | null> {
-  return getSessionRepository().findValidByIdWithUser(sessionId);
+  const result = await getSessionRepository().findValidByIdWithUser(sessionId);
+  if (!result) {
+    return null;
+  }
+
+  if (!isSessionRecordActive(result.session as SessionData)) {
+    await getSessionRepository().revokeById(sessionId);
+    logger.info(
+      { sessionId, mode: result.session.mode, userId: result.user.id },
+      'Session rejected by idle/expiry policy'
+    );
+    return null;
+  }
+
+  return result;
 }
 
 // Update last active timestamp
@@ -117,10 +162,7 @@ export async function deleteAllUserSessions(userId: string): Promise<number> {
 // Get all active sessions for a user
 export async function getUserSessions(userId: string): Promise<SessionData[]> {
   const userSessions = await getSessionRepository().findByUserId(userId);
-  
-  // Filter out expired sessions
-  const now = new Date();
-  return userSessions.filter((s) => s.expiresAt > now) as SessionData[];
+  return (userSessions as SessionData[]).filter((session) => isSessionRecordActive(session));
 }
 
 // Cleanup expired sessions (cron job)

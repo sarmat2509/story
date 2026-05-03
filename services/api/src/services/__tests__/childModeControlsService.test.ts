@@ -68,6 +68,7 @@ void (async function main() {
       {
         childModeEnabled: true,
         childModeSettings: { freeTextPromptsEnabled: true },
+        childModePasscodeHash: '$2b$hash',
       } as any,
       2
     ),
@@ -77,9 +78,22 @@ void (async function main() {
         ...DEFAULT_CHILD_MODE_SETTINGS,
         freeTextPromptsEnabled: true,
       },
+      childModePasscodeConfigured: true,
       activeSessionCount: 2,
     },
     'controls response normalizes settings and includes active sessions'
+  );
+
+  assert.strictEqual(
+    buildChildModeControls(
+      {
+        childModeEnabled: true,
+        childModeSettings: {},
+        childModePasscodeHash: null,
+      } as any
+    ).childModePasscodeConfigured,
+    false,
+    'controls response marks missing child mode passcode as not configured'
   );
 
   assert.deepStrictEqual(

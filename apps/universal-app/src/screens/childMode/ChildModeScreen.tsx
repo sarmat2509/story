@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -24,18 +23,15 @@ import {
 import {
   useLogout,
   useParentGate,
-  useParentGateApple,
-  useParentGateGoogle,
-  useParentGateGoogleStart,
 } from '@/api/auth';
 import { useStoryThemes } from '@/api/dictionaries';
 import { useSubscriptionUsage } from '@/api/plans';
 import { useCreateChildModeStory, useStoryStatus } from '@/api/stories';
+import { useCharacters } from '@/api/characters';
 import i18n from '@/config/i18n';
 import { APP_CONFIG } from '@/config/constants';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
-import { oauth } from '@/utils/oauth';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -43,8 +39,11 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 function getParentGateErrorMessage(t: Translate, error: unknown): string {
   const err = error as { response?: { status?: number; data?: { code?: string } } };
   const code = err.response?.data?.code;
-  if (code === 'PARENT_GATE_PASSWORD_UNAVAILABLE') {
+  if (code === 'CHILD_MODE_PASSCODE_NOT_CONFIGURED' || code === 'PARENT_GATE_PASSWORD_UNAVAILABLE') {
     return t('child_mode.parent_gate_unavailable');
+  }
+  if (code === 'CHILD_MODE_PASSCODE_INVALID') {
+    return t('child_mode.parent_gate_wrong_password');
   }
   if (code === 'PARENT_GATE_OAUTH_IDENTITY_REQUIRED' || code === 'PARENT_GATE_ACCOUNT_MISMATCH') {
     return t('child_mode.parent_gate_oauth_mismatch');
@@ -97,12 +96,10 @@ export default function ChildModeScreen() {
   const sessionMode = useAuthStore((state) => state.sessionMode);
   const user = useAuthStore((state) => state.user);
   const parentGate = useParentGate();
-  const parentGateGoogleStart = useParentGateGoogleStart();
-  const parentGateGoogle = useParentGateGoogle();
-  const parentGateApple = useParentGateApple();
   const logout = useLogout();
   const createChildStory = useCreateChildModeStory();
   const { data: themesData, isLoading: themesLoading } = useStoryThemes();
+  const { data: characters = [], isLoading: charactersLoading } = useCharacters();
   const { data: usage, isLoading: usageLoading } = useSubscriptionUsage();
 
   const settings = activeChild?.childMode?.childModeSettings;
@@ -150,6 +147,17 @@ export default function ChildModeScreen() {
       })),
     [t]
   );
+  const characterOptions = useMemo(() => {
+    const allowedIds = settings?.allowedCharacterIds ?? [];
+    const allowedSet = new Set(allowedIds);
+    return characters
+      .filter((character) => allowedIds.length === 0 || allowedSet.has(character.id))
+      .map((character) => ({
+        id: character.id,
+        name: character.name,
+        type: character.type,
+      }));
+  }, [characters, settings?.allowedCharacterIds]);
 
   const [gateVisible, setGateVisible] = useState(false);
   const [password, setPassword] = useState('');
@@ -157,17 +165,15 @@ export default function ChildModeScreen() {
   const [storyLanguage, setStoryLanguage] = useState<Locale>(defaultLanguage);
   const [selectedGoal, setSelectedGoal] = useState<string | null>(null);
   const [imageStyle, setImageStyle] = useState<string>('soft_watercolor');
+  const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
   const [userNotes, setUserNotes] = useState('');
   const [requestId, setRequestId] = useState<string | null>(null);
   const [createdReviewRequired, setCreatedReviewRequired] = useState<boolean>(reviewRequired);
   const [storyErrorText, setStoryErrorText] = useState<string | null>(null);
   const { data: storyStatus } = useStoryStatus(requestId || '', Boolean(requestId));
 
-  const googleGatePending = parentGateGoogleStart.isPending || parentGateGoogle.isPending;
-  const appleGatePending = parentGateApple.isPending;
-  const oauthGatePending = googleGatePending || appleGatePending;
-  const gatePending = parentGate.isPending || oauthGatePending;
-  const canSubmitGate = password.trim().length > 0 && !gatePending;
+  const gatePending = parentGate.isPending;
+  const canSubmitGate = password.trim().length >= 4 && !gatePending;
   const storyCreditsRemaining = usage?.stories.remaining;
   const storyCreditsExhausted = typeof storyCreditsRemaining === 'number' && storyCreditsRemaining <= 0;
   const periodEndFormatted = useMemo(
@@ -214,6 +220,24 @@ export default function ChildModeScreen() {
     }
   }, [goalOptions, selectedGoal]);
 
+  useEffect(() => {
+    const allowed = new Set(characterOptions.map((character) => character.id));
+    setSelectedCharacterIds((current) => current.filter((id) => allowed.has(id)));
+  }, [characterOptions]);
+
+  const toggleCharacter = (characterId: string) => {
+    if (generationInFlight) return;
+    setSelectedCharacterIds((current) => {
+      if (current.includes(characterId)) {
+        return current.filter((id) => id !== characterId);
+      }
+      if (current.length >= 5) {
+        return current;
+      }
+      return [...current, characterId];
+    });
+  };
+
   const handleOpenGate = () => {
     setPassword('');
     setErrorText(null);
@@ -232,51 +256,6 @@ export default function ChildModeScreen() {
     }
   };
 
-  const handleParentGateGoogle = async () => {
-    if (gatePending) return;
-    setErrorText(null);
-    try {
-      if (Platform.OS === 'web') {
-        const result = await parentGateGoogleStart.mutateAsync();
-        if (typeof window !== 'undefined') {
-          window.sessionStorage?.setItem('oauth_redirect', 'parent_gate_google');
-          window.location.href = result.url;
-        }
-        return;
-      }
-
-      const idToken = await oauth.handleGoogleSignIn();
-      if (!idToken) {
-        throw new Error('Google token was not returned');
-      }
-      await parentGateGoogle.mutateAsync({ idToken, deviceType: Platform.OS === 'ios' ? 'ios' : 'android' });
-      setGateVisible(false);
-      setPassword('');
-    } catch (error) {
-      setErrorText(getParentGateErrorMessage(t, error));
-    }
-  };
-
-  const handleParentGateApple = async () => {
-    if (gatePending || Platform.OS !== 'ios') return;
-    setErrorText(null);
-    try {
-      const result = await oauth.handleAppleSignIn();
-      if (!result?.identityToken) {
-        throw new Error('Apple identity token was not returned');
-      }
-      await parentGateApple.mutateAsync({
-        identityToken: result.identityToken,
-        user: result.user,
-        deviceType: 'ios',
-      });
-      setGateVisible(false);
-      setPassword('');
-    } catch (error) {
-      setErrorText(getParentGateErrorMessage(t, error));
-    }
-  };
-
   const handleCreateStory = async () => {
     if (!activeChild?.id || !canCreateStory) return;
     setStoryErrorText(null);
@@ -287,6 +266,7 @@ export default function ChildModeScreen() {
         storyLanguage,
         ...(selectedGoal ? { goal: selectedGoal } : {}),
         ...(imageStyle ? { imageStyle } : {}),
+        ...(selectedCharacterIds.length > 0 ? { selectedCharacters: selectedCharacterIds } : {}),
         ...(freeTextEnabled && userNotes.trim() ? { userNotes: userNotes.trim() } : {}),
       });
       setRequestId(result.id);
@@ -553,6 +533,41 @@ export default function ChildModeScreen() {
               </View>
             </View>
 
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionLabel}>{t('navigation.tab_characters')}</Text>
+                {charactersLoading ? (
+                  <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+                ) : null}
+              </View>
+              <View style={styles.chips}>
+                {characterOptions.map((character) => {
+                  const selected = selectedCharacterIds.includes(character.id);
+                  return (
+                    <TouchableOpacity
+                      key={character.id}
+                      style={[styles.chip, selected && styles.chipSelected]}
+                      onPress={() => toggleCharacter(character.id)}
+                      activeOpacity={0.75}
+                      disabled={generationInFlight}
+                    >
+                      <Ionicons
+                        name={selected ? 'checkmark-circle' : 'person-circle-outline'}
+                        size={18}
+                        color={selected ? theme.colors.text.inverse : theme.colors.interactive.primary}
+                      />
+                      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                        {character.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {!charactersLoading && characterOptions.length === 0 ? (
+                  <Text style={styles.emptyHint}>{t('characters.no_characters')}</Text>
+                ) : null}
+              </View>
+            </View>
+
             {freeTextEnabled ? (
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>{t('child_mode.story_notes_label')}</Text>
@@ -649,50 +664,6 @@ export default function ChildModeScreen() {
               autoCorrect={false}
               onSubmitEditing={handleParentGate}
             />
-
-            <View style={styles.oauthGateSection}>
-              <View style={styles.oauthDivider}>
-                <View style={styles.oauthDividerLine} />
-                <Text style={styles.oauthDividerText}>{t('auth.or')}</Text>
-                <View style={styles.oauthDividerLine} />
-              </View>
-              <TouchableOpacity
-                style={[styles.oauthGateButton, styles.googleGateButton, gatePending && styles.buttonDisabled]}
-                onPress={handleParentGateGoogle}
-                activeOpacity={0.82}
-                disabled={gatePending}
-              >
-                {googleGatePending ? (
-                  <ActivityIndicator size="small" color={theme.colors.text.inverse} />
-                ) : (
-                  <>
-                    <Ionicons name="logo-google" size={20} color={theme.colors.text.inverse} />
-                    <Text style={styles.oauthGateButtonText}>
-                      {t('child_mode.parent_gate_continue_google')}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              {Platform.OS === 'ios' ? (
-                <TouchableOpacity
-                  style={[styles.oauthGateButton, styles.appleGateButton, gatePending && styles.buttonDisabled]}
-                  onPress={handleParentGateApple}
-                  activeOpacity={0.82}
-                  disabled={gatePending}
-                >
-                  {appleGatePending ? (
-                    <ActivityIndicator size="small" color={theme.colors.text.inverse} />
-                  ) : (
-                    <>
-                      <Ionicons name="logo-apple" size={21} color={theme.colors.text.inverse} />
-                      <Text style={styles.oauthGateButtonText}>
-                        {t('child_mode.parent_gate_continue_apple')}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              ) : null}
-            </View>
 
             {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
 
@@ -1107,46 +1078,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.primary,
     backgroundColor: theme.colors.background.secondary,
-  },
-  oauthGateSection: {
-    marginTop: theme.spacing[5],
-    gap: theme.spacing[3],
-  },
-  oauthDivider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing[3],
-  },
-  oauthDividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: theme.colors.border.light,
-  },
-  oauthDividerText: {
-    fontSize: theme.typography.fontSize.xs,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.tertiary,
-    textTransform: 'uppercase',
-  },
-  oauthGateButton: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    borderRadius: theme.borders.radius.md,
-    paddingHorizontal: theme.spacing[4],
-  },
-  googleGateButton: {
-    backgroundColor: '#2563eb',
-  },
-  appleGateButton: {
-    backgroundColor: '#111827',
-  },
-  oauthGateButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
   },
   errorText: {
     marginTop: theme.spacing[3],

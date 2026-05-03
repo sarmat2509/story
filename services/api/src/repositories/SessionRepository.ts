@@ -1,4 +1,4 @@
-import { eq, and, lt, gt, desc, isNull, or, inArray, count } from 'drizzle-orm';
+import { eq, and, lt, gt, desc, isNull, or, inArray, count, type SQL } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -78,8 +78,21 @@ export class SessionRepository {
       .orderBy(desc(schema.sessions.lastActiveAt));
   }
 
-  async countActiveChildSessionsByProfileIds(childProfileIds: string[]): Promise<Map<string, number>> {
+  async countActiveChildSessionsByProfileIds(
+    childProfileIds: string[],
+    activeAfter?: Date
+  ): Promise<Map<string, number>> {
     if (childProfileIds.length === 0) return new Map();
+
+    const filters: SQL<unknown>[] = [
+      eq(schema.sessions.mode, 'child'),
+      inArray(schema.sessions.childProfileId, childProfileIds),
+      gt(schema.sessions.expiresAt, new Date()),
+      isNull(schema.sessions.revokedAt),
+    ];
+    if (activeAfter) {
+      filters.push(gt(schema.sessions.lastActiveAt, activeAfter));
+    }
 
     const rows = await this.db
       .select({
@@ -87,12 +100,7 @@ export class SessionRepository {
         count: count(),
       })
       .from(schema.sessions)
-      .where(and(
-        eq(schema.sessions.mode, 'child'),
-        inArray(schema.sessions.childProfileId, childProfileIds),
-        gt(schema.sessions.expiresAt, new Date()),
-        isNull(schema.sessions.revokedAt)
-      ))
+      .where(and(...filters))
       .groupBy(schema.sessions.childProfileId);
 
     return new Map(
@@ -116,6 +124,13 @@ export class SessionRepository {
         eq(schema.sessions.token, token),
         eq(schema.sessions.id, token)
       ));
+  }
+
+  async revokeById(sessionId: string): Promise<void> {
+    await this.db
+      .update(schema.sessions)
+      .set({ revokedAt: new Date() })
+      .where(eq(schema.sessions.id, sessionId));
   }
 
   async deleteByUserId(userId: string): Promise<number> {

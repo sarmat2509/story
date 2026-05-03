@@ -37,6 +37,7 @@ import { AdminDashboardRepository } from './AdminDashboardRepository';
 import { BundleRepository } from './BundleRepository';
 import { UserConsentRepository } from './UserConsentRepository';
 import { DataPrivacyRequestRepository } from './DataPrivacyRequestRepository';
+import { ModerationDecisionRepository } from './ModerationDecisionRepository';
 
 // Re-export classes for type usage
 export { UserRepository } from './UserRepository';
@@ -69,6 +70,7 @@ export { AdminDashboardRepository } from './AdminDashboardRepository';
 export { BundleRepository } from './BundleRepository';
 export { UserConsentRepository } from './UserConsentRepository';
 export { DataPrivacyRequestRepository } from './DataPrivacyRequestRepository';
+export { ModerationDecisionRepository } from './ModerationDecisionRepository';
 
 // Singleton instances
 let userRepo: UserRepository;
@@ -101,6 +103,7 @@ let adminDashboardRepo: AdminDashboardRepository;
 let bundleRepo: BundleRepository;
 let userConsentRepo: UserConsentRepository;
 let dataPrivacyRequestRepo: DataPrivacyRequestRepository;
+let moderationDecisionRepo: ModerationDecisionRepository;
 
 export function getUserRepository(): UserRepository {
   if (!userRepo) userRepo = new UserRepository(db);
@@ -253,4 +256,9 @@ export function getUserConsentRepository(): UserConsentRepository {
 export function getDataPrivacyRequestRepository(): DataPrivacyRequestRepository {
   if (!dataPrivacyRequestRepo) dataPrivacyRequestRepo = new DataPrivacyRequestRepository(db);
   return dataPrivacyRequestRepo;
+}
+
+export function getModerationDecisionRepository(): ModerationDecisionRepository {
+  if (!moderationDecisionRepo) moderationDecisionRepo = new ModerationDecisionRepository(db);
+  return moderationDecisionRepo;
 }

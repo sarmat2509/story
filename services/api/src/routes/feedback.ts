@@ -48,6 +48,19 @@ function getClientIp(req: Request): string {
   return req.ip || 'unknown';
 }
 
+export function rejectChildFeedbackSubmission(req: Request, res: Response): boolean {
+  if (req.sessionMode !== 'child') {
+    return false;
+  }
+
+  res.status(403).json({
+    status: 'error',
+    message: 'Parent session required',
+    code: 'PARENT_SESSION_REQUIRED',
+  });
+  return true;
+}
+
 // 5 submissions per hour per IP (or per userId when logged in)
 const feedbackLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -73,6 +86,10 @@ const feedbackLimiter = rateLimit({
  */
 router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Response) => {
   try {
+    if (rejectChildFeedbackSubmission(req, res)) {
+      return;
+    }
+
     const parsed = feedbackSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({

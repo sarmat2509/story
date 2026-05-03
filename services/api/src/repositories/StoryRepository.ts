@@ -246,13 +246,21 @@ export class StoryRepository {
       scenarioCardId?: string;
       seriesId?: string;
       language?: string;
+      childProfileId?: string;
     } = {}
   ): Promise<schema.Story[]> {
-    const { limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId, language } = options;
+    const { limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId, language, childProfileId } = options;
     const conditions = [
       eq(schema.stories.userId, userId),
       eq(schema.stories.hidden, false),
     ];
+    if (childProfileId) {
+      const childCondition = or(
+        eq(schema.stories.childProfileId, childProfileId),
+        eq(schema.stories.createdByChildProfileId, childProfileId)
+      );
+      if (childCondition) conditions.push(childCondition);
+    }
     if (hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
     }
@@ -301,6 +309,7 @@ export class StoryRepository {
       scenarioCardId?: string;
       seriesId?: string;
       language?: string;
+      childProfileId?: string;
     } = {}
   ): Promise<Array<{
     id: string;
@@ -316,11 +325,18 @@ export class StoryRepository {
     createdByChildProfileId: string | null;
     parentReviewStatus: string;
   }>> {
-    const { limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId, language } = options;
+    const { limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId, language, childProfileId } = options;
     const conditions = [
       eq(schema.stories.userId, userId),
       eq(schema.stories.hidden, false),
     ];
+    if (childProfileId) {
+      const childCondition = or(
+        eq(schema.stories.childProfileId, childProfileId),
+        eq(schema.stories.createdByChildProfileId, childProfileId)
+      );
+      if (childCondition) conditions.push(childCondition);
+    }
     if (hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
     }
@@ -370,12 +386,19 @@ export class StoryRepository {
 
   async countByUser(
     userId: string,
-    options: { hasAudio?: boolean; scenarioCardId?: string; seriesId?: string; language?: string } = {}
+    options: { hasAudio?: boolean; scenarioCardId?: string; seriesId?: string; language?: string; childProfileId?: string } = {}
   ): Promise<number> {
     const conditions = [
       eq(schema.stories.userId, userId),
       eq(schema.stories.hidden, false),
     ];
+    if (options.childProfileId) {
+      const childCondition = or(
+        eq(schema.stories.childProfileId, options.childProfileId),
+        eq(schema.stories.createdByChildProfileId, options.childProfileId)
+      );
+      if (childCondition) conditions.push(childCondition);
+    }
     if (options.hasAudio) {
       conditions.push(isNotNull(schema.stories.audioMetadata));
     }
@@ -402,11 +425,25 @@ export class StoryRepository {
   }
 
   /** Distinct story languages for the user (non-hidden stories only). */
-  async listDistinctLanguagesByUser(userId: string): Promise<string[]> {
+  async listDistinctLanguagesByUser(
+    userId: string,
+    options: { childProfileId?: string } = {}
+  ): Promise<string[]> {
+    const conditions = [
+      eq(schema.stories.userId, userId),
+      eq(schema.stories.hidden, false),
+    ];
+    if (options.childProfileId) {
+      const childCondition = or(
+        eq(schema.stories.childProfileId, options.childProfileId),
+        eq(schema.stories.createdByChildProfileId, options.childProfileId)
+      );
+      if (childCondition) conditions.push(childCondition);
+    }
     const rows = await this.db
       .select({ language: schema.stories.language })
       .from(schema.stories)
-      .where(and(eq(schema.stories.userId, userId), eq(schema.stories.hidden, false)))
+      .where(and(...conditions))
       .groupBy(schema.stories.language)
       .orderBy(asc(schema.stories.language));
     return rows.map((r) => r.language);

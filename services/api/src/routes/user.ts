@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { THEME_PALETTE_IDS } from '@wondertales/shared';
 import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
@@ -11,6 +11,7 @@ import {
   listUserDataPrivacyRequests,
 } from '../services/dataPrivacyRequestService';
 import { toChildSafeSubscriptionUsageView, type SubscriptionUsageView } from '../services/subscriptionUsageView';
+import { FAMILY_STORIES_READ_SCOPE } from '../services/childStoryAccessService';
 import { logger } from '../utils/logger';
 import { toUserResponse } from '../utils/userResponse';
 
@@ -33,6 +34,19 @@ const DataPrivacyRequestBodySchema = z
     message: z.string().max(2000).nullable().optional(),
   })
   .strict();
+
+function requireParentOrFamilyStoriesRead(req: Request, res: Response, next: NextFunction): void {
+  if (req.sessionMode === 'child' && !req.sessionScopes?.includes(FAMILY_STORIES_READ_SCOPE)) {
+    res.status(403).json({
+      status: 'error',
+      message: 'Family story access is disabled in Child Mode',
+      code: 'CHILD_FAMILY_STORIES_DISABLED',
+    });
+    return;
+  }
+
+  next();
+}
 
 // Get current user
 router.get('/', requireAuth, requireParentSession, async (req: Request, res: Response) => {
@@ -297,9 +311,9 @@ router.delete('/sessions/:sessionToken', requireAuth, requireParentSession, asyn
 });
 
 // List user's story series (requires series_enabled feature)
-router.get('/series', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+router.get('/series', requireAuth, requireParentOrFamilyStoriesRead, async (req: Request, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.parentUserId || req.user!.id;
     const { hasFeature } = await import('../services/planService');
     const hasSeriesAccess = await hasFeature(userId, 'series_enabled');
 

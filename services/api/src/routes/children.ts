@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
+import type { ChildProfile } from '../db/schema';
 import * as childProfileService from '../services/childProfileService';
 import * as childModeControlsService from '../services/childModeControlsService';
 import * as planService from '../services/planService';
@@ -55,7 +56,10 @@ function sendStoryFromDrawingAccessError(res: Parameters<typeof requireAuth>[1],
 }
 
 function sendChildModeError(res: Parameters<typeof requireAuth>[1], error: unknown): boolean {
-  if (!(error instanceof childModeControlsService.ChildModeError)) {
+  if (
+    !(error instanceof childModeControlsService.ChildModeError) &&
+    !(error instanceof childModeControlsService.ChildModePasscodeError)
+  ) {
     return false;
   }
 
@@ -141,6 +145,30 @@ async function requireChildDataConsent(req: Parameters<typeof requireAuth>[0], r
     code: 'CHILD_DATA_CONSENT_REQUIRED',
   });
   return false;
+}
+
+function toSafeChildProfile(profile: ChildProfile): Omit<ChildProfile, 'childModePasscodeHash' | 'childModePasscodeSetAt'> {
+  const {
+    childModePasscodeHash: _childModePasscodeHash,
+    childModePasscodeSetAt: _childModePasscodeSetAt,
+    ...safeProfile
+  } = profile;
+  return safeProfile;
+}
+
+function addAgeToChildProfile(profile: Omit<ChildProfile, 'childModePasscodeHash' | 'childModePasscodeSetAt'>) {
+  const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
+  return {
+    ...profile,
+    age: {
+      years: ageData.ageYears,
+      months: ageData.remainingMonths,
+      totalMonths: ageData.ageMonths,
+      ageGroup: ageData.ageGroup,
+      isBirthdayToday: ageData.isBirthdayToday,
+      daysUntilBirthday: ageData.daysUntilBirthday,
+    },
+  };
 }
 
 // POST /api/v1/children/analyze - Analyze child photos
@@ -239,10 +267,12 @@ router.get('/', requireAuth, requireParentSession, async (req, res) => {
         profile,
         childModeSessionCounts.get(profile.id) || 0
       );
+      const safeProfile = toSafeChildProfile(profile);
       return {
-        ...profile,
+        ...safeProfile,
         childModeEnabled: childModeControls.childModeEnabled,
         childModeSettings: childModeControls.childModeSettings,
+        childModePasscodeConfigured: childModeControls.childModePasscodeConfigured,
         childModeActiveSessionCount: childModeControls.activeSessionCount,
         age: {
           years: ageData.ageYears,
@@ -359,18 +389,7 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
     const updatedProfile = await childProfileService.getChildProfileById(profile.id, userId);
     const profileToReturn = updatedProfile ?? profile;
     
-    const ageData = childProfileService.getAgeData(new Date(profileToReturn.birthDate));
-    const profileWithAge = {
-      ...profileToReturn,
-      age: {
-        years: ageData.ageYears,
-        months: ageData.remainingMonths,
-        totalMonths: ageData.ageMonths,
-        ageGroup: ageData.ageGroup,
-        isBirthdayToday: ageData.isBirthdayToday,
-        daysUntilBirthday: ageData.daysUntilBirthday
-      }
-    };
+    const profileWithAge = addAgeToChildProfile(toSafeChildProfile(profileToReturn));
     
     res.status(201).json({
       status: 'success',
@@ -470,6 +489,8 @@ router.post('/:id/child-mode/sessions', requireAuth, requireParentSession, async
       child: {
         id: profile.id,
         name: profile.name,
+        referencePhotos: profile.referencePhotos,
+        turnaroundSheet: (profile as any).turnaroundSheet,
       },
       session: {
         id: session.id,
@@ -539,18 +560,7 @@ router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
     // Update profile (ownership check happens in service)
     const profile = await childProfileService.updateChildProfile(id, userId, dataForUpdate);
     
-    const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
-    const profileWithAge = {
-      ...profile,
-      age: {
-        years: ageData.ageYears,
-        months: ageData.remainingMonths,
-        totalMonths: ageData.ageMonths,
-        ageGroup: ageData.ageGroup,
-        isBirthdayToday: ageData.isBirthdayToday,
-        daysUntilBirthday: ageData.daysUntilBirthday
-      }
-    };
+    const profileWithAge = addAgeToChildProfile(toSafeChildProfile(profile));
     
     res.json({
       status: 'success',

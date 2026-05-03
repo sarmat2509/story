@@ -4763,7 +4763,7 @@ export async function listUserStories(
     seriesId?: string;
   } = {}
 ) {
-  const { childProfileId: _childProfileId, language, limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId } = options;
+  const { childProfileId, language, limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId } = options;
   
   const results = await getStoryRepository().findByUser(userId, {
     limit,
@@ -4772,6 +4772,7 @@ export async function listUserStories(
     scenarioCardId,
     seriesId,
     language,
+    childProfileId,
   });
   
   // Batch-enrich all stories with images in a single DB query
@@ -4804,7 +4805,7 @@ export async function listUserStorySummaries(
     seriesId?: string;
   } = {}
 ) {
-  const { childProfileId: _childProfileId, language, limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId } = options;
+  const { childProfileId, language, limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId } = options;
 
   const results = await getStoryRepository().findSummariesByUser(userId, {
     limit,
@@ -4813,6 +4814,7 @@ export async function listUserStorySummaries(
     scenarioCardId,
     seriesId,
     language,
+    childProfileId,
   });
 
   // Batch-enrich with images to extract cover image URL
@@ -4857,16 +4859,19 @@ export async function getTotalUserStoriesCount(
     seriesId?: string;
   } = {}
 ): Promise<number> {
-  const { childProfileId: _childProfileId, language, hasAudio, scenarioCardId, seriesId } = options;
+  const { childProfileId, language, hasAudio, scenarioCardId, seriesId } = options;
   
-  return getStoryRepository().countByUser(userId, { hasAudio, scenarioCardId, seriesId, language });
+  return getStoryRepository().countByUser(userId, { hasAudio, scenarioCardId, seriesId, language, childProfileId });
 }
 
 /**
  * Distinct language codes for the user's non-hidden stories (for library filter).
  */
-export async function listUserStoryLanguages(userId: string): Promise<string[]> {
-  return getStoryRepository().listDistinctLanguagesByUser(userId);
+export async function listUserStoryLanguages(
+  userId: string,
+  options: { childProfileId?: string } = {}
+): Promise<string[]> {
+  return getStoryRepository().listDistinctLanguagesByUser(userId, options);
 }
 
 /**

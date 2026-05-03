@@ -28,6 +28,7 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
+import { useAuthStore } from '@/store/authStore';
 import type { MainDrawerParamList } from '@/types/navigation';
 
 const cardDelay = (i: number) => Math.min(i * 35, 260);
@@ -42,6 +43,7 @@ export default function SeriesDetailScreen() {
   const { width } = useWindowDimensions();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const enterKey = useScreenEnter();
+  const isChildSession = useAuthStore((state) => state.sessionMode === 'child');
 
   const seriesId = route.params?.seriesId;
 
@@ -49,8 +51,8 @@ export default function SeriesDetailScreen() {
   const stories = useMemo(() => storiesData?.stories ?? [], [storiesData?.stories]);
   const lastStory = stories.length > 0 ? stories[stories.length - 1] : null;
   const { data: seriesInfo } = useSeriesInfo(lastStory?.id ?? '');
-  const { data: scheduleData } = useScheduleStatus(lastStory?.id ?? '');
-  const { data: voicesData } = useVoices('uk');
+  const { data: scheduleData } = useScheduleStatus(lastStory?.id ?? '', { enabled: !isChildSession });
+  const { data: voicesData } = useVoices('uk', { enabled: !isChildSession });
   const userPlan = voicesData?.meta?.userPlan || 'free';
 
   useFocusEffect(
@@ -76,7 +78,7 @@ export default function SeriesDetailScreen() {
     typeof scheduleData === 'object' &&
     'inProgress' in scheduleData &&
     (scheduleData as { inProgress?: boolean }).inProgress;
-  const showPendingCard = inProgress || hasSchedule;
+  const showPendingCard = !isChildSession && (inProgress || hasSchedule);
   const nextPartNumber = (seriesInfo?.totalParts ?? 0) + 1;
 
   const handleStoryPress = useCallback(
@@ -92,11 +94,11 @@ export default function SeriesDetailScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: baseTitle,
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: isChildSession
+        ? () => null
+        : () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
-  }, [navigation, baseTitle]);
+  }, [navigation, baseTitle, isChildSession]);
 
   if (!seriesId) {
     return (
@@ -177,7 +179,7 @@ export default function SeriesDetailScreen() {
                 <PendingPartCard partNumber={nextPartNumber} />
               </AnimatedSection>
             ))}
-          {!showPendingCard && lastStory && (
+          {!isChildSession && !showPendingCard && lastStory && (
             Platform.OS === 'web' ? (
               <AnimatedSection key="continue" delay={cardDelay(stories.length)} trigger={enterKey}>
                 <ContinueSeriesSection
@@ -215,11 +217,13 @@ export default function SeriesDetailScreen() {
           )}
         </View>
       </ScrollView>
-      <FeedbackModal
-        visible={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-        initialReportedScreen="other"
-      />
+      {!isChildSession && (
+        <FeedbackModal
+          visible={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+          initialReportedScreen="other"
+        />
+      )}
     </View>
   );
 }

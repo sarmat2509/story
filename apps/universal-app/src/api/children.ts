@@ -26,13 +26,20 @@ export interface ChildModeSettings extends Required<ChildModeSettingsInput> {}
 export interface ChildModeControls {
   childModeEnabled: boolean;
   childModeSettings: ChildModeSettings;
+  childModePasscodeConfigured: boolean;
   activeSessionCount: number;
 }
 
 export interface ChildModeSessionResponse {
   token: string;
   expiresAt: number;
-  child: Pick<ChildProfile, 'id' | 'name'>;
+  child: {
+    id: string;
+    name: string;
+    referencePhotos?: Array<{ url: string }>;
+    referencephotos?: Array<{ url: string }>;
+    turnaroundSheet?: { url: string; frontUrl?: string; generatedAt?: string };
+  };
   session: {
     id: string;
     mode: 'child';
@@ -148,7 +155,10 @@ export const useEnterChildMode = () => {
       await storage.setAuthToken(result.token);
       queryClient.clear();
       enterChildSession(result.token, {
-        ...result.child,
+        id: result.child.id,
+        name: result.child.name,
+        referencePhotos: result.child.referencePhotos ?? result.child.referencephotos,
+        turnaroundSheet: result.child.turnaroundSheet,
         childMode: result.childMode,
       });
     },

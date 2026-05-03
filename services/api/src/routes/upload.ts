@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import { isPhotoTypeUserUpload } from '@wondertales/shared';
-import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
+import { requireAuth } from '../middleware/authMiddleware';
 import { getAssetStorageService } from '../services/assetStorageService';
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
 import { isAllowedUserPhotoMimeType } from '../services/uploadValidationService';
@@ -24,6 +24,63 @@ function buildConsentAuditContext(req: Parameters<typeof requireAuth>[0], source
 
 function getChildDataConsentValue(body: Record<string, unknown>): unknown {
   return body.childDataConsentAccepted ?? body.child_data_consent_accepted ?? body.parentalConsentAccepted;
+}
+
+function requireParentOrChildCharacterPhotoUpload(req: Request, res: Response, next: NextFunction): void {
+  if (req.sessionMode !== 'child') {
+    next();
+    return;
+  }
+
+  if (!req.childProfileId || !req.sessionScopes?.includes('child_mode')) {
+    res.status(403).json({
+      status: 'error',
+      message: 'Child session scope required',
+      code: 'SESSION_SCOPE_REQUIRED',
+      requiredScope: 'child_mode',
+    });
+    return;
+  }
+
+  if ((req.body?.photoType ?? 'character') !== 'character') {
+    res.status(403).json({
+      status: 'error',
+      message: 'Child Mode can only upload character photos',
+      code: 'CHILD_PHOTO_UPLOAD_TYPE_RESTRICTED',
+    });
+    return;
+  }
+
+  next();
+}
+
+function requireParentOrChildCharacterPhotoDelete(req: Request, res: Response, next: NextFunction): void {
+  if (req.sessionMode !== 'child') {
+    next();
+    return;
+  }
+
+  if (!req.childProfileId || !req.sessionScopes?.includes('child_mode')) {
+    res.status(403).json({
+      status: 'error',
+      message: 'Child session scope required',
+      code: 'SESSION_SCOPE_REQUIRED',
+      requiredScope: 'child_mode',
+    });
+    return;
+  }
+
+  const url = typeof req.body?.url === 'string' ? req.body.url : '';
+  if (!url.includes('/photos/character/')) {
+    res.status(403).json({
+      status: 'error',
+      message: 'Child Mode can only delete character photos uploaded during character creation',
+      code: 'CHILD_PHOTO_DELETE_TYPE_RESTRICTED',
+    });
+    return;
+  }
+
+  next();
 }
 
 // Configure multer for memory storage
@@ -79,7 +136,7 @@ function handlePhotoUpload(req: Request, res: Response, next: NextFunction): voi
  * POST /api/v1/upload/photo
  * Upload user photo (profile, character, child reference photo)
  */
-router.post('/photo', requireAuth, requireParentSession, handlePhotoUpload, async (req, res) => {
+router.post('/photo', requireAuth, handlePhotoUpload, requireParentOrChildCharacterPhotoUpload, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -167,7 +224,7 @@ router.post('/photo', requireAuth, requireParentSession, handlePhotoUpload, asyn
  * DELETE /api/v1/upload/photo
  * Delete an uploaded photo (cleanup for cancelled character creation)
  */
-router.delete('/photo', requireAuth, requireParentSession, async (req, res) => {
+router.delete('/photo', requireAuth, requireParentOrChildCharacterPhotoDelete, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { url } = req.body;
