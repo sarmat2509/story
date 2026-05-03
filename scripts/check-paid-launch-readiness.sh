@@ -104,8 +104,27 @@ check_flag WT_OFFSITE_RESTORE_DRILL_CONFIRMED "offsite restore drill"
 
 echo
 echo "== Unattended alerts =="
-check_env OPS_ALERT_WEBHOOK_URL "production ops alert webhook"
-check_env_any "admin dashboard alert webhook" ADMIN_ALERT_WEBHOOK_URL OPS_ALERT_WEBHOOK_URL
+if has_value OPS_ALERT_WEBHOOK_URL; then
+  pass "production ops alert destination is set (OPS_ALERT_WEBHOOK_URL)"
+elif has_value OPS_ALERT_TELEGRAM_BOT_TOKEN && has_value OPS_ALERT_TELEGRAM_CHAT_ID; then
+  pass "production ops alert destination is set (OPS_ALERT_TELEGRAM_BOT_TOKEN/OPS_ALERT_TELEGRAM_CHAT_ID)"
+elif has_value TELEGRAM_BOT_TOKEN && has_value TELEGRAM_CHAT_ID; then
+  pass "production ops alert destination is set (TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID)"
+else
+  fail "production ops alert destination is missing; set OPS_ALERT_WEBHOOK_URL or OPS_ALERT_TELEGRAM_BOT_TOKEN and OPS_ALERT_TELEGRAM_CHAT_ID"
+fi
+
+if has_value ADMIN_ALERT_WEBHOOK_URL || has_value OPS_ALERT_WEBHOOK_URL; then
+  pass "admin dashboard alert destination is set (webhook)"
+elif has_value ADMIN_ALERT_TELEGRAM_BOT_TOKEN && has_value ADMIN_ALERT_TELEGRAM_CHAT_ID; then
+  pass "admin dashboard alert destination is set (ADMIN_ALERT_TELEGRAM_BOT_TOKEN/ADMIN_ALERT_TELEGRAM_CHAT_ID)"
+elif has_value OPS_ALERT_TELEGRAM_BOT_TOKEN && has_value OPS_ALERT_TELEGRAM_CHAT_ID; then
+  pass "admin dashboard alert destination is set (OPS_ALERT_TELEGRAM_BOT_TOKEN/OPS_ALERT_TELEGRAM_CHAT_ID)"
+elif has_value TELEGRAM_BOT_TOKEN && has_value TELEGRAM_CHAT_ID; then
+  pass "admin dashboard alert destination is set (TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID)"
+else
+  fail "admin dashboard alert destination is missing; set ADMIN_ALERT_WEBHOOK_URL, OPS_ALERT_WEBHOOK_URL, or Telegram alert env"
+fi
 if has_value PROD_ADMIN_ALERT_TOKEN; then
   pass "admin dashboard alert auth is set (PROD_ADMIN_ALERT_TOKEN)"
 elif has_value PROD_ADMIN_ALERT_EMAIL && has_value PROD_ADMIN_ALERT_PASSWORD; then

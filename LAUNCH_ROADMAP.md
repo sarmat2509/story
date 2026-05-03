@@ -1016,12 +1016,12 @@ Completed locally and in production:
 - Pricing presenter query fan-out was reduced to one joined plan-feature query, addressing the latest production ops warning source where `/pricing` occasionally fell back to static plan cards after the 900ms bounded SSR load window; the follow-up API deploy, public smoke, security artifact scan, and fresh api/webapp/nginx log window passed cleanly.
 - `./scripts/deploy.sh --nginx` now supports nginx/compose config-only deploys, and `./scripts/deploy.sh --help` shows usage without opening SSH.
 - Cloudflare R2 offsite backups are configured through repeatable rclone scripts: the droplet has `rclone`, `wondertales-r2` and encrypted `wondertales-r2-crypt` remotes, a private crypt recovery file, daily cron that loads `OFFSITE_BACKUP_RCLONE_TARGET`, and a full verified backup set in encrypted R2 (`3.1 MB` DB dump plus `1008 MB` uploads archive and SHA-256 sidecars). The follow-up production ops check passed with `0` failures; the former offsite-target warning is gone.
-- Admin dashboard alert scheduling is installed in the droplet cron and admin alert auth is configured in `/etc/wondertales/admin-alert.env` with owner-only permissions. A production dry-run authenticated against the admin dashboard and returned `severity=info` with `0` findings. Ops checks now distinguish scheduler/auth readiness from the still-missing external webhook destination.
+- Admin dashboard alert scheduling is installed in the droplet cron and admin alert auth is configured in `/etc/wondertales/admin-alert.env` with owner-only permissions. Telegram alert delivery is configured through `/etc/wondertales/ops-alert.env`; synthetic production ops and admin dashboard alerts both sent successfully through Telegram. A production dry-run authenticated against the admin dashboard and returned `severity=info` with `0` findings. Ops checks now distinguish scheduler/auth readiness from alert destination readiness.
 - The offsite restore drill is repeatable through `pnpm launch:run-offsite-restore-drill` and passed against the encrypted R2 backup set `20260503T192313Z`: DB and uploads SHA-256 sidecars matched, `pg_restore -l` read the dump, the DB restored into a disposable Postgres container with `50` public tables, and the uploads archive listed `2854` entries. Temporary files and the disposable container were cleaned up.
 
 Remaining work:
 
-- Configure the real external alert webhook before depending on unattended ops/admin monitoring.
+- Run the production ops check with `--backup-smoke` during launch windows when a fresh local smoke dump is desired; the normal read-only check intentionally warns that backup smoke was skipped.
 
 Completed locally:
 

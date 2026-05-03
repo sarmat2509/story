@@ -28,8 +28,8 @@ Set these in the operator shell, production secret store, or CI environment used
 - `WT_PRIVACY_EXPORT_DELIVERY_METHOD`: approved delivery method label, such as encrypted archive plus separate passphrase channel or approved expiring secure file share.
 - `OFFSITE_BACKUP_RCLONE_TARGET`: encrypted offsite backup target configured for production database and upload-volume artifacts.
 - `WT_OFFSITE_RESTORE_DRILL_CONFIRMED=1`: an offsite backup was restored to a non-production target and verified.
-- `OPS_ALERT_WEBHOOK_URL`: external alert destination for production ops failures.
-- `ADMIN_ALERT_WEBHOOK_URL` or `OPS_ALERT_WEBHOOK_URL`: external alert destination for admin dashboard cost, queue, and quality-review alerts.
+- `OPS_ALERT_WEBHOOK_URL` or Telegram alert env: external alert destination for production ops failures.
+- `ADMIN_ALERT_WEBHOOK_URL`, `OPS_ALERT_WEBHOOK_URL`, or Telegram alert env: external alert destination for admin dashboard cost, queue, and quality-review alerts.
 - `PROD_ADMIN_ALERT_TOKEN` or `PROD_ADMIN_ALERT_EMAIL` plus `PROD_ADMIN_ALERT_PASSWORD`: admin dashboard alert checker authentication.
 
 ## Operator notes

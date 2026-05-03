@@ -78,6 +78,7 @@ Use the cron-friendly wrapper when the check should notify an external system:
 
 ```bash
 OPS_ALERT_WEBHOOK_URL=https://example.com/webhook ./scripts/monitor-production-ops.sh
+OPS_ALERT_TELEGRAM_BOT_TOKEN=... OPS_ALERT_TELEGRAM_CHAT_ID=... ./scripts/monitor-production-ops.sh
 OPS_ALERT_WEBHOOK_URL=https://example.com/webhook pnpm launch:monitor-production-ops
 ```
 
@@ -113,12 +114,14 @@ Example crontab:
 ```
 
 The webhook payload is plain JSON with a `text` field, so it can be used with Slack-style webhooks, Discord-compatible relays, or a small custom endpoint.
+Telegram Bot API delivery is also supported directly; use either `OPS_ALERT_TELEGRAM_BOT_TOKEN` and `OPS_ALERT_TELEGRAM_CHAT_ID`, or the shared fallback names `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
 
 On the droplet, keep alert secrets out of the cron file itself:
 
 ```bash
 /etc/wondertales/ops-alert.env
-OPS_ALERT_WEBHOOK_URL=https://example.com/webhook
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
 OPS_ALERT_ON_WARNINGS=1
 ```
 
@@ -150,6 +153,7 @@ Use the admin dashboard checker when cost, queue, or quality-review signals shou
 
 ```bash
 PROD_ADMIN_ALERT_TOKEN=... ADMIN_ALERT_WEBHOOK_URL=https://example.com/webhook ./scripts/check-production-admin-alerts.sh
+PROD_ADMIN_ALERT_TOKEN=... ADMIN_ALERT_TELEGRAM_BOT_TOKEN=... ADMIN_ALERT_TELEGRAM_CHAT_ID=... ./scripts/check-production-admin-alerts.sh
 PROD_ADMIN_ALERT_TOKEN=... ADMIN_ALERT_WEBHOOK_URL=https://example.com/webhook pnpm launch:check-production-admin-alerts
 ```
 

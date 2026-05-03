@@ -7,6 +7,7 @@
 #
 # Usage:
 #   OPS_ALERT_WEBHOOK_URL=https://example.com/webhook ./scripts/monitor-production-ops.sh
+#   OPS_ALERT_TELEGRAM_BOT_TOKEN=... OPS_ALERT_TELEGRAM_CHAT_ID=... ./scripts/monitor-production-ops.sh
 #   OPS_ALERT_WEBHOOK_URL=https://example.com/webhook OPS_ALERT_ON_WARNINGS=1 ./scripts/monitor-production-ops.sh --backup-smoke
 #   ./scripts/monitor-production-ops.sh --local
 #   ./scripts/monitor-production-ops.sh --test-alert --dry-run-alert
@@ -18,6 +19,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 OPS_ALERT_WEBHOOK_URL="${OPS_ALERT_WEBHOOK_URL:-}"
+OPS_ALERT_TELEGRAM_BOT_TOKEN="${OPS_ALERT_TELEGRAM_BOT_TOKEN:-${TELEGRAM_BOT_TOKEN:-}}"
+OPS_ALERT_TELEGRAM_CHAT_ID="${OPS_ALERT_TELEGRAM_CHAT_ID:-${TELEGRAM_CHAT_ID:-}}"
 OPS_ALERT_ON_WARNINGS="${OPS_ALERT_ON_WARNINGS:-0}"
 OPS_ALERT_TAIL_LINES="${OPS_ALERT_TAIL_LINES:-80}"
 OPS_ALERT_TITLE_PREFIX="${OPS_ALERT_TITLE_PREFIX:-WonderTales production ops}"
@@ -137,7 +140,27 @@ if [[ "$DRY_RUN_ALERT" == "1" ]]; then
 fi
 
 if [[ -z "$OPS_ALERT_WEBHOOK_URL" ]]; then
-  echo "WARN alert not sent; OPS_ALERT_WEBHOOK_URL is not configured" >&2
+  if [[ -n "$OPS_ALERT_TELEGRAM_BOT_TOKEN" && -n "$OPS_ALERT_TELEGRAM_CHAT_ID" ]]; then
+    alert_text="$(
+      ALERT_PAYLOAD="$payload" node <<'NODE'
+const payload = JSON.parse(process.env.ALERT_PAYLOAD || '{}');
+const limit = 3900;
+let text = String(payload.text || '');
+if (text.length > limit) text = `${text.slice(0, limit)}\n...truncated`;
+console.log(text);
+NODE
+    )"
+    curl -fsS \
+      --max-time 15 \
+      -X POST "https://api.telegram.org/bot${OPS_ALERT_TELEGRAM_BOT_TOKEN}/sendMessage" \
+      -d "chat_id=${OPS_ALERT_TELEGRAM_CHAT_ID}" \
+      --data-urlencode "text=${alert_text}" >/dev/null
+
+    echo "Telegram alert sent."
+    exit "$check_status"
+  fi
+
+  echo "WARN alert not sent; OPS_ALERT_WEBHOOK_URL or OPS_ALERT_TELEGRAM_* is not configured" >&2
   exit "$check_status"
 fi
 

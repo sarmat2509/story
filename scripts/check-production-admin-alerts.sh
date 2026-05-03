@@ -8,6 +8,7 @@
 #
 # Usage:
 #   PROD_ADMIN_ALERT_TOKEN=... ADMIN_ALERT_WEBHOOK_URL=https://example.com/webhook ./scripts/check-production-admin-alerts.sh
+#   PROD_ADMIN_ALERT_TOKEN=... ADMIN_ALERT_TELEGRAM_BOT_TOKEN=... ADMIN_ALERT_TELEGRAM_CHAT_ID=... ./scripts/check-production-admin-alerts.sh
 #   PROD_ADMIN_ALERT_EMAIL=admin@example.com PROD_ADMIN_ALERT_PASSWORD=... OPS_ALERT_WEBHOOK_URL=... ./scripts/check-production-admin-alerts.sh
 #   ./scripts/check-production-admin-alerts.sh --test-alert --dry-run-alert
 
@@ -16,6 +17,8 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-https://wondertales.art}"
 ADMIN_ALERT_DAYS="${ADMIN_ALERT_DAYS:-7}"
 ADMIN_ALERT_WEBHOOK_URL="${ADMIN_ALERT_WEBHOOK_URL:-${OPS_ALERT_WEBHOOK_URL:-}}"
+ADMIN_ALERT_TELEGRAM_BOT_TOKEN="${ADMIN_ALERT_TELEGRAM_BOT_TOKEN:-${OPS_ALERT_TELEGRAM_BOT_TOKEN:-${TELEGRAM_BOT_TOKEN:-}}}"
+ADMIN_ALERT_TELEGRAM_CHAT_ID="${ADMIN_ALERT_TELEGRAM_CHAT_ID:-${OPS_ALERT_TELEGRAM_CHAT_ID:-${TELEGRAM_CHAT_ID:-}}}"
 ADMIN_ALERT_ON_WARNINGS="${ADMIN_ALERT_ON_WARNINGS:-0}"
 ADMIN_ALERT_TITLE_PREFIX="${ADMIN_ALERT_TITLE_PREFIX:-WonderTales admin dashboard}"
 PROD_ADMIN_ALERT_TOKEN="${PROD_ADMIN_ALERT_TOKEN:-${PROD_ADMIN_SMOKE_TOKEN:-}}"
@@ -254,7 +257,27 @@ if [[ "$DRY_RUN_ALERT" == "1" ]]; then
 fi
 
 if [[ -z "$ADMIN_ALERT_WEBHOOK_URL" ]]; then
-  echo "WARN alert not sent; ADMIN_ALERT_WEBHOOK_URL/OPS_ALERT_WEBHOOK_URL is not configured" >&2
+  if [[ -n "$ADMIN_ALERT_TELEGRAM_BOT_TOKEN" && -n "$ADMIN_ALERT_TELEGRAM_CHAT_ID" ]]; then
+    alert_text="$(
+      ALERT_PAYLOAD="$payload" node <<'NODE'
+const payload = JSON.parse(process.env.ALERT_PAYLOAD || '{}');
+const limit = 3900;
+let text = String(payload.text || '');
+if (text.length > limit) text = `${text.slice(0, limit)}\n...truncated`;
+console.log(text);
+NODE
+    )"
+    curl -fsS \
+      --max-time 15 \
+      -X POST "https://api.telegram.org/bot${ADMIN_ALERT_TELEGRAM_BOT_TOKEN}/sendMessage" \
+      -d "chat_id=${ADMIN_ALERT_TELEGRAM_CHAT_ID}" \
+      --data-urlencode "text=${alert_text}" >/dev/null
+
+    echo "Telegram alert sent."
+    exit "$check_status"
+  fi
+
+  echo "WARN alert not sent; ADMIN_ALERT_WEBHOOK_URL/OPS_ALERT_WEBHOOK_URL or Telegram alert env is not configured" >&2
   exit "$check_status"
 fi
 

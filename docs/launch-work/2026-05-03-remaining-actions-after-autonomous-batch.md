@@ -33,8 +33,8 @@ Date: 2026-05-03
 - Assign launch incident owner and escalation contact.
 - Confirm support inbox value in the paid-launch environment.
 - Approve the secure privacy export delivery method.
-- Configure offsite backup target and confirm restore drill.
-- Configure ops/admin alert webhooks and admin alert auth.
+- Offsite backup target and restore drill are now complete through encrypted Cloudflare R2.
+- Ops/admin alert scheduling, admin alert auth, and Telegram alert delivery are now complete.
 - Approve production orphan cleanup apply mode and retention/deletion window.
 - Confirm billing-record retention wording with legal/operator context.
 

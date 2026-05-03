@@ -19,12 +19,18 @@ After Cloudflare R2 offsite backup setup, the remaining infrastructure blocker i
 - `/etc/wondertales/admin-alert.env` was created on the droplet with root-only permissions and admin alert auth values.
 - A production admin alert dry-run authenticated successfully and returned `severity=info`, `findingCount=0`; no alert was sent because no active findings were present.
 - `LOG_SINCE=30m ./scripts/check-production-ops.sh` passed with `0` failures and `3` warnings: backup smoke skipped in read-only mode, ops webhook missing, and admin dashboard webhook missing.
+- Telegram alert delivery was added to `scripts/monitor-production-ops.sh` and `scripts/check-production-admin-alerts.sh`.
+- `/etc/wondertales/ops-alert.env` now contains Telegram alert destination values with root-only permissions.
+- Synthetic production ops and admin dashboard test alerts were sent successfully through Telegram.
+- The follow-up `LOG_SINCE=30m ./scripts/check-production-ops.sh` passed with `0` failures and `1` warning: backup smoke skipped in read-only mode.
 
-## Remaining external input
+## Alert destinations
 
-A real webhook URL is still required before unattended alerts are complete. Use either:
+Webhook delivery remains supported. Use either:
 
 - `OPS_ALERT_WEBHOOK_URL` for both ops and admin alerts; or
 - `OPS_ALERT_WEBHOOK_URL` plus a separate `ADMIN_ALERT_WEBHOOK_URL`.
 
 The webhook must accept a JSON payload with a `text` field.
+
+Telegram Bot API delivery is also supported directly through `OPS_ALERT_TELEGRAM_BOT_TOKEN`/`OPS_ALERT_TELEGRAM_CHAT_ID`, admin-specific Telegram names, or the shared fallback `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`.
