@@ -153,6 +153,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .trust-chip--languages{bottom:15%;right:5%;}
 .trust-chip--ready{bottom:18%;left:50%;transform:translateX(-50%);}
 .hero-mockup{margin:-260px -200px -30px;position:relative;}
+.hero-mockup picture{display:block;width:100%}
 .hero-mockup img{display:block;width:100%;height:auto;}
 .section{margin-bottom:64px;padding-top:16px}
 .section h2{font-size:32px;font-weight:700;color:#1e293b;margin:0 0 12px;text-align:center}
@@ -160,6 +161,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .value-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-bottom:32px}
 .value-card{background:rgba(255,255,255,0.15);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);border-radius:16px;padding:24px;box-shadow:0 4px 24px rgba(0,0,0,0.06);overflow:hidden}
 .value-card .value-card-image{height:180px;margin:-24px -24px 16px -24px;overflow:hidden;background:linear-gradient(135deg,#e8e4f3,#f5e6f0)}
+.value-card .value-card-image picture{display:block;width:100%;height:100%}
 .value-card .value-card-image img{width:100%;height:100%;object-fit:cover;display:block}
 .value-card h3{font-size:18px;font-weight:600;color:#1e293b;margin:0 0 12px;text-wrap:balance;}
 .value-card p{font-size:14px;color:#64748b;margin:0;line-height:1.6}
@@ -192,6 +194,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .benefit-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-bottom:32px}
 .benefit-card{background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 24px rgba(0,0,0,0.08);overflow:hidden}
 .benefit-card .benefit-card-image{height:180px;margin:-24px -24px 16px -24px;overflow:hidden;background:linear-gradient(135deg,#e8e4f3,#f5e6f0)}
+.benefit-card .benefit-card-image picture{display:block;width:100%;height:100%}
 .benefit-card .benefit-card-image img{width:100%;height:100%;object-fit:cover;display:block}
 .benefit-card h3{font-size:18px;font-weight:600;color:#1e293b;margin:0 0 12px}
 .benefit-card p{font-size:14px;color:#64748b;margin:0;line-height:1.6}
@@ -207,6 +210,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .feature-sticky-card{scroll-margin-top:24px}
 .feature-sticky-card-inner{background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.05);overflow:hidden}
 .feature-sticky-card-inner .feature-item-image{width:100%;aspect-ratio:4/3;overflow:hidden;background:linear-gradient(135deg,#e8e4f3,#f5e6f0)}
+.feature-sticky-card-inner .feature-item-image picture{display:block;width:100%;height:100%}
 .feature-sticky-card-inner .feature-item-image img{width:100%;height:100%;object-fit:cover;display:block}
 .feature-sticky-card-inner .feature-item-content{padding:20px 24px}
 .feature-sticky-card-inner p{font-size:15px;color:#64748b;margin:0;line-height:1.6}
@@ -276,6 +280,61 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#039;');
 }
 
+const HERO_IMAGE_WIDTHS = [720, 1080, 1440, 1800] as const;
+const LANDING_IMAGE_WIDTHS = [480, 720, 960] as const;
+
+type ResponsiveImageFormat = 'avif' | 'webp';
+
+interface ResponsiveImageOptions {
+  width: number;
+  height: number;
+  sizes: string;
+  loading?: 'eager' | 'lazy';
+  fetchPriority?: 'high' | 'low' | 'auto';
+  widths?: readonly number[];
+}
+
+function getOptimizedImagePath(src: string, width: number, format: ResponsiveImageFormat): string | null {
+  if (src === '/hero-mockup.webp') {
+    return `/landing/optimized/hero-mockup-${width}.${format}`;
+  }
+
+  const match = src.match(/^\/landing\/([^/?#]+)\.(?:png|jpe?g|webp)$/i);
+  if (!match) {
+    return null;
+  }
+
+  return `/landing/optimized/${match[1]}-${width}.${format}`;
+}
+
+function buildSrcSet(src: string, widths: readonly number[], format: ResponsiveImageFormat): string {
+  return widths
+    .map((width) => {
+      const optimizedPath = getOptimizedImagePath(src, width, format);
+      return optimizedPath ? `${escapeHtml(optimizedPath)} ${width}w` : '';
+    })
+    .filter(Boolean)
+    .join(', ');
+}
+
+function renderResponsiveImage(src: string, alt: string, options: ResponsiveImageOptions): string {
+  const widths = options.widths || LANDING_IMAGE_WIDTHS;
+  const avifSrcSet = buildSrcSet(src, widths, 'avif');
+  const webpSrcSet = buildSrcSet(src, widths, 'webp');
+  const loading = options.loading || 'lazy';
+  const fetchPriority = options.fetchPriority ? ` fetchpriority="${options.fetchPriority}"` : '';
+
+  if (!avifSrcSet || !webpSrcSet) {
+    return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" width="${options.width}" height="${options.height}" loading="${loading}" decoding="async"${fetchPriority} />`;
+  }
+
+  return `<picture>
+            <source type="image/avif" srcset="${avifSrcSet}" sizes="${escapeHtml(options.sizes)}" />
+            <source type="image/webp" srcset="${webpSrcSet}" sizes="${escapeHtml(options.sizes)}" />
+            <img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" width="${options.width}" height="${options.height}" loading="${loading}" decoding="async"${fetchPriority} />
+          </picture>`;
+}
+
 function getLocalizedWelcomeUrl(webAppUrl: string, locale?: string): string {
   return `${webAppUrl}${locale && locale !== 'uk' ? `/${locale}/welcome` : '/welcome'}`;
 }
@@ -312,7 +371,14 @@ function renderHero(webAppUrl: string, content: LandingContent, locale?: string)
     </div>
     
     <div class="hero-mockup">
-      <img src="/hero-mockup.webp" alt="${escapeHtml(content.hero.imageAlt)}" width="1200" height="600" loading="eager" />
+      ${renderResponsiveImage('/hero-mockup.webp', content.hero.imageAlt, {
+        width: 1600,
+        height: 893,
+        widths: HERO_IMAGE_WIDTHS,
+        sizes: '(max-width: 900px) 100vw, 1600px',
+        loading: 'eager',
+        fetchPriority: 'high',
+      })}
       <div class="trust-chips">
         <span class="trust-chip trust-chip--safe"><span class="trust-chip-icon">${TRUST_CHIP_ICONS.safe}</span> ${escapeHtml(content.trustChips.safe)}</span>
         <span class="trust-chip trust-chip--audio"><span class="trust-chip-icon">${TRUST_CHIP_ICONS.audio}</span> ${escapeHtml(content.trustChips.audio)}</span>
@@ -337,7 +403,11 @@ function renderWhyFamiliesLove(_webAppUrl: string, content: LandingContent): str
       ${cards.map((c) => `
       <div class="value-card">
         <div class="value-card-image">
-          <img src="${escapeHtml(c.image)}" alt="" loading="lazy" />
+          ${renderResponsiveImage(c.image, '', {
+            width: 960,
+            height: 644,
+            sizes: '(max-width: 600px) calc(100vw - 96px), (max-width: 900px) calc((100vw - 120px) / 2), 276px',
+          })}
         </div>
         <h3>${escapeHtml(c.title)}</h3>
         <p>${escapeHtml(c.desc)}</p>
@@ -477,7 +547,11 @@ function renderMadeForChildren(_webAppUrl: string, content: LandingContent): str
       ${cards.map((c) => `
       <div class="benefit-card">
         <div class="benefit-card-image">
-          <img src="${escapeHtml(c.image)}" alt="" loading="lazy" />
+          ${renderResponsiveImage(c.image, '', {
+            width: 960,
+            height: 644,
+            sizes: '(max-width: 600px) calc(100vw - 96px), (max-width: 900px) calc((100vw - 120px) / 2), 276px',
+          })}
         </div>
         <h3>${escapeHtml(c.title)}</h3>
         <p>${escapeHtml(c.desc)}</p>
@@ -502,7 +576,11 @@ function renderFeatureGrid(_webAppUrl: string, content: LandingContent): string 
       <div class="feature-sticky-card" id="feature-card-${i}" data-index="${i}">
         <div class="feature-sticky-card-inner">
           <div class="feature-item-image">
-            <img src="${escapeHtml(f.image)}" alt="" loading="lazy" />
+            ${renderResponsiveImage(f.image, '', {
+              width: 960,
+              height: 717,
+              sizes: '(max-width: 900px) calc(100vw - 48px), 711px',
+            })}
           </div>
           <div class="feature-item-content">
             <p>${escapeHtml(f.desc)}</p>

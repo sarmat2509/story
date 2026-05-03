@@ -206,10 +206,11 @@ async function checkPage({ path, label, expectedStatus = 200, robots, contains =
   }
 
   for (const needle of contains) {
-    if (text.includes(needle)) {
-      pass(`${label} ${path} contains ${needle}`);
+    const alternatives = Array.isArray(needle) ? needle : [needle];
+    if (alternatives.some((value) => text.includes(value))) {
+      pass(`${label} ${path} contains ${alternatives.join(' or ')}`);
     } else {
-      fail(`${label} ${path} missing ${needle}`);
+      fail(`${label} ${path} missing ${alternatives.join(' or ')}`);
     }
   }
 }
@@ -463,7 +464,7 @@ async function main() {
     { path: '/en/terms', label: 'SSR localized terms', robots: 'index,follow', contains: ['WonderTales'] },
     { path: '/privacy', label: 'SSR privacy', robots: 'index,follow', contains: ['WonderTales'] },
     { path: '/en/privacy', label: 'SSR localized privacy', robots: 'index,follow', contains: ['WonderTales'] },
-    { path: '/support', label: 'SSR support', robots: 'noindex,follow', contains: ['support@wondertales.art'] },
+    { path: '/support', label: 'SSR support', robots: 'noindex,follow', contains: [['support@wondertales.art', '/cdn-cgi/l/email-protection']] },
     { path: '/welcome', label: 'SPA welcome', robots: 'noindex,nofollow' },
     { path: '/en/welcome', label: 'SPA localized welcome', robots: 'noindex,nofollow' },
     { path: '/register', label: 'SPA register', robots: 'noindex,nofollow' },
