@@ -95,6 +95,15 @@ Dry-run the payload without sending:
 pnpm launch:monitor-production-ops -- --test-alert --dry-run-alert
 ```
 
+Alert messages are intentionally compact. Telegram/webhook text includes:
+
+- status summary: failures, warnings, and check exit code;
+- `Needs attention`: only `FAIL` and `WARN` lines;
+- `Current state`: services, disk, backup freshness, recent log scan, payment mode, offsite backup, and alert destinations;
+- a pointer to the full cron log, normally `/var/www/kazka/logs/production-ops-monitor.log`.
+
+Set `OPS_ALERT_INCLUDE_FULL_REPORT=1` only when you explicitly want to append the old full report tail to the alert message.
+
 ## CAPTCHA and WAF
 
 Rate limits and abuse-signal logs are enough for closed beta, but Cloudflare Turnstile can be enabled for public acquisition without changing code:

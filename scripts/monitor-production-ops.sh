@@ -24,6 +24,8 @@ OPS_ALERT_TELEGRAM_CHAT_ID="${OPS_ALERT_TELEGRAM_CHAT_ID:-${TELEGRAM_CHAT_ID:-}}
 OPS_ALERT_ON_WARNINGS="${OPS_ALERT_ON_WARNINGS:-0}"
 OPS_ALERT_TAIL_LINES="${OPS_ALERT_TAIL_LINES:-80}"
 OPS_ALERT_TITLE_PREFIX="${OPS_ALERT_TITLE_PREFIX:-WonderTales production ops}"
+OPS_ALERT_INCLUDE_FULL_REPORT="${OPS_ALERT_INCLUDE_FULL_REPORT:-0}"
+OPS_ALERT_FULL_REPORT_HINT="${OPS_ALERT_FULL_REPORT_HINT:-Full report: /var/www/kazka/logs/production-ops-monitor.log}"
 
 DRY_RUN_ALERT=0
 FORCE_ALERT=0
@@ -67,8 +69,9 @@ for arg in "$@"; do
 done
 
 tmp_report="$(mktemp)"
+tmp_payload_builder="$(mktemp)"
 cleanup() {
-  rm -f "$tmp_report"
+  rm -f "$tmp_report" "$tmp_payload_builder"
 }
 trap cleanup EXIT
 
@@ -84,7 +87,11 @@ if [[ "$TEST_ALERT" == "1" ]]; then
   check_status=0
 else
   set +e
-  "${SCRIPT_DIR}/check-production-ops.sh" "${CHECK_ARGS[@]}" > "$tmp_report" 2>&1
+  if ((${#CHECK_ARGS[@]} > 0)); then
+    "${SCRIPT_DIR}/check-production-ops.sh" "${CHECK_ARGS[@]}" > "$tmp_report" 2>&1
+  else
+    "${SCRIPT_DIR}/check-production-ops.sh" > "$tmp_report" 2>&1
+  fi
   check_status=$?
   set -e
 fi
@@ -115,22 +122,115 @@ if [[ "$should_alert" != "1" ]]; then
   exit "$check_status"
 fi
 
-title="${OPS_ALERT_TITLE_PREFIX}: ${severity}"
-summary="status=${check_status} failures=${failures} warnings=${warnings}"
-tail_lines="$(tail -n "$OPS_ALERT_TAIL_LINES" "$tmp_report")"
+cat > "$tmp_payload_builder" <<'NODE'
+const fs = require('fs');
 
-payload="$(
-  OPS_ALERT_TITLE="$title" \
-  OPS_ALERT_SUMMARY="$summary" \
-  OPS_ALERT_BODY="$tail_lines" \
-  node <<'NODE'
-const title = process.env.OPS_ALERT_TITLE || 'WonderTales production ops';
-const summary = process.env.OPS_ALERT_SUMMARY || '';
-const body = process.env.OPS_ALERT_BODY || '';
+const titlePrefix = process.env.OPS_ALERT_TITLE_PREFIX || 'WonderTales production ops';
+const severity = process.env.OPS_ALERT_SEVERITY || 'info';
+const checkStatus = process.env.OPS_ALERT_CHECK_STATUS || '0';
+const failures = process.env.OPS_ALERT_FAILURES || '0';
+const warnings = process.env.OPS_ALERT_WARNINGS || '0';
+const reportPath = process.env.OPS_ALERT_REPORT_PATH || '';
+const includeFullReport = process.env.OPS_ALERT_INCLUDE_FULL_REPORT === '1';
+const tailLines = Number.parseInt(process.env.OPS_ALERT_TAIL_LINES || '80', 10);
+const fullReportHint = process.env.OPS_ALERT_FULL_REPORT_HINT || '';
+
+const report = reportPath ? fs.readFileSync(reportPath, 'utf8') : '';
+const lines = report.split(/\r?\n/).filter(Boolean);
+
+function findLine(pattern) {
+  return lines.find((line) => pattern.test(line)) || '';
+}
+
+function summarizeService(line) {
+  const match = line.match(/^PASS (wondertales-[a-z-]+) is running \(health=([^,]+), restarts=([^)]+)\)/);
+  if (!match) return '';
+  const name = match[1]
+    .replace(/^wondertales-/, '')
+    .replace(/-prod$/, '');
+  const health = match[2] === 'none' ? 'up' : match[2];
+  return `${name} ${health}, restarts ${match[3]}`;
+}
+
+function compact(line) {
+  return line
+    .replace(/^PASS /, '')
+    .replace(/^WARN /, '')
+    .replace(/^FAIL /, '')
+    .trim();
+}
+
+const problemLines = lines
+  .filter((line) => /^(FAIL|WARN) /.test(line))
+  .map((line) => `- ${compact(line)}`);
+
+const services = lines
+  .map(summarizeService)
+  .filter(Boolean);
+
+const rootDisk = compact(findLine(/^PASS root filesystem has /));
+const dbBackup = compact(findLine(/^PASS recent database backup file exists /));
+const uploadBackup = compact(findLine(/^PASS recent upload-volume backup archive exists /));
+const logs = compact(findLine(/^PASS recent api webapp nginx logs /));
+const stripe = compact(findLine(/^PASS api Stripe secret key mode /));
+const offsite = compact(findLine(/^PASS offsite backup target reference found/));
+const alertDestination = compact(findLine(/^PASS ops alert destination reference found/));
+const adminAlert = compact(findLine(/^PASS admin dashboard alert destination reference found/));
+
+const sections = [];
+sections.push(`${titlePrefix} | ${severity.toUpperCase()}`);
+sections.push(`failures ${failures} | warnings ${warnings} | exit ${checkStatus}`);
+
+sections.push('');
+sections.push('Needs attention');
+sections.push(problemLines.length ? problemLines.join('\n') : '- none');
+
+const healthLines = [];
+if (services.length) healthLines.push(`- services: ${services.join('; ')}`);
+if (rootDisk) healthLines.push(`- disk: ${rootDisk}`);
+if (dbBackup) healthLines.push(`- database backups: ${dbBackup}`);
+if (uploadBackup) healthLines.push(`- upload backups: ${uploadBackup}`);
+if (logs) healthLines.push(`- logs: ${logs}`);
+if (stripe) healthLines.push(`- payments: ${stripe}`);
+if (offsite) healthLines.push(`- offsite: ${offsite}`);
+if (alertDestination || adminAlert) {
+  const alertBits = [alertDestination, adminAlert].filter(Boolean);
+  healthLines.push(`- alerts: ${alertBits.join('; ')}`);
+}
+
+if (healthLines.length) {
+  sections.push('');
+  sections.push('Current state');
+  sections.push(healthLines.join('\n'));
+}
+
+if (fullReportHint) {
+  sections.push('');
+  sections.push(fullReportHint);
+}
+
+if (includeFullReport) {
+  const tail = lines.slice(Math.max(0, lines.length - tailLines)).join('\n');
+  sections.push('');
+  sections.push('Report tail');
+  sections.push(tail);
+}
+
 console.log(JSON.stringify({
-  text: `${title}\n${summary}\n\n${body}`,
+  text: sections.join('\n'),
 }));
 NODE
+payload="$(
+  OPS_ALERT_TITLE_PREFIX="$OPS_ALERT_TITLE_PREFIX" \
+  OPS_ALERT_SEVERITY="$severity" \
+  OPS_ALERT_CHECK_STATUS="$check_status" \
+  OPS_ALERT_FAILURES="$failures" \
+  OPS_ALERT_WARNINGS="$warnings" \
+  OPS_ALERT_REPORT_PATH="$tmp_report" \
+  OPS_ALERT_TAIL_LINES="$OPS_ALERT_TAIL_LINES" \
+  OPS_ALERT_INCLUDE_FULL_REPORT="$OPS_ALERT_INCLUDE_FULL_REPORT" \
+  OPS_ALERT_FULL_REPORT_HINT="$OPS_ALERT_FULL_REPORT_HINT" \
+  node "$tmp_payload_builder"
 )"
 
 if [[ "$DRY_RUN_ALERT" == "1" ]]; then
