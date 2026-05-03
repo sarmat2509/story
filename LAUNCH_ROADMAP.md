@@ -1,6 +1,6 @@
 # WonderTales Web Launch Roadmap
 
-Last updated: 2026-05-02
+Last updated: 2026-05-03
 
 This roadmap describes what must be finished before opening WonderTales to real web users.
 It intentionally focuses on launch blockers only. Improvements that can happen after real usage starts are separated into later priorities.
@@ -59,7 +59,7 @@ All billing, refund, cancellation, quota, and support paths must work end to end
 
 ## P0 - External User Blockers
 
-### P0 Status Snapshot - 2026-05-02
+### P0 Status Snapshot - 2026-05-03
 
 Current overall state: backend launch guardrails are much stronger than the original roadmap baseline, and the main production web/TLS/SSR/security path has been verified on `wondertales.art`. P0 is not fully green for external families until final operator/legal confirmations, approved cleanup policy, and any required live parent-gate OAuth fallback verification are finished.
 
@@ -70,6 +70,7 @@ Completed or ready for closed-beta verification:
 - Private asset access is enforced for generated and uploaded child-related assets.
 - Story, audio, bundle, premium voice, child-profile, image-count, and story-from-drawing limits are now enforced server-side.
 - Story/audio quota reservations now release through compensating usage events when queue enqueue or final generation fails before a usable artifact is created.
+- The remaining quota bypass pass is closed: legacy TTS now reserves audio quota before queueing, scene image regeneration respects `images_per_story` both at the route and worker boundary, child profile creation uses an atomic server-side limit check, and quota/paywall API codes have localized app copy.
 - Prompt, generated-text, generated-image, photo-input, and publishing safety gates are in place.
 - Story/account/child-profile deletion behavior was hardened and documented.
 - Parent-session guards now block child sessions from billing, plan actions, profile editing, uploads, and story writes.
@@ -92,6 +93,7 @@ Completed or ready for closed-beta verification:
 - Real production Google OAuth completed with a Google account: the callback returned to the app, the user was authenticated, an app route opened, and `/api/v1/me` returned the current user without sensitive fields.
 - Google OAuth callback logging was hardened and deployed so token-bearing app callback URLs are no longer written to API logs; the web callback also clears the token from the URL immediately and uses the shared authenticated-route reset helper.
 - Stripe bundle checkout now works even when no static Stripe bundle Price ID is configured, using inline Checkout `price_data` derived from the production bundle catalog.
+- The 2026-05-03 quota/access hardening batch was deployed to production; API/web/nginx restart, migration runner, health check, public production smoke, DevTools welcome screen check, and fresh docker log scan passed.
 - Production security artifact audit now checks the exact deployed headers and client bundle from `wondertales.art`, including apex SSR pages, app/auth SPA routes, `www` redirect behavior, `noindex` auth/app route headers, and server-side secret markers in deployed JS/CSS/HTML/JSON.
 - Production smoke now treats optional remote Docker log tail SSH failures as warnings while preserving true HTTP/API smoke failures.
 
@@ -238,7 +240,7 @@ Acceptance criteria:
 
 ### 4. Server-Side Quota Enforcement
 
-Status on 2026-05-01: Core API enforcement is ready; reservation release is implemented for queue enqueue failures and permanent generation failures before a usable story/audio artifact is created.
+Status on 2026-05-03: Ready for closed-beta verification; core API enforcement is implemented before queueing expensive jobs, quota reservation release is documented in code/tests, and the remaining direct API bypasses have been closed.
 
 Done:
 
@@ -247,15 +249,16 @@ Done:
 - Audio generation now reserves `audio_synthesized` quota before queueing and uses a per-user advisory lock.
 - Story and audio reservation release now uses append-only compensating `usage_events` rows with `quantity: -1`, preserving audit history without destructive updates.
 - Queue permanent-failure hooks release story/audio quota only after retries are exhausted; enqueue failures release immediately.
-- Images-per-story limits are enforced in generation planning.
-- Child profile count is enforced server-side.
+- The legacy `/api/v1/stories/:id/tts` endpoint now reserves `audio_synthesized` quota, enforces premium voice access, and queues the same audio job path as the main audio endpoint.
+- Images-per-story limits are enforced in generation planning, scene regeneration routes, and the worker-side regeneration path so direct queue/API paths cannot add out-of-plan images.
+- Child profile count is enforced server-side inside the creation transaction with a per-user advisory lock.
 - Premium voice access is enforced in API and service/job paths.
 - Story-from-drawing/photo generation access is enforced before expensive photo analysis/generation.
-- Quota, bundle, audio, premium voice, and story-from-drawing tests exist.
+- Quota, bundle, audio, image-count, child-profile, premium voice, and story-from-drawing tests exist.
+- Quota/paywall API errors now map to localized app messages for exhausted story, audio, image, child-profile, premium voice, and story-from-drawing limits.
 
 Remaining:
 
-- Error codes are user-safe, but not all quota/paywall messages are localized in the app.
 - Live provider failure paths still need production smoke verification to observe release behavior with real queue retries and provider errors.
 - Child-mode generation now has a scoped child UI and route; live provider failure paths still need production smoke verification in Child Mode.
 

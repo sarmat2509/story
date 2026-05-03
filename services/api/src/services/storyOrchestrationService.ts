@@ -117,6 +117,7 @@ import {
 } from './storyQuotaService';
 import { assertStoryPromptSafety, isPromptSafetyError } from './promptSafetyService';
 import { assertVoiceAccessForUser } from './voiceAccessService';
+import { assertSceneImageGenerationAccessForStory } from './imageStoryLimitService';
 import {
   buildStoryCreationAttribution,
   getStoryCreationAttributionInputFromRequest,
@@ -5148,6 +5149,7 @@ export async function regenerateSceneImage(
   
   // Get user plan
   const userPlan = await getPlanFeatures(story.userId);
+  await assertSceneImageGenerationAccessForStory({ story, sceneId });
   
   // Keep the old image until the replacement passes validation and is saved.
   const oldAssets = await getAssetRepository().findBySceneId(scene.id, 'image');

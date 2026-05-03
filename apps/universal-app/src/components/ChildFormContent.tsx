@@ -7,15 +7,16 @@ import { theme } from '@/theme';
 import { GlassPrimaryButton } from './GlassPrimaryButton';
 import { useCreateChild, useUpdateChild, useAnalyzeChild } from '@/api/children';
 import { CreateChildProfileSchema, DEFAULT_LOCALE, UpdateChildProfileSchema, LOCALE_IDS, ReferencePhoto } from '@wondertales/shared';
+import { UploadPhotoResult } from '@/utils/uploadPhoto';
+import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
+import { API_BASE_URL, APP_CONFIG } from '@/config/constants';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 
 /** Normalize BCP 47 locale (e.g. uk-UA, en-US) to base code for API (uk, en) */
 function toBaseLocale(locale: string | undefined): string {
   const base = (locale || '').split('-')[0]?.toLowerCase() || DEFAULT_LOCALE;
   return LOCALE_IDS.includes(base as any) ? base : DEFAULT_LOCALE;
 }
-import { UploadPhotoResult } from '@/utils/uploadPhoto';
-import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
-import { API_BASE_URL, APP_CONFIG } from '@/config/constants';
 
 /** Convert relative asset path to absolute URL for Zod .url() validation */
 function toAbsoluteAssetUrl(url: string): string {
@@ -399,8 +400,10 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
         });
       }
       onSuccess();
-    } catch {
-      setErrors({ submit: 'Failed to save. Please try again.' });
+    } catch (error) {
+      const message = getLocalizedApiError(t, error, 'errors.try_again');
+      setErrors({ submit: message });
+      Alert.alert(t('common.error'), message);
     }
   };
 

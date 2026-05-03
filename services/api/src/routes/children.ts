@@ -67,6 +67,23 @@ function sendChildModeError(res: Parameters<typeof requireAuth>[1], error: unkno
   return true;
 }
 
+function sendChildProfileLimitError(res: Parameters<typeof requireAuth>[1], error: unknown): boolean {
+  if (!childProfileService.isChildProfileLimitError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    error: error.message,
+    featureSlug: error.featureSlug,
+    limit: error.limit,
+    used: error.used,
+    remaining: error.remaining,
+  });
+  return true;
+}
+
 function extractDeviceInfo(req: Parameters<typeof requireAuth>[0]) {
   const userAgent = req.headers['user-agent'] || '';
   const forwardedFor = req.headers['x-forwarded-for'];
@@ -362,6 +379,7 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
   } catch (error: unknown) {
     if (sendPhotoInputSafetyError(res, error)) return;
     if (sendStoryFromDrawingAccessError(res, error)) return;
+    if (sendChildProfileLimitError(res, error)) return;
 
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes('limit reached')) {

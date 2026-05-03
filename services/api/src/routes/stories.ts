@@ -55,6 +55,10 @@ import {
   reserveAudioQuotaForStory,
 } from '../services/audioQuotaReservationService';
 import {
+  assertSceneImageRegenerationAllowed,
+  isImageStoryLimitError,
+} from '../services/imageStoryLimitService';
+import {
   setLegacyPublicStoriesDeprecationHeaders,
 } from '../utils/deprecatedPublicStoryRoutes';
 import { expensiveGenerationLimiter } from '../middleware/rateLimiter';
@@ -268,6 +272,23 @@ function sendStoryFromDrawingAccessError(res: Response, error: unknown): boolean
     code: error.code,
     message: error.message,
     featureSlug: error.featureSlug,
+  });
+  return true;
+}
+
+function sendImageStoryLimitError(res: Response, error: unknown): boolean {
+  if (!isImageStoryLimitError(error)) {
+    return false;
+  }
+
+  res.status(error.statusCode).json({
+    status: 'error',
+    code: error.code,
+    message: error.message,
+    featureSlug: error.featureSlug,
+    limit: error.limit,
+    used: error.used,
+    allowedSceneIds: error.allowedSceneIds,
   });
   return true;
 }
@@ -1921,6 +1942,13 @@ router.post('/:id/scenes/:sceneId/regenerate', requireAuth, requireParentSession
       source: 'scene_regeneration_prompt',
       userId: req.user!.id,
     });
+
+    const sceneIdNumber = parseInt(sceneId, 10);
+    await assertSceneImageRegenerationAllowed({
+      storyId: id,
+      userId: req.user!.id,
+      sceneId: sceneIdNumber,
+    });
     
     // Enforce per-user concurrent job limit
     try {
@@ -1936,7 +1964,7 @@ router.post('/:id/scenes/:sceneId/regenerate', requireAuth, requireParentSession
     const jobId = await storyJobQueue.addJob({
       type: 'regenerate_scene_image',
       storyId: id,
-      sceneId: parseInt(sceneId, 10),
+      sceneId: sceneIdNumber,
       visualPrompt: visualPrompt || scene.visualPrompt,
     });
     
@@ -1954,6 +1982,7 @@ router.post('/:id/scenes/:sceneId/regenerate', requireAuth, requireParentSession
     });
   } catch (error) {
     if (sendPromptSafetyError(res, error)) return;
+    if (sendImageStoryLimitError(res, error)) return;
 
     logger.error({ 
       err: error, 
@@ -1973,9 +2002,19 @@ router.post('/:id/scenes/:sceneId/regenerate', requireAuth, requireParentSession
  * Generate audio for story (M5)
  */
 router.post('/:id/tts', requireAuth, requireParentSession, expensiveGenerationLimiter, async (req: Request, res: Response) => {
+  let reservedAudioStoryId: string | undefined;
+  let queued = false;
   try {
     const { id: storyId } = req.params;
-    const { voiceId, speed, nightMode } = req.body;
+    const parseResult = AudioGenerationSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid audio parameters',
+        details: parseResult.error.flatten().fieldErrors,
+      });
+    }
+    const { voiceId, speed, nightMode } = parseResult.data;
     
     // Ownership check: verify the story belongs to the requesting user
     const story = await getStory(storyId, req.user!.id);
@@ -1985,38 +2024,65 @@ router.post('/:id/tts', requireAuth, requireParentSession, expensiveGenerationLi
         message: 'Story not found'
       });
     }
-    
-    // Validate inputs
-    if (speed && (typeof speed !== 'number' || speed < 0.5 || speed > 2.0)) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Speed must be between 0.5 and 2.0'
+
+    const audioMetadata = story.audioMetadata as any;
+    if (audioMetadata && !audioMetadata.error) {
+      logger.info({ storyId, userId: req.user!.id }, 'Audio already exists - skipping legacy /tts generation');
+      return res.status(200).json({
+        status: 'success',
+        message: 'Audio already exists',
+        audio: audioMetadata,
       });
     }
-    
-    // Import orchestration function
-    const { generateStoryAudio } = await import('../services/storyOrchestrationService');
-    
-    // Start generation
-    await generateStoryAudio(storyId, voiceId, {
-      speed,
-      nightMode: nightMode || false,
+
+    await assertVoiceAccessForUser(req.user!.id, voiceId);
+
+    try {
+      await enforceUserJobLimit(req.user!.id);
+    } catch (limitError) {
+      return res.status(429).json({
+        status: 'error',
+        message: (limitError as Error).message,
+      });
+    }
+
+    const audioQuotaReservation = await reserveAudioQuotaForStory(req.user!.id, storyId, {
+      source: 'manual',
     });
+    reservedAudioStoryId = storyId;
     
+    const jobId = await storyJobQueue.addJob({
+      type: 'audio_generation',
+      storyId,
+      userId: req.user!.id,
+      voiceParams: { voiceId, speed, nightMode },
+    });
+    queued = true;
+
     logger.info({ 
       userId: req.user!.id, 
       storyId,
       voiceId,
       speed,
-      nightMode 
-    }, 'Audio generation completed');
+      nightMode,
+      jobId,
+      audioQuotaReserved: audioQuotaReservation.reserved,
+      audioAlreadyReservedForStory: audioQuotaReservation.alreadyReservedForStory,
+      audioUsed: audioQuotaReservation.used,
+      audioLimit: audioQuotaReservation.limit,
+    }, 'Legacy /tts audio generation request queued');
     
-    res.json({
+    res.status(202).json({
       status: 'success',
-      message: 'Audio generated successfully'
+      message: 'Audio generation started',
+      jobId,
     });
   } catch (error) {
+    if (!queued) {
+      await releaseAudioQuotaReservationOnCreateFailure(req.user?.id, reservedAudioStoryId, error);
+    }
     if (sendVoiceAccessError(res, error)) return;
+    if (sendAudioQuotaError(res, error)) return;
 
     logger.error({ 
       err: error, 

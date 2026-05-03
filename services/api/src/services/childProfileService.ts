@@ -1,4 +1,6 @@
-import { getChildProfileRepository, getSessionRepository } from '../repositories';
+import { and, count, eq, sql } from 'drizzle-orm';
+import { getChildProfileRepository, getSessionRepository, getStoryRepository } from '../repositories';
+import * as schema from '../db/schema';
 import type { ChildProfile, NewChildProfile } from '../db/schema';
 import { logger } from '../utils/logger';
 import { recordUsage } from './aiUsageService';
@@ -6,6 +8,18 @@ import * as planService from './planService';
 import { collectEntityAssetPaths, deleteEntityAssets } from './entityAssetCleanupService';
 import { translateChildDescription } from './translationService';
 import { DEFAULT_CHILD_MODE_SETTINGS } from './childModeControlsService';
+import {
+  ChildProfileLimitError,
+  calculateChildProfileLimit,
+  extractChildProfileLimit,
+  isChildProfileLimitError,
+} from './childProfileLimitService';
+
+export {
+  ChildProfileLimitError,
+  calculateChildProfileLimit,
+  isChildProfileLimitError,
+} from './childProfileLimitService';
 
 // Age calculation helpers
 export interface AgeData {
@@ -109,23 +123,78 @@ export async function createChildProfile(
   userId: string,
   data: Omit<NewChildProfile, 'userId'>
 ): Promise<ChildProfile> {
-  const childProfileRepo = getChildProfileRepository();
-
-  // Check child_profiles_limit feature before creating
-  const existingProfiles = await getChildProfiles(userId);
-  const limit = await planService.getFeatureLimit(userId, 'child_profiles_limit');
-  
-  if (limit !== null && existingProfiles.length >= limit) {
-    logger.warn({ userId, limit, current: existingProfiles.length }, 'Child profiles limit reached');
-    throw new Error('Child profiles limit reached for your plan');
-  }
-  
   const newProfile: NewChildProfile = {
     ...data,
     userId
   };
-  
-  const profile = await childProfileRepo.create(newProfile);
+
+  const profile = await getStoryRepository().transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`child_profiles:${userId}`})::bigint)`);
+
+    const [subscription] = await tx
+      .select({
+        planId: schema.userSubscriptions.planId,
+      })
+      .from(schema.userSubscriptions)
+      .where(eq(schema.userSubscriptions.userId, userId))
+      .limit(1);
+
+    let planLimit: number | null = null;
+    if (subscription) {
+      const [featureRow] = await tx
+        .select({
+          value: schema.planFeatures.value,
+        })
+        .from(schema.planFeatures)
+        .innerJoin(schema.features, eq(schema.planFeatures.featureId, schema.features.id))
+        .where(
+          and(
+            eq(schema.planFeatures.planId, subscription.planId),
+            eq(schema.features.slug, 'child_profiles_limit')
+          )
+        )
+        .limit(1);
+      planLimit = extractChildProfileLimit(featureRow?.value);
+    }
+
+    const [countRow] = await tx
+      .select({ count: count() })
+      .from(schema.childProfiles)
+      .where(
+        and(
+          eq(schema.childProfiles.userId, userId),
+          eq(schema.childProfiles.isActive, true)
+        )
+      );
+
+    const currentProfiles = Number(countRow?.count ?? 0);
+    const quota = calculateChildProfileLimit({
+      planLimit,
+      currentProfiles,
+      requestedQty: 1,
+    });
+
+    if (!quota.allowed) {
+      logger.warn({ userId, limit: quota.limit, current: currentProfiles }, 'Child profiles limit reached');
+      throw new ChildProfileLimitError({
+        message: 'Child profiles limit reached for your plan',
+        limit: quota.limit,
+        used: currentProfiles,
+        remaining: quota.remaining,
+      });
+    }
+
+    const [created] = await tx
+      .insert(schema.childProfiles)
+      .values(newProfile)
+      .returning();
+
+    if (!created) {
+      throw new Error('Failed to create child profile');
+    }
+
+    return created;
+  });
   
   logger.info({ userId, profileId: profile.id, name: profile.name }, 'Created child profile');
   
