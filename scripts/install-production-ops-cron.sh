@@ -9,6 +9,7 @@
 #   ./scripts/install-production-ops-cron.sh --dry-run
 #   ./scripts/install-production-ops-cron.sh --apply
 #   ./scripts/install-production-ops-cron.sh --apply --include-admin-alerts
+#   BACKUP_ENV_FILE=/var/www/kazka/.env.production ./scripts/install-production-ops-cron.sh --apply
 
 set -euo pipefail
 
@@ -23,6 +24,7 @@ CRON_PATH="${CRON_PATH:-/etc/cron.d/wondertales-production-ops}"
 BACKUP_CRON_TIME="${BACKUP_CRON_TIME:-15 2 * * *}"
 OPS_CRON_TIME="${OPS_CRON_TIME:-*/30 * * * *}"
 ADMIN_ALERT_CRON_TIME="${ADMIN_ALERT_CRON_TIME:-10 * * * *}"
+BACKUP_ENV_FILE="${BACKUP_ENV_FILE:-${DROPLET_PATH}/.env.production}"
 INCLUDE_ADMIN_ALERTS=0
 RUN_APPLY=0
 
@@ -77,7 +79,7 @@ SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 MAILTO=""
 
-${BACKUP_CRON_TIME} root cd ${DROPLET_PATH} && mkdir -p logs && BACKUP_LOCAL_RETENTION_DAYS=1 ./scripts/run-production-backup-retention.sh --local --apply --skip-offsite >> logs/production-backup-retention.log 2>&1
+${BACKUP_CRON_TIME} root cd ${DROPLET_PATH} && mkdir -p logs && if [[ -f '${BACKUP_ENV_FILE}' ]]; then set -a; source '${BACKUP_ENV_FILE}'; set +a; fi; BACKUP_LOCAL_RETENTION_DAYS=1 ./scripts/run-production-backup-retention.sh --local --apply >> logs/production-backup-retention.log 2>&1
 ${OPS_CRON_TIME} root cd ${DROPLET_PATH} && mkdir -p logs && LOG_SINCE=35m ./scripts/monitor-production-ops.sh --local >> logs/production-ops-monitor.log 2>&1
 EOF
 
@@ -111,12 +113,13 @@ scp -o ControlPath="${SSH_CONTROL_PATH}" \
   scripts/check-production-ops.sh \
   scripts/monitor-production-ops.sh \
   scripts/run-production-backup-retention.sh \
+  scripts/configure-r2-rclone.sh \
   scripts/check-production-admin-alerts.sh \
   "${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/scripts/"
 scp -o ControlPath="${SSH_CONTROL_PATH}" "$cron_file" "${DROPLET_USER}@${DROPLET_IP}:${CRON_PATH}"
 
 ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" \
-  "chmod 755 '${DROPLET_PATH}/scripts/check-production-ops.sh' '${DROPLET_PATH}/scripts/monitor-production-ops.sh' '${DROPLET_PATH}/scripts/run-production-backup-retention.sh' '${DROPLET_PATH}/scripts/check-production-admin-alerts.sh' && chmod 644 '${CRON_PATH}' && sed -n '1,120p' '${CRON_PATH}'"
+  "chmod 755 '${DROPLET_PATH}/scripts/check-production-ops.sh' '${DROPLET_PATH}/scripts/monitor-production-ops.sh' '${DROPLET_PATH}/scripts/run-production-backup-retention.sh' '${DROPLET_PATH}/scripts/configure-r2-rclone.sh' '${DROPLET_PATH}/scripts/check-production-admin-alerts.sh' && chmod 644 '${CRON_PATH}' && sed -n '1,120p' '${CRON_PATH}'"
 
 echo
 echo "Installed production ops cron."

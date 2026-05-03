@@ -223,6 +223,16 @@ Useful launch variants:
 OFFSITE_BACKUP_RCLONE_TARGET=remote:wondertales/prod ./scripts/run-production-backup-retention.sh --apply
 ```
 
+For Cloudflare R2, keep the R2 credentials out of the application runtime path and configure rclone on the machine that runs backups:
+
+```bash
+pnpm launch:configure-r2-rclone -- --dry-run
+pnpm launch:configure-r2-rclone -- --apply --smoke
+pnpm launch:configure-r2-rclone -- --status
+```
+
+The helper creates a plain `wondertales-r2` remote, an encrypted `wondertales-r2-crypt` remote over the private bucket, writes a local crypt recovery file under the rclone config directory, and can print a safe status report without exposing credentials. Bucket-scoped R2 credentials may warn on account-wide bucket listing; bucket reachability and encrypted target reachability are the meaningful checks. Store the recovery file privately; it is required to read encrypted backups from a fresh machine.
+
 Recommended beta retention defaults:
 
 - `BACKUP_LOCAL_RETENTION_DAYS=1`
@@ -234,7 +244,7 @@ Run it from a trusted scheduler once per day. Example crontab on the operator ma
 15 2 * * * cd /path/to/story && mkdir -p logs && OFFSITE_BACKUP_RCLONE_TARGET=remote:wondertales/prod ./scripts/run-production-backup-retention.sh --apply >> logs/production-backup-retention.log 2>&1
 ```
 
-On the droplet itself, use the installer above. It schedules the same backup runner in `--local` mode and skips offsite delivery until a real rclone target is configured.
+On the droplet itself, use the installer above. It schedules the same backup runner in `--local` mode, loads `BACKUP_ENV_FILE` when present, and uses `OFFSITE_BACKUP_RCLONE_TARGET` once rclone is configured.
 
 `scripts/check-production-ops.sh` warns when it cannot find a backup retention scheduler reference or an `OFFSITE_BACKUP_RCLONE_TARGET` reference on the droplet. If scheduling runs from a separate ops host, keep that host's scheduler documented in the launch notes and expect the droplet-local check to warn.
 

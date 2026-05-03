@@ -29,6 +29,7 @@
     "launch:check-production-ops:backup-smoke": "bash scripts/check-production-ops.sh --backup-smoke",
     "launch:monitor-production-ops": "bash scripts/monitor-production-ops.sh",
     "launch:run-production-backup-retention": "bash scripts/run-production-backup-retention.sh",
+    "launch:configure-r2-rclone": "bash scripts/configure-r2-rclone.sh",
     "launch:install-production-ops-cron": "bash scripts/install-production-ops-cron.sh",
     "launch:check-production-admin-alerts": "bash scripts/check-production-admin-alerts.sh",
     "launch:check-paid-readiness": "bash scripts/check-paid-launch-readiness.sh",

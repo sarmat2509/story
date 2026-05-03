@@ -1015,10 +1015,11 @@ Completed locally and in production:
 - Large `/api/v1/assets/` responses now use a dedicated nginx route with response buffering disabled; production asset smoke returned a `1.6 MB` PNG and the following ops log scan stayed clean.
 - Pricing presenter query fan-out was reduced to one joined plan-feature query, addressing the latest production ops warning source where `/pricing` occasionally fell back to static plan cards after the 900ms bounded SSR load window; the follow-up API deploy, public smoke, security artifact scan, and fresh api/webapp/nginx log window passed cleanly.
 - `./scripts/deploy.sh --nginx` now supports nginx/compose config-only deploys, and `./scripts/deploy.sh --help` shows usage without opening SSH.
+- Cloudflare R2 offsite backups are configured through repeatable rclone scripts: the droplet has `rclone`, `wondertales-r2` and encrypted `wondertales-r2-crypt` remotes, a private crypt recovery file, daily cron that loads `OFFSITE_BACKUP_RCLONE_TARGET`, and a full verified backup set in encrypted R2 (`3.1 MB` DB dump plus `1008 MB` uploads archive and SHA-256 sidecars). The follow-up production ops check passed with `0` failures; the former offsite-target warning is gone.
 
 Remaining work:
 
-- Configure a real offsite backup target before relying on paid production media durability.
+- Run and document an offsite restore drill before relying on paid production media durability.
 - Configure the real external alert webhook and admin alert credentials before depending on unattended admin-dashboard monitoring.
 
 Completed locally:

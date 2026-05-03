@@ -202,11 +202,11 @@ copy_offsite() {
   if is_positive_integer "$BACKUP_OFFSITE_RETENTION_DAYS"; then
     rclone delete "$target" \
       --min-age "${BACKUP_OFFSITE_RETENTION_DAYS}d" \
-      --include "${BACKUP_PREFIX}_db_*.dump" \
-      --include "${BACKUP_PREFIX}_uploads_*.tar.gz" \
-      --include "${BACKUP_PREFIX}_db_*.dump.sha256" \
-      --include "${BACKUP_PREFIX}_uploads_*.tar.gz.sha256" \
-      --exclude "*" || true
+      --filter "+ ${BACKUP_PREFIX}_db_*.dump" \
+      --filter "+ ${BACKUP_PREFIX}_uploads_*.tar.gz" \
+      --filter "+ ${BACKUP_PREFIX}_db_*.dump.sha256" \
+      --filter "+ ${BACKUP_PREFIX}_uploads_*.tar.gz.sha256" \
+      --filter "- *" || true
     pass "offsite retention applied to ${BACKUP_PREFIX} artifacts older than ${BACKUP_OFFSITE_RETENTION_DAYS} days"
   else
     warn "offsite retention skipped; BACKUP_OFFSITE_RETENTION_DAYS is not a positive integer"
