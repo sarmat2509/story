@@ -33,6 +33,7 @@ The target convention is `wondertales-r2-crypt:wondertales/prod`, with encrypted
 - `./scripts/run-production-backup-retention.sh --local --apply` created and validated a fresh production DB dump and uploads archive, applied local retention, and copied the artifacts to encrypted R2.
 - R2 now contains the decrypted crypt-view names for the fresh backup set: DB dump, DB checksum, uploads archive, and uploads checksum.
 - `LOG_SINCE=30m ./scripts/check-production-ops.sh` passed with `0` failures and `2` warnings: backup smoke skipped in read-only mode and admin dashboard alert scheduler missing. The offsite backup target warning is gone.
+- The follow-up offsite restore drill is documented separately in `docs/launch-work/2026-05-03-offsite-restore-drill.md`.
 
 ## Cloudflare DNS note
 
@@ -41,4 +42,3 @@ Cloudflare shows `wondertales.art` as Active on the Free plan, and public health
 ## Remaining follow-up
 
 - Reinstall production ops cron with `pnpm launch:install-production-ops-cron -- --apply --include-admin-alerts` once the alert webhook/auth is also ready.
-- Run and document an offsite restore drill to a non-production target before marking paid-launch restore readiness complete.

@@ -116,13 +116,14 @@ scp -o ControlPath="${SSH_CONTROL_PATH}" \
   scripts/check-production-ops.sh \
   scripts/monitor-production-ops.sh \
   scripts/run-production-backup-retention.sh \
+  scripts/run-offsite-restore-drill.sh \
   scripts/configure-r2-rclone.sh \
   scripts/check-production-admin-alerts.sh \
   "${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/scripts/"
 scp -o ControlPath="${SSH_CONTROL_PATH}" "$cron_file" "${DROPLET_USER}@${DROPLET_IP}:${CRON_PATH}"
 
 ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" \
-  "chmod 755 '${DROPLET_PATH}/scripts/check-production-ops.sh' '${DROPLET_PATH}/scripts/monitor-production-ops.sh' '${DROPLET_PATH}/scripts/run-production-backup-retention.sh' '${DROPLET_PATH}/scripts/configure-r2-rclone.sh' '${DROPLET_PATH}/scripts/check-production-admin-alerts.sh' && chmod 644 '${CRON_PATH}' && sed -n '1,120p' '${CRON_PATH}'"
+  "chmod 755 '${DROPLET_PATH}/scripts/check-production-ops.sh' '${DROPLET_PATH}/scripts/monitor-production-ops.sh' '${DROPLET_PATH}/scripts/run-production-backup-retention.sh' '${DROPLET_PATH}/scripts/run-offsite-restore-drill.sh' '${DROPLET_PATH}/scripts/configure-r2-rclone.sh' '${DROPLET_PATH}/scripts/check-production-admin-alerts.sh' && chmod 644 '${CRON_PATH}' && sed -n '1,120p' '${CRON_PATH}'"
 
 echo
 echo "Installed production ops cron."

@@ -264,11 +264,13 @@ Do not restore over production casually. A restore is destructive to newer data 
 
 Preferred restore drill:
 
-1. Copy the selected `.dump` file to a separate machine or a temporary Postgres container.
-2. Create an empty database.
-3. Run `pg_restore --clean --if-exists --no-owner --dbname <restore_database> <backup-file>.dump` against the non-production target.
-4. Verify table counts, recent users, stories, subscriptions, and bundle grants.
-5. Only if production recovery is required, stop writes first, preserve current production data, and restore under a written incident timeline.
+```bash
+pnpm launch:run-offsite-restore-drill
+```
+
+The drill downloads the latest encrypted offsite DB and uploads artifacts, verifies SHA-256 sidecars, restores the DB into a disposable Postgres container, validates public table presence, validates the uploads tarball listing, and removes only the temporary files/container it created.
+
+Only if production recovery is required, stop writes first, preserve current production data, and restore under a written incident timeline.
 
 If a deploy introduces a bad migration, prefer a forward fix migration. Avoid manual `DROP`, forced schema pushes, or resetting production state unless the incident owner explicitly approves a restore.
 
