@@ -126,6 +126,7 @@ export const APP_ROUTE_PATHS = {
   authorProfile: 'authors/:authorId',
   unlistedStory: 'u/:token',
   children: 'children',
+  childDetail: 'children/:childId',
   characters: 'characters',
   billingPlans: 'billing/plans',
   profile: 'profile',

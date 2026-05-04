@@ -85,6 +85,22 @@ function stripLocalePrefix(path: string): string {
   return stripped.startsWith('/') ? stripped : `/${stripped}`;
 }
 
+function normalizeLegacyChildDetailPath(path: string): string {
+  const [rawPath, rawQuery = ''] = path.split('?');
+  const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+
+  if (!/^\/ChildDetail\/?$/.test(normalizedPath)) {
+    return path;
+  }
+
+  const childId = new URLSearchParams(rawQuery).get('childId');
+  if (!childId) {
+    return path;
+  }
+
+  return `/children/${encodeURIComponent(childId)}`;
+}
+
 function preserveOriginalPathOnFocusedRoute(state: any, originalPath: string): any {
   if (!state?.routes?.length) {
     return state;
@@ -157,7 +173,7 @@ function isWebOAuthCallbackPath(): boolean {
 const linking: any = {
   prefixes: ['wondertales://', 'http://localhost:8081', 'https://app.wondertales.com'],
   getStateFromPath(path: string, options: any) {
-    const state = defaultGetStateFromPath(stripLocalePrefix(path), options);
+    const state = defaultGetStateFromPath(normalizeLegacyChildDetailPath(stripLocalePrefix(path)), options);
     return state ? preserveOriginalPathOnFocusedRoute(state, path) : state;
   },
   getPathFromState(state: any, options: any) {
@@ -189,6 +205,7 @@ const linking: any = {
           AuthorProfile: APP_ROUTE_PATHS.authorProfile,
           UnlistedStory: APP_ROUTE_PATHS.unlistedStory,
           Children: APP_ROUTE_PATHS.children,
+          ChildDetail: APP_ROUTE_PATHS.childDetail,
           Characters: APP_ROUTE_PATHS.characters,
           Plans: APP_ROUTE_PATHS.billingPlans,
           Profile: APP_ROUTE_PATHS.profile,
