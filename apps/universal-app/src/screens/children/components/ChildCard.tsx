@@ -40,6 +40,7 @@ interface Props {
   childModeThemeOptions?: ChildModeOption[];
   childModeLanguageOptions?: ChildModeOption[];
   childModeCharacterOptions?: ChildModeOption[];
+  childModeLimitHints?: ChildModeLimitHints;
   showProfileSummary?: boolean;
   onChildModeEnabledChange?: (childId: string, enabled: boolean) => void;
   onChildModeSettingsChange?: (childId: string, settings: Partial<ChildModeSettings>) => void;
@@ -105,6 +106,13 @@ interface ChildModeOption {
   icon?: string;
 }
 
+interface ChildModeLimitHints {
+  dailyStoryHelper?: string;
+  monthlyStoryHelper?: string;
+  dailyAudioHelper?: string;
+  monthlyStoryMaxValue?: number | null;
+}
+
 const DEFAULT_CHILD_MODE_SETTINGS: ChildModeSettings = {
   storyGenerationEnabled: true,
   publicStoriesEnabled: true,
@@ -137,6 +145,8 @@ function LimitInput({
   nativeID,
   value,
   placeholder,
+  helperText,
+  maxValue,
   disabled,
   onCommit,
 }: {
@@ -144,6 +154,8 @@ function LimitInput({
   nativeID: string;
   value: number | null;
   placeholder: string;
+  helperText?: string;
+  maxValue?: number | null;
   disabled?: boolean;
   onCommit: (value: number | null) => void;
 }) {
@@ -160,12 +172,21 @@ function LimitInput({
       return;
     }
     const parsed = Number.parseInt(trimmed, 10);
-    onCommit(Number.isFinite(parsed) && parsed >= 0 ? parsed : value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      onCommit(value);
+      return;
+    }
+
+    const capped = typeof maxValue === 'number' ? Math.min(parsed, maxValue) : parsed;
+    if (capped !== parsed) {
+      setDraft(String(capped));
+    }
+    onCommit(capped);
   };
 
   return (
     <View style={styles.limitField}>
-      <Text style={styles.limitLabel} numberOfLines={1}>{label}</Text>
+      <Text style={styles.limitLabel} numberOfLines={2}>{label}</Text>
       <TextInput
         nativeID={nativeID}
         style={[styles.limitInput, disabled && styles.controlDisabled]}
@@ -179,6 +200,9 @@ function LimitInput({
         onBlur={commit}
         onSubmitEditing={commit}
       />
+      {helperText ? (
+        <Text style={styles.limitHelper} numberOfLines={5}>{helperText}</Text>
+      ) : null}
     </View>
   );
 }
@@ -304,6 +328,7 @@ export function ChildCard({
   childModeThemeOptions = [],
   childModeLanguageOptions = [],
   childModeCharacterOptions = [],
+  childModeLimitHints,
   showProfileSummary = true,
   onChildModeEnabledChange,
   onChildModeSettingsChange,
@@ -420,6 +445,7 @@ export function ChildCard({
                 nativeID={`child-mode-${child.id}-daily-limit`}
                 value={childModeSettings.dailyGenerationLimit}
                 placeholder={labels.noLimit}
+                helperText={childModeLimitHints?.dailyStoryHelper}
                 disabled={controlsDisabled}
                 onCommit={(dailyGenerationLimit) => onChildModeSettingsChange?.(child.id, { dailyGenerationLimit })}
               />
@@ -428,6 +454,8 @@ export function ChildCard({
                 nativeID={`child-mode-${child.id}-monthly-limit`}
                 value={childModeSettings.monthlyGenerationLimit}
                 placeholder={labels.noLimit}
+                helperText={childModeLimitHints?.monthlyStoryHelper}
+                maxValue={childModeLimitHints?.monthlyStoryMaxValue}
                 disabled={controlsDisabled}
                 onCommit={(monthlyGenerationLimit) => onChildModeSettingsChange?.(child.id, { monthlyGenerationLimit })}
               />
@@ -438,6 +466,7 @@ export function ChildCard({
                 nativeID={`child-mode-${child.id}-daily-audio-limit`}
                 value={childModeSettings.dailyAudioGenerationLimit}
                 placeholder={labels.noLimit}
+                helperText={childModeLimitHints?.dailyAudioHelper}
                 disabled={controlsDisabled}
                 onCommit={(dailyAudioGenerationLimit) => onChildModeSettingsChange?.(child.id, { dailyAudioGenerationLimit })}
               />
@@ -579,6 +608,7 @@ const styles = StyleSheet.create<{
   limitField: ViewStyle;
   limitLabel: TextStyle;
   limitInput: TextStyle;
+  limitHelper: TextStyle;
   controlDisabled: ViewStyle | TextStyle;
   settingRow: ViewStyle;
   settingLabel: TextStyle;
@@ -707,11 +737,12 @@ const styles = StyleSheet.create<{
   },
   limitRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: theme.spacing[4],
   },
   limitField: {
     flex: 1,
-    minWidth: 0,
+    minWidth: 220,
     gap: theme.spacing[2],
   },
   limitLabel: {
@@ -730,6 +761,11 @@ const styles = StyleSheet.create<{
     color: theme.colors.text.primary,
     backgroundColor: theme.colors.neutral[50],
     outlineStyle: 'none' as any,
+  },
+  limitHelper: {
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.tertiary,
+    lineHeight: 18,
   },
   controlDisabled: {
     opacity: 0.55,

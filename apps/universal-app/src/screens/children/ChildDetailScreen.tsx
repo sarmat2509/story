@@ -8,6 +8,7 @@ import { APP_CONFIG } from '@/config/constants';
 import { useCharacters } from '@/api/characters';
 import { useChildren, useEnterChildMode, useRevokeChildModeSessions, useUpdateChildModeControls } from '@/api/children';
 import { useStoryThemes } from '@/api/dictionaries';
+import { useSubscriptionUsage } from '@/api/plans';
 import { ChildFormContent, type ChildFormInitialData } from '@/components/ChildFormContent';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { FeedbackModal } from '@/components/FeedbackModal';
@@ -40,6 +41,19 @@ function mapChildToInitialData(child: Record<string, unknown>): ChildFormInitial
   };
 }
 
+function getChildModeSettingsFromRecord(child: Record<string, unknown>): Record<string, unknown> {
+  const settings = child.childModeSettings ?? child.childmodesettings;
+  return settings && typeof settings === 'object' ? settings as Record<string, unknown> : {};
+}
+
+function getNonNegativeInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+function getFiniteLimit(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 export default function ChildDetailScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
@@ -50,6 +64,7 @@ export default function ChildDetailScreen() {
   const { data, isLoading } = useChildren();
   const { data: themesData } = useStoryThemes();
   const { data: characters = [] } = useCharacters();
+  const { data: subscriptionUsage } = useSubscriptionUsage();
   const updateChildModeControls = useUpdateChildModeControls();
   const enterChildMode = useEnterChildMode();
   const revokeChildModeSessions = useRevokeChildModeSessions();
@@ -73,10 +88,10 @@ export default function ChildDetailScreen() {
     accessDisabled: t('children_screen.child_mode_access_disabled', { defaultValue: 'Access off' }),
     readyToStart: t('children_screen.child_mode_ready_to_start', { defaultValue: 'Ready to start' }),
     passwordNeeded: t('children_screen.child_mode_password_needed', { defaultValue: 'Password needed' }),
-    dailyLimit: t('children_screen.child_mode_daily_limit'),
-    monthlyLimit: t('children_screen.child_mode_monthly_limit'),
-    dailyAudioLimit: t('children_screen.child_mode_daily_audio_limit', { defaultValue: 'Daily audio limit' }),
-    noLimit: t('children_screen.child_mode_no_limit'),
+    dailyLimit: t('children_screen.child_mode_daily_limit', { defaultValue: 'Stories per child per day' }),
+    monthlyLimit: t('children_screen.child_mode_monthly_limit', { defaultValue: 'Stories per child per month' }),
+    dailyAudioLimit: t('children_screen.child_mode_daily_audio_limit', { defaultValue: 'Audio stories per child per day' }),
+    noLimit: t('children_screen.child_mode_no_limit', { defaultValue: 'No child-specific limit' }),
     storyGeneration: t('children_screen.child_mode_story_generation', { defaultValue: 'Story generation' }),
     publicStories: t('children_screen.child_mode_public_stories', { defaultValue: 'Public stories' }),
     freeText: t('children_screen.child_mode_free_text'),
@@ -139,16 +154,6 @@ export default function ChildDetailScreen() {
     });
   };
 
-  const handleChildModeSettingsChange = (
-    childId: string,
-    settings: Partial<ChildModeSettingsInput>
-  ) => {
-    updateChildModeControls.mutate({
-      id: childId,
-      data: { childModeSettings: settings },
-    });
-  };
-
   if (isLoading) {
     return (
       <View style={styles.center}>
@@ -189,6 +194,67 @@ export default function ChildDetailScreen() {
     : childModeNeedsPassword
       ? labels.passwordNeeded
       : labels.accessDisabled;
+  const childCount = (data?.children ?? []).length;
+  const storyMonthlyLimit = getFiniteLimit(subscriptionUsage?.stories.limit);
+  const audioMonthlyLimit = getFiniteLimit(subscriptionUsage?.audio.limit);
+  const otherChildrenMonthlyStoryLimit = (data?.children ?? [])
+    .filter((item) => item.id !== child.id)
+    .reduce((sum, item) => {
+      const itemSettings = getChildModeSettingsFromRecord(item as unknown as Record<string, unknown>);
+      return sum + (getNonNegativeInteger(itemSettings.monthlyGenerationLimit) ?? 0);
+    }, 0);
+  const monthlyStoryMaxForChild =
+    storyMonthlyLimit === null ? null : Math.max(0, storyMonthlyLimit - otherChildrenMonthlyStoryLimit);
+  const dailyStoryHelper = t('children_screen.child_mode_daily_story_limit_hint', {
+    defaultValue: 'Empty means no daily child limit. The account monthly limit still applies.',
+  });
+  const monthlyStoryHelper =
+    storyMonthlyLimit === null
+      ? t('children_screen.child_mode_monthly_story_limit_unlimited_hint', {
+          defaultValue: 'Empty means no child-specific limit.',
+        })
+      : childCount > 1
+        ? t('children_screen.child_mode_monthly_story_limit_budget_hint', {
+            defaultValue:
+              'Family limit: {{limit}} stories/month. Other children already reserve {{reserved}}. This child can use up to {{available}}.',
+            limit: storyMonthlyLimit,
+            reserved: otherChildrenMonthlyStoryLimit,
+            available: monthlyStoryMaxForChild,
+          })
+        : t('children_screen.child_mode_monthly_story_limit_hint', {
+            defaultValue: 'Account limit: {{limit}} stories/month. Empty means no child-specific limit.',
+            limit: storyMonthlyLimit,
+          });
+  const dailyAudioHelper =
+    audioMonthlyLimit === null
+      ? t('children_screen.child_mode_daily_audio_limit_unlimited_hint', {
+          defaultValue: 'Empty means no daily audio limit.',
+        })
+      : t('children_screen.child_mode_daily_audio_limit_hint', {
+          defaultValue: 'Audio account limit: {{limit}}/month. A child daily limit does not increase it.',
+          limit: audioMonthlyLimit,
+        });
+
+  const handleChildModeSettingsChange = (
+    childId: string,
+    settings: Partial<ChildModeSettingsInput>
+  ) => {
+    const nextSettings = { ...settings };
+    if (
+      typeof monthlyStoryMaxForChild === 'number' &&
+      typeof nextSettings.monthlyGenerationLimit === 'number'
+    ) {
+      nextSettings.monthlyGenerationLimit = Math.min(
+        nextSettings.monthlyGenerationLimit,
+        monthlyStoryMaxForChild
+      );
+    }
+
+    updateChildModeControls.mutate({
+      id: childId,
+      data: { childModeSettings: nextSettings },
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -291,6 +357,12 @@ export default function ChildDetailScreen() {
               childModeThemeOptions={themeOptions}
               childModeLanguageOptions={languageOptions}
               childModeCharacterOptions={characterOptions}
+              childModeLimitHints={{
+                dailyStoryHelper,
+                monthlyStoryHelper,
+                dailyAudioHelper,
+                monthlyStoryMaxValue: monthlyStoryMaxForChild,
+              }}
               showProfileSummary={false}
               onChildModeEnabledChange={handleChildModeEnabledChange}
               onChildModeSettingsChange={handleChildModeSettingsChange}
