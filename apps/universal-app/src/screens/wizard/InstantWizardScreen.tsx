@@ -27,7 +27,6 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { GlassPrimaryButton } from '@/components/GlassPrimaryButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
-import { UsageSummaryCard } from '@/components/UsageSummaryCard';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
@@ -69,7 +68,7 @@ export default function InstantWizardScreen() {
 
   // API hooks
   const { data: themesData, isLoading: themesLoading } = useStoryThemes();
-  const { data: usage, isLoading: usageLoading } = useSubscriptionUsage();
+  const { data: usage } = useSubscriptionUsage();
   const periodEndFormatted = useMemo(
     () => formatSubscriptionPeriodEnd(usage?.currentPeriodEnd ?? usage?.resetsAt, i18n.language),
     [usage?.currentPeriodEnd, usage?.resetsAt, i18n.language]
@@ -267,14 +266,6 @@ export default function InstantWizardScreen() {
       </AnimatedSection>
 
       <AnimatedSection delay={420} trigger={enterKey}>
-        <UsageSummaryCard
-          usage={usage}
-          isLoading={usageLoading}
-          periodEndFormatted={periodEndFormatted}
-        />
-      </AnimatedSection>
-
-      <AnimatedSection delay={520} trigger={enterKey}>
         <GlassPrimaryButton
           title={t('instant_wizard.generate_story')}
           onPress={handleGenerate}

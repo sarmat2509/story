@@ -1464,9 +1464,7 @@
     "resets_unknown": "Поточний платіжний період",
     "stories": "Казки",
     "audio": "Аудіоказки",
-    "remaining_of_limit": "Залишилось {{remaining}} з {{limit}}",
-    "plan_limit": "Ліміт тарифу {{plan}}",
-    "plan_plus_bundle": "Тариф {{plan}} + пакет {{bundle}}"
+    "remaining_of_limit": "Залишилось {{remaining}} з {{limit}}"
   },
   "paywall": {
     "stories_limit_title": "Досягнуто ліміту історій",

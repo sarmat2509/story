@@ -28,8 +28,6 @@ function UsageRow({
 }) {
   const { t } = useTranslation();
   const percentUsed = bucket.limit > 0 ? clampPercent((bucket.used / bucket.limit) * 100) : 0;
-  const planLimit = bucket.planLimit ?? bucket.limit;
-  const bundleBonus = bucket.bundleBonus ?? Math.max(0, bucket.limit - planLimit);
 
   return (
     <View style={styles.row}>
@@ -46,18 +44,6 @@ function UsageRow({
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${percentUsed}%` }]} />
       </View>
-      <Text style={styles.rowMeta}>
-        {bundleBonus > 0
-          ? t('usage_summary.plan_plus_bundle', {
-              plan: planLimit,
-              bundle: bundleBonus,
-              defaultValue: 'Plan {{plan}} + bundle {{bundle}}',
-            })
-          : t('usage_summary.plan_limit', {
-              plan: planLimit,
-              defaultValue: 'Plan limit {{plan}}',
-            })}
-      </Text>
     </View>
   );
 }
@@ -159,9 +145,13 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
   },
   rows: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: theme.spacing[3],
   },
   row: {
+    flex: 1,
+    minWidth: 240,
     gap: theme.spacing[2],
   },
   rowHeader: {
@@ -190,10 +180,6 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: theme.borders.radius.full,
     backgroundColor: theme.colors.interactive.primary,
-  },
-  rowMeta: {
-    fontSize: theme.typography.fontSize.xs,
-    color: theme.colors.text.tertiary,
   },
   loadingRow: {
     flexDirection: 'row',

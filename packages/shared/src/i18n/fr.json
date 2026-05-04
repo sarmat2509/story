@@ -770,9 +770,7 @@
     "resets_unknown": "Periode de facturation actuelle",
     "stories": "Histoires",
     "audio": "Histoires audio",
-    "remaining_of_limit": "{{remaining}} sur {{limit}} restantes",
-    "plan_limit": "Limite de la formule {{plan}}",
-    "plan_plus_bundle": "Formule {{plan}} + pack {{bundle}}"
+    "remaining_of_limit": "{{remaining}} sur {{limit}} restantes"
   },
   "paywall": {
     "stories_limit_title": "Limite d'histoires atteint",

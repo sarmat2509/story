@@ -1417,9 +1417,7 @@
     "resets_unknown": "Biezacy okres rozliczeniowy",
     "stories": "Historie",
     "audio": "Historie audio",
-    "remaining_of_limit": "Pozostalo {{remaining}} z {{limit}}",
-    "plan_limit": "Limit planu {{plan}}",
-    "plan_plus_bundle": "Plan {{plan}} + pakiet {{bundle}}"
+    "remaining_of_limit": "Pozostalo {{remaining}} z {{limit}}"
   },
   "paywall": {
     "stories_limit_title": "Osiagnieto limit historii",

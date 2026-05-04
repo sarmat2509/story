@@ -36,7 +36,6 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { ExpandableCard } from '@/components/ExpandableCard';
-import { UsageSummaryCard } from '@/components/UsageSummaryCard';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 import {
@@ -71,7 +70,7 @@ export default function PlansScreen() {
   const upgradePlan = useUpgradePlan();
   const createCheckoutSession = useCreateCheckoutSession();
   const createBundleCheckout = useCreateBundleCheckoutSession();
-  const { data: subscriptionUsage, isLoading: subscriptionUsageLoading } = useSubscriptionUsage(isAuthenticated);
+  const { data: subscriptionUsage } = useSubscriptionUsage(isAuthenticated);
   const periodEndFormatted = useMemo(
     () =>
       formatSubscriptionPeriodEnd(
@@ -482,16 +481,6 @@ export default function PlansScreen() {
           </Text>
         </View>
       </AnimatedSection>
-
-      {effectiveIsAuthenticated && (
-        <AnimatedSection delay={160} trigger={enterKey}>
-          <UsageSummaryCard
-            usage={subscriptionUsage}
-            isLoading={subscriptionUsageLoading}
-            periodEndFormatted={periodEndFormatted}
-          />
-        </AnimatedSection>
-      )}
 
       {effectiveIsAuthenticated && (
         <AnimatedSection delay={80} trigger={enterKey}>

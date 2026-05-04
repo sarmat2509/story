@@ -1464,9 +1464,7 @@
     "resets_unknown": "Current billing period",
     "stories": "Stories",
     "audio": "Audio stories",
-    "remaining_of_limit": "{{remaining}} of {{limit}} left",
-    "plan_limit": "Plan limit {{plan}}",
-    "plan_plus_bundle": "Plan {{plan}} + bundle {{bundle}}"
+    "remaining_of_limit": "{{remaining}} of {{limit}} left"
   },
   "paywall": {
     "stories_limit_title": "Story limit reached",
