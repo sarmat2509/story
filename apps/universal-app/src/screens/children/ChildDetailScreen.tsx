@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useLayoutEffect } from 'react';
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NavigationProp, RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,8 @@ import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { ChildCard } from './components/ChildCard';
 import { theme } from '@/theme';
+import { formatAssetUrl } from '@/utils/assetUrl';
+import { useResponsive } from '@/hooks/useResponsive';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { SUPPORTED_LANGUAGES, type ChildModeSettingsInput, type ReferencePhoto } from '@wondertales/shared';
 
@@ -42,6 +44,7 @@ export default function ChildDetailScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const route = useRoute<ChildDetailRoute>();
+  const { isMobile } = useResponsive();
   const [activeTab, setActiveTab] = useState<'profile' | 'access'>('profile');
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const { data, isLoading } = useChildren();
@@ -51,6 +54,10 @@ export default function ChildDetailScreen() {
   const enterChildMode = useEnterChildMode();
   const revokeChildModeSessions = useRevokeChildModeSessions();
   const child = (data?.children ?? []).find((item) => item.id === route.params.childId);
+  const childInitialData = useMemo(
+    () => (child ? mapChildToInitialData(child as unknown as Record<string, unknown>) : undefined),
+    [child]
+  );
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -177,13 +184,64 @@ export default function ChildDetailScreen() {
     childModePasscodeConfigured: (childRecord.childModePasscodeConfigured ?? childRecord.childmodepasscodeconfigured) as boolean | undefined,
     childModeActiveSessionCount: (childRecord.childModeActiveSessionCount ?? childRecord.childmodeactivesessioncount) as number | undefined,
   };
+  const childAvatarUrl =
+    childCardData.turnaroundSheet?.frontUrl ||
+    childCardData.turnaroundSheet?.url ||
+    childCardData.referencePhotos?.[0]?.url ||
+    null;
 
   return (
     <View style={styles.container}>
+      <View style={[
+        styles.pageContent,
+        isMobile && styles.pageContentMobile,
+      ]}>
+      <View style={[styles.headerPanel, isMobile && styles.headerPanelMobile]}>
+        <View style={styles.identityRow}>
+          <View style={styles.avatarShell}>
+            {childAvatarUrl ? (
+              <Image
+                source={{ uri: formatAssetUrl(childAvatarUrl) ?? childAvatarUrl }}
+                style={styles.avatar}
+                resizeMode="contain"
+              />
+            ) : (
+              <Ionicons name="person-circle-outline" size={38} color={theme.colors.text.tertiary} />
+            )}
+          </View>
+          <View style={styles.identityText}>
+            <Text style={styles.childName} numberOfLines={1}>{child.name}</Text>
+            <Text style={styles.childMeta} numberOfLines={1}>
+              {childCardData.birthDate ? new Date(childCardData.birthDate).toLocaleDateString() : t('children_screen.title')}
+            </Text>
+          </View>
+        </View>
+        <View style={[
+          styles.statusPill,
+          childCardData.childModeEnabled ? styles.statusPillEnabled : styles.statusPillDisabled,
+        ]}>
+          <Ionicons
+            name={childCardData.childModeEnabled ? 'shield-checkmark' : 'shield-outline'}
+            size={16}
+            color={childCardData.childModeEnabled ? theme.colors.status.success : theme.colors.text.tertiary}
+          />
+          <Text style={[
+            styles.statusPillText,
+            childCardData.childModeEnabled && styles.statusPillTextEnabled,
+          ]}>
+            {childCardData.childModeEnabled ? labels.enabled : labels.disabled}
+          </Text>
+        </View>
+      </View>
+
       <View style={styles.tabBar}>
         <TouchableOpacity
           style={[styles.tabButton, activeTab === 'profile' && styles.tabButtonActive]}
           onPress={() => setActiveTab('profile')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('children_screen.child_detail_profile_tab', { defaultValue: 'Profile' })}
+          focusable
         >
           <Ionicons
             name="person-circle-outline"
@@ -197,6 +255,10 @@ export default function ChildDetailScreen() {
         <TouchableOpacity
           style={[styles.tabButton, activeTab === 'access' && styles.tabButtonActive]}
           onPress={() => setActiveTab('access')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('children_screen.child_detail_access_tab', { defaultValue: 'Access' })}
+          focusable
         >
           <Ionicons
             name="shield-checkmark-outline"
@@ -209,35 +271,38 @@ export default function ChildDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      {activeTab === 'profile' ? (
-        <ChildFormContent
-          childId={child.id}
-          initialData={mapChildToInitialData(childRecord)}
-          onSuccess={() => undefined}
-          variant="inline"
-        />
-      ) : (
-        <ScrollView contentContainerStyle={styles.accessContent}>
-          <View style={Platform.OS === 'web' ? styles.accessCardWeb : styles.accessCardNative}>
-            <ChildCard
-              child={childCardData}
-              onPress={() => undefined}
-              childModeLabels={labels}
-              childModeThemeOptions={themeOptions}
-              childModeLanguageOptions={languageOptions}
-              childModeCharacterOptions={characterOptions}
-              onChildModeEnabledChange={handleChildModeEnabledChange}
-              onChildModeSettingsChange={handleChildModeSettingsChange}
-              onChildModePasscodeChange={handleChildModePasscodeChange}
-              onEnterChildMode={(childId) => enterChildMode.mutate(childId)}
-              onRevokeChildModeSessions={(childId) => revokeChildModeSessions.mutate(childId)}
-              isChildModeUpdating={updateChildModeControls.isPending}
-              isEnteringChildMode={enterChildMode.isPending && enterChildMode.variables === child.id}
-              isRevokingChildSessions={revokeChildModeSessions.isPending}
-            />
-          </View>
-        </ScrollView>
-      )}
+      <View style={styles.contentPanel}>
+        {activeTab === 'profile' ? (
+          <ChildFormContent
+            childId={child.id}
+            initialData={childInitialData}
+            onSuccess={() => undefined}
+            variant="inline"
+          />
+        ) : (
+          <ScrollView contentContainerStyle={styles.accessContent} showsVerticalScrollIndicator={false}>
+            <View style={Platform.OS === 'web' ? styles.accessCardWeb : styles.accessCardNative}>
+              <ChildCard
+                child={childCardData}
+                onPress={() => undefined}
+                childModeLabels={labels}
+                childModeThemeOptions={themeOptions}
+                childModeLanguageOptions={languageOptions}
+                childModeCharacterOptions={characterOptions}
+                onChildModeEnabledChange={handleChildModeEnabledChange}
+                onChildModeSettingsChange={handleChildModeSettingsChange}
+                onChildModePasscodeChange={handleChildModePasscodeChange}
+                onEnterChildMode={(childId) => enterChildMode.mutate(childId)}
+                onRevokeChildModeSessions={(childId) => revokeChildModeSessions.mutate(childId)}
+                isChildModeUpdating={updateChildModeControls.isPending}
+                isEnteringChildMode={enterChildMode.isPending && enterChildMode.variables === child.id}
+                isRevokingChildSessions={revokeChildModeSessions.isPending}
+              />
+            </View>
+          </ScrollView>
+        )}
+      </View>
+      </View>
 
       <FeedbackModal
         visible={showFeedbackModal}
@@ -252,7 +317,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background.secondary,
-    padding: theme.spacing[6],
+  },
+  pageContent: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 1120,
+    alignSelf: 'center',
+    paddingHorizontal: theme.spacing[6],
+    paddingTop: theme.spacing[5],
+    paddingBottom: theme.spacing[6],
+  },
+  pageContentMobile: {
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: theme.spacing[4],
   },
   center: {
     flex: 1,
@@ -264,10 +341,101 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     fontSize: theme.typography.fontSize.base,
   },
+  headerPanel: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing[4],
+    padding: theme.spacing[4],
+    marginBottom: theme.spacing[4],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.primary,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 16px 32px rgba(35, 12, 20, 0.08)' as unknown as string,
+      },
+      android: { elevation: 2 },
+      ios: {
+        shadowColor: theme.colors.primary[900],
+        shadowOpacity: 0.08,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+      },
+    }),
+  },
+  headerPanelMobile: {
+    alignItems: 'flex-start',
+    flexDirection: 'column',
+  },
+  identityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    minWidth: 0,
+    flex: 1,
+  },
+  avatarShell: {
+    width: 56,
+    height: 56,
+    borderRadius: theme.borders.radius.lg,
+    backgroundColor: theme.colors.neutral[50],
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+  },
+  identityText: {
+    minWidth: 0,
+    flex: 1,
+  },
+  childName: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.bold,
+  },
+  childMeta: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    marginTop: theme.spacing[1],
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    borderRadius: theme.borders.radius.full,
+    borderWidth: theme.borders.width.thin,
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
+    backgroundColor: theme.colors.neutral[50],
+    borderColor: theme.colors.border.light,
+  },
+  statusPillEnabled: {
+    backgroundColor: theme.colors.success[50],
+    borderColor: theme.colors.success[500],
+  },
+  statusPillDisabled: {
+    backgroundColor: theme.colors.neutral[50],
+  },
+  statusPillText: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  statusPillTextEnabled: {
+    color: theme.colors.success[600],
+  },
   tabBar: {
     flexDirection: 'row',
     gap: theme.spacing[2],
-    marginBottom: theme.spacing[5],
+    marginBottom: theme.spacing[3],
   },
   tabButton: {
     flexDirection: 'row',
@@ -293,10 +461,32 @@ const styles = StyleSheet.create({
     color: theme.colors.text.inverse,
   },
   accessContent: {
-    paddingBottom: theme.spacing[8],
+    padding: theme.spacing[4],
+  },
+  contentPanel: {
+    flex: 1,
+    minHeight: 0,
+    width: '100%',
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.primary,
+    overflow: 'hidden',
+    ...Platform.select({
+      web: {
+        boxShadow: '0 18px 44px rgba(35, 12, 20, 0.08)' as unknown as string,
+      },
+      android: { elevation: 2 },
+      ios: {
+        shadowColor: theme.colors.primary[900],
+        shadowOpacity: 0.08,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 8 },
+      },
+    }),
   },
   accessCardWeb: {
-    maxWidth: 520,
+    maxWidth: 640,
   },
   accessCardNative: {
     width: '100%',

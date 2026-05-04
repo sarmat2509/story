@@ -11,6 +11,7 @@ import { UploadPhotoResult } from '@/utils/uploadPhoto';
 import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
 import { API_BASE_URL, APP_CONFIG } from '@/config/constants';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
+import { useResponsive } from '@/hooks/useResponsive';
 
 /** Normalize BCP 47 locale (e.g. uk-UA, en-US) to base code for API (uk, en) */
 function toBaseLocale(locale: string | undefined): string {
@@ -97,10 +98,11 @@ interface Props {
 
 export function ChildFormContent({ childId, initialData, onSuccess, onCancel, variant = 'modal' }: Props) {
   const { t, i18n } = useTranslation();
+  const { isMobile } = useResponsive();
   const createChild = useCreateChild();
   const updateChild = useUpdateChild();
   const analyzeChild = useAnalyzeChild();
-  const currentPreviewUrl = initialData?.turnaroundSheet?.frontUrl ?? null;
+  const currentPreviewUrl = initialData?.turnaroundSheet?.frontUrl ?? initialData?.turnaroundSheet?.url ?? null;
 
   const [currentStep, setCurrentStep] = useState(1);
   const scrollRef = useRef<ScrollView>(null);
@@ -421,9 +423,15 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
 
   const showCloseButton = variant === 'modal' && !!onCancel;
   const showCancelInFooter = variant === 'modal' && !!onCancel;
+  const isInline = variant === 'inline';
+  const inlineButtonStyle = isInline
+    ? isMobile
+      ? styles.inlineButtonMobile
+      : styles.inlineButton
+    : null;
 
   return (
-    <View style={variant === 'inline' ? styles.inlineContainer : styles.modalContainer}>
+    <View style={isInline ? styles.inlineContainer : styles.modalContainer}>
       {createChild.isPending && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
@@ -456,24 +464,32 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
         </View>
       )}
 
-      {variant === 'inline' && (
+      {isInline && (
         <View style={styles.inlineHeader}>
           <Text style={styles.inlineTitle}>
             {childId ? t('child_form.title_edit') : t('child_form.title_create')}
           </Text>
-          <Text style={styles.stepIndicator}>
+          <Text style={[styles.stepIndicator, styles.stepIndicatorInline]}>
             {t('child_form.step_indicator', { current: currentStep, total: 2 })}
           </Text>
         </View>
       )}
 
-      <ScrollView ref={scrollRef} style={[styles.content, variant === 'modal' && styles.contentScrollable]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        style={[
+          styles.content,
+          variant === 'modal' && styles.contentScrollable,
+          isInline && styles.contentInline,
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         {currentStep === 1 && (
           <>
             <View style={styles.field}>
               <Text style={styles.label}>{t('child_form.name_label')}</Text>
               <TextInput
-                style={[styles.input, errors.name && styles.inputError]}
+                style={[styles.input, isInline && styles.inputInline, errors.name && styles.inputError]}
                 value={name}
                 onChangeText={setName}
                 placeholder={t('child_form.name_placeholder')}
@@ -493,11 +509,15 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
                     if (!isNaN(newDate.getTime())) setBirthDate(newDate);
                   }}
                   max={new Date().toISOString().split('T')[0]}
-                  style={{ ...styles.input, ...(errors.birthDate ? styles.inputError : {}) } as React.CSSProperties}
+                  style={{
+                    ...styles.input,
+                    ...(isInline ? styles.inputInline : {}),
+                    ...(errors.birthDate ? styles.inputError : {}),
+                  } as React.CSSProperties}
                 />
               ) : (
                 <>
-                  <TouchableOpacity style={[styles.input, styles.dateInput]} onPress={() => setShowDatePicker(true)}>
+                  <TouchableOpacity style={[styles.input, isInline && styles.inputInline, styles.dateInput]} onPress={() => setShowDatePicker(true)}>
                     <Text style={styles.dateText}>{birthDate.toLocaleDateString()}</Text>
                     <Ionicons name="calendar-outline" size={20} color={theme.colors.text.secondary} />
                   </TouchableOpacity>
@@ -552,10 +572,10 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
             {childId && currentPreviewUrl ? (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>{t('child_form.current_image') || 'Аватар'}</Text>
-                <View style={styles.currentImageCard}>
+                <View style={[styles.currentImageCard, isInline && styles.currentImageCardInline]}>
                   <Image
                     source={{ uri: formatAssetUrl(currentPreviewUrl) ?? currentPreviewUrl }}
-                    style={styles.currentImage}
+                    style={[styles.currentImage, isInline && styles.currentImageInline]}
                     resizeMode="contain"
                   />
                 </View>
@@ -571,7 +591,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
                   {t('child_form.author_pseudonym_label', { defaultValue: 'Pseudonym' })}
                 </Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, isInline && styles.inputInline]}
                   value={authorPseudonym}
                   onChangeText={setAuthorPseudonym}
                   placeholder={t('child_form.author_pseudonym_placeholder', { defaultValue: name || 'Story author' })}
@@ -584,7 +604,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
                   {t('child_form.author_about_label', { defaultValue: 'About the author' })}
                 </Text>
                 <TextInput
-                  style={[styles.input, styles.multilineInput]}
+                  style={[styles.input, isInline && styles.inputInline, styles.multilineInput]}
                   value={authorAboutMe}
                   onChangeText={setAuthorAboutMe}
                   placeholder={t('child_form.author_about_placeholder', { defaultValue: 'A short public bio for published stories' })}
@@ -606,7 +626,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
                 </View>
               ) : (
                 <TextInput
-                  style={[styles.input, styles.multilineInput]}
+                  style={[styles.input, isInline && styles.inputInline, styles.multilineInput, isInline && styles.descriptionInputInline]}
                   value={description}
                   onChangeText={setDescription}
                   placeholder={t('child_form.description_placeholder')}
@@ -669,11 +689,17 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
         )}
       </ScrollView>
 
-      <View style={[styles.footer, variant === 'inline' && styles.footerInline]}>
+      <View style={[styles.footer, isInline && styles.footerInline, isMobile && styles.footerMobile]}>
         {currentStep === 1 ? (
           <>
             {showCancelInFooter && (
-              <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={onCancel}>
+              <TouchableOpacity
+                style={[styles.button, styles.cancelButton]}
+                onPress={onCancel}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                focusable
+              >
                 <Text style={styles.cancelButtonText}>{t('child_form.cancel_button')}</Text>
               </TouchableOpacity>
             )}
@@ -682,12 +708,23 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
               onPress={handleContinue}
               disabled={!name.trim() || photos.some(p => p.isUploading)}
               size="footer"
-              style={[styles.button, !showCancelInFooter && styles.buttonFull]}
+              style={[
+                styles.button,
+                styles.primaryButtonShell,
+                !showCancelInFooter && !isInline && styles.buttonFull,
+                inlineButtonStyle,
+              ]}
             />
           </>
         ) : (
           <>
-            <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={() => setCurrentStep(1)}>
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton, inlineButtonStyle]}
+              onPress={() => setCurrentStep(1)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              focusable
+            >
               <Text style={styles.cancelButtonText}>{t('child_form.back') || 'Back'}</Text>
             </TouchableOpacity>
             <GlassPrimaryButton
@@ -702,7 +739,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
               }
               loading={createChild.isPending || updateChild.isPending}
               size="footer"
-              style={styles.button}
+              style={[styles.button, styles.primaryButtonShell, inlineButtonStyle]}
             />
           </>
         )}
@@ -714,6 +751,8 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
 const styles = StyleSheet.create({
   inlineContainer: {
     flex: 1,
+    minHeight: 0,
+    backgroundColor: theme.colors.background.primary,
   },
   modalContainer: {
     flex: 1,
@@ -721,10 +760,19 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   inlineHeader: {
-    marginBottom: theme.spacing[4],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing[3],
+    paddingHorizontal: theme.spacing[5],
+    paddingTop: theme.spacing[5],
+    paddingBottom: theme.spacing[4],
+    borderBottomWidth: theme.borders.width.thin,
+    borderBottomColor: theme.colors.border.light,
   },
   inlineTitle: {
-    fontSize: theme.typography.fontSize.xl,
+    flexShrink: 1,
+    fontSize: theme.typography.fontSize.lg,
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
   },
@@ -746,11 +794,25 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     marginTop: theme.spacing[1],
   },
+  stepIndicatorInline: {
+    marginTop: 0,
+    borderRadius: theme.borders.radius.full,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.neutral[50],
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[1],
+    overflow: 'hidden',
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
   closeButton: {
     padding: theme.spacing[1],
   },
   content: {
     padding: theme.spacing[5],
+  },
+  contentInline: {
+    backgroundColor: theme.colors.background.primary,
   },
   contentScrollable: {
     flex: 1,
@@ -765,10 +827,20 @@ const styles = StyleSheet.create({
     borderRadius: theme.borders.radius.md,
     backgroundColor: theme.colors.background.secondary,
   },
+  currentImageCardInline: {
+    width: 300,
+    maxWidth: '100%',
+    alignSelf: 'flex-start',
+    backgroundColor: theme.colors.neutral[50],
+  },
   currentImage: {
     width: '100%',
     height: 180,
     borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.primary,
+  },
+  currentImageInline: {
+    height: 220,
     backgroundColor: theme.colors.background.primary,
   },
   label: {
@@ -812,6 +884,10 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.primary,
     backgroundColor: theme.colors.background.secondary,
+  },
+  inputInline: {
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.neutral[50],
   },
   inputError: {
     borderColor: theme.colors.status.error,
@@ -868,22 +944,50 @@ const styles = StyleSheet.create({
     borderTopColor: theme.colors.border.light,
   },
   footerInline: {
-    borderTopWidth: 0,
-    paddingTop: theme.spacing[2],
+    justifyContent: 'flex-end',
+    borderTopWidth: theme.borders.width.thin,
+    borderTopColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.primary,
+    paddingHorizontal: theme.spacing[5],
+    paddingTop: theme.spacing[4],
+    paddingBottom: theme.spacing[5],
+  },
+  footerMobile: {
+    flexDirection: 'column',
   },
   button: {
     flex: 1,
+    minHeight: 48,
     paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[4],
     borderRadius: theme.borders.radius.md,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonShell: {
+    flex: 1,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
   },
   buttonFull: {
     flex: 1,
   },
+  inlineButton: {
+    flex: 0,
+    width: 190,
+    maxWidth: 190,
+    alignSelf: 'center',
+  },
+  inlineButtonMobile: {
+    flex: 0,
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+  },
   cancelButton: {
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: theme.colors.neutral[50],
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
+    borderColor: theme.colors.border.light,
   },
   cancelButtonText: {
     fontSize: theme.typography.fontSize.base,
@@ -902,6 +1006,9 @@ const styles = StyleSheet.create({
   multilineInput: {
     minHeight: 80,
     textAlignVertical: 'top',
+  },
+  descriptionInputInline: {
+    minHeight: 132,
   },
   hint: {
     fontSize: theme.typography.fontSize.sm,
