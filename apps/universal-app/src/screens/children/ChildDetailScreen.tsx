@@ -299,8 +299,8 @@ export default function ChildDetailScreen() {
             )}
           </View>
           <View style={styles.identityText}>
-            <Text style={styles.childName} numberOfLines={1}>{child.name}</Text>
-            <Text style={styles.childMeta} numberOfLines={1}>
+            <Text style={styles.childName}>{child.name}</Text>
+            <Text style={styles.childMeta}>
               {childCardData.birthDate ? new Date(childCardData.birthDate).toLocaleDateString() : t('children_screen.title')}
             </Text>
           </View>

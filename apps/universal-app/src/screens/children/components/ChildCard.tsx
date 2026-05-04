@@ -220,9 +220,9 @@ function LimitSlider({
   return (
     <View style={styles.limitField}>
       <View style={styles.limitHeaderRow}>
-        <Text style={styles.limitLabel} numberOfLines={2}>{label}</Text>
+        <Text style={styles.limitLabel}>{label}</Text>
         <View style={[styles.limitValueBadge, isUnset && styles.limitValueBadgeUnset]}>
-          <Text style={[styles.limitValueText, isUnset && styles.limitValueTextUnset]} numberOfLines={1}>
+          <Text style={[styles.limitValueText, isUnset && styles.limitValueTextUnset]}>
             {valueLabel}
           </Text>
         </View>
@@ -257,11 +257,11 @@ function LimitSlider({
         </Text>
       </View>
       <View style={styles.limitBudgetRow}>
-        <Text style={styles.limitBudgetText} numberOfLines={1}>
+        <Text style={styles.limitBudgetText}>
           {formatCountTemplate(labels.limitAvailable, availableMax)}
         </Text>
         {reserved > 0 ? (
-          <Text style={styles.limitBudgetText} numberOfLines={1}>
+          <Text style={styles.limitBudgetText}>
             {formatCountTemplate(labels.limitReserved, reserved)}
           </Text>
         ) : null}
@@ -276,13 +276,13 @@ function LimitSlider({
           disabled={disabled}
           onPress={() => onCommit(null)}
         >
-          <Text style={styles.limitUnsetButtonText} numberOfLines={1}>
+          <Text style={styles.limitUnsetButtonText}>
             {unsetLabel}
           </Text>
         </Pressable>
       ) : null}
       {helperText ? (
-        <Text style={styles.limitHelper} numberOfLines={5}>{helperText}</Text>
+        <Text style={styles.limitHelper}>{helperText}</Text>
       ) : null}
     </View>
   );
@@ -301,7 +301,7 @@ function SettingSwitch({
 }) {
   return (
     <View style={styles.settingRow}>
-      <Text style={styles.settingLabel} numberOfLines={2}>{label}</Text>
+      <Text style={styles.settingLabel}>{label}</Text>
       <Switch
         value={value}
         disabled={disabled}
@@ -347,7 +347,7 @@ function MultiSelectChips({
 
   return (
     <View style={styles.multiSelectBlock}>
-      <Text style={styles.multiSelectLabel} numberOfLines={1}>{label}</Text>
+      <Text style={styles.multiSelectLabel}>{label}</Text>
       <View style={styles.optionChips}>
         <Pressable
           style={({ pressed }) => [
@@ -363,7 +363,6 @@ function MultiSelectChips({
               styles.optionChipText,
               selectedValues.length === 0 && styles.optionChipTextSelected,
             ]}
-            numberOfLines={1}
           >
             {allLabel}
           </Text>
@@ -387,7 +386,6 @@ function MultiSelectChips({
               {option.icon ? <Text style={styles.optionChipIcon}>{option.icon}</Text> : null}
               <Text
                 style={[styles.optionChipText, selected && styles.optionChipTextSelected]}
-                numberOfLines={1}
               >
                 {option.label}
               </Text>
@@ -483,7 +481,7 @@ export function ChildCard({
                   size={18}
                   color={childModeEnabled ? theme.colors.status.success : theme.colors.text.tertiary}
                 />
-                <Text style={styles.childModeTitle} numberOfLines={1}>{labels.title}</Text>
+                <Text style={styles.childModeTitle}>{labels.title}</Text>
               </View>
               <Switch
                 value={childModeEnabled}
@@ -494,7 +492,7 @@ export function ChildCard({
               />
             </View>
 
-            <Text style={styles.childModeStatus} numberOfLines={1}>
+            <Text style={styles.childModeStatus}>
               {childModeStatusText}
             </Text>
 
@@ -513,7 +511,7 @@ export function ChildCard({
                 size={18}
                 color={theme.colors.text.inverse}
               />
-              <Text style={styles.startChildModeButtonText} numberOfLines={1}>
+              <Text style={styles.startChildModeButtonText}>
                 {childModeEnabled
                   ? !childModePasscodeConfigured ? labels.setPasscodeToStart : isEnteringChildMode ? labels.starting : labels.start
                   : labels.enableToStart}
@@ -843,9 +841,12 @@ const styles = StyleSheet.create<{
     opacity: 0.85,
   },
   startChildModeButtonText: {
+    flexShrink: 1,
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.inverse,
+    lineHeight: 22,
+    textAlign: 'center',
   },
   limitRow: {
     flexDirection: 'row',
@@ -864,6 +865,7 @@ const styles = StyleSheet.create<{
   },
   limitHeaderRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: theme.spacing[3],
@@ -875,7 +877,7 @@ const styles = StyleSheet.create<{
     color: theme.colors.text.primary,
   },
   limitValueBadge: {
-    maxWidth: 180,
+    maxWidth: '100%',
     minHeight: 30,
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.interactive.primary,
@@ -1060,6 +1062,7 @@ const styles = StyleSheet.create<{
     fontSize: theme.typography.fontSize.base,
   },
   optionChipText: {
+    flexShrink: 1,
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.text.primary,
