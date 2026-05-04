@@ -286,6 +286,8 @@ export interface Character {
   descriptionLanguage?: string;
   isHidden: boolean;
   descriptionEmbedding?: number[];
+  createdByMode?: 'parent' | 'child';
+  createdByChildProfileId?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

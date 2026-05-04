@@ -389,6 +389,8 @@ export const characters = pgTable('characters', {
   descriptionLanguage: varchar('description_language', { length: 10 }), // Language code of original description (e.g. 'uk', 'en', 'fr')
   isHidden: boolean('is_hidden').notNull().default(false), // LLM-generated characters hidden from UI
   descriptionEmbedding: jsonb('description_embedding'), // Gemini text-embedding-004 vector (number[]) for similarity matching
+  createdByMode: varchar('created_by_mode', { length: 20 }).notNull().default('parent'), // 'parent' | 'child'
+  createdByChildProfileId: uuid('created_by_child_profile_id').references(() => childProfiles.id, { onDelete: 'set null' }),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -397,6 +399,8 @@ export const characters = pgTable('characters', {
     userIdIdx: index('characters_user_id_idx').on(table.userId),
     childProfileIdIdx: index('characters_child_profile_id_idx').on(table.childProfileId),
     typeIdx: index('characters_type_idx').on(table.type),
+    createdByModeIdx: index('characters_created_by_mode_idx').on(table.createdByMode),
+    createdByChildProfileIdIdx: index('characters_created_by_child_profile_id_idx').on(table.createdByChildProfileId),
     isActiveIdx: index('characters_is_active_idx').on(table.isActive),
   };
 });

@@ -237,7 +237,7 @@ router.get('/', requireAuth, requireParentOrScopedChildSession, async (req, res)
     const type = req.query.type as characterService.CharacterType | undefined;
     
     const characters = await characterService.getCharacters(userId, type, {
-      ...(req.sessionMode === 'child' && req.childProfileId ? { childProfileId: req.childProfileId } : {}),
+      ...(req.sessionMode === 'child' && req.childProfileId ? { accessibleByChildProfileId: req.childProfileId } : {}),
     });
     
     res.json({
@@ -288,6 +288,8 @@ router.post('/', requireAuth, requireParentOrScopedChildSession, async (req, res
       childProfileId: req.sessionMode === 'child'
         ? req.childProfileId!
         : (validation.data as { childProfileId?: string | null }).childProfileId ?? null,
+      createdByMode: req.sessionMode === 'child' ? 'child' : 'parent',
+      createdByChildProfileId: req.sessionMode === 'child' ? req.childProfileId! : null,
     };
 
     if (data.childProfileId) {
@@ -374,7 +376,7 @@ router.post('/', requireAuth, requireParentOrScopedChildSession, async (req, res
 
     // Refetch character to get full turnaroundSheet data
     const updatedCharacter = await characterService.getCharacterById(character.id, userId, {
-      ...(req.sessionMode === 'child' && req.childProfileId ? { childProfileId: req.childProfileId } : {}),
+      ...(req.sessionMode === 'child' && req.childProfileId ? { accessibleByChildProfileId: req.childProfileId } : {}),
     });
     const characterToReturn = updatedCharacter ?? character;
     
@@ -401,7 +403,7 @@ router.get('/:id', requireAuth, requireParentOrScopedChildSession, async (req, r
     const { id } = req.params;
     
     const character = await characterService.getCharacterById(id, userId, {
-      ...(req.sessionMode === 'child' && req.childProfileId ? { childProfileId: req.childProfileId } : {}),
+      ...(req.sessionMode === 'child' && req.childProfileId ? { accessibleByChildProfileId: req.childProfileId } : {}),
     });
     
     if (!character) {

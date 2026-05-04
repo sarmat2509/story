@@ -1,9 +1,10 @@
-import { and, count, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, or, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
 export interface CharacterScopeOptions {
   childProfileId?: string;
+  accessibleByChildProfileId?: string;
 }
 
 export class CharacterRepository {
@@ -16,6 +17,13 @@ export class CharacterRepository {
     ];
     if (options.childProfileId) {
       conditions.push(eq(schema.characters.childProfileId, options.childProfileId));
+    }
+    if (options.accessibleByChildProfileId) {
+      const accessibleCondition = or(
+        eq(schema.characters.createdByMode, 'parent'),
+        eq(schema.characters.createdByChildProfileId, options.accessibleByChildProfileId)
+      );
+      if (accessibleCondition) conditions.push(accessibleCondition);
     }
     if (type) {
       conditions.push(eq(schema.characters.type, type));
@@ -42,6 +50,13 @@ export class CharacterRepository {
     if (options.childProfileId) {
       conditions.push(eq(schema.characters.childProfileId, options.childProfileId));
     }
+    if (options.accessibleByChildProfileId) {
+      const accessibleCondition = or(
+        eq(schema.characters.createdByMode, 'parent'),
+        eq(schema.characters.createdByChildProfileId, options.accessibleByChildProfileId)
+      );
+      if (accessibleCondition) conditions.push(accessibleCondition);
+    }
     const [character] = await this.db
       .select()
       .from(schema.characters)
@@ -59,6 +74,13 @@ export class CharacterRepository {
     ];
     if (options.childProfileId) {
       conditions.push(eq(schema.characters.childProfileId, options.childProfileId));
+    }
+    if (options.accessibleByChildProfileId) {
+      const accessibleCondition = or(
+        eq(schema.characters.createdByMode, 'parent'),
+        eq(schema.characters.createdByChildProfileId, options.accessibleByChildProfileId)
+      );
+      if (accessibleCondition) conditions.push(accessibleCondition);
     }
     return this.db
       .select()

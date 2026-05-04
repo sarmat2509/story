@@ -117,7 +117,7 @@ export default function WizardScreen() {
 
   const availableCharacters = useMemo(() => {
     const allCharacters = characters ?? [];
-    const scopedCharacters = childProfileId
+    const scopedCharacters = !isChildSession && childProfileId
       ? allCharacters.filter((character) => character.childProfileId === childProfileId)
       : allCharacters;
     const allowed = childModeSettings?.allowedCharacterIds ?? [];

@@ -211,7 +211,7 @@ export async function assertChildStoryRequestAllowed(params: {
     const childCharacters = await getCharacterRepository().findByIds(
       params.parentUserId,
       selectedCharacterIds,
-      { childProfileId: params.sessionChildProfileId }
+      { accessibleByChildProfileId: params.sessionChildProfileId }
     );
     if (childCharacters.length !== selectedCharacterIds.length) {
       throw new ChildModePolicyError(

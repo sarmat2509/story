@@ -144,12 +144,19 @@ export async function createCharacter(
 export async function getCharacters(
   userId: string,
   type?: CharacterType,
-  options: { childProfileId?: string } = {}
+  options: { childProfileId?: string; accessibleByChildProfileId?: string } = {}
 ): Promise<Character[]> {
   const results = await getCharacterRepository().findByUserId(userId, type, options);
   // Filter out hidden LLM-generated characters from the user-facing list
   const visible = results.filter(c => !c.isHidden);
-  logger.debug({ userId, type, childProfileId: options.childProfileId, total: results.length, visible: visible.length }, 'Fetched characters');
+  logger.debug({
+    userId,
+    type,
+    childProfileId: options.childProfileId,
+    accessibleByChildProfileId: options.accessibleByChildProfileId,
+    total: results.length,
+    visible: visible.length
+  }, 'Fetched characters');
   return visible;
 }
 
@@ -178,7 +185,7 @@ export async function countStoriesByCharacter(
 export async function getCharacterById(
   id: string,
   userId: string,
-  options: { childProfileId?: string } = {}
+  options: { childProfileId?: string; accessibleByChildProfileId?: string } = {}
 ): Promise<Character | null> {
   return getCharacterRepository().findById(id, userId, options);
 }

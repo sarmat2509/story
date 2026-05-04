@@ -142,12 +142,11 @@ export default function ChildDetailScreen() {
     () =>
       characters
         .filter((character) => character.isActive !== false && character.isHidden !== true)
-        .filter((character) => character.childProfileId === route.params.childId)
         .map((character) => ({
           value: character.id,
           label: character.name,
         })),
-    [characters, route.params.childId]
+    [characters]
   );
 
   const handleChildModeEnabledChange = (childId: string, enabled: boolean) => {
