@@ -36,6 +36,8 @@ export interface ChildModeSessionResponse {
   child: {
     id: string;
     name: string;
+    authorPseudonym?: string | null;
+    authorAboutMe?: string | null;
     referencePhotos?: Array<{ url: string }>;
     referencephotos?: Array<{ url: string }>;
     turnaroundSheet?: { url: string; frontUrl?: string; generatedAt?: string };
@@ -52,9 +54,10 @@ export interface ChildModeSessionResponse {
 }
 
 // List child profiles
-export const useChildren = () => {
+export const useChildren = (enabled = true) => {
   return useQuery({
     queryKey: ['children'],
+    enabled,
     queryFn: async (): Promise<UseChildrenResult> => {
       const response = await apiClient.get<{
         status: string;
@@ -157,6 +160,8 @@ export const useEnterChildMode = () => {
       enterChildSession(result.token, {
         id: result.child.id,
         name: result.child.name,
+        authorPseudonym: result.child.authorPseudonym,
+        authorAboutMe: result.child.authorAboutMe,
         referencePhotos: result.child.referencePhotos ?? result.child.referencephotos,
         turnaroundSheet: result.child.turnaroundSheet,
         childMode: result.childMode,

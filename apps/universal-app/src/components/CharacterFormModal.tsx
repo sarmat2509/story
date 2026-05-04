@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,8 @@ import { theme } from '@/theme';
 import { FeedbackModal } from './FeedbackModal';
 import { GlassPrimaryButton } from './GlassPrimaryButton';
 import { useCreateCharacter, useUpdateCharacter, useAnalyzeCharacter } from '@/api/characters';
+import { useChildren } from '@/api/children';
+import { useAuthStore } from '@/store/authStore';
 import { UploadPhotoResult, deletePhoto } from '@/utils/uploadPhoto';
 import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
 import { API_BASE_URL, APP_CONFIG } from '@/config/constants';
@@ -99,6 +101,7 @@ interface Props {
   characterId?: string;
   initialData?: {
     name: string;
+    childProfileId?: string | null;
     type: CharacterType;
     subtype?: CharacterSubtype | null;
     description?: string;
@@ -189,6 +192,10 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   const createCharacter = useCreateCharacter();
   const updateCharacter = useUpdateCharacter();
   const analyzeCharacter = useAnalyzeCharacter();
+  const sessionMode = useAuthStore((state) => state.sessionMode);
+  const isChildSession = sessionMode === 'child';
+  const { data: childrenData } = useChildren(!isChildSession && !characterId);
+  const childOptions = useMemo(() => childrenData?.children ?? [], [childrenData?.children]);
   const currentPreviewUrl =
     initialData?.turnaroundSheet?.frontUrl
     ?? initialData?.turnaroundSheet?.url
@@ -205,6 +212,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   // Basic fields
   const [name, setName] = useState('');
   const [type, setType] = useState<CharacterType>('person');
+  const [childProfileId, setChildProfileId] = useState<string | null>(null);
   const [subtype, setSubtype] = useState<CharacterSubtype | null>(null);
   const [description, setDescription] = useState('');
   const [descriptionLanguage, setDescriptionLanguage] = useState<string | undefined>(undefined);
@@ -283,6 +291,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
       setCurrentStep(1);
       if (initialData) {
         setName(initialData.name);
+        setChildProfileId(initialData.childProfileId ?? null);
         setType(initialData.type);
         setDescription(initialData.description || '');
         setDescriptionLanguage((initialData as any).descriptionLanguage || undefined);
@@ -379,6 +388,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
         }
       } else {
         setName('');
+        setChildProfileId(childOptions[0]?.id ?? null);
         setType('animal');
         setDescription('');
         setDescriptionLanguage(undefined);
@@ -418,7 +428,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
       }
       setErrors({});
     }
-  }, [visible, initialData, characterId]);
+  }, [visible, initialData, characterId, childOptions]);
 
   // Helper function to map character type to analysis type
   function getAnalysisCharacterType(t: CharacterType): 'person' | 'animal' | 'imaginary' {
@@ -503,6 +513,14 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
     // Basic validation
     if (!name.trim()) {
       Alert.alert(t('error') || 'Error', t('character_form.name_required'));
+      return;
+    }
+
+    if (!isChildSession && !characterId && childOptions.length > 0 && !childProfileId) {
+      Alert.alert(
+        t('error') || 'Error',
+        t('character_form.child_required', { defaultValue: 'Choose a child profile for this character' })
+      );
       return;
     }
 
@@ -595,6 +613,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
         name,
         type,
         subtype: subtype || undefined,
+        childProfileId: childProfileId || undefined,
         description: description || undefined,
         descriptionLanguage: descriptionLanguage || undefined,
         referencePhotos: uploadedPhotos,
@@ -678,6 +697,35 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                   />
                   {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
                 </View>
+
+                {!isChildSession && !characterId && childOptions.length > 0 && (
+                  <View style={styles.field}>
+                    <Text style={styles.label}>
+                      {t('character_form.child_profile_label', { defaultValue: 'For child' })}
+                    </Text>
+                    <View style={styles.childChips}>
+                      {childOptions.map((child) => (
+                        <TouchableOpacity
+                          key={child.id}
+                          style={[
+                            styles.childChip,
+                            childProfileId === child.id && styles.childChipSelected,
+                          ]}
+                          onPress={() => setChildProfileId(child.id)}
+                        >
+                          <Text
+                            style={[
+                              styles.childChipText,
+                              childProfileId === child.id && styles.childChipTextSelected,
+                            ]}
+                          >
+                            {child.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
 
                 {/* Category */}
                 <View style={styles.field}>
@@ -1290,6 +1338,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: theme.spacing[2],
+  },
+  childChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[2],
+  },
+  childChip: {
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[4],
+    borderRadius: theme.borders.radius.full,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  childChipSelected: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  childChipText: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.medium,
+  },
+  childChipTextSelected: {
+    color: theme.colors.text.inverse,
   },
   typeButton: {
     width: '48%',

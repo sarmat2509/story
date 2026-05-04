@@ -95,6 +95,8 @@ export function buildDeletedChildProfileTombstone(): Partial<Omit<NewChildProfil
     clothing: null,
     distinctiveFeatures: null,
     turnaroundSheet: null,
+    authorPseudonym: null,
+    authorAboutMe: null,
     childModeEnabled: false,
     childModeSettings: DEFAULT_CHILD_MODE_SETTINGS,
     isActive: false,

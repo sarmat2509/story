@@ -20,6 +20,7 @@ export interface StoryPublicView {
     id: string;
     displayName: string;
     avatarUrl?: string | null;
+    aboutMe?: string | null;
   };
   authorDisplayName: string;
   publishedAt: string | null;

@@ -20,6 +20,7 @@ interface Props {
   onChildProfileChange: (id: string | undefined) => void;
   children?: ChildProfile[];
   onAddChild?: () => void;
+  showChildProfileSelector?: boolean;
   
   goals?: Goal[];
   selectedGoals?: string[];
@@ -30,6 +31,7 @@ interface Props {
   
   userNotes?: string;
   onNotesChange: (notes: string) => void;
+  notesEnabled?: boolean;
 }
 
 export function AdvancedSettingsForm({
@@ -37,6 +39,7 @@ export function AdvancedSettingsForm({
   onChildProfileChange,
   children = [],
   onAddChild,
+  showChildProfileSelector = true,
   goals = [],
   selectedGoals = [],
   onGoalsChange,
@@ -44,6 +47,7 @@ export function AdvancedSettingsForm({
   onImageStyleChange,
   userNotes = '',
   onNotesChange,
+  notesEnabled = true,
 }: Props) {
   const { t } = useTranslation();
   
@@ -65,6 +69,7 @@ export function AdvancedSettingsForm({
   return (
     <View style={styles.container}>
       {/* Child Profile Selector */}
+      {showChildProfileSelector && (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>{t('wizard.story_for')}</Text>
@@ -110,6 +115,7 @@ export function AdvancedSettingsForm({
           </View>
         </ScrollView>
       </View>
+      )}
 
       {/* Goals Selector */}
       {goals.length > 0 && (
@@ -164,6 +170,7 @@ export function AdvancedSettingsForm({
       </View>
 
       {/* Notes Input */}
+      {notesEnabled && (
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>{t('wizard.notes_label')}</Text>
         <TextInput
@@ -179,6 +186,7 @@ export function AdvancedSettingsForm({
         />
         <Text style={styles.charCount}>{userNotes.length}/500</Text>
       </View>
+      )}
     </View>
   );
 }

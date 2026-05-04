@@ -268,6 +268,7 @@ export interface TurnaroundSheet {
 export interface Character {
   id: string;
   userId: string;
+  childProfileId?: string | null;
   name: string;
   type: CharacterType; // 'person' | 'animal' | 'imaginary'
   subtype?: CharacterSubtype; // 'mother', 'dog', 'dragon', etc.
@@ -291,6 +292,7 @@ export interface Character {
 // Lightweight Character (for lists, minimal data)
 export interface CharacterListItem {
   id: string;
+  childProfileId?: string | null;
   name: string;
   type: CharacterType;
   subtype?: CharacterSubtype;

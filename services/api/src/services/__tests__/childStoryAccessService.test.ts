@@ -16,7 +16,7 @@ assert.equal(
 assert.equal(
   childSessionCanReadFamilyStories({ sessionMode: 'child', sessionScopes: [] }),
   false,
-  'child sessions need an explicit family-story scope for full library access'
+  'child sessions cannot read the full family library'
 );
 
 assert.equal(
@@ -24,8 +24,8 @@ assert.equal(
     sessionMode: 'child',
     sessionScopes: [FAMILY_STORIES_READ_SCOPE],
   }),
-  true,
-  'family-story scope unlocks full family-library reads'
+  false,
+  'legacy family-story scope does not unlock sibling reads'
 );
 
 assert.equal(
@@ -50,8 +50,8 @@ assert.equal(
     childProfileId: 'child-1',
     sessionScopes: [FAMILY_STORIES_READ_SCOPE],
   }),
-  undefined,
-  'family-story scope removes the active-child filter'
+  'child-1',
+  'legacy family-story scope keeps the active-child filter'
 );
 
 assert.equal(

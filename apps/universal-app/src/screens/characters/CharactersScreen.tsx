@@ -42,6 +42,7 @@ export default function CharactersScreen() {
   const [editingCharacter, setEditingCharacter] = useState<{
     id: string;
     name: string;
+    childProfileId?: string | null;
     type: 'person' | 'animal' | 'imaginary';
     subtype?: CharacterSubtype | null;
     description?: string;
@@ -76,6 +77,7 @@ export default function CharactersScreen() {
     setEditingCharacter({
       id: character.id,
       name: character.name,
+      childProfileId: character.childProfileId ?? null,
       type: character.type,
       subtype: character.subtype,
       description: character.description,

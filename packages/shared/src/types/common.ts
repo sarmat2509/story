@@ -35,6 +35,8 @@ export interface ChildProfileData {
   languages: any;
   referencePhotos?: ReferencePhoto[];
   aiGeneratedDescription?: string; // AI-generated narrative description
+  descriptionLanguage?: string;
+  turnaroundSheet?: { url: string; frontUrl?: string; generatedAt?: string; sourcePhotoUrl?: string };
   appearanceTraits?: BasicAppearanceTraits;
   personality?: any;
   interests?: any;
@@ -45,10 +47,15 @@ export interface ChildProfileData {
   childModeSettings?: ChildModeSettings;
   childModePasscodeConfigured?: boolean;
   childModeActiveSessionCount?: number;
+  authorPseudonym?: string | null;
+  authorAboutMe?: string | null;
 }
 
 export interface ChildModeSettings {
+  storyGenerationEnabled: boolean;
+  publicStoriesEnabled: boolean;
   dailyGenerationLimit: number | null;
+  dailyAudioGenerationLimit: number | null;
   monthlyGenerationLimit: number | null;
   allowedThemeSlugs: string[];
   allowedLanguageCodes: string[];

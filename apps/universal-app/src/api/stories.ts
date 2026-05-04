@@ -494,14 +494,20 @@ export function usePublishStory() {
       isPublished,
       visibility = 'public',
       shareCardSceneId,
+      childAuthorPseudonym,
+      childAuthorAboutMe,
     }: {
       storyId: string;
       isPublished: boolean;
       visibility?: 'public' | 'unlisted';
       shareCardSceneId?: number;
+      childAuthorPseudonym?: string;
+      childAuthorAboutMe?: string;
     }) => {
       const body: Record<string, unknown> = { isPublished, visibility };
       if (shareCardSceneId != null) body.shareCardSceneId = shareCardSceneId;
+      if (childAuthorPseudonym !== undefined) body.childAuthorPseudonym = childAuthorPseudonym;
+      if (childAuthorAboutMe !== undefined) body.childAuthorAboutMe = childAuthorAboutMe;
       const response = await apiClient.patch<{
         status: string;
         slug?: string;

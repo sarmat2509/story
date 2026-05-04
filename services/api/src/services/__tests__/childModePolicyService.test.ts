@@ -28,10 +28,10 @@ void (async function main() {
       monthlyCreatedCount: 0,
     }),
     {
-      parentReviewRequired: true,
+      parentReviewRequired: false,
       settings: DEFAULT_CHILD_MODE_SETTINGS,
     },
-    'safe defaults allow a basic child story request with review required'
+    'open defaults allow a basic child story request without parent review'
   );
 
   assertPolicyError(
@@ -49,7 +49,7 @@ void (async function main() {
     () => assertChildStoryRequestControls({
       sessionChildProfileId: 'child-1',
       input: { ...baseInput, userNotes: 'Make it about a dragon' },
-      settings: DEFAULT_CHILD_MODE_SETTINGS,
+      settings: { ...DEFAULT_CHILD_MODE_SETTINGS, freeTextPromptsEnabled: false },
       dailyCreatedCount: 0,
       monthlyCreatedCount: 0,
     }),

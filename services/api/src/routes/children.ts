@@ -489,6 +489,8 @@ router.post('/:id/child-mode/sessions', requireAuth, requireParentSession, async
       child: {
         id: profile.id,
         name: profile.name,
+        authorPseudonym: profile.authorPseudonym,
+        authorAboutMe: profile.authorAboutMe,
         referencePhotos: profile.referencePhotos,
         turnaroundSheet: (profile as any).turnaroundSheet,
       },

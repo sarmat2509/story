@@ -16,10 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
-import { useChildren, useDeleteChild, useEnterChildMode, useRevokeChildModeSessions, useUpdateChildModeControls } from '@/api/children';
+import { useChildren, useDeleteChild } from '@/api/children';
 import { useCreatePrivacyRequest } from '@/api/privacyRequests';
-import { useCharacters } from '@/api/characters';
-import { useStoryThemes } from '@/api/dictionaries';
 import { ChildFormModal } from '@/components/ChildFormModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
@@ -27,7 +25,6 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChildCard } from './components/ChildCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
-import { APP_CONFIG } from '@/config/constants';
 import { theme } from '@/theme';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 import {
@@ -38,8 +35,6 @@ import {
 } from '@/utils/childDataDeletionRequest';
 
 const cardDelay = (i: number) => Math.min(120 + i * 40, 360);
-import { SUPPORTED_LANGUAGES, type ChildModeSettingsInput, type ReferencePhoto } from '@wondertales/shared';
-import type { ChildFormInitialData } from '@/components/ChildFormContent';
 import type { MainDrawerParamList } from '@/types/navigation';
 
 function useColumns(): number {
@@ -49,36 +44,13 @@ function useColumns(): number {
   return 2;
 }
 
-function mapChildToInitialData(child: Record<string, unknown>): ChildFormInitialData {
-  const birthDate = child.birthDate ?? child.birthdate;
-  return {
-    name: String(child.name ?? ''),
-    birthDate: birthDate instanceof Date ? birthDate : new Date(String(birthDate ?? '')),
-    languages: Array.isArray(child.languages) ? child.languages : [],
-    referencePhotos: child.referencePhotos as ReferencePhoto[] | undefined,
-    appearanceTraits: child.appearanceTraits as Record<string, unknown> | undefined,
-    personality: child.personality as Record<string, unknown> | undefined,
-    interests: child.interests as unknown[] | undefined,
-    sensitivities: child.sensitivities as Record<string, unknown> | undefined,
-    familyCast: child.familyCast as Record<string, string> | undefined,
-    aiGeneratedDescription: child.aiGeneratedDescription as string | undefined,
-    descriptionLanguage: child.descriptionLanguage as string | undefined,
-    turnaroundSheet: child.turnaroundSheet as { url: string; frontUrl?: string; generatedAt: string } | undefined,
-  };
-}
-
 export default function ChildrenScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const { width } = useWindowDimensions();
   const enterKey = useScreenEnter();
   const { data, isLoading, error } = useChildren();
-  const { data: themesData } = useStoryThemes();
-  const { data: characters = [] } = useCharacters();
   const deleteChild = useDeleteChild();
-  const updateChildModeControls = useUpdateChildModeControls();
-  const enterChildMode = useEnterChildMode();
-  const revokeChildModeSessions = useRevokeChildModeSessions();
   const createPrivacyRequest = useCreatePrivacyRequest();
   const columns = useColumns();
   const paddingHorizontal = theme.spacing[6] * 2;
@@ -96,9 +68,6 @@ export default function ChildrenScreen() {
   ]);
   const [childDataDeletionDetails, setChildDataDeletionDetails] = useState('');
   const [childDataDeletionError, setChildDataDeletionError] = useState<string | null>(null);
-  const [editingChild, setEditingChild] = useState<{
-    id: string;
-  } & ChildFormInitialData | undefined>();
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -110,70 +79,6 @@ export default function ChildrenScreen() {
 
   const children = data?.children ?? [];
   const canCreateMore = data?.canCreateMore ?? false;
-  const childModeLabels = {
-    title: t('children_screen.child_mode_title'),
-    enabled: t('children_screen.child_mode_enabled'),
-    disabled: t('children_screen.child_mode_disabled'),
-    dailyLimit: t('children_screen.child_mode_daily_limit'),
-    monthlyLimit: t('children_screen.child_mode_monthly_limit'),
-    noLimit: t('children_screen.child_mode_no_limit'),
-    freeText: t('children_screen.child_mode_free_text'),
-    audio: t('children_screen.child_mode_audio'),
-    review: t('children_screen.child_mode_review'),
-    themes: t('children_screen.child_mode_allowed_themes'),
-    languages: t('children_screen.child_mode_allowed_languages'),
-    characters: t('children_screen.child_mode_allowed_characters'),
-    siblings: t('children_screen.child_mode_siblings'),
-    anyTheme: t('children_screen.child_mode_any_theme'),
-    anyLanguage: t('children_screen.child_mode_any_language'),
-    anyCharacter: t('children_screen.child_mode_any_character'),
-    noCharacters: t('children_screen.child_mode_no_characters'),
-    familyStories: t('children_screen.child_mode_family_stories'),
-    passcode: t('children_screen.child_mode_passcode'),
-    passcodePlaceholder: t('children_screen.child_mode_passcode_placeholder'),
-    passcodeConfigured: t('children_screen.child_mode_passcode_configured'),
-    passcodeSave: t('children_screen.child_mode_passcode_save'),
-    setPasscodeToStart: t('children_screen.child_mode_set_passcode_to_start'),
-    activeSessions: t('children_screen.child_mode_active_sessions'),
-    revoke: t('children_screen.child_mode_revoke_sessions'),
-    start: t('children_screen.child_mode_start'),
-    starting: t('children_screen.child_mode_starting'),
-    enableToStart: t('children_screen.child_mode_enable_to_start'),
-  };
-
-  const childModeThemeOptions = useMemo(
-    () =>
-      (themesData?.goals ?? []).map((goal) => ({
-        value: goal.slug,
-        label: goal.name,
-      })),
-    [themesData?.goals]
-  );
-
-  const childModeLanguageOptions = useMemo(
-    () =>
-      APP_CONFIG.supportedLanguages.map((code) => {
-        const config = SUPPORTED_LANGUAGES[code];
-        return {
-          value: code,
-          label: t(`language_names.${code}`, { defaultValue: config.nativeName }),
-          icon: config.flag,
-        };
-      }),
-    [t]
-  );
-
-  const childModeCharacterOptions = useMemo(
-    () =>
-      characters
-        .filter((character) => character.isActive !== false && character.isHidden !== true)
-        .map((character) => ({
-          value: character.id,
-          label: character.name,
-        })),
-    [characters]
-  );
-
   const childDataDeletionScopeLabels = useMemo(
     () =>
       Object.fromEntries(
@@ -186,11 +91,10 @@ export default function ChildrenScreen() {
   );
 
   const handleEditChild = (child: Record<string, unknown>) => {
-    setEditingChild({
-      id: String(child.id ?? ''),
-      ...mapChildToInitialData(child),
-    });
-    setIsModalVisible(true);
+    const childId = String(child.id ?? '');
+    if (childId) {
+      navigation.navigate('ChildDetail', { childId });
+    }
   };
 
   const handleDelete = (childId: string, childName: string) => {
@@ -254,38 +158,6 @@ export default function ChildrenScreen() {
     }
   };
 
-  const handleChildModeEnabledChange = (childId: string, enabled: boolean, passcode?: string) => {
-    updateChildModeControls.mutate({
-      id: childId,
-      data: { childModeEnabled: enabled, ...(passcode ? { childModePasscode: passcode } : {}) },
-    });
-  };
-
-  const handleChildModeSettingsChange = (
-    childId: string,
-    settings: Partial<ChildModeSettingsInput>
-  ) => {
-    updateChildModeControls.mutate({
-      id: childId,
-      data: { childModeSettings: settings },
-    });
-  };
-
-  const handleChildModePasscodeChange = (childId: string, passcode: string) => {
-    updateChildModeControls.mutate({
-      id: childId,
-      data: { childModePasscode: passcode },
-    });
-  };
-
-  const handleRevokeChildModeSessions = (childId: string) => {
-    revokeChildModeSessions.mutate(childId);
-  };
-
-  const handleEnterChildMode = (childId: string) => {
-    enterChildMode.mutate(childId);
-  };
-
   const confirmDelete = () => {
     if (childToDelete) {
       deleteChild.mutate(childToDelete.id);
@@ -334,7 +206,6 @@ export default function ChildrenScreen() {
               <TouchableOpacity
                 style={styles.emptyButton}
                 onPress={() => {
-                  setEditingChild(undefined);
                   setIsModalVisible(true);
                 }}
               >
@@ -355,12 +226,6 @@ export default function ChildrenScreen() {
                 birthdate: child.birthdate as string | undefined,
                 turnaroundSheet: child.turnaroundSheet as { url: string; frontUrl?: string } | undefined,
                 referencePhotos: child.referencePhotos as { url: string }[] | undefined,
-                childModeEnabled: child.childModeEnabled as boolean | undefined,
-                childModeSettings: child.childModeSettings as any,
-                childModePasscodeConfigured: child.childModePasscodeConfigured === true,
-                childModeActiveSessionCount: typeof child.childModeActiveSessionCount === 'number'
-                  ? child.childModeActiveSessionCount
-                  : 0,
               };
               const cardContent = (
                 <ChildCard
@@ -369,18 +234,6 @@ export default function ChildrenScreen() {
                   onDelete={handleDelete}
                   onRequestDataDeletion={openChildDataDeletionRequest}
                   dataDeletionRequestLabel={t('children_screen.child_data_deletion_request_button')}
-                  childModeLabels={childModeLabels}
-                  childModeThemeOptions={childModeThemeOptions}
-                  childModeLanguageOptions={childModeLanguageOptions}
-                  childModeCharacterOptions={childModeCharacterOptions}
-                  onChildModeEnabledChange={handleChildModeEnabledChange}
-                  onChildModeSettingsChange={handleChildModeSettingsChange}
-                  onChildModePasscodeChange={handleChildModePasscodeChange}
-                  onEnterChildMode={handleEnterChildMode}
-                  onRevokeChildModeSessions={handleRevokeChildModeSessions}
-                  isChildModeUpdating={updateChildModeControls.isPending}
-                  isEnteringChildMode={enterChildMode.isPending && enterChildMode.variables === childId}
-                  isRevokingChildSessions={revokeChildModeSessions.isPending}
                 />
               );
               return Platform.OS === 'web' ? (
@@ -405,7 +258,6 @@ export default function ChildrenScreen() {
               <TouchableOpacity
                 style={styles.addCharacterButton}
                 onPress={() => {
-                  setEditingChild(undefined);
                   setIsModalVisible(true);
                 }}
               >
@@ -421,10 +273,7 @@ export default function ChildrenScreen() {
         visible={isModalVisible}
         onClose={() => {
           setIsModalVisible(false);
-          setEditingChild(undefined);
         }}
-        childId={editingChild?.id}
-        initialData={editingChild ? mapChildToInitialData(editingChild as unknown as Record<string, unknown>) : undefined}
       />
 
       <ConfirmDialog

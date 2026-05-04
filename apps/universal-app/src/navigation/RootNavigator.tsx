@@ -6,7 +6,6 @@ import { theme } from '@/theme';
 import MainNavigator from './MainNavigator';
 import AdminNavigator from '@/admin/navigation/AdminNavigator';
 import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
-import ChildModeScreen from '@/screens/childMode/ChildModeScreen';
 import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
 import type { RootStackParamList } from '@/types/navigation';
 
@@ -57,7 +56,6 @@ export default function RootNavigator() {
       initialRouteName={initialRoute}
     >
       <Stack.Screen name="OAuthCallback" component={OAuthCallbackScreen} />
-      <Stack.Screen name="ChildMode" component={ChildModeScreen} />
       <Stack.Screen name="ModeSelection" component={ModeSelectionScreen} />
       <Stack.Screen name="Main" component={MainNavigator} />
       {!isChildSession && Platform.OS === 'web' ? (

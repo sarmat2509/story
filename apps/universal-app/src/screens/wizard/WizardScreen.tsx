@@ -19,8 +19,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useStoryThemes } from '@/api/dictionaries';
 import { useChildren } from '@/api/children';
 import { useCharacters } from '@/api/characters';
-import { useCreateStory, useStoryStatus, useRetryStoryImages } from '@/api/stories';
+import { useCreateStory, useCreateChildModeStory, useStoryStatus, useRetryStoryImages } from '@/api/stories';
 import { useSubscriptionUsage } from '@/api/plans';
+import { useAuthStore } from '@/store/authStore';
 import { PaywallModal } from '@/components/PaywallModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
@@ -36,6 +37,13 @@ export default function WizardScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
   const enterKey = useScreenEnter();
+  const sessionMode = useAuthStore((state) => state.sessionMode);
+  const activeChild = useAuthStore((state) => state.activeChild);
+  const isChildSession = sessionMode === 'child';
+  const childModeSettings = activeChild?.childMode?.childModeSettings;
+  const canGenerateStories = !isChildSession || childModeSettings?.storyGenerationEnabled !== false;
+  const notesEnabled = !isChildSession || childModeSettings?.freeTextPromptsEnabled !== false;
+  const allowedLanguageCodes = isChildSession ? childModeSettings?.allowedLanguageCodes ?? [] : [];
 
   // Form state
   const [storyLanguage, setStoryLanguage] = useState('');
@@ -58,11 +66,19 @@ export default function WizardScreen() {
   
   // API hooks
   const { data: themesData, isLoading: themesLoading } = useStoryThemes();
-  const { data: childrenData, isLoading: childrenLoading } = useChildren();
-  const children = childrenData?.children ?? [];
-  const canCreateMoreChildren = childrenData?.canCreateMore ?? false;
+  const { data: childrenData, isLoading: childrenLoading } = useChildren(!isChildSession);
+  const children = isChildSession && activeChild
+    ? [{
+        id: activeChild.id,
+        name: activeChild.name,
+        referencePhotos: activeChild.referencePhotos,
+        turnaroundSheet: activeChild.turnaroundSheet,
+      }]
+    : childrenData?.children ?? [];
+  const canCreateMoreChildren = !isChildSession && (childrenData?.canCreateMore ?? false);
   const { data: characters, isLoading: charactersLoading } = useCharacters();
   const createStory = useCreateStory();
+  const createChildModeStory = useCreateChildModeStory();
   const retryStoryImages = useRetryStoryImages();
   const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
   const { data: usage, isLoading: usageLoading } = useSubscriptionUsage();
@@ -87,6 +103,34 @@ export default function WizardScreen() {
     }
   }, [i18n.language]);
 
+  useEffect(() => {
+    if (!isChildSession || !activeChild?.id) return;
+    setChildProfileId(activeChild.id);
+    setSelectedChildren([activeChild.id]);
+  }, [activeChild?.id, isChildSession]);
+
+  const availableGoals = useMemo(() => {
+    const goals = themesData?.goals || [];
+    const allowed = childModeSettings?.allowedThemeSlugs ?? [];
+    if (!isChildSession || allowed.length === 0) return goals;
+    return goals.filter((goal) => allowed.includes(goal.slug));
+  }, [childModeSettings?.allowedThemeSlugs, isChildSession, themesData?.goals]);
+
+  const availableCharacters = useMemo(() => {
+    const allCharacters = characters ?? [];
+    const scopedCharacters = childProfileId
+      ? allCharacters.filter((character) => character.childProfileId === childProfileId)
+      : allCharacters;
+    const allowed = childModeSettings?.allowedCharacterIds ?? [];
+    if (!isChildSession || allowed.length === 0) return scopedCharacters;
+    return scopedCharacters.filter((character) => allowed.includes(character.id));
+  }, [characters, childModeSettings?.allowedCharacterIds, childProfileId, isChildSession]);
+
+  useEffect(() => {
+    const allowedIds = new Set(availableCharacters.map((character) => character.id));
+    setSelectedCharacters((current) => current.filter((id) => allowedIds.has(id)));
+  }, [availableCharacters]);
+
   // Track image_generation_failed when modal shows failed state
   const failedTrackedRef = React.useRef(false);
   useEffect(() => {
@@ -103,6 +147,11 @@ export default function WizardScreen() {
   // Auto-close removed - user must manually close modal
   
   const handleGenerate = async () => {
+    if (!canGenerateStories) {
+      Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
+      return;
+    }
+
     if (!storyLanguage) {
       Alert.alert(t('common.error') || 'Error', t('wizard.language_required'));
       return;
@@ -136,12 +185,12 @@ export default function WizardScreen() {
         ...(childProfileId && { childProfileId }), // Keep for age/sensitivity context
         ...(selectedGoals.length > 0 && { goal: selectedGoals[0] }), // Backend accepts single goal
         ...(imageStyle && { imageStyle }),
-        ...(userNotes && { userNotes }),
+        ...(notesEnabled && userNotes && { userNotes }),
         ...(selectedCharacters.length > 0 && { selectedCharacters }),
         ...(selectedChildren.length > 0 && { selectedChildren }), // NEW: Selected children as characters
       };
       
-      const result = await createStory.mutateAsync(payload);
+      const result = await (isChildSession ? createChildModeStory : createStory).mutateAsync(payload);
       setRequestId(result.id);
     } catch (error: unknown) {
       console.error('Failed to create story:', error);
@@ -197,7 +246,7 @@ export default function WizardScreen() {
     }
   };
   
-  if (themesLoading || childrenLoading || charactersLoading) {
+  if (themesLoading || (!isChildSession && childrenLoading) || charactersLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
@@ -222,6 +271,7 @@ export default function WizardScreen() {
             selected={storyLanguage}
             onSelect={setStoryLanguage}
             defaultLanguage={i18n.language}
+            allowedLanguageCodes={allowedLanguageCodes}
           />
         </AnimatedSection>
 
@@ -232,13 +282,15 @@ export default function WizardScreen() {
               onChildProfileChange={setChildProfileId}
               children={children}
               onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
-              goals={themesData?.goals || []}
+              showChildProfileSelector={!isChildSession}
+              goals={availableGoals}
               selectedGoals={selectedGoals}
               onGoalsChange={setSelectedGoals}
               imageStyle={imageStyle}
               onImageStyleChange={setImageStyle}
               userNotes={userNotes}
               onNotesChange={setUserNotes}
+              notesEnabled={notesEnabled}
             />
           </ExpandableCard>
         </AnimatedSection>
@@ -246,12 +298,13 @@ export default function WizardScreen() {
         <AnimatedSection delay={320} trigger={enterKey}>
           <ExpandableCard title={t('wizard.add_characters')} icon="people-outline">
             <CharactersForm
-              characters={characters}
+              characters={availableCharacters}
               selectedCharacters={selectedCharacters}
               onCharactersChange={setSelectedCharacters}
               children={children}
               selectedChildren={selectedChildren}
               onChildrenChange={setSelectedChildren}
+              showChildren={!isChildSession}
               onAddCharacter={() => setIsCharacterModalVisible(true)}
               onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
             />
@@ -270,7 +323,7 @@ export default function WizardScreen() {
           <GlassPrimaryButton
             title={t('wizard.generate_button')}
             onPress={handleGenerate}
-            disabled={!storyLanguage || isGenerating}
+            disabled={!storyLanguage || isGenerating || !canGenerateStories}
             loading={isGenerating}
             size="hero"
             style={styles.generateButton}

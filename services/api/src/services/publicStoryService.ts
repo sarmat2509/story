@@ -8,7 +8,7 @@ import { db } from '../db';
 import { audioAssets, assets } from '../db/schema';
 import type { Story } from '../db/schema';
 import { and, eq, desc, isNull } from 'drizzle-orm';
-import { getStoryRepository, getAlignmentRepository, getUserRepository } from '../repositories';
+import { getChildProfileRepository, getStoryRepository, getAlignmentRepository, getUserRepository } from '../repositories';
 import { enrichAllStoriesWithImages } from './storyOrchestrationService';
 import { getAssetStorageService } from './assetStorageService';
 import { logger } from '../utils/logger';
@@ -18,7 +18,7 @@ import { getReadingTimeMinutes } from '@wondertales/shared';
 import { normalizeAssetStoragePath } from './entityAssetCleanupService';
 import {
   buildPublicAuthorView,
-  resolvePublicAuthorDisplayName,
+  type PublicAuthorSource,
 } from '../utils/publicAuthorView';
 import type {
   AlignmentData,
@@ -31,6 +31,48 @@ export function isValidPublicAuthorId(authorId: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     authorId
   );
+}
+
+function getStoryAuthorId(story: any): string {
+  return story.authorType === 'child' && story.authorChildProfileId
+    ? story.authorChildProfileId
+    : story.userId;
+}
+
+function getChildAuthorAvatarUrl(child: {
+  turnaroundSheet?: unknown;
+  referencePhotos?: unknown;
+}): string | null {
+  const turnaroundSheet = child.turnaroundSheet as { frontUrl?: string; url?: string } | null;
+  if (turnaroundSheet?.frontUrl) return turnaroundSheet.frontUrl;
+  if (turnaroundSheet?.url) return turnaroundSheet.url;
+  const referencePhotos = child.referencePhotos as Array<{ url?: string }> | null;
+  return referencePhotos?.find((photo) => photo?.url)?.url ?? null;
+}
+
+function buildChildAuthorSource(child: {
+  id: string;
+  name: string;
+  authorPseudonym?: string | null;
+  authorAboutMe?: string | null;
+  turnaroundSheet?: unknown;
+  referencePhotos?: unknown;
+}): PublicAuthorSource {
+  return {
+    id: child.id,
+    displayName: child.name,
+    pseudonym: child.authorPseudonym ?? null,
+    aboutMe: child.authorAboutMe ?? null,
+    avatarUrl: getChildAuthorAvatarUrl(child),
+  };
+}
+
+async function getPublicAuthorForStory(story: any): Promise<PublicAuthorView | null> {
+  if (story.authorType === 'child' && story.authorChildProfileId) {
+    const child = await getChildProfileRepository().findPublicChildAuthorById(story.authorChildProfileId);
+    return child ? buildPublicAuthorView(buildChildAuthorSource(child)) : null;
+  }
+  return getPublicAuthorById(story.userId);
 }
 
 async function getAudioUrlAndAlignment(storyId: string): Promise<{ url: string | null; alignment?: any; duration?: number }> {
@@ -116,7 +158,7 @@ export async function buildStoryPublicView(
   });
 
   const metadata = (story.metadata as Record<string, unknown> | null) || {};
-  const author = await getPublicAuthorById(story.userId);
+  const author = await getPublicAuthorForStory(story);
   return {
     id: story.id,
     title: story.title,
@@ -285,8 +327,24 @@ export async function listPublicStories(options: {
     storyRepo.listPublished({ limit, offset, ...filterOpts }),
     storyRepo.countPublished(filterOpts),
   ]);
-  const authors = await getUserRepository().findPublicAuthorsByIds([...new Set(stories.map((story) => story.userId))]);
-  const authorById = new Map(authors.map((author) => [author.id, author]));
+  const userAuthorIds = [...new Set(
+    stories
+      .filter((story) => story.authorType !== 'child' || !story.authorChildProfileId)
+      .map((story) => story.userId)
+  )];
+  const childAuthorIds = [...new Set(
+    stories
+      .filter((story) => story.authorType === 'child' && story.authorChildProfileId)
+      .map((story) => story.authorChildProfileId!)
+  )];
+  const [authors, childAuthors] = await Promise.all([
+    getUserRepository().findPublicAuthorsByIds(userAuthorIds),
+    getChildProfileRepository().findPublicChildAuthorsByIds(childAuthorIds),
+  ]);
+  const authorById = new Map<string, PublicAuthorView>([
+    ...authors.map((author) => [author.id, buildPublicAuthorView(author)] as const),
+    ...childAuthors.map((author) => [author.id, buildPublicAuthorView(buildChildAuthorSource(author))] as const),
+  ]);
 
   const enrichedScenesMap = await enrichAllStoriesWithImages(
     stories.map(s => ({ id: s.id, scenes: (s.scenes as any[]) || [] }))
@@ -300,6 +358,8 @@ export async function listPublicStories(options: {
       const enrichedScenes = enrichedScenesMap.get(s.id) || s.scenes || [];
       const scenes = Array.isArray(enrichedScenes) ? enrichedScenes : [];
       const scenarioCardId = (s as any).scenarioCardId ?? null;
+      const authorId = getStoryAuthorId(s);
+      const author = authorById.get(authorId);
       const normalizedScenes = scenes.map((sc: any) => {
         const imgPath = sc.image?.url ?? sc.imageUrl;
         const imageUrl = imgPath
@@ -316,9 +376,9 @@ export async function listPublicStories(options: {
         title: s.title,
         language: s.language,
         ageGroup: s.ageGroup,
-        authorId: s.userId,
-        authorDisplayName: resolvePublicAuthorDisplayName(authorById.get(s.userId)),
-        authorAvatarUrl: authorById.get(s.userId)?.avatarUrl ?? null,
+        authorId,
+        authorDisplayName: author?.displayName || 'Anonymous',
+        authorAvatarUrl: author?.avatarUrl ?? null,
         publishedAt: s.publishedAt ? s.publishedAt.toISOString?.() ?? String(s.publishedAt) : null,
         publishedSlug: s.publishedSlug!,
         scenes: normalizedScenes,
@@ -335,6 +395,8 @@ export async function listPublicStories(options: {
 
 export async function getPublicAuthorById(authorId: string): Promise<PublicAuthorView | null> {
   if (!isValidPublicAuthorId(authorId)) return null;
+  const childAuthor = await getChildProfileRepository().findPublicChildAuthorById(authorId);
+  if (childAuthor) return buildPublicAuthorView(buildChildAuthorSource(childAuthor));
   const author = await getUserRepository().findPublicAuthorById(authorId);
   if (!author) return null;
   return buildPublicAuthorView(author);
@@ -346,9 +408,11 @@ export async function isPublicAuthorAvatarPath(
 ): Promise<boolean> {
   if (!isValidPublicAuthorId(authorId)) return false;
 
-  const author = await getUserRepository().findPublicAuthorById(authorId);
+  const childAuthor = await getChildProfileRepository().findPublicChildAuthorById(authorId);
+  const userAuthor = childAuthor ? null : await getUserRepository().findPublicAuthorById(authorId);
+  const avatarUrl = childAuthor ? getChildAuthorAvatarUrl(childAuthor) : userAuthor?.avatarUrl;
   const avatarPath =
-    typeof author?.avatarUrl === 'string' ? normalizeAssetStoragePath(author.avatarUrl) : null;
+    typeof avatarUrl === 'string' ? normalizeAssetStoragePath(avatarUrl) : null;
 
   if (!avatarPath || avatarPath !== storagePath) return false;
 

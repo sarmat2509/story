@@ -6,7 +6,10 @@ import { hashPassword, verifyPassword } from './passwordService';
 import { logger } from '../utils/logger';
 
 export interface ChildModeSettings {
+  storyGenerationEnabled: boolean;
+  publicStoriesEnabled: boolean;
   dailyGenerationLimit: number | null;
+  dailyAudioGenerationLimit: number | null;
   monthlyGenerationLimit: number | null;
   allowedThemeSlugs: string[];
   allowedLanguageCodes: string[];
@@ -35,14 +38,17 @@ export interface CreateChildModeSessionInput {
 }
 
 export const DEFAULT_CHILD_MODE_SETTINGS: ChildModeSettings = {
+  storyGenerationEnabled: true,
+  publicStoriesEnabled: true,
   dailyGenerationLimit: null,
+  dailyAudioGenerationLimit: null,
   monthlyGenerationLimit: null,
   allowedThemeSlugs: [],
   allowedLanguageCodes: [],
   allowedCharacterIds: [],
-  freeTextPromptsEnabled: false,
-  audioGenerationEnabled: false,
-  parentReviewRequired: true,
+  freeTextPromptsEnabled: true,
+  audioGenerationEnabled: true,
+  parentReviewRequired: false,
   allowSiblingCharacters: false,
   allowSharedFamilyStories: false,
 };
@@ -89,9 +95,21 @@ export function normalizeChildModeSettings(raw: unknown): ChildModeSettings {
   const input = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
 
   return {
+    storyGenerationEnabled: normalizeBoolean(
+      input.storyGenerationEnabled,
+      DEFAULT_CHILD_MODE_SETTINGS.storyGenerationEnabled
+    ),
+    publicStoriesEnabled: normalizeBoolean(
+      input.publicStoriesEnabled,
+      DEFAULT_CHILD_MODE_SETTINGS.publicStoriesEnabled
+    ),
     dailyGenerationLimit: normalizeOptionalLimit(
       input.dailyGenerationLimit,
       DEFAULT_CHILD_MODE_SETTINGS.dailyGenerationLimit
+    ),
+    dailyAudioGenerationLimit: normalizeOptionalLimit(
+      input.dailyAudioGenerationLimit,
+      DEFAULT_CHILD_MODE_SETTINGS.dailyAudioGenerationLimit
     ),
     monthlyGenerationLimit: normalizeOptionalLimit(
       input.monthlyGenerationLimit,
@@ -158,7 +176,6 @@ export function buildChildSessionScopes(settings: ChildModeSettings): string[] {
   const scopes = ['child_mode'];
   if (settings.freeTextPromptsEnabled) scopes.push('story:free_text');
   if (settings.audioGenerationEnabled) scopes.push('story:audio');
-  if (settings.allowSharedFamilyStories) scopes.push('family_stories:read');
   return scopes;
 }
 

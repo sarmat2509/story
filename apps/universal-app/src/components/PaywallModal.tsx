@@ -55,7 +55,7 @@ export function PaywallModal({
     }
 
     if (target.kind === 'parent-gate') {
-      navigation.navigate('ChildMode' as never);
+      navigation.navigate('Dashboard' as never);
       return;
     }
 

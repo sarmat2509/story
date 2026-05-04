@@ -26,12 +26,19 @@ export interface ShareCardScene {
 
 interface PublishShareDialogProps {
   visible: boolean;
-  onPublishAndShare: (visibility: PublishVisibility, shareCardSceneId?: number, pseudonym?: string) => void;
+  onPublishAndShare: (
+    visibility: PublishVisibility,
+    shareCardSceneId?: number,
+    pseudonym?: string,
+    aboutMe?: string
+  ) => void;
   onCancel: () => void;
   shareUrl?: string | null;
   isLoading?: boolean;
   /** User's pseudonym from profile. If set, show read-only text; if not, show input. */
   userPseudonym?: string | null;
+  authorAboutMe?: string | null;
+  allowAuthorProfileEdit?: boolean;
   /** Scenes with images for share-card cover selection (0-based index) */
   scenes?: ShareCardScene[];
   /** Currently selected share-card scene index. Default 0. */
@@ -55,6 +62,8 @@ export function PublishShareDialog({
   shareUrl,
   isLoading = false,
   userPseudonym = null,
+  authorAboutMe = null,
+  allowAuthorProfileEdit = false,
   scenes = [],
   shareCardSceneId: initialShareCardSceneId = null,
   onUnpublish,
@@ -65,6 +74,7 @@ export function PublishShareDialog({
   const [selectedVisibility, setSelectedVisibility] = React.useState<PublishVisibility>('public');
   const [selectedShareCardIndex, setSelectedShareCardIndex] = React.useState<number>(0);
   const [pseudonymInput, setPseudonymInput] = React.useState('');
+  const [aboutMeInput, setAboutMeInput] = React.useState('');
   const isPostPublish = !!shareUrl;
 
   const scenesWithImages = useMemo(
@@ -82,10 +92,11 @@ export function PublishShareDialog({
   React.useEffect(() => {
     if (visible) {
       setSelectedShareCardIndex(validInitialIndex);
-      setPseudonymInput('');
+      setPseudonymInput(userPseudonym ?? '');
+      setAboutMeInput(authorAboutMe ?? '');
       setSelectedVisibility(initialVisibility);
     }
-  }, [visible, validInitialIndex, initialVisibility]);
+  }, [visible, validInitialIndex, initialVisibility, userPseudonym, authorAboutMe]);
 
   const displayUrl = useMemo(() => {
     if (!shareUrl) return '';
@@ -188,7 +199,7 @@ export function PublishShareDialog({
                 </Text>
               )}
 
-              {userPseudonym ? (
+              {userPseudonym && !allowAuthorProfileEdit ? (
                 <Text style={styles.pseudonymText}>
                   {t('story_viewer.publishing_under_pseudonym', 'Публікуємо під псевдонімом')} {userPseudonym}
                 </Text>
@@ -200,6 +211,21 @@ export function PublishShareDialog({
                     value={pseudonymInput}
                     onChangeText={setPseudonymInput}
                     maxLength={100}
+                  />
+                </View>
+              )}
+
+              {allowAuthorProfileEdit && (
+                <View style={styles.pseudonymRow}>
+                  <Text style={styles.pseudonymLabel}>
+                    {t('profile.about_me', { defaultValue: 'About me' })}
+                  </Text>
+                  <TextInput
+                    style={[styles.pseudonymInput, styles.aboutMeInput]}
+                    value={aboutMeInput}
+                    onChangeText={setAboutMeInput}
+                    maxLength={1000}
+                    multiline
                   />
                 </View>
               )}
@@ -308,7 +334,10 @@ export function PublishShareDialog({
                   onPublishAndShare(
                     selectedVisibility,
                     scenesWithImages.length > 0 ? selectedShareCardIndex : undefined,
-                    !userPseudonym && pseudonymInput.trim() ? pseudonymInput.trim() : undefined
+                    (!userPseudonym || allowAuthorProfileEdit) && pseudonymInput.trim()
+                      ? pseudonymInput.trim()
+                      : undefined,
+                    allowAuthorProfileEdit && aboutMeInput.trim() ? aboutMeInput.trim() : undefined
                   )
                 }
                 activeOpacity={0.7}
@@ -488,6 +517,10 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border.light,
     borderRadius: theme.borders.radius.md,
     padding: theme.spacing[3],
+  },
+  aboutMeInput: {
+    minHeight: 88,
+    textAlignVertical: 'top',
   },
   carouselLabel: {
     fontSize: theme.typography.fontSize.sm,

@@ -63,8 +63,9 @@ export async function getUsageForPeriod(
   userId: string,
   startDate: Date,
   endDate: Date,
-  eventType?: UsageEventType
+  eventType?: UsageEventType,
+  options?: { childProfileId?: string | null }
 ): Promise<number> {
   const repo = getUsageEventsRepository();
-  return repo.getUsageForPeriod(userId, startDate, endDate, eventType);
+  return repo.getUsageForPeriod(userId, startDate, endDate, eventType, options?.childProfileId);
 }

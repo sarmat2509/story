@@ -42,7 +42,8 @@ export class UsageEventsRepository {
     userId: string,
     startDate: Date,
     endDate: Date,
-    eventType?: string
+    eventType?: string,
+    childProfileId?: string | null
   ): Promise<number> {
     const conditions = [
       eq(schema.usageEvents.userId, userId),
@@ -51,6 +52,13 @@ export class UsageEventsRepository {
     ];
     if (eventType) {
       conditions.push(eq(schema.usageEvents.eventType, eventType));
+    }
+    if (childProfileId !== undefined) {
+      conditions.push(
+        childProfileId === null
+          ? sql`${schema.usageEvents.childProfileId} IS NULL`
+          : eq(schema.usageEvents.childProfileId, childProfileId)
+      );
     }
 
     const [row] = await this.db

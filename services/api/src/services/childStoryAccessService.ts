@@ -13,8 +13,7 @@ export interface ChildReadableStoryRef {
 }
 
 export function childSessionCanReadFamilyStories(context: ChildStorySessionContext): boolean {
-  return context.sessionMode !== 'child'
-    || context.sessionScopes?.includes(FAMILY_STORIES_READ_SCOPE) === true;
+  return context.sessionMode !== 'child';
 }
 
 export function getChildScopedStoryFilter(context: ChildStorySessionContext): string | undefined {

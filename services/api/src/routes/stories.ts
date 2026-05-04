@@ -40,15 +40,21 @@ import { getFaceDeduplicationService } from '../services/faceDeduplicationServic
 import { createCharacter } from '../services/characterService';
 import { config } from '../config';
 import { startTask, completeTask, STORY_TASKS } from '../services/storyProgress';
-import { getStoryRepository, getAssetRepository } from '../repositories';
+import { getStoryRepository, getAssetRepository, getChildProfileRepository } from '../repositories';
 import { getStoryCacheStats, getStoryCost, getStoryCostBreakdown } from '../services/aiUsageService';
 import { isStoryQuotaError, releaseStoryQuotaReservationForRequest } from '../services/storyQuotaService';
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
 import { assertVoiceAccessForUser, isVoiceAccessError } from '../services/voiceAccessService';
 import {
   assertChildStoryRequestAllowed,
+  assertChildAudioGenerationAllowed,
+  assertChildPublishAllowed,
   ChildModePolicyError,
 } from '../services/childModePolicyService';
+import {
+  canReadStoryForSession,
+  getChildScopedStoryFilter,
+} from '../services/childStoryAccessService';
 import {
   isAudioQuotaError,
   releaseAudioQuotaReservationForStory,
@@ -100,6 +106,21 @@ function buildConsentAuditContext(req: Request, source: string): ConsentAuditCon
 
 function getChildDataConsentValue(body: Record<string, unknown>): unknown {
   return body.childDataConsentAccepted ?? body.child_data_consent_accepted ?? body.parentalConsentAccepted;
+}
+
+function getRequestOwnerUserId(req: Request): string {
+  return req.parentUserId || req.user!.id;
+}
+
+function storyReadableByRequestSession(req: Request, story: {
+  childProfileId?: string | null;
+  createdByChildProfileId?: string | null;
+}): boolean {
+  return canReadStoryForSession({
+    sessionMode: req.sessionMode,
+    childProfileId: req.childProfileId,
+    sessionScopes: req.sessionScopes,
+  }, story);
 }
 
 function sendStoryQuotaError(res: Response, error: unknown): boolean {
@@ -187,6 +208,7 @@ async function releaseStoryQuotaReservationOnCreateFailure(
 async function releaseAudioQuotaReservationOnCreateFailure(
   userId: string | undefined,
   storyId: string | undefined,
+  childProfileId: string | null | undefined,
   error: unknown
 ): Promise<void> {
   if (!userId || !storyId) {
@@ -196,6 +218,7 @@ async function releaseAudioQuotaReservationOnCreateFailure(
   try {
     const result = await releaseAudioQuotaReservationForStory(userId, storyId, {
       reason: 'queue_enqueue_failed',
+      childProfileId,
       errorMessage: error instanceof Error ? error.message : String(error),
     });
     logger.info(
@@ -517,61 +540,49 @@ function selectDefaultImageStyle(ageGroup: string): string {
  * Create a story from uploaded photos (Instant Mode)
  * Auto-creates hidden characters from photos and generates story
  */
-router.post('/instant', requireAuth, requireParentSession, expensiveGenerationLimiter, async (req: Request, res: Response) => {
+router.post('/instant', requireAuth, expensiveGenerationLimiter, async (req: Request, res: Response) => {
   let requestId: string | undefined;
   let queued = false;
   try {
     // Validate request body
     const validatedData = GenerateFromPhotosSchema.parse(req.body);
+    const ownerUserId = getRequestOwnerUserId(req);
+    const isChildModeRequest = req.sessionMode === 'child';
+    const childProfileId = isChildModeRequest ? req.childProfileId : undefined;
 
-    const hasChildDataConsent = await ensureChildDataConsent(
-      req.user!.id,
-      getChildDataConsentValue(req.body as Record<string, unknown>),
-      buildConsentAuditContext(req, 'instant_photo_story')
-    );
-    if (!hasChildDataConsent) {
+    if (isChildModeRequest && !childProfileId) {
       return res.status(403).json({
         status: 'error',
-        code: 'CHILD_DATA_CONSENT_REQUIRED',
-        message: 'Child data consent required',
+        code: 'SESSION_SCOPE_REQUIRED',
+        message: 'Child session scope required',
       });
+    }
+
+    if (!isChildModeRequest) {
+      const hasChildDataConsent = await ensureChildDataConsent(
+        ownerUserId,
+        getChildDataConsentValue(req.body as Record<string, unknown>),
+        buildConsentAuditContext(req, 'instant_photo_story')
+      );
+      if (!hasChildDataConsent) {
+        return res.status(403).json({
+          status: 'error',
+          code: 'CHILD_DATA_CONSENT_REQUIRED',
+          message: 'Child data consent required',
+        });
+      }
     }
 
     assertUserPhotoInputs({
       photos: validatedData.photos,
-      userId: req.user!.id,
+      userId: ownerUserId,
       allowedPhotoTypes: ['character', 'child'],
     });
     await assertStoryFromDrawingAccessForPhotos({
-      userId: req.user!.id,
+      userId: ownerUserId,
       photoCount: validatedData.photos.length,
     });
 
-    assertStoryPromptSafety({
-      userId: req.user!.id,
-      goal: validatedData.goals?.filter(Boolean).join('\n'),
-      userNotes: validatedData.notes,
-      goalSource: 'instant_story_goal',
-      notesSource: 'instant_story_notes',
-    });
-    
-    // Enforce per-user concurrent job limit
-    try {
-      await enforceUserJobLimit(req.user!.id);
-    } catch (limitError) {
-      return res.status(429).json({
-        status: 'error',
-        message: (limitError as Error).message,
-      });
-    }
-    
-    logger.info({ 
-      userId: req.user!.id, 
-      photoCount: validatedData.photos.length,
-      ageGroup: validatedData.ageGroup 
-    }, 'Starting photo-based story generation (async mode)');
-    
-    // Create story request with photos stored in intermediate_data
     const storyRequestData = {
       uiLocale: validatedData.language,
       storyLanguage: validatedData.language,
@@ -581,12 +592,51 @@ router.post('/instant', requireAuth, requireParentSession, expensiveGenerationLi
       imageStyle: validatedData.imageStyle || selectDefaultImageStyle(validatedData.ageGroup),
       userNotes: validatedData.notes,
       selectedCharacters: [], // Will be populated by async job
-      selectedChildren: [],
-      childProfileId: undefined,
+      selectedChildren: childProfileId ? [childProfileId] : [],
+      childProfileId,
     };
+
+    const policyDecision = isChildModeRequest && childProfileId
+      ? await assertChildStoryRequestAllowed({
+          parentUserId: ownerUserId,
+          sessionChildProfileId: childProfileId,
+          input: storyRequestData,
+        })
+      : null;
+
+    assertStoryPromptSafety({
+      userId: ownerUserId,
+      goal: validatedData.goals?.filter(Boolean).join('\n'),
+      userNotes: validatedData.notes,
+      goalSource: 'instant_story_goal',
+      notesSource: 'instant_story_notes',
+    });
     
-    requestId = await createStoryRequest(req.user!.id, storyRequestData, {
-      quotaSource: 'instant',
+    // Enforce per-user concurrent job limit
+    try {
+      await enforceUserJobLimit(ownerUserId);
+    } catch (limitError) {
+      return res.status(429).json({
+        status: 'error',
+        message: (limitError as Error).message,
+      });
+    }
+    
+    logger.info({ 
+      userId: ownerUserId,
+      photoCount: validatedData.photos.length,
+      ageGroup: validatedData.ageGroup 
+    }, 'Starting photo-based story generation (async mode)');
+    
+    requestId = await createStoryRequest(ownerUserId, storyRequestData, {
+      quotaSource: isChildModeRequest ? 'child_mode' : 'instant',
+      ...(isChildModeRequest && childProfileId
+        ? {
+            createdByMode: 'child' as const,
+            createdByChildProfileId: childProfileId,
+            parentReviewRequired: policyDecision?.parentReviewRequired ?? false,
+          }
+        : {}),
     });
     
     // Store photos, ageGroup and instant mode flag in intermediate_data
@@ -600,7 +650,7 @@ router.post('/instant', requireAuth, requireParentSession, expensiveGenerationLi
     });
     
     logger.info({ 
-      userId: req.user!.id, 
+      userId: ownerUserId,
       requestId,
       imageStyle: storyRequestData.imageStyle
     }, 'Story request created for instant mode (async)');
@@ -610,7 +660,7 @@ router.post('/instant', requireAuth, requireParentSession, expensiveGenerationLi
     queued = true;
     
     logger.info({ 
-      userId: req.user!.id, 
+      userId: ownerUserId,
       requestId, 
       jobId,
       photoCount: validatedData.photos.length,
@@ -633,6 +683,7 @@ router.post('/instant', requireAuth, requireParentSession, expensiveGenerationLi
     }
     if (sendPhotoInputSafetyError(res, error)) return;
     if (sendStoryFromDrawingAccessError(res, error)) return;
+    if (sendChildModePolicyError(res, error)) return;
     if (sendPromptSafetyError(res, error)) return;
     if (sendStoryQuotaError(res, error)) return;
 
@@ -881,9 +932,9 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
-    const story = await getStory(id, req.user!.id);
+    const story = await getStory(id, getRequestOwnerUserId(req));
     
-    if (!story) {
+    if (!story || !storyReadableByRequestSession(req, story as any)) {
       return res.status(404).json({
         status: 'error',
         message: 'Story not found'
@@ -919,6 +970,8 @@ const PublishStorySchema = z.object({
   isPublished: z.boolean(),
   visibility: z.enum(['public', 'unlisted']).optional().default('public'),
   shareCardSceneId: z.number().int().min(0).optional(),
+  childAuthorPseudonym: z.string().trim().max(100).optional(),
+  childAuthorAboutMe: z.string().trim().max(1000).optional(),
 });
 
 const ParentReviewStorySchema = z.object({
@@ -980,16 +1033,49 @@ router.patch('/:id/parent-review', requireAuth, requireParentSession, async (req
  * PATCH /api/v1/stories/:id
  * Publish or unpublish a story
  */
-router.patch('/:id', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+router.patch('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const id = req.params['id'];
     if (typeof id !== 'string' || !id) {
       return res.status(400).json({ status: 'error', message: 'Invalid story ID' });
     }
     const body = PublishStorySchema.parse(req.body);
+    const ownerUserId = getRequestOwnerUserId(req);
+    const story = await getStoryRepository().findByIdAndUser(id, ownerUserId);
+
+    if (!story || !storyReadableByRequestSession(req, story as any)) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Story not found',
+      });
+    }
+
+    if (req.sessionMode === 'child') {
+      if (!req.childProfileId) {
+        return res.status(403).json({
+          status: 'error',
+          code: 'SESSION_SCOPE_REQUIRED',
+          message: 'Child session scope required',
+        });
+      }
+      await assertChildPublishAllowed({
+        parentUserId: ownerUserId,
+        sessionChildProfileId: req.childProfileId,
+      });
+      if (body.childAuthorPseudonym !== undefined || body.childAuthorAboutMe !== undefined) {
+        await getChildProfileRepository().update(req.childProfileId, ownerUserId, {
+          ...(body.childAuthorPseudonym !== undefined
+            ? { authorPseudonym: body.childAuthorPseudonym.trim() || null }
+            : {}),
+          ...(body.childAuthorAboutMe !== undefined
+            ? { authorAboutMe: body.childAuthorAboutMe.trim() || null }
+            : {}),
+        });
+      }
+    }
 
     if (body.isPublished) {
-      const result = await publishStory(id, req.user!.id, body.visibility, body.shareCardSceneId);
+      const result = await publishStory(id, ownerUserId, body.visibility, body.shareCardSceneId);
       if (!result) {
         return res.status(404).json({
           status: 'error',
@@ -1003,7 +1089,7 @@ router.patch('/:id', requireAuth, requireParentSession, async (req: Request, res
         publishedStoriesCount: result.publishedStoriesCount,
       });
     } else {
-      const ok = await unpublishStory(id, req.user!.id);
+      const ok = await unpublishStory(id, ownerUserId);
       if (!ok) {
         return res.status(404).json({
           status: 'error',
@@ -1031,6 +1117,7 @@ router.patch('/:id', requireAuth, requireParentSession, async (req: Request, res
         ...(error.details ? { details: error.details } : {}),
       });
     }
+    if (sendChildModePolicyError(res, error)) return;
     logger.error({ err: error, userId: req.user?.id, storyId: req.params.id }, 'Publish story failed');
     res.status(500).json({
       status: 'error',
@@ -1060,10 +1147,17 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     const parsedOffset = parseInt(offset as string, 10);
     const hasAudio = hasAudioParam === 'true';
     const scenarioCardId = scenarioCardIdParam as string | undefined;
+    const ownerUserId = getRequestOwnerUserId(req);
+    const scopedChildProfileId = getChildScopedStoryFilter({
+      sessionMode: req.sessionMode,
+      childProfileId: req.childProfileId,
+      sessionScopes: req.sessionScopes,
+    });
+    const effectiveChildProfileId = scopedChildProfileId ?? (childProfileId as string | undefined);
 
     // Get total count for pagination (shared by both views)
-    const totalCount = await getTotalUserStoriesCount(req.user!.id, {
-      childProfileId: childProfileId as string,
+    const totalCount = await getTotalUserStoriesCount(ownerUserId, {
+      childProfileId: effectiveChildProfileId,
       language: language as string,
       hasAudio,
       scenarioCardId,
@@ -1071,8 +1165,8 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
 
     // Summary view: lightweight payload for library grid
     if (view === 'summary') {
-      const summaries = await listUserStorySummaries(req.user!.id, {
-        childProfileId: childProfileId as string,
+      const summaries = await listUserStorySummaries(ownerUserId, {
+        childProfileId: effectiveChildProfileId,
         language: language as string,
         limit: parsedLimit,
         offset: parsedOffset,
@@ -1088,8 +1182,8 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     }
 
     // Full view: complete story objects (default)
-    const stories = await listUserStories(req.user!.id, {
-      childProfileId: childProfileId as string,
+    const stories = await listUserStories(ownerUserId, {
+      childProfileId: effectiveChildProfileId,
       language: language as string,
       limit: parsedLimit,
       offset: parsedOffset,
@@ -1156,6 +1250,7 @@ router.post('/:id/continue', requireAuth, requireParentSession, expensiveGenerat
   let queued = false;
   try {
     const { id: storyId } = req.params;
+    const ownerUserId = getRequestOwnerUserId(req);
     const userId = req.user!.id;
     
     // Enforce per-user concurrent job limit
@@ -1454,11 +1549,13 @@ router.get('/:id/series', requireAuth, async (req: Request, res: Response) => {
  * POST /api/v1/stories/:id/audio
  * Generate audio for a story (M5)
  */
-router.post('/:id/audio', requireAuth, requireParentSession, expensiveGenerationLimiter, async (req: Request, res: Response) => {
+router.post('/:id/audio', requireAuth, expensiveGenerationLimiter, async (req: Request, res: Response) => {
   let reservedAudioStoryId: string | undefined;
+  let reservedAudioChildProfileId: string | null | undefined;
   let queued = false;
   try {
     const { id: storyId } = req.params;
+    const ownerUserId = getRequestOwnerUserId(req);
     
     // Validate input
     const parseResult = AudioGenerationSchema.safeParse(req.body);
@@ -1473,15 +1570,15 @@ router.post('/:id/audio', requireAuth, requireParentSession, expensiveGeneration
     
     logger.info({ 
       storyId, 
-      userId: req.user!.id, 
+      userId: ownerUserId,
       voiceId,
       speed,
       nightMode 
     }, 'Audio generation request received');
     
     // Load story to verify ownership
-    const story = await getStory(storyId, req.user!.id);
-    if (!story) {
+    const story = await getStory(storyId, ownerUserId);
+    if (!story || !storyReadableByRequestSession(req, story as any)) {
       return res.status(404).json({
         status: 'error',
         message: 'Story not found'
@@ -1491,7 +1588,7 @@ router.post('/:id/audio', requireAuth, requireParentSession, expensiveGeneration
     // Check if audio already exists and is valid (not an error state)
     const audioMetadata = story.audioMetadata as any;
     if (audioMetadata && !audioMetadata.error) {
-      logger.info({ storyId, userId: req.user!.id }, 'Audio already exists - skipping generation');
+      logger.info({ storyId, userId: ownerUserId }, 'Audio already exists - skipping generation');
       return res.status(200).json({
         status: 'success',
         message: 'Audio already exists',
@@ -1503,16 +1600,31 @@ router.post('/:id/audio', requireAuth, requireParentSession, expensiveGeneration
     if (audioMetadata?.error) {
       logger.info({ 
         storyId, 
-        userId: req.user!.id,
+        userId: ownerUserId,
         previousError: audioMetadata.errorMessage 
       }, 'Previous audio generation failed - allowing retry');
     }
 
-    await assertVoiceAccessForUser(req.user!.id, voiceId);
+    if (req.sessionMode === 'child') {
+      if (!req.childProfileId) {
+        return res.status(403).json({
+          status: 'error',
+          code: 'SESSION_SCOPE_REQUIRED',
+          message: 'Child session scope required',
+        });
+      }
+      await assertChildAudioGenerationAllowed({
+        parentUserId: ownerUserId,
+        sessionChildProfileId: req.childProfileId,
+      });
+      reservedAudioChildProfileId = req.childProfileId;
+    }
+
+    await assertVoiceAccessForUser(ownerUserId, voiceId);
     
     // Enforce per-user concurrent job limit
     try {
-      await enforceUserJobLimit(req.user!.id);
+      await enforceUserJobLimit(ownerUserId);
     } catch (limitError) {
       return res.status(429).json({
         status: 'error',
@@ -1520,8 +1632,9 @@ router.post('/:id/audio', requireAuth, requireParentSession, expensiveGeneration
       });
     }
 
-    const audioQuotaReservation = await reserveAudioQuotaForStory(req.user!.id, storyId, {
+    const audioQuotaReservation = await reserveAudioQuotaForStory(ownerUserId, storyId, {
       source: 'manual',
+      childProfileId: reservedAudioChildProfileId,
     });
     reservedAudioStoryId = storyId;
     
@@ -1529,13 +1642,13 @@ router.post('/:id/audio', requireAuth, requireParentSession, expensiveGeneration
     const jobId = await storyJobQueue.addJob({
       type: 'audio_generation',
       storyId,
-      userId: req.user!.id,
+      userId: ownerUserId,
       voiceParams: { voiceId, speed, nightMode }
     });
     queued = true;
     
     logger.info({
-      userId: req.user!.id,
+      userId: ownerUserId,
       storyId,
       jobId,
       audioQuotaReserved: audioQuotaReservation.reserved,
@@ -1551,8 +1664,14 @@ router.post('/:id/audio', requireAuth, requireParentSession, expensiveGeneration
     });
   } catch (error) {
     if (!queued) {
-      await releaseAudioQuotaReservationOnCreateFailure(req.user?.id, reservedAudioStoryId, error);
+      await releaseAudioQuotaReservationOnCreateFailure(
+        req.user?.id ? getRequestOwnerUserId(req) : undefined,
+        reservedAudioStoryId,
+        reservedAudioChildProfileId,
+        error
+      );
     }
+    if (sendChildModePolicyError(res, error)) return;
     if (sendVoiceAccessError(res, error)) return;
     if (sendAudioQuotaError(res, error)) return;
 
@@ -1571,10 +1690,11 @@ router.post('/:id/audio', requireAuth, requireParentSession, expensiveGeneration
 router.get('/:id/audio-status', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id: storyId } = req.params;
+    const ownerUserId = getRequestOwnerUserId(req);
     
-    const story = await getStoryRepository().findByIdAndUser(storyId, req.user!.id);
+    const story = await getStoryRepository().findByIdAndUser(storyId, ownerUserId);
     
-    if (!story) {
+    if (!story || !storyReadableByRequestSession(req, story as any)) {
       return res.status(404).json({ 
         status: 'error', 
         message: 'Story not found' 
@@ -1841,9 +1961,9 @@ router.get('/:id/manifest', requireAuth, async (req: Request, res: Response) => 
   try {
     const { id } = req.params;
     
-    const story = await getStory(id, req.user!.id);
+    const story = await getStory(id, getRequestOwnerUserId(req));
     
-    if (!story) {
+    if (!story || !storyReadableByRequestSession(req, story as any)) {
       return res.status(404).json({
         status: 'error',
         message: 'Story not found'
@@ -2001,11 +2121,13 @@ router.post('/:id/scenes/:sceneId/regenerate', requireAuth, requireParentSession
  * POST /api/v1/stories/:id/tts
  * Generate audio for story (M5)
  */
-router.post('/:id/tts', requireAuth, requireParentSession, expensiveGenerationLimiter, async (req: Request, res: Response) => {
+router.post('/:id/tts', requireAuth, expensiveGenerationLimiter, async (req: Request, res: Response) => {
   let reservedAudioStoryId: string | undefined;
+  let reservedAudioChildProfileId: string | null | undefined;
   let queued = false;
   try {
     const { id: storyId } = req.params;
+    const ownerUserId = getRequestOwnerUserId(req);
     const parseResult = AudioGenerationSchema.safeParse(req.body);
     if (!parseResult.success) {
       return res.status(400).json({
@@ -2017,8 +2139,8 @@ router.post('/:id/tts', requireAuth, requireParentSession, expensiveGenerationLi
     const { voiceId, speed, nightMode } = parseResult.data;
     
     // Ownership check: verify the story belongs to the requesting user
-    const story = await getStory(storyId, req.user!.id);
-    if (!story) {
+    const story = await getStory(storyId, ownerUserId);
+    if (!story || !storyReadableByRequestSession(req, story as any)) {
       return res.status(404).json({
         status: 'error',
         message: 'Story not found'
@@ -2027,7 +2149,7 @@ router.post('/:id/tts', requireAuth, requireParentSession, expensiveGenerationLi
 
     const audioMetadata = story.audioMetadata as any;
     if (audioMetadata && !audioMetadata.error) {
-      logger.info({ storyId, userId: req.user!.id }, 'Audio already exists - skipping legacy /tts generation');
+      logger.info({ storyId, userId: ownerUserId }, 'Audio already exists - skipping legacy /tts generation');
       return res.status(200).json({
         status: 'success',
         message: 'Audio already exists',
@@ -2035,10 +2157,25 @@ router.post('/:id/tts', requireAuth, requireParentSession, expensiveGenerationLi
       });
     }
 
-    await assertVoiceAccessForUser(req.user!.id, voiceId);
+    if (req.sessionMode === 'child') {
+      if (!req.childProfileId) {
+        return res.status(403).json({
+          status: 'error',
+          code: 'SESSION_SCOPE_REQUIRED',
+          message: 'Child session scope required',
+        });
+      }
+      await assertChildAudioGenerationAllowed({
+        parentUserId: ownerUserId,
+        sessionChildProfileId: req.childProfileId,
+      });
+      reservedAudioChildProfileId = req.childProfileId;
+    }
+
+    await assertVoiceAccessForUser(ownerUserId, voiceId);
 
     try {
-      await enforceUserJobLimit(req.user!.id);
+      await enforceUserJobLimit(ownerUserId);
     } catch (limitError) {
       return res.status(429).json({
         status: 'error',
@@ -2046,21 +2183,22 @@ router.post('/:id/tts', requireAuth, requireParentSession, expensiveGenerationLi
       });
     }
 
-    const audioQuotaReservation = await reserveAudioQuotaForStory(req.user!.id, storyId, {
+    const audioQuotaReservation = await reserveAudioQuotaForStory(ownerUserId, storyId, {
       source: 'manual',
+      childProfileId: reservedAudioChildProfileId,
     });
     reservedAudioStoryId = storyId;
     
     const jobId = await storyJobQueue.addJob({
       type: 'audio_generation',
       storyId,
-      userId: req.user!.id,
+      userId: ownerUserId,
       voiceParams: { voiceId, speed, nightMode },
     });
     queued = true;
 
     logger.info({ 
-      userId: req.user!.id, 
+      userId: ownerUserId,
       storyId,
       voiceId,
       speed,
@@ -2079,8 +2217,14 @@ router.post('/:id/tts', requireAuth, requireParentSession, expensiveGenerationLi
     });
   } catch (error) {
     if (!queued) {
-      await releaseAudioQuotaReservationOnCreateFailure(req.user?.id, reservedAudioStoryId, error);
+      await releaseAudioQuotaReservationOnCreateFailure(
+        req.user?.id ? getRequestOwnerUserId(req) : undefined,
+        reservedAudioStoryId,
+        reservedAudioChildProfileId,
+        error
+      );
     }
+    if (sendChildModePolicyError(res, error)) return;
     if (sendVoiceAccessError(res, error)) return;
     if (sendAudioQuotaError(res, error)) return;
 
@@ -2103,14 +2247,15 @@ router.post('/:id/tts', requireAuth, requireParentSession, expensiveGenerationLi
 router.get('/:id/audio', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id: storyId } = req.params;
+    const ownerUserId = getRequestOwnerUserId(req);
     
     // Import orchestration function
     const { getStory } = await import('../services/storyOrchestrationService');
     
     // Get story
-    const story = await getStory(storyId, req.user!.id);
+    const story = await getStory(storyId, ownerUserId);
     
-    if (!story) {
+    if (!story || !storyReadableByRequestSession(req, story as any)) {
       return res.status(404).json({
         status: 'error',
         message: 'Story not found'

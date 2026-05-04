@@ -38,6 +38,7 @@ interface Props {
   children?: ChildProfile[];
   selectedChildren: string[];
   onChildrenChange: (ids: string[]) => void;
+  showChildren?: boolean;
   
   onAddCharacter?: () => void;
   onAddChild?: () => void;
@@ -50,6 +51,7 @@ export function CharactersForm({
   children = [],
   selectedChildren,
   onChildrenChange,
+  showChildren = true,
   onAddCharacter,
   onAddChild
 }: Props) {
@@ -113,7 +115,7 @@ export function CharactersForm({
   
   // Merge children and characters into unified list
   const allItems: DisplayItem[] = [
-    ...children.map(c => ({
+    ...(showChildren ? children.map(c => ({
       id: c.id,
       name: c.name,
       type: 'child',
@@ -121,7 +123,7 @@ export function CharactersForm({
       badge: getCharacterTypeName('child'),
       isChild: true,
       avatarUrl: c.turnaroundSheet?.frontUrl ?? c.turnaroundSheet?.url ?? c.referencePhotos?.[0]?.url,
-    })),
+    })) : []),
     ...characters.map(c => ({
       id: c.id,
       name: c.name,
@@ -134,7 +136,7 @@ export function CharactersForm({
   ];
   
   const totalSelected = selectedChildren.length + selectedCharacters.length;
-  const hasAnyItems = children.length > 0 || characters.length > 0;
+  const hasAnyItems = (showChildren && children.length > 0) || characters.length > 0;
 
   return (
     <View style={styles.container}>

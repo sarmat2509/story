@@ -17,6 +17,7 @@ import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
 import { generateTurnaroundSheetFromReference, generateLlmCharacterTurnaround, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
+import { getChildProfileRepository } from '../repositories';
 
 const router = Router();
 
@@ -235,7 +236,9 @@ router.get('/', requireAuth, requireParentOrScopedChildSession, async (req, res)
     const userId = req.user!.id;
     const type = req.query.type as characterService.CharacterType | undefined;
     
-    const characters = await characterService.getCharacters(userId, type);
+    const characters = await characterService.getCharacters(userId, type, {
+      ...(req.sessionMode === 'child' && req.childProfileId ? { childProfileId: req.childProfileId } : {}),
+    });
     
     res.json({
       status: 'success',
@@ -280,7 +283,23 @@ router.post('/', requireAuth, requireParentOrScopedChildSession, async (req, res
       });
     }
     
-    const data = validation.data;
+    const data = {
+      ...validation.data,
+      childProfileId: req.sessionMode === 'child'
+        ? req.childProfileId!
+        : (validation.data as { childProfileId?: string | null }).childProfileId ?? null,
+    };
+
+    if (data.childProfileId) {
+      const childProfile = await getChildProfileRepository().findById(data.childProfileId, userId);
+      if (!childProfile) {
+        return res.status(400).json({
+          status: 'error',
+          code: 'CHILD_PROFILE_NOT_FOUND',
+          error: 'Child profile not found',
+        });
+      }
+    }
 
     const referencePhotoUrls = getReferencePhotoUrls(data.referencePhotos);
     assertUserPhotoInputs({
@@ -354,7 +373,9 @@ router.post('/', requireAuth, requireParentOrScopedChildSession, async (req, res
     }
 
     // Refetch character to get full turnaroundSheet data
-    const updatedCharacter = await characterService.getCharacterById(character.id, userId);
+    const updatedCharacter = await characterService.getCharacterById(character.id, userId, {
+      ...(req.sessionMode === 'child' && req.childProfileId ? { childProfileId: req.childProfileId } : {}),
+    });
     const characterToReturn = updatedCharacter ?? character;
     
     res.status(201).json({
@@ -379,7 +400,9 @@ router.get('/:id', requireAuth, requireParentOrScopedChildSession, async (req, r
     const userId = req.user!.id;
     const { id } = req.params;
     
-    const character = await characterService.getCharacterById(id, userId);
+    const character = await characterService.getCharacterById(id, userId, {
+      ...(req.sessionMode === 'child' && req.childProfileId ? { childProfileId: req.childProfileId } : {}),
+    });
     
     if (!character) {
       return res.status(404).json({

@@ -334,18 +334,23 @@ export const childProfiles = pgTable('child_profiles', {
   clothing: jsonb('clothing'), // Structured clothing data
   distinctiveFeatures: jsonb('distinctive_features'), // Array of distinctive features
   turnaroundSheet: jsonb('turnaround_sheet'), // { url, generatedAt, sourcePhotoUrl } for 3D turnaround model sheet
+  authorPseudonym: varchar('author_pseudonym', { length: 100 }),
+  authorAboutMe: text('author_about_me'),
   childModeEnabled: boolean('child_mode_enabled').notNull().default(false),
   childModePasscodeHash: text('child_mode_passcode_hash'),
   childModePasscodeSetAt: timestamp('child_mode_passcode_set_at'),
   childModeSettings: jsonb('child_mode_settings').notNull().default({
+    storyGenerationEnabled: true,
+    publicStoriesEnabled: true,
     dailyGenerationLimit: null,
+    dailyAudioGenerationLimit: null,
     monthlyGenerationLimit: null,
     allowedThemeSlugs: [],
     allowedLanguageCodes: [],
     allowedCharacterIds: [],
-    freeTextPromptsEnabled: false,
-    audioGenerationEnabled: false,
-    parentReviewRequired: true,
+    freeTextPromptsEnabled: true,
+    audioGenerationEnabled: true,
+    parentReviewRequired: false,
     allowSiblingCharacters: false,
     allowSharedFamilyStories: false,
   }),
@@ -365,6 +370,7 @@ export const childProfiles = pgTable('child_profiles', {
 export const characters = pgTable('characters', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  childProfileId: uuid('child_profile_id').references(() => childProfiles.id, { onDelete: 'set null' }),
   name: varchar('name', { length: 100 }).notNull(),
   type: varchar('type', { length: 50 }).notNull(), // 'person' | 'animal' | 'imaginary'
   subtype: varchar('subtype', { length: 50 }), // 'mother', 'dog', 'dragon', etc.
@@ -387,6 +393,7 @@ export const characters = pgTable('characters', {
 }, (table) => {
   return {
     userIdIdx: index('characters_user_id_idx').on(table.userId),
+    childProfileIdIdx: index('characters_child_profile_id_idx').on(table.childProfileId),
     typeIdx: index('characters_type_idx').on(table.type),
     isActiveIdx: index('characters_is_active_idx').on(table.isActive),
   };
@@ -654,6 +661,8 @@ export const stories = pgTable('stories', {
   publishedAt: timestamp('published_at'),
   publishedSlug: varchar('published_slug', { length: 100 }),
   authorDisplayName: varchar('author_display_name', { length: 100 }),
+  authorType: varchar('author_type', { length: 20 }).notNull().default('user'), // 'user' | 'child'
+  authorChildProfileId: uuid('author_child_profile_id').references(() => childProfiles.id, { onDelete: 'set null' }),
   visibility: varchar('visibility', { length: 20 }).default('public'), // 'public' | 'unlisted'
   shareToken: varchar('share_token', { length: 64 }), // For unlisted: token for /u/:token URL
   shareCardSceneId: integer('share_card_scene_id'), // 0-based scene index for og:image. NULL = first
@@ -673,6 +682,8 @@ export const stories = pgTable('stories', {
     childProfileIdIdx: index('stories_child_profile_id_idx').on(table.childProfileId),
     createdByModeIdx: index('stories_created_by_mode_idx').on(table.createdByMode),
     createdByChildProfileIdIdx: index('stories_created_by_child_profile_id_idx').on(table.createdByChildProfileId),
+    authorTypeIdx: index('stories_author_type_idx').on(table.authorType),
+    authorChildProfileIdIdx: index('stories_author_child_profile_id_idx').on(table.authorChildProfileId),
     parentReviewStatusIdx: index('stories_parent_review_status_idx').on(table.parentReviewStatus),
     languageIdx: index('stories_language_idx').on(table.language),
     ageGroupIdx: index('stories_age_group_idx').on(table.ageGroup),

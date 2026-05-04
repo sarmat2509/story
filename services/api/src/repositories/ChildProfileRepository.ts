@@ -35,6 +35,43 @@ export class ChildProfileRepository {
     return profile || null;
   }
 
+  async findPublicChildAuthorById(id: string): Promise<Pick<schema.ChildProfile, 'id' | 'name' | 'authorPseudonym' | 'authorAboutMe' | 'turnaroundSheet' | 'referencePhotos'> | null> {
+    const [profile] = await this.db
+      .select({
+        id: schema.childProfiles.id,
+        name: schema.childProfiles.name,
+        authorPseudonym: schema.childProfiles.authorPseudonym,
+        authorAboutMe: schema.childProfiles.authorAboutMe,
+        turnaroundSheet: schema.childProfiles.turnaroundSheet,
+        referencePhotos: schema.childProfiles.referencePhotos,
+      })
+      .from(schema.childProfiles)
+      .where(and(
+        eq(schema.childProfiles.id, id),
+        eq(schema.childProfiles.isActive, true)
+      ))
+      .limit(1);
+    return profile || null;
+  }
+
+  async findPublicChildAuthorsByIds(ids: string[]): Promise<Array<Pick<schema.ChildProfile, 'id' | 'name' | 'authorPseudonym' | 'authorAboutMe' | 'turnaroundSheet' | 'referencePhotos'>>> {
+    if (ids.length === 0) return [];
+    return this.db
+      .select({
+        id: schema.childProfiles.id,
+        name: schema.childProfiles.name,
+        authorPseudonym: schema.childProfiles.authorPseudonym,
+        authorAboutMe: schema.childProfiles.authorAboutMe,
+        turnaroundSheet: schema.childProfiles.turnaroundSheet,
+        referencePhotos: schema.childProfiles.referencePhotos,
+      })
+      .from(schema.childProfiles)
+      .where(and(
+        eq(schema.childProfiles.isActive, true),
+        inArray(schema.childProfiles.id, ids)
+      ));
+  }
+
   async findByIds(userId: string, ids: string[]): Promise<schema.ChildProfile[]> {
     if (ids.length === 0) return [];
     return this.db

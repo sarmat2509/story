@@ -114,6 +114,7 @@ export async function reserveAudioQuotaForStory(
   storyId: string,
   options: {
     source: AudioQuotaReservationSource;
+    childProfileId?: string | null;
   }
 ): Promise<{
   reserved: boolean;
@@ -271,7 +272,7 @@ export async function reserveAudioQuotaForStory(
 
     await tx.insert(schema.usageEvents).values({
       userId,
-      childProfileId: null,
+      childProfileId: options.childProfileId ?? null,
       eventType: 'audio_synthesized',
       resourceType: 'audio',
       quantity: 1,
@@ -314,6 +315,7 @@ export async function releaseAudioQuotaReservationForStory(
   options: {
     reason: QuotaReservationReleaseReason;
     errorMessage?: string;
+    childProfileId?: string | null;
   }
 ): Promise<{
   released: boolean;
@@ -352,7 +354,7 @@ export async function releaseAudioQuotaReservationForStory(
     const errorMessage = truncateQuotaReleaseErrorMessage(options.errorMessage);
     await tx.insert(schema.usageEvents).values({
       userId,
-      childProfileId: null,
+      childProfileId: options.childProfileId ?? null,
       eventType: 'audio_synthesized',
       resourceType: 'audio',
       quantity: releaseQuantity,

@@ -9,9 +9,10 @@ interface Props {
   selected: string;
   onSelect: (lang: string) => void;
   defaultLanguage: string;
+  allowedLanguageCodes?: string[];
 }
 
-export function LanguageSelector({ selected, onSelect, defaultLanguage }: Props) {
+export function LanguageSelector({ selected, onSelect, defaultLanguage, allowedLanguageCodes }: Props) {
   const { t } = useTranslation();
   const languages = useMemo(
     () =>
@@ -22,17 +23,26 @@ export function LanguageSelector({ selected, onSelect, defaultLanguage }: Props)
           label: t(`language_names.${code}`, { defaultValue: config.nativeName }),
           flag: config.flag,
         };
-      }),
-    [t]
+      }).filter((lang) => !allowedLanguageCodes?.length || allowedLanguageCodes.includes(lang.code)),
+    [allowedLanguageCodes, t]
   );
 
   // Auto-select default language on mount if no selection
   useEffect(() => {
     const normalizedDefaultLanguage = defaultLanguage?.split('-')[0]?.toLowerCase() || '';
     if (!selected && normalizedDefaultLanguage && isValidLocale(normalizedDefaultLanguage)) {
-      onSelect(normalizedDefaultLanguage);
+      const nextLanguage = languages.some((lang) => lang.code === normalizedDefaultLanguage)
+        ? normalizedDefaultLanguage
+        : languages[0]?.code;
+      if (nextLanguage) onSelect(nextLanguage);
     }
-  }, [defaultLanguage, onSelect, selected]);
+  }, [defaultLanguage, languages, onSelect, selected]);
+
+  useEffect(() => {
+    if (selected && languages.length > 0 && !languages.some((lang) => lang.code === selected)) {
+      onSelect(languages[0].code);
+    }
+  }, [languages, onSelect, selected]);
 
   return (
     <View style={styles.container}>

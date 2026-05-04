@@ -32,6 +32,7 @@ import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import type { MainDrawerParamList } from '@/types/navigation';
+import { useAuthStore } from '@/store/authStore';
 
 type AgeGroup = '2-3' | '4-5' | '6-7' | '8-9' | '10-12';
 
@@ -47,6 +48,12 @@ export default function InstantWizardScreen() {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
   const enterKey = useScreenEnter();
+  const sessionMode = useAuthStore((state) => state.sessionMode);
+  const activeChild = useAuthStore((state) => state.activeChild);
+  const isChildSession = sessionMode === 'child';
+  const childModeSettings = activeChild?.childMode?.childModeSettings;
+  const canGenerateStories = !isChildSession || childModeSettings?.storyGenerationEnabled !== false;
+  const allowedLanguageCodes = isChildSession ? childModeSettings?.allowedLanguageCodes ?? [] : [];
 
   // Form state
   const [photos, setPhotos] = useState<PhotoObject[]>([]);
@@ -100,6 +107,11 @@ export default function InstantWizardScreen() {
   }, [storyStatus?.status, storyStatus?.storyId, requestId]);
 
   const handleGenerate = async () => {
+    if (!canGenerateStories) {
+      Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
+      return;
+    }
+
     if (!storyLanguage) {
       Alert.alert(t('common.error') || 'Error', t('wizard.language_required'));
       return;
@@ -249,6 +261,7 @@ export default function InstantWizardScreen() {
             selected={storyLanguage}
             onSelect={setStoryLanguage}
             defaultLanguage={i18n.language}
+            allowedLanguageCodes={allowedLanguageCodes}
           />
         </View>
       </AnimatedSection>
@@ -265,7 +278,7 @@ export default function InstantWizardScreen() {
         <GlassPrimaryButton
           title={t('instant_wizard.generate_story')}
           onPress={handleGenerate}
-          disabled={!canGenerate || isGenerating}
+          disabled={!canGenerate || isGenerating || !canGenerateStories}
           loading={isGenerating}
           size="hero"
           style={styles.generateButton}

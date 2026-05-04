@@ -83,6 +83,8 @@ export interface ChildFormInitialData {
   aiGeneratedDescription?: string;
   descriptionLanguage?: string;
   turnaroundSheet?: { url: string; frontUrl?: string; generatedAt: string };
+  authorPseudonym?: string | null;
+  authorAboutMe?: string | null;
 }
 
 interface Props {
@@ -111,6 +113,8 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
   const [photos, setPhotos] = useState<UploadPhotoResult[]>([]);
   const [description, setDescription] = useState('');
   const [descriptionLanguage, setDescriptionLanguage] = useState<string | undefined>(undefined);
+  const [authorPseudonym, setAuthorPseudonym] = useState('');
+  const [authorAboutMe, setAuthorAboutMe] = useState('');
   const [childDataConsentAccepted, setChildDataConsentAccepted] = useState(false);
 
   const [appearance, setAppearance] = useState({
@@ -172,6 +176,8 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
       }
       setDescription(initialData.aiGeneratedDescription || '');
       setDescriptionLanguage(initialData.descriptionLanguage || undefined);
+      setAuthorPseudonym(initialData.authorPseudonym || '');
+      setAuthorAboutMe(initialData.authorAboutMe || '');
       setChildDataConsentAccepted(!!childId);
       if (initialData.appearanceTraits) {
         setAppearance({
@@ -217,6 +223,8 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
       setPhotos([]);
       setDescription('');
       setDescriptionLanguage(undefined);
+      setAuthorPseudonym('');
+      setAuthorAboutMe('');
       setChildDataConsentAccepted(false);
       setAppearance({
         hairColor: undefined,
@@ -346,7 +354,9 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
           personality: personalityData,
           interests: interests.length > 0 ? interests : undefined,
           sensitivities: sensitivitiesData,
-          familyCast: Object.keys(familyCast).length > 0 ? familyCast : undefined
+          familyCast: Object.keys(familyCast).length > 0 ? familyCast : undefined,
+          authorPseudonym: authorPseudonym.trim() || null,
+          authorAboutMe: authorAboutMe.trim() || null
         };
         const result = UpdateChildProfileSchema.safeParse(updateData);
         if (!result.success) {
@@ -377,7 +387,9 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
           personality: personalityData,
           interests: interests.length > 0 ? interests : undefined,
           sensitivities: sensitivitiesData,
-          familyCast: Object.keys(familyCast).length > 0 ? familyCast : undefined
+          familyCast: Object.keys(familyCast).length > 0 ? familyCast : undefined,
+          authorPseudonym: authorPseudonym.trim() || null,
+          authorAboutMe: authorAboutMe.trim() || null
         };
         const result = CreateChildProfileSchema.safeParse(data);
         if (!result.success) {
@@ -549,6 +561,41 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
                 </View>
               </View>
             ) : null}
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                {t('child_form.author_section_title', { defaultValue: 'Author profile' })}
+              </Text>
+              <View style={styles.field}>
+                <Text style={styles.label}>
+                  {t('child_form.author_pseudonym_label', { defaultValue: 'Pseudonym' })}
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={authorPseudonym}
+                  onChangeText={setAuthorPseudonym}
+                  placeholder={t('child_form.author_pseudonym_placeholder', { defaultValue: name || 'Story author' })}
+                  placeholderTextColor={theme.colors.text.disabled}
+                  maxLength={100}
+                />
+              </View>
+              <View style={styles.field}>
+                <Text style={styles.label}>
+                  {t('child_form.author_about_label', { defaultValue: 'About the author' })}
+                </Text>
+                <TextInput
+                  style={[styles.input, styles.multilineInput]}
+                  value={authorAboutMe}
+                  onChangeText={setAuthorAboutMe}
+                  placeholder={t('child_form.author_about_placeholder', { defaultValue: 'A short public bio for published stories' })}
+                  placeholderTextColor={theme.colors.text.disabled}
+                  multiline
+                  numberOfLines={3}
+                  maxLength={1000}
+                  textAlignVertical="top"
+                />
+              </View>
+            </View>
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t('child_form.description')}</Text>

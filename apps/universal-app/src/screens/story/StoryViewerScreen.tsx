@@ -67,7 +67,7 @@ export default function StoryViewerScreen() {
   const queryClient = useQueryClient();
   const { t, i18n } = useTranslation();
   const { isTabletPortrait, isMobile } = useResponsive();
-  const { user, sessionMode } = useAuthStore();
+  const { user, sessionMode, activeChild } = useAuthStore();
   const isChildSession = sessionMode === 'child';
   const isArtisanMode = user?.mode === 'artisan';
   const storyId = route.params?.storyId;
@@ -716,7 +716,12 @@ export default function StoryViewerScreen() {
   }, [parentReviewBlocksSharing, parentReviewStatus, story, storyId, t]);
 
   const handlePublishAndShare = useCallback(
-    async (visibility: 'public' | 'unlisted' = 'public', shareCardSceneId?: number, pseudonym?: string) => {
+    async (
+      visibility: 'public' | 'unlisted' = 'public',
+      shareCardSceneId?: number,
+      pseudonym?: string,
+      aboutMe?: string
+    ) => {
       try {
         if (parentReviewBlocksSharing) {
           toastService.error(
@@ -726,7 +731,7 @@ export default function StoryViewerScreen() {
           );
           return;
         }
-        if (!user?.pseudonym && pseudonym) {
+        if (!isChildSession && !user?.pseudonym && pseudonym) {
           await updateMe.mutateAsync({ pseudonym });
         }
         const result = await publishStory.mutateAsync({
@@ -734,6 +739,8 @@ export default function StoryViewerScreen() {
           isPublished: true,
           visibility,
           shareCardSceneId,
+          ...(isChildSession && pseudonym ? { childAuthorPseudonym: pseudonym } : {}),
+          ...(isChildSession && aboutMe ? { childAuthorAboutMe: aboutMe } : {}),
         });
         if (result?.shareUrl) {
           getAnalytics().capture('story_published', {
@@ -763,7 +770,7 @@ export default function StoryViewerScreen() {
         }
       } catch (_) {}
     },
-    [parentReviewBlocksSharing, parentReviewStatus, storyId, story?.title, user?.pseudonym, publishStory, updateMe, t]
+    [isChildSession, parentReviewBlocksSharing, parentReviewStatus, storyId, story?.title, user?.pseudonym, publishStory, updateMe, t]
   );
 
   // Open PublishShareDialog (pre-publish or update visibility)
@@ -1696,7 +1703,9 @@ export default function StoryViewerScreen() {
         }}
         shareUrl={publishShareUrl}
         isLoading={publishStory.isPending}
-        userPseudonym={user?.pseudonym}
+        userPseudonym={isChildSession ? activeChild?.authorPseudonym : user?.pseudonym}
+        authorAboutMe={isChildSession ? activeChild?.authorAboutMe : null}
+        allowAuthorProfileEdit={isChildSession}
         onUnpublish={handleUnpublish}
         scenes={
           story?.scenes?.map((s: { image?: { url?: string }; imageUrl?: string | null }, i: number): ShareCardScene => ({

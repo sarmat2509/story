@@ -3,7 +3,6 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 export type RootStackParamList = {
   OAuthCallback: { provider: 'google' | 'apple' };
   ModeSelection: undefined;
-  ChildMode: undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   Admin: NavigatorScreenParams<AdminStackParamList> | undefined;
 };
@@ -42,6 +41,7 @@ export type MainDrawerParamList = {
   AuthorProfile: { authorId: string };
   UnlistedStory: { token: string };
   Children: undefined;
+  ChildDetail: { childId: string };
   Characters: undefined;
   Plans: undefined;
   Profile: undefined;

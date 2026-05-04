@@ -33,7 +33,8 @@ export default function DashboardScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
+  const { user, sessionMode, activeChild } = useAuthStore();
+  const isChildSession = sessionMode === 'child';
   const enterKey = useScreenEnter();
   const {
     data: storiesData,
@@ -62,15 +63,16 @@ export default function DashboardScreen() {
     isLoading: childrenLoading,
     error: childrenError,
     refetch: refetchChildren,
-  } = useChildren();
+  } = useChildren(!isChildSession);
 
   const stories = storiesData?.stories || [];
   const children = childrenData?.children ?? [];
   const canCreateMoreChildren = childrenData?.canCreateMore ?? true;
   const storiesCount = Number(storiesData?.pagination?.total) || 0;
   const childrenCount = children.length;
-  const isLoading = storiesLoading || childrenLoading;
-  const hasError = storiesError || childrenError;
+  const isLoading = storiesLoading || (!isChildSession && childrenLoading);
+  const hasError = storiesError || (!isChildSession && childrenError);
+  const greetingName = isChildSession ? activeChild?.name : user?.displayName;
 
   // Responsive columns: 2 on mobile, 3 on desktop
   const { width } = useWindowDimensions();
@@ -100,14 +102,16 @@ export default function DashboardScreen() {
         <Text style={styles.errorMessage}>
           {(storiesError as any)?.message || (childrenError as any)?.message || t('dashboard.error_message')}
         </Text>
-        <GradientButton
-          label={t('dashboard.retry')}
-          onPress={() => {
-            refetchStories();
-            refetchChildren();
-          }}
-          style={styles.retryButton}
-        />
+          <GradientButton
+            label={t('dashboard.retry')}
+            onPress={() => {
+              refetchStories();
+              if (!isChildSession) {
+                refetchChildren();
+              }
+            }}
+            style={styles.retryButton}
+          />
       </LinearGradient>
     );
   }
@@ -124,7 +128,7 @@ export default function DashboardScreen() {
         <AnimatedSection delay={0} trigger={enterKey}>
           <View style={styles.header}>
             <Text style={styles.greeting}>
-              {t('dashboard.welcome_back', { name: user?.displayName || 'User' })}
+              {t('dashboard.welcome_back', { name: greetingName || 'User' })}
             </Text>
             <Text style={styles.subtext}>
               {t('dashboard.tagline')}
@@ -155,33 +159,35 @@ export default function DashboardScreen() {
             />
           </View>
 
-          <View style={styles.statCard}>
-            <View style={styles.statMetrics}>
-              <Text style={styles.statNumber}>{childrenCount}</Text>
-              <Text style={styles.statLabel}>{t('dashboard.stats.children')}</Text>
+          {!isChildSession && (
+            <View style={styles.statCard}>
+              <View style={styles.statMetrics}>
+                <Text style={styles.statNumber}>{childrenCount}</Text>
+                <Text style={styles.statLabel}>{t('dashboard.stats.children')}</Text>
+              </View>
+              <GlassPrimaryButton
+                title={
+                  canCreateMoreChildren
+                    ? t('dashboard.actions.add_child')
+                    : t('dashboard.actions.view_profiles')
+                }
+                onPress={() => navigation.navigate('Children')}
+                accessibilityLabel={
+                  canCreateMoreChildren
+                    ? t('dashboard.actions.add_child')
+                    : t('dashboard.actions.view_profiles')
+                }
+                leading={
+                  <Ionicons
+                    name={canCreateMoreChildren ? 'person-add-outline' : 'people-outline'}
+                    size={22}
+                    color={theme.colors.primary[700]}
+                  />
+                }
+                style={styles.statCardCta}
+              />
             </View>
-            <GlassPrimaryButton
-              title={
-                canCreateMoreChildren
-                  ? t('dashboard.actions.add_child')
-                  : t('dashboard.actions.view_profiles')
-              }
-              onPress={() => navigation.navigate('Children')}
-              accessibilityLabel={
-                canCreateMoreChildren
-                  ? t('dashboard.actions.add_child')
-                  : t('dashboard.actions.view_profiles')
-              }
-              leading={
-                <Ionicons
-                  name={canCreateMoreChildren ? 'person-add-outline' : 'people-outline'}
-                  size={22}
-                  color={theme.colors.primary[700]}
-                />
-              }
-              style={styles.statCardCta}
-            />
-          </View>
+          )}
         </View>
         </AnimatedSection>
 

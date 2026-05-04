@@ -206,7 +206,11 @@ const BaseChildProfileSchema = z.object({
   aiGeneratedDescription: z.string().max(5000).optional(),
 
   // Language code of the description (from analysis or UI language)
-  descriptionLanguage: z.string().max(10).optional()
+  descriptionLanguage: z.string().max(10).optional(),
+
+  // Public child-author profile fields
+  authorPseudonym: z.string().max(100).nullable().optional(),
+  authorAboutMe: z.string().max(1000).nullable().optional()
 });
 
 export const CreateChildProfileSchema = BaseChildProfileSchema.refine(
@@ -218,7 +222,10 @@ export const CreateChildProfileSchema = BaseChildProfileSchema.refine(
 export const UpdateChildProfileSchema = BaseChildProfileSchema.omit({ referencePhotos: true }).partial();
 
 export const ChildModeSettingsSchema = z.object({
+  storyGenerationEnabled: z.boolean().optional(),
+  publicStoriesEnabled: z.boolean().optional(),
   dailyGenerationLimit: z.number().int().min(0).max(100).nullable().optional(),
+  dailyAudioGenerationLimit: z.number().int().min(0).max(100).nullable().optional(),
   monthlyGenerationLimit: z.number().int().min(0).max(1000).nullable().optional(),
   allowedThemeSlugs: z.array(z.string().min(1).max(80)).max(50).optional(),
   allowedLanguageCodes: z.array(LocaleSchema).max(10).optional(),
@@ -242,6 +249,7 @@ export const UpdateChildModeControlsSchema = z.object({
 const BaseCharacterSchema = z.object({
   name: z.string().min(1).max(100),
   type: z.enum(CHARACTER_TYPES),
+  childProfileId: z.string().uuid().nullable().optional(),
   subtype: z.string().optional(), // Will be refined in discriminated union
   
   // Reference photos (optional, not for imaginary)

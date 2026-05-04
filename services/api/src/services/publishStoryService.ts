@@ -66,6 +66,8 @@ export interface UnpublishStoryUpdate {
   publishedAt: null;
   publishedSlug: null;
   authorDisplayName: null;
+  authorType: 'user';
+  authorChildProfileId: null;
   visibility: null;
   shareToken: null;
   showOnHomePage?: false;
@@ -77,6 +79,8 @@ export function buildUnpublishStoryUpdate(story: { showOnHomePage?: boolean | nu
     publishedAt: null,
     publishedSlug: null,
     authorDisplayName: null,
+    authorType: 'user',
+    authorChildProfileId: null,
     visibility: null,
     shareToken: null,
     ...(story.showOnHomePage === true ? { showOnHomePage: false } : {}),
@@ -99,6 +103,9 @@ export async function publishStory(
   const story = await storyRepo.findByIdAndUser(storyId, userId);
   if (!story) return null;
   await assertStoryPublishSafety(story, visibility);
+  const authorUpdate = story.createdByMode === 'child' && story.createdByChildProfileId
+    ? { authorType: 'child' as const, authorChildProfileId: story.createdByChildProfileId }
+    : { authorType: 'user' as const, authorChildProfileId: null };
 
   const webAppUrl = config.web.webAppUrl.replace(/\/$/, '');
   const currentVisibility = story.visibility || (story.publishedSlug ? 'public' : 'unlisted');
@@ -135,6 +142,7 @@ export async function publishStory(
       publishedSlug: null,
       visibility: 'unlisted',
       shareToken: token,
+      ...authorUpdate,
       ...(shouldClearHomePageFlag ? { showOnHomePage: false } : {}),
       ...(shareCardSceneId != null && { shareCardSceneId }),
     });
@@ -169,6 +177,7 @@ export async function publishStory(
     publishedSlug: slug,
     visibility: 'public',
     shareToken: null,
+    ...authorUpdate,
     ...(shareCardSceneId != null && { shareCardSceneId }),
   });
   await storyRepo.incrementPublicRenderVersion(storyId);

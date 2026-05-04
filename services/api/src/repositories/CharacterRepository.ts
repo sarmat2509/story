@@ -2,14 +2,21 @@ import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
+export interface CharacterScopeOptions {
+  childProfileId?: string;
+}
+
 export class CharacterRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
-  async findByUserId(userId: string, type?: string): Promise<schema.Character[]> {
+  async findByUserId(userId: string, type?: string, options: CharacterScopeOptions = {}): Promise<schema.Character[]> {
     const conditions = [
       eq(schema.characters.userId, userId),
       eq(schema.characters.isActive, true),
     ];
+    if (options.childProfileId) {
+      conditions.push(eq(schema.characters.childProfileId, options.childProfileId));
+    }
     if (type) {
       conditions.push(eq(schema.characters.type, type));
     }
@@ -26,29 +33,37 @@ export class CharacterRepository {
       .where(eq(schema.characters.userId, userId));
   }
 
-  async findById(id: string, userId: string): Promise<schema.Character | null> {
+  async findById(id: string, userId: string, options: CharacterScopeOptions = {}): Promise<schema.Character | null> {
+    const conditions = [
+      eq(schema.characters.id, id),
+      eq(schema.characters.userId, userId),
+      eq(schema.characters.isActive, true),
+    ];
+    if (options.childProfileId) {
+      conditions.push(eq(schema.characters.childProfileId, options.childProfileId));
+    }
     const [character] = await this.db
       .select()
       .from(schema.characters)
-      .where(and(
-        eq(schema.characters.id, id),
-        eq(schema.characters.userId, userId),
-        eq(schema.characters.isActive, true)
-      ))
+      .where(and(...conditions))
       .limit(1);
     return character || null;
   }
 
-  async findByIds(userId: string, ids: string[]): Promise<schema.Character[]> {
+  async findByIds(userId: string, ids: string[], options: CharacterScopeOptions = {}): Promise<schema.Character[]> {
     if (ids.length === 0) return [];
+    const conditions = [
+      eq(schema.characters.userId, userId),
+      eq(schema.characters.isActive, true),
+      inArray(schema.characters.id, ids),
+    ];
+    if (options.childProfileId) {
+      conditions.push(eq(schema.characters.childProfileId, options.childProfileId));
+    }
     return this.db
       .select()
       .from(schema.characters)
-      .where(and(
-        eq(schema.characters.userId, userId),
-        eq(schema.characters.isActive, true),
-        inArray(schema.characters.id, ids)
-      ));
+      .where(and(...conditions));
   }
 
   async create(data: schema.NewCharacter): Promise<schema.Character> {

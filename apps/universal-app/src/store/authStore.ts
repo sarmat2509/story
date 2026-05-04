@@ -10,6 +10,8 @@ export type SessionMode = 'parent' | 'child';
 export type ActiveChildSession = {
   id: string;
   name: string;
+  authorPseudonym?: string | null;
+  authorAboutMe?: string | null;
   referencePhotos?: Array<{ url: string }>;
   turnaroundSheet?: { url: string; frontUrl?: string; generatedAt?: string };
   childMode?: {

@@ -51,7 +51,10 @@ interface Props {
 }
 
 interface ChildModeSettings {
+  storyGenerationEnabled: boolean;
+  publicStoriesEnabled: boolean;
   dailyGenerationLimit: number | null;
+  dailyAudioGenerationLimit: number | null;
   monthlyGenerationLimit: number | null;
   allowedThemeSlugs: string[];
   allowedLanguageCodes: string[];
@@ -73,6 +76,9 @@ interface ChildModeLabels {
   freeText: string;
   audio: string;
   review: string;
+  storyGeneration: string;
+  publicStories: string;
+  dailyAudioLimit: string;
   themes: string;
   languages: string;
   characters: string;
@@ -81,7 +87,6 @@ interface ChildModeLabels {
   anyLanguage: string;
   anyCharacter: string;
   noCharacters: string;
-  familyStories: string;
   passcode: string;
   passcodePlaceholder: string;
   passcodeConfigured: string;
@@ -101,14 +106,17 @@ interface ChildModeOption {
 }
 
 const DEFAULT_CHILD_MODE_SETTINGS: ChildModeSettings = {
+  storyGenerationEnabled: true,
+  publicStoriesEnabled: true,
   dailyGenerationLimit: null,
+  dailyAudioGenerationLimit: null,
   monthlyGenerationLimit: null,
   allowedThemeSlugs: [],
   allowedLanguageCodes: [],
   allowedCharacterIds: [],
-  freeTextPromptsEnabled: false,
-  audioGenerationEnabled: false,
-  parentReviewRequired: true,
+  freeTextPromptsEnabled: true,
+  audioGenerationEnabled: true,
+  parentReviewRequired: false,
   allowSiblingCharacters: false,
   allowSharedFamilyStories: false,
 };
@@ -460,7 +468,29 @@ export function ChildCard({
                 onCommit={(monthlyGenerationLimit) => onChildModeSettingsChange?.(child.id, { monthlyGenerationLimit })}
               />
             </View>
+            <View style={styles.limitRow}>
+              <LimitInput
+                label={labels.dailyAudioLimit}
+                nativeID={`child-mode-${child.id}-daily-audio-limit`}
+                value={childModeSettings.dailyAudioGenerationLimit}
+                placeholder={labels.noLimit}
+                disabled={controlsDisabled}
+                onCommit={(dailyAudioGenerationLimit) => onChildModeSettingsChange?.(child.id, { dailyAudioGenerationLimit })}
+              />
+            </View>
 
+            <SettingSwitch
+              label={labels.storyGeneration}
+              value={childModeSettings.storyGenerationEnabled}
+              disabled={controlsDisabled}
+              onValueChange={(storyGenerationEnabled) => onChildModeSettingsChange?.(child.id, { storyGenerationEnabled })}
+            />
+            <SettingSwitch
+              label={labels.publicStories}
+              value={childModeSettings.publicStoriesEnabled}
+              disabled={controlsDisabled}
+              onValueChange={(publicStoriesEnabled) => onChildModeSettingsChange?.(child.id, { publicStoriesEnabled })}
+            />
             <SettingSwitch
               label={labels.freeText}
               value={childModeSettings.freeTextPromptsEnabled}
@@ -509,12 +539,6 @@ export function ChildCard({
               value={childModeSettings.allowSiblingCharacters}
               disabled={controlsDisabled}
               onValueChange={(allowSiblingCharacters) => onChildModeSettingsChange?.(child.id, { allowSiblingCharacters })}
-            />
-            <SettingSwitch
-              label={labels.familyStories}
-              value={childModeSettings.allowSharedFamilyStories}
-              disabled={controlsDisabled}
-              onValueChange={(allowSharedFamilyStories) => onChildModeSettingsChange?.(child.id, { allowSharedFamilyStories })}
             />
 
             <View style={styles.sessionsRow}>

@@ -29,6 +29,13 @@ function buildReadingTimeMinutesSql() {
   `;
 }
 
+function buildPublicAuthorCondition(authorId: string) {
+  return or(
+    and(eq(schema.stories.authorType, 'child'), eq(schema.stories.authorChildProfileId, authorId)),
+    and(eq(schema.stories.authorType, 'user'), eq(schema.stories.userId, authorId))
+  )!;
+}
+
 export class StoryRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
@@ -134,7 +141,7 @@ export class StoryRepository {
       conditions.push(eq(schema.stories.ageGroup, ageGroup));
     }
     if (authorId) {
-      conditions.push(eq(schema.stories.userId, authorId));
+      conditions.push(buildPublicAuthorCondition(authorId));
     }
     const readingTimeMinutesExpr = buildReadingTimeMinutesSql();
     if (typeof readingTimeMin === 'number') {
@@ -190,7 +197,7 @@ export class StoryRepository {
       conditions.push(eq(schema.stories.ageGroup, ageGroup));
     }
     if (authorId) {
-      conditions.push(eq(schema.stories.userId, authorId));
+      conditions.push(buildPublicAuthorCondition(authorId));
     }
     const readingTimeMinutesExpr = buildReadingTimeMinutesSql();
     if (typeof readingTimeMin === 'number') {

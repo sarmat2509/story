@@ -103,8 +103,8 @@ void (async function main() {
       audioGenerationEnabled: true,
       allowSharedFamilyStories: true,
     }),
-    ['child_mode', 'story:free_text', 'story:audio', 'family_stories:read'],
-    'child session scopes reflect enabled controls'
+    ['child_mode', 'story:free_text', 'story:audio'],
+    'child session scopes reflect enabled creation controls without sibling-story reads'
   );
 
   console.log('childModeControlsService tests passed');
