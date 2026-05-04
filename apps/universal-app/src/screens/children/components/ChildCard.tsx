@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   Pressable,
   Platform,
   Switch,
-  TextInput,
   type ImageStyle,
   type TextStyle,
   type ViewStyle,
@@ -98,6 +97,9 @@ interface ChildModeLabels {
   start: string;
   starting: string;
   enableToStart: string;
+  limitMax: string;
+  limitAvailable: string;
+  limitReserved: string;
 }
 
 interface ChildModeOption {
@@ -108,9 +110,16 @@ interface ChildModeOption {
 
 interface ChildModeLimitHints {
   dailyStoryHelper?: string;
+  dailyStoryMaxValue?: number | null;
+  dailyStoryTotalValue?: number | null;
+  dailyStoryReservedValue?: number | null;
   monthlyStoryHelper?: string;
   dailyAudioHelper?: string;
   monthlyStoryMaxValue?: number | null;
+  monthlyStoryTotalValue?: number | null;
+  monthlyStoryReservedValue?: number | null;
+  dailyAudioMaxValue?: number | null;
+  dailyAudioTotalValue?: number | null;
 }
 
 const DEFAULT_CHILD_MODE_SETTINGS: ChildModeSettings = {
@@ -140,66 +149,138 @@ function normalizeChildModeSettings(settings?: Partial<ChildModeSettings>): Chil
   };
 }
 
-function LimitInput({
+function formatCountTemplate(template: string, count: number) {
+  return template.replace('{{count}}', String(count));
+}
+
+function getSafeLimit(value: number | null | undefined, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? Math.floor(value)
+    : fallback;
+}
+
+function LimitSlider({
   label,
   nativeID,
   value,
-  placeholder,
+  unsetLabel,
   helperText,
   maxValue,
+  totalValue,
+  reservedValue,
+  labels,
+  defaultMax,
   disabled,
   onCommit,
 }: {
   label: string;
   nativeID: string;
   value: number | null;
-  placeholder: string;
+  unsetLabel: string;
   helperText?: string;
   maxValue?: number | null;
+  totalValue?: number | null;
+  reservedValue?: number | null;
+  labels: Pick<ChildModeLabels, 'limitAvailable' | 'limitMax' | 'limitReserved'>;
+  defaultMax: number;
   disabled?: boolean;
   onCommit: (value: number | null) => void;
 }) {
-  const [draft, setDraft] = useState(value === null ? '' : String(value));
+  const sliderRef = useRef<View>(null);
+  const totalMax = Math.max(1, getSafeLimit(totalValue, getSafeLimit(maxValue, defaultMax)));
+  const availableMax = Math.max(0, Math.min(totalMax, getSafeLimit(maxValue, totalMax)));
+  const reserved = Math.max(0, getSafeLimit(reservedValue, Math.max(0, totalMax - availableMax)));
+  const effectiveValue = value === null
+    ? availableMax
+    : Math.max(0, Math.min(availableMax, value));
+  const selectedPercent = totalMax > 0 ? (effectiveValue / totalMax) * 100 : 0;
+  const availablePercent = totalMax > 0 ? (availableMax / totalMax) * 100 : 0;
+  const isUnset = value === null;
+  const valueLabel = isUnset ? unsetLabel : String(effectiveValue);
 
-  useEffect(() => {
-    setDraft(value === null ? '' : String(value));
-  }, [value]);
+  const commitFromLocation = useCallback((event: any) => {
+    if (disabled) return;
+    const nativeEvent = event.nativeEvent;
+    const locationX =
+      typeof nativeEvent.locationX === 'number'
+        ? nativeEvent.locationX
+        : typeof nativeEvent.offsetX === 'number'
+          ? nativeEvent.offsetX
+          : undefined;
+    if (typeof locationX !== 'number' || !Number.isFinite(locationX)) return;
 
-  const commit = () => {
-    const trimmed = draft.trim();
-    if (!trimmed) {
-      onCommit(null);
-      return;
-    }
-    const parsed = Number.parseInt(trimmed, 10);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      onCommit(value);
-      return;
-    }
-
-    const capped = typeof maxValue === 'number' ? Math.min(parsed, maxValue) : parsed;
-    if (capped !== parsed) {
-      setDraft(String(capped));
-    }
-    onCommit(capped);
-  };
+    sliderRef.current?.measure((_x, _y, width) => {
+      if (!width || width <= 0) return;
+      const ratio = Math.max(0, Math.min(1, locationX / width));
+      const nextValue = Math.min(availableMax, Math.round(ratio * totalMax));
+      onCommit(nextValue);
+    });
+  }, [availableMax, disabled, onCommit, totalMax]);
 
   return (
     <View style={styles.limitField}>
-      <Text style={styles.limitLabel} numberOfLines={2}>{label}</Text>
-      <TextInput
+      <View style={styles.limitHeaderRow}>
+        <Text style={styles.limitLabel} numberOfLines={2}>{label}</Text>
+        <View style={[styles.limitValueBadge, isUnset && styles.limitValueBadgeUnset]}>
+          <Text style={[styles.limitValueText, isUnset && styles.limitValueTextUnset]} numberOfLines={1}>
+            {valueLabel}
+          </Text>
+        </View>
+      </View>
+      <Pressable
         nativeID={nativeID}
-        style={[styles.limitInput, disabled && styles.controlDisabled]}
-        value={draft}
-        placeholder={placeholder}
-        placeholderTextColor={theme.colors.text.tertiary}
-        keyboardType="number-pad"
-        editable={!disabled}
-        maxLength={4}
-        onChangeText={(next) => setDraft(next.replace(/[^0-9]/g, ''))}
-        onBlur={commit}
-        onSubmitEditing={commit}
-      />
+        ref={sliderRef}
+        accessibilityRole="adjustable"
+        accessibilityLabel={label}
+        accessibilityValue={{ min: 0, max: totalMax, now: effectiveValue, text: valueLabel }}
+        disabled={disabled}
+        onPress={commitFromLocation}
+        style={({ pressed }) => [
+          styles.limitSliderTapArea,
+          pressed && !disabled && styles.limitSliderPressed,
+          disabled && styles.controlDisabled,
+        ]}
+      >
+        <View style={styles.limitSliderTrack}>
+          <View style={[styles.limitSliderAvailable, { width: `${availablePercent}%` }]} />
+          <View style={[styles.limitSliderFill, { width: `${selectedPercent}%` }]} />
+          {availableMax < totalMax ? (
+            <View style={[styles.limitSliderUnavailable, { left: `${availablePercent}%` }]} />
+          ) : null}
+          <View style={[styles.limitSliderThumb, { left: `${selectedPercent}%` }]} />
+        </View>
+      </Pressable>
+      <View style={styles.limitScaleRow}>
+        <Text style={styles.limitScaleText}>0</Text>
+        <Text style={styles.limitScaleText}>
+          {formatCountTemplate(labels.limitMax, totalMax)}
+        </Text>
+      </View>
+      <View style={styles.limitBudgetRow}>
+        <Text style={styles.limitBudgetText} numberOfLines={1}>
+          {formatCountTemplate(labels.limitAvailable, availableMax)}
+        </Text>
+        {reserved > 0 ? (
+          <Text style={styles.limitBudgetText} numberOfLines={1}>
+            {formatCountTemplate(labels.limitReserved, reserved)}
+          </Text>
+        ) : null}
+      </View>
+      {!isUnset ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.limitUnsetButton,
+            pressed && !disabled && styles.limitUnsetButtonPressed,
+            disabled && styles.controlDisabled,
+          ]}
+          disabled={disabled}
+          onPress={() => onCommit(null)}
+        >
+          <Text style={styles.limitUnsetButtonText} numberOfLines={1}>
+            {unsetLabel}
+          </Text>
+        </Pressable>
+      ) : null}
       {helperText ? (
         <Text style={styles.limitHelper} numberOfLines={5}>{helperText}</Text>
       ) : null}
@@ -440,33 +521,46 @@ export function ChildCard({
             </Pressable>
 
             <View style={styles.limitRow}>
-              <LimitInput
+              <LimitSlider
                 label={labels.dailyLimit}
                 nativeID={`child-mode-${child.id}-daily-limit`}
                 value={childModeSettings.dailyGenerationLimit}
-                placeholder={labels.noLimit}
+                unsetLabel={labels.noLimit}
                 helperText={childModeLimitHints?.dailyStoryHelper}
+                maxValue={childModeLimitHints?.dailyStoryMaxValue}
+                totalValue={childModeLimitHints?.dailyStoryTotalValue}
+                reservedValue={childModeLimitHints?.dailyStoryReservedValue}
+                labels={labels}
+                defaultMax={100}
                 disabled={controlsDisabled}
                 onCommit={(dailyGenerationLimit) => onChildModeSettingsChange?.(child.id, { dailyGenerationLimit })}
               />
-              <LimitInput
+              <LimitSlider
                 label={labels.monthlyLimit}
                 nativeID={`child-mode-${child.id}-monthly-limit`}
                 value={childModeSettings.monthlyGenerationLimit}
-                placeholder={labels.noLimit}
+                unsetLabel={labels.noLimit}
                 helperText={childModeLimitHints?.monthlyStoryHelper}
                 maxValue={childModeLimitHints?.monthlyStoryMaxValue}
+                totalValue={childModeLimitHints?.monthlyStoryTotalValue}
+                reservedValue={childModeLimitHints?.monthlyStoryReservedValue}
+                labels={labels}
+                defaultMax={1000}
                 disabled={controlsDisabled}
                 onCommit={(monthlyGenerationLimit) => onChildModeSettingsChange?.(child.id, { monthlyGenerationLimit })}
               />
             </View>
             <View style={styles.limitRow}>
-              <LimitInput
+              <LimitSlider
                 label={labels.dailyAudioLimit}
                 nativeID={`child-mode-${child.id}-daily-audio-limit`}
                 value={childModeSettings.dailyAudioGenerationLimit}
-                placeholder={labels.noLimit}
+                unsetLabel={labels.noLimit}
                 helperText={childModeLimitHints?.dailyAudioHelper}
+                maxValue={childModeLimitHints?.dailyAudioMaxValue}
+                totalValue={childModeLimitHints?.dailyAudioTotalValue}
+                labels={labels}
+                defaultMax={100}
                 disabled={controlsDisabled}
                 onCommit={(dailyAudioGenerationLimit) => onChildModeSettingsChange?.(child.id, { dailyAudioGenerationLimit })}
               />
@@ -606,8 +700,26 @@ const styles = StyleSheet.create<{
   startChildModeButtonText: TextStyle;
   limitRow: ViewStyle;
   limitField: ViewStyle;
+  limitHeaderRow: ViewStyle;
   limitLabel: TextStyle;
-  limitInput: TextStyle;
+  limitValueBadge: ViewStyle;
+  limitValueBadgeUnset: ViewStyle;
+  limitValueText: TextStyle;
+  limitValueTextUnset: TextStyle;
+  limitSliderTapArea: ViewStyle;
+  limitSliderPressed: ViewStyle;
+  limitSliderTrack: ViewStyle;
+  limitSliderAvailable: ViewStyle;
+  limitSliderFill: ViewStyle;
+  limitSliderUnavailable: ViewStyle;
+  limitSliderThumb: ViewStyle;
+  limitScaleRow: ViewStyle;
+  limitScaleText: TextStyle;
+  limitBudgetRow: ViewStyle;
+  limitBudgetText: TextStyle;
+  limitUnsetButton: ViewStyle;
+  limitUnsetButtonPressed: ViewStyle;
+  limitUnsetButtonText: TextStyle;
   limitHelper: TextStyle;
   controlDisabled: ViewStyle | TextStyle;
   settingRow: ViewStyle;
@@ -743,24 +855,145 @@ const styles = StyleSheet.create<{
   limitField: {
     flex: 1,
     minWidth: 220,
-    gap: theme.spacing[2],
+    gap: theme.spacing[3],
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.neutral[50],
+    padding: theme.spacing[3],
+  },
+  limitHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: theme.spacing[3],
   },
   limitLabel: {
+    flex: 1,
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.text.primary,
   },
-  limitInput: {
-    minHeight: 52,
+  limitValueBadge: {
+    maxWidth: 180,
+    minHeight: 30,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.interactive.primary,
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.interactive.primary,
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[1],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  limitValueBadgeUnset: {
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.primary,
+  },
+  limitValueText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
+  },
+  limitValueTextUnset: {
+    color: theme.colors.text.secondary,
+  },
+  limitSliderTapArea: {
+    minHeight: 34,
+    justifyContent: 'center',
+    outlineStyle: 'none' as any,
+  },
+  limitSliderPressed: {
+    opacity: 0.8,
+  },
+  limitSliderTrack: {
+    height: 10,
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.neutral[200],
+    position: 'relative',
+  },
+  limitSliderAvailable: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.primary[100],
+  },
+  limitSliderFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  limitSliderUnavailable: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    backgroundColor: theme.colors.neutral[300],
+  },
+  limitSliderThumb: {
+    position: 'absolute',
+    top: -5,
+    width: 20,
+    height: 20,
+    marginLeft: -10,
+    borderRadius: theme.borders.radius.full,
+    borderWidth: 3,
+    borderColor: theme.colors.background.primary,
+    backgroundColor: theme.colors.interactive.primary,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 3px 8px rgba(35, 12, 20, 0.2)' as unknown as string,
+      },
+      android: { elevation: 2 },
+      ios: {
+        shadowColor: theme.colors.primary[900],
+        shadowOpacity: 0.2,
+        shadowRadius: 5,
+        shadowOffset: { width: 0, height: 2 },
+      },
+    }),
+  },
+  limitScaleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: theme.spacing[3],
+  },
+  limitScaleText: {
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.tertiary,
+  },
+  limitBudgetRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[2],
+  },
+  limitBudgetText: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.medium,
+    color: theme.colors.text.secondary,
+  },
+  limitUnsetButton: {
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
-    borderRadius: theme.borders.radius.md,
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.background.primary,
     paddingHorizontal: theme.spacing[3],
-    paddingVertical: theme.spacing[3],
-    fontSize: theme.typography.fontSize.base,
-    color: theme.colors.text.primary,
-    backgroundColor: theme.colors.neutral[50],
-    outlineStyle: 'none' as any,
+  },
+  limitUnsetButtonPressed: {
+    opacity: 0.75,
+  },
+  limitUnsetButtonText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
   },
   limitHelper: {
     fontSize: theme.typography.fontSize.xs,

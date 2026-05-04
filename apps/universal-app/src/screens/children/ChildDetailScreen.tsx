@@ -111,6 +111,9 @@ export default function ChildDetailScreen() {
     start: t('children_screen.child_mode_start'),
     starting: t('children_screen.child_mode_starting'),
     enableToStart: t('children_screen.child_mode_enable_to_start'),
+    limitMax: t('children_screen.child_mode_limit_max', { defaultValue: 'Max {{count}}' }),
+    limitAvailable: t('children_screen.child_mode_limit_available', { defaultValue: 'Available {{count}}' }),
+    limitReserved: t('children_screen.child_mode_limit_reserved', { defaultValue: 'Other children {{count}}' }),
   };
 
   const themeOptions = useMemo(
@@ -205,6 +208,8 @@ export default function ChildDetailScreen() {
     }, 0);
   const monthlyStoryMaxForChild =
     storyMonthlyLimit === null ? null : Math.max(0, storyMonthlyLimit - otherChildrenMonthlyStoryLimit);
+  const dailyStoryMaxForChild = monthlyStoryMaxForChild;
+  const dailyAudioMaxForChild = audioMonthlyLimit;
   const dailyStoryHelper = t('children_screen.child_mode_daily_story_limit_hint', {
     defaultValue: 'Empty means no daily child limit. The account monthly limit still applies.',
   });
@@ -247,6 +252,24 @@ export default function ChildDetailScreen() {
       nextSettings.monthlyGenerationLimit = Math.min(
         nextSettings.monthlyGenerationLimit,
         monthlyStoryMaxForChild
+      );
+    }
+    if (
+      typeof dailyStoryMaxForChild === 'number' &&
+      typeof nextSettings.dailyGenerationLimit === 'number'
+    ) {
+      nextSettings.dailyGenerationLimit = Math.min(
+        nextSettings.dailyGenerationLimit,
+        dailyStoryMaxForChild
+      );
+    }
+    if (
+      typeof dailyAudioMaxForChild === 'number' &&
+      typeof nextSettings.dailyAudioGenerationLimit === 'number'
+    ) {
+      nextSettings.dailyAudioGenerationLimit = Math.min(
+        nextSettings.dailyAudioGenerationLimit,
+        dailyAudioMaxForChild
       );
     }
 
@@ -359,9 +382,16 @@ export default function ChildDetailScreen() {
               childModeCharacterOptions={characterOptions}
               childModeLimitHints={{
                 dailyStoryHelper,
+                dailyStoryMaxValue: dailyStoryMaxForChild,
+                dailyStoryTotalValue: storyMonthlyLimit,
+                dailyStoryReservedValue: otherChildrenMonthlyStoryLimit,
                 monthlyStoryHelper,
+                monthlyStoryTotalValue: storyMonthlyLimit,
+                monthlyStoryReservedValue: otherChildrenMonthlyStoryLimit,
                 dailyAudioHelper,
                 monthlyStoryMaxValue: monthlyStoryMaxForChild,
+                dailyAudioMaxValue: dailyAudioMaxForChild,
+                dailyAudioTotalValue: audioMonthlyLimit,
               }}
               showProfileSummary={false}
               onChildModeEnabledChange={handleChildModeEnabledChange}
