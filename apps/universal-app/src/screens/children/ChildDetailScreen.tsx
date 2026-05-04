@@ -69,6 +69,10 @@ export default function ChildDetailScreen() {
     title: t('children_screen.child_mode_title'),
     enabled: t('children_screen.child_mode_enabled'),
     disabled: t('children_screen.child_mode_disabled'),
+    accessAllowed: t('children_screen.child_mode_access_allowed', { defaultValue: 'Access allowed' }),
+    accessDisabled: t('children_screen.child_mode_access_disabled', { defaultValue: 'Access off' }),
+    readyToStart: t('children_screen.child_mode_ready_to_start', { defaultValue: 'Ready to start' }),
+    passwordNeeded: t('children_screen.child_mode_password_needed', { defaultValue: 'Password needed' }),
     dailyLimit: t('children_screen.child_mode_daily_limit'),
     monthlyLimit: t('children_screen.child_mode_monthly_limit'),
     dailyAudioLimit: t('children_screen.child_mode_daily_audio_limit', { defaultValue: 'Daily audio limit' }),
@@ -178,6 +182,13 @@ export default function ChildDetailScreen() {
     childCardData.turnaroundSheet?.url ||
     childCardData.referencePhotos?.[0]?.url ||
     null;
+  const childModeReadyToStart = childCardData.childModeEnabled === true && childCardData.childModePasscodeConfigured === true;
+  const childModeNeedsPassword = childCardData.childModeEnabled === true && childCardData.childModePasscodeConfigured !== true;
+  const childModeHeaderStatus = childModeReadyToStart
+    ? labels.readyToStart
+    : childModeNeedsPassword
+      ? labels.passwordNeeded
+      : labels.accessDisabled;
 
   return (
     <View style={styles.container}>
@@ -207,18 +218,19 @@ export default function ChildDetailScreen() {
         </View>
         <View style={[
           styles.statusPill,
-          childCardData.childModeEnabled ? styles.statusPillEnabled : styles.statusPillDisabled,
+          childModeReadyToStart ? styles.statusPillEnabled : childModeNeedsPassword ? styles.statusPillWarning : styles.statusPillDisabled,
         ]}>
           <Ionicons
-            name={childCardData.childModeEnabled ? 'shield-checkmark' : 'shield-outline'}
+            name={childModeReadyToStart ? 'shield-checkmark' : childModeNeedsPassword ? 'key-outline' : 'shield-outline'}
             size={16}
-            color={childCardData.childModeEnabled ? theme.colors.status.success : theme.colors.text.tertiary}
+            color={childModeReadyToStart ? theme.colors.status.success : childModeNeedsPassword ? theme.colors.interactive.primary : theme.colors.text.tertiary}
           />
           <Text style={[
             styles.statusPillText,
-            childCardData.childModeEnabled && styles.statusPillTextEnabled,
+            childModeReadyToStart && styles.statusPillTextEnabled,
+            childModeNeedsPassword && styles.statusPillTextWarning,
           ]}>
-            {childCardData.childModeEnabled ? labels.enabled : labels.disabled}
+            {childModeHeaderStatus}
           </Text>
         </View>
       </View>
@@ -413,6 +425,10 @@ const styles = StyleSheet.create({
   statusPillDisabled: {
     backgroundColor: theme.colors.neutral[50],
   },
+  statusPillWarning: {
+    backgroundColor: `${theme.colors.interactive.primary}12`,
+    borderColor: theme.colors.interactive.primary,
+  },
   statusPillText: {
     color: theme.colors.text.secondary,
     fontSize: theme.typography.fontSize.sm,
@@ -420,6 +436,9 @@ const styles = StyleSheet.create({
   },
   statusPillTextEnabled: {
     color: theme.colors.success[600],
+  },
+  statusPillTextWarning: {
+    color: theme.colors.interactive.primary,
   },
   tabBar: {
     flexDirection: 'row',

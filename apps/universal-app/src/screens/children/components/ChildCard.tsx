@@ -70,6 +70,10 @@ interface ChildModeLabels {
   title: string;
   enabled: string;
   disabled: string;
+  accessAllowed: string;
+  accessDisabled: string;
+  readyToStart: string;
+  passwordNeeded: string;
   dailyLimit: string;
   monthlyLimit: string;
   noLimit: string;
@@ -327,6 +331,13 @@ export function ChildCard({
   const controlsDisabled = isChildModeUpdating || !onChildModeSettingsChange;
   const labels = childModeLabels;
   const childModeSwitchDisabled = isChildModeUpdating || !onChildModeEnabledChange;
+  const childModeStatusText = labels
+    ? !childModeEnabled
+      ? labels.accessDisabled
+      : childModePasscodeConfigured
+        ? labels.readyToStart
+        : `${labels.accessAllowed} · ${labels.passwordNeeded}`
+    : '';
 
   return (
     <View style={styles.cardWrapper}>
@@ -378,9 +389,7 @@ export function ChildCard({
             </View>
 
             <Text style={styles.childModeStatus} numberOfLines={1}>
-              {childModeEnabled
-                ? childModePasscodeConfigured ? labels.enabled : `${labels.enabled} · ${labels.setPasscodeToStart}`
-                : labels.disabled}
+              {childModeStatusText}
             </Text>
 
             <Pressable
