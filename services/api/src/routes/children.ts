@@ -260,12 +260,14 @@ router.get('/', requireAuth, requireParentSession, async (req, res) => {
     const childModeSessionCounts = await childModeControlsService.getChildModeSessionCounts(
       profiles.map((profile) => profile.id)
     );
+    const childModeExitPasscode = await childModeControlsService.getChildModeExitPasscodeStatus(userId);
     
     const profilesWithAge = profiles.map(profile => {
       const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
       const childModeControls = childModeControlsService.buildChildModeControls(
         profile,
-        childModeSessionCounts.get(profile.id) || 0
+        childModeSessionCounts.get(profile.id) || 0,
+        childModeExitPasscode.configured
       );
       const safeProfile = toSafeChildProfile(profile);
       return {

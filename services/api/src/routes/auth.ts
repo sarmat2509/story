@@ -868,7 +868,7 @@ router.post('/parent-gate/apple-token', requireAuth, requireChildSession, (_req:
   return sendPasscodeParentGateRequired(res);
 });
 
-// Parent gate: child session -> parent session via the per-child Child Mode exit passcode.
+// Parent gate: child session -> parent session via the account-level Child Mode exit passcode.
 router.post('/parent-gate', requireAuth, requireChildSession, async (req: Request, res: Response) => {
   try {
     if (!req.user || !req.sessionId || !req.childProfileId) {

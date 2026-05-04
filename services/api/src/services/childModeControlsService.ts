@@ -1,6 +1,6 @@
 import type { ChildModeSettingsInput } from '@wondertales/shared';
-import type { ChildProfile } from '../db/schema';
-import { getChildProfileRepository, getSessionRepository } from '../repositories';
+import type { ChildProfile, User } from '../db/schema';
+import { getChildProfileRepository, getSessionRepository, getUserRepository } from '../repositories';
 import { createSession, getChildSessionActiveAfter, type SessionData } from './sessionService';
 import { hashPassword, verifyPassword } from './passwordService';
 import { logger } from '../utils/logger';
@@ -24,8 +24,19 @@ export interface ChildModeSettings {
 export interface ChildModeControls {
   childModeEnabled: boolean;
   childModeSettings: ChildModeSettings;
+  /** Parent account-level exit passcode status. The legacy field name is kept for API compatibility. */
   childModePasscodeConfigured: boolean;
   activeSessionCount: number;
+}
+
+export interface ChildModeExitPasscodeStatus {
+  configured: boolean;
+  setAt: Date | null;
+}
+
+export interface UpdateChildModeExitPasscodeResult {
+  user: User;
+  childModeExitPasscode: ChildModeExitPasscodeStatus;
 }
 
 export interface CreateChildModeSessionInput {
@@ -161,14 +172,24 @@ export function mergeChildModeSettings(
 }
 
 export function buildChildModeControls(
-  profile: Pick<ChildProfile, 'childModeEnabled' | 'childModeSettings' | 'childModePasscodeHash'>,
-  activeSessionCount = 0
+  profile: Pick<ChildProfile, 'childModeEnabled' | 'childModeSettings'>,
+  activeSessionCount = 0,
+  childModePasscodeConfigured = false
 ): ChildModeControls {
   return {
     childModeEnabled: profile.childModeEnabled === true,
     childModeSettings: normalizeChildModeSettings(profile.childModeSettings),
-    childModePasscodeConfigured: Boolean(profile.childModePasscodeHash),
+    childModePasscodeConfigured,
     activeSessionCount,
+  };
+}
+
+export function buildChildModeExitPasscodeStatus(
+  user: Pick<User, 'childModeExitPasscodeHash' | 'childModeExitPasscodeSetAt'> | null
+): ChildModeExitPasscodeStatus {
+  return {
+    configured: Boolean(user?.childModeExitPasscodeHash),
+    setAt: user?.childModeExitPasscodeSetAt ?? null,
   };
 }
 
@@ -193,7 +214,12 @@ export async function getChildModeControls(
 ): Promise<ChildModeControls> {
   const profile = await requireOwnedChildProfile(userId, childProfileId);
   const counts = await getChildModeSessionCounts([childProfileId]);
-  return buildChildModeControls(profile, counts.get(childProfileId) || 0);
+  const passcodeStatus = await getChildModeExitPasscodeStatus(userId);
+  return buildChildModeControls(
+    profile,
+    counts.get(childProfileId) || 0,
+    passcodeStatus.configured
+  );
 }
 
 export async function getChildModeSessionCounts(childProfileIds: string[]): Promise<Map<string, number>> {
@@ -209,37 +235,14 @@ export async function updateChildModeControls(
   input: {
     childModeEnabled?: boolean;
     childModeSettings?: ChildModeSettingsInput;
-    childModePasscode?: string;
   }
 ): Promise<ChildModeControls> {
   const profile = await requireOwnedChildProfile(userId, childProfileId);
   const nextSettings = mergeChildModeSettings(profile.childModeSettings, input.childModeSettings);
-  const passcode = input.childModePasscode?.trim();
-  if (passcode !== undefined && (passcode.length < 4 || passcode.length > 128)) {
-    throw new ChildModePasscodeError(
-      'Child Mode exit passcode must be between 4 and 128 characters',
-      'CHILD_MODE_PASSCODE_REQUIRED',
-      400
-    );
-  }
-  const nextPasscodeHash = passcode ? await hashPassword(passcode) : undefined;
   const nextEnabled = input.childModeEnabled ?? profile.childModeEnabled;
-  if (nextEnabled && !profile.childModePasscodeHash && !nextPasscodeHash) {
-    throw new ChildModePasscodeError(
-      'Child Mode exit passcode is required before enabling Child Mode',
-      'CHILD_MODE_PASSCODE_REQUIRED',
-      400
-    );
-  }
 
   const updated = await getChildProfileRepository().update(childProfileId, userId, {
     childModeEnabled: nextEnabled,
-    ...(nextPasscodeHash
-      ? {
-          childModePasscodeHash: nextPasscodeHash,
-          childModePasscodeSetAt: new Date(),
-        }
-      : {}),
     childModeSettings: nextSettings,
     updatedAt: new Date(),
   });
@@ -258,7 +261,8 @@ export async function createChildModeSession(input: CreateChildModeSessionInput)
   session: SessionData;
 }> {
   const profile = await requireOwnedChildProfile(input.userId, input.childProfileId);
-  const controls = buildChildModeControls(profile);
+  const passcodeStatus = await getChildModeExitPasscodeStatus(input.userId);
+  const controls = buildChildModeControls(profile, 0, passcodeStatus.configured);
 
   if (!controls.childModeEnabled) {
     throw new ChildModeError('Child Mode is not enabled for this child', 'CHILD_MODE_DISABLED', 403);
@@ -298,8 +302,9 @@ export async function verifyChildModePasscode(
   childProfileId: string,
   passcode: string
 ): Promise<void> {
-  const profile = await requireOwnedChildProfile(userId, childProfileId);
-  if (!profile.childModePasscodeHash) {
+  await requireOwnedChildProfile(userId, childProfileId);
+  const user = await getUserRepository().findById(userId);
+  if (!user?.childModeExitPasscodeHash) {
     throw new ChildModePasscodeError(
       'Child Mode exit passcode is not configured',
       'CHILD_MODE_PASSCODE_NOT_CONFIGURED',
@@ -307,7 +312,7 @@ export async function verifyChildModePasscode(
     );
   }
 
-  const valid = await verifyPassword(passcode, profile.childModePasscodeHash);
+  const valid = await verifyPassword(passcode, user.childModeExitPasscodeHash);
   if (!valid) {
     throw new ChildModePasscodeError(
       'Child Mode passcode is invalid',
@@ -315,6 +320,70 @@ export async function verifyChildModePasscode(
       401
     );
   }
+}
+
+export async function getChildModeExitPasscodeStatus(userId: string): Promise<ChildModeExitPasscodeStatus> {
+  const user = await getUserRepository().findById(userId);
+  return buildChildModeExitPasscodeStatus(user);
+}
+
+export async function updateChildModeExitPasscode(
+  userId: string,
+  input: {
+    oldPasscode?: string;
+    newPasscode: string;
+  }
+): Promise<UpdateChildModeExitPasscodeResult> {
+  const user = await getUserRepository().findById(userId);
+  const newPasscode = input.newPasscode.trim();
+
+  if (!user) {
+    throw new ChildModePasscodeError(
+      'Parent account was not found',
+      'CHILD_MODE_PASSCODE_NOT_CONFIGURED',
+      404
+    );
+  }
+
+  if (newPasscode.length < 4 || newPasscode.length > 128) {
+    throw new ChildModePasscodeError(
+      'Child Mode exit passcode must be between 4 and 128 characters',
+      'CHILD_MODE_PASSCODE_REQUIRED',
+      400
+    );
+  }
+
+  if (user.childModeExitPasscodeHash) {
+    const oldPasscode = input.oldPasscode?.trim();
+    if (!oldPasscode) {
+      throw new ChildModePasscodeError(
+        'Current Child Mode exit passcode is required',
+        'CHILD_MODE_PASSCODE_REQUIRED',
+        400
+      );
+    }
+
+    const oldPasscodeValid = await verifyPassword(oldPasscode, user.childModeExitPasscodeHash);
+    if (!oldPasscodeValid) {
+      throw new ChildModePasscodeError(
+        'Current Child Mode exit passcode is invalid',
+        'CHILD_MODE_PASSCODE_INVALID',
+        401
+      );
+    }
+  }
+
+  const updatedUser = await getUserRepository().update(userId, {
+    childModeExitPasscodeHash: await hashPassword(newPasscode),
+    childModeExitPasscodeSetAt: new Date(),
+  });
+
+  logger.info({ userId }, 'Updated account-level Child Mode exit passcode');
+
+  return {
+    user: updatedUser,
+    childModeExitPasscode: buildChildModeExitPasscodeStatus(updatedUser),
+  };
 }
 
 export async function revokeChildModeSessions(userId: string, childProfileId: string): Promise<number> {

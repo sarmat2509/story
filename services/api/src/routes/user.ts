@@ -1,9 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { THEME_PALETTE_IDS } from '@wondertales/shared';
+import { THEME_PALETTE_IDS, UpdateChildModeExitPasscodeSchema } from '@wondertales/shared';
 import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import { getUserWithOAuth, updateUser, deleteUser, countUserOAuthIdentities } from '../services/userService';
 import { getUserSessions, deleteSession } from '../services/sessionService';
+import {
+  ChildModePasscodeError,
+  updateChildModeExitPasscode,
+} from '../services/childModeControlsService';
 import { unlinkOAuthProvider } from '../services/oauthService';
 import {
   DATA_PRIVACY_REQUEST_TYPES,
@@ -90,6 +94,44 @@ router.patch('/', requireAuth, requireParentSession, async (req: Request, res: R
     res.status(500).json({
       status: 'error',
       message: 'Failed to update user',
+    });
+  }
+});
+
+// Set or rotate the account-level Child Mode exit passcode
+router.patch('/child-mode-exit-passcode', requireAuth, requireParentSession, async (req: Request, res: Response) => {
+  try {
+    const validationResult = UpdateChildModeExitPasscodeSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Invalid request data',
+        details: validationResult.error.errors,
+      });
+      return;
+    }
+
+    const result = await updateChildModeExitPasscode(req.user!.id, validationResult.data);
+
+    res.json({
+      status: 'success',
+      user: toUserResponse(result.user),
+      childModeExitPasscode: result.childModeExitPasscode,
+    });
+  } catch (error) {
+    if (error instanceof ChildModePasscodeError) {
+      return res.status(error.statusCode).json({
+        status: 'error',
+        code: error.code,
+        message: error.message,
+      });
+    }
+
+    logger.error({ err: error, userId: req.user?.id }, 'Update Child Mode exit passcode failed');
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to update Child Mode exit passcode',
     });
   }
 });

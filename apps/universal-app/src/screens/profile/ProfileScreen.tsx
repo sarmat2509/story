@@ -15,7 +15,7 @@ import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
 import { usePlansWithAuth, useSubscriptionUsage, useCreatePortalSession } from '@/api/plans';
 import { useCreatePrivacyRequest, usePrivacyRequests, type PrivacyRequestType } from '@/api/privacyRequests';
-import { useUpdateMe } from '@/api/auth';
+import { useUpdateChildModeExitPasscode, useUpdateMe, useUser } from '@/api/auth';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import { formatAssetUrl, isServerAssetUrl, toCanonicalAssetUrl } from '@/utils/assetUrl';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
@@ -41,7 +41,7 @@ type ProfilePrivacyRequestIntent = {
 
 export default function ProfileScreen() {
   const { t, i18n } = useTranslation();
-  const { user, logout } = useAuthStore();
+  const { user, logout, setUser } = useAuthStore();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const enterKey = useScreenEnter();
   const { data: plansData, isLoading: plansLoading } = usePlansWithAuth();
@@ -53,9 +53,15 @@ export default function ProfileScreen() {
   const enableRealPayments = plansData && 'enableRealPayments' in plansData ? plansData.enableRealPayments : false;
   const updateProfile = useUpdateMe();
   const updateAvatar = useUpdateMe();
-  const [displayName, setDisplayName] = useState(user?.displayName ?? '');
-  const [pseudonym, setPseudonym] = useState(user?.pseudonym ?? '');
-  const [aboutMe, setAboutMe] = useState(user?.aboutMe ?? '');
+  const updateChildModeExitPasscode = useUpdateChildModeExitPasscode();
+  const currentUserQuery = useUser();
+  const profileUser = currentUserQuery.data ?? user;
+  const [displayName, setDisplayName] = useState(profileUser?.displayName ?? '');
+  const [pseudonym, setPseudonym] = useState(profileUser?.pseudonym ?? '');
+  const [aboutMe, setAboutMe] = useState(profileUser?.aboutMe ?? '');
+  const [currentExitPasscode, setCurrentExitPasscode] = useState('');
+  const [newExitPasscode, setNewExitPasscode] = useState('');
+  const [confirmExitPasscode, setConfirmExitPasscode] = useState('');
   const [isAvatarBusy, setIsAvatarBusy] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -71,16 +77,26 @@ export default function ProfileScreen() {
   }, [navigation]);
 
   useEffect(() => {
-    setDisplayName(user?.displayName ?? '');
-  }, [user?.displayName]);
+    setDisplayName(profileUser?.displayName ?? '');
+  }, [profileUser?.displayName]);
 
   useEffect(() => {
-    setPseudonym(user?.pseudonym ?? '');
-  }, [user?.pseudonym]);
+    setPseudonym(profileUser?.pseudonym ?? '');
+  }, [profileUser?.pseudonym]);
 
   useEffect(() => {
-    setAboutMe(user?.aboutMe ?? '');
-  }, [user?.aboutMe]);
+    setAboutMe(profileUser?.aboutMe ?? '');
+  }, [profileUser?.aboutMe]);
+
+  useEffect(() => {
+    currentUserQuery.refetch();
+  }, [currentUserQuery.refetch]);
+
+  useEffect(() => {
+    if (currentUserQuery.data) {
+      setUser(currentUserQuery.data);
+    }
+  }, [currentUserQuery.data, setUser]);
 
   useEffect(() => onAnalyticsConsentChange(() => {
     setAnalyticsConsentState(getAnalyticsConsent());
@@ -92,10 +108,17 @@ export default function ProfileScreen() {
   // API returns features as object { stories_per_month: { value: { limit } }, ... }
   const featuresObj = currentPlan?.features as Record<string, { value?: { limit?: number } }> | undefined;
   const storiesLimit = featuresObj?.stories_per_month?.value?.limit ?? 3;
-  const avatarUrl = formatAssetUrl(user?.avatarUrl) ?? user?.avatarUrl ?? null;
-  const avatarInitial = user?.displayName?.trim().charAt(0)
-    || user?.email?.trim().charAt(0)
+  const avatarUrl = formatAssetUrl(profileUser?.avatarUrl) ?? profileUser?.avatarUrl ?? null;
+  const avatarInitial = profileUser?.displayName?.trim().charAt(0)
+    || profileUser?.email?.trim().charAt(0)
     || 'U';
+  const childModeExitPasscodeConfigured = profileUser?.childModeExitPasscodeConfigured === true;
+  const trimmedNewExitPasscode = newExitPasscode.trim();
+  const canSaveChildModeExitPasscode =
+    trimmedNewExitPasscode.length >= 4 &&
+    trimmedNewExitPasscode === confirmExitPasscode.trim() &&
+    (!childModeExitPasscodeConfigured || currentExitPasscode.trim().length >= 4) &&
+    !updateChildModeExitPasscode.isPending;
 
   const formattedPeriodEnd = formatSubscriptionPeriodEnd(
     usage?.currentPeriodEnd ?? usage?.resetsAt,
@@ -222,7 +245,7 @@ export default function ProfileScreen() {
 
       if (result.canceled || !result.assets[0]) return;
 
-      const previousAvatarUrl = user?.avatarUrl ?? null;
+      const previousAvatarUrl = profileUser?.avatarUrl ?? null;
       const localUri = result.assets[0].uri;
 
       setIsAvatarBusy(true);
@@ -262,10 +285,50 @@ export default function ProfileScreen() {
     });
   };
 
-  const handleRemoveAvatar = async () => {
-    if (!user?.avatarUrl) return;
+  const handleSaveChildModeExitPasscode = async () => {
+    const nextPasscode = newExitPasscode.trim();
+    const confirmPasscode = confirmExitPasscode.trim();
+    const oldPasscode = currentExitPasscode.trim();
 
-    const previousAvatarUrl = user.avatarUrl;
+    if (nextPasscode.length < 4) {
+      Alert.alert(t('common.error'), t('profile.child_mode_exit_passcode_too_short'));
+      return;
+    }
+
+    if (nextPasscode !== confirmPasscode) {
+      Alert.alert(t('common.error'), t('profile.child_mode_exit_passcode_mismatch'));
+      return;
+    }
+
+    if (childModeExitPasscodeConfigured && oldPasscode.length < 4) {
+      Alert.alert(t('common.error'), t('profile.child_mode_exit_passcode_current_required'));
+      return;
+    }
+
+    try {
+      await updateChildModeExitPasscode.mutateAsync({
+        ...(childModeExitPasscodeConfigured ? { oldPasscode } : {}),
+        newPasscode: nextPasscode,
+      });
+      setCurrentExitPasscode('');
+      setNewExitPasscode('');
+      setConfirmExitPasscode('');
+      Alert.alert(
+        t('profile.child_mode_exit_passcode_success_title'),
+        t('profile.child_mode_exit_passcode_success_message')
+      );
+    } catch (error) {
+      Alert.alert(
+        t('common.error'),
+        getLocalizedApiError(t, error, 'profile.child_mode_exit_passcode_error')
+      );
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!profileUser?.avatarUrl) return;
+
+    const previousAvatarUrl = profileUser.avatarUrl;
     setIsAvatarBusy(true);
 
     try {
@@ -343,7 +406,7 @@ export default function ProfileScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {user?.avatarUrl ? (
+              {profileUser?.avatarUrl ? (
                 <TouchableOpacity
                   style={[styles.avatarActionButton, styles.avatarSecondaryButton]}
                   onPress={handleRemoveAvatar}
@@ -373,7 +436,7 @@ export default function ProfileScreen() {
 
               <View style={[styles.infoRow, styles.infoRowLastInColumn]}>
                 <Text style={styles.label}>{t('profile.email')}</Text>
-                <Text style={styles.value}>{user?.email || t('profile.not_set')}</Text>
+                <Text style={styles.value}>{profileUser?.email || t('profile.not_set')}</Text>
               </View>
             </View>
 
@@ -420,6 +483,101 @@ export default function ProfileScreen() {
         </View>
       </AnimatedSection>
 
+      <AnimatedSection delay={180} trigger={enterKey} style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('profile.child_mode_exit_passcode_section')}</Text>
+
+        <View style={styles.profileCard}>
+          <View style={styles.exitPasscodeHeader}>
+            <View style={styles.exitPasscodeHeaderText}>
+              <Text style={styles.exitPasscodeTitle}>{t('profile.child_mode_exit_passcode_title')}</Text>
+              <Text style={styles.exitPasscodeDescription}>
+                {t('profile.child_mode_exit_passcode_body')}
+              </Text>
+            </View>
+            <View style={[
+              styles.exitPasscodeStatusPill,
+              childModeExitPasscodeConfigured && styles.exitPasscodeStatusPillEnabled,
+            ]}>
+              <Ionicons
+                name={childModeExitPasscodeConfigured ? 'shield-checkmark-outline' : 'shield-outline'}
+                size={16}
+                color={childModeExitPasscodeConfigured ? theme.colors.status.success : theme.colors.text.tertiary}
+              />
+              <Text style={[
+                styles.exitPasscodeStatusText,
+                childModeExitPasscodeConfigured && styles.exitPasscodeStatusTextEnabled,
+              ]}>
+                {childModeExitPasscodeConfigured
+                  ? t('profile.child_mode_exit_passcode_set')
+                  : t('profile.child_mode_exit_passcode_not_set')}
+              </Text>
+            </View>
+          </View>
+
+          {childModeExitPasscodeConfigured ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>{t('profile.child_mode_exit_passcode_current')}</Text>
+              <TextInput
+                style={styles.pseudonymInput}
+                value={currentExitPasscode}
+                onChangeText={setCurrentExitPasscode}
+                placeholder={t('profile.child_mode_exit_passcode_current')}
+                placeholderTextColor={theme.colors.text.tertiary}
+                secureTextEntry
+                maxLength={128}
+              />
+            </View>
+          ) : null}
+
+          <View style={styles.exitPasscodeFields}>
+            <View style={styles.exitPasscodeField}>
+              <Text style={styles.label}>{t('profile.child_mode_exit_passcode_new')}</Text>
+              <TextInput
+                style={styles.pseudonymInput}
+                value={newExitPasscode}
+                onChangeText={setNewExitPasscode}
+                placeholder={t('profile.child_mode_exit_passcode_placeholder')}
+                placeholderTextColor={theme.colors.text.tertiary}
+                secureTextEntry
+                maxLength={128}
+              />
+            </View>
+            <View style={styles.exitPasscodeField}>
+              <Text style={styles.label}>{t('profile.child_mode_exit_passcode_confirm')}</Text>
+              <TextInput
+                style={styles.pseudonymInput}
+                value={confirmExitPasscode}
+                onChangeText={setConfirmExitPasscode}
+                placeholder={t('profile.child_mode_exit_passcode_placeholder')}
+                placeholderTextColor={theme.colors.text.tertiary}
+                secureTextEntry
+                maxLength={128}
+                onSubmitEditing={handleSaveChildModeExitPasscode}
+              />
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.saveProfileButton,
+              !canSaveChildModeExitPasscode && styles.saveProfileButtonDisabled,
+            ]}
+            onPress={handleSaveChildModeExitPasscode}
+            disabled={!canSaveChildModeExitPasscode}
+          >
+            {updateChildModeExitPasscode.isPending ? (
+              <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+            ) : (
+              <Text style={styles.saveProfileButtonText}>
+                {childModeExitPasscodeConfigured
+                  ? t('profile.child_mode_exit_passcode_change')
+                  : t('profile.child_mode_exit_passcode_save')}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </AnimatedSection>
+
       <AnimatedSection delay={220} trigger={enterKey} style={styles.section}>
         <Text style={styles.sectionTitle}>{t('profile.preferences')}</Text>
         
@@ -431,7 +589,7 @@ export default function ProfileScreen() {
           <View style={styles.settingLeft}>
             <Text style={styles.settingText}>{t('profile.mode')}</Text>
             <Text style={styles.settingValue}>
-              {user?.mode === 'instant' ? t('mode_selection.instant_mode') : t('mode_selection.artisan_mode')}
+            {profileUser?.mode === 'instant' ? t('mode_selection.instant_mode') : t('mode_selection.artisan_mode')}
             </Text>
           </View>
           <Text style={styles.settingArrow}>›</Text>
@@ -451,9 +609,9 @@ export default function ProfileScreen() {
         >
           <View style={styles.settingLeft}>
             <Text style={styles.settingText}>{t('profile.theme_settings')}</Text>
-            {user?.themePalette ? (
+            {profileUser?.themePalette ? (
               <Text style={styles.settingValue}>
-                {t(`theme.palette_names.${user.themePalette}`)}
+                {t(`theme.palette_names.${profileUser.themePalette}`)}
               </Text>
             ) : null}
           </View>
@@ -807,10 +965,68 @@ const styles = StyleSheet.create({
     borderRadius: theme.borders.radius.md,
     alignItems: 'center',
   },
+  saveProfileButtonDisabled: {
+    opacity: 0.55,
+  },
   saveProfileButtonText: {
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.inverse,
+  },
+  exitPasscodeHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: theme.spacing[4],
+    marginBottom: theme.spacing[4],
+  },
+  exitPasscodeHeaderText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  exitPasscodeTitle: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing[1],
+  },
+  exitPasscodeDescription: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+  },
+  exitPasscodeStatusPill: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[1],
+    borderRadius: theme.borders.radius.full,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+    backgroundColor: theme.colors.background.primary,
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[3],
+  },
+  exitPasscodeStatusPillEnabled: {
+    borderColor: theme.colors.status.success,
+    backgroundColor: `${theme.colors.status.success}12`,
+  },
+  exitPasscodeStatusText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+  },
+  exitPasscodeStatusTextEnabled: {
+    color: theme.colors.status.success,
+  },
+  exitPasscodeFields: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[4],
+  },
+  exitPasscodeField: {
+    flex: 1,
+    minWidth: 220,
   },
   settingButton: {
     flexDirection: 'row',

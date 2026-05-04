@@ -68,9 +68,9 @@ void (async function main() {
       {
         childModeEnabled: true,
         childModeSettings: { freeTextPromptsEnabled: true },
-        childModePasscodeHash: '$2b$hash',
       } as any,
-      2
+      2,
+      true
     ),
     {
       childModeEnabled: true,
@@ -89,11 +89,10 @@ void (async function main() {
       {
         childModeEnabled: true,
         childModeSettings: {},
-        childModePasscodeHash: null,
       } as any
     ).childModePasscodeConfigured,
     false,
-    'controls response marks missing child mode passcode as not configured'
+    'controls response marks missing account-level child mode passcode as not configured'
   );
 
   assert.deepStrictEqual(

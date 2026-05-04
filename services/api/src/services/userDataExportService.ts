@@ -55,7 +55,11 @@ export function omitKeys<T extends Record<string, unknown>>(value: T, keys: stri
 }
 
 export function sanitizeUserForDataExport(row: schema.User): Record<string, unknown> {
-  return omitKeys(row as unknown as Record<string, unknown>, ['passwordHash']);
+  return omitKeys(row as unknown as Record<string, unknown>, [
+    'passwordHash',
+    'childModeExitPasscodeHash',
+    'childModeExitPasscodeSetAt',
+  ]);
 }
 
 export function sanitizeStoryForDataExport(row: schema.Story): Record<string, unknown> {
@@ -223,6 +227,10 @@ export async function buildUserDataExport(userId: string): Promise<UserDataExpor
     userId,
     omittedSensitiveFields: [
       'users.passwordHash',
+      'users.child_mode_exit_passcode_hash',
+      'users.child_mode_exit_passcode_set_at',
+      'users.childModeExitPasscodeHash',
+      'users.childModeExitPasscodeSetAt',
       'oauth_identities.accessToken',
       'oauth_identities.refreshToken',
       'sessions.token',

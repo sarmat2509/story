@@ -86,10 +86,6 @@ export default function ChildDetailScreen() {
     anyLanguage: t('children_screen.child_mode_any_language'),
     anyCharacter: t('children_screen.child_mode_any_character'),
     noCharacters: t('children_screen.child_mode_no_characters'),
-    passcode: t('children_screen.child_mode_passcode'),
-    passcodePlaceholder: t('children_screen.child_mode_passcode_placeholder'),
-    passcodeConfigured: t('children_screen.child_mode_passcode_configured'),
-    passcodeSave: t('children_screen.child_mode_passcode_save'),
     setPasscodeToStart: t('children_screen.child_mode_set_passcode_to_start'),
     activeSessions: t('children_screen.child_mode_active_sessions'),
     revoke: t('children_screen.child_mode_revoke_sessions'),
@@ -132,10 +128,10 @@ export default function ChildDetailScreen() {
     [characters, route.params.childId]
   );
 
-  const handleChildModeEnabledChange = (childId: string, enabled: boolean, passcode?: string) => {
+  const handleChildModeEnabledChange = (childId: string, enabled: boolean) => {
     updateChildModeControls.mutate({
       id: childId,
-      data: { childModeEnabled: enabled, ...(passcode ? { childModePasscode: passcode } : {}) },
+      data: { childModeEnabled: enabled },
     });
   };
 
@@ -146,13 +142,6 @@ export default function ChildDetailScreen() {
     updateChildModeControls.mutate({
       id: childId,
       data: { childModeSettings: settings },
-    });
-  };
-
-  const handleChildModePasscodeChange = (childId: string, passcode: string) => {
-    updateChildModeControls.mutate({
-      id: childId,
-      data: { childModePasscode: passcode },
     });
   };
 
@@ -293,7 +282,6 @@ export default function ChildDetailScreen() {
               showProfileSummary={false}
               onChildModeEnabledChange={handleChildModeEnabledChange}
               onChildModeSettingsChange={handleChildModeSettingsChange}
-              onChildModePasscodeChange={handleChildModePasscodeChange}
               onEnterChildMode={(childId) => enterChildMode.mutate(childId)}
               onRevokeChildModeSessions={(childId) => revokeChildModeSessions.mutate(childId)}
               isChildModeUpdating={updateChildModeControls.isPending}

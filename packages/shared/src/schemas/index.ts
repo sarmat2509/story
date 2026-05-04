@@ -240,7 +240,11 @@ export const ChildModeSettingsSchema = z.object({
 export const UpdateChildModeControlsSchema = z.object({
   childModeEnabled: z.boolean().optional(),
   childModeSettings: ChildModeSettingsSchema.optional(),
-  childModePasscode: z.string().min(4).max(128).optional(),
+});
+
+export const UpdateChildModeExitPasscodeSchema = z.object({
+  oldPasscode: z.string().min(4).max(128).optional(),
+  newPasscode: z.string().min(4).max(128),
 });
 
 // Character Schemas (Type-specific)
@@ -378,6 +382,7 @@ export type CreateChildProfileInput = z.infer<typeof CreateChildProfileSchema>;
 export type UpdateChildProfileInput = z.infer<typeof UpdateChildProfileSchema>;
 export type ChildModeSettingsInput = z.infer<typeof ChildModeSettingsSchema>;
 export type UpdateChildModeControlsInput = z.infer<typeof UpdateChildModeControlsSchema>;
+export type UpdateChildModeExitPasscodeInput = z.infer<typeof UpdateChildModeExitPasscodeSchema>;
 export type CreateCharacterInput = z.infer<typeof CreateCharacterSchema>;
 export type UpdateCharacterInput = z.infer<typeof UpdateCharacterSchema>;
 

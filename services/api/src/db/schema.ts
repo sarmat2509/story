@@ -16,6 +16,8 @@ export const users = pgTable('users', {
   role: varchar('role', { length: 20 }).notNull().default('user'),
   /** Active UI theme palette id (see @wondertales/shared THEME_PALETTE_IDS) */
   themePalette: varchar('theme_palette', { length: 32 }).notNull().default('dusk_lavender'),
+  childModeExitPasscodeHash: text('child_mode_exit_passcode_hash'),
+  childModeExitPasscodeSetAt: timestamp('child_mode_exit_passcode_set_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {

@@ -287,6 +287,28 @@ export const useUpdateMe = () => {
   });
 };
 
+export const useUpdateChildModeExitPasscode = () => {
+  const queryClient = useQueryClient();
+  const { setUser } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async (data: { oldPasscode?: string; newPasscode: string }) => {
+      const response = await apiClient.patch<{
+        status: string;
+        user: User;
+        childModeExitPasscode: { configured: boolean; setAt: string | null };
+      }>('/api/v1/me/child-mode-exit-passcode', data);
+      return response.data.user;
+    },
+    onSuccess: (user) => {
+      setUser(user);
+      storage.setUser(user);
+      queryClient.setQueryData(['user'], user);
+      queryClient.invalidateQueries({ queryKey: ['children'] });
+    },
+  });
+};
+
 // Logout
 export const useLogout = () => {
   const queryClient = useQueryClient();

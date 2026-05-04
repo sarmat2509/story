@@ -75,6 +75,8 @@ export interface User {
   about_me?: string | null;
   role: 'user' | 'admin';
   theme_palette: ThemePaletteId;
+  child_mode_exit_passcode_configured?: boolean;
+  child_mode_exit_passcode_set_at?: string | null;
   created_at: string;
   updated_at: string;
 }
