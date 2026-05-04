@@ -1,5 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Image } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
 
@@ -16,6 +18,30 @@ interface Props {
   onSelect: (id: string | null) => void;
 }
 
+const TOPIC_IMAGE_BASE = '/landing/topics/optimized';
+
+const TOPIC_IMAGE_BY_SCENARIO_ID: Record<string, string> = {
+  free: 'any',
+  magic_wizards: 'magic',
+  fantasy_creatures: 'creatures',
+  mysteries_detectives: 'detective',
+  space_odyssey: 'space',
+  medieval_heroes: 'heroes',
+  sea_treasures: 'treasure',
+  super_powers: 'super-power',
+  enchanted_forest: 'forest',
+  inventors: 'science',
+  jungle_adventures: 'jungles',
+  scary_stories: 'ghost',
+  expeditions_world_travel: 'geography',
+  macro_scifi: 'robot',
+};
+
+function getTopicImageUri(scenarioId: string | null) {
+  const imageName = TOPIC_IMAGE_BY_SCENARIO_ID[scenarioId ?? 'free'] ?? TOPIC_IMAGE_BY_SCENARIO_ID.free;
+  return `${TOPIC_IMAGE_BASE}/${imageName}.webp`;
+}
+
 export function ScenarioCardsGrid({ scenarios, selected, onSelect }: Props) {
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
@@ -25,38 +51,55 @@ export function ScenarioCardsGrid({ scenarios, selected, onSelect }: Props) {
     id: null,
     name: t('wizard.free_theme'),
     description: t('wizard.free_theme_desc'),
-    icon: '✨'
   };
   
   const allScenarios = [freeThemeCard, ...scenarios];
   
-  // Responsive columns: 2 on mobile, 3 on tablet, 4 on desktop
-  const numColumns = width < 768 ? 2 : width < 1024 ? 3 : 4;
+  const numColumns = width < 520 ? 1 : width < 768 ? 2 : width < 1080 ? 3 : 4;
+  const isDesktop = width >= 1080;
+  const cardWidth = numColumns === 1 ? '100%' : numColumns === 2 ? '48%' : numColumns === 3 ? '31%' : '23.5%';
 
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{t('wizard.theme_title')}</Text>
       <View style={styles.grid}>
-        {allScenarios.map((scenario) => (
-          <TouchableOpacity
-            key={scenario.id || 'free'}
-            style={[
-              styles.card,
-              { width: `${100 / numColumns - 2}%` },
-              selected === scenario.id && styles.cardSelected
-            ]}
-            onPress={() => onSelect(scenario.id)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.cardIcon}>{scenario.icon || '📖'}</Text>
-            <Text style={styles.cardName} numberOfLines={2}>
-              {scenario.name}
-            </Text>
-            <Text style={styles.cardDescription} numberOfLines={2}>
-              {scenario.description}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {allScenarios.map((scenario) => {
+          const isSelected = selected === scenario.id;
+
+          return (
+            <TouchableOpacity
+              key={scenario.id || 'free'}
+              style={[styles.card, isDesktop && styles.cardDesktop, { width: cardWidth }]}
+              onPress={() => onSelect(scenario.id)}
+              activeOpacity={0.82}
+            >
+              {isSelected ? <View pointerEvents="none" style={styles.selectedOutline} /> : null}
+              <View style={[styles.imageFrame, isDesktop && styles.imageFrameDesktop]}>
+                <Image
+                  source={{ uri: getTopicImageUri(scenario.id) }}
+                  style={styles.topicImage}
+                  resizeMode="cover"
+                  accessibilityIgnoresInvertColors
+                />
+                <LinearGradient
+                  colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.58)', 'rgba(0,0,0,0.88)']}
+                  locations={[0.12, 0.58, 1]}
+                  style={styles.gradientOverlay}
+                  pointerEvents="none"
+                />
+                {isSelected ? (
+                  <View pointerEvents="none" style={styles.selectedCheck}>
+                    <Ionicons name="checkmark" size={18} color={theme.colors.interactive.primary} />
+                  </View>
+                ) : null}
+                <View style={styles.cardContent}>
+                  <Text style={styles.cardName}>{scenario.name}</Text>
+                  <Text style={styles.cardDescription}>{scenario.description}</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
@@ -78,33 +121,87 @@ const styles = StyleSheet.create({
     gap: theme.spacing[3],
   },
   card: {
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: 'transparent',
     borderRadius: theme.borders.radius.lg,
-    borderWidth: theme.borders.width.medium,
-    borderColor: theme.colors.border.light,
-    padding: theme.spacing[4],
-    alignItems: 'center',
-    minHeight: 140,
-    justifyContent: 'center',
+    padding: 6,
+    alignItems: 'stretch',
+    minHeight: 204,
+    justifyContent: 'flex-start',
+    position: 'relative',
   },
-  cardSelected: {
+  cardDesktop: {
+    minHeight: 176,
+  },
+  imageFrame: {
+    width: '100%',
+    minHeight: 192,
+    aspectRatio: 1.38,
+    borderRadius: theme.borders.radius.md,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.background.primary,
+    position: 'relative',
+  },
+  imageFrameDesktop: {
+    minHeight: 164,
+    aspectRatio: 1.68,
+  },
+  selectedOutline: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderWidth: 3,
     borderColor: theme.colors.interactive.primary,
-    backgroundColor: theme.colors.primary[50],
+    borderRadius: theme.borders.radius.lg,
   },
-  cardIcon: {
-    fontSize: 40,
-    marginBottom: theme.spacing[2],
+  selectedCheck: {
+    position: 'absolute',
+    top: theme.spacing[2],
+    right: theme.spacing[2],
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  topicImage: {
+    width: '100%',
+    height: '100%',
+  },
+  gradientOverlay: {
+    position: 'absolute',
+    top: '50%',
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  cardContent: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    left: 0,
+    paddingHorizontal: theme.spacing[3],
+    paddingTop: theme.spacing[8],
+    paddingBottom: theme.spacing[3],
   },
   cardName: {
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.primary,
-    textAlign: 'center',
+    color: '#FFFFFF',
+    textAlign: 'left',
     marginBottom: theme.spacing[1],
   },
   cardDescription: {
     fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
-    textAlign: 'center',
+    color: 'rgba(255,255,255,0.86)',
+    textAlign: 'left',
+    lineHeight: 19,
   },
 });
