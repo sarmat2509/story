@@ -750,8 +750,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
 
 const styles = StyleSheet.create({
   inlineContainer: {
-    flex: 1,
-    minHeight: 0,
+    width: '100%',
     backgroundColor: theme.colors.background.primary,
   },
   modalContainer: {
@@ -813,12 +812,15 @@ const styles = StyleSheet.create({
   },
   contentInline: {
     backgroundColor: theme.colors.background.primary,
+    paddingHorizontal: theme.spacing[6],
+    paddingTop: theme.spacing[6],
+    paddingBottom: theme.spacing[2],
   },
   contentScrollable: {
     flex: 1,
   },
   field: {
-    marginBottom: theme.spacing[5],
+    marginBottom: theme.spacing[6],
   },
   currentImageCard: {
     padding: theme.spacing[3],
@@ -948,9 +950,9 @@ const styles = StyleSheet.create({
     borderTopWidth: theme.borders.width.thin,
     borderTopColor: theme.colors.border.light,
     backgroundColor: theme.colors.background.primary,
-    paddingHorizontal: theme.spacing[5],
-    paddingTop: theme.spacing[4],
-    paddingBottom: theme.spacing[5],
+    paddingHorizontal: theme.spacing[6],
+    paddingTop: theme.spacing[5],
+    paddingBottom: theme.spacing[6],
   },
   footerMobile: {
     flexDirection: 'column',
@@ -974,8 +976,8 @@ const styles = StyleSheet.create({
   },
   inlineButton: {
     flex: 0,
-    width: 190,
-    maxWidth: 190,
+    width: 220,
+    maxWidth: 220,
     alignSelf: 'center',
   },
   inlineButtonMobile: {

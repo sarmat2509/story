@@ -40,6 +40,7 @@ interface Props {
   childModeThemeOptions?: ChildModeOption[];
   childModeLanguageOptions?: ChildModeOption[];
   childModeCharacterOptions?: ChildModeOption[];
+  showProfileSummary?: boolean;
   onChildModeEnabledChange?: (childId: string, enabled: boolean, passcode?: string) => void;
   onChildModeSettingsChange?: (childId: string, settings: Partial<ChildModeSettings>) => void;
   onChildModePasscodeChange?: (childId: string, passcode: string) => void;
@@ -304,6 +305,7 @@ export function ChildCard({
   childModeThemeOptions = [],
   childModeLanguageOptions = [],
   childModeCharacterOptions = [],
+  showProfileSummary = true,
   onChildModeEnabledChange,
   onChildModeSettingsChange,
   onChildModePasscodeChange,
@@ -347,32 +349,34 @@ export function ChildCard({
   return (
     <View style={styles.cardWrapper}>
       <View style={styles.card}>
-        <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-          <View style={[styles.imageContainer, imageContainerWebStyle]}>
-            {avatarUrl ? (
-              <Image
-                source={{ uri: formatAssetUrl(avatarUrl) ?? avatarUrl }}
-                style={styles.image}
-                resizeMode="contain"
-              />
-            ) : (
-              <View style={styles.placeholder}>
-                <Text style={styles.placeholderIcon}>👶</Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.name} numberOfLines={2}>
-            {child.name}
-          </Text>
-          {subline ? (
-            <Text style={styles.subline} numberOfLines={1}>
-              {subline}
+        {showProfileSummary ? (
+          <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+            <View style={[styles.imageContainer, imageContainerWebStyle]}>
+              {avatarUrl ? (
+                <Image
+                  source={{ uri: formatAssetUrl(avatarUrl) ?? avatarUrl }}
+                  style={styles.image}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.placeholder}>
+                  <Text style={styles.placeholderIcon}>👶</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.name} numberOfLines={2}>
+              {child.name}
             </Text>
-          ) : null}
-        </TouchableOpacity>
+            {subline ? (
+              <Text style={styles.subline} numberOfLines={1}>
+                {subline}
+              </Text>
+            ) : null}
+          </TouchableOpacity>
+        ) : null}
 
         {labels ? (
-          <View style={styles.childModeSection}>
+          <View style={[styles.childModeSection, !showProfileSummary && styles.childModeSectionStandalone]}>
             <View style={styles.childModeHeader}>
               <View style={styles.childModeTitleRow}>
                 <Ionicons
@@ -602,6 +606,7 @@ const styles = StyleSheet.create<{
   name: TextStyle;
   subline: TextStyle;
   childModeSection: ViewStyle;
+  childModeSectionStandalone: ViewStyle;
   childModeHeader: ViewStyle;
   childModeTitleRow: ViewStyle;
   childModeTitle: TextStyle;
@@ -692,6 +697,11 @@ const styles = StyleSheet.create<{
     marginTop: theme.spacing[4],
     paddingTop: theme.spacing[4],
     gap: theme.spacing[3],
+  },
+  childModeSectionStandalone: {
+    borderTopWidth: 0,
+    marginTop: 0,
+    paddingTop: 0,
   },
   childModeHeader: {
     flexDirection: 'row',

@@ -271,37 +271,38 @@ export default function ChildDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.contentPanel}>
-        {activeTab === 'profile' ? (
+      {activeTab === 'profile' ? (
+        <View style={styles.profilePanel}>
           <ChildFormContent
             childId={child.id}
             initialData={childInitialData}
             onSuccess={() => undefined}
             variant="inline"
           />
-        ) : (
-          <ScrollView contentContainerStyle={styles.accessContent} showsVerticalScrollIndicator={false}>
-            <View style={Platform.OS === 'web' ? styles.accessCardWeb : styles.accessCardNative}>
-              <ChildCard
-                child={childCardData}
-                onPress={() => undefined}
-                childModeLabels={labels}
-                childModeThemeOptions={themeOptions}
-                childModeLanguageOptions={languageOptions}
-                childModeCharacterOptions={characterOptions}
-                onChildModeEnabledChange={handleChildModeEnabledChange}
-                onChildModeSettingsChange={handleChildModeSettingsChange}
-                onChildModePasscodeChange={handleChildModePasscodeChange}
-                onEnterChildMode={(childId) => enterChildMode.mutate(childId)}
-                onRevokeChildModeSessions={(childId) => revokeChildModeSessions.mutate(childId)}
-                isChildModeUpdating={updateChildModeControls.isPending}
-                isEnteringChildMode={enterChildMode.isPending && enterChildMode.variables === child.id}
-                isRevokingChildSessions={revokeChildModeSessions.isPending}
-              />
-            </View>
-          </ScrollView>
-        )}
-      </View>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.accessContent} showsVerticalScrollIndicator={false}>
+          <View style={Platform.OS === 'web' ? styles.accessCardWeb : styles.accessCardNative}>
+            <ChildCard
+              child={childCardData}
+              onPress={() => undefined}
+              childModeLabels={labels}
+              childModeThemeOptions={themeOptions}
+              childModeLanguageOptions={languageOptions}
+              childModeCharacterOptions={characterOptions}
+              showProfileSummary={false}
+              onChildModeEnabledChange={handleChildModeEnabledChange}
+              onChildModeSettingsChange={handleChildModeSettingsChange}
+              onChildModePasscodeChange={handleChildModePasscodeChange}
+              onEnterChildMode={(childId) => enterChildMode.mutate(childId)}
+              onRevokeChildModeSessions={(childId) => revokeChildModeSessions.mutate(childId)}
+              isChildModeUpdating={updateChildModeControls.isPending}
+              isEnteringChildMode={enterChildMode.isPending && enterChildMode.variables === child.id}
+              isRevokingChildSessions={revokeChildModeSessions.isPending}
+            />
+          </View>
+        </ScrollView>
+      )}
       </View>
 
       <FeedbackModal
@@ -321,7 +322,7 @@ const styles = StyleSheet.create({
   pageContent: {
     flex: 1,
     width: '100%',
-    maxWidth: 1120,
+    maxWidth: 1360,
     alignSelf: 'center',
     paddingHorizontal: theme.spacing[6],
     paddingTop: theme.spacing[5],
@@ -461,11 +462,9 @@ const styles = StyleSheet.create({
     color: theme.colors.text.inverse,
   },
   accessContent: {
-    padding: theme.spacing[4],
+    paddingBottom: theme.spacing[8],
   },
-  contentPanel: {
-    flex: 1,
-    minHeight: 0,
+  profilePanel: {
     width: '100%',
     borderRadius: theme.borders.radius.lg,
     borderWidth: theme.borders.width.thin,
@@ -486,7 +485,7 @@ const styles = StyleSheet.create({
     }),
   },
   accessCardWeb: {
-    maxWidth: 640,
+    width: '100%',
   },
   accessCardNative: {
     width: '100%',
