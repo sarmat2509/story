@@ -16,6 +16,7 @@ import {
 } from './publicPageFooter';
 import { renderPricingStructuredData } from './publicStructuredData';
 import {
+  buildPublicLandingPath,
   buildPublicPricingPath,
   formatPricingPrice,
   getCombinedPricingUsageHighlight,
@@ -28,39 +29,41 @@ import {
 
 const PRICING_STYLES = `
 *{box-sizing:border-box}
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;color:#111827}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#f5e6f0;color:#1e293b;line-height:1.6;overflow-x:hidden}
 a{text-decoration:none}
-.page{min-height:100vh}
-.wrap{max-width:1240px;margin:0 auto;padding:24px}
-.nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:8px 0 28px}
-.brand{font-size:20px;font-weight:800;color:#111827}
-.nav-link{font-size:14px;color:#6b7280}
-.hero{text-align:center;margin:0 auto 34px;max-width:760px}
-.hero h1{margin:0 0 12px;font-size:clamp(32px,5vw,52px);line-height:1.05;letter-spacing:-0.04em}
-.hero p{margin:0;font-size:18px;line-height:1.65;color:#6b7280}
+.page{min-height:100vh;background-color:#f5e6f0;background-image:url('/sparkles-overlay.webp');background-repeat:repeat;background-size:contain}
+.wrap{width:min(100%,1200px);margin:0 auto;padding:0 clamp(16px,4vw,24px) 72px}
+.nav{position:relative;display:flex;align-items:center;justify-content:center;gap:16px;padding:20px 0 24px}
+.brand{display:inline-flex;align-items:center;justify-content:center;color:#1e293b}
+.brand img{width:clamp(170px,22vw,250px);height:auto;display:block}
+.hero{text-align:center;margin:0 auto 36px;max-width:760px;padding:4px 0 0}
+.hero h1{margin:0 0 14px;font-size:clamp(32px,5vw,52px);font-weight:700;line-height:1.12;letter-spacing:0;color:#1e293b;text-wrap:balance}
+.hero p{margin:0 auto;font-size:clamp(16px,2.1vw,18px);line-height:1.6;color:#475569;max-width:680px;text-wrap:balance}
 .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;align-items:start}
-.card{background:#fff;border:1px solid #e5e7eb;border-radius:28px;padding:28px;box-shadow:0 18px 40px rgba(15,23,42,.06)}
-.name{font-size:28px;font-weight:800;line-height:1.1;letter-spacing:-0.03em;color:#111827}
-.desc{margin-top:10px;min-height:48px;font-size:15px;line-height:1.6;color:#6b7280}
+.card{position:relative;display:flex;flex-direction:column;min-height:100%;background:rgba(255,255,255,.88);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(139,124,184,.2);border-radius:16px;padding:24px;box-shadow:0 12px 30px rgba(15,23,42,.07)}
+.card-featured{border-color:rgba(139,124,184,.56);box-shadow:0 18px 42px rgba(139,124,184,.18)}
+.name{font-size:clamp(24px,2.8vw,28px);font-weight:700;line-height:1.12;letter-spacing:0;color:#1e293b}
+.desc{margin-top:10px;min-height:48px;font-size:15px;line-height:1.6;color:#64748b}
 .price-row{display:flex;align-items:flex-end;gap:8px;margin-top:18px}
-.price{font-size:38px;font-weight:800;line-height:1;letter-spacing:-0.04em;color:#111827}
-.period{font-size:15px;color:#6b7280;padding-bottom:4px}
+.price{font-size:clamp(34px,4vw,40px);font-weight:800;line-height:1;letter-spacing:0;color:#1e293b}
+.period{font-size:15px;color:#64748b;padding-bottom:4px}
 .highlights{display:grid;gap:10px;margin-top:18px}
-.highlight{display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:18px;background:#eef6ff;color:#1d4ed8;font-size:14px;font-weight:700}
-.dot{width:10px;height:10px;border-radius:50%;background:#4f46e5;flex:0 0 auto}
-.features{display:grid;gap:12px;margin-top:22px}
+.highlight{display:flex;align-items:center;gap:10px;padding:13px 15px;border-radius:12px;background:rgba(139,124,184,.12);border:1px solid rgba(139,124,184,.16);color:#5f4f94;font-size:14px;font-weight:700}
+.dot{width:9px;height:9px;border-radius:50%;background:#8b7cb8;flex:0 0 auto}
+.features{display:grid;gap:12px;margin-top:22px;flex:1}
 .feature{display:flex;align-items:flex-start;gap:10px}
-.feature-icon{font-size:16px;line-height:1.2}
-.feature-text{font-size:15px;line-height:1.55;color:#374151}
-.feature-text.disabled{color:#9ca3af}
-.btn{display:flex;align-items:center;justify-content:center;min-height:46px;margin-top:22px;padding:0 18px;border-radius:999px;background:#111827;color:#fff;font-size:15px;font-weight:700}
-.btn:hover{opacity:.92}
-.btn-disabled{display:flex;align-items:center;justify-content:center;min-height:46px;margin-top:22px;padding:0 18px;border-radius:999px;background:#e5e7eb;color:#6b7280;font-size:15px;font-weight:700}
-.billing-note{max-width:920px;margin:36px auto 0;padding:22px 24px;border:1px solid #e5e7eb;border-radius:18px;background:#fff;color:#374151;box-shadow:0 14px 32px rgba(15,23,42,.05)}
-.billing-note h2{margin:0 0 12px;font-size:22px;line-height:1.2;color:#111827}
-.billing-note p{margin:8px 0 0;font-size:15px;line-height:1.6}
+.feature-icon{display:inline-flex;align-items:center;justify-content:center;width:20px;min-width:20px;height:20px;margin-top:1px;border-radius:50%;font-size:12px;line-height:1;color:#fff;background:#8b7cb8}
+.feature-icon-disabled{background:#e2e8f0;color:#94a3b8}
+.feature-text{font-size:15px;line-height:1.55;color:#334155}
+.feature-text.disabled{color:#94a3b8}
+.btn{display:flex;align-items:center;justify-content:center;min-height:46px;margin-top:24px;padding:0 18px;border-radius:999px;background:#8b7cb8;color:#fff;font-size:15px;font-weight:700;box-shadow:0 8px 20px rgba(139,124,184,.22)}
+.btn:hover{background:#7a6ba8}
+.btn-disabled{display:flex;align-items:center;justify-content:center;min-height:46px;margin-top:24px;padding:0 18px;border-radius:999px;background:rgba(255,255,255,.62);border:1px solid rgba(148,163,184,.36);color:#64748b;font-size:15px;font-weight:700}
+.billing-note{max-width:920px;margin:36px auto 0;padding:22px 24px;border:1px solid rgba(139,124,184,.18);border-radius:16px;background:rgba(255,255,255,.88);color:#334155;box-shadow:0 14px 32px rgba(15,23,42,.05)}
+.billing-note h2{margin:0 0 12px;font-size:22px;line-height:1.2;color:#1e293b;letter-spacing:0}
+.billing-note p{margin:8px 0 0;font-size:15px;line-height:1.6;color:#475569}
 @media (max-width: 1180px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width: 680px){.wrap{padding:18px}.nav{flex-direction:column;align-items:flex-start}.grid{grid-template-columns:1fr}.desc{min-height:0}}
+@media (max-width: 760px){.wrap{padding:0 16px 56px}.nav{justify-content:center;padding:14px 0 20px}.grid{grid-template-columns:1fr;gap:16px}.card{padding:20px;border-radius:12px}.desc{min-height:0}.billing-note{border-radius:12px}}
 ${PUBLIC_FOOTER_STYLES}
 `;
 
@@ -80,6 +83,12 @@ function getPricingPath(locale?: string | null): string {
 function getPricingUrl(webAppUrl: string, locale?: string | null): string {
   const base = webAppUrl.replace(/\/$/, '');
   const path = getPricingPath(locale);
+  return base ? `${base}${path}` : path;
+}
+
+function getLandingUrl(webAppUrl: string, locale?: string | null): string {
+  const base = webAppUrl.replace(/\/$/, '');
+  const path = buildPublicLandingPath(locale);
   return base ? `${base}${path}` : path;
 }
 
@@ -262,8 +271,9 @@ export function renderPricingHtml(params: {
   <div class="page">
     <div class="wrap">
       <nav class="nav">
-        <a class="brand" href="${escapeHtml(webAppUrl || '/')}">WonderTales</a>
-        <a class="nav-link" href="${escapeHtml(webAppUrl + (locale === 'uk' ? '/' : `/${locale}/`))}">WonderTales</a>
+        <a class="brand" href="${escapeHtml(getLandingUrl(webAppUrl, locale))}" aria-label="WonderTales">
+          <img src="/logo.webp" alt="WonderTales" width="220" height="44" />
+        </a>
       </nav>
       <header class="hero">
         <h1>${escapeHtml(title)}</h1>
@@ -275,14 +285,15 @@ export function renderPricingHtml(params: {
           const isPaidPlan = plan.priceMonthly > 0;
           const featureRows = sortPricingFeatureEntries(plan.features).map(([slug, feature]) => {
             const available = isPricingFeatureAvailable(feature);
-            return `<div class="feature"><span class="feature-icon">${available ? '✓' : '✕'}</span><span class="feature-text${available ? '' : ' disabled'}">${escapeHtml(getPricingFeatureLabel(locale, translatePricing, slug, feature))}</span></div>`;
+            const iconClass = available ? 'feature-icon' : 'feature-icon feature-icon-disabled';
+            return `<div class="feature"><span class="${iconClass}">${available ? '✓' : '✕'}</span><span class="feature-text${available ? '' : ' disabled'}">${escapeHtml(getPricingFeatureLabel(locale, translatePricing, slug, feature))}</span></div>`;
           }).join('');
           const action = !paymentsEnabled && isPaidPlan
             ? `<span class="btn-disabled">${escapeHtml(plansI18n.payments_disabled_button || 'Payments coming soon')}</span>`
             : `<a class="btn" href="${escapeHtml(getWelcomeUrl(webAppUrl, locale))}">${escapeHtml(plansI18n.subscribe_button)}</a>`;
 
           return `
-          <article class="card">
+          <article class="card${plan.slug === 'golden' ? ' card-featured' : ''}">
             <div class="name">${escapeHtml(plan.name)}</div>
             ${plan.description ? `<div class="desc">${escapeHtml(plan.description)}</div>` : ''}
             <div class="price-row">

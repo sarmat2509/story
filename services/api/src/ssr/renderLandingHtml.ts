@@ -128,7 +128,7 @@ const TRUST_CHIP_ICONS = {
 const LANDING_STYLES = `
 *{box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;margin:0;padding:0;line-height:1.6;color:#1e293b;overflow-x:hidden}
-.landing-wrapper{min-height:100vh;background-color:#f5e6f0;background-image:url('/sparkles-overlay.webp');background-repeat:repeat;background-size:contain;overflow:hidden}
+.landing-wrapper{min-height:100vh;background-color:#f5e6f0;background-image:url('/sparkles-overlay.webp');background-repeat:repeat;background-size:contain;overflow:visible}
 .landing{width:min(100%,1200px);margin:0 auto;padding:0 clamp(16px,4vw,24px) 80px}
 .brand{display:flex;align-items:center;justify-content:center;margin-bottom:20px;}
 .brand img{width:clamp(170px,24vw,260px);height:auto;display:block}
@@ -200,7 +200,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .benefit-card p{font-size:14px;color:#64748b;margin:0;line-height:1.6}
 .benefit-card .benefit-placeholder{height:120px;background:linear-gradient(135deg,#e8e4f3,#f5e6f0);border-radius:8px;margin-bottom:16px;display:flex;align-items:center;justify-content:center;color:#8b7cb8;font-size:12px}
 .feature-sticky{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:48px;align-items:start;margin-bottom:32px}
-.feature-sticky-titles{position:sticky;top:24px}
+.feature-sticky-titles{position:sticky;top:24px;align-self:start}
 .feature-sticky-title-item{padding:20px 0;border-bottom:1px solid #cdcdcd;cursor:pointer;transition:color 0.2s}
 .feature-sticky-title-item:first-child{padding-top:0}
 .feature-sticky-title-item:hover{color:#8b7cb8}

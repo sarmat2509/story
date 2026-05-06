@@ -41,6 +41,7 @@ import { CollapsibleDrawerContent } from '@/navigation/CollapsibleDrawerContent'
 import { AuthGuard } from '@/components/AuthGuard';
 import { navigationRef, navigateToMainRoute } from '@/navigation/navigationRef';
 import type { MainDrawerParamList, MainTabParamList } from '@/types/navigation';
+import { buildPublicPricingPath } from '@wondertales/shared';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Drawer = createDrawerNavigator<MainDrawerParamList>();
@@ -143,10 +144,23 @@ function ProfileScreenWithAuth() {
   );
 }
 function PlansScreenWithAccess() {
+  const { i18n } = useTranslation();
   const { isAuthenticated, sessionMode } = useAuthStore();
+
+  useEffect(() => {
+    if (!isAuthenticated && Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.replace(buildPublicPricingPath(i18n.language));
+    }
+  }, [isAuthenticated, i18n.language]);
+
   if (isAuthenticated && sessionMode === 'child') {
     return <NotFoundScreen />;
   }
+
+  if (!isAuthenticated && Platform.OS === 'web') {
+    return null;
+  }
+
   return <PlansScreen />;
 }
 function LanguageSettingsScreenWithAuth() {
@@ -179,8 +193,8 @@ const MOBILE_TAB_ORDER_CHILD: (keyof MainTabParamList)[] = ['Dashboard', 'Wizard
 const TABLET_TAB_ORDER_CHILD: (keyof MainTabParamList)[] = ['Dashboard', 'Wizard', 'Library', 'Characters', 'Stories'];
 const MORE_MENU_ROUTES_CHILD: (keyof MainTabParamList)[] = ['Stories'];
 
-const MOBILE_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories', 'Plans'];
-const TABLET_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories', 'Plans'];
+const MOBILE_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories'];
+const TABLET_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories'];
 const MORE_MENU_ROUTES_PUBLIC: (keyof MainTabParamList)[] = [];
 
 const TAB_LABELS: Record<string, string> = {
@@ -618,7 +632,7 @@ function TabNavigator() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="diamond-outline" size={size} color={color} />
           ),
-          tabBarButton: isChildSession ? () => null : undefined,
+          tabBarButton: !isAuthenticated || isChildSession ? () => null : undefined,
         }}
       />
       <Tab.Screen 
@@ -911,7 +925,7 @@ function DrawerNavigator() {
           drawerIcon: ({ color, size }) => (
             <Ionicons name="diamond-outline" size={size} color={color} />
           ),
-          drawerItemStyle: isChildSession ? { display: 'none' } : undefined,
+          drawerItemStyle: !isAuthenticated || isChildSession ? { display: 'none' } : undefined,
         }}
       />
       <Drawer.Screen 
