@@ -19,8 +19,9 @@ function isWebOAuthCallbackPath(): boolean {
 export default function RootNavigator() {
   const { isAuthenticated, isLoading, user, sessionMode } = useAuthStore();
   
-  // Check if user needs to select a mode
-  const needsModeSelection = isAuthenticated && !user?.mode;
+  // Parent-managed first-launch flow. Undefined means an older persisted user object:
+  // do not force onboarding until the API explicitly returns false for new accounts.
+  const needsModeSelection = isAuthenticated && sessionMode !== 'child' && user?.onboardingCompleted === false;
 
   // Show loading while auth state is being restored from storage
   if (isLoading) {

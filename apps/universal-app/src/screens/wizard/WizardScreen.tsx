@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { NavigationProp } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { NavigationProp, RouteProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/config/i18n';
@@ -34,6 +34,7 @@ import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd
 export default function WizardScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const route = useRoute<RouteProp<MainDrawerParamList, 'Wizard'>>();
   const queryClient = useQueryClient();
   const enterKey = useScreenEnter();
   const sessionMode = useAuthStore((state) => state.sessionMode);
@@ -107,6 +108,12 @@ export default function WizardScreen() {
     setChildProfileId(activeChild.id);
     setSelectedChildren([activeChild.id]);
   }, [activeChild?.id, isChildSession]);
+
+  useEffect(() => {
+    if (isChildSession || !route.params?.childId) return;
+    setChildProfileId(route.params.childId);
+    setSelectedChildren([route.params.childId]);
+  }, [isChildSession, route.params?.childId]);
 
   const availableGoals = useMemo(() => {
     const goals = themesData?.goals || [];

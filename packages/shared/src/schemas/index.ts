@@ -166,6 +166,9 @@ const BaseChildProfileSchema = z.object({
   
   // Languages array (min 1, max 3)
   languages: z.array(LocaleSchema).min(1).max(3),
+
+  // Default story creation experience for this child profile
+  storyCreationMode: z.enum(['instant', 'artisan']).optional(),
   
   // Reference photos (optional)
   referencePhotos: z.array(z.object({
@@ -213,10 +216,7 @@ const BaseChildProfileSchema = z.object({
   authorAboutMe: z.string().max(1000).nullable().optional()
 });
 
-export const CreateChildProfileSchema = BaseChildProfileSchema.refine(
-  (data) => (data.referencePhotos?.length ?? 0) > 0 || (data.aiGeneratedDescription?.trim().length ?? 0) > 0,
-  { message: 'Either referencePhotos or aiGeneratedDescription is required', path: ['aiGeneratedDescription'] }
-);
+export const CreateChildProfileSchema = BaseChildProfileSchema;
 
 // Update schema: omit referencePhotos (read-only on edit)
 export const UpdateChildProfileSchema = BaseChildProfileSchema.omit({ referencePhotos: true }).partial();

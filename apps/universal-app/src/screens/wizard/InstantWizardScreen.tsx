@@ -8,8 +8,8 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { NavigationProp } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { NavigationProp, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/config/i18n';
 import { navigateToStory } from '@/navigation/navigationRef';
@@ -32,6 +32,7 @@ import { getAnalytics } from '@/services/analytics';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuthStore } from '@/store/authStore';
+import { useChildren } from '@/api/children';
 
 type AgeGroup = '2-3' | '4-5' | '6-7' | '8-9' | '10-12';
 
@@ -45,6 +46,7 @@ interface PhotoObject {
 export default function InstantWizardScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
+  const route = useRoute<RouteProp<MainDrawerParamList, 'Wizard'>>();
   const queryClient = useQueryClient();
   const enterKey = useScreenEnter();
   const sessionMode = useAuthStore((state) => state.sessionMode);
@@ -68,6 +70,7 @@ export default function InstantWizardScreen() {
 
   // API hooks
   const { data: themesData, isLoading: themesLoading } = useStoryThemes();
+  const { data: childrenData } = useChildren(!isChildSession && Boolean(route.params?.childId));
   const { data: usage } = useSubscriptionUsage();
   const periodEndFormatted = useMemo(
     () => formatSubscriptionPeriodEnd(usage?.currentPeriodEnd ?? usage?.resetsAt, i18n.language),
@@ -91,6 +94,15 @@ export default function InstantWizardScreen() {
       setStoryLanguage(i18n.language);
     }
   }, [i18n.language]);
+
+  useEffect(() => {
+    if (isChildSession || !route.params?.childId) return;
+    const child = childrenData?.children.find((item) => item.id === route.params?.childId);
+    const ageGroupFromProfile = (child as { age?: { ageGroup?: string } } | undefined)?.age?.ageGroup;
+    if (ageGroupFromProfile && ['2-3', '4-5', '6-7', '8-9', '10-12'].includes(ageGroupFromProfile)) {
+      setAgeGroup(ageGroupFromProfile as AgeGroup);
+    }
+  }, [childrenData?.children, isChildSession, route.params?.childId]);
 
   // Track image_generation_failed when modal shows failed state
   const failedTrackedRef = React.useRef(false);
@@ -139,6 +151,7 @@ export default function InstantWizardScreen() {
         ageGroup,
         language: storyLanguage || i18n.language,
         scenario: scenarioCardId ?? 'default',
+        ...(!isChildSession && route.params?.childId ? { childProfileId: route.params.childId } : {}),
       };
 
       const result = await createStoryFromPhotos.mutateAsync(payload);

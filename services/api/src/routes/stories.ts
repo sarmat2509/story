@@ -329,7 +329,8 @@ const GenerateFromPhotosSchema = z.object({
   ageGroup: z.enum(['2-3', '4-5', '6-7', '8-9', '10-12']),
   scenario: z.string(),
   language: LocaleSchema,
-  goals: z.array(z.string().optional()),
+  childProfileId: z.string().uuid().optional(),
+  goals: z.array(z.string().optional()).optional().default([]),
   imageStyle: z.string().optional(),
   notes: z.string().max(1000).optional(),
 });
@@ -548,7 +549,7 @@ router.post('/instant', requireAuth, expensiveGenerationLimiter, async (req: Req
     const validatedData = GenerateFromPhotosSchema.parse(req.body);
     const ownerUserId = getRequestOwnerUserId(req);
     const isChildModeRequest = req.sessionMode === 'child';
-    const childProfileId = isChildModeRequest ? req.childProfileId : undefined;
+    const childProfileId = isChildModeRequest ? req.childProfileId : validatedData.childProfileId;
 
     if (isChildModeRequest && !childProfileId) {
       return res.status(403).json({
@@ -556,6 +557,17 @@ router.post('/instant', requireAuth, expensiveGenerationLimiter, async (req: Req
         code: 'SESSION_SCOPE_REQUIRED',
         message: 'Child session scope required',
       });
+    }
+
+    if (!isChildModeRequest && childProfileId) {
+      const profile = await getChildProfileRepository().findById(childProfileId, ownerUserId);
+      if (!profile) {
+        return res.status(404).json({
+          status: 'error',
+          code: 'CHILD_PROFILE_NOT_FOUND',
+          message: 'Child profile not found',
+        });
+      }
     }
 
     if (!isChildModeRequest) {

@@ -11,6 +11,7 @@ export const users = pgTable('users', {
   avatarUrl: text('avatar_url'),
   preferredLocale: varchar('preferred_locale', { length: 5 }).default('uk').notNull(),
   mode: varchar('mode', { length: 20 }).default('instant').notNull(), // 'instant' | 'artisan'
+  onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
   stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
   /** Application role: 'user' | 'admin' */
   role: varchar('role', { length: 20 }).notNull().default('user'),
@@ -322,6 +323,7 @@ export const childProfiles = pgTable('child_profiles', {
   userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   name: varchar('name', { length: 100 }).notNull(),
   birthDate: date('birth_date').notNull(),
+  storyCreationMode: varchar('story_creation_mode', { length: 20 }).notNull().default('instant'),
   languages: jsonb('languages').notNull(), // array of language codes
   referencePhotos: jsonb('reference_photos'), // array of photo objects
   appearanceTraits: jsonb('appearance_traits'), // structured appearance data

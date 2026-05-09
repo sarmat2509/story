@@ -9,6 +9,7 @@ const response = toUserResponse({
   childModeExitPasscodeHash: 'exit-passcode-hash-should-not-leak',
   childModeExitPasscodeSetAt: new Date('2026-05-04T12:00:00Z'),
   displayName: 'Parent',
+  onboardingCompleted: true,
   role: 'user',
   oauthProviders: [{ provider: 'google', providerEmail: 'parent@example.test' }],
 });
@@ -16,6 +17,7 @@ const response = toUserResponse({
 assert.equal(response.id, 'user-1');
 assert.equal(response.email, 'parent@example.test');
 assert.equal(response.displayName, 'Parent');
+assert.equal(response.onboardingCompleted, true);
 assert.equal(response.role, 'user');
 assert.equal(response.childModeExitPasscodeConfigured, true);
 assert.deepEqual(response.oauthProviders, [

@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { APP_CONFIG } from '@/config/constants';
 import { useCharacters } from '@/api/characters';
-import { useChildren, useEnterChildMode, useRevokeChildModeSessions, useUpdateChildModeControls } from '@/api/children';
+import { useChildren, useEnterChildMode, useRevokeChildModeSessions, useUpdateChild, useUpdateChildModeControls } from '@/api/children';
 import { useStoryThemes } from '@/api/dictionaries';
 import { useSubscriptionUsage } from '@/api/plans';
 import { ChildFormContent, type ChildFormInitialData } from '@/components/ChildFormContent';
@@ -66,6 +66,7 @@ export default function ChildDetailScreen() {
   const { data: characters = [] } = useCharacters();
   const { data: subscriptionUsage } = useSubscriptionUsage();
   const updateChildModeControls = useUpdateChildModeControls();
+  const updateChild = useUpdateChild();
   const enterChildMode = useEnterChildMode();
   const revokeChildModeSessions = useRevokeChildModeSessions();
   const child = (data?.children ?? []).find((item) => item.id === route.params.childId);
@@ -184,6 +185,7 @@ export default function ChildDetailScreen() {
     childModePasscodeConfigured: (childRecord.childModePasscodeConfigured ?? childRecord.childmodepasscodeconfigured) as boolean | undefined,
     childModeActiveSessionCount: (childRecord.childModeActiveSessionCount ?? childRecord.childmodeactivesessioncount) as number | undefined,
   };
+  const storyCreationMode = ((childRecord.storyCreationMode ?? childRecord.storycreationmode) as 'instant' | 'artisan' | undefined) ?? 'instant';
   const childAvatarUrl =
     childCardData.turnaroundSheet?.frontUrl ||
     childCardData.turnaroundSheet?.url ||
@@ -362,6 +364,50 @@ export default function ChildDetailScreen() {
 
       {activeTab === 'profile' ? (
         <View style={styles.profilePanel}>
+          <View style={styles.storySetupPanel}>
+            <View style={styles.storySetupCopy}>
+              <Text style={styles.storySetupTitle}>
+                {t('children_screen.story_setup_title', { defaultValue: 'Story setup' })}
+              </Text>
+              <Text style={styles.storySetupText}>
+                {t('children_screen.story_setup_body', {
+                  defaultValue: 'Choose the default story creation flow for this child. Parents can still change it for a single story.',
+                })}
+              </Text>
+            </View>
+            <View style={[styles.storyModeRow, isMobile && styles.storyModeRowMobile]}>
+              {(['instant', 'artisan'] as const).map((mode) => {
+                const selected = storyCreationMode === mode;
+                return (
+                  <TouchableOpacity
+                    key={mode}
+                    style={[styles.storyModeButton, selected && styles.storyModeButtonSelected]}
+                    activeOpacity={0.8}
+                    disabled={updateChild.isPending}
+                    onPress={() => updateChild.mutate({ id: child.id, data: { storyCreationMode: mode } })}
+                  >
+                    <Ionicons
+                      name={mode === 'instant' ? 'flash-outline' : 'color-palette-outline'}
+                      size={18}
+                      color={selected ? theme.colors.text.inverse : theme.colors.text.secondary}
+                    />
+                    <View style={styles.storyModeTextWrap}>
+                      <Text style={[styles.storyModeTitle, selected && styles.storyModeTitleSelected]}>
+                        {mode === 'instant'
+                          ? t('onboarding.instant_mode', { defaultValue: 'Instant Mode' })
+                          : t('onboarding.master_mode', { defaultValue: 'Master Mode' })}
+                      </Text>
+                      <Text style={[styles.storyModeDescription, selected && styles.storyModeDescriptionSelected]}>
+                        {mode === 'instant'
+                          ? t('onboarding.instant_mode_description', { defaultValue: 'Quick creation with fewer choices' })
+                          : t('onboarding.master_mode_description', { defaultValue: 'More control over story details' })}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
           <ChildFormContent
             childId={child.id}
             initialData={childInitialData}
@@ -591,6 +637,73 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 8 },
       },
     }),
+  },
+  storySetupPanel: {
+    gap: theme.spacing[4],
+    paddingHorizontal: theme.spacing[6],
+    paddingTop: theme.spacing[6],
+    paddingBottom: theme.spacing[5],
+    borderBottomWidth: theme.borders.width.thin,
+    borderBottomColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.primary,
+  },
+  storySetupCopy: {
+    gap: theme.spacing[1],
+  },
+  storySetupTitle: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.bold,
+  },
+  storySetupText: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
+  },
+  storyModeRow: {
+    flexDirection: 'row',
+    gap: theme.spacing[3],
+  },
+  storyModeRowMobile: {
+    flexDirection: 'column',
+  },
+  storyModeButton: {
+    flex: 1,
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    padding: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.neutral[50],
+  },
+  storyModeButtonSelected: {
+    backgroundColor: theme.colors.interactive.primary,
+    borderColor: theme.colors.interactive.primary,
+  },
+  storyModeTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    gap: theme.spacing[1],
+  },
+  storyModeTitle: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.bold,
+  },
+  storyModeTitleSelected: {
+    color: theme.colors.text.inverse,
+  },
+  storyModeDescription: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 18,
+  },
+  storyModeDescriptionSelected: {
+    color: theme.colors.text.inverse,
+    opacity: 0.86,
   },
   accessCardWeb: {
     width: '100%',

@@ -9,8 +9,11 @@ import apiClient from './client';
 import { useAuthStore } from '@/store/authStore';
 import { storage } from '@/utils/storage';
 
-// Use shared type
-type ChildProfile = ChildProfileApi;
+// Use shared type plus runtime camelCase fields returned by the API client.
+export type ChildProfile = ChildProfileApi & {
+  storyCreationMode?: 'instant' | 'artisan';
+  storycreationmode?: 'instant' | 'artisan';
+};
 type CreateChildProfileRequest = CreateChildProfileInput & {
   childDataConsentAccepted?: boolean;
 };
@@ -36,6 +39,8 @@ export interface ChildModeSessionResponse {
   child: {
     id: string;
     name: string;
+    storyCreationMode?: 'instant' | 'artisan';
+    storycreationmode?: 'instant' | 'artisan';
     authorPseudonym?: string | null;
     authorAboutMe?: string | null;
     referencePhotos?: Array<{ url: string }>;
@@ -160,6 +165,7 @@ export const useEnterChildMode = () => {
       enterChildSession(result.token, {
         id: result.child.id,
         name: result.child.name,
+        storyCreationMode: result.child.storyCreationMode ?? result.child.storycreationmode,
         authorPseudonym: result.child.authorPseudonym,
         authorAboutMe: result.child.authorAboutMe,
         referencePhotos: result.child.referencePhotos ?? result.child.referencephotos,

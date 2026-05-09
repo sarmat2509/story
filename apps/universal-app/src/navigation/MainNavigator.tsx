@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Modal, Pressable, Platform } from 'react-native';
+import { ActivityIndicator, View, TouchableOpacity, Text, StyleSheet, Modal, Pressable, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { createDrawerNavigator } from '@react-navigation/drawer';
+import { useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
@@ -33,7 +35,6 @@ import ProfileScreen from '@/screens/profile/ProfileScreen';
 import BillingSuccessScreen from '@/screens/billing/BillingSuccessScreen';
 import LanguageSettingsScreen from '@/screens/profile/LanguageSettingsScreen';
 import ThemeSettingsScreen from '@/screens/profile/ThemeSettingsScreen';
-import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
 import { MiniAudioPlayer } from '@/components/MiniAudioPlayer';
 import { useMainNavigationStore } from '@/store/mainNavigationStore';
 import { useDrawerCollapsedStore } from '@/store/drawerCollapsedStore';
@@ -42,14 +43,38 @@ import { AuthGuard } from '@/components/AuthGuard';
 import { navigationRef, navigateToMainRoute } from '@/navigation/navigationRef';
 import type { MainDrawerParamList, MainTabParamList } from '@/types/navigation';
 import { buildPublicPricingPath } from '@wondertales/shared';
+import { useChildren } from '@/api/children';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Drawer = createDrawerNavigator<MainDrawerParamList>();
 
 // Wrapper components to avoid inline functions (prevents state loss and perf issues)
 function WizardScreenWithAuth() {
-  const { user } = useAuthStore();
-  const isInstantMode = user?.mode === 'instant';
+  const route = useRoute<RouteProp<MainDrawerParamList, 'Wizard'>>();
+  const { user, sessionMode, activeChild } = useAuthStore();
+  const isChildSession = sessionMode === 'child';
+  const routeChildId = route.params?.childId;
+  const { data: childrenData } = useChildren(!isChildSession && Boolean(routeChildId));
+  const routeChild = routeChildId
+    ? childrenData?.children.find((child) => child.id === routeChildId)
+    : undefined;
+  const needsRouteChildMode =
+    !isChildSession && Boolean(routeChildId) && !route.params?.storyCreationMode && !childrenData;
+  const storyCreationMode =
+    route.params?.storyCreationMode ||
+    (isChildSession ? activeChild?.storyCreationMode : routeChild?.storyCreationMode) ||
+    user?.mode ||
+    'instant';
+  const isInstantMode = storyCreationMode === 'instant';
+  if (needsRouteChildMode) {
+    return (
+      <AuthGuard>
+        <View style={styles.centeredLoader}>
+          <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+        </View>
+      </AuthGuard>
+    );
+  }
   return (
     <AuthGuard>
       {isInstantMode ? <InstantWizardScreen /> : <WizardScreen />}
@@ -354,6 +379,15 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  centeredLoader: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.primary,
+  },
+});
 
 const mobileTabBarStyles = StyleSheet.create({
   container: {
@@ -952,14 +986,6 @@ function DrawerNavigator() {
         component={ThemeSettingsScreenWithAuth}
         options={{
           title: t('profile.theme_settings'),
-          drawerItemStyle: { display: 'none' },
-        }}
-      />
-      <Drawer.Screen 
-        name="ModeSelection" 
-        component={ModeSelectionScreen}
-        options={{ 
-          title: t('mode_selection.title'),
           drawerItemStyle: { display: 'none' },
         }}
       />

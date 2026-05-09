@@ -580,21 +580,7 @@ export default function ProfileScreen() {
 
       <AnimatedSection delay={220} trigger={enterKey} style={styles.section}>
         <Text style={styles.sectionTitle}>{t('profile.preferences')}</Text>
-        
-        {/* Mode Settings */}
-        <TouchableOpacity 
-          style={styles.settingButton}
-          onPress={() => navigation.navigate('ModeSelection' as any)}
-        >
-          <View style={styles.settingLeft}>
-            <Text style={styles.settingText}>{t('profile.mode')}</Text>
-            <Text style={styles.settingValue}>
-            {profileUser?.mode === 'instant' ? t('mode_selection.instant_mode') : t('mode_selection.artisan_mode')}
-            </Text>
-          </View>
-          <Text style={styles.settingArrow}>›</Text>
-        </TouchableOpacity>
-        
+
         <TouchableOpacity 
           style={styles.settingButton}
           onPress={() => navigation.navigate('LanguageSettings')}

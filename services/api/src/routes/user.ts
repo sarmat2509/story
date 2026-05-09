@@ -26,6 +26,7 @@ const updateUserSchema = z.object({
   avatarUrl: z.string().nullable().optional(),
   preferredLocale: z.string().optional(),
   mode: z.enum(['instant', 'artisan']).optional(),
+  onboardingCompleted: z.boolean().optional(),
   pseudonym: z.string().max(100).nullable().optional(),
   aboutMe: z.string().max(1000).nullable().optional(),
   themePalette: z.enum(THEME_PALETTE_IDS).optional(),
@@ -71,19 +72,20 @@ router.patch('/', requireAuth, requireParentSession, async (req: Request, res: R
       return;
     }
     
-    const { displayName, avatarUrl, preferredLocale, mode, pseudonym, aboutMe, themePalette } = validationResult.data;
+    const { displayName, avatarUrl, preferredLocale, mode, onboardingCompleted, pseudonym, aboutMe, themePalette } = validationResult.data;
 
     const updatedUser = await updateUser(req.user!.id, {
       displayName,
       avatarUrl,
       preferredLocale,
       mode,
+      onboardingCompleted,
       pseudonym,
       aboutMe,
       themePalette,
     });
 
-    logger.info({ userId: req.user!.id, updates: { displayName, avatarUrl, preferredLocale, mode, pseudonym, aboutMe, themePalette } }, 'User profile updated');
+    logger.info({ userId: req.user!.id, updates: { displayName, avatarUrl, preferredLocale, mode, onboardingCompleted, pseudonym, aboutMe, themePalette } }, 'User profile updated');
     
     res.json({
       status: 'success',

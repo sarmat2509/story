@@ -71,6 +71,7 @@ export interface User {
   avatar_url: string | null;
   preferred_locale: Locale;
   mode?: 'instant' | 'artisan';
+  onboarding_completed?: boolean;
   pseudonym?: string | null;
   about_me?: string | null;
   role: 'user' | 'admin';

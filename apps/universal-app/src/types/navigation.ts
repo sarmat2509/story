@@ -29,7 +29,7 @@ export type MainDrawerParamList = {
   NotFound: undefined;
   OAuthCallback: { provider: 'google' | 'apple' };
   Dashboard: undefined;
-  Wizard: undefined;
+  Wizard: { childId?: string; storyCreationMode?: 'instant' | 'artisan' } | undefined;
   Library: { scenarioCardId?: string } | undefined;
   LibraryRedirect: undefined;
   Series: undefined;
@@ -48,7 +48,6 @@ export type MainDrawerParamList = {
   BillingSuccess: { kind?: 'subscription' | 'bundle'; session_id?: string } | undefined;
   LanguageSettings: undefined;
   ThemeSettings: undefined;
-  ModeSelection: undefined;
 };
 
 export type MainTabParamList = MainDrawerParamList;

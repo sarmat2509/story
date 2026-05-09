@@ -342,12 +342,14 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
     // Create profile (feature check happens in service)
     const profile = await childProfileService.createChildProfile(userId, dataForCreate);
     
-    // Generate turnaround (mandatory) - create then generate, rollback on failure
+    // Generate a turnaround when the profile has enough visual/text reference data.
+    // First-launch profiles can be intentionally lightweight and add photos later.
     if (isTurnaroundSheetEnabled()) {
       try {
         const referencePhotos = profile.referencePhotos as Array<{ url?: string }> | undefined;
         const hasPhotos = referencePhotos && Array.isArray(referencePhotos) && referencePhotos.length > 0;
         const firstPhoto = hasPhotos ? referencePhotos!.find(p => p && p.url) : undefined;
+        const hasDescription = profile.aiGeneratedDescription && profile.aiGeneratedDescription.trim().length > 0;
 
         if (firstPhoto?.url) {
           await generateTurnaroundSheetFromReference({
@@ -358,19 +360,13 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
             userId,
             aiDescription: profile.aiGeneratedDescription,
           });
-        } else if (profile.aiGeneratedDescription && profile.aiGeneratedDescription.trim().length > 0) {
+        } else if (hasDescription) {
           await generateTurnaroundSheetFromDescription({
             targetType: 'child',
             targetId: profile.id,
             characterName: profile.name,
             characterDescription: profile.aiGeneratedDescription,
             userId,
-          });
-        } else {
-          await childProfileService.deleteChildProfile(profile.id, userId);
-          return res.status(400).json({
-            status: 'error',
-            error: 'Child profile must have reference photos or aiGeneratedDescription for turnaround',
           });
         }
       } catch (turnaroundError) {
@@ -491,6 +487,7 @@ router.post('/:id/child-mode/sessions', requireAuth, requireParentSession, async
       child: {
         id: profile.id,
         name: profile.name,
+        storyCreationMode: profile.storyCreationMode as 'instant' | 'artisan',
         authorPseudonym: profile.authorPseudonym,
         authorAboutMe: profile.authorAboutMe,
         referencePhotos: profile.referencePhotos,

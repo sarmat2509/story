@@ -10,6 +10,7 @@ export type SessionMode = 'parent' | 'child';
 export type ActiveChildSession = {
   id: string;
   name: string;
+  storyCreationMode?: 'instant' | 'artisan';
   authorPseudonym?: string | null;
   authorAboutMe?: string | null;
   referencePhotos?: Array<{ url: string }>;

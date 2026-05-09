@@ -32,6 +32,7 @@ export interface ChildProfileData {
   userId: string;
   name: string;
   birthDate: Date | string;
+  storyCreationMode?: 'instant' | 'artisan';
   languages: any;
   referencePhotos?: ReferencePhoto[];
   aiGeneratedDescription?: string; // AI-generated narrative description
