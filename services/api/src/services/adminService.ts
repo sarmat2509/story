@@ -257,6 +257,15 @@ export async function listAdminFeedback(params: {
               typeof context.reportedScreen === 'string' ? context.reportedScreen : null,
             supportTopic:
               typeof context.supportTopic === 'string' ? context.supportTopic : null,
+            storyId: typeof context.storyId === 'string' ? context.storyId : null,
+            storySlug: typeof context.storySlug === 'string' ? context.storySlug : null,
+            shareToken: typeof context.shareToken === 'string' ? context.shareToken : null,
+            sceneId: typeof context.sceneId === 'number' ? context.sceneId : null,
+            contentType: typeof context.contentType === 'string' ? context.contentType : null,
+            contentReviewStatus:
+              typeof context.contentReviewStatus === 'string' ? context.contentReviewStatus : null,
+            contentQuarantined:
+              typeof context.contentQuarantined === 'boolean' ? context.contentQuarantined : null,
           },
           createdAt: item.createdAt.toISOString(),
         };

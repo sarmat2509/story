@@ -457,6 +457,12 @@ export default function PublishedStoryScreen() {
           visible={showFeedbackModal}
           onClose={() => setShowFeedbackModal(false)}
           initialReportedScreen="published_story"
+          contentReportContext={{
+            storyId: story.id,
+            storySlug: slug || undefined,
+            shareToken: token || undefined,
+            contentType: 'story',
+          }}
         />
       </View>
     );
@@ -471,6 +477,12 @@ export default function PublishedStoryScreen() {
         visible={showFeedbackModal}
         onClose={() => setShowFeedbackModal(false)}
         initialReportedScreen="published_story"
+        contentReportContext={{
+          storyId: story.id,
+          storySlug: slug || undefined,
+          shareToken: token || undefined,
+          contentType: 'story',
+        }}
       />
     </>
   );

@@ -1722,6 +1722,10 @@ export default function StoryViewerScreen() {
         visible={showFeedbackModal}
         onClose={() => setShowFeedbackModal(false)}
         initialReportedScreen="story_viewer"
+        contentReportContext={{
+          storyId,
+          contentType: 'story',
+        }}
       />
     </View>
   );

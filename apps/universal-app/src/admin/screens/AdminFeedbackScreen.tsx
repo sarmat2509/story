@@ -35,6 +35,9 @@ const TOPIC_LABELS: Record<FeedbackTopic, string> = {
   billing: 'Billing',
   refund: 'Refund',
   unsafe_content: 'Unsafe content',
+  unsafe_image: 'Unsafe image',
+  unsafe_text: 'Unsafe text',
+  privacy_concern: 'Privacy concern',
   generation_failed: 'Generation failed',
   account_privacy: 'Account/privacy',
   other: 'Other',
@@ -92,9 +95,18 @@ function getTopicMeta(topic: string | null | undefined, fallbackCategory: string
         backgroundColor: theme.colors.warning[50],
       };
     case 'unsafe_content':
+    case 'unsafe_image':
+    case 'unsafe_text':
       return {
-        label: 'Unsafe content',
+        label: TOPIC_LABELS[(topic ?? fallbackCategory) as FeedbackTopic] ?? 'Unsafe content',
         icon: 'shield-checkmark-outline' as const,
+        color: theme.colors.status.error,
+        backgroundColor: theme.colors.error[50],
+      };
+    case 'privacy_concern':
+      return {
+        label: 'Privacy concern',
+        icon: 'eye-off-outline' as const,
         color: theme.colors.status.error,
         backgroundColor: theme.colors.error[50],
       };
@@ -142,6 +154,15 @@ function FeedbackCard({ item }: { item: AdminFeedbackListItem }) {
     { label: 'Support topic', value: item.context.supportTopic },
     { label: 'Category', value: item.category },
     { label: 'Reported screen', value: item.context.reportedScreen },
+    { label: 'Story ID', value: item.context.storyId },
+    { label: 'Story slug', value: item.context.storySlug },
+    { label: 'Share token', value: item.context.shareToken ? 'present' : null },
+    {
+      label: 'Scene ID',
+      value: item.context.sceneId != null ? String(item.context.sceneId) : null,
+    },
+    { label: 'Content type', value: item.context.contentType },
+    { label: 'Review status', value: item.context.contentReviewStatus },
     { label: 'Platform', value: item.context.platform },
     { label: 'URL', value: item.context.url },
     { label: 'User ID', value: item.userId },

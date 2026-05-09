@@ -23,6 +23,23 @@ export interface SubmitFeedbackInput {
   email?: string;
   screenshotUrl?: string;
   reportedScreen: ReportedScreen;
+  storyId?: string;
+  storySlug?: string;
+  shareToken?: string;
+  sceneId?: number;
+  contentType?: 'story' | 'scene' | 'image' | 'audio' | 'other';
+}
+
+interface SubmitFeedbackResponse {
+  status: string;
+  feedback: {
+    id: string;
+    contentReview?: {
+      reviewQueued: boolean;
+      quarantinedStoryId?: string;
+      reason: string;
+    };
+  };
 }
 
 export function useSubmitFeedback() {
@@ -35,7 +52,7 @@ export function useSubmitFeedback() {
           ? window.location.pathname
           : undefined;
 
-      const response = await apiClient.post<{ status: string; feedback: { id: string } }>(
+      const response = await apiClient.post<SubmitFeedbackResponse>(
         '/api/v1/feedback',
         {
           ...input,

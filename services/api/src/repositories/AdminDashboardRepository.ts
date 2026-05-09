@@ -475,7 +475,12 @@ export class AdminDashboardRepository {
       feedback_reports AS (
         SELECT
           COUNT(*) FILTER (
-            WHERE COALESCE(uf.context->>'supportTopic', '') = 'unsafe_content'
+            WHERE COALESCE(uf.context->>'supportTopic', '') IN (
+              'unsafe_content',
+              'unsafe_image',
+              'unsafe_text',
+              'privacy_concern'
+            )
           )::int AS unsafe_report_count,
           COUNT(*) FILTER (
             WHERE COALESCE(uf.context->>'supportTopic', '') = 'generation_failed'

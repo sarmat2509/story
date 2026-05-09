@@ -40,6 +40,13 @@ export type AdminFeedbackListItem = {
     url: string | null;
     reportedScreen: string | null;
     supportTopic: FeedbackTopic | string | null;
+    storyId: string | null;
+    storySlug: string | null;
+    shareToken: string | null;
+    sceneId: number | null;
+    contentType: string | null;
+    contentReviewStatus: string | null;
+    contentQuarantined: boolean | null;
   };
   createdAt: string;
 };

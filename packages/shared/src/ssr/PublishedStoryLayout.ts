@@ -73,6 +73,7 @@ export function renderPublishedStoryLayout(params: PublishedStoryLayoutParams): 
   const authorHtml = authorHref
     ? `<a class="author-link" href="${escapeHtml(authorHref)}">${authorName}</a>`
     : authorName;
+  const reportHref = `${webAppUrl.replace(/\/$/, '')}/support?topic=unsafe_content&url=${encodeURIComponent(story.share.url)}`;
 
   return `
   <div class="nav-rail"></div>
@@ -84,6 +85,7 @@ export function renderPublishedStoryLayout(params: PublishedStoryLayoutParams): 
     <div class="layout">
       <div class="main">
         <p class="meta">${authorHtml} · ${escapeHtml(publishedAt)}</p>
+        <a class="report-action" href="${escapeHtml(reportHref)}" data-report-story-id="${escapeHtml(story.id)}">Report generated content</a>
         ${scenesHtml}
       </div>
       ${sidebar}

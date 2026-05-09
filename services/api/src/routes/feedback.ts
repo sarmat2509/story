@@ -4,6 +4,7 @@ import {
   FEEDBACK_CATEGORIES,
   FEEDBACK_TOPICS,
   getFeedbackCategoryForTopic,
+  isContentReportTopic,
 } from '@wondertales/shared';
 import { optionalAuth } from '../middleware/authMiddleware';
 import { createFeedback } from '../services/feedbackService';
@@ -11,6 +12,7 @@ import { logger } from '../utils/logger';
 import { createRateLimitHandler } from '../middleware/rateLimiter';
 import rateLimit from 'express-rate-limit';
 import { CaptchaVerificationError, requireCaptcha } from '../services/captchaService';
+import { queueReportedContentReview } from '../services/reportedContentReviewService';
 
 const router = Router();
 
@@ -35,6 +37,13 @@ const feedbackSchema = z.object({
   screenshotUrl: z.string().max(500).optional(),
   reportedScreen: z.enum(REPORTED_SCREENS),
   captchaToken: z.string().max(4096).optional(),
+  url: z.string().max(2000).optional(),
+  platform: z.string().max(60).optional(),
+  storyId: z.string().uuid().optional(),
+  storySlug: z.string().min(1).max(160).optional(),
+  shareToken: z.string().min(8).max(128).optional(),
+  sceneId: z.number().int().min(0).max(1000).optional(),
+  contentType: z.enum(['story', 'scene', 'image', 'audio', 'other']).optional(),
 });
 
 function getClientIp(req: Request): string {
@@ -99,14 +108,25 @@ router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Respon
       });
     }
 
-    const { message, email, screenshotUrl, reportedScreen } = parsed.data;
+    const {
+      message,
+      email,
+      screenshotUrl,
+      reportedScreen,
+      storyId,
+      storySlug,
+      shareToken,
+      sceneId,
+      contentType,
+    } = parsed.data;
     const supportTopic = parsed.data.supportTopic ?? parsed.data.category ?? 'other';
     const category = parsed.data.supportTopic
       ? getFeedbackCategoryForTopic(parsed.data.supportTopic)
-      : parsed.data.category ?? 'other';
+      : (parsed.data.category ?? 'other');
+    const isContentReport = isContentReportTopic(supportTopic);
 
     const userId = req.user?.id;
-    if (!userId && !email) {
+    if (!userId && !email && !isContentReport) {
       return res.status(400).json({
         status: 'error',
         message: 'Email is required when not logged in',
@@ -115,12 +135,9 @@ router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Respon
 
     await requireCaptcha('feedback', parsed.data.captchaToken, req);
 
-    const platform =
-      (req.headers['x-platform'] as string) ||
-      (req.body.platform as string) ||
-      'web';
+    const platform = (req.headers['x-platform'] as string) || parsed.data.platform || 'web';
     const userAgent = req.headers['user-agent'] || undefined;
-    const url = req.body.url as string | undefined;
+    const url = parsed.data.url;
 
     const result = await createFeedback({
       userId,
@@ -134,12 +151,32 @@ router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Respon
         url,
         reportedScreen,
         supportTopic,
+        ...(storyId && { storyId }),
+        ...(storySlug && { storySlug }),
+        ...(shareToken && { shareToken }),
+        ...(sceneId != null && { sceneId }),
+        contentType: contentType ?? (isContentReport ? 'story' : undefined),
+        ...(isContentReport && { contentReviewStatus: 'queued' }),
       },
+    });
+
+    const contentReview = await queueReportedContentReview({
+      feedbackId: result.id,
+      reporterUserId: userId,
+      supportTopic,
+      storyId,
+      storySlug,
+      shareToken,
+      sceneId,
+      contentType: contentType ?? 'story',
     });
 
     res.status(201).json({
       status: 'success',
-      feedback: { id: result.id },
+      feedback: {
+        id: result.id,
+        contentReview,
+      },
     });
   } catch (error) {
     if (error instanceof CaptchaVerificationError) {

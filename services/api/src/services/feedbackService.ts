@@ -19,6 +19,14 @@ export interface CreateFeedbackInput {
     url?: string;
     reportedScreen?: string;
     supportTopic?: FeedbackTopic;
+    reportId?: string;
+    storyId?: string;
+    storySlug?: string;
+    shareToken?: string;
+    sceneId?: number;
+    contentType?: string;
+    contentReviewStatus?: string;
+    contentQuarantined?: boolean;
   };
 }
 
@@ -45,6 +53,8 @@ export async function createFeedback(input: CreateFeedbackInput): Promise<{ id: 
       userId: input.userId,
       category: input.category,
       supportTopic: input.context?.supportTopic,
+      storyId: input.context?.storyId,
+      contentReviewStatus: input.context?.contentReviewStatus,
       hasScreenshot: !!input.screenshotUrl,
     },
     'User feedback submitted'

@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import {
   FEEDBACK_TOPICS,
   getFeedbackCategoryForTopic,
+  isContentReportTopic,
   type FeedbackTopic,
 } from '@wondertales/shared';
 import { theme } from '@/theme';
@@ -44,7 +45,21 @@ interface FeedbackModalProps {
   onClose: () => void;
   initialReportedScreen?: ReportedScreen;
   initialTopic?: FeedbackTopic;
+  contentReportContext?: {
+    storyId?: string;
+    storySlug?: string;
+    shareToken?: string;
+    sceneId?: number;
+    contentType?: 'story' | 'scene' | 'image' | 'audio' | 'other';
+  };
 }
+
+const GENERATED_CONTENT_REPORT_TOPICS: FeedbackTopic[] = [
+  'unsafe_image',
+  'unsafe_text',
+  'privacy_concern',
+  'other',
+];
 
 function getDefaultFeedbackTopic(screen: ReportedScreen): FeedbackTopic {
   if (screen === 'plans' || screen === 'profile') {
@@ -52,7 +67,7 @@ function getDefaultFeedbackTopic(screen: ReportedScreen): FeedbackTopic {
   }
 
   if (screen === 'published_story') {
-    return 'unsafe_content';
+    return 'unsafe_image';
   }
 
   if (screen === 'wizard') {
@@ -156,6 +171,7 @@ export function FeedbackModal({
   onClose,
   initialReportedScreen = 'profile',
   initialTopic,
+  contentReportContext,
 }: FeedbackModalProps) {
   const { t } = useTranslation();
   const { user } = useAuthStore();
@@ -174,8 +190,14 @@ export function FeedbackModal({
   const [hasAttemptedAutoCapture, setHasAttemptedAutoCapture] = useState(false);
   const [isAutoCaptured, setIsAutoCaptured] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedReportId, setSubmittedReportId] = useState<string | null>(null);
 
   const isLoggedIn = !!user;
+  const isGeneratedContentReport = !!contentReportContext;
+  const contentReportTopics = isGeneratedContentReport
+    ? GENERATED_CONTENT_REPORT_TOPICS
+    : FEEDBACK_TOPICS;
+  const emailIsRequired = !isLoggedIn && !isContentReportTopic(supportTopic);
   const showEmailField = !isLoggedIn;
   const showScreenshotField = isLoggedIn;
 
@@ -192,6 +214,7 @@ export function FeedbackModal({
       setHasAttemptedAutoCapture(false);
       setIsAutoCaptured(false);
       setSubmitted(false);
+      setSubmittedReportId(null);
     } else {
       setIsPreparingModal(false);
       setIsUploadingScreenshot(false);
@@ -329,26 +352,28 @@ export function FeedbackModal({
     }
     if (showEmailField) {
       const trimmedEmail = email.trim();
-      if (!trimmedEmail) {
+      if (emailIsRequired && !trimmedEmail) {
         Alert.alert(t('common.error'), t('feedback.email_required'));
         return;
       }
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(trimmedEmail)) {
+      if (trimmedEmail && !emailRegex.test(trimmedEmail)) {
         Alert.alert(t('common.error'), t('feedback.email_invalid'));
         return;
       }
     }
 
     try {
-      await submitFeedback.mutateAsync({
+      const report = await submitFeedback.mutateAsync({
         category: getFeedbackCategoryForTopic(supportTopic),
         supportTopic,
         message: trimmedMessage,
         email: showEmailField ? email.trim() : undefined,
         screenshotUrl: screenshotStoragePath || undefined,
         reportedScreen,
+        ...contentReportContext,
       });
+      setSubmittedReportId(report.id);
       setSubmitted(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to submit feedback';
@@ -385,7 +410,16 @@ export function FeedbackModal({
               <Ionicons name="checkmark-circle" size={48} color={theme.colors.status.success} />
             </View>
             <Text style={styles.successTitle}>{t('feedback.success')}</Text>
-            <Text style={styles.successMessage}>{t('feedback.success_message')}</Text>
+            <Text style={styles.successMessage}>
+              {isGeneratedContentReport
+                ? t('feedback.success_content_report_message')
+                : t('feedback.success_message')}
+            </Text>
+            {submittedReportId ? (
+              <Text style={styles.reportIdText}>
+                {t('feedback.report_id', { id: submittedReportId })}
+              </Text>
+            ) : null}
             <TouchableOpacity style={styles.primaryButton} onPress={handleClose}>
               <Text style={styles.primaryButtonText}>{t('common.got_it')}</Text>
             </TouchableOpacity>
@@ -400,41 +434,52 @@ export function FeedbackModal({
       <View style={styles.overlay}>
         <View style={styles.dialog}>
           <View style={styles.header}>
-            <Text style={styles.title}>{t('feedback.title')}</Text>
+            <Text style={styles.title}>
+              {isGeneratedContentReport ? t('feedback.content_report_title') : t('feedback.title')}
+            </Text>
             <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={24} color={theme.colors.text.tertiary} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-            {/* Where did it happen? */}
-            <Text style={styles.label}>{t('feedback.reported_screen')} *</Text>
-            <View style={styles.pickerRow}>
-              {REPORTED_SCREENS.map((screen) => (
-                <TouchableOpacity
-                  key={screen}
-                  style={[
-                    styles.pill,
-                    reportedScreen === screen && styles.pillSelected,
-                  ]}
-                  onPress={() => setReportedScreen(screen)}
-                >
-                  <Text
-                    style={[
-                      styles.pillText,
-                      reportedScreen === screen && styles.pillTextSelected,
-                    ]}
-                  >
-                    {t(`feedback.reported_screen_options.${screen}`)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {!isGeneratedContentReport ? (
+              <>
+                <Text style={styles.label}>{t('feedback.reported_screen')} *</Text>
+                <View style={styles.pickerRow}>
+                  {REPORTED_SCREENS.map((screen) => (
+                    <TouchableOpacity
+                      key={screen}
+                      style={[
+                        styles.pill,
+                        reportedScreen === screen && styles.pillSelected,
+                      ]}
+                      onPress={() => setReportedScreen(screen)}
+                    >
+                      <Text
+                        style={[
+                          styles.pillText,
+                          reportedScreen === screen && styles.pillTextSelected,
+                        ]}
+                      >
+                        {t(`feedback.reported_screen_options.${screen}`)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <Text style={styles.contentReportNotice}>
+                {t('feedback.content_report_notice')}
+              </Text>
+            )}
 
             {/* Category */}
-            <Text style={styles.label}>{t('feedback.category')} *</Text>
+            <Text style={styles.label}>
+              {isGeneratedContentReport ? t('feedback.content_report_category') : t('feedback.category')} *
+            </Text>
             <View style={styles.pickerRow}>
-              {FEEDBACK_TOPICS.map((topic) => (
+              {contentReportTopics.map((topic) => (
                 <TouchableOpacity
                   key={topic}
                   style={[styles.pill, supportTopic === topic && styles.pillSelected]}
@@ -458,7 +503,11 @@ export function FeedbackModal({
               style={styles.textArea}
               value={message}
               onChangeText={setMessage}
-              placeholder={t('feedback.message_placeholder')}
+              placeholder={
+                isGeneratedContentReport
+                  ? t('feedback.content_report_placeholder')
+                  : t('feedback.message_placeholder')
+              }
               placeholderTextColor={theme.colors.text.tertiary}
               multiline
               numberOfLines={4}
@@ -471,7 +520,9 @@ export function FeedbackModal({
             {/* Email (anonymous only) */}
             {showEmailField && (
               <>
-                <Text style={styles.label}>{t('feedback.email')} *</Text>
+                <Text style={styles.label}>
+                  {emailIsRequired ? `${t('feedback.email')} *` : t('feedback.email_optional')}
+                </Text>
                 <TextInput
                   style={styles.input}
                   value={email}
@@ -628,6 +679,16 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     marginBottom: theme.spacing[2],
     marginTop: theme.spacing[4],
+  },
+  contentReportNotice: {
+    marginTop: theme.spacing[2],
+    marginBottom: theme.spacing[2],
+    padding: theme.spacing[3],
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.warning[50],
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
   },
   pickerRow: {
     flexDirection: 'row',
@@ -821,5 +882,12 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     marginBottom: theme.spacing[8],
     maxWidth: 360,
+  },
+  reportIdText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.tertiary,
+    textAlign: 'center',
+    marginTop: -theme.spacing[5],
+    marginBottom: theme.spacing[6],
   },
 });
