@@ -44,7 +44,7 @@ export class UserRepository {
 
   async update(
     id: string,
-    data: Partial<Pick<schema.NewUser, 'displayName' | 'avatarUrl' | 'preferredLocale' | 'mode' | 'onboardingCompleted' | 'pseudonym' | 'aboutMe' | 'passwordHash' | 'stripeCustomerId' | 'themePalette' | 'childModeExitPasscodeHash' | 'childModeExitPasscodeSetAt'>>
+    data: Partial<Pick<schema.NewUser, 'displayName' | 'avatarUrl' | 'preferredLocale' | 'mode' | 'onboardingCompleted' | 'pseudonym' | 'aboutMe' | 'passwordHash' | 'stripeCustomerId' | 'themePalette' | 'childModeExitPasscodeHash' | 'childModeExitPasscodeSetAt' | 'status' | 'suspendedAt' | 'suspendedReason' | 'suspendedByUserId'>>
   ): Promise<schema.User> {
     const [user] = await this.db
       .update(schema.users)
@@ -92,6 +92,29 @@ export class UserRepository {
     return user;
   }
 
+  async updateStatus(
+    id: string,
+    input: {
+      status: 'active' | 'suspended';
+      suspendedReason?: string | null;
+      suspendedByUserId?: string | null;
+    }
+  ): Promise<schema.User> {
+    const suspended = input.status === 'suspended';
+    const [user] = await this.db
+      .update(schema.users)
+      .set({
+        status: input.status,
+        suspendedAt: suspended ? new Date() : null,
+        suspendedReason: suspended ? input.suspendedReason ?? null : null,
+        suspendedByUserId: suspended ? input.suspendedByUserId ?? null : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.users.id, id))
+      .returning();
+    return user;
+  }
+
   async delete(id: string): Promise<void> {
     await this.db.delete(schema.users).where(eq(schema.users.id, id));
   }
@@ -104,6 +127,9 @@ export class UserRepository {
     id: string;
     email: string;
     role: string;
+    status: string;
+    suspendedAt: Date | null;
+    suspendedReason: string | null;
     createdAt: Date;
     planSlug: string | null;
     planName: string | null;
@@ -116,6 +142,9 @@ export class UserRepository {
         id: schema.users.id,
         email: schema.users.email,
         role: schema.users.role,
+        status: schema.users.status,
+        suspendedAt: schema.users.suspendedAt,
+        suspendedReason: schema.users.suspendedReason,
         createdAt: schema.users.createdAt,
         planSlug: schema.plans.slug,
         planName: schema.plans.name,

@@ -15,6 +15,11 @@ export const users = pgTable('users', {
   stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
   /** Application role: 'user' | 'admin' */
   role: varchar('role', { length: 20 }).notNull().default('user'),
+  /** Account access status: active users can authenticate and generate content. */
+  status: varchar('status', { length: 20 }).notNull().default('active'),
+  suspendedAt: timestamp('suspended_at', { withTimezone: true }),
+  suspendedReason: text('suspended_reason'),
+  suspendedByUserId: uuid('suspended_by_user_id'),
   /** Active UI theme palette id (see @wondertales/shared THEME_PALETTE_IDS) */
   themePalette: varchar('theme_palette', { length: 32 }).notNull().default('dusk_lavender'),
   childModeExitPasscodeHash: text('child_mode_exit_passcode_hash'),

@@ -75,6 +75,10 @@ export interface User {
   pseudonym?: string | null;
   about_me?: string | null;
   role: 'user' | 'admin';
+  status?: 'active' | 'suspended';
+  suspended_at?: string | null;
+  suspended_reason?: string | null;
+  suspended_by_user_id?: string | null;
   theme_palette: ThemePaletteId;
   child_mode_exit_passcode_configured?: boolean;
   child_mode_exit_passcode_set_at?: string | null;

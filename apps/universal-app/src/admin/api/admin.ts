@@ -17,6 +17,9 @@ export type AdminUserListItem = {
   id: string;
   email: string;
   role: 'user' | 'admin';
+  status: 'active' | 'suspended';
+  suspendedAt: string | null;
+  suspendedReason: string | null;
   planSlug: string | null;
   planName: string | null;
   createdAt: string;
@@ -539,14 +542,27 @@ export function useUpdateAdminUser() {
     mutationFn: async (params: {
       userId: string;
       role?: 'user' | 'admin';
+      status?: 'active' | 'suspended';
+      suspendedReason?: string | null;
       planSlug?: string;
       storiesUsedCurrentPeriod?: number;
       audioStoriesUsedCurrentPeriod?: number;
     }) => {
-      const response = await apiClient.patch<{ status: string; data: { id: string; email: string; role: 'user' | 'admin' } }>(
+      const response = await apiClient.patch<{
+        status: string;
+        data: {
+          id: string;
+          email: string;
+          role: 'user' | 'admin';
+          status: 'active' | 'suspended';
+          suspendedReason: string | null;
+        };
+      }>(
         `/api/v1/admin/users/${params.userId}`,
         {
           role: params.role,
+          status: params.status,
+          suspendedReason: params.suspendedReason,
           planSlug: params.planSlug,
           storiesUsedCurrentPeriod: params.storiesUsedCurrentPeriod,
           audioStoriesUsedCurrentPeriod: params.audioStoriesUsedCurrentPeriod,

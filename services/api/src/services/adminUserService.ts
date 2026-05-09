@@ -7,6 +7,8 @@ export async function updateAdminUserSettings(params: {
   userId: string;
   actorUserId?: string;
   role?: 'user' | 'admin';
+  status?: 'active' | 'suspended';
+  suspendedReason?: string | null;
   planSlug?: string;
   storiesUsedCurrentPeriod?: number;
   audioStoriesUsedCurrentPeriod?: number;
@@ -15,6 +17,8 @@ export async function updateAdminUserSettings(params: {
     userId,
     actorUserId,
     role,
+    status,
+    suspendedReason,
     planSlug,
     storiesUsedCurrentPeriod,
     audioStoriesUsedCurrentPeriod,
@@ -28,6 +32,20 @@ export async function updateAdminUserSettings(params: {
   let updatedUser = existingUser;
   if (role && role !== existingUser.role) {
     updatedUser = await getUserRepository().updateRole(userId, role);
+  }
+
+  if (status && status !== existingUser.status) {
+    updatedUser = await getUserRepository().updateStatus(userId, {
+      status,
+      suspendedReason,
+      suspendedByUserId: actorUserId,
+    });
+  } else if (status === 'suspended' && suspendedReason !== undefined) {
+    updatedUser = await getUserRepository().updateStatus(userId, {
+      status,
+      suspendedReason,
+      suspendedByUserId: actorUserId,
+    });
   }
 
   if (planSlug) {

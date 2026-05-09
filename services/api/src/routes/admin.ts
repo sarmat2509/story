@@ -142,12 +142,16 @@ const AdminConfigParamsSchema = z.object({
 
 const UpdateAdminUserBodySchema = z.object({
   role: z.enum(['user', 'admin']).optional(),
+  status: z.enum(['active', 'suspended']).optional(),
+  suspendedReason: z.string().trim().max(1000).nullable().optional(),
   planSlug: z.string().trim().min(1).optional(),
   storiesUsedCurrentPeriod: z.coerce.number().int().min(0).optional(),
   audioStoriesUsedCurrentPeriod: z.coerce.number().int().min(0).optional(),
 }).refine(
   (value) =>
     value.role !== undefined ||
+    value.status !== undefined ||
+    value.suspendedReason !== undefined ||
     value.planSlug !== undefined ||
     value.storiesUsedCurrentPeriod !== undefined ||
     value.audioStoriesUsedCurrentPeriod !== undefined,
@@ -848,6 +852,8 @@ router.patch('/users/:userId', async (req: Request, res: Response) => {
       userId: parsedParams.data.userId,
       actorUserId: req.user?.id,
       role: parsedBody.data.role,
+      status: parsedBody.data.status,
+      suspendedReason: parsedBody.data.suspendedReason,
       planSlug: parsedBody.data.planSlug,
       storiesUsedCurrentPeriod: parsedBody.data.storiesUsedCurrentPeriod,
       audioStoriesUsedCurrentPeriod: parsedBody.data.audioStoriesUsedCurrentPeriod,
@@ -866,6 +872,8 @@ router.patch('/users/:userId', async (req: Request, res: Response) => {
         id: updatedUser.id,
         email: updatedUser.email,
         role: updatedUser.role,
+        status: updatedUser.status,
+        suspendedReason: updatedUser.suspendedReason,
       },
     });
   } catch (error) {

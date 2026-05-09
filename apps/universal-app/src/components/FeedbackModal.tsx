@@ -174,7 +174,7 @@ export function FeedbackModal({
   contentReportContext,
 }: FeedbackModalProps) {
   const { t } = useTranslation();
-  const { user } = useAuthStore();
+  const { user, sessionMode } = useAuthStore();
   const submitFeedback = useSubmitFeedback();
 
   const [reportedScreen, setReportedScreen] = useState<ReportedScreen>(initialReportedScreen);
@@ -199,7 +199,7 @@ export function FeedbackModal({
     : FEEDBACK_TOPICS;
   const emailIsRequired = !isLoggedIn && !isContentReportTopic(supportTopic);
   const showEmailField = !isLoggedIn;
-  const showScreenshotField = isLoggedIn;
+  const showScreenshotField = isLoggedIn && sessionMode !== 'child';
 
   useEffect(() => {
     if (visible) {

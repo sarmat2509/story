@@ -4,7 +4,7 @@ import {
   getFeedbackCategoryForTopic,
   isContentReportTopic,
 } from '@wondertales/shared';
-import { REPORTED_SCREENS, rejectChildFeedbackSubmission } from '../feedback';
+import { REPORTED_SCREENS, isFeedbackTopicAllowedForSession } from '../feedback';
 
 assert.ok(
   REPORTED_SCREENS.includes('published_story'),
@@ -37,41 +37,20 @@ assert.equal(isContentReportTopic('unsafe_text'), true);
 assert.equal(isContentReportTopic('privacy_concern'), true);
 assert.equal(isContentReportTopic('billing'), false);
 
-function makeResponse() {
-  const response = {
-    statusCode: 200,
-    payload: null as unknown,
-    status(code: number) {
-      this.statusCode = code;
-      return this;
-    },
-    json(payload: unknown) {
-      this.payload = payload;
-      return this;
-    },
-  };
-  return response;
-}
-
-const childResponse = makeResponse();
 assert.equal(
-  rejectChildFeedbackSubmission({ sessionMode: 'child' } as any, childResponse as any),
-  true,
-  'child sessions cannot submit support feedback'
-);
-assert.equal(childResponse.statusCode, 403);
-assert.deepEqual(childResponse.payload, {
-  status: 'error',
-  message: 'Parent session required',
-  code: 'PARENT_SESSION_REQUIRED',
-});
-
-const parentResponse = makeResponse();
-assert.equal(
-  rejectChildFeedbackSubmission({ sessionMode: 'parent' } as any, parentResponse as any),
+  isFeedbackTopicAllowedForSession('child', 'billing'),
   false,
-  'parent sessions can continue through feedback validation'
+  'child sessions cannot submit ordinary support feedback'
 );
-assert.equal(parentResponse.statusCode, 200);
+assert.equal(
+  isFeedbackTopicAllowedForSession('child', 'unsafe_image'),
+  true,
+  'child sessions can report unsafe generated content'
+);
+assert.equal(
+  isFeedbackTopicAllowedForSession('parent', 'billing'),
+  true,
+  'parent sessions can submit support feedback'
+);
 
 console.log('feedbackReportedScreens and support topic tests passed');

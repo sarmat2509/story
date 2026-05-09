@@ -18,6 +18,8 @@ export default function AdminUsersScreen() {
   const [offset, setOffset] = useState(0);
   const [selectedUser, setSelectedUser] = useState<AdminUserListItem | null>(null);
   const [draftRole, setDraftRole] = useState<'user' | 'admin'>('user');
+  const [draftStatus, setDraftStatus] = useState<'active' | 'suspended'>('active');
+  const [draftSuspendedReason, setDraftSuspendedReason] = useState('');
   const [draftPlanSlug, setDraftPlanSlug] = useState<string | null>(null);
   const [draftStoriesUsedCurrentPeriod, setDraftStoriesUsedCurrentPeriod] = useState('0');
   const [draftAudioStoriesUsedCurrentPeriod, setDraftAudioStoriesUsedCurrentPeriod] = useState('0');
@@ -29,6 +31,7 @@ export default function AdminUsersScreen() {
     item.id,
     item.email,
     item.role,
+    item.status,
     item.planName ?? item.planSlug ?? 'No plan',
     item.storiesUsedCurrentPeriod,
     item.audioStoriesUsedCurrentPeriod,
@@ -39,6 +42,8 @@ export default function AdminUsersScreen() {
       onPress={() => {
         setSelectedUser(item);
         setDraftRole(item.role);
+        setDraftStatus(item.status);
+        setDraftSuspendedReason(item.suspendedReason ?? '');
         setDraftPlanSlug(item.planSlug);
         setDraftStoriesUsedCurrentPeriod(String(item.storiesUsedCurrentPeriod));
         setDraftAudioStoriesUsedCurrentPeriod(String(item.audioStoriesUsedCurrentPeriod));
@@ -64,7 +69,7 @@ export default function AdminUsersScreen() {
       {!isLoading && !error ? (
         <>
           <AdminTable
-            headers={['ID', 'Email', 'Role', 'Plan', 'Stories', 'Audio', 'Created', 'Edit']}
+            headers={['ID', 'Email', 'Role', 'Status', 'Plan', 'Stories', 'Audio', 'Created', 'Edit']}
             rows={rows}
             emptyText="No users found."
           />
@@ -95,6 +100,33 @@ export default function AdminUsersScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+              </View>
+
+              <View style={styles.group}>
+                <Text style={styles.groupLabel}>Account status</Text>
+                <View style={styles.optionsRow}>
+                  {(['active', 'suspended'] as const).map((status) => (
+                    <TouchableOpacity
+                      key={status}
+                      style={[styles.optionChip, draftStatus === status && styles.optionChipActive]}
+                      onPress={() => setDraftStatus(status)}
+                    >
+                      <Text style={[styles.optionChipText, draftStatus === status && styles.optionChipTextActive]}>
+                        {status}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {draftStatus === 'suspended' ? (
+                  <TextInput
+                    style={[styles.input, styles.reasonInput]}
+                    value={draftSuspendedReason}
+                    onChangeText={setDraftSuspendedReason}
+                    placeholder="Reason shown in admin audit context"
+                    placeholderTextColor={theme.colors.text.tertiary}
+                    multiline
+                  />
+                ) : null}
               </View>
 
               <View style={styles.group}>
@@ -157,6 +189,8 @@ export default function AdminUsersScreen() {
                     await updateUser.mutateAsync({
                       userId: selectedUser.id,
                       role: draftRole,
+                      status: draftStatus,
+                      suspendedReason: draftStatus === 'suspended' ? draftSuspendedReason.trim() || null : null,
                       planSlug: draftPlanSlug ?? undefined,
                       storiesUsedCurrentPeriod: Number.isFinite(parsedStoriesUsedCurrentPeriod)
                         ? Math.max(0, parsedStoriesUsedCurrentPeriod)
@@ -235,6 +269,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     color: theme.colors.text.primary,
     backgroundColor: theme.colors.background.primary,
+  },
+  reasonInput: {
+    minHeight: 72,
+    textAlignVertical: 'top',
   },
   optionsRow: {
     flexDirection: 'row',

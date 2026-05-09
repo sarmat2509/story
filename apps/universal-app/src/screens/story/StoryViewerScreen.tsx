@@ -253,11 +253,9 @@ export default function StoryViewerScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: isChildSession
-        ? undefined
-        : () => (
-            <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-          ),
+      headerRight: () => (
+        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
+      ),
     });
   }, [isChildSession, navigation]);
   
@@ -1514,7 +1512,7 @@ export default function StoryViewerScreen() {
               onFinish={handleAudioFinish}
               onActivateAudio={handleActivateAudio}
               onDeleteStory={isChildSession ? undefined : handleDeleteStory}
-              onReportProblem={isChildSession ? undefined : () => setShowFeedbackModal(true)}
+              onReportProblem={() => setShowFeedbackModal(true)}
               onPublish={isChildSession ? undefined : handleOpenPublishDialog}
               onShare={isChildSession ? undefined : handleShare}
               onUnpublish={isChildSession ? undefined : handleUnpublish}

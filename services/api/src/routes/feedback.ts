@@ -57,17 +57,11 @@ function getClientIp(req: Request): string {
   return req.ip || 'unknown';
 }
 
-export function rejectChildFeedbackSubmission(req: Request, res: Response): boolean {
-  if (req.sessionMode !== 'child') {
-    return false;
-  }
-
-  res.status(403).json({
-    status: 'error',
-    message: 'Parent session required',
-    code: 'PARENT_SESSION_REQUIRED',
-  });
-  return true;
+export function isFeedbackTopicAllowedForSession(
+  sessionMode: Request['sessionMode'],
+  supportTopic: typeof FEEDBACK_TOPICS[number]
+): boolean {
+  return sessionMode !== 'child' || isContentReportTopic(supportTopic);
 }
 
 // 5 submissions per hour per IP (or per userId when logged in)
@@ -95,10 +89,6 @@ const feedbackLimiter = rateLimit({
  */
 router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Response) => {
   try {
-    if (rejectChildFeedbackSubmission(req, res)) {
-      return;
-    }
-
     const parsed = feedbackSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -124,6 +114,14 @@ router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Respon
       ? getFeedbackCategoryForTopic(parsed.data.supportTopic)
       : (parsed.data.category ?? 'other');
     const isContentReport = isContentReportTopic(supportTopic);
+
+    if (!isFeedbackTopicAllowedForSession(req.sessionMode, supportTopic)) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Parent session required',
+        code: 'PARENT_SESSION_REQUIRED',
+      });
+    }
 
     const userId = req.user?.id;
     if (!userId && !email && !isContentReport) {
@@ -157,6 +155,10 @@ router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Respon
         ...(sceneId != null && { sceneId }),
         contentType: contentType ?? (isContentReport ? 'story' : undefined),
         ...(isContentReport && { contentReviewStatus: 'queued' }),
+        ...(req.sessionMode === 'child' && {
+          reporterSessionMode: 'child',
+          reporterChildProfileId: req.childProfileId ?? null,
+        }),
       },
     });
 

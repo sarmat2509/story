@@ -100,6 +100,15 @@ export async function requireAuth(
       });
       return;
     }
+
+    if (result.user.status && result.user.status !== 'active') {
+      res.status(403).json({
+        status: 'error',
+        message: 'Account access is suspended',
+        code: 'ACCOUNT_SUSPENDED',
+      });
+      return;
+    }
     
     // Update last active timestamp (async, don't await)
     updateLastActive(decoded.sessionId).catch((err) => {
@@ -251,6 +260,10 @@ export async function optionalAuth(
     const result = await getSessionWithUser(decoded.sessionId);
     
     if (result) {
+      if (result.user.status && result.user.status !== 'active') {
+        next();
+        return;
+      }
       attachAuthenticatedSession(req, result, decoded.sessionId);
       
       // Update last active (async)
