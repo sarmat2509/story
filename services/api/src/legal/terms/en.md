@@ -1,6 +1,6 @@
 # Terms of Service — WonderTales
 
-Last updated: 2026-05-01
+Last updated: 2026-05-09
 
 These Terms explain how families may use WonderTales. They are written for the public web beta and should be reviewed before a paid public launch.
 
@@ -12,11 +12,17 @@ WonderTales is the service provider for this beta. The final legal operator name
 
 WonderTales is for adults who create and supervise family accounts. By creating an account, you confirm that you are an adult parent, legal guardian, or authorised caregiver and that you can give consent for child-related data you add to the service.
 
+WonderTales is designed as a parent-managed family storytelling app. Child profiles are created and configured by a parent or legal guardian. Parents control age settings, personalization options, content limits, purchases, uploaded images, story generation, sharing, and deletion.
+
+Children may read or listen to generated stories, but account setup, payments, image uploads, publication/sharing, and privacy-related actions are controlled by the parent.
+
 Children do not create independent WonderTales accounts for this launch. If child self-use is enabled, it must happen inside a supervised child mode controlled by the adult account owner.
 
 ## What the service does
 
 WonderTales helps adults create personalised illustrated stories, narration, read-along content, characters, child profiles, and optional public or unlisted story pages. Some features use AI providers to generate text, images, audio, and safety checks.
+
+WonderTales does not replace faces in existing photos or videos and does not create deceptive realistic media. Uploaded images are used only as optional references to generate safe, fictional, illustrated story characters.
 
 AI output may contain mistakes, omissions, or unexpected wording. Adults should review stories before sharing them with a child or publishing them.
 

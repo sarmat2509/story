@@ -66,6 +66,13 @@ export function renderSupportHtml(): string {
         <p>We can help with account access, billing, child privacy, story safety, public sharing, refunds, cancellation, and data deletion requests.</p>
         <a class="support-email" href="mailto:${escapeHtml(supportEmail)}">${escapeHtml(supportEmail)}</a>
 
+        <h2>Parent-managed accounts</h2>
+        <p>WonderTales is designed as a parent-managed family storytelling app. Child profiles are created and configured by a parent or legal guardian. Parents control age settings, personalization options, content limits, purchases, uploaded images, story generation, sharing, and deletion.</p>
+        <p>Children may read or listen to generated stories, but account setup, payments, image uploads, publication/sharing, and privacy-related actions are controlled by the parent.</p>
+
+        <h2>AI image use</h2>
+        <p>WonderTales does not replace faces in existing photos or videos and does not create deceptive realistic media. Uploaded images are used only as optional references to generate safe, fictional, illustrated story characters.</p>
+
         <h2>What to include</h2>
         <ul class="support-list">
           <li>Your account email, if you have one.</li>

@@ -33,6 +33,8 @@ void (async function main() {
   assert.match(enPrivacy, /<select aria-label="Language"/);
   assert.match(enPrivacy, /<option value="https:\/\/app\.wondertales\.com\/privacy">Українська<\/option>/);
   assert.match(enPrivacy, /<option value="https:\/\/app\.wondertales\.com\/en\/privacy" selected>English<\/option>/);
+  assert.match(enPrivacy, /parent-managed family storytelling app/);
+  assert.match(enPrivacy, /does not replace faces in existing photos or videos/);
   assert.doesNotMatch(enPrivacy, /onchange=/);
   assert.doesNotMatch(enPrivacy, /Content not available/);
 

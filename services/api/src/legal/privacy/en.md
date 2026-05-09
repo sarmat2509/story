@@ -1,6 +1,6 @@
 # Privacy Policy — WonderTales
 
-Last updated: 2026-05-01
+Last updated: 2026-05-09
 
 This Privacy Policy explains how WonderTales collects, uses, shares, and deletes personal data during the public web beta. It should be reviewed before a paid public launch.
 
@@ -48,6 +48,10 @@ When child-related data is submitted, WonderTales requires adult parent or guard
 
 WonderTales is designed for adult-owned family accounts. Children do not create independent accounts for this launch.
 
+WonderTales is designed as a parent-managed family storytelling app. Child profiles are created and configured by a parent or legal guardian. Parents control age settings, personalization options, content limits, purchases, uploaded images, story generation, sharing, and deletion.
+
+Children may read or listen to generated stories, but account setup, payments, image uploads, publication/sharing, and privacy-related actions are controlled by the parent.
+
 Adults must have authority to provide child data, photos, drawings, or preferences. Adults can request deletion of child data by contacting support@wondertales.art.
 
 Where laws require parent or guardian consent for children's online data, WonderTales uses adult consent gates before collecting child-related data. The required age threshold can vary by country.
@@ -55,6 +59,8 @@ Where laws require parent or guardian consent for children's online data, Wonder
 ## AI and service providers
 
 To provide the service, WonderTales may send necessary content to providers that help with AI text, image, narration, alignment, moderation, hosting, storage, analytics, email, payments, and support operations. Depending on configuration, these may include providers such as OpenAI, Google, ElevenLabs, Stripe, Resend, PostHog, hosting infrastructure, and storage providers.
+
+WonderTales does not replace faces in existing photos or videos and does not create deceptive realistic media. Uploaded images are used only as optional references to generate safe, fictional, illustrated story characters.
 
 We try to send only the data needed for the feature. Do not upload content that you are not allowed to share with these processors.
 
