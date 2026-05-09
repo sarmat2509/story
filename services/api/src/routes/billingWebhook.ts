@@ -35,4 +35,28 @@ router.post('/stripe', async (req: Request, res: Response) => {
   }
 });
 
+router.post('/revenuecat', async (req: Request, res: Response) => {
+  try {
+    if (!config.revenueCat.webhookAuthorization) {
+      logger.warn('RevenueCat webhook authorization token not configured');
+      return res.status(503).json({ status: 'error', message: 'Webhook not configured' });
+    }
+
+    const rawBody = req.body as Buffer;
+    const authorization = req.headers.authorization;
+    const authorizationHeader = Array.isArray(authorization) ? authorization[0] : authorization;
+
+    if (!rawBody || !authorizationHeader) {
+      return res.status(400).json({ status: 'error', message: 'Missing body or authorization' });
+    }
+
+    await billingService.handleRevenueCatWebhook(rawBody, authorizationHeader);
+    res.json({ received: true });
+  } catch (error) {
+    logger.error({ err: error }, 'RevenueCat webhook failed');
+    const message = error instanceof Error ? error.message : 'Webhook processing failed';
+    res.status(400).json({ status: 'error', message });
+  }
+});
+
 export default router;

@@ -415,3 +415,109 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string): P
       logger.debug({ type: event.type }, 'Unhandled Stripe webhook event type');
   }
 }
+
+type RevenueCatWebhookPayload = {
+  api_version?: string;
+  event?: {
+    id?: string;
+    type?: string;
+    app_user_id?: string;
+    product_id?: string;
+    entitlement_id?: string | null;
+    entitlement_ids?: string[] | null;
+    purchased_at_ms?: number | null;
+    expiration_at_ms?: number | null;
+  };
+};
+
+function getRevenueCatPlanSlug(event: NonNullable<RevenueCatWebhookPayload['event']>): string | null {
+  const entitlementIds = Array.isArray(event.entitlement_ids)
+    ? event.entitlement_ids.filter((value): value is string => typeof value === 'string')
+    : [];
+  if (event.entitlement_id) {
+    entitlementIds.push(event.entitlement_id);
+  }
+
+  for (const entitlementId of entitlementIds) {
+    const planSlug = config.revenueCat.entitlementPlanMap[entitlementId];
+    if (planSlug) return planSlug;
+  }
+
+  return event.product_id ? config.revenueCat.productPlanMap[event.product_id] ?? null : null;
+}
+
+export async function handleRevenueCatWebhook(rawBody: Buffer, authorizationHeader?: string): Promise<void> {
+  if (!config.revenueCat.webhookAuthorization) {
+    throw new Error('REVENUECAT_WEBHOOK_AUTHORIZATION is not configured');
+  }
+
+  if (authorizationHeader !== config.revenueCat.webhookAuthorization) {
+    throw new Error('RevenueCat webhook authorization failed');
+  }
+
+  const payload = JSON.parse(rawBody.toString('utf8')) as RevenueCatWebhookPayload;
+  const event = payload.event;
+  if (!event?.type || !event.app_user_id) {
+    throw new Error('RevenueCat webhook missing event type or app_user_id');
+  }
+
+  logger.info({
+    eventId: event.id ?? null,
+    type: event.type,
+    userId: event.app_user_id,
+    productId: event.product_id ?? null,
+  }, 'Processing RevenueCat webhook');
+
+  switch (event.type) {
+    case 'INITIAL_PURCHASE':
+    case 'RENEWAL':
+    case 'PRODUCT_CHANGE':
+    case 'UNCANCELLATION':
+    case 'TEMPORARY_ENTITLEMENT_GRANT':
+    case 'NON_RENEWING_PURCHASE': {
+      const planSlug = getRevenueCatPlanSlug(event);
+      if (!planSlug) {
+        logger.warn({
+          eventId: event.id ?? null,
+          productId: event.product_id ?? null,
+          entitlementIds: event.entitlement_ids ?? null,
+        }, 'Could not resolve plan from RevenueCat webhook');
+        return;
+      }
+      await planService.updateSubscriptionFromRevenueCat({
+        userId: event.app_user_id,
+        planSlug,
+        eventType: event.type,
+        productId: event.product_id ?? null,
+        purchasedAtMs: event.purchased_at_ms ?? null,
+        expirationAtMs: event.expiration_at_ms ?? null,
+      });
+      break;
+    }
+
+    case 'CANCELLATION': {
+      const planSlug = getRevenueCatPlanSlug(event);
+      if (!planSlug) {
+        logger.warn({ eventId: event.id ?? null }, 'RevenueCat cancellation missing plan mapping');
+        return;
+      }
+      await planService.updateSubscriptionFromRevenueCat({
+        userId: event.app_user_id,
+        planSlug,
+        eventType: event.type,
+        productId: event.product_id ?? null,
+        purchasedAtMs: event.purchased_at_ms ?? null,
+        expirationAtMs: event.expiration_at_ms ?? null,
+      });
+      break;
+    }
+
+    case 'EXPIRATION': {
+      await planService.expireSubscriptionFromRevenueCat(event.app_user_id);
+      break;
+    }
+
+    default:
+      logger.debug({ type: event.type }, 'Unhandled RevenueCat webhook event type');
+  }
+}

@@ -489,6 +489,29 @@ export const config = {
       }, {}),
   },
 
+  // RevenueCat (native App Store / Google Play subscriptions)
+  revenueCat: {
+    webhookAuthorization: process.env.REVENUECAT_WEBHOOK_AUTHORIZATION || '',
+    entitlementPlanMap: (process.env.REVENUECAT_ENTITLEMENT_PLAN_MAP || '')
+      .split(',')
+      .reduce<Record<string, string>>((acc, pair) => {
+        const [entitlementId, planSlug] = pair.trim().split(':');
+        if (entitlementId && planSlug) acc[entitlementId] = planSlug;
+        return acc;
+      }, {}),
+    productPlanMap: (process.env.REVENUECAT_PRODUCT_PLAN_MAP || '')
+      .split(',')
+      .reduce<Record<string, string>>((acc, pair) => {
+        const t = pair.trim();
+        const i = t.indexOf(':');
+        if (i < 1) return acc;
+        const productId = t.slice(0, i);
+        const planSlug = t.slice(i + 1);
+        if (productId && planSlug) acc[productId] = planSlug;
+        return acc;
+      }, {}),
+  },
+
   // Job Queue Concurrency (fallbacks if rate limiter unavailable)
   queue: {
     textConcurrency: parseInt(process.env.TEXT_QUEUE_CONCURRENCY || '3', 10),

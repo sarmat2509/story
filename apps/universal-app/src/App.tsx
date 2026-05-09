@@ -21,6 +21,7 @@ import { useAuthStore, waitForAuthStoreHydration } from '@/store/authStore';
 import { useMainNavigationStore } from '@/store/mainNavigationStore';
 import { navigationRef } from '@/navigation/navigationRef';
 import { pushNotificationService } from '@/services/pushNotificationService';
+import { configureRevenueCat } from '@/services/revenueCatService';
 import RootNavigator from '@/navigation/RootNavigator';
 import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
 import { getPublicSeoLocaleOverrideFromPath } from '@/utils/publicSeoLocale';
@@ -238,6 +239,7 @@ const linking: any = {
 export default function App() {
   const [isReady, setIsReady] = useState(false);
   const setAuthLoading = useAuthStore((state) => state.setLoading);
+  const revenueCatUserId = useAuthStore((state) => state.user?.id ?? null);
 
   useEffect(() => {
     async function prepare() {
@@ -285,11 +287,18 @@ export default function App() {
     };
   }, [isReady]);
 
+  useEffect(() => {
+    if (!isReady || Platform.OS === 'web') {
+      return;
+    }
+
+    configureRevenueCat(revenueCatUserId).catch((error) => {
+      console.warn('RevenueCat configuration failed', error);
+    });
+  }, [isReady, revenueCatUserId]);
+
   // Setup push notifications
   useEffect(() => {
-    // Request permissions on app start
-    pushNotificationService.requestPermissions();
-
     // Setup notification tap handler
     const unsubscribe = pushNotificationService.setupNotificationListeners();
 

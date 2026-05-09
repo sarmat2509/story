@@ -40,6 +40,13 @@ export const APP_CONFIG = {
   defaultLanguage: DEFAULT_LOCALE,
 };
 
+export const REVENUECAT_CONFIG = {
+  iosApiKey: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY || '',
+  androidApiKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY || '',
+  entitlementId: process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID || 'premium',
+  offeringId: process.env.EXPO_PUBLIC_REVENUECAT_OFFERING_ID || 'default',
+};
+
 export const BREAKPOINTS = {
   mobile: 0,
   tablet: 768,

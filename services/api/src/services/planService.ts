@@ -548,6 +548,108 @@ export async function updateSubscriptionDeletedFromStripe(stripeSubscriptionId: 
   return true;
 }
 
+export async function updateSubscriptionFromRevenueCat(params: {
+  userId: string;
+  planSlug: string;
+  eventType: string;
+  productId?: string | null;
+  purchasedAtMs?: number | null;
+  expirationAtMs?: number | null;
+}): Promise<UserSubscription | null> {
+  const planRepo = getPlanRepository();
+  const plan = await planRepo.findPlanBySlug(params.planSlug);
+  if (!plan) {
+    logger.warn({ planSlug: params.planSlug }, 'Plan not found for RevenueCat subscription update');
+    return null;
+  }
+
+  const subscription = await planRepo.findSubscriptionByUserId(params.userId);
+  if (!subscription) {
+    logger.warn({ userId: params.userId }, 'Subscription not found for RevenueCat update');
+    return null;
+  }
+
+  const now = new Date();
+  const periodStart = Number.isFinite(params.purchasedAtMs)
+    ? new Date(Number(params.purchasedAtMs))
+    : now;
+  const periodEnd = Number.isFinite(params.expirationAtMs)
+    ? new Date(Number(params.expirationAtMs))
+    : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const isNewPeriod = periodStart.getTime() > subscription.currentPeriodStart.getTime();
+  const eventType = params.eventType.toUpperCase();
+
+  const updateData: Partial<{
+    planId: string;
+    stripeSubscriptionId: string | null;
+    paymentProvider: string;
+    currentPeriodStart: Date;
+    currentPeriodEnd: Date;
+    resetAt: Date;
+    cancelAtPeriodEnd: boolean;
+    status: string;
+    storiesUsed: number;
+    audioMinutesUsed: number;
+  }> = {
+    planId: plan.id,
+    stripeSubscriptionId: null,
+    paymentProvider: 'revenuecat',
+    currentPeriodStart: periodStart,
+    currentPeriodEnd: periodEnd,
+    resetAt: periodEnd,
+    cancelAtPeriodEnd: eventType === 'CANCELLATION',
+    status: 'active',
+  };
+
+  if (isNewPeriod) {
+    updateData.storiesUsed = 0;
+    updateData.audioMinutesUsed = 0;
+  }
+
+  const updated = await planRepo.updateSubscription(params.userId, updateData);
+  logger.info({
+    userId: params.userId,
+    planSlug: params.planSlug,
+    eventType: params.eventType,
+    productId: params.productId ?? null,
+  }, 'Updated subscription from RevenueCat');
+  return updated;
+}
+
+export async function expireSubscriptionFromRevenueCat(userId: string): Promise<boolean> {
+  const planRepo = getPlanRepository();
+  const subscription = await planRepo.findSubscriptionByUserId(userId);
+  if (!subscription) {
+    logger.warn({ userId }, 'Subscription not found for RevenueCat expiration');
+    return false;
+  }
+
+  const freePlan = await planRepo.findPlanBySlug('free');
+  if (!freePlan) {
+    logger.error('Free plan not found');
+    return false;
+  }
+
+  const now = new Date();
+  const oneMonthLater = new Date(now);
+  oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+
+  await planRepo.updateSubscription(userId, {
+    planId: freePlan.id,
+    status: 'expired',
+    stripeSubscriptionId: null,
+    paymentProvider: null,
+    storiesUsed: 0,
+    audioMinutesUsed: 0,
+    resetAt: oneMonthLater,
+    currentPeriodStart: now,
+    currentPeriodEnd: oneMonthLater,
+    cancelAtPeriodEnd: false,
+  });
+  logger.info({ userId }, 'Subscription downgraded to free from RevenueCat expiration');
+  return true;
+}
+
 export async function markStripeSubscriptionPaymentFailed(
   stripeSubscriptionId: string
 ): Promise<boolean> {

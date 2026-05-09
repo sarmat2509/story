@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   type ViewStyle,
 } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
@@ -26,6 +27,7 @@ import {
   useBundles,
   useCreateBundleCheckoutSession,
   useSubscriptionUsage,
+  invalidateBillingState,
 } from '@/api/plans';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import { hexAlpha } from '@/theme/colorAlpha';
@@ -38,6 +40,11 @@ import { AnimatedSection } from '@/components/AnimatedSection';
 import { ExpandableCard } from '@/components/ExpandableCard';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
+import {
+  isRevenueCatConfigured,
+  purchaseRevenueCatPlan,
+  restoreRevenueCatPurchases,
+} from '@/services/revenueCatService';
 import {
   formatPricingPrice,
   getCombinedPricingUsageHighlight,
@@ -56,6 +63,7 @@ export default function PlansScreen() {
   const { t, i18n } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const { isAuthenticated } = useAuthStore();
   const enterKey = useScreenEnter();
   const { width: windowWidth } = useWindowDimensions();
@@ -67,6 +75,9 @@ export default function PlansScreen() {
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [bundleError, setBundleError] = useState<string | null>(null);
+  const [nativeBillingPending, setNativeBillingPending] = useState(false);
+  const [nativeBillingError, setNativeBillingError] = useState<Error | null>(null);
+  const [nativeBillingSuccess, setNativeBillingSuccess] = useState(false);
   const upgradePlan = useUpgradePlan();
   const createCheckoutSession = useCreateCheckoutSession();
   const createBundleCheckout = useCreateBundleCheckoutSession();
@@ -130,6 +141,8 @@ export default function PlansScreen() {
   const enableRealPayments = effectiveIsAuthenticated && authData && 'enableRealPayments' in authData
     ? authData.enableRealPayments
     : publicPlansQuery.data?.enableRealPayments ?? false;
+  const useRevenueCatFlow = enableRealPayments && !isWeb;
+  const revenueCatReady = isRevenueCatConfigured();
   const isLoading = effectiveIsAuthenticated ? authPlansQuery.isLoading : publicPlansQuery.isLoading;
   const error = effectiveIsAuthenticated ? authPlansQuery.error : publicPlansQuery.error;
   
@@ -151,8 +164,24 @@ export default function PlansScreen() {
       return;
     }
 
-    if (enableRealPayments && !isWeb) {
-      // Mobile: RevenueCat not yet implemented - show coming soon
+    if (useRevenueCatFlow) {
+      if (!revenueCatReady) {
+        setNativeBillingError(new Error(t('plans.revenuecat_not_configured')));
+        return;
+      }
+      try {
+        setNativeBillingPending(true);
+        setNativeBillingError(null);
+        setNativeBillingSuccess(false);
+        await purchaseRevenueCatPlan(selectedPlan.slug);
+        setNativeBillingSuccess(true);
+        invalidateBillingState(queryClient);
+      } catch (err: unknown) {
+        const error = err instanceof Error ? err : new Error(t('plans.upgrade_error_message'));
+        setNativeBillingError(error);
+      } finally {
+        setNativeBillingPending(false);
+      }
       return;
     }
 
@@ -193,7 +222,7 @@ export default function PlansScreen() {
         return;
       }
       if (enableRealPayments && !isWeb) {
-        Alert.alert('', t('plans.bundles.stripe_required'));
+        Alert.alert('', t('plans.bundles.native_unavailable'));
       }
     },
     [enableRealPayments, isWeb, createBundleCheckout, t]
@@ -272,14 +301,49 @@ export default function PlansScreen() {
   }
 
   const useStripeFlow = enableRealPayments && isWeb;
-  const modalPending = useStripeFlow ? createCheckoutSession.isPending : upgradePlan.isPending;
-  const modalError = useStripeFlow ? createCheckoutSession.isError : upgradePlan.isError;
-  const modalErrorData = useStripeFlow ? createCheckoutSession.error : upgradePlan.error;
+  const modalPending = useStripeFlow
+    ? createCheckoutSession.isPending
+    : useRevenueCatFlow
+      ? nativeBillingPending
+      : upgradePlan.isPending;
+  const modalError = useStripeFlow
+    ? createCheckoutSession.isError
+    : useRevenueCatFlow
+      ? !!nativeBillingError
+      : upgradePlan.isError;
+  const modalErrorData = useStripeFlow
+    ? createCheckoutSession.error
+    : useRevenueCatFlow
+      ? nativeBillingError
+      : upgradePlan.error;
   const resetModal = () => {
     setShowUpgradeModal(false);
     setSelectedPlan(null);
     upgradePlan.reset();
     createCheckoutSession.reset();
+    setNativeBillingError(null);
+    setNativeBillingSuccess(false);
+  };
+
+  const handleRestorePurchases = async () => {
+    if (!revenueCatReady) {
+      Alert.alert('', t('plans.revenuecat_not_configured'));
+      return;
+    }
+
+    try {
+      setNativeBillingPending(true);
+      await restoreRevenueCatPurchases();
+      invalidateBillingState(queryClient);
+      Alert.alert(t('plans.restore_success_title'), t('plans.restore_success_message'));
+    } catch (err) {
+      Alert.alert(
+        t('common.error'),
+        err instanceof Error ? err.message : t('plans.restore_error_message')
+      );
+    } finally {
+      setNativeBillingPending(false);
+    }
   };
 
   return (
@@ -466,7 +530,9 @@ export default function PlansScreen() {
           )}
           <Text style={styles.billingNoticeText}>
             {t('plans.billing_note_renewal', {
-              defaultValue: 'Paid subscriptions renew monthly until canceled. You can manage or cancel billing in the billing portal where available.',
+              defaultValue: isWeb
+                ? 'Paid subscriptions renew monthly until canceled. You can manage or cancel billing in the billing portal where available.'
+                : 'Paid subscriptions renew monthly until canceled. On iOS and Android, purchases are managed through your App Store or Google Play account.',
             })}
           </Text>
           <Text style={styles.billingNoticeText}>
@@ -479,6 +545,18 @@ export default function PlansScreen() {
               defaultValue: 'Refund requests are reviewed through support and do not happen automatically when a subscription is canceled.',
             })}
           </Text>
+          {useRevenueCatFlow ? (
+            <TouchableOpacity
+              style={styles.restorePurchasesButton}
+              onPress={handleRestorePurchases}
+              disabled={nativeBillingPending}
+            >
+              <Ionicons name="refresh-outline" size={16} color={theme.colors.interactive.primary} />
+              <Text style={styles.restorePurchasesButtonText}>
+                {nativeBillingPending ? t('plans.restoring') : t('plans.restore_purchases')}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </AnimatedSection>
 
@@ -577,7 +655,18 @@ export default function PlansScreen() {
                   <Text style={styles.modalButtonText}>{t('common.close')}</Text>
                 </TouchableOpacity>
               </>
-            ) : !useStripeFlow && upgradePlan.isSuccess ? (
+            ) : useRevenueCatFlow && nativeBillingSuccess ? (
+              <>
+                <Ionicons name="checkmark-circle" size={48} color={theme.colors.status.success} />
+                <Text style={styles.modalTitle}>{t('plans.upgrade_success')}</Text>
+                <Text style={styles.modalMessage}>
+                  {t('plans.revenuecat_success_message', { planName: selectedPlan?.name })}
+                </Text>
+                <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
+                  <Text style={styles.modalButtonText}>{t('common.got_it')}</Text>
+                </TouchableOpacity>
+              </>
+            ) : !useStripeFlow && !useRevenueCatFlow && upgradePlan.isSuccess ? (
               <>
                 <Ionicons name="checkmark-circle" size={48} color={theme.colors.status.success} />
                 <Text style={styles.modalTitle}>{t('plans.upgrade_success')}</Text>
@@ -856,6 +945,24 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     lineHeight: 22,
     marginTop: theme.spacing[2],
+  },
+  restorePurchasesButton: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    marginTop: theme.spacing[4],
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+    backgroundColor: theme.colors.background.primary,
+  },
+  restorePurchasesButtonText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.interactive.primary,
   },
   loadingText: {
     marginTop: theme.spacing[4],
