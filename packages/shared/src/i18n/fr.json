@@ -47,7 +47,8 @@
     "privacy_link": "Politique de confidentialité",
     "oauth_callback_loading": "Connexion en cours...",
     "oauth_callback_error": "Échec de l’authentification. Veuillez réessayer.",
-    "native_oauth_dev_client_required": "OAuth natif nécessite un custom dev client. Utilisez la version web ou lancez une build native de développement."
+    "native_oauth_dev_client_required": "OAuth natif nécessite un custom dev client. Utilisez la version web ou lancez une build native de développement.",
+    "oauth_consent_required": "Veuillez confirmer que vous êtes un parent ou tuteur légal adulte et accepter les Conditions ainsi que la Politique de confidentialité avant de continuer."
   },
   "welcome": {
     "slogan": "Dessins en personnages. Écoute, lis, publie.",
@@ -438,7 +439,17 @@
       "share_enabled": "Publication et partage",
       "story_from_drawing": "Histoire à partir du dessin de l'enfant (bientôt)"
     },
-    "bundle_checkout_error": "Impossible de démarrer le paiement du pack. Veuillez réessayer."
+    "bundle_checkout_error": "Impossible de démarrer le paiement du pack. Veuillez réessayer.",
+    "revenuecat_success_message": "Votre achat {{planName}} est terminé. L’accès sera mis à jour dès que le reçu de la boutique sera synchronisé.",
+    "revenuecat_not_configured": "Les achats intégrés ne sont pas encore configurés pour cette build.",
+    "restore_purchases": "Restaurer les achats",
+    "restoring": "Restauration...",
+    "restore_success_title": "Achats restaurés",
+    "restore_success_message": "Vos achats App Store ou Google Play ont été restaurés. L’accès sera mis à jour après synchronisation.",
+    "restore_error_message": "Impossible de restaurer les achats. Veuillez réessayer.",
+    "bundles": {
+      "native_unavailable": "Les packs d’histoires seront bientôt disponibles en achats intégrés."
+    }
   },
   "children_screen": {
     "title": "Profils d'Enfants",
@@ -684,7 +695,14 @@
     "logout": "Se déconnecter",
     "logout_confirm_title": "Se déconnecter?",
     "logout_confirm_message": "Êtes-vous sûr de vouloir vous déconnecter?",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "delete_account_title": "Supprimer le compte maintenant",
+    "delete_account_body": "Cela supprime définitivement votre compte, les profils enfants, les histoires privées, les médias générés et les téléversements lorsque la suppression est autorisée. Certains registres de facturation, sécurité, consentement, obligations légales ou prévention des abus peuvent être conservés si nécessaire.",
+    "delete_account_button": "Supprimer le compte",
+    "delete_account_deleting": "Suppression...",
+    "delete_account_confirm_title": "Supprimer définitivement le compte ?",
+    "delete_account_confirm_message": "Cette action est irréversible. Votre compte et les données de l’app seront supprimés immédiatement lorsque la suppression est autorisée.",
+    "delete_account_error": "Impossible de supprimer le compte. Veuillez réessayer."
   },
   "theme": {
     "title": "Thème",
@@ -854,5 +872,12 @@
     "prompt_safety_blocked": "Cette idée n’est pas sûre pour une histoire d’enfant. Choisissez un sujet plus doux ou reformulez-la avec un adulte.",
     "photo_input_invalid": "Utilisez une photo téléversée dans WonderTales pour cette action.",
     "photo_owner_mismatch": "Cette photo appartient à un autre compte. Téléversez-la à nouveau depuis ce compte."
+  },
+  "image_rights": {
+    "title": "Confirmer les droits sur l’image",
+    "rights_statement": "J’ai le droit légal d’utiliser cette image.",
+    "child_statement": "Si l’image montre un enfant, je suis son parent/tuteur légal ou j’ai l’autorisation de son parent/tuteur légal.",
+    "public_figures_statement": "Je ne téléverserai pas d’images de personnalités publiques, célébrités, influenceurs ou autres personnes sans autorisation.",
+    "confirm": "Je confirme"
   }
 }

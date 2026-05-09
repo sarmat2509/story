@@ -128,10 +128,15 @@ export const useGoogleLogin = () => {
   const { login } = useAuthStore();
   
   return useMutation({
-    mutationFn: async (idToken: string) => {
+    mutationFn: async (data: {
+      idToken: string;
+      termsAccepted: boolean;
+      privacyAccepted: boolean;
+      isAdultGuardian: boolean;
+    }) => {
       const response = await apiClient.post<AuthResponse>(
         '/api/v1/auth/google/token',
-        { idToken },
+        data,
         { skipAuthLogoutOn401: true }
       );
       return response.data;
@@ -155,6 +160,9 @@ export const useAppleLogin = () => {
       user?: any;
       deviceName?: string;
       deviceType?: string;
+      termsAccepted: boolean;
+      privacyAccepted: boolean;
+      isAdultGuardian: boolean;
     }) => {
       const response = await apiClient.post<AuthResponse>(
         '/api/v1/auth/apple/token',
@@ -305,6 +313,24 @@ export const useUpdateChildModeExitPasscode = () => {
       storage.setUser(user);
       queryClient.setQueryData(['user'], user);
       queryClient.invalidateQueries({ queryKey: ['children'] });
+    },
+  });
+};
+
+export const useDeleteAccount = () => {
+  const queryClient = useQueryClient();
+  const { logout } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.delete<{ status: string; message: string }>('/api/v1/me');
+      return response.data;
+    },
+    onSuccess: async () => {
+      await storage.removeAuthToken();
+      await storage.removeItem('USER');
+      logout();
+      queryClient.clear();
     },
   });
 };

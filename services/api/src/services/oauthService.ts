@@ -2,6 +2,11 @@ import { getOAuthRepository } from '../repositories';
 import type { User, OAuthIdentity, NewOAuthIdentity } from '../db/schema';
 import { getUserByEmail, createUser } from './userService';
 import { enqueueWelcomeEmail } from './emailService';
+import {
+  hasCurrentRegistrationConsents,
+  recordRegistrationConsents,
+  type ConsentAuditContext,
+} from './consentService';
 import { encryptToken, decryptToken } from '../utils/encryption';
 import { logger } from '../utils/logger';
 
@@ -39,6 +44,15 @@ export class OAuthParentGateError extends Error {
   }
 }
 
+export type OAuthRegistrationConsentErrorCode = 'CONSENT_REQUIRED';
+
+export class OAuthRegistrationConsentError extends Error {
+  constructor(public code: OAuthRegistrationConsentErrorCode, public missingConsents: string[]) {
+    super(code);
+    this.name = 'OAuthRegistrationConsentError';
+  }
+}
+
 // Generic OAuth profile (normalized)
 interface NormalizedOAuthProfile {
   providerId: string;
@@ -52,6 +66,11 @@ interface OAuthTokens {
   accessToken: string;
   refreshToken?: string;
   expiresAt?: Date;
+}
+
+interface OAuthRegistrationConsentOptions {
+  consentsAccepted?: boolean;
+  audit?: ConsentAuditContext;
 }
 
 // Find existing OAuth identity
@@ -129,7 +148,8 @@ async function handleOAuthCallback(
   provider: 'google' | 'apple',
   profile: NormalizedOAuthProfile,
   tokens: OAuthTokens,
-  rawUserInfo: any
+  rawUserInfo: any,
+  consentOptions: OAuthRegistrationConsentOptions = {}
 ): Promise<OAuthResult> {
   // 1. Try to find existing OAuth identity
   const existingIdentity = await findOAuthIdentity(provider, profile.providerId);
@@ -148,11 +168,39 @@ async function handleOAuthCallback(
     };
   }
   
-  // 2. Link or create user
-  const { user, isNew: isNewUser } = await linkOrCreateUser(profile);
+  // 2. Link or create user. New OAuth-created accounts must pass the same
+  // adult guardian / Terms / Privacy gate as email registration before we
+  // create or link an identity.
+  const existingUserByEmail = await getUserByEmail(profile.email);
+  const existingUserHasConsents = existingUserByEmail
+    ? await hasCurrentRegistrationConsents(existingUserByEmail.id)
+    : false;
+  const requiresRegistrationConsent = !existingUserByEmail || !existingUserHasConsents;
+
+  if (requiresRegistrationConsent && !consentOptions.consentsAccepted) {
+    throw new OAuthRegistrationConsentError('CONSENT_REQUIRED', [
+      'terms_of_service',
+      'privacy_policy',
+      'adult_guardian',
+    ]);
+  }
+
+  const { user, isNew: isNewUser } = existingUserByEmail
+    ? { user: existingUserByEmail, isNew: false }
+    : await linkOrCreateUser(profile);
   
   // 3. Create OAuth identity
   await createOAuthIdentity(user.id, provider, profile, tokens, rawUserInfo);
+
+  if (requiresRegistrationConsent) {
+    await recordRegistrationConsents(user.id, {
+      ...(consentOptions.audit ?? {}),
+      context: {
+        ...(consentOptions.audit?.context ?? {}),
+        source: `${provider}_oauth`,
+      },
+    });
+  }
   
   // 4. Initialize subscription for new users
   if (isNewUser) {
@@ -216,7 +264,8 @@ async function handleOAuthParentGateCallback(
 export async function handleGoogleCallback(
   profile: GoogleProfile,
   accessToken: string,
-  refreshToken?: string
+  refreshToken?: string,
+  consentOptions: OAuthRegistrationConsentOptions = {}
 ): Promise<OAuthResult> {
   const normalizedProfile: NormalizedOAuthProfile = {
     providerId: profile.id,
@@ -231,7 +280,7 @@ export async function handleGoogleCallback(
     expiresAt: new Date(Date.now() + 3600 * 1000), // 1 hour
   };
   
-  return handleOAuthCallback('google', normalizedProfile, tokens, profile);
+  return handleOAuthCallback('google', normalizedProfile, tokens, profile, consentOptions);
 }
 
 // Handle Google OAuth parent gate re-authentication without linking or creating users
@@ -260,7 +309,8 @@ export async function handleGoogleParentGateCallback(
 // Handle Apple OAuth callback with account linking
 export async function handleAppleCallback(
   profile: AppleProfile,
-  idToken: string
+  idToken: string,
+  consentOptions: OAuthRegistrationConsentOptions = {}
 ): Promise<OAuthResult> {
   const displayName = profile.name
     ? `${profile.name.firstName || ''} ${profile.name.lastName || ''}`.trim()
@@ -279,7 +329,7 @@ export async function handleAppleCallback(
     expiresAt: undefined, // Apple tokens don't expire like Google
   };
   
-  return handleOAuthCallback('apple', normalizedProfile, tokens, profile);
+  return handleOAuthCallback('apple', normalizedProfile, tokens, profile, consentOptions);
 }
 
 // Handle Apple OAuth parent gate re-authentication without linking or creating users

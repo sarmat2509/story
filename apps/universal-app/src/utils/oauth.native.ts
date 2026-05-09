@@ -9,7 +9,11 @@ export const oauth = {
   /**
    * Handle Google Sign In - NATIVE (iOS/Android)
    */
-  async handleGoogleSignIn(): Promise<string | null> {
+  async handleGoogleSignIn(_consent?: {
+    termsAccepted: boolean;
+    privacyAccepted: boolean;
+    isAdultGuardian: boolean;
+  }): Promise<string | null> {
     try {
       // Native module: named export GoogleSignin (not default)
       const { GoogleSignin } = require('@react-native-google-signin/google-signin');
@@ -48,7 +52,11 @@ export const oauth = {
   /**
    * Handle Apple Sign In - NATIVE (iOS/Android)
    */
-  async handleAppleSignIn(): Promise<{ identityToken: string; user?: any } | null> {
+  async handleAppleSignIn(_consent?: {
+    termsAccepted: boolean;
+    privacyAccepted: boolean;
+    isAdultGuardian: boolean;
+  }): Promise<{ identityToken: string; user?: any } | null> {
     try {
       if (Platform.OS === 'ios') {
         // iOS: Use native Apple Authentication
@@ -87,7 +95,14 @@ export const oauth = {
           path: 'auth/apple/callback',
         });
         
-        const authUrl = `${API_BASE_URL}/api/v1/auth/apple/start?redirect_uri=${encodeURIComponent(redirectUri)}`;
+        const authUrlObj = new URL(`${API_BASE_URL}/api/v1/auth/apple/start`);
+        authUrlObj.searchParams.set('redirect_uri', redirectUri);
+        if (_consent) {
+          authUrlObj.searchParams.set('termsAccepted', String(_consent.termsAccepted));
+          authUrlObj.searchParams.set('privacyAccepted', String(_consent.privacyAccepted));
+          authUrlObj.searchParams.set('isAdultGuardian', String(_consent.isAdultGuardian));
+        }
+        const authUrl = authUrlObj.toString();
         
         const result = await WebBrowser.openAuthSessionAsync(
           authUrl,

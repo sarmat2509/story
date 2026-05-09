@@ -3,6 +3,12 @@ import { useAuthStore } from '@/store/authStore';
 import { useGoogleLogin, useAppleLogin, useLogout, useUser } from '@/api/auth';
 import { oauth } from '@/utils/oauth';
 
+type OAuthLegalConsent = {
+  termsAccepted: boolean;
+  privacyAccepted: boolean;
+  isAdultGuardian: boolean;
+};
+
 export function useAuth() {
   const { isAuthenticated, user, isLoading } = useAuthStore();
   const googleLoginMutation = useGoogleLogin();
@@ -10,18 +16,18 @@ export function useAuth() {
   const logoutMutation = useLogout();
   const userQuery = useUser();
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (consent: OAuthLegalConsent) => {
     try {
       if (Platform.OS === 'web') {
         // Web: Redirect flow, token comes from URL callback (handled by OAuthCallbackScreen)
-        await oauth.handleGoogleSignIn();
+        await oauth.handleGoogleSignIn(consent);
         // For web, this triggers window.location.href redirect, execution stops here
       } else {
         // Mobile: Get idToken from native SDK, exchange with backend
         const idToken = await oauth.handleGoogleSignIn();
         if (idToken) {
           // Use TanStack Query mutation to exchange token
-          await googleLoginMutation.mutateAsync(idToken);
+          await googleLoginMutation.mutateAsync({ idToken, ...consent });
           // Mutation onSuccess already saves token & user to store
         }
       }
@@ -31,11 +37,11 @@ export function useAuth() {
     }
   };
 
-  const signInWithApple = async () => {
+  const signInWithApple = async (consent: OAuthLegalConsent) => {
     try {
       if (Platform.OS === 'web') {
         // Web: Redirect flow, token comes from URL callback (handled by OAuthCallbackScreen)
-        await oauth.handleAppleSignIn();
+        await oauth.handleAppleSignIn(consent);
         // For web, this triggers window.location.href redirect, execution stops here
       } else {
         // Mobile (primarily iOS): Get identityToken from native SDK, exchange with backend
@@ -45,6 +51,7 @@ export function useAuth() {
           await appleLoginMutation.mutateAsync({
             identityToken: result.identityToken,
             user: result.user, // Only present on first sign in
+            ...consent,
           });
           // Mutation onSuccess already saves token & user to store
         }

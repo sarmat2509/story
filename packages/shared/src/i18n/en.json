@@ -70,7 +70,15 @@
     "privacy_link": "Privacy Policy",
     "oauth_callback_loading": "Completing sign in...",
     "oauth_callback_error": "Authentication failed. Please try again.",
-    "native_oauth_dev_client_required": "Native OAuth requires a custom dev client. Use the web version or run a native dev build."
+    "native_oauth_dev_client_required": "Native OAuth requires a custom dev client. Use the web version or run a native dev build.",
+    "oauth_consent_required": "Please confirm that you are an adult parent or legal guardian and agree to the Terms and Privacy Policy before continuing."
+  },
+  "image_rights": {
+    "title": "Confirm image rights",
+    "rights_statement": "I have the legal right to use this image.",
+    "child_statement": "If the image includes a child, I am the child’s parent/legal guardian or have permission from the parent/legal guardian.",
+    "public_figures_statement": "I will not upload images of public figures, celebrities, influencers, or other people without permission.",
+    "confirm": "I confirm"
   },
   "welcome": {
     "slogan": "Turn drawings into characters. Listen, read along. Create and publish.",
@@ -1015,6 +1023,13 @@
     "privacy_request_success_title": "Request sent",
     "data_export_success_message": "Support will review the export request and follow up with the account email.",
     "data_deletion_success_message": "Support will review the deletion request and follow up with the account email.",
+    "delete_account_title": "Delete account now",
+    "delete_account_body": "This permanently deletes your account, child profiles, private stories, generated media, and uploads where deletion is allowed. Some billing, security, consent, legal, or abuse-prevention records may be retained where required.",
+    "delete_account_button": "Delete account",
+    "delete_account_deleting": "Deleting...",
+    "delete_account_confirm_title": "Permanently delete account?",
+    "delete_account_confirm_message": "This action cannot be undone. Your account and app data will be removed immediately where deletion is allowed.",
+    "delete_account_error": "Could not delete the account. Please try again.",
     "privacy_request_error": "Could not send the data request. Please try again.",
     "privacy_requests_recent": "Recent data requests",
     "privacy_request_type_export": "Data export",
@@ -1203,6 +1218,13 @@
     "upgrade_error_message": "Failed to upgrade plan. Please try again later.",
     "upgrade_success": "Plan Upgraded!",
     "upgrade_success_message": "You have successfully upgraded to {{planName}}",
+    "revenuecat_success_message": "Your {{planName}} purchase was completed. Access will refresh as soon as the store receipt is synced.",
+    "revenuecat_not_configured": "In-app purchases are not configured for this build yet.",
+    "restore_purchases": "Restore purchases",
+    "restoring": "Restoring...",
+    "restore_success_title": "Purchases restored",
+    "restore_success_message": "Your App Store or Google Play purchases were restored. Access will refresh after sync.",
+    "restore_error_message": "Could not restore purchases. Please try again.",
     "new_features": "New features:",
     "feature_unlocked_on": "Available from {{planName}}",
     "confirm_upgrade": "Confirm Upgrade",
@@ -1269,6 +1291,7 @@
       "section_subtitle_no_date": "More limits this billing period. Illustrations per story unchanged.",
       "one_time_note_no_date": "One-time; valid until period end.",
       "stripe_required": "Bundle purchase is available on the web when payments are enabled.",
+      "native_unavailable": "Story bundles will be available as in-app purchases soon.",
       "loading": "Loading bundles…",
       "empty": "No bundles available for your plan."
     },

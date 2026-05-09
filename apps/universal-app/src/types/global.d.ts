@@ -2,8 +2,16 @@ declare module '@babel/runtime/helpers/interopRequireDefault';
 declare module 'color';
 declare module '@/utils/oauth' {
   export const oauth: {
-    handleGoogleSignIn(): Promise<string | null>;
-    handleAppleSignIn(): Promise<{ identityToken: string; user?: any } | null>;
+    handleGoogleSignIn(consent?: {
+      termsAccepted: boolean;
+      privacyAccepted: boolean;
+      isAdultGuardian: boolean;
+    }): Promise<string | null>;
+    handleAppleSignIn(consent?: {
+      termsAccepted: boolean;
+      privacyAccepted: boolean;
+      isAdultGuardian: boolean;
+    }): Promise<{ identityToken: string; user?: any } | null>;
   };
 }
 declare module '@wondertales/shared/i18n/uk.json';

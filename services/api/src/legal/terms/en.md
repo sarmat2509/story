@@ -2,11 +2,11 @@
 
 Last updated: 2026-05-09
 
-These Terms explain how families may use WonderTales. They are written for the public web beta and should be reviewed before a paid public launch.
+These Terms explain how families may use WonderTales.
 
 ## Operator and contact
 
-WonderTales is the service provider for this beta. The final legal operator name, registered address, and merchant-of-record details must be confirmed before external paid use. For support, privacy, safety, refund, cancellation, and data requests, contact support@wondertales.art.
+WonderTales is the service provider. For support, privacy, safety, refund, cancellation, and data requests, contact support@wondertales.art.
 
 ## Who may use WonderTales
 
@@ -14,7 +14,7 @@ WonderTales is for adults who create and supervise family accounts. By creating 
 
 WonderTales is designed as a parent-managed family storytelling app. Child profiles are created and configured by a parent or legal guardian. Parents control age settings, personalization options, content limits, purchases, uploaded images, story generation, sharing, and deletion.
 
-Children may read or listen to generated stories, but account setup, payments, image uploads, publication/sharing, and privacy-related actions are controlled by the parent.
+Children may read or listen to generated stories and may create stories only within parent-configured limits. Account setup, payments, publication/sharing, and privacy-related actions are controlled by the parent.
 
 Children do not create independent WonderTales accounts for this launch. If child self-use is enabled, it must happen inside a supervised child mode controlled by the adult account owner.
 
@@ -79,11 +79,11 @@ WonderTales is in beta. Features, limits, prices, routes, providers, and availab
 
 ## Data deletion
 
-You may request account or child-data deletion by contacting support@wondertales.art. Some billing, security, audit, abuse-prevention, or legal records may be retained where required or reasonably necessary. See the Privacy Policy for more detail.
+You may delete your account in the app where the feature is available, or request account or child-data deletion by contacting support@wondertales.art. Some billing, security, audit, abuse-prevention, or legal records may be retained where required or reasonably necessary. See the Privacy Policy for more detail.
 
 ## Disclaimers and liability
 
-WonderTales is provided as-is during beta. We try to keep it safe and reliable, but we do not guarantee uninterrupted availability, error-free AI output, or that every generated story will meet every family preference.
+WonderTales is provided as-is. We try to keep it safe and reliable, but we do not guarantee uninterrupted availability, error-free AI output, or that every generated story will meet every family preference.
 
 To the extent allowed by law, WonderTales is not liable for indirect, incidental, special, consequential, or punitive damages, or for loss of data, profits, goodwill, or business opportunities.
 

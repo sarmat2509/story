@@ -47,7 +47,8 @@
     "privacy_link": "Datenschutzerklärung",
     "oauth_callback_loading": "Anmeldung wird abgeschlossen...",
     "oauth_callback_error": "Authentifizierung fehlgeschlagen. Bitte versuche es erneut.",
-    "native_oauth_dev_client_required": "Native OAuth benötigt einen Custom Dev Client. Nutze die Webversion oder starte einen nativen Dev-Build."
+    "native_oauth_dev_client_required": "Native OAuth benötigt einen Custom Dev Client. Nutze die Webversion oder starte einen nativen Dev-Build.",
+    "oauth_consent_required": "Bitte bestätige, dass du ein erwachsener Elternteil oder gesetzlicher Vormund bist und den Nutzungsbedingungen sowie der Datenschutzerklärung zustimmst, bevor du fortfährst."
   },
   "welcome": {
     "slogan": "Zeichnungen zu Charakteren. Hören, mitlesen, veröffentlichen.",
@@ -474,9 +475,17 @@
       "one_time_note_no_date": "Einmalig; bis Periodenende.",
       "stripe_required": "Paketkauf im Web, wenn Zahlungen aktiv sind.",
       "loading": "Pakete werden geladen…",
-      "empty": "Keine Pakete für Ihren Tarif."
+      "empty": "Keine Pakete für Ihren Tarif.",
+      "native_unavailable": "Geschichtenpakete werden bald als In-App-Käufe verfügbar sein."
     },
-    "bundle_checkout_error": "Bundle-Checkout konnte nicht gestartet werden. Bitte versuche es erneut."
+    "bundle_checkout_error": "Bundle-Checkout konnte nicht gestartet werden. Bitte versuche es erneut.",
+    "revenuecat_success_message": "Dein Kauf von {{planName}} wurde abgeschlossen. Der Zugriff wird aktualisiert, sobald der Store-Beleg synchronisiert wurde.",
+    "revenuecat_not_configured": "In-App-Käufe sind für diesen Build noch nicht konfiguriert.",
+    "restore_purchases": "Käufe wiederherstellen",
+    "restoring": "Wird wiederhergestellt...",
+    "restore_success_title": "Käufe wiederhergestellt",
+    "restore_success_message": "Deine App Store- oder Google Play-Käufe wurden wiederhergestellt. Der Zugriff wird nach der Synchronisierung aktualisiert.",
+    "restore_error_message": "Käufe konnten nicht wiederhergestellt werden. Bitte versuche es erneut."
   },
   "children_screen": {
     "title": "Kinderprofile",
@@ -722,7 +731,14 @@
     "logout": "Abmelden",
     "logout_confirm_title": "Abmelden?",
     "logout_confirm_message": "Bist du sicher, dass du dich abmelden möchtest?",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "delete_account_title": "Konto jetzt löschen",
+    "delete_account_body": "Dadurch werden dein Konto, Kinderprofile, private Geschichten, generierte Medien und Uploads dauerhaft gelöscht, soweit die Löschung zulässig ist. Einige Abrechnungs-, Sicherheits-, Einwilligungs-, Rechts- oder Missbrauchspräventionsdaten können aufbewahrt werden, wenn dies erforderlich ist.",
+    "delete_account_button": "Konto löschen",
+    "delete_account_deleting": "Wird gelöscht...",
+    "delete_account_confirm_title": "Konto dauerhaft löschen?",
+    "delete_account_confirm_message": "Diese Aktion kann nicht rückgängig gemacht werden. Dein Konto und deine App-Daten werden sofort entfernt, soweit die Löschung zulässig ist.",
+    "delete_account_error": "Das Konto konnte nicht gelöscht werden. Bitte versuche es erneut."
   },
   "theme": {
     "title": "Design",
@@ -895,5 +911,12 @@
     "prompt_safety_blocked": "Diese Idee ist nicht sicher für eine Kindergeschichte. Wähle ein sanfteres Thema oder formuliere sie mit einem Erwachsenen um.",
     "photo_input_invalid": "Verwende für diese Aktion ein in WonderTales hochgeladenes Foto.",
     "photo_owner_mismatch": "Dieses Foto gehört zu einem anderen Konto. Lade es erneut von diesem Konto hoch."
+  },
+  "image_rights": {
+    "title": "Bildrechte bestätigen",
+    "rights_statement": "Ich habe das rechtliche Recht, dieses Bild zu verwenden.",
+    "child_statement": "Wenn das Bild ein Kind zeigt, bin ich der Elternteil/gesetzliche Vormund oder habe die Erlaubnis des Elternteils/gesetzlichen Vormunds.",
+    "public_figures_statement": "Ich werde keine Bilder von öffentlichen Personen, Prominenten, Influencern oder anderen Menschen ohne Erlaubnis hochladen.",
+    "confirm": "Ich bestätige"
   }
 }

@@ -18,7 +18,11 @@ export interface UploadPhotoResult {
 export async function uploadPhoto(
   uri: string,
   photoType: PhotoTypeUserUpload = 'character',
-  options: { childDataConsentAccepted?: boolean } = {}
+  options: {
+    childDataConsentAccepted?: boolean;
+    imageRightsAccepted?: boolean;
+    noPublicFiguresAccepted?: boolean;
+  } = {}
 ): Promise<UploadPhotoResult> {
   try {
     // Create FormData
@@ -46,6 +50,12 @@ export async function uploadPhoto(
     formData.append('photoType', photoType);
     if (options.childDataConsentAccepted) {
       formData.append('childDataConsentAccepted', 'true');
+    }
+    if (options.imageRightsAccepted) {
+      formData.append('imageRightsAccepted', 'true');
+    }
+    if (options.noPublicFiguresAccepted) {
+      formData.append('noPublicFiguresAccepted', 'true');
     }
 
     // Send to server (do NOT set Content-Type — fetch sets multipart/form-data with boundary automatically)

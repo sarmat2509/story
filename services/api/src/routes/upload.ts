@@ -26,6 +26,17 @@ function getChildDataConsentValue(body: Record<string, unknown>): unknown {
   return body.childDataConsentAccepted ?? body.child_data_consent_accepted ?? body.parentalConsentAccepted;
 }
 
+function isAccepted(value: unknown): boolean {
+  return value === true || value === 'true' || value === '1' || value === 'on' || value === 'yes';
+}
+
+function hasRequiredImageRightsConfirmations(body: Record<string, unknown>): boolean {
+  return (
+    isAccepted(body.imageRightsAccepted ?? body.image_rights_accepted) &&
+    isAccepted(body.noPublicFiguresAccepted ?? body.no_public_figures_accepted)
+  );
+}
+
 function requireParentOrChildCharacterPhotoUpload(req: Request, res: Response, next: NextFunction): void {
   if (req.sessionMode !== 'child') {
     next();
@@ -156,6 +167,14 @@ router.post('/photo', requireAuth, handlePhotoUpload, requireParentOrChildCharac
       });
     }
 
+    if (photoType !== 'feedback' && !hasRequiredImageRightsConfirmations(req.body as Record<string, unknown>)) {
+      return res.status(403).json({
+        status: 'error',
+        error: 'Image rights confirmation required',
+        code: 'IMAGE_RIGHTS_CONFIRMATION_REQUIRED',
+      });
+    }
+
     if (photoType === 'child') {
       const hasConsent = await ensureChildDataConsent(
         userId,
@@ -197,7 +216,8 @@ router.post('/photo', requireAuth, handlePhotoUpload, requireParentOrChildCharac
       userId, 
       photoType, 
       path: result.storagePath, 
-      size: req.file.size 
+      size: req.file.size,
+      imageRightsConfirmed: photoType !== 'feedback',
     }, 'User photo uploaded successfully');
 
     // Return signed URL so <Image> can load it without Bearer auth header

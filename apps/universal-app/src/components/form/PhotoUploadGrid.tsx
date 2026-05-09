@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
 import { uploadPhoto, deletePhoto, UploadPhotoResult } from '@/utils/uploadPhoto';
 import { isServerAssetUrl } from '@/utils/assetUrl';
+import { confirmImageRights } from '@/utils/imageRightsConsent';
 
 type Photo = UploadPhotoResult & {
   isUploading?: boolean;
@@ -48,6 +49,9 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
   };
 
   const pickImage = async () => {
+    const imageRights = photoType === 'feedback' ? null : await confirmImageRights(t);
+    if (photoType !== 'feedback' && !imageRights) return;
+
     const hasPermission = await requestPermission();
     if (!hasPermission) return;
 
@@ -76,6 +80,8 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
           // Завантажуємо на сервер
           const uploadedPhoto = await uploadPhoto(localUri, photoType, {
             childDataConsentAccepted: photoType === 'child' ? childDataConsentAccepted : undefined,
+            imageRightsAccepted: imageRights?.imageRightsAccepted,
+            noPublicFiguresAccepted: imageRights?.noPublicFiguresAccepted,
           });
           
           // Замінюємо тимчасове фото на завантажене

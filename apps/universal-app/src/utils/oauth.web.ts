@@ -5,11 +5,21 @@ export const oauth = {
    * Handle Google Sign In - WEB ONLY
    * Backend determines redirect from request origin, no redirect_uri needed.
    */
-  async handleGoogleSignIn(): Promise<string | null> {
+  async handleGoogleSignIn(consent?: {
+    termsAccepted: boolean;
+    privacyAccepted: boolean;
+    isAdultGuardian: boolean;
+  }): Promise<string | null> {
     try {
       if (typeof window !== 'undefined') {
         window.sessionStorage.setItem('oauth_redirect', 'google');
-        window.location.href = `${window.location.origin}/api/v1/auth/google/start`;
+        const url = new URL(`${window.location.origin}/api/v1/auth/google/start`);
+        if (consent) {
+          url.searchParams.set('termsAccepted', String(consent.termsAccepted));
+          url.searchParams.set('privacyAccepted', String(consent.privacyAccepted));
+          url.searchParams.set('isAdultGuardian', String(consent.isAdultGuardian));
+        }
+        window.location.href = url.toString();
       }
       return null;
     } catch (error) {
@@ -22,11 +32,21 @@ export const oauth = {
    * Handle Apple Sign In - WEB ONLY
    * Backend determines redirect from request origin, no redirect_uri needed.
    */
-  async handleAppleSignIn(): Promise<{ identityToken: string; user?: any } | null> {
+  async handleAppleSignIn(consent?: {
+    termsAccepted: boolean;
+    privacyAccepted: boolean;
+    isAdultGuardian: boolean;
+  }): Promise<{ identityToken: string; user?: any } | null> {
     try {
       if (typeof window !== 'undefined') {
         window.sessionStorage.setItem('oauth_redirect', 'apple');
-        window.location.href = `${window.location.origin}/api/v1/auth/apple/start`;
+        const url = new URL(`${window.location.origin}/api/v1/auth/apple/start`);
+        if (consent) {
+          url.searchParams.set('termsAccepted', String(consent.termsAccepted));
+          url.searchParams.set('privacyAccepted', String(consent.privacyAccepted));
+          url.searchParams.set('isAdultGuardian', String(consent.isAdultGuardian));
+        }
+        window.location.href = url.toString();
       }
       return null;
     } catch (error) {

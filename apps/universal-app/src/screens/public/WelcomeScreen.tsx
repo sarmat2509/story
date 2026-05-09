@@ -46,10 +46,14 @@ export default function WelcomeScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSkipOption, setShowSkipOption] = useState(false);
+  const [oauthTermsAccepted, setOauthTermsAccepted] = useState(false);
+  const [oauthPrivacyAccepted, setOauthPrivacyAccepted] = useState(false);
+  const [oauthAdultGuardian, setOauthAdultGuardian] = useState(false);
 
   const isLoading = oauthLoading || emailLoginMutation.isPending;
   const emailValid = EMAIL_REGEX.test(email);
   const canSubmitEmail = emailValid && password.length >= 8;
+  const canUseOAuth = oauthTermsAccepted && oauthPrivacyAccepted && oauthAdultGuardian;
   const showAppleSignIn = Platform.OS === 'ios';
 
   const handleError = (message: string) => {
@@ -78,7 +82,15 @@ export default function WelcomeScreen() {
     try {
       setError(null);
       setShowSkipOption(false);
-      await signInWithGoogle();
+      if (!canUseOAuth) {
+        handleError(t('auth.oauth_consent_required'));
+        return;
+      }
+      await signInWithGoogle({
+        termsAccepted: oauthTermsAccepted,
+        privacyAccepted: oauthPrivacyAccepted,
+        isAdultGuardian: oauthAdultGuardian,
+      });
     } catch (err: unknown) {
       const message = (err as Error)?.message?.includes('expo-dev-client')
         ? t('auth.native_oauth_dev_client_required')
@@ -91,7 +103,15 @@ export default function WelcomeScreen() {
     try {
       setError(null);
       setShowSkipOption(false);
-      await signInWithApple();
+      if (!canUseOAuth) {
+        handleError(t('auth.oauth_consent_required'));
+        return;
+      }
+      await signInWithApple({
+        termsAccepted: oauthTermsAccepted,
+        privacyAccepted: oauthPrivacyAccepted,
+        isAdultGuardian: oauthAdultGuardian,
+      });
     } catch (err: unknown) {
       const message = (err as Error)?.message?.includes('expo-dev-client')
         ? t('auth.native_oauth_dev_client_required')
@@ -239,10 +259,48 @@ export default function WelcomeScreen() {
           </View>
 
           <View style={styles.authSection}>
+            <View style={styles.oauthConsentBox}>
+              {[
+                {
+                  key: 'adult',
+                  value: oauthAdultGuardian,
+                  setValue: setOauthAdultGuardian,
+                  label: t('auth.consent_adult_guardian'),
+                },
+                {
+                  key: 'terms',
+                  value: oauthTermsAccepted,
+                  setValue: setOauthTermsAccepted,
+                  label: `${t('auth.consent_terms')} ${t('auth.terms_link')}`,
+                },
+                {
+                  key: 'privacy',
+                  value: oauthPrivacyAccepted,
+                  setValue: setOauthPrivacyAccepted,
+                  label: `${t('auth.consent_privacy')} ${t('auth.privacy_link')}`,
+                },
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.key}
+                  style={styles.oauthConsentRow}
+                  onPress={() => item.setValue(!item.value)}
+                  disabled={isLoading}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: item.value }}
+                >
+                  <View style={[styles.oauthCheckbox, item.value && styles.oauthCheckboxChecked]}>
+                    {item.value ? (
+                      <Ionicons name="checkmark" size={14} color={theme.colors.text.inverse} />
+                    ) : null}
+                  </View>
+                  <Text style={styles.oauthConsentText}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <TouchableOpacity
-              style={[styles.button, styles.googleButton]}
+              style={[styles.button, styles.googleButton, !canUseOAuth && styles.oauthButtonDisabled]}
               onPress={handleGoogleLogin}
-              disabled={isLoading}
+              disabled={isLoading || !canUseOAuth}
             >
               {oauthLoading ? (
                 <ActivityIndicator color={theme.colors.text.inverse} />
@@ -256,9 +314,9 @@ export default function WelcomeScreen() {
 
             {showAppleSignIn && (
               <TouchableOpacity
-                style={[styles.button, styles.appleButton]}
+                style={[styles.button, styles.appleButton, !canUseOAuth && styles.oauthButtonDisabled]}
                 onPress={handleAppleLogin}
-                disabled={isLoading}
+                disabled={isLoading || !canUseOAuth}
               >
                 {oauthLoading ? (
                   <ActivityIndicator color={theme.colors.text.inverse} />
@@ -493,6 +551,42 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: theme.spacing[4],
     marginBottom: theme.spacing[6],
+  },
+  oauthConsentBox: {
+    gap: theme.spacing[2],
+    padding: theme.spacing[3],
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.secondary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+  },
+  oauthConsentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing[2],
+  },
+  oauthCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: theme.borders.width.medium,
+    borderColor: theme.colors.border.medium,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  oauthCheckboxChecked: {
+    backgroundColor: theme.colors.interactive.primary,
+    borderColor: theme.colors.interactive.primary,
+  },
+  oauthConsentText: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
+    color: theme.colors.text.secondary,
+  },
+  oauthButtonDisabled: {
+    opacity: 0.45,
   },
   googleButton: {
     backgroundColor: theme.colors.google,

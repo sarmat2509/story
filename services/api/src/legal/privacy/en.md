@@ -2,11 +2,11 @@
 
 Last updated: 2026-05-09
 
-This Privacy Policy explains how WonderTales collects, uses, shares, and deletes personal data during the public web beta. It should be reviewed before a paid public launch.
+This Privacy Policy explains how WonderTales collects, uses, shares, and deletes personal data.
 
 ## Controller and contact
 
-WonderTales is the service provider for this beta. The final legal operator name, registered address, and merchant-of-record details must be confirmed before external paid use.
+WonderTales is the service provider.
 
 For privacy, child-data, deletion, access, correction, objection, or support requests, contact support@wondertales.art.
 
@@ -50,7 +50,7 @@ WonderTales is designed for adult-owned family accounts. Children do not create 
 
 WonderTales is designed as a parent-managed family storytelling app. Child profiles are created and configured by a parent or legal guardian. Parents control age settings, personalization options, content limits, purchases, uploaded images, story generation, sharing, and deletion.
 
-Children may read or listen to generated stories, but account setup, payments, image uploads, publication/sharing, and privacy-related actions are controlled by the parent.
+Children may read or listen to generated stories and may create stories only within parent-configured limits. Account setup, payments, publication/sharing, and privacy-related actions are controlled by the parent.
 
 Adults must have authority to provide child data, photos, drawings, or preferences. Adults can request deletion of child data by contacting support@wondertales.art.
 
@@ -84,7 +84,7 @@ You can use browser settings to limit cookies, but some account, security, and p
 
 We keep data only as long as needed for the purposes above, unless a longer period is required for billing, tax, accounting, security, abuse prevention, dispute resolution, or legal claims.
 
-You may request deletion of your account, child profiles, uploads, and stories by contacting support@wondertales.art. We will respond without undue delay. Some records may be retained where legally required or reasonably necessary, such as payment records, consent logs, security logs, and records needed to investigate abuse or resolve disputes.
+You may delete your account in the app where the feature is available, or request deletion of your account, child profiles, uploads, and stories by contacting support@wondertales.art. We will respond without undue delay. Some records may be retained where legally required or reasonably necessary, such as payment records, consent logs, security logs, and records needed to investigate abuse or resolve disputes.
 
 Backups and logs may take additional time to expire.
 

@@ -70,7 +70,8 @@
     "privacy_link": "Polityke prywatnosci",
     "oauth_callback_loading": "Konczymy logowanie...",
     "oauth_callback_error": "Uwierzytelnianie nie powiodlo sie. Sprobuj ponownie.",
-    "native_oauth_dev_client_required": "Natywny OAuth wymaga custom dev client. Uzyj wersji web albo uruchom natywny dev build."
+    "native_oauth_dev_client_required": "Natywny OAuth wymaga custom dev client. Uzyj wersji web albo uruchom natywny dev build.",
+    "oauth_consent_required": "Potwierdz, ze jestes doroslym rodzicem lub opiekunem prawnym i akceptujesz Regulamin oraz Polityke prywatnosci przed kontynuacja."
   },
   "welcome": {
     "slogan": "Zmien rysunki w bohaterow. Sluchaj, czytaj razem. Tworz i publikuj.",
@@ -1015,7 +1016,14 @@
     "author_not_found": "Nie znaleziono autora",
     "author_story_count": "{{count}} opublikowanych historii",
     "author_published_stories": "Historie tego autora",
-    "author_no_stories": "Ten autor nie ma jeszcze opublikowanych historii"
+    "author_no_stories": "Ten autor nie ma jeszcze opublikowanych historii",
+    "delete_account_title": "Usun konto teraz",
+    "delete_account_body": "To trwale usuwa konto, profile dzieci, prywatne historie, wygenerowane media i przeslane pliki tam, gdzie usuniecie jest dozwolone. Niektore rekordy rozliczeniowe, bezpieczenstwa, zgod, prawne lub zapobiegania naduzyciom moga zostac zachowane, gdy jest to wymagane.",
+    "delete_account_button": "Usun konto",
+    "delete_account_deleting": "Usuwanie...",
+    "delete_account_confirm_title": "Trwale usunac konto?",
+    "delete_account_confirm_message": "Tej operacji nie mozna cofnac. Konto i dane aplikacji zostana natychmiast usuniete tam, gdzie usuniecie jest dozwolone.",
+    "delete_account_error": "Nie udalo sie usunac konta. Sprobuj ponownie."
   },
   "theme": {
     "title": "Motyw",
@@ -1234,7 +1242,8 @@
       "one_time_note_no_date": "Jednorazowo; wazne do konca okresu.",
       "stripe_required": "Zakup pakietu jest dostepny w przegladarce, gdy platnosci sa wlaczone.",
       "loading": "Ladowanie pakietow...",
-      "empty": "Brak pakietow dla Twojego planu."
+      "empty": "Brak pakietow dla Twojego planu.",
+      "native_unavailable": "Pakiety historii beda wkrotce dostepne jako zakupy w aplikacji."
     },
     "payments_disabled_button": "Platnosci wkrotce",
     "payments_disabled_notice": "Platne zamowienia nie sa jeszcze wlaczone. Darmowy dostep pozostaje dostepny podczas koncowej weryfikacji rozliczen.",
@@ -1242,7 +1251,14 @@
     "billing_note_renewal": "Platne subskrypcje odnawiaja sie co miesiac do anulowania. Mozesz zarzadzac rozliczeniami lub anulowac je w portalu platnosci, gdy jest dostepny.",
     "billing_note_bundles": "Pakiety to jednorazowe dodatki na obecny okres rozliczeniowy. Niewykorzystane kredyty wygasaja na koniec okresu i nie przechodza dalej.",
     "billing_note_refunds": "Prosby o zwrot sa sprawdzane przez wsparcie i nie dzieja sie automatycznie po anulowaniu subskrypcji.",
-    "audio_stories_few": "{{count}} historie audio miesiecznie"
+    "audio_stories_few": "{{count}} historie audio miesiecznie",
+    "revenuecat_success_message": "Zakup {{planName}} zostal ukonczony. Dostep odswiezy sie po synchronizacji paragonu sklepu.",
+    "revenuecat_not_configured": "Zakupy w aplikacji nie sa jeszcze skonfigurowane dla tej wersji.",
+    "restore_purchases": "Przywroc zakupy",
+    "restoring": "Przywracanie...",
+    "restore_success_title": "Zakupy przywrocone",
+    "restore_success_message": "Zakupy z App Store lub Google Play zostaly przywrocone. Dostep odswiezy sie po synchronizacji.",
+    "restore_error_message": "Nie udalo sie przywrocic zakupow. Sprobuj ponownie."
   },
   "children_screen": {
     "title": "Profile dzieci",
@@ -1514,5 +1530,12 @@
     "pick_error_message": "Nie udalo sie wybrac obrazu",
     "add_photo": "Dodaj zdjecie",
     "counter": "{{count}} / {{max}} zdjec"
+  },
+  "image_rights": {
+    "title": "Potwierdz prawa do obrazu",
+    "rights_statement": "Mam prawne prawo do uzycia tego obrazu.",
+    "child_statement": "Jesli obraz przedstawia dziecko, jestem jego rodzicem/opiekunem prawnym albo mam zgode rodzica/opiekuna prawnego.",
+    "public_figures_statement": "Nie bede przesylac obrazow osob publicznych, celebrytow, influencerow ani innych osob bez pozwolenia.",
+    "confirm": "Potwierdzam"
   }
 }

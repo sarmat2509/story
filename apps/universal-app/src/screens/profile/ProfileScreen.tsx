@@ -15,12 +15,13 @@ import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
 import { usePlansWithAuth, useSubscriptionUsage, useCreatePortalSession } from '@/api/plans';
 import { useCreatePrivacyRequest, usePrivacyRequests, type PrivacyRequestType } from '@/api/privacyRequests';
-import { useUpdateChildModeExitPasscode, useUpdateMe, useUser } from '@/api/auth';
+import { useDeleteAccount, useUpdateChildModeExitPasscode, useUpdateMe, useUser } from '@/api/auth';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import { formatAssetUrl, isServerAssetUrl, toCanonicalAssetUrl } from '@/utils/assetUrl';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 import { buildAccountDataPrivacyRequestMessage } from '@/utils/privacyRequestMessages';
 import { uploadPhoto, deletePhoto } from '@/utils/uploadPhoto';
+import { confirmImageRights } from '@/utils/imageRightsConsent';
 import {
   getAnalyticsConsent,
   onAnalyticsConsentChange,
@@ -54,6 +55,7 @@ export default function ProfileScreen() {
   const updateProfile = useUpdateMe();
   const updateAvatar = useUpdateMe();
   const updateChildModeExitPasscode = useUpdateChildModeExitPasscode();
+  const deleteAccount = useDeleteAccount();
   const currentUserQuery = useUser();
   const profileUser = currentUserQuery.data ?? user;
   const [displayName, setDisplayName] = useState(profileUser?.displayName ?? '');
@@ -64,6 +66,7 @@ export default function ProfileScreen() {
   const [confirmExitPasscode, setConfirmExitPasscode] = useState('');
   const [isAvatarBusy, setIsAvatarBusy] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [privacyRequestIntent, setPrivacyRequestIntent] = useState<ProfilePrivacyRequestIntent | null>(null);
   const [analyticsConsent, setAnalyticsConsentState] = useState<AnalyticsConsent>(() => getAnalyticsConsent());
@@ -216,6 +219,19 @@ export default function ProfileScreen() {
 
   const handleLogout = () => setShowLogoutConfirm(true);
 
+  const handleDeleteAccount = async () => {
+    try {
+      await deleteAccount.mutateAsync();
+    } catch (err) {
+      Alert.alert(
+        t('common.error'),
+        getLocalizedApiError(t, err, 'profile.delete_account_error')
+      );
+    } finally {
+      setShowDeleteAccountConfirm(false);
+    }
+  };
+
   const requestPhotoPermission = async () => {
     if (Platform.OS === 'web') return true;
 
@@ -232,6 +248,9 @@ export default function ProfileScreen() {
   };
 
   const handlePickAvatar = async () => {
+    const imageRights = await confirmImageRights(t);
+    if (!imageRights) return;
+
     const hasPermission = await requestPhotoPermission();
     if (!hasPermission) return;
 
@@ -250,7 +269,7 @@ export default function ProfileScreen() {
 
       setIsAvatarBusy(true);
       try {
-        const uploadedAvatar = await uploadPhoto(localUri, 'profile');
+        const uploadedAvatar = await uploadPhoto(localUri, 'profile', imageRights);
         const canonicalAvatarUrl = toCanonicalAssetUrl(uploadedAvatar.url);
 
         try {
@@ -669,6 +688,22 @@ export default function ProfileScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+          <View style={styles.deleteAccountPanel}>
+            <Text style={styles.deleteAccountTitle}>{t('profile.delete_account_title')}</Text>
+            <Text style={styles.deleteAccountBody}>{t('profile.delete_account_body')}</Text>
+            <TouchableOpacity
+              style={styles.deleteAccountButton}
+              disabled={deleteAccount.isPending}
+              onPress={() => setShowDeleteAccountConfirm(true)}
+            >
+              <Ionicons name="warning-outline" size={16} color={theme.colors.text.inverse} />
+              <Text style={styles.deleteAccountButtonText}>
+                {deleteAccount.isPending
+                  ? t('profile.delete_account_deleting')
+                  : t('profile.delete_account_button')}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {privacyRequestsQuery.isLoading || recentPrivacyRequests.length > 0 ? (
@@ -798,6 +833,25 @@ export default function ProfileScreen() {
         }
       }}
       variant={privacyRequestIntent?.requestType === 'deletion' ? 'danger' : 'info'}
+    />
+
+    <ConfirmDialog
+      visible={showDeleteAccountConfirm}
+      title={t('profile.delete_account_confirm_title')}
+      message={t('profile.delete_account_confirm_message')}
+      confirmText={
+        deleteAccount.isPending
+          ? t('profile.delete_account_deleting')
+          : t('profile.delete_account_button')
+      }
+      cancelText={t('common.cancel')}
+      onConfirm={handleDeleteAccount}
+      onCancel={() => {
+        if (!deleteAccount.isPending) {
+          setShowDeleteAccountConfirm(false);
+        }
+      }}
+      variant="danger"
     />
 
     <FeedbackModal
@@ -1096,6 +1150,40 @@ const styles = StyleSheet.create({
   },
   privacyDangerActionButtonText: {
     color: theme.colors.status.error,
+  },
+  deleteAccountPanel: {
+    marginTop: theme.spacing[3],
+    paddingTop: theme.spacing[3],
+    borderTopWidth: theme.borders.width.thin,
+    borderTopColor: theme.colors.border.light,
+    gap: theme.spacing[2],
+  },
+  deleteAccountTitle: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.status.error,
+  },
+  deleteAccountBody: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+  },
+  deleteAccountButton: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.status.error,
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+  },
+  deleteAccountButtonText: {
+    color: theme.colors.text.inverse,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    textAlign: 'center',
   },
   privacyRequestsPanel: {
     gap: theme.spacing[2],

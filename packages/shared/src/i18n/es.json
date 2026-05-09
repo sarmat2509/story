@@ -47,7 +47,8 @@
     "privacy_link": "Política de privacidad",
     "oauth_callback_loading": "Completando inicio de sesión...",
     "oauth_callback_error": "No se pudo iniciar sesión. Inténtalo de nuevo.",
-    "native_oauth_dev_client_required": "OAuth nativo requiere un custom dev client. Usa la versión web o ejecuta una build nativa de desarrollo."
+    "native_oauth_dev_client_required": "OAuth nativo requiere un custom dev client. Usa la versión web o ejecuta una build nativa de desarrollo.",
+    "oauth_consent_required": "Confirma que eres un padre, madre o tutor legal adulto y acepta los Términos y la Política de privacidad antes de continuar."
   },
   "welcome": {
     "slogan": "Dibujos en personajes. Escucha, lee, publica.",
@@ -703,7 +704,14 @@
     "logout": "Cerrar sesión",
     "logout_confirm_title": "¿Cerrar sesión?",
     "logout_confirm_message": "¿Estás seguro de que quieres cerrar sesión?",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "delete_account_title": "Eliminar cuenta ahora",
+    "delete_account_body": "Esto elimina permanentemente tu cuenta, perfiles infantiles, historias privadas, medios generados y cargas cuando la eliminación esté permitida. Algunos registros de facturación, seguridad, consentimiento, legales o prevención de abuso pueden conservarse cuando sea necesario.",
+    "delete_account_button": "Eliminar cuenta",
+    "delete_account_deleting": "Eliminando...",
+    "delete_account_confirm_title": "¿Eliminar la cuenta permanentemente?",
+    "delete_account_confirm_message": "Esta acción no se puede deshacer. Tu cuenta y datos de la app se eliminarán inmediatamente donde la eliminación esté permitida.",
+    "delete_account_error": "No se pudo eliminar la cuenta. Inténtalo de nuevo."
   },
   "theme": {
     "title": "Tema",
@@ -975,7 +983,17 @@
       "share_enabled": "Publicación y compartición",
       "story_from_drawing": "Historia del dibujo del niño (próximamente)"
     },
-    "bundle_checkout_error": "No se pudo iniciar el pago del paquete. Inténtalo de nuevo."
+    "bundle_checkout_error": "No se pudo iniciar el pago del paquete. Inténtalo de nuevo.",
+    "revenuecat_success_message": "Tu compra de {{planName}} se completó. El acceso se actualizará en cuanto se sincronice el recibo de la tienda.",
+    "revenuecat_not_configured": "Las compras dentro de la app aún no están configuradas para esta build.",
+    "restore_purchases": "Restaurar compras",
+    "restoring": "Restaurando...",
+    "restore_success_title": "Compras restauradas",
+    "restore_success_message": "Tus compras de App Store o Google Play se restauraron. El acceso se actualizará después de sincronizar.",
+    "restore_error_message": "No se pudieron restaurar las compras. Inténtalo de nuevo.",
+    "bundles": {
+      "native_unavailable": "Los paquetes de cuentos estarán disponibles pronto como compras dentro de la app."
+    }
   },
   "children_screen": {
     "title": "Perfiles de Niños",
@@ -1217,5 +1235,12 @@
     "prompt_safety_blocked": "Esta idea no es segura para un cuento infantil. Elige un tema más suave o reescríbelo con un adulto.",
     "photo_input_invalid": "Usa una foto subida dentro de WonderTales para esta acción.",
     "photo_owner_mismatch": "Esta foto pertenece a otra cuenta. Súbela de nuevo desde esta cuenta."
+  },
+  "image_rights": {
+    "title": "Confirmar derechos de imagen",
+    "rights_statement": "Tengo el derecho legal de usar esta imagen.",
+    "child_statement": "Si la imagen incluye a un niño, soy su padre/madre o tutor legal, o tengo permiso de su padre/madre o tutor legal.",
+    "public_figures_statement": "No subiré imágenes de figuras públicas, celebridades, influencers u otras personas sin permiso.",
+    "confirm": "Confirmo"
   }
 }

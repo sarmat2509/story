@@ -65,6 +65,29 @@ export async function recordRegistrationConsents(
   ]);
 }
 
+export async function hasCurrentRegistrationConsents(userId: string): Promise<boolean> {
+  const repo = getUserConsentRepository();
+  const [terms, privacy, adultGuardian] = await Promise.all([
+    repo.hasVersion(
+      userId,
+      CONSENT_TYPES.termsOfService,
+      CONSENT_DOCUMENT_VERSIONS.termsOfService
+    ),
+    repo.hasVersion(
+      userId,
+      CONSENT_TYPES.privacyPolicy,
+      CONSENT_DOCUMENT_VERSIONS.privacyPolicy
+    ),
+    repo.hasVersion(
+      userId,
+      CONSENT_TYPES.adultGuardian,
+      CONSENT_DOCUMENT_VERSIONS.adultGuardian
+    ),
+  ]);
+
+  return terms && privacy && adultGuardian;
+}
+
 export async function hasCurrentChildDataConsent(userId: string): Promise<boolean> {
   return getUserConsentRepository().hasVersion(
     userId,
@@ -90,4 +113,3 @@ export async function ensureChildDataConsent(
 
   return hasCurrentChildDataConsent(userId);
 }
-

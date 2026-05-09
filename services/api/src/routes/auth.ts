@@ -9,6 +9,7 @@ import {
   handleGoogleParentGateCallback,
   handleAppleParentGateCallback,
   OAuthParentGateError,
+  OAuthRegistrationConsentError,
   type GoogleProfile,
   type AppleProfile,
 } from '../services/oauthService';
@@ -72,6 +73,14 @@ const resetPasswordSchema = z.object({
 const parentGateSchema = z.object({
   password: z.string().min(4).max(128),
 });
+
+const OAuthRegistrationConsentSchema = z.object({
+  termsAccepted: z.union([z.boolean(), z.string()]).optional(),
+  privacyAccepted: z.union([z.boolean(), z.string()]).optional(),
+  isAdultGuardian: z.union([z.boolean(), z.string()]).optional(),
+});
+
+type OAuthRegistrationConsentInput = z.infer<typeof OAuthRegistrationConsentSchema>;
 
 function sendCaptchaError(res: Response, error: unknown): boolean {
   if (!(error instanceof CaptchaVerificationError)) return false;
@@ -151,6 +160,57 @@ function buildConsentAuditContext(req: Request, source: string): ConsentAuditCon
     ipAddress,
     userAgent: req.headers['user-agent'] || null,
     context: { source },
+  };
+}
+
+function parseOAuthRegistrationConsentInput(value: unknown): OAuthRegistrationConsentInput {
+  const parsed = OAuthRegistrationConsentSchema.safeParse(value ?? {});
+  return parsed.success ? parsed.data : {};
+}
+
+function hasOAuthRegistrationConsents(input: OAuthRegistrationConsentInput): boolean {
+  return validateRegistrationConsents(input).length === 0;
+}
+
+function encodeOAuthRegistrationState(input: OAuthRegistrationConsentInput): string {
+  const payload = Buffer.from(JSON.stringify(input), 'utf8').toString('base64url');
+  return `oc.${payload}`;
+}
+
+function decodeOAuthRegistrationState(state: unknown): OAuthRegistrationConsentInput {
+  if (typeof state !== 'string' || !state.startsWith('oc.')) {
+    return {};
+  }
+
+  try {
+    return parseOAuthRegistrationConsentInput(
+      JSON.parse(Buffer.from(state.slice(3), 'base64url').toString('utf8'))
+    );
+  } catch {
+    return {};
+  }
+}
+
+function parseAppleState(state: unknown): Record<string, unknown> {
+  if (typeof state !== 'string' || !state.trim()) return {};
+  try {
+    const parsed = JSON.parse(state);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function getOAuthRegistrationConsentOptions(
+  req: Request,
+  provider: 'google' | 'apple',
+  input: OAuthRegistrationConsentInput
+) {
+  return {
+    consentsAccepted: hasOAuthRegistrationConsents(input),
+    audit: buildConsentAuditContext(req, `${provider}_oauth_register`),
   };
 }
 
@@ -251,6 +311,19 @@ async function createParentGateSession(
   };
 }
 
+function rejectSuspendedUser(user: NonNullable<Request['user']> | { status?: string | null }, res: Response): boolean {
+  if (!user.status || user.status === 'active') {
+    return false;
+  }
+
+  res.status(403).json({
+    status: 'error',
+    message: 'Account access is suspended',
+    code: 'ACCOUNT_SUSPENDED',
+  });
+  return true;
+}
+
 async function verifyGoogleIdTokenProfile(idToken: string): Promise<GoogleProfile> {
   const { OAuth2Client } = require('google-auth-library');
   const client = new OAuth2Client();
@@ -319,14 +392,19 @@ function getParentGateErrorCode(error: unknown): string | undefined {
   if (error instanceof OAuthParentGateError || error instanceof ParentGateOAuthStateError) {
     return error.code;
   }
+  if (error instanceof OAuthRegistrationConsentError) {
+    return error.code;
+  }
   return undefined;
 }
 
 // Google OAuth - Start
 router.get('/google/start', oauthLimiter, (req: Request, res: Response, next) => {
+  const consentInput = parseOAuthRegistrationConsentInput(req.query);
   passport.authenticate('google', {
     scope: ['profile', 'email'],
     session: false,
+    state: encodeOAuthRegistrationState(consentInput),
   })(req, res, next);
 });
 
@@ -365,7 +443,17 @@ router.get(
         return;
       }
 
-      const result = await handleGoogleCallback(profile, accessToken, refreshToken);
+      const result = await handleGoogleCallback(
+        profile,
+        accessToken,
+        refreshToken,
+        getOAuthRegistrationConsentOptions(
+          req,
+          'google',
+          decodeOAuthRegistrationState(req.query.state)
+        )
+      );
+      if (rejectSuspendedUser(result.user, res)) return;
       const deviceInfo = extractDeviceInfo(req);
       const session = await createSession({
         userId: result.user.id,
@@ -414,7 +502,17 @@ router.post('/google/token', oauthLimiter, async (req: Request, res: Response) =
     const profile = await verifyGoogleIdTokenProfile(idToken);
     
     // Use same OAuth callback logic as web flow
-    const result = await handleGoogleCallback(profile, idToken, undefined);
+    const result = await handleGoogleCallback(
+      profile,
+      idToken,
+      undefined,
+      getOAuthRegistrationConsentOptions(
+        req,
+        'google',
+        parseOAuthRegistrationConsentInput(req.body)
+      )
+    );
+    if (rejectSuspendedUser(result.user, res)) return;
     
     // Extract device info
     const deviceInfo = extractDeviceInfo(req);
@@ -453,6 +551,14 @@ router.post('/google/token', oauthLimiter, async (req: Request, res: Response) =
       isNewUser: result.isNewUser,
     });
   } catch (error) {
+    if (error instanceof OAuthRegistrationConsentError) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Required legal consent is missing',
+        code: error.code,
+        missingConsents: error.missingConsents,
+      });
+    }
     logger.error({ err: error }, 'Google token exchange failed');
     res.status(500).json({
       status: 'error',
@@ -473,6 +579,7 @@ router.get('/apple/start', oauthLimiter, (req: Request, res: Response) => {
   }
 
   const redirectUri = req.query.redirect_uri as string;
+  const consentInput = parseOAuthRegistrationConsentInput(req.query);
   
   // Generate Apple OAuth URL
   const params = new URLSearchParams({
@@ -481,7 +588,10 @@ router.get('/apple/start', oauthLimiter, (req: Request, res: Response) => {
     response_type: 'code id_token',
     response_mode: 'form_post',
     scope: 'name email',
-    state: redirectUri ? JSON.stringify({ redirect_uri: redirectUri }) : '',
+    state: JSON.stringify({
+      ...(redirectUri ? { redirect_uri: redirectUri } : {}),
+      ...consentInput,
+    }),
   });
   
   const authUrl = `https://appleid.apple.com/auth/authorize?${params.toString()}`;
@@ -537,7 +647,17 @@ router.post('/apple/callback', oauthLimiter, async (req: Request, res: Response)
       return;
     }
 
-    const result = await handleAppleCallback(profile, id_token);
+    const appleState = parseAppleState(state);
+    const result = await handleAppleCallback(
+      profile,
+      id_token,
+      getOAuthRegistrationConsentOptions(
+        req,
+        'apple',
+        parseOAuthRegistrationConsentInput(appleState)
+      )
+    );
+    if (rejectSuspendedUser(result.user, res)) return;
     
     // Create session
     const deviceInfo = extractDeviceInfo(req);
@@ -555,7 +675,7 @@ router.post('/apple/callback', oauthLimiter, async (req: Request, res: Response)
     logger.info({ userId: result.user.id }, 'Apple OAuth callback successful');
     
     // Parse state for redirect_uri
-    const stateObj = state ? JSON.parse(state) : {};
+    const stateObj = appleState;
     const redirectUri = stateObj.redirect_uri || 'wondertales://auth/apple/callback';
     
     // Redirect with token
@@ -601,7 +721,16 @@ router.post('/apple/token', oauthLimiter, async (req: Request, res: Response) =>
     const profile = await verifyAppleIdentityTokenProfile(identityToken, user);
     
     // Use same OAuth callback logic
-    const result = await handleAppleCallback(profile, identityToken);
+    const result = await handleAppleCallback(
+      profile,
+      identityToken,
+      getOAuthRegistrationConsentOptions(
+        req,
+        'apple',
+        parseOAuthRegistrationConsentInput(req.body)
+      )
+    );
+    if (rejectSuspendedUser(result.user, res)) return;
     
     // Extract device info
     const deviceInfo = extractDeviceInfo(req);
@@ -638,6 +767,14 @@ router.post('/apple/token', oauthLimiter, async (req: Request, res: Response) =>
       isNewUser: result.isNewUser,
     });
   } catch (error) {
+    if (error instanceof OAuthRegistrationConsentError) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Required legal consent is missing',
+        code: error.code,
+        missingConsents: error.missingConsents,
+      });
+    }
     logger.error({ err: error }, 'Apple token exchange failed');
     res.status(500).json({
       status: 'error',
@@ -677,6 +814,7 @@ router.post('/sessions', async (req: Request, res: Response) => {
         message: 'Invalid email or password',
       });
     }
+    if (rejectSuspendedUser(user, res)) return;
 
     const deviceInfo = extractDeviceInfo(req);
     const session = await createSession({
