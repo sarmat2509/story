@@ -21,6 +21,7 @@
       "bundleIdentifier": "com.wondertales.app",
       "icon": "./assets/images/icon.png",
       "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "WonderTales lets parents choose photos they have the right to use as optional references for safe, fictional, illustrated story characters.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
