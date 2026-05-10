@@ -503,7 +503,7 @@ export const config = {
       .split(',')
       .reduce<Record<string, string>>((acc, pair) => {
         const t = pair.trim();
-        const i = t.indexOf(':');
+        const i = t.lastIndexOf(':');
         if (i < 1) return acc;
         const productId = t.slice(0, i);
         const planSlug = t.slice(i + 1);
