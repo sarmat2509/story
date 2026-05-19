@@ -40,10 +40,7 @@ function getLocaleFromUrl(): string | null {
     return publicSeoLocale;
   }
 
-  const firstSegment = window.location.pathname
-    .split('/')
-    .filter(Boolean)[0]
-    ?.toLowerCase();
+  const firstSegment = window.location.pathname.split('/').filter(Boolean)[0]?.toLowerCase();
 
   return firstSegment && isAppUiLocale(firstSegment) ? firstSegment : null;
 }
@@ -64,20 +61,18 @@ export async function initI18n() {
     await storage.setLanguage(urlLanguage);
   }
 
-  await i18n
-    .use(initReactI18next)
-    .init({
-      resources,
-      lng: initialLanguage,
-      fallbackLng: APP_CONFIG.defaultLanguage,
-      supportedLngs: APP_CONFIG.uiLanguages,
-      interpolation: {
-        escapeValue: false, // React already escapes
-      },
-      react: {
-        useSuspense: false,
-      },
-    });
+  await i18n.use(initReactI18next).init({
+    resources,
+    lng: initialLanguage,
+    fallbackLng: APP_CONFIG.defaultLanguage,
+    supportedLngs: APP_CONFIG.uiLanguages,
+    interpolation: {
+      escapeValue: false, // React already escapes
+    },
+    react: {
+      useSuspense: false,
+    },
+  });
 
   syncWebDocumentLocale(i18n.language);
   if (!documentLocaleSyncBound) {

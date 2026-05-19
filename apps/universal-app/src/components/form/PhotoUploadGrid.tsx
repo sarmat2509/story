@@ -1,6 +1,15 @@
 import type { PhotoTypeUserUpload } from '@wondertales/shared';
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Platform,
+  ActivityIndicator,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
@@ -38,10 +47,7 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
     if (Platform.OS !== 'web') {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          t('photo_upload.permission_title'),
-          t('photo_upload.permission_message')
-        );
+        Alert.alert(t('photo_upload.permission_title'), t('photo_upload.permission_message'));
         return false;
       }
     }
@@ -65,12 +71,12 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
 
       if (!result.canceled && result.assets[0]) {
         const localUri = result.assets[0].uri;
-        
+
         // Додаємо тимчасове фото з локальним URI
         const tempPhoto: Photo = {
           url: localUri,
           uploadedAt: new Date().toISOString(),
-          isUploading: true
+          isUploading: true,
         };
         const tempIndex = photos.length;
         onPhotosChange([...photos, tempPhoto]);
@@ -83,12 +89,12 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
             imageRightsAccepted: imageRights?.imageRightsAccepted,
             noPublicFiguresAccepted: imageRights?.noPublicFiguresAccepted,
           });
-          
+
           // Замінюємо тимчасове фото на завантажене
           const updatedPhotos = [...photos];
           updatedPhotos[tempIndex] = {
             ...uploadedPhoto,
-            isUploading: false
+            isUploading: false,
           };
           onPhotosChange(updatedPhotos);
           setUploadingIndex(null);
@@ -121,18 +127,18 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
       <View style={styles.grid}>
         {photos.map((photo, index) => (
           <View key={index} style={styles.photoItem}>
-            <Image 
-              source={{ uri: (formatUrl ? formatUrl(photo.url) : photo.url) || '' }} 
-              style={styles.image} 
+            <Image
+              source={{ uri: (formatUrl ? formatUrl(photo.url) : photo.url) || '' }}
+              style={styles.image}
             />
-            
+
             {/* Upload spinner */}
             {photo.isUploading && (
               <View style={styles.uploadingOverlay}>
                 <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
               </View>
             )}
-            
+
             {/* Remove button */}
             {!photo.isUploading && (
               <TouchableOpacity
@@ -148,11 +154,12 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
 
         {/* Add photo button */}
         {canAddMore && (
-          <TouchableOpacity
-            onPress={pickImage}
-            style={styles.addButton}
-          >
-            <Ionicons name="add-circle-outline" size={48} color={theme.colors.interactive.primary} />
+          <TouchableOpacity onPress={pickImage} style={styles.addButton}>
+            <Ionicons
+              name="add-circle-outline"
+              size={48}
+              color={theme.colors.interactive.primary}
+            />
             <Text style={styles.addText}>{t('photo_upload.add_photo')}</Text>
           </TouchableOpacity>
         )}
@@ -168,22 +175,22 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: theme.spacing[4]
+    marginBottom: theme.spacing[4],
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: theme.spacing[4]
+    gap: theme.spacing[4],
   },
   photoItem: {
     width: 150,
-    marginBottom: theme.spacing[4]
+    marginBottom: theme.spacing[4],
   },
   image: {
     width: 150,
     height: 150,
     borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.background.secondary
+    backgroundColor: theme.colors.background.secondary,
   },
   removeButton: {
     position: 'absolute',
@@ -191,7 +198,7 @@ const styles = StyleSheet.create({
     right: -8,
     backgroundColor: theme.colors.background.primary,
     borderRadius: theme.borders.radius.full,
-    padding: 2
+    padding: 2,
   },
   uploadingOverlay: {
     position: 'absolute',
@@ -202,7 +209,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: theme.borders.radius.md,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   addButton: {
     width: 150,
@@ -213,17 +220,17 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border.medium,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.background.secondary
+    backgroundColor: theme.colors.background.secondary,
   },
   addText: {
     marginTop: theme.spacing[2],
     fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.secondary
+    color: theme.colors.text.secondary,
   },
   counter: {
     marginTop: theme.spacing[3],
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
-    textAlign: 'center'
-  }
+    textAlign: 'center',
+  },
 });

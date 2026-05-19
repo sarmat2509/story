@@ -127,14 +127,18 @@ export default function ModeSelectionScreen() {
     [t]
   );
 
-  const title = step === 'profile'
-    ? t('onboarding.parent_title', { defaultValue: 'Create your first child profile' })
-    : step === 'setup'
-      ? t('onboarding.story_setup_title', { defaultValue: 'Set up story creation' })
-      : t('onboarding.ready_title', {
-          defaultValue: '{{name}} is ready',
-          name: createdChild?.name || name.trim() || t('children_screen.title', { defaultValue: 'Child' }),
-        });
+  const title =
+    step === 'profile'
+      ? t('onboarding.parent_title', { defaultValue: 'Create your first child profile' })
+      : step === 'setup'
+        ? t('onboarding.story_setup_title', { defaultValue: 'Set up story creation' })
+        : t('onboarding.ready_title', {
+            defaultValue: '{{name}} is ready',
+            name:
+              createdChild?.name ||
+              name.trim() ||
+              t('children_screen.title', { defaultValue: 'Child' }),
+          });
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -187,7 +191,11 @@ export default function ModeSelectionScreen() {
       setStep('done');
     } catch (err) {
       console.error('Failed to create onboarding child profile:', err);
-      setError(t('onboarding.create_child_error', { defaultValue: 'Could not create the child profile. Please try again.' }));
+      setError(
+        t('onboarding.create_child_error', {
+          defaultValue: 'Could not create the child profile. Please try again.',
+        })
+      );
     }
   };
 
@@ -215,7 +223,11 @@ export default function ModeSelectionScreen() {
       });
     } catch (err) {
       console.error('Failed to complete onboarding:', err);
-      setError(t('onboarding.complete_error', { defaultValue: 'Could not finish setup. Please try again.' }));
+      setError(
+        t('onboarding.complete_error', {
+          defaultValue: 'Could not finish setup. Please try again.',
+        })
+      );
     } finally {
       setIsCompleting(false);
     }
@@ -237,7 +249,11 @@ export default function ModeSelectionScreen() {
       await enterChildMode.mutateAsync(createdChild.id);
     } catch (err) {
       console.error('Failed to start Child Mode:', err);
-      setError(t('onboarding.child_mode_error', { defaultValue: 'Could not start Child Mode. Check the passcode settings and try again.' }));
+      setError(
+        t('onboarding.child_mode_error', {
+          defaultValue: 'Could not start Child Mode. Check the passcode settings and try again.',
+        })
+      );
     } finally {
       setIsCompleting(false);
     }
@@ -257,7 +273,9 @@ export default function ModeSelectionScreen() {
 
       <View style={styles.formGrid}>
         <View style={styles.field}>
-          <Text style={styles.label}>{t('child_form.name_label', { defaultValue: "Child's name" })}</Text>
+          <Text style={styles.label}>
+            {t('child_form.name_label', { defaultValue: "Child's name" })}
+          </Text>
           <TextInput
             style={styles.input}
             value={name}
@@ -271,7 +289,9 @@ export default function ModeSelectionScreen() {
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.label}>{t('child_form.birth_date_label', { defaultValue: 'Birth date' })}</Text>
+          <Text style={styles.label}>
+            {t('child_form.birth_date_label', { defaultValue: 'Birth date' })}
+          </Text>
           {Platform.OS === 'web' ? (
             <input
               type="date"
@@ -285,7 +305,10 @@ export default function ModeSelectionScreen() {
             />
           ) : (
             <>
-              <TouchableOpacity style={[styles.input, styles.dateInput]} onPress={() => setShowDatePicker(true)}>
+              <TouchableOpacity
+                style={[styles.input, styles.dateInput]}
+                onPress={() => setShowDatePicker(true)}
+              >
                 <Text style={styles.dateText}>{birthDate.toLocaleDateString()}</Text>
                 <Ionicons name="calendar-outline" size={20} color={theme.colors.text.secondary} />
               </TouchableOpacity>
@@ -306,7 +329,9 @@ export default function ModeSelectionScreen() {
       </View>
 
       <View style={styles.field}>
-        <Text style={styles.label}>{t('onboarding.default_language', { defaultValue: 'Default story language' })}</Text>
+        <Text style={styles.label}>
+          {t('onboarding.default_language', { defaultValue: 'Default story language' })}
+        </Text>
         <View style={styles.languageGrid}>
           {languageOptions.map((language) => {
             const selected = storyLanguage === language.code;
@@ -333,7 +358,9 @@ export default function ModeSelectionScreen() {
         onPress={() => setConsentAccepted((value) => !value)}
       >
         <View style={[styles.checkbox, consentAccepted && styles.checkboxChecked]}>
-          {consentAccepted ? <Ionicons name="checkmark" size={16} color={theme.colors.text.inverse} /> : null}
+          {consentAccepted ? (
+            <Ionicons name="checkmark" size={16} color={theme.colors.text.inverse} />
+          ) : null}
         </View>
         <Text style={styles.consentText}>
           {t('child_form.child_data_consent', {
@@ -381,13 +408,21 @@ export default function ModeSelectionScreen() {
       </View>
 
       <View style={styles.footerRow}>
-        <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.8} onPress={() => setStep('profile')}>
-          <Text style={styles.secondaryButtonText}>{t('common.back', { defaultValue: 'Back' })}</Text>
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          activeOpacity={0.8}
+          onPress={() => setStep('profile')}
+        >
+          <Text style={styles.secondaryButtonText}>
+            {t('common.back', { defaultValue: 'Back' })}
+          </Text>
         </TouchableOpacity>
         <GradientButton
-          label={createChild.isPending
-            ? t('common.saving', { defaultValue: 'Saving...' })
-            : t('onboarding.finish_setup', { defaultValue: 'Finish setup' })}
+          label={
+            createChild.isPending
+              ? t('common.saving', { defaultValue: 'Saving...' })
+              : t('onboarding.finish_setup', { defaultValue: 'Finish setup' })
+          }
           onPress={submitChildSetup}
           disabled={createChild.isPending}
           loading={createChild.isPending}
@@ -426,15 +461,25 @@ export default function ModeSelectionScreen() {
           {enterChildMode.isPending || updateChildModeControls.isPending ? (
             <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
           ) : (
-            <Ionicons name="shield-checkmark-outline" size={20} color={theme.colors.interactive.primary} />
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={20}
+              color={theme.colors.interactive.primary}
+            />
           )}
           <Text style={styles.doneSecondaryButtonText}>
             {user?.childModeExitPasscodeConfigured
               ? t('onboarding.start_child_mode', { defaultValue: 'Start Child Mode' })
-              : t('onboarding.set_passcode_for_child_mode', { defaultValue: 'Set passcode for Child Mode' })}
+              : t('onboarding.set_passcode_for_child_mode', {
+                  defaultValue: 'Set passcode for Child Mode',
+                })}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.textButton} activeOpacity={0.75} onPress={resetForAnotherChild}>
+        <TouchableOpacity
+          style={styles.textButton}
+          activeOpacity={0.75}
+          onPress={resetForAnotherChild}
+        >
           <Ionicons name="add-circle-outline" size={20} color={theme.colors.text.secondary} />
           <Text style={styles.textButtonText}>
             {t('onboarding.add_another_child', { defaultValue: 'Add another child' })}
@@ -456,13 +501,19 @@ export default function ModeSelectionScreen() {
             {(['profile', 'setup', 'done'] as OnboardingStep[]).map((item, index) => {
               const currentIndex = ['profile', 'setup', 'done'].indexOf(step);
               const active = index <= currentIndex;
-              return <View key={item} style={[styles.progressDot, active && styles.progressDotActive]} />;
+              return (
+                <View key={item} style={[styles.progressDot, active && styles.progressDotActive]} />
+              );
             })}
           </View>
 
           <Text style={styles.title}>{title}</Text>
 
-          {step === 'profile' ? renderProfileStep() : step === 'setup' ? renderSetupStep() : renderDoneStep()}
+          {step === 'profile'
+            ? renderProfileStep()
+            : step === 'setup'
+              ? renderSetupStep()
+              : renderDoneStep()}
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </GlassCard>

@@ -19,7 +19,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useStoryThemes } from '@/api/dictionaries';
 import { useChildren } from '@/api/children';
 import { useCharacters } from '@/api/characters';
-import { useCreateStory, useCreateChildModeStory, useStoryStatus, useRetryStoryImages } from '@/api/stories';
+import {
+  useCreateStory,
+  useCreateChildModeStory,
+  useStoryStatus,
+  useRetryStoryImages,
+} from '@/api/stories';
 import { useSubscriptionUsage } from '@/api/plans';
 import { useAuthStore } from '@/store/authStore';
 import { PaywallModal } from '@/components/PaywallModal';
@@ -43,7 +48,9 @@ export default function WizardScreen() {
   const childModeSettings = activeChild?.childMode?.childModeSettings;
   const canGenerateStories = !isChildSession || childModeSettings?.storyGenerationEnabled !== false;
   const notesEnabled = !isChildSession || childModeSettings?.freeTextPromptsEnabled !== false;
-  const allowedLanguageCodes = isChildSession ? childModeSettings?.allowedLanguageCodes ?? [] : [];
+  const allowedLanguageCodes = isChildSession
+    ? (childModeSettings?.allowedLanguageCodes ?? [])
+    : [];
 
   // Form state
   const [storyLanguage, setStoryLanguage] = useState('');
@@ -54,27 +61,30 @@ export default function WizardScreen() {
   const [userNotes, setUserNotes] = useState('');
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
   const [selectedChildren, setSelectedChildren] = useState<string[]>([]); // NEW: Selected child profiles
-  
+
   // Modal state
   const [isChildModalVisible, setIsChildModalVisible] = useState(false);
   const [isCharacterModalVisible, setIsCharacterModalVisible] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  
+
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
-  
+
   // API hooks
   const { data: themesData, isLoading: themesLoading } = useStoryThemes();
   const { data: childrenData, isLoading: childrenLoading } = useChildren(!isChildSession);
-  const children = isChildSession && activeChild
-    ? [{
-        id: activeChild.id,
-        name: activeChild.name,
-        referencePhotos: activeChild.referencePhotos,
-        turnaroundSheet: activeChild.turnaroundSheet,
-      }]
-    : childrenData?.children ?? [];
+  const children =
+    isChildSession && activeChild
+      ? [
+          {
+            id: activeChild.id,
+            name: activeChild.name,
+            referencePhotos: activeChild.referencePhotos,
+            turnaroundSheet: activeChild.turnaroundSheet,
+          },
+        ]
+      : (childrenData?.children ?? []);
   const canCreateMoreChildren = !isChildSession && (childrenData?.canCreateMore ?? false);
   const { data: characters, isLoading: charactersLoading } = useCharacters();
   const createStory = useCreateStory();
@@ -90,12 +100,10 @@ export default function WizardScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [navigation]);
-  
+
   // Set default language from i18n
   useEffect(() => {
     if (!storyLanguage && i18n.language) {
@@ -124,9 +132,10 @@ export default function WizardScreen() {
 
   const availableCharacters = useMemo(() => {
     const allCharacters = characters ?? [];
-    const scopedCharacters = !isChildSession && childProfileId
-      ? allCharacters.filter((character) => character.childProfileId === childProfileId)
-      : allCharacters;
+    const scopedCharacters =
+      !isChildSession && childProfileId
+        ? allCharacters.filter((character) => character.childProfileId === childProfileId)
+        : allCharacters;
     const allowed = childModeSettings?.allowedCharacterIds ?? [];
     if (!isChildSession || allowed.length === 0) return scopedCharacters;
     return scopedCharacters.filter((character) => allowed.includes(character.id));
@@ -149,9 +158,9 @@ export default function WizardScreen() {
       });
     }
   }, [storyStatus?.status, storyStatus?.storyId, requestId]);
-  
+
   // Auto-close removed - user must manually close modal
-  
+
   const handleGenerate = async () => {
     if (!canGenerateStories) {
       Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
@@ -167,7 +176,7 @@ export default function WizardScreen() {
       setShowPaywall(true);
       return;
     }
-    
+
     try {
       setIsGenerating(true);
 
@@ -195,8 +204,10 @@ export default function WizardScreen() {
         ...(selectedCharacters.length > 0 && { selectedCharacters }),
         ...(selectedChildren.length > 0 && { selectedChildren }), // NEW: Selected children as characters
       };
-      
-      const result = await (isChildSession ? createChildModeStory : createStory).mutateAsync(payload);
+
+      const result = await (isChildSession ? createChildModeStory : createStory).mutateAsync(
+        payload
+      );
       setRequestId(result.id);
     } catch (error: unknown) {
       console.error('Failed to create story:', error);
@@ -209,7 +220,7 @@ export default function WizardScreen() {
       }
     }
   };
-  
+
   const handleRetry = async () => {
     if (storyStatus?.storyId && requestId) {
       getAnalytics().capture('retry_images_clicked', {
@@ -231,7 +242,7 @@ export default function WizardScreen() {
       handleGenerate();
     }
   };
-  
+
   const handleCloseModal = () => {
     const storyId = storyStatus?.storyId;
     if (storyId) {
@@ -243,7 +254,7 @@ export default function WizardScreen() {
     queryClient.invalidateQueries({ queryKey: ['stories'] });
     setIsGenerating(false);
     setRequestId(null);
-    
+
     if (storyId) {
       // Navigate to the newly created story
       navigateToStory(storyId);
@@ -251,7 +262,7 @@ export default function WizardScreen() {
       navigation.navigate('Library');
     }
   };
-  
+
   if (themesLoading || (!isChildSession && childrenLoading) || charactersLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -260,7 +271,7 @@ export default function WizardScreen() {
       </View>
     );
   }
-  
+
   return (
     <>
       <ScrollView contentContainerStyle={styles.content}>
@@ -328,7 +339,7 @@ export default function WizardScreen() {
           />
         </AnimatedSection>
       </ScrollView>
-      
+
       {/* Generation Progress Modal */}
       <GenerationProgressModal
         visible={isGenerating}
@@ -339,15 +350,18 @@ export default function WizardScreen() {
         errorMessage={storyStatus?.errorMessage ?? undefined}
         onClose={storyStatus?.status === 'completed' ? handleCloseModal : undefined}
         onRetry={storyStatus?.status === 'failed' ? handleRetry : undefined}
-        onReport={storyStatus?.status === 'failed' ? () => { setShowFeedbackModal(true); } : undefined}
+        onReport={
+          storyStatus?.status === 'failed'
+            ? () => {
+                setShowFeedbackModal(true);
+              }
+            : undefined
+        }
         allowManualClose={true}
       />
 
       {/* Child Form Modal */}
-      <ChildFormModal
-        visible={isChildModalVisible}
-        onClose={() => setIsChildModalVisible(false)}
-      />
+      <ChildFormModal visible={isChildModalVisible} onClose={() => setIsChildModalVisible(false)} />
 
       {/* Character Form Modal */}
       <CharacterFormModal

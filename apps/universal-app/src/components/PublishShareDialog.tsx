@@ -126,12 +126,7 @@ export function PublishShareDialog({
   }, [displayUrl, t, onCancel]);
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onCancel}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.overlay}>
         <View style={styles.dialog}>
           <TouchableOpacity
@@ -143,7 +138,12 @@ export function PublishShareDialog({
             <Ionicons name="close-outline" size={24} color={theme.colors.text.tertiary} />
           </TouchableOpacity>
 
-          <View style={[styles.iconContainer, { backgroundColor: `${theme.colors.interactive.primary}15` }]}>
+          <View
+            style={[
+              styles.iconContainer,
+              { backgroundColor: `${theme.colors.interactive.primary}15` },
+            ]}
+          >
             <Ionicons
               name={
                 isPostPublish
@@ -177,13 +177,23 @@ export function PublishShareDialog({
                   activeOpacity={0.7}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name="copy-outline" size={22} color={theme.colors.interactive.primary} />
+                  <Ionicons
+                    name="copy-outline"
+                    size={22}
+                    color={theme.colors.interactive.primary}
+                  />
                 </TouchableOpacity>
               </View>
 
               {onUnpublish && (
-                <TouchableOpacity style={styles.unpublishLink} onPress={onUnpublish} disabled={isLoading}>
-                  <Text style={styles.unpublishLinkText}>{t('story_viewer.unpublish', 'Зняти з публікації')}</Text>
+                <TouchableOpacity
+                  style={styles.unpublishLink}
+                  onPress={onUnpublish}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.unpublishLinkText}>
+                    {t('story_viewer.unpublish', 'Зняти з публікації')}
+                  </Text>
                 </TouchableOpacity>
               )}
             </>
@@ -195,13 +205,17 @@ export function PublishShareDialog({
 
               {openedFromShare && (
                 <Text style={styles.message}>
-                  {t('story_viewer.publish_share_dialog_message', 'Щоб поділитися історією, її потрібно опублікувати. Вона стане доступна всім користувачам.')}
+                  {t(
+                    'story_viewer.publish_share_dialog_message',
+                    'Щоб поділитися історією, її потрібно опублікувати. Вона стане доступна всім користувачам.'
+                  )}
                 </Text>
               )}
 
               {userPseudonym && !allowAuthorProfileEdit ? (
                 <Text style={styles.pseudonymText}>
-                  {t('story_viewer.publishing_under_pseudonym', 'Публікуємо під псевдонімом')} {userPseudonym}
+                  {t('story_viewer.publishing_under_pseudonym', 'Публікуємо під псевдонімом')}{' '}
+                  {userPseudonym}
                 </Text>
               ) : (
                 <View style={styles.pseudonymRow}>
@@ -246,10 +260,7 @@ export function PublishShareDialog({
                       return (
                         <TouchableOpacity
                           key={scene.index}
-                          style={[
-                            styles.thumbWrapper,
-                            isSelected && styles.thumbWrapperSelected,
-                          ]}
+                          style={[styles.thumbWrapper, isSelected && styles.thumbWrapperSelected]}
                           onPress={() => setSelectedShareCardIndex(scene.index)}
                           activeOpacity={0.8}
                         >
@@ -260,7 +271,11 @@ export function PublishShareDialog({
                           />
                           {isSelected && (
                             <View style={styles.thumbCheck}>
-                              <Ionicons name="checkmark-circle" size={24} color={theme.colors.text.inverse} />
+                              <Ionicons
+                                name="checkmark-circle"
+                                size={24}
+                                color={theme.colors.text.inverse}
+                              />
                             </View>
                           )}
                         </TouchableOpacity>
@@ -282,12 +297,18 @@ export function PublishShareDialog({
                   <Ionicons
                     name="globe-outline"
                     size={24}
-                    color={selectedVisibility === 'public' ? theme.colors.interactive.primary : theme.colors.text.secondary}
+                    color={
+                      selectedVisibility === 'public'
+                        ? theme.colors.interactive.primary
+                        : theme.colors.text.secondary
+                    }
                   />
-                  <Text style={[
-                    styles.visibilityLabel,
-                    selectedVisibility === 'public' && styles.visibilityLabelSelected,
-                  ]}>
+                  <Text
+                    style={[
+                      styles.visibilityLabel,
+                      selectedVisibility === 'public' && styles.visibilityLabelSelected,
+                    ]}
+                  >
                     {t('story_viewer.visibility_public', 'Для всіх')}
                   </Text>
                   <Text style={styles.visibilityHint}>
@@ -305,12 +326,18 @@ export function PublishShareDialog({
                   <Ionicons
                     name="link-outline"
                     size={24}
-                    color={selectedVisibility === 'unlisted' ? theme.colors.interactive.primary : theme.colors.text.secondary}
+                    color={
+                      selectedVisibility === 'unlisted'
+                        ? theme.colors.interactive.primary
+                        : theme.colors.text.secondary
+                    }
                   />
-                  <Text style={[
-                    styles.visibilityLabel,
-                    selectedVisibility === 'unlisted' && styles.visibilityLabelSelected,
-                  ]}>
+                  <Text
+                    style={[
+                      styles.visibilityLabel,
+                      selectedVisibility === 'unlisted' && styles.visibilityLabelSelected,
+                    ]}
+                  >
                     {t('story_viewer.visibility_unlisted', 'По посиланню')}
                   </Text>
                   <Text style={styles.visibilityHint}>
@@ -321,9 +348,16 @@ export function PublishShareDialog({
 
               {selectedVisibility === 'public' && (
                 <View style={styles.publicVisibilityNotice} accessibilityRole="text">
-                  <Ionicons name="information-circle-outline" size={18} color={theme.colors.status.warning} />
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={18}
+                    color={theme.colors.status.warning}
+                  />
                   <Text style={styles.publicVisibilityNoticeText}>
-                    {t('story_viewer.visibility_public_notice', 'Public stories can appear in the catalog and be seen by anyone. Choose link-only for private sharing.')}
+                    {t(
+                      'story_viewer.visibility_public_notice',
+                      'Public stories can appear in the catalog and be seen by anyone. Choose link-only for private sharing.'
+                    )}
                   </Text>
                 </View>
               )}

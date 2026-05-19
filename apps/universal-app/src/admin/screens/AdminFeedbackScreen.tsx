@@ -163,6 +163,25 @@ function FeedbackCard({ item }: { item: AdminFeedbackListItem }) {
     },
     { label: 'Content type', value: item.context.contentType },
     { label: 'Review status', value: item.context.contentReviewStatus },
+    {
+      label: 'Review queued',
+      value:
+        item.context.contentReviewQueued != null
+          ? item.context.contentReviewQueued
+            ? 'yes'
+            : 'no'
+          : null,
+    },
+    {
+      label: 'Quarantined',
+      value:
+        item.context.contentQuarantined != null
+          ? item.context.contentQuarantined
+            ? 'yes'
+            : 'no'
+          : null,
+    },
+    { label: 'Quarantined story', value: item.context.quarantinedStoryId },
     { label: 'Platform', value: item.context.platform },
     { label: 'URL', value: item.context.url },
     { label: 'User ID', value: item.userId },
@@ -261,7 +280,9 @@ function FeedbackCard({ item }: { item: AdminFeedbackListItem }) {
                 source={screenshotSource}
                 style={[
                   styles.screenshotImage,
-                  imageAspectRatio ? { aspectRatio: imageAspectRatio } : styles.screenshotImagePending,
+                  imageAspectRatio
+                    ? { aspectRatio: imageAspectRatio }
+                    : styles.screenshotImagePending,
                 ]}
                 resizeMode="contain"
                 onLoad={(event) => {

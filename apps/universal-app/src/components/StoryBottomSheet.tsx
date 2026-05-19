@@ -34,43 +34,41 @@ interface StoryBottomSheetProps {
 }
 
 export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
-  ({
-    bottomSheetRef,
-    audioData,
-    story,
-    storyId,
-    hasAlignment,
-    onHighlightToggle,
-    onPositionChange,
-    onFinish,
-    onActivateAudio,
-    onDeleteStory,
-    onReportProblem,
-    onPublish,
-    onShare,
-    onUnpublish,
-    isPublishPending = false,
-    characters = [],
-    onSaveCharacter,
-    savedCharacterIds = [],
-    userMode,
-  }, _ref) => {
+  (
+    {
+      bottomSheetRef,
+      audioData,
+      story,
+      storyId,
+      hasAlignment,
+      onHighlightToggle,
+      onPositionChange,
+      onFinish,
+      onActivateAudio,
+      onDeleteStory,
+      onReportProblem,
+      onPublish,
+      onShare,
+      onUnpublish,
+      isPublishPending = false,
+      characters = [],
+      onSaveCharacter,
+      savedCharacterIds = [],
+      userMode,
+    },
+    _ref
+  ) => {
     const { t } = useTranslation();
-    
+
     const snapPoints = useMemo(() => ['60%', '90%'], []);
-    
+
     const renderBackdrop = useCallback(
       (props: any) => (
-        <BottomSheetBackdrop
-          {...props}
-          disappearsOnIndex={-1}
-          appearsOnIndex={0}
-          opacity={0.5}
-        />
+        <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.5} />
       ),
       []
     );
-    
+
     return (
       <BottomSheet
         ref={bottomSheetRef}
@@ -94,11 +92,13 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
                 onHighlightToggle={onHighlightToggle}
                 onPositionChange={onPositionChange}
                 onFinish={onFinish}
-                onActivate={async () => { onActivateAudio(); }}
+                onActivate={async () => {
+                  onActivateAudio();
+                }}
               />
             </View>
           )}
-          
+
           {/* Characters Section */}
           {characters.length > 0 && (
             <View style={styles.section}>
@@ -111,7 +111,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
               />
             </View>
           )}
-          
+
           {/* Publication block */}
           {(onPublish || onShare) && (
             <View style={styles.publicationSection}>
@@ -123,7 +123,11 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
                     onPress={onPublish}
                     disabled={isPublishPending}
                   >
-                    <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.text.inverse} />
+                    <Ionicons
+                      name="cloud-upload-outline"
+                      size={20}
+                      color={theme.colors.text.inverse}
+                    />
                     <Text style={styles.publishButtonText}>{t('story_viewer.publish')}</Text>
                   </TouchableOpacity>
                 )
@@ -143,7 +147,11 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
                   </View>
                   {onShare && (
                     <TouchableOpacity style={styles.shareButton} onPress={onShare}>
-                      <Ionicons name="share-social-outline" size={20} color={theme.colors.interactive.primary} />
+                      <Ionicons
+                        name="share-social-outline"
+                        size={20}
+                        color={theme.colors.interactive.primary}
+                      />
                       <Text style={styles.shareButtonText}>{t('story_viewer.share_title')}</Text>
                     </TouchableOpacity>
                   )}
@@ -153,8 +161,14 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
                       onPress={onPublish}
                       disabled={isPublishPending}
                     >
-                      <Ionicons name="create-outline" size={20} color={theme.colors.interactive.primary} />
-                      <Text style={styles.updatePublicationButtonText}>{t('story_viewer.update_publication')}</Text>
+                      <Ionicons
+                        name="create-outline"
+                        size={20}
+                        color={theme.colors.interactive.primary}
+                      />
+                      <Text style={styles.updatePublicationButtonText}>
+                        {t('story_viewer.update_publication')}
+                      </Text>
                     </TouchableOpacity>
                   )}
                   {onUnpublish && (
@@ -166,13 +180,10 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
               )}
             </View>
           )}
-          
+
           {/* Delete Story Button */}
           {onDeleteStory ? (
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={onDeleteStory}
-            >
+            <TouchableOpacity style={styles.deleteButton} onPress={onDeleteStory}>
               <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
               <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
             </TouchableOpacity>
@@ -180,10 +191,7 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
 
           {/* Report Problem */}
           {onReportProblem && (
-            <TouchableOpacity
-              style={styles.reportProblemButton}
-              onPress={onReportProblem}
-            >
+            <TouchableOpacity style={styles.reportProblemButton} onPress={onReportProblem}>
               <Ionicons name="bug-outline" size={20} color={theme.colors.text.tertiary} />
               <Text style={styles.reportProblemButtonText}>{t('profile.report_problem')}</Text>
             </TouchableOpacity>

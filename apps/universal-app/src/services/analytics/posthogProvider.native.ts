@@ -12,13 +12,7 @@ const HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';
 
 let client: PostHog | null = null;
 
-type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue };
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 type PostHogEventProperties = Record<string, JsonValue>;
 
@@ -40,7 +34,7 @@ function toJsonType(value: unknown): JsonValue | undefined {
     const entries = Object.entries(value as Record<string, unknown>)
       .map(([key, entryValue]) => {
         const normalized = toJsonType(entryValue);
-        return normalized === undefined ? null : [key, normalized] as const;
+        return normalized === undefined ? null : ([key, normalized] as const);
       })
       .filter((entry): entry is readonly [string, JsonValue] => entry !== null);
     return Object.fromEntries(entries);
@@ -49,14 +43,14 @@ function toJsonType(value: unknown): JsonValue | undefined {
 }
 
 function toPostHogProperties(
-  properties?: Record<string, unknown>,
+  properties?: Record<string, unknown>
 ): PostHogEventProperties | undefined {
   const scrubbedProperties = scrubAnalyticsProperties(properties);
   if (!scrubbedProperties) return undefined;
   const normalized = Object.entries(scrubbedProperties)
     .map(([key, value]) => {
       const jsonValue = toJsonType(value);
-      return jsonValue === undefined ? null : [key, jsonValue] as const;
+      return jsonValue === undefined ? null : ([key, jsonValue] as const);
     })
     .filter((entry): entry is readonly [string, JsonValue] => entry !== null);
   return normalized.length > 0

@@ -12,12 +12,7 @@ import { useRoute, RouteProp, useNavigation, useFocusEffect } from '@react-navig
 import type { NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  useSeriesStories,
-  useSeriesInfo,
-  useScheduleStatus,
-  prefetchStory,
-} from '@/api/stories';
+import { useSeriesStories, useSeriesInfo, useScheduleStatus, prefetchStory } from '@/api/stories';
 import { useVoices } from '@/api/voices';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { theme } from '@/theme';
@@ -51,13 +46,17 @@ export default function SeriesDetailScreen() {
   const stories = useMemo(() => storiesData?.stories ?? [], [storiesData?.stories]);
   const lastStory = stories.length > 0 ? stories[stories.length - 1] : null;
   const { data: seriesInfo } = useSeriesInfo(lastStory?.id ?? '');
-  const { data: scheduleData } = useScheduleStatus(lastStory?.id ?? '', { enabled: !isChildSession });
+  const { data: scheduleData } = useScheduleStatus(lastStory?.id ?? '', {
+    enabled: !isChildSession,
+  });
   const { data: voicesData } = useVoices('uk', { enabled: !isChildSession });
   const userPlan = voicesData?.meta?.userPlan || 'free';
 
   useFocusEffect(
     useCallback(() => {
-      queryClient.invalidateQueries({ queryKey: ['stories', 100, 0, undefined, undefined, seriesId] });
+      queryClient.invalidateQueries({
+        queryKey: ['stories', 100, 0, undefined, undefined, seriesId],
+      });
     }, [queryClient, seriesId])
   );
 
@@ -132,7 +131,7 @@ export default function SeriesDetailScreen() {
         <View
           style={[
             styles.gridContainer,
-            Platform.OS === 'web' && { gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any,
+            Platform.OS === 'web' && ({ gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any),
           ]}
         >
           {stories.map((story, index) => {
@@ -143,11 +142,7 @@ export default function SeriesDetailScreen() {
                 : story.title;
             const displayStory = { ...story, title: displayTitle };
             const card = (
-              <StoryCard
-                story={displayStory}
-                onPress={handleStoryPress}
-                variant="grid"
-              />
+              <StoryCard story={displayStory} onPress={handleStoryPress} variant="grid" />
             );
             return Platform.OS === 'web' ? (
               <AnimatedSection key={story.id} delay={cardDelay(index)} trigger={enterKey}>
@@ -179,8 +174,10 @@ export default function SeriesDetailScreen() {
                 <PendingPartCard partNumber={nextPartNumber} />
               </AnimatedSection>
             ))}
-          {!isChildSession && !showPendingCard && lastStory && (
-            Platform.OS === 'web' ? (
+          {!isChildSession &&
+            !showPendingCard &&
+            lastStory &&
+            (Platform.OS === 'web' ? (
               <AnimatedSection key="continue" delay={cardDelay(stories.length)} trigger={enterKey}>
                 <ContinueSeriesSection
                   storyId={lastStory.id}
@@ -213,8 +210,7 @@ export default function SeriesDetailScreen() {
                   variant="card"
                 />
               </AnimatedSection>
-            )
-          )}
+            ))}
         </View>
       </ScrollView>
       {!isChildSession && (

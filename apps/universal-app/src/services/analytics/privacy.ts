@@ -36,7 +36,7 @@ function normalizePropertyName(key: string): string {
 }
 
 export function scrubAnalyticsProperties<T extends Record<string, unknown> | undefined>(
-  properties: T,
+  properties: T
 ): T {
   if (!properties) return properties;
 

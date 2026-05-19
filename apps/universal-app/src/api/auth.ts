@@ -82,10 +82,10 @@ export const useRegister = () => {
       isAdultGuardian: boolean;
     }) => {
       const captchaToken = await getCaptchaToken('register');
-      const response = await apiClient.post<AuthResponse>(
-        '/api/v1/auth/register',
-        { ...data, captchaToken }
-      );
+      const response = await apiClient.post<AuthResponse>('/api/v1/auth/register', {
+        ...data,
+        captchaToken,
+      });
       return response.data;
     },
     onSuccess: async (data) => {
@@ -126,7 +126,7 @@ export const useResetPassword = () => {
 // OAuth mutations
 export const useGoogleLogin = () => {
   const { login } = useAuthStore();
-  
+
   return useMutation({
     mutationFn: async (data: {
       idToken: string;
@@ -134,11 +134,9 @@ export const useGoogleLogin = () => {
       privacyAccepted: boolean;
       isAdultGuardian: boolean;
     }) => {
-      const response = await apiClient.post<AuthResponse>(
-        '/api/v1/auth/google/token',
-        data,
-        { skipAuthLogoutOn401: true }
-      );
+      const response = await apiClient.post<AuthResponse>('/api/v1/auth/google/token', data, {
+        skipAuthLogoutOn401: true,
+      });
       return response.data;
     },
     onSuccess: async (data) => {
@@ -153,10 +151,10 @@ export const useGoogleLogin = () => {
 
 export const useAppleLogin = () => {
   const { login } = useAuthStore();
-  
+
   return useMutation({
-    mutationFn: async (data: { 
-      identityToken: string; 
+    mutationFn: async (data: {
+      identityToken: string;
       user?: any;
       deviceName?: string;
       deviceType?: string;
@@ -164,11 +162,9 @@ export const useAppleLogin = () => {
       privacyAccepted: boolean;
       isAdultGuardian: boolean;
     }) => {
-      const response = await apiClient.post<AuthResponse>(
-        '/api/v1/auth/apple/token',
-        data,
-        { skipAuthLogoutOn401: true }
-      );
+      const response = await apiClient.post<AuthResponse>('/api/v1/auth/apple/token', data, {
+        skipAuthLogoutOn401: true,
+      });
       return response.data;
     },
     onSuccess: async (data) => {
@@ -187,11 +183,9 @@ export const useParentGate = () => {
 
   return useMutation({
     mutationFn: async (data: { password: string }) => {
-      const response = await apiClient.post<ParentGateResponse>(
-        '/api/v1/auth/parent-gate',
-        data,
-        { skipAuthLogoutOn401: true }
-      );
+      const response = await apiClient.post<ParentGateResponse>('/api/v1/auth/parent-gate', data, {
+        skipAuthLogoutOn401: true,
+      });
       return response.data;
     },
     onSuccess: async (data) => {
@@ -339,7 +333,7 @@ export const useDeleteAccount = () => {
 export const useLogout = () => {
   const queryClient = useQueryClient();
   const { logout } = useAuthStore();
-  
+
   return useMutation({
     mutationFn: async () => {
       await apiClient.post('/api/v1/auth/logout');

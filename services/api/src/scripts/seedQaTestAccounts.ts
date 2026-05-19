@@ -42,7 +42,8 @@ type AccountCode =
   | 'FREE_ARTISAN_LIMIT_USER'
   | 'PAID_AUDIO_USER'
   | 'PROFILE_EDIT_USER'
-  | 'PUBLIC_AUTHOR_USER';
+  | 'PUBLIC_AUTHOR_USER'
+  | 'STORE_REVIEW_PARENT';
 
 type AuthKind = 'password' | 'google' | 'apple';
 type PlanKind = 'free' | 'paid';
@@ -167,6 +168,19 @@ const ACCOUNT_SPECS: AccountSpec[] = [
     aboutMe: 'QA profile prepared for public author checks.',
     notes: ['Manual follow-up: upload avatar and publish several stories'],
   },
+  {
+    code: 'STORE_REVIEW_PARENT',
+    auth: 'password',
+    planKind: 'free',
+    role: 'user',
+    mode: 'artisan',
+    displayName: 'Store Review Parent',
+    pseudonym: 'Store Review Parent',
+    aboutMe: 'Parent-managed review account for App Store and Google Play checks.',
+    notes: [
+      'Prepared for store reviewers: parent account, child profile, character fixture, story setup, reporting, privacy, and plan screens',
+    ],
+  },
 ];
 
 // Hardcoded QA baseline modeled after an existing real-world fixture, but stored
@@ -229,6 +243,7 @@ const SEEDED_CHARACTER_FIXTURE = {
 const ACCOUNT_CODES_WITH_LIBRARY_FIXTURES = new Set<AccountCode>([
   'FREE_ARTISAN_LIMIT_USER',
   'PAID_AUDIO_USER',
+  'STORE_REVIEW_PARENT',
 ]);
 
 function buildEmail(code: AccountCode): string {

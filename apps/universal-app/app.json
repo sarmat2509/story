@@ -2,6 +2,7 @@
   "expo": {
     "name": "WonderTales",
     "slug": "wondertales",
+    "description": "Parent-managed AI storytelling for families, with child profiles, optional parent-provided reference photos, illustrated stories, narration, and parent-controlled sharing.",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "wondertales",
@@ -19,8 +20,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.wondertales.app",
+      "buildNumber": "1",
       "icon": "./assets/images/icon.png",
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "WonderTales can let a parent take an optional reference photo for a story character when the parent starts that photo flow.",
+        "NSMicrophoneUsageDescription": "WonderTales uses microphone access only if a parent records optional audio for a story.",
         "NSPhotoLibraryUsageDescription": "WonderTales lets parents choose photos they have the right to use as optional references for safe, fictional, illustrated story characters.",
         "CFBundleURLTypes": [
           {
@@ -35,6 +40,13 @@
     },
     "android": {
       "package": "com.wondertales.app",
+      "versionCode": 1,
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0ea5e9"
@@ -46,6 +58,20 @@
     },
     "plugins": [
       "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "WonderTales lets parents choose photos they have the right to use as optional references for safe, fictional, illustrated story characters.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "WonderTales uses microphone access only if a parent records optional audio for a story."
+        }
+      ],
       [
         "expo-build-properties",
         {

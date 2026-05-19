@@ -1,9 +1,22 @@
 import React, { createElement, useEffect, useMemo, useState } from 'react';
 import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native';
-import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
+import {
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  Platform,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { stripCharacterIdFromName } from '@wondertales/shared';
-import { useAdminDirectorScenes, useAdminRegenerateSceneImage, useAdminResetStoryAudio } from '@/admin/api/admin';
+import {
+  useAdminDirectorScenes,
+  useAdminRegenerateSceneImage,
+  useAdminResetStoryAudio,
+} from '@/admin/api/admin';
 import { AdminLayout } from '@/admin/components/AdminLayout';
 import { AdminErrorState, AdminLoadingState } from '@/admin/components/AdminState';
 import { theme } from '@/theme';
@@ -11,7 +24,11 @@ import type { AdminStackParamList } from '@/types/navigation';
 import { formatAssetUrl } from '@/utils/assetUrl';
 
 function confirmAdminAudioAction(message: string): Promise<boolean> {
-  if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.confirm === 'function') {
+  if (
+    Platform.OS === 'web' &&
+    typeof window !== 'undefined' &&
+    typeof window.confirm === 'function'
+  ) {
     return Promise.resolve(window.confirm(message));
   }
   return new Promise((resolve) => {
@@ -45,7 +62,10 @@ function scrollToAnchor(anchorId: string) {
   }
 }
 
-function splitCharacterNameAndId(rawName: unknown): { displayName: string; characterId: string | null } {
+function splitCharacterNameAndId(rawName: unknown): {
+  displayName: string;
+  characterId: string | null;
+} {
   if (typeof rawName !== 'string' || rawName.trim() === '') {
     return { displayName: '', characterId: null };
   }
@@ -63,7 +83,7 @@ function renderCharacterCards(
   options?: {
     selectedOutfitId?: string | null;
     onOutfitPress?: (outfitId: string) => void;
-  },
+  }
 ): React.ReactNode {
   return (
     <View style={styles.characterCardsRow}>
@@ -73,7 +93,7 @@ function renderCharacterCards(
             ? Object.entries(character as Record<string, unknown>)
             : [['value', character]];
         const { displayName, characterId } = splitCharacterNameAndId(
-          (character as Record<string, unknown>)?.name,
+          (character as Record<string, unknown>)?.name
         );
 
         return (
@@ -88,23 +108,29 @@ function renderCharacterCards(
               {entries
                 .filter(([key]) => key !== 'name')
                 .map(([key, entry]) => (
-                <View key={`${keyPrefix}-${index}-${key}`} style={styles.valueRow}>
-                  <Text style={styles.valueKey}>{toLabel(String(key))}</Text>
-                  {key === 'outfitId' && typeof entry === 'string' ? (
-                    <TouchableOpacity
-                      onPress={() => {
-                        options?.onOutfitPress?.(entry);
-                      }}
-                    >
-                      <Text style={entry === options?.selectedOutfitId ? styles.linkTextActive : styles.linkText}>
-                        {entry}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : (
-                    renderStructuredValue(entry, `${keyPrefix}-${index}-${key}`)
-                  )}
-                </View>
-              ))}
+                  <View key={`${keyPrefix}-${index}-${key}`} style={styles.valueRow}>
+                    <Text style={styles.valueKey}>{toLabel(String(key))}</Text>
+                    {key === 'outfitId' && typeof entry === 'string' ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          options?.onOutfitPress?.(entry);
+                        }}
+                      >
+                        <Text
+                          style={
+                            entry === options?.selectedOutfitId
+                              ? styles.linkTextActive
+                              : styles.linkText
+                          }
+                        >
+                          {entry}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      renderStructuredValue(entry, `${keyPrefix}-${index}-${key}`)
+                    )}
+                  </View>
+                ))}
             </View>
           </View>
         );
@@ -164,7 +190,7 @@ function renderSceneVisual(
   options?: {
     selectedOutfitId?: string | null;
     onOutfitPress?: (outfitId: string) => void;
-  },
+  }
 ): React.ReactNode {
   if (!sceneVisual || typeof sceneVisual !== 'object') {
     return <Text style={styles.metaText}>n/a</Text>;
@@ -214,7 +240,11 @@ function renderSceneVisual(
         {Array.isArray(cameraComposition?.characters) && cameraComposition.characters.length > 0 ? (
           <View style={styles.valueRow}>
             <Text style={styles.valueKey}>CHARACTERS</Text>
-            {renderCharacterCards(cameraComposition.characters, 'sceneVisual-camera-characters', options)}
+            {renderCharacterCards(
+              cameraComposition.characters,
+              'sceneVisual-camera-characters',
+              options
+            )}
           </View>
         ) : null}
       </View>
@@ -236,11 +266,14 @@ export default function AdminScenesScreen() {
     setSelectedEnvironmentId(null);
     setSelectedOutfitId(null);
   }, [routeStoryId]);
-  const storyScenes = useMemo(() => scenesQuery.data?.storyScenes ?? [], [scenesQuery.data?.storyScenes]);
+  const storyScenes = useMemo(
+    () => scenesQuery.data?.storyScenes ?? [],
+    [scenesQuery.data?.storyScenes]
+  );
   const directorScenes = useMemo(() => scenesQuery.data?.items ?? [], [scenesQuery.data?.items]);
   const directorSceneByIndex = useMemo(
     () => new Map(directorScenes.map((item) => [item.sceneIndex, item])),
-    [directorScenes],
+    [directorScenes]
   );
   const scenes = useMemo(
     () =>
@@ -252,12 +285,15 @@ export default function AdminScenesScreen() {
           directorScene,
         };
       }),
-    [directorSceneByIndex, storyScenes],
+    [directorSceneByIndex, storyScenes]
   );
   const storyMeta = scenesQuery.data?.story;
   const storyAudio = scenesQuery.data?.audio;
   const audioPlaybackUrl = formatAssetUrl(storyAudio?.audioUrl ?? null);
-  const validations = useMemo(() => scenesQuery.data?.validations ?? [], [scenesQuery.data?.validations]);
+  const validations = useMemo(
+    () => scenesQuery.data?.validations ?? [],
+    [scenesQuery.data?.validations]
+  );
   const validationsBySceneIndex = useMemo(() => {
     const map = new Map<number, typeof validations>();
     for (const item of validations) {
@@ -268,7 +304,10 @@ export default function AdminScenesScreen() {
     return map;
   }, [validations]);
   const cost = scenesQuery.data?.cost;
-  const environments = useMemo(() => scenesQuery.data?.environments ?? [], [scenesQuery.data?.environments]);
+  const environments = useMemo(
+    () => scenesQuery.data?.environments ?? [],
+    [scenesQuery.data?.environments]
+  );
   const outfits = useMemo(() => scenesQuery.data?.outfits ?? [], [scenesQuery.data?.outfits]);
 
   return (
@@ -290,11 +329,17 @@ export default function AdminScenesScreen() {
         </View>
         {storyMeta?.title ? <Text style={styles.storyTitle}>{storyMeta.title}</Text> : null}
         {routeStoryId ? <Text style={styles.selectedMeta}>{routeStoryId}</Text> : null}
-        {!routeStoryId ? <Text style={styles.helperText}>Open this page from the stories table.</Text> : null}
+        {!routeStoryId ? (
+          <Text style={styles.helperText}>Open this page from the stories table.</Text>
+        ) : null}
         {routeStoryId && !scenesQuery.isLoading && !scenesQuery.error && storyAudio ? (
           <View style={styles.audioSection} nativeID="admin-story-audio-section">
             <View style={styles.storyTextHeading}>
-              <Ionicons name="volume-high-outline" size={16} color={theme.colors.interactive.primary} />
+              <Ionicons
+                name="volume-high-outline"
+                size={16}
+                color={theme.colors.interactive.primary}
+              />
               <Text style={styles.sceneVisualHeadingText}>AUDIO (TTS)</Text>
             </View>
             {storyAudio.voiceName ? (
@@ -308,16 +353,20 @@ export default function AdminScenesScreen() {
             <Text style={styles.audioBlockLabel}>Generation timing</Text>
             <View style={styles.audioTimingBlock}>
               <Text style={styles.audioMetaLine}>
-                Total pipeline (job wall): {formatDurationMs(storyAudio.timing?.audioGenerationTimeMs)}
+                Total pipeline (job wall):{' '}
+                {formatDurationMs(storyAudio.timing?.audioGenerationTimeMs)}
               </Text>
               <Text style={styles.audioMetaLine}>
-                Prosody / audio tags (LLM): {formatDurationMs(storyAudio.timing?.prosodyTaggingTimeMs)}
+                Prosody / audio tags (LLM):{' '}
+                {formatDurationMs(storyAudio.timing?.prosodyTaggingTimeMs)}
               </Text>
               <Text style={styles.audioMetaLine}>
-                TTS (wall, full chunk loop): {formatDurationMs(storyAudio.timing?.ttsBatchWallTimeMs)}
+                TTS (wall, full chunk loop):{' '}
+                {formatDurationMs(storyAudio.timing?.ttsBatchWallTimeMs)}
               </Text>
               <Text style={styles.audioMetaLine}>
-                TTS (wall, sum of parallel batches): {formatDurationMs(storyAudio.timing?.ttsSynthesisBatchesWallMs)}
+                TTS (wall, sum of parallel batches):{' '}
+                {formatDurationMs(storyAudio.timing?.ttsSynthesisBatchesWallMs)}
               </Text>
               <Text style={styles.audioMetaLine}>
                 TTS (parallel lower bound, sum of slowest chunk per batch):{' '}
@@ -333,9 +382,14 @@ export default function AdminScenesScreen() {
                 <Text style={styles.audioBlockLabel}>Per-chunk TTS (synthesize wall)</Text>
                 <ScrollView style={styles.audioScrollBox} nestedScrollEnabled>
                   {storyAudio.chunks.map((c) => (
-                    <Text key={`chunk-${c.groupIndex}-${c.assetId ?? 'x'}`} selectable style={styles.audioPre}>
+                    <Text
+                      key={`chunk-${c.groupIndex}-${c.assetId ?? 'x'}`}
+                      selectable
+                      style={styles.audioPre}
+                    >
                       chunk {c.groupIndex}
-                      {c.assetId ? ` · ${c.assetId.slice(0, 8)}…` : ''}: {formatDurationMs(c.generationTimeMs)}
+                      {c.assetId ? ` · ${c.assetId.slice(0, 8)}…` : ''}:{' '}
+                      {formatDurationMs(c.generationTimeMs)}
                     </Text>
                   ))}
                 </ScrollView>
@@ -353,12 +407,13 @@ export default function AdminScenesScreen() {
             ) : null}
             {storyAudio.synthesisTaggedSegments && storyAudio.synthesisTaggedSegments.length > 0 ? (
               <Text style={styles.audioBlockHint}>
-                Pink background: narration slice not yet synthesized (no completed TTS chunk for that
-                slot).
+                Pink background: narration slice not yet synthesized (no completed TTS chunk for
+                that slot).
               </Text>
             ) : null}
             <ScrollView style={styles.audioScrollBoxLarge} nestedScrollEnabled>
-              {storyAudio.synthesisTaggedSegments && storyAudio.synthesisTaggedSegments.length > 0 ? (
+              {storyAudio.synthesisTaggedSegments &&
+              storyAudio.synthesisTaggedSegments.length > 0 ? (
                 <Text selectable style={styles.audioPre}>
                   {storyAudio.synthesisTaggedSegments.map((seg, idx) => (
                     <Text
@@ -390,12 +445,14 @@ export default function AdminScenesScreen() {
                 </Text>
               )
             ) : (
-              <Text style={styles.helperText}>No final audio asset — generate audio for this story first.</Text>
+              <Text style={styles.helperText}>
+                No final audio asset — generate audio for this story first.
+              </Text>
             )}
             <Text style={styles.audioBlockLabel}>Admin — audio reset</Text>
             <Text style={styles.helperText}>
-              Clear removes alignment, audio_assets, audio files, and story audio metadata. Regenerate does that
-              then queues a new full TTS job (all chunks from scratch).
+              Clear removes alignment, audio_assets, audio files, and story audio metadata.
+              Regenerate does that then queues a new full TTS job (all chunks from scratch).
             </Text>
             <View style={styles.audioAdminActions}>
               <TouchableOpacity
@@ -404,7 +461,7 @@ export default function AdminScenesScreen() {
                 onPress={async () => {
                   if (!routeStoryId) return;
                   const ok = await confirmAdminAudioAction(
-                    'Remove all audio data for this story from the database and storage?',
+                    'Remove all audio data for this story from the database and storage?'
                   );
                   if (!ok) return;
                   resetAudioMutation.mutate({ storyId: routeStoryId, regenerate: false });
@@ -420,7 +477,7 @@ export default function AdminScenesScreen() {
                 onPress={async () => {
                   if (!routeStoryId) return;
                   const ok = await confirmAdminAudioAction(
-                    'Clear all audio and queue a full regeneration (new chunks, new mix)?',
+                    'Clear all audio and queue a full regeneration (new chunks, new mix)?'
                   );
                   if (!ok) return;
                   resetAudioMutation.mutate({ storyId: routeStoryId, regenerate: true });
@@ -435,16 +492,24 @@ export default function AdminScenesScreen() {
               <Text style={styles.audioMetaLine}>Queued job: {resetAudioMutation.data.jobId}</Text>
             ) : null}
             {resetAudioMutation.error ? (
-              <Text style={styles.audioErrorText}>{(resetAudioMutation.error as Error).message}</Text>
+              <Text style={styles.audioErrorText}>
+                {(resetAudioMutation.error as Error).message}
+              </Text>
             ) : null}
           </View>
         ) : null}
         {scenesQuery.isLoading ? <AdminLoadingState /> : null}
-        {scenesQuery.error ? <AdminErrorState message={(scenesQuery.error as Error).message} /> : null}
-        {routeStoryId && !scenesQuery.isLoading && !scenesQuery.error && storyAudio && scenes.length > 0 ? (
+        {scenesQuery.error ? (
+          <AdminErrorState message={(scenesQuery.error as Error).message} />
+        ) : null}
+        {routeStoryId &&
+        !scenesQuery.isLoading &&
+        !scenesQuery.error &&
+        storyAudio &&
+        scenes.length > 0 ? (
           <Text style={styles.helperText}>
-            Per-scene «STORY TEXT» is the writer manuscript (prose). Inline `[…]` TTS prosody markup, when the
-            pipeline stores it, appears only above under AUDIO → «Synthesis text».
+            Per-scene «STORY TEXT» is the writer manuscript (prose). Inline `[…]` TTS prosody
+            markup, when the pipeline stores it, appears only above under AUDIO → «Synthesis text».
           </Text>
         ) : null}
         {routeStoryId && !scenesQuery.isLoading && !scenesQuery.error ? (
@@ -462,7 +527,13 @@ export default function AdminScenesScreen() {
                             scrollToAnchor('admin-environments-section');
                           }}
                         >
-                          <Text style={item.directorScene.environmentId === selectedEnvironmentId ? styles.linkTextActive : styles.linkText}>
+                          <Text
+                            style={
+                              item.directorScene.environmentId === selectedEnvironmentId
+                                ? styles.linkTextActive
+                                : styles.linkText
+                            }
+                          >
                             {item.directorScene.environmentId}
                           </Text>
                         </TouchableOpacity>
@@ -499,8 +570,12 @@ export default function AdminScenesScreen() {
                   <View style={styles.sceneSection}>
                     <View style={styles.storyTextBlock}>
                       <View style={styles.storyTextHeading}>
-                        <Ionicons name="book-outline" size={16} color={theme.colors.interactive.primary} />
-                      <Text style={styles.sceneVisualHeadingText}>STORY TEXT</Text>
+                        <Ionicons
+                          name="book-outline"
+                          size={16}
+                          color={theme.colors.interactive.primary}
+                        />
+                        <Text style={styles.sceneVisualHeadingText}>STORY TEXT</Text>
                       </View>
                       <Text style={styles.storyTextBody}>{item.storyText || 'n/a'}</Text>
                     </View>
@@ -523,34 +598,46 @@ export default function AdminScenesScreen() {
 
                     <View style={styles.validationBlock}>
                       <View style={styles.storyTextHeading}>
-                        <Ionicons name="shield-checkmark-outline" size={16} color={theme.colors.interactive.primary} />
+                        <Ionicons
+                          name="shield-checkmark-outline"
+                          size={16}
+                          color={theme.colors.interactive.primary}
+                        />
                         <Text style={styles.sceneVisualHeadingText}>VALIDATIONS</Text>
                       </View>
                       {(validationsBySceneIndex.get(item.sceneIndex) ?? []).length > 0 ? (
                         <View style={styles.validationList}>
-                          {(validationsBySceneIndex.get(item.sceneIndex) ?? []).map((validation) => (
-                            <TouchableOpacity
-                              key={validation.id}
-                              style={styles.validationCard}
-                              onPress={() => navigation.navigate('AdminValidationDetail', { id: validation.id })}
-                            >
-                              <View style={styles.validationCardHeader}>
-                                <Text style={styles.validationCardTitle}>
-                                  Attempt {validation.attempt}
-                                </Text>
-                                <Text style={styles.validationScore}>
-                                  {validation.validationScore}/100
-                                </Text>
-                              </View>
-                              <View style={styles.validationMetaRow}>
-                                <Text style={styles.validationMetaText}>{validation.visionModel ?? 'n/a'}</Text>
-                                <Text style={styles.validationMetaText}>
-                                  {new Date(validation.createdAt).toLocaleString()}
-                                </Text>
-                              </View>
-                              <Text style={styles.validationLink}>Open validation</Text>
-                            </TouchableOpacity>
-                          ))}
+                          {(validationsBySceneIndex.get(item.sceneIndex) ?? []).map(
+                            (validation) => (
+                              <TouchableOpacity
+                                key={validation.id}
+                                style={styles.validationCard}
+                                onPress={() =>
+                                  navigation.navigate('AdminValidationDetail', {
+                                    id: validation.id,
+                                  })
+                                }
+                              >
+                                <View style={styles.validationCardHeader}>
+                                  <Text style={styles.validationCardTitle}>
+                                    Attempt {validation.attempt}
+                                  </Text>
+                                  <Text style={styles.validationScore}>
+                                    {validation.validationScore}/100
+                                  </Text>
+                                </View>
+                                <View style={styles.validationMetaRow}>
+                                  <Text style={styles.validationMetaText}>
+                                    {validation.visionModel ?? 'n/a'}
+                                  </Text>
+                                  <Text style={styles.validationMetaText}>
+                                    {new Date(validation.createdAt).toLocaleString()}
+                                  </Text>
+                                </View>
+                                <Text style={styles.validationLink}>Open validation</Text>
+                              </TouchableOpacity>
+                            )
+                          )}
                         </View>
                       ) : (
                         <Text style={styles.helperText}>No validations found for this scene.</Text>
@@ -594,7 +681,9 @@ export default function AdminScenesScreen() {
                     </Text>
                     {environment.imageUrl ? (
                       <Image
-                        source={{ uri: formatAssetUrl(environment.imageUrl) ?? environment.imageUrl }}
+                        source={{
+                          uri: formatAssetUrl(environment.imageUrl) ?? environment.imageUrl,
+                        }}
                         style={styles.environmentImage}
                         resizeMode="cover"
                       />
@@ -661,16 +750,21 @@ export default function AdminScenesScreen() {
                 <Text style={styles.costTotalValue}>${cost.costUsd.toFixed(6)}</Text>
               </View>
               <Text style={styles.helperText}>
-                Cache hits: {cost.cacheStats.cacheHitCount} calls, cached input: {cost.cacheStats.totalCachedInputUnits.toLocaleString()} tokens
+                Cache hits: {cost.cacheStats.cacheHitCount} calls, cached input:{' '}
+                {cost.cacheStats.totalCachedInputUnits.toLocaleString()} tokens
               </Text>
               {cost.breakdown.length > 0 ? (
                 <View style={styles.costBreakdownList}>
                   {cost.breakdown.map((item, index) => (
-                    <View key={`${item.provider}-${item.operation}-${item.model ?? 'na'}-${index}`} style={styles.costBreakdownRow}>
+                    <View
+                      key={`${item.provider}-${item.operation}-${item.model ?? 'na'}-${index}`}
+                      style={styles.costBreakdownRow}
+                    >
                       <View style={styles.costBreakdownMain}>
                         <Text style={styles.costBreakdownOperation}>{item.operation}</Text>
                         <Text style={styles.costBreakdownMeta}>
-                          {item.provider}{item.model ? ` / ${item.model}` : ''}
+                          {item.provider}
+                          {item.model ? ` / ${item.model}` : ''}
                         </Text>
                         <Text style={styles.costBreakdownMeta}>
                           {new Date(item.createdAt).toLocaleString()}
@@ -1114,7 +1208,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
     color: theme.colors.text.primary,
-    fontFamily: Platform.select({ web: 'ui-monospace, SFMono-Regular, Menlo, monospace', default: undefined }),
+    fontFamily: Platform.select({
+      web: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+      default: undefined,
+    }),
   },
   audioPreMissingChunk: {
     backgroundColor: '#fce4ec',

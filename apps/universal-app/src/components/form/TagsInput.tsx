@@ -18,13 +18,13 @@ export const TagsInput: React.FC<TagsInputProps> = ({
   onTagsChange,
   suggestions = [],
   max,
-  placeholder = 'Add tag...'
+  placeholder = 'Add tag...',
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const filteredSuggestions = suggestions.filter(
-    s => !tags.includes(s) && s.toLowerCase().includes(inputValue.toLowerCase())
+    (s) => !tags.includes(s) && s.toLowerCase().includes(inputValue.toLowerCase())
   );
 
   const addTag = (tag: string) => {
@@ -61,14 +61,17 @@ export const TagsInput: React.FC<TagsInputProps> = ({
           {tags.length} / {max}
         </Text>
       )}
-      
+
       {/* Existing Tags */}
       {tags.length > 0 && (
         <View style={styles.tagsContainer}>
           {tags.map((tag, index) => (
             <View key={index} style={styles.tag}>
               <Text style={styles.tagText}>{tag}</Text>
-              <TouchableOpacity onPress={() => removeTag(index)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <TouchableOpacity
+                onPress={() => removeTag(index)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
                 <Ionicons name="close-circle" size={16} color={theme.colors.text.inverse} />
               </TouchableOpacity>
             </View>
@@ -98,8 +101,8 @@ export const TagsInput: React.FC<TagsInputProps> = ({
 
       {/* Suggestions */}
       {showSuggestions && filteredSuggestions.length > 0 && (
-        <ScrollView 
-          horizontal 
+        <ScrollView
+          horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.suggestionsScroll}
           contentContainerStyle={styles.suggestionsContainer}
@@ -121,24 +124,24 @@ export const TagsInput: React.FC<TagsInputProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: theme.spacing[4]
+    marginBottom: theme.spacing[4],
   },
   label: {
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.text.primary,
-    marginBottom: theme.spacing[2]
+    marginBottom: theme.spacing[2],
   },
   hint: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
-    marginBottom: theme.spacing[2]
+    marginBottom: theme.spacing[2],
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: theme.spacing[2],
-    marginBottom: theme.spacing[3]
+    marginBottom: theme.spacing[3],
   },
   tag: {
     flexDirection: 'row',
@@ -149,12 +152,12 @@ const styles = StyleSheet.create({
     borderRadius: theme.borders.radius.full,
     backgroundColor: theme.colors.interactive.primary,
     marginRight: theme.spacing[2],
-    marginBottom: theme.spacing[2]
+    marginBottom: theme.spacing[2],
   },
   tagText: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.inverse,
-    fontWeight: theme.typography.fontWeight.medium
+    fontWeight: theme.typography.fontWeight.medium,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -163,24 +166,24 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border.medium,
     borderRadius: theme.borders.radius.md,
     paddingHorizontal: theme.spacing[3],
-    backgroundColor: theme.colors.background.secondary
+    backgroundColor: theme.colors.background.secondary,
   },
   input: {
     flex: 1,
     paddingVertical: theme.spacing[3],
     fontSize: theme.typography.fontSize.base,
-    color: theme.colors.text.primary
+    color: theme.colors.text.primary,
   },
   addButton: {
-    marginLeft: theme.spacing[2]
+    marginLeft: theme.spacing[2],
   },
   suggestionsScroll: {
     marginTop: theme.spacing[2],
-    maxHeight: 40
+    maxHeight: 40,
   },
   suggestionsContainer: {
     flexDirection: 'row',
-    gap: theme.spacing[2]
+    gap: theme.spacing[2],
   },
   suggestion: {
     paddingHorizontal: theme.spacing[3],
@@ -189,10 +192,10 @@ const styles = StyleSheet.create({
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.medium,
     backgroundColor: theme.colors.background.secondary,
-    marginRight: theme.spacing[2]
+    marginRight: theme.spacing[2],
   },
   suggestionText: {
     fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.primary
-  }
+    color: theme.colors.text.primary,
+  },
 });

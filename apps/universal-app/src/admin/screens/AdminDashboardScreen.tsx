@@ -87,22 +87,16 @@ function formatBucketLabel(bucket: string) {
 }
 
 function prettifyOperation(operation: string) {
-  return operation
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return operation.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function prettifyBreakdownValue(value: string) {
   if (!value || value === 'unknown') return 'Unknown';
-  return value
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function prettifyPriority(priority: string) {
-  return priority
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return priority.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function MetricCard({
@@ -123,7 +117,7 @@ function MetricCard({
         ? styles.metricCardWarning
         : tone === 'critical'
           ? styles.metricCardCritical
-        : null;
+          : null;
 
   return (
     <View style={[styles.metricCard, toneStyle]}>
@@ -215,7 +209,9 @@ function HorizontalBreakdown({
         return (
           <View key={item.key} style={styles.breakdownRow}>
             <View style={styles.breakdownTopRow}>
-              <Text style={styles.breakdownLabel}>{labelFormatter ? labelFormatter(item.label) : item.label}</Text>
+              <Text style={styles.breakdownLabel}>
+                {labelFormatter ? labelFormatter(item.label) : item.label}
+              </Text>
               <Text style={styles.breakdownValue}>{valueFormatter(item.value)}</Text>
             </View>
             <View style={styles.breakdownTrack}>
@@ -237,13 +233,7 @@ function HorizontalBreakdown({
   );
 }
 
-function BreakdownList({
-  title,
-  items,
-}: {
-  title: string;
-  items: AdminDashboardBreakdownItem[];
-}) {
+function BreakdownList({ title, items }: { title: string; items: AdminDashboardBreakdownItem[] }) {
   return (
     <SectionCard title={title}>
       <HorizontalBreakdown
@@ -303,16 +293,37 @@ function CostControlAlerts({ alerts }: { alerts: AdminDashboardCostControls['ale
   );
 }
 
-function buildRetryBars(totalStories: number, anyRetryStories: number, requestRetryStories: number, imageRetryStories: number, bothRetryStories: number) {
+function buildRetryBars(
+  totalStories: number,
+  anyRetryStories: number,
+  requestRetryStories: number,
+  imageRetryStories: number,
+  bothRetryStories: number
+) {
   const requestOnly = Math.max(requestRetryStories - bothRetryStories, 0);
   const imageOnly = Math.max(imageRetryStories - bothRetryStories, 0);
   const noRetry = Math.max(totalStories - anyRetryStories, 0);
 
   return [
     { key: 'no-retry', label: 'No retries', value: noRetry, helper: 'Stories completed cleanly' },
-    { key: 'request-only', label: 'Request retries', value: requestOnly, helper: 'Pipeline/request reruns only' },
-    { key: 'image-only', label: 'Image retries', value: imageOnly, helper: 'Extra image validation attempts only' },
-    { key: 'both', label: 'Both retry types', value: bothRetryStories, helper: 'Request and image retries in one story' },
+    {
+      key: 'request-only',
+      label: 'Request retries',
+      value: requestOnly,
+      helper: 'Pipeline/request reruns only',
+    },
+    {
+      key: 'image-only',
+      label: 'Image retries',
+      value: imageOnly,
+      helper: 'Extra image validation attempts only',
+    },
+    {
+      key: 'both',
+      label: 'Both retry types',
+      value: bothRetryStories,
+      helper: 'Request and image retries in one story',
+    },
   ];
 }
 
@@ -349,7 +360,15 @@ function buildOperationBars(items: AdminDashboardOperationBreakdown[]) {
   }));
 }
 
-function buildQueueBars(queues: Array<{ name: string; queued: number; processing: number; failed: number; maxConcurrency: number }>) {
+function buildQueueBars(
+  queues: Array<{
+    name: string;
+    queued: number;
+    processing: number;
+    failed: number;
+    maxConcurrency: number;
+  }>
+) {
   return queues.map((item) => ({
     key: item.name,
     label: item.name,
@@ -379,7 +398,7 @@ export default function AdminDashboardScreen() {
         overview.anyRetryStories,
         overview.requestRetryStories,
         overview.imageRetryStories,
-        overview.bothRetryStories,
+        overview.bothRetryStories
       )
     : [];
 
@@ -389,7 +408,8 @@ export default function AdminDashboardScreen() {
         <View style={styles.heroTextWrap}>
           <Text style={styles.heroTitle}>Story production dashboard</Text>
           <Text style={styles.heroSubtitle}>
-            Volume, себестоимость, retries и качество генерации в одном месте. Метрики считаются по историям, request'ам и image validation run'ам.
+            Volume, себестоимость, retries и качество генерации в одном месте. Метрики считаются по
+            историям, request'ам и image validation run'ам.
           </Text>
         </View>
 
@@ -435,7 +455,9 @@ export default function AdminDashboardScreen() {
             />
             <MetricCard
               label="Stories with retries"
-              value={formatPercent(overview.totalStories > 0 ? overview.anyRetryStories / overview.totalStories : 0)}
+              value={formatPercent(
+                overview.totalStories > 0 ? overview.anyRetryStories / overview.totalStories : 0
+              )}
               helper={`${formatNumber(overview.anyRetryStories)} stories • ${formatNumber(overview.extraImageAttempts)} extra image attempts`}
               tone={overview.anyRetryStories === 0 ? 'success' : 'warning'}
             />
@@ -478,24 +500,33 @@ export default function AdminDashboardScreen() {
               <View style={styles.highlightList}>
                 <View style={styles.highlightItem}>
                   <Text style={styles.highlightLabel}>Daily average spend</Text>
-                  <Text style={styles.highlightValue}>{formatUsd(data.costControls.dailyAverageCostUsd)}</Text>
+                  <Text style={styles.highlightValue}>
+                    {formatUsd(data.costControls.dailyAverageCostUsd)}
+                  </Text>
                 </View>
                 <View style={styles.highlightItem}>
                   <Text style={styles.highlightLabel}>Projected monthly spend</Text>
-                  <Text style={styles.highlightValue}>{formatUsd(data.costControls.projectedMonthlyCostUsd)}</Text>
+                  <Text style={styles.highlightValue}>
+                    {formatUsd(data.costControls.projectedMonthlyCostUsd)}
+                  </Text>
                 </View>
                 <View style={styles.highlightItem}>
                   <Text style={styles.highlightLabel}>Max story cost</Text>
-                  <Text style={styles.highlightValue}>{formatUsd(data.costControls.maxStoryCostUsd)}</Text>
+                  <Text style={styles.highlightValue}>
+                    {formatUsd(data.costControls.maxStoryCostUsd)}
+                  </Text>
                 </View>
                 <View style={styles.highlightItem}>
                   <Text style={styles.highlightLabel}>Unpriced AI events</Text>
-                  <Text style={styles.highlightValue}>{formatNumber(data.costControls.unpricedEventCount)}</Text>
+                  <Text style={styles.highlightValue}>
+                    {formatNumber(data.costControls.unpricedEventCount)}
+                  </Text>
                 </View>
                 <View style={styles.highlightItem}>
                   <Text style={styles.highlightLabel}>Top user cost, 24h</Text>
                   <Text style={styles.highlightValue}>
-                    {formatUsd(data.costControls.topUser24hCostUsd)} • {formatShortId(data.costControls.topUser24hUserId)}
+                    {formatUsd(data.costControls.topUser24hCostUsd)} •{' '}
+                    {formatShortId(data.costControls.topUser24hUserId)}
                   </Text>
                 </View>
               </View>
@@ -529,15 +560,21 @@ export default function AdminDashboardScreen() {
               <View style={styles.inlineMetricRow}>
                 <View style={styles.inlineMetric}>
                   <Text style={styles.inlineMetricLabel}>Failed request rate</Text>
-                  <Text style={styles.inlineMetricValue}>{formatPercent(data.qualityReview.failedRequestRate)}</Text>
+                  <Text style={styles.inlineMetricValue}>
+                    {formatPercent(data.qualityReview.failedRequestRate)}
+                  </Text>
                 </View>
                 <View style={styles.inlineMetric}>
                   <Text style={styles.inlineMetricLabel}>Moderation failures</Text>
-                  <Text style={styles.inlineMetricValue}>{formatNumber(data.qualityReview.moderationFailureCount)}</Text>
+                  <Text style={styles.inlineMetricValue}>
+                    {formatNumber(data.qualityReview.moderationFailureCount)}
+                  </Text>
                 </View>
                 <View style={styles.inlineMetric}>
                   <Text style={styles.inlineMetricLabel}>Sample candidates</Text>
-                  <Text style={styles.inlineMetricValue}>{formatNumber(data.qualityReview.sampleCandidateCount)}</Text>
+                  <Text style={styles.inlineMetricValue}>
+                    {formatNumber(data.qualityReview.sampleCandidateCount)}
+                  </Text>
                 </View>
               </View>
             </SectionCard>
@@ -549,19 +586,27 @@ export default function AdminDashboardScreen() {
               <View style={styles.highlightList}>
                 <View style={styles.highlightItem}>
                   <Text style={styles.highlightLabel}>Unsafe reports</Text>
-                  <Text style={styles.highlightValue}>{formatNumber(data.qualityReview.unsafeReportCount)}</Text>
+                  <Text style={styles.highlightValue}>
+                    {formatNumber(data.qualityReview.unsafeReportCount)}
+                  </Text>
                 </View>
                 <View style={styles.highlightItem}>
                   <Text style={styles.highlightLabel}>Generation reports</Text>
-                  <Text style={styles.highlightValue}>{formatNumber(data.qualityReview.generationFailureReportCount)}</Text>
+                  <Text style={styles.highlightValue}>
+                    {formatNumber(data.qualityReview.generationFailureReportCount)}
+                  </Text>
                 </View>
                 <View style={styles.highlightItem}>
                   <Text style={styles.highlightLabel}>Public story reports</Text>
-                  <Text style={styles.highlightValue}>{formatNumber(data.qualityReview.publicStoryReportCount)}</Text>
+                  <Text style={styles.highlightValue}>
+                    {formatNumber(data.qualityReview.publicStoryReportCount)}
+                  </Text>
                 </View>
                 <View style={styles.highlightItem}>
                   <Text style={styles.highlightLabel}>Image retry rate</Text>
-                  <Text style={styles.highlightValue}>{formatPercent(data.qualityReview.imageRetryStoryRate)}</Text>
+                  <Text style={styles.highlightValue}>
+                    {formatPercent(data.qualityReview.imageRetryStoryRate)}
+                  </Text>
                 </View>
               </View>
             </SectionCard>
@@ -615,15 +660,21 @@ export default function AdminDashboardScreen() {
               <View style={styles.inlineMetricRow}>
                 <View style={styles.inlineMetric}>
                   <Text style={styles.inlineMetricLabel}>Request retries</Text>
-                  <Text style={styles.inlineMetricValue}>{formatNumber(overview.requestRetryStories)}</Text>
+                  <Text style={styles.inlineMetricValue}>
+                    {formatNumber(overview.requestRetryStories)}
+                  </Text>
                 </View>
                 <View style={styles.inlineMetric}>
                   <Text style={styles.inlineMetricLabel}>Image retries</Text>
-                  <Text style={styles.inlineMetricValue}>{formatNumber(overview.imageRetryStories)}</Text>
+                  <Text style={styles.inlineMetricValue}>
+                    {formatNumber(overview.imageRetryStories)}
+                  </Text>
                 </View>
                 <View style={styles.inlineMetric}>
                   <Text style={styles.inlineMetricLabel}>Both retry types</Text>
-                  <Text style={styles.inlineMetricValue}>{formatNumber(overview.bothRetryStories)}</Text>
+                  <Text style={styles.inlineMetricValue}>
+                    {formatNumber(overview.bothRetryStories)}
+                  </Text>
                 </View>
               </View>
             </SectionCard>
@@ -653,11 +704,15 @@ export default function AdminDashboardScreen() {
                 </View>
                 <View style={styles.highlightItem}>
                   <Text style={styles.highlightLabel}>Stories with audio</Text>
-                  <Text style={styles.highlightValue}>{formatNumber(overview.audioStoryCount)}</Text>
+                  <Text style={styles.highlightValue}>
+                    {formatNumber(overview.audioStoryCount)}
+                  </Text>
                 </View>
                 <View style={styles.highlightItem}>
                   <Text style={styles.highlightLabel}>Avg words/story</Text>
-                  <Text style={styles.highlightValue}>{formatCompactNumber(overview.avgWordCount)}</Text>
+                  <Text style={styles.highlightValue}>
+                    {formatCompactNumber(overview.avgWordCount)}
+                  </Text>
                 </View>
                 <View style={styles.highlightItem}>
                   <Text style={styles.highlightLabel}>Avg scenes/story</Text>

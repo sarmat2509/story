@@ -59,9 +59,7 @@ export default function AuthorProfileScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: author?.displayName ?? 'Author',
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [author?.displayName, navigation]);
 
@@ -94,100 +92,107 @@ export default function AuthorProfileScreen() {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.errorTitle}>{t('common.error')}</Text>
-        <Text style={styles.errorMessage}>{error ? (error as Error).message : t('profile.author_not_found')}</Text>
+        <Text style={styles.errorMessage}>
+          {error ? (error as Error).message : t('profile.author_not_found')}
+        </Text>
       </View>
     );
   }
 
   return (
     <>
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <AnimatedSection delay={0} trigger={enterKey}>
-        <View style={styles.hero}>
-          <View style={styles.avatarShell}>
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-            ) : (
-              <Text style={styles.avatarFallback}>{authorInitial}</Text>
-            )}
-          </View>
-          <View style={styles.heroText}>
-            <Text style={styles.authorName}>{author.displayName}</Text>
-            <Text style={styles.storyCount}>{t('profile.author_story_count', { count: totalStories })}</Text>
-            {author.aboutMe ? <Text style={styles.aboutMe}>{author.aboutMe}</Text> : null}
-          </View>
-        </View>
-      </AnimatedSection>
-
-      <AnimatedSection delay={140} trigger={enterKey} style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{t('profile.author_published_stories')}</Text>
-        {totalPages > 1 ? (
-          <View style={styles.pagination}>
-            <TouchableOpacity
-              style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
-              onPress={() => setCurrentPage((page) => Math.max(1, page - 1))}
-              disabled={currentPage === 1}
-            >
-              <Ionicons name="chevron-back" size={20} color={theme.colors.text.primary} />
-            </TouchableOpacity>
-            <Text style={styles.paginationText}>
-              {t('library.page')} {currentPage} {t('library.of')} {totalPages}
-            </Text>
-            <TouchableOpacity
-              style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
-              onPress={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-              disabled={currentPage === totalPages}
-            >
-              <Ionicons name="chevron-forward" size={20} color={theme.colors.text.primary} />
-            </TouchableOpacity>
-          </View>
-        ) : null}
-      </AnimatedSection>
-
-      {!stories.length ? (
-        <AnimatedSection delay={240} trigger={enterKey}>
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>{t('profile.author_no_stories')}</Text>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <AnimatedSection delay={0} trigger={enterKey}>
+          <View style={styles.hero}>
+            <View style={styles.avatarShell}>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+              ) : (
+                <Text style={styles.avatarFallback}>{authorInitial}</Text>
+              )}
+            </View>
+            <View style={styles.heroText}>
+              <Text style={styles.authorName}>{author.displayName}</Text>
+              <Text style={styles.storyCount}>
+                {t('profile.author_story_count', { count: totalStories })}
+              </Text>
+              {author.aboutMe ? <Text style={styles.aboutMe}>{author.aboutMe}</Text> : null}
+            </View>
           </View>
         </AnimatedSection>
-      ) : (
-        <View
-          style={[
-            styles.gridContainer,
-            Platform.OS === 'web' && { gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any,
-          ]}
-        >
-          {stories.map((story, index) => {
-            const card = (
-              <PublishedStoryCard
-                story={story}
-                onPress={handleStoryPress}
-                variant="grid"
-              />
-            );
-            return Platform.OS === 'web' ? (
-              <AnimatedSection key={story.id} delay={cardDelay(index)} trigger={enterKey}>
-                {card}
-              </AnimatedSection>
-            ) : (
-              <AnimatedSection
-                key={story.id}
-                delay={cardDelay(index)}
-                trigger={enterKey}
-                style={{ width: gridCardWidth }}
+
+        <AnimatedSection delay={140} trigger={enterKey} style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{t('profile.author_published_stories')}</Text>
+          {totalPages > 1 ? (
+            <View style={styles.pagination}>
+              <TouchableOpacity
+                style={[
+                  styles.paginationButton,
+                  currentPage === 1 && styles.paginationButtonDisabled,
+                ]}
+                onPress={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
               >
-                {card}
-              </AnimatedSection>
-            );
-          })}
-        </View>
-      )}
-    </ScrollView>
-    <FeedbackModal
-      visible={showFeedbackModal}
-      onClose={() => setShowFeedbackModal(false)}
-      initialReportedScreen="other"
-    />
+                <Ionicons name="chevron-back" size={20} color={theme.colors.text.primary} />
+              </TouchableOpacity>
+              <Text style={styles.paginationText}>
+                {t('library.page')} {currentPage} {t('library.of')} {totalPages}
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.paginationButton,
+                  currentPage === totalPages && styles.paginationButtonDisabled,
+                ]}
+                onPress={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <Ionicons name="chevron-forward" size={20} color={theme.colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </AnimatedSection>
+
+        {!stories.length ? (
+          <AnimatedSection delay={240} trigger={enterKey}>
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>{t('profile.author_no_stories')}</Text>
+            </View>
+          </AnimatedSection>
+        ) : (
+          <View
+            style={[
+              styles.gridContainer,
+              Platform.OS === 'web' &&
+                ({ gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any),
+            ]}
+          >
+            {stories.map((story, index) => {
+              const card = (
+                <PublishedStoryCard story={story} onPress={handleStoryPress} variant="grid" />
+              );
+              return Platform.OS === 'web' ? (
+                <AnimatedSection key={story.id} delay={cardDelay(index)} trigger={enterKey}>
+                  {card}
+                </AnimatedSection>
+              ) : (
+                <AnimatedSection
+                  key={story.id}
+                  delay={cardDelay(index)}
+                  trigger={enterKey}
+                  style={{ width: gridCardWidth }}
+                >
+                  {card}
+                </AnimatedSection>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="other"
+      />
     </>
   );
 }

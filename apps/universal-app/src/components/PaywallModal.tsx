@@ -67,20 +67,17 @@ export function PaywallModal({
   };
 
   const displayTitle = title ?? t('paywall.stories_limit_title');
-  const displayMessage = message ?? (limitInfo
-    ? t('paywall.stories_limit_message', { used: limitInfo.used, limit: limitInfo.limit })
-    : t('paywall.stories_limit_message_default'));
+  const displayMessage =
+    message ??
+    (limitInfo
+      ? t('paywall.stories_limit_message', { used: limitInfo.used, limit: limitInfo.limit })
+      : t('paywall.stories_limit_message_default'));
   const bundleHintText = periodEndFormatted
     ? t('paywall.bundle_hint', { periodEnd: periodEndFormatted })
     : t('paywall.bundle_hint_no_date');
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.content}>
           <View style={styles.iconContainer}>
@@ -89,10 +86,7 @@ export function PaywallModal({
           <Text style={styles.title}>{displayTitle}</Text>
           <Text style={styles.message}>{displayMessage}</Text>
           <Text style={styles.bundleHint}>{bundleHintText}</Text>
-          <TouchableOpacity
-            style={styles.linkButton}
-            onPress={handleOpenPricing}
-          >
+          <TouchableOpacity style={styles.linkButton} onPress={handleOpenPricing}>
             <Text style={styles.linkButtonText}>{t('paywall.bundle_pricing_link')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>

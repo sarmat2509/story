@@ -119,8 +119,7 @@ export function GradientButton({
   labelStyle,
   accessibilityLabel,
 }: GradientButtonProps) {
-  const colors =
-    variant === 'primary' ? primaryGradientColors() : subtleGradientColors();
+  const colors = variant === 'primary' ? primaryGradientColors() : subtleGradientColors();
   const isDisabled = disabled || loading;
 
   // Cross-fade two overlays instead of using transform/scale.
@@ -140,21 +139,18 @@ export function GradientButton({
     };
   }, []);
 
-  const setValue = React.useCallback(
-    (anim: Animated.Value, to: number) => {
-      if (reduceMotionRef.current) {
-        anim.setValue(to);
-        return;
-      }
-      Animated.timing(anim, {
-        toValue: to,
-        duration: 180,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start();
-    },
-    []
-  );
+  const setValue = React.useCallback((anim: Animated.Value, to: number) => {
+    if (reduceMotionRef.current) {
+      anim.setValue(to);
+      return;
+    }
+    Animated.timing(anim, {
+      toValue: to,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   return (
     <Pressable
@@ -188,17 +184,15 @@ export function GradientButton({
           <View style={styles.content}>
             {loading ? (
               <ActivityIndicator
-                color={variant === 'primary' ? theme.colors.text.inverse : theme.colors.text.primary}
+                color={
+                  variant === 'primary' ? theme.colors.text.inverse : theme.colors.text.primary
+                }
               />
             ) : (
               <>
                 {leading}
                 <Text
-                  style={[
-                    styles.label,
-                    variant === 'subtle' && styles.labelSubtle,
-                    labelStyle,
-                  ]}
+                  style={[styles.label, variant === 'subtle' && styles.labelSubtle, labelStyle]}
                 >
                   {label}
                 </Text>

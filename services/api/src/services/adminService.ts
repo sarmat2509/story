@@ -267,8 +267,12 @@ export async function listAdminFeedback(params: {
             contentType: typeof context.contentType === 'string' ? context.contentType : null,
             contentReviewStatus:
               typeof context.contentReviewStatus === 'string' ? context.contentReviewStatus : null,
+            contentReviewQueued:
+              typeof context.contentReviewQueued === 'boolean' ? context.contentReviewQueued : null,
             contentQuarantined:
               typeof context.contentQuarantined === 'boolean' ? context.contentQuarantined : null,
+            quarantinedStoryId:
+              typeof context.quarantinedStoryId === 'string' ? context.quarantinedStoryId : null,
           },
           createdAt: item.createdAt.toISOString(),
         };

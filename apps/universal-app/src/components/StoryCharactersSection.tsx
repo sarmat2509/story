@@ -1,5 +1,14 @@
 import React, { memo, useCallback, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ImageStyle, StyleSheet, Platform, Pressable } from 'react-native';
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  ImageStyle,
+  StyleSheet,
+  Platform,
+  Pressable,
+} from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { stripCharacterIdFromName } from '@wondertales/shared';
@@ -183,7 +192,9 @@ function StoryCharactersSectionInner({
             key={char.id}
             style={[
               styles.characterCard,
-              Platform.OS === 'web' && hoveredCharacterId === char.id && styles.characterCardHovered,
+              Platform.OS === 'web' &&
+                hoveredCharacterId === char.id &&
+                styles.characterCardHovered,
             ]}
           >
             <View style={styles.characterCardRow}>
@@ -242,7 +253,11 @@ function StoryCharactersSectionInner({
                 onPress={() => onSaveCharacter(char.id, char.description)}
                 disabled={isSavePending}
               >
-                <Ionicons name="bookmark-outline" size={16} color={theme.colors.interactive.primary} />
+                <Ionicons
+                  name="bookmark-outline"
+                  size={16}
+                  color={theme.colors.interactive.primary}
+                />
                 <Text style={styles.saveCharacterText}>{t('story_viewer.save_character')}</Text>
               </TouchableOpacity>
             )}

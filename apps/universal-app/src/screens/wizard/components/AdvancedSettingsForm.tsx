@@ -21,14 +21,14 @@ interface Props {
   children?: ChildProfile[];
   onAddChild?: () => void;
   showChildProfileSelector?: boolean;
-  
+
   goals?: Goal[];
   selectedGoals?: string[];
   onGoalsChange: (goals: string[]) => void;
-  
+
   imageStyle?: string;
   onImageStyleChange: (style: string | undefined) => void;
-  
+
   userNotes?: string;
   onNotesChange: (notes: string) => void;
   notesEnabled?: boolean;
@@ -50,17 +50,17 @@ export function AdvancedSettingsForm({
   notesEnabled = true,
 }: Props) {
   const { t } = useTranslation();
-  
+
   const toggleGoal = (goalSlug: string) => {
     if (selectedGoals.includes(goalSlug)) {
-      onGoalsChange(selectedGoals.filter(g => g !== goalSlug));
+      onGoalsChange(selectedGoals.filter((g) => g !== goalSlug));
     } else {
       onGoalsChange([...selectedGoals, goalSlug]);
     }
   };
-  
+
   // Image style options
-  const imageStyles = IMAGE_STYLES.map(slug => ({
+  const imageStyles = IMAGE_STYLES.map((slug) => ({
     slug,
     name: t(IMAGE_STYLE_METADATA[slug].i18nKey),
     icon: IMAGE_STYLE_METADATA[slug].icon,
@@ -70,51 +70,44 @@ export function AdvancedSettingsForm({
     <View style={styles.container}>
       {/* Child Profile Selector */}
       {showChildProfileSelector && (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionLabel}>{t('wizard.story_for')}</Text>
-          {onAddChild && (
-            <TouchableOpacity onPress={onAddChild} style={styles.addButton}>
-              <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
-            </TouchableOpacity>
-          )}
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.chipsContainer}>
-            <TouchableOpacity
-              style={[
-                styles.chip,
-                !childProfileId && styles.chipSelected
-              ]}
-              onPress={() => onChildProfileChange(undefined)}
-            >
-              <Text style={[
-                styles.chipText,
-                !childProfileId && styles.chipTextSelected
-              ]}>
-                {t('wizard.no_profile')}
-              </Text>
-            </TouchableOpacity>
-            {children.map((child) => (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>{t('wizard.story_for')}</Text>
+            {onAddChild && (
+              <TouchableOpacity onPress={onAddChild} style={styles.addButton}>
+                <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.chipsContainer}>
               <TouchableOpacity
-                key={child.id}
-                style={[
-                  styles.chip,
-                  childProfileId === child.id && styles.chipSelected
-                ]}
-                onPress={() => onChildProfileChange(child.id)}
+                style={[styles.chip, !childProfileId && styles.chipSelected]}
+                onPress={() => onChildProfileChange(undefined)}
               >
-                <Text style={[
-                  styles.chipText,
-                  childProfileId === child.id && styles.chipTextSelected
-                ]}>
-                  {child.name}
+                <Text style={[styles.chipText, !childProfileId && styles.chipTextSelected]}>
+                  {t('wizard.no_profile')}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
+              {children.map((child) => (
+                <TouchableOpacity
+                  key={child.id}
+                  style={[styles.chip, childProfileId === child.id && styles.chipSelected]}
+                  onPress={() => onChildProfileChange(child.id)}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      childProfileId === child.id && styles.chipTextSelected,
+                    ]}
+                  >
+                    {child.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
       )}
 
       {/* Goals Selector */}
@@ -125,16 +118,15 @@ export function AdvancedSettingsForm({
             {goals.map((goal) => (
               <TouchableOpacity
                 key={goal.slug}
-                style={[
-                  styles.chip,
-                  selectedGoals.includes(goal.slug) && styles.chipSelected
-                ]}
+                style={[styles.chip, selectedGoals.includes(goal.slug) && styles.chipSelected]}
                 onPress={() => toggleGoal(goal.slug)}
               >
-                <Text style={[
-                  styles.chipText,
-                  selectedGoals.includes(goal.slug) && styles.chipTextSelected
-                ]}>
+                <Text
+                  style={[
+                    styles.chipText,
+                    selectedGoals.includes(goal.slug) && styles.chipTextSelected,
+                  ]}
+                >
                   {goal.name}
                 </Text>
               </TouchableOpacity>
@@ -151,17 +143,11 @@ export function AdvancedSettingsForm({
           {imageStyles.map((style) => (
             <TouchableOpacity
               key={style.slug}
-              style={[
-                styles.chip,
-                imageStyle === style.slug && styles.chipSelected
-              ]}
+              style={[styles.chip, imageStyle === style.slug && styles.chipSelected]}
               onPress={() => onImageStyleChange(imageStyle === style.slug ? undefined : style.slug)}
             >
               <Text style={styles.styleIcon}>{style.icon}</Text>
-              <Text style={[
-                styles.chipText,
-                imageStyle === style.slug && styles.chipTextSelected
-              ]}>
+              <Text style={[styles.chipText, imageStyle === style.slug && styles.chipTextSelected]}>
                 {style.name}
               </Text>
             </TouchableOpacity>
@@ -171,21 +157,21 @@ export function AdvancedSettingsForm({
 
       {/* Notes Input */}
       {notesEnabled && (
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>{t('wizard.notes_label')}</Text>
-        <TextInput
-          style={styles.textInput}
-          placeholder={t('wizard.notes_placeholder')}
-          placeholderTextColor={theme.colors.text.disabled}
-          value={userNotes}
-          onChangeText={onNotesChange}
-          multiline
-          numberOfLines={4}
-          maxLength={500}
-          textAlignVertical="top"
-        />
-        <Text style={styles.charCount}>{userNotes.length}/500</Text>
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>{t('wizard.notes_label')}</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder={t('wizard.notes_placeholder')}
+            placeholderTextColor={theme.colors.text.disabled}
+            value={userNotes}
+            onChangeText={onNotesChange}
+            multiline
+            numberOfLines={4}
+            maxLength={500}
+            textAlignVertical="top"
+          />
+          <Text style={styles.charCount}>{userNotes.length}/500</Text>
+        </View>
       )}
     </View>
   );

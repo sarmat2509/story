@@ -56,10 +56,15 @@ export default function AdminVoicesScreen() {
   });
 
   return (
-    <AdminLayout navigation={navigation} activeRoute="AdminVoices" title="Admin / Voices" panelStyle={styles.panelWide}>
+    <AdminLayout
+      navigation={navigation}
+      activeRoute="AdminVoices"
+      title="Admin / Voices"
+      panelStyle={styles.panelWide}
+    >
       <Text style={styles.caption}>
-        TTS voice catalog. Inactive rows are not offered in the app. Vendor is the provider slug (for example google,
-        elevenlabs, grok).
+        TTS voice catalog. Inactive rows are not offered in the app. Vendor is the provider slug
+        (for example google, elevenlabs, grok).
       </Text>
 
       <View style={styles.filters}>
@@ -90,7 +95,15 @@ export default function AdminVoicesScreen() {
       {!isLoading && !error ? (
         <>
           <AdminTable
-            headers={['Display name', 'Name', 'Vendor', 'Vendor voice id', 'Language', 'Premium', 'Active']}
+            headers={[
+              'Display name',
+              'Name',
+              'Vendor',
+              'Vendor voice id',
+              'Language',
+              'Premium',
+              'Active',
+            ]}
             rows={rows}
             emptyText="No voices found."
           />

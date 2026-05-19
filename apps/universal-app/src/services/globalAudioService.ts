@@ -47,7 +47,8 @@ class GlobalAudioService {
     await this.unloadCurrent();
 
     // Resolve playback rate from params or persisted preference
-    const playbackRate = params.initialPlaybackRate ?? (await audioPlaybackService.getPlaybackRate());
+    const playbackRate =
+      params.initialPlaybackRate ?? (await audioPlaybackService.getPlaybackRate());
 
     // Now safe to update store — old sound callbacks can no longer fire
     store.play({ ...params, initialPlaybackRate: playbackRate });
@@ -73,7 +74,10 @@ class GlobalAudioService {
 
         // Seek to initial position if provided (resume playback)
         if (params.initialPosition && params.initialPosition > 0) {
-          console.log('[GlobalAudioService] Seeking to initial position:', params.initialPosition.toFixed(3) + 's');
+          console.log(
+            '[GlobalAudioService] Seeking to initial position:',
+            params.initialPosition.toFixed(3) + 's'
+          );
           await sound.setPositionAsync(params.initialPosition * 1000);
         }
 

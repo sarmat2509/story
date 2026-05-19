@@ -1,11 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  AccessibilityInfo,
-  Animated,
-  Easing,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
+import { AccessibilityInfo, Animated, Easing, type StyleProp, type ViewStyle } from 'react-native';
 
 interface AnimatedSectionProps {
   children: React.ReactNode;

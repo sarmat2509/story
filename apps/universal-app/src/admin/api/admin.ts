@@ -49,7 +49,9 @@ export type AdminFeedbackListItem = {
     sceneId: number | null;
     contentType: string | null;
     contentReviewStatus: string | null;
+    contentReviewQueued: boolean | null;
     contentQuarantined: boolean | null;
+    quarantinedStoryId: string | null;
   };
   createdAt: string;
 };
@@ -330,22 +332,33 @@ export function useAdminDashboard(days: number) {
   return useQuery({
     queryKey: ['admin', 'dashboard', days],
     queryFn: async () => {
-      const response = await apiClient.get<{ status: string; data: AdminDashboardData }>('/api/v1/admin/dashboard', {
-        params: { days },
-      });
+      const response = await apiClient.get<{ status: string; data: AdminDashboardData }>(
+        '/api/v1/admin/dashboard',
+        {
+          params: { days },
+        }
+      );
       return response.data.data;
     },
   });
 }
 
-export function useAdminStories(params: { limit: number; offset: number; search?: string; publishedStatus?: 'all' | 'published' | 'unlisted' | 'draft' }) {
+export function useAdminStories(params: {
+  limit: number;
+  offset: number;
+  search?: string;
+  publishedStatus?: 'all' | 'published' | 'unlisted' | 'draft';
+}) {
   const { limit, offset, search, publishedStatus = 'all' } = params;
   return useQuery({
     queryKey: ['admin', 'stories', limit, offset, search ?? '', publishedStatus],
     queryFn: async () => {
-      const response = await apiClient.get<PaginatedResponse<AdminStoryListItem>>('/api/v1/admin/stories', {
-        params: { limit, offset, search: search || undefined, publishedStatus },
-      });
+      const response = await apiClient.get<PaginatedResponse<AdminStoryListItem>>(
+        '/api/v1/admin/stories',
+        {
+          params: { limit, offset, search: search || undefined, publishedStatus },
+        }
+      );
       return response.data.data;
     },
   });
@@ -355,10 +368,7 @@ export function useUpdateAdminStory() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: {
-      storyId: string;
-      showOnHomePage: boolean;
-    }) => {
+    mutationFn: async (params: { storyId: string; showOnHomePage: boolean }) => {
       const response = await apiClient.patch<{
         status: string;
         data: {
@@ -401,9 +411,12 @@ export function useAdminVoices(params: {
   return useQuery({
     queryKey: ['admin', 'voices', limit, offset, search ?? '', provider ?? ''],
     queryFn: async () => {
-      const response = await apiClient.get<PaginatedResponse<AdminVoiceListItem>>('/api/v1/admin/voices', {
-        params: { limit, offset, search: search || undefined, provider: provider || undefined },
-      });
+      const response = await apiClient.get<PaginatedResponse<AdminVoiceListItem>>(
+        '/api/v1/admin/voices',
+        {
+          params: { limit, offset, search: search || undefined, provider: provider || undefined },
+        }
+      );
       return response.data.data;
     },
   });
@@ -415,7 +428,7 @@ export function useUpdateAdminVoice() {
     mutationFn: async (params: { voiceId: string; isActive: boolean }) => {
       const response = await apiClient.patch<{ status: string; data: AdminVoiceListItem }>(
         `/api/v1/admin/voices/${params.voiceId}`,
-        { isActive: params.isActive },
+        { isActive: params.isActive }
       );
       return response.data.data;
     },
@@ -430,9 +443,12 @@ export function useAdminUsers(params: { limit: number; offset: number; search?: 
   return useQuery({
     queryKey: ['admin', 'users', limit, offset, search ?? ''],
     queryFn: async () => {
-      const response = await apiClient.get<PaginatedResponse<AdminUserListItem>>('/api/v1/admin/users', {
-        params: { limit, offset, search: search || undefined },
-      });
+      const response = await apiClient.get<PaginatedResponse<AdminUserListItem>>(
+        '/api/v1/admin/users',
+        {
+          params: { limit, offset, search: search || undefined },
+        }
+      );
       return response.data.data;
     },
   });
@@ -459,16 +475,19 @@ export function useAdminFeedback(params: {
       hasScreenshot ?? false,
     ],
     queryFn: async () => {
-      const response = await apiClient.get<PaginatedResponse<AdminFeedbackListItem>>('/api/v1/admin/feedback', {
-        params: {
-          limit,
-          offset,
-          search: search || undefined,
-          category: category || undefined,
-          supportTopic: supportTopic || undefined,
-          hasScreenshot: hasScreenshot || undefined,
-        },
-      });
+      const response = await apiClient.get<PaginatedResponse<AdminFeedbackListItem>>(
+        '/api/v1/admin/feedback',
+        {
+          params: {
+            limit,
+            offset,
+            search: search || undefined,
+            category: category || undefined,
+            supportTopic: supportTopic || undefined,
+            hasScreenshot: hasScreenshot || undefined,
+          },
+        }
+      );
       return response.data.data;
     },
   });
@@ -483,7 +502,15 @@ export function useAdminDataPrivacyRequests(params: {
 }) {
   const { limit, offset, search, requestType, status } = params;
   return useQuery({
-    queryKey: ['admin', 'privacy-requests', limit, offset, search ?? '', requestType ?? '', status ?? ''],
+    queryKey: [
+      'admin',
+      'privacy-requests',
+      limit,
+      offset,
+      search ?? '',
+      requestType ?? '',
+      status ?? '',
+    ],
     queryFn: async () => {
       const response = await apiClient.get<PaginatedResponse<AdminDataPrivacyRequestItem>>(
         '/api/v1/admin/privacy-requests',
@@ -515,7 +542,7 @@ export function useUpdateAdminDataPrivacyRequest() {
         {
           status: params.status,
           adminNotes: params.adminNotes ?? null,
-        },
+        }
       );
       return response.data.data;
     },
@@ -529,7 +556,7 @@ export function useBuildAdminDataPrivacyExport() {
   return useMutation({
     mutationFn: async (params: { requestId: string }) => {
       const response = await apiClient.get<{ status: string; data: AdminDataPrivacyExportPayload }>(
-        `/api/v1/admin/privacy-requests/${params.requestId}/export`,
+        `/api/v1/admin/privacy-requests/${params.requestId}/export`
       );
       return response.data.data;
     },
@@ -557,17 +584,14 @@ export function useUpdateAdminUser() {
           status: 'active' | 'suspended';
           suspendedReason: string | null;
         };
-      }>(
-        `/api/v1/admin/users/${params.userId}`,
-        {
-          role: params.role,
-          status: params.status,
-          suspendedReason: params.suspendedReason,
-          planSlug: params.planSlug,
-          storiesUsedCurrentPeriod: params.storiesUsedCurrentPeriod,
-          audioStoriesUsedCurrentPeriod: params.audioStoriesUsedCurrentPeriod,
-        },
-      );
+      }>(`/api/v1/admin/users/${params.userId}`, {
+        role: params.role,
+        status: params.status,
+        suspendedReason: params.suspendedReason,
+        planSlug: params.planSlug,
+        storiesUsedCurrentPeriod: params.storiesUsedCurrentPeriod,
+        audioStoriesUsedCurrentPeriod: params.audioStoriesUsedCurrentPeriod,
+      });
       return response.data.data;
     },
     onSuccess: () => {
@@ -581,9 +605,12 @@ export function useAdminImageValidations(params: { limit: number; offset: number
   return useQuery({
     queryKey: ['admin', 'image-validations', limit, offset],
     queryFn: async () => {
-      const response = await apiClient.get<PaginatedResponse<AdminImageValidationItem>>('/api/v1/admin/image-validations', {
-        params: { limit, offset },
-      });
+      const response = await apiClient.get<PaginatedResponse<AdminImageValidationItem>>(
+        '/api/v1/admin/image-validations',
+        {
+          params: { limit, offset },
+        }
+      );
       return response.data.data;
     },
   });
@@ -594,7 +621,7 @@ export function useAdminImageValidation(id?: string) {
     queryKey: ['admin', 'image-validation', id ?? ''],
     queryFn: async () => {
       const response = await apiClient.get<{ status: string; data: AdminImageValidationDetail }>(
-        `/api/v1/admin/image-validations/${id}`,
+        `/api/v1/admin/image-validations/${id}`
       );
       return response.data.data;
     },
@@ -635,7 +662,7 @@ export function useAdminResetStoryAudio() {
           voiceId: params.voiceId,
           speed: params.speed,
           nightMode: params.nightMode,
-        },
+        }
       );
       return response.data.data;
     },
@@ -649,11 +676,7 @@ export function useAdminRegenerateSceneImage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: {
-      storyId: string;
-      sceneId: number;
-      visualPrompt?: string;
-    }) => {
+    mutationFn: async (params: { storyId: string; sceneId: number; visualPrompt?: string }) => {
       const response = await apiClient.post<{
         status: string;
         message: string;
@@ -771,7 +794,7 @@ export function useUpdateAdminContentConfig() {
     }) => {
       const response = await apiClient.patch<{ status: string; data: AdminContentConfigItem }>(
         `/api/v1/admin/content-config/${params.resource}/${params.id}`,
-        params.patch,
+        params.patch
       );
       return response.data.data;
     },
@@ -791,7 +814,7 @@ export function useCreateAdminContentConfig() {
     }) => {
       const response = await apiClient.post<{ status: string; data: AdminContentConfigItem }>(
         `/api/v1/admin/content-config/${params.resource}`,
-        params.payload,
+        params.payload
       );
       return response.data.data;
     },
@@ -805,12 +828,9 @@ export function useDeleteAdminContentConfig() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: {
-      resource: AdminContentConfigResource;
-      id: string;
-    }) => {
+    mutationFn: async (params: { resource: AdminContentConfigResource; id: string }) => {
       const response = await apiClient.delete<{ status: string; data: { deleted: boolean } }>(
-        `/api/v1/admin/content-config/${params.resource}/${params.id}`,
+        `/api/v1/admin/content-config/${params.resource}/${params.id}`
       );
       return response.data.data;
     },

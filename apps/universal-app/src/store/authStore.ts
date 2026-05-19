@@ -29,11 +29,16 @@ interface AuthState {
   activeChild: ActiveChildSession | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  
+
   // Actions
   setUser: (user: User) => void;
   setToken: (token: string) => void;
-  login: (user: User, token: string, sessionMode?: SessionMode, activeChild?: ActiveChildSession | null) => void;
+  login: (
+    user: User,
+    token: string,
+    sessionMode?: SessionMode,
+    activeChild?: ActiveChildSession | null
+  ) => void;
   enterChildSession: (token: string, child: ActiveChildSession) => void;
   returnToParentSession: (user: User, token: string) => void;
   logout: () => void;
@@ -59,17 +64,18 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
 
       setUser: (user) => set({ user, isAuthenticated: true }),
-      
+
       setToken: (token) => set({ token }),
-      
-      login: (user, token, sessionMode = 'parent', activeChild = null) => set({
-        user, 
-        token, 
-        sessionMode,
-        activeChild,
-        isAuthenticated: true,
-        isLoading: false 
-      }),
+
+      login: (user, token, sessionMode = 'parent', activeChild = null) =>
+        set({
+          user,
+          token,
+          sessionMode,
+          activeChild,
+          isAuthenticated: true,
+          isLoading: false,
+        }),
 
       enterChildSession: (token, child) => {
         set({
@@ -107,7 +113,7 @@ export const useAuthStore = create<AuthState>()(
           );
         }
       },
-      
+
       logout: () => {
         set({
           user: null,
@@ -125,9 +131,9 @@ export const useAuthStore = create<AuthState>()(
           );
         }
       },
-      
+
       setLoading: (loading) => set({ isLoading: loading }),
-      
+
       loadFromStorage: async () => {
         // This is handled automatically by persist middleware
       },
@@ -140,7 +146,7 @@ export const useAuthStore = create<AuthState>()(
 );
 
 export function hasAuthStoreHydrated(): boolean {
-  return ((useAuthStore as PersistedAuthStore).persist?.hasHydrated() ?? true);
+  return (useAuthStore as PersistedAuthStore).persist?.hasHydrated() ?? true;
 }
 
 export function waitForAuthStoreHydration(): Promise<void> {

@@ -67,9 +67,7 @@ export default function ForgotPasswordScreen() {
       >
         <View style={[styles.content, submitted && styles.successContent]}>
           <Text style={styles.title}>{t('auth.forgot_password')}</Text>
-          <Text style={styles.subtitle}>
-            {t('auth.forgot_password_subtitle')}
-          </Text>
+          <Text style={styles.subtitle}>{t('auth.forgot_password_subtitle')}</Text>
 
           {submitted ? (
             <View style={styles.successCard}>
@@ -101,10 +99,7 @@ export default function ForgotPasswordScreen() {
                 <Ionicons name="log-in-outline" size={19} color={theme.colors.text.inverse} />
                 <Text style={styles.backButtonText}>{t('auth.back_to_login')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={handleUseDifferentEmail}
-              >
+              <TouchableOpacity style={styles.secondaryButton} onPress={handleUseDifferentEmail}>
                 <Ionicons
                   name="create-outline"
                   size={18}

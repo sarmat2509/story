@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, ScrollView, useWindowDimensions, ActivityIndicator, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  ScrollView,
+  useWindowDimensions,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
 import { useRoute, useFocusEffect, RouteProp, useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -52,15 +61,13 @@ export default function LibraryScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [navigation]);
-  
+
   // Ref to AudioFilterToggle for imperative control
   const audioToggleRef = useRef<AudioFilterToggleRef>(null);
-  
+
   const { data: themesData } = useStoryThemes();
   const scenarioCards = useMemo(() => themesData?.scenarioCards || [], [themesData?.scenarioCards]);
   const { data: languageCodes = [] } = useUserStoryLanguages();
@@ -82,7 +89,7 @@ export default function LibraryScreen() {
       setCurrentPage(1);
     }
   }, [languageFilter, languageCodes]);
-  
+
   // Invalidate stories cache when screen gains focus (e.g. after creating a story)
   useFocusEffect(
     useCallback(() => {
@@ -90,7 +97,7 @@ export default function LibraryScreen() {
       queryClient.invalidateQueries({ queryKey: ['user-story-languages'] });
     }, [queryClient])
   );
-  
+
   // Apply scenario filter from route params (breadcrumb navigation)
   useEffect(() => {
     const paramScenarioId = route.params?.scenarioCardId;
@@ -99,22 +106,22 @@ export default function LibraryScreen() {
       setCurrentPage(1);
     }
   }, [route.params?.scenarioCardId]);
-  
+
   // Load view mode and audio filter from storage
   useEffect(() => {
-    storage.getLibraryViewMode().then(mode => {
+    storage.getLibraryViewMode().then((mode) => {
       if (mode) setViewMode(mode);
     });
-    storage.getAudioFilter().then(filter => {
+    storage.getAudioFilter().then((filter) => {
       if (filter !== null) {
         setAudioFilter(filter);
       }
     });
   }, []);
-  
+
   // Save view mode to storage
   const toggleViewMode = useCallback(async () => {
-    setViewMode(prev => {
+    setViewMode((prev) => {
       const newValue = prev === 'grid' ? 'list' : 'grid';
       storage.setLibraryViewMode(newValue);
       return newValue;
@@ -127,15 +134,15 @@ export default function LibraryScreen() {
     setCurrentPage(1);
     storage.setAudioFilter(newValue);
   }, []);
-  
+
   // Handle page change
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
   }, []);
-  
+
   // Calculate offset
   const offset = useMemo(() => (currentPage - 1) * ITEMS_PER_PAGE, [currentPage]);
-  
+
   // Handle scenario filter change
   const handleScenarioFilterChange = useCallback((cardId: string | null) => {
     setScenarioFilter(cardId);
@@ -155,20 +162,20 @@ export default function LibraryScreen() {
     scenarioCardId: scenarioFilter,
     language: languageFilter,
   });
-  
+
   const stories = useMemo(() => data?.stories || [], [data?.stories]);
   const totalStories = useMemo(() => data?.pagination?.total || 0, [data?.pagination?.total]);
   const totalPages = useMemo(() => Math.ceil(totalStories / ITEMS_PER_PAGE), [totalStories]);
-  
+
   // Delete story mutation
   const deleteStory = useDeleteStory();
-  
+
   // Handle delete with confirmation
   const handleDelete = useCallback((storyId: string, storyTitle: string) => {
     setStoryToDelete({ id: storyId, title: storyTitle });
     setDeleteDialogVisible(true);
   }, []);
-  
+
   const confirmDelete = useCallback(() => {
     if (storyToDelete) {
       deleteStory.mutate(storyToDelete.id);
@@ -176,12 +183,12 @@ export default function LibraryScreen() {
       setStoryToDelete(null);
     }
   }, [storyToDelete, deleteStory]);
-  
+
   const cancelDelete = useCallback(() => {
     setDeleteDialogVisible(false);
     setStoryToDelete(null);
   }, []);
-  
+
   // Grid columns: 2 on mobile/tablet (portrait and landscape), 4 on desktop
   const numColumns = useMemo(() => (width < 1024 ? 2 : 4), [width]);
   const gridCardWidth = useMemo(() => {
@@ -189,28 +196,34 @@ export default function LibraryScreen() {
     const gap = theme.spacing[4];
     return (width - paddingHorizontal - gap * (numColumns - 1)) / numColumns;
   }, [width, numColumns]);
-  
+
   // Memoized render functions for FlatList items
-  const handleStoryPress = useCallback((storyId: string) => {
-    // Prefetch story data before navigation (non-blocking)
-    prefetchStory(queryClient, storyId);
-    // Navigate immediately (don't wait for prefetch)
-    navigateToStory(storyId);
-  }, [queryClient]);
-  
-  const renderListItem = useCallback(({ item, index }: { item: any; index: number }) => {
-    return (
-      <AnimatedSection delay={cardDelay(index)} trigger={enterKey}>
-        <StoryCard
-          story={item}
-          onPress={handleStoryPress}
-          onDelete={handleDelete}
-          variant="list"
-        />
-      </AnimatedSection>
-    );
-  }, [handleStoryPress, handleDelete, enterKey]);
-  
+  const handleStoryPress = useCallback(
+    (storyId: string) => {
+      // Prefetch story data before navigation (non-blocking)
+      prefetchStory(queryClient, storyId);
+      // Navigate immediately (don't wait for prefetch)
+      navigateToStory(storyId);
+    },
+    [queryClient]
+  );
+
+  const renderListItem = useCallback(
+    ({ item, index }: { item: any; index: number }) => {
+      return (
+        <AnimatedSection delay={cardDelay(index)} trigger={enterKey}>
+          <StoryCard
+            story={item}
+            onPress={handleStoryPress}
+            onDelete={handleDelete}
+            variant="list"
+          />
+        </AnimatedSection>
+      );
+    },
+    [handleStoryPress, handleDelete, enterKey]
+  );
+
   if (isLoading) {
     return (
       <View style={styles.centerContainer}>
@@ -294,16 +307,13 @@ export default function LibraryScreen() {
           <View
             style={[
               styles.gridContainer,
-              Platform.OS === 'web' && { gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any,
+              Platform.OS === 'web' &&
+                ({ gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any),
             ]}
           >
             {stories.map((story, index) =>
               Platform.OS === 'web' ? (
-                <AnimatedSection
-                  key={story.id}
-                  delay={cardDelay(index)}
-                  trigger={enterKey}
-                >
+                <AnimatedSection key={story.id} delay={cardDelay(index)} trigger={enterKey}>
                   <StoryCard
                     story={story}
                     onPress={handleStoryPress}
@@ -329,7 +339,7 @@ export default function LibraryScreen() {
             )}
           </View>
         </ScrollView>
-        
+
         {/* Confirm Delete Dialog */}
         <ConfirmDialog
           visible={deleteDialogVisible}
@@ -350,7 +360,7 @@ export default function LibraryScreen() {
       </View>
     );
   }
-  
+
   // List view without numColumns
   return (
     <View style={styles.container}>
@@ -382,7 +392,7 @@ export default function LibraryScreen() {
         windowSize={7}
         initialNumToRender={12}
       />
-      
+
       {/* Confirm Delete Dialog */}
       <ConfirmDialog
         visible={deleteDialogVisible}

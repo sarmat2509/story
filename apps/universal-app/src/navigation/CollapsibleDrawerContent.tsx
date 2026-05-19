@@ -32,9 +32,7 @@ import type { RootStackParamList } from '@/types/navigation';
 const LABEL_ANIMATION_DURATION = 250;
 const COLLAPSED_HIGHLIGHT_SIZE = 48; // icon 24 + padding 12 each side
 
-function isItemHidden(
-  drawerItemStyle?: StyleProp<ViewStyle>
-): boolean {
+function isItemHidden(drawerItemStyle?: StyleProp<ViewStyle>): boolean {
   if (!drawerItemStyle) return false;
   const flat = StyleSheet.flatten(drawerItemStyle);
   return (flat as { display?: string })?.display === 'none';
@@ -87,12 +85,10 @@ function CollapsibleDrawerItem({
   } = options;
 
   const activeTintColor = drawerActiveTintColor ?? theme.colors.interactive.primary;
-  const inactiveTintColor =
-    drawerInactiveTintColor ?? theme.colors.text.tertiary;
+  const inactiveTintColor = drawerInactiveTintColor ?? theme.colors.text.tertiary;
   const color = focused ? activeTintColor : inactiveTintColor;
   const activeBackgroundColor =
-    drawerActiveBackgroundColor ??
-    Color(activeTintColor).alpha(0.12).rgb().string();
+    drawerActiveBackgroundColor ?? Color(activeTintColor).alpha(0.12).rgb().string();
   const inactiveBackgroundColor = drawerInactiveBackgroundColor ?? 'transparent';
   const backgroundColor = focused ? activeBackgroundColor : inactiveBackgroundColor;
 
@@ -105,9 +101,7 @@ function CollapsibleDrawerItem({
         ? title
         : route.name;
 
-  const iconNode = drawerIcon
-    ? drawerIcon({ size: 24, focused, color })
-    : null;
+  const iconNode = drawerIcon ? drawerIcon({ size: 24, focused, color }) : null;
 
   return (
     <View
@@ -199,7 +193,11 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
             />
           ) : (
             <View style={styles.childAvatarFallback}>
-              <Ionicons name="person-circle-outline" size={28} color={theme.colors.interactive.primary} />
+              <Ionicons
+                name="person-circle-outline"
+                size={28}
+                color={theme.colors.interactive.primary}
+              />
             </View>
           )}
           {!collapsed ? (
@@ -224,9 +222,7 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
           });
           if (!event.defaultPrevented) {
             navigation.dispatch({
-              ...(focused
-                ? DrawerActions.closeDrawer()
-                : CommonActions.navigate(route)),
+              ...(focused ? DrawerActions.closeDrawer() : CommonActions.navigate(route)),
               target: state.key,
             });
           }

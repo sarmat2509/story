@@ -1,6 +1,10 @@
 import { createMMKV } from 'react-native-mmkv';
 import type { MMKV } from 'react-native-mmkv';
-import { DEFAULT_THEME_PALETTE_ID, THEME_PALETTE_IDS, type ThemePaletteId } from '@wondertales/shared';
+import {
+  DEFAULT_THEME_PALETTE_ID,
+  THEME_PALETTE_IDS,
+  type ThemePaletteId,
+} from '@wondertales/shared';
 
 const STORAGE_KEY = 'wondertales.active_theme_palette';
 

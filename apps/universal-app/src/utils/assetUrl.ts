@@ -65,9 +65,8 @@ export function formatAssetUrl(pathOrUrl: string | null | undefined): string | n
     const cached = urlCacheByPath.get(ownAssetPath);
     if (cached) return cached;
 
-    const result = Platform.OS === 'web'
-      ? ownAssetPath
-      : `${API_BASE_URL.replace(/\/$/, '')}${ownAssetPath}`;
+    const result =
+      Platform.OS === 'web' ? ownAssetPath : `${API_BASE_URL.replace(/\/$/, '')}${ownAssetPath}`;
 
     urlCacheByPath.set(ownAssetPath, result);
     return result;

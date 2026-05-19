@@ -31,7 +31,11 @@ export default function BillingSuccessScreen() {
       const url = new URL(window.location.href);
       if (url.searchParams.has('session_id')) {
         url.searchParams.delete('session_id');
-        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+        window.history.replaceState(
+          window.history.state,
+          '',
+          `${url.pathname}${url.search}${url.hash}`
+        );
       }
     }
 

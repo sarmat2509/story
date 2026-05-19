@@ -25,11 +25,7 @@ const SHELL_BORDER = hexAlpha(theme.colors.primary[200], 0.48);
 /** Soft thematic wash — reads as a button, stays lighter than solid primary CTAs. */
 function glassGradientColors(): readonly [string, string, string] {
   const p = theme.colors.primary;
-  return [
-    hexAlpha(p[100], 0.72),
-    hexAlpha(p[50], 0.5),
-    'rgba(255, 255, 255, 0.88)',
-  ];
+  return [hexAlpha(p[100], 0.72), hexAlpha(p[50], 0.5), 'rgba(255, 255, 255, 0.88)'];
 }
 
 const shellShadow = Platform.select({

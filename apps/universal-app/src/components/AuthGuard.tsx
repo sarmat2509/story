@@ -21,12 +21,14 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
 
   useEffect(() => {
-    const persistApi = (useAuthStore as typeof useAuthStore & {
-      persist?: {
-        hasHydrated: () => boolean;
-        onFinishHydration: (listener: () => void) => () => void;
-      };
-    }).persist;
+    const persistApi = (
+      useAuthStore as typeof useAuthStore & {
+        persist?: {
+          hasHydrated: () => boolean;
+          onFinishHydration: (listener: () => void) => () => void;
+        };
+      }
+    ).persist;
 
     if (!persistApi || persistApi.hasHydrated()) {
       setHasHydrated(true);
@@ -46,7 +48,14 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   if (!hasHydrated || isLoading || !isAuthenticated) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background.primary }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: theme.colors.background.primary,
+        }}
+      >
         <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
       </View>
     );

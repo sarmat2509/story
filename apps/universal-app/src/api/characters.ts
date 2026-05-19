@@ -1,10 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  CreateCharacterInput, 
+import {
+  CreateCharacterInput,
   Character,
   PetAppearance,
   HumanAppearance,
-  ImaginaryAppearance
+  ImaginaryAppearance,
 } from '@wondertales/shared';
 import apiClient from './client';
 
@@ -32,7 +32,7 @@ export const useCharacters = () => {
 // Create character mutation
 export const useCreateCharacter = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (data: CreateCharacterInput) => {
       const response = await apiClient.post<{ status: string; character: Character }>(
@@ -51,7 +51,7 @@ export const useCreateCharacter = () => {
 // Update character mutation
 export const useUpdateCharacter = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<CreateCharacterInput> }) => {
       const response = await apiClient.patch<{ status: string; character: Character }>(
@@ -69,7 +69,7 @@ export const useUpdateCharacter = () => {
 // Delete character mutation
 export const useDeleteCharacter = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (id: string) => {
       await apiClient.delete(`/api/v1/characters/${id}`);
@@ -83,16 +83,16 @@ export const useDeleteCharacter = () => {
 // Analyze character photos mutation
 export const useAnalyzeCharacter = () => {
   return useMutation({
-    mutationFn: async (data: { 
-      photos: string[], 
-      characterType: 'person' | 'animal' | 'imaginary',
-      language?: string
+    mutationFn: async (data: {
+      photos: string[];
+      characterType: 'person' | 'animal' | 'imaginary';
+      language?: string;
     }) => {
       const response = await apiClient.post<{
         status: string;
         analysis: AnalysisResult;
       }>('/api/v1/characters/analyze', data);
       return response.data.analysis;
-    }
+    },
   });
 };

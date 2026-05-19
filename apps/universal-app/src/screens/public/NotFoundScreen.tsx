@@ -15,10 +15,7 @@ export default function NotFoundScreen() {
       <Text style={styles.code}>404</Text>
       <Text style={styles.title}>{t('navigation.page_not_found')}</Text>
       <Text style={styles.message}>{t('navigation.page_not_found_message')}</Text>
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate('Welcome')}
-      >
+      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('Welcome')}>
         <Text style={styles.buttonText}>{t('navigation.go_home')}</Text>
       </TouchableOpacity>
     </View>

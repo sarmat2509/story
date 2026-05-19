@@ -56,7 +56,8 @@ export default function SeriesListScreen() {
   );
 
   const numColumns = width < 1024 ? 2 : 4;
-  const cardWidth = (width - theme.spacing[4] * 2 - theme.spacing[4] * (numColumns - 1)) / numColumns;
+  const cardWidth =
+    (width - theme.spacing[4] * 2 - theme.spacing[4] * (numColumns - 1)) / numColumns;
 
   const handleSeriesPress = useCallback(
     (seriesId: string) => {
@@ -86,10 +87,7 @@ export default function SeriesListScreen() {
           <View style={styles.centerContainer}>
             <Text style={styles.upgradeTitle}>{t('series.child_unavailable_title')}</Text>
             <Text style={styles.upgradeDescription}>{t('series.child_unavailable_subtext')}</Text>
-            <TouchableOpacity
-              style={styles.libraryButton}
-              onPress={handleGoToLibrary}
-            >
+            <TouchableOpacity style={styles.libraryButton} onPress={handleGoToLibrary}>
               <Text style={styles.libraryButtonText}>{t('series.go_to_library')}</Text>
             </TouchableOpacity>
           </View>
@@ -98,7 +96,9 @@ export default function SeriesListScreen() {
       return (
         <View style={styles.centerContainer}>
           <Text style={styles.upgradeTitle}>{t('story_viewer.series_locked_title')}</Text>
-          <Text style={styles.upgradeDescription}>{t('story_viewer.series_locked_description')}</Text>
+          <Text style={styles.upgradeDescription}>
+            {t('story_viewer.series_locked_description')}
+          </Text>
           <TouchableOpacity
             style={styles.upgradeButton}
             onPress={() => navigation.navigate('Plans' as never)}
@@ -131,38 +131,38 @@ export default function SeriesListScreen() {
 
   return (
     <>
-    <ScrollView contentContainerStyle={styles.grid} style={styles.container}>
-      <View
-        style={[
-          styles.gridContainer,
-          Platform.OS === 'web' && { gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any,
-        ]}
-      >
-        {series.map((s, index) =>
-          Platform.OS === 'web' ? (
-            <AnimatedSection key={s.id} delay={cardDelay(index)} trigger={enterKey}>
-              <SeriesCard series={s} onPress={handleSeriesPress} cardWidth={cardWidth} />
-            </AnimatedSection>
-          ) : (
-            <AnimatedSection
-              key={s.id}
-              delay={cardDelay(index)}
-              trigger={enterKey}
-              style={{ width: cardWidth }}
-            >
-              <SeriesCard series={s} onPress={handleSeriesPress} cardWidth={cardWidth} />
-            </AnimatedSection>
-          )
-        )}
-      </View>
-    </ScrollView>
-    {!isChildSession && (
-      <FeedbackModal
-        visible={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-        initialReportedScreen="other"
-      />
-    )}
+      <ScrollView contentContainerStyle={styles.grid} style={styles.container}>
+        <View
+          style={[
+            styles.gridContainer,
+            Platform.OS === 'web' && ({ gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any),
+          ]}
+        >
+          {series.map((s, index) =>
+            Platform.OS === 'web' ? (
+              <AnimatedSection key={s.id} delay={cardDelay(index)} trigger={enterKey}>
+                <SeriesCard series={s} onPress={handleSeriesPress} cardWidth={cardWidth} />
+              </AnimatedSection>
+            ) : (
+              <AnimatedSection
+                key={s.id}
+                delay={cardDelay(index)}
+                trigger={enterKey}
+                style={{ width: cardWidth }}
+              >
+                <SeriesCard series={s} onPress={handleSeriesPress} cardWidth={cardWidth} />
+              </AnimatedSection>
+            )
+          )}
+        </View>
+      </ScrollView>
+      {!isChildSession && (
+        <FeedbackModal
+          visible={showFeedbackModal}
+          onClose={() => setShowFeedbackModal(false)}
+          initialReportedScreen="other"
+        />
+      )}
     </>
   );
 }

@@ -1,9 +1,37 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
-import { View, Text, ScrollView, Image, StyleSheet, ActivityIndicator, TouchableOpacity, Platform, ImageStyle, Share } from 'react-native';
-import { useRoute, RouteProp, useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
+import {
+  View,
+  Text,
+  ScrollView,
+  Image,
+  StyleSheet,
+  ActivityIndicator,
+  TouchableOpacity,
+  Platform,
+  ImageStyle,
+  Share,
+} from 'react-native';
+import {
+  useRoute,
+  RouteProp,
+  useNavigation,
+  NavigationProp,
+  useFocusEffect,
+} from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
-import { useStory, useStoryGenerationStatus, useGenerateAudio, useGenerateAlignment, useAudioStatus, useAudioUrl, useDeleteStory, useSeriesInfo, usePublishStory, useReviewChildStory } from '@/api/stories';
+import {
+  useStory,
+  useStoryGenerationStatus,
+  useGenerateAudio,
+  useGenerateAlignment,
+  useAudioStatus,
+  useAudioUrl,
+  useDeleteStory,
+  useSeriesInfo,
+  usePublishStory,
+  useReviewChildStory,
+} from '@/api/stories';
 import { useUpdateMe } from '@/api/auth';
 import { useSubscriptionUsage } from '@/api/plans';
 import { useVoices } from '@/api/voices';
@@ -48,7 +76,10 @@ const removeAudioTags = (text: string): string =>
   stripMarkdownStyleEmphasis(text.replace(/\[[^\]]*\]/g, ''));
 
 // Format wait time using i18n translations
-const formatWaitTime = (ms: number, t: (key: string, opts?: Record<string, any>) => string): string => {
+const formatWaitTime = (
+  ms: number,
+  t: (key: string, opts?: Record<string, any>) => string
+): string => {
   const totalSeconds = Math.ceil(ms / 1000);
   if (totalSeconds < 5) {
     return t('story_viewer.audio_generating_almost_done');
@@ -74,21 +105,23 @@ export default function StoryViewerScreen() {
   const autoPlay = route.params?.autoPlay;
   const hadAudioGenerationRef = useRef(false);
   const { data: story, isLoading, error, refetch } = useStory(storyId!);
-  
+
   // Use lightweight status polling for image generation
   const { data: generationStatus } = useStoryGenerationStatus(storyId!);
-  
+
   // Progressive image loading: update story cache as images are generated
   useEffect(() => {
     if (!generationStatus || !story) return;
-    
+
     if (generationStatus.imageGenerationComplete && !story.imageGenerationComplete) {
       // Final refetch when generation is complete
       refetch();
     } else if (generationStatus.scenesWithImages && generationStatus.scenesWithImages.length > 0) {
       // Progressive update: add imageUrl to scenes that are already generated
       const updatedScenes = story.scenes.map((scene: any) => {
-        const generated = generationStatus.scenesWithImages?.find(s => s.sceneId === scene.sceneId);
+        const generated = generationStatus.scenesWithImages?.find(
+          (s) => s.sceneId === scene.sceneId
+        );
         if (generated && !scene.image) {
           return {
             ...scene,
@@ -100,7 +133,7 @@ export default function StoryViewerScreen() {
         }
         return scene;
       });
-      
+
       // Update local cache (without refetch)
       queryClient.setQueryData(['story', storyId], {
         ...story,
@@ -108,19 +141,19 @@ export default function StoryViewerScreen() {
       });
     }
   }, [generationStatus, story, refetch, storyId, queryClient]);
-  
+
   const generateAudio = useGenerateAudio();
   const generateAlignment = useGenerateAlignment();
   const updateCharacterMutation = useUpdateCharacter();
   const [savedCharacterIds, setSavedCharacterIds] = useState<Set<string>>(new Set());
-  
+
   // Bottom sheet for tablet portrait
   const bottomSheetRef = useRef<BottomSheet>(null);
-  
+
   const openBottomSheet = useCallback(() => {
     bottomSheetRef.current?.expand();
   }, []);
-  
+
   // M6: Text highlighting state
   const [isHighlightEnabled, setIsHighlightEnabled] = useState(false);
   // Highlight only when this story is the one currently playing
@@ -136,25 +169,29 @@ export default function StoryViewerScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const sceneRefs = useRef<Record<number, View | null>>({});
   const lastPositionUpdateTime = useRef(0);
-  
+
   // M7: Audio playback state persistence (global service handles saving/restoring)
-  
+
   // Voice selection state
   const [selectedVoiceId, setSelectedVoiceId] = useState<string | undefined>(undefined);
   const [selectedVoice, setSelectedVoice] = useState<any>(undefined);
   // Keep polling after retry until we get jobStatus (mutation completes before first poll)
   const [audioGenerationRequested, setAudioGenerationRequested] = useState(false);
   const hasAudioJobRef = useRef(false);
-  
+
   // Use story language for voice selection (not UI language)
   const storyLanguage = story?.language;
-  const { data: voicesData, isLoading: isLoadingVoices, error: voicesError } = useVoices(storyLanguage ?? 'uk', {
+  const {
+    data: voicesData,
+    isLoading: isLoadingVoices,
+    error: voicesError,
+  } = useVoices(storyLanguage ?? 'uk', {
     enabled: !!storyLanguage,
   });
   const voices = voicesData?.data || [];
   const userPlan = voicesData?.meta?.userPlan || 'free';
   const hasPremiumAccess = voicesData?.meta?.hasPremiumAccess || false;
-  
+
   // Audio usage stats (from subscription-usage)
   const { data: subscriptionUsage } = useSubscriptionUsage();
   const audioUsage = subscriptionUsage?.audio
@@ -187,7 +224,7 @@ export default function StoryViewerScreen() {
       return () => setViewingStoryId(null);
     }, [storyId, setViewingStoryId])
   );
-  
+
   // Set header title from database after story loads (with scenario breadcrumb)
   const { data: seriesInfo } = useSeriesInfo(storyId);
   useEffect(() => {
@@ -196,23 +233,50 @@ export default function StoryViewerScreen() {
         navigation.setOptions({
           headerTitle: () => (
             <View style={styles.headerBreadcrumb}>
-              <TouchableOpacity onPress={() => navigation.navigate('Library', { scenarioCardId: story.scenarioCardId })}>
+              <TouchableOpacity
+                onPress={() =>
+                  navigation.navigate('Library', { scenarioCardId: story.scenarioCardId })
+                }
+              >
                 <Text style={styles.headerBreadcrumbLink}>{story.scenarioCardName}</Text>
               </TouchableOpacity>
               {seriesInfo?.baseTitle && (
                 <>
-                  <Ionicons name="chevron-forward" size={14} color={theme.colors.text.tertiary} style={styles.headerBreadcrumbSeparator} />
+                  <Ionicons
+                    name="chevron-forward"
+                    size={14}
+                    color={theme.colors.text.tertiary}
+                    style={styles.headerBreadcrumbSeparator}
+                  />
                   {seriesInfo.seriesId ? (
-                    <TouchableOpacity onPress={() => (navigation as NavigationProp<MainDrawerParamList>).navigate('SeriesDetail', { seriesId: seriesInfo.seriesId })}>
-                      <Text style={styles.headerBreadcrumbLink} numberOfLines={1}>{seriesInfo.baseTitle}</Text>
+                    <TouchableOpacity
+                      onPress={() =>
+                        (navigation as NavigationProp<MainDrawerParamList>).navigate(
+                          'SeriesDetail',
+                          { seriesId: seriesInfo.seriesId }
+                        )
+                      }
+                    >
+                      <Text style={styles.headerBreadcrumbLink} numberOfLines={1}>
+                        {seriesInfo.baseTitle}
+                      </Text>
                     </TouchableOpacity>
                   ) : (
-                    <Text style={styles.headerBreadcrumbMiddle} numberOfLines={1}>{seriesInfo.baseTitle}</Text>
+                    <Text style={styles.headerBreadcrumbMiddle} numberOfLines={1}>
+                      {seriesInfo.baseTitle}
+                    </Text>
                   )}
                 </>
               )}
-              <Ionicons name="chevron-forward" size={14} color={theme.colors.text.tertiary} style={styles.headerBreadcrumbSeparator} />
-              <Text style={styles.headerBreadcrumbCurrent} numberOfLines={1}>{story.title}</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={14}
+                color={theme.colors.text.tertiary}
+                style={styles.headerBreadcrumbSeparator}
+              />
+              <Text style={styles.headerBreadcrumbCurrent} numberOfLines={1}>
+                {story.title}
+              </Text>
             </View>
           ),
         });
@@ -222,18 +286,25 @@ export default function StoryViewerScreen() {
         });
       }
     }
-  }, [story?.title, story?.scenarioCardName, story?.scenarioCardId, seriesInfo?.baseTitle, seriesInfo?.seriesId, navigation]);
-  
+  }, [
+    story?.title,
+    story?.scenarioCardName,
+    story?.scenarioCardId,
+    seriesInfo?.baseTitle,
+    seriesInfo?.seriesId,
+    navigation,
+  ]);
+
   // Delete story mutation
   const deleteStory = useDeleteStory();
   const publishStory = usePublishStory();
   const reviewChildStory = useReviewChildStory();
   const updateMe = useUpdateMe();
-  const parentReviewStatus = story?.createdByMode === 'child'
-    ? story.parentReviewStatus
-    : 'not_required';
-  const parentReviewBlocksSharing = parentReviewStatus === 'pending' || parentReviewStatus === 'rejected';
-  
+  const parentReviewStatus =
+    story?.createdByMode === 'child' ? story.parentReviewStatus : 'not_required';
+  const parentReviewBlocksSharing =
+    parentReviewStatus === 'pending' || parentReviewStatus === 'rejected';
+
   // Delete dialog state
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [publishShareDialogVisible, setPublishShareDialogVisible] = useState(false);
@@ -241,7 +312,7 @@ export default function StoryViewerScreen() {
   const [publishShareUrl, setPublishShareUrl] = useState<string | null>(null);
   const [publishDialogOpenedFromShare, setPublishDialogOpenedFromShare] = useState(false);
   const [unpublishDialogVisible, setUnpublishDialogVisible] = useState(false);
-  
+
   // M8: Series continuation
   // Audio limit state (story-based, not minutes)
   const [audioLimitExceeded, setAudioLimitExceeded] = useState(false);
@@ -253,12 +324,10 @@ export default function StoryViewerScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [isChildSession, navigation]);
-  
+
   // Default voice: keep last user choice across stories; if it is missing from this
   // catalog (e.g. other story language), restore from storage or first unlocked voice.
   useEffect(() => {
@@ -266,7 +335,9 @@ export default function StoryViewerScreen() {
       return;
     }
 
-    const selected = selectedVoiceId ? voices.find((voice) => voice.id === selectedVoiceId) : undefined;
+    const selected = selectedVoiceId
+      ? voices.find((voice) => voice.id === selectedVoiceId)
+      : undefined;
 
     if (selected) {
       if (selectedVoice?.id !== selected.id) {
@@ -309,8 +380,9 @@ export default function StoryViewerScreen() {
   }, [audioUsage]);
 
   // Poll audio status when: mutation in flight, we just requested (waiting for jobStatus), or job is running
-  const shouldPollAudio = generateAudio.isPending || audioGenerationRequested || hasAudioJobRef.current;
-  
+  const shouldPollAudio =
+    generateAudio.isPending || audioGenerationRequested || hasAudioJobRef.current;
+
   // Use lightweight polling for audio status (with queue info)
   const { data: audioStatus } = useAudioStatus(storyId, shouldPollAudio);
   const jobStatus = audioStatus?.jobStatus ?? null;
@@ -319,10 +391,10 @@ export default function StoryViewerScreen() {
   const processingStartedAt = audioStatus?.processingStartedAt ?? null;
   const estimatedProcessingMs = audioStatus?.estimatedProcessingMs ?? null;
   const isGenerating = jobStatus !== null && jobStatus !== undefined;
-  
+
   // Tick counter for live countdown during processing
   const [, setCountdownTick] = useState(0);
-  
+
   // Fetch audio URL only when audio exists and is not in error state (fallback when not polling)
   const audioReady = !!story?.audioMetadata && !story.audioMetadata?.error;
   const { data: audioData } = useAudioUrl(storyId, audioReady);
@@ -335,7 +407,7 @@ export default function StoryViewerScreen() {
     }
     return audioData ?? null;
   }, [audioStatus?.audioUrl, audioStatus?.duration, audioData]);
-  
+
   // Clear audioGenerationRequested once we get jobStatus; keep hasAudioJobRef for polling
   useEffect(() => {
     const hasJob = jobStatus !== null && jobStatus !== undefined;
@@ -356,7 +428,7 @@ export default function StoryViewerScreen() {
       });
     }
   }, [audioStatus?.audioMetadata, storyId, queryClient]);
-  
+
   // Show toast when audio completes (using AsyncStorage to show only once)
   useEffect(() => {
     // Track when generation is active
@@ -367,33 +439,29 @@ export default function StoryViewerScreen() {
     const checkAndShowNotification = async () => {
       // Don't show for pre-existing audio (only when we transitioned from generating to ready)
       if (!hadAudioGenerationRef.current) return;
-      
+
       const meta = audioStatus?.audioMetadata;
       // Show only after generation completed successfully (not when it failed)
       if (!isGenerating && meta && !meta.error) {
         // CRITICAL: Refetch story to update audioMetadata in UI
         queryClient.invalidateQueries({ queryKey: ['story', storyId] });
-        
+
         const wasShown = await audioNotificationService.wasShown(storyId);
-        
+
         if (!wasShown) {
           const storyTitle = story?.title || t('story_viewer.untitled_story');
           const isViewingStory = viewingStoryId === storyId;
-          
+
           if (isViewingStory) {
             // User is on story page - show in-app toast only
-            toastService.success(
-              t('toast.audio_ready_title'),
-              storyTitle,
-              {
-                visibilityTime: 20000,
-                actionText: t('toast.audio_play'),
-                onPress: () => {
-                  Toast.hide();
-                  navigateToStory(storyId!, { autoPlay: true });
-                },
-              }
-            );
+            toastService.success(t('toast.audio_ready_title'), storyTitle, {
+              visibilityTime: 20000,
+              actionText: t('toast.audio_play'),
+              onPress: () => {
+                Toast.hide();
+                navigateToStory(storyId!, { autoPlay: true });
+              },
+            });
           } else {
             // User is NOT on story page - send push notification
             await pushNotificationService.sendAudioReadyNotification(
@@ -402,35 +470,43 @@ export default function StoryViewerScreen() {
               `🎧 ${t('toast.audio_ready_title')}`
             );
           }
-          
+
           await audioNotificationService.markAsShown(storyId);
           hadAudioGenerationRef.current = false;
         }
       }
     };
-    
+
     checkAndShowNotification();
-  }, [isGenerating, audioStatus?.audioMetadata, storyId, viewingStoryId, story?.title, t, queryClient]);
-  
+  }, [
+    isGenerating,
+    audioStatus?.audioMetadata,
+    storyId,
+    viewingStoryId,
+    story?.title,
+    t,
+    queryClient,
+  ]);
+
   // Tick every 1s during processing for live countdown
   useEffect(() => {
     if (jobStatus !== 'processing') return;
-    const id = setInterval(() => setCountdownTick(prev => prev + 1), 1000);
+    const id = setInterval(() => setCountdownTick((prev) => prev + 1), 1000);
     return () => clearInterval(id);
   }, [jobStatus]);
-  
+
   // M6: Proactive alignment generation
   // Automatically generate alignment if audio exists but alignment is missing
   useEffect(() => {
     if (isChildSession) return;
     if (!story || !story.audioMetadata) return;
-    
+
     const audioMetadata = story.audioMetadata;
-    
+
     // Check if audio is valid (not an error state)
     const hasValidAudio = !!audioMetadata && !audioMetadata.error;
     const hasAlignment = !!audioMetadata?.alignment;
-    
+
     // Only generate if:
     // 1. Audio exists and is valid (no error)
     // 2. Alignment is missing
@@ -441,7 +517,7 @@ export default function StoryViewerScreen() {
       generateAlignment.mutate({ storyId });
     }
   }, [isChildSession, story, storyId, generateAlignment, isGenerating]);
-  
+
   // Optional: Show alignment generation status
   useEffect(() => {
     if (generateAlignment.isPending) {
@@ -453,8 +529,13 @@ export default function StoryViewerScreen() {
     if (generateAlignment.isError) {
       console.error('[Alignment] Failed to generate alignment:', generateAlignment.error);
     }
-  }, [generateAlignment.isPending, generateAlignment.isSuccess, generateAlignment.isError, generateAlignment.error]);
-  
+  }, [
+    generateAlignment.isPending,
+    generateAlignment.isSuccess,
+    generateAlignment.isError,
+    generateAlignment.error,
+  ]);
+
   // Register audio with global service when playerAudioData becomes available
   useEffect(() => {
     if (!playerAudioData || !story) return;
@@ -516,7 +597,7 @@ export default function StoryViewerScreen() {
 
     loadAudio();
   }, [playerAudioData, storyId, story, autoPlay]);
-  
+
   // Called when user presses play on a story that isn't the currently active one
   const handleActivateAudio = useCallback(async () => {
     if (!playerAudioData || !story) return;
@@ -549,7 +630,7 @@ export default function StoryViewerScreen() {
       autoPlay: true, // User explicitly pressed play
     });
   }, [playerAudioData, storyId, story]);
-  
+
   // M6: Alignment sync hook - maps audio position to sentences and words
   // Precompute cleaned scene texts for sentence-to-scene mapping
   const sceneTexts = useMemo(() => {
@@ -561,57 +642,63 @@ export default function StoryViewerScreen() {
     () => getReadingTimeMinutes(story?.scenes ?? []),
     [story?.scenes]
   );
-  
+
   const { activeSentenceIndex, activeWordIndex, sentences } = useAlignmentSync(
     story?.fullText || '',
     story?.audioMetadata?.alignment,
     currentPosition,
     sceneTexts
   );
-  
+
   // Debug: log what is actively highlighted when sentence/word changes
   useEffect(() => {
     if (!effectiveHighlightEnabled) return;
     if (activeSentenceIndex === null) return;
   }, [effectiveHighlightEnabled, activeSentenceIndex, activeWordIndex, sentences, currentPosition]);
-  
+
   // M6: Callback from AudioPlayer - toggle highlight on/off
   const handleHighlightToggle = useCallback(async (enabled: boolean) => {
     setIsHighlightEnabled(enabled);
     // Ref is synced automatically via useEffect on effectiveHighlightEnabled
-    
+
     // Save highlight toggle globally (applies to all stories)
     await audioPlaybackService.saveHighlightEnabled(enabled);
     // Also update the Zustand store so MiniAudioPlayer / other consumers stay in sync
     useAudioPlayerStore.getState().toggleHighlight(enabled);
     console.log('[AudioPlayback] Saved global highlight state:', enabled);
   }, []);
-  
+
   // M6: Callback from AudioPlayer - update current position (throttled)
   const handlePositionChange = useCallback((position: number) => {
     // Use ref instead of state to avoid stale closure
     if (!isHighlightEnabledRef.current) return;
-    
+
     const now = Date.now();
     if (now - lastPositionUpdateTime.current < 100) {
       return; // Throttle to max 10 FPS
     }
-    
+
     lastPositionUpdateTime.current = now;
     setCurrentPosition(position);
   }, []); // No dependencies - uses ref
-  
+
   // Wrapper for handlePositionChange that prevents resetting restored position
-  const handlePositionChangeWrapper = useCallback((position: number) => {
-    // Don't reset to 0 if we have a restored position (> 5s)
-    // This prevents AudioPlayer's initial load (position=0) from clearing the restored state
-    if (position === 0 && currentPosition > 5) {
-      console.log('[StoryViewer] Ignoring position reset to 0 (have restored position:', currentPosition.toFixed(3) + 's)');
-      return;
-    }
-    handlePositionChange(position);
-  }, [currentPosition, handlePositionChange]);
-  
+  const handlePositionChangeWrapper = useCallback(
+    (position: number) => {
+      // Don't reset to 0 if we have a restored position (> 5s)
+      // This prevents AudioPlayer's initial load (position=0) from clearing the restored state
+      if (position === 0 && currentPosition > 5) {
+        console.log(
+          '[StoryViewer] Ignoring position reset to 0 (have restored position:',
+          currentPosition.toFixed(3) + 's)'
+        );
+        return;
+      }
+      handlePositionChange(position);
+    },
+    [currentPosition, handlePositionChange]
+  );
+
   // M7: Callback when audio finishes - clear saved state
   const handleAudioFinish = useCallback(async () => {
     console.log('[AudioPlayback] Audio finished, clearing saved state');
@@ -661,18 +748,18 @@ export default function StoryViewerScreen() {
     handleSaveCharacter,
     updateCharacterMutation.isPending,
   ]);
-  
+
   // Handle delete story with confirmation
   const handleDeleteStory = useCallback(() => {
     setDeleteDialogVisible(true);
   }, []);
-  
+
   const confirmDelete = useCallback(async () => {
     await deleteStory.mutateAsync(storyId);
     setDeleteDialogVisible(false);
     navigation.goBack(); // Return to library after delete
   }, [storyId, navigation, deleteStory]);
-  
+
   const cancelDelete = useCallback(() => {
     setDeleteDialogVisible(false);
   }, []);
@@ -749,7 +836,10 @@ export default function StoryViewerScreen() {
           if (count > 0) {
             const ordinal = getOrdinal(count, i18n.language);
             toastService.success(
-              (t as (k: string, o?: Record<string, unknown>) => string)('story_viewer.publish_success_ordinal', { ordinal })
+              (t as (k: string, o?: Record<string, unknown>) => string)(
+                'story_viewer.publish_success_ordinal',
+                { ordinal }
+              )
             );
           }
           if (Platform.OS === 'web') {
@@ -768,7 +858,17 @@ export default function StoryViewerScreen() {
         }
       } catch (_) {}
     },
-    [isChildSession, parentReviewBlocksSharing, parentReviewStatus, storyId, story?.title, user?.pseudonym, publishStory, updateMe, t]
+    [
+      isChildSession,
+      parentReviewBlocksSharing,
+      parentReviewStatus,
+      storyId,
+      story?.title,
+      user?.pseudonym,
+      publishStory,
+      updateMe,
+      t,
+    ]
   );
 
   // Open PublishShareDialog (pre-publish or update visibility)
@@ -813,21 +913,20 @@ export default function StoryViewerScreen() {
     },
     [reviewChildStory, storyId, t]
   );
-  
+
   // M6: Get active scene index from sentence metadata
-  const activeSceneIndex = activeSentenceIndex !== null
-    ? (sentences[activeSentenceIndex]?.sceneIndex ?? null)
-    : null;
-  
+  const activeSceneIndex =
+    activeSentenceIndex !== null ? (sentences[activeSentenceIndex]?.sceneIndex ?? null) : null;
+
   // M6: Auto-scroll active scene to center of viewport
   useEffect(() => {
     if (!effectiveHighlightEnabled || activeSceneIndex === null) {
       return;
     }
-    
+
     const sceneElement = sceneRefs.current[activeSceneIndex];
     if (!sceneElement) return;
-    
+
     // Use scrollIntoView on web, measureLayout on native
     if (Platform.OS === 'web') {
       const element = sceneElement as any;
@@ -854,7 +953,7 @@ export default function StoryViewerScreen() {
       );
     }
   }, [activeSceneIndex, effectiveHighlightEnabled]);
-  
+
   const handleGenerateAudio = async () => {
     console.log('[handleGenerateAudio] Called with:', {
       selectedVoiceId,
@@ -879,7 +978,7 @@ export default function StoryViewerScreen() {
       console.log('[handleGenerateAudio] Starting mutation...');
       await generateAudio.mutateAsync({
         storyId,
-        voiceId: selectedVoiceId
+        voiceId: selectedVoiceId,
       });
 
       if (!isRetry) {
@@ -890,23 +989,20 @@ export default function StoryViewerScreen() {
       }
 
       console.log('[handleGenerateAudio] Mutation succeeded');
-      
+
       // Reset limit state on success
       setAudioLimitExceeded(false);
       setLimitInfo(null);
-      
+
       // Invalidate usage query to show updated counter
       queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
-      
-      toastService.info(
-        'Готуємо аудіосказку',
-        'Це може зайняти кілька хвилин'
-      );
+
+      toastService.info('Готуємо аудіосказку', 'Це може зайняти кілька хвилин');
     } catch (error: any) {
       setAudioGenerationRequested(false);
       console.log('[handleGenerateAudio] Error:', error);
       console.log('[handleGenerateAudio] Error response:', error?.response);
-      
+
       // Check if it's a limit exceeded error
       if (error?.response?.data?.code === 'AUDIO_LIMIT_EXCEEDED') {
         console.log('[handleGenerateAudio] Audio limit exceeded');
@@ -921,15 +1017,9 @@ export default function StoryViewerScreen() {
         console.log('[handleGenerateAudio] 403 error:', error.response.data);
         const errorCode = error.response?.data?.code;
         if (errorCode === 'AUDIO_NOT_AVAILABLE') {
-          toastService.error(
-            'Аудіосказки недоступні',
-            'Оновіть тариф для озвучування історій'
-          );
+          toastService.error('Аудіосказки недоступні', 'Оновіть тариф для озвучування історій');
         } else {
-          toastService.error(
-            'Ліміт вичерпано',
-            error.response.data.message
-          );
+          toastService.error('Ліміт вичерпано', error.response.data.message);
         }
       } else {
         console.log('[handleGenerateAudio] Generic error');
@@ -937,10 +1027,7 @@ export default function StoryViewerScreen() {
           story_id: storyId,
           voice_id: selectedVoiceId,
         });
-        toastService.error(
-          t('toast.audio_error_title'),
-          'Не вдалося створити аудіосказку'
-        );
+        toastService.error(t('toast.audio_error_title'), 'Не вдалося створити аудіосказку');
       }
     }
   };
@@ -969,8 +1056,9 @@ export default function StoryViewerScreen() {
   }
 
   const hasGenerationInProgress = isGenerating || audioStatus?.jobStatus === 'processing';
-  const showGeneratingBlock = hasGenerationInProgress || generateAudio.isPending || audioGenerationRequested;
-  
+  const showGeneratingBlock =
+    hasGenerationInProgress || generateAudio.isPending || audioGenerationRequested;
+
   // M8: Render continue section (after story content)
   const renderContinueButton = () => {
     // Hide if there's a next part in the series
@@ -980,13 +1068,17 @@ export default function StoryViewerScreen() {
     return (
       <ContinueSeriesSection
         storyId={storyId}
-        seriesInfo={seriesInfo ? { totalParts: seriesInfo.totalParts, baseTitle: seriesInfo.baseTitle } : undefined}
+        seriesInfo={
+          seriesInfo
+            ? { totalParts: seriesInfo.totalParts, baseTitle: seriesInfo.baseTitle }
+            : undefined
+        }
         userPlan={userPlan}
         onNavigateToPlans={() => navigation.navigate('Plans' as any)}
       />
     );
   };
-  
+
   // M8: Render series navigation (previous/next buttons)
   const renderSeriesNavigation = () => {
     // DEBUG: Log series info
@@ -996,12 +1088,12 @@ export default function StoryViewerScreen() {
       seriesInfo: seriesInfo,
       storyPartNumber: story.partNumber,
     });
-    
+
     if (!seriesInfo || !story.seriesId) return null;
-    
+
     const { partNumber, totalParts, storyIds, storyTitles = [] } = seriesInfo;
     const currentIndex = partNumber - 1;
-    
+
     console.log('[StoryViewer] Rendering series navigation:', {
       partNumber,
       totalParts,
@@ -1010,11 +1102,12 @@ export default function StoryViewerScreen() {
       hasPrevious: currentIndex > 0,
       hasNext: currentIndex < totalParts - 1,
     });
-    
+
     return (
       <View style={styles.seriesNavigation}>
         <Text style={styles.partIndicator}>
-          {t('series.part_number', { number: partNumber })} {t('series.of_parts', { total: totalParts })}
+          {t('series.part_number', { number: partNumber })}{' '}
+          {t('series.of_parts', { total: totalParts })}
         </Text>
         {/* Previous part button */}
         {currentIndex > 0 && (
@@ -1030,7 +1123,7 @@ export default function StoryViewerScreen() {
             </Text>
           </TouchableOpacity>
         )}
-        
+
         {/* Next part button */}
         {currentIndex < totalParts - 1 && (
           <TouchableOpacity
@@ -1048,180 +1141,208 @@ export default function StoryViewerScreen() {
       </View>
     );
   };
-  
+
   // Render audio generation section (reusable component)
   // Hide when we have valid playerAudioData (API returned audioUrl) — prevents showing error + player together
-  const renderAudioGenerationSection = () => (
-    isChildSession ? null :
-    !playerAudioData && (!story.audioMetadata || audioFailed || showGeneratingBlock) && (
-      <View style={styles.audioGenerationSection}>
-        {audioLimitExceeded && limitInfo ? (
-          // Limit exceeded message with upgrade button
-          <View style={styles.limitExceededContainer}>
-            <Text style={styles.limitExceededIcon}>🔒</Text>
-            <Text style={styles.limitExceededTitle}>
-              {t('story_viewer.audio_limit_reached')}
-            </Text>
-            <Text style={styles.limitExceededMessage}>
-              {t('story_viewer.audio_limit_message', { 
-                used: limitInfo.used,
-                limit: limitInfo.limit 
-              })}
-            </Text>
-            
-            <TouchableOpacity
-              style={styles.upgradeButton}
-              onPress={() => navigation.navigate('Plans')}
-            >
-              <Text style={styles.upgradeButtonText}>
-                {t('story_viewer.upgrade_plan')}
-              </Text>
-            </TouchableOpacity>
-            
-            <Text style={styles.limitExceededDetails}>
-              {t('story_viewer.next_plan_benefit')}
-            </Text>
-            <Text style={styles.limitExceededDetails}>
-              {bundleHintText}
-            </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Plans' as any)}>
-              <Text style={styles.bundlePricingLink}>{t('story_viewer.bundle_pricing_link')}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : showGeneratingBlock ? (
-          // Show loading state during generation with queue info
-          <View style={styles.generatingContainer}>
-            <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
-            <Text style={styles.generatingText}>
-              {jobStatus === 'queued' 
-                ? (queuePosition && queuePosition > 0
-                    ? t('story_viewer.audio_queue_position', { position: queuePosition })
-                    : t('story_viewer.audio_queued'))
-                : t('story_viewer.audio_generating')}
-            </Text>
-            {jobStatus === 'queued' && estimatedWaitMs && estimatedWaitMs > 0 && (
-              <Text style={styles.generatingHint}>
-                {t('story_viewer.audio_queue_wait', { time: formatWaitTime(estimatedWaitMs, t) })}
-              </Text>
-            )}
-            <Text style={styles.generatingHint}>
-              {jobStatus === 'processing' && processingStartedAt && estimatedProcessingMs
-                ? formatWaitTime(
-                    Math.max(0, estimatedProcessingMs - (Date.now() - processingStartedAt)),
-                    t
-                  )
-                : t('toast.audio_generating_message')}
-            </Text>
-          </View>
-        ) : (
-          // Normal audio generation UI
-          <>
-            {/* Show inline warning if previous generation failed */}
-            {audioFailed && (
-              <View style={styles.inlineWarning}>
-                <Text style={styles.warningIcon}>⚠️</Text>
-                <View style={styles.warningTextContainer}>
-                  <Text style={styles.warningTitle}>
-                    {t('story_viewer.previous_attempt_failed')}
+  const renderAudioGenerationSection = () =>
+    isChildSession
+      ? null
+      : !playerAudioData &&
+        (!story.audioMetadata || audioFailed || showGeneratingBlock) && (
+          <View style={styles.audioGenerationSection}>
+            {audioLimitExceeded && limitInfo ? (
+              // Limit exceeded message with upgrade button
+              <View style={styles.limitExceededContainer}>
+                <Text style={styles.limitExceededIcon}>🔒</Text>
+                <Text style={styles.limitExceededTitle}>
+                  {t('story_viewer.audio_limit_reached')}
+                </Text>
+                <Text style={styles.limitExceededMessage}>
+                  {t('story_viewer.audio_limit_message', {
+                    used: limitInfo.used,
+                    limit: limitInfo.limit,
+                  })}
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.upgradeButton}
+                  onPress={() => navigation.navigate('Plans')}
+                >
+                  <Text style={styles.upgradeButtonText}>{t('story_viewer.upgrade_plan')}</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.limitExceededDetails}>
+                  {t('story_viewer.next_plan_benefit')}
+                </Text>
+                <Text style={styles.limitExceededDetails}>{bundleHintText}</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('Plans' as any)}>
+                  <Text style={styles.bundlePricingLink}>
+                    {t('story_viewer.bundle_pricing_link')}
                   </Text>
-                  <Text style={styles.warningNote}>
-                    {t('story_viewer.retry_will_reuse_chunks')}
-                  </Text>
-                </View>
+                </TouchableOpacity>
               </View>
-            )}
-            
-            {isLoadingVoices ? (
-              <View style={{ padding: 20 }}>
+            ) : showGeneratingBlock ? (
+              // Show loading state during generation with queue info
+              <View style={styles.generatingContainer}>
                 <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
-                <Text style={{ textAlign: 'center', marginTop: 8, color: theme.colors.text.secondary }}>
-                  {t('story_viewer.loading_voices')}
+                <Text style={styles.generatingText}>
+                  {jobStatus === 'queued'
+                    ? queuePosition && queuePosition > 0
+                      ? t('story_viewer.audio_queue_position', { position: queuePosition })
+                      : t('story_viewer.audio_queued')
+                    : t('story_viewer.audio_generating')}
                 </Text>
-              </View>
-            ) : voicesError ? (
-              <View style={{ padding: 16, backgroundColor: theme.colors.status.error + '20', borderRadius: 8 }}>
-                <Text style={{ color: theme.colors.status.error, marginBottom: 8, fontWeight: '600' }}>
-                  ❌ {t('story_viewer.voices_error')}
-                </Text>
-                <Text style={{ color: theme.colors.text.secondary, fontSize: 12 }}>
-                  {String(voicesError)}
-                </Text>
-              </View>
-            ) : voices.length === 0 ? (
-              <Text style={{ color: theme.colors.status.error, padding: 16, textAlign: 'center' }}>
-                ❌ {t('story_viewer.no_voices')}
-              </Text>
-            ) : (
-              <VoiceSelector
-                voices={voices}
-                selectedVoiceId={selectedVoiceId}
-                onVoiceChange={(voiceId) => {
-                  setSelectedVoiceId(voiceId);
-                  const voice = voices.find(v => v.id === voiceId);
-                  setSelectedVoice(voice);
-                  void storage.setPreferredStoryVoiceId(voiceId);
-                }}
-                language={storyLanguage ?? 'uk'}
-                userPlan={userPlan}
-                hasPremiumAccess={hasPremiumAccess}
-                onUpgrade={() => {
-                  navigation.navigate('Plans' as any);
-                }}
-                audioUsage={audioUsage}
-              />
-            )}
-            
-            {/* Conditional button based on selected voice */}
-            {(() => {
-              console.log('[StoryViewer] Button rendering state:', {
-                selectedVoiceId,
-                selectedVoiceIsLocked: selectedVoice?.isLocked,
-                isGenerating,
-                generateAudioIsPending: generateAudio.isPending,
-                audioFailed,
-              });
-              return null;
-            })()}
-            
-            {selectedVoice?.isLocked ? (
-              // Premium voice selected but locked - show upgrade button
-              <TouchableOpacity
-                style={[styles.audioButton, styles.audioButtonUpgrade]}
-                onPress={() => navigation.navigate('Plans' as any)}
-              >
-                <Text style={styles.audioButtonText}>
-                  ⭐ {t('voice_selector.upgrade_to_unlock')}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              // Free voice or unlocked premium - show generate audio button
-              <TouchableOpacity
-                style={[
-                  styles.audioButton,
-                  (isGenerating || generateAudio.isPending) && styles.audioButtonDisabled
-                ]}
-                onPress={handleGenerateAudio}
-                disabled={isGenerating || generateAudio.isPending}
-              >
-                {isGenerating || generateAudio.isPending ? (
-                  <>
-                    <ActivityIndicator size="small" color="#fff" style={styles.audioButtonSpinner} />
-                    <Text style={styles.audioButtonText}>
-                      {(jobStatus && jobStatus === 'queued') ? t('story_viewer.audio_queued') : t('story_viewer.audio_generating')}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={styles.audioButtonText}>
-                    🎧 {audioFailed ? t('story_viewer.try_again') : t('story_viewer.create_audio')}
+                {jobStatus === 'queued' && estimatedWaitMs && estimatedWaitMs > 0 && (
+                  <Text style={styles.generatingHint}>
+                    {t('story_viewer.audio_queue_wait', {
+                      time: formatWaitTime(estimatedWaitMs, t),
+                    })}
                   </Text>
                 )}
-              </TouchableOpacity>
+                <Text style={styles.generatingHint}>
+                  {jobStatus === 'processing' && processingStartedAt && estimatedProcessingMs
+                    ? formatWaitTime(
+                        Math.max(0, estimatedProcessingMs - (Date.now() - processingStartedAt)),
+                        t
+                      )
+                    : t('toast.audio_generating_message')}
+                </Text>
+              </View>
+            ) : (
+              // Normal audio generation UI
+              <>
+                {/* Show inline warning if previous generation failed */}
+                {audioFailed && (
+                  <View style={styles.inlineWarning}>
+                    <Text style={styles.warningIcon}>⚠️</Text>
+                    <View style={styles.warningTextContainer}>
+                      <Text style={styles.warningTitle}>
+                        {t('story_viewer.previous_attempt_failed')}
+                      </Text>
+                      <Text style={styles.warningNote}>
+                        {t('story_viewer.retry_will_reuse_chunks')}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {isLoadingVoices ? (
+                  <View style={{ padding: 20 }}>
+                    <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+                    <Text
+                      style={{
+                        textAlign: 'center',
+                        marginTop: 8,
+                        color: theme.colors.text.secondary,
+                      }}
+                    >
+                      {t('story_viewer.loading_voices')}
+                    </Text>
+                  </View>
+                ) : voicesError ? (
+                  <View
+                    style={{
+                      padding: 16,
+                      backgroundColor: theme.colors.status.error + '20',
+                      borderRadius: 8,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: theme.colors.status.error,
+                        marginBottom: 8,
+                        fontWeight: '600',
+                      }}
+                    >
+                      ❌ {t('story_viewer.voices_error')}
+                    </Text>
+                    <Text style={{ color: theme.colors.text.secondary, fontSize: 12 }}>
+                      {String(voicesError)}
+                    </Text>
+                  </View>
+                ) : voices.length === 0 ? (
+                  <Text
+                    style={{ color: theme.colors.status.error, padding: 16, textAlign: 'center' }}
+                  >
+                    ❌ {t('story_viewer.no_voices')}
+                  </Text>
+                ) : (
+                  <VoiceSelector
+                    voices={voices}
+                    selectedVoiceId={selectedVoiceId}
+                    onVoiceChange={(voiceId) => {
+                      setSelectedVoiceId(voiceId);
+                      const voice = voices.find((v) => v.id === voiceId);
+                      setSelectedVoice(voice);
+                      void storage.setPreferredStoryVoiceId(voiceId);
+                    }}
+                    language={storyLanguage ?? 'uk'}
+                    userPlan={userPlan}
+                    hasPremiumAccess={hasPremiumAccess}
+                    onUpgrade={() => {
+                      navigation.navigate('Plans' as any);
+                    }}
+                    audioUsage={audioUsage}
+                  />
+                )}
+
+                {/* Conditional button based on selected voice */}
+                {(() => {
+                  console.log('[StoryViewer] Button rendering state:', {
+                    selectedVoiceId,
+                    selectedVoiceIsLocked: selectedVoice?.isLocked,
+                    isGenerating,
+                    generateAudioIsPending: generateAudio.isPending,
+                    audioFailed,
+                  });
+                  return null;
+                })()}
+
+                {selectedVoice?.isLocked ? (
+                  // Premium voice selected but locked - show upgrade button
+                  <TouchableOpacity
+                    style={[styles.audioButton, styles.audioButtonUpgrade]}
+                    onPress={() => navigation.navigate('Plans' as any)}
+                  >
+                    <Text style={styles.audioButtonText}>
+                      ⭐ {t('voice_selector.upgrade_to_unlock')}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  // Free voice or unlocked premium - show generate audio button
+                  <TouchableOpacity
+                    style={[
+                      styles.audioButton,
+                      (isGenerating || generateAudio.isPending) && styles.audioButtonDisabled,
+                    ]}
+                    onPress={handleGenerateAudio}
+                    disabled={isGenerating || generateAudio.isPending}
+                  >
+                    {isGenerating || generateAudio.isPending ? (
+                      <>
+                        <ActivityIndicator
+                          size="small"
+                          color="#fff"
+                          style={styles.audioButtonSpinner}
+                        />
+                        <Text style={styles.audioButtonText}>
+                          {jobStatus && jobStatus === 'queued'
+                            ? t('story_viewer.audio_queued')
+                            : t('story_viewer.audio_generating')}
+                        </Text>
+                      </>
+                    ) : (
+                      <Text style={styles.audioButtonText}>
+                        🎧{' '}
+                        {audioFailed ? t('story_viewer.try_again') : t('story_viewer.create_audio')}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </>
             )}
-          </>
-        )}
-      </View>
-    )
-  );
+          </View>
+        );
 
   const renderParentReviewPanel = () => {
     if (story?.createdByMode !== 'child' || parentReviewStatus === 'not_required') {
@@ -1280,7 +1401,9 @@ export default function StoryViewerScreen() {
               disabled={reviewChildStory.isPending}
             >
               <Ionicons name="close-outline" size={18} color={theme.colors.status.error} />
-              <Text style={styles.parentReviewRejectText}>{t('story_viewer.parent_review_reject')}</Text>
+              <Text style={styles.parentReviewRejectText}>
+                {t('story_viewer.parent_review_reject')}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.parentReviewButton, styles.parentReviewApproveButton]}
@@ -1292,7 +1415,9 @@ export default function StoryViewerScreen() {
               ) : (
                 <Ionicons name="checkmark-outline" size={18} color={theme.colors.text.inverse} />
               )}
-              <Text style={styles.parentReviewApproveText}>{t('story_viewer.parent_review_approve')}</Text>
+              <Text style={styles.parentReviewApproveText}>
+                {t('story_viewer.parent_review_approve')}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1303,35 +1428,35 @@ export default function StoryViewerScreen() {
   // M6: Helper to render scene text with sentence/word wrappers
   const renderSceneTextWithHighlight = (sceneText: string, sceneIndex: number) => {
     const cleanedSceneText = removeAudioTags(sceneText);
-    
+
     // If no alignment, render plain text
     if (!story.audioMetadata?.alignment || sentences.length === 0) {
       return <Text style={styles.sceneText}>{cleanedSceneText}</Text>;
     }
-    
+
     // Find sentences that belong to this scene
-    const sceneSentences = sentences.filter(s => s.sceneIndex === sceneIndex);
-    
+    const sceneSentences = sentences.filter((s) => s.sceneIndex === sceneIndex);
+
     if (sceneSentences.length === 0) {
       return <Text style={styles.sceneText}>{cleanedSceneText}</Text>;
     }
-    
-    let renderedText: any[] = [];
+
+    const renderedText: any[] = [];
     let lastIndex = 0;
-    
+
     sceneSentences.forEach((sentence, sentenceLocalIndex) => {
       const sentenceIndex = sentences.indexOf(sentence);
       const isSentenceActive = effectiveHighlightEnabled && sentenceIndex === activeSentenceIndex;
-      
+
       // Find sentence position in scene text
       const sentencePos = cleanedSceneText.indexOf(sentence.text, lastIndex);
       if (sentencePos === -1) return;
-      
+
       // Add text before sentence (if any)
       if (sentencePos > lastIndex) {
         renderedText.push(cleanedSceneText.substring(lastIndex, sentencePos));
       }
-      
+
       // When highlight is ON: render individual words with color styles
       // When highlight is OFF: render plain sentence text without word wrappers
       if (effectiveHighlightEnabled) {
@@ -1339,15 +1464,17 @@ export default function StoryViewerScreen() {
         const sentenceWords = sentence.words.map((word, wordIndex) => {
           const wordKey = `${sentenceIndex}-${wordIndex}`;
           const isActiveWord = isSentenceActive && wordIndex === activeWordIndex;
-          
+
           // Color logic:
           // - Active sentence + active word → black (activeWordColor)
           // - Active sentence + inactive word → gray (inactiveWordColor)
           // - Inactive sentence → gray (grayTextColor) applied to sentence wrapper
           const wordStyle = isSentenceActive
-            ? (isActiveWord ? styles.activeWordColor : styles.inactiveWordColor)
+            ? isActiveWord
+              ? styles.activeWordColor
+              : styles.inactiveWordColor
             : undefined; // Gray applied at sentence level for inactive sentences
-          
+
           return (
             <React.Fragment key={wordKey}>
               <Text style={wordStyle}>{word.text}</Text>
@@ -1355,10 +1482,10 @@ export default function StoryViewerScreen() {
             </React.Fragment>
           );
         });
-        
+
         // Wrap sentence with background (if active) and gray color (if inactive)
         renderedText.push(
-          <Text 
+          <Text
             key={`sentence-${sentenceIndex}`}
             style={[
               styles.sentenceText,
@@ -1377,20 +1504,20 @@ export default function StoryViewerScreen() {
           </Text>
         );
       }
-      
+
       // Add space after sentence (unless it's the last sentence)
       if (sentenceLocalIndex < sceneSentences.length - 1) {
         renderedText.push(' ');
       }
-      
+
       lastIndex = sentencePos + sentence.text.length;
     });
-    
+
     // Add remaining text after last sentence
     if (lastIndex < cleanedSceneText.length) {
       renderedText.push(cleanedSceneText.substring(lastIndex));
     }
-    
+
     return <Text style={styles.sceneText}>{renderedText}</Text>;
   };
 
@@ -1398,30 +1525,38 @@ export default function StoryViewerScreen() {
   const renderScenesWithHighlight = () => {
     return story.scenes?.map((scene: any, sceneIndex: number) => {
       return (
-        <View 
+        <View
           key={scene.sceneId || sceneIndex}
-          ref={(ref: View | null) => { sceneRefs.current[sceneIndex] = ref; }}
+          ref={(ref: View | null) => {
+            sceneRefs.current[sceneIndex] = ref;
+          }}
           style={styles.scene}
         >
           {scene.image?.url && scene.image?.status !== 'failed' ? (
-            <Image 
-              source={{ uri: formatAssetUrl(scene.image.url) ?? scene.image.url }} 
+            <Image
+              source={{ uri: formatAssetUrl(scene.image.url) ?? scene.image.url }}
               style={styles.sceneImage as ImageStyle}
               resizeMode="cover"
             />
           ) : (story?.sceneIdsWithImages as number[] | undefined)?.includes(scene.sceneId) ? (
             <View style={styles.sceneImagePlaceholder}>
-              <Text style={[
-                styles.sceneImagePlaceholderText,
-                (story?.failedScenes as Array<{ sceneId: number }> | undefined)?.some(f => f.sceneId === scene.sceneId) && styles.sceneImagePlaceholderTextError,
-              ]}>
-                {(story?.failedScenes as Array<{ sceneId: number }> | undefined)?.some(f => f.sceneId === scene.sceneId)
+              <Text
+                style={[
+                  styles.sceneImagePlaceholderText,
+                  (story?.failedScenes as Array<{ sceneId: number }> | undefined)?.some(
+                    (f) => f.sceneId === scene.sceneId
+                  ) && styles.sceneImagePlaceholderTextError,
+                ]}
+              >
+                {(story?.failedScenes as Array<{ sceneId: number }> | undefined)?.some(
+                  (f) => f.sceneId === scene.sceneId
+                )
                   ? t('story_viewer.image_failed')
                   : t('story_viewer.image_preparing')}
               </Text>
             </View>
           ) : null}
-          
+
           <View style={styles.sceneTextWrapper}>
             {renderSceneTextWithHighlight(scene.text, sceneIndex)}
           </View>
@@ -1429,7 +1564,7 @@ export default function StoryViewerScreen() {
       );
     });
   };
-  
+
   const parentReviewPanel = renderParentReviewPanel();
 
   return (
@@ -1438,10 +1573,7 @@ export default function StoryViewerScreen() {
       {isMobile || isTabletPortrait ? (
         // Mobile + Tablet Portrait: Single Column with FAB
         <>
-          <ScrollView 
-            ref={scrollViewRef}
-            style={styles.container}
-          >
+          <ScrollView ref={scrollViewRef} style={styles.container}>
             {/* Reading Time (mobile) */}
             {readingTimeMinutes > 0 && (
               <View style={styles.mobileSectionWrapper}>
@@ -1454,15 +1586,11 @@ export default function StoryViewerScreen() {
               </View>
             )}
             {!isChildSession && parentReviewPanel && (
-              <View style={styles.mobileSectionWrapper}>
-                {parentReviewPanel}
-              </View>
+              <View style={styles.mobileSectionWrapper}>{parentReviewPanel}</View>
             )}
             {/* Audio Generation Section */}
-            <View style={styles.mobileSectionWrapper}>
-              {renderAudioGenerationSection()}
-            </View>
-            
+            <View style={styles.mobileSectionWrapper}>{renderAudioGenerationSection()}</View>
+
             {/* Show audio player if audio exists (mobile only) */}
             {isMobile && story.audioMetadata && playerAudioData && (
               <View style={styles.audioPlayerContainer}>
@@ -1479,26 +1607,22 @@ export default function StoryViewerScreen() {
                 />
               </View>
             )}
-            
+
             {/* Characters Section (mobile) */}
-            {isMobile && (
-              <View style={styles.mobileSectionWrapper}>
-                {charactersSection}
-              </View>
-            )}
-            
+            {isMobile && <View style={styles.mobileSectionWrapper}>{charactersSection}</View>}
+
             {/* Story Scenes */}
             {renderScenesWithHighlight()}
-            
+
             {/* Continue Story Button */}
             {renderContinueButton()}
           </ScrollView>
-          
+
           {/* FAB for Tablet Portrait only */}
           {isTabletPortrait && (story.audioMetadata || (story?.characters?.length ?? 0) > 0) && (
             <FloatingActionButton onPress={openBottomSheet} icon="musical-notes" />
           )}
-          
+
           {/* Bottom Sheet for Tablet Portrait */}
           {isTabletPortrait && (
             <StoryBottomSheet
@@ -1528,20 +1652,17 @@ export default function StoryViewerScreen() {
         // Tablet Landscape + Desktop: Two Column Layout
         <View style={styles.desktopLayout}>
           {/* Left Column: Story Content */}
-          <ScrollView 
-            ref={scrollViewRef}
-            style={styles.leftColumn}
-          >
+          <ScrollView ref={scrollViewRef} style={styles.leftColumn}>
             {/* Story Scenes */}
             {renderScenesWithHighlight()}
-            
+
             {/* Continue Story Button */}
             {renderContinueButton()}
-              
+
             {/* Series Navigation */}
             {renderSeriesNavigation()}
           </ScrollView>
-          
+
           {/* Right Column: Sidebar (scrollable) */}
           <View style={styles.rightColumnWrapper}>
             <ScrollView
@@ -1550,123 +1671,143 @@ export default function StoryViewerScreen() {
               showsVerticalScrollIndicator={true}
             >
               <View style={styles.sidebar}>
-              {/* Reading Time */}
-              {readingTimeMinutes > 0 && (
-                <View style={styles.sidebarWidget}>
-                  <View style={styles.readingTimeRow}>
-                    <Ionicons name="time-outline" size={18} color={theme.colors.text.secondary} />
-                    <Text style={styles.readingTimeText}>
-                      {t('story_viewer.reading_time', { minutes: readingTimeMinutes })}
-                    </Text>
-                  </View>
-                </View>
-              )}
-              {/* Audio Generation Section (if audio not ready) */}
-              {renderAudioGenerationSection()}
-              
-              {/* Audio Widget */}
-              {story.audioMetadata && playerAudioData && (
-                <View style={styles.sidebarWidget}>
-                  <AudioPlayer
-                    storyId={storyId}
-                    audioUrl={playerAudioData.audioUrl}
-                    duration={playerAudioData.duration}
-                    title={`${t('story_viewer.audio_title')}`}
-                    hasAlignment={!!story.audioMetadata?.alignment}
-                    onHighlightToggle={handleHighlightToggle}
-                    onPositionChange={handlePositionChangeWrapper}
-                    onFinish={handleAudioFinish}
-                    onActivate={handleActivateAudio}
-                  />
-                </View>
-              )}
-              
-              {/* Characters Section */}
-              {charactersSection}
-
-              {!isChildSession ? parentReviewPanel : null}
-              
-              {/* Publication block */}
-              {!isChildSession ? (
-              <View style={styles.publicationSection}>
-                {!story?.isPublished ? (
-                  <TouchableOpacity
-                    style={[
-                      styles.publishButton,
-                      (publishStory.isPending || parentReviewBlocksSharing) && styles.publishButtonDisabled,
-                    ]}
-                    onPress={handleOpenPublishDialog}
-                    disabled={publishStory.isPending || parentReviewBlocksSharing}
-                  >
-                    <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.text.inverse} />
-                    <Text style={styles.publishButtonText}>{t('story_viewer.publish')}</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <>
-                    <Text style={styles.publicationSectionTitle}>{t('story_viewer.publication_title')}</Text>
-                    <View style={styles.publicationBadge}>
-                      <Ionicons
-                        name={story?.visibility === 'unlisted' ? 'link-outline' : 'globe-outline'}
-                        size={18}
-                        color={theme.colors.text.secondary}
-                      />
-                      <Text style={styles.publicationBadgeText}>
-                        {story?.visibility === 'unlisted'
-                          ? t('story_viewer.publication_badge_unlisted')
-                          : t('story_viewer.publication_badge_catalog')}
+                {/* Reading Time */}
+                {readingTimeMinutes > 0 && (
+                  <View style={styles.sidebarWidget}>
+                    <View style={styles.readingTimeRow}>
+                      <Ionicons name="time-outline" size={18} color={theme.colors.text.secondary} />
+                      <Text style={styles.readingTimeText}>
+                        {t('story_viewer.reading_time', { minutes: readingTimeMinutes })}
                       </Text>
                     </View>
-                    <View style={styles.publicationButtonsRow}>
+                  </View>
+                )}
+                {/* Audio Generation Section (if audio not ready) */}
+                {renderAudioGenerationSection()}
+
+                {/* Audio Widget */}
+                {story.audioMetadata && playerAudioData && (
+                  <View style={styles.sidebarWidget}>
+                    <AudioPlayer
+                      storyId={storyId}
+                      audioUrl={playerAudioData.audioUrl}
+                      duration={playerAudioData.duration}
+                      title={`${t('story_viewer.audio_title')}`}
+                      hasAlignment={!!story.audioMetadata?.alignment}
+                      onHighlightToggle={handleHighlightToggle}
+                      onPositionChange={handlePositionChangeWrapper}
+                      onFinish={handleAudioFinish}
+                      onActivate={handleActivateAudio}
+                    />
+                  </View>
+                )}
+
+                {/* Characters Section */}
+                {charactersSection}
+
+                {!isChildSession ? parentReviewPanel : null}
+
+                {/* Publication block */}
+                {!isChildSession ? (
+                  <View style={styles.publicationSection}>
+                    {!story?.isPublished ? (
                       <TouchableOpacity
                         style={[
-                          styles.shareButton,
-                          styles.publicationButtonFlex,
-                          parentReviewBlocksSharing && styles.shareButtonDisabled,
-                        ]}
-                        onPress={handleShare}
-                        disabled={parentReviewBlocksSharing}
-                      >
-                        <Ionicons name="share-social-outline" size={20} color={theme.colors.interactive.primary} />
-                        <Text style={styles.shareButtonText}>{t('story_viewer.share_title')}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.updatePublicationButton,
-                          styles.publicationButtonFlex,
-                          (publishStory.isPending || parentReviewBlocksSharing) && styles.shareButtonDisabled,
+                          styles.publishButton,
+                          (publishStory.isPending || parentReviewBlocksSharing) &&
+                            styles.publishButtonDisabled,
                         ]}
                         onPress={handleOpenPublishDialog}
                         disabled={publishStory.isPending || parentReviewBlocksSharing}
                       >
-                        <Ionicons name="create-outline" size={20} color={theme.colors.interactive.primary} />
-                        <Text style={styles.updatePublicationButtonText}>{t('story_viewer.update_publication')}</Text>
+                        <Ionicons
+                          name="cloud-upload-outline"
+                          size={20}
+                          color={theme.colors.text.inverse}
+                        />
+                        <Text style={styles.publishButtonText}>{t('story_viewer.publish')}</Text>
                       </TouchableOpacity>
-                    </View>
-                    <TouchableOpacity style={styles.unpublishLink} onPress={handleUnpublish}>
-                      <Text style={styles.unpublishLinkText}>{t('story_viewer.unpublish')}</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-              ) : null}
-              
-              {/* Delete Story Button */}
-              {!isChildSession ? (
-              <TouchableOpacity 
-                style={styles.deleteButton}
-                onPress={handleDeleteStory}
-              >
-                <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
-                <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
-              </TouchableOpacity>
-              ) : null}
+                    ) : (
+                      <>
+                        <Text style={styles.publicationSectionTitle}>
+                          {t('story_viewer.publication_title')}
+                        </Text>
+                        <View style={styles.publicationBadge}>
+                          <Ionicons
+                            name={
+                              story?.visibility === 'unlisted' ? 'link-outline' : 'globe-outline'
+                            }
+                            size={18}
+                            color={theme.colors.text.secondary}
+                          />
+                          <Text style={styles.publicationBadgeText}>
+                            {story?.visibility === 'unlisted'
+                              ? t('story_viewer.publication_badge_unlisted')
+                              : t('story_viewer.publication_badge_catalog')}
+                          </Text>
+                        </View>
+                        <View style={styles.publicationButtonsRow}>
+                          <TouchableOpacity
+                            style={[
+                              styles.shareButton,
+                              styles.publicationButtonFlex,
+                              parentReviewBlocksSharing && styles.shareButtonDisabled,
+                            ]}
+                            onPress={handleShare}
+                            disabled={parentReviewBlocksSharing}
+                          >
+                            <Ionicons
+                              name="share-social-outline"
+                              size={20}
+                              color={theme.colors.interactive.primary}
+                            />
+                            <Text style={styles.shareButtonText}>
+                              {t('story_viewer.share_title')}
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[
+                              styles.updatePublicationButton,
+                              styles.publicationButtonFlex,
+                              (publishStory.isPending || parentReviewBlocksSharing) &&
+                                styles.shareButtonDisabled,
+                            ]}
+                            onPress={handleOpenPublishDialog}
+                            disabled={publishStory.isPending || parentReviewBlocksSharing}
+                          >
+                            <Ionicons
+                              name="create-outline"
+                              size={20}
+                              color={theme.colors.interactive.primary}
+                            />
+                            <Text style={styles.updatePublicationButtonText}>
+                              {t('story_viewer.update_publication')}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                        <TouchableOpacity style={styles.unpublishLink} onPress={handleUnpublish}>
+                          <Text style={styles.unpublishLinkText}>
+                            {t('story_viewer.unpublish')}
+                          </Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                ) : null}
 
-            </View>
-          </ScrollView>
+                {/* Delete Story Button */}
+                {!isChildSession ? (
+                  <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteStory}>
+                    <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
+                    <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </ScrollView>
           </View>
         </View>
       )}
-      
+
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
         visible={deleteDialogVisible}
@@ -1705,14 +1846,19 @@ export default function StoryViewerScreen() {
         authorAboutMe={isChildSession ? activeChild?.authorAboutMe : null}
         allowAuthorProfileEdit={isChildSession}
         onUnpublish={handleUnpublish}
-        scenes={
-          story?.scenes?.map((s: { image?: { url?: string }; imageUrl?: string | null }, i: number): ShareCardScene => ({
+        scenes={story?.scenes?.map(
+          (
+            s: { image?: { url?: string }; imageUrl?: string | null },
+            i: number
+          ): ShareCardScene => ({
             index: i,
             imageUrl: s.image?.url ?? s.imageUrl ?? null,
-          }))
-        }
+          })
+        )}
         shareCardSceneId={story?.shareCardSceneId ?? null}
-        initialVisibility={story?.visibility === 'unlisted' ? 'unlisted' : (story?.isPublished ? 'public' : 'unlisted')}
+        initialVisibility={
+          story?.visibility === 'unlisted' ? 'unlisted' : story?.isPublished ? 'public' : 'unlisted'
+        }
         openedFromShare={publishDialogOpenedFromShare}
       />
 
@@ -1755,7 +1901,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     maxWidth: 1400,
     alignSelf: 'center',
-    width: '100%'
+    width: '100%',
   },
   leftColumn: {
     flex: 1,
@@ -2067,7 +2213,7 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 9,
     marginBottom: theme.spacing[4],
     width: '100%',
-    borderRadius: theme.borders.radius.xl
+    borderRadius: theme.borders.radius.xl,
   },
   sceneImagePlaceholder: {
     aspectRatio: 16 / 9,
@@ -2094,7 +2240,7 @@ const styles = StyleSheet.create({
   },
   limitExceededContainer: {
     backgroundColor: theme.colors.background.secondary,
-    borderRadius: theme.borders.radius.lg, 
+    borderRadius: theme.borders.radius.lg,
     alignItems: 'center',
   },
   limitExceededIcon: {

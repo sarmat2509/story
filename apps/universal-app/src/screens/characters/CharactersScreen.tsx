@@ -1,5 +1,14 @@
 import React, { useState, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, useWindowDimensions } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Platform,
+  useWindowDimensions,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
@@ -39,22 +48,27 @@ export default function CharactersScreen() {
   const gap = theme.spacing[4];
   const cardWidth = (width - paddingHorizontal - gap * (columns - 1)) / columns;
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [editingCharacter, setEditingCharacter] = useState<{
-    id: string;
-    name: string;
-    childProfileId?: string | null;
-    type: 'person' | 'animal' | 'imaginary';
-    subtype?: CharacterSubtype | null;
-    description?: string;
-    descriptionLanguage?: string;
-    referencePhotos?: ReferencePhoto[];
-    appearanceTraits?: any;
-    personality?: any;
-    turnaroundSheet?: { url: string; frontUrl?: string; generatedAt: string };
-  } | undefined>();
-  
+  const [editingCharacter, setEditingCharacter] = useState<
+    | {
+        id: string;
+        name: string;
+        childProfileId?: string | null;
+        type: 'person' | 'animal' | 'imaginary';
+        subtype?: CharacterSubtype | null;
+        description?: string;
+        descriptionLanguage?: string;
+        referencePhotos?: ReferencePhoto[];
+        appearanceTraits?: any;
+        personality?: any;
+        turnaroundSheet?: { url: string; frontUrl?: string; generatedAt: string };
+      }
+    | undefined
+  >();
+
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
-  const [characterToDelete, setCharacterToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [characterToDelete, setCharacterToDelete] = useState<{ id: string; name: string } | null>(
+    null
+  );
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const deleteCharacter = useDeleteCharacter();
 
@@ -62,17 +76,15 @@ export default function CharactersScreen() {
     navigation.setOptions({
       headerRight: isChildSession
         ? undefined
-        : () => (
-            <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-          ),
+        : () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [isChildSession, navigation]);
-  
+
   const handleAddCharacter = () => {
     setEditingCharacter(undefined);
     setIsModalVisible(true);
   };
-  
+
   const handleEditCharacter = (character: any) => {
     setEditingCharacter({
       id: character.id,
@@ -89,12 +101,12 @@ export default function CharactersScreen() {
     });
     setIsModalVisible(true);
   };
-  
+
   const handleDelete = (characterId: string, characterName: string) => {
     setCharacterToDelete({ id: characterId, name: characterName });
     setDeleteDialogVisible(true);
   };
-  
+
   const confirmDelete = () => {
     if (characterToDelete) {
       deleteCharacter.mutate(characterToDelete.id);
@@ -102,12 +114,12 @@ export default function CharactersScreen() {
       setCharacterToDelete(null);
     }
   };
-  
+
   const cancelDelete = () => {
     setDeleteDialogVisible(false);
     setCharacterToDelete(null);
   };
-  
+
   if (isLoading) {
     return (
       <View style={styles.centerContainer}>
@@ -115,7 +127,7 @@ export default function CharactersScreen() {
       </View>
     );
   }
-  
+
   if (error) {
     return (
       <View style={styles.centerContainer}>
@@ -123,26 +135,29 @@ export default function CharactersScreen() {
       </View>
     );
   }
-  
+
   return (
     <View style={styles.container}>
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Characters Grid */}
         {characters && characters.length > 0 ? (
           <>
-            <View style={[styles.grid, Platform.OS === 'web' && { gridTemplateColumns: `repeat(${columns}, 1fr)` } as any]}>
+            <View
+              style={[
+                styles.grid,
+                Platform.OS === 'web' &&
+                  ({ gridTemplateColumns: `repeat(${columns}, 1fr)` } as any),
+              ]}
+            >
               {characters.map((character, index) => {
                 const card = (
-                    <CharacterCard
-                      character={character}
-                      onPress={() => {
-                        if (!isChildSession) handleEditCharacter(character);
-                      }}
-                      onDelete={isChildSession ? undefined : handleDelete}
-                    />
+                  <CharacterCard
+                    character={character}
+                    onPress={() => {
+                      if (!isChildSession) handleEditCharacter(character);
+                    }}
+                    onDelete={isChildSession ? undefined : handleDelete}
+                  />
                 );
                 return Platform.OS === 'web' ? (
                   <AnimatedSection key={character.id} delay={cardDelay(index)} trigger={enterKey}>
@@ -162,14 +177,9 @@ export default function CharactersScreen() {
             </View>
 
             <AnimatedSection delay={cardDelay(characters.length)} trigger={enterKey}>
-              <TouchableOpacity
-                style={styles.addCharacterButton}
-                onPress={handleAddCharacter}
-              >
+              <TouchableOpacity style={styles.addCharacterButton} onPress={handleAddCharacter}>
                 <Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />
-                <Text style={styles.addCharacterButtonText}>
-                  {t('characters.add_character')}
-                </Text>
+                <Text style={styles.addCharacterButtonText}>{t('characters.add_character')}</Text>
               </TouchableOpacity>
             </AnimatedSection>
           </>
@@ -179,10 +189,7 @@ export default function CharactersScreen() {
               <Text style={styles.emptyIcon}>👥</Text>
               <Text style={styles.emptyText}>{t('characters.no_characters')}</Text>
               <Text style={styles.emptyHint}>{t('characters.no_characters_hint')}</Text>
-              <TouchableOpacity
-                style={styles.emptyButton}
-                onPress={handleAddCharacter}
-              >
+              <TouchableOpacity style={styles.emptyButton} onPress={handleAddCharacter}>
                 <Text style={styles.emptyButtonText}>{t('characters.add_character')}</Text>
               </TouchableOpacity>
             </View>
@@ -200,7 +207,7 @@ export default function CharactersScreen() {
         characterId={editingCharacter?.id}
         initialData={editingCharacter}
       />
-      
+
       {/* Confirm Delete Dialog */}
       <ConfirmDialog
         visible={deleteDialogVisible}
@@ -230,7 +237,7 @@ const styles = StyleSheet.create({
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   scrollContent: {
     padding: theme.spacing[6],

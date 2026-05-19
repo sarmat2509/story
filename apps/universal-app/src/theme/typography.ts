@@ -12,7 +12,7 @@ export const typography = {
     '5xl': 36,
     '6xl': 48,
   },
-  
+
   // Font weights
   fontWeight: {
     regular: '400' as const,
@@ -20,7 +20,7 @@ export const typography = {
     semibold: '600' as const,
     bold: '700' as const,
   },
-  
+
   // Line heights
   lineHeight: {
     tight: 1.2,

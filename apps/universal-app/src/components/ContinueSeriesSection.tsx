@@ -101,16 +101,20 @@ export function ContinueSeriesSection({
     }
   }, [continuationStatus]);
 
-  const containerStyle = variant === 'card' ? styles.continueContainerCard : styles.continueContainer;
+  const containerStyle =
+    variant === 'card' ? styles.continueContainerCard : styles.continueContainer;
   const titleStyle = variant === 'card' ? styles.continueTitleCard : styles.continueTitle;
   const buttonStyle = variant === 'card' ? styles.continueButtonCard : styles.continueButton;
-  const buttonTextStyle = variant === 'card' ? styles.continueButtonTextCard : styles.continueButtonText;
+  const buttonTextStyle =
+    variant === 'card' ? styles.continueButtonTextCard : styles.continueButtonText;
 
   if (!hasSeriesAccess) {
     return (
       <View style={containerStyle}>
         <Text style={titleStyle}>{t('story_viewer.series_locked_title')}</Text>
-        <Text style={styles.continueDescription}>{t('story_viewer.series_locked_description')}</Text>
+        <Text style={styles.continueDescription}>
+          {t('story_viewer.series_locked_description')}
+        </Text>
         <TouchableOpacity style={buttonStyle} onPress={onNavigateToPlans}>
           <Ionicons name="lock-closed" size={24} color="#fff" />
           <Text style={buttonTextStyle}>{t('story_viewer.upgrade_to_unlock')}</Text>
@@ -282,9 +286,7 @@ export function ContinueSeriesSection({
         progressData={continuationStatus?.progressData}
         errorMessage={continuationStatus?.errorMessage ?? undefined}
         onClose={handleCloseContinuationModal}
-        onRetry={
-          continuationStatus?.status === 'failed' ? handleContinue : undefined
-        }
+        onRetry={continuationStatus?.status === 'failed' ? handleContinue : undefined}
         allowManualClose={continuationStatus?.status === 'completed'}
       />
     </>

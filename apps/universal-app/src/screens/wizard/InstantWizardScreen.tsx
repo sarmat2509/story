@@ -54,7 +54,9 @@ export default function InstantWizardScreen() {
   const isChildSession = sessionMode === 'child';
   const childModeSettings = activeChild?.childMode?.childModeSettings;
   const canGenerateStories = !isChildSession || childModeSettings?.storyGenerationEnabled !== false;
-  const allowedLanguageCodes = isChildSession ? childModeSettings?.allowedLanguageCodes ?? [] : [];
+  const allowedLanguageCodes = isChildSession
+    ? (childModeSettings?.allowedLanguageCodes ?? [])
+    : [];
 
   // Form state
   const [photos, setPhotos] = useState<PhotoObject[]>([]);
@@ -82,9 +84,7 @@ export default function InstantWizardScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [navigation]);
 
@@ -98,8 +98,12 @@ export default function InstantWizardScreen() {
   useEffect(() => {
     if (isChildSession || !route.params?.childId) return;
     const child = childrenData?.children.find((item) => item.id === route.params?.childId);
-    const ageGroupFromProfile = (child as { age?: { ageGroup?: string } } | undefined)?.age?.ageGroup;
-    if (ageGroupFromProfile && ['2-3', '4-5', '6-7', '8-9', '10-12'].includes(ageGroupFromProfile)) {
+    const ageGroupFromProfile = (child as { age?: { ageGroup?: string } } | undefined)?.age
+      ?.ageGroup;
+    if (
+      ageGroupFromProfile &&
+      ['2-3', '4-5', '6-7', '8-9', '10-12'].includes(ageGroupFromProfile)
+    ) {
       setAgeGroup(ageGroupFromProfile as AgeGroup);
     }
   }, [childrenData?.children, isChildSession, route.params?.childId]);
@@ -144,14 +148,18 @@ export default function InstantWizardScreen() {
       });
 
       // Extract URLs from photo objects
-      const photoUrls = photos.map(photo => (typeof photo === 'string' ? photo : photo.url)).filter((u): u is string => !!u);
+      const photoUrls = photos
+        .map((photo) => (typeof photo === 'string' ? photo : photo.url))
+        .filter((u): u is string => !!u);
 
       const payload = {
         photos: photoUrls,
         ageGroup,
         language: storyLanguage || i18n.language,
         scenario: scenarioCardId ?? 'default',
-        ...(!isChildSession && route.params?.childId ? { childProfileId: route.params.childId } : {}),
+        ...(!isChildSession && route.params?.childId
+          ? { childProfileId: route.params.childId }
+          : {}),
       };
 
       const result = await createStoryFromPhotos.mutateAsync(payload);
@@ -216,8 +224,14 @@ export default function InstantWizardScreen() {
           <Text style={styles.sectionTitle}>{t('instant_wizard.upload_photos')}</Text>
           <Text style={styles.sectionDescription}>{t('instant_wizard.photos_description')}</Text>
           <PhotoUploadGrid
-            photos={photos.map((p) => ({ url: p.url, uploadedAt: p.uploadedAt || new Date().toISOString(), isUploading: (p as { isUploading?: boolean }).isUploading }))}
-            onPhotosChange={(newPhotos) => setPhotos(newPhotos.map((p) => ({ url: p.url, uploadedAt: p.uploadedAt })))}
+            photos={photos.map((p) => ({
+              url: p.url,
+              uploadedAt: p.uploadedAt || new Date().toISOString(),
+              isUploading: (p as { isUploading?: boolean }).isUploading,
+            }))}
+            onPhotosChange={(newPhotos) =>
+              setPhotos(newPhotos.map((p) => ({ url: p.url, uploadedAt: p.uploadedAt })))
+            }
             maxPhotos={5}
             photoType="character"
           />
@@ -232,18 +246,12 @@ export default function InstantWizardScreen() {
             {(['2-3', '4-5', '6-7', '8-9', '10-12'] as AgeGroup[]).map((age) => (
               <TouchableOpacity
                 key={age}
-                style={[
-                  styles.ageGroupButton,
-                  ageGroup === age && styles.ageGroupButtonSelected,
-                ]}
+                style={[styles.ageGroupButton, ageGroup === age && styles.ageGroupButtonSelected]}
                 onPress={() => setAgeGroup(age)}
                 activeOpacity={0.7}
               >
                 <Text
-                  style={[
-                    styles.ageGroupText,
-                    ageGroup === age && styles.ageGroupTextSelected,
-                  ]}
+                  style={[styles.ageGroupText, ageGroup === age && styles.ageGroupTextSelected]}
                 >
                   {age} {t('instant_wizard.years')}
                 </Text>

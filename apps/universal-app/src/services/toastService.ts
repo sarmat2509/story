@@ -22,7 +22,7 @@ export const toastService = {
       },
     });
   },
-  
+
   error: (title: string, message?: string, options?: ToastOptions) => {
     Toast.show({
       type: 'error',
@@ -35,7 +35,7 @@ export const toastService = {
       onPress: options?.onPress,
     });
   },
-  
+
   info: (title: string, message?: string, options?: ToastOptions) => {
     Toast.show({
       type: 'info',

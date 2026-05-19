@@ -27,7 +27,7 @@ export async function uploadPhoto(
   try {
     // Create FormData
     const formData = new FormData();
-    
+
     if (Platform.OS === 'web') {
       // Web: convert URI to Blob
       const response = await fetch(uri);
@@ -39,14 +39,14 @@ export async function uploadPhoto(
       const filename = uri.split('/').pop() || 'photo.jpg';
       const match = /\.(\w+)$/.exec(filename);
       const type = match ? `image/${match[1]}` : 'image/jpeg';
-      
+
       formData.append('photo', {
         uri,
         name: filename,
         type,
       } as any);
     }
-    
+
     formData.append('photoType', photoType);
     if (options.childDataConsentAccepted) {
       formData.append('childDataConsentAccepted', 'true');

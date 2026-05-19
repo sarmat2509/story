@@ -1,5 +1,14 @@
 import React, { useCallback, useLayoutEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, FlatList, useWindowDimensions, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  FlatList,
+  useWindowDimensions,
+  Platform,
+} from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -46,9 +55,7 @@ export default function DashboardScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [navigation]);
 
@@ -81,10 +88,7 @@ export default function DashboardScreen() {
   // Show loading state
   if (isLoading) {
     return (
-      <LinearGradient
-        colors={DASHBOARD_BG_GRADIENT}
-        style={styles.centerContainer}
-      >
+      <LinearGradient colors={DASHBOARD_BG_GRADIENT} style={styles.centerContainer}>
         <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
         <Text style={styles.loadingText}>{t('dashboard.loading')}</Text>
       </LinearGradient>
@@ -94,153 +98,139 @@ export default function DashboardScreen() {
   // Show error state
   if (hasError) {
     return (
-      <LinearGradient
-        colors={DASHBOARD_BG_GRADIENT}
-        style={styles.centerContainer}
-      >
+      <LinearGradient colors={DASHBOARD_BG_GRADIENT} style={styles.centerContainer}>
         <Text style={styles.errorTitle}>{t('dashboard.error_title')}</Text>
         <Text style={styles.errorMessage}>
-          {(storiesError as any)?.message || (childrenError as any)?.message || t('dashboard.error_message')}
+          {(storiesError as any)?.message ||
+            (childrenError as any)?.message ||
+            t('dashboard.error_message')}
         </Text>
-          <GradientButton
-            label={t('dashboard.retry')}
-            onPress={() => {
-              refetchStories();
-              if (!isChildSession) {
-                refetchChildren();
-              }
-            }}
-            style={styles.retryButton}
-          />
+        <GradientButton
+          label={t('dashboard.retry')}
+          onPress={() => {
+            refetchStories();
+            if (!isChildSession) {
+              refetchChildren();
+            }
+          }}
+          style={styles.retryButton}
+        />
       </LinearGradient>
     );
   }
 
   return (
     <>
-    <LinearGradient
-      colors={DASHBOARD_BG_GRADIENT}
-      style={styles.gradientBackground}
-    >
-      <View pointerEvents="none" style={styles.bokehOne} />
-      <View pointerEvents="none" style={styles.bokehTwo} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <AnimatedSection delay={0} trigger={enterKey}>
-          <View style={styles.header}>
-            <Text style={styles.greeting}>
-              {t('dashboard.welcome_back', { name: greetingName || 'User' })}
-            </Text>
-            <Text style={styles.subtext}>
-              {t('dashboard.tagline')}
-            </Text>
-          </View>
-        </AnimatedSection>
-
-        {/* Stats + primary actions in one card per column */}
-        <AnimatedSection delay={120} trigger={enterKey}>
-        <View style={styles.statsSection}>
-          <View style={styles.statCard}>
-            <View style={styles.statMetrics}>
-              <Text style={styles.statNumber}>{storiesCount}</Text>
-              <Text style={styles.statLabel}>{t('dashboard.stats.stories')}</Text>
-            </View>
-            <GlassPrimaryButton
-              title={t('dashboard.actions.create_story')}
-              onPress={() => navigation.navigate('Wizard')}
-              accessibilityLabel={t('dashboard.actions.create_story')}
-              leading={
-                <Ionicons
-                  name="sparkles-outline"
-                  size={22}
-                  color={theme.colors.primary[700]}
-                />
-              }
-              style={styles.statCardCta}
-            />
-          </View>
-
-          {!isChildSession && (
-            <View style={styles.statCard}>
-              <View style={styles.statMetrics}>
-                <Text style={styles.statNumber}>{childrenCount}</Text>
-                <Text style={styles.statLabel}>{t('dashboard.stats.children')}</Text>
-              </View>
-              <GlassPrimaryButton
-                title={
-                  canCreateMoreChildren
-                    ? t('dashboard.actions.add_child')
-                    : t('dashboard.actions.view_profiles')
-                }
-                onPress={() => navigation.navigate('Children')}
-                accessibilityLabel={
-                  canCreateMoreChildren
-                    ? t('dashboard.actions.add_child')
-                    : t('dashboard.actions.view_profiles')
-                }
-                leading={
-                  <Ionicons
-                    name={canCreateMoreChildren ? 'person-add-outline' : 'people-outline'}
-                    size={22}
-                    color={theme.colors.primary[700]}
-                  />
-                }
-                style={styles.statCardCta}
-              />
-            </View>
-          )}
-        </View>
-        </AnimatedSection>
-
-        {/* Recent Stories */}
-        {stories.length > 0 && (
-          <AnimatedSection delay={240} trigger={enterKey}>
-            <View style={styles.recentSection}>
-              <Text style={styles.sectionTitle}>{t('dashboard.recent_stories')}</Text>
-              <FlatList
-                data={stories.slice(0, 6)}
-                keyExtractor={(item) => item.id}
-                numColumns={numColumns}
-                key={`dashboard-grid-${numColumns}`}
-                scrollEnabled={false}
-                renderItem={({ item }) => (
-                  <View style={styles.gridCell}>
-                    <StoryCard
-                      story={item}
-                      onPress={() => navigateToStory(item.id)}
-                      variant="grid"
-                    />
-                  </View>
-                )}
-                contentContainerStyle={styles.gridContent}
-                columnWrapperStyle={styles.gridRow}
-              />
+      <LinearGradient colors={DASHBOARD_BG_GRADIENT} style={styles.gradientBackground}>
+        <View pointerEvents="none" style={styles.bokehOne} />
+        <View pointerEvents="none" style={styles.bokehTwo} />
+        <ScrollView contentContainerStyle={styles.content}>
+          <AnimatedSection delay={0} trigger={enterKey}>
+            <View style={styles.header}>
+              <Text style={styles.greeting}>
+                {t('dashboard.welcome_back', { name: greetingName || 'User' })}
+              </Text>
+              <Text style={styles.subtext}>{t('dashboard.tagline')}</Text>
             </View>
           </AnimatedSection>
-        )}
 
-        {/* View Library Button */}
-        <AnimatedSection delay={360} trigger={enterKey}>
-          <GlassPrimaryButton
-            title={t('dashboard.actions.view_library')}
-            onPress={() => navigation.navigate('Library')}
-            accessibilityLabel={t('dashboard.actions.view_library')}
-            leading={
-              <Ionicons
-                name="library-outline"
-                size={22}
-                color={theme.colors.primary[700]}
-              />
-            }
-            style={styles.glassDashboardActionSpacingBelow}
-          />
-        </AnimatedSection>
-      </ScrollView>
-    </LinearGradient>
-    <FeedbackModal
-      visible={showFeedbackModal}
-      onClose={() => setShowFeedbackModal(false)}
-      initialReportedScreen="dashboard"
-    />
+          {/* Stats + primary actions in one card per column */}
+          <AnimatedSection delay={120} trigger={enterKey}>
+            <View style={styles.statsSection}>
+              <View style={styles.statCard}>
+                <View style={styles.statMetrics}>
+                  <Text style={styles.statNumber}>{storiesCount}</Text>
+                  <Text style={styles.statLabel}>{t('dashboard.stats.stories')}</Text>
+                </View>
+                <GlassPrimaryButton
+                  title={t('dashboard.actions.create_story')}
+                  onPress={() => navigation.navigate('Wizard')}
+                  accessibilityLabel={t('dashboard.actions.create_story')}
+                  leading={
+                    <Ionicons name="sparkles-outline" size={22} color={theme.colors.primary[700]} />
+                  }
+                  style={styles.statCardCta}
+                />
+              </View>
+
+              {!isChildSession && (
+                <View style={styles.statCard}>
+                  <View style={styles.statMetrics}>
+                    <Text style={styles.statNumber}>{childrenCount}</Text>
+                    <Text style={styles.statLabel}>{t('dashboard.stats.children')}</Text>
+                  </View>
+                  <GlassPrimaryButton
+                    title={
+                      canCreateMoreChildren
+                        ? t('dashboard.actions.add_child')
+                        : t('dashboard.actions.view_profiles')
+                    }
+                    onPress={() => navigation.navigate('Children')}
+                    accessibilityLabel={
+                      canCreateMoreChildren
+                        ? t('dashboard.actions.add_child')
+                        : t('dashboard.actions.view_profiles')
+                    }
+                    leading={
+                      <Ionicons
+                        name={canCreateMoreChildren ? 'person-add-outline' : 'people-outline'}
+                        size={22}
+                        color={theme.colors.primary[700]}
+                      />
+                    }
+                    style={styles.statCardCta}
+                  />
+                </View>
+              )}
+            </View>
+          </AnimatedSection>
+
+          {/* Recent Stories */}
+          {stories.length > 0 && (
+            <AnimatedSection delay={240} trigger={enterKey}>
+              <View style={styles.recentSection}>
+                <Text style={styles.sectionTitle}>{t('dashboard.recent_stories')}</Text>
+                <FlatList
+                  data={stories.slice(0, 6)}
+                  keyExtractor={(item) => item.id}
+                  numColumns={numColumns}
+                  key={`dashboard-grid-${numColumns}`}
+                  scrollEnabled={false}
+                  renderItem={({ item }) => (
+                    <View style={styles.gridCell}>
+                      <StoryCard
+                        story={item}
+                        onPress={() => navigateToStory(item.id)}
+                        variant="grid"
+                      />
+                    </View>
+                  )}
+                  contentContainerStyle={styles.gridContent}
+                  columnWrapperStyle={styles.gridRow}
+                />
+              </View>
+            </AnimatedSection>
+          )}
+
+          {/* View Library Button */}
+          <AnimatedSection delay={360} trigger={enterKey}>
+            <GlassPrimaryButton
+              title={t('dashboard.actions.view_library')}
+              onPress={() => navigation.navigate('Library')}
+              accessibilityLabel={t('dashboard.actions.view_library')}
+              leading={
+                <Ionicons name="library-outline" size={22} color={theme.colors.primary[700]} />
+              }
+              style={styles.glassDashboardActionSpacingBelow}
+            />
+          </AnimatedSection>
+        </ScrollView>
+      </LinearGradient>
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="dashboard"
+      />
     </>
   );
 }

@@ -31,53 +31,54 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
   const { t } = useTranslation();
 
   // Prefer thumbnail for library (smaller, faster loading), fallback to full image
-  const thumbnailRaw = story.coverThumbnailUrl
-    || story.coverImageUrl
-    || story.scenes?.find(scene => scene.image?.url)?.image?.url
-    || null;
+  const thumbnailRaw =
+    story.coverThumbnailUrl ||
+    story.coverImageUrl ||
+    story.scenes?.find((scene) => scene.image?.url)?.image?.url ||
+    null;
   const thumbnail = formatAssetUrl(thumbnailRaw);
   const hasAudio = story.hasAudio || !!story.audioMetadata?.finalAssetId;
   const reviewStatus = story.createdByMode === 'child' ? story.parentReviewStatus : undefined;
   const reviewBadge =
-    reviewStatus && reviewStatus !== 'not_required'
-      ? (
-        <View style={[
+    reviewStatus && reviewStatus !== 'not_required' ? (
+      <View
+        style={[
           styles.reviewBadge,
           reviewStatus === 'pending' && styles.reviewBadgePending,
           reviewStatus === 'approved' && styles.reviewBadgeApproved,
           reviewStatus === 'rejected' && styles.reviewBadgeRejected,
-        ]}>
-          <Ionicons
-            name={
-              reviewStatus === 'approved'
-                ? 'checkmark-circle-outline'
-                : reviewStatus === 'rejected'
-                  ? 'close-circle-outline'
-                  : 'time-outline'
-            }
-            size={14}
-            color={
-              reviewStatus === 'approved'
-                ? theme.colors.status.success
-                : reviewStatus === 'rejected'
-                  ? theme.colors.status.error
-                  : theme.colors.status.warning
-            }
-          />
-          <Text
-            style={[
-              styles.reviewBadgeText,
-              reviewStatus === 'approved' && styles.reviewBadgeTextApproved,
-              reviewStatus === 'rejected' && styles.reviewBadgeTextRejected,
-            ]}
-            numberOfLines={1}
-          >
-            {t(`story_card.parent_review_${reviewStatus}`)}
-          </Text>
-        </View>
-      )
-      : null;
-  
+        ]}
+      >
+        <Ionicons
+          name={
+            reviewStatus === 'approved'
+              ? 'checkmark-circle-outline'
+              : reviewStatus === 'rejected'
+                ? 'close-circle-outline'
+                : 'time-outline'
+          }
+          size={14}
+          color={
+            reviewStatus === 'approved'
+              ? theme.colors.status.success
+              : reviewStatus === 'rejected'
+                ? theme.colors.status.error
+                : theme.colors.status.warning
+          }
+        />
+        <Text
+          style={[
+            styles.reviewBadgeText,
+            reviewStatus === 'approved' && styles.reviewBadgeTextApproved,
+            reviewStatus === 'rejected' && styles.reviewBadgeTextRejected,
+          ]}
+          numberOfLines={1}
+        >
+          {t(`story_card.parent_review_${reviewStatus}`)}
+        </Text>
+      </View>
+    ) : null;
+
   // Grid variant: cover image + title overlaid in white, bottom gradient for contrast
   if (variant === 'grid') {
     return (
@@ -125,11 +126,7 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
           </View>
         </Pressable>
 
-        {reviewBadge && (
-          <View style={styles.reviewBadgeGrid}>
-            {reviewBadge}
-          </View>
-        )}
+        {reviewBadge && <View style={styles.reviewBadgeGrid}>{reviewBadge}</View>}
 
         {/* Audio badge - top left corner */}
         {hasAudio && (
@@ -154,21 +151,25 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
       </View>
     );
   }
-  
+
   // List variant: no image, text only with inline delete button
   return (
     <View style={styles.card}>
       <TouchableOpacity style={styles.listCardTouchable} onPress={() => onPress(story.id)}>
         <View style={styles.content}>
-          <Text style={styles.title} numberOfLines={2}>{story.title}</Text>
-          <Text style={styles.meta}>{story.language} • {story.status}</Text>
+          <Text style={styles.title} numberOfLines={2}>
+            {story.title}
+          </Text>
+          <Text style={styles.meta}>
+            {story.language} • {story.status}
+          </Text>
           {reviewBadge && <View style={styles.reviewBadgeList}>{reviewBadge}</View>}
         </View>
       </TouchableOpacity>
-      
+
       {/* Delete button - inline on right */}
       {onDelete && (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.deleteButtonList}
           onPress={() => onDelete(story.id, story.title)}
           activeOpacity={0.7}

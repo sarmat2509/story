@@ -52,15 +52,12 @@ export function useSubmitFeedback() {
           ? window.location.pathname
           : undefined;
 
-      const response = await apiClient.post<SubmitFeedbackResponse>(
-        '/api/v1/feedback',
-        {
-          ...input,
-          platform,
-          url,
-          captchaToken,
-        }
-      );
+      const response = await apiClient.post<SubmitFeedbackResponse>('/api/v1/feedback', {
+        ...input,
+        platform,
+        url,
+        captchaToken,
+      });
       return response.data.feedback;
     },
   });

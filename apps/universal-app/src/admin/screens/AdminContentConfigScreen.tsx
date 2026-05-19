@@ -1,6 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
-import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import {
   useCreateAdminContentConfig,
   useAdminContentConfig,
@@ -183,8 +191,18 @@ const RESOURCE_CONFIGS: Record<AdminContentConfigResource, ResourceConfig> = {
       { key: 'descriptionKey', label: 'Description key', type: 'text' },
       { key: 'icon', label: 'Icon', type: 'text' },
       { key: 'promptGuidance', label: 'Prompt guidance', type: 'multiline' },
-      { key: 'suggestedGoals', label: 'Suggested goals', type: 'multiselect', optionsSource: 'storyGoals' },
-      { key: 'ageGroups', label: 'Age groups', type: 'multiselect', optionsSource: 'ageEngineRules' },
+      {
+        key: 'suggestedGoals',
+        label: 'Suggested goals',
+        type: 'multiselect',
+        optionsSource: 'storyGoals',
+      },
+      {
+        key: 'ageGroups',
+        label: 'Age groups',
+        type: 'multiselect',
+        optionsSource: 'ageEngineRules',
+      },
       { key: 'sortOrder', label: 'Sort order', type: 'number' },
       { key: 'isActive', label: 'Is active', type: 'boolean' },
     ],
@@ -195,7 +213,12 @@ const RESOURCE_CONFIGS: Record<AdminContentConfigResource, ResourceConfig> = {
     idKey: 'id',
     columns: ['scenarioCardId', 'setting', 'sortOrder', 'isActive'],
     editableFields: [
-      { key: 'scenarioCardId', label: 'Scenario card', type: 'select', optionsSource: 'scenarioCards' },
+      {
+        key: 'scenarioCardId',
+        label: 'Scenario card',
+        type: 'select',
+        optionsSource: 'scenarioCards',
+      },
       { key: 'setting', label: 'Setting', type: 'multiline' },
       { key: 'sortOrder', label: 'Sort order', type: 'number' },
       { key: 'isActive', label: 'Is active', type: 'boolean' },
@@ -207,7 +230,12 @@ const RESOURCE_CONFIGS: Record<AdminContentConfigResource, ResourceConfig> = {
     idKey: 'id',
     columns: ['scenarioCardId', 'name', 'sortOrder', 'isActive'],
     editableFields: [
-      { key: 'scenarioCardId', label: 'Scenario card', type: 'select', optionsSource: 'scenarioCards' },
+      {
+        key: 'scenarioCardId',
+        label: 'Scenario card',
+        type: 'select',
+        optionsSource: 'scenarioCards',
+      },
       { key: 'name', label: 'Name', type: 'text' },
       { key: 'description', label: 'Description', type: 'multiline' },
       { key: 'sortOrder', label: 'Sort order', type: 'number' },
@@ -255,16 +283,13 @@ function toDraftValue(value: unknown, type: FieldType): DraftValue {
 function toCellValue(value: unknown) {
   if (value == null) return 'n/a';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  const text =
-    typeof value === 'object'
-      ? JSON.stringify(value)
-      : String(value);
+  const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
   return text.length > 72 ? `${text.slice(0, 72)}...` : text;
 }
 
 function buildPatch(
   editableFields: ResourceConfig['editableFields'],
-  draft: Record<string, DraftValue>,
+  draft: Record<string, DraftValue>
 ): Record<string, unknown> {
   return Object.fromEntries(
     editableFields.map((field) => {
@@ -278,7 +303,7 @@ function buildPatch(
         return [field.key, Number(draft[field.key] ?? 0)];
       }
       return [field.key, String(draft[field.key] ?? '')];
-    }),
+    })
   );
 }
 
@@ -291,7 +316,7 @@ function getDynamicOptions(
     planItems: Array<Record<string, unknown>>;
     featureItems: Array<Record<string, unknown>>;
     featureCategoryOptions: SelectOption[];
-  },
+  }
 ): SelectOption[] {
   if (field.options) return field.options;
   if (field.optionsSource === 'ageEngineRules') {
@@ -404,17 +429,24 @@ export default function AdminContentConfigScreen() {
       [...new Set(featureItems.map((item) => String(item.category ?? '')).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b))
         .map((category) => ({ label: category, value: category })),
-    [featureItems],
+    [featureItems]
   );
-  const ageEngineRulesItems = useMemo(() => ageEngineRulesQuery.data?.items ?? [], [ageEngineRulesQuery.data?.items]);
-  const scenarioCardItems = useMemo(() => scenarioCardsQuery.data?.items ?? [], [scenarioCardsQuery.data?.items]);
-  const storyGoalItems = useMemo(() => storyGoalsQuery.data?.items ?? [], [storyGoalsQuery.data?.items]);
+  const ageEngineRulesItems = useMemo(
+    () => ageEngineRulesQuery.data?.items ?? [],
+    [ageEngineRulesQuery.data?.items]
+  );
+  const scenarioCardItems = useMemo(
+    () => scenarioCardsQuery.data?.items ?? [],
+    [scenarioCardsQuery.data?.items]
+  );
+  const storyGoalItems = useMemo(
+    () => storyGoalsQuery.data?.items ?? [],
+    [storyGoalsQuery.data?.items]
+  );
 
   const selectedItem = useMemo(() => {
     if (!selectedId) return null;
-    return (
-      items.find((item) => String(item[config.idKey] ?? '') === selectedId) ?? null
-    );
+    return items.find((item) => String(item[config.idKey] ?? '') === selectedId) ?? null;
   }, [config.idKey, items, selectedId]);
 
   useEffect(() => {
@@ -430,8 +462,8 @@ export default function AdminContentConfigScreen() {
     if (isCreating) {
       setDraft(
         Object.fromEntries(
-          formFields.map((field) => [field.key, toDraftValue(undefined, field.type)]),
-        ),
+          formFields.map((field) => [field.key, toDraftValue(undefined, field.type)])
+        )
       );
       setOpenFieldKey(null);
       return;
@@ -445,14 +477,14 @@ export default function AdminContentConfigScreen() {
 
     setDraft(
       Object.fromEntries(
-        formFields.map((field) => [field.key, toDraftValue(selectedItem[field.key], field.type)]),
-      ),
+        formFields.map((field) => [field.key, toDraftValue(selectedItem[field.key], field.type)])
+      )
     );
   }, [config.createOnlyFields, config.editableFields, isCreating, selectedItem]);
 
   const formFields = useMemo(
     () => [...(config.createOnlyFields ?? []), ...config.editableFields],
-    [config.createOnlyFields, config.editableFields],
+    [config.createOnlyFields, config.editableFields]
   );
 
   const rows = items.map((item) => [
@@ -464,8 +496,8 @@ export default function AdminContentConfigScreen() {
           value: item[column],
           planItems,
           featureItems,
-        }),
-      ),
+        })
+      )
     ),
     <TouchableOpacity
       key={`${resource}-${String(item[config.idKey])}-edit`}
@@ -482,9 +514,10 @@ export default function AdminContentConfigScreen() {
       style={styles.deleteButton}
       onPress={async () => {
         const recordId = String(item[config.idKey] ?? '');
-        const confirmed = typeof globalThis.confirm === 'function'
-          ? globalThis.confirm(`Delete this ${config.label} record?`)
-          : true;
+        const confirmed =
+          typeof globalThis.confirm === 'function'
+            ? globalThis.confirm(`Delete this ${config.label} record?`)
+            : true;
         if (!confirmed) return;
 
         await deleteItem.mutateAsync({
@@ -503,7 +536,11 @@ export default function AdminContentConfigScreen() {
   ]);
 
   return (
-    <AdminLayout navigation={navigation} activeRoute="AdminContentConfig" title="Admin / Content Config">
+    <AdminLayout
+      navigation={navigation}
+      activeRoute="AdminContentConfig"
+      title="Admin / Content Config"
+    >
       <View style={styles.resourcePicker}>
         {RESOURCE_ORDER.map((key) => {
           const item = RESOURCE_CONFIGS[key];
@@ -569,9 +606,16 @@ export default function AdminContentConfigScreen() {
                             <TouchableOpacity
                               key={`${field.key}-${String(option)}`}
                               style={[styles.booleanChip, isSelected && styles.booleanChipActive]}
-                              onPress={() => setDraft((current) => ({ ...current, [field.key]: option }))}
+                              onPress={() =>
+                                setDraft((current) => ({ ...current, [field.key]: option }))
+                              }
                             >
-                              <Text style={[styles.booleanChipText, isSelected && styles.booleanChipTextActive]}>
+                              <Text
+                                style={[
+                                  styles.booleanChipText,
+                                  isSelected && styles.booleanChipTextActive,
+                                ]}
+                              >
                                 {option ? 'True' : 'False'}
                               </Text>
                             </TouchableOpacity>
@@ -582,22 +626,26 @@ export default function AdminContentConfigScreen() {
                       <View style={styles.selectGroup}>
                         <TouchableOpacity
                           style={styles.selectTrigger}
-                          onPress={() => setOpenFieldKey((current) => (current === field.key ? null : field.key))}
+                          onPress={() =>
+                            setOpenFieldKey((current) => (current === field.key ? null : field.key))
+                          }
                         >
                           <Text style={styles.selectTriggerText}>
                             {getSelectedOptionLabel(
                               getDynamicOptions(field, {
                                 ageEngineRulesItems,
-                              scenarioCardItems,
-                              storyGoalItems,
-                              planItems,
-                              featureItems,
-                              featureCategoryOptions,
-                            }),
-                              draft[field.key],
+                                scenarioCardItems,
+                                storyGoalItems,
+                                planItems,
+                                featureItems,
+                                featureCategoryOptions,
+                              }),
+                              draft[field.key]
                             )}
                           </Text>
-                          <Text style={styles.selectChevron}>{openFieldKey === field.key ? '▲' : '▼'}</Text>
+                          <Text style={styles.selectChevron}>
+                            {openFieldKey === field.key ? '▲' : '▼'}
+                          </Text>
                         </TouchableOpacity>
 
                         {openFieldKey === field.key ? (
@@ -614,13 +662,24 @@ export default function AdminContentConfigScreen() {
                               return (
                                 <TouchableOpacity
                                   key={`${field.key}-${option.value}`}
-                                  style={[styles.selectOption, isSelected && styles.selectOptionActive]}
+                                  style={[
+                                    styles.selectOption,
+                                    isSelected && styles.selectOptionActive,
+                                  ]}
                                   onPress={() => {
-                                    setDraft((current) => ({ ...current, [field.key]: option.value }));
+                                    setDraft((current) => ({
+                                      ...current,
+                                      [field.key]: option.value,
+                                    }));
                                     setOpenFieldKey(null);
                                   }}
                                 >
-                                  <Text style={[styles.selectOptionText, isSelected && styles.selectOptionTextActive]}>
+                                  <Text
+                                    style={[
+                                      styles.selectOptionText,
+                                      isSelected && styles.selectOptionTextActive,
+                                    ]}
+                                  >
                                     {option.label}
                                   </Text>
                                 </TouchableOpacity>
@@ -633,7 +692,9 @@ export default function AdminContentConfigScreen() {
                       <View style={styles.selectGroup}>
                         <TouchableOpacity
                           style={styles.selectTrigger}
-                          onPress={() => setOpenFieldKey((current) => (current === field.key ? null : field.key))}
+                          onPress={() =>
+                            setOpenFieldKey((current) => (current === field.key ? null : field.key))
+                          }
                         >
                           <Text style={styles.selectTriggerText}>
                             {getSelectedOptionLabels(
@@ -645,10 +706,12 @@ export default function AdminContentConfigScreen() {
                                 featureItems,
                                 featureCategoryOptions,
                               }),
-                              draft[field.key],
+                              draft[field.key]
                             )}
                           </Text>
-                          <Text style={styles.selectChevron}>{openFieldKey === field.key ? '▲' : '▼'}</Text>
+                          <Text style={styles.selectChevron}>
+                            {openFieldKey === field.key ? '▲' : '▼'}
+                          </Text>
                         </TouchableOpacity>
 
                         {openFieldKey === field.key ? (
@@ -661,23 +724,37 @@ export default function AdminContentConfigScreen() {
                               featureItems,
                               featureCategoryOptions,
                             }).map((option) => {
-                              const selectedValues = (Array.isArray(draft[field.key]) ? draft[field.key] : []) as string[];
+                              const selectedValues = (
+                                Array.isArray(draft[field.key]) ? draft[field.key] : []
+                              ) as string[];
                               const isSelected = selectedValues.includes(option.value);
                               return (
                                 <TouchableOpacity
                                   key={`${field.key}-${option.value}`}
-                                  style={[styles.selectOption, isSelected && styles.selectOptionActive]}
+                                  style={[
+                                    styles.selectOption,
+                                    isSelected && styles.selectOptionActive,
+                                  ]}
                                   onPress={() => {
                                     setDraft((current) => {
-                                      const currentValues = (Array.isArray(current[field.key]) ? current[field.key] : []) as string[];
+                                      const currentValues = (
+                                        Array.isArray(current[field.key]) ? current[field.key] : []
+                                      ) as string[];
                                       const nextValues = currentValues.includes(option.value)
-                                        ? currentValues.filter((value: string) => value !== option.value)
+                                        ? currentValues.filter(
+                                            (value: string) => value !== option.value
+                                          )
                                         : [...currentValues, option.value];
                                       return { ...current, [field.key]: nextValues };
                                     });
                                   }}
                                 >
-                                  <Text style={[styles.selectOptionText, isSelected && styles.selectOptionTextActive]}>
+                                  <Text
+                                    style={[
+                                      styles.selectOptionText,
+                                      isSelected && styles.selectOptionTextActive,
+                                    ]}
+                                  >
                                     {isSelected ? '✓ ' : ''}
                                     {option.label}
                                   </Text>
@@ -691,7 +768,9 @@ export default function AdminContentConfigScreen() {
                       <TextInput
                         style={[styles.input, field.type === 'multiline' && styles.multilineInput]}
                         value={String(draft[field.key] ?? '')}
-                        onChangeText={(value) => setDraft((current) => ({ ...current, [field.key]: value }))}
+                        onChangeText={(value) =>
+                          setDraft((current) => ({ ...current, [field.key]: value }))
+                        }
                         multiline={field.type === 'multiline'}
                         autoCapitalize="none"
                         autoCorrect={false}
@@ -717,9 +796,10 @@ export default function AdminContentConfigScreen() {
                       style={styles.deleteButton}
                       disabled={deleteItem.isPending}
                       onPress={async () => {
-                        const confirmed = typeof globalThis.confirm === 'function'
-                          ? globalThis.confirm(`Delete this ${config.label} record?`)
-                          : true;
+                        const confirmed =
+                          typeof globalThis.confirm === 'function'
+                            ? globalThis.confirm(`Delete this ${config.label} record?`)
+                            : true;
                         if (!confirmed) return;
 
                         await deleteItem.mutateAsync({
@@ -765,14 +845,20 @@ export default function AdminContentConfigScreen() {
                   >
                     <Text style={styles.primaryButtonText}>
                       {isCreating
-                        ? (createItem.isPending ? 'Creating...' : 'Create')
-                        : (updateItem.isPending ? 'Saving...' : 'Save')}
+                        ? createItem.isPending
+                          ? 'Creating...'
+                          : 'Create'
+                        : updateItem.isPending
+                          ? 'Saving...'
+                          : 'Save'}
                     </Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
             ) : (
-              <View style={[styles.placeholderPanel, Platform.OS === 'web' && styles.editorScrollWeb]}>
+              <View
+                style={[styles.placeholderPanel, Platform.OS === 'web' && styles.editorScrollWeb]}
+              >
                 <Text style={styles.placeholderTitle}>Select a row to edit</Text>
                 <Text style={styles.placeholderText}>
                   Start with the table on the left, or create a new row with the add button.

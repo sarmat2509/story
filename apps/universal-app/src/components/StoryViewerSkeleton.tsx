@@ -14,10 +14,7 @@ export function StoryViewerSkeleton() {
 
   useEffect(() => {
     opacity.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 750 }),
-        withTiming(0.5, { duration: 750 })
-      ),
+      withSequence(withTiming(1, { duration: 750 }), withTiming(0.5, { duration: 750 })),
       -1,
       false
     );
@@ -34,7 +31,7 @@ export function StoryViewerSkeleton() {
         <View style={styles.scene}>
           {/* Image placeholder */}
           <Animated.View style={[styles.imagePlaceholder, animatedStyle]} />
-          
+
           {/* Text lines */}
           <View style={styles.textContainer}>
             <Animated.View style={[styles.textLine, styles.textLineLong, animatedStyle]} />

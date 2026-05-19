@@ -18,7 +18,7 @@ export const audioNotificationService = {
       if (!data) {
         return false;
       }
-      
+
       const state: AudioNotificationState = JSON.parse(data);
       return state[storyId] === true;
     } catch (error) {
@@ -26,7 +26,7 @@ export const audioNotificationService = {
       return false;
     }
   },
-  
+
   /**
    * Mark notification as shown for story
    * @param storyId - Story UUID
@@ -35,15 +35,15 @@ export const audioNotificationService = {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY);
       const state: AudioNotificationState = data ? JSON.parse(data) : {};
-      
+
       state[storyId] = true;
-      
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (error) {
       console.error('Error marking audio notification as shown:', error);
     }
   },
-  
+
   /**
    * Clear all shown notifications (useful for testing)
    */

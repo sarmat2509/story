@@ -56,7 +56,18 @@ const queryClient = new QueryClient({
 
 // Linking configuration for deep links and OAuth callbacks
 /** Extract active route (name + params) inside Main from root navigation state for persistence across Tab/Drawer switch. */
-function getActiveMainRouteFromState(state: { routes?: { name: string; params?: object; state?: { routes?: { name: string; params?: object }[]; index?: number } }[]; index?: number } | undefined): { name: keyof MainTabParamList; params?: object } | null {
+function getActiveMainRouteFromState(
+  state:
+    | {
+        routes?: {
+          name: string;
+          params?: object;
+          state?: { routes?: { name: string; params?: object }[]; index?: number };
+        }[];
+        index?: number;
+      }
+    | undefined
+): { name: keyof MainTabParamList; params?: object } | null {
   if (!state?.routes?.length) return null;
   const main = state.routes[state.index ?? 0];
   if (!main || main.name !== 'Main' || !main.state) return null;
@@ -68,10 +79,7 @@ function getActiveMainRouteFromState(state: { routes?: { name: string; params?: 
 }
 
 function getLocaleFromWebPath(path: string): string | null {
-  const firstSegment = path
-    .split('/')
-    .filter(Boolean)[0]
-    ?.toLowerCase();
+  const firstSegment = path.split('/').filter(Boolean)[0]?.toLowerCase();
 
   return firstSegment && isValidLocale(firstSegment) ? firstSegment : null;
 }
@@ -174,7 +182,10 @@ function isWebOAuthCallbackPath(): boolean {
 const linking: any = {
   prefixes: ['wondertales://', 'http://localhost:8081', 'https://app.wondertales.com'],
   getStateFromPath(path: string, options: any) {
-    const state = defaultGetStateFromPath(normalizeLegacyChildDetailPath(stripLocalePrefix(path)), options);
+    const state = defaultGetStateFromPath(
+      normalizeLegacyChildDetailPath(stripLocalePrefix(path)),
+      options
+    );
     return state ? preserveOriginalPathOnFocusedRoute(state, path) : state;
   },
   getPathFromState(state: any, options: any) {
@@ -247,7 +258,7 @@ export default function App() {
         setAuthLoading(true);
         // Initialize i18n
         await initI18n();
-        
+
         // Auth state is loaded by Zustand persist middleware; wait for it before
         // mounting deep-linked protected routes so guards do not redirect early.
         await waitForAuthStoreHydration();

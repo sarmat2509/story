@@ -4,18 +4,9 @@ import {
   type PublicSeoLocale,
 } from '@wondertales/shared';
 
-const DEFAULT_PUBLIC_SEO_PATHS = new Set([
-  '/',
-  '/pricing',
-  '/stories',
-  '/terms',
-  '/privacy',
-]);
+const DEFAULT_PUBLIC_SEO_PATHS = new Set(['/', '/pricing', '/stories', '/terms', '/privacy']);
 
-const DEFAULT_PUBLIC_SEO_PREFIXES = [
-  /^\/authors\/[^/]+$/,
-  /^\/stories\/[^/]+$/,
-];
+const DEFAULT_PUBLIC_SEO_PREFIXES = [/^\/authors\/[^/]+$/, /^\/stories\/[^/]+$/];
 
 function normalizePath(pathname: string): string {
   const path = pathname.split(/[?#]/)[0] || '/';
@@ -25,10 +16,7 @@ function normalizePath(pathname: string): string {
 
 export function getPublicSeoLocaleOverrideFromPath(pathname: string): PublicSeoLocale | null {
   const normalizedPath = normalizePath(pathname);
-  const firstSegment = normalizedPath
-    .split('/')
-    .filter(Boolean)[0]
-    ?.toLowerCase();
+  const firstSegment = normalizedPath.split('/').filter(Boolean)[0]?.toLowerCase();
 
   if (isPublicSeoLocale(firstSegment)) {
     return firstSegment;

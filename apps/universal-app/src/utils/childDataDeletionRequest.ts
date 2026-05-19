@@ -6,7 +6,7 @@ export const CHILD_DATA_DELETION_SCOPE_KEYS = [
   'full_review',
 ] as const;
 
-export type ChildDataDeletionScope = typeof CHILD_DATA_DELETION_SCOPE_KEYS[number];
+export type ChildDataDeletionScope = (typeof CHILD_DATA_DELETION_SCOPE_KEYS)[number];
 
 export const DEFAULT_CHILD_DATA_DELETION_SCOPES: readonly ChildDataDeletionScope[] = [
   'profile',

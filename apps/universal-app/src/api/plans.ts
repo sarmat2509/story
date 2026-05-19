@@ -227,7 +227,7 @@ export const useCreatePortalSession = () => {
 // Upgrade plan (test mode, no payment)
 export const useUpgradePlan = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (planSlug: string) => {
       const response = await apiClient.put<{

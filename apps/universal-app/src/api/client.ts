@@ -19,28 +19,26 @@ const apiClient = FetchClient.create({
 });
 
 // Request interceptor - add auth token + transform camelCase → snake_case
-apiClient.interceptors.request.use(
-  async (config) => {
-    const token = await storage.getAuthToken();
-    
-    if (token) {
-      config.headers = config.headers || {};
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+apiClient.interceptors.request.use(async (config) => {
+  const token = await storage.getAuthToken();
 
-    // Transform request data: camelCase → snake_case (skip FormData — multipart must stay intact)
-    if (config.data && !(config.data instanceof FormData)) {
-      config.data = decamelizeKeys(config.data, { separator: '_' });
-    }
-
-    // Transform query params: camelCase → snake_case
-    if (config.params) {
-      config.params = decamelizeKeys(config.params, { separator: '_' });
-    }
-
-    return config;
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+
+  // Transform request data: camelCase → snake_case (skip FormData — multipart must stay intact)
+  if (config.data && !(config.data instanceof FormData)) {
+    config.data = decamelizeKeys(config.data, { separator: '_' });
+  }
+
+  // Transform query params: camelCase → snake_case
+  if (config.params) {
+    config.params = decamelizeKeys(config.params, { separator: '_' });
+  }
+
+  return config;
+});
 
 // Response interceptor - transform snake_case → camelCase + handle errors
 apiClient.interceptors.response.use(

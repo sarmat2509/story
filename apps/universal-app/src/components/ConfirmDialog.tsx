@@ -24,16 +24,21 @@ export function ConfirmDialog({
   onCancel,
   variant = 'danger',
 }: ConfirmDialogProps) {
-  const iconName = variant === 'danger' ? 'trash-outline' : variant === 'warning' ? 'warning-outline' : 'information-circle-outline';
-  const iconColor = variant === 'danger' ? theme.colors.status.error : variant === 'warning' ? theme.colors.status.warning : theme.colors.interactive.primary;
+  const iconName =
+    variant === 'danger'
+      ? 'trash-outline'
+      : variant === 'warning'
+        ? 'warning-outline'
+        : 'information-circle-outline';
+  const iconColor =
+    variant === 'danger'
+      ? theme.colors.status.error
+      : variant === 'warning'
+        ? theme.colors.status.warning
+        : theme.colors.interactive.primary;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onCancel}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.overlay}>
         <View style={styles.dialog}>
           {/* Icon */}
@@ -49,16 +54,16 @@ export function ConfirmDialog({
 
           {/* Buttons */}
           <View style={styles.buttonContainer}>
-            <TouchableOpacity 
-              style={[styles.button, styles.cancelButton]} 
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton]}
               onPress={onCancel}
               activeOpacity={0.7}
             >
               <Text style={styles.cancelButtonText}>{cancelText}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.button, styles.confirmButton, { backgroundColor: iconColor }]} 
+            <TouchableOpacity
+              style={[styles.button, styles.confirmButton, { backgroundColor: iconColor }]}
               onPress={onConfirm}
               activeOpacity={0.7}
             >

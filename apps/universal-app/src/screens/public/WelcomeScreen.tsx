@@ -184,186 +184,211 @@ export default function WelcomeScreen() {
               </View>
             </AnimatedSection>
 
-          {error && (
-            <AnimatedSection delay={80} trigger={enterKey}>
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
+            {error && (
+              <AnimatedSection delay={80} trigger={enterKey}>
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              </AnimatedSection>
+            )}
+
+            <AnimatedSection delay={140} trigger={enterKey}>
+              <GlassCard style={styles.glassForm} borderColors={IRIDESCENT_BORDER_COLORS}>
+                <View style={styles.formSection}>
+                  <Text style={styles.inputLabel}>{t('auth.email')}</Text>
+                  <TextInput
+                    nativeID="login-email"
+                    style={styles.input}
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder={t('auth.email_placeholder')}
+                    placeholderTextColor={theme.colors.text.tertiary}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    textContentType="emailAddress"
+                    autoCorrect={false}
+                  />
+
+                  <Text style={[styles.inputLabel, styles.inputLabelMargin]}>
+                    {t('auth.password')}
+                  </Text>
+                  <View style={styles.passwordRow}>
+                    <TextInput
+                      nativeID="login-password"
+                      style={[styles.input, styles.passwordInput]}
+                      value={password}
+                      onChangeText={setPassword}
+                      placeholder={t('auth.password_placeholder')}
+                      placeholderTextColor={theme.colors.text.tertiary}
+                      secureTextEntry={!showPassword}
+                      autoComplete="current-password"
+                      textContentType="password"
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeButton}
+                      onPress={() => setShowPassword(!showPassword)}
+                      accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      <Ionicons
+                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={22}
+                        color={theme.colors.text.tertiary}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.forgotLink}
+                    onPress={() => navigation.navigate('ForgotPassword')}
+                  >
+                    <Text style={styles.forgotLinkText}>{t('auth.forgot_password')}</Text>
+                  </TouchableOpacity>
+
+                  <GradientButton
+                    label={t('auth.login')}
+                    onPress={handleEmailLogin}
+                    disabled={!canSubmitEmail || isLoading}
+                    loading={emailLoginMutation.isPending}
+                    style={styles.primaryButtonSpacing}
+                  />
+                </View>
+
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>{t('auth.or')}</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <View style={styles.authSection}>
+                  <View style={styles.oauthConsentBox}>
+                    {[
+                      {
+                        key: 'adult',
+                        value: oauthAdultGuardian,
+                        setValue: setOauthAdultGuardian,
+                        label: t('auth.consent_adult_guardian'),
+                      },
+                      {
+                        key: 'terms',
+                        value: oauthTermsAccepted,
+                        setValue: setOauthTermsAccepted,
+                        label: `${t('auth.consent_terms')} ${t('auth.terms_link')}`,
+                      },
+                      {
+                        key: 'privacy',
+                        value: oauthPrivacyAccepted,
+                        setValue: setOauthPrivacyAccepted,
+                        label: `${t('auth.consent_privacy')} ${t('auth.privacy_link')}`,
+                      },
+                    ].map((item) => (
+                      <TouchableOpacity
+                        key={item.key}
+                        style={styles.oauthConsentRow}
+                        onPress={() => item.setValue(!item.value)}
+                        disabled={isLoading}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: item.value }}
+                      >
+                        <View
+                          style={[styles.oauthCheckbox, item.value && styles.oauthCheckboxChecked]}
+                        >
+                          {item.value ? (
+                            <Ionicons
+                              name="checkmark"
+                              size={14}
+                              color={theme.colors.text.inverse}
+                            />
+                          ) : null}
+                        </View>
+                        <Text style={styles.oauthConsentText}>{item.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.button,
+                      styles.googleButton,
+                      !canUseOAuth && styles.oauthButtonDisabled,
+                    ]}
+                    onPress={handleGoogleLogin}
+                    disabled={isLoading || !canUseOAuth}
+                  >
+                    {oauthLoading ? (
+                      <ActivityIndicator color={theme.colors.text.inverse} />
+                    ) : (
+                      <>
+                        <Ionicons name="logo-google" size={20} color={theme.colors.text.inverse} />
+                        <Text style={styles.buttonText}>{t('welcome.sign_in_google')}</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  {showAppleSignIn && (
+                    <TouchableOpacity
+                      style={[
+                        styles.button,
+                        styles.appleButton,
+                        !canUseOAuth && styles.oauthButtonDisabled,
+                      ]}
+                      onPress={handleAppleLogin}
+                      disabled={isLoading || !canUseOAuth}
+                    >
+                      {oauthLoading ? (
+                        <ActivityIndicator color={theme.colors.text.inverse} />
+                      ) : (
+                        <>
+                          <Ionicons name="logo-apple" size={22} color={theme.colors.text.inverse} />
+                          <Text style={styles.buttonText}>{t('welcome.sign_in_apple')}</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <TouchableOpacity
+                  style={styles.registerLink}
+                  onPress={() => navigation.navigate('Register')}
+                >
+                  <Text style={styles.registerLinkText}>{t('auth.want_to_create_stories')}</Text>
+                </TouchableOpacity>
+              </GlassCard>
+            </AnimatedSection>
+
+            <AnimatedSection delay={260} trigger={enterKey}>
+              <View style={styles.linksSection}>
+                <InteractiveSurface
+                  style={styles.linkButton}
+                  onPress={() => navigation.navigate('Stories')}
+                  accessibilityLabel={t('welcome.browse_stories')}
+                >
+                  <Ionicons
+                    name="newspaper-outline"
+                    size={24}
+                    color={theme.colors.interactive.primary}
+                  />
+                  <Text style={styles.linkButtonText}>{t('welcome.browse_stories')}</Text>
+                </InteractiveSurface>
+
+                <InteractiveSurface
+                  style={styles.linkButton}
+                  onPress={handleViewPlans}
+                  accessibilityLabel={t('welcome.view_plans')}
+                >
+                  <Ionicons
+                    name="diamond-outline"
+                    size={24}
+                    color={theme.colors.interactive.primary}
+                  />
+                  <Text style={styles.linkButtonText}>{t('welcome.view_plans')}</Text>
+                </InteractiveSurface>
               </View>
             </AnimatedSection>
-          )}
-
-          <AnimatedSection delay={140} trigger={enterKey}>
-          <GlassCard style={styles.glassForm} borderColors={IRIDESCENT_BORDER_COLORS}>
-          <View style={styles.formSection}>
-            <Text style={styles.inputLabel}>{t('auth.email')}</Text>
-            <TextInput
-              nativeID="login-email"
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder={t('auth.email_placeholder')}
-              placeholderTextColor={theme.colors.text.tertiary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              textContentType="emailAddress"
-              autoCorrect={false}
-            />
-
-            <Text style={[styles.inputLabel, styles.inputLabelMargin]}>{t('auth.password')}</Text>
-            <View style={styles.passwordRow}>
-              <TextInput
-                nativeID="login-password"
-                style={[styles.input, styles.passwordInput]}
-                value={password}
-                onChangeText={setPassword}
-                placeholder={t('auth.password_placeholder')}
-                placeholderTextColor={theme.colors.text.tertiary}
-                secureTextEntry={!showPassword}
-                autoComplete="current-password"
-                textContentType="password"
-              />
-              <TouchableOpacity
-                style={styles.eyeButton}
-                onPress={() => setShowPassword(!showPassword)}
-                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-              >
-                <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={22}
-                  color={theme.colors.text.tertiary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={styles.forgotLink}
-              onPress={() => navigation.navigate('ForgotPassword')}
-            >
-              <Text style={styles.forgotLinkText}>{t('auth.forgot_password')}</Text>
-            </TouchableOpacity>
-
-            <GradientButton
-              label={t('auth.login')}
-              onPress={handleEmailLogin}
-              disabled={!canSubmitEmail || isLoading}
-              loading={emailLoginMutation.isPending}
-              style={styles.primaryButtonSpacing}
-            />
-          </View>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>{t('auth.or')}</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <View style={styles.authSection}>
-            <View style={styles.oauthConsentBox}>
-              {[
-                {
-                  key: 'adult',
-                  value: oauthAdultGuardian,
-                  setValue: setOauthAdultGuardian,
-                  label: t('auth.consent_adult_guardian'),
-                },
-                {
-                  key: 'terms',
-                  value: oauthTermsAccepted,
-                  setValue: setOauthTermsAccepted,
-                  label: `${t('auth.consent_terms')} ${t('auth.terms_link')}`,
-                },
-                {
-                  key: 'privacy',
-                  value: oauthPrivacyAccepted,
-                  setValue: setOauthPrivacyAccepted,
-                  label: `${t('auth.consent_privacy')} ${t('auth.privacy_link')}`,
-                },
-              ].map((item) => (
-                <TouchableOpacity
-                  key={item.key}
-                  style={styles.oauthConsentRow}
-                  onPress={() => item.setValue(!item.value)}
-                  disabled={isLoading}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: item.value }}
-                >
-                  <View style={[styles.oauthCheckbox, item.value && styles.oauthCheckboxChecked]}>
-                    {item.value ? (
-                      <Ionicons name="checkmark" size={14} color={theme.colors.text.inverse} />
-                    ) : null}
-                  </View>
-                  <Text style={styles.oauthConsentText}>{item.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity
-              style={[styles.button, styles.googleButton, !canUseOAuth && styles.oauthButtonDisabled]}
-              onPress={handleGoogleLogin}
-              disabled={isLoading || !canUseOAuth}
-            >
-              {oauthLoading ? (
-                <ActivityIndicator color={theme.colors.text.inverse} />
-              ) : (
-                <>
-                  <Ionicons name="logo-google" size={20} color={theme.colors.text.inverse} />
-                  <Text style={styles.buttonText}>{t('welcome.sign_in_google')}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            {showAppleSignIn && (
-              <TouchableOpacity
-                style={[styles.button, styles.appleButton, !canUseOAuth && styles.oauthButtonDisabled]}
-                onPress={handleAppleLogin}
-                disabled={isLoading || !canUseOAuth}
-              >
-                {oauthLoading ? (
-                  <ActivityIndicator color={theme.colors.text.inverse} />
-                ) : (
-                  <>
-                    <Ionicons name="logo-apple" size={22} color={theme.colors.text.inverse} />
-                    <Text style={styles.buttonText}>{t('welcome.sign_in_apple')}</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <TouchableOpacity
-            style={styles.registerLink}
-            onPress={() => navigation.navigate('Register')}
-          >
-            <Text style={styles.registerLinkText}>{t('auth.want_to_create_stories')}</Text>
-          </TouchableOpacity>
-          </GlassCard>
-          </AnimatedSection>
-
-          <AnimatedSection delay={260} trigger={enterKey}>
-          <View style={styles.linksSection}>
-            <InteractiveSurface
-              style={styles.linkButton}
-              onPress={() => navigation.navigate('Stories')}
-              accessibilityLabel={t('welcome.browse_stories')}
-            >
-              <Ionicons name="newspaper-outline" size={24} color={theme.colors.interactive.primary} />
-              <Text style={styles.linkButtonText}>{t('welcome.browse_stories')}</Text>
-            </InteractiveSurface>
-
-            <InteractiveSurface
-              style={styles.linkButton}
-              onPress={handleViewPlans}
-              accessibilityLabel={t('welcome.view_plans')}
-            >
-              <Ionicons name="diamond-outline" size={24} color={theme.colors.interactive.primary} />
-              <Text style={styles.linkButtonText}>{t('welcome.view_plans')}</Text>
-            </InteractiveSurface>
-          </View>
-          </AnimatedSection>
 
             {showSkipOption && Platform.OS !== 'web' && (
               <Text style={styles.devNoteText}>
-                Dev Tip: Test UI layout on web version, or build with expo-dev-client for native OAuth
+                Dev Tip: Test UI layout on web version, or build with expo-dev-client for native
+                OAuth
               </Text>
             )}
           </View>

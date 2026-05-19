@@ -35,6 +35,8 @@
 	</array>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -46,6 +48,10 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSCameraUsageDescription</key>
+    <string>WonderTales can let a parent take an optional reference photo for a story character when the parent starts that photo flow.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>WonderTales uses microphone access only if a parent records optional audio for a story.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>WonderTales lets parents choose photos they have the right to use as optional references for safe, fictional, illustrated story characters.</string>
     <key>RCTNewArchEnabled</key>

@@ -21,27 +21,48 @@ export default function AdminStoriesScreen() {
   const navigation = useNavigation<NavigationProp<AdminStackParamList>>();
   const [search, setSearch] = useState('');
   const [offset, setOffset] = useState(0);
-  const [publishedStatus, setPublishedStatus] = useState<(typeof PUBLISHED_FILTERS)[number]['value']>('all');
-  const { data, isLoading, error } = useAdminStories({ limit: PAGE_SIZE, offset, search, publishedStatus });
+  const [publishedStatus, setPublishedStatus] =
+    useState<(typeof PUBLISHED_FILTERS)[number]['value']>('all');
+  const { data, isLoading, error } = useAdminStories({
+    limit: PAGE_SIZE,
+    offset,
+    search,
+    publishedStatus,
+  });
   const updateStoryMutation = useUpdateAdminStory();
 
   const rows = (data?.items ?? []).map((item) => [
     item.id,
     item.title,
     item.userId,
-    item.isPublished ? (item.visibility === 'public' ? 'Published for all' : 'Unlisted') : 'Private',
+    item.isPublished
+      ? item.visibility === 'public'
+        ? 'Published for all'
+        : 'Unlisted'
+      : 'Private',
     <View key={`${item.id}-homepage`} style={styles.homePageCell}>
       <TouchableOpacity
         style={[
           styles.toggleButton,
           item.showOnHomePage ? styles.toggleButtonActive : styles.toggleButtonInactive,
-          (!item.isPublished || item.visibility !== 'public' || !item.publishedSlug || updateStoryMutation.isPending) && styles.toggleButtonDisabled,
+          (!item.isPublished ||
+            item.visibility !== 'public' ||
+            !item.publishedSlug ||
+            updateStoryMutation.isPending) &&
+            styles.toggleButtonDisabled,
         ]}
-        disabled={!item.isPublished || item.visibility !== 'public' || !item.publishedSlug || updateStoryMutation.isPending}
-        onPress={() => updateStoryMutation.mutate({
-          storyId: item.id,
-          showOnHomePage: !item.showOnHomePage,
-        })}
+        disabled={
+          !item.isPublished ||
+          item.visibility !== 'public' ||
+          !item.publishedSlug ||
+          updateStoryMutation.isPending
+        }
+        onPress={() =>
+          updateStoryMutation.mutate({
+            storyId: item.id,
+            showOnHomePage: !item.showOnHomePage,
+          })
+        }
       >
         <Text
           style={[
@@ -55,7 +76,9 @@ export default function AdminStoriesScreen() {
       {!item.isPublished || item.visibility !== 'public' || !item.publishedSlug ? (
         <Text style={styles.helperText}>Only public stories with a valid slug</Text>
       ) : null}
-      {updateStoryMutation.isPending ? <ActivityIndicator size="small" color={theme.colors.interactive.primary} /> : null}
+      {updateStoryMutation.isPending ? (
+        <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+      ) : null}
     </View>,
     new Date(item.createdAt).toLocaleString(),
     <TouchableOpacity

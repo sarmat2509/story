@@ -29,8 +29,5 @@ export function reloadApp(): void {
     }
   }
 
-  Alert.alert(
-    i18n.t('theme.restart_required_title'),
-    i18n.t('theme.restart_required_message')
-  );
+  Alert.alert(i18n.t('theme.restart_required_title'), i18n.t('theme.restart_required_message'));
 }

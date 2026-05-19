@@ -35,7 +35,14 @@ export default function AdminNavigator() {
 
   if (Platform.OS !== 'web' || isLoading || user?.role !== 'admin') {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background.secondary }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: theme.colors.background.secondary,
+        }}
+      >
         <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
       </View>
     );

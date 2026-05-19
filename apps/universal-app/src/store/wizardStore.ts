@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 interface WizardState {
   // Current step (0-4)
   currentStep: number;
-  
+
   // Form data
   childProfileId: string | null;
   theme: string | null;
@@ -14,10 +14,10 @@ interface WizardState {
   includeFamily: boolean;
   selectedCharacters: string[];
   userNotes: string;
-  
+
   // Validation errors
   errors: Record<string, string>;
-  
+
   // Actions
   setStep: (step: number) => void;
   nextStep: () => void;
@@ -48,36 +48,41 @@ export const useWizardStore = create<WizardState>()(
       ...initialState,
 
       setStep: (step) => set({ currentStep: step }),
-      
-      nextStep: () => set((state) => ({ 
-        currentStep: Math.min(state.currentStep + 1, 4) 
-      })),
-      
-      prevStep: () => set((state) => ({ 
-        currentStep: Math.max(state.currentStep - 1, 0) 
-      })),
-      
+
+      nextStep: () =>
+        set((state) => ({
+          currentStep: Math.min(state.currentStep + 1, 4),
+        })),
+
+      prevStep: () =>
+        set((state) => ({
+          currentStep: Math.max(state.currentStep - 1, 0),
+        })),
+
       updateField: (field, value) => set({ [field]: value }),
-      
-      setError: (field, error) => set((state) => ({
-        errors: { ...state.errors, [field]: error }
-      })),
-      
+
+      setError: (field, error) =>
+        set((state) => ({
+          errors: { ...state.errors, [field]: error },
+        })),
+
       clearErrors: () => set({ errors: {} }),
-      
+
       resetWizard: () => set(initialState),
-      
-      addCharacter: (characterId) => set((state) => {
-        if (state.selectedCharacters.length >= 5) return state;
-        if (state.selectedCharacters.includes(characterId)) return state;
-        return {
-          selectedCharacters: [...state.selectedCharacters, characterId]
-        };
-      }),
-      
-      removeCharacter: (characterId) => set((state) => ({
-        selectedCharacters: state.selectedCharacters.filter(id => id !== characterId)
-      })),
+
+      addCharacter: (characterId) =>
+        set((state) => {
+          if (state.selectedCharacters.length >= 5) return state;
+          if (state.selectedCharacters.includes(characterId)) return state;
+          return {
+            selectedCharacters: [...state.selectedCharacters, characterId],
+          };
+        }),
+
+      removeCharacter: (characterId) =>
+        set((state) => ({
+          selectedCharacters: state.selectedCharacters.filter((id) => id !== characterId),
+        })),
     }),
     {
       name: 'wizard-storage',

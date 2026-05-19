@@ -69,7 +69,17 @@ export default function AdminUsersScreen() {
       {!isLoading && !error ? (
         <>
           <AdminTable
-            headers={['ID', 'Email', 'Role', 'Status', 'Plan', 'Stories', 'Audio', 'Created', 'Edit']}
+            headers={[
+              'ID',
+              'Email',
+              'Role',
+              'Status',
+              'Plan',
+              'Stories',
+              'Audio',
+              'Created',
+              'Edit',
+            ]}
             rows={rows}
             emptyText="No users found."
           />
@@ -94,7 +104,12 @@ export default function AdminUsersScreen() {
                       style={[styles.optionChip, draftRole === role && styles.optionChipActive]}
                       onPress={() => setDraftRole(role)}
                     >
-                      <Text style={[styles.optionChipText, draftRole === role && styles.optionChipTextActive]}>
+                      <Text
+                        style={[
+                          styles.optionChipText,
+                          draftRole === role && styles.optionChipTextActive,
+                        ]}
+                      >
                         {role}
                       </Text>
                     </TouchableOpacity>
@@ -111,7 +126,12 @@ export default function AdminUsersScreen() {
                       style={[styles.optionChip, draftStatus === status && styles.optionChipActive]}
                       onPress={() => setDraftStatus(status)}
                     >
-                      <Text style={[styles.optionChipText, draftStatus === status && styles.optionChipTextActive]}>
+                      <Text
+                        style={[
+                          styles.optionChipText,
+                          draftStatus === status && styles.optionChipTextActive,
+                        ]}
+                      >
                         {status}
                       </Text>
                     </TouchableOpacity>
@@ -135,10 +155,18 @@ export default function AdminUsersScreen() {
                   {(plans ?? []).map((plan) => (
                     <TouchableOpacity
                       key={plan.slug}
-                      style={[styles.optionChip, draftPlanSlug === plan.slug && styles.optionChipActive]}
+                      style={[
+                        styles.optionChip,
+                        draftPlanSlug === plan.slug && styles.optionChipActive,
+                      ]}
                       onPress={() => setDraftPlanSlug(plan.slug)}
                     >
-                      <Text style={[styles.optionChipText, draftPlanSlug === plan.slug && styles.optionChipTextActive]}>
+                      <Text
+                        style={[
+                          styles.optionChipText,
+                          draftPlanSlug === plan.slug && styles.optionChipTextActive,
+                        ]}
+                      >
                         {plan.name}
                       </Text>
                     </TouchableOpacity>
@@ -181,7 +209,10 @@ export default function AdminUsersScreen() {
                 <TouchableOpacity
                   style={styles.primaryButton}
                   onPress={async () => {
-                    const parsedStoriesUsedCurrentPeriod = Number.parseInt(draftStoriesUsedCurrentPeriod, 10);
+                    const parsedStoriesUsedCurrentPeriod = Number.parseInt(
+                      draftStoriesUsedCurrentPeriod,
+                      10
+                    );
                     const parsedAudioStoriesUsedCurrentPeriod = Number.parseInt(
                       draftAudioStoriesUsedCurrentPeriod,
                       10
@@ -190,12 +221,15 @@ export default function AdminUsersScreen() {
                       userId: selectedUser.id,
                       role: draftRole,
                       status: draftStatus,
-                      suspendedReason: draftStatus === 'suspended' ? draftSuspendedReason.trim() || null : null,
+                      suspendedReason:
+                        draftStatus === 'suspended' ? draftSuspendedReason.trim() || null : null,
                       planSlug: draftPlanSlug ?? undefined,
                       storiesUsedCurrentPeriod: Number.isFinite(parsedStoriesUsedCurrentPeriod)
                         ? Math.max(0, parsedStoriesUsedCurrentPeriod)
                         : 0,
-                      audioStoriesUsedCurrentPeriod: Number.isFinite(parsedAudioStoriesUsedCurrentPeriod)
+                      audioStoriesUsedCurrentPeriod: Number.isFinite(
+                        parsedAudioStoriesUsedCurrentPeriod
+                      )
                         ? Math.max(0, parsedAudioStoriesUsedCurrentPeriod)
                         : 0,
                     });

@@ -69,7 +69,9 @@ export function AdminLayout({
                       style={[styles.navButton, isActive && styles.navButtonActive]}
                       onPress={() => navigation.navigate(item.routeName as never)}
                     >
-                      <Text style={[styles.navText, isActive && styles.navTextActive]}>{item.label}</Text>
+                      <Text style={[styles.navText, isActive && styles.navTextActive]}>
+                        {item.label}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -78,9 +80,7 @@ export function AdminLayout({
           ))}
         </View>
 
-        <View style={[styles.panel, panelStyle]}>
-          {children}
-        </View>
+        <View style={[styles.panel, panelStyle]}>{children}</View>
       </View>
     </ScrollView>
   );

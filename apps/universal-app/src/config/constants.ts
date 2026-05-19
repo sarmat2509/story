@@ -23,9 +23,14 @@ export const LEGAL_URLS = {
 // Use EXPO_PUBLIC_ prefix - Expo inlines only these into the client bundle
 export const OAUTH_CONFIG = {
   google: {
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB || process.env.GOOGLE_CLIENT_ID_WEB || '',
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS || process.env.GOOGLE_CLIENT_ID_IOS || '',
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID || process.env.GOOGLE_CLIENT_ID_ANDROID || '',
+    webClientId:
+      process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB || process.env.GOOGLE_CLIENT_ID_WEB || '',
+    iosClientId:
+      process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS || process.env.GOOGLE_CLIENT_ID_IOS || '',
+    androidClientId:
+      process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID ||
+      process.env.GOOGLE_CLIENT_ID_ANDROID ||
+      '',
   },
   apple: {
     clientId: process.env.APPLE_CLIENT_ID || '',

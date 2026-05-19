@@ -29,6 +29,8 @@ const DEFAULT_PLANS = [
   },
 ];
 
+const STRIPE_IDENTIFIER_PATTERN = /^(price|prod)_[A-Za-z0-9_]+$/;
+
 function parseArgs(argv) {
   const args = {
     apply: false,
@@ -85,7 +87,9 @@ function loadEnvFile(envFile, target = process.env) {
 
 function defaultEnvFile(rootDir = process.cwd()) {
   const candidates = ['.env.local', '.env.production', '.env'];
-  return candidates.map((name) => path.join(rootDir, name)).find((file) => fs.existsSync(file)) ?? null;
+  return (
+    candidates.map((name) => path.join(rootDir, name)).find((file) => fs.existsSync(file)) ?? null
+  );
 }
 
 function required(value, name) {
@@ -155,10 +159,7 @@ function createRevenueCatClient({ apiKey, projectId, fetchImpl = globalThis.fetc
 
     if (!response.ok) {
       const detail =
-        data?.message ||
-        data?.error ||
-        data?.raw ||
-        `${response.status} ${response.statusText}`;
+        data?.message || data?.error || data?.raw || `${response.status} ${response.statusText}`;
       const error = new Error(`RevenueCat API ${method} ${endpoint} failed: ${detail}`);
       error.status = response.status;
       error.data = data;
@@ -188,34 +189,44 @@ function createRevenueCatClient({ apiKey, projectId, fetchImpl = globalThis.fetc
       const query = appId ? `?limit=100&app_id=${encodeURIComponent(appId)}` : '?limit=100';
       return listAll(`/projects/${encodeURIComponent(projectId)}/products${query}`);
     },
-    getEntitlements: () => listAll(`/projects/${encodeURIComponent(projectId)}/entitlements?limit=100`),
+    getEntitlements: () =>
+      listAll(`/projects/${encodeURIComponent(projectId)}/entitlements?limit=100`),
     getOfferings: () => listAll(`/projects/${encodeURIComponent(projectId)}/offerings?limit=100`),
     getPackages: (offeringId) =>
       listAll(
-        `/projects/${encodeURIComponent(projectId)}/offerings/${encodeURIComponent(offeringId)}/packages?limit=100`,
+        `/projects/${encodeURIComponent(projectId)}/offerings/${encodeURIComponent(offeringId)}/packages?limit=100`
       ),
     getEntitlementProducts: (entitlementId) =>
       listAll(
-        `/projects/${encodeURIComponent(projectId)}/entitlements/${encodeURIComponent(entitlementId)}/products?limit=100`,
+        `/projects/${encodeURIComponent(projectId)}/entitlements/${encodeURIComponent(entitlementId)}/products?limit=100`
       ),
     getPackageProducts: (packageId) =>
-      listAll(`/projects/${encodeURIComponent(projectId)}/packages/${encodeURIComponent(packageId)}/products?limit=100`),
-    createProduct: (body) => request('POST', `/projects/${encodeURIComponent(projectId)}/products`, body),
-    createEntitlement: (body) => request('POST', `/projects/${encodeURIComponent(projectId)}/entitlements`, body),
+      listAll(
+        `/projects/${encodeURIComponent(projectId)}/packages/${encodeURIComponent(packageId)}/products?limit=100`
+      ),
+    createProduct: (body) =>
+      request('POST', `/projects/${encodeURIComponent(projectId)}/products`, body),
+    createEntitlement: (body) =>
+      request('POST', `/projects/${encodeURIComponent(projectId)}/entitlements`, body),
     attachProductsToEntitlement: (entitlementId, productIds) =>
       request(
         'POST',
         `/projects/${encodeURIComponent(projectId)}/entitlements/${encodeURIComponent(entitlementId)}/actions/attach_products`,
-        { product_ids: productIds },
+        { product_ids: productIds }
       ),
-    createOffering: (body) => request('POST', `/projects/${encodeURIComponent(projectId)}/offerings`, body),
+    createOffering: (body) =>
+      request('POST', `/projects/${encodeURIComponent(projectId)}/offerings`, body),
     updateOffering: (offeringId, body) =>
-      request('POST', `/projects/${encodeURIComponent(projectId)}/offerings/${encodeURIComponent(offeringId)}`, body),
+      request(
+        'POST',
+        `/projects/${encodeURIComponent(projectId)}/offerings/${encodeURIComponent(offeringId)}`,
+        body
+      ),
     createPackage: (offeringId, body) =>
       request(
         'POST',
         `/projects/${encodeURIComponent(projectId)}/offerings/${encodeURIComponent(offeringId)}/packages`,
-        body,
+        body
       ),
     attachProductsToPackage: (packageId, productIds) =>
       request(
@@ -226,7 +237,7 @@ function createRevenueCatClient({ apiKey, projectId, fetchImpl = globalThis.fetc
             product_id: productId,
             eligibility_criteria: 'all',
           })),
-        },
+        }
       ),
   };
 }
@@ -244,11 +255,9 @@ function isSupportedCatalogApp(app) {
 }
 
 function selectTargetApps(apps, config) {
-  const explicit = new Set([
-    ...config.explicitAppIds,
-    config.explicitIosAppId,
-    config.explicitAndroidAppId,
-  ].filter(Boolean));
+  const explicit = new Set(
+    [...config.explicitAppIds, config.explicitIosAppId, config.explicitAndroidAppId].filter(Boolean)
+  );
 
   if (explicit.size > 0) {
     return apps.filter((app) => explicit.has(app.id));
@@ -286,7 +295,7 @@ function buildDesiredProducts(apps, plans = DEFAULT_PLANS) {
       app,
       plan,
       payload: buildProductPayload(app, plan),
-    })),
+    }))
   );
 }
 
@@ -310,6 +319,19 @@ function parseProductPlanMap(value) {
   return map;
 }
 
+function parseProductPlanMapEntries(value) {
+  const entries = [];
+  const invalidPairs = [];
+
+  for (const pair of splitCsv(value)) {
+    const parsed = parseProductPlanMapPair(pair);
+    if (parsed) entries.push(parsed);
+    else invalidPairs.push(pair);
+  }
+
+  return { entries, invalidPairs };
+}
+
 function buildProductPlanMap(desiredProducts) {
   const entries = [];
   const seen = new Set();
@@ -323,6 +345,101 @@ function buildProductPlanMap(desiredProducts) {
   return entries.join(',');
 }
 
+function looksLikeStripeIdentifier(value) {
+  return STRIPE_IDENTIFIER_PATTERN.test(String(value || '').trim());
+}
+
+function productStoreIdentifier(product) {
+  return typeof product?.store_identifier === 'string' ? product.store_identifier.trim() : '';
+}
+
+function validateProductPlanMap(value, desiredProducts, plans = DEFAULT_PLANS) {
+  const { entries, invalidPairs } = parseProductPlanMapEntries(value);
+  const expectedProducts = new Map(
+    desiredProducts.map((desired) => [desired.payload.store_identifier, desired.plan.slug])
+  );
+  const knownPlanSlugs = new Set(plans.map((plan) => plan.slug));
+  const seenProductIds = new Set();
+  const duplicateProductIds = [];
+  const stripeProductIds = [];
+  const unknownPlanSlugs = [];
+  const unexpectedProductIds = [];
+  const mismatchedProductIds = [];
+
+  for (const entry of entries) {
+    if (seenProductIds.has(entry.productId)) {
+      duplicateProductIds.push(entry.productId);
+    }
+    seenProductIds.add(entry.productId);
+
+    if (looksLikeStripeIdentifier(entry.productId)) {
+      stripeProductIds.push(entry.productId);
+    }
+
+    if (!knownPlanSlugs.has(entry.planSlug)) {
+      unknownPlanSlugs.push(entry);
+    }
+
+    const expectedPlanSlug = expectedProducts.get(entry.productId);
+    if (!expectedPlanSlug) {
+      unexpectedProductIds.push(entry.productId);
+    } else if (expectedPlanSlug !== entry.planSlug) {
+      mismatchedProductIds.push({
+        productId: entry.productId,
+        actualPlanSlug: entry.planSlug,
+        expectedPlanSlug,
+      });
+    }
+  }
+
+  const missingProductIds = [...expectedProducts.keys()].filter(
+    (productId) => !seenProductIds.has(productId)
+  );
+
+  return {
+    entries,
+    invalidPairs,
+    duplicateProductIds,
+    stripeProductIds,
+    unknownPlanSlugs,
+    unexpectedProductIds,
+    mismatchedProductIds,
+    missingProductIds,
+  };
+}
+
+function findCatalogProductRisks(products, desiredProducts) {
+  const expectedProductIds = new Set(
+    desiredProducts.map((desired) => desired.payload.store_identifier)
+  );
+  const missingStoreIdentifierProducts = [];
+  const stripeProducts = [];
+  const unexpectedProducts = [];
+
+  for (const product of products) {
+    const storeIdentifier = productStoreIdentifier(product);
+    if (!storeIdentifier) {
+      missingStoreIdentifierProducts.push(product);
+      continue;
+    }
+
+    if (looksLikeStripeIdentifier(storeIdentifier)) {
+      stripeProducts.push(product);
+      continue;
+    }
+
+    if (!expectedProductIds.has(storeIdentifier)) {
+      unexpectedProducts.push(product);
+    }
+  }
+
+  return {
+    missingStoreIdentifierProducts,
+    stripeProducts,
+    unexpectedProducts,
+  };
+}
+
 function itemProductId(item) {
   return item?.product?.id || item?.id || item?.product_id || null;
 }
@@ -332,22 +449,28 @@ function findByLookupKey(items, lookupKey) {
 }
 
 function findProductByStoreIdentifier(products, storeIdentifier, appId) {
-  return products.find((product) => {
-    if (product.store_identifier !== storeIdentifier) return false;
-    return !appId || product.app_id === appId;
-  }) || null;
+  return (
+    products.find((product) => {
+      if (product.store_identifier !== storeIdentifier) return false;
+      return !appId || product.app_id === appId;
+    }) || null
+  );
 }
 
 async function ensureRevenueCatCatalog({ client, config, apply = false, logger = console }) {
   const apps = await client.getApps();
   const targetApps = selectTargetApps(apps, config);
   if (targetApps.length === 0) {
-    throw new Error('No supported RevenueCat apps found. Set REVENUECAT_APP_IDS or REVENUECAT_IOS_APP_ID/REVENUECAT_ANDROID_APP_ID if auto-discovery is not enough.');
+    throw new Error(
+      'No supported RevenueCat apps found. Set REVENUECAT_APP_IDS or REVENUECAT_IOS_APP_ID/REVENUECAT_ANDROID_APP_ID if auto-discovery is not enough.'
+    );
   }
 
   logger.log(`RevenueCat project: ${config.projectId}`);
   logger.log(`Mode: ${apply ? 'apply' : 'dry-run'}`);
-  logger.log(`Target apps: ${targetApps.map((app) => `${app.name || app.id} (${app.type || 'unknown'}, ${app.id})`).join(', ')}`);
+  logger.log(
+    `Target apps: ${targetApps.map((app) => `${app.name || app.id} (${app.type || 'unknown'}, ${app.id})`).join(', ')}`
+  );
 
   const desiredProducts = buildDesiredProducts(targetApps);
   const generatedProductPlanMap = buildProductPlanMap(desiredProducts);
@@ -372,16 +495,20 @@ async function ensureRevenueCatCatalog({ client, config, apply = false, logger =
     const existing = findProductByStoreIdentifier(
       productsByApp.get(desired.app.id) || [],
       desired.payload.store_identifier,
-      desired.app.id,
+      desired.app.id
     );
     if (existing) {
-      logger.log(`PASS product exists: ${desired.payload.store_identifier} -> ${desired.plan.slug}`);
+      logger.log(
+        `PASS product exists: ${desired.payload.store_identifier} -> ${desired.plan.slug}`
+      );
       resolvedProducts.push({ ...desired, product: existing });
       continue;
     }
 
     if (!apply) {
-      logger.log(`PLAN create product: ${desired.payload.store_identifier} -> ${desired.plan.slug}`);
+      logger.log(
+        `PLAN create product: ${desired.payload.store_identifier} -> ${desired.plan.slug}`
+      );
       resolvedProducts.push({ ...desired, product: null });
       continue;
     }
@@ -410,12 +537,16 @@ async function ensureRevenueCatCatalog({ client, config, apply = false, logger =
     logger.log(`PASS entitlement exists: ${config.entitlementLookupKey} (${entitlement.id})`);
   }
 
-  const entitlementProductIds = new Set((await client.getEntitlementProducts(entitlement.id)).map((product) => product.id));
+  const entitlementProductIds = new Set(
+    (await client.getEntitlementProducts(entitlement.id)).map((product) => product.id)
+  );
   const missingEntitlementProductIds = allProducts
     .map((product) => product.id)
     .filter((id) => id && !entitlementProductIds.has(id));
   if (missingEntitlementProductIds.length > 0) {
-    logger.log(`ATTACH ${missingEntitlementProductIds.length} product(s) to entitlement ${config.entitlementLookupKey}`);
+    logger.log(
+      `ATTACH ${missingEntitlementProductIds.length} product(s) to entitlement ${config.entitlementLookupKey}`
+    );
     await client.attachProductsToEntitlement(entitlement.id, missingEntitlementProductIds);
   } else {
     logger.log(`PASS entitlement products attached: ${config.entitlementLookupKey}`);
@@ -459,13 +590,15 @@ async function ensureRevenueCatCatalog({ client, config, apply = false, logger =
     }
 
     const packageProductIds = new Set(
-      (await client.getPackageProducts(pkg.id)).map(itemProductId).filter(Boolean),
+      (await client.getPackageProducts(pkg.id)).map(itemProductId).filter(Boolean)
     );
     const missingPackageProductIds = planProducts
       .map((product) => product.id)
       .filter((id) => id && !packageProductIds.has(id));
     if (missingPackageProductIds.length > 0) {
-      logger.log(`ATTACH ${missingPackageProductIds.length} product(s) to package ${plan.packageLookupKey}`);
+      logger.log(
+        `ATTACH ${missingPackageProductIds.length} product(s) to package ${plan.packageLookupKey}`
+      );
       await client.attachProductsToPackage(pkg.id, missingPackageProductIds);
     } else {
       logger.log(`PASS package products attached: ${plan.packageLookupKey}`);
@@ -511,15 +644,20 @@ module.exports = {
   createRevenueCatClient,
   defaultEnvFile,
   ensureRevenueCatCatalog,
+  findCatalogProductRisks,
   getRevenueCatCatalogState,
   isSupportedCatalogApp,
   isTestStoreApp,
   loadEnvFile,
+  looksLikeStripeIdentifier,
   maskSecret,
   parseArgs,
+  parseProductPlanMapEntries,
   parseProductPlanMap,
   parseProductPlanMapPair,
   productIdentifierForApp,
+  productStoreIdentifier,
   resolveConfig,
   selectTargetApps,
+  validateProductPlanMap,
 };

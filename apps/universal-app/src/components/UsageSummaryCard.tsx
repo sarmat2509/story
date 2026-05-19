@@ -19,13 +19,7 @@ function clampPercent(value: number) {
   return Math.min(100, Math.max(0, value));
 }
 
-function UsageRow({
-  label,
-  bucket,
-}: {
-  label: string;
-  bucket: UsageBucket;
-}) {
+function UsageRow({ label, bucket }: { label: string; bucket: UsageBucket }) {
   const { t } = useTranslation();
   const percentUsed = bucket.limit > 0 ? clampPercent((bucket.used / bucket.limit) * 100) : 0;
 

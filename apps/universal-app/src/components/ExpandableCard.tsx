@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, LayoutAnimation, Platform, UIManager } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  LayoutAnimation,
+  Platform,
+  UIManager,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 
@@ -25,11 +33,7 @@ export function ExpandableCard({ title, icon, children, defaultExpanded = false 
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity 
-        style={styles.header} 
-        onPress={toggleExpand}
-        activeOpacity={0.7}
-      >
+      <TouchableOpacity style={styles.header} onPress={toggleExpand} activeOpacity={0.7}>
         <View style={styles.headerLeft}>
           {icon ? (
             <Ionicons
@@ -41,18 +45,14 @@ export function ExpandableCard({ title, icon, children, defaultExpanded = false 
           ) : null}
           <Text style={styles.title}>{title}</Text>
         </View>
-        <Ionicons 
-          name={isExpanded ? 'chevron-up' : 'chevron-down'} 
-          size={24} 
-          color={theme.colors.text.tertiary} 
+        <Ionicons
+          name={isExpanded ? 'chevron-up' : 'chevron-down'}
+          size={24}
+          color={theme.colors.text.tertiary}
         />
       </TouchableOpacity>
-      
-      {isExpanded && (
-        <View style={styles.content}>
-          {children}
-        </View>
-      )}
+
+      {isExpanded && <View style={styles.content}>{children}</View>}
     </View>
   );
 }

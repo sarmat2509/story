@@ -3,9 +3,7 @@ import { isAppUiLocale, type AppUiLocale } from '@wondertales/shared';
 
 function normalizeDocumentLocale(language?: string | null): AppUiLocale {
   const normalized = language?.split('-')[0]?.toLowerCase();
-  return normalized && isAppUiLocale(normalized)
-    ? normalized
-    : APP_CONFIG.defaultLanguage;
+  return normalized && isAppUiLocale(normalized) ? normalized : APP_CONFIG.defaultLanguage;
 }
 
 export function syncWebDocumentLocale(language?: string | null): void {

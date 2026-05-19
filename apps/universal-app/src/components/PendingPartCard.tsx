@@ -20,9 +20,7 @@ export function PendingPartCard({ partNumber }: Props) {
         />
       </View>
       <View style={styles.content}>
-        <Text style={styles.label}>
-          {t('series.expecting_part', { number: partNumber })}
-        </Text>
+        <Text style={styles.label}>{t('series.expecting_part', { number: partNumber })}</Text>
       </View>
     </View>
   );

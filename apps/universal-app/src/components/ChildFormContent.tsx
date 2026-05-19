@@ -1,12 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Platform, Alert, ActivityIndicator, Image } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Platform,
+  Alert,
+  ActivityIndicator,
+  Image,
+} from 'react-native';
 import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 import { GlassPrimaryButton } from './GlassPrimaryButton';
 import { useCreateChild, useUpdateChild, useAnalyzeChild } from '@/api/children';
-import { CreateChildProfileSchema, DEFAULT_LOCALE, UpdateChildProfileSchema, LOCALE_IDS, ReferencePhoto } from '@wondertales/shared';
+import {
+  CreateChildProfileSchema,
+  DEFAULT_LOCALE,
+  UpdateChildProfileSchema,
+  LOCALE_IDS,
+  ReferencePhoto,
+} from '@wondertales/shared';
 import { UploadPhotoResult } from '@/utils/uploadPhoto';
 import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
 import { API_BASE_URL, APP_CONFIG } from '@/config/constants';
@@ -31,9 +48,8 @@ function toAbsoluteAssetUrl(url: string): string {
   }
 
   const withoutQuery = url.split('?')[0];
-  const base = typeof window !== 'undefined'
-    ? window.location.origin
-    : API_BASE_URL.replace(/\/$/, '');
+  const base =
+    typeof window !== 'undefined' ? window.location.origin : API_BASE_URL.replace(/\/$/, '');
   const assetPath = withoutQuery.startsWith('/api/v1/assets/')
     ? withoutQuery
     : withoutQuery.startsWith('/')
@@ -65,7 +81,7 @@ import {
   FavoriteActivity,
   Interest,
   CommonFear,
-  AvoidTopic
+  AvoidTopic,
 } from '@wondertales/shared';
 import { ChipSelector } from './form/ChipSelector';
 import { PhotoUploadGrid } from './form/PhotoUploadGrid';
@@ -96,13 +112,20 @@ interface Props {
   variant?: 'modal' | 'inline';
 }
 
-export function ChildFormContent({ childId, initialData, onSuccess, onCancel, variant = 'modal' }: Props) {
+export function ChildFormContent({
+  childId,
+  initialData,
+  onSuccess,
+  onCancel,
+  variant = 'modal',
+}: Props) {
   const { t, i18n } = useTranslation();
   const { isMobile } = useResponsive();
   const createChild = useCreateChild();
   const updateChild = useUpdateChild();
   const analyzeChild = useAnalyzeChild();
-  const currentPreviewUrl = initialData?.turnaroundSheet?.frontUrl ?? initialData?.turnaroundSheet?.url ?? null;
+  const currentPreviewUrl =
+    initialData?.turnaroundSheet?.frontUrl ?? initialData?.turnaroundSheet?.url ?? null;
 
   const [currentStep, setCurrentStep] = useState(1);
   const scrollRef = useRef<ScrollView>(null);
@@ -125,26 +148,32 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
     hairStyle: undefined as HairStyle | undefined,
     eyeColor: undefined as EyeColor | undefined,
     skinTone: undefined as SkinTone | undefined,
-    distinctiveFeatures: [] as DistinctiveFeature[]
+    distinctiveFeatures: [] as DistinctiveFeature[],
   });
 
   const [personality, setPersonality] = useState({
     traits: [] as PersonalityTrait[],
-    favoriteActivities: [] as FavoriteActivity[]
+    favoriteActivities: [] as FavoriteActivity[],
   });
 
   const [interests, setInterests] = useState<Interest[]>([]);
   const [sensitivities, setSensitivities] = useState({
     fearLevel: undefined as 'none' | 'low' | 'medium' | 'high' | undefined,
     commonFears: [] as CommonFear[],
-    avoidTopics: [] as AvoidTopic[]
+    avoidTopics: [] as AvoidTopic[],
   });
   const [familyCast, setFamilyCast] = useState<Record<string, string>>({});
   const [turnaroundElapsedSeconds, setTurnaroundElapsedSeconds] = useState(0);
 
   const TURNAROUND_ESTIMATED_SECONDS = 30;
-  const turnaroundRemainingSeconds = Math.max(0, TURNAROUND_ESTIMATED_SECONDS - turnaroundElapsedSeconds);
-  const turnaroundProgressPercent = Math.min(99, Math.round((turnaroundElapsedSeconds / TURNAROUND_ESTIMATED_SECONDS) * 100));
+  const turnaroundRemainingSeconds = Math.max(
+    0,
+    TURNAROUND_ESTIMATED_SECONDS - turnaroundElapsedSeconds
+  );
+  const turnaroundProgressPercent = Math.min(
+    99,
+    Math.round((turnaroundElapsedSeconds / TURNAROUND_ESTIMATED_SECONDS) * 100)
+  );
   const profileLanguages = initialData?.languages?.length
     ? initialData.languages
     : [toBaseLocale(i18n.language)];
@@ -167,12 +196,14 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
       setName(initialData.name);
       setBirthDate(initialData.birthDate);
       if (initialData.referencePhotos && initialData.referencePhotos.length > 0) {
-        setPhotos(initialData.referencePhotos.map((photo, index) => ({
-          id: `existing-${index}`,
-          url: photo.url,
-          uploadedAt: photo.uploadedAt,
-          isUploading: false
-        })));
+        setPhotos(
+          initialData.referencePhotos.map((photo, index) => ({
+            id: `existing-${index}`,
+            url: photo.url,
+            uploadedAt: photo.uploadedAt,
+            isUploading: false,
+          }))
+        );
       } else {
         setPhotos([]);
       }
@@ -188,7 +219,8 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
           hairStyle: initialData.appearanceTraits.hairStyle as HairStyle | undefined,
           eyeColor: initialData.appearanceTraits.eyeColor as EyeColor | undefined,
           skinTone: initialData.appearanceTraits.skinTone as SkinTone | undefined,
-          distinctiveFeatures: (initialData.appearanceTraits.distinctiveFeatures || []) as DistinctiveFeature[]
+          distinctiveFeatures: (initialData.appearanceTraits.distinctiveFeatures ||
+            []) as DistinctiveFeature[],
         });
       } else {
         setAppearance({
@@ -197,23 +229,29 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
           hairStyle: undefined,
           eyeColor: undefined,
           skinTone: undefined,
-          distinctiveFeatures: []
+          distinctiveFeatures: [],
         });
       }
       if (initialData.personality) {
         setPersonality({
           traits: (initialData.personality.traits || []) as PersonalityTrait[],
-          favoriteActivities: (initialData.personality.favoriteActivities || []) as FavoriteActivity[]
+          favoriteActivities: (initialData.personality.favoriteActivities ||
+            []) as FavoriteActivity[],
         });
       } else {
         setPersonality({ traits: [], favoriteActivities: [] });
       }
-        setInterests((initialData.interests || []) as Interest[]);
+      setInterests((initialData.interests || []) as Interest[]);
       if (initialData.sensitivities) {
         setSensitivities({
-          fearLevel: initialData.sensitivities.fearLevel as 'none' | 'low' | 'medium' | 'high' | undefined,
+          fearLevel: initialData.sensitivities.fearLevel as
+            | 'none'
+            | 'low'
+            | 'medium'
+            | 'high'
+            | undefined,
           commonFears: (initialData.sensitivities.commonFears || []) as CommonFear[],
-          avoidTopics: (initialData.sensitivities.avoidTopics || []) as AvoidTopic[]
+          avoidTopics: (initialData.sensitivities.avoidTopics || []) as AvoidTopic[],
         });
       } else {
         setSensitivities({ fearLevel: undefined, commonFears: [], avoidTopics: [] });
@@ -234,7 +272,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
         hairStyle: undefined,
         eyeColor: undefined,
         skinTone: undefined,
-        distinctiveFeatures: []
+        distinctiveFeatures: [],
       });
       setPersonality({ traits: [], favoriteActivities: [] });
       setInterests([]);
@@ -249,8 +287,8 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
   useEffect(() => {
     if (!childId && currentStep === 2 && !hasAnalyzedRef.current) {
       const uploadedPhotos = photos
-        .filter(p => !p.isUploading && isServerAssetUrl(p.url))
-        .map(p => p.url!);
+        .filter((p) => !p.isUploading && isServerAssetUrl(p.url))
+        .map((p) => p.url!);
       if (uploadedPhotos.length > 0 && !description.trim()) {
         hasAnalyzedRef.current = true;
         let userLanguage = i18n.language;
@@ -272,10 +310,11 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
                     hairStyle: result.appearance.hairStyle as HairStyle | undefined,
                     eyeColor: result.appearance.eyeColor as EyeColor | undefined,
                     skinTone: result.appearance.skinTone as SkinTone | undefined,
-                    distinctiveFeatures: (result.appearance.distinctiveFeatures || []) as DistinctiveFeature[]
+                    distinctiveFeatures: (result.appearance.distinctiveFeatures ||
+                      []) as DistinctiveFeature[],
                   });
                 }
-              }
+              },
             }
           );
         });
@@ -303,10 +342,13 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
       return;
     }
     if (!birthDate) {
-      Alert.alert(t('error') || 'Error', t('child_form.birth_date_required') || 'Birth date is required');
+      Alert.alert(
+        t('error') || 'Error',
+        t('child_form.birth_date_required') || 'Birth date is required'
+      );
       return;
     }
-    const hasUploadingPhotos = photos.some(photo => photo.isUploading);
+    const hasUploadingPhotos = photos.some((photo) => photo.isUploading);
     if (hasUploadingPhotos) {
       Alert.alert(
         t('child_form.upload_in_progress') || 'Upload in progress',
@@ -326,12 +368,21 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
       if (appearance.hairStyle) appearanceData.hairStyle = appearance.hairStyle;
       if (appearance.eyeColor) appearanceData.eyeColor = appearance.eyeColor;
       if (appearance.skinTone) appearanceData.skinTone = appearance.skinTone;
-      if (appearance.distinctiveFeatures.length > 0) appearanceData.distinctiveFeatures = appearance.distinctiveFeatures;
+      if (appearance.distinctiveFeatures.length > 0)
+        appearanceData.distinctiveFeatures = appearance.distinctiveFeatures;
 
-      const personalityData = (personality.traits.length > 0 || personality.favoriteActivities.length > 0) ? personality : undefined;
-      const sensitivitiesData = (sensitivities.fearLevel || sensitivities.commonFears.length > 0 || sensitivities.avoidTopics.length > 0) ? sensitivities : undefined;
+      const personalityData =
+        personality.traits.length > 0 || personality.favoriteActivities.length > 0
+          ? personality
+          : undefined;
+      const sensitivitiesData =
+        sensitivities.fearLevel ||
+        sensitivities.commonFears.length > 0 ||
+        sensitivities.avoidTopics.length > 0
+          ? sensitivities
+          : undefined;
 
-      const hasUploadingPhotos = photos.some(photo => photo.isUploading);
+      const hasUploadingPhotos = photos.some((photo) => photo.isUploading);
       if (hasUploadingPhotos) {
         Alert.alert(
           t('child_form.upload_in_progress') || 'Завантаження',
@@ -341,7 +392,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
       }
 
       const uploadedPhotos = photos
-        .filter(photo => !photo.isUploading && isServerAssetUrl(photo.url))
+        .filter((photo) => !photo.isUploading && isServerAssetUrl(photo.url))
         .map(({ url, uploadedAt }) => ({ url: toAbsoluteAssetUrl(url), uploadedAt }));
 
       if (childId) {
@@ -358,7 +409,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
           sensitivities: sensitivitiesData,
           familyCast: Object.keys(familyCast).length > 0 ? familyCast : undefined,
           authorPseudonym: authorPseudonym.trim() || null,
-          authorAboutMe: authorAboutMe.trim() || null
+          authorAboutMe: authorAboutMe.trim() || null,
         };
         const result = UpdateChildProfileSchema.safeParse(updateData);
         if (!result.success) {
@@ -366,13 +417,13 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
           result.error.issues.forEach((issue) => {
             newErrors[issue.path.join('.')] = issue.message;
           });
-          const firstMessage = result.error.issues[0]?.message || (t('child_form.validation_error_message') || 'Будь ласка, перевірте введені дані');
+          const firstMessage =
+            result.error.issues[0]?.message ||
+            t('child_form.validation_error_message') ||
+            'Будь ласка, перевірте введені дані';
           newErrors.submit = firstMessage;
           setErrors(newErrors);
-          Alert.alert(
-            t('child_form.validation_error') || 'Помилка валідації',
-            firstMessage
-          );
+          Alert.alert(t('child_form.validation_error') || 'Помилка валідації', firstMessage);
           return;
         }
         await updateChild.mutateAsync({ id: childId, data: result.data });
@@ -391,7 +442,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
           sensitivities: sensitivitiesData,
           familyCast: Object.keys(familyCast).length > 0 ? familyCast : undefined,
           authorPseudonym: authorPseudonym.trim() || null,
-          authorAboutMe: authorAboutMe.trim() || null
+          authorAboutMe: authorAboutMe.trim() || null,
         };
         const result = CreateChildProfileSchema.safeParse(data);
         if (!result.success) {
@@ -399,13 +450,13 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
           result.error.issues.forEach((issue) => {
             newErrors[issue.path.join('.')] = issue.message;
           });
-          const firstMessage = result.error.issues[0]?.message || (t('child_form.validation_error_message') || 'Будь ласка, перевірте введені дані');
+          const firstMessage =
+            result.error.issues[0]?.message ||
+            t('child_form.validation_error_message') ||
+            'Будь ласка, перевірте введені дані';
           newErrors.submit = firstMessage;
           setErrors(newErrors);
-          Alert.alert(
-            t('child_form.validation_error') || 'Помилка валідації',
-            firstMessage
-          );
+          Alert.alert(t('child_form.validation_error') || 'Помилка валідації', firstMessage);
           return;
         }
         await createChild.mutateAsync({
@@ -435,13 +486,18 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
       {createChild.isPending && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
-          <Text style={styles.loadingOverlayText}>{t('child_form.creating_character') || 'Создаём образ ребёнка'}</Text>
+          <Text style={styles.loadingOverlayText}>
+            {t('child_form.creating_character') || 'Создаём образ ребёнка'}
+          </Text>
           <View style={styles.loadingOverlayProgress}>
-            <View style={[styles.loadingOverlayProgressBar, { width: `${turnaroundProgressPercent}%` }]} />
+            <View
+              style={[styles.loadingOverlayProgressBar, { width: `${turnaroundProgressPercent}%` }]}
+            />
           </View>
           <Text style={styles.loadingOverlayTimer}>
             {turnaroundRemainingSeconds > 0
-              ? t('child_form.generating_remaining_sec', { count: turnaroundRemainingSeconds }) || `~${turnaroundRemainingSeconds} сек`
+              ? t('child_form.generating_remaining_sec', { count: turnaroundRemainingSeconds }) ||
+                `~${turnaroundRemainingSeconds} сек`
               : t('child_form.generating_almost_done') || 'Майже готово...'}
           </Text>
         </View>
@@ -489,7 +545,11 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
             <View style={styles.field}>
               <Text style={styles.label}>{t('child_form.name_label')}</Text>
               <TextInput
-                style={[styles.input, isInline && styles.inputInline, errors.name && styles.inputError]}
+                style={[
+                  styles.input,
+                  isInline && styles.inputInline,
+                  errors.name && styles.inputError,
+                ]}
                 value={name}
                 onChangeText={setName}
                 placeholder={t('child_form.name_placeholder')}
@@ -503,23 +563,36 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
               {Platform.OS === 'web' ? (
                 <input
                   type="date"
-                  value={birthDate && !isNaN(birthDate.getTime()) ? birthDate.toISOString().split('T')[0] : ''}
+                  value={
+                    birthDate && !isNaN(birthDate.getTime())
+                      ? birthDate.toISOString().split('T')[0]
+                      : ''
+                  }
                   onChange={(e) => {
                     const newDate = new Date((e.target as HTMLInputElement).value);
                     if (!isNaN(newDate.getTime())) setBirthDate(newDate);
                   }}
                   max={new Date().toISOString().split('T')[0]}
-                  style={{
-                    ...styles.input,
-                    ...(isInline ? styles.inputInline : {}),
-                    ...(errors.birthDate ? styles.inputError : {}),
-                  } as React.CSSProperties}
+                  style={
+                    {
+                      ...styles.input,
+                      ...(isInline ? styles.inputInline : {}),
+                      ...(errors.birthDate ? styles.inputError : {}),
+                    } as React.CSSProperties
+                  }
                 />
               ) : (
                 <>
-                  <TouchableOpacity style={[styles.input, isInline && styles.inputInline, styles.dateInput]} onPress={() => setShowDatePicker(true)}>
+                  <TouchableOpacity
+                    style={[styles.input, isInline && styles.inputInline, styles.dateInput]}
+                    onPress={() => setShowDatePicker(true)}
+                  >
                     <Text style={styles.dateText}>{birthDate.toLocaleDateString()}</Text>
-                    <Ionicons name="calendar-outline" size={20} color={theme.colors.text.secondary} />
+                    <Ionicons
+                      name="calendar-outline"
+                      size={20}
+                      color={theme.colors.text.secondary}
+                    />
                   </TouchableOpacity>
                   {showDatePicker && (
                     <DateTimePicker
@@ -546,7 +619,9 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
                   onPress={() => setChildDataConsentAccepted((value) => !value)}
                   activeOpacity={0.75}
                 >
-                  <View style={[styles.checkbox, childDataConsentAccepted && styles.checkboxChecked]}>
+                  <View
+                    style={[styles.checkbox, childDataConsentAccepted && styles.checkboxChecked]}
+                  >
                     {childDataConsentAccepted && (
                       <Ionicons name="checkmark" size={16} color={theme.colors.text.inverse} />
                     )}
@@ -594,7 +669,9 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
                   style={[styles.input, isInline && styles.inputInline]}
                   value={authorPseudonym}
                   onChangeText={setAuthorPseudonym}
-                  placeholder={t('child_form.author_pseudonym_placeholder', { defaultValue: name || 'Story author' })}
+                  placeholder={t('child_form.author_pseudonym_placeholder', {
+                    defaultValue: name || 'Story author',
+                  })}
                   placeholderTextColor={theme.colors.text.disabled}
                   maxLength={100}
                 />
@@ -607,7 +684,9 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
                   style={[styles.input, isInline && styles.inputInline, styles.multilineInput]}
                   value={authorAboutMe}
                   onChangeText={setAuthorAboutMe}
-                  placeholder={t('child_form.author_about_placeholder', { defaultValue: 'A short public bio for published stories' })}
+                  placeholder={t('child_form.author_about_placeholder', {
+                    defaultValue: 'A short public bio for published stories',
+                  })}
                   placeholderTextColor={theme.colors.text.disabled}
                   multiline
                   numberOfLines={3}
@@ -619,14 +698,22 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t('child_form.description')}</Text>
-              {photos.some(p => !p.isUploading && isServerAssetUrl(p.url)) && analyzeChild.isPending ? (
+              {photos.some((p) => !p.isUploading && isServerAssetUrl(p.url)) &&
+              analyzeChild.isPending ? (
                 <View style={styles.turnaroundGenerating}>
                   <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
-                  <Text style={styles.turnaroundGeneratingText}>{t('child_form.analyzing_photos')}</Text>
+                  <Text style={styles.turnaroundGeneratingText}>
+                    {t('child_form.analyzing_photos')}
+                  </Text>
                 </View>
               ) : (
                 <TextInput
-                  style={[styles.input, isInline && styles.inputInline, styles.multilineInput, isInline && styles.descriptionInputInline]}
+                  style={[
+                    styles.input,
+                    isInline && styles.inputInline,
+                    styles.multilineInput,
+                    isInline && styles.descriptionInputInline,
+                  ]}
                   value={description}
                   onChangeText={setDescription}
                   placeholder={t('child_form.description_placeholder')}
@@ -634,33 +721,112 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
-                  editable={childId ? true : !photos.some(p => !p.isUploading && isServerAssetUrl(p.url))}
+                  editable={
+                    childId ? true : !photos.some((p) => !p.isUploading && isServerAssetUrl(p.url))
+                  }
                 />
               )}
               {description && !analyzeChild.isPending ? (
                 <Text style={styles.hint}>{t('child_form.generated_by_ai_hint')}</Text>
               ) : null}
-              {!photos.some(p => !p.isUploading && isServerAssetUrl(p.url)) ? (
+              {!photos.some((p) => !p.isUploading && isServerAssetUrl(p.url)) ? (
                 <Text style={styles.hint}>{t('child_form.description_upload_photos_first')}</Text>
               ) : null}
             </View>
 
             <ExpandableCard title={t('child_form.appearance_title')} defaultExpanded={false}>
-              <ChipSelector label={t('character_form.hair_color')} options={HAIR_COLORS} selected={appearance.hairColor || ''} onSelect={(val) => setAppearance({ ...appearance, hairColor: val as HairColor })} translationPrefix="character_form.hair_colors" getTranslation={t} />
-              <ChipSelector label={t('character_form.hair_length')} options={HAIR_LENGTHS} selected={appearance.hairLength || ''} onSelect={(val) => setAppearance({ ...appearance, hairLength: val as HairLength })} translationPrefix="character_form.hair_lengths" getTranslation={t} />
-              <ChipSelector label={t('character_form.hair_style')} options={HAIR_STYLES} selected={appearance.hairStyle || ''} onSelect={(val) => setAppearance({ ...appearance, hairStyle: val as HairStyle })} translationPrefix="character_form.hair_styles" getTranslation={t} />
-              <ChipSelector label={t('character_form.eye_color')} options={EYE_COLORS} selected={appearance.eyeColor || ''} onSelect={(val) => setAppearance({ ...appearance, eyeColor: val as EyeColor })} translationPrefix="character_form.eye_colors" getTranslation={t} />
-              <ChipSelector label={t('character_form.skin_tone')} options={SKIN_TONES} selected={appearance.skinTone || ''} onSelect={(val) => setAppearance({ ...appearance, skinTone: val as SkinTone })} translationPrefix="character_form.skin_tones" getTranslation={t} />
-              <ChipSelector label={t('character_form.distinctive_features')} options={DISTINCTIVE_FEATURES} selected={appearance.distinctiveFeatures} onSelect={(val) => setAppearance({ ...appearance, distinctiveFeatures: val as DistinctiveFeature[] })} multiple max={3} translationPrefix="child_form.features" getTranslation={t} />
+              <ChipSelector
+                label={t('character_form.hair_color')}
+                options={HAIR_COLORS}
+                selected={appearance.hairColor || ''}
+                onSelect={(val) => setAppearance({ ...appearance, hairColor: val as HairColor })}
+                translationPrefix="character_form.hair_colors"
+                getTranslation={t}
+              />
+              <ChipSelector
+                label={t('character_form.hair_length')}
+                options={HAIR_LENGTHS}
+                selected={appearance.hairLength || ''}
+                onSelect={(val) => setAppearance({ ...appearance, hairLength: val as HairLength })}
+                translationPrefix="character_form.hair_lengths"
+                getTranslation={t}
+              />
+              <ChipSelector
+                label={t('character_form.hair_style')}
+                options={HAIR_STYLES}
+                selected={appearance.hairStyle || ''}
+                onSelect={(val) => setAppearance({ ...appearance, hairStyle: val as HairStyle })}
+                translationPrefix="character_form.hair_styles"
+                getTranslation={t}
+              />
+              <ChipSelector
+                label={t('character_form.eye_color')}
+                options={EYE_COLORS}
+                selected={appearance.eyeColor || ''}
+                onSelect={(val) => setAppearance({ ...appearance, eyeColor: val as EyeColor })}
+                translationPrefix="character_form.eye_colors"
+                getTranslation={t}
+              />
+              <ChipSelector
+                label={t('character_form.skin_tone')}
+                options={SKIN_TONES}
+                selected={appearance.skinTone || ''}
+                onSelect={(val) => setAppearance({ ...appearance, skinTone: val as SkinTone })}
+                translationPrefix="character_form.skin_tones"
+                getTranslation={t}
+              />
+              <ChipSelector
+                label={t('character_form.distinctive_features')}
+                options={DISTINCTIVE_FEATURES}
+                selected={appearance.distinctiveFeatures}
+                onSelect={(val) =>
+                  setAppearance({ ...appearance, distinctiveFeatures: val as DistinctiveFeature[] })
+                }
+                multiple
+                max={3}
+                translationPrefix="child_form.features"
+                getTranslation={t}
+              />
             </ExpandableCard>
 
             <ExpandableCard title={t('child_form.personality_title')} defaultExpanded={false}>
-              <ChipSelector label={t('character_form.personality_traits')} options={PERSONALITY_TRAITS} selected={personality.traits} onSelect={(val) => setPersonality({ ...personality, traits: val as PersonalityTrait[] })} multiple max={5} translationPrefix="child_form.traits" getTranslation={t} />
-              <ChipSelector label={t('character_form.favorite_activities')} options={FAVORITE_ACTIVITIES} selected={personality.favoriteActivities} onSelect={(val) => setPersonality({ ...personality, favoriteActivities: val as FavoriteActivity[] })} multiple max={5} translationPrefix="child_form.activities" getTranslation={t} />
+              <ChipSelector
+                label={t('character_form.personality_traits')}
+                options={PERSONALITY_TRAITS}
+                selected={personality.traits}
+                onSelect={(val) =>
+                  setPersonality({ ...personality, traits: val as PersonalityTrait[] })
+                }
+                multiple
+                max={5}
+                translationPrefix="child_form.traits"
+                getTranslation={t}
+              />
+              <ChipSelector
+                label={t('character_form.favorite_activities')}
+                options={FAVORITE_ACTIVITIES}
+                selected={personality.favoriteActivities}
+                onSelect={(val) =>
+                  setPersonality({ ...personality, favoriteActivities: val as FavoriteActivity[] })
+                }
+                multiple
+                max={5}
+                translationPrefix="child_form.activities"
+                getTranslation={t}
+              />
             </ExpandableCard>
 
             <ExpandableCard title={t('child_form.interests_title')} defaultExpanded={false}>
-              <ChipSelector label={t('child_form.interests_title')} options={INTERESTS} selected={interests} onSelect={(val) => setInterests(val as Interest[])} multiple max={7} translationPrefix="child_form.interests" getTranslation={t} />
+              <ChipSelector
+                label={t('child_form.interests_title')}
+                options={INTERESTS}
+                selected={interests}
+                onSelect={(val) => setInterests(val as Interest[])}
+                multiple
+                max={7}
+                translationPrefix="child_form.interests"
+                getTranslation={t}
+              />
             </ExpandableCard>
 
             <ExpandableCard title={t('child_form.sensitivities_title')} defaultExpanded={false}>
@@ -670,26 +836,60 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
                   {(['none', 'low', 'medium', 'high'] as const).map((level) => (
                     <TouchableOpacity
                       key={level}
-                      style={[styles.genderButton, sensitivities.fearLevel === level && styles.genderButtonSelected]}
+                      style={[
+                        styles.genderButton,
+                        sensitivities.fearLevel === level && styles.genderButtonSelected,
+                      ]}
                       onPress={() => setSensitivities({ ...sensitivities, fearLevel: level })}
                     >
-                      <Text style={[styles.genderButtonText, sensitivities.fearLevel === level && styles.genderButtonTextSelected]}>
+                      <Text
+                        style={[
+                          styles.genderButtonText,
+                          sensitivities.fearLevel === level && styles.genderButtonTextSelected,
+                        ]}
+                      >
                         {t(`child_form.fear_level_${level}`)}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               </View>
-              <ChipSelector label={t('child_form.common_fears_label')} options={COMMON_FEARS} selected={sensitivities.commonFears} onSelect={(val) => setSensitivities({ ...sensitivities, commonFears: val as CommonFear[] })} multiple max={5} translationPrefix="child_form.fears" getTranslation={t} />
-              <ChipSelector label={t('child_form.avoid_topics_label')} options={AVOID_TOPICS} selected={sensitivities.avoidTopics} onSelect={(val) => setSensitivities({ ...sensitivities, avoidTopics: val as AvoidTopic[] })} multiple max={5} translationPrefix="child_form.avoid" getTranslation={t} />
+              <ChipSelector
+                label={t('child_form.common_fears_label')}
+                options={COMMON_FEARS}
+                selected={sensitivities.commonFears}
+                onSelect={(val) =>
+                  setSensitivities({ ...sensitivities, commonFears: val as CommonFear[] })
+                }
+                multiple
+                max={5}
+                translationPrefix="child_form.fears"
+                getTranslation={t}
+              />
+              <ChipSelector
+                label={t('child_form.avoid_topics_label')}
+                options={AVOID_TOPICS}
+                selected={sensitivities.avoidTopics}
+                onSelect={(val) =>
+                  setSensitivities({ ...sensitivities, avoidTopics: val as AvoidTopic[] })
+                }
+                multiple
+                max={5}
+                translationPrefix="child_form.avoid"
+                getTranslation={t}
+              />
             </ExpandableCard>
 
-            {errors.submit && <Text style={[styles.errorText, styles.submitError]}>{errors.submit}</Text>}
+            {errors.submit && (
+              <Text style={[styles.errorText, styles.submitError]}>{errors.submit}</Text>
+            )}
           </>
         )}
       </ScrollView>
 
-      <View style={[styles.footer, isInline && styles.footerInline, isMobile && styles.footerMobile]}>
+      <View
+        style={[styles.footer, isInline && styles.footerInline, isMobile && styles.footerMobile]}
+      >
         {currentStep === 1 ? (
           <>
             {showCancelInFooter && (
@@ -706,7 +906,7 @@ export function ChildFormContent({ childId, initialData, onSuccess, onCancel, va
             <GlassPrimaryButton
               title={t('child_form.continue_button') || 'Continue'}
               onPress={handleContinue}
-              disabled={!name.trim() || photos.some(p => p.isUploading)}
+              disabled={!name.trim() || photos.some((p) => p.isUploading)}
               size="footer"
               style={[
                 styles.button,

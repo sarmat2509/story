@@ -82,7 +82,7 @@ export const useChildren = (enabled = true) => {
 // Create child mutation
 export const useCreateChild = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (data: CreateChildProfileRequest) => {
       const response = await apiClient.post<{ status: string; child: ChildProfile }>(
@@ -102,7 +102,7 @@ export const useCreateChild = () => {
 // Update child mutation
 export const useUpdateChild = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<CreateChildProfileInput> }) => {
       const response = await apiClient.patch<{ status: string; child: ChildProfile }>(
@@ -196,7 +196,7 @@ export const useRevokeChildModeSessions = () => {
 // Delete child mutation
 export const useDeleteChild = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (id: string) => {
       await apiClient.delete(`/api/v1/children/${id}`);

@@ -33,11 +33,7 @@ export class FetchClient {
   private requestInterceptor?: RequestInterceptor;
   private responseInterceptor?: ResponseInterceptor;
 
-  constructor(config: {
-    baseURL?: string;
-    timeout?: number;
-    headers?: Record<string, string>;
-  }) {
+  constructor(config: { baseURL?: string; timeout?: number; headers?: Record<string, string> }) {
     this.baseURL = config.baseURL || '';
     this.timeout = config.timeout || 30000;
     this.defaultHeaders = config.headers || {};
@@ -198,33 +194,21 @@ export class FetchClient {
   /**
    * POST request
    */
-  async post<T = any>(
-    url: string,
-    data?: any,
-    config?: RequestConfig
-  ): Promise<FetchResponse<T>> {
+  async post<T = any>(url: string, data?: any, config?: RequestConfig): Promise<FetchResponse<T>> {
     return this.request<T>('POST', url, { ...config, data });
   }
 
   /**
    * PUT request
    */
-  async put<T = any>(
-    url: string,
-    data?: any,
-    config?: RequestConfig
-  ): Promise<FetchResponse<T>> {
+  async put<T = any>(url: string, data?: any, config?: RequestConfig): Promise<FetchResponse<T>> {
     return this.request<T>('PUT', url, { ...config, data });
   }
 
   /**
    * PATCH request
    */
-  async patch<T = any>(
-    url: string,
-    data?: any,
-    config?: RequestConfig
-  ): Promise<FetchResponse<T>> {
+  async patch<T = any>(url: string, data?: any, config?: RequestConfig): Promise<FetchResponse<T>> {
     return this.request<T>('PATCH', url, { ...config, data });
   }
 

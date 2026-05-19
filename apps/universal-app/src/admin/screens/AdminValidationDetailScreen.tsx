@@ -48,7 +48,7 @@ function renderCharacterCards(characters: unknown[], keyPrefix: string): React.R
             <View style={styles.valueGroup}>
               {entries
                 .filter(([key]) => key !== 'name')
-                .map(([key, entry]) => (
+                .map(([key, entry]) =>
                   isScalarValue(entry) ? (
                     <View key={`${keyPrefix}-${index}-${key}`} style={styles.booleanFieldRow}>
                       <Text style={styles.valueKey}>{toLabel(String(key))}</Text>
@@ -60,7 +60,7 @@ function renderCharacterCards(characters: unknown[], keyPrefix: string): React.R
                       {renderStructuredValue(entry, `${keyPrefix}-${index}-${key}`)}
                     </View>
                   )
-                ))}
+                )}
             </View>
           </View>
         );
@@ -94,7 +94,7 @@ function renderStructuredValue(value: unknown, keyPrefix: string = 'root'): Reac
 
     return (
       <View style={styles.valueGroup}>
-        {value.map((entry, index) => (
+        {value.map((entry, index) =>
           isScalarValue(entry) ? (
             <View key={`${keyPrefix}-${index}`} style={styles.booleanFieldRow}>
               <Text style={styles.valueKey}>{String(index + 1).padStart(2, '0')}</Text>
@@ -106,13 +106,13 @@ function renderStructuredValue(value: unknown, keyPrefix: string = 'root'): Reac
               {renderStructuredValue(entry, `${keyPrefix}-${index}`)}
             </View>
           )
-        ))}
+        )}
       </View>
     );
   }
   return (
     <View style={styles.valueGroup}>
-      {Object.entries(value as Record<string, unknown>).map(([key, entry]) => (
+      {Object.entries(value as Record<string, unknown>).map(([key, entry]) =>
         key === 'identityComparisonSummary' ? (
           <View key={`${keyPrefix}-${key}`} style={styles.valueRow}>
             <Text style={styles.valueKey}>{toLabel(key)}</Text>
@@ -131,7 +131,7 @@ function renderStructuredValue(value: unknown, keyPrefix: string = 'root'): Reac
             </View>
           </View>
         )
-      ))}
+      )}
     </View>
   );
 }
@@ -167,16 +167,18 @@ export default function AdminValidationDetailScreen() {
     item?.result && typeof item.result === 'object' && !Array.isArray(item.result)
       ? (item.result as Record<string, unknown>)
       : null;
-  const resultCharacters = Array.isArray(resultObject?.characters)
-    ? resultObject.characters
-    : null;
+  const resultCharacters = Array.isArray(resultObject?.characters) ? resultObject.characters : null;
   const resultSummary =
     resultObject && resultCharacters
       ? Object.fromEntries(Object.entries(resultObject).filter(([key]) => key !== 'characters'))
       : item?.result;
 
   return (
-    <AdminLayout navigation={navigation} activeRoute="AdminValidations" title="Admin / Validation Detail">
+    <AdminLayout
+      navigation={navigation}
+      activeRoute="AdminValidations"
+      title="Admin / Validation Detail"
+    >
       <View style={styles.headerRow}>
         <Text style={styles.recordId}>{id ?? 'n/a'}</Text>
         <View style={styles.headerActions}>
@@ -199,12 +201,17 @@ export default function AdminValidationDetailScreen() {
                 }
               >
                 <Text style={styles.primaryButtonText}>
-                  {regenerateMutation.isPending ? 'Queueing...' : `Regenerate scene ${item.sceneIndex}`}
+                  {regenerateMutation.isPending
+                    ? 'Queueing...'
+                    : `Regenerate scene ${item.sceneIndex}`}
                 </Text>
               </TouchableOpacity>
             </>
           ) : null}
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('AdminValidations')}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.navigate('AdminValidations')}
+          >
             <Text style={styles.backButtonText}>Back to validations</Text>
           </TouchableOpacity>
         </View>
@@ -216,9 +223,7 @@ export default function AdminValidationDetailScreen() {
         </Text>
       ) : null}
       {regenerateMutation.error ? (
-        <Text style={styles.statusError}>
-          {(regenerateMutation.error as Error).message}
-        </Text>
+        <Text style={styles.statusError}>{(regenerateMutation.error as Error).message}</Text>
       ) : null}
 
       {query.isLoading ? <AdminLoadingState /> : null}
@@ -266,7 +271,9 @@ export default function AdminValidationDetailScreen() {
                   </View>
                   <View style={styles.booleanFieldRow}>
                     <Text style={styles.valueKey}>CREATED</Text>
-                    <Text style={styles.valueText}>{new Date(item.createdAt).toLocaleString()}</Text>
+                    <Text style={styles.valueText}>
+                      {new Date(item.createdAt).toLocaleString()}
+                    </Text>
                   </View>
                 </View>
               </DetailCard>

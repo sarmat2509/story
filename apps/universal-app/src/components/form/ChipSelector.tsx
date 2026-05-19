@@ -21,14 +21,14 @@ export const ChipSelector: React.FC<ChipSelectorProps> = ({
   multiple = false,
   max,
   translationPrefix,
-  getTranslation
+  getTranslation,
 }) => {
-  const selectedArray = Array.isArray(selected) ? selected : (selected ? [selected] : []);
-  
+  const selectedArray = Array.isArray(selected) ? selected : selected ? [selected] : [];
+
   const handlePress = (value: string) => {
     if (multiple) {
       const newSelected = selectedArray.includes(value)
-        ? selectedArray.filter(v => v !== value)
+        ? selectedArray.filter((v) => v !== value)
         : max && selectedArray.length >= max
           ? selectedArray
           : [...selectedArray, value];
@@ -58,15 +58,15 @@ export const ChipSelector: React.FC<ChipSelectorProps> = ({
           {selectedArray.length} / {max}
         </Text>
       ) : null}
-      <ScrollView 
-        horizontal 
+      <ScrollView
+        horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.chipsContainer}
       >
         {options.map((option) => {
           const selected = isSelected(option);
           const disabled = isDisabled(option);
-          
+
           return (
             <TouchableOpacity
               key={option}
@@ -75,14 +75,16 @@ export const ChipSelector: React.FC<ChipSelectorProps> = ({
               style={[
                 styles.chip,
                 selected && styles.chipSelected,
-                disabled && styles.chipDisabled
+                disabled && styles.chipDisabled,
               ]}
             >
-              <Text style={[
-                styles.chipText,
-                selected && styles.chipTextSelected,
-                disabled && styles.chipTextDisabled
-              ]}>
+              <Text
+                style={[
+                  styles.chipText,
+                  selected && styles.chipTextSelected,
+                  disabled && styles.chipTextDisabled,
+                ]}
+              >
                 {getLabel(option)}
               </Text>
             </TouchableOpacity>
@@ -95,23 +97,23 @@ export const ChipSelector: React.FC<ChipSelectorProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: theme.spacing[4]
+    marginBottom: theme.spacing[4],
   },
   label: {
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.text.primary,
-    marginBottom: theme.spacing[2]
+    marginBottom: theme.spacing[2],
   },
   hint: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
-    marginBottom: theme.spacing[2]
+    marginBottom: theme.spacing[2],
   },
   chipsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: theme.spacing[2]
+    gap: theme.spacing[2],
   },
   chip: {
     paddingHorizontal: theme.spacing[3],
@@ -121,24 +123,24 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border.medium,
     backgroundColor: theme.colors.background.secondary,
     marginRight: theme.spacing[2],
-    marginBottom: theme.spacing[2]
+    marginBottom: theme.spacing[2],
   },
   chipSelected: {
     backgroundColor: theme.colors.interactive.primary,
-    borderColor: theme.colors.interactive.primary
+    borderColor: theme.colors.interactive.primary,
   },
   chipDisabled: {
-    opacity: 0.4
+    opacity: 0.4,
   },
   chipText: {
     fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.primary
+    color: theme.colors.text.primary,
   },
   chipTextSelected: {
     color: theme.colors.text.inverse,
-    fontWeight: theme.typography.fontWeight.medium
+    fontWeight: theme.typography.fontWeight.medium,
   },
   chipTextDisabled: {
-    color: theme.colors.text.disabled
-  }
+    color: theme.colors.text.disabled,
+  },
 });

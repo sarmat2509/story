@@ -190,32 +190,33 @@ function LimitSlider({
   const totalMax = Math.max(1, getSafeLimit(totalValue, getSafeLimit(maxValue, defaultMax)));
   const availableMax = Math.max(0, Math.min(totalMax, getSafeLimit(maxValue, totalMax)));
   const reserved = Math.max(0, getSafeLimit(reservedValue, Math.max(0, totalMax - availableMax)));
-  const effectiveValue = value === null
-    ? availableMax
-    : Math.max(0, Math.min(availableMax, value));
+  const effectiveValue = value === null ? availableMax : Math.max(0, Math.min(availableMax, value));
   const selectedPercent = totalMax > 0 ? (effectiveValue / totalMax) * 100 : 0;
   const availablePercent = totalMax > 0 ? (availableMax / totalMax) * 100 : 0;
   const isUnset = value === null;
   const valueLabel = isUnset ? unsetLabel : String(effectiveValue);
 
-  const commitFromLocation = useCallback((event: any) => {
-    if (disabled) return;
-    const nativeEvent = event.nativeEvent;
-    const locationX =
-      typeof nativeEvent.locationX === 'number'
-        ? nativeEvent.locationX
-        : typeof nativeEvent.offsetX === 'number'
-          ? nativeEvent.offsetX
-          : undefined;
-    if (typeof locationX !== 'number' || !Number.isFinite(locationX)) return;
+  const commitFromLocation = useCallback(
+    (event: any) => {
+      if (disabled) return;
+      const nativeEvent = event.nativeEvent;
+      const locationX =
+        typeof nativeEvent.locationX === 'number'
+          ? nativeEvent.locationX
+          : typeof nativeEvent.offsetX === 'number'
+            ? nativeEvent.offsetX
+            : undefined;
+      if (typeof locationX !== 'number' || !Number.isFinite(locationX)) return;
 
-    sliderRef.current?.measure((_x, _y, width) => {
-      if (!width || width <= 0) return;
-      const ratio = Math.max(0, Math.min(1, locationX / width));
-      const nextValue = Math.min(availableMax, Math.round(ratio * totalMax));
-      onCommit(nextValue);
-    });
-  }, [availableMax, disabled, onCommit, totalMax]);
+      sliderRef.current?.measure((_x, _y, width) => {
+        if (!width || width <= 0) return;
+        const ratio = Math.max(0, Math.min(1, locationX / width));
+        const nextValue = Math.min(availableMax, Math.round(ratio * totalMax));
+        onCommit(nextValue);
+      });
+    },
+    [availableMax, disabled, onCommit, totalMax]
+  );
 
   return (
     <View style={styles.limitField}>
@@ -252,9 +253,7 @@ function LimitSlider({
       </Pressable>
       <View style={styles.limitScaleRow}>
         <Text style={styles.limitScaleText}>0</Text>
-        <Text style={styles.limitScaleText}>
-          {formatCountTemplate(labels.limitMax, totalMax)}
-        </Text>
+        <Text style={styles.limitScaleText}>{formatCountTemplate(labels.limitMax, totalMax)}</Text>
       </View>
       <View style={styles.limitBudgetRow}>
         <Text style={styles.limitBudgetText}>
@@ -276,14 +275,10 @@ function LimitSlider({
           disabled={disabled}
           onPress={() => onCommit(null)}
         >
-          <Text style={styles.limitUnsetButtonText}>
-            {unsetLabel}
-          </Text>
+          <Text style={styles.limitUnsetButtonText}>{unsetLabel}</Text>
         </Pressable>
       ) : null}
-      {helperText ? (
-        <Text style={styles.limitHelper}>{helperText}</Text>
-      ) : null}
+      {helperText ? <Text style={styles.limitHelper}>{helperText}</Text> : null}
     </View>
   );
 }
@@ -306,7 +301,10 @@ function SettingSwitch({
         value={value}
         disabled={disabled}
         onValueChange={onValueChange}
-        trackColor={{ false: theme.colors.background.tertiary, true: theme.colors.interactive.secondary }}
+        trackColor={{
+          false: theme.colors.background.tertiary,
+          true: theme.colors.interactive.secondary,
+        }}
         thumbColor={value ? theme.colors.interactive.primary : theme.colors.text.inverse}
       />
     </View>
@@ -368,7 +366,9 @@ function MultiSelectChips({
           </Text>
         </Pressable>
         {options.length === 0 && emptyText ? (
-          <Text style={styles.optionEmptyText} numberOfLines={2}>{emptyText}</Text>
+          <Text style={styles.optionEmptyText} numberOfLines={2}>
+            {emptyText}
+          </Text>
         ) : null}
         {displayedOptions.map((option) => {
           const selected = selectedSet.has(option.value);
@@ -384,9 +384,7 @@ function MultiSelectChips({
               onPress={() => toggleValue(option.value)}
             >
               {option.icon ? <Text style={styles.optionChipIcon}>{option.icon}</Text> : null}
-              <Text
-                style={[styles.optionChipText, selected && styles.optionChipTextSelected]}
-              >
+              <Text style={[styles.optionChipText, selected && styles.optionChipTextSelected]}>
                 {option.label}
               </Text>
             </Pressable>
@@ -418,7 +416,9 @@ export function ChildCard({
   isRevokingChildSessions,
 }: Props) {
   const avatarUrl =
-    child.turnaroundSheet?.frontUrl ?? child.turnaroundSheet?.url ?? child.referencePhotos?.[0]?.url;
+    child.turnaroundSheet?.frontUrl ??
+    child.turnaroundSheet?.url ??
+    child.referencePhotos?.[0]?.url;
   const imageContainerWebStyle =
     Platform.OS === 'web' ? ({ filter: 'contrast(1.05)' } as any) : null;
   const birthDateRaw = child.birthDate ?? child.birthdate;
@@ -473,13 +473,20 @@ export function ChildCard({
         ) : null}
 
         {labels ? (
-          <View style={[styles.childModeSection, !showProfileSummary && styles.childModeSectionStandalone]}>
+          <View
+            style={[
+              styles.childModeSection,
+              !showProfileSummary && styles.childModeSectionStandalone,
+            ]}
+          >
             <View style={styles.childModeHeader}>
               <View style={styles.childModeTitleRow}>
                 <Ionicons
                   name={childModeEnabled ? 'shield-checkmark' : 'shield-outline'}
                   size={18}
-                  color={childModeEnabled ? theme.colors.status.success : theme.colors.text.tertiary}
+                  color={
+                    childModeEnabled ? theme.colors.status.success : theme.colors.text.tertiary
+                  }
                 />
                 <Text style={styles.childModeTitle}>{labels.title}</Text>
               </View>
@@ -487,23 +494,38 @@ export function ChildCard({
                 value={childModeEnabled}
                 disabled={childModeSwitchDisabled}
                 onValueChange={(enabled) => onChildModeEnabledChange?.(child.id, enabled)}
-                trackColor={{ false: theme.colors.background.tertiary, true: theme.colors.interactive.secondary }}
-                thumbColor={childModeEnabled ? theme.colors.interactive.primary : theme.colors.text.inverse}
+                trackColor={{
+                  false: theme.colors.background.tertiary,
+                  true: theme.colors.interactive.secondary,
+                }}
+                thumbColor={
+                  childModeEnabled ? theme.colors.interactive.primary : theme.colors.text.inverse
+                }
               />
             </View>
 
-            <Text style={styles.childModeStatus}>
-              {childModeStatusText}
-            </Text>
+            <Text style={styles.childModeStatus}>{childModeStatusText}</Text>
 
             <Pressable
               accessibilityRole="button"
               style={({ pressed }) => [
                 styles.startChildModeButton,
-                (!childModeEnabled || !childModePasscodeConfigured || isEnteringChildMode || !onEnterChildMode) && styles.startChildModeButtonDisabled,
-                pressed && childModeEnabled && !isEnteringChildMode && styles.startChildModeButtonPressed,
+                (!childModeEnabled ||
+                  !childModePasscodeConfigured ||
+                  isEnteringChildMode ||
+                  !onEnterChildMode) &&
+                  styles.startChildModeButtonDisabled,
+                pressed &&
+                  childModeEnabled &&
+                  !isEnteringChildMode &&
+                  styles.startChildModeButtonPressed,
               ]}
-              disabled={!childModeEnabled || !childModePasscodeConfigured || isEnteringChildMode || !onEnterChildMode}
+              disabled={
+                !childModeEnabled ||
+                !childModePasscodeConfigured ||
+                isEnteringChildMode ||
+                !onEnterChildMode
+              }
               onPress={() => onEnterChildMode?.(child.id, child.name)}
             >
               <Ionicons
@@ -513,7 +535,11 @@ export function ChildCard({
               />
               <Text style={styles.startChildModeButtonText}>
                 {childModeEnabled
-                  ? !childModePasscodeConfigured ? labels.setPasscodeToStart : isEnteringChildMode ? labels.starting : labels.start
+                  ? !childModePasscodeConfigured
+                    ? labels.setPasscodeToStart
+                    : isEnteringChildMode
+                      ? labels.starting
+                      : labels.start
                   : labels.enableToStart}
               </Text>
             </Pressable>
@@ -531,7 +557,9 @@ export function ChildCard({
                 labels={labels}
                 defaultMax={100}
                 disabled={controlsDisabled}
-                onCommit={(dailyGenerationLimit) => onChildModeSettingsChange?.(child.id, { dailyGenerationLimit })}
+                onCommit={(dailyGenerationLimit) =>
+                  onChildModeSettingsChange?.(child.id, { dailyGenerationLimit })
+                }
               />
               <LimitSlider
                 label={labels.monthlyLimit}
@@ -545,7 +573,9 @@ export function ChildCard({
                 labels={labels}
                 defaultMax={1000}
                 disabled={controlsDisabled}
-                onCommit={(monthlyGenerationLimit) => onChildModeSettingsChange?.(child.id, { monthlyGenerationLimit })}
+                onCommit={(monthlyGenerationLimit) =>
+                  onChildModeSettingsChange?.(child.id, { monthlyGenerationLimit })
+                }
               />
             </View>
             <View style={styles.limitRow}>
@@ -560,7 +590,9 @@ export function ChildCard({
                 labels={labels}
                 defaultMax={100}
                 disabled={controlsDisabled}
-                onCommit={(dailyAudioGenerationLimit) => onChildModeSettingsChange?.(child.id, { dailyAudioGenerationLimit })}
+                onCommit={(dailyAudioGenerationLimit) =>
+                  onChildModeSettingsChange?.(child.id, { dailyAudioGenerationLimit })
+                }
               />
             </View>
 
@@ -568,31 +600,41 @@ export function ChildCard({
               label={labels.storyGeneration}
               value={childModeSettings.storyGenerationEnabled}
               disabled={controlsDisabled}
-              onValueChange={(storyGenerationEnabled) => onChildModeSettingsChange?.(child.id, { storyGenerationEnabled })}
+              onValueChange={(storyGenerationEnabled) =>
+                onChildModeSettingsChange?.(child.id, { storyGenerationEnabled })
+              }
             />
             <SettingSwitch
               label={labels.publicStories}
               value={childModeSettings.publicStoriesEnabled}
               disabled={controlsDisabled}
-              onValueChange={(publicStoriesEnabled) => onChildModeSettingsChange?.(child.id, { publicStoriesEnabled })}
+              onValueChange={(publicStoriesEnabled) =>
+                onChildModeSettingsChange?.(child.id, { publicStoriesEnabled })
+              }
             />
             <SettingSwitch
               label={labels.freeText}
               value={childModeSettings.freeTextPromptsEnabled}
               disabled={controlsDisabled}
-              onValueChange={(freeTextPromptsEnabled) => onChildModeSettingsChange?.(child.id, { freeTextPromptsEnabled })}
+              onValueChange={(freeTextPromptsEnabled) =>
+                onChildModeSettingsChange?.(child.id, { freeTextPromptsEnabled })
+              }
             />
             <SettingSwitch
               label={labels.audio}
               value={childModeSettings.audioGenerationEnabled}
               disabled={controlsDisabled}
-              onValueChange={(audioGenerationEnabled) => onChildModeSettingsChange?.(child.id, { audioGenerationEnabled })}
+              onValueChange={(audioGenerationEnabled) =>
+                onChildModeSettingsChange?.(child.id, { audioGenerationEnabled })
+              }
             />
             <SettingSwitch
               label={labels.review}
               value={childModeSettings.parentReviewRequired}
               disabled={controlsDisabled}
-              onValueChange={(parentReviewRequired) => onChildModeSettingsChange?.(child.id, { parentReviewRequired })}
+              onValueChange={(parentReviewRequired) =>
+                onChildModeSettingsChange?.(child.id, { parentReviewRequired })
+              }
             />
             <MultiSelectChips
               label={labels.themes}
@@ -600,7 +642,9 @@ export function ChildCard({
               options={childModeThemeOptions}
               allLabel={labels.anyTheme}
               disabled={controlsDisabled}
-              onChange={(allowedThemeSlugs) => onChildModeSettingsChange?.(child.id, { allowedThemeSlugs })}
+              onChange={(allowedThemeSlugs) =>
+                onChildModeSettingsChange?.(child.id, { allowedThemeSlugs })
+              }
             />
             <MultiSelectChips
               label={labels.languages}
@@ -608,7 +652,9 @@ export function ChildCard({
               options={childModeLanguageOptions}
               allLabel={labels.anyLanguage}
               disabled={controlsDisabled}
-              onChange={(allowedLanguageCodes) => onChildModeSettingsChange?.(child.id, { allowedLanguageCodes })}
+              onChange={(allowedLanguageCodes) =>
+                onChildModeSettingsChange?.(child.id, { allowedLanguageCodes })
+              }
             />
             <MultiSelectChips
               label={labels.characters}
@@ -617,13 +663,17 @@ export function ChildCard({
               allLabel={labels.anyCharacter}
               emptyText={labels.noCharacters}
               disabled={controlsDisabled}
-              onChange={(allowedCharacterIds) => onChildModeSettingsChange?.(child.id, { allowedCharacterIds })}
+              onChange={(allowedCharacterIds) =>
+                onChildModeSettingsChange?.(child.id, { allowedCharacterIds })
+              }
             />
             <SettingSwitch
               label={labels.siblings}
               value={childModeSettings.allowSiblingCharacters}
               disabled={controlsDisabled}
-              onValueChange={(allowSiblingCharacters) => onChildModeSettingsChange?.(child.id, { allowSiblingCharacters })}
+              onValueChange={(allowSiblingCharacters) =>
+                onChildModeSettingsChange?.(child.id, { allowSiblingCharacters })
+              }
             />
 
             <View style={styles.sessionsRow}>
@@ -640,7 +690,9 @@ export function ChildCard({
                   onPress={() => onRevokeChildModeSessions(child.id, child.name)}
                 >
                   <Ionicons name="log-out-outline" size={15} color={theme.colors.status.error} />
-                  <Text style={styles.revokeButtonText} numberOfLines={1}>{labels.revoke}</Text>
+                  <Text style={styles.revokeButtonText} numberOfLines={1}>
+                    {labels.revoke}
+                  </Text>
                 </Pressable>
               ) : null}
             </View>

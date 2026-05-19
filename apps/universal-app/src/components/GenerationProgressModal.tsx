@@ -59,12 +59,12 @@ export function GenerationProgressModal({
 
   const getTaskLabel = (task: string, details?: Record<string, any>) => {
     const labels: Record<string, string> = {
-      'analyzing_photos': 'Аналізуємо фотографії...',
-      'generating_text': 'Пишемо текст...',
-      'producing_visuals': 'Готуємо сцени для ілюстрацій...',
-      'validating': 'Перевіряємо безпечність контенту...',
-      'generating_images': 'Створюємо ілюстрації...',
-      'generating_audio': 'Озвучуємо історію...',
+      analyzing_photos: 'Аналізуємо фотографії...',
+      generating_text: 'Пишемо текст...',
+      producing_visuals: 'Готуємо сцени для ілюстрацій...',
+      validating: 'Перевіряємо безпечність контенту...',
+      generating_images: 'Створюємо ілюстрації...',
+      generating_audio: 'Озвучуємо історію...',
     };
 
     const countBasedTasks = new Set([
@@ -95,16 +95,13 @@ export function GenerationProgressModal({
       defaultValue: labels[task] || 'Обробляємо запит...',
     });
   };
-  
+
   const getStatusText = () => {
     if (status === 'pending') {
       return 'Додаємо історію до черги...';
     }
     if (status === 'processing' && progressData?.activeTasks?.[0]) {
-      return getTaskLabel(
-        progressData.activeTasks[0].task,
-        progressData.activeTasks[0].details,
-      );
+      return getTaskLabel(progressData.activeTasks[0].task, progressData.activeTasks[0].details);
     }
     if (status === 'processing') {
       const fallbackTask = getFallbackTask();
@@ -132,92 +129,61 @@ export function GenerationProgressModal({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.modal}>
           {allowManualClose && onClose && status === 'completed' && (
-            <TouchableOpacity 
-              style={styles.closeIcon}
-              onPress={onClose}
-            >
+            <TouchableOpacity style={styles.closeIcon} onPress={onClose}>
               <Text style={styles.closeIconText}>✕</Text>
             </TouchableOpacity>
           )}
-          
+
           {status !== 'completed' && status !== 'failed' && (
-            <ActivityIndicator 
-              size="large" 
+            <ActivityIndicator
+              size="large"
               color={theme.colors.interactive.primary}
               style={styles.spinner}
             />
           )}
-          
-          {status === 'completed' && (
-            <Text style={styles.successIcon}>✅</Text>
-          )}
-          
-          {status === 'failed' && (
-            <Text style={styles.errorIcon}>❌</Text>
-          )}
-          
-          <Text style={[
-            styles.statusText,
-            status === 'failed' && styles.errorText
-          ]}>
+
+          {status === 'completed' && <Text style={styles.successIcon}>✅</Text>}
+
+          {status === 'failed' && <Text style={styles.errorIcon}>❌</Text>}
+
+          <Text style={[styles.statusText, status === 'failed' && styles.errorText]}>
             {getStatusText()}
           </Text>
-          
+
           {status !== 'completed' && status !== 'failed' && (
             <>
               <View style={styles.progressBarContainer}>
-                <View 
-                  style={[
-                    styles.progressBar, 
-                    { width: `${getProgressPercentage()}%` }
-                  ]} 
-                />
+                <View style={[styles.progressBar, { width: `${getProgressPercentage()}%` }]} />
               </View>
-              <Text style={styles.progressText}>
-                {Math.round(getProgressPercentage())}%
-              </Text>
+              <Text style={styles.progressText}>{Math.round(getProgressPercentage())}%</Text>
             </>
           )}
-          
+
           {status === 'failed' && errorMessage && (
             <Text style={styles.errorMessage}>{errorMessage}</Text>
           )}
-          
+
           {status === 'failed' && (
             <View style={styles.failedActions}>
               {onRetry && (
-                <TouchableOpacity
-                  style={styles.retryButton}
-                  onPress={onRetry}
-                >
+                <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
                   <Text style={styles.retryButtonText}>{t('wizard.retry')}</Text>
                 </TouchableOpacity>
               )}
               {onReport && (
-                <TouchableOpacity
-                  style={styles.reportButton}
-                  onPress={onReport}
-                >
+                <TouchableOpacity style={styles.reportButton} onPress={onReport}>
                   <Text style={styles.reportButtonText}>{t('feedback.report_this_issue')}</Text>
                 </TouchableOpacity>
               )}
             </View>
           )}
-          
+
           {status === 'completed' && onClose && (
-            <TouchableOpacity 
-              style={styles.closeButton}
-              onPress={onClose}
-            >
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Text style={styles.closeButtonText}>Переглянути історію</Text>
             </TouchableOpacity>
           )}

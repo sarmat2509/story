@@ -77,10 +77,7 @@ export default function ResetPasswordScreen() {
   const [success, setSuccess] = useState(false);
 
   const strength = getPasswordStrength(password);
-  const canSubmit =
-    token &&
-    meetsMinRequirements(password) &&
-    !resetPasswordMutation.isPending;
+  const canSubmit = token && meetsMinRequirements(password) && !resetPasswordMutation.isPending;
 
   const strengthLabel =
     strength === 'weak'
@@ -169,10 +166,7 @@ export default function ResetPasswordScreen() {
             autoComplete="new-password"
             textContentType="newPassword"
           />
-          <TouchableOpacity
-            style={styles.eyeButton}
-            onPress={() => setShowPassword(!showPassword)}
-          >
+          <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(!showPassword)}>
             <Ionicons
               name={showPassword ? 'eye-off-outline' : 'eye-outline'}
               size={22}

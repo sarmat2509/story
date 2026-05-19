@@ -56,7 +56,11 @@ export default function OAuthCallbackScreen() {
           throw new Error('No token received');
         }
 
-        if (Platform.OS === 'web' && typeof window !== 'undefined' && window.history?.replaceState) {
+        if (
+          Platform.OS === 'web' &&
+          typeof window !== 'undefined' &&
+          window.history?.replaceState
+        ) {
           window.history.replaceState({}, '', window.location.pathname);
         }
 
@@ -67,7 +71,7 @@ export default function OAuthCallbackScreen() {
             Authorization: `Bearer ${token}`,
           },
         });
-        
+
         const user = response.data.user;
 
         if (!user) {
@@ -84,7 +88,11 @@ export default function OAuthCallbackScreen() {
         }
 
         const tabName = parentGate ? 'Children' : 'Dashboard';
-        if (!resetToMainRoute({ name: tabName }) && Platform.OS === 'web' && typeof window !== 'undefined') {
+        if (
+          !resetToMainRoute({ name: tabName }) &&
+          Platform.OS === 'web' &&
+          typeof window !== 'undefined'
+        ) {
           window.localStorage?.setItem(
             'auth-storage',
             JSON.stringify({

@@ -17,10 +17,7 @@ function normalizeLocale(value?: string | null): AppUiLocale | null {
 }
 
 function stripLocalePrefix(pathname: string): string {
-  const firstSegment = pathname
-    .split('/')
-    .filter(Boolean)[0]
-    ?.toLowerCase();
+  const firstSegment = pathname.split('/').filter(Boolean)[0]?.toLowerCase();
 
   if (!firstSegment || !isValidLocale(firstSegment)) {
     return pathname || '/';

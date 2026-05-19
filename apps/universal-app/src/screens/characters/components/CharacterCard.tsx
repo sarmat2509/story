@@ -44,7 +44,9 @@ const getCharacterIcon = (type: string): string => {
 
 export function CharacterCard({ character, onPress, onDelete }: Props) {
   const avatarUrl =
-    character.turnaroundSheet?.frontUrl ?? character.turnaroundSheet?.url ?? character.referencePhotos?.[0]?.url;
+    character.turnaroundSheet?.frontUrl ??
+    character.turnaroundSheet?.url ??
+    character.referencePhotos?.[0]?.url;
   const imageContainerWebStyle =
     Platform.OS === 'web' ? ({ filter: 'contrast(1.05)' } as any) : null;
 

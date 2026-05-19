@@ -9,17 +9,17 @@ interface Modal {
 interface UIState {
   // Modals
   modals: Modal[];
-  
+
   // Loading states
   isLoading: boolean;
   loadingMessage: string | null;
-  
+
   // Language
   currentLanguage: string;
-  
+
   // Theme
   isDarkMode: boolean;
-  
+
   // Actions
   showModal: (id: string, type: string, props?: any) => void;
   hideModal: (id: string) => void;
@@ -36,22 +36,25 @@ export const useUIStore = create<UIState>((set) => ({
   currentLanguage: 'uk',
   isDarkMode: false,
 
-  showModal: (id, type, props) => set((state) => ({
-    modals: [...state.modals, { id, type, props }]
-  })),
-  
-  hideModal: (id) => set((state) => ({
-    modals: state.modals.filter(m => m.id !== id)
-  })),
-  
+  showModal: (id, type, props) =>
+    set((state) => ({
+      modals: [...state.modals, { id, type, props }],
+    })),
+
+  hideModal: (id) =>
+    set((state) => ({
+      modals: state.modals.filter((m) => m.id !== id),
+    })),
+
   hideAllModals: () => set({ modals: [] }),
-  
-  setLoading: (loading, message) => set({ 
-    isLoading: loading, 
-    loadingMessage: message || null 
-  }),
-  
+
+  setLoading: (loading, message) =>
+    set({
+      isLoading: loading,
+      loadingMessage: message || null,
+    }),
+
   setLanguage: (language) => set({ currentLanguage: language }),
-  
+
   toggleTheme: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
 }));

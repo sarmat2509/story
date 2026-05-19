@@ -12,9 +12,13 @@ export function AnalyticsIdentity() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [consentVersion, setConsentVersion] = useState(0);
 
-  useEffect(() => onAnalyticsConsentChange(() => {
-    setConsentVersion((version) => version + 1);
-  }), []);
+  useEffect(
+    () =>
+      onAnalyticsConsentChange(() => {
+        setConsentVersion((version) => version + 1);
+      }),
+    []
+  );
 
   useEffect(() => {
     const analytics = getAnalytics();

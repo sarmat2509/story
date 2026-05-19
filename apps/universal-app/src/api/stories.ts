@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient, QueryClient } from '@tanstack/react-query';
-import type { 
+import type {
   StoryRequestStatusResponse,
   StoryApi,
   StorySummaryApi,
@@ -36,14 +36,16 @@ interface CreateStoryFromPhotosRequest {
 }
 
 // List stories (summary view for library - lightweight payload)
-export const useStories = (params: {
-  limit?: number;
-  offset?: number;
-  hasAudio?: boolean;
-  scenarioCardId?: string | null;
-  seriesId?: string | null;
-  language?: string | null;
-} = {}) => {
+export const useStories = (
+  params: {
+    limit?: number;
+    offset?: number;
+    hasAudio?: boolean;
+    scenarioCardId?: string | null;
+    seriesId?: string | null;
+    language?: string | null;
+  } = {}
+) => {
   const { limit = 20, offset = 0, hasAudio, scenarioCardId, seriesId, language } = params ?? {};
 
   return useQuery({
@@ -67,10 +69,18 @@ export const useStories = (params: {
       }
       const queryString = searchParams.toString();
       const url = queryString ? `/api/v1/me/stories?${queryString}` : '/api/v1/me/stories';
-      const response = await apiClient.get<{ status: string; stories: StorySummary[]; pagination?: any }>(url);
+      const response = await apiClient.get<{
+        status: string;
+        stories: StorySummary[];
+        pagination?: any;
+      }>(url);
       return {
         stories: response.data.stories,
-        pagination: response.data.pagination ?? { limit, offset, total: response.data.stories?.length ?? 0 },
+        pagination: response.data.pagination ?? {
+          limit,
+          offset,
+          total: response.data.stories?.length ?? 0,
+        },
       };
     },
   });
@@ -81,7 +91,9 @@ export function useUserStoryLanguages() {
   return useQuery({
     queryKey: ['user-story-languages'],
     queryFn: async () => {
-      const response = await apiClient.get<UserStoryLanguagesResponse>('/api/v1/me/stories/languages');
+      const response = await apiClient.get<UserStoryLanguagesResponse>(
+        '/api/v1/me/stories/languages'
+      );
       return response.data.languages;
     },
   });
@@ -104,7 +116,9 @@ export function useSeriesList() {
   return useQuery({
     queryKey: ['series-list'],
     queryFn: async () => {
-      const response = await apiClient.get<{ status: string; series: SeriesListItem[] }>('/api/v1/me/series');
+      const response = await apiClient.get<{ status: string; series: SeriesListItem[] }>(
+        '/api/v1/me/series'
+      );
       return response.data.series;
     },
   });
@@ -162,15 +176,15 @@ export const useStoryGenerationStatus = (id: string) => {
   return useQuery({
     queryKey: ['story-generation-status', id],
     queryFn: async () => {
-      const response = await apiClient.get<{ 
-        status: string; 
+      const response = await apiClient.get<{
+        status: string;
         generationStatus: {
           storyId: string;
           imageGenerationComplete: boolean;
           sceneIdsWithImages: number[];
           failedScenes: Array<{ sceneId: number; errorMessage: string }>;
           scenesWithImages?: Array<{ sceneId: number; imageUrl: string }>; // NEW
-        }
+        };
       }>(`/api/v1/stories/${id}/generation-status`);
       return response.data.generationStatus;
     },
@@ -213,7 +227,7 @@ export const useStoryStatus = (requestId: string, enabled: boolean = true) => {
 // Create story
 export const useCreateStory = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (data: CreateStoryRequest) => {
       const response = await apiClient.post<{ status: string; request: { id: string } }>(
@@ -234,10 +248,10 @@ export const useCreateChildModeStory = () => {
 
   return useMutation({
     mutationFn: async (data: CreateStoryRequest) => {
-      const response = await apiClient.post<{ status: string; request: ChildModeStoryRequestResult }>(
-        '/api/v1/stories/child-mode',
-        data
-      );
+      const response = await apiClient.post<{
+        status: string;
+        request: ChildModeStoryRequestResult;
+      }>('/api/v1/stories/child-mode', data);
       return response.data.request;
     },
     onSuccess: () => {
@@ -249,7 +263,7 @@ export const useCreateChildModeStory = () => {
 // Create story from photos (Instant Mode)
 export const useCreateStoryFromPhotos = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (data: CreateStoryFromPhotosRequest) => {
       const response = await apiClient.post<{ status: string; request: { id: string } }>(
@@ -294,9 +308,10 @@ export const useRetryStoryImages = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (requestId: string) => {
-      const response = await apiClient.post<{ status: string; request: { id: string; status: string } }>(
-        `/api/v1/stories/requests/${requestId}/retry-images`
-      );
+      const response = await apiClient.post<{
+        status: string;
+        request: { id: string; status: string };
+      }>(`/api/v1/stories/requests/${requestId}/retry-images`);
       return response.data;
     },
     onSuccess: (_, requestId) => {
@@ -308,13 +323,13 @@ export const useRetryStoryImages = () => {
 // Generate audio for story
 export const useGenerateAudio = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async ({ 
-      storyId, 
-      voiceId, 
-      speed, 
-      nightMode 
+    mutationFn: async ({
+      storyId,
+      voiceId,
+      speed,
+      nightMode,
     }: {
       storyId: string;
       voiceId?: string;
@@ -324,7 +339,7 @@ export const useGenerateAudio = () => {
       const response = await apiClient.post(`/api/v1/stories/${storyId}/audio`, {
         voiceId,
         speed,
-        nightMode
+        nightMode,
       });
       return response.data;
     },
@@ -388,7 +403,7 @@ export const useAudioUrl = (storyId: string, enabled: boolean = true) => {
 // Generate forced alignment for story audio
 export const useGenerateAlignment = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ storyId }: { storyId: string }) => {
       const response = await apiClient.post(`/api/v1/stories/${storyId}/alignment`);
@@ -404,7 +419,7 @@ export const useGenerateAlignment = () => {
 // Delete story
 export const useDeleteStory = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (storyId: string) => {
       await apiClient.delete(`/api/v1/stories/${storyId}`);
@@ -425,7 +440,10 @@ export function useScheduleStatus(storyId: string | undefined, options?: { enabl
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
-        data: { cadence: string; nextRunAt: string; inProgress?: boolean } | { inProgress: true } | null;
+        data:
+          | { cadence: string; nextRunAt: string; inProgress?: boolean }
+          | { inProgress: true }
+          | null;
       }>(`/api/v1/stories/${storyId}/schedule`);
       return response.data.data;
     },
@@ -436,11 +454,17 @@ export function useScheduleStatus(storyId: string | undefined, options?: { enabl
 export function useScheduleContinuation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ storyId, cadence }: { storyId: string; cadence: 'daily' | 'every_2_days' | 'twice_weekly' | 'weekly' }) => {
-      const response = await apiClient.post<{ status: string; data: { cadence: string; nextRunAt: string } }>(
-        `/api/v1/stories/${storyId}/schedule-continuation`,
-        { cadence }
-      );
+    mutationFn: async ({
+      storyId,
+      cadence,
+    }: {
+      storyId: string;
+      cadence: 'daily' | 'every_2_days' | 'twice_weekly' | 'weekly';
+    }) => {
+      const response = await apiClient.post<{
+        status: string;
+        data: { cadence: string; nextRunAt: string };
+      }>(`/api/v1/stories/${storyId}/schedule-continuation`, { cadence });
       return response.data.data;
     },
     onSuccess: (_, variables) => {
@@ -464,7 +488,7 @@ export function useUnscheduleContinuation() {
 // Generate continuation for a story
 export function useGenerateContinuation() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (storyId: string) => {
       const response = await apiClient.post<{
@@ -555,7 +579,16 @@ export function usePublishedStories(params?: {
   readingTimeMin?: number;
   readingTimeMax?: number;
 }) {
-  const { limit = 20, offset = 0, hasAudio, scenarioCardId, language, ageGroup, readingTimeMin, readingTimeMax } = params ?? {};
+  const {
+    limit = 20,
+    offset = 0,
+    hasAudio,
+    scenarioCardId,
+    language,
+    ageGroup,
+    readingTimeMin,
+    readingTimeMax,
+  } = params ?? {};
   const canUseInitialStories =
     typeof window !== 'undefined' &&
     limit === 24 &&
@@ -590,7 +623,17 @@ export function usePublishedStories(params?: {
   if (typeof readingTimeMax === 'number') searchParams.reading_time_max = readingTimeMax;
 
   return useQuery({
-    queryKey: ['published-stories', limit, offset, hasAudio, scenarioCardId, language, ageGroup, readingTimeMin, readingTimeMax],
+    queryKey: [
+      'published-stories',
+      limit,
+      offset,
+      hasAudio,
+      scenarioCardId,
+      language,
+      ageGroup,
+      readingTimeMin,
+      readingTimeMax,
+    ],
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
@@ -603,11 +646,14 @@ export function usePublishedStories(params?: {
       };
     },
     enabled: !hasInitialStories,
-    initialData: hasInitialStories ? initialStoriesRef.current ?? undefined : undefined,
+    initialData: hasInitialStories ? (initialStoriesRef.current ?? undefined) : undefined,
   });
 }
 
-export function usePublicAuthor(authorId: string | undefined, params?: { limit?: number; offset?: number }) {
+export function usePublicAuthor(
+  authorId: string | undefined,
+  params?: { limit?: number; offset?: number }
+) {
   const { limit = 24, offset = 0 } = params ?? {};
   return useQuery({
     queryKey: ['public-author', authorId, limit, offset],

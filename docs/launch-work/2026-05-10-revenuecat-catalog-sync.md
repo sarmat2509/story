@@ -8,6 +8,8 @@
   - `--apply` creates missing products, entitlement, offering, packages, and attachments
 - Added a read-only RevenueCat readiness check:
   - `pnpm launch:check-revenuecat-catalog -- --env-file=.env.production`
+- Added a read-only native store readiness check:
+  - `pnpm launch:check-native-store-readiness -- --env-file=.env.production`
 - Added helper tests:
   - `pnpm test:revenuecat-catalog`
 
@@ -65,6 +67,11 @@ REVENUECAT_APP_IDS=app_ios,app_android
 The generated `REVENUECAT_PRODUCT_PLAN_MAP` maps every RevenueCat webhook
 `product_id` back to the WonderTales plan slug.
 
+The readiness checks now fail if the RevenueCat catalog or
+`REVENUECAT_PRODUCT_PLAN_MAP` contains Stripe-style identifiers such as
+`price_...` or `prod_...`. Native RevenueCat products must use only the
+expected App Store, Google Play, or Test Store identifiers above.
+
 ## Safe Run Order
 
 1. Run the local helper tests:
@@ -92,6 +99,54 @@ pnpm launch:sync-revenuecat-catalog -- --env-file=.env.production --apply
 ```bash
 pnpm launch:check-revenuecat-catalog -- --env-file=.env.production
 ```
+
+6. Run the native/EAS production surface check:
+
+```bash
+pnpm launch:check-native-store-readiness -- --env-file=.env.production
+```
+
+`--allow-test-store-keys` only relaxes SDK key prefix validation for an
+intentional Test Store env. Do not use that flag for production EAS readiness.
+
+## EAS Production Build Env
+
+These values are build-time public app env and must be visible to EAS production
+builds through `eas.json`, EAS account/project environment variables, or the CI
+environment that launches `eas build`:
+
+```env
+EXPO_PUBLIC_API_BASE_URL=https://wondertales.art
+EXPO_PUBLIC_REVENUECAT_IOS_API_KEY=appl_...
+EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY=goog_...
+EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID=premium
+EXPO_PUBLIC_REVENUECAT_OFFERING_ID=default
+```
+
+Server-only RevenueCat values must stay out of the app bundle:
+
+```env
+REVENUECAT_API_V2_SECRET_KEY=sk_...
+REVENUECAT_WEBHOOK_AUTHORIZATION=Bearer ...
+REVENUECAT_PRODUCT_PLAN_MAP=...
+```
+
+## Policy Guardrails
+
+- Web checkout remains Stripe-only.
+- iOS and Android subscriptions go through RevenueCat backed by StoreKit and
+  Google Play Billing.
+- Native one-time bundles stay unavailable until matching App Store/Google Play
+  one-time products exist.
+- Do not show native users Stripe links, web checkout calls to action, or copy
+  that nudges them to buy digital access outside the store app.
+
+References checked on 2026-05-10:
+
+- Apple App Review Guidelines, section 3.1.1 In-App Purchase:
+  https://developer.apple.com/app-store/review/guidelines/
+- Google Play Payments policy:
+  https://support.google.com/googleplay/android-developer/answer/9858738
 
 ## Notes
 

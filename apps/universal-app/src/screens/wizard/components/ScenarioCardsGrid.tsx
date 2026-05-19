@@ -38,26 +38,28 @@ const TOPIC_IMAGE_BY_SCENARIO_ID: Record<string, string> = {
 };
 
 function getTopicImageUri(scenarioId: string | null) {
-  const imageName = TOPIC_IMAGE_BY_SCENARIO_ID[scenarioId ?? 'free'] ?? TOPIC_IMAGE_BY_SCENARIO_ID.free;
+  const imageName =
+    TOPIC_IMAGE_BY_SCENARIO_ID[scenarioId ?? 'free'] ?? TOPIC_IMAGE_BY_SCENARIO_ID.free;
   return `${TOPIC_IMAGE_BASE}/${imageName}.webp`;
 }
 
 export function ScenarioCardsGrid({ scenarios, selected, onSelect }: Props) {
   const { t } = useTranslation();
   const { width } = useWindowDimensions();
-  
+
   // Add "Free theme" card at the beginning (use i18n)
   const freeThemeCard: ScenarioCard = {
     id: null,
     name: t('wizard.free_theme'),
     description: t('wizard.free_theme_desc'),
   };
-  
+
   const allScenarios = [freeThemeCard, ...scenarios];
-  
+
   const numColumns = width < 520 ? 1 : width < 768 ? 2 : width < 1080 ? 3 : 4;
   const isDesktop = width >= 1080;
-  const cardWidth = numColumns === 1 ? '100%' : numColumns === 2 ? '48%' : numColumns === 3 ? '31%' : '23.5%';
+  const cardWidth =
+    numColumns === 1 ? '100%' : numColumns === 2 ? '48%' : numColumns === 3 ? '31%' : '23.5%';
 
   return (
     <View style={styles.container}>

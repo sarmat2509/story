@@ -7,7 +7,7 @@ import {
   isContentReportTopic,
 } from '@wondertales/shared';
 import { optionalAuth } from '../middleware/authMiddleware';
-import { createFeedback } from '../services/feedbackService';
+import { createFeedback, updateFeedbackContentReviewResult } from '../services/feedbackService';
 import { logger } from '../utils/logger';
 import { createRateLimitHandler } from '../middleware/rateLimiter';
 import rateLimit from 'express-rate-limit';
@@ -172,6 +172,10 @@ router.post('/', optionalAuth, feedbackLimiter, async (req: Request, res: Respon
       sceneId,
       contentType: contentType ?? 'story',
     });
+
+    if (isContentReport) {
+      await updateFeedbackContentReviewResult(result.id, contentReview);
+    }
 
     res.status(201).json({
       status: 'success',

@@ -13,7 +13,7 @@ Notifications.setNotificationHandler({
       shouldSetBadge: false,
       shouldShowBanner: true,
       shouldShowList: true,
-    } as Notifications.NotificationBehavior),
+    }) as Notifications.NotificationBehavior,
 });
 
 export const pushNotificationService = {
@@ -66,9 +66,12 @@ export const pushNotificationService = {
   setupNotificationListeners(): () => void {
     // Handle notification tap when app is in foreground or background
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = (response.notification.request.content.data || {}) as { storyId?: string; autoPlay?: boolean };
+      const data = (response.notification.request.content.data || {}) as {
+        storyId?: string;
+        autoPlay?: boolean;
+      };
       const storyId = typeof data.storyId === 'string' ? data.storyId : undefined;
-      
+
       if (storyId) {
         navigateToStory(storyId, { autoPlay: data.autoPlay === true });
       }

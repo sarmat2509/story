@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Pressable, StyleSheet, ActivityIndicator, Platform, Switch } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+  Platform,
+  Switch,
+} from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
 import { useAudioPlayerStore } from '@/store/audioPlayerStore';
@@ -20,10 +29,10 @@ interface AudioPlayerProps {
   onActivate?: () => Promise<void>; // Called when play is pressed but this story is not the active one
 }
 
-export default function AudioPlayer({ 
+export default function AudioPlayer({
   storyId,
-  audioUrl: _audioUrl, 
-  duration, 
+  audioUrl: _audioUrl,
+  duration,
   title,
   hasAlignment = false,
   onHighlightToggle,
@@ -101,20 +110,23 @@ export default function AudioPlayer({
   }, [didJustFinish, onFinish, isConnected]);
 
   // Sync highlight toggle to store and notify parent
-  const handleToggleHighlight = useCallback((value: boolean) => {
-    console.log('[AudioPlayer] Toggle highlight:', value);
-    useAudioPlayerStore.getState().toggleHighlight(value);
-    onHighlightToggle?.(value);
+  const handleToggleHighlight = useCallback(
+    (value: boolean) => {
+      console.log('[AudioPlayer] Toggle highlight:', value);
+      useAudioPlayerStore.getState().toggleHighlight(value);
+      onHighlightToggle?.(value);
 
-    // Immediately send current position when enabling highlight
-    if (value && onPositionChange) {
-      const currentPos = useAudioPlayerStore.getState().position;
-      if (currentPos > 0) {
-        console.log('[AudioPlayer] Sending initial position:', currentPos);
-        onPositionChange(currentPos);
+      // Immediately send current position when enabling highlight
+      if (value && onPositionChange) {
+        const currentPos = useAudioPlayerStore.getState().position;
+        if (currentPos > 0) {
+          console.log('[AudioPlayer] Sending initial position:', currentPos);
+          onPositionChange(currentPos);
+        }
       }
-    }
-  }, [onHighlightToggle, onPositionChange]);
+    },
+    [onHighlightToggle, onPositionChange]
+  );
 
   const togglePlayPause = async () => {
     console.log('[AudioPlayer] togglePlayPause called:', { isConnected, isLoaded, isPlaying });
@@ -141,7 +153,6 @@ export default function AudioPlayer({
       setError('Помилка відтворення');
     }
   };
-
 
   const roundToStep = (value: number) => {
     const steps = Math.round((value - RATE_MIN) / RATE_STEP);
@@ -176,7 +187,7 @@ export default function AudioPlayer({
       setHasDragged(false);
       return;
     }
-    
+
     if (!isConnected || !isLoaded) {
       console.log('Cannot seek: audio not ready or not connected');
       return;
@@ -185,7 +196,7 @@ export default function AudioPlayer({
     try {
       const nativeEvent = event.nativeEvent;
       let tapX: number | undefined;
-      
+
       if (typeof nativeEvent.locationX === 'number') {
         tapX = nativeEvent.locationX;
       } else if (typeof nativeEvent.offsetX === 'number') {
@@ -197,12 +208,12 @@ export default function AudioPlayer({
         });
         return;
       }
-      
+
       if (typeof tapX !== 'number' || !isFinite(tapX)) {
         console.warn('Could not determine tap position:', { nativeEvent });
         return;
       }
-      
+
       progressBarRef.current?.measure((_x, _y, width) => {
         performSeek(tapX!, width);
       });
@@ -213,29 +224,33 @@ export default function AudioPlayer({
 
   const performSeek = (tapX: number, width: number, isDrag: boolean = false) => {
     if (!isConnected || !isLoaded) return;
-    
+
     if (!width || width <= 0 || !isFinite(width)) {
       console.warn('Invalid progress bar width:', width);
       return;
     }
-    
+
     const percentage = Math.max(0, Math.min(1, tapX / width));
     const newPositionSeconds = percentage * validDuration;
     const newPositionMs = newPositionSeconds * 1000;
-    
+
     if (!isFinite(newPositionMs) || newPositionMs < 0) {
       console.warn('Invalid seek position:', {
-        tapX, width, percentage, newPositionMs, duration: validDuration,
+        tapX,
+        width,
+        percentage,
+        newPositionMs,
+        duration: validDuration,
       });
       return;
     }
-    
+
     // Update drag position for immediate visual feedback
     if (isDrag) {
       setDragPosition(newPositionSeconds);
       setHasDragged(true);
     }
-    
+
     // Seek via global service
     globalAudioService.seekTo(newPositionMs).catch((err) => {
       console.error('Seek error:', err);
@@ -255,18 +270,18 @@ export default function AudioPlayer({
 
   const handleDragMove = (event: any) => {
     if (!isDragging || !isConnected || !isLoaded) return;
-    
+
     const nativeEvent = event.nativeEvent;
     let tapX: number | undefined;
-    
+
     if (typeof nativeEvent.locationX === 'number') {
       tapX = nativeEvent.locationX;
     } else if (typeof nativeEvent.offsetX === 'number') {
       tapX = nativeEvent.offsetX;
     }
-    
+
     if (typeof tapX !== 'number' || !isFinite(tapX)) return;
-    
+
     progressBarRef.current?.measure((_x, _y, width) => {
       performSeek(tapX!, width);
     });
@@ -278,10 +293,10 @@ export default function AudioPlayer({
 
     const handleMouseMove = (e: globalThis.MouseEvent) => {
       if (!isDragging || !progressBarRef.current) return;
-      
+
       const element = progressBarRef.current as unknown as HTMLElement;
       const rect = element.getBoundingClientRect?.();
-      
+
       if (rect) {
         const tapX = e.clientX - rect.left;
         performSeek(tapX, rect.width, true);
@@ -298,7 +313,7 @@ export default function AudioPlayer({
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
-      
+
       return () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
@@ -318,13 +333,10 @@ export default function AudioPlayer({
   return (
     <View style={styles.container}>
       {title && <Text style={styles.title}>{title}</Text>}
-      
+
       {/* Play/Pause Button */}
       <TouchableOpacity
-        style={[
-          styles.playButton,
-          (isLoading || !isLoaded) && styles.playButtonDisabled
-        ]}
+        style={[styles.playButton, (isLoading || !isLoaded) && styles.playButtonDisabled]}
         onPress={togglePlayPause}
         disabled={isLoading || !isLoaded}
       >
@@ -341,7 +353,9 @@ export default function AudioPlayer({
 
       {/* Progress Bar */}
       <View style={styles.progressContainer}>
-        <Text style={styles.timeText}>{formatTime(dragPosition !== null ? dragPosition : position)}</Text>
+        <Text style={styles.timeText}>
+          {formatTime(dragPosition !== null ? dragPosition : position)}
+        </Text>
         <View style={styles.progressBarWrapper}>
           <Pressable
             ref={progressBarRef}
@@ -359,10 +373,12 @@ export default function AudioPlayer({
               <View
                 style={[
                   styles.progressFill,
-                  { 
-                    width: `${validDuration > 0 
-                      ? ((dragPosition !== null ? dragPosition : position) / validDuration) * 100 
-                      : 0}%` 
+                  {
+                    width: `${
+                      validDuration > 0
+                        ? ((dragPosition !== null ? dragPosition : position) / validDuration) * 100
+                        : 0
+                    }%`,
                   },
                 ]}
               />
@@ -372,8 +388,8 @@ export default function AudioPlayer({
               <View
                 style={[
                   styles.progressThumb,
-                  { 
-                    left: `${((dragPosition !== null ? dragPosition : position) / validDuration) * 100}%` 
+                  {
+                    left: `${((dragPosition !== null ? dragPosition : position) / validDuration) * 100}%`,
                   },
                   isDragging && styles.progressThumbDragging,
                 ]}
@@ -394,11 +410,7 @@ export default function AudioPlayer({
             color={theme.colors.text.tertiary}
             style={styles.speedIcon}
           />
-          <Pressable
-            ref={rateSliderRef}
-            style={styles.speedTrack}
-            onPress={handleRateSliderPress}
-          >
+          <Pressable ref={rateSliderRef} style={styles.speedTrack} onPress={handleRateSliderPress}>
             <View style={styles.speedTrackBg} />
             <View
               style={[
@@ -432,9 +444,7 @@ export default function AudioPlayer({
               thumbColor={theme.colors.background.primary}
               disabled={!isLoaded}
             />
-            <Text style={styles.toggleLabel}>
-              {t('story_viewer.highlight_toggle')}
-            </Text>
+            <Text style={styles.toggleLabel}>{t('story_viewer.highlight_toggle')}</Text>
           </View>
           <Text style={styles.toggleDescription}>
             {t('story_viewer.highlight_toggle_description')}

@@ -1,5 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Modal, FlatList, StyleSheet, useWindowDimensions } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Modal,
+  FlatList,
+  StyleSheet,
+  useWindowDimensions,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Audio } from 'expo-av';
@@ -21,10 +29,10 @@ interface Props {
   };
 }
 
-export default function VoiceSelector({ 
-  voices, 
-  selectedVoiceId, 
-  onVoiceChange, 
+export default function VoiceSelector({
+  voices,
+  selectedVoiceId,
+  onVoiceChange,
   language: _language,
   userPlan: _userPlan,
   hasPremiumAccess: _hasPremiumAccess,
@@ -34,16 +42,16 @@ export default function VoiceSelector({
   const { t } = useTranslation();
   const [modalVisible, setModalVisible] = useState(false);
   const { width } = useWindowDimensions();
-  
+
   // Audio playback state
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
-  
+
   // Determine if desktop (wider screen)
   const isDesktop = width >= 768;
 
-  const selectedVoice = voices.find(v => v.id === selectedVoiceId);
+  const selectedVoice = voices.find((v) => v.id === selectedVoiceId);
 
   /** Localized name; in dev builds appends TTS vendor for easier QA. */
   const getVoiceDisplayLabel = (voice: Voice) => {
@@ -55,7 +63,7 @@ export default function VoiceSelector({
     }
     return base;
   };
-  
+
   // Cleanup audio on unmount
   useEffect(() => {
     return () => {
@@ -70,14 +78,14 @@ export default function VoiceSelector({
       // Don't close modal for locked voices, let user click upgrade
       return;
     }
-    
+
     onVoiceChange(voice.id);
     setModalVisible(false);
   };
-  
+
   const handlePlaySample = async (voice: Voice) => {
     if (!voice.sampleAudioUrl) return;
-    
+
     try {
       // If already playing this voice, pause it
       if (playingVoiceId === voice.id && soundRef.current) {
@@ -85,19 +93,19 @@ export default function VoiceSelector({
         setPlayingVoiceId(null);
         return;
       }
-      
+
       // Stop currently playing audio
       if (soundRef.current) {
         await soundRef.current.unloadAsync();
         soundRef.current = null;
       }
-      
+
       setLoadingVoiceId(voice.id);
       setPlayingVoiceId(null);
-      
+
       // Use formatAssetUrl for consistent relative (web) / full (native) URLs
       const sampleUrl = formatAssetUrl(voice.sampleAudioUrl) ?? voice.sampleAudioUrl;
-      
+
       // Load and play new audio
       const { sound } = await Audio.Sound.createAsync(
         { uri: sampleUrl },
@@ -112,11 +120,10 @@ export default function VoiceSelector({
           }
         }
       );
-      
+
       soundRef.current = sound;
       setLoadingVoiceId(null);
       setPlayingVoiceId(voice.id);
-      
     } catch (error) {
       console.error('Failed to play sample:', error);
       setLoadingVoiceId(null);
@@ -127,13 +134,11 @@ export default function VoiceSelector({
   return (
     <View style={styles.container}>
       {/* Dropdown Button */}
-      <TouchableOpacity 
-        style={styles.dropdownButton}
-        onPress={() => setModalVisible(true)}
-      >
+      <TouchableOpacity style={styles.dropdownButton} onPress={() => setModalVisible(true)}>
         <View style={styles.dropdownContent}>
           <Text style={styles.dropdownText}>
-            {selectedVoice ? getVoiceDisplayLabel(selectedVoice) : t('voice_selector.select_voice')} {selectedVoice?.isPremium && '⭐'}
+            {selectedVoice ? getVoiceDisplayLabel(selectedVoice) : t('voice_selector.select_voice')}{' '}
+            {selectedVoice?.isPremium && '⭐'}
           </Text>
           <Text style={styles.dropdownGender}>
             {selectedVoice && t(`voice_selector.gender.${selectedVoice.gender}`)}
@@ -146,7 +151,7 @@ export default function VoiceSelector({
       <Modal
         visible={modalVisible}
         transparent={true}
-        animationType={isDesktop ? "fade" : "slide"}
+        animationType={isDesktop ? 'fade' : 'slide'}
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={[styles.modalOverlay, isDesktop && styles.modalOverlayDesktop]}>
@@ -158,24 +163,22 @@ export default function VoiceSelector({
                 <Ionicons name="close" size={24} color={theme.colors.text.primary} />
               </TouchableOpacity>
             </View>
-            
+
             {/* Usage Info */}
             {audioUsage && (
               <Text style={styles.usageInfo}>
-                {t('voice_selector.usage_info', { 
-                  remaining: audioUsage.remaining, 
-                  limit: audioUsage.limit 
+                {t('voice_selector.usage_info', {
+                  remaining: audioUsage.remaining,
+                  limit: audioUsage.limit,
                 })}
               </Text>
             )}
-            
+
             {/* Empty state */}
             {voices.length === 0 && (
               <View style={styles.emptyState}>
                 <Ionicons name="volume-mute-outline" size={48} color={theme.colors.text.tertiary} />
-                <Text style={styles.emptyStateText}>
-                  No voices available
-                </Text>
+                <Text style={styles.emptyStateText}>No voices available</Text>
                 <Text style={styles.emptyStateHint}>
                   Please check your internet connection and try again
                 </Text>
@@ -184,56 +187,111 @@ export default function VoiceSelector({
 
             {/* Voice List */}
             {voices.length > 0 && (
-            <FlatList
-              data={voices}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item: voice }) => {
-                const isSelected = selectedVoiceId === voice.id;
-                const isLocked = voice.isLocked;
-                
-                if (isLocked) {
-                  // Locked premium voice
+              <FlatList
+                data={voices}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item: voice }) => {
+                  const isSelected = selectedVoiceId === voice.id;
+                  const isLocked = voice.isLocked;
+
+                  if (isLocked) {
+                    // Locked premium voice
+                    return (
+                      <View style={styles.voiceItemContainer}>
+                        <View style={[styles.voiceItem, styles.lockedItem]}>
+                          <View style={styles.voiceItemContent}>
+                            <Text style={styles.voiceItemName}>
+                              🔒 {getVoiceDisplayLabel(voice)} ⭐
+                            </Text>
+                            <Text style={styles.voiceItemGender}>
+                              {t(`voice_selector.gender.${voice.gender}`)}
+                            </Text>
+                            <Text style={styles.lockedReason}>
+                              {t('voice_selector.premium_locked_reason')}
+                            </Text>
+                          </View>
+
+                          {onUpgrade && (
+                            <TouchableOpacity
+                              style={styles.modalUpgradeButton}
+                              onPress={() => {
+                                setModalVisible(false);
+                                onUpgrade();
+                              }}
+                            >
+                              <Text style={styles.modalUpgradeButtonText}>
+                                {t('voice_selector.upgrade_to_unlock')}
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+
+                        {/* Play sample button for locked voice */}
+                        {voice.sampleAudioUrl && (
+                          <TouchableOpacity
+                            style={styles.playButton}
+                            onPress={() => handlePlaySample(voice)}
+                          >
+                            {loadingVoiceId === voice.id ? (
+                              <Ionicons
+                                name="hourglass-outline"
+                                size={28}
+                                color={theme.colors.text.tertiary}
+                              />
+                            ) : (
+                              <Ionicons
+                                name={playingVoiceId === voice.id ? 'pause-circle' : 'play-circle'}
+                                size={32}
+                                color={theme.colors.interactive.primary}
+                              />
+                            )}
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    );
+                  }
+
+                  // Available voice
                   return (
                     <View style={styles.voiceItemContainer}>
-                      <View style={[styles.voiceItem, styles.lockedItem]}>
+                      <TouchableOpacity
+                        style={[styles.voiceItem, isSelected && styles.voiceItemSelected]}
+                        onPress={() => handleSelectVoice(voice)}
+                      >
                         <View style={styles.voiceItemContent}>
                           <Text style={styles.voiceItemName}>
-                            🔒 {getVoiceDisplayLabel(voice)} ⭐
+                            {getVoiceDisplayLabel(voice)} {voice.isPremium && '⭐'}
                           </Text>
                           <Text style={styles.voiceItemGender}>
                             {t(`voice_selector.gender.${voice.gender}`)}
                           </Text>
-                          <Text style={styles.lockedReason}>
-                            {t('voice_selector.premium_locked_reason')}
-                          </Text>
                         </View>
-                        
-                        {onUpgrade && (
-                          <TouchableOpacity
-                            style={styles.modalUpgradeButton}
-                            onPress={() => {
-                              setModalVisible(false);
-                              onUpgrade();
-                            }}
-                          >
-                            <Text style={styles.modalUpgradeButtonText}>
-                              {t('voice_selector.upgrade_to_unlock')}
-                            </Text>
-                          </TouchableOpacity>
+
+                        {/* Selected checkmark inside card */}
+                        {isSelected && (
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={24}
+                            color={theme.colors.interactive.primary}
+                          />
                         )}
-                      </View>
-                      
-                      {/* Play sample button for locked voice */}
+                      </TouchableOpacity>
+
+                      {/* Play sample button outside card */}
                       {voice.sampleAudioUrl && (
                         <TouchableOpacity
                           style={styles.playButton}
                           onPress={() => handlePlaySample(voice)}
                         >
                           {loadingVoiceId === voice.id ? (
-                            <Ionicons name="hourglass-outline" size={28} color={theme.colors.text.tertiary} />
+                            <Ionicons
+                              name="hourglass-outline"
+                              size={28}
+                              color={theme.colors.text.tertiary}
+                            />
                           ) : (
-                            <Ionicons 
-                              name={playingVoiceId === voice.id ? "pause-circle" : "play-circle"}
+                            <Ionicons
+                              name={playingVoiceId === voice.id ? 'pause-circle' : 'play-circle'}
                               size={32}
                               color={theme.colors.interactive.primary}
                             />
@@ -242,58 +300,12 @@ export default function VoiceSelector({
                       )}
                     </View>
                   );
-                }
-                
-                // Available voice
-                return (
-                  <View style={styles.voiceItemContainer}>
-                    <TouchableOpacity
-                      style={[styles.voiceItem, isSelected && styles.voiceItemSelected]}
-                      onPress={() => handleSelectVoice(voice)}
-                    >
-                      <View style={styles.voiceItemContent}>
-                        <Text style={styles.voiceItemName}>
-                          {getVoiceDisplayLabel(voice)} {voice.isPremium && '⭐'}
-                        </Text>
-                        <Text style={styles.voiceItemGender}>
-                          {t(`voice_selector.gender.${voice.gender}`)}
-                        </Text>
-                      </View>
-                      
-                      {/* Selected checkmark inside card */}
-                      {isSelected && (
-                        <Ionicons name="checkmark-circle" size={24} color={theme.colors.interactive.primary} />
-                      )}
-                    </TouchableOpacity>
-                    
-                    {/* Play sample button outside card */}
-                    {voice.sampleAudioUrl && (
-                      <TouchableOpacity
-                        style={styles.playButton}
-                        onPress={() => handlePlaySample(voice)}
-                      >
-                        {loadingVoiceId === voice.id ? (
-                          <Ionicons name="hourglass-outline" size={28} color={theme.colors.text.tertiary} />
-                        ) : (
-                          <Ionicons 
-                            name={playingVoiceId === voice.id ? "pause-circle" : "play-circle"}
-                            size={32}
-                            color={theme.colors.interactive.primary}
-                          />
-                        )}
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                );
-              }}
-            />
+                }}
+              />
             )}
 
             {/* Close Button */}
-            <TouchableOpacity 
-              style={styles.closeButton}
-              onPress={() => setModalVisible(false)}
-            >
+            <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
               <Text style={styles.closeButtonText}>{t('voice_selector.close')}</Text>
             </TouchableOpacity>
           </View>
@@ -307,7 +319,7 @@ const styles = StyleSheet.create({
   container: {
     // No margins/padding - fully compact
   },
-  
+
   // Dropdown Button (collapsed state)
   dropdownButton: {
     flexDirection: 'row',
@@ -332,7 +344,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     marginTop: theme.spacing[1],
   },
-  
+
   // Modal Overlay
   modalOverlay: {
     flex: 1,
@@ -364,7 +376,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  
+
   // Modal Header
   modalHeader: {
     flexDirection: 'row',
@@ -382,7 +394,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     marginBottom: theme.spacing[4],
   },
-  
+
   // Voice Items in Modal
   voiceItemContainer: {
     flexDirection: 'row',
@@ -432,7 +444,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     marginTop: theme.spacing[1],
   },
-  
+
   // Modal Upgrade Button
   modalUpgradeButton: {
     backgroundColor: theme.colors.warning[600],
@@ -445,7 +457,7 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.semibold,
   },
-  
+
   // Close Button
   closeButton: {
     backgroundColor: theme.colors.background.secondary,
@@ -459,7 +471,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
   },
-  
+
   // Empty State
   emptyState: {
     flex: 1,

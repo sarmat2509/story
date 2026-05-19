@@ -18,10 +18,14 @@ export const oauth = {
       // Native module: named export GoogleSignin (not default)
       const { GoogleSignin } = require('@react-native-google-signin/google-signin');
       if (!GoogleSignin) {
-        console.warn('⚠️  Google Sign In requires Custom Dev Client (expo-dev-client). Falling back to web flow.');
-        throw new Error('Google Sign In native module not available. Please use web version or build with expo-dev-client.');
+        console.warn(
+          '⚠️  Google Sign In requires Custom Dev Client (expo-dev-client). Falling back to web flow.'
+        );
+        throw new Error(
+          'Google Sign In native module not available. Please use web version or build with expo-dev-client.'
+        );
       }
-      
+
       // Configure - GIDConfiguration requires non-empty clientID
       const iosClientId = OAUTH_CONFIG.google.iosClientId;
       const webClientId = OAUTH_CONFIG.google.webClientId;
@@ -36,11 +40,11 @@ export const oauth = {
         iosClientId, // Required for iOS - maps to GIDConfiguration clientID
         offlineAccess: false,
       });
-      
+
       // Sign in with Google
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
-      
+
       // Return idToken for backend verification
       return userInfo.idToken;
     } catch (error) {
@@ -61,14 +65,18 @@ export const oauth = {
       if (Platform.OS === 'ios') {
         // iOS: Use native Apple Authentication
         const AppleAuthenticationModule = require('@invertase/react-native-apple-authentication');
-        
+
         if (!AppleAuthenticationModule || !AppleAuthenticationModule.appleAuth) {
-          console.warn('⚠️  Apple Sign In requires Custom Dev Client (expo-dev-client). Falling back to web flow.');
-          throw new Error('Apple Sign In native module not available. Please use web version or build with expo-dev-client.');
+          console.warn(
+            '⚠️  Apple Sign In requires Custom Dev Client (expo-dev-client). Falling back to web flow.'
+          );
+          throw new Error(
+            'Apple Sign In native module not available. Please use web version or build with expo-dev-client.'
+          );
         }
-        
+
         const AppleAuthentication = AppleAuthenticationModule;
-        
+
         const appleAuthRequestResponse = await AppleAuthentication.appleAuth.performRequest({
           requestedOperation: AppleAuthentication.appleAuth.Operation.LOGIN,
           requestedScopes: [
@@ -76,17 +84,19 @@ export const oauth = {
             AppleAuthentication.appleAuth.Scope.FULL_NAME,
           ],
         });
-        
+
         // Return identity token and user info (if first time)
         return {
           identityToken: appleAuthRequestResponse.identityToken,
-          user: appleAuthRequestResponse.fullName ? {
-            name: {
-              firstName: appleAuthRequestResponse.fullName.givenName,
-              lastName: appleAuthRequestResponse.fullName.familyName,
-            },
-            email: appleAuthRequestResponse.email,
-          } : undefined,
+          user: appleAuthRequestResponse.fullName
+            ? {
+                name: {
+                  firstName: appleAuthRequestResponse.fullName.givenName,
+                  lastName: appleAuthRequestResponse.fullName.familyName,
+                },
+                email: appleAuthRequestResponse.email,
+              }
+            : undefined,
         };
       } else {
         // Android: Use web flow (fallback)
@@ -94,7 +104,7 @@ export const oauth = {
           scheme: 'wondertales',
           path: 'auth/apple/callback',
         });
-        
+
         const authUrlObj = new URL(`${API_BASE_URL}/api/v1/auth/apple/start`);
         authUrlObj.searchParams.set('redirect_uri', redirectUri);
         if (_consent) {
@@ -103,18 +113,15 @@ export const oauth = {
           authUrlObj.searchParams.set('isAdultGuardian', String(_consent.isAdultGuardian));
         }
         const authUrl = authUrlObj.toString();
-        
-        const result = await WebBrowser.openAuthSessionAsync(
-          authUrl,
-          redirectUri
-        );
-        
+
+        const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+
         if (result.type === 'success' && result.url) {
           const url = new URL(result.url);
           const token = url.searchParams.get('token');
           return token ? { identityToken: token } : null;
         }
-        
+
         return null;
       }
     } catch (error) {

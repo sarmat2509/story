@@ -14,9 +14,13 @@ const vendor = process.env.EXPO_PUBLIC_ANALYTICS_VENDOR ?? 'none';
 export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   const [analyticsAllowed, setAnalyticsAllowed] = React.useState(() => isAnalyticsAllowed());
 
-  React.useEffect(() => onAnalyticsConsentChange(() => {
-    setAnalyticsAllowed(isAnalyticsAllowed());
-  }), []);
+  React.useEffect(
+    () =>
+      onAnalyticsConsentChange(() => {
+        setAnalyticsAllowed(isAnalyticsAllowed());
+      }),
+    []
+  );
 
   React.useEffect(() => {
     if (!analyticsAllowed) {

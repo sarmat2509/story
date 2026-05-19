@@ -69,7 +69,7 @@ export default function PlansScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
   const bundleGridLayout = isWeb || windowWidth >= 720;
-  
+
   // Modal state for upgrade flow
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
@@ -93,31 +93,34 @@ export default function PlansScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [navigation]);
-  
+
   // Fetch plans - use authenticated hook if logged in, otherwise public
   const publicPlansQuery = usePlansCatalog();
   const authPlansQuery = usePlansWithAuth(isAuthenticated);
-  
+
   // Select appropriate query based on auth state
   const authData = authPlansQuery.data;
-  const authStatus = (authPlansQuery.error as { response?: { status?: number } } | null)?.response?.status;
+  const authStatus = (authPlansQuery.error as { response?: { status?: number } } | null)?.response
+    ?.status;
   const authUnauthorized = authStatus === 401;
   const effectiveIsAuthenticated = isAuthenticated && !authUnauthorized;
 
   const plans = effectiveIsAuthenticated
-    ? (authData && 'plans' in authData ? authData.plans : authData)
+    ? authData && 'plans' in authData
+      ? authData.plans
+      : authData
     : publicPlansQuery.data?.plans;
   const featureUnlockPlanNames = useMemo(() => {
     const unlockMap: Record<string, string> = {};
     const sortedPlans = [...(plans ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
 
     for (const plan of sortedPlans) {
-      for (const [slug, feature] of sortPricingFeatureEntries(plan.features as Record<string, any>)) {
+      for (const [slug, feature] of sortPricingFeatureEntries(
+        plan.features as Record<string, any>
+      )) {
         if (!unlockMap[slug] && isPricingFeatureAvailable(feature)) {
           unlockMap[slug] = plan.name;
         }
@@ -128,9 +131,7 @@ export default function PlansScreen() {
   }, [plans]);
   const currentPlanSlug = useMemo(() => {
     if (!effectiveIsAuthenticated || !Array.isArray(plans)) return null;
-    return (
-      (plans.find((plan: any) => 'isCurrent' in plan && plan.isCurrent) as any)?.slug ?? null
-    );
+    return (plans.find((plan: any) => 'isCurrent' in plan && plan.isCurrent) as any)?.slug ?? null;
   }, [effectiveIsAuthenticated, plans]);
   const bundlesQuery = useBundles(effectiveIsAuthenticated, currentPlanSlug);
   const sortedBundles = useMemo(() => {
@@ -138,14 +139,17 @@ export default function PlansScreen() {
     if (!rows?.length) return [];
     return [...rows].sort((a, b) => a.extraStories - b.extraStories);
   }, [bundlesQuery.data]);
-  const enableRealPayments = effectiveIsAuthenticated && authData && 'enableRealPayments' in authData
-    ? authData.enableRealPayments
-    : publicPlansQuery.data?.enableRealPayments ?? false;
+  const enableRealPayments =
+    effectiveIsAuthenticated && authData && 'enableRealPayments' in authData
+      ? authData.enableRealPayments
+      : (publicPlansQuery.data?.enableRealPayments ?? false);
   const useRevenueCatFlow = enableRealPayments && !isWeb;
   const revenueCatReady = isRevenueCatConfigured();
-  const isLoading = effectiveIsAuthenticated ? authPlansQuery.isLoading : publicPlansQuery.isLoading;
+  const isLoading = effectiveIsAuthenticated
+    ? authPlansQuery.isLoading
+    : publicPlansQuery.isLoading;
   const error = effectiveIsAuthenticated ? authPlansQuery.error : publicPlansQuery.error;
-  
+
   // Handle upgrade: Stripe (web) or stub (mobile / when disabled)
   const handleUpgrade = async () => {
     if (!selectedPlan) return;
@@ -193,7 +197,7 @@ export default function PlansScreen() {
       console.error('Upgrade failed:', err);
     }
   };
-  
+
   const pricingLocale = normalizePricingLocale(i18n.language);
   const translatePricing = useCallback<PricingTranslate>(
     (key, params, defaultValue) =>
@@ -202,9 +206,12 @@ export default function PlansScreen() {
   );
 
   // Helper to format price
-  const formatPrice = useCallback((priceMonthly: number, currency: string) => {
-    return formatPricingPrice(pricingLocale, priceMonthly, currency, t('plans.free'));
-  }, [pricingLocale, t]);
+  const formatPrice = useCallback(
+    (priceMonthly: number, currency: string) => {
+      return formatPricingPrice(pricingLocale, priceMonthly, currency, t('plans.free'));
+    },
+    [pricingLocale, t]
+  );
 
   const handleBundlePurchase = useCallback(
     async (bundleSlug: string) => {
@@ -232,8 +239,7 @@ export default function PlansScreen() {
     () =>
       sortedBundles.map((b, idx) => {
         const canBuy = enableRealPayments && isWeb;
-        const featured =
-          sortedBundles.length >= 3 && idx === Math.floor(sortedBundles.length / 2);
+        const featured = sortedBundles.length >= 3 && idx === Math.floor(sortedBundles.length / 2);
         return (
           <View
             key={b.slug}
@@ -273,7 +279,15 @@ export default function PlansScreen() {
           </View>
         );
       }),
-    [sortedBundles, enableRealPayments, isWeb, t, formatPrice, handleBundlePurchase, createBundleCheckout.isPending]
+    [
+      sortedBundles,
+      enableRealPayments,
+      isWeb,
+      t,
+      formatPrice,
+      handleBundlePurchase,
+      createBundleCheckout.isPending,
+    ]
   );
 
   if (isLoading) {
@@ -290,10 +304,7 @@ export default function PlansScreen() {
       <View style={[styles.centerContainer, { paddingTop: theme.spacing[6] + insets.top }]}>
         <Text style={styles.errorTitle}>{t('plans.error_title')}</Text>
         <Text style={styles.errorMessage}>{t('plans.error_message')}</Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.retryButton} onPress={() => navigation.goBack()}>
           <Text style={styles.retryButtonText}>{t('common.back')}</Text>
         </TouchableOpacity>
       </View>
@@ -348,392 +359,390 @@ export default function PlansScreen() {
 
   return (
     <>
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[
-        styles.scrollContent,
-        { paddingTop: theme.spacing[6] + insets.top },
-      ]}
-    >
-      <AnimatedSection delay={0} trigger={enterKey}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{t('plans.title')}</Text>
-          <Text style={styles.subtitle}>{t('plans.subtitle')}</Text>
-        </View>
-      </AnimatedSection>
-
-      <View style={[styles.plansGrid, isWeb && styles.plansGridWeb]}>
-        {plans?.map((plan, planIndex) => {
-          const isCurrent = isAuthenticated && 'isCurrent' in plan && plan.isCurrent;
-          const isFreePlan = plan.slug === 'free';
-          const isPaidPlan = plan.priceMonthly > 0;
-          const paidCtaDisabled = isPaidPlan && !enableRealPayments;
-          const usageHighlight = getCombinedPricingUsageHighlight(
-            pricingLocale,
-            translatePricing,
-            plan.features as Record<string, any>
-          );
-          
-          // Determine button type
-          let buttonType: 'subscribe' | 'upgrade' | 'downgrade' | 'current' = 'subscribe';
-          if (effectiveIsAuthenticated && 'isCurrent' in plan) {
-            if (plan.isCurrent) {
-              buttonType = 'current';
-            } else {
-              const currentPlan = plans.find((p: any) => 'isCurrent' in p && p.isCurrent);
-              if (currentPlan && plan.sortOrder > (currentPlan as any).sortOrder) {
-                buttonType = 'upgrade';
-              } else if (currentPlan) {
-                buttonType = 'downgrade';
-              }
-            }
-          }
-          
-          return (
-            <AnimatedSection
-              key={plan.id}
-              delay={cardDelay(planIndex)}
-              trigger={enterKey}
-              style={
-                [
-                  styles.planCard,
-                  isWeb ? styles.planCardWeb : styles.planCardNative,
-                  isCurrent && styles.planCardCurrent,
-                ] as ViewStyle[]
-              }
-            >
-              <Text style={styles.planName}>{plan.name}</Text>
-              {plan.description && (
-                <Text style={styles.planDescription}>{plan.description}</Text>
-              )}
-              
-              <View style={styles.priceContainer}>
-                <Text style={styles.price}>
-                  {formatPrice(plan.priceMonthly, plan.pricingCurrency)}
-                </Text>
-                {plan.priceMonthly > 0 && (
-                  <Text style={styles.pricePeriod}>
-                    /{t('plans.per_month')}
-                  </Text>
-                )}
-              </View>
-              
-              {usageHighlight && (
-                <View style={styles.highlightFeature}>
-                  <Ionicons 
-                    name="sparkles"
-                    size={20} 
-                    color={theme.colors.interactive.primary}
-                  />
-                  <Text style={styles.highlightFeatureText}>{usageHighlight}</Text>
-                </View>
-              )}
-              
-              {/* Features list */}
-              <View style={styles.featuresContainer}>
-                {sortPricingFeatureEntries(plan.features as Record<string, any>).map(
-                  ([slug, feature]: [string, any]) => {
-                    const available = isPricingFeatureAvailable(feature);
-                    const unlockPlanName = !available ? featureUnlockPlanNames[slug] : null;
-                  
-                    return (
-                      <View key={slug} style={styles.featureRow}>
-                        <Ionicons
-                          name={available ? 'checkmark-circle' : 'close-circle'}
-                          size={16}
-                          color={available ? theme.colors.status.success : theme.colors.text.tertiary}
-                        />
-                        <View style={styles.featureCopy}>
-                          <Text
-                            style={[
-                              styles.featureText,
-                              !available && styles.featureTextDisabled
-                            ]}
-                          >
-                            {getPricingFeatureLabel(pricingLocale, translatePricing, slug, feature)}
-                          </Text>
-                          {unlockPlanName ? (
-                            <Text style={styles.featureLockedReason}>
-                              {t('plans.feature_unlocked_on', { planName: unlockPlanName })}
-                            </Text>
-                          ) : null}
-                        </View>
-                      </View>
-                    );
-                  }
-                )}
-              </View>
-              
-              {/* Action button based on user state and plan tier */}
-              {buttonType === 'current' ? (
-                <View style={styles.currentPlanButton}>
-                  <Text style={styles.currentPlanButtonText}>
-                    {t('plans.your_plan')}
-                  </Text>
-                </View>
-              ) : paidCtaDisabled ? (
-                <View style={styles.unavailablePlanButton}>
-                  <Text style={styles.unavailablePlanButtonText}>
-                    {t('plans.payments_disabled_button', { defaultValue: 'Payments coming soon' })}
-                  </Text>
-                </View>
-              ) : buttonType === 'upgrade' ? (
-                <TouchableOpacity 
-                  style={styles.upgradeButton}
-                  onPress={() => {
-                    setSelectedPlan(plan);
-                    setShowUpgradeModal(true);
-                  }}
-                >
-                  <Text style={styles.upgradeButtonText}>
-                    {t('plans.upgrade_button')}
-                  </Text>
-                </TouchableOpacity>
-              ) : buttonType === 'downgrade' && isFreePlan ? null : buttonType === 'downgrade' ? (
-                <TouchableOpacity 
-                  style={styles.subscribeButton}
-                  onPress={() => {
-                    setSelectedPlan(plan);
-                    setShowUpgradeModal(true);
-                  }}
-                >
-                  <Text style={styles.subscribeButtonText}>
-                    {t('plans.subscribe_button')}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity 
-                  style={styles.subscribeButton}
-                  onPress={() => navigation.navigate('Welcome')}
-                >
-                  <Text style={styles.subscribeButtonText}>
-                    {t('plans.subscribe_button')}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </AnimatedSection>
-          );
-        })}
-      </View>
-
-      <AnimatedSection delay={120} trigger={enterKey}>
-        <View style={styles.billingNotice}>
-          <Text style={styles.billingNoticeTitle}>
-            {t('plans.billing_note_title', { defaultValue: 'Billing details' })}
-          </Text>
-          {!enableRealPayments && (
-            <Text style={styles.billingNoticeText}>
-              {t('plans.payments_disabled_notice', {
-                defaultValue: 'Paid checkout is not enabled yet. Free access remains available while we finish billing verification.',
-              })}
-            </Text>
-          )}
-          <Text style={styles.billingNoticeText}>
-            {t('plans.billing_note_renewal', {
-              defaultValue: isWeb
-                ? 'Paid subscriptions renew monthly until canceled. You can manage or cancel billing in the billing portal where available.'
-                : 'Paid subscriptions renew monthly until canceled. On iOS and Android, purchases are managed through your App Store or Google Play account.',
-            })}
-          </Text>
-          <Text style={styles.billingNoticeText}>
-            {t('plans.billing_note_bundles', {
-              defaultValue: 'Bundles are one-time add-ons for the current billing period. Unused bundle credits expire at period end and do not roll over.',
-            })}
-          </Text>
-          <Text style={styles.billingNoticeText}>
-            {t('plans.billing_note_refunds', {
-              defaultValue: 'Refund requests are reviewed through support and do not happen automatically when a subscription is canceled.',
-            })}
-          </Text>
-          {useRevenueCatFlow ? (
-            <TouchableOpacity
-              style={styles.restorePurchasesButton}
-              onPress={handleRestorePurchases}
-              disabled={nativeBillingPending}
-            >
-              <Ionicons name="refresh-outline" size={16} color={theme.colors.interactive.primary} />
-              <Text style={styles.restorePurchasesButtonText}>
-                {nativeBillingPending ? t('plans.restoring') : t('plans.restore_purchases')}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      </AnimatedSection>
-
-      {effectiveIsAuthenticated && (
-        <AnimatedSection delay={80} trigger={enterKey}>
-          <View style={styles.bundleSection}>
-            <View style={styles.bundleShell}>
-              <View style={styles.bundleHeaderBlock}>
-                <Text style={styles.bundleSectionTitle}>{t('plans.bundles.section_title')}</Text>
-                <Text style={styles.bundleSectionSubtitle}>
-                  {periodEndFormatted
-                    ? t('plans.bundles.section_subtitle', { periodEnd: periodEndFormatted })
-                    : t('plans.bundles.section_subtitle_no_date')}
-                </Text>
-                {bundleError ? (
-                  <Text style={styles.bundleErrorText}>{bundleError}</Text>
-                ) : null}
-              </View>
-
-              {bundlesQuery.isLoading ? (
-                <View style={styles.bundleLoadingBox}>
-                  <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
-                </View>
-              ) : sortedBundles.length > 0 ? (
-                bundleGridLayout ? (
-                  <View style={styles.bundleCardsGrid}>{bundleCardEls}</View>
-                ) : (
-                  <ScrollView
-                    horizontal
-                    nestedScrollEnabled
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.bundleCardsScroll}
-                    contentContainerStyle={styles.bundleCardsScrollInner}
-                  >
-                    {bundleCardEls}
-                  </ScrollView>
-                )
-              ) : (
-                <Text style={styles.bundleEmpty}>{t('plans.bundles.empty')}</Text>
-              )}
-
-              {!bundlesQuery.isLoading && (
-                <View style={styles.bundleFaqSection}>
-                  <Text style={styles.bundleFaqSectionTitle}>{t('plans.bundles.faq_title')}</Text>
-                  <ExpandableCard title={t('plans.bundles.faq_1_q')} icon="layers-outline">
-                    <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_1_a')}</Text>
-                  </ExpandableCard>
-                  <ExpandableCard title={t('plans.bundles.faq_2_q')} icon="calendar-outline">
-                    <Text style={styles.bundleFaqAnswer}>
-                      {periodEndFormatted
-                        ? t('plans.bundles.faq_2_a', { periodEnd: periodEndFormatted })
-                        : t('plans.bundles.faq_2_a_no_date')}
-                    </Text>
-                  </ExpandableCard>
-                  <ExpandableCard title={t('plans.bundles.faq_3_q')} icon="add-circle-outline">
-                    <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_3_a')}</Text>
-                  </ExpandableCard>
-                  <ExpandableCard title={t('plans.bundles.faq_4_q')} icon="pricetag-outline">
-                    <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_4_a')}</Text>
-                  </ExpandableCard>
-                  <ExpandableCard title={t('plans.bundles.faq_5_q')} icon="card-outline">
-                    <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_5_a')}</Text>
-                  </ExpandableCard>
-                  <ExpandableCard title={t('plans.bundles.faq_6_q')} icon="image-outline">
-                    <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_6_a')}</Text>
-                  </ExpandableCard>
-                </View>
-              )}
-            </View>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: theme.spacing[6] + insets.top },
+        ]}
+      >
+        <AnimatedSection delay={0} trigger={enterKey}>
+          <View style={styles.header}>
+            <Text style={styles.title}>{t('plans.title')}</Text>
+            <Text style={styles.subtitle}>{t('plans.subtitle')}</Text>
           </View>
         </AnimatedSection>
-      )}
 
-      {/* Upgrade Modal */}
-      <Modal
-        visible={showUpgradeModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowUpgradeModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {modalPending ? (
-              <>
-                <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
-                <Text style={styles.modalTitle}>{t('plans.upgrading')}</Text>
-              </>
-            ) : modalError ? (
-              <>
-                <Ionicons name="alert-circle" size={48} color={theme.colors.status.error} />
-                <Text style={styles.modalTitle}>{t('plans.upgrade_error')}</Text>
-                <Text style={styles.modalMessage}>
-                  {getLocalizedApiError(t, modalErrorData, 'plans.upgrade_error_message')}
-                </Text>
-                <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
-                  <Text style={styles.modalButtonText}>{t('common.close')}</Text>
-                </TouchableOpacity>
-              </>
-            ) : useRevenueCatFlow && nativeBillingSuccess ? (
-              <>
-                <Ionicons name="checkmark-circle" size={48} color={theme.colors.status.success} />
-                <Text style={styles.modalTitle}>{t('plans.upgrade_success')}</Text>
-                <Text style={styles.modalMessage}>
-                  {t('plans.revenuecat_success_message', { planName: selectedPlan?.name })}
-                </Text>
-                <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
-                  <Text style={styles.modalButtonText}>{t('common.got_it')}</Text>
-                </TouchableOpacity>
-              </>
-            ) : !useStripeFlow && !useRevenueCatFlow && upgradePlan.isSuccess ? (
-              <>
-                <Ionicons name="checkmark-circle" size={48} color={theme.colors.status.success} />
-                <Text style={styles.modalTitle}>{t('plans.upgrade_success')}</Text>
-                <Text style={styles.modalMessage}>
-                  {t('plans.upgrade_success_message', { planName: selectedPlan?.name })}
-                </Text>
-                <View style={styles.featuresList}>
-                  <Text style={styles.featuresTitle}>{t('plans.new_features')}</Text>
-                  {selectedPlan && sortPricingFeatureEntries(selectedPlan.features).map(
+        <View style={[styles.plansGrid, isWeb && styles.plansGridWeb]}>
+          {plans?.map((plan, planIndex) => {
+            const isCurrent = isAuthenticated && 'isCurrent' in plan && plan.isCurrent;
+            const isFreePlan = plan.slug === 'free';
+            const isPaidPlan = plan.priceMonthly > 0;
+            const paidCtaDisabled = isPaidPlan && !enableRealPayments;
+            const usageHighlight = getCombinedPricingUsageHighlight(
+              pricingLocale,
+              translatePricing,
+              plan.features as Record<string, any>
+            );
+
+            // Determine button type
+            let buttonType: 'subscribe' | 'upgrade' | 'downgrade' | 'current' = 'subscribe';
+            if (effectiveIsAuthenticated && 'isCurrent' in plan) {
+              if (plan.isCurrent) {
+                buttonType = 'current';
+              } else {
+                const currentPlan = plans.find((p: any) => 'isCurrent' in p && p.isCurrent);
+                if (currentPlan && plan.sortOrder > (currentPlan as any).sortOrder) {
+                  buttonType = 'upgrade';
+                } else if (currentPlan) {
+                  buttonType = 'downgrade';
+                }
+              }
+            }
+
+            return (
+              <AnimatedSection
+                key={plan.id}
+                delay={cardDelay(planIndex)}
+                trigger={enterKey}
+                style={
+                  [
+                    styles.planCard,
+                    isWeb ? styles.planCardWeb : styles.planCardNative,
+                    isCurrent && styles.planCardCurrent,
+                  ] as ViewStyle[]
+                }
+              >
+                <Text style={styles.planName}>{plan.name}</Text>
+                {plan.description && <Text style={styles.planDescription}>{plan.description}</Text>}
+
+                <View style={styles.priceContainer}>
+                  <Text style={styles.price}>
+                    {formatPrice(plan.priceMonthly, plan.pricingCurrency)}
+                  </Text>
+                  {plan.priceMonthly > 0 && (
+                    <Text style={styles.pricePeriod}>/{t('plans.per_month')}</Text>
+                  )}
+                </View>
+
+                {usageHighlight && (
+                  <View style={styles.highlightFeature}>
+                    <Ionicons name="sparkles" size={20} color={theme.colors.interactive.primary} />
+                    <Text style={styles.highlightFeatureText}>{usageHighlight}</Text>
+                  </View>
+                )}
+
+                {/* Features list */}
+                <View style={styles.featuresContainer}>
+                  {sortPricingFeatureEntries(plan.features as Record<string, any>).map(
                     ([slug, feature]: [string, any]) => {
                       const available = isPricingFeatureAvailable(feature);
-                      if (!available) return null;
+                      const unlockPlanName = !available ? featureUnlockPlanNames[slug] : null;
+
                       return (
                         <View key={slug} style={styles.featureRow}>
                           <Ionicons
-                            name="checkmark-circle"
+                            name={available ? 'checkmark-circle' : 'close-circle'}
                             size={16}
-                            color={theme.colors.status.success}
+                            color={
+                              available ? theme.colors.status.success : theme.colors.text.tertiary
+                            }
                           />
-                          <Text style={styles.featureText}>
-                            {getPricingFeatureLabel(pricingLocale, translatePricing, slug, feature)}
-                          </Text>
+                          <View style={styles.featureCopy}>
+                            <Text
+                              style={[styles.featureText, !available && styles.featureTextDisabled]}
+                            >
+                              {getPricingFeatureLabel(
+                                pricingLocale,
+                                translatePricing,
+                                slug,
+                                feature
+                              )}
+                            </Text>
+                            {unlockPlanName ? (
+                              <Text style={styles.featureLockedReason}>
+                                {t('plans.feature_unlocked_on', { planName: unlockPlanName })}
+                              </Text>
+                            ) : null}
+                          </View>
                         </View>
                       );
                     }
                   )}
                 </View>
-                <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
-                  <Text style={styles.modalButtonText}>{t('common.got_it')}</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={styles.modalTitle}>{t('plans.confirm_upgrade')}</Text>
-                <Text style={styles.modalMessage}>
-                  {t('plans.confirm_upgrade_message', { planName: selectedPlan?.name })}
-                </Text>
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity 
-                    style={[styles.modalButton, styles.modalButtonSecondary]}
+
+                {/* Action button based on user state and plan tier */}
+                {buttonType === 'current' ? (
+                  <View style={styles.currentPlanButton}>
+                    <Text style={styles.currentPlanButtonText}>{t('plans.your_plan')}</Text>
+                  </View>
+                ) : paidCtaDisabled ? (
+                  <View style={styles.unavailablePlanButton}>
+                    <Text style={styles.unavailablePlanButtonText}>
+                      {t('plans.payments_disabled_button', {
+                        defaultValue: 'Payments coming soon',
+                      })}
+                    </Text>
+                  </View>
+                ) : buttonType === 'upgrade' ? (
+                  <TouchableOpacity
+                    style={styles.upgradeButton}
                     onPress={() => {
-                      setShowUpgradeModal(false);
-                      setSelectedPlan(null);
+                      setSelectedPlan(plan);
+                      setShowUpgradeModal(true);
                     }}
                   >
-                    <Text style={[styles.modalButtonText, styles.modalButtonTextSecondary]}>
-                      {t('common.cancel')}
-                    </Text>
+                    <Text style={styles.upgradeButtonText}>{t('plans.upgrade_button')}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.modalButton}
-                    onPress={handleUpgrade}
+                ) : buttonType === 'downgrade' && isFreePlan ? null : buttonType === 'downgrade' ? (
+                  <TouchableOpacity
+                    style={styles.subscribeButton}
+                    onPress={() => {
+                      setSelectedPlan(plan);
+                      setShowUpgradeModal(true);
+                    }}
                   >
-                    <Text style={styles.modalButtonText}>{t('plans.confirm')}</Text>
+                    <Text style={styles.subscribeButtonText}>{t('plans.subscribe_button')}</Text>
                   </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.subscribeButton}
+                    onPress={() => navigation.navigate('Welcome')}
+                  >
+                    <Text style={styles.subscribeButtonText}>{t('plans.subscribe_button')}</Text>
+                  </TouchableOpacity>
+                )}
+              </AnimatedSection>
+            );
+          })}
         </View>
-      </Modal>
-    </ScrollView>
-    <FeedbackModal
-      visible={showFeedbackModal}
-      onClose={() => setShowFeedbackModal(false)}
-      initialReportedScreen="plans"
-    />
+
+        <AnimatedSection delay={120} trigger={enterKey}>
+          <View style={styles.billingNotice}>
+            <Text style={styles.billingNoticeTitle}>
+              {t('plans.billing_note_title', { defaultValue: 'Billing details' })}
+            </Text>
+            {!enableRealPayments && (
+              <Text style={styles.billingNoticeText}>
+                {t('plans.payments_disabled_notice', {
+                  defaultValue:
+                    'Paid checkout is not enabled yet. Free access remains available while we finish billing verification.',
+                })}
+              </Text>
+            )}
+            <Text style={styles.billingNoticeText}>
+              {t('plans.billing_note_renewal', {
+                defaultValue: isWeb
+                  ? 'Paid subscriptions renew monthly until canceled. You can manage or cancel billing in the billing portal where available.'
+                  : 'Paid subscriptions renew monthly until canceled. On iOS and Android, purchases are managed through your App Store or Google Play account.',
+              })}
+            </Text>
+            <Text style={styles.billingNoticeText}>
+              {t('plans.billing_note_bundles', {
+                defaultValue:
+                  'Bundles are one-time add-ons for the current billing period. Unused bundle credits expire at period end and do not roll over.',
+              })}
+            </Text>
+            <Text style={styles.billingNoticeText}>
+              {t('plans.billing_note_refunds', {
+                defaultValue:
+                  'Refund requests are reviewed through support and do not happen automatically when a subscription is canceled.',
+              })}
+            </Text>
+            {useRevenueCatFlow ? (
+              <TouchableOpacity
+                style={styles.restorePurchasesButton}
+                onPress={handleRestorePurchases}
+                disabled={nativeBillingPending}
+              >
+                <Ionicons
+                  name="refresh-outline"
+                  size={16}
+                  color={theme.colors.interactive.primary}
+                />
+                <Text style={styles.restorePurchasesButtonText}>
+                  {nativeBillingPending ? t('plans.restoring') : t('plans.restore_purchases')}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </AnimatedSection>
+
+        {effectiveIsAuthenticated && (
+          <AnimatedSection delay={80} trigger={enterKey}>
+            <View style={styles.bundleSection}>
+              <View style={styles.bundleShell}>
+                <View style={styles.bundleHeaderBlock}>
+                  <Text style={styles.bundleSectionTitle}>{t('plans.bundles.section_title')}</Text>
+                  <Text style={styles.bundleSectionSubtitle}>
+                    {periodEndFormatted
+                      ? t('plans.bundles.section_subtitle', { periodEnd: periodEndFormatted })
+                      : t('plans.bundles.section_subtitle_no_date')}
+                  </Text>
+                  {bundleError ? <Text style={styles.bundleErrorText}>{bundleError}</Text> : null}
+                </View>
+
+                {bundlesQuery.isLoading ? (
+                  <View style={styles.bundleLoadingBox}>
+                    <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+                  </View>
+                ) : sortedBundles.length > 0 ? (
+                  bundleGridLayout ? (
+                    <View style={styles.bundleCardsGrid}>{bundleCardEls}</View>
+                  ) : (
+                    <ScrollView
+                      horizontal
+                      nestedScrollEnabled
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.bundleCardsScroll}
+                      contentContainerStyle={styles.bundleCardsScrollInner}
+                    >
+                      {bundleCardEls}
+                    </ScrollView>
+                  )
+                ) : (
+                  <Text style={styles.bundleEmpty}>{t('plans.bundles.empty')}</Text>
+                )}
+
+                {!bundlesQuery.isLoading && (
+                  <View style={styles.bundleFaqSection}>
+                    <Text style={styles.bundleFaqSectionTitle}>{t('plans.bundles.faq_title')}</Text>
+                    <ExpandableCard title={t('plans.bundles.faq_1_q')} icon="layers-outline">
+                      <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_1_a')}</Text>
+                    </ExpandableCard>
+                    <ExpandableCard title={t('plans.bundles.faq_2_q')} icon="calendar-outline">
+                      <Text style={styles.bundleFaqAnswer}>
+                        {periodEndFormatted
+                          ? t('plans.bundles.faq_2_a', { periodEnd: periodEndFormatted })
+                          : t('plans.bundles.faq_2_a_no_date')}
+                      </Text>
+                    </ExpandableCard>
+                    <ExpandableCard title={t('plans.bundles.faq_3_q')} icon="add-circle-outline">
+                      <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_3_a')}</Text>
+                    </ExpandableCard>
+                    <ExpandableCard title={t('plans.bundles.faq_4_q')} icon="pricetag-outline">
+                      <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_4_a')}</Text>
+                    </ExpandableCard>
+                    <ExpandableCard title={t('plans.bundles.faq_5_q')} icon="card-outline">
+                      <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_5_a')}</Text>
+                    </ExpandableCard>
+                    <ExpandableCard title={t('plans.bundles.faq_6_q')} icon="image-outline">
+                      <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_6_a')}</Text>
+                    </ExpandableCard>
+                  </View>
+                )}
+              </View>
+            </View>
+          </AnimatedSection>
+        )}
+
+        {/* Upgrade Modal */}
+        <Modal
+          visible={showUpgradeModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowUpgradeModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              {modalPending ? (
+                <>
+                  <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+                  <Text style={styles.modalTitle}>{t('plans.upgrading')}</Text>
+                </>
+              ) : modalError ? (
+                <>
+                  <Ionicons name="alert-circle" size={48} color={theme.colors.status.error} />
+                  <Text style={styles.modalTitle}>{t('plans.upgrade_error')}</Text>
+                  <Text style={styles.modalMessage}>
+                    {getLocalizedApiError(t, modalErrorData, 'plans.upgrade_error_message')}
+                  </Text>
+                  <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
+                    <Text style={styles.modalButtonText}>{t('common.close')}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : useRevenueCatFlow && nativeBillingSuccess ? (
+                <>
+                  <Ionicons name="checkmark-circle" size={48} color={theme.colors.status.success} />
+                  <Text style={styles.modalTitle}>{t('plans.upgrade_success')}</Text>
+                  <Text style={styles.modalMessage}>
+                    {t('plans.revenuecat_success_message', { planName: selectedPlan?.name })}
+                  </Text>
+                  <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
+                    <Text style={styles.modalButtonText}>{t('common.got_it')}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : !useStripeFlow && !useRevenueCatFlow && upgradePlan.isSuccess ? (
+                <>
+                  <Ionicons name="checkmark-circle" size={48} color={theme.colors.status.success} />
+                  <Text style={styles.modalTitle}>{t('plans.upgrade_success')}</Text>
+                  <Text style={styles.modalMessage}>
+                    {t('plans.upgrade_success_message', { planName: selectedPlan?.name })}
+                  </Text>
+                  <View style={styles.featuresList}>
+                    <Text style={styles.featuresTitle}>{t('plans.new_features')}</Text>
+                    {selectedPlan &&
+                      sortPricingFeatureEntries(selectedPlan.features).map(
+                        ([slug, feature]: [string, any]) => {
+                          const available = isPricingFeatureAvailable(feature);
+                          if (!available) return null;
+                          return (
+                            <View key={slug} style={styles.featureRow}>
+                              <Ionicons
+                                name="checkmark-circle"
+                                size={16}
+                                color={theme.colors.status.success}
+                              />
+                              <Text style={styles.featureText}>
+                                {getPricingFeatureLabel(
+                                  pricingLocale,
+                                  translatePricing,
+                                  slug,
+                                  feature
+                                )}
+                              </Text>
+                            </View>
+                          );
+                        }
+                      )}
+                  </View>
+                  <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
+                    <Text style={styles.modalButtonText}>{t('common.got_it')}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.modalTitle}>{t('plans.confirm_upgrade')}</Text>
+                  <Text style={styles.modalMessage}>
+                    {t('plans.confirm_upgrade_message', { planName: selectedPlan?.name })}
+                  </Text>
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.modalButtonSecondary]}
+                      onPress={() => {
+                        setShowUpgradeModal(false);
+                        setSelectedPlan(null);
+                      }}
+                    >
+                      <Text style={[styles.modalButtonText, styles.modalButtonTextSecondary]}>
+                        {t('common.cancel')}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.modalButton} onPress={handleUpgrade}>
+                      <Text style={styles.modalButtonText}>{t('plans.confirm')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+      </ScrollView>
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="plans"
+      />
     </>
   );
 }

@@ -1,5 +1,12 @@
 import React, { useState, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -33,29 +40,27 @@ export default function LanguageSettingsScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [navigation]);
 
   const handleLanguageChange = async (languageCode: AppUiLocale) => {
     if (isChanging || selectedLanguage === languageCode) return;
-    
+
     try {
       setIsChanging(true);
-      
+
       await applyPreferredLocale(languageCode);
-      
+
       // Update user preference in API
       const response = await apiClient.patch('/api/v1/me', {
-        preferredLocale: languageCode
+        preferredLocale: languageCode,
       });
-      
+
       if (response.data.user) {
         setUser(response.data.user);
       }
-      
+
       setSelectedLanguage(languageCode);
     } catch (error) {
       console.error('Failed to change language:', error);
@@ -66,52 +71,44 @@ export default function LanguageSettingsScreen() {
 
   return (
     <>
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>{t('profile.language_settings')}</Text>
-      <Text style={styles.description}>
-        {t('profile.language_settings_description')}
-      </Text>
-      
-      {languages.map((language) => {
-        const isSelected = selectedLanguage === language.code;
-        
-        return (
-          <TouchableOpacity
-            key={language.code}
-            style={[
-              styles.languageButton,
-              isSelected && styles.selectedLanguage
-            ]}
-            onPress={() => handleLanguageChange(language.code)}
-            disabled={isChanging}
-          >
-            <View style={styles.languageInfo}>
-              <Text style={styles.flag}>{language.flag}</Text>
-              <Text style={[
-                styles.languageName,
-                isSelected && styles.selectedLanguageName
-              ]}>
-                {language.name}
-              </Text>
-            </View>
-            {isChanging && isSelected ? (
-              <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
-            ) : isSelected ? (
-              <Ionicons 
-                name="checkmark-circle" 
-                size={24} 
-                color={theme.colors.interactive.primary} 
-              />
-            ) : null}
-          </TouchableOpacity>
-        );
-      })}
-    </ScrollView>
-    <FeedbackModal
-      visible={showFeedbackModal}
-      onClose={() => setShowFeedbackModal(false)}
-      initialReportedScreen="profile"
-    />
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <Text style={styles.title}>{t('profile.language_settings')}</Text>
+        <Text style={styles.description}>{t('profile.language_settings_description')}</Text>
+
+        {languages.map((language) => {
+          const isSelected = selectedLanguage === language.code;
+
+          return (
+            <TouchableOpacity
+              key={language.code}
+              style={[styles.languageButton, isSelected && styles.selectedLanguage]}
+              onPress={() => handleLanguageChange(language.code)}
+              disabled={isChanging}
+            >
+              <View style={styles.languageInfo}>
+                <Text style={styles.flag}>{language.flag}</Text>
+                <Text style={[styles.languageName, isSelected && styles.selectedLanguageName]}>
+                  {language.name}
+                </Text>
+              </View>
+              {isChanging && isSelected ? (
+                <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+              ) : isSelected ? (
+                <Ionicons
+                  name="checkmark-circle"
+                  size={24}
+                  color={theme.colors.interactive.primary}
+                />
+              ) : null}
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+      <FeedbackModal
+        visible={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        initialReportedScreen="profile"
+      />
     </>
   );
 }

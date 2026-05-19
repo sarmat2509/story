@@ -35,20 +35,20 @@ export function SeriesCard({ series, onPress, cardWidth: cardWidthProp }: Props)
   const imageHeight = imageWidth > 0 ? imageWidth / IMAGE_ASPECT : 0;
   const stackHeight = imageHeight > 0 ? imageHeight + STACK_INSET : 0;
 
-  const handleLayout = useCallback((e: LayoutChangeEvent) => {
-    if (cardWidthProp == null) {
-      const w = e.nativeEvent.layout.width;
-      if (w > 0) setMeasuredWidth(w);
-    }
-  }, [cardWidthProp]);
+  const handleLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      if (cardWidthProp == null) {
+        const w = e.nativeEvent.layout.width;
+        if (w > 0) setMeasuredWidth(w);
+      }
+    },
+    [cardWidthProp]
+  );
 
   return (
     <TouchableOpacity style={styles.card} onPress={() => onPress(series.id)} activeOpacity={0.8}>
       <View
-        style={[
-          styles.stackContainer,
-          stackHeight > 0 && { height: stackHeight },
-        ]}
+        style={[styles.stackContainer, stackHeight > 0 && { height: stackHeight }]}
         onLayout={handleLayout}
       >
         {ordered.map((story, index) => {
@@ -83,15 +83,16 @@ export function SeriesCard({ series, onPress, cardWidth: cardWidthProp }: Props)
         <Text style={styles.title} numberOfLines={1}>
           {series.baseTitle}
         </Text>
-        <Text style={styles.partsCount}>{t('series.parts_count', { count: series.totalParts })}</Text>
+        <Text style={styles.partsCount}>
+          {t('series.parts_count', { count: series.totalParts })}
+        </Text>
       </View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-  },
+  card: {},
   stackContainer: {
     position: 'relative',
     width: '100%',

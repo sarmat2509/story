@@ -53,11 +53,7 @@ function MiniAudioPlayerInner({ activeStoryId }: { activeStoryId: string }) {
 
       <View style={styles.content}>
         {/* Play / Pause button */}
-        <TouchableOpacity
-          style={styles.playButton}
-          onPress={handlePlayPause}
-          disabled={isLoading}
-        >
+        <TouchableOpacity style={styles.playButton} onPress={handlePlayPause} disabled={isLoading}>
           {isLoading ? (
             <ActivityIndicator size="small" color={theme.colors.text.inverse} />
           ) : (
@@ -80,9 +76,7 @@ function MiniAudioPlayerInner({ activeStoryId }: { activeStoryId: string }) {
         </View>
 
         {/* Go to story button (only when navigation context is available) */}
-        {navContext && (
-          <GoToStoryButton activeStoryId={activeStoryId} />
-        )}
+        {navContext && <GoToStoryButton activeStoryId={activeStoryId} />}
       </View>
     </View>
   );
@@ -94,10 +88,7 @@ function MiniAudioPlayerInner({ activeStoryId }: { activeStoryId: string }) {
  */
 function GoToStoryButton({ activeStoryId }: { activeStoryId: string }) {
   return (
-    <TouchableOpacity
-      style={styles.goButton}
-      onPress={() => navigateToStory(activeStoryId)}
-    >
+    <TouchableOpacity style={styles.goButton} onPress={() => navigateToStory(activeStoryId)}>
       <Ionicons name="chevron-up-outline" size={22} color={theme.colors.text.inverse} />
     </TouchableOpacity>
   );

@@ -26,99 +26,96 @@ export interface AudioFilterToggleRef {
   setValue: (value: boolean) => void;
 }
 
-const AudioFilterToggleComponent = forwardRef<AudioFilterToggleRef, Props>(({ 
-  allStoriesLabel, 
-  audioOnlyLabel,
-  initialValue = false,
-  onToggle 
-}, ref) => {
-  // LOCAL state - initialized ONLY on first render (lazy initialization)
-  const [isActive, setIsActive] = useState(() => initialValue);
-  
-  // Expose imperative method to parent (no re-render)
-  useImperativeHandle(ref, () => ({
-    setValue: (value: boolean) => {
-      setIsActive(value);
-    }
-  }));
-  
-  // Handle click - update local state and notify parent
-  const handleToggle = () => {
-    const newValue = !isActive;
-    
-    setIsActive(newValue);
-    onToggle(newValue);
-  };
-  
-  return (
-    <View style={styles.segmentedControl}>
-      <Pressable
-        onPress={() => isActive && handleToggle()}
-        accessibilityLabel={allStoriesLabel}
-        focusable
-        style={(state: ExtendedPressableState) => [
-          styles.segment,
-          Platform.OS === 'web' && state.hovered && styles.segmentHovered,
-          state.pressed && styles.segmentPressed,
-          Platform.OS === 'web' && state.focused && styles.segmentFocused,
-        ]}
-      >
-        <Text
-          style={[styles.segmentText, !isActive && styles.segmentTextActive]}
-        >
-          {allStoriesLabel}
-        </Text>
-      </Pressable>
+const AudioFilterToggleComponent = forwardRef<AudioFilterToggleRef, Props>(
+  ({ allStoriesLabel, audioOnlyLabel, initialValue = false, onToggle }, ref) => {
+    // LOCAL state - initialized ONLY on first render (lazy initialization)
+    const [isActive, setIsActive] = useState(() => initialValue);
 
-      <Pressable
-        onPress={handleToggle}
-        accessibilityRole="switch"
-        accessibilityState={{ checked: isActive }}
-        focusable
-        style={(state: ExtendedPressableState) => [
-          styles.toggleContainer,
-          Platform.OS === 'web' && state.hovered && styles.toggleContainerHovered,
-          state.pressed && styles.toggleContainerPressed,
-          Platform.OS === 'web' && state.focused && styles.toggleContainerFocused,
-        ]}
-      >
-        <View
-          style={[
-            styles.toggleTrack,
-            {
-              backgroundColor: isActive ? theme.colors.interactive.primary : theme.colors.neutral[300],
-            },
+    // Expose imperative method to parent (no re-render)
+    useImperativeHandle(ref, () => ({
+      setValue: (value: boolean) => {
+        setIsActive(value);
+      },
+    }));
+
+    // Handle click - update local state and notify parent
+    const handleToggle = () => {
+      const newValue = !isActive;
+
+      setIsActive(newValue);
+      onToggle(newValue);
+    };
+
+    return (
+      <View style={styles.segmentedControl}>
+        <Pressable
+          onPress={() => isActive && handleToggle()}
+          accessibilityLabel={allStoriesLabel}
+          focusable
+          style={(state: ExtendedPressableState) => [
+            styles.segment,
+            Platform.OS === 'web' && state.hovered && styles.segmentHovered,
+            state.pressed && styles.segmentPressed,
+            Platform.OS === 'web' && state.focused && styles.segmentFocused,
+          ]}
+        >
+          <Text style={[styles.segmentText, !isActive && styles.segmentTextActive]}>
+            {allStoriesLabel}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={handleToggle}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: isActive }}
+          focusable
+          style={(state: ExtendedPressableState) => [
+            styles.toggleContainer,
+            Platform.OS === 'web' && state.hovered && styles.toggleContainerHovered,
+            state.pressed && styles.toggleContainerPressed,
+            Platform.OS === 'web' && state.focused && styles.toggleContainerFocused,
           ]}
         >
           <View
             style={[
-              styles.toggleThumb,
+              styles.toggleTrack,
               {
-                transform: [{ translateX: isActive ? 20 : 0 }],
+                backgroundColor: isActive
+                  ? theme.colors.interactive.primary
+                  : theme.colors.neutral[300],
               },
             ]}
-          />
-        </View>
-      </Pressable>
+          >
+            <View
+              style={[
+                styles.toggleThumb,
+                {
+                  transform: [{ translateX: isActive ? 20 : 0 }],
+                },
+              ]}
+            />
+          </View>
+        </Pressable>
 
-      <Pressable
-        onPress={() => !isActive && handleToggle()}
-        accessibilityLabel={audioOnlyLabel}
-        focusable
-        style={(state: ExtendedPressableState) => [
-          styles.segment,
-          Platform.OS === 'web' && state.hovered && styles.segmentHovered,
-          state.pressed && styles.segmentPressed,
-          Platform.OS === 'web' && state.focused && styles.segmentFocused,
-        ]}
-      >
-        <Text style={[styles.segmentText, isActive && styles.segmentTextActive]}>
-          {audioOnlyLabel}
-        </Text>
-      </Pressable>
-    </View>
-  );
-});
+        <Pressable
+          onPress={() => !isActive && handleToggle()}
+          accessibilityLabel={audioOnlyLabel}
+          focusable
+          style={(state: ExtendedPressableState) => [
+            styles.segment,
+            Platform.OS === 'web' && state.hovered && styles.segmentHovered,
+            state.pressed && styles.segmentPressed,
+            Platform.OS === 'web' && state.focused && styles.segmentFocused,
+          ]}
+        >
+          <Text style={[styles.segmentText, isActive && styles.segmentTextActive]}>
+            {audioOnlyLabel}
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+);
 
 // Memoize to prevent re-renders when parent re-renders (e.g., totalPages change)
 // Only re-render when labels or onToggle change

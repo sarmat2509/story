@@ -18,6 +18,12 @@ module.exports = {
   rules: {
     '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/ban-ts-comment': 'warn',
+    '@typescript-eslint/no-namespace': 'off',
+    '@typescript-eslint/no-var-requires': 'off',
+    'no-empty': 'warn',
+    'no-useless-escape': 'warn',
+    'prefer-const': 'warn',
     'prettier/prettier': 'error',
   },
 };

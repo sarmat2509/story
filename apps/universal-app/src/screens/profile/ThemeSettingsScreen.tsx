@@ -45,9 +45,7 @@ export default function ThemeSettingsScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [navigation]);
 
@@ -93,10 +91,7 @@ export default function ThemeSettingsScreen() {
               >
                 <View style={styles.cardBadge}>
                   {isBusy ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={theme.colors.interactive.primary}
-                    />
+                    <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
                   ) : isSelected ? (
                     <Ionicons
                       name="checkmark-circle"

@@ -22,8 +22,13 @@ export default function AdminValidationsScreen() {
     item.validationScore,
     item.visionModel ?? 'n/a',
     new Date(item.createdAt).toLocaleString(),
-    <TouchableOpacity key={`open-${item.id}`} onPress={() => navigation.navigate('AdminValidationDetail', { id: item.id })}>
-      <Text style={{ color: '#2563eb', textDecorationLine: 'underline', fontWeight: '600' }}>Open</Text>
+    <TouchableOpacity
+      key={`open-${item.id}`}
+      onPress={() => navigation.navigate('AdminValidationDetail', { id: item.id })}
+    >
+      <Text style={{ color: '#2563eb', textDecorationLine: 'underline', fontWeight: '600' }}>
+        Open
+      </Text>
     </TouchableOpacity>,
   ]);
 

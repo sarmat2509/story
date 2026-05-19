@@ -47,12 +47,7 @@ function normalize(value: string): string {
 
 function packageMatchesPlan(pkg: PurchasesPackage, planSlug: string): boolean {
   const planKey = normalize(planSlug);
-  return [
-    pkg.identifier,
-    pkg.product.identifier,
-    pkg.product.title,
-    pkg.product.description,
-  ]
+  return [pkg.identifier, pkg.product.identifier, pkg.product.title, pkg.product.description]
     .filter(Boolean)
     .map((value) => normalize(String(value)))
     .some((value) => value.includes(planKey));

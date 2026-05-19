@@ -11,14 +11,14 @@ interface FloatingActionButtonProps {
   right?: number;
 }
 
-export function FloatingActionButton({ 
-  onPress, 
+export function FloatingActionButton({
+  onPress,
   icon = 'musical-notes',
   bottom = 16,
   right = 16,
 }: FloatingActionButtonProps) {
   const insets = useSafeAreaInsets();
-  
+
   return (
     <TouchableOpacity
       style={[

@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { captureScreen } from 'react-native-view-shot';
 import { useTranslation } from 'react-i18next';
 import {
+  CONTENT_REPORT_TOPICS,
   FEEDBACK_TOPICS,
   getFeedbackCategoryForTopic,
   isContentReportTopic,
@@ -54,12 +55,7 @@ interface FeedbackModalProps {
   };
 }
 
-const GENERATED_CONTENT_REPORT_TOPICS: FeedbackTopic[] = [
-  'unsafe_image',
-  'unsafe_text',
-  'privacy_concern',
-  'other',
-];
+const GENERATED_CONTENT_REPORT_TOPICS: FeedbackTopic[] = [...CONTENT_REPORT_TOPICS];
 
 function getDefaultFeedbackTopic(screen: ReportedScreen): FeedbackTopic {
   if (screen === 'plans' || screen === 'profile') {
@@ -77,6 +73,20 @@ function getDefaultFeedbackTopic(screen: ReportedScreen): FeedbackTopic {
   return 'bug';
 }
 
+function getInitialSupportTopic(
+  screen: ReportedScreen,
+  initialTopic: FeedbackTopic | undefined,
+  isGeneratedContentReport: boolean
+): FeedbackTopic {
+  if (isGeneratedContentReport) {
+    return initialTopic && isContentReportTopic(initialTopic)
+      ? initialTopic
+      : CONTENT_REPORT_TOPICS[0];
+  }
+
+  return initialTopic ?? getDefaultFeedbackTopic(screen);
+}
+
 async function captureCurrentViewportDataUrl(): Promise<string> {
   if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof document === 'undefined') {
     throw new Error('Web-only screenshot capture is unavailable');
@@ -85,9 +95,7 @@ async function captureCurrentViewportDataUrl(): Promise<string> {
   console.log('[FeedbackModal] Starting web viewport screenshot capture');
 
   const captureRoot =
-    document.getElementById('root') ??
-    document.getElementById('main') ??
-    document.body;
+    document.getElementById('root') ?? document.getElementById('main') ?? document.body;
 
   if (!captureRoot) {
     throw new Error('App root not found');
@@ -126,23 +134,27 @@ async function captureCurrentViewportDataUrl(): Promise<string> {
       return;
     }
 
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error('Failed to serialize screenshot canvas'));
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          resolve(reader.result);
-        } else {
-          reject(new Error('Failed to read screenshot blob'));
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error('Failed to serialize screenshot canvas'));
+          return;
         }
-      };
-      reader.onerror = () => reject(reader.error ?? new Error('Failed to read screenshot blob'));
-      reader.readAsDataURL(blob);
-    }, 'image/jpeg', 0.9);
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') {
+            resolve(reader.result);
+          } else {
+            reject(new Error('Failed to read screenshot blob'));
+          }
+        };
+        reader.onerror = () => reject(reader.error ?? new Error('Failed to read screenshot blob'));
+        reader.readAsDataURL(blob);
+      },
+      'image/jpeg',
+      0.9
+    );
   });
 
   console.log('[FeedbackModal] Web viewport screenshot encoded');
@@ -176,10 +188,11 @@ export function FeedbackModal({
   const { t } = useTranslation();
   const { user, sessionMode } = useAuthStore();
   const submitFeedback = useSubmitFeedback();
+  const isGeneratedContentReport = !!contentReportContext;
 
   const [reportedScreen, setReportedScreen] = useState<ReportedScreen>(initialReportedScreen);
   const [supportTopic, setSupportTopic] = useState<FeedbackTopic>(
-    initialTopic ?? getDefaultFeedbackTopic(initialReportedScreen)
+    getInitialSupportTopic(initialReportedScreen, initialTopic, isGeneratedContentReport)
   );
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
@@ -193,18 +206,23 @@ export function FeedbackModal({
   const [submittedReportId, setSubmittedReportId] = useState<string | null>(null);
 
   const isLoggedIn = !!user;
-  const isGeneratedContentReport = !!contentReportContext;
+  const effectiveSupportTopic =
+    isGeneratedContentReport && !isContentReportTopic(supportTopic)
+      ? CONTENT_REPORT_TOPICS[0]
+      : supportTopic;
   const contentReportTopics = isGeneratedContentReport
     ? GENERATED_CONTENT_REPORT_TOPICS
     : FEEDBACK_TOPICS;
-  const emailIsRequired = !isLoggedIn && !isContentReportTopic(supportTopic);
+  const emailIsRequired = !isLoggedIn && !isContentReportTopic(effectiveSupportTopic);
   const showEmailField = !isLoggedIn;
   const showScreenshotField = isLoggedIn && sessionMode !== 'child';
 
   useEffect(() => {
     if (visible) {
       setReportedScreen(initialReportedScreen);
-      setSupportTopic(initialTopic ?? getDefaultFeedbackTopic(initialReportedScreen));
+      setSupportTopic(
+        getInitialSupportTopic(initialReportedScreen, initialTopic, isGeneratedContentReport)
+      );
       setMessage('');
       setEmail('');
       setScreenshotUri(null);
@@ -219,7 +237,7 @@ export function FeedbackModal({
       setIsPreparingModal(false);
       setIsUploadingScreenshot(false);
     }
-  }, [visible, initialReportedScreen, initialTopic]);
+  }, [visible, initialReportedScreen, initialTopic, isGeneratedContentReport]);
 
   useEffect(() => {
     if (!visible || !showScreenshotField || hasAttemptedAutoCapture) {
@@ -291,10 +309,7 @@ export function FeedbackModal({
     if (Platform.OS !== 'web') {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          t('common.error'),
-          'Please grant permission to access your photo library.'
-        );
+        Alert.alert(t('common.error'), 'Please grant permission to access your photo library.');
         return false;
       }
     }
@@ -365,8 +380,8 @@ export function FeedbackModal({
 
     try {
       const report = await submitFeedback.mutateAsync({
-        category: getFeedbackCategoryForTopic(supportTopic),
-        supportTopic,
+        category: getFeedbackCategoryForTopic(effectiveSupportTopic),
+        supportTopic: effectiveSupportTopic,
         message: trimmedMessage,
         email: showEmailField ? email.trim() : undefined,
         screenshotUrl: screenshotStoragePath || undefined,
@@ -406,7 +421,12 @@ export function FeedbackModal({
       <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
         <View style={styles.overlay}>
           <View style={styles.successDialog}>
-            <View style={[styles.iconContainer, { backgroundColor: `${theme.colors.status.success}20` }]}>
+            <View
+              style={[
+                styles.iconContainer,
+                { backgroundColor: `${theme.colors.status.success}20` },
+              ]}
+            >
               <Ionicons name="checkmark-circle" size={48} color={theme.colors.status.success} />
             </View>
             <Text style={styles.successTitle}>{t('feedback.success')}</Text>
@@ -437,7 +457,10 @@ export function FeedbackModal({
             <Text style={styles.title}>
               {isGeneratedContentReport ? t('feedback.content_report_title') : t('feedback.title')}
             </Text>
-            <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity
+              onPress={handleClose}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Ionicons name="close" size={24} color={theme.colors.text.tertiary} />
             </TouchableOpacity>
           </View>
@@ -450,10 +473,7 @@ export function FeedbackModal({
                   {REPORTED_SCREENS.map((screen) => (
                     <TouchableOpacity
                       key={screen}
-                      style={[
-                        styles.pill,
-                        reportedScreen === screen && styles.pillSelected,
-                      ]}
+                      style={[styles.pill, reportedScreen === screen && styles.pillSelected]}
                       onPress={() => setReportedScreen(screen)}
                     >
                       <Text
@@ -469,14 +489,15 @@ export function FeedbackModal({
                 </View>
               </>
             ) : (
-              <Text style={styles.contentReportNotice}>
-                {t('feedback.content_report_notice')}
-              </Text>
+              <Text style={styles.contentReportNotice}>{t('feedback.content_report_notice')}</Text>
             )}
 
             {/* Category */}
             <Text style={styles.label}>
-              {isGeneratedContentReport ? t('feedback.content_report_category') : t('feedback.category')} *
+              {isGeneratedContentReport
+                ? t('feedback.content_report_category')
+                : t('feedback.category')}{' '}
+              *
             </Text>
             <View style={styles.pickerRow}>
               {contentReportTopics.map((topic) => (
@@ -486,10 +507,7 @@ export function FeedbackModal({
                   onPress={() => setSupportTopic(topic)}
                 >
                   <Text
-                    style={[
-                      styles.pillText,
-                      supportTopic === topic && styles.pillTextSelected,
-                    ]}
+                    style={[styles.pillText, supportTopic === topic && styles.pillTextSelected]}
                   >
                     {t(`feedback.categories.${topic}`)}
                   </Text>
@@ -513,9 +531,7 @@ export function FeedbackModal({
               numberOfLines={4}
               maxLength={2000}
             />
-            <Text style={styles.hint}>
-              {message.length}/2000
-            </Text>
+            <Text style={styles.hint}>{message.length}/2000</Text>
 
             {/* Email (anonymous only) */}
             {showEmailField && (
@@ -545,10 +561,14 @@ export function FeedbackModal({
                     <Image source={{ uri: screenshotUri }} style={styles.screenshotImage} />
                     <View style={styles.screenshotActions}>
                       {isAutoCaptured ? (
-                        <Text style={styles.autoScreenshotHint}>{t('feedback.auto_screenshot_attached')}</Text>
+                        <Text style={styles.autoScreenshotHint}>
+                          {t('feedback.auto_screenshot_attached')}
+                        </Text>
                       ) : null}
                       {isUploadingScreenshot ? (
-                        <Text style={styles.autoScreenshotHint}>{t('feedback.uploading_screenshot')}</Text>
+                        <Text style={styles.autoScreenshotHint}>
+                          {t('feedback.uploading_screenshot')}
+                        </Text>
                       ) : null}
                       <View style={styles.screenshotButtonRow}>
                         <TouchableOpacity
@@ -556,15 +576,27 @@ export function FeedbackModal({
                           onPress={handleAttachScreenshot}
                           disabled={isUploadingScreenshot}
                         >
-                          <Ionicons name="refresh-outline" size={20} color={theme.colors.interactive.primary} />
-                          <Text style={styles.replaceScreenshotText}>{t('feedback.replace_screenshot')}</Text>
+                          <Ionicons
+                            name="refresh-outline"
+                            size={20}
+                            color={theme.colors.interactive.primary}
+                          />
+                          <Text style={styles.replaceScreenshotText}>
+                            {t('feedback.replace_screenshot')}
+                          </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.removeScreenshotButton}
                           onPress={handleRemoveScreenshot}
                         >
-                          <Ionicons name="trash-outline" size={20} color={theme.colors.text.inverse} />
-                          <Text style={styles.removeScreenshotText}>{t('feedback.remove_screenshot')}</Text>
+                          <Ionicons
+                            name="trash-outline"
+                            size={20}
+                            color={theme.colors.text.inverse}
+                          />
+                          <Text style={styles.removeScreenshotText}>
+                            {t('feedback.remove_screenshot')}
+                          </Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -579,8 +611,14 @@ export function FeedbackModal({
                       <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
                     ) : (
                       <>
-                        <Ionicons name="image-outline" size={24} color={theme.colors.interactive.primary} />
-                        <Text style={styles.attachButtonText}>{t('feedback.attach_screenshot')}</Text>
+                        <Ionicons
+                          name="image-outline"
+                          size={24}
+                          color={theme.colors.interactive.primary}
+                        />
+                        <Text style={styles.attachButtonText}>
+                          {t('feedback.attach_screenshot')}
+                        </Text>
                       </>
                     )}
                   </TouchableOpacity>

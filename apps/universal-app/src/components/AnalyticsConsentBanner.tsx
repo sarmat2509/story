@@ -14,9 +14,13 @@ export function AnalyticsConsentBanner() {
   const { t } = useTranslation();
   const [consent, setConsent] = useState<AnalyticsConsent>(() => getAnalyticsConsent());
 
-  useEffect(() => onAnalyticsConsentChange(() => {
-    setConsent(getAnalyticsConsent());
-  }), []);
+  useEffect(
+    () =>
+      onAnalyticsConsentChange(() => {
+        setConsent(getAnalyticsConsent());
+      }),
+    []
+  );
 
   if (consent) {
     return null;

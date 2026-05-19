@@ -24,15 +24,19 @@ export const audioPlaybackService = {
         ...state,
         timestamp: Date.now(),
       };
-      
-      console.log('[AudioPlaybackService] Saving state:', { storyId, position: state.position.toFixed(3), isHighlightEnabled: state.isHighlightEnabled });
-      
+
+      console.log('[AudioPlaybackService] Saving state:', {
+        storyId,
+        position: state.position.toFixed(3),
+        isHighlightEnabled: state.isHighlightEnabled,
+      });
+
       await AsyncStorage.setItem(key, JSON.stringify(stateWithTimestamp));
     } catch (error) {
       console.error('Error saving audio playback state:', error);
     }
   },
-  
+
   /**
    * Get audio playback state for a story
    * @param storyId - Story UUID
@@ -42,13 +46,13 @@ export const audioPlaybackService = {
     try {
       const key = `${STORAGE_KEY_PREFIX}/${storyId}`;
       const data = await AsyncStorage.getItem(key);
-      
+
       if (!data) {
         return null;
       }
-      
+
       const state: AudioPlaybackState = JSON.parse(data);
-      
+
       // Check if state is expired (older than 24h)
       const age = Date.now() - state.timestamp;
       if (age > STATE_EXPIRY_MS) {
@@ -56,16 +60,20 @@ export const audioPlaybackService = {
         await this.clearState(storyId);
         return null;
       }
-      
-      console.log('[AudioPlaybackService] Loaded state:', { storyId, position: state.position.toFixed(3), isHighlightEnabled: state.isHighlightEnabled });
-      
+
+      console.log('[AudioPlaybackService] Loaded state:', {
+        storyId,
+        position: state.position.toFixed(3),
+        isHighlightEnabled: state.isHighlightEnabled,
+      });
+
       return state;
     } catch (error) {
       console.error('Error getting audio playback state:', error);
       return null;
     }
   },
-  
+
   /**
    * Clear audio playback state for a story
    * @param storyId - Story UUID
@@ -78,7 +86,7 @@ export const audioPlaybackService = {
       console.error('Error clearing audio playback state:', error);
     }
   },
-  
+
   /**
    * Clear all expired states (older than 24h)
    * Useful for cleanup on app start
@@ -86,14 +94,14 @@ export const audioPlaybackService = {
   async clearOldStates(): Promise<void> {
     try {
       const allKeys = await AsyncStorage.getAllKeys();
-      const playbackKeys = allKeys.filter(key => key.startsWith(STORAGE_KEY_PREFIX));
-      
+      const playbackKeys = allKeys.filter((key) => key.startsWith(STORAGE_KEY_PREFIX));
+
       for (const key of playbackKeys) {
         const data = await AsyncStorage.getItem(key);
         if (data) {
           const state: AudioPlaybackState = JSON.parse(data);
           const age = Date.now() - state.timestamp;
-          
+
           if (age > STATE_EXPIRY_MS) {
             await AsyncStorage.removeItem(key);
           }

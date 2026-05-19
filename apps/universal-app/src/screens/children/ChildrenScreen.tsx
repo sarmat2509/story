@@ -62,7 +62,10 @@ export default function ChildrenScreen() {
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [childToDelete, setChildToDelete] = useState<{ id: string; name: string } | null>(null);
   const [childDataDeletionRequestVisible, setChildDataDeletionRequestVisible] = useState(false);
-  const [childDataDeletionChild, setChildDataDeletionChild] = useState<{ id: string; name: string } | null>(null);
+  const [childDataDeletionChild, setChildDataDeletionChild] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [childDataDeletionScopes, setChildDataDeletionScopes] = useState<ChildDataDeletionScope[]>([
     ...DEFAULT_CHILD_DATA_DELETION_SCOPES,
   ]);
@@ -71,9 +74,7 @@ export default function ChildrenScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [navigation]);
 
@@ -122,9 +123,7 @@ export default function ChildrenScreen() {
   const toggleChildDataDeletionScope = (scope: ChildDataDeletionScope) => {
     setChildDataDeletionError(null);
     setChildDataDeletionScopes((current) =>
-      current.includes(scope)
-        ? current.filter((item) => item !== scope)
-        : [...current, scope]
+      current.includes(scope) ? current.filter((item) => item !== scope) : [...current, scope]
     );
   };
 
@@ -216,7 +215,12 @@ export default function ChildrenScreen() {
         </AnimatedSection>
       ) : (
         <>
-          <View style={[styles.grid, Platform.OS === 'web' && { gridTemplateColumns: `repeat(${columns}, 1fr)` } as any]}>
+          <View
+            style={[
+              styles.grid,
+              Platform.OS === 'web' && ({ gridTemplateColumns: `repeat(${columns}, 1fr)` } as any),
+            ]}
+          >
             {children.map((child: Record<string, unknown>, index: number) => {
               const childId = String(child.id ?? '');
               const childData = {
@@ -224,7 +228,9 @@ export default function ChildrenScreen() {
                 name: String(child.name ?? ''),
                 birthDate: child.birthDate as string | undefined,
                 birthdate: child.birthdate as string | undefined,
-                turnaroundSheet: child.turnaroundSheet as { url: string; frontUrl?: string } | undefined,
+                turnaroundSheet: child.turnaroundSheet as
+                  | { url: string; frontUrl?: string }
+                  | undefined,
                 referencePhotos: child.referencePhotos as { url: string }[] | undefined,
               };
               const cardContent = (
@@ -328,7 +334,9 @@ export default function ChildrenScreen() {
                       <Ionicons
                         name={selected ? 'checkbox' : 'square-outline'}
                         size={20}
-                        color={selected ? theme.colors.interactive.primary : theme.colors.text.tertiary}
+                        color={
+                          selected ? theme.colors.interactive.primary : theme.colors.text.tertiary
+                        }
                       />
                       <Text style={styles.requestScopeText} numberOfLines={2}>
                         {childDataDeletionScopeLabels[scope]}

@@ -117,11 +117,15 @@ function PrivacyRequestCard({
       <View style={styles.detailGrid}>
         <View style={styles.detailItem}>
           <Text style={styles.detailLabel}>Request ID</Text>
-          <Text style={styles.detailValue} numberOfLines={1}>{item.id}</Text>
+          <Text style={styles.detailValue} numberOfLines={1}>
+            {item.id}
+          </Text>
         </View>
         <View style={styles.detailItem}>
           <Text style={styles.detailLabel}>User ID</Text>
-          <Text style={styles.detailValue} numberOfLines={1}>{item.userId ?? 'Detached'}</Text>
+          <Text style={styles.detailValue} numberOfLines={1}>
+            {item.userId ?? 'Detached'}
+          </Text>
         </View>
         {reviewedAt ? (
           <View style={styles.detailItem}>
@@ -254,9 +258,14 @@ export default function AdminPrivacyRequestsScreen() {
               <View style={styles.editorHeader}>
                 <View>
                   <Text style={styles.editorTitle}>Review request</Text>
-                  <Text style={styles.editorMeta}>{selectedRequest.requesterEmail ?? selectedRequest.id}</Text>
+                  <Text style={styles.editorMeta}>
+                    {selectedRequest.requesterEmail ?? selectedRequest.id}
+                  </Text>
                 </View>
-                <TouchableOpacity style={styles.secondaryButton} onPress={() => setSelectedRequest(null)}>
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={() => setSelectedRequest(null)}
+                >
                   <Text style={styles.secondaryButtonText}>Close</Text>
                 </TouchableOpacity>
               </View>
@@ -272,7 +281,9 @@ export default function AdminPrivacyRequestsScreen() {
                         style={[styles.filterChip, isActive && styles.filterChipActive]}
                         onPress={() => setDraftStatus(option)}
                       >
-                        <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                        <Text
+                          style={[styles.filterChipText, isActive && styles.filterChipTextActive]}
+                        >
                           {formatStatus(option)}
                         </Text>
                       </TouchableOpacity>
@@ -306,7 +317,9 @@ export default function AdminPrivacyRequestsScreen() {
                 <View style={styles.deliveryChecklist}>
                   <Text style={styles.deliveryTitle}>Export delivery checklist</Text>
                   {EXPORT_DELIVERY_CHECKLIST.map((step) => (
-                    <Text key={step} style={styles.deliveryStep}>- {step}</Text>
+                    <Text key={step} style={styles.deliveryStep}>
+                      - {step}
+                    </Text>
                   ))}
                 </View>
               ) : null}
@@ -334,7 +347,9 @@ export default function AdminPrivacyRequestsScreen() {
                     style={[styles.secondaryButton, buildExport.isPending && styles.buttonDisabled]}
                     disabled={buildExport.isPending}
                     onPress={async () => {
-                      const payload = await buildExport.mutateAsync({ requestId: selectedRequest.id });
+                      const payload = await buildExport.mutateAsync({
+                        requestId: selectedRequest.id,
+                      });
                       const date = new Date().toISOString().slice(0, 10);
                       downloadJsonFile(
                         `wondertales-user-export-${selectedRequest.id}-${date}.json`,

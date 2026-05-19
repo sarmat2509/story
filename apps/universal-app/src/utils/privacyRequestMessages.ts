@@ -10,9 +10,7 @@ export function buildAccountDataPrivacyRequestMessage({
   submittedFrom = 'profile_privacy_panel',
 }: BuildAccountDataPrivacyRequestMessageInput): string {
   const marker =
-    requestType === 'export'
-      ? 'account_data_export_request'
-      : 'account_data_deletion_request';
+    requestType === 'export' ? 'account_data_export_request' : 'account_data_deletion_request';
 
   return [
     `[${marker}]`,

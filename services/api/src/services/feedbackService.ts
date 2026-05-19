@@ -6,6 +6,11 @@ import { db } from '../db';
 import { userFeedback } from '../db/schema';
 import { logger } from '../utils/logger';
 import type { FeedbackCategory, FeedbackTopic } from '@wondertales/shared';
+import { eq } from 'drizzle-orm';
+import {
+  mergeFeedbackContentReviewResult,
+  type FeedbackContentReviewResult,
+} from './feedbackContentReviewContext';
 
 export interface CreateFeedbackInput {
   userId?: string;
@@ -26,7 +31,9 @@ export interface CreateFeedbackInput {
     sceneId?: number;
     contentType?: string;
     contentReviewStatus?: string;
+    contentReviewQueued?: boolean;
     contentQuarantined?: boolean;
+    quarantinedStoryId?: string;
   };
 }
 
@@ -61,4 +68,29 @@ export async function createFeedback(input: CreateFeedbackInput): Promise<{ id: 
   );
 
   return { id: row.id };
+}
+
+export async function updateFeedbackContentReviewResult(
+  feedbackId: string,
+  review: FeedbackContentReviewResult
+): Promise<void> {
+  const [row] = await db
+    .select({ context: userFeedback.context })
+    .from(userFeedback)
+    .where(eq(userFeedback.id, feedbackId))
+    .limit(1);
+
+  if (!row) {
+    logger.warn(
+      { feedbackId, contentReviewReason: review.reason },
+      'Feedback not found for content review result'
+    );
+    return;
+  }
+
+  const context = mergeFeedbackContentReviewResult(row.context, review);
+  await db
+    .update(userFeedback)
+    .set({ context })
+    .where(eq(userFeedback.id, feedbackId));
 }

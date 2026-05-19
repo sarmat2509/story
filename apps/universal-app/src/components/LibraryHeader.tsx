@@ -124,9 +124,9 @@ function FilterDropdown({
   );
 }
 
-const LibraryHeaderComponent = ({ 
-  viewMode, 
-  currentPage, 
+const LibraryHeaderComponent = ({
+  viewMode,
+  currentPage,
   totalPages,
   initialAudioFilter,
   audioToggleRef,
@@ -148,13 +148,13 @@ const LibraryHeaderComponent = ({
   onReadingTimeChange,
 }: Props) => {
   const [openDropdown, setOpenDropdown] = useState<DropdownKey | null>(null);
-  
+
   // Use ref to store labels - updates on language change but doesn't cause re-creation
   const labelsRef = useRef({
     allStories: t('library.all_stories'),
     audioOnly: t('library.audio_only'),
   });
-  
+
   // Update labels when translation changes
   useEffect(() => {
     labelsRef.current = {
@@ -162,7 +162,7 @@ const LibraryHeaderComponent = ({
       audioOnly: t('library.audio_only'),
     };
   }, [t]);
-  
+
   // Memoize AudioFilterToggle element - only recreate if ref or callback changes
   // Note: initialAudioFilter intentionally NOT in deps - only used for initial mount
   const audioFilterElement = useMemo(() => {
@@ -175,7 +175,8 @@ const LibraryHeaderComponent = ({
         audioOnlyLabel={labelsRef.current.audioOnly}
       />
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // initialAudioFilter is intentionally only read on mount.
+    // eslint-disable-next-line
   }, [audioToggleRef, onToggleAudioFilter]);
 
   const scenarioOptions = useMemo<FilterOption[]>(
@@ -192,17 +193,20 @@ const LibraryHeaderComponent = ({
   const selectedScenarioLabel = selectedScenarioId
     ? scenarioCards.find((c) => c.id === selectedScenarioId)?.name || t('library.all_scenarios')
     : t('library.all_scenarios');
-  const selectedAgeLabel = ageOptions.find((option) => option.value === selectedAgeGroup)?.label ?? t('library.all_ages');
+  const selectedAgeLabel =
+    ageOptions.find((option) => option.value === selectedAgeGroup)?.label ?? t('library.all_ages');
   const selectedLanguageLabel =
-    languageOptions.find((option) => option.value === selectedLanguage)?.label ?? t('library.all_languages');
+    languageOptions.find((option) => option.value === selectedLanguage)?.label ??
+    t('library.all_languages');
   const selectedReadingTimeLabel =
-    readingTimeOptions.find((option) => option.value === selectedReadingTime)?.label ?? t('library.all_reading_times');
-  
+    readingTimeOptions.find((option) => option.value === selectedReadingTime)?.label ??
+    t('library.all_reading_times');
+
   return (
     <View style={styles.header}>
       <View style={styles.leftControls}>
         {audioFilterElement}
-        
+
         {scenarioCards.length > 0 && onScenarioChange && (
           <FilterDropdown
             buttonLabel={selectedScenarioLabel}
@@ -259,7 +263,7 @@ const LibraryHeaderComponent = ({
           />
         )}
       </View>
-      
+
       <View style={styles.rightControls}>
         {totalPages > 1 && (
           <View style={styles.paginationInHeader}>
@@ -284,7 +288,9 @@ const LibraryHeaderComponent = ({
               <Ionicons
                 name="chevron-back"
                 size={20}
-                color={currentPage === 1 ? theme.colors.text.disabled : theme.colors.interactive.primary}
+                color={
+                  currentPage === 1 ? theme.colors.text.disabled : theme.colors.interactive.primary
+                }
               />
             </Pressable>
 
@@ -314,7 +320,9 @@ const LibraryHeaderComponent = ({
                 name="chevron-forward"
                 size={20}
                 color={
-                  currentPage === totalPages ? theme.colors.text.disabled : theme.colors.interactive.primary
+                  currentPage === totalPages
+                    ? theme.colors.text.disabled
+                    : theme.colors.interactive.primary
                 }
               />
             </Pressable>

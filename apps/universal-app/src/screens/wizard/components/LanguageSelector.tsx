@@ -12,18 +12,27 @@ interface Props {
   allowedLanguageCodes?: string[];
 }
 
-export function LanguageSelector({ selected, onSelect, defaultLanguage, allowedLanguageCodes }: Props) {
+export function LanguageSelector({
+  selected,
+  onSelect,
+  defaultLanguage,
+  allowedLanguageCodes,
+}: Props) {
   const { t } = useTranslation();
   const languages = useMemo(
     () =>
-      APP_CONFIG.supportedLanguages.map((code) => {
-        const config = SUPPORTED_LANGUAGES[code];
-        return {
-          code,
-          label: t(`language_names.${code}`, { defaultValue: config.nativeName }),
-          flag: config.flag,
-        };
-      }).filter((lang) => !allowedLanguageCodes?.length || allowedLanguageCodes.includes(lang.code)),
+      APP_CONFIG.supportedLanguages
+        .map((code) => {
+          const config = SUPPORTED_LANGUAGES[code];
+          return {
+            code,
+            label: t(`language_names.${code}`, { defaultValue: config.nativeName }),
+            flag: config.flag,
+          };
+        })
+        .filter(
+          (lang) => !allowedLanguageCodes?.length || allowedLanguageCodes.includes(lang.code)
+        ),
     [allowedLanguageCodes, t]
   );
 
@@ -51,18 +60,12 @@ export function LanguageSelector({ selected, onSelect, defaultLanguage, allowedL
         {languages.map((lang) => (
           <TouchableOpacity
             key={lang.code}
-            style={[
-              styles.chip,
-              selected === lang.code && styles.chipSelected
-            ]}
+            style={[styles.chip, selected === lang.code && styles.chipSelected]}
             onPress={() => onSelect(lang.code)}
             activeOpacity={0.7}
           >
             <Text style={styles.flag}>{lang.flag}</Text>
-            <Text style={[
-              styles.chipText,
-              selected === lang.code && styles.chipTextSelected
-            ]}>
+            <Text style={[styles.chipText, selected === lang.code && styles.chipTextSelected]}>
               {lang.label}
             </Text>
           </TouchableOpacity>

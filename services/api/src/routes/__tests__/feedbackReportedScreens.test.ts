@@ -32,6 +32,7 @@ assert.equal(getFeedbackCategoryForTopic('unsafe_content'), 'bug');
 assert.equal(getFeedbackCategoryForTopic('unsafe_image'), 'bug');
 assert.equal(getFeedbackCategoryForTopic('unsafe_text'), 'bug');
 assert.equal(getFeedbackCategoryForTopic('generation_failed'), 'bug');
+assert.equal(isContentReportTopic('unsafe_content'), true);
 assert.equal(isContentReportTopic('unsafe_image'), true);
 assert.equal(isContentReportTopic('unsafe_text'), true);
 assert.equal(isContentReportTopic('privacy_concern'), true);

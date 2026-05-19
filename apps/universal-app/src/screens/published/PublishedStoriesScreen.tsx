@@ -89,9 +89,13 @@ function renderPublicLanguageSwitcher(
         },
         style: webLanguageSwitcherStyles.select,
       },
-      PUBLIC_SEO_LOCALES.map((locale) => (
-        React.createElement('option', { key: locale, value: locale }, PUBLIC_LANGUAGE_LABELS[locale])
-      ))
+      PUBLIC_SEO_LOCALES.map((locale) =>
+        React.createElement(
+          'option',
+          { key: locale, value: locale },
+          PUBLIC_LANGUAGE_LABELS[locale]
+        )
+      )
     )
   );
 }
@@ -114,9 +118,7 @@ export default function PublishedStoriesScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [navigation]);
 
@@ -171,24 +173,29 @@ export default function PublishedStoriesScreen() {
     setCurrentPage(1);
   }, []);
 
-  const handlePublicLocaleChange = useCallback((locale: PublicSeoLocale) => {
-    const targetPath = buildPublicStoriesPath(locale);
+  const handlePublicLocaleChange = useCallback(
+    (locale: PublicSeoLocale) => {
+      const targetPath = buildPublicStoriesPath(locale);
 
-    void i18n.changeLanguage(locale);
-    void storage.setLanguage(locale);
+      void i18n.changeLanguage(locale);
+      void storage.setLanguage(locale);
 
-    if (typeof window === 'undefined') {
-      return;
-    }
+      if (typeof window === 'undefined') {
+        return;
+      }
 
-    if (window.location.pathname !== targetPath) {
-      window.location.assign(`${window.location.origin}${targetPath}`);
-    }
-  }, [i18n]);
+      if (window.location.pathname !== targetPath) {
+        window.location.assign(`${window.location.origin}${targetPath}`);
+      }
+    },
+    [i18n]
+  );
 
   const offset = useMemo(() => (currentPage - 1) * ITEMS_PER_PAGE, [currentPage]);
   const selectedReadingRange = useMemo(
-    () => READING_TIME_OPTIONS.find((option) => option.value === readingTimeFilter) ?? READING_TIME_OPTIONS[0],
+    () =>
+      READING_TIME_OPTIONS.find((option) => option.value === readingTimeFilter) ??
+      READING_TIME_OPTIONS[0],
     [readingTimeFilter]
   );
   const ageOptions = useMemo(
@@ -309,17 +316,14 @@ export default function PublishedStoriesScreen() {
           <View
             style={[
               styles.gridContainer,
-              Platform.OS === 'web' && { gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any,
+              Platform.OS === 'web' &&
+                ({ gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any),
             ]}
           >
             {stories.map((story, index) =>
               Platform.OS === 'web' ? (
                 <AnimatedSection key={story.id} delay={cardDelay(index)} trigger={enterKey}>
-                  <PublishedStoryCard
-                    story={story}
-                    onPress={handlePress}
-                    variant="grid"
-                  />
+                  <PublishedStoryCard story={story} onPress={handlePress} variant="grid" />
                 </AnimatedSection>
               ) : (
                 <AnimatedSection
@@ -328,11 +332,7 @@ export default function PublishedStoriesScreen() {
                   trigger={enterKey}
                   style={{ width: gridCardWidth }}
                 >
-                  <PublishedStoryCard
-                    story={story}
-                    onPress={handlePress}
-                    variant="grid"
-                  />
+                  <PublishedStoryCard story={story} onPress={handlePress} variant="grid" />
                 </AnimatedSection>
               )
             )}

@@ -17,12 +17,7 @@ export function ChildFormModal({ visible, onClose, childId, initialData }: Props
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   return (
-    <Modal
-      visible={visible}
-      animationType="fade"
-      transparent
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.modal}>
           {visible && (

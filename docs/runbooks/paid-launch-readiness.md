@@ -10,6 +10,13 @@ Run the check before enabling live paid checkout, paid ads, annual plans, or bro
 pnpm launch:check-paid-readiness
 ```
 
+For native App Store / Google Play readiness, also run:
+
+```bash
+pnpm launch:check-native-store-readiness -- --env-file=.env.production
+pnpm launch:check-revenuecat-catalog -- --env-file=.env.production
+```
+
 The check intentionally sits outside `pnpm launch:gate`. Public beta builds should keep moving while operator-owned paid-launch decisions are pending, but paid launch should not proceed until this check passes.
 
 ## Required confirmations
@@ -31,6 +38,19 @@ Set these in the operator shell, production secret store, or CI environment used
 - `OPS_ALERT_WEBHOOK_URL` or Telegram alert env: external alert destination for production ops failures.
 - `ADMIN_ALERT_WEBHOOK_URL`, `OPS_ALERT_WEBHOOK_URL`, or Telegram alert env: external alert destination for admin dashboard cost, queue, and quality-review alerts.
 - `PROD_ADMIN_ALERT_TOKEN` or `PROD_ADMIN_ALERT_EMAIL` plus `PROD_ADMIN_ALERT_PASSWORD`: admin dashboard alert checker authentication.
+
+## Native store confirmations
+
+These remain human-owned because they live in App Store Connect, Play Console,
+RevenueCat, EAS account env, or reviewer notes rather than in the repository.
+
+- EAS production build env exposes `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`, `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`, `EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID`, and `EXPO_PUBLIC_REVENUECAT_OFFERING_ID`.
+- App Store Connect has approved subscription products matching `com.wondertales.<plan>.monthly`.
+- Google Play Console has active subscriptions/base plans matching `com.wondertales.<plan>:monthly`.
+- RevenueCat offering/packages attach only App Store, Google Play, or Test Store product ids; no Stripe `price_...` or `prod_...` ids are present.
+- RevenueCat webhook points to `/api/v1/billing/webhook/revenuecat` and sends the same Bearer value configured in `REVENUECAT_WEBHOOK_AUTHORIZATION`.
+- Native review notes explain that web uses Stripe but iOS/Android digital subscriptions are purchased and restored in-app through the store account.
+- Native one-time bundles stay disabled until matching store one-time products and policy-reviewed copy exist.
 
 ## Operator notes
 

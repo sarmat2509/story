@@ -13,11 +13,11 @@ interface QueueItem {
 interface OfflineState {
   // Queue
   queue: QueueItem[];
-  
+
   // Sync status
   isSyncing: boolean;
   lastSyncAt: number | null;
-  
+
   // Actions
   addToQueue: (type: string, data: any) => void;
   removeFromQueue: (id: string) => void;
@@ -43,19 +43,20 @@ export const useOfflineStore = create<OfflineState>()(
         };
         set((state) => ({ queue: [...state.queue, item] }));
       },
-      
-      removeFromQueue: (id) => set((state) => ({
-        queue: state.queue.filter(item => item.id !== id)
-      })),
-      
+
+      removeFromQueue: (id) =>
+        set((state) => ({
+          queue: state.queue.filter((item) => item.id !== id),
+        })),
+
       clearQueue: () => set({ queue: [] }),
-      
+
       syncQueue: async () => {
         const { queue, isSyncing } = get();
         if (isSyncing || queue.length === 0) return;
-        
+
         set({ isSyncing: true });
-        
+
         try {
           // TODO: Implement actual sync logic
           // For now, just clear the queue
@@ -66,7 +67,7 @@ export const useOfflineStore = create<OfflineState>()(
           set({ isSyncing: false });
         }
       },
-      
+
       setSyncing: (syncing) => set({ isSyncing: syncing }),
     }),
     {

@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ActivityIndicator, View, TouchableOpacity, Text, StyleSheet, Modal, Pressable, Platform } from 'react-native';
+import {
+  ActivityIndicator,
+  View,
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  Modal,
+  Pressable,
+  Platform,
+} from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { createDrawerNavigator } from '@react-navigation/drawer';
@@ -75,11 +84,7 @@ function WizardScreenWithAuth() {
       </AuthGuard>
     );
   }
-  return (
-    <AuthGuard>
-      {isInstantMode ? <InstantWizardScreen /> : <WizardScreen />}
-    </AuthGuard>
-  );
+  return <AuthGuard>{isInstantMode ? <InstantWizardScreen /> : <WizardScreen />}</AuthGuard>;
 }
 function DashboardScreenWithAuth() {
   return (
@@ -203,7 +208,12 @@ function ThemeSettingsScreenWithAuth() {
   );
 }
 
-const MOBILE_TAB_ORDER: (keyof MainTabParamList)[] = ['Dashboard', 'Wizard', 'Library', 'Characters'];
+const MOBILE_TAB_ORDER: (keyof MainTabParamList)[] = [
+  'Dashboard',
+  'Wizard',
+  'Library',
+  'Characters',
+];
 const TABLET_TAB_ORDER: (keyof MainTabParamList)[] = [
   'Dashboard',
   'Wizard',
@@ -213,9 +223,26 @@ const TABLET_TAB_ORDER: (keyof MainTabParamList)[] = [
   'Plans',
   'Profile',
 ];
-const MORE_MENU_ROUTES: (keyof MainTabParamList)[] = ['Series', 'Stories', 'Children', 'Plans', 'Profile'];
-const MOBILE_TAB_ORDER_CHILD: (keyof MainTabParamList)[] = ['Dashboard', 'Wizard', 'Library', 'Characters'];
-const TABLET_TAB_ORDER_CHILD: (keyof MainTabParamList)[] = ['Dashboard', 'Wizard', 'Library', 'Characters', 'Stories'];
+const MORE_MENU_ROUTES: (keyof MainTabParamList)[] = [
+  'Series',
+  'Stories',
+  'Children',
+  'Plans',
+  'Profile',
+];
+const MOBILE_TAB_ORDER_CHILD: (keyof MainTabParamList)[] = [
+  'Dashboard',
+  'Wizard',
+  'Library',
+  'Characters',
+];
+const TABLET_TAB_ORDER_CHILD: (keyof MainTabParamList)[] = [
+  'Dashboard',
+  'Wizard',
+  'Library',
+  'Characters',
+  'Stories',
+];
 const MORE_MENU_ROUTES_CHILD: (keyof MainTabParamList)[] = ['Stories'];
 
 const MOBILE_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories'];
@@ -260,17 +287,25 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
     isChildSession && activeChild?.childMode?.childModeSettings?.publicStoriesEnabled !== false;
   const activeRouteName = state.routes[state.index]?.name;
   const moreMenuRoutes = isChildSession
-    ? childCanReadPublicStories ? MORE_MENU_ROUTES_CHILD : []
+    ? childCanReadPublicStories
+      ? MORE_MENU_ROUTES_CHILD
+      : []
     : isAuthenticated
       ? MORE_MENU_ROUTES
       : MORE_MENU_ROUTES_PUBLIC;
   const isMoreActive = moreMenuRoutes.includes(activeRouteName as keyof MainTabParamList);
 
   const tabOrder = isChildSession
-    ? (isTablet && childCanReadPublicStories ? TABLET_TAB_ORDER_CHILD : MOBILE_TAB_ORDER_CHILD)
+    ? isTablet && childCanReadPublicStories
+      ? TABLET_TAB_ORDER_CHILD
+      : MOBILE_TAB_ORDER_CHILD
     : isAuthenticated
-    ? (isTablet ? TABLET_TAB_ORDER : MOBILE_TAB_ORDER)
-    : (isTablet ? TABLET_TAB_ORDER_PUBLIC : MOBILE_TAB_ORDER_PUBLIC);
+      ? isTablet
+        ? TABLET_TAB_ORDER
+        : MOBILE_TAB_ORDER
+      : isTablet
+        ? TABLET_TAB_ORDER_PUBLIC
+        : MOBILE_TAB_ORDER_PUBLIC;
   const showMoreButton = isAuthenticated && !isTablet && moreMenuRoutes.length > 0;
 
   const handleTabPress = (name: keyof MainTabParamList) => {
@@ -289,19 +324,23 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
     setMoreVisible(false);
   };
 
-  const moreMenuItems: { name: keyof MainTabParamList; icon: keyof typeof Ionicons.glyphMap; labelKey: string }[] = isChildSession
-    ? childCanReadPublicStories ? [
-        { name: 'Stories', icon: 'newspaper-outline', labelKey: 'navigation.published_stories' },
-      ] : []
+  const moreMenuItems: {
+    name: keyof MainTabParamList;
+    icon: keyof typeof Ionicons.glyphMap;
+    labelKey: string;
+  }[] = isChildSession
+    ? childCanReadPublicStories
+      ? [{ name: 'Stories', icon: 'newspaper-outline', labelKey: 'navigation.published_stories' }]
+      : []
     : isAuthenticated
-    ? [
-        { name: 'Series', icon: 'layers-outline', labelKey: 'navigation.series' },
-        { name: 'Stories', icon: 'newspaper-outline', labelKey: 'navigation.published_stories' },
-        { name: 'Children', icon: 'people-outline', labelKey: 'navigation.tab_children' },
-        { name: 'Plans', icon: 'diamond-outline', labelKey: 'navigation.tab_plans' },
-        { name: 'Profile', icon: 'person-outline', labelKey: 'navigation.tab_profile' },
-      ]
-    : [];
+      ? [
+          { name: 'Series', icon: 'layers-outline', labelKey: 'navigation.series' },
+          { name: 'Stories', icon: 'newspaper-outline', labelKey: 'navigation.published_stories' },
+          { name: 'Children', icon: 'people-outline', labelKey: 'navigation.tab_children' },
+          { name: 'Plans', icon: 'diamond-outline', labelKey: 'navigation.tab_plans' },
+          { name: 'Profile', icon: 'person-outline', labelKey: 'navigation.tab_profile' },
+        ]
+      : [];
 
   return (
     <View style={mobileTabBarStyles.container}>
@@ -337,7 +376,11 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
             <Text
               style={[
                 mobileTabBarStyles.tabLabel,
-                { color: isMoreActive ? theme.colors.interactive.primary : theme.colors.text.tertiary },
+                {
+                  color: isMoreActive
+                    ? theme.colors.interactive.primary
+                    : theme.colors.text.tertiary,
+                },
               ]}
               numberOfLines={1}
             >
@@ -361,7 +404,11 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
                 <Ionicons
                   name={item.icon}
                   size={22}
-                  color={activeRouteName === item.name ? theme.colors.interactive.primary : theme.colors.text.primary}
+                  color={
+                    activeRouteName === item.name
+                      ? theme.colors.interactive.primary
+                      : theme.colors.text.primary
+                  }
                 />
                 <Text
                   style={[
@@ -509,10 +556,10 @@ function TabNavigator() {
           tabBarButton: () => null,
         }}
       />
-      <Tab.Screen 
-        name="Dashboard" 
+      <Tab.Screen
+        name="Dashboard"
         component={DashboardScreenWithAuth}
-        options={{ 
+        options={{
           title: t('navigation.dashboard'),
           tabBarLabel: t('navigation.tab_dashboard'),
           tabBarIcon: ({ color, size }) => (
@@ -521,10 +568,10 @@ function TabNavigator() {
           tabBarButton: !isAuthenticated ? () => null : undefined,
         }}
       />
-      <Tab.Screen 
-        name="Wizard" 
+      <Tab.Screen
+        name="Wizard"
         component={WizardScreenWithAuth}
-        options={{ 
+        options={{
           title: t('navigation.create_story'),
           tabBarLabel: t('navigation.tab_create_story'),
           tabBarIcon: ({ color, size }) => (
@@ -533,10 +580,10 @@ function TabNavigator() {
           tabBarButton: !isAuthenticated ? () => null : undefined,
         }}
       />
-      <Tab.Screen 
-        name="Library" 
+      <Tab.Screen
+        name="Library"
         component={LibraryScreenWithAuth}
-        options={{ 
+        options={{
           title: t('navigation.library'),
           tabBarLabel: t('navigation.tab_library'),
           tabBarIcon: ({ color, size }) => (
@@ -545,52 +592,52 @@ function TabNavigator() {
           tabBarButton: !isAuthenticated ? () => null : undefined,
         }}
       />
-      <Tab.Screen 
-        name="LibraryRedirect" 
+      <Tab.Screen
+        name="LibraryRedirect"
         component={LegacyRedirectScreen}
         options={{ tabBarButton: () => null }}
       />
-      <Tab.Screen 
-        name="Series" 
+      <Tab.Screen
+        name="Series"
         component={SeriesListScreenWithAuth}
-        options={{ 
+        options={{
           title: 'Series',
           tabBarButton: () => null,
         }}
       />
-      <Tab.Screen 
-        name="SeriesDetail" 
+      <Tab.Screen
+        name="SeriesDetail"
         component={SeriesDetailScreenWithAuth}
-        options={{ 
+        options={{
           title: 'Series Detail',
           tabBarButton: () => null,
         }}
       />
-      <Tab.Screen 
-        name="StoryRedirect" 
+      <Tab.Screen
+        name="StoryRedirect"
         component={LegacyRedirectScreen}
         options={{ tabBarButton: () => null }}
       />
-      <Tab.Screen 
-        name="Story" 
+      <Tab.Screen
+        name="Story"
         component={StoryReaderScreenWithAuth}
-        options={{ 
+        options={{
           title: 'Story',
           tabBarButton: () => null,
         }}
       />
-      <Tab.Screen 
-        name="Stories" 
+      <Tab.Screen
+        name="Stories"
         component={PublishedStoriesScreen}
-        options={{ 
+        options={{
           title: t('navigation.published_stories'),
           tabBarButton: () => null,
         }}
       />
-      <Tab.Screen 
-        name="PublishedStory" 
+      <Tab.Screen
+        name="PublishedStory"
         component={StoryReaderScreen}
-        options={{ 
+        options={{
           title: 'Story',
           tabBarButton: () => null,
         }}
@@ -603,19 +650,19 @@ function TabNavigator() {
           tabBarButton: () => null,
         }}
       />
-      <Tab.Screen 
-        name="UnlistedStory" 
+      <Tab.Screen
+        name="UnlistedStory"
         component={StoryReaderScreen}
-        options={{ 
+        options={{
           title: 'Story',
           tabBarButton: () => null,
         }}
       />
       {!isInstantMode && !isChildSession && (
-        <Tab.Screen 
-          name="Children" 
+        <Tab.Screen
+          name="Children"
           component={ChildrenScreenWithAuth}
-          options={{ 
+          options={{
             title: t('navigation.children'),
             tabBarLabel: t('navigation.tab_children'),
             tabBarIcon: ({ color, size }) => (
@@ -636,10 +683,10 @@ function TabNavigator() {
         />
       )}
       {(!isInstantMode || isChildSession) && (
-        <Tab.Screen 
-          name="Characters" 
+        <Tab.Screen
+          name="Characters"
           component={CharactersScreenWithAuth}
-          options={{ 
+          options={{
             title: t('navigation.characters'),
             tabBarLabel: t('navigation.tab_characters'),
             tabBarIcon: ({ color, size }) => (
@@ -649,18 +696,18 @@ function TabNavigator() {
           }}
         />
       )}
-      <Tab.Screen 
-        name="BillingSuccess" 
+      <Tab.Screen
+        name="BillingSuccess"
         component={BillingSuccessScreen}
-        options={{ 
+        options={{
           title: t('billing.success_title'),
           tabBarButton: () => null,
         }}
       />
-      <Tab.Screen 
-        name="Plans" 
+      <Tab.Screen
+        name="Plans"
         component={PlansScreenWithAccess}
-        options={{ 
+        options={{
           title: t('navigation.plans'),
           tabBarLabel: t('navigation.tab_plans'),
           tabBarIcon: ({ color, size }) => (
@@ -669,10 +716,10 @@ function TabNavigator() {
           tabBarButton: !isAuthenticated || isChildSession ? () => null : undefined,
         }}
       />
-      <Tab.Screen 
-        name="Profile" 
+      <Tab.Screen
+        name="Profile"
         component={ProfileScreenWithAuth}
-        options={{ 
+        options={{
           title: t('navigation.profile'),
           tabBarLabel: t('navigation.tab_profile'),
           tabBarIcon: ({ color, size }) => (
@@ -681,10 +728,10 @@ function TabNavigator() {
           tabBarButton: !isAuthenticated || isChildSession ? () => null : undefined,
         }}
       />
-<Tab.Screen 
-        name="LanguageSettings" 
+      <Tab.Screen
+        name="LanguageSettings"
         component={LanguageSettingsScreenWithAuth}
-        options={{ 
+        options={{
           title: t('profile.language_settings'),
           tabBarButton: () => null,
         }}
@@ -713,10 +760,7 @@ function DrawerBurgerButton() {
   const collapsed = useDrawerCollapsedStore((s) => s.collapsed);
   const toggle = useDrawerCollapsedStore((s) => s.toggle);
   return (
-    <TouchableOpacity
-      onPress={toggle}
-      style={{ paddingHorizontal: 16 }}
-    >
+    <TouchableOpacity onPress={toggle} style={{ paddingHorizontal: 16 }}>
       <MaterialCommunityIcons
         name={collapsed ? 'menu-close' : 'menu-open'}
         size={24}
@@ -754,7 +798,7 @@ function DrawerNavigator() {
         drawerActiveTintColor: theme.colors.interactive.primary,
         drawerInactiveTintColor: theme.colors.text.tertiary,
         drawerStyle: { width: drawerWidth },
-        headerLeft: (isTablet || isDesktop) ? () => <DrawerBurgerButton /> : undefined,
+        headerLeft: isTablet || isDesktop ? () => <DrawerBurgerButton /> : undefined,
       }}
     >
       <Drawer.Screen
@@ -800,10 +844,10 @@ function DrawerNavigator() {
           drawerItemStyle: { display: 'none' },
         }}
       />
-      <Drawer.Screen 
-        name="Dashboard" 
+      <Drawer.Screen
+        name="Dashboard"
         component={DashboardScreenWithAuth}
-        options={{ 
+        options={{
           title: t('navigation.dashboard'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
@@ -811,10 +855,10 @@ function DrawerNavigator() {
           drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
         }}
       />
-      <Drawer.Screen 
-        name="Wizard" 
+      <Drawer.Screen
+        name="Wizard"
         component={WizardScreenWithAuth}
-        options={{ 
+        options={{
           title: t('navigation.create_story'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="create-outline" size={size} color={color} />
@@ -822,10 +866,10 @@ function DrawerNavigator() {
           drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
         }}
       />
-      <Drawer.Screen 
-        name="Library" 
+      <Drawer.Screen
+        name="Library"
         component={LibraryScreenWithAuth}
-        options={{ 
+        options={{
           title: t('navigation.library'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="library-outline" size={size} color={color} />
@@ -833,60 +877,59 @@ function DrawerNavigator() {
           drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
         }}
       />
-      <Drawer.Screen 
-        name="Series" 
+      <Drawer.Screen
+        name="Series"
         component={SeriesListScreenWithAuth}
-        options={{ 
+        options={{
           title: t('navigation.series'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="layers-outline" size={size} color={color} />
           ),
-          drawerItemStyle: !isAuthenticated || isChildSession
-            ? { display: 'none' }
-            : undefined,
+          drawerItemStyle: !isAuthenticated || isChildSession ? { display: 'none' } : undefined,
         }}
       />
-      <Drawer.Screen 
-        name="SeriesDetail" 
+      <Drawer.Screen
+        name="SeriesDetail"
         component={SeriesDetailScreenWithAuth}
-        options={{ 
+        options={{
           title: 'Series Detail',
           drawerItemStyle: { display: 'none' },
         }}
       />
-      <Drawer.Screen 
-        name="LibraryRedirect" 
+      <Drawer.Screen
+        name="LibraryRedirect"
         component={LegacyRedirectScreen}
         options={{ drawerItemStyle: { display: 'none' } }}
       />
-      <Drawer.Screen 
-        name="StoryRedirect" 
+      <Drawer.Screen
+        name="StoryRedirect"
         component={LegacyRedirectScreen}
         options={{ drawerItemStyle: { display: 'none' } }}
       />
-      <Drawer.Screen 
-        name="Story" 
+      <Drawer.Screen
+        name="Story"
         component={StoryReaderScreenWithAuth}
-        options={{ 
+        options={{
           title: 'Story',
           drawerItemStyle: { display: 'none' },
         }}
       />
-      <Drawer.Screen 
-        name="Stories" 
+      <Drawer.Screen
+        name="Stories"
         component={PublishedStoriesScreen}
-        options={{ 
+        options={{
           title: t('navigation.published_stories'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="newspaper-outline" size={size} color={color} />
           ),
-          drawerItemStyle: isChildSession && !childCanReadPublicStories ? { display: 'none' } : undefined,
+          drawerItemStyle:
+            isChildSession && !childCanReadPublicStories ? { display: 'none' } : undefined,
         }}
       />
-      <Drawer.Screen 
-        name="PublishedStory" 
+      <Drawer.Screen
+        name="PublishedStory"
         component={StoryReaderScreen}
-        options={{ 
+        options={{
           title: 'Story',
           drawerItemStyle: { display: 'none' },
         }}
@@ -899,19 +942,19 @@ function DrawerNavigator() {
           drawerItemStyle: { display: 'none' },
         }}
       />
-      <Drawer.Screen 
-        name="UnlistedStory" 
+      <Drawer.Screen
+        name="UnlistedStory"
         component={StoryReaderScreen}
-        options={{ 
+        options={{
           title: 'Story',
           drawerItemStyle: { display: 'none' },
         }}
       />
       {!isInstantMode && !isChildSession && (
-        <Drawer.Screen 
-          name="Children" 
+        <Drawer.Screen
+          name="Children"
           component={ChildrenScreenWithAuth}
-          options={{ 
+          options={{
             title: t('navigation.children'),
             drawerIcon: ({ color, size }) => (
               <Ionicons name="people-outline" size={size} color={color} />
@@ -931,10 +974,10 @@ function DrawerNavigator() {
         />
       )}
       {(!isInstantMode || isChildSession) && (
-        <Drawer.Screen 
-          name="Characters" 
+        <Drawer.Screen
+          name="Characters"
           component={CharactersScreenWithAuth}
-          options={{ 
+          options={{
             title: t('navigation.characters'),
             drawerIcon: ({ color, size }) => (
               <Ionicons name="body-outline" size={size} color={color} />
@@ -943,18 +986,18 @@ function DrawerNavigator() {
           }}
         />
       )}
-      <Drawer.Screen 
-        name="BillingSuccess" 
+      <Drawer.Screen
+        name="BillingSuccess"
         component={BillingSuccessScreen}
-        options={{ 
+        options={{
           title: t('billing.success_title'),
           drawerItemStyle: { display: 'none' },
         }}
       />
-      <Drawer.Screen 
-        name="Plans" 
+      <Drawer.Screen
+        name="Plans"
         component={PlansScreenWithAccess}
-        options={{ 
+        options={{
           title: t('navigation.plans'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="diamond-outline" size={size} color={color} />
@@ -962,10 +1005,10 @@ function DrawerNavigator() {
           drawerItemStyle: !isAuthenticated || isChildSession ? { display: 'none' } : undefined,
         }}
       />
-      <Drawer.Screen 
-        name="Profile" 
+      <Drawer.Screen
+        name="Profile"
         component={ProfileScreenWithAuth}
-        options={{ 
+        options={{
           title: t('navigation.profile'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
@@ -973,10 +1016,10 @@ function DrawerNavigator() {
           drawerItemStyle: !isAuthenticated || isChildSession ? { display: 'none' } : undefined,
         }}
       />
-      <Drawer.Screen 
-        name="LanguageSettings" 
+      <Drawer.Screen
+        name="LanguageSettings"
         component={LanguageSettingsScreenWithAuth}
-        options={{ 
+        options={{
           title: t('profile.language_settings'),
           drawerItemStyle: { display: 'none' },
         }}
@@ -989,10 +1032,10 @@ function DrawerNavigator() {
           drawerItemStyle: { display: 'none' },
         }}
       />
-      <Drawer.Screen 
-        name="NotFound" 
+      <Drawer.Screen
+        name="NotFound"
         component={NotFoundScreen}
-        options={{ 
+        options={{
           title: '404',
           drawerItemStyle: { display: 'none' },
         }}

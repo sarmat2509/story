@@ -15,7 +15,11 @@ interface PublishedStoryCtaProps {
  * CTA block for unauthenticated users viewing a published story.
  * "Увійти та створити" - sign in and create your own story.
  */
-export function PublishedStoryCta({ slug: _slug, isAuthenticated, inSidebar }: PublishedStoryCtaProps) {
+export function PublishedStoryCta({
+  slug: _slug,
+  isAuthenticated,
+  inSidebar,
+}: PublishedStoryCtaProps) {
   const { t, i18n } = useTranslation();
 
   if (isAuthenticated) {

@@ -1,4 +1,8 @@
-import { DEFAULT_THEME_PALETTE_ID, THEME_PALETTE_IDS, type ThemePaletteId } from '@wondertales/shared';
+import {
+  DEFAULT_THEME_PALETTE_ID,
+  THEME_PALETTE_IDS,
+  type ThemePaletteId,
+} from '@wondertales/shared';
 
 const STORAGE_KEY = 'wondertales.active_theme_palette';
 

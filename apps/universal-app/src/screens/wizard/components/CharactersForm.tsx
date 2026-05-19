@@ -34,12 +34,12 @@ interface Props {
   characters?: Character[];
   selectedCharacters: string[];
   onCharactersChange: (ids: string[]) => void;
-  
+
   children?: ChildProfile[];
   selectedChildren: string[];
   onChildrenChange: (ids: string[]) => void;
   showChildren?: boolean;
-  
+
   onAddCharacter?: () => void;
   onAddChild?: () => void;
 }
@@ -53,15 +53,15 @@ export function CharactersForm({
   onChildrenChange,
   showChildren = true,
   onAddCharacter,
-  onAddChild
+  onAddChild,
 }: Props) {
   const { t } = useTranslation();
-  
+
   const toggleItem = (item: DisplayItem) => {
     if (item.isChild) {
       // Toggle child
       if (selectedChildren.includes(item.id)) {
-        onChildrenChange(selectedChildren.filter(id => id !== item.id));
+        onChildrenChange(selectedChildren.filter((id) => id !== item.id));
       } else {
         // Check total limit
         const totalSelected = selectedChildren.length + selectedCharacters.length;
@@ -72,7 +72,7 @@ export function CharactersForm({
     } else {
       // Toggle character
       if (selectedCharacters.includes(item.id)) {
-        onCharactersChange(selectedCharacters.filter(id => id !== item.id));
+        onCharactersChange(selectedCharacters.filter((id) => id !== item.id));
       } else {
         // Check total limit
         const totalSelected = selectedChildren.length + selectedCharacters.length;
@@ -97,7 +97,7 @@ export function CharactersForm({
         return '👤';
     }
   };
-  
+
   const getCharacterTypeName = (type: string): string => {
     switch (type) {
       case 'child':
@@ -112,29 +112,33 @@ export function CharactersForm({
         return t('characters.title');
     }
   };
-  
+
   // Merge children and characters into unified list
   const allItems: DisplayItem[] = [
-    ...(showChildren ? children.map(c => ({
-      id: c.id,
-      name: c.name,
-      type: 'child',
-      icon: getCharacterIcon('child'),
-      badge: getCharacterTypeName('child'),
-      isChild: true,
-      avatarUrl: c.turnaroundSheet?.frontUrl ?? c.turnaroundSheet?.url ?? c.referencePhotos?.[0]?.url,
-    })) : []),
-    ...characters.map(c => ({
+    ...(showChildren
+      ? children.map((c) => ({
+          id: c.id,
+          name: c.name,
+          type: 'child',
+          icon: getCharacterIcon('child'),
+          badge: getCharacterTypeName('child'),
+          isChild: true,
+          avatarUrl:
+            c.turnaroundSheet?.frontUrl ?? c.turnaroundSheet?.url ?? c.referencePhotos?.[0]?.url,
+        }))
+      : []),
+    ...characters.map((c) => ({
       id: c.id,
       name: c.name,
       type: c.type,
       icon: getCharacterIcon(c.type),
       badge: getCharacterTypeName(c.type),
       isChild: false,
-      avatarUrl: c.turnaroundSheet?.frontUrl ?? c.turnaroundSheet?.url ?? c.referencePhotos?.[0]?.url,
-    }))
+      avatarUrl:
+        c.turnaroundSheet?.frontUrl ?? c.turnaroundSheet?.url ?? c.referencePhotos?.[0]?.url,
+    })),
   ];
-  
+
   const totalSelected = selectedChildren.length + selectedCharacters.length;
   const hasAnyItems = (showChildren && children.length > 0) || characters.length > 0;
 
@@ -142,29 +146,21 @@ export function CharactersForm({
     <View style={styles.container}>
       {/* Characters and Children List */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>
-          {t('characters.select_children_and_characters')}
-        </Text>
-        
+        <Text style={styles.sectionLabel}>{t('characters.select_children_and_characters')}</Text>
+
         {!hasAnyItems ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>👥</Text>
             <Text style={styles.emptyText}>{t('characters.no_characters')}</Text>
             <View style={styles.addButtonsContainer}>
               {onAddChild && (
-                <TouchableOpacity 
-                  style={styles.addButton}
-                  onPress={onAddChild}
-                >
+                <TouchableOpacity style={styles.addButton} onPress={onAddChild}>
                   <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
                   <Text style={styles.addButtonText}>{t('characters.add_child_to_story')}</Text>
                 </TouchableOpacity>
               )}
               {onAddCharacter && (
-                <TouchableOpacity 
-                  style={styles.addButton}
-                  onPress={onAddCharacter}
-                >
+                <TouchableOpacity style={styles.addButton} onPress={onAddCharacter}>
                   <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
                   <Text style={styles.addButtonText}>{t('characters.add_character')}</Text>
                 </TouchableOpacity>
@@ -174,18 +170,18 @@ export function CharactersForm({
         ) : (
           <View style={styles.charactersList}>
             {allItems.map((item) => {
-              const isSelected = item.isChild 
+              const isSelected = item.isChild
                 ? selectedChildren.includes(item.id)
                 : selectedCharacters.includes(item.id);
               const isDisabled = !isSelected && totalSelected >= 5;
-              
+
               return (
                 <TouchableOpacity
                   key={item.id}
                   style={[
                     styles.characterItem,
                     isSelected && styles.characterItemSelected,
-                    isDisabled && styles.characterItemDisabled
+                    isDisabled && styles.characterItemDisabled,
                   ]}
                   onPress={() => !isDisabled && toggleItem(item)}
                   disabled={isDisabled}
@@ -199,26 +195,18 @@ export function CharactersForm({
                         resizeMode="contain"
                       />
                     ) : (
-                      <Text style={styles.characterIcon}>
-                        {item.icon}
-                      </Text>
+                      <Text style={styles.characterIcon}>{item.icon}</Text>
                     )}
                     <View>
-                      <Text style={[
-                        styles.characterName,
-                        isDisabled && styles.characterNameDisabled
-                      ]}>
+                      <Text
+                        style={[styles.characterName, isDisabled && styles.characterNameDisabled]}
+                      >
                         {item.name}
                       </Text>
-                      <Text style={styles.characterType}>
-                        {item.badge}
-                      </Text>
+                      <Text style={styles.characterType}>{item.badge}</Text>
                     </View>
                   </View>
-                  <View style={[
-                    styles.checkbox,
-                    isSelected && styles.checkboxSelected
-                  ]}>
+                  <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
                     {isSelected && (
                       <Ionicons name="checkmark" size={18} color={theme.colors.text.inverse} />
                     )}

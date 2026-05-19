@@ -34,7 +34,9 @@ import type { MainDrawerParamList } from '@/types/navigation';
 const removeAudioTags = (text: string): string => {
   let t = text.replace(/<[^>]+>/g, '');
   t = t.replace(/\[[^\]]*\]/g, '');
-  return stripMarkdownStyleEmphasis(t).replace(/\s{2,}/g, ' ').trim();
+  return stripMarkdownStyleEmphasis(t)
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 };
 
 type RouteProps = RouteProp<MainDrawerParamList, 'PublishedStory' | 'UnlistedStory'>;
@@ -58,9 +60,7 @@ export default function PublishedStoryScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: story?.title ?? '',
-      headerRight: () => (
-        <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />
-      ),
+      headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [navigation, story?.title]);
 
@@ -96,25 +96,24 @@ export default function PublishedStoryScreen() {
 
   const sceneTexts = useMemo(
     () => (story?.scenes ?? []).map((s: any) => removeAudioTags(s.text || '')),
-    [story?.scenes],
+    [story?.scenes]
   );
 
   const readingTimeMinutes = useMemo(
     () => getReadingTimeMinutes(story?.scenes ?? []),
-    [story?.scenes],
+    [story?.scenes]
   );
 
   const { activeSentenceIndex, activeWordIndex, sentences } = useAlignmentSync(
     story?.fullText || '',
     alignment,
     currentPosition,
-    sceneTexts,
+    sceneTexts
   );
 
   // Derive active scene from the active sentence
-  const activeSceneIndex = activeSentenceIndex !== null
-    ? (sentences[activeSentenceIndex]?.sceneIndex ?? null)
-    : null;
+  const activeSceneIndex =
+    activeSentenceIndex !== null ? (sentences[activeSentenceIndex]?.sceneIndex ?? null) : null;
 
   // Auto-scroll to the active scene when it changes (mirrors StoryViewerScreen)
   useEffect(() => {
@@ -131,7 +130,7 @@ export default function PublishedStoryScreen() {
         (_x: number, y: number) => {
           scrollViewRef.current?.scrollTo({ y: y - 100, animated: true });
         },
-        () => {},
+        () => {}
       );
     }
   }, [activeSceneIndex, effectiveHighlightEnabled]);
@@ -209,7 +208,8 @@ export default function PublishedStoryScreen() {
     : '';
 
   const isOwner = !!(story as any)?.isOwner;
-  const authorAvatarUrl = formatAssetUrl((story as any)?.author?.avatarUrl) ?? (story as any)?.author?.avatarUrl ?? null;
+  const authorAvatarUrl =
+    formatAssetUrl((story as any)?.author?.avatarUrl) ?? (story as any)?.author?.avatarUrl ?? null;
   const authorInitial = (story.authorDisplayName || 'A').trim().charAt(0).toUpperCase();
   const authorId = (story as any)?.author?.id as string | undefined;
   const handleAuthorPress = () => {
@@ -240,7 +240,10 @@ export default function PublishedStoryScreen() {
           >
             <View style={styles.authorAvatar}>
               {authorAvatarUrl ? (
-                <Image source={{ uri: authorAvatarUrl }} style={styles.authorAvatarImage as ImageStyle} />
+                <Image
+                  source={{ uri: authorAvatarUrl }}
+                  style={styles.authorAvatarImage as ImageStyle}
+                />
               ) : (
                 <Text style={styles.authorAvatarFallback}>{authorInitial}</Text>
               )}
@@ -254,15 +257,22 @@ export default function PublishedStoryScreen() {
               <Ionicons name="chevron-forward" size={18} color={theme.colors.text.tertiary} />
             ) : null}
           </TouchableOpacity>
-          {useDesktopLayout ? null : isAuthenticated && isOwner && (
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={() => navigateToStory(story.id)}
-            >
-              <Ionicons name="pencil-outline" size={20} color={theme.colors.interactive.primary} />
-              <Text style={styles.editButtonText}>{t('common.edit')}</Text>
-            </TouchableOpacity>
-          )}
+          {useDesktopLayout
+            ? null
+            : isAuthenticated &&
+              isOwner && (
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => navigateToStory(story.id)}
+                >
+                  <Ionicons
+                    name="pencil-outline"
+                    size={20}
+                    color={theme.colors.interactive.primary}
+                  />
+                  <Text style={styles.editButtonText}>{t('common.edit')}</Text>
+                </TouchableOpacity>
+              )}
         </View>
       </View>
 
@@ -311,7 +321,9 @@ export default function PublishedStoryScreen() {
             <View
               key={scene.sceneId ?? index}
               style={styles.scene}
-              ref={(ref: View | null) => { sceneRefs.current[index] = ref; }}
+              ref={(ref: View | null) => {
+                sceneRefs.current[index] = ref;
+              }}
             >
               {imgUrl && (
                 <Image
@@ -338,7 +350,7 @@ export default function PublishedStoryScreen() {
     if (sceneSentences.length === 0) {
       return <Text style={styles.sceneText}>{cleanedText}</Text>;
     }
-    let renderedText: React.ReactNode[] = [];
+    const renderedText: React.ReactNode[] = [];
     let lastIndex = 0;
     sceneSentences.forEach((sentence, sentenceLocalIndex) => {
       const sentenceIndex = sentences.indexOf(sentence);
@@ -352,7 +364,9 @@ export default function PublishedStoryScreen() {
         const sentenceWords = sentence.words.map((word, wordIndex) => {
           const isActiveWord = isSentenceActive && wordIndex === activeWordIndex;
           const wordStyle = isSentenceActive
-            ? (isActiveWord ? styles.activeWordColor : styles.inactiveWordColor)
+            ? isActiveWord
+              ? styles.activeWordColor
+              : styles.inactiveWordColor
             : undefined;
           return (
             <React.Fragment key={`${sentenceIndex}-${wordIndex}`}>
@@ -371,13 +385,13 @@ export default function PublishedStoryScreen() {
             ]}
           >
             {sentenceWords}
-          </Text>,
+          </Text>
         );
       } else {
         renderedText.push(
           <Text key={`sentence-${sentenceIndex}`} style={styles.sentenceText}>
             {sentence.text}
-          </Text>,
+          </Text>
         );
       }
       if (sentenceLocalIndex < sceneSentences.length - 1) {
@@ -436,9 +450,7 @@ export default function PublishedStoryScreen() {
           <Text style={styles.editButtonText}>{t('common.edit')}</Text>
         </TouchableOpacity>
       )}
-      {!isAuthenticated && (
-        <PublishedStoryCta slug={slug} isAuthenticated={false} inSidebar />
-      )}
+      {!isAuthenticated && <PublishedStoryCta slug={slug} isAuthenticated={false} inSidebar />}
     </>
   );
 
@@ -446,7 +458,11 @@ export default function PublishedStoryScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.desktopLayout}>
-          <ScrollView ref={scrollViewRef} style={styles.leftColumn} contentContainerStyle={styles.leftColumnContent}>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.leftColumn}
+            contentContainerStyle={styles.leftColumnContent}
+          >
             <View style={styles.contentWrapper}>{renderMainContent()}</View>
           </ScrollView>
           <View style={styles.rightColumn}>
@@ -470,7 +486,11 @@ export default function PublishedStoryScreen() {
 
   return (
     <>
-      <ScrollView ref={scrollViewRef} style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.container}
+        contentContainerStyle={styles.content}
+      >
         <View style={styles.contentWrapper}>{renderMainContent()}</View>
       </ScrollView>
       <FeedbackModal
