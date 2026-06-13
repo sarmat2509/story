@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 import { useAuthStore } from '@/store/authStore';
 import { resolveBillingEntryTarget } from '@/utils/billingEntry';
+import { assignWebLocation, getWebDocumentLang, getWebPathname } from '@/utils/webRuntime';
 
 export interface PaywallModalProps {
   visible: boolean;
@@ -41,16 +42,15 @@ export function PaywallModal({
     const target = resolveBillingEntryTarget({
       isAuthenticated,
       sessionMode,
-      platformOs: typeof window === 'undefined' ? undefined : 'web',
-      pathname: typeof window === 'undefined' ? undefined : window.location.pathname,
-      locale: typeof document === 'undefined' ? undefined : document.documentElement.lang,
+      platformOs: getWebPathname() ? 'web' : undefined,
+      pathname: getWebPathname(),
+      locale: getWebDocumentLang(),
       preferPublicPricingForGuests: true,
     });
 
     onClose();
 
-    if (target.kind === 'public-web-pricing' && typeof window !== 'undefined') {
-      window.location.assign(target.href);
+    if (target.kind === 'public-web-pricing' && assignWebLocation(target.href)) {
       return;
     }
 

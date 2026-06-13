@@ -38,6 +38,7 @@ import { formatAssetUrl, isServerAssetUrl, toCanonicalAssetUrl } from '@/utils/a
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 import { buildAccountDataPrivacyRequestMessage } from '@/utils/privacyRequestMessages';
 import { uploadPhoto, deletePhoto } from '@/utils/uploadPhoto';
+import { assignWebLocation } from '@/utils/webRuntime';
 import { confirmImageRights } from '@/utils/imageRightsConsent';
 import {
   getAnalyticsConsent,
@@ -229,9 +230,11 @@ export default function ProfileScreen() {
     }
     try {
       const { url } = await createPortalSession.mutateAsync();
-      if (url && Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.location.href = url;
-      } else if (url) {
+      if (url && Platform.OS === 'web' && assignWebLocation(url)) {
+        return;
+      }
+
+      if (url) {
         await Linking.openURL(url);
       }
     } catch (err) {

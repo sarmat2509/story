@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import * as Device from 'expo-device';
 import { REVENUECAT_CONFIG } from '@/config/constants';
 
 type RevenueCatModule = typeof import('react-native-purchases');
@@ -6,6 +7,10 @@ type PurchasesPackage = import('react-native-purchases').PurchasesPackage;
 type CustomerInfo = import('react-native-purchases').CustomerInfo;
 
 let configuredForUserId: string | null = null;
+
+function isSimulatorRuntime(): boolean {
+  return !Device.isDevice;
+}
 
 function getRevenueCatApiKey(): string {
   if (Platform.OS === 'ios') return REVENUECAT_CONFIG.iosApiKey;
@@ -17,13 +22,22 @@ function isNativeStorePlatform(): boolean {
   return Platform.OS === 'ios' || Platform.OS === 'android';
 }
 
+function isNativePurchaseRuntimeReady(): boolean {
+  if (!isNativeStorePlatform()) return false;
+
+  // Simulator/emulator builds in this repo do not ship a StoreKit config and
+  // should not initialize RevenueCat purchase flows. Without this guard,
+  // RevenueCat emits "offerings empty" runtime errors on app launch.
+  return !isSimulatorRuntime();
+}
+
 function loadPurchases(): RevenueCatModule | null {
   if (!isNativeStorePlatform()) return null;
   return require('react-native-purchases') as RevenueCatModule;
 }
 
 export function isRevenueCatConfigured(): boolean {
-  return isNativeStorePlatform() && getRevenueCatApiKey().trim().length > 0;
+  return isNativePurchaseRuntimeReady() && getRevenueCatApiKey().trim().length > 0;
 }
 
 export async function configureRevenueCat(userId: string | null | undefined): Promise<void> {

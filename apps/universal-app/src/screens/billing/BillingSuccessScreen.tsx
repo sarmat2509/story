@@ -13,29 +13,26 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
 import { invalidateBillingState } from '@/api/plans';
+import { getWebHistory, getWebHref, getWebSearch } from '@/utils/webRuntime';
 
 export default function BillingSuccessScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const route = useRoute<RouteProp<MainDrawerParamList, 'BillingSuccess'>>();
   const queryClient = useQueryClient();
+  const webSearch = getWebSearch();
   const checkoutKind =
-    route.params?.kind ??
-    (typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search).get('kind')
-      : null);
+    route.params?.kind ?? (webSearch ? new URLSearchParams(webSearch).get('kind') : null);
   const isBundleSuccess = checkoutKind === 'bundle';
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
+    const href = getWebHref();
+    const history = getWebHistory();
+    if (href && history) {
+      const url = new URL(href);
       if (url.searchParams.has('session_id')) {
         url.searchParams.delete('session_id');
-        window.history.replaceState(
-          window.history.state,
-          '',
-          `${url.pathname}${url.search}${url.hash}`
-        );
+        history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
       }
     }
 

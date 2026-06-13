@@ -13,7 +13,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '@/components/AppLinearGradient';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,6 +38,7 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { ExpandableCard } from '@/components/ExpandableCard';
+import { assignWebLocation } from '@/utils/webRuntime';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 import {
@@ -143,8 +144,9 @@ export default function PlansScreen() {
     effectiveIsAuthenticated && authData && 'enableRealPayments' in authData
       ? authData.enableRealPayments
       : (publicPlansQuery.data?.enableRealPayments ?? false);
-  const useRevenueCatFlow = enableRealPayments && !isWeb;
   const revenueCatReady = isRevenueCatConfigured();
+  const nativeBillingUnavailable = enableRealPayments && !isWeb && !revenueCatReady;
+  const useRevenueCatFlow = enableRealPayments && !isWeb && revenueCatReady;
   const isLoading = effectiveIsAuthenticated
     ? authPlansQuery.isLoading
     : publicPlansQuery.isLoading;
@@ -158,8 +160,8 @@ export default function PlansScreen() {
     if (enableRealPayments && isWeb) {
       try {
         const { url } = await createCheckoutSession.mutateAsync(selectedPlan.slug);
-        if (typeof window !== 'undefined' && url) {
-          window.location.href = url;
+        if (url && assignWebLocation(url)) {
+          return;
         }
       } catch (err: unknown) {
         console.error('Checkout failed:', err);
@@ -219,8 +221,8 @@ export default function PlansScreen() {
       if (enableRealPayments && isWeb) {
         try {
           const { url } = await createBundleCheckout.mutateAsync(bundleSlug);
-          if (typeof window !== 'undefined' && url) {
-            window.location.href = url;
+          if (url && assignWebLocation(url)) {
+            return;
           }
         } catch (err) {
           console.error('Bundle checkout failed:', err);
@@ -378,7 +380,7 @@ export default function PlansScreen() {
             const isCurrent = isAuthenticated && 'isCurrent' in plan && plan.isCurrent;
             const isFreePlan = plan.slug === 'free';
             const isPaidPlan = plan.priceMonthly > 0;
-            const paidCtaDisabled = isPaidPlan && !enableRealPayments;
+            const paidCtaDisabled = isPaidPlan && (!enableRealPayments || nativeBillingUnavailable);
             const usageHighlight = getCombinedPricingUsageHighlight(
               pricingLocale,
               translatePricing,
@@ -529,6 +531,9 @@ export default function PlansScreen() {
                     'Paid checkout is not enabled yet. Free access remains available while we finish billing verification.',
                 })}
               </Text>
+            )}
+            {nativeBillingUnavailable && (
+              <Text style={styles.billingNoticeText}>{t('plans.revenuecat_not_configured')}</Text>
             )}
             <Text style={styles.billingNoticeText}>
               {t('plans.billing_note_renewal', {
