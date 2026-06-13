@@ -68,7 +68,10 @@
     },
     "onlyBuiltDependencies": [
       "sharp"
-    ]
+    ],
+    "patchedDependencies": {
+      "expo-localization@15.0.3": "patches/expo-localization@15.0.3.patch"
+    }
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",
