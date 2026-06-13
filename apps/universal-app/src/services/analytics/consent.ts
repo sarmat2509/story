@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { getWebLocalStorage } from '@/utils/webRuntime';
 
 export type AnalyticsConsent = 'granted' | 'denied' | null;
 
@@ -15,7 +16,7 @@ const nativeListeners = new Set<() => void>();
 let nativeStorage: NativeAnalyticsConsentStorage | null | undefined;
 
 function isWebStorageAvailable(): boolean {
-  return Platform.OS === 'web' && typeof window !== 'undefined' && !!window.localStorage;
+  return Platform.OS === 'web' && !!getWebLocalStorage();
 }
 
 function getNativeStorage(): NativeAnalyticsConsentStorage | null {
@@ -47,7 +48,7 @@ export function getAnalyticsConsent(): AnalyticsConsent {
       return null;
     }
 
-    return normalizeAnalyticsConsent(window.localStorage.getItem(ANALYTICS_CONSENT_STORAGE_KEY));
+    return normalizeAnalyticsConsent(getWebLocalStorage()?.getItem(ANALYTICS_CONSENT_STORAGE_KEY));
   }
 
   return normalizeAnalyticsConsent(getNativeStorage()?.getString(ANALYTICS_CONSENT_STORAGE_KEY));
@@ -63,7 +64,7 @@ export function setAnalyticsConsent(consent: Exclude<AnalyticsConsent, null>): v
       return;
     }
 
-    window.localStorage.setItem(ANALYTICS_CONSENT_STORAGE_KEY, consent);
+    getWebLocalStorage()?.setItem(ANALYTICS_CONSENT_STORAGE_KEY, consent);
     window.dispatchEvent(new Event(ANALYTICS_CONSENT_CHANGED_EVENT));
     return;
   }

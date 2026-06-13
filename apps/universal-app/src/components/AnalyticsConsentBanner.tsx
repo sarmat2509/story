@@ -11,8 +11,21 @@ import {
 import { theme } from '@/theme';
 
 export function AnalyticsConsentBanner() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [consent, setConsent] = useState<AnalyticsConsent>(() => getAnalyticsConsent());
+  const language = i18n.resolvedLanguage?.split('-')[0] ?? i18n.language?.split('-')[0] ?? 'en';
+  const consentCopy = (
+    i18n.getResourceBundle(language, 'translation') as
+      | {
+          analytics_consent?: {
+            title?: string;
+            body?: string;
+            accept?: string;
+            decline?: string;
+          };
+        }
+      | undefined
+  )?.analytics_consent;
 
   useEffect(
     () =>
@@ -39,8 +52,17 @@ export function AnalyticsConsentBanner() {
   return (
     <View style={styles.banner} accessibilityRole="alert">
       <View style={styles.copy}>
-        <Text style={styles.title}>{t('analytics_consent.title')}</Text>
-        <Text style={styles.body}>{t('analytics_consent.body')}</Text>
+        <Text style={styles.title}>
+          {consentCopy?.title ??
+            t('analytics_consent.title', { defaultValue: 'Optional analytics' })}
+        </Text>
+        <Text style={styles.body}>
+          {consentCopy?.body ??
+            t('analytics_consent.body', {
+              defaultValue:
+                'Help us improve WonderTales with product analytics. We do not send child names, photos, prompts, story text, or narration.',
+            })}
+        </Text>
       </View>
       <View style={styles.actions}>
         <TouchableOpacity
@@ -48,14 +70,19 @@ export function AnalyticsConsentBanner() {
           onPress={() => handleChoice('denied')}
           style={[styles.button, styles.secondaryButton]}
         >
-          <Text style={styles.secondaryText}>{t('analytics_consent.decline')}</Text>
+          <Text style={styles.secondaryText}>
+            {consentCopy?.decline ?? t('analytics_consent.decline', { defaultValue: 'Not now' })}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           accessibilityRole="button"
           onPress={() => handleChoice('granted')}
           style={[styles.button, styles.primaryButton]}
         >
-          <Text style={styles.primaryText}>{t('analytics_consent.accept')}</Text>
+          <Text style={styles.primaryText}>
+            {consentCopy?.accept ??
+              t('analytics_consent.accept', { defaultValue: 'Allow analytics' })}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

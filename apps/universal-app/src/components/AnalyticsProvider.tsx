@@ -44,11 +44,10 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  // Native: wrap with PostHogProvider for autocapture
-  const client = getPostHogClient();
-  if (!client) {
-    return <>{children}</>;
-  }
-  const { PostHogProvider } = require('posthog-react-native');
-  return <PostHogProvider client={client}>{children}</PostHogProvider>;
+  // Native: keep analytics enabled, but avoid the posthog-react-native wrapper.
+  // Its internal navigation autocapture hook currently crashes in our app shell
+  // during cold start on dev builds. Manual analytics still work through the
+  // shared facade initialized below.
+  getPostHogClient();
+  return <>{children}</>;
 }
