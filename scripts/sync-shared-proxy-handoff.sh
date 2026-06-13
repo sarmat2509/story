@@ -39,7 +39,7 @@ rm -f "${tarball}"
 ssh "${REMOTE}" << EOF
 set -Eeuo pipefail
 cd "${DROPLET_PATH}"
-tar -xzf kazka-shared-proxy-handoff.tar.gz
+tar --no-same-owner -xzf kazka-shared-proxy-handoff.tar.gz
 rm -f kazka-shared-proxy-handoff.tar.gz
 find nginx -name '._*' -delete
 
