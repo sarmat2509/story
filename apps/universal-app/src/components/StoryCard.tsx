@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TouchableOpacity, View, Text, Image, StyleSheet, Pressable, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '@/components/AppLinearGradient';
 import { Ionicons } from '@expo/vector-icons';
 import type { StoryAudioMetadata } from '@wondertales/shared';
 import { theme } from '@/theme';

@@ -14,7 +14,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '@/components/AppLinearGradient';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -29,6 +29,7 @@ import { useAuthStore } from '@/store/authStore';
 import { resetToMainRoute } from '@/navigation/navigationRef';
 import { resolveBillingEntryTarget } from '@/utils/billingEntry';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
+import { assignWebLocation, getWebPathname } from '@/utils/webRuntime';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -121,17 +122,17 @@ export default function WelcomeScreen() {
   };
 
   const handleViewPlans = () => {
+    const pathname = getWebPathname();
     const target = resolveBillingEntryTarget({
       isAuthenticated,
       sessionMode,
       platformOs: Platform.OS,
-      pathname: typeof window === 'undefined' ? undefined : window.location.pathname,
+      pathname,
       locale: i18n.language,
       preferPublicPricingForGuests: true,
     });
 
-    if (target.kind === 'public-web-pricing' && typeof window !== 'undefined') {
-      window.location.assign(target.href);
+    if (target.kind === 'public-web-pricing' && assignWebLocation(target.href)) {
       return;
     }
 

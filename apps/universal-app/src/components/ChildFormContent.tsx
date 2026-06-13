@@ -29,6 +29,7 @@ import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
 import { API_BASE_URL, APP_CONFIG } from '@/config/constants';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 import { useResponsive } from '@/hooks/useResponsive';
+import { getWebOrigin } from '@/utils/webRuntime';
 
 /** Normalize BCP 47 locale (e.g. uk-UA, en-US) to base code for API (uk, en) */
 function toBaseLocale(locale: string | undefined): string {
@@ -48,8 +49,7 @@ function toAbsoluteAssetUrl(url: string): string {
   }
 
   const withoutQuery = url.split('?')[0];
-  const base =
-    typeof window !== 'undefined' ? window.location.origin : API_BASE_URL.replace(/\/$/, '');
+  const base = getWebOrigin(API_BASE_URL.replace(/\/$/, '')) ?? API_BASE_URL.replace(/\/$/, '');
   const assetPath = withoutQuery.startsWith('/api/v1/assets/')
     ? withoutQuery
     : withoutQuery.startsWith('/')

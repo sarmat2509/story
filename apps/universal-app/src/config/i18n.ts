@@ -1,6 +1,7 @@
 // Polyfill for Intl.PluralRules (required for React Native)
 import 'intl-pluralrules';
 
+import { Platform } from 'react-native';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { isAppUiLocale } from '@wondertales/shared';
@@ -8,6 +9,7 @@ import { storage } from '@/utils/storage';
 import { APP_CONFIG } from '@/config/constants';
 import { getPublicSeoLocaleOverrideFromPath } from '@/utils/publicSeoLocale';
 import { syncWebDocumentLocale } from '@/utils/documentLocale';
+import { getWebPathname } from '@/utils/webRuntime';
 
 // Import translations from shared package
 import ukTranslations from '@wondertales/shared/i18n/uk.json';
@@ -31,16 +33,21 @@ const resources = {
 let documentLocaleSyncBound = false;
 
 function getLocaleFromUrl(): string | null {
-  if (typeof window === 'undefined') {
+  if (Platform.OS !== 'web') {
     return null;
   }
 
-  const publicSeoLocale = getPublicSeoLocaleOverrideFromPath(window.location.pathname);
+  const pathname = getWebPathname();
+  if (!pathname) {
+    return null;
+  }
+
+  const publicSeoLocale = getPublicSeoLocaleOverrideFromPath(pathname);
   if (publicSeoLocale) {
     return publicSeoLocale;
   }
 
-  const firstSegment = window.location.pathname.split('/').filter(Boolean)[0]?.toLowerCase();
+  const firstSegment = pathname.split('/').filter(Boolean)[0]?.toLowerCase();
 
   return firstSegment && isAppUiLocale(firstSegment) ? firstSegment : null;
 }

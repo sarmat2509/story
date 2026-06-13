@@ -18,6 +18,7 @@ import { useResetPassword } from '@/api/auth';
 import { getPasswordStrength, meetsMinRequirements } from '@/utils/passwordStrength';
 import { theme } from '@/theme';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
+import { getWebSearch } from '@/utils/webRuntime';
 
 type ResetPasswordRouteProp = RouteProp<MainDrawerParamList, 'ResetPassword'>;
 
@@ -42,7 +43,7 @@ function useResetToken(): string | null {
     }
 
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams(getWebSearch() ?? '');
       const t = params.get('token');
       if (t) setToken(t);
       return;

@@ -9,7 +9,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '@/components/AppLinearGradient';
 import { InteractiveSurface } from '@/components/InteractiveSurface';
 import { theme } from '@/theme';
 import { hexAlpha } from '@/theme/colorAlpha';

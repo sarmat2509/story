@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import type { FeedbackCategory, FeedbackTopic } from '@wondertales/shared';
 import apiClient from './client';
 import { getCaptchaToken } from '@/utils/captcha';
+import { getWebPathname } from '@/utils/webRuntime';
 
 export type ReportedScreen =
   | 'dashboard'
@@ -47,10 +48,7 @@ export function useSubmitFeedback() {
     mutationFn: async (input: SubmitFeedbackInput) => {
       const platform = Platform.OS === 'web' ? 'web' : Platform.OS;
       const captchaToken = await getCaptchaToken('feedback');
-      const url =
-        Platform.OS === 'web' && typeof window !== 'undefined'
-          ? window.location.pathname
-          : undefined;
+      const url = Platform.OS === 'web' ? getWebPathname() : undefined;
 
       const response = await apiClient.post<SubmitFeedbackResponse>('/api/v1/feedback', {
         ...input,

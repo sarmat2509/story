@@ -1,5 +1,3 @@
-import { createMMKV } from 'react-native-mmkv';
-import type { MMKV } from 'react-native-mmkv';
 import {
   DEFAULT_THEME_PALETTE_ID,
   THEME_PALETTE_IDS,
@@ -10,13 +8,22 @@ const STORAGE_KEY = 'wondertales.active_theme_palette';
 
 // Dedicated MMKV instance for theme state — separate from the app store so
 // reads are safe at module load (JSI-backed, synchronous).
-let _storage: MMKV | null = null;
-function getStorage(): MMKV | null {
-  if (_storage) return _storage;
+type ThemePaletteStorage = {
+  getString(key: string): string | undefined;
+  set(key: string, value: string): void;
+};
+
+let _storage: ThemePaletteStorage | null | undefined;
+
+function getStorage(): ThemePaletteStorage | null {
+  if (_storage !== undefined) return _storage;
+
   try {
+    const { createMMKV } = require('react-native-mmkv') as typeof import('react-native-mmkv');
     _storage = createMMKV({ id: 'wondertales.theme' });
     return _storage;
   } catch {
+    _storage = null;
     return null;
   }
 }

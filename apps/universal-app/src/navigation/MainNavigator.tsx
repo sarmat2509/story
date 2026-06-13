@@ -51,6 +51,7 @@ import { CollapsibleDrawerContent } from '@/navigation/CollapsibleDrawerContent'
 import { AuthGuard } from '@/components/AuthGuard';
 import { navigationRef, navigateToMainRoute } from '@/navigation/navigationRef';
 import type { MainDrawerParamList, MainTabParamList } from '@/types/navigation';
+import { replaceWebLocation } from '@/utils/webRuntime';
 import { buildPublicPricingPath } from '@wondertales/shared';
 import { useChildren } from '@/api/children';
 
@@ -178,8 +179,8 @@ function PlansScreenWithAccess() {
   const { isAuthenticated, sessionMode } = useAuthStore();
 
   useEffect(() => {
-    if (!isAuthenticated && Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.location.replace(buildPublicPricingPath(i18n.language));
+    if (!isAuthenticated && Platform.OS === 'web') {
+      replaceWebLocation(buildPublicPricingPath(i18n.language));
     }
   }, [isAuthenticated, i18n.language]);
 

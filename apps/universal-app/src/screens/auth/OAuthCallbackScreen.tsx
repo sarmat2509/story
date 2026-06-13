@@ -6,6 +6,7 @@ import { storage } from '@/utils/storage';
 import apiClient from '@/api/client';
 import { resetToMainRoute } from '@/navigation/navigationRef';
 import { applyUserPreferredLocale } from '@/utils/localePreference';
+import { getWebHistory, getWebLocation, getWebSearch } from '@/utils/webRuntime';
 
 type PersistedAuthStore = typeof useAuthStore & {
   persist?: {
@@ -46,8 +47,8 @@ export default function OAuthCallbackScreen() {
         let token: string | null = null;
         let parentGate = false;
 
-        if (Platform.OS === 'web' && typeof window !== 'undefined') {
-          const params = new URLSearchParams(window.location.search);
+        if (Platform.OS === 'web') {
+          const params = new URLSearchParams(getWebSearch() ?? '');
           token = params.get('token');
           parentGate = params.get('parentGate') === 'true';
         }
@@ -56,12 +57,10 @@ export default function OAuthCallbackScreen() {
           throw new Error('No token received');
         }
 
-        if (
-          Platform.OS === 'web' &&
-          typeof window !== 'undefined' &&
-          window.history?.replaceState
-        ) {
-          window.history.replaceState({}, '', window.location.pathname);
+        const history = getWebHistory();
+        const location = getWebLocation();
+        if (Platform.OS === 'web' && history?.replaceState && location?.pathname) {
+          history.replaceState({}, '', location.pathname);
         }
 
         await storage.setAuthToken(token);

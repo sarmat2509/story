@@ -24,6 +24,7 @@ import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { storage } from '@/utils/storage';
 import { getPublicSeoLocaleOverrideFromPath } from '@/utils/publicSeoLocale';
+import { assignWebLocation, getWebOrigin, getWebPathname } from '@/utils/webRuntime';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import {
@@ -56,11 +57,12 @@ function getAgeGroupTranslationKey(slug: string): string {
 }
 
 function getCurrentPublicStoriesLocale(): PublicSeoLocale {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') {
+  const pathname = getWebPathname();
+  if (!pathname) {
     return DEFAULT_PUBLIC_SEO_LOCALE;
   }
 
-  return getPublicSeoLocaleOverrideFromPath(window.location.pathname) || DEFAULT_PUBLIC_SEO_LOCALE;
+  return getPublicSeoLocaleOverrideFromPath(pathname) || DEFAULT_PUBLIC_SEO_LOCALE;
 }
 
 function renderPublicLanguageSwitcher(
@@ -176,16 +178,18 @@ export default function PublishedStoriesScreen() {
   const handlePublicLocaleChange = useCallback(
     (locale: PublicSeoLocale) => {
       const targetPath = buildPublicStoriesPath(locale);
+      const pathname = getWebPathname();
+      const origin = getWebOrigin();
 
       void i18n.changeLanguage(locale);
       void storage.setLanguage(locale);
 
-      if (typeof window === 'undefined') {
+      if (!pathname || !origin) {
         return;
       }
 
-      if (window.location.pathname !== targetPath) {
-        window.location.assign(`${window.location.origin}${targetPath}`);
+      if (pathname !== targetPath) {
+        assignWebLocation(`${origin}${targetPath}`);
       }
     },
     [i18n]

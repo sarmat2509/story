@@ -1,14 +1,12 @@
 import { APP_UI_LOCALES, DEFAULT_LOCALE, LOCALE_IDS } from '@wondertales/shared';
+import { getWebOrigin } from '@/utils/webRuntime';
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3000';
 export const WEB_APP_URL = process.env.EXPO_PUBLIC_WEB_APP_URL || 'https://app.wondertales.com';
 
 /** Base URL for legal pages: uses current host on web (localhost in dev), WEB_APP_URL on native. */
 function getLegalBaseUrl(): string {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin;
-  }
-  return WEB_APP_URL;
+  return getWebOrigin(WEB_APP_URL) ?? WEB_APP_URL;
 }
 
 export const LEGAL_URLS = {

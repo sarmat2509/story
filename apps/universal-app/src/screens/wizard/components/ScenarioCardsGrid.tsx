@@ -1,7 +1,16 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Image } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  useWindowDimensions,
+  Image,
+  Platform,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from '@/components/AppLinearGradient';
+import { API_BASE_URL } from '@/config/constants';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
 
@@ -18,7 +27,8 @@ interface Props {
   onSelect: (id: string | null) => void;
 }
 
-const TOPIC_IMAGE_BASE = '/landing/topics/optimized';
+const TOPIC_IMAGE_BASE_WEB = '/landing/topics/optimized';
+const TOPIC_IMAGE_BASE_NATIVE = '/landing/topics';
 
 const TOPIC_IMAGE_BY_SCENARIO_ID: Record<string, string> = {
   free: 'any',
@@ -40,7 +50,13 @@ const TOPIC_IMAGE_BY_SCENARIO_ID: Record<string, string> = {
 function getTopicImageUri(scenarioId: string | null) {
   const imageName =
     TOPIC_IMAGE_BY_SCENARIO_ID[scenarioId ?? 'free'] ?? TOPIC_IMAGE_BY_SCENARIO_ID.free;
-  return `${TOPIC_IMAGE_BASE}/${imageName}.webp`;
+
+  if (Platform.OS === 'web') {
+    return `${TOPIC_IMAGE_BASE_WEB}/${imageName}.webp`;
+  }
+
+  // Native Image requires an absolute URL. Use PNG to avoid platform-specific WebP issues.
+  return `${API_BASE_URL.replace(/\/$/, '')}${TOPIC_IMAGE_BASE_NATIVE}/${imageName}.png`;
 }
 
 export function ScenarioCardsGrid({ scenarios, selected, onSelect }: Props) {

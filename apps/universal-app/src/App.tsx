@@ -25,6 +25,7 @@ import { configureRevenueCat } from '@/services/revenueCatService';
 import RootNavigator from '@/navigation/RootNavigator';
 import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
 import { getPublicSeoLocaleOverrideFromPath } from '@/utils/publicSeoLocale';
+import { getWebPathname } from '@/utils/webRuntime';
 import type { MainTabParamList } from '@/types/navigation';
 import { APP_ROUTE_PATHS, isValidLocale } from '@wondertales/shared';
 
@@ -140,10 +141,10 @@ function preserveOriginalPathOnFocusedRoute(state: any, originalPath: string): a
 }
 
 function getPreferredWebLocale(): string | null {
-  if (typeof window !== 'undefined') {
+  const pathname = getWebPathname();
+  if (pathname) {
     const localeFromPath =
-      getPublicSeoLocaleOverrideFromPath(window.location.pathname) ||
-      getLocaleFromWebPath(window.location.pathname);
+      getPublicSeoLocaleOverrideFromPath(pathname) || getLocaleFromWebPath(pathname);
     if (localeFromPath) {
       return localeFromPath;
     }
@@ -175,8 +176,8 @@ function addLocalePrefix(path: string): string {
 }
 
 function isWebOAuthCallbackPath(): boolean {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
-  return /^\/(?:[a-z]{2}\/)?auth\/[^/]+\/callback\/?$/.test(window.location.pathname);
+  const pathname = getWebPathname();
+  return pathname ? /^\/(?:[a-z]{2}\/)?auth\/[^/]+\/callback\/?$/.test(pathname) : false;
 }
 
 const linking: any = {
@@ -274,14 +275,17 @@ export default function App() {
   }, [setAuthLoading]);
 
   useEffect(() => {
-    if (!isReady || typeof window === 'undefined') {
+    if (!isReady || Platform.OS !== 'web') {
       return;
     }
 
     const syncLanguageFromPath = () => {
-      const locale =
-        getPublicSeoLocaleOverrideFromPath(window.location.pathname) ||
-        getLocaleFromWebPath(window.location.pathname);
+      const pathname = getWebPathname();
+      if (!pathname) {
+        return;
+      }
+
+      const locale = getPublicSeoLocaleOverrideFromPath(pathname) || getLocaleFromWebPath(pathname);
       if (!locale || i18n.language === locale) {
         return;
       }
@@ -324,38 +328,38 @@ export default function App() {
   const isOAuthCallback = isWebOAuthCallbackPath();
 
   return (
-    <AnalyticsProvider>
-      <SafeAreaProvider>
-        <ErrorBoundary>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <QueryClientProvider client={queryClient}>
-              {isOAuthCallback ? (
-                <>
-                  <StatusBar style="auto" />
-                  <AnalyticsIdentity />
-                  <OAuthCallbackScreen />
-                </>
-              ) : (
-                <NavigationContainer
-                  ref={navigationRef}
-                  linking={linking}
-                  onStateChange={(state) => {
-                    if (useMainNavigationStore.getState().isLayoutTransitionInProgress) return;
-                    const route = getActiveMainRouteFromState(state);
-                    useMainNavigationStore.getState().setLastMainRoute(route);
-                  }}
-                >
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <QueryClientProvider client={queryClient}>
+            {isOAuthCallback ? (
+              <>
+                <StatusBar style="auto" />
+                <AnalyticsIdentity />
+                <OAuthCallbackScreen />
+              </>
+            ) : (
+              <NavigationContainer
+                ref={navigationRef}
+                linking={linking}
+                onStateChange={(state) => {
+                  if (useMainNavigationStore.getState().isLayoutTransitionInProgress) return;
+                  const route = getActiveMainRouteFromState(state);
+                  useMainNavigationStore.getState().setLastMainRoute(route);
+                }}
+              >
+                <AnalyticsProvider>
                   <StatusBar style="auto" />
                   <AnalyticsIdentity />
                   <RootNavigator />
                   <AnalyticsConsentBanner />
-                </NavigationContainer>
-              )}
-            </QueryClientProvider>
-          </GestureHandlerRootView>
-          <Toast />
-        </ErrorBoundary>
-      </SafeAreaProvider>
-    </AnalyticsProvider>
+                </AnalyticsProvider>
+              </NavigationContainer>
+            )}
+          </QueryClientProvider>
+        </GestureHandlerRootView>
+        <Toast />
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }

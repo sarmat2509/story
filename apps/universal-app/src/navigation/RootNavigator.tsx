@@ -7,13 +7,14 @@ import MainNavigator from './MainNavigator';
 import AdminNavigator from '@/admin/navigation/AdminNavigator';
 import ModeSelectionScreen from '@/screens/onboarding/ModeSelectionScreen';
 import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
+import { getWebPathname } from '@/utils/webRuntime';
 import type { RootStackParamList } from '@/types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function isWebOAuthCallbackPath(): boolean {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
-  return /^\/(?:[a-z]{2}\/)?auth\/[^/]+\/callback\/?$/.test(window.location.pathname);
+  const pathname = getWebPathname();
+  return pathname ? /^\/(?:[a-z]{2}\/)?auth\/[^/]+\/callback\/?$/.test(pathname) : false;
 }
 
 export default function RootNavigator() {
