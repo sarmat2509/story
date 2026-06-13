@@ -6,6 +6,7 @@ import {
 } from '@wondertales/shared';
 import i18n from '@/config/i18n';
 import { storage } from '@/utils/storage';
+import { getWebHistory, getWebLocation } from '@/utils/webRuntime';
 
 type LocaleUser = {
   preferredLocale?: string | null;
@@ -41,15 +42,17 @@ export function buildLocalizedWebPath(pathname: string, locale: AppUiLocale): st
 }
 
 export function replaceWebLocalePrefix(locale: AppUiLocale): void {
-  if (typeof window === 'undefined') {
+  const location = getWebLocation();
+  const history = getWebHistory();
+  if (!location || !history) {
     return;
   }
 
-  const targetPath = buildLocalizedWebPath(window.location.pathname, locale);
-  const targetUrl = `${targetPath}${window.location.search}${window.location.hash}`;
-  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const targetPath = buildLocalizedWebPath(location.pathname, locale);
+  const targetUrl = `${targetPath}${location.search}${location.hash}`;
+  const currentUrl = `${location.pathname}${location.search}${location.hash}`;
   if (targetUrl !== currentUrl) {
-    window.history.replaceState(window.history.state, '', targetUrl);
+    history.replaceState(history.state, '', targetUrl);
   }
 }
 
