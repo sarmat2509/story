@@ -26,10 +26,13 @@ create_deploy_tarball "${tarball}" \
   nginx/nginx.conf \
   nginx/conf.d \
   nginx/includes \
-  apps/universal-app/nginx.conf
+  apps/universal-app/nginx.conf \
+  scripts/deploy.sh \
+  scripts/deploy-webapp.sh \
+  scripts/sync-shared-proxy-handoff.sh
 
 echo "Uploading handoff bundle to ${REMOTE}:${DROPLET_PATH}"
-ssh "${REMOTE}" "mkdir -p '${DROPLET_PATH}/nginx/conf.d' '${DROPLET_PATH}/nginx/includes' '${DROPLET_PATH}/apps/universal-app'"
+ssh "${REMOTE}" "mkdir -p '${DROPLET_PATH}/nginx/conf.d' '${DROPLET_PATH}/nginx/includes' '${DROPLET_PATH}/apps/universal-app' '${DROPLET_PATH}/scripts'"
 scp "${tarball}" "${REMOTE}:${DROPLET_PATH}/"
 rm -f "${tarball}"
 
