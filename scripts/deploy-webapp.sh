@@ -43,6 +43,7 @@ sync_nginx_config() {
 cd ${DROPLET_PATH}
 tar -xzf kazka-nginx-config.tar.gz
 rm -f kazka-nginx-config.tar.gz
+find nginx -name '._*' -delete
 docker run --rm \
   --add-host api:127.0.0.1 \
   --add-host webapp:127.0.0.1 \
