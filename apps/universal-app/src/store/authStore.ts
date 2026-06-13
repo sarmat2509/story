@@ -11,6 +11,14 @@ export type ActiveChildSession = {
   id: string;
   name: string;
   storyCreationMode?: 'instant' | 'artisan';
+  age?: {
+    years: number;
+    months: number;
+    totalMonths: number;
+    ageGroup: string;
+    isBirthdayToday: boolean;
+    daysUntilBirthday: number;
+  };
   authorPseudonym?: string | null;
   authorAboutMe?: string | null;
   referencePhotos?: Array<{ url: string }>;

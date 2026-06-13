@@ -36,11 +36,45 @@ import { useChildren } from '@/api/children';
 
 type AgeGroup = '2-3' | '4-5' | '6-7' | '8-9' | '10-12';
 
+type ChildAgeData = {
+  years?: number;
+  ageGroup?: string;
+};
+
 interface PhotoObject {
   url: string;
   uploadedAt: string;
   fileKey?: string;
   [key: string]: unknown;
+}
+
+function normalizeInstantAgeGroup(age?: ChildAgeData | null): AgeGroup | null {
+  if (!age) return null;
+
+  if (typeof age.years === 'number') {
+    if (age.years <= 3) return '2-3';
+    if (age.years <= 5) return '4-5';
+    if (age.years <= 7) return '6-7';
+    if (age.years <= 9) return '8-9';
+    if (age.years <= 12) return '10-12';
+  }
+
+  switch (age.ageGroup) {
+    case '2-3':
+      return '2-3';
+    case '4-5':
+      return '4-5';
+    case '6-7':
+    case '6-8':
+      return '6-7';
+    case '8-9':
+      return '8-9';
+    case '9-12':
+    case '10-12':
+      return '10-12';
+    default:
+      return null;
+  }
 }
 
 export default function InstantWizardScreen() {
@@ -96,17 +130,14 @@ export default function InstantWizardScreen() {
   }, [i18n.language]);
 
   useEffect(() => {
-    if (isChildSession || !route.params?.childId) return;
-    const child = childrenData?.children.find((item) => item.id === route.params?.childId);
-    const ageGroupFromProfile = (child as { age?: { ageGroup?: string } } | undefined)?.age
-      ?.ageGroup;
-    if (
-      ageGroupFromProfile &&
-      ['2-3', '4-5', '6-7', '8-9', '10-12'].includes(ageGroupFromProfile)
-    ) {
-      setAgeGroup(ageGroupFromProfile as AgeGroup);
+    const ageSource = isChildSession
+      ? activeChild?.age
+      : childrenData?.children.find((item) => item.id === route.params?.childId)?.age;
+    const normalizedAgeGroup = normalizeInstantAgeGroup(ageSource);
+    if (normalizedAgeGroup) {
+      setAgeGroup(normalizedAgeGroup);
     }
-  }, [childrenData?.children, isChildSession, route.params?.childId]);
+  }, [activeChild?.age, childrenData?.children, isChildSession, route.params?.childId]);
 
   // Track image_generation_failed when modal shows failed state
   const failedTrackedRef = React.useRef(false);
@@ -238,28 +269,32 @@ export default function InstantWizardScreen() {
         </View>
       </AnimatedSection>
 
-      <AnimatedSection delay={120} trigger={enterKey}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('instant_wizard.age_group')}</Text>
-          <Text style={styles.sectionDescription}>{t('instant_wizard.age_group_description')}</Text>
-          <View style={styles.ageGroupContainer}>
-            {(['2-3', '4-5', '6-7', '8-9', '10-12'] as AgeGroup[]).map((age) => (
-              <TouchableOpacity
-                key={age}
-                style={[styles.ageGroupButton, ageGroup === age && styles.ageGroupButtonSelected]}
-                onPress={() => setAgeGroup(age)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[styles.ageGroupText, ageGroup === age && styles.ageGroupTextSelected]}
+      {!isChildSession ? (
+        <AnimatedSection delay={120} trigger={enterKey}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t('instant_wizard.age_group')}</Text>
+            <Text style={styles.sectionDescription}>
+              {t('instant_wizard.age_group_description')}
+            </Text>
+            <View style={styles.ageGroupContainer}>
+              {(['2-3', '4-5', '6-7', '8-9', '10-12'] as AgeGroup[]).map((age) => (
+                <TouchableOpacity
+                  key={age}
+                  style={[styles.ageGroupButton, ageGroup === age && styles.ageGroupButtonSelected]}
+                  onPress={() => setAgeGroup(age)}
+                  activeOpacity={0.7}
                 >
-                  {age} {t('instant_wizard.years')}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[styles.ageGroupText, ageGroup === age && styles.ageGroupTextSelected]}
+                  >
+                    {age} {t('instant_wizard.years')}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
-      </AnimatedSection>
+        </AnimatedSection>
+      ) : null}
 
       <AnimatedSection delay={220} trigger={enterKey}>
         <View style={styles.section}>

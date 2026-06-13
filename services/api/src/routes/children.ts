@@ -492,6 +492,7 @@ router.post('/:id/child-mode/sessions', requireAuth, requireParentSession, async
         authorAboutMe: profile.authorAboutMe,
         referencePhotos: profile.referencePhotos,
         turnaroundSheet: (profile as any).turnaroundSheet,
+        age: addAgeToChildProfile(toSafeChildProfile(profile)).age,
       },
       session: {
         id: session.id,

@@ -13,6 +13,14 @@ import { storage } from '@/utils/storage';
 export type ChildProfile = ChildProfileApi & {
   storyCreationMode?: 'instant' | 'artisan';
   storycreationmode?: 'instant' | 'artisan';
+  age?: {
+    years: number;
+    months: number;
+    totalMonths: number;
+    ageGroup: string;
+    isBirthdayToday: boolean;
+    daysUntilBirthday: number;
+  };
 };
 type CreateChildProfileRequest = CreateChildProfileInput & {
   childDataConsentAccepted?: boolean;
@@ -41,6 +49,14 @@ export interface ChildModeSessionResponse {
     name: string;
     storyCreationMode?: 'instant' | 'artisan';
     storycreationmode?: 'instant' | 'artisan';
+    age?: {
+      years: number;
+      months: number;
+      totalMonths: number;
+      ageGroup: string;
+      isBirthdayToday: boolean;
+      daysUntilBirthday: number;
+    };
     authorPseudonym?: string | null;
     authorAboutMe?: string | null;
     referencePhotos?: Array<{ url: string }>;
@@ -166,6 +182,7 @@ export const useEnterChildMode = () => {
         id: result.child.id,
         name: result.child.name,
         storyCreationMode: result.child.storyCreationMode ?? result.child.storycreationmode,
+        age: result.child.age,
         authorPseudonym: result.child.authorPseudonym,
         authorAboutMe: result.child.authorAboutMe,
         referencePhotos: result.child.referencePhotos ?? result.child.referencephotos,

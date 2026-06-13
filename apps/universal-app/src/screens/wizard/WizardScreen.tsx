@@ -132,14 +132,10 @@ export default function WizardScreen() {
 
   const availableCharacters = useMemo(() => {
     const allCharacters = characters ?? [];
-    const scopedCharacters =
-      !isChildSession && childProfileId
-        ? allCharacters.filter((character) => character.childProfileId === childProfileId)
-        : allCharacters;
     const allowed = childModeSettings?.allowedCharacterIds ?? [];
-    if (!isChildSession || allowed.length === 0) return scopedCharacters;
-    return scopedCharacters.filter((character) => allowed.includes(character.id));
-  }, [characters, childModeSettings?.allowedCharacterIds, childProfileId, isChildSession]);
+    if (!isChildSession || allowed.length === 0) return allCharacters;
+    return allCharacters.filter((character) => allowed.includes(character.id));
+  }, [characters, childModeSettings?.allowedCharacterIds, isChildSession]);
 
   useEffect(() => {
     const allowedIds = new Set(availableCharacters.map((character) => character.id));
