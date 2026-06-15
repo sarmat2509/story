@@ -15,7 +15,17 @@ let initialized = false;
 function scrubAnalyticsEvent(event: CaptureResult | null): CaptureResult | null {
   if (!event?.properties) return event;
 
-  return { ...event, properties: scrubAnalyticsProperties(event.properties) };
+  const posthogToken =
+    typeof event.properties.token === 'string' && event.properties.token === API_KEY
+      ? event.properties.token
+      : null;
+  const properties = scrubAnalyticsProperties(event.properties);
+
+  if (posthogToken) {
+    properties.token = posthogToken;
+  }
+
+  return { ...event, properties };
 }
 
 function ensureInit(): boolean {
