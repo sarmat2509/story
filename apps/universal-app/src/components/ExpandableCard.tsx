@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
+import { modernColors, modernShadows } from '@/theme/modernTheme';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -59,12 +60,13 @@ export function ExpandableCard({ title, icon, children, defaultExpanded = false 
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: modernColors.surface,
     borderRadius: theme.borders.radius.lg,
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
+    borderColor: modernColors.border,
     marginBottom: theme.spacing[4],
     overflow: 'hidden',
+    ...modernShadows.subtle,
   },
   header: {
     flexDirection: 'row',
@@ -87,6 +89,8 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: theme.spacing[4],
-    paddingTop: 0,
+    paddingTop: theme.spacing[1],
+    borderTopWidth: theme.borders.width.thin,
+    borderTopColor: modernColors.border,
   },
 });

@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
+import { modernColors, modernShadows } from '@/theme/modernTheme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 
 interface Child {
@@ -837,12 +838,13 @@ const styles = StyleSheet.create<{
     position: 'relative',
   },
   card: {
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: modernColors.surface,
     borderRadius: theme.borders.radius.lg,
     overflow: 'hidden',
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
+    borderColor: modernColors.border,
     padding: theme.spacing[6],
+    ...modernShadows.card,
   },
   imageContainer: {
     height: 180,

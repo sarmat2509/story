@@ -27,16 +27,10 @@ import { AnimatedSection } from '@/components/AnimatedSection';
 import { GlassPrimaryButton } from '@/components/GlassPrimaryButton';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
-import { hexAlpha } from '@/theme/colorAlpha';
+import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
 
 /** Page background — follows active palette (not hardcoded lavender). */
-const DASHBOARD_BG_GRADIENT: [string, string] = [
-  theme.colors.background.secondary,
-  theme.colors.primary[50],
-];
-
-const BOKEH_ONE_COLOR = hexAlpha(theme.colors.primary[400], 0.26);
-const BOKEH_TWO_COLOR = hexAlpha(theme.colors.primary[300], 0.22);
+const DASHBOARD_BG_GRADIENT = modernGradients.page;
 export default function DashboardScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
@@ -82,6 +76,7 @@ export default function DashboardScreen() {
 
   // Responsive columns: 1 on mobile, 2 on tablet, 3 on desktop
   const { width } = useWindowDimensions();
+  const isCompact = width < 760;
   const numColumns = width < 640 ? 1 : width < 1024 ? 2 : 3;
   const gridCellStyle =
     numColumns === 1
@@ -127,43 +122,44 @@ export default function DashboardScreen() {
   return (
     <>
       <LinearGradient colors={DASHBOARD_BG_GRADIENT} style={styles.gradientBackground}>
-        <View pointerEvents="none" style={styles.bokehOne} />
-        <View pointerEvents="none" style={styles.bokehTwo} />
         <ScrollView contentContainerStyle={styles.content}>
           <AnimatedSection delay={0} trigger={enterKey}>
-            <View style={styles.header}>
-              <Text style={styles.greeting}>
-                {t('dashboard.welcome_back', { name: greetingName || 'User' })}
-              </Text>
-              <Text style={styles.subtext}>{t('dashboard.tagline')}</Text>
-            </View>
-          </AnimatedSection>
-
-          {/* Stats + primary actions in one card per column */}
-          <AnimatedSection delay={120} trigger={enterKey}>
-            <View style={styles.statsSection}>
-              <View style={styles.statCard}>
-                <View style={styles.statMetrics}>
-                  <Text style={styles.statNumber}>{storiesCount}</Text>
-                  <Text style={styles.statLabel}>{t('dashboard.stats.stories')}</Text>
+            <View style={[styles.heroPanel, isCompact && styles.heroPanelCompact]}>
+              <View style={styles.heroCopy}>
+                <Text style={styles.eyebrow}>{t('navigation.dashboard')}</Text>
+                <Text style={styles.greeting}>
+                  {t('dashboard.welcome_back', { name: greetingName || 'User' })}
+                </Text>
+                <Text style={styles.subtext}>{t('dashboard.tagline')}</Text>
+                <View style={styles.statPills}>
+                  <View style={styles.statPill}>
+                    <Text style={styles.statPillValue}>{storiesCount}</Text>
+                    <Text style={styles.statPillLabel}>{t('dashboard.stats.stories')}</Text>
+                  </View>
+                  {!isChildSession ? (
+                    <View style={styles.statPill}>
+                      <Text style={styles.statPillValue}>{childrenCount}</Text>
+                      <Text style={styles.statPillLabel}>{t('dashboard.stats.children')}</Text>
+                    </View>
+                  ) : null}
                 </View>
+              </View>
+              <View style={[styles.heroActions, isCompact && styles.heroActionsCompact]}>
                 <GlassPrimaryButton
                   title={t('dashboard.actions.create_story')}
                   onPress={() => navigation.navigate('Wizard')}
                   accessibilityLabel={t('dashboard.actions.create_story')}
                   leading={
-                    <Ionicons name="sparkles-outline" size={22} color={theme.colors.primary[700]} />
+                    <Ionicons
+                      name="sparkles-outline"
+                      size={22}
+                      color={theme.colors.text.inverse}
+                    />
                   }
-                  style={styles.statCardCta}
+                  style={styles.primaryHeroAction}
+                  textStyle={styles.primaryHeroActionText}
                 />
-              </View>
-
-              {!isChildSession && (
-                <View style={styles.statCard}>
-                  <View style={styles.statMetrics}>
-                    <Text style={styles.statNumber}>{childrenCount}</Text>
-                    <Text style={styles.statLabel}>{t('dashboard.stats.children')}</Text>
-                  </View>
+                {!isChildSession ? (
                   <GlassPrimaryButton
                     title={
                       canCreateMoreChildren
@@ -180,19 +176,20 @@ export default function DashboardScreen() {
                       <Ionicons
                         name={canCreateMoreChildren ? 'person-add-outline' : 'people-outline'}
                         size={22}
-                        color={theme.colors.primary[700]}
+                        color={theme.colors.text.inverse}
                       />
                     }
-                    style={styles.statCardCta}
+                    style={styles.secondaryHeroAction}
+                    textStyle={styles.secondaryHeroActionText}
                   />
-                </View>
-              )}
+                ) : null}
+              </View>
             </View>
           </AnimatedSection>
 
           {/* Recent Stories */}
           {stories.length > 0 && (
-            <AnimatedSection delay={240} trigger={enterKey}>
+            <AnimatedSection delay={160} trigger={enterKey}>
               <View style={styles.recentSection}>
                 <Text style={styles.sectionTitle}>{t('dashboard.recent_stories')}</Text>
                 <View
@@ -217,13 +214,13 @@ export default function DashboardScreen() {
           )}
 
           {/* View Library Button */}
-          <AnimatedSection delay={360} trigger={enterKey}>
+          <AnimatedSection delay={260} trigger={enterKey}>
             <GlassPrimaryButton
               title={t('dashboard.actions.view_library')}
               onPress={() => navigation.navigate('Library')}
               accessibilityLabel={t('dashboard.actions.view_library')}
               leading={
-                <Ionicons name="library-outline" size={22} color={theme.colors.primary[700]} />
+                <Ionicons name="library-outline" size={22} color={theme.colors.text.inverse} />
               }
               style={styles.glassDashboardActionSpacingBelow}
             />
@@ -253,38 +250,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: theme.spacing[6],
   },
-  bokehOne: {
-    position: 'absolute',
-    top: -160,
-    right: -140,
-    width: 380,
-    height: 380,
-    borderRadius: 190,
-    backgroundColor: BOKEH_ONE_COLOR,
-    ...Platform.select({
-      web: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        filter: 'blur(80px)' as any,
-      },
-      default: {},
-    }),
-  },
-  bokehTwo: {
-    position: 'absolute',
-    bottom: -180,
-    left: -140,
-    width: 400,
-    height: 400,
-    borderRadius: 200,
-    backgroundColor: BOKEH_TWO_COLOR,
-    ...Platform.select({
-      web: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        filter: 'blur(90px)' as any,
-      },
-      default: {},
-    }),
-  },
   loadingText: {
     marginTop: theme.spacing[4],
     fontSize: theme.typography.fontSize.base,
@@ -305,8 +270,47 @@ const styles = StyleSheet.create({
   retryButton: {
     minWidth: 200,
   },
-  header: {
+  heroPanel: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    justifyContent: 'space-between',
+    gap: theme.spacing[6],
+    padding: theme.spacing[6],
     marginBottom: theme.spacing[8],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surface,
+    ...modernShadows.raised,
+  },
+  heroPanelCompact: {
+    flexDirection: 'column',
+    gap: theme.spacing[5],
+  },
+  heroCopy: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
+  heroActions: {
+    width: 360,
+    maxWidth: '100%',
+    justifyContent: 'center',
+    gap: theme.spacing[3],
+  },
+  heroActionsCompact: {
+    width: '100%',
+  },
+  eyebrow: {
+    alignSelf: 'flex-start',
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: modernColors.accentWash,
+    color: theme.colors.primary[700],
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    marginBottom: theme.spacing[3],
   },
   greeting: {
     fontSize: theme.typography.fontSize['3xl'],
@@ -318,49 +322,44 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.secondary,
   },
-  statsSection: {
+  statPills: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: theme.spacing[4],
-    marginBottom: theme.spacing[8],
+    marginTop: theme.spacing[5],
   },
-  /** Outer shell: metrics + CTA; no border — depth from shadow only. */
-  statCard: {
-    flex: 1,
-    padding: theme.spacing[4],
-    alignItems: 'stretch',
-    backgroundColor: theme.colors.background.primary,
-    borderRadius: 25,
-    gap: theme.spacing[4],
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.colors.primary[900],
-        shadowOpacity: 0.1,
-        shadowRadius: 14,
-        shadowOffset: { width: 0, height: 6 },
-      },
-      android: { elevation: 3 },
-      web: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        boxShadow: `0 8px 24px -8px ${hexAlpha(theme.colors.primary[900], 0.14)}` as any,
-      },
-    }),
+  statPill: {
+    minWidth: 104,
+    paddingVertical: theme.spacing[3],
+    paddingHorizontal: theme.spacing[4],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surfaceMuted,
   },
-  statMetrics: {
-    alignItems: 'center',
-  },
-  statCardCta: {
-    alignSelf: 'stretch',
-  },
-  statNumber: {
-    fontSize: theme.typography.fontSize['4xl'],
+  statPillValue: {
+    fontSize: theme.typography.fontSize['2xl'],
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.primary[700],
-    marginBottom: theme.spacing[1],
   },
-  statLabel: {
+  statPillLabel: {
+    marginTop: 2,
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
     fontWeight: theme.typography.fontWeight.medium,
+  },
+  primaryHeroAction: {
+    alignSelf: 'stretch',
+  },
+  primaryHeroActionText: {
+    color: theme.colors.text.inverse,
+  },
+  secondaryHeroAction: {
+    alignSelf: 'stretch',
+    opacity: 0.9,
+  },
+  secondaryHeroActionText: {
+    color: theme.colors.text.inverse,
   },
   sectionTitle: {
     fontSize: theme.typography.fontSize.xl,

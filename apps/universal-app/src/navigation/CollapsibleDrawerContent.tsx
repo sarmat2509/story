@@ -19,12 +19,12 @@ import {
 } from '@react-navigation/drawer';
 import { PlatformPressable, Text } from '@react-navigation/elements';
 import { Ionicons } from '@expo/vector-icons';
-import Color from 'color';
 import { useTranslation } from 'react-i18next';
 import type { Route } from '@react-navigation/native';
 import { useDrawerCollapsedStore } from '@/store/drawerCollapsedStore';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
+import { modernColors } from '@/theme/modernTheme';
 import { ChildAvatarImage, ChildProfileSwitcher } from '@/navigation/ChildProfileSwitcher';
 import type { RootStackParamList } from '@/types/navigation';
 
@@ -87,7 +87,7 @@ function CollapsibleDrawerItem({
   const inactiveTintColor = drawerInactiveTintColor ?? theme.colors.text.tertiary;
   const color = focused ? activeTintColor : inactiveTintColor;
   const activeBackgroundColor =
-    drawerActiveBackgroundColor ?? Color(activeTintColor).alpha(0.12).rgb().string();
+    drawerActiveBackgroundColor ?? modernColors.accentWash;
   const inactiveBackgroundColor = drawerInactiveBackgroundColor ?? 'transparent';
   const backgroundColor = focused ? activeBackgroundColor : inactiveBackgroundColor;
 
@@ -334,8 +334,8 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing[2],
     borderRadius: theme.borders.radius.lg,
     borderWidth: theme.borders.width.thin,
-    borderColor: Color(theme.colors.interactive.primary).alpha(0.24).rgb().string(),
-    backgroundColor: Color(theme.colors.interactive.primary).alpha(0.08).rgb().string(),
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.accentWash,
   },
   childSessionCardCollapsed: {
     width: COLLAPSED_HIGHLIGHT_SIZE,

@@ -18,6 +18,7 @@ import { useStories, useDeleteStory, prefetchStory, useUserStoryLanguages } from
 import { useStoryThemes } from '@/api/dictionaries';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { theme } from '@/theme';
+import { modernColors } from '@/theme/modernTheme';
 import { StoryCard } from '@/components/StoryCard';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { LibraryHeader } from '@/components/LibraryHeader';
@@ -417,7 +418,7 @@ export default function LibraryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: modernColors.page,
   },
   grid: {
     padding: theme.spacing[4],

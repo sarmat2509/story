@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NavigationProp, RouteProp } from '@react-navigation/native';
@@ -33,6 +34,9 @@ import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { useChildren } from '@/api/children';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from '@/components/AppLinearGradient';
+import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
 
 type AgeGroup = '2-3' | '4-5' | '6-7' | '8-9' | '10-12';
 
@@ -83,6 +87,8 @@ export default function InstantWizardScreen() {
   const route = useRoute<RouteProp<MainDrawerParamList, 'Wizard'>>();
   const queryClient = useQueryClient();
   const enterKey = useScreenEnter();
+  const { width } = useWindowDimensions();
+  const isWide = width >= 960;
   const sessionMode = useAuthStore((state) => state.sessionMode);
   const activeChild = useAuthStore((state) => state.activeChild);
   const isChildSession = sessionMode === 'child';
@@ -247,90 +253,158 @@ export default function InstantWizardScreen() {
   };
 
   const canGenerate = storyLanguage;
+  const selectedScenarioName =
+    themesData?.scenarioCards?.find((scenario) => scenario.id === scenarioCardId)?.name ??
+    t('instant_wizard.default_theme', { defaultValue: 'Free theme' });
+  const selectedLanguageLabel = storyLanguage
+    ? t(`language_names.${storyLanguage}`, { defaultValue: storyLanguage.toUpperCase() })
+    : t('wizard.language_required', { defaultValue: 'Choose a language' });
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <AnimatedSection delay={0} trigger={enterKey}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('instant_wizard.upload_photos')}</Text>
-          <Text style={styles.sectionDescription}>{t('instant_wizard.photos_description')}</Text>
-          <PhotoUploadGrid
-            photos={photos.map((p) => ({
-              url: p.url,
-              uploadedAt: p.uploadedAt || new Date().toISOString(),
-              isUploading: (p as { isUploading?: boolean }).isUploading,
-            }))}
-            onPhotosChange={(newPhotos) =>
-              setPhotos(newPhotos.map((p) => ({ url: p.url, uploadedAt: p.uploadedAt })))
-            }
-            maxPhotos={5}
-            photoType="character"
-          />
-        </View>
-      </AnimatedSection>
-
-      {!isChildSession ? (
-        <AnimatedSection delay={120} trigger={enterKey}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('instant_wizard.age_group')}</Text>
-            <Text style={styles.sectionDescription}>
-              {t('instant_wizard.age_group_description')}
-            </Text>
-            <View style={styles.ageGroupContainer}>
-              {(['2-3', '4-5', '6-7', '8-9', '10-12'] as AgeGroup[]).map((age) => (
-                <TouchableOpacity
-                  key={age}
-                  style={[styles.ageGroupButton, ageGroup === age && styles.ageGroupButtonSelected]}
-                  onPress={() => setAgeGroup(age)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[styles.ageGroupText, ageGroup === age && styles.ageGroupTextSelected]}
-                  >
-                    {age} {t('instant_wizard.years')}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+    <LinearGradient colors={modernGradients.page} style={styles.page}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <AnimatedSection delay={0} trigger={enterKey}>
+          <View style={styles.heroPanel}>
+            <View style={styles.heroIcon}>
+              <Ionicons name="flash-outline" size={24} color={theme.colors.primary[700]} />
+            </View>
+            <View style={styles.heroText}>
+              <Text style={styles.title}>
+                {t('instant_wizard.title', { defaultValue: t('navigation.create') })}
+              </Text>
+              <Text style={styles.subtitle}>
+                {t('instant_wizard.subtitle', {
+                  defaultValue:
+                    'A lighter setup for a fast personalized story with photos, age, theme and language.',
+                })}
+              </Text>
             </View>
           </View>
         </AnimatedSection>
-      ) : null}
 
-      <AnimatedSection delay={220} trigger={enterKey}>
-        <View style={styles.section}>
-          {themesLoading ? (
-            <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
-          ) : (
-            <ScenarioCardsGrid
-              scenarios={themesData?.scenarioCards || []}
-              selected={scenarioCardId}
-              onSelect={setScenarioCardId}
-            />
-          )}
+        <View style={[styles.workspace, isWide && styles.workspaceWide]}>
+          <View style={styles.mainColumn}>
+            <AnimatedSection delay={80} trigger={enterKey}>
+              <View style={styles.surfaceSection}>
+                <Text style={styles.sectionTitle}>{t('instant_wizard.upload_photos')}</Text>
+                <Text style={styles.sectionDescription}>{t('instant_wizard.photos_description')}</Text>
+                <PhotoUploadGrid
+                  photos={photos.map((p) => ({
+                    url: p.url,
+                    uploadedAt: p.uploadedAt || new Date().toISOString(),
+                    isUploading: (p as { isUploading?: boolean }).isUploading,
+                  }))}
+                  onPhotosChange={(newPhotos) =>
+                    setPhotos(newPhotos.map((p) => ({ url: p.url, uploadedAt: p.uploadedAt })))
+                  }
+                  maxPhotos={5}
+                  photoType="character"
+                />
+              </View>
+            </AnimatedSection>
+
+            {!isChildSession ? (
+              <AnimatedSection delay={160} trigger={enterKey}>
+                <View style={styles.surfaceSection}>
+                  <Text style={styles.sectionTitle}>{t('instant_wizard.age_group')}</Text>
+                  <Text style={styles.sectionDescription}>
+                    {t('instant_wizard.age_group_description')}
+                  </Text>
+                  <View style={styles.ageGroupContainer}>
+                    {(['2-3', '4-5', '6-7', '8-9', '10-12'] as AgeGroup[]).map((age) => (
+                      <TouchableOpacity
+                        key={age}
+                        style={[
+                          styles.ageGroupButton,
+                          ageGroup === age && styles.ageGroupButtonSelected,
+                        ]}
+                        onPress={() => setAgeGroup(age)}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.ageGroupText,
+                            ageGroup === age && styles.ageGroupTextSelected,
+                          ]}
+                        >
+                          {age} {t('instant_wizard.years')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </AnimatedSection>
+            ) : null}
+
+            <AnimatedSection delay={240} trigger={enterKey}>
+              {themesLoading ? (
+                <View style={styles.loadingCard}>
+                  <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+                </View>
+              ) : (
+                <ScenarioCardsGrid
+                  scenarios={themesData?.scenarioCards || []}
+                  selected={scenarioCardId}
+                  onSelect={setScenarioCardId}
+                />
+              )}
+            </AnimatedSection>
+
+            <AnimatedSection delay={320} trigger={enterKey}>
+              <LanguageSelector
+                selected={storyLanguage}
+                onSelect={setStoryLanguage}
+                defaultLanguage={i18n.language}
+                allowedLanguageCodes={allowedLanguageCodes}
+              />
+            </AnimatedSection>
+          </View>
+
+          <AnimatedSection delay={400} trigger={enterKey}>
+            <View style={[styles.summaryCard, isWide && styles.summaryCardWide]}>
+              <Text style={styles.summaryEyebrow}>
+                {t('wizard.story_preview', { defaultValue: 'Story preview' })}
+              </Text>
+              <Text style={styles.summaryTitle}>
+                {t('wizard.your_story', { defaultValue: 'Your story' })}
+              </Text>
+              <View style={styles.summaryList}>
+                <View style={styles.summaryRow}>
+                  <Ionicons name="images-outline" size={18} color={theme.colors.primary[600]} />
+                  <Text style={styles.summaryText}>
+                    {t('instant_wizard.summary_photos', {
+                      count: photos.length,
+                      max: 5,
+                      defaultValue: '{{count}} / {{max}} photos',
+                    })}
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Ionicons name="happy-outline" size={18} color={theme.colors.primary[600]} />
+                  <Text style={styles.summaryText}>
+                    {ageGroup} {t('instant_wizard.years')}
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Ionicons name="sparkles-outline" size={18} color={theme.colors.primary[600]} />
+                  <Text style={styles.summaryText}>{selectedScenarioName}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Ionicons name="language-outline" size={18} color={theme.colors.primary[600]} />
+                  <Text style={styles.summaryText}>{selectedLanguageLabel}</Text>
+                </View>
+              </View>
+              <GlassPrimaryButton
+                title={t('instant_wizard.generate_story')}
+                onPress={handleGenerate}
+                disabled={!canGenerate || isGenerating || !canGenerateStories}
+                loading={isGenerating}
+                size="hero"
+                style={styles.generateButton}
+              />
+            </View>
+          </AnimatedSection>
         </View>
-      </AnimatedSection>
-
-      <AnimatedSection delay={320} trigger={enterKey}>
-        <View style={styles.section}>
-          <LanguageSelector
-            selected={storyLanguage}
-            onSelect={setStoryLanguage}
-            defaultLanguage={i18n.language}
-            allowedLanguageCodes={allowedLanguageCodes}
-          />
-        </View>
-      </AnimatedSection>
-
-      <AnimatedSection delay={420} trigger={enterKey}>
-        <GlassPrimaryButton
-          title={t('instant_wizard.generate_story')}
-          onPress={handleGenerate}
-          disabled={!canGenerate || isGenerating || !canGenerateStories}
-          loading={isGenerating}
-          size="hero"
-          style={styles.generateButton}
-        />
-      </AnimatedSection>
 
       {/* Generation Progress Modal */}
       <GenerationProgressModal
@@ -357,17 +431,71 @@ export default function InstantWizardScreen() {
         limitInfo={usage ? { used: usage.stories.used, limit: usage.stories.limit } : undefined}
         periodEndFormatted={periodEndFormatted}
       />
-    </ScrollView>
+      </ScrollView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  page: {
+    flex: 1,
+  },
   container: {
     padding: theme.spacing[6],
-    backgroundColor: theme.colors.background.primary,
+    paddingBottom: theme.spacing[10],
   },
-  section: {
-    marginBottom: theme.spacing[6],
+  heroPanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[4],
+    padding: theme.spacing[5],
+    borderRadius: theme.borders.radius.xl,
+    backgroundColor: modernColors.surface,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    ...modernShadows.subtle,
+    marginBottom: theme.spacing[5],
+  },
+  heroIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: modernColors.accentWash,
+  },
+  heroText: {
+    flex: 1,
+  },
+  title: {
+    fontSize: theme.typography.fontSize['2xl'],
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing[1],
+  },
+  subtitle: {
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.secondary,
+    lineHeight: theme.typography.lineHeight.normal * theme.typography.fontSize.base,
+  },
+  workspace: {
+    gap: theme.spacing[5],
+  },
+  workspaceWide: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  mainColumn: {
+    flex: 1,
+    gap: theme.spacing[5],
+  },
+  surfaceSection: {
+    padding: theme.spacing[5],
+    borderRadius: theme.borders.radius.xl,
+    backgroundColor: modernColors.surface,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    ...modernShadows.subtle,
   },
   sectionTitle: {
     fontSize: theme.typography.fontSize.xl,
@@ -389,10 +517,10 @@ const styles = StyleSheet.create({
   ageGroupButton: {
     paddingVertical: theme.spacing[3],
     paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
+    borderRadius: theme.borders.radius.lg,
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-    backgroundColor: theme.colors.background.secondary,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surfaceMuted,
   },
   ageGroupButtonSelected: {
     borderColor: theme.colors.interactive.primary,
@@ -406,8 +534,58 @@ const styles = StyleSheet.create({
     color: theme.colors.text.inverse,
     fontWeight: theme.typography.fontWeight.semibold,
   },
+  loadingCard: {
+    padding: theme.spacing[6],
+    borderRadius: theme.borders.radius.xl,
+    backgroundColor: modernColors.surface,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    ...modernShadows.subtle,
+  },
+  summaryCard: {
+    padding: theme.spacing[5],
+    borderRadius: theme.borders.radius.xl,
+    backgroundColor: modernColors.surface,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    ...modernShadows.card,
+    gap: theme.spacing[4],
+  },
+  summaryCardWide: {
+    width: 320,
+    position: 'sticky' as never,
+    top: theme.spacing[5],
+  },
+  summaryEyebrow: {
+    alignSelf: 'flex-start',
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: modernColors.accentWash,
+    color: theme.colors.primary[700],
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  summaryTitle: {
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+  },
+  summaryList: {
+    gap: theme.spacing[3],
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+  },
+  summaryText: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    fontWeight: theme.typography.fontWeight.medium,
+  },
   generateButton: {
-    marginTop: theme.spacing[6],
     alignSelf: 'stretch',
   },
 });

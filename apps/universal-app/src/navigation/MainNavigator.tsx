@@ -19,6 +19,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
 import { useResponsive } from '@/hooks/useResponsive';
 import { theme } from '@/theme';
+import { modernColors } from '@/theme/modernTheme';
 import { useAuthStore } from '@/store/authStore';
 import WelcomeScreen from '@/screens/public/WelcomeScreen';
 import NotFoundScreen from '@/screens/public/NotFoundScreen';
@@ -434,16 +435,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: modernColors.page,
   },
 });
 
 const mobileTabBarStyles = StyleSheet.create({
   container: {
     width: '100%',
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: modernColors.surface,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border.light,
+    borderTopColor: modernColors.border,
   },
   tabRow: {
     flexDirection: 'row',
@@ -468,7 +469,7 @@ const mobileTabBarStyles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   moreMenu: {
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: modernColors.surface,
     borderTopLeftRadius: theme.borders.radius.xl,
     borderTopRightRadius: theme.borders.radius.xl,
     paddingVertical: theme.spacing[4],
@@ -505,6 +506,10 @@ function TabNavigator() {
       screenOptions={{
         headerShown: true,
         headerLeft: isChildSession ? () => <ChildProfileSwitcher /> : undefined,
+        headerStyle: {
+          backgroundColor: modernColors.surface,
+        },
+        headerShadowVisible: false,
         tabBarActiveTintColor: theme.colors.interactive.primary,
         tabBarInactiveTintColor: theme.colors.text.tertiary,
       }}
@@ -800,7 +805,11 @@ function DrawerNavigator() {
         drawerType: isDesktop ? 'permanent' : 'front',
         drawerActiveTintColor: theme.colors.interactive.primary,
         drawerInactiveTintColor: theme.colors.text.tertiary,
-        drawerStyle: { width: drawerWidth },
+        drawerStyle: { width: drawerWidth, backgroundColor: modernColors.surface },
+        headerStyle: {
+          backgroundColor: modernColors.surface,
+        },
+        headerShadowVisible: false,
         headerLeft: isTablet || isDesktop ? () => <DrawerBurgerButton /> : undefined,
       }}
     >

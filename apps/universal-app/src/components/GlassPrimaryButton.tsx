@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   ActivityIndicator,
-  Platform,
   StyleSheet,
   Text,
   View,
@@ -9,37 +8,12 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { LinearGradient } from '@/components/AppLinearGradient';
 import { InteractiveSurface } from '@/components/InteractiveSurface';
 import { theme } from '@/theme';
 import { hexAlpha } from '@/theme/colorAlpha';
+import { modernGradients, modernShadows } from '@/theme/modernTheme';
 
-const VIEW_SHADOW = hexAlpha(theme.colors.primary[900], 0.28);
-
-/**
- * Rim: one step darker than the darkest gradient stop (`primary[100]` in `glassGradientColors`),
- * so the edge matches the fill rather than mid-tone `primary[500]`.
- */
-const SHELL_BORDER = hexAlpha(theme.colors.primary[200], 0.48);
-
-/** Soft thematic wash — reads as a button, stays lighter than solid primary CTAs. */
-function glassGradientColors(): readonly [string, string, string] {
-  const p = theme.colors.primary;
-  return [hexAlpha(p[100], 0.72), hexAlpha(p[50], 0.5), 'rgba(255, 255, 255, 0.88)'];
-}
-
-const shellShadow = Platform.select({
-  ios: {
-    shadowColor: theme.colors.primary[900],
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-  },
-  android: { elevation: 3 },
-  web: {
-    boxShadow: `0 18px 34px -20px ${VIEW_SHADOW}` as unknown as string,
-  },
-});
+const SHELL_BORDER = hexAlpha(theme.colors.primary[600], 0.18);
 
 export type GlassPrimaryButtonSize = 'prominent' | 'footer' | 'hero';
 
@@ -81,13 +55,6 @@ export function GlassPrimaryButton({
         style,
       ]}
     >
-      <LinearGradient
-        colors={[...glassGradientColors()]}
-        start={{ x: 0.5, y: 1 }}
-        end={{ x: 0.5, y: 0 }}
-        pointerEvents="none"
-        style={styles.gradientFill}
-      />
       <InteractiveSurface
         style={[
           styles.interactive,
@@ -100,7 +67,7 @@ export function GlassPrimaryButton({
         accessibilityLabel={accessibilityLabel ?? title}
       >
         {loading ? (
-          <ActivityIndicator color={theme.colors.primary[700]} />
+          <ActivityIndicator color={theme.colors.text.inverse} />
         ) : leading ? (
           <View style={styles.innerRow}>
             {leading}
@@ -132,7 +99,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: theme.borders.width.thin,
     borderColor: SHELL_BORDER,
-    ...shellShadow,
+    backgroundColor: modernGradients.primary[0],
+    ...modernShadows.card,
   },
   shellProminent: {
     borderRadius: theme.borders.radius.lg,
@@ -143,14 +111,10 @@ const styles = StyleSheet.create({
   shellHero: {
     borderRadius: theme.borders.radius.lg,
   },
-  gradientFill: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 0,
-  },
   interactive: {
     zIndex: 1,
     position: 'relative',
-    backgroundColor: 'transparent',
+    backgroundColor: theme.colors.interactive.primary,
     borderWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
@@ -182,7 +146,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.primary[700],
+    color: theme.colors.text.inverse,
     textAlign: 'center',
   },
   labelAfterIcon: {

@@ -26,6 +26,7 @@ import { UsageSummaryCard } from '@/components/UsageSummaryCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
+import { modernColors, modernShadows } from '@/theme/modernTheme';
 import { usePlansWithAuth, useSubscriptionUsage, useCreatePortalSession } from '@/api/plans';
 import {
   useCreatePrivacyRequest,
@@ -907,7 +908,7 @@ const styles = StyleSheet.create({
   content: {
     padding: theme.spacing[6],
     minHeight: '100%',
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: modernColors.page,
   },
   header: {
     marginBottom: theme.spacing[6],
@@ -927,11 +928,12 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[4],
   },
   profileCard: {
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: modernColors.surface,
     borderRadius: theme.borders.radius.lg,
     padding: theme.spacing[5],
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
+    borderColor: modernColors.border,
+    ...modernShadows.subtle,
   },
   avatarSection: {
     alignItems: 'center',
@@ -1115,10 +1117,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: theme.spacing[4],
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: modernColors.surface,
     borderRadius: theme.borders.radius.md,
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
+    borderColor: modernColors.border,
     marginBottom: theme.spacing[2],
   },
   settingLeft: {
@@ -1144,10 +1146,10 @@ const styles = StyleSheet.create({
   privacyActionsPanel: {
     gap: theme.spacing[3],
     padding: theme.spacing[4],
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: modernColors.surface,
     borderRadius: theme.borders.radius.md,
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
+    borderColor: modernColors.border,
     marginBottom: theme.spacing[2],
   },
   privacyActionsTitle: {
@@ -1231,10 +1233,10 @@ const styles = StyleSheet.create({
   privacyRequestsPanel: {
     gap: theme.spacing[2],
     padding: theme.spacing[4],
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: modernColors.surface,
     borderRadius: theme.borders.radius.md,
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
+    borderColor: modernColors.border,
   },
   privacyRequestsTitle: {
     fontSize: theme.typography.fontSize.sm,
@@ -1281,11 +1283,12 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   subscriptionCard: {
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: modernColors.surface,
     borderRadius: theme.borders.radius.lg,
     padding: theme.spacing[5],
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
+    borderColor: modernColors.border,
+    ...modernShadows.subtle,
   },
   subscriptionPlan: {
     fontSize: theme.typography.fontSize.xl,

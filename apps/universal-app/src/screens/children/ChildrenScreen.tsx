@@ -22,6 +22,7 @@ import { ChildCard } from './components/ChildCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
+import { modernColors, modernShadows } from '@/theme/modernTheme';
 
 const cardDelay = (i: number) => Math.min(120 + i * 40, 360);
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -219,13 +220,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: modernColors.page,
     padding: theme.spacing[6],
   },
   content: {
     padding: theme.spacing[6],
     minHeight: '100%',
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: modernColors.page,
   },
   header: {
     marginBottom: theme.spacing[6],
@@ -250,6 +251,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.borders.radius.lg,
     marginTop: theme.spacing[6],
     gap: theme.spacing[2],
+    ...modernShadows.card,
   },
   addCharacterButtonText: {
     fontSize: theme.typography.fontSize.base,
@@ -271,6 +273,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: theme.spacing[12],
     paddingVertical: theme.spacing[10],
+    paddingHorizontal: theme.spacing[6],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surface,
   },
   emptyIcon: {
     fontSize: 64,

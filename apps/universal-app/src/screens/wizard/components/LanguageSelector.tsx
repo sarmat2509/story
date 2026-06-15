@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { SUPPORTED_LANGUAGES, isValidLocale } from '@wondertales/shared';
 import { APP_CONFIG } from '@/config/constants';
 import { theme } from '@/theme';
+import { modernColors, modernShadows } from '@/theme/modernTheme';
 
 interface Props {
   selected: string;
@@ -78,6 +79,12 @@ export function LanguageSelector({
 const styles = StyleSheet.create({
   container: {
     marginBottom: theme.spacing[6],
+    padding: theme.spacing[4],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surface,
+    ...modernShadows.subtle,
   },
   label: {
     fontSize: theme.typography.fontSize.lg,
@@ -88,21 +95,25 @@ const styles = StyleSheet.create({
   chipsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: theme.spacing[3],
+    gap: theme.spacing[2],
+    padding: theme.spacing[1],
+    borderRadius: theme.borders.radius.lg,
+    backgroundColor: modernColors.surfaceMuted,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[4],
-    backgroundColor: theme.colors.background.secondary,
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    backgroundColor: 'transparent',
     borderRadius: theme.borders.radius.full,
-    borderWidth: theme.borders.width.medium,
-    borderColor: theme.colors.border.light,
+    borderWidth: theme.borders.width.thin,
+    borderColor: 'transparent',
   },
   chipSelected: {
-    backgroundColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.background.primary,
     borderColor: theme.colors.interactive.primary,
+    ...modernShadows.subtle,
   },
   flag: {
     fontSize: theme.typography.fontSize.lg,
@@ -114,6 +125,6 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
   },
   chipTextSelected: {
-    color: theme.colors.text.inverse,
+    color: theme.colors.primary[700],
   },
 });

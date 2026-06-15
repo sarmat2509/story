@@ -5,6 +5,7 @@ import { LinearGradient } from '@/components/AppLinearGradient';
 import { Ionicons } from '@expo/vector-icons';
 import type { StoryAudioMetadata } from '@wondertales/shared';
 import { theme } from '@/theme';
+import { modernColors, modernShadows } from '@/theme/modernTheme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 
 interface Props {
@@ -207,11 +208,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.lg,
+    backgroundColor: modernColors.surface,
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
+    borderColor: modernColors.border,
     overflow: 'hidden',
+    ...modernShadows.subtle,
   },
   listCardTouchable: {
     flex: 1,
@@ -270,20 +272,16 @@ const styles = StyleSheet.create({
   },
   gridShadowOuter: {
     borderRadius: theme.borders.radius.lg,
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: modernColors.surface,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    ...modernShadows.card,
     ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOpacity: 0.14,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 4 },
-      },
-      android: { elevation: 4 },
       web: {
-        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
         cursor: 'pointer',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
+      default: {},
     }),
   },
   gridShadowOuterHover: Platform.select({
@@ -343,7 +341,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: '52%',
+    height: '64%',
   },
   gridTitleBlock: {
     position: 'absolute',

@@ -13,6 +13,7 @@ import { LinearGradient } from '@/components/AppLinearGradient';
 import { API_BASE_URL } from '@/config/constants';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
+import { modernColors, modernShadows } from '@/theme/modernTheme';
 
 interface ScenarioCard {
   id: string | null;
@@ -72,10 +73,9 @@ export function ScenarioCardsGrid({ scenarios, selected, onSelect }: Props) {
 
   const allScenarios = [freeThemeCard, ...scenarios];
 
-  const numColumns = width < 520 ? 1 : width < 768 ? 2 : width < 1080 ? 3 : 4;
+  const numColumns = width < 520 ? 1 : width < 860 ? 2 : 3;
   const isDesktop = width >= 1080;
-  const cardWidth =
-    numColumns === 1 ? '100%' : numColumns === 2 ? '48%' : numColumns === 3 ? '31%' : '23.5%';
+  const cardWidth = numColumns === 1 ? '100%' : numColumns === 2 ? '48%' : '31.5%';
 
   return (
     <View style={styles.container}>
@@ -126,6 +126,12 @@ export function ScenarioCardsGrid({ scenarios, selected, onSelect }: Props) {
 const styles = StyleSheet.create({
   container: {
     marginBottom: theme.spacing[6],
+    padding: theme.spacing[4],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surface,
+    ...modernShadows.subtle,
   },
   label: {
     fontSize: theme.typography.fontSize.lg,
@@ -139,20 +145,23 @@ const styles = StyleSheet.create({
     gap: theme.spacing[3],
   },
   card: {
-    backgroundColor: 'transparent',
+    backgroundColor: modernColors.surface,
     borderRadius: theme.borders.radius.lg,
-    padding: 6,
+    padding: 5,
     alignItems: 'stretch',
-    minHeight: 204,
+    minHeight: 176,
     justifyContent: 'flex-start',
     position: 'relative',
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    ...modernShadows.subtle,
   },
   cardDesktop: {
-    minHeight: 176,
+    minHeight: 160,
   },
   imageFrame: {
     width: '100%',
-    minHeight: 192,
+    minHeight: 164,
     aspectRatio: 1.38,
     borderRadius: theme.borders.radius.md,
     overflow: 'hidden',
@@ -160,7 +169,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   imageFrameDesktop: {
-    minHeight: 164,
+    minHeight: 148,
     aspectRatio: 1.68,
   },
   selectedOutline: {
@@ -172,6 +181,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: theme.colors.interactive.primary,
     borderRadius: theme.borders.radius.lg,
+    zIndex: 2,
   },
   selectedCheck: {
     position: 'absolute',

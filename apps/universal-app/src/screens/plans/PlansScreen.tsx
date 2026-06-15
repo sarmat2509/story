@@ -35,6 +35,7 @@ import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd
 import { hexAlpha } from '@/theme/colorAlpha';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
+import { modernColors, modernShadows } from '@/theme/modernTheme';
 import { Ionicons } from '@expo/vector-icons';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
@@ -798,7 +799,7 @@ export default function PlansScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: modernColors.page,
   },
   scrollContent: {
     paddingHorizontal: theme.spacing[6],
@@ -809,7 +810,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: theme.spacing[6],
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: modernColors.page,
   },
   header: {
     alignItems: 'center',
@@ -833,8 +834,8 @@ const styles = StyleSheet.create({
     padding: 3,
     borderRadius: theme.borders.radius.md,
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-    backgroundColor: theme.colors.background.secondary,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surfaceMuted,
   },
   currencyToggleButton: {
     minWidth: 76,
@@ -863,12 +864,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   planCard: {
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: modernColors.surface,
     borderRadius: theme.borders.radius.xl,
     padding: theme.spacing[6],
     borderWidth: theme.borders.width.medium,
-    borderColor: theme.colors.border.light,
+    borderColor: modernColors.border,
     position: 'relative',
+    ...modernShadows.card,
   },
   planCardNative: {
     width: '100%',
@@ -1149,6 +1151,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing[4],
     paddingTop: theme.spacing[6],
     paddingBottom: theme.spacing[5],
+    borderRadius: theme.borders.radius.xl,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surface,
+    ...modernShadows.subtle,
   },
   bundleHeaderBlock: {
     alignItems: 'center',
@@ -1203,11 +1210,12 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing[1],
   },
   bundleCard: {
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: modernColors.surface,
     borderRadius: theme.borders.radius.lg,
     borderWidth: 1,
-    borderColor: theme.colors.border.light,
+    borderColor: modernColors.border,
     overflow: 'hidden',
+    ...modernShadows.subtle,
   },
   bundleCardFeatured: {
     borderColor: theme.colors.primary[300],

@@ -1,9 +1,18 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  useWindowDimensions,
+} from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NavigationProp, RouteProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
 import i18n from '@/config/i18n';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { theme } from '@/theme';
@@ -31,10 +40,12 @@ import { PaywallModal } from '@/components/PaywallModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { GlassPrimaryButton } from '@/components/GlassPrimaryButton';
+import { LinearGradient } from '@/components/AppLinearGradient';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
+import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
 
 export default function WizardScreen() {
   const { t } = useTranslation();
@@ -42,6 +53,8 @@ export default function WizardScreen() {
   const route = useRoute<RouteProp<MainDrawerParamList, 'Wizard'>>();
   const queryClient = useQueryClient();
   const enterKey = useScreenEnter();
+  const { width } = useWindowDimensions();
+  const isWide = width >= 1100;
   const sessionMode = useAuthStore((state) => state.sessionMode);
   const activeChild = useAuthStore((state) => state.activeChild);
   const isChildSession = sessionMode === 'child';
@@ -136,6 +149,30 @@ export default function WizardScreen() {
     if (!isChildSession || allowed.length === 0) return allCharacters;
     return allCharacters.filter((character) => allowed.includes(character.id));
   }, [characters, childModeSettings?.allowedCharacterIds, isChildSession]);
+
+  const scenarioOptions = useMemo(() => {
+    const freeThemeCard = {
+      id: null,
+      name: t('wizard.free_theme'),
+      description: t('wizard.free_theme_desc'),
+    };
+    return [freeThemeCard, ...(themesData?.scenarioCards ?? [])];
+  }, [themesData?.scenarioCards, t]);
+
+  const selectedScenario = scenarioOptions.find((scenario) => scenario.id === scenarioCardId);
+  const selectedLanguageLabel = storyLanguage
+    ? t(`language_names.${storyLanguage}`, { defaultValue: storyLanguage.toUpperCase() })
+    : t('wizard.language_required', { defaultValue: 'Choose a language' });
+  const summaryItems = [
+    selectedScenario?.name ?? t('wizard.free_theme'),
+    selectedLanguageLabel,
+    selectedCharacters.length + selectedChildren.length > 0
+      ? t('wizard.summary_characters_count', {
+          count: selectedCharacters.length + selectedChildren.length,
+          defaultValue: '{{count}} characters',
+        })
+      : t('wizard.summary_no_characters', { defaultValue: 'No extra characters' }),
+  ];
 
   useEffect(() => {
     const allowedIds = new Set(availableCharacters.map((character) => character.id));
@@ -270,71 +307,118 @@ export default function WizardScreen() {
 
   return (
     <>
-      <ScrollView contentContainerStyle={styles.content}>
-        <AnimatedSection delay={0} trigger={enterKey}>
-          <ScenarioCardsGrid
-            scenarios={themesData?.scenarioCards || []}
-            selected={scenarioCardId}
-            onSelect={setScenarioCardId}
-          />
-        </AnimatedSection>
+      <LinearGradient colors={modernGradients.page} style={styles.page}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <AnimatedSection delay={0} trigger={enterKey}>
+            <View style={styles.heroPanel}>
+              <View style={styles.heroIcon}>
+                <Ionicons name="sparkles-outline" size={24} color={theme.colors.primary[700]} />
+              </View>
+              <View style={styles.heroText}>
+                <Text style={styles.title}>{t('navigation.create', { defaultValue: 'Create' })}</Text>
+                <Text style={styles.subtitle}>
+                  {t('wizard.subtitle', {
+                    defaultValue: 'Choose the story ingredients and keep the final setup in view.',
+                  })}
+                </Text>
+              </View>
+            </View>
+          </AnimatedSection>
 
-        <AnimatedSection delay={120} trigger={enterKey}>
-          <LanguageSelector
-            selected={storyLanguage}
-            onSelect={setStoryLanguage}
-            defaultLanguage={i18n.language}
-            allowedLanguageCodes={allowedLanguageCodes}
-          />
-        </AnimatedSection>
+          <View style={[styles.workspace, isWide && styles.workspaceWide]}>
+            <View style={styles.mainColumn}>
+              <AnimatedSection delay={80} trigger={enterKey}>
+                <ScenarioCardsGrid
+                  scenarios={themesData?.scenarioCards || []}
+                  selected={scenarioCardId}
+                  onSelect={setScenarioCardId}
+                />
+              </AnimatedSection>
 
-        <AnimatedSection delay={220} trigger={enterKey}>
-          <ExpandableCard title={t('wizard.advanced_settings')} icon="settings-outline">
-            <AdvancedSettingsForm
-              childProfileId={childProfileId}
-              onChildProfileChange={setChildProfileId}
-              children={children}
-              onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
-              showChildProfileSelector={!isChildSession}
-              goals={availableGoals}
-              selectedGoals={selectedGoals}
-              onGoalsChange={setSelectedGoals}
-              imageStyle={imageStyle}
-              onImageStyleChange={setImageStyle}
-              userNotes={userNotes}
-              onNotesChange={setUserNotes}
-              notesEnabled={notesEnabled}
-            />
-          </ExpandableCard>
-        </AnimatedSection>
+              <AnimatedSection delay={160} trigger={enterKey}>
+                <LanguageSelector
+                  selected={storyLanguage}
+                  onSelect={setStoryLanguage}
+                  defaultLanguage={i18n.language}
+                  allowedLanguageCodes={allowedLanguageCodes}
+                />
+              </AnimatedSection>
 
-        <AnimatedSection delay={320} trigger={enterKey}>
-          <ExpandableCard title={t('wizard.add_characters')} icon="people-outline">
-            <CharactersForm
-              characters={availableCharacters}
-              selectedCharacters={selectedCharacters}
-              onCharactersChange={setSelectedCharacters}
-              children={children}
-              selectedChildren={selectedChildren}
-              onChildrenChange={setSelectedChildren}
-              showChildren={!isChildSession}
-              onAddCharacter={() => setIsCharacterModalVisible(true)}
-              onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
-            />
-          </ExpandableCard>
-        </AnimatedSection>
+              <AnimatedSection delay={240} trigger={enterKey}>
+                <ExpandableCard title={t('wizard.advanced_settings')} icon="settings-outline">
+                  <AdvancedSettingsForm
+                    childProfileId={childProfileId}
+                    onChildProfileChange={setChildProfileId}
+                    children={children}
+                    onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
+                    showChildProfileSelector={!isChildSession}
+                    goals={availableGoals}
+                    selectedGoals={selectedGoals}
+                    onGoalsChange={setSelectedGoals}
+                    imageStyle={imageStyle}
+                    onImageStyleChange={setImageStyle}
+                    userNotes={userNotes}
+                    onNotesChange={setUserNotes}
+                    notesEnabled={notesEnabled}
+                  />
+                </ExpandableCard>
+              </AnimatedSection>
 
-        <AnimatedSection delay={420} trigger={enterKey}>
-          <GlassPrimaryButton
-            title={t('wizard.generate_button')}
-            onPress={handleGenerate}
-            disabled={!storyLanguage || isGenerating || !canGenerateStories}
-            loading={isGenerating}
-            size="hero"
-            style={styles.generateButton}
-          />
-        </AnimatedSection>
-      </ScrollView>
+              <AnimatedSection delay={320} trigger={enterKey}>
+                <ExpandableCard title={t('wizard.add_characters')} icon="people-outline">
+                  <CharactersForm
+                    characters={availableCharacters}
+                    selectedCharacters={selectedCharacters}
+                    onCharactersChange={setSelectedCharacters}
+                    children={children}
+                    selectedChildren={selectedChildren}
+                    onChildrenChange={setSelectedChildren}
+                    showChildren={!isChildSession}
+                    onAddCharacter={() => setIsCharacterModalVisible(true)}
+                    onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
+                  />
+                </ExpandableCard>
+              </AnimatedSection>
+            </View>
+
+            <AnimatedSection
+              delay={220}
+              trigger={enterKey}
+              style={[styles.summaryColumn, !isWide && styles.summaryColumnFull]}
+            >
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryEyebrow}>{t('wizard.story_preview', { defaultValue: 'Story setup' })}</Text>
+                <Text style={styles.summaryTitle}>{t('wizard.your_story', { defaultValue: 'Your story' })}</Text>
+                <View style={styles.summaryList}>
+                  {summaryItems.map((item) => (
+                    <View key={item} style={styles.summaryItem}>
+                      <View style={styles.summaryDot} />
+                      <Text style={styles.summaryItemText}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+                {usage ? (
+                  <Text style={styles.summaryLimit}>
+                    {t('usage_summary.remaining_of_limit', {
+                      remaining: usage.stories.remaining,
+                      limit: usage.stories.limit,
+                      defaultValue: '{{remaining}} of {{limit}} left',
+                    })}
+                  </Text>
+                ) : null}
+                <GlassPrimaryButton
+                  title={t('wizard.generate_button')}
+                  onPress={handleGenerate}
+                  disabled={!storyLanguage || isGenerating || !canGenerateStories}
+                  loading={isGenerating}
+                  size="hero"
+                  style={styles.generateButton}
+                />
+              </View>
+            </AnimatedSection>
+          </View>
+        </ScrollView>
+      </LinearGradient>
 
       {/* Generation Progress Modal */}
       <GenerationProgressModal
@@ -382,10 +466,12 @@ export default function WizardScreen() {
 }
 
 const styles = StyleSheet.create({
+  page: {
+    flex: 1,
+  },
   content: {
     padding: theme.spacing[6],
     minHeight: '100%',
-    backgroundColor: theme.colors.background.primary,
   },
   loadingContainer: {
     flex: 1,
@@ -398,22 +484,109 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.tertiary,
   },
-  header: {
+  heroPanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[4],
+    padding: theme.spacing[5],
     marginBottom: theme.spacing[6],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surface,
+    ...modernShadows.card,
+  },
+  heroIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borders.radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: modernColors.accentWash,
+  },
+  heroText: {
+    flex: 1,
+    minWidth: 0,
   },
   title: {
-    fontSize: theme.typography.fontSize['3xl'],
+    fontSize: theme.typography.fontSize['2xl'],
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[2],
   },
   subtitle: {
     fontSize: theme.typography.fontSize.base,
-    color: theme.colors.text.tertiary,
+    color: theme.colors.text.secondary,
+    lineHeight: 22,
+  },
+  workspace: {
+    gap: theme.spacing[6],
+  },
+  workspaceWide: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  mainColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
+  summaryColumn: {
+    width: 320,
+    maxWidth: '100%',
+  },
+  summaryColumnFull: {
+    width: '100%',
+  },
+  summaryCard: {
+    gap: theme.spacing[4],
+    padding: theme.spacing[5],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surface,
+    ...modernShadows.card,
+  },
+  summaryEyebrow: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.primary[700],
+    textTransform: 'uppercase',
+  },
+  summaryTitle: {
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    marginTop: -theme.spacing[3],
+  },
+  summaryList: {
+    gap: theme.spacing[3],
+  },
+  summaryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
+  summaryDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  summaryItemText: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+  },
+  summaryLimit: {
+    paddingTop: theme.spacing[2],
+    borderTopWidth: theme.borders.width.thin,
+    borderTopColor: modernColors.border,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
   },
   generateButton: {
-    marginTop: theme.spacing[6],
-    marginBottom: theme.spacing[8],
     alignSelf: 'stretch',
   },
 });
