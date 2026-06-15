@@ -62,7 +62,7 @@ Before enabling live paid checkout, also run the paid-launch gate. It checks ope
 pnpm launch:check-paid-readiness
 ```
 
-Use `LOG_SERVICES=api` or another space-separated service list for a focused log scan. The default is `api webapp nginx`.
+Use `LOG_SERVICES=api` or another space-separated service list for a focused compose log scan. The default is `api webapp`; shared public ingress logs are scanned separately from `shared-nginx-proxy`.
 
 After a web or nginx deploy, capture the exact deployed security headers and scan the live client artifact, not only the local build:
 

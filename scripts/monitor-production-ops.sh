@@ -143,10 +143,11 @@ function findLine(pattern) {
 }
 
 function summarizeService(line) {
-  const match = line.match(/^PASS (wondertales-[a-z-]+) is running \(health=([^,]+), restarts=([^)]+)\)/);
+  const match = line.match(/^PASS ((?:wondertales|shared)-[a-z-]+(?:-prod)?) is running \(health=([^,]+), restarts=([^)]+)\)/);
   if (!match) return '';
   const name = match[1]
     .replace(/^wondertales-/, '')
+    .replace(/^shared-/, 'shared ')
     .replace(/-prod$/, '');
   const health = match[2] === 'none' ? 'up' : match[2];
   return `${name} ${health}, restarts ${match[3]}`;
@@ -171,7 +172,8 @@ const services = lines
 const rootDisk = compact(findLine(/^PASS root filesystem has /));
 const dbBackup = compact(findLine(/^PASS recent database backup file exists /));
 const uploadBackup = compact(findLine(/^PASS recent upload-volume backup archive exists /));
-const logs = compact(findLine(/^PASS recent api webapp nginx logs /));
+const logs = compact(findLine(/^PASS recent api webapp logs /));
+const ingressLogs = compact(findLine(/^PASS recent shared-nginx-proxy logs /));
 const stripe = compact(findLine(/^PASS api Stripe secret key mode /));
 const offsite = compact(findLine(/^PASS offsite backup target reference found/));
 const alertDestination = compact(findLine(/^PASS ops alert destination reference found/));
@@ -190,7 +192,7 @@ if (services.length) healthLines.push(`- services: ${services.join('; ')}`);
 if (rootDisk) healthLines.push(`- disk: ${rootDisk}`);
 if (dbBackup) healthLines.push(`- database backups: ${dbBackup}`);
 if (uploadBackup) healthLines.push(`- upload backups: ${uploadBackup}`);
-if (logs) healthLines.push(`- logs: ${logs}`);
+if (logs || ingressLogs) healthLines.push(`- logs: ${[logs, ingressLogs].filter(Boolean).join('; ')}`);
 if (stripe) healthLines.push(`- payments: ${stripe}`);
 if (offsite) healthLines.push(`- offsite: ${offsite}`);
 if (alertDestination || adminAlert) {

@@ -26,7 +26,9 @@ MIN_ROOT_FREE_MB="${MIN_ROOT_FREE_MB:-2048}"
 MIN_DOCKER_FREE_MB="${MIN_DOCKER_FREE_MB:-2048}"
 MIN_PROJECT_FREE_MB="${MIN_PROJECT_FREE_MB:-1024}"
 LOG_SINCE="${LOG_SINCE:-30m}"
-LOG_SERVICES="${LOG_SERVICES:-api webapp nginx}"
+LOG_SERVICES="${LOG_SERVICES:-api webapp}"
+INGRESS_CONTAINER="${INGRESS_CONTAINER:-shared-nginx-proxy}"
+LEGACY_NGINX_CONTAINER="${LEGACY_NGINX_CONTAINER:-wondertales-nginx}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 EXPECTED_STRIPE_MODE="${EXPECTED_STRIPE_MODE:-test}"
 RUN_BACKUP_SMOKE=0
@@ -86,6 +88,8 @@ run_check_body() {
     MIN_PROJECT_FREE_MB="${MIN_PROJECT_FREE_MB}" \
     LOG_SINCE="${LOG_SINCE}" \
     LOG_SERVICES="${LOG_SERVICES}" \
+    INGRESS_CONTAINER="${INGRESS_CONTAINER}" \
+    LEGACY_NGINX_CONTAINER="${LEGACY_NGINX_CONTAINER}" \
     RUN_BACKUP_SMOKE="${RUN_BACKUP_SMOKE}" \
     BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS}" \
     EXPECTED_STRIPE_MODE="${EXPECTED_STRIPE_MODE}" \
@@ -93,7 +97,7 @@ run_check_body() {
   else
     ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" true < /dev/null
     ssh ${SSH_OPTS} "${DROPLET_USER}@${DROPLET_IP}" \
-      "DROPLET_PATH='${DROPLET_PATH}' COMPOSE_FILE='${COMPOSE_FILE}' MIN_ROOT_FREE_MB='${MIN_ROOT_FREE_MB}' MIN_DOCKER_FREE_MB='${MIN_DOCKER_FREE_MB}' MIN_PROJECT_FREE_MB='${MIN_PROJECT_FREE_MB}' LOG_SINCE='${LOG_SINCE}' LOG_SERVICES='${LOG_SERVICES}' RUN_BACKUP_SMOKE='${RUN_BACKUP_SMOKE}' BACKUP_RETENTION_DAYS='${BACKUP_RETENTION_DAYS}' EXPECTED_STRIPE_MODE='${EXPECTED_STRIPE_MODE}' bash -s"
+      "DROPLET_PATH='${DROPLET_PATH}' COMPOSE_FILE='${COMPOSE_FILE}' MIN_ROOT_FREE_MB='${MIN_ROOT_FREE_MB}' MIN_DOCKER_FREE_MB='${MIN_DOCKER_FREE_MB}' MIN_PROJECT_FREE_MB='${MIN_PROJECT_FREE_MB}' LOG_SINCE='${LOG_SINCE}' LOG_SERVICES='${LOG_SERVICES}' INGRESS_CONTAINER='${INGRESS_CONTAINER}' LEGACY_NGINX_CONTAINER='${LEGACY_NGINX_CONTAINER}' RUN_BACKUP_SMOKE='${RUN_BACKUP_SMOKE}' BACKUP_RETENTION_DAYS='${BACKUP_RETENTION_DAYS}' EXPECTED_STRIPE_MODE='${EXPECTED_STRIPE_MODE}' bash -s"
   fi
 }
 
@@ -171,6 +175,26 @@ check_container() {
   if [[ "$expected_health" != "any" && "$health" != "$expected_health" ]]; then
     fail "$name health is ${health}, expected ${expected_health}"
   fi
+}
+
+check_legacy_nginx_container() {
+  local name="$1"
+  [[ -n "$name" ]] || return
+
+  local status
+  status="$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null || true)"
+
+  case "$status" in
+    "")
+      pass "$name legacy nginx container is absent; shared proxy handles ingress"
+      ;;
+    running)
+      warn "$name legacy nginx container is still running; shared proxy should own public ingress"
+      ;;
+    *)
+      pass "$name legacy nginx container is ${status}; shared proxy handles ingress"
+      ;;
+  esac
 }
 
 check_port_binding() {
@@ -290,8 +314,9 @@ fi
 
 check_container wondertales-postgres-prod healthy
 check_container wondertales-api-prod any
-check_container wondertales-nginx any
 check_container wondertales-webapp-prod any
+check_container "$INGRESS_CONTAINER" any
+check_legacy_nginx_container "$LEGACY_NGINX_CONTAINER"
 
 echo
 echo "== Ports and health =="
@@ -454,7 +479,7 @@ echo
 echo "== Recent logs =="
 read -r -a log_services <<<"$LOG_SERVICES"
 if [[ "${#log_services[@]}" == "0" ]]; then
-  log_services=(api webapp nginx)
+  log_services=(api webapp)
 fi
 
 log_matches="$(compose logs "${log_services[@]}" --since "$LOG_SINCE" 2>&1 | grep -i -E 'error|warn|failed|panic|unhandled|exception|temporary file' | sed -E 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/[email]/g' || true)"
@@ -463,6 +488,16 @@ if [[ -n "$log_matches" ]]; then
   printf '%s\n' "$log_matches"
 else
   pass "recent ${LOG_SERVICES} logs have no error/warn/failed/temporary-file lines since $LOG_SINCE"
+fi
+
+if [[ -n "${INGRESS_CONTAINER:-}" ]]; then
+  ingress_log_matches="$(docker logs --since "$LOG_SINCE" "$INGRESS_CONTAINER" 2>&1 | grep -i -E 'error|warn|failed|panic|unhandled|exception|temporary file' | sed -E 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/[email]/g' || true)"
+  if [[ -n "$ingress_log_matches" ]]; then
+    warn "recent ${INGRESS_CONTAINER} logs contain notable lines since $LOG_SINCE"
+    printf '%s\n' "$ingress_log_matches"
+  else
+    pass "recent ${INGRESS_CONTAINER} logs have no error/warn/failed/temporary-file lines since $LOG_SINCE"
+  fi
 fi
 
 echo

@@ -5,7 +5,7 @@
 #   ./scripts/deploy.sh            # Deploy everything (API + webapp + migrations)
 #   ./scripts/deploy.sh --api      # API + migrations only
 #   ./scripts/deploy.sh --web      # Webapp only
-#   ./scripts/deploy.sh --nginx    # Nginx/compose config only
+#   ./scripts/deploy.sh --nginx    # Legacy nginx handoff check only; deploy live proxy from ../proxy
 #   ./scripts/deploy.sh --migrate  # Migrations only (no rebuild/redeploy)
 
 set -Eeuo pipefail
@@ -257,7 +257,7 @@ run_migrations_in_container() {
 }
 
 sync_nginx_config() {
-  print_step "Syncing nginx config to droplet..."
+  print_step "Checking legacy nginx handoff state..."
 
   # nginx/conf.d references Let's Encrypt paths; nginx -t fails if files are missing.
   local tls_live="${DROPLET_PATH}/certbot/conf/live/wondertales.art"
@@ -311,9 +311,9 @@ EOF
     -v ${DROPLET_PATH}/certbot/www:/var/www/certbot:ro \
     nginx:alpine nginx -t"
 
-  echo "🔄 Recreating nginx with latest compose + config..."
-  ssh_droplet "cd ${DROPLET_PATH} && docker compose -f docker-compose.prod.yml up -d --force-recreate nginx"
-  echo "✅ Nginx config synced"
+  echo "🛑 Stopping legacy story nginx; shared-nginx-proxy owns public ingress now..."
+  ssh_droplet "cd ${DROPLET_PATH} && docker compose -f docker-compose.prod.yml stop nginx >/dev/null 2>&1 || true"
+  echo "✅ Legacy nginx config validates. Deploy live public nginx from /var/www/proxy with the proxy repo."
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -498,7 +498,7 @@ if $DEPLOY_WEB; then
   deploy_webapp
 fi
 
-# Deploy nginx/compose config without rebuilding API or webapp.
+# Validate legacy nginx handoff config without rebuilding API or webapp.
 if $DEPLOY_NGINX; then
   sync_nginx_config
 fi
