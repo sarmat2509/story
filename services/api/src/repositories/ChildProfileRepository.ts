@@ -162,7 +162,13 @@ export class ChildProfileRepository {
 
   async updateTurnaroundSheet(
     childId: string,
-    turnaroundSheet: { url: string; frontUrl?: string; generatedAt: string; sourcePhotoUrl: string },
+    turnaroundSheet: {
+      url: string;
+      frontUrl?: string;
+      frontThumbnailUrl?: string;
+      generatedAt: string;
+      sourcePhotoUrl: string;
+    },
   ): Promise<void> {
     await this.db
       .update(schema.childProfiles)

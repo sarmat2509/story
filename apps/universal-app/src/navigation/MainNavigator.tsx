@@ -48,6 +48,7 @@ import { MiniAudioPlayer } from '@/components/MiniAudioPlayer';
 import { useMainNavigationStore } from '@/store/mainNavigationStore';
 import { useDrawerCollapsedStore } from '@/store/drawerCollapsedStore';
 import { CollapsibleDrawerContent } from '@/navigation/CollapsibleDrawerContent';
+import { ChildProfileSwitcher } from '@/navigation/ChildProfileSwitcher';
 import { AuthGuard } from '@/components/AuthGuard';
 import { navigationRef, navigateToMainRoute } from '@/navigation/navigationRef';
 import type { MainDrawerParamList, MainTabParamList } from '@/types/navigation';
@@ -503,6 +504,7 @@ function TabNavigator() {
       backBehavior="history"
       screenOptions={{
         headerShown: true,
+        headerLeft: isChildSession ? () => <ChildProfileSwitcher /> : undefined,
         tabBarActiveTintColor: theme.colors.interactive.primary,
         tabBarInactiveTintColor: theme.colors.text.tertiary,
       }}

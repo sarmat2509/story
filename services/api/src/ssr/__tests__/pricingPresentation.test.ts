@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import {
+  formatPricingPrice,
   getCombinedPricingUsageHighlight,
   sortPricingFeatureEntries,
   type PricingTranslate,
@@ -42,6 +43,22 @@ function extractJsonLd(html: string): any[] {
 }
 
 void (async function main() {
+  assert.match(
+    formatPricingPrice('uk', 999, 'EUR', 'Безкоштовно'),
+    /9,99/,
+    'EUR prices should be rendered from minor units with the locale decimal separator'
+  );
+  assert.doesNotMatch(
+    formatPricingPrice('uk', 999, 'EUR', 'Безкоштовно'),
+    /999/,
+    'EUR prices should not render raw minor units'
+  );
+  assert.match(
+    formatPricingPrice('en', 2999, 'EUR', 'Free'),
+    /29\.99/,
+    'English EUR prices should include cents'
+  );
+
   assert.strictEqual(
     getCombinedPricingUsageHighlight('en', translate, features),
     '10 stories and 2 audio stories per month',
@@ -75,7 +92,8 @@ void (async function main() {
   assert.match(html, /Unlimited child profiles/);
   assert.doesNotMatch(html, /Story from drawing/);
   assert.doesNotMatch(html, /Image quality/);
-  assert.match(html, /Billing details/);
+  assert.match(html, /Pricing, plans &amp; bundles/);
+  assert.doesNotMatch(html, /Billing details/);
   assert.match(html, /Paid subscriptions renew monthly until canceled/);
   assert.match(html, /Unused bundle credits expire at period end and do not roll over/);
   assert.match(html, /<select aria-label="Language"/);
@@ -131,17 +149,29 @@ void (async function main() {
     fallbackPlans.map((plan) => [plan.slug, plan.priceMonthly]),
     [
       ['free', 0],
-      ['silver', 599],
-      ['golden', 1999],
-      ['fairyworld', 4999],
+      ['silver', 899],
+      ['golden', 2599],
+      ['fairyworld', 5999],
     ],
     'static pricing fallback should preserve launch plan order and prices'
   );
   assert.strictEqual(
     (fallbackPlans.find((plan) => plan.slug === 'fairyworld')?.features.stories_per_month.value as { limit: number }).limit,
-    45,
+    30,
     'static pricing fallback should preserve Fairy World story limit'
   );
+  assert.deepStrictEqual(
+    fallbackPlans.map((plan) => [plan.slug, (plan.features.follow_narrator.value as { enabled: boolean }).enabled]),
+    [
+      ['free', false],
+      ['silver', true],
+      ['golden', true],
+      ['fairyworld', true],
+    ],
+    'static pricing fallback should expose narrator-follow from Silver'
+  );
+  assert.strictEqual(fallbackPlans[0].features.export_pdf, undefined);
+  assert.strictEqual(fallbackPlans[0].features.export_video, undefined);
 
   const fallbackHtml = renderPricingHtml({ locale: 'en', plans: [] });
   assert.match(fallbackHtml, /<div class="name">Free<\/div>/);
@@ -149,7 +179,7 @@ void (async function main() {
   assert.match(fallbackHtml, /<div class="name">Golden Stars<\/div>/);
   assert.match(fallbackHtml, /<div class="name">Fairy World<\/div>/);
   assert.match(fallbackHtml, /3 stories and 1 audio story per month/);
-  assert.match(fallbackHtml, /45 stories and 15 audio stories per month/);
+  assert.match(fallbackHtml, /30 stories and 15 audio stories per month/);
 
   console.log('pricingPresentation tests passed');
 })();

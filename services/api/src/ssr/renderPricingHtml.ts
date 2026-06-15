@@ -1,5 +1,10 @@
 import { config } from '../config';
-import type { PresentedPlan } from '../services/planPresentationService';
+import {
+  DEFAULT_BILLING_CURRENCY,
+  normalizeBillingCurrency,
+  type BillingCurrency,
+  type PresentedPlan,
+} from '../services/planPresentationService';
 import { getPlansI18n } from '../utils/i18nLoader';
 import {
   PUBLIC_SEO_LOCALES,
@@ -39,6 +44,9 @@ a{text-decoration:none}
 .hero{text-align:center;margin:0 auto 36px;max-width:760px;padding:4px 0 0}
 .hero h1{margin:0 0 14px;font-size:clamp(32px,5vw,52px);font-weight:700;line-height:1.12;letter-spacing:0;color:#1e293b;text-wrap:balance}
 .hero p{margin:0 auto;font-size:clamp(16px,2.1vw,18px);line-height:1.6;color:#475569;max-width:680px;text-wrap:balance}
+.currency-toggle{display:inline-flex;align-items:center;gap:4px;margin-top:18px;padding:4px;border-radius:12px;border:1px solid rgba(139,124,184,.24);background:rgba(255,255,255,.76)}
+.currency-toggle a{display:inline-flex;align-items:center;justify-content:center;min-width:84px;min-height:38px;padding:0 14px;border-radius:9px;color:#475569;font-size:14px;font-weight:800}
+.currency-toggle a.active{background:#8b7cb8;color:#fff;box-shadow:0 8px 20px rgba(139,124,184,.18)}
 .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;align-items:start}
 .card{position:relative;display:flex;flex-direction:column;min-height:100%;background:rgba(255,255,255,.88);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(139,124,184,.2);border-radius:16px;padding:24px;box-shadow:0 12px 30px rgba(15,23,42,.07)}
 .card-featured{border-color:rgba(139,124,184,.56);box-shadow:0 18px 42px rgba(139,124,184,.18)}
@@ -59,11 +67,13 @@ a{text-decoration:none}
 .btn{display:flex;align-items:center;justify-content:center;min-height:46px;margin-top:24px;padding:0 18px;border-radius:999px;background:#8b7cb8;color:#fff;font-size:15px;font-weight:700;box-shadow:0 8px 20px rgba(139,124,184,.22)}
 .btn:hover{background:#7a6ba8}
 .btn-disabled{display:flex;align-items:center;justify-content:center;min-height:46px;margin-top:24px;padding:0 18px;border-radius:999px;background:rgba(255,255,255,.62);border:1px solid rgba(148,163,184,.36);color:#64748b;font-size:15px;font-weight:700}
-.billing-note{max-width:920px;margin:36px auto 0;padding:22px 24px;border:1px solid rgba(139,124,184,.18);border-radius:16px;background:rgba(255,255,255,.88);color:#334155;box-shadow:0 14px 32px rgba(15,23,42,.05)}
-.billing-note h2{margin:0 0 12px;font-size:22px;line-height:1.2;color:#1e293b;letter-spacing:0}
-.billing-note p{margin:8px 0 0;font-size:15px;line-height:1.6;color:#475569}
+.pricing-faq{max-width:920px;margin:36px auto 0;display:grid;gap:12px}
+.pricing-faq h2{margin:0 0 4px;text-align:center;font-size:22px;line-height:1.2;color:#1e293b;letter-spacing:0}
+.pricing-faq details{border:1px solid rgba(139,124,184,.18);border-radius:12px;background:rgba(255,255,255,.88);box-shadow:0 12px 28px rgba(15,23,42,.045)}
+.pricing-faq summary{cursor:pointer;padding:16px 18px;font-size:15px;font-weight:800;color:#1e293b}
+.pricing-faq p{margin:0;padding:0 18px 16px;font-size:15px;line-height:1.6;color:#475569}
 @media (max-width: 1180px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width: 760px){.wrap{padding:0 16px 56px}.nav{justify-content:center;padding:14px 0 20px}.grid{grid-template-columns:1fr;gap:16px}.card{padding:20px;border-radius:12px}.desc{min-height:0}.billing-note{border-radius:12px}}
+@media (max-width: 760px){.wrap{padding:0 16px 56px}.nav{justify-content:center;padding:14px 0 20px}.currency-toggle{width:100%;max-width:280px}.currency-toggle a{flex:1;min-width:0}.grid{grid-template-columns:1fr;gap:16px}.card{padding:20px;border-radius:12px}.desc{min-height:0}}
 ${PUBLIC_FOOTER_STYLES}
 `;
 
@@ -141,11 +151,11 @@ const FALLBACK_PLAN_LIMITS = [
   },
   {
     slug: 'silver',
-    priceMonthly: 599,
+    priceMonthly: 899,
     sortOrder: 2,
-    stories: 15,
+    stories: 10,
     audio: 5,
-    images: 3,
+    images: 1,
     children: 1,
     series: false,
     premiumVoices: false,
@@ -154,11 +164,11 @@ const FALLBACK_PLAN_LIMITS = [
   },
   {
     slug: 'golden',
-    priceMonthly: 1999,
+    priceMonthly: 2599,
     sortOrder: 3,
-    stories: 30,
+    stories: 20,
     audio: 10,
-    images: 5,
+    images: 3,
     children: null,
     series: true,
     premiumVoices: false,
@@ -167,11 +177,11 @@ const FALLBACK_PLAN_LIMITS = [
   },
   {
     slug: 'fairyworld',
-    priceMonthly: 4999,
+    priceMonthly: 5999,
     sortOrder: 4,
-    stories: 45,
+    stories: 30,
     audio: 15,
-    images: 8,
+    images: 5,
     children: null,
     series: true,
     premiumVoices: true,
@@ -188,8 +198,11 @@ function buildFallbackFeatures(input: typeof FALLBACK_PLAN_LIMITS[number]): Pres
     child_profiles_limit: { name: 'Child Profiles Limit', value: { limit: input.children }, category: 'premium' },
     premium_voices: { name: 'Premium Voice Selection', value: { enabled: input.premiumVoices }, category: 'media' },
     series_enabled: { name: 'Story Series', value: { enabled: input.series }, category: 'stories' },
-    export_pdf: { name: 'Export as PDF', value: { enabled: input.pdf }, category: 'export' },
-    export_video: { name: 'Export as Video', value: { enabled: input.video }, category: 'export' },
+    follow_narrator: {
+      name: 'Follow the narrator',
+      value: { enabled: input.slug !== 'free' },
+      category: 'media',
+    },
     share_enabled: { name: 'Share Story Links', value: { enabled: true }, category: 'export' },
     story_from_drawing: {
       name: 'Story From Child Drawing',
@@ -206,14 +219,46 @@ function buildFallbackFeatures(input: typeof FALLBACK_PLAN_LIMITS[number]): Pres
   };
 }
 
-export function buildFallbackPricingPlans(locale: LandingLocale): PresentedPlan[] {
+export function buildFallbackPricingPlans(
+  locale: LandingLocale,
+  billingCurrency: BillingCurrency = DEFAULT_BILLING_CURRENCY
+): PresentedPlan[] {
   return FALLBACK_PLAN_LIMITS.map((plan) => ({
     id: `fallback-${plan.slug}`,
     slug: plan.slug,
     name: getPlanDisplayName(locale, plan.slug, plan.slug),
     description: buildPlanDescription(locale, plan.slug, plan.stories, plan.audio, plan.images),
-    priceMonthly: plan.priceMonthly,
-    pricingCurrency: 'USD',
+    priceMonthly:
+      billingCurrency === 'USD'
+        ? plan.slug === 'silver'
+          ? 999
+          : plan.slug === 'golden'
+            ? 2999
+            : plan.slug === 'fairyworld'
+              ? 6999
+              : 0
+        : plan.priceMonthly,
+    pricingCurrency: billingCurrency,
+    prices: {
+      EUR: {
+        priceMonthly: plan.priceMonthly,
+        pricingCurrency: 'EUR',
+        stripePriceConfigured: plan.priceMonthly === 0,
+      },
+      USD: {
+        priceMonthly:
+          plan.slug === 'silver'
+            ? 999
+            : plan.slug === 'golden'
+              ? 2999
+              : plan.slug === 'fairyworld'
+                ? 6999
+                : 0,
+        pricingCurrency: 'USD',
+        stripePriceConfigured: plan.priceMonthly === 0,
+      },
+    },
+    stripePriceConfigured: plan.priceMonthly === 0,
     sortOrder: plan.sortOrder,
     features: buildFallbackFeatures(plan),
   }));
@@ -223,20 +268,23 @@ export function renderPricingHtml(params: {
   locale?: string | null;
   plans?: PresentedPlan[];
   paymentsEnabled?: boolean;
+  billingCurrency?: string | null;
 }): string {
   const locale = normalizeLandingLocale(params.locale);
+  const billingCurrency = normalizeBillingCurrency(params.billingCurrency);
   const webAppUrl = (config.web?.webAppUrl || '').replace(/\/$/, '');
   const pricingUrl = getPricingUrl(webAppUrl, locale);
   const plansI18n = getPlansI18n(locale);
   const translatePricing = buildPricingTranslate(plansI18n);
   const title = plansI18n.title || 'Pricing Plans';
   const subtitle = plansI18n.subtitle || '';
+  const faqTitle = plansI18n.bundles?.faq_title || plansI18n.faq_title || 'FAQ';
   const alternateLinks = buildPricingAlternateLinks(webAppUrl);
   const paymentsEnabled = params.paymentsEnabled ?? true;
 
   const sourcePlans = params.plans && params.plans.length > 0
     ? params.plans
-    : buildFallbackPricingPlans(locale);
+    : buildFallbackPricingPlans(locale, billingCurrency);
   const plans = sourcePlans.slice().sort((a, b) => a.sortOrder - b.sortOrder);
   const structuredData = renderPricingStructuredData({
     pricingUrl,
@@ -278,6 +326,12 @@ export function renderPricingHtml(params: {
       <header class="hero">
         <h1>${escapeHtml(title)}</h1>
         <p>${escapeHtml(subtitle)}</p>
+        <div class="currency-toggle" aria-label="Billing currency">
+          ${(['EUR', 'USD'] as BillingCurrency[]).map((currency) => {
+            const href = `${getPricingPath(locale)}?currency=${currency}`;
+            return `<a href="${escapeHtml(href)}" class="${billingCurrency === currency ? 'active' : ''}" aria-current="${billingCurrency === currency ? 'true' : 'false'}">${currency === 'EUR' ? '€ EUR' : '$ USD'}</a>`;
+          }).join('')}
+        </div>
       </header>
       <section class="grid">
         ${plans.map((plan) => {
@@ -306,12 +360,21 @@ export function renderPricingHtml(params: {
           </article>`;
         }).join('')}
       </section>
-      <section class="billing-note" aria-label="${escapeHtml(plansI18n.billing_note_title || 'Billing details')}">
-        <h2>${escapeHtml(plansI18n.billing_note_title || 'Billing details')}</h2>
-        ${!paymentsEnabled ? `<p>${escapeHtml(plansI18n.payments_disabled_notice || 'Paid checkout is not enabled yet. Free access remains available.')}</p>` : ''}
-        <p>${escapeHtml(plansI18n.billing_note_renewal || 'Paid subscriptions renew monthly until canceled. You can manage or cancel billing in the billing portal where available.')}</p>
-        <p>${escapeHtml(plansI18n.billing_note_bundles || 'Bundles are one-time add-ons for the current billing period. Unused bundle credits expire at period end and do not roll over.')}</p>
-        <p>${escapeHtml(plansI18n.billing_note_refunds || 'Refund requests are reviewed through support and do not happen automatically when a subscription is canceled.')}</p>
+      <section class="pricing-faq" aria-label="${escapeHtml(faqTitle)}">
+        <h2>${escapeHtml(faqTitle)}</h2>
+        ${!paymentsEnabled ? `<details open><summary>${escapeHtml(plansI18n.payments_disabled_button || 'Payments coming soon')}</summary><p>${escapeHtml(plansI18n.payments_disabled_notice || 'Paid checkout is not enabled yet. Free access remains available.')}</p></details>` : ''}
+        <details>
+          <summary>${escapeHtml(plansI18n.faq_renewal_q || 'How do subscriptions renew?')}</summary>
+          <p>${escapeHtml(plansI18n.faq_renewal_a || plansI18n.billing_note_renewal || 'Paid subscriptions renew monthly until canceled. You can manage or cancel billing in the billing portal where available.')}</p>
+        </details>
+        <details>
+          <summary>${escapeHtml(plansI18n.faq_bundles_q || 'How do story bundles work?')}</summary>
+          <p>${escapeHtml(plansI18n.faq_bundles_a || plansI18n.billing_note_bundles || 'Bundles are one-time add-ons for the current billing period. Unused bundle credits expire at period end and do not roll over.')}</p>
+        </details>
+        <details>
+          <summary>${escapeHtml(plansI18n.faq_refunds_q || 'How do refunds work?')}</summary>
+          <p>${escapeHtml(plansI18n.faq_refunds_a || plansI18n.billing_note_refunds || 'Refund requests are reviewed through support and do not happen automatically when a subscription is canceled.')}</p>
+        </details>
       </section>
     </div>
     ${renderPublicPageFooter(webAppUrl, locale, buildPublicFooterLanguageLinks(webAppUrl, buildPublicPricingPath))}

@@ -11,6 +11,9 @@ import * as bundleService from './bundleService';
 import { BUNDLE_CHECKOUT_METADATA_KIND } from './bundleService';
 import { resolveActiveSubscriptionPeriod } from './subscriptionPeriodService';
 import { logger } from '../utils/logger';
+import {
+  normalizeBillingCurrency,
+} from './planPresentationService';
 
 let stripeClient: Stripe | null = null;
 
@@ -91,11 +94,30 @@ export async function createCheckoutSession(
   planSlug: string,
   email: string,
   successUrl: string,
-  cancelUrl: string
+  cancelUrl: string,
+  requestedBillingCurrency?: string | null
 ): Promise<{ sessionId: string; url: string }> {
-  const priceId = config.stripe.priceIds[planSlug];
+  const userRepo = getUserRepository();
+  const user = await userRepo.findById(userId);
+  const billingCurrency = normalizeBillingCurrency(
+    requestedBillingCurrency || user?.preferredBillingCurrency
+  );
+  const planRepo = getPlanRepository();
+  const plan = await planRepo.findPlanBySlug(planSlug);
+  if (!plan) {
+    throw new Error(`Unknown plan: ${planSlug}`);
+  }
+
+  const planPrice = await planRepo.findPlanPrice(plan.id, billingCurrency);
+  const priceId =
+    planPrice?.stripePriceId ||
+    config.stripe.priceIdsByCurrency[billingCurrency]?.[planSlug] ||
+    (billingCurrency === 'USD' ? config.stripe.priceIds[planSlug] : undefined);
   if (!priceId) {
-    throw new Error(`No Stripe price configured for plan: ${planSlug}`);
+    throw new Error(`No Stripe price configured for plan: ${planSlug} (${billingCurrency})`);
+  }
+  if (user?.preferredBillingCurrency !== billingCurrency) {
+    await userRepo.update(userId, { preferredBillingCurrency: billingCurrency });
   }
 
   let customerId = await getOrCreateStripeCustomer(userId, email);
@@ -117,11 +139,13 @@ export async function createCheckoutSession(
       metadata: {
         userId,
         planSlug,
+        billingCurrency,
       },
       subscription_data: {
         metadata: {
           userId,
           planSlug,
+          billingCurrency,
         },
       },
     });
@@ -141,7 +165,10 @@ export async function createCheckoutSession(
     throw new Error('Stripe Checkout Session URL not returned');
   }
 
-  logger.info({ userId, planSlug, sessionId: session.id }, 'Created Stripe Checkout Session');
+  logger.info(
+    { userId, planSlug, billingCurrency, sessionId: session.id },
+    'Created Stripe Checkout Session'
+  );
   return { sessionId: session.id, url: session.url };
 }
 
@@ -153,10 +180,12 @@ export async function createBundleCheckoutSession(
   bundleSlug: string,
   email: string,
   successUrl: string,
-  cancelUrl: string
+  cancelUrl: string,
+  requestedBillingCurrency?: string | null
 ): Promise<{ sessionId: string; url: string }> {
   const planRepo = getPlanRepository();
   const bundleRepo = getBundleRepository();
+  const billingCurrency = normalizeBillingCurrency(requestedBillingCurrency);
 
   const subscription = await planRepo.findSubscriptionByUserId(userId);
   if (!subscription) {
@@ -173,9 +202,9 @@ export async function createBundleCheckoutSession(
     throw new Error(`Unknown or inactive bundle: ${bundleSlug}`);
   }
 
-  const priceRow = await bundleRepo.findPriceForPlanAndBundle(plan.id, bundle.id);
+  const priceRow = await bundleRepo.findPriceForPlanAndBundle(plan.id, bundle.id, billingCurrency);
   if (!priceRow) {
-    throw new Error(`No bundle price for plan ${plan.slug} and bundle ${bundleSlug}`);
+    throw new Error(`No ${billingCurrency} bundle price for plan ${plan.slug} and bundle ${bundleSlug}`);
   }
 
   const stripePriceId = bundleService.resolveBundleStripePriceId(
@@ -228,6 +257,7 @@ export async function createBundleCheckoutSession(
         userId,
         bundleSlug: bundle.slug,
         planSlug: plan.slug,
+        billingCurrency,
         extraStories: String(bundle.extraStories),
         extraAudio: String(bundle.extraAudio),
         subscriptionPeriodStart: periodStart.toISOString(),
@@ -286,9 +316,21 @@ export async function createPortalSession(userId: string, returnUrl: string): Pr
 /**
  * Resolve plan slug from Stripe Price ID (reverse lookup).
  */
-function getPlanSlugFromPriceId(priceId: string): string | null {
-  for (const [slug, id] of Object.entries(config.stripe.priceIds)) {
-    if (id === priceId) return slug;
+async function getPlanSlugFromPriceId(priceId: string): Promise<string | null> {
+  const planPrice = await getPlanRepository().findPlanPriceByStripePriceId(priceId);
+  if (planPrice) {
+    return planPrice.planSlug;
+  }
+
+  const priceMaps: Array<Record<string, string>> = [
+    config.stripe.priceIds,
+    config.stripe.priceIdsByCurrency.USD,
+    config.stripe.priceIdsByCurrency.EUR,
+  ];
+  for (const priceMap of priceMaps) {
+    for (const [slug, id] of Object.entries(priceMap)) {
+      if (id === priceId) return slug;
+    }
   }
   return null;
 }
@@ -369,7 +411,7 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string): P
       const stripeSub = event.data.object as Stripe.Subscription;
       const priceId = stripeSub.items.data[0]?.price?.id;
       const planSlug =
-        stripeSub.metadata?.planSlug ?? (priceId ? getPlanSlugFromPriceId(priceId) : null);
+        stripeSub.metadata?.planSlug ?? (priceId ? await getPlanSlugFromPriceId(priceId) : null);
 
       if (!planSlug) {
         logger.warn({ subscriptionId: stripeSub.id }, 'Could not resolve plan from subscription');

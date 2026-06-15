@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
@@ -40,9 +40,15 @@ function waitForAuthHydration(): Promise<void> {
 export default function OAuthCallbackScreen() {
   const { login } = useAuthStore();
   const { t } = useTranslation();
+  const hasHandledCallbackRef = useRef(false);
 
   useEffect(() => {
     async function handleCallback() {
+      if (hasHandledCallbackRef.current) {
+        return;
+      }
+      hasHandledCallbackRef.current = true;
+
       try {
         let token: string | null = null;
         let parentGate = false;

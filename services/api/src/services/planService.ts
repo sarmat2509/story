@@ -4,6 +4,7 @@ import { getBundleBonusForPeriod } from './bundleService';
 import type {
   Plan,
   Feature,
+  PlanPrice,
   UserSubscription,
   NewUserSubscription
 } from '../db/schema';
@@ -69,6 +70,10 @@ export async function getPlanFeaturesByPlanId(planId: string) {
 
 export async function getFeaturesForPlans(planIds: string[]): Promise<PlanFeatureWithDetails[]> {
   return getPlanRepository().findFeaturesForPlans(planIds);
+}
+
+export async function getPricesForPlans(planIds: string[]): Promise<PlanPrice[]> {
+  return getPlanRepository().findPlanPricesForPlanIds(planIds);
 }
 
 /** Slug + value for each feature on a plan (for entitlements API). */

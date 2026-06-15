@@ -148,7 +148,13 @@ export class CharacterRepository {
 
   async updateTurnaroundSheet(
     characterId: string,
-    turnaroundSheet: { url: string; frontUrl?: string; generatedAt: string; sourcePhotoUrl: string },
+    turnaroundSheet: {
+      url: string;
+      frontUrl?: string;
+      frontThumbnailUrl?: string;
+      generatedAt: string;
+      sourcePhotoUrl: string;
+    },
   ): Promise<void> {
     await this.db
       .update(schema.characters)

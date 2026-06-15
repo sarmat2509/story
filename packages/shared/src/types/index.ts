@@ -63,6 +63,9 @@ export const THEME_PALETTE_IDS = [
 export type ThemePaletteId = typeof THEME_PALETTE_IDS[number];
 export const DEFAULT_THEME_PALETTE_ID: ThemePaletteId = 'dusk_lavender';
 
+export const BILLING_CURRENCIES = ['EUR', 'USD'] as const;
+export type BillingCurrency = typeof BILLING_CURRENCIES[number];
+
 // User types
 export interface User {
   id: string;
@@ -70,6 +73,7 @@ export interface User {
   display_name: string | null;
   avatar_url: string | null;
   preferred_locale: Locale;
+  preferred_billing_currency?: BillingCurrency;
   mode?: 'instant' | 'artisan';
   onboarding_completed?: boolean;
   pseudonym?: string | null;
@@ -267,6 +271,7 @@ export type PersonalityTraits = PetPersonality | HumanPersonality | ImaginaryPer
 export interface TurnaroundSheet {
   url: string;
   frontUrl?: string; // Extracted front view for avatars/lists
+  frontThumbnailUrl?: string; // Small avatar/list thumbnail for navigation
   generatedAt: string;
   sourcePhotoUrl?: string;
 }
@@ -416,6 +421,12 @@ export interface Plan {
   updated_at: string;
 }
 
+export interface PlanPricePresentation {
+  price_monthly: number;
+  pricing_currency: BillingCurrency;
+  stripe_price_configured: boolean;
+}
+
 // Plan Feature (join table)
 export interface PlanFeature {
   id: string;
@@ -435,6 +446,8 @@ export interface PlanFeatureDenormalized {
 // Plan with Features (API response format)
 export interface PlanWithFeatures extends Plan {
   features: PlanFeatureDenormalized[];
+  prices?: Partial<Record<BillingCurrency, PlanPricePresentation>>;
+  stripe_price_configured?: boolean;
 }
 
 // Plan Public (unauthenticated view)

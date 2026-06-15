@@ -44,7 +44,7 @@ export class UserRepository {
 
   async update(
     id: string,
-    data: Partial<Pick<schema.NewUser, 'displayName' | 'avatarUrl' | 'preferredLocale' | 'mode' | 'onboardingCompleted' | 'pseudonym' | 'aboutMe' | 'passwordHash' | 'stripeCustomerId' | 'themePalette' | 'childModeExitPasscodeHash' | 'childModeExitPasscodeSetAt' | 'status' | 'suspendedAt' | 'suspendedReason' | 'suspendedByUserId'>>
+    data: Partial<Pick<schema.NewUser, 'displayName' | 'avatarUrl' | 'preferredLocale' | 'preferredBillingCurrency' | 'mode' | 'onboardingCompleted' | 'pseudonym' | 'aboutMe' | 'passwordHash' | 'stripeCustomerId' | 'themePalette' | 'childModeExitPasscodeHash' | 'childModeExitPasscodeSetAt' | 'status' | 'suspendedAt' | 'suspendedReason' | 'suspendedByUserId'>>
   ): Promise<schema.User> {
     const [user] = await this.db
       .update(schema.users)

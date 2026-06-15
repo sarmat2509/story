@@ -63,8 +63,30 @@ export interface TurnaroundSheetFromDescriptionParams {
 export interface TurnaroundSheetResult {
   url: string;
   frontUrl?: string;
+  frontThumbnailUrl?: string;
   generatedAt: string;
   sourcePhotoUrl: string;
+}
+
+async function uploadFrontThumbnail(params: {
+  assetStorage: ReturnType<typeof getAssetStorageService>;
+  frontBuffer: Buffer;
+  userId: string;
+  photoType: 'character_front_thumbnail' | 'child_front_thumbnail';
+}): Promise<string | undefined> {
+  try {
+    const thumbnailBuffer = await params.assetStorage.generateAvatarThumbnail(params.frontBuffer);
+    const thumbnailUpload = await params.assetStorage.uploadUserPhoto({
+      buffer: thumbnailBuffer,
+      mimeType: 'image/jpeg',
+      userId: params.userId,
+      photoType: params.photoType,
+    });
+    return thumbnailUpload.storagePath;
+  } catch (err) {
+    logger.warn({ err, photoType: params.photoType }, 'Failed to create front thumbnail');
+    return undefined;
+  }
 }
 
 /**
@@ -117,6 +139,8 @@ export async function generateTurnaroundSheetFromReference(
 
   const photoType = targetType === 'character' ? 'character_turnaround' as const : 'child_turnaround' as const;
   const frontPhotoType = targetType === 'character' ? 'character_front' as const : 'child_front' as const;
+  const frontThumbnailPhotoType =
+    targetType === 'character' ? 'character_front_thumbnail' as const : 'child_front_thumbnail' as const;
 
   const uploadResult = await assetStorage.uploadUserPhoto({
     buffer: generated.imageData,
@@ -126,6 +150,7 @@ export async function generateTurnaroundSheetFromReference(
   });
 
   let frontUrl: string | undefined;
+  let frontThumbnailUrl: string | undefined;
   try {
     const frontBuffer = await extractFrontFromTurnaround(generated.imageData);
     if (frontBuffer) {
@@ -136,6 +161,12 @@ export async function generateTurnaroundSheetFromReference(
         photoType: frontPhotoType,
       });
       frontUrl = frontUpload.storagePath;
+      frontThumbnailUrl = await uploadFrontThumbnail({
+        assetStorage,
+        frontBuffer,
+        userId,
+        photoType: frontThumbnailPhotoType,
+      });
     }
   } catch (err) {
     logger.warn({ err, targetType, targetId }, 'Failed to extract front from turnaround, saving without frontUrl');
@@ -144,6 +175,7 @@ export async function generateTurnaroundSheetFromReference(
   const turnaroundSheet: TurnaroundSheetResult = {
     url: uploadResult.storagePath,
     ...(frontUrl && { frontUrl }),
+    ...(frontThumbnailUrl && { frontThumbnailUrl }),
     generatedAt: new Date().toISOString(),
     sourcePhotoUrl: firstUrl,
   };
@@ -195,6 +227,7 @@ export async function generateTurnaroundSheetFromDescription(
   });
 
   let frontUrl: string | undefined;
+  let frontThumbnailUrl: string | undefined;
   try {
     const frontBuffer = await extractFrontFromTurnaround(generated.imageData);
     if (frontBuffer) {
@@ -205,6 +238,12 @@ export async function generateTurnaroundSheetFromDescription(
         photoType: 'child_front' as const,
       });
       frontUrl = frontUpload.storagePath;
+      frontThumbnailUrl = await uploadFrontThumbnail({
+        assetStorage,
+        frontBuffer,
+        userId,
+        photoType: 'child_front_thumbnail',
+      });
     }
   } catch (err) {
     logger.warn({ err, childId: targetId }, 'Failed to extract front from turnaround, saving without frontUrl');
@@ -213,6 +252,7 @@ export async function generateTurnaroundSheetFromDescription(
   const turnaroundSheet: TurnaroundSheetResult = {
     url: uploadResult.storagePath,
     ...(frontUrl && { frontUrl }),
+    ...(frontThumbnailUrl && { frontThumbnailUrl }),
     generatedAt: new Date().toISOString(),
     sourcePhotoUrl: 'text-description',
   };
@@ -337,6 +377,7 @@ export async function generateLlmCharacterTurnaround(
   );
 
   let frontStoragePath: string | undefined;
+  let frontThumbnailStoragePath: string | undefined;
   try {
     const frontBuffer = await extractFrontFromTurnaround(generated.imageData);
     if (frontBuffer) {
@@ -347,6 +388,12 @@ export async function generateLlmCharacterTurnaround(
         '_front'
       );
       frontStoragePath = frontResult.storagePath;
+      frontThumbnailStoragePath = await uploadFrontThumbnail({
+        assetStorage,
+        frontBuffer,
+        userId,
+        photoType: 'character_front_thumbnail',
+      });
     }
   } catch (err) {
     logger.warn({ err, characterId }, 'Failed to extract front from turnaround, saving without frontUrl');
@@ -366,6 +413,7 @@ export async function generateLlmCharacterTurnaround(
   const turnaroundSheet: TurnaroundSheetResult = {
     url: storagePath,
     ...(frontStoragePath && { frontUrl: frontStoragePath }),
+    ...(frontThumbnailStoragePath && { frontThumbnailUrl: frontThumbnailStoragePath }),
     generatedAt: new Date().toISOString(),
     sourcePhotoUrl: 'text-description',
   };

@@ -6,7 +6,6 @@ import {
   StyleSheet,
   type ViewStyle,
   View,
-  Image,
 } from 'react-native';
 import {
   CommonActions,
@@ -26,7 +25,7 @@ import type { Route } from '@react-navigation/native';
 import { useDrawerCollapsedStore } from '@/store/drawerCollapsedStore';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
-import { formatAssetUrl } from '@/utils/assetUrl';
+import { ChildAvatarImage, ChildProfileSwitcher } from '@/navigation/ChildProfileSwitcher';
 import type { RootStackParamList } from '@/types/navigation';
 
 const LABEL_ANIMATION_DURATION = 250;
@@ -172,10 +171,6 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
     (route) => !isItemHidden(descriptors[route.key].options.drawerItemStyle)
   );
   const isChildSession = sessionMode === 'child' && activeChild;
-  const activeChildAvatar =
-    activeChild?.turnaroundSheet?.frontUrl ??
-    activeChild?.turnaroundSheet?.url ??
-    activeChild?.referencePhotos?.[0]?.url;
 
   return (
     <DrawerContentScrollView
@@ -184,33 +179,44 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
       style={drawerContentStyle}
     >
       {isChildSession ? (
-        <View style={[styles.childSessionCard, collapsed && styles.childSessionCardCollapsed]}>
-          {activeChildAvatar ? (
-            <Image
-              source={{ uri: formatAssetUrl(activeChildAvatar) ?? activeChildAvatar }}
-              style={styles.childAvatar}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.childAvatarFallback}>
-              <Ionicons
-                name="person-circle-outline"
-                size={28}
-                color={theme.colors.interactive.primary}
-              />
-            </View>
+        <ChildProfileSwitcher
+          menuStyle={styles.childSwitcherMenu}
+          renderTrigger={({ avatarUrl, open }) => (
+            <PlatformPressable
+              onPress={open}
+              role="button"
+              pressColor={undefined}
+              pressOpacity={0.75}
+            >
+              <View style={[styles.childSessionCard, collapsed && styles.childSessionCardCollapsed]}>
+                {avatarUrl ? (
+                  <ChildAvatarImage
+                    uri={avatarUrl}
+                    style={styles.childAvatar}
+                  />
+                ) : (
+                  <View style={styles.childAvatarFallback}>
+                    <Ionicons
+                      name="person-circle-outline"
+                      size={28}
+                      color={theme.colors.interactive.primary}
+                    />
+                  </View>
+                )}
+                {!collapsed ? (
+                  <View style={styles.childSessionCopy}>
+                    <Text style={styles.childSessionLabel} numberOfLines={1}>
+                      {t('child_mode.title')}
+                    </Text>
+                    <Text style={styles.childSessionName} numberOfLines={1}>
+                      {activeChild?.name}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </PlatformPressable>
           )}
-          {!collapsed ? (
-            <View style={styles.childSessionCopy}>
-              <Text style={styles.childSessionLabel} numberOfLines={1}>
-                {t('child_mode.title')}
-              </Text>
-              <Text style={styles.childSessionName} numberOfLines={1}>
-                {activeChild?.name}
-              </Text>
-            </View>
-          ) : null}
-        </View>
+        />
       ) : null}
       {visibleRoutes.map((route) => {
         const focused = state.routes[state.index].key === route.key;
@@ -369,5 +375,9 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
+  },
+  childSwitcherMenu: {
+    top: Platform.OS === 'web' ? theme.spacing[3] : 78,
+    left: theme.spacing[3],
   },
 });

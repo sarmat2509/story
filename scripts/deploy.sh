@@ -439,6 +439,18 @@ deploy_webapp() {
     exit 1
   fi
 
+  local expo_bundle_hash expo_bundle_dir expo_bundle_name expo_bundle_hashed
+  expo_bundle_hash=$(shasum -a 256 "${expo_bundle}" | awk '{print substr($1, 1, 12)}')
+  expo_bundle_dir="$(dirname "${expo_bundle}")"
+  expo_bundle_name="$(basename "${expo_bundle}" .js)"
+  expo_bundle_hashed="${expo_bundle_dir}/${expo_bundle_name}-${expo_bundle_hash}.js"
+  if [[ "${expo_bundle}" != "${expo_bundle_hashed}" ]]; then
+    mv "${expo_bundle}" "${expo_bundle_hashed}"
+    perl -0pi -e "s#/_expo/static/js/web/[^\"']+\\.js#/_expo/static/js/web/$(basename "${expo_bundle_hashed}")#g" apps/universal-app/dist/index.html
+    expo_bundle="${expo_bundle_hashed}"
+  fi
+  echo "   ✓ Fingerprinted web bundle: $(basename "${expo_bundle}")"
+
   mkdir -p apps/universal-app/dist/static/js
   cp "${expo_bundle}" apps/universal-app/dist/static/js/bundle.js
   echo "   ✓ Created SSR compatibility bundle at /static/js/bundle.js"

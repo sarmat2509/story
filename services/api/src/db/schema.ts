@@ -10,6 +10,7 @@ export const users = pgTable('users', {
   aboutMe: text('about_me'),
   avatarUrl: text('avatar_url'),
   preferredLocale: varchar('preferred_locale', { length: 5 }).default('uk').notNull(),
+  preferredBillingCurrency: varchar('preferred_billing_currency', { length: 3 }).default('EUR').notNull(),
   mode: varchar('mode', { length: 20 }).default('instant').notNull(), // 'instant' | 'artisan'
   onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
   stripeCustomerId: varchar('stripe_customer_id', { length: 255 }),
@@ -205,6 +206,22 @@ export const plans = pgTable('plans', {
   };
 });
 
+export const planPrices = pgTable('plan_prices', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  planId: uuid('plan_id').references(() => plans.id, { onDelete: 'cascade' }).notNull(),
+  pricingCurrency: varchar('pricing_currency', { length: 3 }).notNull(),
+  priceMonthly: integer('price_monthly').notNull(),
+  stripePriceId: varchar('stripe_price_id', { length: 255 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    planCurrencyIdx: uniqueIndex('plan_prices_plan_currency_uidx').on(table.planId, table.pricingCurrency),
+    planIdIdx: index('plan_prices_plan_id_idx').on(table.planId),
+    currencyIdx: index('plan_prices_currency_idx').on(table.pricingCurrency),
+  };
+});
+
 // Features table
 export const features = pgTable('features', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -291,7 +308,7 @@ export const planBundlePrices = pgTable('plan_bundle_prices', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
-  planBundleUnique: uniqueIndex('plan_bundle_prices_plan_bundle_uidx').on(table.planId, table.bundleId),
+  planBundleCurrencyUnique: uniqueIndex('plan_bundle_prices_plan_bundle_currency_uidx').on(table.planId, table.bundleId, table.pricingCurrency),
   planIdIdx: index('plan_bundle_prices_plan_id_idx').on(table.planId),
   bundleIdIdx: index('plan_bundle_prices_bundle_id_idx').on(table.bundleId),
 }));
@@ -432,6 +449,8 @@ export const usageEvents = pgTable('usage_events', {
 
 export type Plan = typeof plans.$inferSelect;
 export type NewPlan = typeof plans.$inferInsert;
+export type PlanPrice = typeof planPrices.$inferSelect;
+export type NewPlanPrice = typeof planPrices.$inferInsert;
 
 export type Feature = typeof features.$inferSelect;
 export type NewFeature = typeof features.$inferInsert;

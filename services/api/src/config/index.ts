@@ -21,6 +21,16 @@ function parseCaptchaRequiredActions(raw: string | undefined): string[] {
   return Array.from(new Set(values));
 }
 
+function parseStripePriceIds(raw: string | undefined): Record<string, string> {
+  return (raw || '')
+    .split(',')
+    .reduce<Record<string, string>>((acc, pair) => {
+      const [slug, priceId] = pair.trim().split(':');
+      if (slug && priceId) acc[slug] = priceId;
+      return acc;
+    }, {});
+}
+
 /**
  * When `.env.local` reuses Docker's `GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/foo.json`
  * but the API runs on the host, map to `./secrets/foo.json` at repo root (same layout as compose).
@@ -465,13 +475,11 @@ export const config = {
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY || '',
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
-    priceIds: (process.env.STRIPE_PRICE_IDS || '')
-      .split(',')
-      .reduce<Record<string, string>>((acc, pair) => {
-        const [slug, priceId] = pair.trim().split(':');
-        if (slug && priceId) acc[slug] = priceId;
-        return acc;
-      }, {}),
+    priceIds: parseStripePriceIds(process.env.STRIPE_PRICE_IDS),
+    priceIdsByCurrency: {
+      USD: parseStripePriceIds(process.env.STRIPE_PRICE_IDS_USD || process.env.STRIPE_PRICE_IDS),
+      EUR: parseStripePriceIds(process.env.STRIPE_PRICE_IDS_EUR),
+    },
     /** Keys `bundleSlug:planSlug` → Stripe Price ID (one-time). Example: bundle_small:free:price_xxx */
     bundlePriceIds: (process.env.STRIPE_BUNDLE_PRICE_IDS || '')
       .split(',')

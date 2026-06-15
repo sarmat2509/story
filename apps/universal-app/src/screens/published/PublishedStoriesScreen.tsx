@@ -247,7 +247,7 @@ export default function PublishedStoriesScreen() {
   const totalStories = data?.pagination?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalStories / ITEMS_PER_PAGE));
 
-  const numColumns = useMemo(() => (width < 1024 ? 2 : 4), [width]);
+  const numColumns = useMemo(() => (width < 640 ? 1 : width < 1024 ? 2 : 4), [width]);
   const gridCardWidth = useMemo(() => {
     const paddingHorizontal = theme.spacing[4] * 2;
     const gap = theme.spacing[4];

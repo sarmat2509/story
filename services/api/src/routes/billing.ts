@@ -12,9 +12,16 @@ import {
   buildBillingCheckoutReturnUrls,
   buildBillingPortalReturnUrl,
 } from './billingReturnUrls';
+import { SUPPORTED_BILLING_CURRENCIES } from '../services/planPresentationService';
+
+const checkoutSessionBodySchema = z.object({
+  planSlug: z.string().min(1).max(64),
+  currency: z.enum(SUPPORTED_BILLING_CURRENCIES).optional(),
+});
 
 const bundleCheckoutBodySchema = z.object({
   bundleSlug: z.string().min(1).max(64),
+  currency: z.enum(SUPPORTED_BILLING_CURRENCIES).optional(),
 });
 
 const router = Router();
@@ -32,14 +39,14 @@ router.post('/checkout-session', requireAuth, requireParentSession, async (req: 
 
     const userId = req.user!.id;
     const email = req.user!.email;
-    const { planSlug } = req.body;
-
-    if (!planSlug || typeof planSlug !== 'string') {
+    const parsed = checkoutSessionBodySchema.safeParse(req.body);
+    if (!parsed.success) {
       return res.status(400).json({
         status: 'error',
-        message: 'planSlug is required',
+        message: 'planSlug is required and currency must be EUR or USD when provided',
       });
     }
+    const { planSlug, currency } = parsed.data;
 
     const { successUrl, cancelUrl } = buildBillingCheckoutReturnUrls(
       config.web?.webAppUrl || '',
@@ -52,7 +59,8 @@ router.post('/checkout-session', requireAuth, requireParentSession, async (req: 
       planSlug,
       email,
       successUrl,
-      cancelUrl
+      cancelUrl,
+      currency
     );
 
     res.json({
@@ -91,7 +99,7 @@ router.post('/bundle-checkout', requireAuth, requireParentSession, async (req: R
 
     const userId = req.user!.id;
     const email = req.user!.email;
-    const { bundleSlug } = parsed.data;
+    const { bundleSlug, currency } = parsed.data;
 
     const { successUrl, cancelUrl } = buildBillingCheckoutReturnUrls(
       config.web?.webAppUrl || '',
@@ -104,7 +112,8 @@ router.post('/bundle-checkout', requireAuth, requireParentSession, async (req: R
       bundleSlug,
       email,
       successUrl,
-      cancelUrl
+      cancelUrl,
+      currency
     );
 
     res.json({

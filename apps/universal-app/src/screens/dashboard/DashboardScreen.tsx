@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  FlatList,
   useWindowDimensions,
   Platform,
 } from 'react-native';
@@ -81,9 +80,15 @@ export default function DashboardScreen() {
   const hasError = storiesError || (!isChildSession && childrenError);
   const greetingName = isChildSession ? activeChild?.name : user?.displayName;
 
-  // Responsive columns: 2 on mobile, 3 on desktop
+  // Responsive columns: 1 on mobile, 2 on tablet, 3 on desktop
   const { width } = useWindowDimensions();
-  const numColumns = width < 768 ? 2 : 3;
+  const numColumns = width < 640 ? 1 : width < 1024 ? 2 : 3;
+  const gridCellStyle =
+    numColumns === 1
+      ? styles.gridCellFull
+      : numColumns === 2
+        ? styles.gridCellHalf
+        : styles.gridCellThird;
 
   // Show loading state
   if (isLoading) {
@@ -190,24 +195,23 @@ export default function DashboardScreen() {
             <AnimatedSection delay={240} trigger={enterKey}>
               <View style={styles.recentSection}>
                 <Text style={styles.sectionTitle}>{t('dashboard.recent_stories')}</Text>
-                <FlatList
-                  data={stories.slice(0, 6)}
-                  keyExtractor={(item) => item.id}
-                  numColumns={numColumns}
-                  key={`dashboard-grid-${numColumns}`}
-                  scrollEnabled={false}
-                  renderItem={({ item }) => (
-                    <View style={styles.gridCell}>
+                <View
+                  style={[
+                    styles.recentStoriesGrid,
+                    Platform.OS === 'web' &&
+                      ({ gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any),
+                  ]}
+                >
+                  {stories.slice(0, 6).map((item) => (
+                    <View key={item.id} style={[styles.gridCell, gridCellStyle]}>
                       <StoryCard
                         story={item}
                         onPress={() => navigateToStory(item.id)}
                         variant="grid"
                       />
                     </View>
-                  )}
-                  contentContainerStyle={styles.gridContent}
-                  columnWrapperStyle={styles.gridRow}
-                />
+                  ))}
+                </View>
               </View>
             </AnimatedSection>
           )}
@@ -367,14 +371,29 @@ const styles = StyleSheet.create({
   recentSection: {
     marginBottom: theme.spacing[6],
   },
-  gridContent: {
-    gap: theme.spacing[4],
-  },
-  gridRow: {
-    gap: theme.spacing[4],
-  },
+  recentStoriesGrid: Platform.select({
+    web: {
+      display: 'grid' as any,
+      gap: theme.spacing[4],
+    },
+    default: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      gap: theme.spacing[4],
+    },
+  }),
   gridCell: {
     flex: 1,
+    minWidth: 0,
+  },
+  gridCellFull: {
+    flexBasis: '100%',
+  },
+  gridCellHalf: {
+    flexBasis: '47%',
+  },
+  gridCellThird: {
+    flexBasis: '30%',
   },
   glassDashboardActionSpacingBelow: {
     marginBottom: theme.spacing[6],

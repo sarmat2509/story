@@ -1,4 +1,4 @@
-import React, { useState, useLayoutEffect, useMemo, useCallback } from 'react';
+import React, { useState, useLayoutEffect, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,11 +24,13 @@ import {
   usePlansWithAuth,
   useUpgradePlan,
   useCreateCheckoutSession,
+  useUpdateBillingCurrency,
   useBundles,
   useCreateBundleCheckoutSession,
   useSubscriptionUsage,
   invalidateBillingState,
 } from '@/api/plans';
+import type { BillingCurrency } from '@wondertales/shared';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import { hexAlpha } from '@/theme/colorAlpha';
 import { useAuthStore } from '@/store/authStore';
@@ -59,6 +61,7 @@ import {
 const cardDelay = (i: number) => Math.min(120 + i * 120, 420);
 
 const BUNDLE_CARD_WIDTH = 276;
+const BILLING_CURRENCY_OPTIONS: BillingCurrency[] = ['EUR', 'USD'];
 
 export default function PlansScreen() {
   const { t, i18n } = useTranslation();
@@ -70,6 +73,9 @@ export default function PlansScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
   const bundleGridLayout = isWeb || windowWidth >= 720;
+  const [selectedBillingCurrency, setSelectedBillingCurrency] = useState<BillingCurrency | undefined>(
+    undefined
+  );
 
   // Modal state for upgrade flow
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -81,6 +87,7 @@ export default function PlansScreen() {
   const [nativeBillingSuccess, setNativeBillingSuccess] = useState(false);
   const upgradePlan = useUpgradePlan();
   const createCheckoutSession = useCreateCheckoutSession();
+  const updateBillingCurrency = useUpdateBillingCurrency();
   const createBundleCheckout = useCreateBundleCheckoutSession();
   const { data: subscriptionUsage } = useSubscriptionUsage(isAuthenticated);
   const periodEndFormatted = useMemo(
@@ -99,8 +106,8 @@ export default function PlansScreen() {
   }, [navigation]);
 
   // Fetch plans - use authenticated hook if logged in, otherwise public
-  const publicPlansQuery = usePlansCatalog();
-  const authPlansQuery = usePlansWithAuth(isAuthenticated);
+  const publicPlansQuery = usePlansCatalog(selectedBillingCurrency ?? 'EUR');
+  const authPlansQuery = usePlansWithAuth(isAuthenticated, selectedBillingCurrency);
 
   // Select appropriate query based on auth state
   const authData = authPlansQuery.data;
@@ -108,6 +115,27 @@ export default function PlansScreen() {
     ?.status;
   const authUnauthorized = authStatus === 401;
   const effectiveIsAuthenticated = isAuthenticated && !authUnauthorized;
+  const billingCurrency: BillingCurrency =
+    selectedBillingCurrency ??
+    authData?.billingCurrency ??
+    publicPlansQuery.data?.billingCurrency ??
+    'EUR';
+
+  useEffect(() => {
+    if (!selectedBillingCurrency && effectiveIsAuthenticated && authData?.preferredBillingCurrency) {
+      setSelectedBillingCurrency(authData.preferredBillingCurrency);
+    }
+  }, [authData?.preferredBillingCurrency, effectiveIsAuthenticated, selectedBillingCurrency]);
+
+  const handleBillingCurrencyChange = useCallback(
+    (currency: BillingCurrency) => {
+      setSelectedBillingCurrency(currency);
+      if (effectiveIsAuthenticated) {
+        updateBillingCurrency.mutate(currency);
+      }
+    },
+    [effectiveIsAuthenticated, updateBillingCurrency]
+  );
 
   const plans = effectiveIsAuthenticated
     ? authData && 'plans' in authData
@@ -134,7 +162,7 @@ export default function PlansScreen() {
     if (!effectiveIsAuthenticated || !Array.isArray(plans)) return null;
     return (plans.find((plan: any) => 'isCurrent' in plan && plan.isCurrent) as any)?.slug ?? null;
   }, [effectiveIsAuthenticated, plans]);
-  const bundlesQuery = useBundles(effectiveIsAuthenticated, currentPlanSlug);
+  const bundlesQuery = useBundles(effectiveIsAuthenticated, currentPlanSlug, billingCurrency);
   const sortedBundles = useMemo(() => {
     const rows = bundlesQuery.data;
     if (!rows?.length) return [];
@@ -159,7 +187,10 @@ export default function PlansScreen() {
 
     if (enableRealPayments && isWeb) {
       try {
-        const { url } = await createCheckoutSession.mutateAsync(selectedPlan.slug);
+        const { url } = await createCheckoutSession.mutateAsync({
+          planSlug: selectedPlan.slug,
+          currency: billingCurrency,
+        });
         if (url && assignWebLocation(url)) {
           return;
         }
@@ -220,7 +251,10 @@ export default function PlansScreen() {
       setBundleError(null);
       if (enableRealPayments && isWeb) {
         try {
-          const { url } = await createBundleCheckout.mutateAsync(bundleSlug);
+          const { url } = await createBundleCheckout.mutateAsync({
+            bundleSlug,
+            currency: billingCurrency,
+          });
           if (url && assignWebLocation(url)) {
             return;
           }
@@ -289,6 +323,7 @@ export default function PlansScreen() {
       formatPrice,
       handleBundlePurchase,
       createBundleCheckout.isPending,
+      billingCurrency,
     ]
   );
 
@@ -372,6 +407,33 @@ export default function PlansScreen() {
           <View style={styles.header}>
             <Text style={styles.title}>{t('plans.title')}</Text>
             <Text style={styles.subtitle}>{t('plans.subtitle')}</Text>
+            <View style={styles.currencyToggle}>
+              {BILLING_CURRENCY_OPTIONS.map((currency) => {
+                const selected = billingCurrency === currency;
+                return (
+                  <TouchableOpacity
+                    key={currency}
+                    style={[
+                      styles.currencyToggleButton,
+                      selected && styles.currencyToggleButtonSelected,
+                    ]}
+                    onPress={() => handleBillingCurrencyChange(currency)}
+                    disabled={selected || updateBillingCurrency.isPending}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                  >
+                    <Text
+                      style={[
+                        styles.currencyToggleText,
+                        selected && styles.currencyToggleTextSelected,
+                      ]}
+                    >
+                      {currency === 'EUR' ? '€ EUR' : '$ USD'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </AnimatedSection>
 
@@ -519,60 +581,6 @@ export default function PlansScreen() {
           })}
         </View>
 
-        <AnimatedSection delay={120} trigger={enterKey}>
-          <View style={styles.billingNotice}>
-            <Text style={styles.billingNoticeTitle}>
-              {t('plans.billing_note_title', { defaultValue: 'Billing details' })}
-            </Text>
-            {!enableRealPayments && (
-              <Text style={styles.billingNoticeText}>
-                {t('plans.payments_disabled_notice', {
-                  defaultValue:
-                    'Paid checkout is not enabled yet. Free access remains available while we finish billing verification.',
-                })}
-              </Text>
-            )}
-            {nativeBillingUnavailable && (
-              <Text style={styles.billingNoticeText}>{t('plans.revenuecat_not_configured')}</Text>
-            )}
-            <Text style={styles.billingNoticeText}>
-              {t('plans.billing_note_renewal', {
-                defaultValue: isWeb
-                  ? 'Paid subscriptions renew monthly until canceled. You can manage or cancel billing in the billing portal where available.'
-                  : 'Paid subscriptions renew monthly until canceled. On iOS and Android, purchases are managed through your App Store or Google Play account.',
-              })}
-            </Text>
-            <Text style={styles.billingNoticeText}>
-              {t('plans.billing_note_bundles', {
-                defaultValue:
-                  'Bundles are one-time add-ons for the current billing period. Unused bundle credits expire at period end and do not roll over.',
-              })}
-            </Text>
-            <Text style={styles.billingNoticeText}>
-              {t('plans.billing_note_refunds', {
-                defaultValue:
-                  'Refund requests are reviewed through support and do not happen automatically when a subscription is canceled.',
-              })}
-            </Text>
-            {useRevenueCatFlow ? (
-              <TouchableOpacity
-                style={styles.restorePurchasesButton}
-                onPress={handleRestorePurchases}
-                disabled={nativeBillingPending}
-              >
-                <Ionicons
-                  name="refresh-outline"
-                  size={16}
-                  color={theme.colors.interactive.primary}
-                />
-                <Text style={styles.restorePurchasesButtonText}>
-                  {nativeBillingPending ? t('plans.restoring') : t('plans.restore_purchases')}
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </AnimatedSection>
-
         {effectiveIsAuthenticated && (
           <AnimatedSection delay={80} trigger={enterKey}>
             <View style={styles.bundleSection}>
@@ -612,6 +620,19 @@ export default function PlansScreen() {
                 {!bundlesQuery.isLoading && (
                   <View style={styles.bundleFaqSection}>
                     <Text style={styles.bundleFaqSectionTitle}>{t('plans.bundles.faq_title')}</Text>
+                    {!enableRealPayments ? (
+                      <Text style={styles.bundleFaqAnswer}>
+                        {t('plans.payments_disabled_notice', {
+                          defaultValue:
+                            'Paid checkout is not enabled yet. Free access remains available while we finish billing verification.',
+                        })}
+                      </Text>
+                    ) : null}
+                    {nativeBillingUnavailable ? (
+                      <Text style={styles.bundleFaqAnswer}>
+                        {t('plans.revenuecat_not_configured')}
+                      </Text>
+                    ) : null}
                     <ExpandableCard title={t('plans.bundles.faq_1_q')} icon="layers-outline">
                       <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_1_a')}</Text>
                     </ExpandableCard>
@@ -634,6 +655,28 @@ export default function PlansScreen() {
                     <ExpandableCard title={t('plans.bundles.faq_6_q')} icon="image-outline">
                       <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_6_a')}</Text>
                     </ExpandableCard>
+                    <ExpandableCard title={t('plans.faq_renewal_q')} icon="refresh-outline">
+                      <Text style={styles.bundleFaqAnswer}>{t('plans.faq_renewal_a')}</Text>
+                    </ExpandableCard>
+                    <ExpandableCard title={t('plans.faq_refunds_q')} icon="card-outline">
+                      <Text style={styles.bundleFaqAnswer}>{t('plans.faq_refunds_a')}</Text>
+                    </ExpandableCard>
+                    {useRevenueCatFlow ? (
+                      <TouchableOpacity
+                        style={styles.restorePurchasesButton}
+                        onPress={handleRestorePurchases}
+                        disabled={nativeBillingPending}
+                      >
+                        <Ionicons
+                          name="refresh-outline"
+                          size={16}
+                          color={theme.colors.interactive.primary}
+                        />
+                        <Text style={styles.restorePurchasesButtonText}>
+                          {nativeBillingPending ? t('plans.restoring') : t('plans.restore_purchases')}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                 )}
               </View>
@@ -782,6 +825,34 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.lg,
     color: theme.colors.text.secondary,
     textAlign: 'center',
+  },
+  currencyToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme.spacing[4],
+    padding: 3,
+    borderRadius: theme.borders.radius.md,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  currencyToggleButton: {
+    minWidth: 76,
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.sm,
+    alignItems: 'center',
+  },
+  currencyToggleButtonSelected: {
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  currencyToggleText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+  },
+  currencyToggleTextSelected: {
+    color: theme.colors.text.inverse,
   },
   plansGrid: {
     gap: theme.spacing[6],
@@ -1075,26 +1146,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing[1],
   },
   bundleShell: {
-    backgroundColor: theme.colors.background.secondary,
-    borderRadius: theme.borders.radius.xl,
-    borderWidth: 1,
-    borderColor: theme.colors.border.light,
     paddingHorizontal: theme.spacing[4],
     paddingTop: theme.spacing[6],
     paddingBottom: theme.spacing[5],
-    ...Platform.select({
-      ios: {
-        shadowColor: theme.colors.primary[900],
-        shadowOpacity: 0.08,
-        shadowRadius: 20,
-        shadowOffset: { width: 0, height: 10 },
-      },
-      android: { elevation: 3 },
-      web: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        boxShadow: `0 20px 48px -24px ${hexAlpha(theme.colors.primary[900], 0.12)}` as any,
-      },
-    }),
   },
   bundleHeaderBlock: {
     alignItems: 'center',

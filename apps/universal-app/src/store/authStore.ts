@@ -22,7 +22,12 @@ export type ActiveChildSession = {
   authorPseudonym?: string | null;
   authorAboutMe?: string | null;
   referencePhotos?: Array<{ url: string }>;
-  turnaroundSheet?: { url: string; frontUrl?: string; generatedAt?: string };
+  turnaroundSheet?: {
+    url: string;
+    frontUrl?: string;
+    frontThumbnailUrl?: string;
+    generatedAt?: string;
+  };
   childMode?: {
     childModeEnabled: boolean;
     childModeSettings: ChildModeSettings;

@@ -10,6 +10,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Image,
+  Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -30,6 +31,7 @@ import { resetToMainRoute } from '@/navigation/navigationRef';
 import { resolveBillingEntryTarget } from '@/utils/billingEntry';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 import { assignWebLocation, getWebPathname } from '@/utils/webRuntime';
+import { LEGAL_URLS } from '@/config/constants';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -144,6 +146,43 @@ export default function WelcomeScreen() {
     navigation.navigate('Plans');
   };
 
+  const renderOAuthConsent = (
+    checked: boolean,
+    onToggle: () => void,
+    label: string,
+    linkLabel?: string,
+    linkUrl?: string
+  ) => (
+    <TouchableOpacity
+      style={styles.oauthConsentRow}
+      onPress={onToggle}
+      disabled={isLoading}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      activeOpacity={0.75}
+    >
+      <View style={[styles.oauthCheckbox, checked && styles.oauthCheckboxChecked]}>
+        {checked ? (
+          <Ionicons name="checkmark" size={14} color={theme.colors.text.inverse} />
+        ) : null}
+      </View>
+      <Text style={styles.oauthConsentText}>
+        {label}
+        {linkLabel && linkUrl ? (
+          <Text
+            style={styles.oauthConsentLink}
+            onPress={(event) => {
+              event.stopPropagation();
+              Linking.openURL(linkUrl);
+            }}
+          >
+            {` ${linkLabel}`}
+          </Text>
+        ) : null}
+      </Text>
+    </TouchableOpacity>
+  );
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -193,8 +232,78 @@ export default function WelcomeScreen() {
               </AnimatedSection>
             )}
 
-            <AnimatedSection delay={140} trigger={enterKey}>
+            <AnimatedSection delay={140} trigger={enterKey} style={styles.authCardSection}>
               <GlassCard style={styles.glassForm} borderColors={IRIDESCENT_BORDER_COLORS}>
+                <View style={styles.authSection}>
+                  <View style={styles.oauthConsentBox}>
+                    {renderOAuthConsent(
+                      oauthAdultGuardian,
+                      () => setOauthAdultGuardian((value) => !value),
+                      t('auth.consent_adult_guardian')
+                    )}
+                    {renderOAuthConsent(
+                      oauthTermsAccepted,
+                      () => setOauthTermsAccepted((value) => !value),
+                      t('auth.consent_terms'),
+                      t('auth.terms_link'),
+                      LEGAL_URLS.terms
+                    )}
+                    {renderOAuthConsent(
+                      oauthPrivacyAccepted,
+                      () => setOauthPrivacyAccepted((value) => !value),
+                      t('auth.consent_privacy'),
+                      t('auth.privacy_link'),
+                      LEGAL_URLS.privacy
+                    )}
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.button,
+                      styles.googleButton,
+                      !canUseOAuth && styles.oauthButtonDisabled,
+                    ]}
+                    onPress={handleGoogleLogin}
+                    disabled={isLoading || !canUseOAuth}
+                  >
+                    {oauthLoading ? (
+                      <ActivityIndicator color={theme.colors.text.inverse} />
+                    ) : (
+                      <>
+                        <Ionicons name="logo-google" size={20} color={theme.colors.text.inverse} />
+                        <Text style={styles.buttonText}>{t('welcome.sign_in_google')}</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  {showAppleSignIn && (
+                    <TouchableOpacity
+                      style={[
+                        styles.button,
+                        styles.appleButton,
+                        !canUseOAuth && styles.oauthButtonDisabled,
+                      ]}
+                      onPress={handleAppleLogin}
+                      disabled={isLoading || !canUseOAuth}
+                    >
+                      {oauthLoading ? (
+                        <ActivityIndicator color={theme.colors.text.inverse} />
+                      ) : (
+                        <>
+                          <Ionicons name="logo-apple" size={22} color={theme.colors.text.inverse} />
+                          <Text style={styles.buttonText}>{t('welcome.sign_in_apple')}</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>{t('auth.or')}</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
                 <View style={styles.formSection}>
                   <Text style={styles.inputLabel}>{t('auth.email')}</Text>
                   <TextInput
@@ -253,98 +362,6 @@ export default function WelcomeScreen() {
                     loading={emailLoginMutation.isPending}
                     style={styles.primaryButtonSpacing}
                   />
-                </View>
-
-                <View style={styles.divider}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>{t('auth.or')}</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-
-                <View style={styles.authSection}>
-                  <View style={styles.oauthConsentBox}>
-                    {[
-                      {
-                        key: 'adult',
-                        value: oauthAdultGuardian,
-                        setValue: setOauthAdultGuardian,
-                        label: t('auth.consent_adult_guardian'),
-                      },
-                      {
-                        key: 'terms',
-                        value: oauthTermsAccepted,
-                        setValue: setOauthTermsAccepted,
-                        label: `${t('auth.consent_terms')} ${t('auth.terms_link')}`,
-                      },
-                      {
-                        key: 'privacy',
-                        value: oauthPrivacyAccepted,
-                        setValue: setOauthPrivacyAccepted,
-                        label: `${t('auth.consent_privacy')} ${t('auth.privacy_link')}`,
-                      },
-                    ].map((item) => (
-                      <TouchableOpacity
-                        key={item.key}
-                        style={styles.oauthConsentRow}
-                        onPress={() => item.setValue(!item.value)}
-                        disabled={isLoading}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: item.value }}
-                      >
-                        <View
-                          style={[styles.oauthCheckbox, item.value && styles.oauthCheckboxChecked]}
-                        >
-                          {item.value ? (
-                            <Ionicons
-                              name="checkmark"
-                              size={14}
-                              color={theme.colors.text.inverse}
-                            />
-                          ) : null}
-                        </View>
-                        <Text style={styles.oauthConsentText}>{item.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.button,
-                      styles.googleButton,
-                      !canUseOAuth && styles.oauthButtonDisabled,
-                    ]}
-                    onPress={handleGoogleLogin}
-                    disabled={isLoading || !canUseOAuth}
-                  >
-                    {oauthLoading ? (
-                      <ActivityIndicator color={theme.colors.text.inverse} />
-                    ) : (
-                      <>
-                        <Ionicons name="logo-google" size={20} color={theme.colors.text.inverse} />
-                        <Text style={styles.buttonText}>{t('welcome.sign_in_google')}</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-
-                  {showAppleSignIn && (
-                    <TouchableOpacity
-                      style={[
-                        styles.button,
-                        styles.appleButton,
-                        !canUseOAuth && styles.oauthButtonDisabled,
-                      ]}
-                      onPress={handleAppleLogin}
-                      disabled={isLoading || !canUseOAuth}
-                    >
-                      {oauthLoading ? (
-                        <ActivityIndicator color={theme.colors.text.inverse} />
-                      ) : (
-                        <>
-                          <Ionicons name="logo-apple" size={22} color={theme.colors.text.inverse} />
-                          <Text style={styles.buttonText}>{t('welcome.sign_in_apple')}</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
                 </View>
 
                 <TouchableOpacity
@@ -472,6 +489,8 @@ const styles = StyleSheet.create({
   },
   glassForm: {
     padding: theme.spacing[5],
+  },
+  authCardSection: {
     marginBottom: theme.spacing[6],
   },
   primaryButtonSpacing: {
@@ -611,6 +630,11 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: theme.colors.text.secondary,
   },
+  oauthConsentLink: {
+    color: theme.colors.interactive.primary,
+    fontWeight: theme.typography.fontWeight.semibold,
+    textDecorationLine: 'underline',
+  },
   oauthButtonDisabled: {
     opacity: 0.45,
   },
@@ -626,7 +650,6 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
   },
   registerLink: {
-    marginBottom: theme.spacing[6],
     alignSelf: 'center',
   },
   registerLinkText: {

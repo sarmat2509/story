@@ -4,10 +4,9 @@ export const PRICING_FEATURE_ORDER = [
   'stories_per_day',
   'images_per_story',
   'premium_voices',
+  'follow_narrator',
   'child_profiles_limit',
   'series_enabled',
-  'export_pdf',
-  'export_video',
   'share_enabled',
 ] as const;
 
@@ -37,6 +36,18 @@ const MONTHLY_CONJUNCTIONS: Record<Locale, string> = {
   fr: 'et',
   pl: 'i',
 };
+
+const PRICING_LOCALE_TAGS: Record<Locale, string> = {
+  uk: 'uk-UA',
+  ru: 'ru-RU',
+  en: 'en-US',
+  es: 'es-ES',
+  de: 'de-DE',
+  fr: 'fr-FR',
+  pl: 'pl-PL',
+};
+
+const MINOR_UNIT_CURRENCIES = new Set(['EUR', 'UAH', 'USD']);
 
 export interface PricingFeatureLike {
   name?: string;
@@ -190,10 +201,24 @@ export function formatPricingPrice(
   const locale = normalizePricingLocale(localeInput);
   if (priceMonthly === 0) return freeLabel;
 
-  const amount = (currency === 'UAH' || currency === 'USD') ? priceMonthly / 100 : priceMonthly;
-  const symbol = currency === 'UAH' ? '₴' : currency === 'USD' ? '$' : '€';
-  const fixed = currency === 'USD' ? amount.toFixed(2) : amount.toFixed(0);
-  return locale === 'en' ? `${symbol}${fixed}` : `${fixed}${currency === 'USD' ? ` ${currency}` : symbol}`;
+  const normalizedCurrency = currency.toUpperCase();
+  const amount = MINOR_UNIT_CURRENCIES.has(normalizedCurrency)
+    ? priceMonthly / 100
+    : priceMonthly;
+  const fractionDigits = normalizedCurrency === 'UAH' ? 0 : 2;
+
+  try {
+    return new Intl.NumberFormat(PRICING_LOCALE_TAGS[locale], {
+      style: 'currency',
+      currency: normalizedCurrency,
+      currencyDisplay: 'narrowSymbol',
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    }).format(amount);
+  } catch {
+    const fixed = amount.toFixed(fractionDigits);
+    return locale === 'en' ? `${normalizedCurrency} ${fixed}` : `${fixed} ${normalizedCurrency}`;
+  }
 }
 
 function getMetricHighlight(

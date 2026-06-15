@@ -802,6 +802,7 @@ export default function ProfileScreen() {
                 <UsageSummaryCard
                   usage={usage}
                   periodEndFormatted={formattedPeriodEnd}
+                  hidePeriodEnd={usage.cancelAtPeriodEnd === true}
                   variant="embedded"
                 />
               ) : usageLoading ? (
@@ -1037,9 +1038,11 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing[1],
   },
   saveProfileButton: {
+    alignSelf: 'flex-start',
+    minWidth: 180,
     marginTop: theme.spacing[5],
     paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[4],
+    paddingHorizontal: theme.spacing[6],
     backgroundColor: theme.colors.interactive.primary,
     borderRadius: theme.borders.radius.md,
     alignItems: 'center',
@@ -1164,8 +1167,7 @@ const styles = StyleSheet.create({
   },
   privacyActionButton: {
     minHeight: 40,
-    flexGrow: 1,
-    flexBasis: 180,
+    minWidth: 220,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1208,6 +1210,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   deleteAccountButton: {
+    alignSelf: 'flex-start',
+    minWidth: 220,
     minHeight: 42,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1295,6 +1299,8 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[4],
   },
   upgradeButton: {
+    alignSelf: 'flex-start',
+    minWidth: 240,
     backgroundColor: theme.colors.interactive.primary,
     paddingVertical: theme.spacing[3],
     paddingHorizontal: theme.spacing[6],
@@ -1307,10 +1313,13 @@ const styles = StyleSheet.create({
     color: theme.colors.text.inverse,
   },
   logoutButton: {
+    alignSelf: 'center',
+    minWidth: 220,
     backgroundColor: theme.colors.background.primary,
     borderWidth: theme.borders.width.medium,
     borderColor: theme.colors.status.error,
     paddingVertical: theme.spacing[4],
+    paddingHorizontal: theme.spacing[8],
     borderRadius: theme.borders.radius.md,
     alignItems: 'center',
     marginTop: theme.spacing[6],

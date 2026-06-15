@@ -32,6 +32,27 @@ export interface UseChildrenResult {
   canCreateMore: boolean;
 }
 
+export interface ChildModeSwitcherChild {
+  id: string;
+  name: string;
+  referencePhotos?: Array<{ url: string }>;
+  referencephotos?: Array<{ url: string }>;
+  turnaroundSheet?: {
+    url?: string;
+    frontUrl?: string;
+    frontThumbnailUrl?: string;
+    generatedAt?: string;
+  };
+  turnaroundsheet?: {
+    url?: string;
+    frontUrl?: string;
+    frontThumbnailUrl?: string;
+    generatedAt?: string;
+  };
+  storyCreationMode?: 'instant' | 'artisan';
+  storycreationmode?: 'instant' | 'artisan';
+}
+
 export interface ChildModeSettings extends Required<ChildModeSettingsInput> {}
 
 export interface ChildModeControls {
@@ -61,7 +82,12 @@ export interface ChildModeSessionResponse {
     authorAboutMe?: string | null;
     referencePhotos?: Array<{ url: string }>;
     referencephotos?: Array<{ url: string }>;
-    turnaroundSheet?: { url: string; frontUrl?: string; generatedAt?: string };
+    turnaroundSheet?: {
+      url: string;
+      frontUrl?: string;
+      frontThumbnailUrl?: string;
+      generatedAt?: string;
+    };
   };
   session: {
     id: string;
@@ -91,6 +117,20 @@ export const useChildren = (enabled = true) => {
         limit: response.data.limit,
         canCreateMore: response.data.canCreateMore,
       };
+    },
+  });
+};
+
+export const useChildModeSwitcherChildren = (enabled = true) => {
+  return useQuery({
+    queryKey: ['children', 'child-mode', 'switcher'],
+    enabled,
+    queryFn: async (): Promise<{ children: ChildModeSwitcherChild[] }> => {
+      const response = await apiClient.get<{
+        status: string;
+        children: ChildModeSwitcherChild[];
+      }>('/api/v1/children/child-mode/switcher');
+      return { children: response.data.children };
     },
   });
 };

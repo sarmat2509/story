@@ -13,7 +13,11 @@ const router = Router();
 router.get('/', requireAuth, requireParentSession, async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const bundles = await bundleService.listBundlesForUser(userId);
+    const requestedCurrency =
+      typeof req.query.currency === 'string'
+        ? req.query.currency
+        : req.user?.preferredBillingCurrency;
+    const bundles = await bundleService.listBundlesForUser(userId, requestedCurrency);
 
     res.json({
       status: 'success',

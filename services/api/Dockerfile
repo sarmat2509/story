@@ -8,6 +8,7 @@ RUN npm install -g pnpm
 
 # Copy workspace config
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY patches ./patches
 
 # Copy package.json files
 COPY packages/shared/package.json ./packages/shared/package.json
@@ -53,6 +54,7 @@ RUN apk add --no-cache ffmpeg postgresql-client && \
 
 # Copy workspace config
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY patches ./patches
 
 # Copy package.json files
 COPY packages/shared/package.json ./packages/shared/package.json

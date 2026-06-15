@@ -248,6 +248,34 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
   }
 });
 
+// GET /api/v1/children/child-mode/switcher - Safe child profile list for Child Mode switching
+router.get('/child-mode/switcher', requireAuth, async (req, res) => {
+  try {
+    const userId = req.parentUserId || req.user!.id;
+    const profiles = await childProfileService.getChildProfiles(userId);
+
+    res.json({
+      status: 'success',
+      children: profiles.map((profile) => {
+        const safeProfile = toSafeChildProfile(profile);
+        return {
+          id: safeProfile.id,
+          name: safeProfile.name,
+          referencePhotos: safeProfile.referencePhotos,
+          turnaroundSheet: (safeProfile as any).turnaroundSheet,
+          storyCreationMode: safeProfile.storyCreationMode,
+        };
+      }),
+    });
+  } catch (error) {
+    logger.error({ error, userId: req.parentUserId || req.user?.id }, 'Error fetching child mode switcher profiles');
+    res.status(500).json({
+      status: 'error',
+      error: 'Failed to fetch child profiles',
+    });
+  }
+});
+
 // GET /api/v1/children - List child profiles
 router.get('/', requireAuth, requireParentSession, async (req, res) => {
   try {

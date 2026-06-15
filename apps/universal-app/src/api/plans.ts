@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tansta
 import {
   PlanPublicApi,
   PlanAuthenticatedApi,
+  type BillingCurrency,
   type StoryBundleListItemApi,
 } from '@wondertales/shared';
 import { APP_CONFIG } from '@/config/constants';
@@ -22,38 +23,44 @@ export function invalidateBillingState(queryClient: QueryClient) {
 export interface PlansCatalogData {
   plans: PlanPublic[];
   enableRealPayments: boolean;
+  billingCurrency: BillingCurrency;
+  supportedBillingCurrencies: BillingCurrency[];
 }
 
 // Get plans with features (public, works for all users)
-export const usePlans = () => {
+export const usePlans = (currency?: BillingCurrency) => {
   const locale = i18n.language || APP_CONFIG.defaultLanguage;
 
   return useQuery({
-    queryKey: ['plans', locale],
+    queryKey: ['plans', locale, currency ?? 'default'],
     queryFn: async () => {
       const response = await apiClient.get<{ status: string; plans: PlanPublic[] }>(
         '/api/v1/plans',
-        { params: { locale } }
+        { params: { locale, currency } }
       );
       return response.data.plans;
     },
   });
 };
 
-export const usePlansCatalog = () => {
+export const usePlansCatalog = (currency?: BillingCurrency) => {
   const locale = i18n.language || APP_CONFIG.defaultLanguage;
 
   return useQuery({
-    queryKey: ['plans', 'catalog', locale],
+    queryKey: ['plans', 'catalog', locale, currency ?? 'default'],
     queryFn: async (): Promise<PlansCatalogData> => {
       const response = await apiClient.get<{
         status: string;
         plans: PlanPublic[];
         enableRealPayments?: boolean;
-      }>('/api/v1/plans', { params: { locale } });
+        billingCurrency?: BillingCurrency;
+        supportedBillingCurrencies?: BillingCurrency[];
+      }>('/api/v1/plans', { params: { locale, currency } });
       return {
         plans: response.data.plans,
         enableRealPayments: response.data.enableRealPayments ?? false,
+        billingCurrency: response.data.billingCurrency ?? currency ?? 'EUR',
+        supportedBillingCurrencies: response.data.supportedBillingCurrencies ?? ['EUR', 'USD'],
       };
     },
   });
@@ -137,39 +144,65 @@ export const useSubscriptionUsage = (enabled: boolean = true) => {
 };
 
 // Get plans with current plan info (authenticated only)
-export const usePlansWithAuth = (enabled: boolean = true) => {
+export const usePlansWithAuth = (enabled: boolean = true, currency?: BillingCurrency) => {
   const locale = i18n.language || APP_CONFIG.defaultLanguage;
 
   return useQuery({
-    queryKey: ['plans', 'with-auth', locale],
+    queryKey: ['plans', 'with-auth', locale, currency ?? 'preferred'],
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
         plans: PlanAuthenticated[];
         enableRealPayments?: boolean;
+        billingCurrency?: BillingCurrency;
+        preferredBillingCurrency?: BillingCurrency;
+        supportedBillingCurrencies?: BillingCurrency[];
       }>('/api/v1/plans/with-features', {
-        params: { locale },
+        params: { locale, currency },
         skipAuthLogoutOn401: true,
       });
       return {
         plans: response.data.plans,
         enableRealPayments: response.data.enableRealPayments ?? false,
+        billingCurrency: response.data.billingCurrency ?? currency ?? 'EUR',
+        preferredBillingCurrency: response.data.preferredBillingCurrency ?? response.data.billingCurrency ?? 'EUR',
+        supportedBillingCurrencies: response.data.supportedBillingCurrencies ?? ['EUR', 'USD'],
       };
     },
     enabled,
   });
 };
 
+export const useUpdateBillingCurrency = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (currency: BillingCurrency) => {
+      const response = await apiClient.put<{
+        status: string;
+        preferredBillingCurrency: BillingCurrency;
+      }>('/api/v1/plans/billing-currency', { currency });
+      return response.data;
+    },
+    onSuccess: () => {
+      invalidateBillingState(queryClient);
+    },
+  });
+};
+
 // Create Stripe Checkout Session (web only, when enableRealPayments)
 /** GET /api/v1/bundles — extra story+audio packs for current plan */
-export const useBundles = (enabled: boolean, currentPlanSlug?: string | null) => {
+export const useBundles = (
+  enabled: boolean,
+  currentPlanSlug?: string | null,
+  currency?: BillingCurrency
+) => {
   return useQuery({
-    queryKey: ['bundles', currentPlanSlug ?? 'unknown-plan'],
+    queryKey: ['bundles', currentPlanSlug ?? 'unknown-plan', currency ?? 'preferred'],
     queryFn: async () => {
       const response = await apiClient.get<{
         status: string;
         bundles: StoryBundleListItemApi[];
-      }>('/api/v1/bundles');
+      }>('/api/v1/bundles', { params: { currency } });
       return response.data.bundles;
     },
     enabled: enabled && !!currentPlanSlug,
@@ -179,10 +212,10 @@ export const useBundles = (enabled: boolean, currentPlanSlug?: string | null) =>
 export const useCreateBundleCheckoutSession = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (bundleSlug: string) => {
+    mutationFn: async (input: { bundleSlug: string; currency?: BillingCurrency }) => {
       const response = await apiClient.post<{ status: string; sessionId: string; url: string }>(
         '/api/v1/billing/bundle-checkout',
-        { bundleSlug }
+        input
       );
       return response.data;
     },
@@ -195,10 +228,10 @@ export const useCreateBundleCheckoutSession = () => {
 export const useCreateCheckoutSession = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (planSlug: string) => {
+    mutationFn: async (input: { planSlug: string; currency?: BillingCurrency }) => {
       const response = await apiClient.post<{ status: string; sessionId: string; url: string }>(
         '/api/v1/billing/checkout-session',
-        { planSlug }
+        input
       );
       return response.data;
     },

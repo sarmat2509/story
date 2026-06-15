@@ -11,6 +11,7 @@ interface UsageSummaryCardProps {
   usage?: SubscriptionUsageData;
   isLoading?: boolean;
   periodEndFormatted?: string | null;
+  hidePeriodEnd?: boolean;
   variant?: 'card' | 'embedded';
 }
 
@@ -46,6 +47,7 @@ export function UsageSummaryCard({
   usage,
   isLoading = false,
   periodEndFormatted,
+  hidePeriodEnd = false,
   variant = 'card',
 }: UsageSummaryCardProps) {
   const { t } = useTranslation();
@@ -64,16 +66,18 @@ export function UsageSummaryCard({
           <Text style={styles.title}>
             {t('usage_summary.title', { defaultValue: 'Usage this period' })}
           </Text>
-          <Text style={styles.subtitle}>
-            {periodEndFormatted
-              ? t('usage_summary.resets_on', {
-                  date: periodEndFormatted,
-                  defaultValue: 'Resets on {{date}}',
-                })
-              : t('usage_summary.resets_unknown', {
-                  defaultValue: 'Current billing period',
-                })}
-          </Text>
+          {!hidePeriodEnd ? (
+            <Text style={styles.subtitle}>
+              {periodEndFormatted
+                ? t('usage_summary.resets_on', {
+                    date: periodEndFormatted,
+                    defaultValue: 'Resets on {{date}}',
+                  })
+                : t('usage_summary.resets_unknown', {
+                    defaultValue: 'Current billing period',
+                  })}
+            </Text>
+          ) : null}
         </View>
       </View>
 
@@ -109,6 +113,7 @@ const styles = StyleSheet.create({
   },
   embedded: {
     paddingTop: theme.spacing[3],
+    marginBottom: theme.spacing[5],
   },
   header: {
     flexDirection: 'row',
@@ -139,13 +144,10 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
   },
   rows: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: theme.spacing[3],
   },
   row: {
-    flex: 1,
-    minWidth: 240,
+    width: '100%',
     gap: theme.spacing[2],
   },
   rowHeader: {

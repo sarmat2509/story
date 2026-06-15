@@ -231,58 +231,95 @@ export default function StoryViewerScreen() {
     if (story?.title) {
       if (story.scenarioCardName) {
         navigation.setOptions({
+          headerTitleContainerStyle: isMobile ? styles.mobileHeaderTitleContainer : undefined,
+          headerTitleAlign: isMobile ? 'left' : undefined,
           headerTitle: () => (
-            <View style={styles.headerBreadcrumb}>
-              <TouchableOpacity
-                onPress={() =>
-                  navigation.navigate('Library', { scenarioCardId: story.scenarioCardId })
-                }
-              >
-                <Text style={styles.headerBreadcrumbLink}>{story.scenarioCardName}</Text>
-              </TouchableOpacity>
-              {seriesInfo?.baseTitle && (
-                <>
+            isMobile ? (
+              <View style={styles.mobileHeaderBreadcrumb}>
+                <View style={styles.mobileHeaderBreadcrumbTopRow}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      navigation.navigate('Library', { scenarioCardId: story.scenarioCardId })
+                    }
+                    style={styles.mobileHeaderBreadcrumbLinkPressable}
+                  >
+                    <Text style={styles.mobileHeaderBreadcrumbLink} numberOfLines={1}>
+                      {story.scenarioCardName}
+                    </Text>
+                  </TouchableOpacity>
                   <Ionicons
                     name="chevron-forward"
-                    size={14}
+                    size={13}
                     color={theme.colors.text.tertiary}
                     style={styles.headerBreadcrumbSeparator}
                   />
-                  {seriesInfo.seriesId ? (
-                    <TouchableOpacity
-                      onPress={() =>
-                        (navigation as NavigationProp<MainDrawerParamList>).navigate(
-                          'SeriesDetail',
-                          { seriesId: seriesInfo.seriesId }
-                        )
-                      }
-                    >
-                      <Text style={styles.headerBreadcrumbLink} numberOfLines={1}>
+                </View>
+                <Text style={styles.mobileHeaderBreadcrumbCurrent} numberOfLines={2}>
+                  {story.title}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.headerBreadcrumb}>
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.navigate('Library', { scenarioCardId: story.scenarioCardId })
+                  }
+                >
+                  <Text style={styles.headerBreadcrumbLink}>{story.scenarioCardName}</Text>
+                </TouchableOpacity>
+                {seriesInfo?.baseTitle && (
+                  <>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={14}
+                      color={theme.colors.text.tertiary}
+                      style={styles.headerBreadcrumbSeparator}
+                    />
+                    {seriesInfo.seriesId ? (
+                      <TouchableOpacity
+                        onPress={() =>
+                          (navigation as NavigationProp<MainDrawerParamList>).navigate(
+                            'SeriesDetail',
+                            { seriesId: seriesInfo.seriesId }
+                          )
+                        }
+                      >
+                        <Text style={styles.headerBreadcrumbLink} numberOfLines={1}>
+                          {seriesInfo.baseTitle}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.headerBreadcrumbMiddle} numberOfLines={1}>
                         {seriesInfo.baseTitle}
                       </Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <Text style={styles.headerBreadcrumbMiddle} numberOfLines={1}>
-                      {seriesInfo.baseTitle}
-                    </Text>
-                  )}
-                </>
-              )}
-              <Ionicons
-                name="chevron-forward"
-                size={14}
-                color={theme.colors.text.tertiary}
-                style={styles.headerBreadcrumbSeparator}
-              />
-              <Text style={styles.headerBreadcrumbCurrent} numberOfLines={1}>
-                {story.title}
-              </Text>
-            </View>
+                    )}
+                  </>
+                )}
+                <Ionicons
+                  name="chevron-forward"
+                  size={14}
+                  color={theme.colors.text.tertiary}
+                  style={styles.headerBreadcrumbSeparator}
+                />
+                <Text style={styles.headerBreadcrumbCurrent} numberOfLines={1}>
+                  {story.title}
+                </Text>
+              </View>
+            )
           ),
         });
       } else {
         navigation.setOptions({
-          title: story.title,
+          headerTitleContainerStyle: isMobile ? styles.mobileHeaderTitleContainer : undefined,
+          headerTitleAlign: isMobile ? 'left' : undefined,
+          headerTitle: isMobile
+            ? () => (
+                <Text style={styles.mobileHeaderBreadcrumbCurrent} numberOfLines={2}>
+                  {story.title}
+                </Text>
+              )
+            : undefined,
+          title: isMobile ? undefined : story.title,
         });
       }
     }
@@ -292,6 +329,7 @@ export default function StoryViewerScreen() {
     story?.scenarioCardId,
     seriesInfo?.baseTitle,
     seriesInfo?.seriesId,
+    isMobile,
     navigation,
   ]);
 
@@ -325,8 +363,9 @@ export default function StoryViewerScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
+      headerRightContainerStyle: isMobile ? styles.mobileHeaderRightContainer : undefined,
     });
-  }, [isChildSession, navigation]);
+  }, [isMobile, isChildSession, navigation]);
 
   // Default voice: keep last user choice across stories; if it is missing from this
   // catalog (e.g. other story language), restore from storage or first unlocked voice.
@@ -738,6 +777,7 @@ export default function StoryViewerScreen() {
         isArtisanMode={!isChildSession && isArtisanMode}
         onSaveCharacter={handleSaveCharacter}
         isSavePending={updateCharacterMutation.isPending}
+        collapsible={isMobile}
       />
     );
   }, [
@@ -747,6 +787,7 @@ export default function StoryViewerScreen() {
     isArtisanMode,
     handleSaveCharacter,
     updateCharacterMutation.isPending,
+    isMobile,
   ]);
 
   // Handle delete story with confirmation
@@ -1609,7 +1650,11 @@ export default function StoryViewerScreen() {
             )}
 
             {/* Characters Section (mobile) */}
-            {isMobile && <View style={styles.mobileSectionWrapper}>{charactersSection}</View>}
+            {isMobile && (
+              <View style={[styles.mobileSectionWrapper, styles.mobileCharactersWrapper]}>
+                {charactersSection}
+              </View>
+            )}
 
             {/* Story Scenes */}
             {renderScenesWithHighlight()}
@@ -2137,6 +2182,12 @@ const styles = StyleSheet.create({
   mobileSectionWrapper: {
     marginHorizontal: theme.spacing[6],
   },
+  mobileCharactersWrapper: {
+    position: 'relative',
+    zIndex: 300,
+    elevation: 30,
+    overflow: 'visible',
+  },
   generatingContainer: {
     padding: theme.spacing[6],
     alignItems: 'center',
@@ -2386,5 +2437,39 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
     flexShrink: 1,
+  },
+  mobileHeaderTitleContainer: {
+    left: 72,
+    right: 100,
+  },
+  mobileHeaderRightContainer: {
+    right: theme.spacing[2],
+  },
+  mobileHeaderBreadcrumb: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
+  mobileHeaderBreadcrumbTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+  },
+  mobileHeaderBreadcrumbLinkPressable: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  mobileHeaderBreadcrumbLink: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.interactive.primary,
+    lineHeight: 18,
+  },
+  mobileHeaderBreadcrumbCurrent: {
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    lineHeight: 20,
   },
 });

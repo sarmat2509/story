@@ -148,6 +148,40 @@ export class AssetStorageService {
   }
 
   /**
+   * Generate a small avatar thumbnail from a front-facing character image.
+   * Keeps the upper body/face prioritized for tiny navigation circles.
+   */
+  async generateAvatarThumbnail(
+    imageBuffer: Buffer,
+    size: number = 160
+  ): Promise<Buffer> {
+    try {
+      const thumbnail = await sharp(imageBuffer)
+        .rotate()
+        .resize(size, size, {
+          fit: 'cover',
+          position: 'top',
+          withoutEnlargement: false,
+        })
+        .flatten({ background: '#ffffff' })
+        .jpeg({ quality: 78, mozjpeg: true })
+        .toBuffer();
+
+      logger.debug({
+        originalSize: imageBuffer.length,
+        thumbnailSize: thumbnail.length,
+        size,
+        compressionRatio: `${Math.round((1 - thumbnail.length / imageBuffer.length) * 100)}%`,
+      }, 'Avatar thumbnail generated');
+
+      return thumbnail;
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to generate avatar thumbnail');
+      throw new Error(`Avatar thumbnail generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Preprocess user photo before storage.
    * Auto-orients, resizes if too large, conditionally enhances exposure, converts to JPEG.
    * Returns optimized buffer ready for storage and Gemini Vision analysis.

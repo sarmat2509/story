@@ -2,6 +2,7 @@ import type Stripe from 'stripe';
 import config from '../config';
 import { getBundleRepository, getPlanRepository } from '../repositories';
 import { logger } from '../utils/logger';
+import { normalizeBillingCurrency } from './planPresentationService';
 
 export const BUNDLE_CHECKOUT_METADATA_KIND = 'bundle';
 
@@ -53,7 +54,10 @@ export interface BundleListItem {
   stripePriceConfigured: boolean;
 }
 
-export async function listBundlesForUser(userId: string): Promise<BundleListItem[]> {
+export async function listBundlesForUser(
+  userId: string,
+  requestedBillingCurrency?: string | null
+): Promise<BundleListItem[]> {
   const planRepo = getPlanRepository();
   const sub = await planRepo.findSubscriptionByUserId(userId);
   if (!sub) {
@@ -63,8 +67,12 @@ export async function listBundlesForUser(userId: string): Promise<BundleListItem
   if (!plan) {
     return [];
   }
+  const billingCurrency = normalizeBillingCurrency(requestedBillingCurrency);
 
-  const rows = await getBundleRepository().listBundlesWithPricesForPlan(sub.planId);
+  const rows = await getBundleRepository().listBundlesWithPricesForPlan(
+    sub.planId,
+    billingCurrency
+  );
   return rows.map(({ bundle, price }) => ({
     slug: bundle.slug,
     name: bundle.name,

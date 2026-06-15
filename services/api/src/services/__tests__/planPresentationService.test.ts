@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { buildPresentedPlans, type PlanFeaturePresentationRow } from '../planPresentationService';
-import type { Plan } from '../../db/schema';
+import type { Plan, PlanPrice } from '../../db/schema';
 
 const plans = [
   {
@@ -8,8 +8,8 @@ const plans = [
     slug: 'silver',
     name: 'Silver Dreams',
     description: 'Default silver copy',
-    priceMonthly: 599,
-    pricingCurrency: 'USD',
+    priceMonthly: 999,
+    pricingCurrency: 'EUR',
     sortOrder: 2,
   },
   {
@@ -18,7 +18,7 @@ const plans = [
     name: 'Free',
     description: null,
     priceMonthly: 0,
-    pricingCurrency: 'USD',
+    pricingCurrency: 'EUR',
     sortOrder: 1,
   },
 ] as Plan[];
@@ -47,7 +47,35 @@ const featureRows: PlanFeaturePresentationRow[] = [
   },
 ];
 
-const presentedPlans = buildPresentedPlans(plans, translations, featureRows, 'silver-plan');
+const planPriceRows = [
+  {
+    id: 'silver-eur',
+    planId: 'silver-plan',
+    pricingCurrency: 'EUR',
+    priceMonthly: 899,
+    stripePriceId: 'price_silver_eur',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+  {
+    id: 'silver-usd',
+    planId: 'silver-plan',
+    pricingCurrency: 'USD',
+    priceMonthly: 999,
+    stripePriceId: 'price_silver_usd',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+] as PlanPrice[];
+
+const presentedPlans = buildPresentedPlans(
+  plans,
+  translations,
+  featureRows,
+  'silver-plan',
+  planPriceRows,
+  'EUR'
+);
 
 assert.deepEqual(
   presentedPlans.map((plan) => plan.slug),
@@ -58,6 +86,10 @@ assert.equal(presentedPlans[0].features.stories_per_month.name, 'Stories');
 assert.equal(presentedPlans[0].features.audio_stories_per_month, undefined);
 assert.equal(presentedPlans[1].name, 'Localized Silver');
 assert.equal(presentedPlans[1].description, 'Localized silver copy');
+assert.equal(presentedPlans[1].priceMonthly, 899);
+assert.equal(presentedPlans[1].pricingCurrency, 'EUR');
+assert.equal(presentedPlans[1].prices.USD.priceMonthly, 999);
+assert.equal(presentedPlans[1].stripePriceConfigured, true);
 assert.equal(presentedPlans[1].features.audio_stories_per_month.category, 'usage');
 assert.equal(presentedPlans[1].isCurrent, true);
 

@@ -24,7 +24,8 @@ export class BundleRepository {
 
   async findPriceForPlanAndBundle(
     planId: string,
-    bundleId: string
+    bundleId: string,
+    pricingCurrency?: string
   ): Promise<schema.PlanBundlePrice | null> {
     const [row] = await this.db
       .select()
@@ -32,7 +33,10 @@ export class BundleRepository {
       .where(
         and(
           eq(schema.planBundlePrices.planId, planId),
-          eq(schema.planBundlePrices.bundleId, bundleId)
+          eq(schema.planBundlePrices.bundleId, bundleId),
+          pricingCurrency
+            ? eq(schema.planBundlePrices.pricingCurrency, pricingCurrency)
+            : undefined
         )
       )
       .limit(1);
@@ -42,7 +46,7 @@ export class BundleRepository {
   /**
    * Active bundles with price row for a plan (for API listing).
    */
-  async listBundlesWithPricesForPlan(planId: string): Promise<
+  async listBundlesWithPricesForPlan(planId: string, pricingCurrency: string): Promise<
     Array<{
       bundle: schema.StoryBundle;
       price: schema.PlanBundlePrice;
@@ -58,7 +62,8 @@ export class BundleRepository {
         schema.planBundlePrices,
         and(
           eq(schema.planBundlePrices.bundleId, schema.storyBundles.id),
-          eq(schema.planBundlePrices.planId, planId)
+          eq(schema.planBundlePrices.planId, planId),
+          eq(schema.planBundlePrices.pricingCurrency, pricingCurrency)
         )
       )
       .where(eq(schema.storyBundles.isActive, true))

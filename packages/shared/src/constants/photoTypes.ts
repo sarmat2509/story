@@ -17,6 +17,8 @@ export const PHOTO_TYPES_TURNAROUND = [
   'child_turnaround',
   'character_front',
   'child_front',
+  'character_front_thumbnail',
+  'child_front_thumbnail',
 ] as const;
 
 /** All photo types (user upload + system-generated) */

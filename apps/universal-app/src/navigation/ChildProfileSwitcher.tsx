@@ -1,0 +1,502 @@
+import React, { useState } from 'react';
+import {
+  ActivityIndicator,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  type StyleProp,
+  type ImageStyle,
+  type ViewStyle,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
+import { useChildModeSwitcherChildren, useEnterChildMode } from '@/api/children';
+import { useParentGate } from '@/api/auth';
+import { resetToMainRoute } from '@/navigation/navigationRef';
+import { useAuthStore } from '@/store/authStore';
+import { theme } from '@/theme';
+import { formatAssetUrl } from '@/utils/assetUrl';
+
+type ChildSwitcherTarget = { type: 'parent' } | { type: 'child'; childId: string };
+
+type AvatarSource = {
+  turnaroundSheet?: { url?: string; frontUrl?: string; frontThumbnailUrl?: string };
+  turnaroundsheet?: { url?: string; frontUrl?: string; frontThumbnailUrl?: string };
+  referencePhotos?: Array<{ url?: string }>;
+  referencephotos?: Array<{ url?: string }>;
+};
+
+type TriggerRenderArgs = {
+  avatarUrl: string | null;
+  open: () => void;
+};
+
+interface ChildProfileSwitcherProps {
+  menuStyle?: StyleProp<ViewStyle>;
+  renderTrigger?: (args: TriggerRenderArgs) => React.ReactNode;
+}
+
+function getChildAvatarUrl(child?: AvatarSource | null): string | null {
+  const rawUrl =
+    child?.turnaroundSheet?.frontThumbnailUrl ??
+    child?.turnaroundSheet?.frontUrl ??
+    child?.turnaroundSheet?.url ??
+    child?.turnaroundsheet?.frontThumbnailUrl ??
+    child?.turnaroundsheet?.frontUrl ??
+    child?.turnaroundsheet?.url ??
+    child?.referencePhotos?.[0]?.url ??
+    child?.referencephotos?.[0]?.url ??
+    null;
+  return rawUrl ? formatAssetUrl(rawUrl) ?? rawUrl : null;
+}
+
+function escapeCssUrl(url: string): string {
+  return url.replace(/["\\]/g, '\\$&');
+}
+
+export function ChildAvatarImage({
+  uri,
+  style,
+}: {
+  uri: string;
+  style: StyleProp<ImageStyle | ViewStyle>;
+}) {
+  if (Platform.OS === 'web') {
+    return (
+      <View
+        style={[
+          style as StyleProp<ViewStyle>,
+          {
+            backgroundImage: `url("${escapeCssUrl(uri)}")`,
+            backgroundPosition: 'center top',
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: 'cover',
+          } as any,
+        ]}
+      />
+    );
+  }
+
+  return <Image source={{ uri }} style={style as StyleProp<ImageStyle>} resizeMode="cover" />;
+}
+
+export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileSwitcherProps) {
+  const { t } = useTranslation();
+  const activeChild = useAuthStore((state) => state.activeChild);
+  const [visible, setVisible] = useState(false);
+  const [password, setPassword] = useState('');
+  const [target, setTarget] = useState<ChildSwitcherTarget | null>(null);
+  const [error, setError] = useState('');
+  const shouldLoadSwitcherChildren = visible || Boolean(activeChild);
+  const { data, isLoading } = useChildModeSwitcherChildren(shouldLoadSwitcherChildren);
+  const parentGate = useParentGate();
+  const enterChildMode = useEnterChildMode();
+  const children = data?.children ?? (activeChild ? [activeChild] : []);
+  const freshActiveChild = activeChild
+    ? children.find((child) => child.id === activeChild.id) ?? activeChild
+    : null;
+  const avatarUrl = getChildAvatarUrl(freshActiveChild);
+  const isSubmitting = parentGate.isPending || enterChildMode.isPending;
+
+  const closeMenu = () => {
+    if (isSubmitting) return;
+    setVisible(false);
+    setTarget(null);
+    setPassword('');
+    setError('');
+  };
+
+  const requestTarget = (nextTarget: ChildSwitcherTarget) => {
+    setTarget(nextTarget);
+    setPassword('');
+    setError('');
+  };
+
+  const submitParentGate = async () => {
+    if (!target || !password.trim() || isSubmitting) return;
+    try {
+      setError('');
+      await parentGate.mutateAsync({ password: password.trim() });
+
+      if (target.type === 'child') {
+        await enterChildMode.mutateAsync(target.childId);
+      } else {
+        resetToMainRoute({ name: 'Profile' });
+      }
+
+      closeMenu();
+    } catch (_err) {
+      setError(
+        t('child_mode.parent_gate_wrong_password', {
+          defaultValue: 'Password did not work. Try again.',
+        })
+      );
+    }
+  };
+
+  const open = () => setVisible(true);
+
+  return (
+    <>
+      {renderTrigger ? (
+        renderTrigger({ avatarUrl, open })
+      ) : (
+        <TouchableOpacity
+          style={styles.avatarButton}
+          activeOpacity={0.75}
+          onPress={open}
+          accessibilityRole="button"
+          accessibilityLabel={t('child_mode.profile_switcher', {
+            defaultValue: 'Switch profile',
+          })}
+        >
+          {avatarUrl ? (
+            <ChildAvatarImage uri={avatarUrl} style={styles.avatarImage} />
+          ) : (
+            <View style={styles.avatarFallback}>
+              <Ionicons name="person" size={18} color={theme.colors.interactive.primary} />
+            </View>
+          )}
+        </TouchableOpacity>
+      )}
+
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={closeMenu}>
+        <View style={styles.overlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
+          <View style={[styles.menu, menuStyle]}>
+            <Text style={styles.menuTitle}>
+              {target
+                ? t('child_mode.parent_gate_title', { defaultValue: 'Parent check' })
+                : t('child_mode.switcher_title', { defaultValue: 'Profiles' })}
+            </Text>
+
+            {target ? (
+              <View style={styles.gateContent}>
+                <Text style={styles.gateText}>
+                  {target.type === 'parent'
+                    ? t('child_mode.parent_gate_parent_profile', {
+                        defaultValue: 'Enter the parent password to open the parent profile.',
+                      })
+                    : t('child_mode.parent_gate_child_profile', {
+                        defaultValue: 'Enter the parent password to switch child profiles.',
+                      })}
+                </Text>
+                <TextInput
+                  style={styles.passwordInput}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder={t('child_mode.parent_gate_password_placeholder', {
+                    defaultValue: 'Password',
+                  })}
+                  placeholderTextColor={theme.colors.text.tertiary}
+                  secureTextEntry
+                  autoFocus
+                  onSubmitEditing={submitParentGate}
+                />
+                {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                <View style={styles.gateActions}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.secondaryButton,
+                      pressed && styles.buttonPressed,
+                    ]}
+                    disabled={isSubmitting}
+                    onPress={() => {
+                      setTarget(null);
+                      setPassword('');
+                      setError('');
+                    }}
+                  >
+                    <Text style={styles.secondaryButtonText}>
+                      {t('common.cancel', { defaultValue: 'Cancel' })}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.primaryButton,
+                      (!password.trim() || isSubmitting) && styles.buttonDisabled,
+                      pressed && password.trim() && styles.buttonPressed,
+                    ]}
+                    disabled={!password.trim() || isSubmitting}
+                    onPress={submitParentGate}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>
+                        {t('child_mode.parent_gate_unlock', { defaultValue: 'Continue' })}
+                      </Text>
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <>
+                {isLoading ? (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+                  </View>
+                ) : (
+                  children.map((child) => {
+                    const isActive = child.id === activeChild?.id;
+                    const childAvatarUrl = getChildAvatarUrl(child);
+                    return (
+                      <Pressable
+                        key={child.id}
+                        style={({ pressed }) => [
+                          styles.menuItem,
+                          isActive && styles.menuItemActive,
+                          pressed && !isActive && styles.menuItemPressed,
+                        ]}
+                        disabled={isActive}
+                        onPress={() => requestTarget({ type: 'child', childId: child.id })}
+                      >
+                        {childAvatarUrl ? (
+                          <ChildAvatarImage uri={childAvatarUrl} style={styles.itemAvatar} />
+                        ) : (
+                          <View style={styles.itemAvatarFallback}>
+                            <Ionicons
+                              name="person"
+                              size={15}
+                              color={theme.colors.text.secondary}
+                            />
+                          </View>
+                        )}
+                        <View style={styles.itemCopy}>
+                          <Text style={styles.itemTitle} numberOfLines={1}>
+                            {child.name}
+                          </Text>
+                          {isActive ? (
+                            <Text style={styles.itemSubtitle}>
+                              {t('child_mode.current_child', { defaultValue: 'Current profile' })}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {isActive ? (
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={19}
+                            color={theme.colors.interactive.primary}
+                          />
+                        ) : null}
+                      </Pressable>
+                    );
+                  })
+                )}
+
+                <View style={styles.separator} />
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.menuItem,
+                    pressed && styles.menuItemPressed,
+                  ]}
+                  onPress={() => requestTarget({ type: 'parent' })}
+                >
+                  <View style={styles.itemAvatarFallback}>
+                    <Ionicons
+                      name="shield-checkmark"
+                      size={16}
+                      color={theme.colors.interactive.primary}
+                    />
+                  </View>
+                  <View style={styles.itemCopy}>
+                    <Text style={styles.itemTitle}>
+                      {t('child_mode.parent_profile', { defaultValue: 'Parent profile' })}
+                    </Text>
+                    <Text style={styles.itemSubtitle}>
+                      {t('child_mode.password_required', { defaultValue: 'Password required' })}
+                    </Text>
+                  </View>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  avatarButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: theme.spacing[3],
+    borderRadius: 22,
+  },
+  avatarImage: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  avatarFallback: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(17, 17, 34, 0.18)',
+  },
+  menu: {
+    position: 'absolute',
+    top: Platform.OS === 'web' ? 56 : 78,
+    left: theme.spacing[3],
+    width: 300,
+    maxWidth: '92%',
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.primary,
+    padding: theme.spacing[3],
+    gap: theme.spacing[2],
+    ...Platform.select({
+      web: {
+        boxShadow: '0 18px 42px rgba(31, 26, 64, 0.18)',
+      } as any,
+      default: {
+        shadowColor: '#000',
+        shadowOpacity: 0.16,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 10 },
+        elevation: 8,
+      },
+    }),
+  },
+  menuTitle: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+  },
+  menuItem: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    borderRadius: theme.borders.radius.md,
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[2],
+  },
+  menuItemActive: {
+    backgroundColor: theme.colors.interactive.secondary,
+  },
+  menuItemPressed: {
+    backgroundColor: theme.colors.background.secondary,
+  },
+  itemAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  itemAvatarFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.secondary,
+  },
+  itemCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  itemTitle: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  itemSubtitle: {
+    marginTop: 2,
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.secondary,
+  },
+  separator: {
+    height: theme.borders.width.thin,
+    backgroundColor: theme.colors.border.light,
+    marginVertical: theme.spacing[1],
+  },
+  loadingRow: {
+    minHeight: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gateContent: {
+    gap: theme.spacing[3],
+  },
+  gateText: {
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
+    color: theme.colors.text.secondary,
+    paddingHorizontal: theme.spacing[2],
+  },
+  passwordInput: {
+    minHeight: 46,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    borderRadius: theme.borders.radius.md,
+    paddingHorizontal: theme.spacing[3],
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.primary,
+    backgroundColor: theme.colors.background.primary,
+  },
+  errorText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.status.error,
+  },
+  gateActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: theme.spacing[2],
+  },
+  secondaryButton: {
+    minHeight: 42,
+    justifyContent: 'center',
+    borderRadius: theme.borders.radius.md,
+    paddingHorizontal: theme.spacing[4],
+    backgroundColor: theme.colors.background.secondary,
+  },
+  secondaryButtonText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+  },
+  primaryButton: {
+    minHeight: 42,
+    minWidth: 104,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.borders.radius.md,
+    paddingHorizontal: theme.spacing[4],
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  primaryButtonText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
+  },
+  buttonPressed: {
+    opacity: 0.82,
+  },
+  buttonDisabled: {
+    opacity: 0.55,
+  },
+});

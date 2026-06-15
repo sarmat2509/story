@@ -37,5 +37,10 @@ assert.match(
   /resetToMainRoute/,
   'OAuth callback screen should use the shared authenticated route reset helper'
 );
+assert.match(
+  webCallbackSource,
+  /hasHandledCallbackRef/,
+  'OAuth callback screen should process a token-bearing callback only once'
+);
 
 console.log('oauthCallbackSafety tests passed');

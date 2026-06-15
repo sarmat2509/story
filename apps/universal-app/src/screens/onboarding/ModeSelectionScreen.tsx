@@ -74,15 +74,15 @@ function ModeOption({
       <View style={styles.modeOptionText}>
         <Text style={[styles.modeOptionTitle, selected && styles.modeOptionTitleSelected]}>
           {isInstant
-            ? t('onboarding.instant_mode', { defaultValue: 'Instant Mode' })
-            : t('onboarding.master_mode', { defaultValue: 'Master Mode' })}
+            ? t('mode_selection.instant_mode', { defaultValue: 'Instant Mode' })
+            : t('mode_selection.artisan_mode', { defaultValue: 'Master Mode' })}
         </Text>
         <Text style={[styles.modeOptionBody, selected && styles.modeOptionBodySelected]}>
           {isInstant
-            ? t('onboarding.instant_mode_description', {
+            ? t('mode_selection.instant_description', {
                 defaultValue: 'Fast story creation with fewer choices.',
               })
-            : t('onboarding.master_mode_description', {
+            : t('mode_selection.artisan_description', {
                 defaultValue: 'More control over characters, tone, language, and details.',
               })}
         </Text>

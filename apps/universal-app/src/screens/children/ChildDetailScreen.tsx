@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Image,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -28,6 +29,7 @@ import { ChildFormContent, type ChildFormInitialData } from '@/components/ChildF
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { ChildCard } from './components/ChildCard';
+import { ChildDataDeletionRequestModal } from './components/ChildDataDeletionRequestModal';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -98,11 +100,13 @@ export default function ChildDetailScreen() {
   const updateChild = useUpdateChild();
   const enterChildMode = useEnterChildMode();
   const revokeChildModeSessions = useRevokeChildModeSessions();
-  const child = (data?.children ?? []).find((item) => item.id === route.params.childId);
+  const routeChildId = route.params?.childId;
+  const child = (data?.children ?? []).find((item) => item.id === routeChildId);
   const childInitialData = useMemo(
     () => (child ? mapChildToInitialData(child as unknown as Record<string, unknown>) : undefined),
     [child]
   );
+  const [childDataDeletionRequestVisible, setChildDataDeletionRequestVisible] = useState(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -124,6 +128,9 @@ export default function ChildDetailScreen() {
     passwordNeeded: t('children_screen.child_mode_password_needed', {
       defaultValue: 'Password needed',
     }),
+    limitsTitle: t('children_screen.child_mode_limits_title', {
+      defaultValue: 'Limits',
+    }),
     dailyLimit: t('children_screen.child_mode_daily_limit', {
       defaultValue: 'Stories per child per day',
     }),
@@ -134,19 +141,40 @@ export default function ChildDetailScreen() {
       defaultValue: 'Audio stories per child per day',
     }),
     noLimit: t('children_screen.child_mode_no_limit', { defaultValue: 'No child-specific limit' }),
+    limitToggle: t('children_screen.child_mode_limit_toggle', {
+      defaultValue: 'Set limit',
+    }),
     storyGeneration: t('children_screen.child_mode_story_generation', {
       defaultValue: 'Story generation',
+    }),
+    storyGenerationDescription: t('children_screen.child_mode_story_generation_description', {
+      defaultValue: 'Lets the child create stories in child mode.',
     }),
     publicStories: t('children_screen.child_mode_public_stories', {
       defaultValue: 'Public stories',
     }),
+    publicStoriesDescription: t('children_screen.child_mode_public_stories_description', {
+      defaultValue: 'Allows opening and reading published stories.',
+    }),
     freeText: t('children_screen.child_mode_free_text'),
+    freeTextDescription: t('children_screen.child_mode_free_text_description', {
+      defaultValue: 'Allows typing a custom story idea instead of only choosing presets.',
+    }),
     audio: t('children_screen.child_mode_audio'),
+    audioDescription: t('children_screen.child_mode_audio_description', {
+      defaultValue: 'Allows generating and listening to story narration.',
+    }),
     review: t('children_screen.child_mode_review'),
+    reviewDescription: t('children_screen.child_mode_review_description', {
+      defaultValue: 'Stories wait for parent approval before the child can read them.',
+    }),
     themes: t('children_screen.child_mode_allowed_themes'),
     languages: t('children_screen.child_mode_allowed_languages'),
     characters: t('children_screen.child_mode_allowed_characters'),
     siblings: t('children_screen.child_mode_siblings'),
+    siblingsDescription: t('children_screen.child_mode_siblings_description', {
+      defaultValue: 'Allows using other child profiles as story characters.',
+    }),
     anyTheme: t('children_screen.child_mode_any_theme'),
     anyLanguage: t('children_screen.child_mode_any_language'),
     anyCharacter: t('children_screen.child_mode_any_character'),
@@ -157,13 +185,6 @@ export default function ChildDetailScreen() {
     start: t('children_screen.child_mode_start'),
     starting: t('children_screen.child_mode_starting'),
     enableToStart: t('children_screen.child_mode_enable_to_start'),
-    limitMax: t('children_screen.child_mode_limit_max', { defaultValue: 'Max {{count}}' }),
-    limitAvailable: t('children_screen.child_mode_limit_available', {
-      defaultValue: 'Available {{count}}',
-    }),
-    limitReserved: t('children_screen.child_mode_limit_reserved', {
-      defaultValue: 'Other children {{count}}',
-    }),
   };
 
   const themeOptions = useMemo(
@@ -214,10 +235,19 @@ export default function ChildDetailScreen() {
     );
   }
 
-  if (!child) {
+  if (!routeChildId || !child) {
     return (
       <View style={styles.center}>
         <Text style={styles.notFound}>{t('children_screen.error')}</Text>
+        <TouchableOpacity
+          style={styles.backToChildrenButton}
+          onPress={() => navigation.navigate('Children')}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.backToChildrenButtonText}>
+            {t('children_screen.back_to_children', { defaultValue: 'Back to children' })}
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -261,7 +291,6 @@ export default function ChildDetailScreen() {
     : childModeNeedsPassword
       ? labels.passwordNeeded
       : labels.accessDisabled;
-  const childCount = (data?.children ?? []).length;
   const storyMonthlyLimit = getFiniteLimit(subscriptionUsage?.stories.limit);
   const audioMonthlyLimit = getFiniteLimit(subscriptionUsage?.audio.limit);
   const otherChildrenMonthlyStoryLimit = (data?.children ?? [])
@@ -278,38 +307,6 @@ export default function ChildDetailScreen() {
       : Math.max(0, storyMonthlyLimit - otherChildrenMonthlyStoryLimit);
   const dailyStoryMaxForChild = monthlyStoryMaxForChild;
   const dailyAudioMaxForChild = audioMonthlyLimit;
-  const dailyStoryHelper = t('children_screen.child_mode_daily_story_limit_hint', {
-    defaultValue: 'Empty means no daily child limit. The account monthly limit still applies.',
-  });
-  const monthlyStoryHelper =
-    storyMonthlyLimit === null
-      ? t('children_screen.child_mode_monthly_story_limit_unlimited_hint', {
-          defaultValue: 'Empty means no child-specific limit.',
-        })
-      : childCount > 1
-        ? t('children_screen.child_mode_monthly_story_limit_budget_hint', {
-            defaultValue:
-              'Family limit: {{limit}} stories/month. Other children already reserve {{reserved}}. This child can use up to {{available}}.',
-            limit: storyMonthlyLimit,
-            reserved: otherChildrenMonthlyStoryLimit,
-            available: monthlyStoryMaxForChild,
-          })
-        : t('children_screen.child_mode_monthly_story_limit_hint', {
-            defaultValue:
-              'Account limit: {{limit}} stories/month. Empty means no child-specific limit.',
-            limit: storyMonthlyLimit,
-          });
-  const dailyAudioHelper =
-    audioMonthlyLimit === null
-      ? t('children_screen.child_mode_daily_audio_limit_unlimited_hint', {
-          defaultValue: 'Empty means no daily audio limit.',
-        })
-      : t('children_screen.child_mode_daily_audio_limit_hint', {
-          defaultValue:
-            'Audio account limit: {{limit}}/month. A child daily limit does not increase it.',
-          limit: audioMonthlyLimit,
-        });
-
   const handleChildModeSettingsChange = (
     childId: string,
     settings: Partial<ChildModeSettingsInput>
@@ -463,72 +460,91 @@ export default function ChildDetailScreen() {
         </View>
 
         {activeTab === 'profile' ? (
-          <View style={styles.profilePanel}>
-            <View style={styles.storySetupPanel}>
-              <View style={styles.storySetupCopy}>
-                <Text style={styles.storySetupTitle}>
-                  {t('children_screen.story_setup_title', { defaultValue: 'Story setup' })}
-                </Text>
-                <Text style={styles.storySetupText}>
-                  {t('children_screen.story_setup_body', {
-                    defaultValue:
-                      'Choose the default story creation flow for this child. Parents can still change it for a single story.',
+          <ScrollView
+            contentContainerStyle={styles.profileContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.profilePanel}>
+              <View style={styles.storySetupPanel}>
+                <View style={styles.storySetupCopy}>
+                  <Text style={styles.storySetupTitle}>{t('children_screen.story_setup_title')}</Text>
+                  <Text style={styles.storySetupText}>{t('children_screen.story_setup_body')}</Text>
+                </View>
+                <View style={[styles.storyModeRow, isMobile && styles.storyModeRowMobile]}>
+                  {(['instant', 'artisan'] as const).map((mode) => {
+                    const selected = storyCreationMode === mode;
+                    return (
+                      <TouchableOpacity
+                        key={mode}
+                        style={[styles.storyModeButton, selected && styles.storyModeButtonSelected]}
+                        activeOpacity={0.8}
+                        disabled={updateChild.isPending}
+                        onPress={() =>
+                          updateChild.mutate({ id: child.id, data: { storyCreationMode: mode } })
+                        }
+                      >
+                        <Ionicons
+                          name={mode === 'instant' ? 'flash-outline' : 'color-palette-outline'}
+                          size={18}
+                          color={selected ? theme.colors.text.inverse : theme.colors.text.secondary}
+                        />
+                        <View style={styles.storyModeTextWrap}>
+                          <Text
+                            style={[
+                              styles.storyModeTitle,
+                              selected && styles.storyModeTitleSelected,
+                            ]}
+                          >
+                            {mode === 'instant'
+                              ? t('mode_selection.instant_mode')
+                              : t('mode_selection.artisan_mode')}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.storyModeDescription,
+                              selected && styles.storyModeDescriptionSelected,
+                            ]}
+                          >
+                            {mode === 'instant'
+                              ? t('mode_selection.instant_description')
+                              : t('mode_selection.artisan_description')}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
                   })}
-                </Text>
+                </View>
               </View>
-              <View style={[styles.storyModeRow, isMobile && styles.storyModeRowMobile]}>
-                {(['instant', 'artisan'] as const).map((mode) => {
-                  const selected = storyCreationMode === mode;
-                  return (
-                    <TouchableOpacity
-                      key={mode}
-                      style={[styles.storyModeButton, selected && styles.storyModeButtonSelected]}
-                      activeOpacity={0.8}
-                      disabled={updateChild.isPending}
-                      onPress={() =>
-                        updateChild.mutate({ id: child.id, data: { storyCreationMode: mode } })
-                      }
-                    >
-                      <Ionicons
-                        name={mode === 'instant' ? 'flash-outline' : 'color-palette-outline'}
-                        size={18}
-                        color={selected ? theme.colors.text.inverse : theme.colors.text.secondary}
-                      />
-                      <View style={styles.storyModeTextWrap}>
-                        <Text
-                          style={[styles.storyModeTitle, selected && styles.storyModeTitleSelected]}
-                        >
-                          {mode === 'instant'
-                            ? t('onboarding.instant_mode', { defaultValue: 'Instant Mode' })
-                            : t('onboarding.master_mode', { defaultValue: 'Master Mode' })}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.storyModeDescription,
-                            selected && styles.storyModeDescriptionSelected,
-                          ]}
-                        >
-                          {mode === 'instant'
-                            ? t('onboarding.instant_mode_description', {
-                                defaultValue: 'Quick creation with fewer choices',
-                              })
-                            : t('onboarding.master_mode_description', {
-                                defaultValue: 'More control over story details',
-                              })}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
+              <ChildFormContent
+                childId={child.id}
+                initialData={childInitialData}
+                onSuccess={() => undefined}
+                variant="inline"
+              />
+              <View style={styles.privacyPanel}>
+                <View style={styles.privacyCopy}>
+                  <Text style={styles.privacyTitle}>
+                    {t('children_screen.child_data_deletion_request_button')}
+                  </Text>
+                  <Text style={styles.privacyText}>
+                    {t('children_screen.child_data_deletion_request_body')}
+                  </Text>
+                </View>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.privacyButton,
+                    pressed && styles.privacyButtonPressed,
+                  ]}
+                  onPress={() => setChildDataDeletionRequestVisible(true)}
+                >
+                  <Ionicons name="shield-outline" size={17} color={theme.colors.interactive.primary} />
+                  <Text style={styles.privacyButtonText}>
+                    {t('children_screen.child_data_deletion_request_button')}
+                  </Text>
+                </Pressable>
               </View>
             </View>
-            <ChildFormContent
-              childId={child.id}
-              initialData={childInitialData}
-              onSuccess={() => undefined}
-              variant="inline"
-            />
-          </View>
+          </ScrollView>
         ) : (
           <ScrollView
             contentContainerStyle={styles.accessContent}
@@ -543,14 +559,11 @@ export default function ChildDetailScreen() {
                 childModeLanguageOptions={languageOptions}
                 childModeCharacterOptions={characterOptions}
                 childModeLimitHints={{
-                  dailyStoryHelper,
                   dailyStoryMaxValue: dailyStoryMaxForChild,
                   dailyStoryTotalValue: storyMonthlyLimit,
                   dailyStoryReservedValue: otherChildrenMonthlyStoryLimit,
-                  monthlyStoryHelper,
                   monthlyStoryTotalValue: storyMonthlyLimit,
                   monthlyStoryReservedValue: otherChildrenMonthlyStoryLimit,
-                  dailyAudioHelper,
                   monthlyStoryMaxValue: monthlyStoryMaxForChild,
                   dailyAudioMaxValue: dailyAudioMaxForChild,
                   dailyAudioTotalValue: audioMonthlyLimit,
@@ -575,6 +588,11 @@ export default function ChildDetailScreen() {
         visible={showFeedbackModal}
         onClose={() => setShowFeedbackModal(false)}
         initialReportedScreen="children"
+      />
+      <ChildDataDeletionRequestModal
+        visible={childDataDeletionRequestVisible}
+        child={{ id: child.id, name: child.name }}
+        onClose={() => setChildDataDeletionRequestVisible(false)}
       />
     </View>
   );
@@ -607,6 +625,20 @@ const styles = StyleSheet.create({
   notFound: {
     color: theme.colors.text.secondary,
     fontSize: theme.typography.fontSize.base,
+  },
+  backToChildrenButton: {
+    marginTop: theme.spacing[4],
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.interactive.primary,
+    paddingHorizontal: theme.spacing[4],
+  },
+  backToChildrenButtonText: {
+    color: theme.colors.text.inverse,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
   },
   headerPanel: {
     width: '100%',
@@ -737,6 +769,9 @@ const styles = StyleSheet.create({
   accessContent: {
     paddingBottom: theme.spacing[8],
   },
+  profileContent: {
+    paddingBottom: theme.spacing[8],
+  },
   profilePanel: {
     width: '100%',
     borderRadius: theme.borders.radius.lg,
@@ -823,6 +858,48 @@ const styles = StyleSheet.create({
   storyModeDescriptionSelected: {
     color: theme.colors.text.inverse,
     opacity: 0.86,
+  },
+  privacyPanel: {
+    gap: theme.spacing[4],
+    paddingHorizontal: theme.spacing[6],
+    paddingTop: theme.spacing[5],
+    paddingBottom: theme.spacing[6],
+    borderTopWidth: theme.borders.width.thin,
+    borderTopColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.primary,
+  },
+  privacyCopy: {
+    gap: theme.spacing[1],
+  },
+  privacyTitle: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.bold,
+  },
+  privacyText: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 20,
+  },
+  privacyButton: {
+    minHeight: 44,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.interactive.primary,
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.primary,
+    paddingHorizontal: theme.spacing[4],
+  },
+  privacyButtonPressed: {
+    opacity: 0.75,
+  },
+  privacyButtonText: {
+    color: theme.colors.interactive.primary,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
   },
   accessCardWeb: {
     width: '100%',

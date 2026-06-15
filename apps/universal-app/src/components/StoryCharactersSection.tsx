@@ -30,6 +30,7 @@ interface StoryCharactersSectionProps {
   isArtisanMode: boolean;
   onSaveCharacter: (characterId: string, description?: string | null) => void;
   isSavePending: boolean;
+  collapsible?: boolean;
 }
 
 /** Fixed box for reference photo; image is ~90% of the box so content has a slight inset from the frame. */
@@ -37,23 +38,45 @@ const CHARACTER_IMAGE_BOX = 56;
 
 const styles = StyleSheet.create({
   charactersSection: {
+    position: 'relative',
     backgroundColor: theme.colors.background.secondary,
     borderRadius: theme.borders.radius.lg,
     padding: theme.spacing[4],
     marginBottom: theme.spacing[4],
-    zIndex: 10,
+    overflow: 'visible',
+    zIndex: 200,
+    elevation: 20,
   },
   charactersSectionTitle: {
+    flex: 1,
     fontSize: theme.typography.fontSize.lg,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
+  },
+  charactersSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
     marginBottom: theme.spacing[3],
   },
+  charactersSectionHeaderCollapsed: {
+    marginBottom: 0,
+  },
+  charactersSectionToggle: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.background.primary,
+  },
   characterCard: {
+    position: 'relative',
     flexDirection: 'column',
     paddingVertical: theme.spacing[2],
     borderBottomWidth: theme.borders.width.thin,
     borderBottomColor: theme.colors.border.light,
+    zIndex: 1,
   },
   characterCardRow: {
     flexDirection: 'row',
@@ -122,10 +145,12 @@ const styles = StyleSheet.create({
   },
   avatarWithPreview: {
     position: 'relative',
-    zIndex: 10,
+    zIndex: 300,
+    elevation: 30,
   },
   characterCardHovered: {
-    zIndex: 1,
+    zIndex: 500,
+    elevation: 50,
   },
   previewContainer: {
     position: 'absolute',
@@ -138,7 +163,15 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background.primary,
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
-    zIndex: 100,
+    zIndex: 1000,
+    elevation: 60,
+    ...Platform.select({
+      web: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        boxShadow: '0 14px 32px rgba(31, 26, 64, 0.18)' as any,
+      },
+      default: {},
+    }),
   },
   previewImage: {
     flex: 1,
@@ -168,10 +201,13 @@ function StoryCharactersSectionInner({
   isArtisanMode,
   onSaveCharacter,
   isSavePending,
+  collapsible = false,
 }: StoryCharactersSectionProps) {
   const { t } = useTranslation();
   const savedSet = new Set(savedCharacterIds);
   const [hoveredCharacterId, setHoveredCharacterId] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(!collapsible);
+  const shouldShowCharacters = !collapsible || isExpanded;
 
   const getCharacterTypeLabel = useCallback(
     (type: string) => {
@@ -183,8 +219,28 @@ function StoryCharactersSectionInner({
 
   return (
     <View style={styles.charactersSection}>
-      <Text style={styles.charactersSectionTitle}>{t('story_viewer.characters_title')}</Text>
-      {characters.map((char) => {
+      <Pressable
+        style={[
+          styles.charactersSectionHeader,
+          !shouldShowCharacters && styles.charactersSectionHeaderCollapsed,
+        ]}
+        disabled={!collapsible}
+        onPress={() => setIsExpanded((current) => !current)}
+        accessibilityRole={collapsible ? 'button' : undefined}
+        accessibilityState={collapsible ? { expanded: isExpanded } : undefined}
+      >
+        <Text style={styles.charactersSectionTitle}>{t('story_viewer.characters_title')}</Text>
+        {collapsible ? (
+          <View style={styles.charactersSectionToggle}>
+            <Ionicons
+              name={isExpanded ? 'chevron-up' : 'chevron-down'}
+              size={20}
+              color={theme.colors.text.secondary}
+            />
+          </View>
+        ) : null}
+      </Pressable>
+      {shouldShowCharacters && characters.map((char) => {
         const isEffectivelyHidden = char.isHidden && !savedSet.has(char.id);
         const canSaveCharacter = isEffectivelyHidden && isArtisanMode;
         return (

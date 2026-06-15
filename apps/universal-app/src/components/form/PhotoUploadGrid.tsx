@@ -22,6 +22,18 @@ type Photo = UploadPhotoResult & {
   isUploading?: boolean;
 };
 
+const PHOTO_HEIGHT = 150;
+const MIN_PHOTO_WIDTH = 72;
+const MAX_PHOTO_WIDTH = 260;
+
+function getPhotoWidth(aspectRatio?: number): number {
+  if (!aspectRatio || !Number.isFinite(aspectRatio) || aspectRatio <= 0) {
+    return PHOTO_HEIGHT;
+  }
+
+  return Math.max(MIN_PHOTO_WIDTH, Math.min(MAX_PHOTO_WIDTH, Math.round(PHOTO_HEIGHT * aspectRatio)));
+}
+
 interface PhotoUploadGridProps {
   photos: Photo[];
   onPhotosChange: (photos: Photo[]) => void;
@@ -43,6 +55,7 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
 }) => {
   const { t } = useTranslation();
   const [, setUploadingIndex] = useState<number | null>(null);
+  const [photoAspectRatios, setPhotoAspectRatios] = useState<Record<string, number>>({});
   const requestPermission = async () => {
     if (Platform.OS !== 'web') {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -125,32 +138,46 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.grid}>
-        {photos.map((photo, index) => (
-          <View key={index} style={styles.photoItem}>
-            <Image
-              source={{ uri: (formatUrl ? formatUrl(photo.url) : photo.url) || '' }}
-              style={styles.image}
-            />
+        {photos.map((photo, index) => {
+          const photoWidth = getPhotoWidth(photoAspectRatios[photo.url]);
+          return (
+            <View key={index} style={[styles.photoItem, { width: photoWidth }]}>
+              <Image
+                source={{ uri: (formatUrl ? formatUrl(photo.url) : photo.url) || '' }}
+                style={[styles.image, { width: photoWidth }]}
+                resizeMode="contain"
+                onLoad={(event) => {
+                  const source = event.nativeEvent.source;
+                  if (!source?.width || !source?.height) return;
+                  const nextAspectRatio = source.width / source.height;
+                  setPhotoAspectRatios((current) =>
+                    current[photo.url] === nextAspectRatio
+                      ? current
+                      : { ...current, [photo.url]: nextAspectRatio }
+                  );
+                }}
+              />
 
-            {/* Upload spinner */}
-            {photo.isUploading && (
-              <View style={styles.uploadingOverlay}>
-                <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
-              </View>
-            )}
+              {/* Upload spinner */}
+              {photo.isUploading && (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+                </View>
+              )}
 
-            {/* Remove button */}
-            {!photo.isUploading && (
-              <TouchableOpacity
-                onPress={() => removePhoto(index)}
-                style={styles.removeButton}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="close-circle" size={24} color={theme.colors.status.error} />
-              </TouchableOpacity>
-            )}
-          </View>
-        ))}
+              {/* Remove button */}
+              {!photo.isUploading && (
+                <TouchableOpacity
+                  onPress={() => removePhoto(index)}
+                  style={styles.removeButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="close-circle" size={24} color={theme.colors.status.error} />
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })}
 
         {/* Add photo button */}
         {canAddMore && (
@@ -183,12 +210,10 @@ const styles = StyleSheet.create({
     gap: theme.spacing[4],
   },
   photoItem: {
-    width: 150,
     marginBottom: theme.spacing[4],
   },
   image: {
-    width: 150,
-    height: 150,
+    height: PHOTO_HEIGHT,
     borderRadius: theme.borders.radius.md,
     backgroundColor: theme.colors.background.secondary,
   },

@@ -189,8 +189,8 @@ export default function LibraryScreen() {
     setStoryToDelete(null);
   }, []);
 
-  // Grid columns: 2 on mobile/tablet (portrait and landscape), 4 on desktop
-  const numColumns = useMemo(() => (width < 1024 ? 2 : 4), [width]);
+  // Grid columns: 1 on mobile, 2 on tablet, 4 on desktop
+  const numColumns = useMemo(() => (width < 640 ? 1 : width < 1024 ? 2 : 4), [width]);
   const gridCardWidth = useMemo(() => {
     const paddingHorizontal = theme.spacing[4] * 2;
     const gap = theme.spacing[4];

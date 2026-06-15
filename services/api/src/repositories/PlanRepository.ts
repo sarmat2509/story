@@ -11,6 +11,10 @@ export interface PlanFeatureWithDetails {
   category: string;
 }
 
+export interface PlanPriceWithSlug extends schema.PlanPrice {
+  planSlug: string;
+}
+
 export class PlanRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
@@ -39,6 +43,48 @@ export class PlanRepository {
       .where(eq(schema.plans.id, id))
       .limit(1);
     return plan || null;
+  }
+
+  async findPlanPricesForPlanIds(planIds: string[]): Promise<schema.PlanPrice[]> {
+    if (planIds.length === 0) {
+      return [];
+    }
+
+    return this.db
+      .select()
+      .from(schema.planPrices)
+      .where(inArray(schema.planPrices.planId, planIds));
+  }
+
+  async findPlanPrice(planId: string, pricingCurrency: string): Promise<schema.PlanPrice | null> {
+    const [price] = await this.db
+      .select()
+      .from(schema.planPrices)
+      .where(and(
+        eq(schema.planPrices.planId, planId),
+        eq(schema.planPrices.pricingCurrency, pricingCurrency)
+      ))
+      .limit(1);
+    return price || null;
+  }
+
+  async findPlanPriceByStripePriceId(stripePriceId: string): Promise<PlanPriceWithSlug | null> {
+    const [row] = await this.db
+      .select({
+        id: schema.planPrices.id,
+        planId: schema.planPrices.planId,
+        pricingCurrency: schema.planPrices.pricingCurrency,
+        priceMonthly: schema.planPrices.priceMonthly,
+        stripePriceId: schema.planPrices.stripePriceId,
+        createdAt: schema.planPrices.createdAt,
+        updatedAt: schema.planPrices.updatedAt,
+        planSlug: schema.plans.slug,
+      })
+      .from(schema.planPrices)
+      .innerJoin(schema.plans, eq(schema.planPrices.planId, schema.plans.id))
+      .where(eq(schema.planPrices.stripePriceId, stripePriceId))
+      .limit(1);
+    return row || null;
   }
 
   // Features

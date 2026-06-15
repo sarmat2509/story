@@ -37,7 +37,13 @@ export interface ChildProfileData {
   referencePhotos?: ReferencePhoto[];
   aiGeneratedDescription?: string; // AI-generated narrative description
   descriptionLanguage?: string;
-  turnaroundSheet?: { url: string; frontUrl?: string; generatedAt?: string; sourcePhotoUrl?: string };
+  turnaroundSheet?: {
+    url: string;
+    frontUrl?: string;
+    frontThumbnailUrl?: string;
+    generatedAt?: string;
+    sourcePhotoUrl?: string;
+  };
   appearanceTraits?: BasicAppearanceTraits;
   personality?: any;
   interests?: any;

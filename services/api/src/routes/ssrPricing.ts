@@ -1,7 +1,11 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { normalizePublicSeoLocale, type PublicSeoLocale } from '@wondertales/shared';
-import { buildPlansWithFeatures, normalizePlanLocale } from '../services/planPresentationService';
+import {
+  buildPlansWithFeatures,
+  normalizeBillingCurrency,
+  normalizePlanLocale,
+} from '../services/planPresentationService';
 import { renderPricingHtml } from '../ssr/renderPricingHtml';
 import config from '../config';
 import { logger } from '../utils/logger';
@@ -20,6 +24,10 @@ export function resolvePricingRouteLocale(routeLocale?: string | null): PublicSe
 function resolveLocale(req: Request): string {
   const routeLocale = typeof req.params.locale === 'string' ? req.params.locale : undefined;
   return normalizePlanLocale(resolvePricingRouteLocale(routeLocale));
+}
+
+function resolveBillingCurrency(req: Request): string {
+  return normalizeBillingCurrency(typeof req.query.currency === 'string' ? req.query.currency : null);
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -41,11 +49,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 async function handlePricing(req: Request, res: Response) {
   const locale = resolveLocale(req);
+  const billingCurrency = resolveBillingCurrency(req);
   let plans: Awaited<ReturnType<typeof buildPlansWithFeatures>> = [];
 
   try {
     plans = await withTimeout(
-      buildPlansWithFeatures({ locale }),
+      buildPlansWithFeatures({ locale, billingCurrency }),
       PRICING_PLAN_LOAD_TIMEOUT_MS
     );
   } catch (error) {
@@ -56,6 +65,7 @@ async function handlePricing(req: Request, res: Response) {
     locale,
     plans,
     paymentsEnabled: config.features.enableRealPayments,
+    billingCurrency,
   });
   const etag = buildPricingEtag(html);
   if (req.headers['if-none-match'] === etag) {
