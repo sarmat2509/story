@@ -18,15 +18,16 @@ import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useRegister } from '@/api/auth';
 import { getPasswordStrength, meetsMinRequirements } from '@/utils/passwordStrength';
-import { LEGAL_URLS } from '@/config/constants';
+import { getLegalUrl } from '@/config/constants';
 import { theme } from '@/theme';
 import { resetToMainRoute } from '@/navigation/navigationRef';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
+import { assignWebLocation } from '@/utils/webRuntime';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function RegisterScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const registerMutation = useRegister();
 
@@ -91,25 +92,35 @@ export default function RegisterScreen() {
     linkLabel?: string,
     linkUrl?: string
   ) => (
-    <TouchableOpacity style={styles.consentRow} onPress={onToggle} activeOpacity={0.75}>
-      <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
-        {checked && <Ionicons name="checkmark" size={16} color={theme.colors.text.inverse} />}
-      </View>
-      <Text style={styles.consentText}>
-        {label}
+    <View style={styles.consentRow}>
+      <TouchableOpacity
+        onPress={onToggle}
+        accessibilityRole="checkbox"
+        accessibilityLabel={label}
+        accessibilityState={{ checked }}
+        activeOpacity={0.75}
+      >
+        <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+          {checked && <Ionicons name="checkmark" size={16} color={theme.colors.text.inverse} />}
+        </View>
+      </TouchableOpacity>
+      <View style={styles.consentCopy}>
+        <Text style={styles.consentText}>{label}</Text>
         {linkLabel && linkUrl ? (
           <Text
             style={styles.consentLink}
-            onPress={(event) => {
-              event.stopPropagation();
+            onPress={() => {
+              if (assignWebLocation(linkUrl)) {
+                return;
+              }
               Linking.openURL(linkUrl);
             }}
           >
-            {` ${linkLabel}`}
+            {linkLabel}
           </Text>
         ) : null}
-      </Text>
-    </TouchableOpacity>
+      </View>
+    </View>
   );
 
   return (
@@ -197,14 +208,14 @@ export default function RegisterScreen() {
               () => setTermsAccepted((value) => !value),
               t('auth.consent_terms'),
               t('auth.terms_link'),
-              LEGAL_URLS.terms
+              getLegalUrl('terms', i18n.language)
             )}
             {renderCheckbox(
               privacyAccepted,
               () => setPrivacyAccepted((value) => !value),
               t('auth.consent_privacy'),
               t('auth.privacy_link'),
-              LEGAL_URLS.privacy
+              getLegalUrl('privacy', i18n.language)
             )}
           </View>
 
@@ -347,14 +358,22 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.interactive.primary,
   },
   consentText: {
-    flex: 1,
     fontSize: theme.typography.fontSize.sm,
     lineHeight: 20,
     color: theme.colors.text.secondary,
   },
+  consentCopy: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[1],
+  },
   consentLink: {
     color: theme.colors.interactive.primary,
+    fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.semibold,
+    lineHeight: 20,
+    textDecorationLine: 'underline',
   },
   button: {
     backgroundColor: theme.colors.interactive.primary,

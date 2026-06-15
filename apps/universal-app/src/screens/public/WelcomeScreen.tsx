@@ -31,7 +31,7 @@ import { resetToMainRoute } from '@/navigation/navigationRef';
 import { resolveBillingEntryTarget } from '@/utils/billingEntry';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 import { assignWebLocation, getWebPathname } from '@/utils/webRuntime';
-import { LEGAL_URLS } from '@/config/constants';
+import { getLegalUrl } from '@/config/constants';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -153,34 +153,38 @@ export default function WelcomeScreen() {
     linkLabel?: string,
     linkUrl?: string
   ) => (
-    <TouchableOpacity
-      style={styles.oauthConsentRow}
-      onPress={onToggle}
-      disabled={isLoading}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
-      activeOpacity={0.75}
-    >
-      <View style={[styles.oauthCheckbox, checked && styles.oauthCheckboxChecked]}>
-        {checked ? (
-          <Ionicons name="checkmark" size={14} color={theme.colors.text.inverse} />
-        ) : null}
-      </View>
-      <Text style={styles.oauthConsentText}>
-        {label}
+    <View style={styles.oauthConsentRow}>
+      <TouchableOpacity
+        onPress={onToggle}
+        disabled={isLoading}
+        accessibilityRole="checkbox"
+        accessibilityLabel={label}
+        accessibilityState={{ checked }}
+        activeOpacity={0.75}
+      >
+        <View style={[styles.oauthCheckbox, checked && styles.oauthCheckboxChecked]}>
+          {checked ? (
+            <Ionicons name="checkmark" size={14} color={theme.colors.text.inverse} />
+          ) : null}
+        </View>
+      </TouchableOpacity>
+      <View style={styles.oauthConsentCopy}>
+        <Text style={styles.oauthConsentText}>{label}</Text>
         {linkLabel && linkUrl ? (
           <Text
             style={styles.oauthConsentLink}
-            onPress={(event) => {
-              event.stopPropagation();
+            onPress={() => {
+              if (assignWebLocation(linkUrl)) {
+                return;
+              }
               Linking.openURL(linkUrl);
             }}
           >
-            {` ${linkLabel}`}
+            {linkLabel}
           </Text>
         ) : null}
-      </Text>
-    </TouchableOpacity>
+      </View>
+    </View>
   );
 
   return (
@@ -246,14 +250,14 @@ export default function WelcomeScreen() {
                       () => setOauthTermsAccepted((value) => !value),
                       t('auth.consent_terms'),
                       t('auth.terms_link'),
-                      LEGAL_URLS.terms
+                      getLegalUrl('terms', i18n.language)
                     )}
                     {renderOAuthConsent(
                       oauthPrivacyAccepted,
                       () => setOauthPrivacyAccepted((value) => !value),
                       t('auth.consent_privacy'),
                       t('auth.privacy_link'),
-                      LEGAL_URLS.privacy
+                      getLegalUrl('privacy', i18n.language)
                     )}
                   </View>
 
@@ -625,14 +629,21 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.interactive.primary,
   },
   oauthConsentText: {
-    flex: 1,
     fontSize: theme.typography.fontSize.sm,
     lineHeight: 20,
     color: theme.colors.text.secondary,
   },
+  oauthConsentCopy: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[1],
+  },
   oauthConsentLink: {
     color: theme.colors.interactive.primary,
+    fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.semibold,
+    lineHeight: 20,
     textDecorationLine: 'underline',
   },
   oauthButtonDisabled: {

@@ -1,4 +1,12 @@
-import { APP_UI_LOCALES, DEFAULT_LOCALE, LOCALE_IDS } from '@wondertales/shared';
+import {
+  APP_UI_LOCALES,
+  DEFAULT_LOCALE,
+  LOCALE_IDS,
+  buildAbsoluteRouteUrl,
+  buildPublicLegalPath,
+  normalizePublicSeoLocale,
+  type PublicLegalDoc,
+} from '@wondertales/shared';
 import { getWebOrigin } from '@/utils/webRuntime';
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3000';
@@ -9,12 +17,63 @@ function getLegalBaseUrl(): string {
   return getWebOrigin(WEB_APP_URL) ?? WEB_APP_URL;
 }
 
+function isLocalWebOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname === '[::1]'
+    );
+  } catch {
+    return false;
+  }
+}
+
+function buildSsrLegalPath(doc: PublicLegalDoc, locale?: string | null): string {
+  const normalizedLocale = normalizePublicSeoLocale(locale);
+  return normalizedLocale === 'uk'
+    ? `/ssr/legal/${doc}`
+    : `/ssr/legal/${doc}/${normalizedLocale}`;
+}
+
+function getLocalSsrLegalBaseUrl(): string {
+  try {
+    const apiUrl = new URL(API_BASE_URL);
+    if (isLocalWebOrigin(apiUrl.origin)) {
+      apiUrl.port = apiUrl.port || '3000';
+      if (apiUrl.port !== '3000') {
+        apiUrl.port = '3000';
+      }
+      apiUrl.pathname = '';
+      apiUrl.search = '';
+      apiUrl.hash = '';
+      return apiUrl.toString().replace(/\/$/, '');
+    }
+  } catch {
+    // Fall through to the default local API origin.
+  }
+
+  return 'http://localhost:3000';
+}
+
+export function getLegalUrl(doc: PublicLegalDoc, locale?: string | null): string {
+  const webOrigin = getWebOrigin();
+
+  if (webOrigin && isLocalWebOrigin(webOrigin)) {
+    return buildAbsoluteRouteUrl(getLocalSsrLegalBaseUrl(), buildSsrLegalPath(doc, locale));
+  }
+
+  return buildAbsoluteRouteUrl(getLegalBaseUrl(), buildPublicLegalPath(doc, locale));
+}
+
 export const LEGAL_URLS = {
   get terms() {
-    return `${getLegalBaseUrl()}/terms`;
+    return getLegalUrl('terms');
   },
   get privacy() {
-    return `${getLegalBaseUrl()}/privacy`;
+    return getLegalUrl('privacy');
   },
 };
 
