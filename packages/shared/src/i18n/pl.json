@@ -248,6 +248,10 @@
     "your_story": "Twoja historia",
     "summary_characters_count": "{{count}} postaci",
     "summary_no_characters": "Bez dodatkowych postaci",
+    "step_progress": "Krok {{current}} z {{total}}",
+    "step_basics": "Podstawy",
+    "step_details": "Szczegoly",
+    "step_characters": "Postacie",
     "story_for": "Historia dla",
     "no_profile": "Brak profilu",
     "goal_label": "Moral historii (opcjonalnie)",
@@ -277,7 +281,8 @@
     "add_characters": "Dodaj postacie",
     "child_badge": "Dziecko",
     "select_hint": "Wybierz opcje, aby kontynuowac",
-    "story_context_hint": "Dodaj kilka szczegolow, ktore poprowadza historie"
+    "story_context_hint": "Dodaj kilka szczegolow, ktore poprowadza historie",
+    "title": "Utworz historie"
   },
   "instant_wizard": {
     "title": "Utworz historie",

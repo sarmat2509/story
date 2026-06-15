@@ -255,6 +255,10 @@
     "your_story": "Your story",
     "summary_characters_count": "{{count}} characters",
     "summary_no_characters": "No extra characters",
+    "step_progress": "Step {{current}} of {{total}}",
+    "step_basics": "Basics",
+    "step_details": "Details",
+    "step_characters": "Characters",
     "story_for": "Story for",
     "no_profile": "No Profile",
     "goal_label": "Story Moral (optional)",
@@ -284,7 +288,8 @@
     "add_characters": "Add Characters",
     "child_badge": "Child",
     "select_hint": "Choose an option to continue",
-    "story_context_hint": "Add a few details to guide the story"
+    "story_context_hint": "Add a few details to guide the story",
+    "title": "Create story"
   },
   "instant_wizard": {
     "title": "Create Story",

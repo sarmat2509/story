@@ -255,6 +255,10 @@
     "your_story": "Ваша історія",
     "summary_characters_count": "{{count}} персонажів",
     "summary_no_characters": "Без додаткових персонажів",
+    "step_progress": "Крок {{current}} з {{total}}",
+    "step_basics": "Основа",
+    "step_details": "Деталі",
+    "step_characters": "Персонажі",
     "story_for": "Історія для",
     "no_profile": "Без профілю",
     "goal_label": "Мораль історії (опційно)",
@@ -284,7 +288,8 @@
     "retry": "Спробувати ще раз",
     "retry_error": "Не вдалося повторити генерацію ілюстрацій. Спробуйте ще раз.",
     "advanced_settings": "Додаткові налаштування",
-    "add_characters": "Додати персонажів"
+    "add_characters": "Додати персонажів",
+    "title": "Створити історію"
   },
   "instant_wizard": {
     "title": "Створити історію",

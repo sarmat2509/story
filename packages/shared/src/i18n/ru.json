@@ -255,6 +255,10 @@
     "your_story": "Ваша история",
     "summary_characters_count": "{{count}} персонажей",
     "summary_no_characters": "Без дополнительных персонажей",
+    "step_progress": "Шаг {{current}} из {{total}}",
+    "step_basics": "Основа",
+    "step_details": "Детали",
+    "step_characters": "Персонажи",
     "story_for": "История для",
     "no_profile": "Без профиля",
     "goal_label": "Мораль истории (опционально)",
@@ -284,7 +288,8 @@
     "add_characters": "Добавить персонажей",
     "child_badge": "Ребёнок",
     "select_hint": "Выберите вариант, чтобы продолжить",
-    "story_context_hint": "Добавьте несколько деталей для будущей истории"
+    "story_context_hint": "Добавьте несколько деталей для будущей истории",
+    "title": "Создать историю"
   },
   "instant_wizard": {
     "title": "Создать историю",

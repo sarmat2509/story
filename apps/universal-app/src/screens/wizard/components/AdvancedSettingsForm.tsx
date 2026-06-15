@@ -179,10 +179,10 @@ export function AdvancedSettingsForm({
 
 const styles = StyleSheet.create({
   container: {
-    gap: theme.spacing[5],
+    gap: theme.spacing[4],
   },
   section: {
-    marginBottom: theme.spacing[2],
+    paddingBottom: theme.spacing[1],
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[3],
   },
   sectionLabel: {
-    fontSize: theme.typography.fontSize.base,
+    fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.text.secondary,
   },
@@ -207,13 +207,13 @@ const styles = StyleSheet.create({
   chipsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: theme.spacing[2],
+    gap: theme.spacing[1],
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[4],
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[3],
     backgroundColor: theme.colors.background.primary,
     borderRadius: theme.borders.radius.full,
     borderWidth: theme.borders.width.thin,
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.interactive.primary,
   },
   chipText: {
-    fontSize: theme.typography.fontSize.sm,
+    fontSize: theme.typography.fontSize.xs,
     fontWeight: theme.typography.fontWeight.medium,
     color: theme.colors.text.primary,
   },
@@ -239,11 +239,11 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background.primary,
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.medium,
-    borderRadius: theme.borders.radius.md,
-    padding: theme.spacing[4],
-    fontSize: theme.typography.fontSize.base,
+    borderRadius: theme.borders.radius.lg,
+    padding: theme.spacing[3],
+    fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.primary,
-    minHeight: 100,
+    minHeight: 88,
   },
   charCount: {
     fontSize: theme.typography.fontSize.xs,

@@ -209,6 +209,10 @@
     "your_story": "Tu historia",
     "summary_characters_count": "{{count}} personajes",
     "summary_no_characters": "Sin personajes adicionales",
+    "step_progress": "Paso {{current}} de {{total}}",
+    "step_basics": "Base",
+    "step_details": "Detalles",
+    "step_characters": "Personajes",
     "story_for": "Historia para",
     "no_profile": "Sin perfil",
     "goal_label": "Moraleja de la historia (opcional)",
@@ -234,7 +238,8 @@
     "retry_error": "No se pudo reintentar la generación de ilustraciones. Por favor, inténtalo de nuevo.",
     "advanced_settings": "Configuración avanzada",
     "add_characters": "Agregar personajes",
-    "child_badge": "Niño"
+    "child_badge": "Niño",
+    "title": "Crear historia"
   },
   "instant_wizard": {
     "title": "Crear historia",

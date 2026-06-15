@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   Alert,
   useWindowDimensions,
+  TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NavigationProp, RouteProp } from '@react-navigation/native';
@@ -74,6 +76,7 @@ export default function WizardScreen() {
   const [userNotes, setUserNotes] = useState('');
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
   const [selectedChildren, setSelectedChildren] = useState<string[]>([]); // NEW: Selected child profiles
+  const [activeStep, setActiveStep] = useState(0);
 
   // Modal state
   const [isChildModalVisible, setIsChildModalVisible] = useState(false);
@@ -172,6 +175,11 @@ export default function WizardScreen() {
           defaultValue: '{{count}} characters',
         })
       : t('wizard.summary_no_characters', { defaultValue: 'No extra characters' }),
+  ];
+  const steps = [
+    { key: 'basics', label: t('wizard.step_basics'), icon: 'sparkles-outline' as const },
+    { key: 'details', label: t('wizard.step_details'), icon: 'options-outline' as const },
+    { key: 'characters', label: t('wizard.step_characters'), icon: 'people-outline' as const },
   ];
 
   useEffect(() => {
@@ -315,7 +323,7 @@ export default function WizardScreen() {
                 <Ionicons name="sparkles-outline" size={24} color={theme.colors.primary[700]} />
               </View>
               <View style={styles.heroText}>
-                <Text style={styles.title}>{t('navigation.create', { defaultValue: 'Create' })}</Text>
+                <Text style={styles.title}>{t('wizard.title', { defaultValue: 'Create story' })}</Text>
                 <Text style={styles.subtitle}>
                   {t('wizard.subtitle', {
                     defaultValue: 'Choose the story ingredients and keep the final setup in view.',
@@ -326,65 +334,144 @@ export default function WizardScreen() {
           </AnimatedSection>
 
           <View style={[styles.workspace, isWide && styles.workspaceWide]}>
-            <View style={styles.mainColumn}>
+            <View style={[styles.mainColumn, isWide && styles.mainColumnWide]}>
               <AnimatedSection delay={80} trigger={enterKey}>
-                <ScenarioCardsGrid
-                  scenarios={themesData?.scenarioCards || []}
-                  selected={scenarioCardId}
-                  onSelect={setScenarioCardId}
-                />
+                <View style={styles.stepperCard}>
+                  <Text style={styles.stepperEyebrow}>
+                    {t('wizard.step_progress', {
+                      current: activeStep + 1,
+                      total: steps.length,
+                    })}
+                  </Text>
+                  <View style={styles.stepper}>
+                    {steps.map((step, index) => {
+                      const isActive = activeStep === index;
+                      const isComplete = activeStep > index;
+                      return (
+                        <TouchableOpacity
+                          key={step.key}
+                          style={[
+                            styles.stepButton,
+                            isActive && styles.stepButtonActive,
+                            isComplete && styles.stepButtonComplete,
+                          ]}
+                          onPress={() => setActiveStep(index)}
+                          activeOpacity={0.8}
+                        >
+                          <View
+                            style={[
+                              styles.stepIcon,
+                              (isActive || isComplete) && styles.stepIconActive,
+                            ]}
+                          >
+                            <Ionicons
+                              name={isComplete ? 'checkmark' : step.icon}
+                              size={16}
+                              color={
+                                isActive || isComplete
+                                  ? theme.colors.text.inverse
+                                  : theme.colors.text.secondary
+                              }
+                            />
+                          </View>
+                          <Text
+                            style={[
+                              styles.stepLabel,
+                              (isActive || isComplete) && styles.stepLabelActive,
+                            ]}
+                          >
+                            {step.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
               </AnimatedSection>
 
-              <AnimatedSection delay={160} trigger={enterKey}>
-                <LanguageSelector
-                  selected={storyLanguage}
-                  onSelect={setStoryLanguage}
-                  defaultLanguage={i18n.language}
-                  allowedLanguageCodes={allowedLanguageCodes}
-                />
+              <AnimatedSection delay={140} trigger={`${enterKey}-${activeStep}`}>
+                {activeStep === 0 ? (
+                  <View style={styles.stepContent}>
+                    <ScenarioCardsGrid
+                      scenarios={themesData?.scenarioCards || []}
+                      selected={scenarioCardId}
+                      onSelect={setScenarioCardId}
+                    />
+                    <LanguageSelector
+                      selected={storyLanguage}
+                      onSelect={setStoryLanguage}
+                      defaultLanguage={i18n.language}
+                      allowedLanguageCodes={allowedLanguageCodes}
+                    />
+                  </View>
+                ) : null}
+
+                {activeStep === 1 ? (
+                  <ExpandableCard title={t('wizard.advanced_settings')} icon="settings-outline">
+                    <AdvancedSettingsForm
+                      childProfileId={childProfileId}
+                      onChildProfileChange={setChildProfileId}
+                      children={children}
+                      onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
+                      showChildProfileSelector={!isChildSession}
+                      goals={availableGoals}
+                      selectedGoals={selectedGoals}
+                      onGoalsChange={setSelectedGoals}
+                      imageStyle={imageStyle}
+                      onImageStyleChange={setImageStyle}
+                      userNotes={userNotes}
+                      onNotesChange={setUserNotes}
+                      notesEnabled={notesEnabled}
+                    />
+                  </ExpandableCard>
+                ) : null}
+
+                {activeStep === 2 ? (
+                  <ExpandableCard title={t('wizard.add_characters')} icon="people-outline">
+                    <CharactersForm
+                      characters={availableCharacters}
+                      selectedCharacters={selectedCharacters}
+                      onCharactersChange={setSelectedCharacters}
+                      children={children}
+                      selectedChildren={selectedChildren}
+                      onChildrenChange={setSelectedChildren}
+                      showChildren={!isChildSession}
+                      onAddCharacter={() => setIsCharacterModalVisible(true)}
+                      onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
+                    />
+                  </ExpandableCard>
+                ) : null}
               </AnimatedSection>
 
-              <AnimatedSection delay={240} trigger={enterKey}>
-                <ExpandableCard title={t('wizard.advanced_settings')} icon="settings-outline">
-                  <AdvancedSettingsForm
-                    childProfileId={childProfileId}
-                    onChildProfileChange={setChildProfileId}
-                    children={children}
-                    onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
-                    showChildProfileSelector={!isChildSession}
-                    goals={availableGoals}
-                    selectedGoals={selectedGoals}
-                    onGoalsChange={setSelectedGoals}
-                    imageStyle={imageStyle}
-                    onImageStyleChange={setImageStyle}
-                    userNotes={userNotes}
-                    onNotesChange={setUserNotes}
-                    notesEnabled={notesEnabled}
-                  />
-                </ExpandableCard>
-              </AnimatedSection>
-
-              <AnimatedSection delay={320} trigger={enterKey}>
-                <ExpandableCard title={t('wizard.add_characters')} icon="people-outline">
-                  <CharactersForm
-                    characters={availableCharacters}
-                    selectedCharacters={selectedCharacters}
-                    onCharactersChange={setSelectedCharacters}
-                    children={children}
-                    selectedChildren={selectedChildren}
-                    onChildrenChange={setSelectedChildren}
-                    showChildren={!isChildSession}
-                    onAddCharacter={() => setIsCharacterModalVisible(true)}
-                    onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
-                  />
-                </ExpandableCard>
-              </AnimatedSection>
+              <View style={styles.stepActions}>
+                <TouchableOpacity
+                  style={[styles.navButton, activeStep === 0 && styles.navButtonHidden]}
+                  onPress={() => setActiveStep((step) => Math.max(0, step - 1))}
+                  disabled={activeStep === 0}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="chevron-back" size={18} color={theme.colors.text.secondary} />
+                  <Text style={styles.navButtonText}>{t('common.back')}</Text>
+                </TouchableOpacity>
+                {activeStep < steps.length - 1 ? (
+                  <TouchableOpacity
+                    style={[styles.navButton, styles.navButtonPrimary]}
+                    onPress={() => setActiveStep((step) => Math.min(steps.length - 1, step + 1))}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.navButtonPrimaryText}>{t('common.next')}</Text>
+                    <Ionicons name="chevron-forward" size={18} color={theme.colors.text.inverse} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </View>
 
-            <AnimatedSection
-              delay={220}
-              trigger={enterKey}
-              style={[styles.summaryColumn, !isWide && styles.summaryColumnFull]}
+            <View
+              style={[
+                styles.summaryColumn,
+                isWide && styles.summaryColumnFixed,
+                !isWide && styles.summaryColumnFull,
+              ]}
             >
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryEyebrow}>{t('wizard.story_preview', { defaultValue: 'Story setup' })}</Text>
@@ -415,7 +502,7 @@ export default function WizardScreen() {
                   style={styles.generateButton}
                 />
               </View>
-            </AnimatedSection>
+            </View>
           </View>
         </ScrollView>
       </LinearGradient>
@@ -530,9 +617,118 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  mainColumnWide: {
+    paddingRight: 360,
+  },
+  stepperCard: {
+    padding: theme.spacing[4],
+    marginBottom: theme.spacing[5],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surface,
+    ...modernShadows.subtle,
+  },
+  stepperEyebrow: {
+    marginBottom: theme.spacing[3],
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.tertiary,
+    textTransform: 'uppercase',
+  },
+  stepper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[2],
+  },
+  stepButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surfaceMuted,
+  },
+  stepButtonActive: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: modernColors.accentWash,
+  },
+  stepButtonComplete: {
+    borderColor: theme.colors.primary[300],
+    backgroundColor: modernColors.accentWash,
+  },
+  stepIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: modernColors.surface,
+  },
+  stepIconActive: {
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  stepLabel: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+  },
+  stepLabelActive: {
+    color: theme.colors.text.primary,
+  },
+  stepContent: {
+    gap: theme.spacing[5],
+  },
+  stepActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    marginTop: theme.spacing[5],
+  },
+  navButton: {
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[4],
+    borderRadius: theme.borders.radius.full,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surface,
+  },
+  navButtonHidden: {
+    opacity: 0,
+  },
+  navButtonPrimary: {
+    marginLeft: 'auto',
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  navButtonText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+  },
+  navButtonPrimaryText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.inverse,
+  },
   summaryColumn: {
     width: 320,
     maxWidth: '100%',
+  },
+  summaryColumnFixed: {
+    position: Platform.OS === 'web' ? ('fixed' as never) : 'absolute',
+    top: 96,
+    right: theme.spacing[6],
+    zIndex: 20,
   },
   summaryColumnFull: {
     width: '100%',
