@@ -204,6 +204,11 @@
     "free_theme_desc": "Générer une histoire sans thème spécifique",
     "language_title": "Langue de l'histoire",
     "language_required": "Veuillez sélectionner la langue de l'histoire",
+    "subtitle": "Choisissez les ingrédients de l'histoire et gardez la configuration finale sous les yeux.",
+    "story_preview": "Configuration de l'histoire",
+    "your_story": "Votre histoire",
+    "summary_characters_count": "{{count}} personnages",
+    "summary_no_characters": "Aucun personnage supplémentaire",
     "story_for": "Histoire pour",
     "no_profile": "Sans profil",
     "goal_label": "Morale de l'histoire (optionnel)",
@@ -230,6 +235,20 @@
     "advanced_settings": "Paramètres avancés",
     "add_characters": "Ajouter des personnages",
     "child_badge": "Enfant"
+  },
+  "instant_wizard": {
+    "title": "Créer une histoire",
+    "subtitle": "Importez des photos et créez un conte instantanément",
+    "default_theme": "Thème libre",
+    "upload_photos": "Importer des photos",
+    "photos_description": "Il peut s'agir de photos d'enfants, d'adultes ou de personnages de dessins d'enfants",
+    "photos_required": "Importez au moins une photo",
+    "age_group": "Âge de l'enfant",
+    "age_group_description": "Pour quel âge créons-nous ce conte ?",
+    "years": "ans",
+    "summary_photos": "{{count}} / {{max}} photos",
+    "scenario_description": "Choisissez un thème ou laissez vide pour un thème libre",
+    "generate_story": "Créer le conte"
   },
   "characters": {
     "title": "Personnages",

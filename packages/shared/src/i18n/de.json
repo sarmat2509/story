@@ -204,6 +204,11 @@
     "free_theme_desc": "Eine Geschichte ohne ein bestimmtes Thema generieren",
     "language_title": "Sprache der Geschichte",
     "language_required": "Bitte wählen Sie die Sprache der Geschichte",
+    "subtitle": "Wählen Sie die Bausteine der Geschichte und behalten Sie die Einstellungen im Blick.",
+    "story_preview": "Geschichteneinstellungen",
+    "your_story": "Ihre Geschichte",
+    "summary_characters_count": "{{count}} Charaktere",
+    "summary_no_characters": "Keine zusätzlichen Charaktere",
     "story_for": "Geschichte für",
     "no_profile": "Kein Profil",
     "goal_label": "Moral der Geschichte (optional)",
@@ -230,6 +235,20 @@
     "advanced_settings": "Erweiterte Einstellungen",
     "add_characters": "Charaktere hinzufügen",
     "child_badge": "Kind"
+  },
+  "instant_wizard": {
+    "title": "Geschichte erstellen",
+    "subtitle": "Laden Sie Fotos hoch und erstellen Sie sofort ein Märchen",
+    "default_theme": "Freies Thema",
+    "upload_photos": "Fotos hochladen",
+    "photos_description": "Das können Fotos von Kindern, Erwachsenen oder Figuren aus Kinderzeichnungen sein",
+    "photos_required": "Bitte laden Sie mindestens ein Foto hoch",
+    "age_group": "Alter des Kindes",
+    "age_group_description": "Für welches Alter erstellen wir das Märchen?",
+    "years": "Jahre",
+    "summary_photos": "{{count}} / {{max}} Fotos",
+    "scenario_description": "Wählen Sie ein Thema oder lassen Sie es für ein freies Thema leer",
+    "generate_story": "Märchen erstellen"
   },
   "characters": {
     "title": "Charaktere",
