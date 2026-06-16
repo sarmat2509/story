@@ -74,6 +74,8 @@ function ensureInit(): boolean {
       mask_all_text: true,
       mask_personal_data_properties: true,
       opt_in_site_apps: false,
+      // Do not denylist `token`: posthog-js adds its project key as properties.token
+      // before before_send runs. User-provided tokens are removed by scrubAnalyticsProperties.
       property_denylist: [
         'email',
         'displayName',
@@ -84,7 +86,6 @@ function ensureInit(): boolean {
         'checkout_url',
         'portal_url',
         'share_token',
-        'token',
       ],
       rageclick: false,
       remote_config_refresh_interval_ms: 0,
