@@ -41,6 +41,7 @@ import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { PublishShareDialog, type ShareCardScene } from '@/components/PublishShareDialog';
+import { AppButton } from '@/components/AppButton';
 import { toastService } from '@/services/toastService';
 import { audioNotificationService } from '@/services/audioNotificationService';
 import { audioPlaybackService } from '@/services/audioPlaybackService';
@@ -1150,34 +1151,34 @@ export default function StoryViewerScreen() {
           {t('series.part_number', { number: partNumber })}{' '}
           {t('series.of_parts', { total: totalParts })}
         </Text>
-        {/* Previous part button */}
         {currentIndex > 0 && (
-          <TouchableOpacity
-            style={styles.navButton}
-            onPress={() => navigateToStory(storyIds[currentIndex - 1])}
-          >
-            <Ionicons name="arrow-back" size={20} color={theme.colors.interactive.primary} />
-            <Text style={styles.navButtonText} numberOfLines={1}>
-              {storyTitles[currentIndex - 1]
+          <AppButton
+            label={
+              storyTitles[currentIndex - 1]
                 ? `${t('series.part_number', { number: currentIndex })}: ${storyTitles[currentIndex - 1]}`
-                : t('series.part_number', { number: currentIndex })}
-            </Text>
-          </TouchableOpacity>
+                : t('series.part_number', { number: currentIndex })
+            }
+            onPress={() => navigateToStory(storyIds[currentIndex - 1])}
+            variant="secondary"
+            leading={<Ionicons name="arrow-back" size={20} color={theme.colors.interactive.primary} />}
+            style={styles.seriesNavAction}
+          />
         )}
 
-        {/* Next part button */}
         {currentIndex < totalParts - 1 && (
-          <TouchableOpacity
-            style={styles.navButton}
-            onPress={() => navigateToStory(storyIds[currentIndex + 1])}
-          >
-            <Text style={styles.navButtonText} numberOfLines={1}>
-              {storyTitles[currentIndex + 1]
+          <AppButton
+            label={
+              storyTitles[currentIndex + 1]
                 ? `${t('series.part_number', { number: currentIndex + 2 })}: ${storyTitles[currentIndex + 1]}`
-                : t('series.part_number', { number: currentIndex + 2 })}
-            </Text>
-            <Ionicons name="arrow-forward" size={20} color={theme.colors.interactive.primary} />
-          </TouchableOpacity>
+                : t('series.part_number', { number: currentIndex + 2 })
+            }
+            onPress={() => navigateToStory(storyIds[currentIndex + 1])}
+            variant="secondary"
+            trailing={
+              <Ionicons name="arrow-forward" size={20} color={theme.colors.interactive.primary} />
+            }
+            style={styles.seriesNavAction}
+          />
         )}
       </View>
     );
@@ -1205,12 +1206,11 @@ export default function StoryViewerScreen() {
                   })}
                 </Text>
 
-                <TouchableOpacity
-                  style={styles.upgradeButton}
+                <AppButton
+                  label={t('story_viewer.upgrade_plan')}
                   onPress={() => navigation.navigate('Plans')}
-                >
-                  <Text style={styles.upgradeButtonText}>{t('story_viewer.upgrade_plan')}</Text>
-                </TouchableOpacity>
+                  style={styles.audioLimitAction}
+                />
 
                 <Text style={styles.limitExceededDetails}>
                   {t('story_viewer.next_plan_benefit')}
@@ -1756,22 +1756,19 @@ export default function StoryViewerScreen() {
                 {!isChildSession ? (
                   <View style={styles.publicationSection}>
                     {!story?.isPublished ? (
-                      <TouchableOpacity
-                        style={[
-                          styles.publishButton,
-                          (publishStory.isPending || parentReviewBlocksSharing) &&
-                            styles.publishButtonDisabled,
-                        ]}
+                      <AppButton
+                        label={t('story_viewer.publish')}
                         onPress={handleOpenPublishDialog}
                         disabled={publishStory.isPending || parentReviewBlocksSharing}
-                      >
-                        <Ionicons
-                          name="cloud-upload-outline"
-                          size={20}
-                          color={theme.colors.text.inverse}
-                        />
-                        <Text style={styles.publishButtonText}>{t('story_viewer.publish')}</Text>
-                      </TouchableOpacity>
+                        leading={
+                          <Ionicons
+                            name="cloud-upload-outline"
+                            size={20}
+                            color={theme.colors.text.inverse}
+                          />
+                        }
+                        style={styles.publicationAction}
+                      />
                     ) : (
                       <>
                         <Text style={styles.publicationSectionTitle}>
@@ -1792,49 +1789,38 @@ export default function StoryViewerScreen() {
                           </Text>
                         </View>
                         <View style={styles.publicationButtonsRow}>
-                          <TouchableOpacity
-                            style={[
-                              styles.shareButton,
-                              styles.publicationButtonFlex,
-                              parentReviewBlocksSharing && styles.shareButtonDisabled,
-                            ]}
+                          <AppButton
+                            label={t('story_viewer.share_title')}
                             onPress={handleShare}
                             disabled={parentReviewBlocksSharing}
-                          >
-                            <Ionicons
-                              name="share-social-outline"
-                              size={20}
-                              color={theme.colors.interactive.primary}
-                            />
-                            <Text style={styles.shareButtonText}>
-                              {t('story_viewer.share_title')}
-                            </Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[
-                              styles.updatePublicationButton,
-                              styles.publicationButtonFlex,
-                              (publishStory.isPending || parentReviewBlocksSharing) &&
-                                styles.shareButtonDisabled,
-                            ]}
+                            variant="secondary"
+                            leading={
+                              <Ionicons
+                                name="share-social-outline"
+                                size={20}
+                                color={theme.colors.text.primary}
+                              />
+                            }
+                            style={styles.publicationButtonFlex}
+                          />
+                          <AppButton
+                            label={t('story_viewer.update_publication')}
                             onPress={handleOpenPublishDialog}
                             disabled={publishStory.isPending || parentReviewBlocksSharing}
-                          >
-                            <Ionicons
-                              name="create-outline"
-                              size={20}
-                              color={theme.colors.interactive.primary}
-                            />
-                            <Text style={styles.updatePublicationButtonText}>
-                              {t('story_viewer.update_publication')}
-                            </Text>
-                          </TouchableOpacity>
+                            variant="secondary"
+                            leading={
+                              <Ionicons name="create-outline" size={20} color={theme.colors.text.primary} />
+                            }
+                            style={styles.publicationButtonFlex}
+                          />
                         </View>
-                        <TouchableOpacity style={styles.unpublishLink} onPress={handleUnpublish}>
-                          <Text style={styles.unpublishLinkText}>
-                            {t('story_viewer.unpublish')}
-                          </Text>
-                        </TouchableOpacity>
+                        <AppButton
+                          label={t('story_viewer.unpublish')}
+                          onPress={handleUnpublish}
+                          variant="dangerSecondary"
+                          size="sm"
+                          style={styles.unpublishAction}
+                        />
                       </>
                     )}
                   </View>
@@ -1842,10 +1828,15 @@ export default function StoryViewerScreen() {
 
                 {/* Delete Story Button */}
                 {!isChildSession ? (
-                  <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteStory}>
-                    <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
-                    <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
-                  </TouchableOpacity>
+                  <AppButton
+                    label={t('story_viewer.delete_story')}
+                    onPress={handleDeleteStory}
+                    variant="dangerSecondary"
+                    leading={
+                      <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
+                    }
+                    style={styles.deleteStoryAction}
+                  />
                 ) : null}
               </View>
             </ScrollView>
@@ -2082,86 +2073,15 @@ const styles = StyleSheet.create({
   },
   publicationButtonFlex: {
     flex: 1,
-    marginTop: 0,
   },
-  updatePublicationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    flex: 1,
-    padding: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
-    backgroundColor: theme.colors.background.primary,
-  },
-  updatePublicationButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.interactive.primary,
-  },
-  unpublishLink: {
-    paddingVertical: theme.spacing[2],
+  unpublishAction: {
     alignSelf: 'flex-start',
   },
-  unpublishLinkText: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.status.error,
-    textDecorationLine: 'underline',
+  publicationAction: {
+    alignSelf: 'stretch',
   },
-  publishButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    padding: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.interactive.primary,
-  },
-  publishButtonDisabled: {
-    opacity: 0.55,
-  },
-  publishButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
-  },
-  shareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    padding: theme.spacing[4],
-    marginTop: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
-    backgroundColor: theme.colors.background.primary,
-  },
-  shareButtonDisabled: {
-    opacity: 0.55,
-  },
-  shareButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.interactive.primary,
-  },
-  deleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    padding: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.status.error,
-    backgroundColor: theme.colors.background.primary,
-  },
-  deleteButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.status.error,
+  deleteStoryAction: {
+    alignSelf: 'stretch',
   },
   // Common styles
   title: {
@@ -2311,17 +2231,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: theme.spacing[6],
   },
-  upgradeButton: {
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.md,
+  audioLimitAction: {
     marginBottom: theme.spacing[4],
-  },
-  upgradeButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
   },
   limitExceededDetails: {
     fontSize: theme.typography.fontSize.sm,
@@ -2390,24 +2301,10 @@ const styles = StyleSheet.create({
     borderTopColor: theme.colors.border.light,
     justifyContent: 'center',
   },
-  navButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  seriesNavAction: {
     alignSelf: 'center',
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[4],
-    backgroundColor: theme.colors.background.secondary,
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-    gap: theme.spacing[2],
+    maxWidth: '100%',
     marginBottom: theme.spacing[2],
-  },
-  navButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.text.primary,
   },
   partIndicator: {
     fontSize: theme.typography.fontSize.sm,

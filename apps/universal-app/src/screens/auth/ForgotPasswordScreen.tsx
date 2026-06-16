@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useForgotPassword } from '@/api/auth';
+import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 
@@ -92,21 +92,23 @@ export default function ForgotPasswordScreen() {
                 <Text style={styles.helpText}>{t('auth.reset_link_sent_help')}</Text>
                 <Text style={styles.privacyText}>{t('auth.reset_link_sent_privacy')}</Text>
               </View>
-              <TouchableOpacity
-                style={styles.backButton}
+              <AppButton
+                label={t('auth.back_to_login')}
                 onPress={() => navigation.navigate('Welcome')}
-              >
-                <Ionicons name="log-in-outline" size={19} color={theme.colors.text.inverse} />
-                <Text style={styles.backButtonText}>{t('auth.back_to_login')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryButton} onPress={handleUseDifferentEmail}>
-                <Ionicons
-                  name="create-outline"
-                  size={18}
-                  color={theme.colors.interactive.primary}
-                />
-                <Text style={styles.secondaryButtonText}>{t('auth.use_different_email')}</Text>
-              </TouchableOpacity>
+                leading={
+                  <Ionicons name="log-in-outline" size={19} color={theme.colors.text.inverse} />
+                }
+                style={styles.successAction}
+              />
+              <AppButton
+                label={t('auth.use_different_email')}
+                onPress={handleUseDifferentEmail}
+                variant="secondary"
+                leading={
+                  <Ionicons name="create-outline" size={18} color={theme.colors.text.primary} />
+                }
+                style={styles.secondarySuccessAction}
+              />
             </View>
           ) : (
             <>
@@ -130,17 +132,12 @@ export default function ForgotPasswordScreen() {
                 textContentType="emailAddress"
               />
 
-              <TouchableOpacity
-                style={[styles.button, !canSubmit && styles.buttonDisabled]}
+              <AppButton
+                label={t('auth.send_reset_link')}
                 onPress={handleSubmit}
                 disabled={!canSubmit}
-              >
-                {forgotPasswordMutation.isPending ? (
-                  <ActivityIndicator color={theme.colors.text.inverse} />
-                ) : (
-                  <Text style={styles.buttonText}>{t('auth.send_reset_link')}</Text>
-                )}
-              </TouchableOpacity>
+                loading={forgotPasswordMutation.isPending}
+              />
 
               <TouchableOpacity
                 style={styles.backLink}
@@ -214,20 +211,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[6],
-  },
-  button: {
-    backgroundColor: theme.colors.interactive.primary,
-    padding: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
   },
   backLink: {
     marginTop: theme.spacing[6],
@@ -304,39 +287,12 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: 'center',
   },
-  backButton: {
+  successAction: {
     marginTop: theme.spacing[6],
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
     alignSelf: 'stretch',
   },
-  backButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
-  secondaryButton: {
+  secondarySuccessAction: {
     marginTop: theme.spacing[3],
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-    borderRadius: theme.borders.radius.md,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[5],
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
     alignSelf: 'stretch',
-  },
-  secondaryButtonText: {
-    color: theme.colors.interactive.primary,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
   },
 });

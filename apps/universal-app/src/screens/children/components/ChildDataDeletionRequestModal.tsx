@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Modal,
   ScrollView,
@@ -13,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useCreatePrivacyRequest } from '@/api/privacyRequests';
+import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 import {
@@ -159,38 +159,30 @@ export function ChildDataDeletionRequestModal({ visible, child, onClose }: Props
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={[styles.button, styles.cancelButton]}
-                activeOpacity={0.75}
+            <View style={styles.dialogActions}>
+              <AppButton
+                label={t('children_screen.child_data_deletion_cancel')}
                 disabled={createPrivacyRequest.isPending}
                 onPress={() => close()}
-              >
-                <Text style={styles.cancelButtonText}>
-                  {t('children_screen.child_data_deletion_cancel')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  styles.submitButton,
-                  (createPrivacyRequest.isPending || scopes.length === 0) && styles.buttonDisabled,
-                ]}
-                activeOpacity={0.75}
-                disabled={createPrivacyRequest.isPending || scopes.length === 0}
-                onPress={submit}
-              >
-                {createPrivacyRequest.isPending ? (
-                  <ActivityIndicator size="small" color={theme.colors.text.inverse} />
-                ) : (
-                  <Ionicons name="send-outline" size={16} color={theme.colors.text.inverse} />
-                )}
-                <Text style={styles.submitButtonText}>
-                  {createPrivacyRequest.isPending
+                variant="secondary"
+                size="md"
+                style={styles.dialogAction}
+              />
+              <AppButton
+                label={
+                  createPrivacyRequest.isPending
                     ? t('children_screen.child_data_deletion_submitting')
-                    : t('children_screen.child_data_deletion_confirm')}
-                </Text>
-              </TouchableOpacity>
+                    : t('children_screen.child_data_deletion_confirm')
+                }
+                disabled={createPrivacyRequest.isPending || scopes.length === 0}
+                loading={createPrivacyRequest.isPending}
+                onPress={submit}
+                size="md"
+                style={styles.dialogAction}
+                leading={
+                  <Ionicons name="send-outline" size={16} color={theme.colors.text.inverse} />
+                }
+              />
             </View>
           </ScrollView>
         </View>
@@ -299,40 +291,11 @@ const styles = StyleSheet.create({
     color: theme.colors.status.error,
     marginBottom: theme.spacing[3],
   },
-  buttonRow: {
+  dialogActions: {
     flexDirection: 'row',
     gap: theme.spacing[3],
   },
-  button: {
-    minHeight: 44,
+  dialogAction: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    borderRadius: theme.borders.radius.md,
-    paddingHorizontal: theme.spacing[4],
-    paddingVertical: theme.spacing[3],
-  },
-  cancelButton: {
-    backgroundColor: theme.colors.background.secondary,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-  },
-  cancelButtonText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.primary,
-  },
-  submitButton: {
-    backgroundColor: theme.colors.interactive.primary,
-  },
-  submitButtonText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
-  },
-  buttonDisabled: {
-    opacity: 0.55,
   },
 });

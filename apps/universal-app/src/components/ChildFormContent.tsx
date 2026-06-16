@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
-import { GlassPrimaryButton } from './GlassPrimaryButton';
+import { AppButton } from './AppButton';
 import { useCreateChild, useUpdateChild, useAnalyzeChild } from '@/api/children';
 import {
   CreateChildProfileSchema,
@@ -893,42 +893,34 @@ export function ChildFormContent({
         {currentStep === 1 ? (
           <>
             {showCancelInFooter && (
-              <TouchableOpacity
-                style={[styles.button, styles.cancelButton]}
+              <AppButton
+                label={t('child_form.cancel_button')}
                 onPress={onCancel}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                focusable
-              >
-                <Text style={styles.cancelButtonText}>{t('child_form.cancel_button')}</Text>
-              </TouchableOpacity>
+                variant="secondary"
+                style={styles.footerAction}
+              />
             )}
-            <GlassPrimaryButton
-              title={t('child_form.continue_button') || 'Continue'}
+            <AppButton
+              label={t('child_form.continue_button') || 'Continue'}
               onPress={handleContinue}
               disabled={!name.trim() || photos.some((p) => p.isUploading)}
-              size="footer"
               style={[
-                styles.button,
-                styles.primaryButtonShell,
-                !showCancelInFooter && !isInline && styles.buttonFull,
+                styles.footerAction,
+                !showCancelInFooter && !isInline && styles.footerActionFull,
                 inlineButtonStyle,
               ]}
             />
           </>
         ) : (
           <>
-            <TouchableOpacity
-              style={[styles.button, styles.cancelButton, inlineButtonStyle]}
+            <AppButton
+              label={t('child_form.back') || 'Back'}
               onPress={() => setCurrentStep(1)}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              focusable
-            >
-              <Text style={styles.cancelButtonText}>{t('child_form.back') || 'Back'}</Text>
-            </TouchableOpacity>
-            <GlassPrimaryButton
-              title={t('child_form.save_button')}
+              variant="secondary"
+              style={[styles.footerAction, inlineButtonStyle]}
+            />
+            <AppButton
+              label={t('child_form.save_button')}
               onPress={handleSubmit}
               disabled={
                 createChild.isPending ||
@@ -938,8 +930,7 @@ export function ChildFormContent({
                 (!childId && analyzeChild.isPending)
               }
               loading={createChild.isPending || updateChild.isPending}
-              size="footer"
-              style={[styles.button, styles.primaryButtonShell, inlineButtonStyle]}
+              style={[styles.footerAction, inlineButtonStyle]}
             />
           </>
         )}
@@ -1157,21 +1148,10 @@ const styles = StyleSheet.create({
   footerMobile: {
     flexDirection: 'column',
   },
-  button: {
+  footerAction: {
     flex: 1,
-    minHeight: 48,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  primaryButtonShell: {
-    flex: 1,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-  },
-  buttonFull: {
+  footerActionFull: {
     flex: 1,
   },
   inlineButton: {
@@ -1185,16 +1165,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: '100%',
     alignSelf: 'stretch',
-  },
-  cancelButton: {
-    backgroundColor: theme.colors.neutral[50],
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-  },
-  cancelButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.secondary,
   },
   section: {
     marginBottom: theme.spacing[6],

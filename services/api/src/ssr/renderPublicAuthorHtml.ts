@@ -3,6 +3,7 @@ import type { PublicAuthorView } from '@wondertales/shared';
 import type { PublicStoryListItem } from '../services/publicStoryService';
 import { config } from '../config';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
+import { getVersionedWebBundleUrl } from './webBundleUrl';
 
 const AUTHOR_STYLES = `
 *{box-sizing:border-box}
@@ -80,7 +81,7 @@ export function renderPublicAuthorHtml(params: {
   const { author, stories, total } = params;
   const webAppUrl = config.web?.webAppUrl?.replace(/\/$/, '') || 'https://wondertales.art';
   const apiBase = config.web?.apiPublicUrl?.replace(/\/$/, '') || webAppUrl;
-  const webBundleUrl = config.web?.webBundleUrl || '/static/js/bundle.js';
+  const webBundleUrl = getVersionedWebBundleUrl();
   const fullWebBundleUrl = webBundleUrl.startsWith('http')
     ? webBundleUrl
     : `${webAppUrl}${webBundleUrl.startsWith('/') ? '' : '/'}${webBundleUrl}`;

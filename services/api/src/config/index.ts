@@ -458,7 +458,12 @@ export const config = {
       process.env.EXPO_PUBLIC_API_BASE_URL ||
       'https://api.wondertales.com',
     webBundleUrl: process.env.WEB_BUNDLE_URL || '/static/js/bundle.js', // SPA bundle for SSR hydration
-    webBuildId: process.env.WEB_BUILD_ID || 'dev', // For cache key versioning
+    webBuildId:
+      process.env.WEB_BUILD_ID ||
+      process.env.SOURCE_VERSION ||
+      process.env.COMMIT_SHA ||
+      process.env.HOSTNAME ||
+      'dev', // For SSR/cache-busting versioning
     supportEmail: process.env.SUPPORT_EMAIL || 'support@wondertales.art',
   },
 

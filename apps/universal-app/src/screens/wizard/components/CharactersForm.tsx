@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 
@@ -152,18 +153,28 @@ export function CharactersForm({
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>👥</Text>
             <Text style={styles.emptyText}>{t('characters.no_characters')}</Text>
-            <View style={styles.addButtonsContainer}>
+            <View style={styles.emptyActions}>
               {onAddChild && (
-                <TouchableOpacity style={styles.addButton} onPress={onAddChild}>
-                  <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
-                  <Text style={styles.addButtonText}>{t('characters.add_child_to_story')}</Text>
-                </TouchableOpacity>
+                <AppButton
+                  label={t('characters.add_child_to_story')}
+                  onPress={onAddChild}
+                  variant="secondary"
+                  size="md"
+                  leading={
+                    <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
+                  }
+                />
               )}
               {onAddCharacter && (
-                <TouchableOpacity style={styles.addButton} onPress={onAddCharacter}>
-                  <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
-                  <Text style={styles.addButtonText}>{t('characters.add_character')}</Text>
-                </TouchableOpacity>
+                <AppButton
+                  label={t('characters.add_character')}
+                  onPress={onAddCharacter}
+                  variant="secondary"
+                  size="md"
+                  leading={
+                    <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
+                  }
+                />
               )}
             </View>
           </View>
@@ -252,21 +263,11 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     marginBottom: theme.spacing[4],
   },
-  addButtonsContainer: {
+  emptyActions: {
     flexDirection: 'row',
     gap: theme.spacing[4],
     flexWrap: 'wrap',
     justifyContent: 'center',
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing[2],
-  },
-  addButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.interactive.primary,
   },
   charactersList: {
     gap: theme.spacing[2],

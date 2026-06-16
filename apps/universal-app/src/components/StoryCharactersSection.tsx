@@ -3,7 +3,6 @@ import {
   View,
   Text,
   Image,
-  TouchableOpacity,
   ImageStyle,
   StyleSheet,
   Platform,
@@ -12,6 +11,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { stripCharacterIdFromName } from '@wondertales/shared';
+import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 
@@ -126,22 +126,10 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
   },
-  saveCharacterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  saveCharacterAction: {
     alignSelf: 'flex-start',
     marginTop: theme.spacing[2],
     marginLeft: CHARACTER_IMAGE_BOX + theme.spacing[3],
-    paddingVertical: theme.spacing[1],
-    paddingHorizontal: theme.spacing[2],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
-  },
-  saveCharacterText: {
-    fontSize: theme.typography.fontSize.xs,
-    color: theme.colors.interactive.primary,
-    marginLeft: theme.spacing[1],
   },
   avatarWithPreview: {
     position: 'relative',
@@ -304,18 +292,21 @@ function StoryCharactersSectionInner({
               </View>
             </View>
             {canSaveCharacter && (
-              <TouchableOpacity
-                style={styles.saveCharacterButton}
+              <AppButton
+                label={t('story_viewer.save_character')}
                 onPress={() => onSaveCharacter(char.id, char.description)}
                 disabled={isSavePending}
-              >
-                <Ionicons
-                  name="bookmark-outline"
-                  size={16}
-                  color={theme.colors.interactive.primary}
-                />
-                <Text style={styles.saveCharacterText}>{t('story_viewer.save_character')}</Text>
-              </TouchableOpacity>
+                variant="secondary"
+                size="sm"
+                leading={
+                  <Ionicons
+                    name="bookmark-outline"
+                    size={16}
+                    color={theme.colors.interactive.primary}
+                  />
+                }
+                style={styles.saveCharacterAction}
+              />
             )}
           </View>
         );

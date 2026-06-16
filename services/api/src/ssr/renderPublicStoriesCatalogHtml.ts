@@ -17,6 +17,7 @@ import {
   buildPublicFooterLanguageLinks,
   renderPublicPageFooter,
 } from './publicPageFooter';
+import { getVersionedWebBundleUrl } from './webBundleUrl';
 
 const CATALOG_COPY: Record<PublicSeoLocale, {
   title: string;
@@ -206,7 +207,7 @@ export function renderPublicStoriesCatalogHtml(params: {
   const copy = CATALOG_COPY[locale];
   const webAppUrl = config.web?.webAppUrl?.replace(/\/$/, '') || 'https://wondertales.art';
   const apiBase = config.web?.apiPublicUrl?.replace(/\/$/, '') || webAppUrl;
-  const webBundleUrl = config.web?.webBundleUrl || '/static/js/bundle.js';
+  const webBundleUrl = getVersionedWebBundleUrl();
   const fullWebBundleUrl = webBundleUrl.startsWith('http')
     ? webBundleUrl
     : `${webAppUrl}${webBundleUrl.startsWith('/') ? '' : '/'}${webBundleUrl}`;

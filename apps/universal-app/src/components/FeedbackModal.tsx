@@ -24,6 +24,7 @@ import {
   type FeedbackTopic,
 } from '@wondertales/shared';
 import { theme } from '@/theme';
+import { AppButton } from '@/components/AppButton';
 import { useAuthStore } from '@/store/authStore';
 import { useSubmitFeedback, type ReportedScreen } from '@/api/feedback';
 import { uploadPhoto } from '@/utils/uploadPhoto';
@@ -440,9 +441,11 @@ export function FeedbackModal({
                 {t('feedback.report_id', { id: submittedReportId })}
               </Text>
             ) : null}
-            <TouchableOpacity style={styles.primaryButton} onPress={handleClose}>
-              <Text style={styles.primaryButtonText}>{t('common.got_it')}</Text>
-            </TouchableOpacity>
+            <AppButton
+              label={t('common.got_it')}
+              onPress={handleClose}
+              style={styles.successAction}
+            />
           </View>
         </View>
       </Modal>
@@ -628,20 +631,19 @@ export function FeedbackModal({
           </ScrollView>
 
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
-              <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.submitButton, submitFeedback.isPending && styles.submitButtonDisabled]}
+            <AppButton
+              label={t('common.cancel')}
+              onPress={handleClose}
+              variant="secondary"
+              style={styles.footerButton}
+            />
+            <AppButton
+              label={t('feedback.submit')}
               onPress={handleSubmit}
               disabled={submitFeedback.isPending}
-            >
-              {submitFeedback.isPending ? (
-                <ActivityIndicator size="small" color={theme.colors.text.inverse} />
-              ) : (
-                <Text style={styles.submitButtonText}>{t('feedback.submit')}</Text>
-              )}
-            </TouchableOpacity>
+              loading={submitFeedback.isPending}
+              style={styles.footerButton}
+            />
           </View>
         </View>
       </View>
@@ -852,50 +854,12 @@ const styles = StyleSheet.create({
     padding: theme.spacing[6],
     paddingTop: theme.spacing[4],
   },
-  cancelButton: {
+  footerButton: {
     flex: 1,
-    paddingVertical: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.background.secondary,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  cancelButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.primary,
-  },
-  submitButton: {
-    flex: 1,
-    paddingVertical: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.interactive.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  submitButtonDisabled: {
-    opacity: 0.7,
-  },
-  submitButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
-  },
-  primaryButton: {
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.interactive.primary,
+  successAction: {
     alignSelf: 'center',
     minWidth: 180,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
   },
   iconContainer: {
     width: 80,

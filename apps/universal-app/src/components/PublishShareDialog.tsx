@@ -5,7 +5,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   TextInput,
   Platform,
   ScrollView,
@@ -13,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
+import { AppButton } from '@/components/AppButton';
 import { useTranslation } from 'react-i18next';
 import { toastService } from '@/services/toastService';
 import { formatAssetUrl } from '@/utils/assetUrl';
@@ -186,15 +186,14 @@ export function PublishShareDialog({
               </View>
 
               {onUnpublish && (
-                <TouchableOpacity
-                  style={styles.unpublishLink}
+                <AppButton
+                  label={t('story_viewer.unpublish', 'Зняти з публікації')}
                   onPress={onUnpublish}
                   disabled={isLoading}
-                >
-                  <Text style={styles.unpublishLinkText}>
-                    {t('story_viewer.unpublish', 'Зняти з публікації')}
-                  </Text>
-                </TouchableOpacity>
+                  variant="dangerSecondary"
+                  size="sm"
+                  style={styles.unpublishAction}
+                />
               )}
             </>
           ) : (
@@ -362,8 +361,12 @@ export function PublishShareDialog({
                 </View>
               )}
 
-              <TouchableOpacity
-                style={styles.confirmButton}
+              <AppButton
+                label={
+                  openedFromShare
+                    ? t('story_viewer.publish_and_share', 'Опублікувати і поділитися')
+                    : t('story_viewer.publish', 'Опублікувати')
+                }
                 onPress={() =>
                   onPublishAndShare(
                     selectedVisibility,
@@ -374,19 +377,10 @@ export function PublishShareDialog({
                     allowAuthorProfileEdit && aboutMeInput.trim() ? aboutMeInput.trim() : undefined
                   )
                 }
-                activeOpacity={0.7}
                 disabled={isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator size="small" color={theme.colors.text.inverse} />
-                ) : (
-                  <Text style={styles.confirmButtonText}>
-                    {openedFromShare
-                      ? t('story_viewer.publish_and_share', 'Опублікувати і поділитися')
-                      : t('story_viewer.publish', 'Опублікувати')}
-                  </Text>
-                )}
-              </TouchableOpacity>
+                loading={isLoading}
+                style={styles.publishAction}
+              />
             </>
           )}
         </View>
@@ -445,19 +439,8 @@ const styles = StyleSheet.create({
     lineHeight: theme.typography.lineHeight.relaxed * theme.typography.fontSize.base,
     marginBottom: theme.spacing[6],
   },
-  confirmButton: {
+  publishAction: {
     width: '100%',
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.interactive.primary,
-  },
-  confirmButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
   },
   urlContainer: {
     flexDirection: 'row',
@@ -593,13 +576,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  unpublishLink: {
+  unpublishAction: {
     marginTop: theme.spacing[4],
     alignSelf: 'center',
-  },
-  unpublishLinkText: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.status.error,
-    textDecorationLine: 'underline',
   },
 });

@@ -24,6 +24,7 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { UsageSummaryCard } from '@/components/UsageSummaryCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
+import { AppButton } from '@/components/AppButton';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
 import { modernColors, modernShadows } from '@/theme/modernTheme';
@@ -433,30 +434,31 @@ export default function ProfileScreen() {
               </TouchableOpacity>
 
               <View style={styles.avatarActions}>
-                <TouchableOpacity
-                  style={[styles.avatarActionButton, styles.avatarPrimaryButton]}
-                  onPress={handlePickAvatar}
-                  disabled={isAvatarBusy}
-                >
-                  <Text style={[styles.avatarActionText, styles.avatarPrimaryButtonText]}>
-                    {isAvatarBusy
+                <AppButton
+                  label={
+                    isAvatarBusy
                       ? t('profile.avatar_uploading')
                       : avatarUrl
                         ? t('profile.change_avatar')
-                        : t('profile.add_avatar')}
-                  </Text>
-                </TouchableOpacity>
+                        : t('profile.add_avatar')
+                  }
+                  onPress={handlePickAvatar}
+                  disabled={isAvatarBusy}
+                  loading={isAvatarBusy}
+                  variant="secondary"
+                  size="md"
+                  style={styles.avatarAction}
+                />
 
                 {profileUser?.avatarUrl ? (
-                  <TouchableOpacity
-                    style={[styles.avatarActionButton, styles.avatarSecondaryButton]}
+                  <AppButton
+                    label={t('profile.remove_avatar')}
                     onPress={handleRemoveAvatar}
                     disabled={isAvatarBusy}
-                  >
-                    <Text style={[styles.avatarActionText, styles.avatarSecondaryButtonText]}>
-                      {t('profile.remove_avatar')}
-                    </Text>
-                  </TouchableOpacity>
+                    variant="dangerSecondary"
+                    size="md"
+                    style={styles.avatarAction}
+                  />
                 ) : null}
               </View>
             </View>
@@ -510,17 +512,13 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            <TouchableOpacity
-              style={styles.saveProfileButton}
+            <AppButton
+              label={t('common.save')}
               onPress={handleSaveProfile}
               disabled={updateProfile.isPending}
-            >
-              {updateProfile.isPending ? (
-                <ActivityIndicator size="small" color={theme.colors.text.inverse} />
-              ) : (
-                <Text style={styles.saveProfileButtonText}>{t('common.save')}</Text>
-              )}
-            </TouchableOpacity>
+              loading={updateProfile.isPending}
+              style={styles.profileSaveAction}
+            />
           </View>
         </AnimatedSection>
 
@@ -610,24 +608,17 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.saveProfileButton,
-                !canSaveChildModeExitPasscode && styles.saveProfileButtonDisabled,
-              ]}
+            <AppButton
+              label={
+                childModeExitPasscodeConfigured
+                  ? t('profile.child_mode_exit_passcode_change')
+                  : t('profile.child_mode_exit_passcode_save')
+              }
               onPress={handleSaveChildModeExitPasscode}
               disabled={!canSaveChildModeExitPasscode}
-            >
-              {updateChildModeExitPasscode.isPending ? (
-                <ActivityIndicator size="small" color={theme.colors.text.inverse} />
-              ) : (
-                <Text style={styles.saveProfileButtonText}>
-                  {childModeExitPasscodeConfigured
-                    ? t('profile.child_mode_exit_passcode_change')
-                    : t('profile.child_mode_exit_passcode_save')}
-                </Text>
-              )}
-            </TouchableOpacity>
+              loading={updateChildModeExitPasscode.isPending}
+              style={styles.profileSaveAction}
+            />
           </View>
         </AnimatedSection>
 
@@ -701,48 +692,51 @@ export default function ProfileScreen() {
             <Text style={styles.privacyActionsTitle}>{t('profile.data_requests_title')}</Text>
             <Text style={styles.privacyActionsBody}>{t('profile.data_requests_body')}</Text>
             <View style={styles.privacyActionsRow}>
-              <TouchableOpacity
+              <AppButton
+                label={t('profile.request_data_export')}
                 style={styles.privacyActionButton}
                 disabled={createPrivacyRequest.isPending}
                 onPress={() => openProfilePrivacyRequest('export')}
-              >
-                <Ionicons
-                  name="download-outline"
-                  size={16}
-                  color={theme.colors.interactive.primary}
-                />
-                <Text style={styles.privacyActionButtonText}>
-                  {t('profile.request_data_export')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.privacyActionButton, styles.privacyDangerActionButton]}
+                variant="secondary"
+                size="md"
+                leading={
+                  <Ionicons
+                    name="download-outline"
+                    size={16}
+                    color={theme.colors.interactive.primary}
+                  />
+                }
+              />
+              <AppButton
+                label={t('profile.request_data_deletion')}
+                style={styles.privacyActionButton}
                 disabled={createPrivacyRequest.isPending}
                 onPress={() => openProfilePrivacyRequest('deletion')}
-              >
-                <Ionicons name="trash-outline" size={16} color={theme.colors.status.error} />
-                <Text
-                  style={[styles.privacyActionButtonText, styles.privacyDangerActionButtonText]}
-                >
-                  {t('profile.request_data_deletion')}
-                </Text>
-              </TouchableOpacity>
+                variant="dangerSecondary"
+                size="md"
+                leading={
+                  <Ionicons name="trash-outline" size={16} color={theme.colors.status.error} />
+                }
+              />
             </View>
             <View style={styles.deleteAccountPanel}>
               <Text style={styles.deleteAccountTitle}>{t('profile.delete_account_title')}</Text>
               <Text style={styles.deleteAccountBody}>{t('profile.delete_account_body')}</Text>
-              <TouchableOpacity
-                style={styles.deleteAccountButton}
+              <AppButton
+                label={
+                  deleteAccount.isPending
+                    ? t('profile.delete_account_deleting')
+                    : t('profile.delete_account_button')
+                }
+                style={styles.deleteAccountAction}
                 disabled={deleteAccount.isPending}
                 onPress={() => setShowDeleteAccountConfirm(true)}
-              >
-                <Ionicons name="warning-outline" size={16} color={theme.colors.text.inverse} />
-                <Text style={styles.deleteAccountButtonText}>
-                  {deleteAccount.isPending
-                    ? t('profile.delete_account_deleting')
-                    : t('profile.delete_account_button')}
-                </Text>
-              </TouchableOpacity>
+                variant="danger"
+                size="md"
+                leading={
+                  <Ionicons name="warning-outline" size={16} color={theme.colors.text.inverse} />
+                }
+              />
             </View>
           </View>
 
@@ -813,29 +807,27 @@ export default function ProfileScreen() {
                   {t('profile.stories_per_month', { count: storiesLimit })}
                 </Text>
               )}
-              <TouchableOpacity
-                style={styles.upgradeButton}
+              <AppButton
+                label={
+                  canManageSubscription ? t('billing.manage_subscription') : t('profile.upgrade_plan')
+                }
+                style={styles.subscriptionAction}
                 onPress={handleManageSubscription}
                 disabled={createPortalSession.isPending}
-              >
-                {createPortalSession.isPending ? (
-                  <ActivityIndicator size="small" color={theme.colors.text.inverse} />
-                ) : (
-                  <Text style={styles.upgradeButtonText}>
-                    {canManageSubscription
-                      ? t('billing.manage_subscription')
-                      : t('profile.upgrade_plan')}
-                  </Text>
-                )}
-              </TouchableOpacity>
+                loading={createPortalSession.isPending}
+                variant="primary"
+              />
             </View>
           )}
         </AnimatedSection>
 
         <AnimatedSection delay={420} trigger={enterKey}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutButtonText}>{t('profile.logout')}</Text>
-          </TouchableOpacity>
+          <AppButton
+            label={t('profile.logout')}
+            onPress={handleLogout}
+            variant="dangerSecondary"
+            style={styles.logoutAction}
+          />
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>WonderTales v1.0.0</Text>
@@ -975,33 +967,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: theme.spacing[3],
   },
-  avatarActionButton: {
+  avatarAction: {
     minWidth: 132,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
     marginHorizontal: theme.spacing[1],
     marginTop: theme.spacing[2],
-  },
-  avatarPrimaryButton: {
-    backgroundColor: theme.colors.interactive.primary,
-  },
-  avatarSecondaryButton: {
-    backgroundColor: theme.colors.background.primary,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-  },
-  avatarActionText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
-  avatarPrimaryButtonText: {
-    color: theme.colors.text.inverse,
-  },
-  avatarSecondaryButtonText: {
-    color: theme.colors.text.primary,
   },
   accountColumns: {
     flexDirection: 'row',
@@ -1039,23 +1008,10 @@ const styles = StyleSheet.create({
     padding: theme.spacing[3],
     marginTop: theme.spacing[1],
   },
-  saveProfileButton: {
+  profileSaveAction: {
     alignSelf: 'flex-start',
     minWidth: 180,
     marginTop: theme.spacing[5],
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    backgroundColor: theme.colors.interactive.primary,
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
-  },
-  saveProfileButtonDisabled: {
-    opacity: 0.55,
-  },
-  saveProfileButtonText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
   },
   exitPasscodeHeader: {
     flexDirection: 'row',
@@ -1168,31 +1124,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing[2],
   },
   privacyActionButton: {
-    minHeight: 40,
     minWidth: 220,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-    backgroundColor: theme.colors.background.primary,
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
-  },
-  privacyDangerActionButton: {
-    borderColor: theme.colors.status.error,
-  },
-  privacyActionButtonText: {
-    flexShrink: 1,
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.interactive.primary,
-    textAlign: 'center',
-  },
-  privacyDangerActionButtonText: {
-    color: theme.colors.status.error,
   },
   deleteAccountPanel: {
     marginTop: theme.spacing[3],
@@ -1211,24 +1143,9 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     lineHeight: 20,
   },
-  deleteAccountButton: {
+  deleteAccountAction: {
     alignSelf: 'flex-start',
     minWidth: 220,
-    minHeight: 42,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.status.error,
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
-  },
-  deleteAccountButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    textAlign: 'center',
   },
   privacyRequestsPanel: {
     gap: theme.spacing[2],
@@ -1301,36 +1218,14 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     marginBottom: theme.spacing[4],
   },
-  upgradeButton: {
+  subscriptionAction: {
     alignSelf: 'flex-start',
     minWidth: 240,
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
   },
-  upgradeButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
-  },
-  logoutButton: {
+  logoutAction: {
     alignSelf: 'center',
     minWidth: 220,
-    backgroundColor: theme.colors.background.primary,
-    borderWidth: theme.borders.width.medium,
-    borderColor: theme.colors.status.error,
-    paddingVertical: theme.spacing[4],
-    paddingHorizontal: theme.spacing[8],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
     marginTop: theme.spacing[6],
-  },
-  logoutButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.status.error,
   },
   footer: {
     alignItems: 'center',

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ScrollView,
   ActivityIndicator,
   Platform,
@@ -20,9 +19,10 @@ import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChildCard } from './components/ChildCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
+import { AppButton } from '@/components/AppButton';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
-import { modernColors, modernShadows } from '@/theme/modernTheme';
+import { modernColors } from '@/theme/modernTheme';
 
 const cardDelay = (i: number) => Math.min(120 + i * 40, 360);
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -117,14 +117,13 @@ export default function ChildrenScreen() {
             <Text style={styles.emptyText}>{t('children_screen.empty_title')}</Text>
             <Text style={styles.emptyHint}>{t('children_screen.empty_text')}</Text>
             {canCreateMore && (
-              <TouchableOpacity
-                style={styles.emptyButton}
+              <AppButton
+                label={t('children_screen.add_button')}
                 onPress={() => {
                   setIsModalVisible(true);
                 }}
-              >
-                <Text style={styles.emptyButtonText}>{t('children_screen.add_button')}</Text>
-              </TouchableOpacity>
+                style={styles.emptyAction}
+              />
             )}
           </View>
         </AnimatedSection>
@@ -174,15 +173,14 @@ export default function ChildrenScreen() {
 
           {canCreateMore && (
             <AnimatedSection delay={cardDelay(children.length)} trigger={enterKey}>
-              <TouchableOpacity
-                style={styles.addCharacterButton}
+              <AppButton
+                label={t('children_screen.add_button')}
                 onPress={() => {
                   setIsModalVisible(true);
                 }}
-              >
-                <Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />
-                <Text style={styles.addCharacterButtonText}>{t('children_screen.add_button')}</Text>
-              </TouchableOpacity>
+                leading={<Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />}
+                style={styles.addChildAction}
+              />
             </AnimatedSection>
           )}
         </>
@@ -241,22 +239,8 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.tertiary,
   },
-  addCharacterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[4],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.lg,
+  addChildAction: {
     marginTop: theme.spacing[6],
-    gap: theme.spacing[2],
-    ...modernShadows.card,
-  },
-  addCharacterButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
   },
   grid: Platform.select({
     web: {
@@ -295,17 +279,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[6],
     textAlign: 'center',
   },
-  emptyButton: {
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.lg,
-  },
-  emptyButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
+  emptyAction: {},
   loadingText: {
     marginTop: theme.spacing[4],
     fontSize: theme.typography.fontSize.base,

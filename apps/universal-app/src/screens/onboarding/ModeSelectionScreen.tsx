@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   ScrollView,
   StyleSheet,
@@ -19,7 +18,7 @@ import { APP_CONFIG } from '@/config/constants';
 import i18n from '@/config/i18n';
 import apiClient from '@/api/client';
 import { useCreateChild, useEnterChildMode, useUpdateChildModeControls } from '@/api/children';
-import { GradientButton } from '@/components/GradientButton';
+import { AppButton } from '@/components/AppButton';
 import { GlassCard } from '@/components/GlassCard';
 import { useAuthStore } from '@/store/authStore';
 import { getAnalytics } from '@/services/analytics';
@@ -370,11 +369,11 @@ export default function ModeSelectionScreen() {
         </Text>
       </TouchableOpacity>
 
-      <GradientButton
+      <AppButton
         label={t('common.continue', { defaultValue: 'Continue' })}
         onPress={() => setStep('setup')}
         disabled={!name.trim() || !consentAccepted}
-        style={styles.primaryButton}
+        style={styles.onboardingPrimaryAction}
       />
     </>
   );
@@ -408,16 +407,13 @@ export default function ModeSelectionScreen() {
       </View>
 
       <View style={styles.footerRow}>
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          activeOpacity={0.8}
+        <AppButton
+          label={t('common.back', { defaultValue: 'Back' })}
           onPress={() => setStep('profile')}
-        >
-          <Text style={styles.secondaryButtonText}>
-            {t('common.back', { defaultValue: 'Back' })}
-          </Text>
-        </TouchableOpacity>
-        <GradientButton
+          variant="secondary"
+          style={styles.footerSecondaryAction}
+        />
+        <AppButton
           label={
             createChild.isPending
               ? t('common.saving', { defaultValue: 'Saving...' })
@@ -426,7 +422,7 @@ export default function ModeSelectionScreen() {
           onPress={submitChildSetup}
           disabled={createChild.isPending}
           loading={createChild.isPending}
-          style={styles.footerPrimaryButton}
+          style={styles.footerPrimaryAction}
         />
       </View>
     </>
@@ -445,46 +441,41 @@ export default function ModeSelectionScreen() {
       </Text>
 
       <View style={styles.doneActions}>
-        <GradientButton
+        <AppButton
           label={t('onboarding.create_story', { defaultValue: 'Create a story' })}
           onPress={goCreateStory}
           disabled={isCompleting}
           loading={isCompleting}
-          style={styles.donePrimaryButton}
+          style={styles.doneAction}
         />
-        <TouchableOpacity
-          style={styles.doneSecondaryButton}
-          activeOpacity={0.8}
-          disabled={isCompleting || enterChildMode.isPending || updateChildModeControls.isPending}
-          onPress={startChildMode}
-        >
-          {enterChildMode.isPending || updateChildModeControls.isPending ? (
-            <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
-          ) : (
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={20}
-              color={theme.colors.interactive.primary}
-            />
-          )}
-          <Text style={styles.doneSecondaryButtonText}>
-            {user?.childModeExitPasscodeConfigured
+        <AppButton
+          label={
+            user?.childModeExitPasscodeConfigured
               ? t('onboarding.start_child_mode', { defaultValue: 'Start Child Mode' })
               : t('onboarding.set_passcode_for_child_mode', {
                   defaultValue: 'Set passcode for Child Mode',
-                })}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.textButton}
-          activeOpacity={0.75}
+                })
+          }
+          disabled={isCompleting || enterChildMode.isPending || updateChildModeControls.isPending}
+          loading={enterChildMode.isPending || updateChildModeControls.isPending}
+          onPress={startChildMode}
+          variant="secondary"
+          style={styles.doneAction}
+          leading={
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={20}
+              color={theme.colors.text.primary}
+            />
+          }
+        />
+        <AppButton
+          label={t('onboarding.add_another_child', { defaultValue: 'Add another child' })}
           onPress={resetForAnotherChild}
-        >
-          <Ionicons name="add-circle-outline" size={20} color={theme.colors.text.secondary} />
-          <Text style={styles.textButtonText}>
-            {t('onboarding.add_another_child', { defaultValue: 'Add another child' })}
-          </Text>
-        </TouchableOpacity>
+          variant="ghost"
+          style={styles.doneAction}
+          leading={<Ionicons name="add-circle-outline" size={20} color={theme.colors.text.secondary} />}
+        />
       </View>
     </>
   );
@@ -688,7 +679,7 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     lineHeight: 20,
   },
-  primaryButton: {
+  onboardingPrimaryAction: {
     alignSelf: 'center',
     minWidth: 240,
   },
@@ -772,23 +763,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexWrap: 'wrap',
   },
-  secondaryButton: {
-    minHeight: 50,
+  footerSecondaryAction: {
     minWidth: 160,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-    backgroundColor: theme.colors.background.secondary,
-    paddingHorizontal: theme.spacing[5],
   },
-  secondaryButtonText: {
-    color: theme.colors.text.secondary,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
-  footerPrimaryButton: {
+  footerPrimaryAction: {
     minWidth: 220,
   },
   readyIcon: {
@@ -807,36 +785,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     gap: theme.spacing[3],
   },
-  donePrimaryButton: {
+  doneAction: {
     width: '100%',
-  },
-  doneSecondaryButton: {
-    minHeight: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
-    backgroundColor: theme.colors.background.secondary,
-  },
-  doneSecondaryButtonText: {
-    color: theme.colors.interactive.primary,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.bold,
-  },
-  textButton: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-  },
-  textButtonText: {
-    color: theme.colors.text.secondary,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
   },
   errorText: {
     color: theme.colors.status.error,

@@ -13,7 +13,7 @@ import {
 import { theme } from '@/theme';
 import { hexAlpha } from '@/theme/colorAlpha';
 
-/** Matches GradientButton / focus ring — uses active palette primary, not fixed lavender. */
+/** Matches AppButton focus ring - uses active palette primary, not fixed lavender. */
 const FOCUS_OUTLINE = hexAlpha(theme.colors.primary[500], 0.88);
 const HOVER_SHADOW_COLOR = hexAlpha(theme.colors.primary[900], 0.38);
 const PRESSED_SHADOW_COLOR = hexAlpha(theme.colors.primary[900], 0.35);

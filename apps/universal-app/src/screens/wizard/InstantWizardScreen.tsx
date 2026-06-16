@@ -26,7 +26,7 @@ import { useSubscriptionUsage } from '@/api/plans';
 import { PaywallModal } from '@/components/PaywallModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
-import { GlassPrimaryButton } from '@/components/GlassPrimaryButton';
+import { AppButton } from '@/components/AppButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
@@ -394,12 +394,11 @@ export default function InstantWizardScreen() {
                   <Text style={styles.summaryText}>{selectedLanguageLabel}</Text>
                 </View>
               </View>
-              <GlassPrimaryButton
-                title={t('instant_wizard.generate_story')}
+              <AppButton
+                label={t('instant_wizard.generate_story')}
                 onPress={handleGenerate}
                 disabled={!canGenerate || isGenerating || !canGenerateStories}
                 loading={isGenerating}
-                size="hero"
                 style={styles.generateButton}
               />
             </View>

@@ -1,10 +1,11 @@
 import React, { useCallback, useMemo, forwardRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
+import { AppButton } from '@/components/AppButton';
 import AudioPlayer from '@/components/AudioPlayer';
 import { StoryCharactersSection } from '@/components/StoryCharactersSection';
 
@@ -118,18 +119,19 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
               <Text style={styles.sectionTitle}>{t('story_viewer.publication_title')}</Text>
               {!story?.isPublished ? (
                 onPublish && (
-                  <TouchableOpacity
-                    style={styles.publishButton}
+                  <AppButton
+                    label={t('story_viewer.publish')}
                     onPress={onPublish}
                     disabled={isPublishPending}
-                  >
-                    <Ionicons
-                      name="cloud-upload-outline"
-                      size={20}
-                      color={theme.colors.text.inverse}
-                    />
-                    <Text style={styles.publishButtonText}>{t('story_viewer.publish')}</Text>
-                  </TouchableOpacity>
+                    leading={
+                      <Ionicons
+                        name="cloud-upload-outline"
+                        size={20}
+                        color={theme.colors.text.inverse}
+                      />
+                    }
+                    style={styles.publicationAction}
+                  />
                 )
               ) : (
                 <>
@@ -146,35 +148,40 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
                     </Text>
                   </View>
                   {onShare && (
-                    <TouchableOpacity style={styles.shareButton} onPress={onShare}>
-                      <Ionicons
-                        name="share-social-outline"
-                        size={20}
-                        color={theme.colors.interactive.primary}
-                      />
-                      <Text style={styles.shareButtonText}>{t('story_viewer.share_title')}</Text>
-                    </TouchableOpacity>
+                    <AppButton
+                      label={t('story_viewer.share_title')}
+                      onPress={onShare}
+                      variant="secondary"
+                      leading={
+                        <Ionicons
+                          name="share-social-outline"
+                          size={20}
+                          color={theme.colors.text.primary}
+                        />
+                      }
+                      style={styles.publicationAction}
+                    />
                   )}
                   {onPublish && (
-                    <TouchableOpacity
-                      style={styles.updatePublicationButton}
+                    <AppButton
+                      label={t('story_viewer.update_publication')}
                       onPress={onPublish}
                       disabled={isPublishPending}
-                    >
-                      <Ionicons
-                        name="create-outline"
-                        size={20}
-                        color={theme.colors.interactive.primary}
-                      />
-                      <Text style={styles.updatePublicationButtonText}>
-                        {t('story_viewer.update_publication')}
-                      </Text>
-                    </TouchableOpacity>
+                      variant="secondary"
+                      leading={
+                        <Ionicons name="create-outline" size={20} color={theme.colors.text.primary} />
+                      }
+                      style={styles.publicationAction}
+                    />
                   )}
                   {onUnpublish && (
-                    <TouchableOpacity style={styles.unpublishLink} onPress={onUnpublish}>
-                      <Text style={styles.unpublishLinkText}>{t('story_viewer.unpublish')}</Text>
-                    </TouchableOpacity>
+                    <AppButton
+                      label={t('story_viewer.unpublish')}
+                      onPress={onUnpublish}
+                      variant="dangerSecondary"
+                      size="sm"
+                      style={styles.unpublishAction}
+                    />
                   )}
                 </>
               )}
@@ -183,18 +190,25 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
 
           {/* Delete Story Button */}
           {onDeleteStory ? (
-            <TouchableOpacity style={styles.deleteButton} onPress={onDeleteStory}>
-              <Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />
-              <Text style={styles.deleteButtonText}>{t('story_viewer.delete_story')}</Text>
-            </TouchableOpacity>
+            <AppButton
+              label={t('story_viewer.delete_story')}
+              onPress={onDeleteStory}
+              variant="dangerSecondary"
+              leading={<Ionicons name="trash-outline" size={20} color={theme.colors.status.error} />}
+              style={styles.sheetAction}
+            />
           ) : null}
 
           {/* Report Problem */}
           {onReportProblem && (
-            <TouchableOpacity style={styles.reportProblemButton} onPress={onReportProblem}>
-              <Ionicons name="bug-outline" size={20} color={theme.colors.text.tertiary} />
-              <Text style={styles.reportProblemButtonText}>{t('profile.report_problem')}</Text>
-            </TouchableOpacity>
+            <AppButton
+              label={t('profile.report_problem')}
+              onPress={onReportProblem}
+              variant="ghost"
+              size="md"
+              leading={<Ionicons name="bug-outline" size={20} color={theme.colors.text.tertiary} />}
+              style={styles.reportProblemAction}
+            />
           )}
         </BottomSheetScrollView>
       </BottomSheet>
@@ -224,37 +238,8 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[4],
   },
-  publishButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    padding: theme.spacing[4],
+  publicationAction: {
     marginTop: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.interactive.primary,
-  },
-  publishButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
-  },
-  shareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    padding: theme.spacing[4],
-    marginTop: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
-    backgroundColor: theme.colors.background.primary,
-  },
-  shareButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.interactive.primary,
   },
   publicationSection: {
     marginBottom: theme.spacing[6],
@@ -274,64 +259,14 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
   },
-  updatePublicationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    padding: theme.spacing[4],
-    marginTop: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
-    backgroundColor: theme.colors.background.primary,
-  },
-  updatePublicationButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.interactive.primary,
-  },
-  unpublishLink: {
-    paddingVertical: theme.spacing[2],
+  unpublishAction: {
     marginTop: theme.spacing[2],
     alignSelf: 'flex-start',
   },
-  unpublishLinkText: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.status.error,
-    textDecorationLine: 'underline',
-  },
-  deleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    padding: theme.spacing[4],
+  sheetAction: {
     marginTop: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.status.error,
-    backgroundColor: theme.colors.background.primary,
   },
-  deleteButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.status.error,
-  },
-  reportProblemButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    padding: theme.spacing[3],
+  reportProblemAction: {
     marginTop: theme.spacing[2],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-    backgroundColor: theme.colors.background.secondary,
-  },
-  reportProblemButtonText: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
   },
 });

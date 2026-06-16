@@ -1,7 +1,8 @@
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Modal, View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
+import { AppButton } from './AppButton';
 
 interface ConfirmDialogProps {
   visible: boolean;
@@ -52,23 +53,19 @@ export function ConfirmDialog({
           {/* Message */}
           <Text style={styles.message}>{message}</Text>
 
-          {/* Buttons */}
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
+          <View style={styles.dialogActions}>
+            <AppButton
+              label={cancelText}
               onPress={onCancel}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.cancelButtonText}>{cancelText}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, styles.confirmButton, { backgroundColor: iconColor }]}
+              variant="secondary"
+              style={styles.dialogAction}
+            />
+            <AppButton
+              label={confirmText}
               onPress={onConfirm}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.confirmButtonText}>{confirmText}</Text>
-            </TouchableOpacity>
+              variant={variant === 'danger' ? 'danger' : 'primary'}
+              style={styles.dialogAction}
+            />
           </View>
         </View>
       </View>
@@ -119,34 +116,11 @@ const styles = StyleSheet.create({
     lineHeight: theme.typography.lineHeight.relaxed * theme.typography.fontSize.base,
     marginBottom: theme.spacing[6],
   },
-  buttonContainer: {
+  dialogActions: {
     flexDirection: 'row',
     gap: theme.spacing[3],
   },
-  button: {
+  dialogAction: {
     flex: 1,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: theme.colors.background.secondary,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-  },
-  cancelButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.primary,
-  },
-  confirmButton: {
-    // backgroundColor is set dynamically based on variant
-  },
-  confirmButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
   },
 });

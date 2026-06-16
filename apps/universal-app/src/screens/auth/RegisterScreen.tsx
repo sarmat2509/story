@@ -8,7 +8,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -17,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useRegister } from '@/api/auth';
+import { AppButton } from '@/components/AppButton';
 import { getPasswordStrength, meetsMinRequirements } from '@/utils/passwordStrength';
 import { getLegalUrl } from '@/config/constants';
 import { theme } from '@/theme';
@@ -219,17 +219,13 @@ export default function RegisterScreen() {
             )}
           </View>
 
-          <TouchableOpacity
-            style={[styles.button, !canSubmit && styles.buttonDisabled]}
+          <AppButton
+            label={t('auth.register')}
             onPress={handleRegister}
             disabled={!canSubmit}
-          >
-            {registerMutation.isPending ? (
-              <ActivityIndicator color={theme.colors.text.inverse} />
-            ) : (
-              <Text style={styles.buttonText}>{t('auth.register')}</Text>
-            )}
-          </TouchableOpacity>
+            loading={registerMutation.isPending}
+            style={styles.formAction}
+          />
 
           <TouchableOpacity style={styles.loginLink} onPress={() => navigation.navigate('Welcome')}>
             <Text style={styles.loginLinkText}>{t('auth.already_have_account')}</Text>
@@ -375,20 +371,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textDecorationLine: 'underline',
   },
-  button: {
-    backgroundColor: theme.colors.interactive.primary,
-    padding: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
+  formAction: {
     marginTop: theme.spacing[2],
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
   },
   loginLink: {
     marginTop: theme.spacing[6],

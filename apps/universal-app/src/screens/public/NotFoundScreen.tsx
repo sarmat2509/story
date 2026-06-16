@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
+import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 
 export default function NotFoundScreen() {
@@ -15,9 +16,7 @@ export default function NotFoundScreen() {
       <Text style={styles.code}>404</Text>
       <Text style={styles.title}>{t('navigation.page_not_found')}</Text>
       <Text style={styles.message}>{t('navigation.page_not_found_message')}</Text>
-      <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('Welcome')}>
-        <Text style={styles.buttonText}>{t('navigation.go_home')}</Text>
-      </TouchableOpacity>
+      <AppButton label={t('navigation.go_home')} onPress={() => navigation.navigate('Welcome')} />
     </View>
   );
 }
@@ -48,16 +47,5 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     textAlign: 'center',
     marginBottom: theme.spacing[8],
-  },
-  button: {
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    backgroundColor: theme.colors.interactive.primary,
-    borderRadius: theme.borders.radius.md,
-  },
-  buttonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
   },
 });

@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NavigationProp, RouteProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
+import { AppButton } from '@/components/AppButton';
 import { invalidateBillingState } from '@/api/plans';
 import { getWebHistory, getWebHref, getWebSearch } from '@/utils/webRuntime';
 
@@ -61,17 +62,16 @@ export default function BillingSuccessScreen() {
       <Text style={styles.message}>
         {t(isBundleSuccess ? 'billing.bundle_success_message' : 'billing.success_message')}
       </Text>
-      <View style={styles.buttons}>
-        <TouchableOpacity style={styles.primaryButton} onPress={handlePrimary}>
-          <Text style={styles.primaryButtonText}>
-            {t(isBundleSuccess ? 'billing.view_plans' : 'billing.go_to_profile')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={handleSecondary}>
-          <Text style={styles.secondaryButtonText}>
-            {t(isBundleSuccess ? 'billing.go_to_profile' : 'billing.view_plans')}
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.actions}>
+        <AppButton
+          label={t(isBundleSuccess ? 'billing.view_plans' : 'billing.go_to_profile')}
+          onPress={handlePrimary}
+        />
+        <AppButton
+          label={t(isBundleSuccess ? 'billing.go_to_profile' : 'billing.view_plans')}
+          onPress={handleSecondary}
+          variant="secondary"
+        />
       </View>
     </View>
   );
@@ -101,32 +101,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: theme.spacing[8],
   },
-  buttons: {
+  actions: {
     gap: theme.spacing[4],
     width: '100%',
     maxWidth: 300,
-  },
-  primaryButton: {
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
-  secondaryButton: {
-    paddingVertical: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-  },
-  secondaryButtonText: {
-    color: theme.colors.text.primary,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
   },
 });

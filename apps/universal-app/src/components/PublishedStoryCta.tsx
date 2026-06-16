@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
+import { View, Text, StyleSheet, Linking } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 
 interface PublishedStoryCtaProps {
@@ -40,9 +41,7 @@ export function PublishedStoryCta({
       </View>
       <Text style={styles.title}>{t('published_story.cta_title')}</Text>
       <Text style={styles.description}>{t('published_story.cta_description')}</Text>
-      <TouchableOpacity style={styles.button} onPress={handlePress} activeOpacity={0.7}>
-        <Text style={styles.buttonText}>{t('published_story.cta_button')}</Text>
-      </TouchableOpacity>
+      <AppButton label={t('published_story.cta_button')} onPress={handlePress} />
     </View>
   );
 }
@@ -76,16 +75,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: theme.typography.lineHeight.relaxed * theme.typography.fontSize.base,
     marginBottom: theme.spacing[6],
-  },
-  button: {
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.md,
-  },
-  buttonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
   },
 });

@@ -15,8 +15,8 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { DEFAULT_LOCALE } from '@wondertales/shared';
 import { theme } from '@/theme';
+import { AppButton } from './AppButton';
 import { FeedbackModal } from './FeedbackModal';
-import { GlassPrimaryButton } from './GlassPrimaryButton';
 import { useCreateCharacter, useUpdateCharacter, useAnalyzeCharacter } from '@/api/characters';
 import { useChildren } from '@/api/children';
 import { useAuthStore } from '@/store/authStore';
@@ -829,7 +829,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                       size={20}
                       color={theme.colors.interactive.primary}
                     />
-                    <Text style={styles.backButtonText}>{t('character_form.back')}</Text>
+                    <Text style={styles.backLinkText}>{t('character_form.back')}</Text>
                   </TouchableOpacity>
 
                   {/* Subtype selection */}
@@ -1289,21 +1289,23 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
 
             {/* Footer */}
             <View style={styles.footer}>
-              <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={handleClose}>
-                <Text style={styles.cancelButtonText}>{t('character_form.cancel_button')}</Text>
-              </TouchableOpacity>
+              <AppButton
+                label={t('character_form.cancel_button')}
+                onPress={handleClose}
+                variant="secondary"
+                style={styles.footerAction}
+              />
 
               {currentStep === 1 ? (
-                <GlassPrimaryButton
-                  title={t('character_form.continue_button')}
+                <AppButton
+                  label={t('character_form.continue_button')}
                   onPress={handleContinue}
                   disabled={!name.trim() || photos.some((p) => p.isUploading)}
-                  size="footer"
-                  style={styles.button}
+                  style={styles.footerAction}
                 />
               ) : (
-                <GlassPrimaryButton
-                  title={t('character_form.save_button')}
+                <AppButton
+                  label={t('character_form.save_button')}
                   onPress={handleSubmit}
                   disabled={
                     isSubmittingOverlay ||
@@ -1313,8 +1315,7 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                     (!characterId && analyzeCharacter.isPending)
                   }
                   loading={createCharacter.isPending || updateCharacter.isPending}
-                  size="footer"
-                  style={styles.button}
+                  style={styles.footerAction}
                 />
               )}
             </View>
@@ -1406,7 +1407,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[4],
     paddingVertical: theme.spacing[2],
   },
-  backButtonText: {
+  backLinkText: {
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.interactive.primary,
     marginLeft: theme.spacing[2],
@@ -1538,21 +1539,8 @@ const styles = StyleSheet.create({
     borderTopWidth: theme.borders.width.thin,
     borderTopColor: theme.colors.border.light,
   },
-  button: {
+  footerAction: {
     flex: 1,
-    paddingVertical: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: theme.colors.background.secondary,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-  },
-  cancelButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.secondary,
   },
   savingModalOverlay: {
     flex: 1,

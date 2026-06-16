@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Image,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -28,6 +27,7 @@ import { useSubscriptionUsage } from '@/api/plans';
 import { ChildFormContent, type ChildFormInitialData } from '@/components/ChildFormContent';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { FeedbackModal } from '@/components/FeedbackModal';
+import { AppButton } from '@/components/AppButton';
 import { ChildCard } from './components/ChildCard';
 import { ChildDataDeletionRequestModal } from './components/ChildDataDeletionRequestModal';
 import { theme } from '@/theme';
@@ -239,15 +239,11 @@ export default function ChildDetailScreen() {
     return (
       <View style={styles.center}>
         <Text style={styles.notFound}>{t('children_screen.error')}</Text>
-        <TouchableOpacity
-          style={styles.backToChildrenButton}
+        <AppButton
+          label={t('children_screen.back_to_children', { defaultValue: 'Back to children' })}
           onPress={() => navigation.navigate('Children')}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.backToChildrenButtonText}>
-            {t('children_screen.back_to_children', { defaultValue: 'Back to children' })}
-          </Text>
-        </TouchableOpacity>
+          style={styles.backToChildrenAction}
+        />
       </View>
     );
   }
@@ -530,18 +526,16 @@ export default function ChildDetailScreen() {
                     {t('children_screen.child_data_deletion_request_body')}
                   </Text>
                 </View>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.privacyButton,
-                    pressed && styles.privacyButtonPressed,
-                  ]}
+                <AppButton
+                  label={t('children_screen.child_data_deletion_request_button')}
                   onPress={() => setChildDataDeletionRequestVisible(true)}
-                >
-                  <Ionicons name="shield-outline" size={17} color={theme.colors.interactive.primary} />
-                  <Text style={styles.privacyButtonText}>
-                    {t('children_screen.child_data_deletion_request_button')}
-                  </Text>
-                </Pressable>
+                  variant="secondary"
+                  size="md"
+                  leading={
+                    <Ionicons name="shield-outline" size={17} color={theme.colors.interactive.primary} />
+                  }
+                  style={styles.privacyAction}
+                />
               </View>
             </View>
           </ScrollView>
@@ -626,19 +620,8 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     fontSize: theme.typography.fontSize.base,
   },
-  backToChildrenButton: {
+  backToChildrenAction: {
     marginTop: theme.spacing[4],
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.interactive.primary,
-    paddingHorizontal: theme.spacing[4],
-  },
-  backToChildrenButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
   },
   headerPanel: {
     width: '100%',
@@ -881,25 +864,8 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     lineHeight: 20,
   },
-  privacyButton: {
-    minHeight: 44,
+  privacyAction: {
     alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing[2],
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.background.primary,
-    paddingHorizontal: theme.spacing[4],
-  },
-  privacyButtonPressed: {
-    opacity: 0.75,
-  },
-  privacyButtonText: {
-    color: theme.colors.interactive.primary,
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
   },
   accessCardWeb: {
     width: '100%',

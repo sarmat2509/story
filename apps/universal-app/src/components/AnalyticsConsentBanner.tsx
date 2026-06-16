@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { disablePostHogClient, getPostHogClient } from '@/services/analytics/posthogProvider';
 import {
@@ -9,6 +9,7 @@ import {
   type AnalyticsConsent,
 } from '@/services/analytics/consent';
 import { theme } from '@/theme';
+import { AppButton } from '@/components/AppButton';
 
 export function AnalyticsConsentBanner() {
   const { t, i18n } = useTranslation();
@@ -65,25 +66,23 @@ export function AnalyticsConsentBanner() {
         </Text>
       </View>
       <View style={styles.actions}>
-        <TouchableOpacity
-          accessibilityRole="button"
+        <AppButton
+          label={
+            consentCopy?.decline ?? t('analytics_consent.decline', { defaultValue: 'Not now' })
+          }
           onPress={() => handleChoice('denied')}
-          style={[styles.button, styles.secondaryButton]}
-        >
-          <Text style={styles.secondaryText}>
-            {consentCopy?.decline ?? t('analytics_consent.decline', { defaultValue: 'Not now' })}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          accessibilityRole="button"
+          variant="secondary"
+          size="md"
+          style={styles.consentAction}
+        />
+        <AppButton
+          label={
+            consentCopy?.accept ?? t('analytics_consent.accept', { defaultValue: 'Allow analytics' })
+          }
           onPress={() => handleChoice('granted')}
-          style={[styles.button, styles.primaryButton]}
-        >
-          <Text style={styles.primaryText}>
-            {consentCopy?.accept ??
-              t('analytics_consent.accept', { defaultValue: 'Allow analytics' })}
-          </Text>
-        </TouchableOpacity>
+          size="md"
+          style={styles.consentAction}
+        />
       </View>
     </View>
   );
@@ -128,28 +127,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing[2],
     flexWrap: 'wrap',
   },
-  button: {
-    minHeight: 40,
-    paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryButton: {
-    borderWidth: 1,
-    borderColor: theme.colors.border.medium,
-  },
-  primaryButton: {
-    backgroundColor: theme.colors.interactive.primary,
-  },
-  secondaryText: {
-    color: theme.colors.text.primary,
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
-  primaryText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
+  consentAction: {
+    minWidth: 136,
   },
 });

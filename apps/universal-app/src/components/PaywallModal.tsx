@@ -4,13 +4,14 @@
  */
 
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Modal, View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
+import { AppButton } from '@/components/AppButton';
 import { useAuthStore } from '@/store/authStore';
 import { resolveBillingEntryTarget } from '@/utils/billingEntry';
 import { assignWebLocation, getWebDocumentLang, getWebPathname } from '@/utils/webRuntime';
@@ -86,15 +87,25 @@ export function PaywallModal({
           <Text style={styles.title}>{displayTitle}</Text>
           <Text style={styles.message}>{displayMessage}</Text>
           <Text style={styles.bundleHint}>{bundleHintText}</Text>
-          <TouchableOpacity style={styles.linkButton} onPress={handleOpenPricing}>
-            <Text style={styles.linkButtonText}>{t('paywall.bundle_pricing_link')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
-            <Text style={styles.upgradeButtonText}>{t('paywall.upgrade_button')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-            <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
-          </TouchableOpacity>
+          <AppButton
+            label={t('paywall.bundle_pricing_link')}
+            onPress={handleOpenPricing}
+            variant="ghost"
+            size="md"
+            style={styles.bundlePricingAction}
+          />
+          <AppButton
+            label={t('paywall.upgrade_button')}
+            onPress={handleUpgrade}
+            style={styles.upgradeAction}
+          />
+          <AppButton
+            label={t('common.cancel')}
+            onPress={onClose}
+            variant="ghost"
+            size="md"
+            style={styles.dismissAction}
+          />
         </View>
       </View>
     </Modal>
@@ -140,35 +151,14 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[2],
     lineHeight: 20,
   },
-  linkButton: {
+  bundlePricingAction: {
     marginBottom: theme.spacing[4],
-    paddingVertical: theme.spacing[2],
   },
-  linkButtonText: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.interactive.primary,
-    textAlign: 'center',
-    textDecorationLine: 'underline',
-  },
-  upgradeButton: {
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.md,
+  upgradeAction: {
     width: '100%',
-    alignItems: 'center',
     marginBottom: theme.spacing[3],
   },
-  upgradeButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
-  cancelButton: {
-    paddingVertical: theme.spacing[2],
-  },
-  cancelButtonText: {
-    fontSize: theme.typography.fontSize.sm,
-    color: theme.colors.text.tertiary,
+  dismissAction: {
+    alignSelf: 'center',
   },
 });

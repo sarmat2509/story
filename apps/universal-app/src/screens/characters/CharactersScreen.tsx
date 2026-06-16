@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Platform,
   useWindowDimensions,
@@ -21,6 +20,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
+import { AppButton } from '@/components/AppButton';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { useAuthStore } from '@/store/authStore';
 
@@ -177,10 +177,12 @@ export default function CharactersScreen() {
             </View>
 
             <AnimatedSection delay={cardDelay(characters.length)} trigger={enterKey}>
-              <TouchableOpacity style={styles.addCharacterButton} onPress={handleAddCharacter}>
-                <Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />
-                <Text style={styles.addCharacterButtonText}>{t('characters.add_character')}</Text>
-              </TouchableOpacity>
+              <AppButton
+                label={t('characters.add_character')}
+                onPress={handleAddCharacter}
+                leading={<Ionicons name="add-circle" size={24} color={theme.colors.text.inverse} />}
+                style={styles.addCharacterAction}
+              />
             </AnimatedSection>
           </>
         ) : (
@@ -189,9 +191,11 @@ export default function CharactersScreen() {
               <Text style={styles.emptyIcon}>👥</Text>
               <Text style={styles.emptyText}>{t('characters.no_characters')}</Text>
               <Text style={styles.emptyHint}>{t('characters.no_characters_hint')}</Text>
-              <TouchableOpacity style={styles.emptyButton} onPress={handleAddCharacter}>
-                <Text style={styles.emptyButtonText}>{t('characters.add_character')}</Text>
-              </TouchableOpacity>
+              <AppButton
+                label={t('characters.add_character')}
+                onPress={handleAddCharacter}
+                style={styles.emptyAction}
+              />
             </View>
           </AnimatedSection>
         )}
@@ -244,21 +248,8 @@ const styles = StyleSheet.create({
     minHeight: '100%',
     backgroundColor: theme.colors.background.secondary,
   },
-  addCharacterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[4],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.lg,
+  addCharacterAction: {
     marginTop: theme.spacing[6],
-    gap: theme.spacing[2],
-  },
-  addCharacterButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
   },
   grid: Platform.select({
     web: {
@@ -293,17 +284,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[6],
     textAlign: 'center',
   },
-  emptyButton: {
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.lg,
-  },
-  emptyButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
+  emptyAction: {},
   errorText: {
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.status.error,

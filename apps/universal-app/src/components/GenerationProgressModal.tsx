@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { RequestStatus, StoryRequestProgressData } from '@wondertales/shared';
+import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 
 interface Props {
@@ -170,22 +171,25 @@ export function GenerationProgressModal({
           {status === 'failed' && (
             <View style={styles.failedActions}>
               {onRetry && (
-                <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
-                  <Text style={styles.retryButtonText}>{t('wizard.retry')}</Text>
-                </TouchableOpacity>
+                <AppButton label={t('wizard.retry')} onPress={onRetry} style={styles.failedAction} />
               )}
               {onReport && (
-                <TouchableOpacity style={styles.reportButton} onPress={onReport}>
-                  <Text style={styles.reportButtonText}>{t('feedback.report_this_issue')}</Text>
-                </TouchableOpacity>
+                <AppButton
+                  label={t('feedback.report_this_issue')}
+                  onPress={onReport}
+                  variant="secondary"
+                  style={styles.failedAction}
+                />
               )}
             </View>
           )}
 
           {status === 'completed' && onClose && (
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Text style={styles.closeButtonText}>Переглянути історію</Text>
-            </TouchableOpacity>
+            <AppButton
+              label="Переглянути історію"
+              onPress={onClose}
+              style={styles.completedAction}
+            />
           )}
         </View>
       </View>
@@ -285,40 +289,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'center',
   },
-  retryButton: {
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    backgroundColor: theme.colors.interactive.primary,
-    borderRadius: theme.borders.radius.md,
+  failedAction: {
+    minWidth: 160,
   },
-  retryButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
-  },
-  reportButton: {
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    backgroundColor: theme.colors.background.secondary,
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-  },
-  reportButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.primary,
-  },
-  closeButton: {
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    backgroundColor: theme.colors.interactive.primary,
-    borderRadius: theme.borders.radius.md,
+  completedAction: {
     marginTop: theme.spacing[4],
-  },
-  closeButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
   },
 });

@@ -7,7 +7,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Linking,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -15,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useResetPassword } from '@/api/auth';
+import { AppButton } from '@/components/AppButton';
 import { getPasswordStrength, meetsMinRequirements } from '@/utils/passwordStrength';
 import { theme } from '@/theme';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
@@ -111,12 +111,11 @@ export default function ResetPasswordScreen() {
         <View style={styles.content}>
           <Text style={styles.title}>{t('auth.reset_password')}</Text>
           <Text style={styles.subtitle}>{t('auth.invalid_or_expired_token')}</Text>
-          <TouchableOpacity
-            style={styles.button}
+          <AppButton
+            label={t('auth.request_new_link')}
             onPress={() => (navigation as any).navigate('ForgotPassword')}
-          >
-            <Text style={styles.buttonText}>{t('auth.request_new_link')}</Text>
-          </TouchableOpacity>
+            style={styles.formAction}
+          />
         </View>
       </View>
     );
@@ -127,12 +126,11 @@ export default function ResetPasswordScreen() {
       <View style={styles.container}>
         <View style={styles.content}>
           <Text style={styles.successTitle}>{t('auth.reset_success')}</Text>
-          <TouchableOpacity
-            style={styles.button}
+          <AppButton
+            label={t('auth.login')}
             onPress={() => (navigation as any).navigate('Welcome')}
-          >
-            <Text style={styles.buttonText}>{t('auth.login')}</Text>
-          </TouchableOpacity>
+            style={styles.formAction}
+          />
         </View>
       </View>
     );
@@ -188,17 +186,13 @@ export default function ResetPasswordScreen() {
         </View>
         <Text style={[styles.strengthLabel, { color: strengthColor }]}>{strengthLabel}</Text>
 
-        <TouchableOpacity
-          style={[styles.button, !canSubmit && styles.buttonDisabled]}
+        <AppButton
+          label={t('auth.reset_password')}
           onPress={handleSubmit}
           disabled={!canSubmit}
-        >
-          {resetPasswordMutation.isPending ? (
-            <ActivityIndicator color={theme.colors.text.inverse} />
-          ) : (
-            <Text style={styles.buttonText}>{t('auth.reset_password')}</Text>
-          )}
-        </TouchableOpacity>
+          loading={resetPasswordMutation.isPending}
+          style={styles.formAction}
+        />
 
         <TouchableOpacity
           style={styles.backLink}
@@ -300,20 +294,8 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.xs,
     marginTop: theme.spacing[1],
   },
-  button: {
-    backgroundColor: theme.colors.interactive.primary,
-    padding: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
+  formAction: {
     marginTop: theme.spacing[8],
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
   },
   backLink: {
     marginTop: theme.spacing[6],

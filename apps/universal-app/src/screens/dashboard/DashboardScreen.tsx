@@ -22,9 +22,8 @@ import { navigateToStory } from '@/navigation/navigationRef';
 import { StoryCard } from '@/components/StoryCard';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
-import { GradientButton } from '@/components/GradientButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
-import { GlassPrimaryButton } from '@/components/GlassPrimaryButton';
+import { AppButton } from '@/components/AppButton';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
 import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
@@ -105,7 +104,7 @@ export default function DashboardScreen() {
             (childrenError as any)?.message ||
             t('dashboard.error_message')}
         </Text>
-        <GradientButton
+        <AppButton
           label={t('dashboard.retry')}
           onPress={() => {
             refetchStories();
@@ -113,7 +112,7 @@ export default function DashboardScreen() {
               refetchChildren();
             }
           }}
-          style={styles.retryButton}
+          style={styles.retryAction}
         />
       </LinearGradient>
     );
@@ -145,8 +144,8 @@ export default function DashboardScreen() {
                 </View>
               </View>
               <View style={[styles.heroActions, isCompact && styles.heroActionsCompact]}>
-                <GlassPrimaryButton
-                  title={t('dashboard.actions.create_story')}
+                <AppButton
+                  label={t('dashboard.actions.create_story')}
                   onPress={() => navigation.navigate('Wizard')}
                   accessibilityLabel={t('dashboard.actions.create_story')}
                   leading={
@@ -157,11 +156,10 @@ export default function DashboardScreen() {
                     />
                   }
                   style={styles.primaryHeroAction}
-                  textStyle={styles.primaryHeroActionText}
                 />
                 {!isChildSession ? (
-                  <GlassPrimaryButton
-                    title={
+                  <AppButton
+                    label={
                       canCreateMoreChildren
                         ? t('dashboard.actions.add_child')
                         : t('dashboard.actions.view_profiles')
@@ -172,15 +170,15 @@ export default function DashboardScreen() {
                         ? t('dashboard.actions.add_child')
                         : t('dashboard.actions.view_profiles')
                     }
+                    variant="secondary"
                     leading={
                       <Ionicons
                         name={canCreateMoreChildren ? 'person-add-outline' : 'people-outline'}
                         size={22}
-                        color={theme.colors.text.inverse}
+                        color={theme.colors.text.primary}
                       />
                     }
                     style={styles.secondaryHeroAction}
-                    textStyle={styles.secondaryHeroActionText}
                   />
                 ) : null}
               </View>
@@ -215,14 +213,14 @@ export default function DashboardScreen() {
 
           {/* View Library Button */}
           <AnimatedSection delay={260} trigger={enterKey}>
-            <GlassPrimaryButton
-              title={t('dashboard.actions.view_library')}
+            <AppButton
+              label={t('dashboard.actions.view_library')}
               onPress={() => navigation.navigate('Library')}
               accessibilityLabel={t('dashboard.actions.view_library')}
               leading={
                 <Ionicons name="library-outline" size={22} color={theme.colors.text.inverse} />
               }
-              style={styles.glassDashboardActionSpacingBelow}
+              style={styles.dashboardActionSpacingBelow}
             />
           </AnimatedSection>
         </ScrollView>
@@ -267,7 +265,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: theme.spacing[6],
   },
-  retryButton: {
+  retryAction: {
     minWidth: 200,
   },
   heroPanel: {
@@ -351,15 +349,8 @@ const styles = StyleSheet.create({
   primaryHeroAction: {
     alignSelf: 'stretch',
   },
-  primaryHeroActionText: {
-    color: theme.colors.text.inverse,
-  },
   secondaryHeroAction: {
     alignSelf: 'stretch',
-    opacity: 0.9,
-  },
-  secondaryHeroActionText: {
-    color: theme.colors.text.inverse,
   },
   sectionTitle: {
     fontSize: theme.typography.fontSize.xl,
@@ -394,7 +385,7 @@ const styles = StyleSheet.create({
   gridCellThird: {
     flexBasis: '30%',
   },
-  glassDashboardActionSpacingBelow: {
+  dashboardActionSpacingBelow: {
     marginBottom: theme.spacing[6],
   },
 });

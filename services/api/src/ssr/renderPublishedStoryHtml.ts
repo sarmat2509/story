@@ -6,6 +6,7 @@
 import { renderHtmlDocument, renderPublishedStoryLayout } from '@wondertales/shared';
 import type { StoryPublicView } from '@wondertales/shared';
 import { config } from '../config';
+import { getVersionedWebBundleUrl } from './webBundleUrl';
 
 // SSR layout styles designed to match the React Native Web output as closely as possible,
 // minimising layout shift (CLS) when the bundle hydrates.
@@ -75,7 +76,7 @@ export function renderPublishedStoryHtml(params: RenderParams): string {
   const { story, useStaticBody = true, robots = 'index,follow' } = params;
   const apiBase = config.web?.apiPublicUrl?.replace(/\/$/, '') || '';
   const webAppUrl = config.web?.webAppUrl?.replace(/\/$/, '') || '';
-  const webBundleUrl = config.web?.webBundleUrl || '/static/js/bundle.js';
+  const webBundleUrl = getVersionedWebBundleUrl();
 
   // Resolve relative audio URL to absolute
   const storyWithAbsoluteAudio = { ...story };

@@ -41,7 +41,7 @@ import { useAuthStore } from '@/store/authStore';
 import { PaywallModal } from '@/components/PaywallModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
-import { GlassPrimaryButton } from '@/components/GlassPrimaryButton';
+import { AppButton } from '@/components/AppButton';
 import { LinearGradient } from '@/components/AppLinearGradient';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
@@ -407,7 +407,7 @@ export default function WizardScreen() {
                 ) : null}
 
                 {activeStep === 1 ? (
-                  <ExpandableCard title={t('wizard.advanced_settings')} icon="settings-outline">
+                  <View style={styles.detailsPanel}>
                     <AdvancedSettingsForm
                       childProfileId={childProfileId}
                       onChildProfileChange={setChildProfileId}
@@ -423,7 +423,7 @@ export default function WizardScreen() {
                       onNotesChange={setUserNotes}
                       notesEnabled={notesEnabled}
                     />
-                  </ExpandableCard>
+                  </View>
                 ) : null}
 
                 {activeStep === 2 ? (
@@ -444,24 +444,27 @@ export default function WizardScreen() {
               </AnimatedSection>
 
               <View style={styles.stepActions}>
-                <TouchableOpacity
-                  style={[styles.navButton, activeStep === 0 && styles.navButtonHidden]}
+                <AppButton
+                  label={t('common.back')}
                   onPress={() => setActiveStep((step) => Math.max(0, step - 1))}
                   disabled={activeStep === 0}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="chevron-back" size={18} color={theme.colors.text.secondary} />
-                  <Text style={styles.navButtonText}>{t('common.back')}</Text>
-                </TouchableOpacity>
+                  variant="secondary"
+                  size="md"
+                  leading={
+                    <Ionicons name="chevron-back" size={18} color={theme.colors.text.secondary} />
+                  }
+                  style={[styles.stepAction, activeStep === 0 && styles.stepActionHidden]}
+                />
                 {activeStep < steps.length - 1 ? (
-                  <TouchableOpacity
-                    style={[styles.navButton, styles.navButtonPrimary]}
+                  <AppButton
+                    label={t('common.next')}
                     onPress={() => setActiveStep((step) => Math.min(steps.length - 1, step + 1))}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.navButtonPrimaryText}>{t('common.next')}</Text>
-                    <Ionicons name="chevron-forward" size={18} color={theme.colors.text.inverse} />
-                  </TouchableOpacity>
+                    size="md"
+                    trailing={
+                      <Ionicons name="chevron-forward" size={18} color={theme.colors.text.inverse} />
+                    }
+                    style={styles.stepAction}
+                  />
                 ) : null}
               </View>
             </View>
@@ -493,12 +496,11 @@ export default function WizardScreen() {
                     })}
                   </Text>
                 ) : null}
-                <GlassPrimaryButton
-                  title={t('wizard.generate_button')}
+                <AppButton
+                  label={t('wizard.generate_button')}
                   onPress={handleGenerate}
                   disabled={!storyLanguage || isGenerating || !canGenerateStories}
                   loading={isGenerating}
-                  size="hero"
                   style={styles.generateButton}
                 />
               </View>
@@ -618,7 +620,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   mainColumnWide: {
-    paddingRight: 360,
+    flexBasis: 0,
   },
   stepperCard: {
     padding: theme.spacing[4],
@@ -689,45 +691,20 @@ const styles = StyleSheet.create({
     gap: theme.spacing[3],
     marginTop: theme.spacing[5],
   },
-  navButton: {
-    minHeight: 46,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.full,
-    borderWidth: theme.borders.width.thin,
-    borderColor: modernColors.border,
-    backgroundColor: modernColors.surface,
+  stepAction: {
+    minWidth: 120,
   },
-  navButtonHidden: {
+  stepActionHidden: {
     opacity: 0,
-  },
-  navButtonPrimary: {
-    marginLeft: 'auto',
-    borderColor: theme.colors.interactive.primary,
-    backgroundColor: theme.colors.interactive.primary,
-  },
-  navButtonText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.secondary,
-  },
-  navButtonPrimaryText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
   },
   summaryColumn: {
     width: 320,
     maxWidth: '100%',
   },
   summaryColumnFixed: {
-    position: Platform.OS === 'web' ? ('fixed' as never) : 'absolute',
-    top: 96,
-    right: theme.spacing[6],
+    position: Platform.OS === 'web' ? ('sticky' as never) : 'absolute',
+    top: Platform.OS === 'web' ? theme.spacing[6] : 96,
+    alignSelf: 'flex-start',
     zIndex: 20,
   },
   summaryColumnFull: {
@@ -773,6 +750,14 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
     lineHeight: 20,
+  },
+  detailsPanel: {
+    padding: theme.spacing[5],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surface,
+    ...modernShadows.subtle,
   },
   summaryLimit: {
     paddingTop: theme.spacing[2],

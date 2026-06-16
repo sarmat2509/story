@@ -14,6 +14,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 import { modernColors, modernShadows } from '@/theme/modernTheme';
 import { formatAssetUrl } from '@/utils/assetUrl';
@@ -554,43 +555,28 @@ export function ChildCard({
 
             <Text style={styles.childModeStatus}>{childModeStatusText}</Text>
 
-            <Pressable
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.startChildModeButton,
-                (!childModeEnabled ||
-                  !childModePasscodeConfigured ||
-                  isEnteringChildMode ||
-                  !onEnterChildMode) &&
-                  styles.startChildModeButtonDisabled,
-                pressed &&
-                  childModeEnabled &&
-                  !isEnteringChildMode &&
-                  styles.startChildModeButtonPressed,
-              ]}
+            <AppButton
+              label={
+                childModeEnabled
+                  ? !childModePasscodeConfigured
+                    ? labels.setPasscodeToStart
+                    : isEnteringChildMode
+                      ? labels.starting
+                      : labels.start
+                  : labels.enableToStart
+              }
               disabled={
                 !childModeEnabled ||
                 !childModePasscodeConfigured ||
                 isEnteringChildMode ||
                 !onEnterChildMode
               }
+              loading={isEnteringChildMode}
               onPress={() => onEnterChildMode?.(child.id, child.name)}
-            >
-              <Ionicons
-                name={isEnteringChildMode ? 'hourglass-outline' : 'play-circle-outline'}
-                size={18}
-                color={theme.colors.text.inverse}
-              />
-              <Text style={styles.startChildModeButtonText}>
-                {childModeEnabled
-                  ? !childModePasscodeConfigured
-                    ? labels.setPasscodeToStart
-                    : isEnteringChildMode
-                      ? labels.starting
-                      : labels.start
-                  : labels.enableToStart}
-              </Text>
-            </Pressable>
+              leading={
+                <Ionicons name="play-circle-outline" size={18} color={theme.colors.text.inverse} />
+              }
+            />
 
             <View style={styles.limitsPanel}>
               <Text style={styles.limitsTitle}>{labels.limitsTitle}</Text>
@@ -725,36 +711,29 @@ export function ChildCard({
                 {labels.activeSessions}: {activeSessionCount}
               </Text>
               {activeSessionCount > 0 && onRevokeChildModeSessions ? (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.revokeButton,
-                    (pressed || isRevokingChildSessions) && styles.revokeButtonPressed,
-                  ]}
+                <AppButton
+                  label={labels.revoke}
                   disabled={isRevokingChildSessions}
                   onPress={() => onRevokeChildModeSessions(child.id, child.name)}
-                >
-                  <Ionicons name="log-out-outline" size={15} color={theme.colors.status.error} />
-                  <Text style={styles.revokeButtonText} numberOfLines={1}>
-                    {labels.revoke}
-                  </Text>
-                </Pressable>
+                  variant="dangerSecondary"
+                  size="sm"
+                  leading={
+                    <Ionicons name="log-out-outline" size={15} color={theme.colors.status.error} />
+                  }
+                />
               ) : null}
             </View>
           </View>
         ) : null}
         {onRequestDataDeletion && dataDeletionRequestLabel ? (
-          <Pressable
-            style={({ pressed }) => [
-              styles.privacyRequestButton,
-              pressed && styles.privacyRequestButtonPressed,
-            ]}
+          <AppButton
+            label={dataDeletionRequestLabel}
             onPress={() => onRequestDataDeletion(child.id, child.name)}
-          >
-            <Ionicons name="shield-outline" size={16} color={theme.colors.interactive.primary} />
-            <Text style={styles.privacyRequestButtonText} numberOfLines={2}>
-              {dataDeletionRequestLabel}
-            </Text>
-          </Pressable>
+            variant="secondary"
+            size="sm"
+            leading={<Ionicons name="shield-outline" size={16} color={theme.colors.interactive.primary} />}
+            style={styles.privacyRequestAction}
+          />
         ) : null}
       </View>
 
@@ -788,10 +767,6 @@ const styles = StyleSheet.create<{
   childModeTitleRow: ViewStyle;
   childModeTitle: TextStyle;
   childModeStatus: TextStyle;
-  startChildModeButton: ViewStyle;
-  startChildModeButtonDisabled: ViewStyle;
-  startChildModeButtonPressed: ViewStyle;
-  startChildModeButtonText: TextStyle;
   limitsPanel: ViewStyle;
   limitsTitle: TextStyle;
   limitRow: ViewStyle;
@@ -825,12 +800,7 @@ const styles = StyleSheet.create<{
   optionEmptyText: TextStyle;
   sessionsRow: ViewStyle;
   sessionsText: TextStyle;
-  revokeButton: ViewStyle;
-  revokeButtonPressed: ViewStyle;
-  revokeButtonText: TextStyle;
-  privacyRequestButton: ViewStyle;
-  privacyRequestButtonPressed: ViewStyle;
-  privacyRequestButtonText: TextStyle;
+  privacyRequestAction: ViewStyle;
   deleteButton: ViewStyle;
   deleteButtonPressed: ViewStyle;
 }>({
@@ -915,30 +885,6 @@ const styles = StyleSheet.create<{
     marginTop: -theme.spacing[3],
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
-  },
-  startChildModeButton: {
-    minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.interactive.primary,
-    paddingHorizontal: theme.spacing[4],
-  },
-  startChildModeButtonDisabled: {
-    opacity: 0.55,
-  },
-  startChildModeButtonPressed: {
-    opacity: 0.85,
-  },
-  startChildModeButtonText: {
-    flexShrink: 1,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
-    lineHeight: 22,
-    textAlign: 'center',
   },
   limitsPanel: {
     borderWidth: theme.borders.width.thin,
@@ -1140,47 +1086,8 @@ const styles = StyleSheet.create<{
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
   },
-  revokeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing[1],
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.status.error,
-    borderRadius: theme.borders.radius.md,
-    paddingVertical: theme.spacing[1],
-    paddingHorizontal: theme.spacing[2],
-  },
-  revokeButtonPressed: {
-    opacity: 0.7,
-  },
-  revokeButtonText: {
-    fontSize: theme.typography.fontSize.xs,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.status.error,
-  },
-  privacyRequestButton: {
-    minHeight: 38,
+  privacyRequestAction: {
     marginTop: theme.spacing[4],
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-    borderRadius: theme.borders.radius.md,
-    backgroundColor: theme.colors.background.secondary,
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
-  },
-  privacyRequestButtonPressed: {
-    opacity: 0.75,
-  },
-  privacyRequestButtonText: {
-    flexShrink: 1,
-    fontSize: theme.typography.fontSize.xs,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.interactive.primary,
-    textAlign: 'center',
   },
   deleteButton: {
     position: 'absolute',

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -22,6 +22,7 @@ import { useMainNavigationStore } from '@/store/mainNavigationStore';
 import { navigationRef } from '@/navigation/navigationRef';
 import { pushNotificationService } from '@/services/pushNotificationService';
 import { configureRevenueCat } from '@/services/revenueCatService';
+import { getAnalytics } from '@/services/analytics';
 import RootNavigator from '@/navigation/RootNavigator';
 import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
 import { getPublicSeoLocaleOverrideFromPath } from '@/utils/publicSeoLocale';
@@ -54,6 +55,37 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const TRACKED_ROUTE_PATTERNS: Record<string, string> = {
+  OAuthCallback: 'auth/:provider/callback',
+  ModeSelection: APP_ROUTE_PATHS.modeSelection,
+  ChildMode: APP_ROUTE_PATHS.childMode,
+  Welcome: APP_ROUTE_PATHS.welcome,
+  Register: APP_ROUTE_PATHS.register,
+  ForgotPassword: 'auth/forgot-password',
+  ResetPassword: 'auth/reset-password',
+  Dashboard: APP_ROUTE_PATHS.dashboard,
+  Wizard: APP_ROUTE_PATHS.wizard,
+  Library: APP_ROUTE_PATHS.library,
+  LibraryRedirect: 'library',
+  Series: APP_ROUTE_PATHS.series,
+  SeriesDetail: 'me/series/:seriesId',
+  Story: APP_ROUTE_PATHS.story,
+  StoryRedirect: APP_ROUTE_PATHS.storyRedirect,
+  Stories: APP_ROUTE_PATHS.storiesCatalog,
+  PublishedStory: APP_ROUTE_PATHS.publishedStory,
+  AuthorProfile: APP_ROUTE_PATHS.authorProfile,
+  UnlistedStory: APP_ROUTE_PATHS.unlistedStory,
+  Children: APP_ROUTE_PATHS.children,
+  ChildDetail: APP_ROUTE_PATHS.childDetail,
+  Characters: APP_ROUTE_PATHS.characters,
+  Plans: APP_ROUTE_PATHS.billingPlans,
+  Profile: APP_ROUTE_PATHS.profile,
+  LanguageSettings: APP_ROUTE_PATHS.languageSettings,
+  ThemeSettings: APP_ROUTE_PATHS.themeSettings,
+  BillingSuccess: APP_ROUTE_PATHS.billingSuccess,
+  NotFound: '*',
+};
 
 // Linking configuration for deep links and OAuth callbacks
 /** Extract active route (name + params) inside Main from root navigation state for persistence across Tab/Drawer switch. */
@@ -180,6 +212,11 @@ function isWebOAuthCallbackPath(): boolean {
   return pathname ? /^\/(?:[a-z]{2}\/)?auth\/[^/]+\/callback\/?$/.test(pathname) : false;
 }
 
+function getNavigationPath(routeName: string | undefined): string | undefined {
+  if (!routeName) return undefined;
+  return TRACKED_ROUTE_PATTERNS[routeName] ?? undefined;
+}
+
 const linking: any = {
   prefixes: ['wondertales://', 'http://localhost:8081', 'https://app.wondertales.com'],
   getStateFromPath(path: string, options: any) {
@@ -250,6 +287,8 @@ const linking: any = {
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
+  const lastTrackedRouteKeyRef = useRef<string | null>(null);
+  const lastTrackedRouteNameRef = useRef<string | null>(null);
   const setAuthLoading = useAuthStore((state) => state.setLoading);
   const revenueCatUserId = useAuthStore((state) => state.user?.id ?? null);
 
@@ -326,6 +365,35 @@ export default function App() {
   }
 
   const isOAuthCallback = isWebOAuthCallbackPath();
+  const trackNavigation = () => {
+    const route = navigationRef.getCurrentRoute();
+    const routeName = route?.name;
+    const routeKey = route?.key ?? routeName;
+    if (!routeName || !routeKey || lastTrackedRouteKeyRef.current === routeKey) return;
+
+    const previousRouteName = lastTrackedRouteNameRef.current;
+    const path = getNavigationPath(routeName);
+    lastTrackedRouteKeyRef.current = routeKey;
+    lastTrackedRouteNameRef.current = routeName;
+    getAnalytics().screen(routeName, {
+      path,
+      platform: Platform.OS,
+    });
+    if (Platform.OS === 'web') {
+      getAnalytics().capture('$pageview', {
+        $pathname: path,
+        path,
+        screen: routeName,
+        platform: Platform.OS,
+      });
+    }
+    getAnalytics().capture('navigation_changed', {
+      from: previousRouteName,
+      to: routeName,
+      path,
+      platform: Platform.OS,
+    });
+  };
 
   return (
     <SafeAreaProvider>
@@ -342,10 +410,12 @@ export default function App() {
               <NavigationContainer
                 ref={navigationRef}
                 linking={linking}
+                onReady={trackNavigation}
                 onStateChange={(state) => {
                   if (useMainNavigationStore.getState().isLayoutTransitionInProgress) return;
                   const route = getActiveMainRouteFromState(state);
                   useMainNavigationStore.getState().setLastMainRoute(route);
+                  trackNavigation();
                 }}
               >
                 <AnalyticsProvider>

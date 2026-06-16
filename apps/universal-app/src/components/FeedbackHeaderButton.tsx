@@ -14,7 +14,7 @@ export function FeedbackHeaderButton({ onPress }: FeedbackHeaderButtonProps) {
   return (
     <TouchableOpacity
       onPress={onPress}
-      style={styles.button}
+      style={styles.iconAction}
       accessibilityRole="button"
       accessibilityLabel={t('profile.report_problem')}
       hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
@@ -25,7 +25,7 @@ export function FeedbackHeaderButton({ onPress }: FeedbackHeaderButtonProps) {
 }
 
 const styles = StyleSheet.create({
-  button: {
+  iconAction: {
     minWidth: 40,
     height: 36,
     paddingHorizontal: theme.spacing[3],

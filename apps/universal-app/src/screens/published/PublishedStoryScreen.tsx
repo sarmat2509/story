@@ -23,6 +23,7 @@ import { PublishedStoryCta } from '@/components/PublishedStoryCta';
 import { StoryRatingWidget } from '@/components/StoryRatingWidget';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { AppButton } from '@/components/AppButton';
 import AudioPlayer from '@/components/AudioPlayer';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { globalAudioService } from '@/services/globalAudioService';
@@ -218,14 +219,14 @@ export default function PublishedStoryScreen() {
   };
 
   const renderReportStoryButton = () => (
-    <TouchableOpacity
-      style={styles.reportStoryButton}
+    <AppButton
+      label={t('feedback.report_story')}
       onPress={handleReportStory}
-      accessibilityRole="button"
-    >
-      <Ionicons name="flag-outline" size={18} color={theme.colors.text.secondary} />
-      <Text style={styles.reportStoryButtonText}>{t('feedback.report_story')}</Text>
-    </TouchableOpacity>
+      variant="secondary"
+      size="md"
+      leading={<Ionicons name="flag-outline" size={18} color={theme.colors.text.secondary} />}
+      style={styles.reportStoryAction}
+    />
   );
 
   const renderMainContent = () => (
@@ -261,17 +262,20 @@ export default function PublishedStoryScreen() {
             ? null
             : isAuthenticated &&
               isOwner && (
-                <TouchableOpacity
-                  style={styles.editButton}
+                <AppButton
+                  label={t('common.edit')}
                   onPress={() => navigateToStory(story.id)}
-                >
-                  <Ionicons
-                    name="pencil-outline"
-                    size={20}
-                    color={theme.colors.interactive.primary}
-                  />
-                  <Text style={styles.editButtonText}>{t('common.edit')}</Text>
-                </TouchableOpacity>
+                  variant="secondary"
+                  size="md"
+                  leading={
+                    <Ionicons
+                      name="pencil-outline"
+                      size={20}
+                      color={theme.colors.interactive.primary}
+                    />
+                  }
+                  style={styles.editAction}
+                />
               )}
         </View>
       </View>
@@ -442,13 +446,14 @@ export default function PublishedStoryScreen() {
       />
       {renderReportStoryButton()}
       {isAuthenticated && isOwner && (
-        <TouchableOpacity
-          style={styles.editButtonSidebar}
+        <AppButton
+          label={t('common.edit')}
           onPress={() => navigateToStory(story.id)}
-        >
-          <Ionicons name="pencil-outline" size={20} color={theme.colors.interactive.primary} />
-          <Text style={styles.editButtonText}>{t('common.edit')}</Text>
-        </TouchableOpacity>
+          variant="secondary"
+          leading={
+            <Ionicons name="pencil-outline" size={20} color={theme.colors.interactive.primary} />
+          }
+        />
       )}
       {!isAuthenticated && <PublishedStoryCta slug={slug} isAuthenticated={false} inSidebar />}
     </>
@@ -602,21 +607,8 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     marginBottom: 2,
   },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing[2],
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
-    backgroundColor: theme.colors.background.primary,
-  },
-  editButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.interactive.primary,
+  editAction: {
+    flexShrink: 0,
   },
   meta: {
     fontSize: theme.typography.fontSize.sm,
@@ -705,34 +697,7 @@ const styles = StyleSheet.create({
   readingTimeMobile: {
     marginBottom: theme.spacing[4],
   },
-  editButtonSidebar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    paddingVertical: theme.spacing[4],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
-    backgroundColor: theme.colors.background.primary,
-  },
-  reportStoryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[2],
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.light,
-    backgroundColor: theme.colors.background.secondary,
+  reportStoryAction: {
     marginBottom: theme.spacing[4],
-  },
-  reportStoryButtonText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.medium,
-    color: theme.colors.text.secondary,
   },
 });

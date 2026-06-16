@@ -41,6 +41,7 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { ExpandableCard } from '@/components/ExpandableCard';
+import { AppButton } from '@/components/AppButton';
 import { assignWebLocation } from '@/utils/webRuntime';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
@@ -305,13 +306,14 @@ export default function PlansScreen() {
                 </Text>
               </View>
               <Text style={styles.bundlePrice}>{formatPrice(b.priceMinor, b.pricingCurrency)}</Text>
-              <TouchableOpacity
-                style={[styles.bundleBuyButton, !canBuy && styles.bundleBuyButtonDisabled]}
+              <AppButton
+                label={t('plans.bundles.buy_button')}
                 disabled={!canBuy || createBundleCheckout.isPending}
+                loading={createBundleCheckout.isPending}
                 onPress={() => handleBundlePurchase(b.slug)}
-              >
-                <Text style={styles.bundleBuyButtonText}>{t('plans.bundles.buy_button')}</Text>
-              </TouchableOpacity>
+                size="md"
+                style={styles.bundleBuyAction}
+              />
             </View>
           </View>
         );
@@ -342,9 +344,12 @@ export default function PlansScreen() {
       <View style={[styles.centerContainer, { paddingTop: theme.spacing[6] + insets.top }]}>
         <Text style={styles.errorTitle}>{t('plans.error_title')}</Text>
         <Text style={styles.errorMessage}>{t('plans.error_message')}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.retryButtonText}>{t('common.back')}</Text>
-        </TouchableOpacity>
+        <AppButton
+          label={t('common.back')}
+          onPress={() => navigation.goBack()}
+          variant="secondary"
+          style={styles.errorBackAction}
+        />
       </View>
     );
   }
@@ -550,32 +555,29 @@ export default function PlansScreen() {
                     </Text>
                   </View>
                 ) : buttonType === 'upgrade' ? (
-                  <TouchableOpacity
-                    style={styles.upgradeButton}
+                  <AppButton
+                    label={t('plans.upgrade_button')}
                     onPress={() => {
                       setSelectedPlan(plan);
                       setShowUpgradeModal(true);
                     }}
-                  >
-                    <Text style={styles.upgradeButtonText}>{t('plans.upgrade_button')}</Text>
-                  </TouchableOpacity>
+                    style={styles.planAction}
+                  />
                 ) : buttonType === 'downgrade' && isFreePlan ? null : buttonType === 'downgrade' ? (
-                  <TouchableOpacity
-                    style={styles.subscribeButton}
+                  <AppButton
+                    label={t('plans.subscribe_button')}
                     onPress={() => {
                       setSelectedPlan(plan);
                       setShowUpgradeModal(true);
                     }}
-                  >
-                    <Text style={styles.subscribeButtonText}>{t('plans.subscribe_button')}</Text>
-                  </TouchableOpacity>
+                    style={styles.planAction}
+                  />
                 ) : (
-                  <TouchableOpacity
-                    style={styles.subscribeButton}
+                  <AppButton
+                    label={t('plans.subscribe_button')}
                     onPress={() => navigation.navigate('Welcome')}
-                  >
-                    <Text style={styles.subscribeButtonText}>{t('plans.subscribe_button')}</Text>
-                  </TouchableOpacity>
+                    style={styles.planAction}
+                  />
                 )}
               </AnimatedSection>
             );
@@ -663,20 +665,24 @@ export default function PlansScreen() {
                       <Text style={styles.bundleFaqAnswer}>{t('plans.faq_refunds_a')}</Text>
                     </ExpandableCard>
                     {useRevenueCatFlow ? (
-                      <TouchableOpacity
-                        style={styles.restorePurchasesButton}
+                      <AppButton
+                        label={
+                          nativeBillingPending ? t('plans.restoring') : t('plans.restore_purchases')
+                        }
                         onPress={handleRestorePurchases}
                         disabled={nativeBillingPending}
-                      >
-                        <Ionicons
-                          name="refresh-outline"
-                          size={16}
-                          color={theme.colors.interactive.primary}
-                        />
-                        <Text style={styles.restorePurchasesButtonText}>
-                          {nativeBillingPending ? t('plans.restoring') : t('plans.restore_purchases')}
-                        </Text>
-                      </TouchableOpacity>
+                        loading={nativeBillingPending}
+                        variant="secondary"
+                        size="md"
+                        style={styles.restorePurchasesAction}
+                        leading={
+                          <Ionicons
+                            name="refresh-outline"
+                            size={16}
+                            color={theme.colors.text.primary}
+                          />
+                        }
+                      />
                     ) : null}
                   </View>
                 )}
@@ -706,9 +712,7 @@ export default function PlansScreen() {
                   <Text style={styles.modalMessage}>
                     {getLocalizedApiError(t, modalErrorData, 'plans.upgrade_error_message')}
                   </Text>
-                  <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
-                    <Text style={styles.modalButtonText}>{t('common.close')}</Text>
-                  </TouchableOpacity>
+                  <AppButton label={t('common.close')} onPress={resetModal} style={styles.modalAction} />
                 </>
               ) : useRevenueCatFlow && nativeBillingSuccess ? (
                 <>
@@ -717,9 +721,7 @@ export default function PlansScreen() {
                   <Text style={styles.modalMessage}>
                     {t('plans.revenuecat_success_message', { planName: selectedPlan?.name })}
                   </Text>
-                  <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
-                    <Text style={styles.modalButtonText}>{t('common.got_it')}</Text>
-                  </TouchableOpacity>
+                  <AppButton label={t('common.got_it')} onPress={resetModal} style={styles.modalAction} />
                 </>
               ) : !useStripeFlow && !useRevenueCatFlow && upgradePlan.isSuccess ? (
                 <>
@@ -755,9 +757,7 @@ export default function PlansScreen() {
                         }
                       )}
                   </View>
-                  <TouchableOpacity style={styles.modalButton} onPress={resetModal}>
-                    <Text style={styles.modalButtonText}>{t('common.got_it')}</Text>
-                  </TouchableOpacity>
+                  <AppButton label={t('common.got_it')} onPress={resetModal} style={styles.modalAction} />
                 </>
               ) : (
                 <>
@@ -765,21 +765,21 @@ export default function PlansScreen() {
                   <Text style={styles.modalMessage}>
                     {t('plans.confirm_upgrade_message', { planName: selectedPlan?.name })}
                   </Text>
-                  <View style={styles.modalButtons}>
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.modalButtonSecondary]}
+                  <View style={styles.modalActions}>
+                    <AppButton
+                      label={t('common.cancel')}
                       onPress={() => {
                         setShowUpgradeModal(false);
                         setSelectedPlan(null);
                       }}
-                    >
-                      <Text style={[styles.modalButtonText, styles.modalButtonTextSecondary]}>
-                        {t('common.cancel')}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.modalButton} onPress={handleUpgrade}>
-                      <Text style={styles.modalButtonText}>{t('plans.confirm')}</Text>
-                    </TouchableOpacity>
+                      variant="secondary"
+                      style={styles.modalAction}
+                    />
+                    <AppButton
+                      label={t('plans.confirm')}
+                      onPress={handleUpgrade}
+                      style={styles.modalAction}
+                    />
                   </View>
                 </>
               )}
@@ -966,28 +966,7 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.xs,
     color: theme.colors.text.tertiary,
   },
-  subscribeButton: {
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
-  },
-  subscribeButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
-  upgradeButton: {
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
-  },
-  upgradeButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
+  planAction: {},
   currentPlanButton: {
     backgroundColor: theme.colors.background.tertiary,
     paddingVertical: theme.spacing[3],
@@ -1033,23 +1012,9 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginTop: theme.spacing[2],
   },
-  restorePurchasesButton: {
+  restorePurchasesAction: {
     alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing[2],
     marginTop: theme.spacing[4],
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-    backgroundColor: theme.colors.background.primary,
-  },
-  restorePurchasesButtonText: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.interactive.primary,
   },
   loadingText: {
     marginTop: theme.spacing[4],
@@ -1068,17 +1033,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: theme.spacing[6],
   },
-  retryButton: {
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    backgroundColor: theme.colors.interactive.primary,
-    borderRadius: theme.borders.radius.md,
-  },
-  retryButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
+  errorBackAction: {},
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1118,29 +1073,13 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[3],
   },
-  modalButtons: {
+  modalActions: {
     flexDirection: 'row',
     gap: theme.spacing[3],
     width: '100%',
   },
-  modalButton: {
+  modalAction: {
     flex: 1,
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
-  },
-  modalButtonSecondary: {
-    backgroundColor: theme.colors.background.tertiary,
-  },
-  modalButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
-  modalButtonTextSecondary: {
-    color: theme.colors.text.primary,
   },
   bundleSection: {
     marginTop: theme.spacing[8],
@@ -1279,20 +1218,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[4],
   },
-  bundleBuyButton: {
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
-  },
-  bundleBuyButtonDisabled: {
-    opacity: 0.45,
-  },
-  bundleBuyButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
+  bundleBuyAction: {},
   bundleFaqSection: {
     marginTop: theme.spacing[6],
     alignSelf: 'stretch',

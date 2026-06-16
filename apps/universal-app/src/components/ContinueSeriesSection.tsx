@@ -21,6 +21,7 @@ import { toastService } from '@/services/toastService';
 import { theme } from '@/theme';
 import { APP_CONFIG } from '@/config/constants';
 import { GenerationProgressModal } from '@/components/GenerationProgressModal';
+import { AppButton } from '@/components/AppButton';
 import i18n from '@/config/i18n';
 
 interface SeriesInfo {
@@ -104,9 +105,7 @@ export function ContinueSeriesSection({
   const containerStyle =
     variant === 'card' ? styles.continueContainerCard : styles.continueContainer;
   const titleStyle = variant === 'card' ? styles.continueTitleCard : styles.continueTitle;
-  const buttonStyle = variant === 'card' ? styles.continueButtonCard : styles.continueButton;
-  const buttonTextStyle =
-    variant === 'card' ? styles.continueButtonTextCard : styles.continueButtonText;
+  const actionStyle = variant === 'card' ? styles.continueActionCard : styles.continueAction;
 
   if (!hasSeriesAccess) {
     return (
@@ -115,10 +114,13 @@ export function ContinueSeriesSection({
         <Text style={styles.continueDescription}>
           {t('story_viewer.series_locked_description')}
         </Text>
-        <TouchableOpacity style={buttonStyle} onPress={onNavigateToPlans}>
-          <Ionicons name="lock-closed" size={24} color="#fff" />
-          <Text style={buttonTextStyle}>{t('story_viewer.upgrade_to_unlock')}</Text>
-        </TouchableOpacity>
+        <AppButton
+          label={t('story_viewer.upgrade_to_unlock')}
+          onPress={onNavigateToPlans}
+          leading={<Ionicons name="lock-closed" size={22} color={theme.colors.text.inverse} />}
+          style={actionStyle}
+          size={variant === 'card' ? 'md' : 'lg'}
+        />
       </View>
     );
   }
@@ -127,20 +129,15 @@ export function ContinueSeriesSection({
     <>
       <View style={containerStyle}>
         <Text style={titleStyle}>{t('story_viewer.enjoyed_story')}</Text>
-        <TouchableOpacity
-          style={[buttonStyle, generateContinuation.isPending && styles.continueButtonDisabled]}
+        <AppButton
+          label={t('story_viewer.continue_story')}
           onPress={handleContinue}
           disabled={generateContinuation.isPending}
-        >
-          {generateContinuation.isPending ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <>
-              <Ionicons name="play-forward" size={24} color="#fff" />
-              <Text style={buttonTextStyle}>{t('story_viewer.continue_story')}</Text>
-            </>
-          )}
-        </TouchableOpacity>
+          loading={generateContinuation.isPending}
+          leading={<Ionicons name="play-forward" size={22} color={theme.colors.text.inverse} />}
+          style={actionStyle}
+          size={variant === 'card' ? 'md' : 'lg'}
+        />
 
         {scheduleData !== undefined && !inProgressOnly && (
           <View style={styles.scheduleBlock}>
@@ -232,11 +229,8 @@ export function ContinueSeriesSection({
                       </View>
                     )}
                   </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.scheduleSubmitButton,
-                      scheduleContinuation.isPending && styles.scheduleSubmitButtonDisabled,
-                    ]}
+                  <AppButton
+                    label={t('story_viewer.schedule_button')}
                     onPress={() =>
                       scheduleContinuation.mutate(
                         { storyId, cadence: selectedCadence },
@@ -250,22 +244,14 @@ export function ContinueSeriesSection({
                       )
                     }
                     disabled={scheduleContinuation.isPending}
-                  >
-                    {scheduleContinuation.isPending ? (
-                      <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="timer-outline"
-                          size={20}
-                          color={theme.colors.interactive.primary}
-                        />
-                        <Text style={styles.scheduleSubmitButtonText}>
-                          {t('story_viewer.schedule_button')}
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
+                    loading={scheduleContinuation.isPending}
+                    variant="secondary"
+                    size="md"
+                    style={styles.scheduleSubmitAction}
+                    leading={
+                      <Ionicons name="timer-outline" size={20} color={theme.colors.text.primary} />
+                    }
+                  />
                 </View>
               </>
             )}
@@ -330,40 +316,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: theme.spacing[4],
   },
-  continueButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[4],
-    paddingHorizontal: theme.spacing[8],
-    borderRadius: theme.borders.radius.lg,
-    gap: theme.spacing[2],
+  continueAction: {
     minWidth: 280,
   },
-  continueButtonCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.interactive.primary,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    gap: theme.spacing[2],
+  continueActionCard: {
     width: '100%',
-  },
-  continueButtonDisabled: {
-    opacity: 0.6,
-  },
-  continueButtonText: {
-    fontSize: theme.typography.fontSize.lg,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
-  },
-  continueButtonTextCard: {
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.inverse,
   },
   scheduleBlock: {
     marginTop: theme.spacing[6],
@@ -471,24 +428,7 @@ const styles = StyleSheet.create({
     color: theme.colors.interactive.primary,
     fontWeight: theme.typography.fontWeight.semibold,
   },
-  scheduleSubmitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing[2],
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
-  },
-  scheduleSubmitButtonDisabled: {
-    opacity: 0.6,
-  },
-  scheduleSubmitButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    color: theme.colors.interactive.primary,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
+  scheduleSubmitAction: {},
   scheduleInProgressText: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,

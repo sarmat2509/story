@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Audio } from 'expo-av';
+import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 import type { Voice } from '@/api/voices';
@@ -212,17 +213,15 @@ export default function VoiceSelector({
                           </View>
 
                           {onUpgrade && (
-                            <TouchableOpacity
-                              style={styles.modalUpgradeButton}
+                            <AppButton
+                              label={t('voice_selector.upgrade_to_unlock')}
                               onPress={() => {
                                 setModalVisible(false);
                                 onUpgrade();
                               }}
-                            >
-                              <Text style={styles.modalUpgradeButtonText}>
-                                {t('voice_selector.upgrade_to_unlock')}
-                              </Text>
-                            </TouchableOpacity>
+                              size="md"
+                              style={styles.voiceUpgradeAction}
+                            />
                           )}
                         </View>
 
@@ -304,10 +303,12 @@ export default function VoiceSelector({
               />
             )}
 
-            {/* Close Button */}
-            <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
-              <Text style={styles.closeButtonText}>{t('voice_selector.close')}</Text>
-            </TouchableOpacity>
+            <AppButton
+              label={t('voice_selector.close')}
+              onPress={() => setModalVisible(false)}
+              variant="secondary"
+              style={styles.voiceModalCloseAction}
+            />
           </View>
         </View>
       </Modal>
@@ -445,31 +446,11 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing[1],
   },
 
-  // Modal Upgrade Button
-  modalUpgradeButton: {
-    backgroundColor: theme.colors.warning[600],
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
+  voiceUpgradeAction: {
+    flexShrink: 0,
   },
-  modalUpgradeButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
-
-  // Close Button
-  closeButton: {
-    backgroundColor: theme.colors.background.secondary,
-    paddingVertical: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
-    alignItems: 'center',
+  voiceModalCloseAction: {
     marginTop: theme.spacing[4],
-  },
-  closeButtonText: {
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-    color: theme.colors.text.primary,
   },
 
   // Empty State

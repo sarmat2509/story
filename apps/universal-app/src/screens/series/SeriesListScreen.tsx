@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  TouchableOpacity,
   useWindowDimensions,
   Platform,
 } from 'react-native';
@@ -17,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSeriesList } from '@/api/stories';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 import { SeriesCard } from '@/components/SeriesCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
@@ -87,9 +87,12 @@ export default function SeriesListScreen() {
           <View style={styles.centerContainer}>
             <Text style={styles.upgradeTitle}>{t('series.child_unavailable_title')}</Text>
             <Text style={styles.upgradeDescription}>{t('series.child_unavailable_subtext')}</Text>
-            <TouchableOpacity style={styles.libraryButton} onPress={handleGoToLibrary}>
-              <Text style={styles.libraryButtonText}>{t('series.go_to_library')}</Text>
-            </TouchableOpacity>
+            <AppButton
+              label={t('series.go_to_library')}
+              onPress={handleGoToLibrary}
+              variant="secondary"
+              style={styles.libraryAction}
+            />
           </View>
         );
       }
@@ -99,13 +102,12 @@ export default function SeriesListScreen() {
           <Text style={styles.upgradeDescription}>
             {t('story_viewer.series_locked_description')}
           </Text>
-          <TouchableOpacity
-            style={styles.upgradeButton}
+          <AppButton
+            label={t('story_viewer.upgrade_to_unlock')}
             onPress={() => navigation.navigate('Plans' as never)}
-          >
-            <Ionicons name="lock-closed" size={24} color="#fff" />
-            <Text style={styles.upgradeButtonText}>{t('story_viewer.upgrade_to_unlock')}</Text>
-          </TouchableOpacity>
+            leading={<Ionicons name="lock-closed" size={22} color={theme.colors.text.inverse} />}
+            style={styles.lockedSeriesAction}
+          />
         </View>
       );
     }
@@ -122,9 +124,12 @@ export default function SeriesListScreen() {
       <View style={styles.centerContainer}>
         <Text style={styles.emptyTitle}>{t('series.empty_title')}</Text>
         <Text style={styles.emptySubtext}>{t('series.empty_subtext')}</Text>
-        <TouchableOpacity style={styles.libraryButton} onPress={handleGoToLibrary}>
-          <Text style={styles.libraryButtonText}>{t('series.go_to_library')}</Text>
-        </TouchableOpacity>
+        <AppButton
+          label={t('series.go_to_library')}
+          onPress={handleGoToLibrary}
+          variant="secondary"
+          style={styles.libraryAction}
+        />
       </View>
     );
   }
@@ -222,16 +227,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: theme.spacing[6],
   },
-  libraryButton: {
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    backgroundColor: theme.colors.interactive.primary,
-    borderRadius: theme.borders.radius.md,
-  },
-  libraryButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
+  libraryAction: {
+    alignSelf: 'center',
   },
   upgradeTitle: {
     fontSize: theme.typography.fontSize.xl,
@@ -246,18 +243,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: theme.spacing[6],
   },
-  upgradeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing[2],
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[6],
-    backgroundColor: theme.colors.interactive.primary,
-    borderRadius: theme.borders.radius.md,
-  },
-  upgradeButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
+  lockedSeriesAction: {
+    alignSelf: 'center',
   },
 });

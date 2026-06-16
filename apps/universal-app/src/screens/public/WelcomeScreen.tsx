@@ -21,10 +21,9 @@ import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useEmailLogin } from '@/api/auth';
 import { theme } from '@/theme';
-import { GradientButton } from '@/components/GradientButton';
+import { AppButton } from '@/components/AppButton';
 import { GlassCard, IRIDESCENT_BORDER_COLORS } from '@/components/GlassCard';
 import { AnimatedSection } from '@/components/AnimatedSection';
-import { InteractiveSurface } from '@/components/InteractiveSurface';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { useAuthStore } from '@/store/authStore';
 import { resetToMainRoute } from '@/navigation/navigationRef';
@@ -263,7 +262,7 @@ export default function WelcomeScreen() {
 
                   <TouchableOpacity
                     style={[
-                      styles.button,
+                      styles.providerButton,
                       styles.googleButton,
                       !canUseOAuth && styles.oauthButtonDisabled,
                     ]}
@@ -275,7 +274,7 @@ export default function WelcomeScreen() {
                     ) : (
                       <>
                         <Ionicons name="logo-google" size={20} color={theme.colors.text.inverse} />
-                        <Text style={styles.buttonText}>{t('welcome.sign_in_google')}</Text>
+                        <Text style={styles.providerButtonText}>{t('welcome.sign_in_google')}</Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -283,7 +282,7 @@ export default function WelcomeScreen() {
                   {showAppleSignIn && (
                     <TouchableOpacity
                       style={[
-                        styles.button,
+                        styles.providerButton,
                         styles.appleButton,
                         !canUseOAuth && styles.oauthButtonDisabled,
                       ]}
@@ -295,7 +294,7 @@ export default function WelcomeScreen() {
                       ) : (
                         <>
                           <Ionicons name="logo-apple" size={22} color={theme.colors.text.inverse} />
-                          <Text style={styles.buttonText}>{t('welcome.sign_in_apple')}</Text>
+                          <Text style={styles.providerButtonText}>{t('welcome.sign_in_apple')}</Text>
                         </>
                       )}
                     </TouchableOpacity>
@@ -359,12 +358,12 @@ export default function WelcomeScreen() {
                     <Text style={styles.forgotLinkText}>{t('auth.forgot_password')}</Text>
                   </TouchableOpacity>
 
-                  <GradientButton
+                  <AppButton
                     label={t('auth.login')}
                     onPress={handleEmailLogin}
                     disabled={!canSubmitEmail || isLoading}
                     loading={emailLoginMutation.isPending}
-                    style={styles.primaryButtonSpacing}
+                    style={styles.emailLoginAction}
                   />
                 </View>
 
@@ -379,31 +378,31 @@ export default function WelcomeScreen() {
 
             <AnimatedSection delay={260} trigger={enterKey}>
               <View style={styles.linksSection}>
-                <InteractiveSurface
-                  style={styles.linkButton}
+                <AppButton
+                  label={t('welcome.browse_stories')}
                   onPress={() => navigation.navigate('Stories')}
-                  accessibilityLabel={t('welcome.browse_stories')}
-                >
-                  <Ionicons
-                    name="newspaper-outline"
-                    size={24}
-                    color={theme.colors.interactive.primary}
-                  />
-                  <Text style={styles.linkButtonText}>{t('welcome.browse_stories')}</Text>
-                </InteractiveSurface>
+                  variant="secondary"
+                  leading={
+                    <Ionicons
+                      name="newspaper-outline"
+                      size={24}
+                      color={theme.colors.interactive.primary}
+                    />
+                  }
+                />
 
-                <InteractiveSurface
-                  style={styles.linkButton}
+                <AppButton
+                  label={t('welcome.view_plans')}
                   onPress={handleViewPlans}
-                  accessibilityLabel={t('welcome.view_plans')}
-                >
-                  <Ionicons
-                    name="diamond-outline"
-                    size={24}
-                    color={theme.colors.interactive.primary}
-                  />
-                  <Text style={styles.linkButtonText}>{t('welcome.view_plans')}</Text>
-                </InteractiveSurface>
+                  variant="secondary"
+                  leading={
+                    <Ionicons
+                      name="diamond-outline"
+                      size={24}
+                      color={theme.colors.interactive.primary}
+                    />
+                  }
+                />
               </View>
             </AnimatedSection>
 
@@ -497,7 +496,7 @@ const styles = StyleSheet.create({
   authCardSection: {
     marginBottom: theme.spacing[6],
   },
-  primaryButtonSpacing: {
+  emailLoginAction: {
     marginTop: theme.spacing[5],
   },
   subtitle: {
@@ -560,7 +559,7 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.interactive.primary,
   },
-  button: {
+  providerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -568,18 +567,6 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing[4],
     paddingHorizontal: theme.spacing[6],
     borderRadius: theme.borders.radius.md,
-  },
-  primaryButton: {
-    backgroundColor: theme.colors.interactive.primary,
-    marginTop: theme.spacing[4],
-  },
-  primaryButtonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
   },
   divider: {
     flexDirection: 'row',
@@ -655,7 +642,7 @@ const styles = StyleSheet.create({
   appleButton: {
     backgroundColor: theme.colors.apple,
   },
-  buttonText: {
+  providerButtonText: {
     color: theme.colors.text.inverse,
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
@@ -672,35 +659,6 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: theme.spacing[4],
     marginBottom: theme.spacing[6],
-  },
-  linkButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing[3],
-    paddingVertical: theme.spacing[4],
-    paddingHorizontal: theme.spacing[6],
-    borderRadius: theme.borders.radius.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.72)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255, 255, 255, 0.9)',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#3B2E6E',
-        shadowOpacity: 0.08,
-        shadowRadius: 16,
-        shadowOffset: { width: 0, height: 8 },
-      },
-      android: { elevation: 2 },
-      web: {
-        boxShadow: '0 14px 30px -18px rgba(59, 46, 110, 0.3)' as unknown as string,
-      },
-    }),
-  },
-  linkButtonText: {
-    color: theme.colors.interactive.primary,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold,
   },
   devNoteText: {
     marginTop: theme.spacing[4],
