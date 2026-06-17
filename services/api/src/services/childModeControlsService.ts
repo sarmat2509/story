@@ -1,9 +1,16 @@
 import type { ChildModeSettingsInput } from '@wondertales/shared';
 import type { ChildProfile, User } from '../db/schema';
-import { getChildProfileRepository, getSessionRepository, getUserRepository } from '../repositories';
+import {
+  getChildProfileRepository,
+  getPasswordResetTokenRepository,
+  getSessionRepository,
+  getUserRepository,
+} from '../repositories';
 import { createSession, getChildSessionActiveAfter, type SessionData } from './sessionService';
 import { hashPassword, verifyPassword } from './passwordService';
+import { sendChildModeRecoveryEmail } from './emailService';
 import { logger } from '../utils/logger';
+import config from '../config';
 
 export interface ChildModeSettings {
   storyGenerationEnabled: boolean;
@@ -48,6 +55,14 @@ export interface CreateChildModeSessionInput {
   userAgent?: string;
 }
 
+export interface ChildModeRecoveryTokenResult {
+  user: User;
+  childProfileId: string | null;
+  childSessionId: string | null;
+}
+
+const CHILD_MODE_RECOVERY_TOKEN_EXPIRY_MINUTES = 30;
+
 export const DEFAULT_CHILD_MODE_SETTINGS: ChildModeSettings = {
   storyGenerationEnabled: true,
   publicStoriesEnabled: true,
@@ -87,6 +102,16 @@ export class ChildModePasscodeError extends Error {
   }
 }
 
+export class ChildModeRecoveryError extends Error {
+  constructor(
+    message: string,
+    public readonly code: 'CHILD_MODE_RECOVERY_INVALID' | 'CHILD_MODE_RECOVERY_USER_NOT_FOUND',
+    public readonly statusCode: number
+  ) {
+    super(message);
+  }
+}
+
 function normalizeOptionalLimit(value: unknown, fallback: number | null): number | null {
   if (value === null) return null;
   if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return value;
@@ -95,7 +120,11 @@ function normalizeOptionalLimit(value: unknown, fallback: number | null): number
 
 function normalizeStringArray(value: unknown, fallback: string[]): string[] {
   if (!Array.isArray(value)) return fallback;
-  return [...new Set(value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0))];
+  return [
+    ...new Set(
+      value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    ),
+  ];
 }
 
 function normalizeBoolean(value: unknown, fallback: boolean): boolean {
@@ -103,7 +132,7 @@ function normalizeBoolean(value: unknown, fallback: boolean): boolean {
 }
 
 export function normalizeChildModeSettings(raw: unknown): ChildModeSettings {
-  const input = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+  const input = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
 
   return {
     storyGenerationEnabled: normalizeBoolean(
@@ -200,7 +229,10 @@ export function buildChildSessionScopes(settings: ChildModeSettings): string[] {
   return scopes;
 }
 
-async function requireOwnedChildProfile(userId: string, childProfileId: string): Promise<ChildProfile> {
+async function requireOwnedChildProfile(
+  userId: string,
+  childProfileId: string
+): Promise<ChildProfile> {
   const profile = await getChildProfileRepository().findById(childProfileId, userId);
   if (!profile) {
     throw new ChildModeError('Child profile not found', 'CHILD_PROFILE_NOT_FOUND', 404);
@@ -222,7 +254,9 @@ export async function getChildModeControls(
   );
 }
 
-export async function getChildModeSessionCounts(childProfileIds: string[]): Promise<Map<string, number>> {
+export async function getChildModeSessionCounts(
+  childProfileIds: string[]
+): Promise<Map<string, number>> {
   return getSessionRepository().countActiveChildSessionsByProfileIds(
     childProfileIds,
     getChildSessionActiveAfter()
@@ -247,11 +281,14 @@ export async function updateChildModeControls(
     updatedAt: new Date(),
   });
 
-  logger.info({
-    userId,
-    childProfileId,
-    childModeEnabled: updated.childModeEnabled,
-  }, 'Updated child mode controls');
+  logger.info(
+    {
+      userId,
+      childProfileId,
+      childModeEnabled: updated.childModeEnabled,
+    },
+    'Updated child mode controls'
+  );
 
   return getChildModeControls(userId, childProfileId);
 }
@@ -265,7 +302,11 @@ export async function createChildModeSession(input: CreateChildModeSessionInput)
   const controls = buildChildModeControls(profile, 0, passcodeStatus.configured);
 
   if (!controls.childModeEnabled) {
-    throw new ChildModeError('Child Mode is not enabled for this child', 'CHILD_MODE_DISABLED', 403);
+    throw new ChildModeError(
+      'Child Mode is not enabled for this child',
+      'CHILD_MODE_DISABLED',
+      403
+    );
   }
 
   if (!controls.childModePasscodeConfigured) {
@@ -288,11 +329,14 @@ export async function createChildModeSession(input: CreateChildModeSessionInput)
     userAgent: input.userAgent,
   });
 
-  logger.info({
-    userId: input.userId,
-    childProfileId: input.childProfileId,
-    sessionId: session.id,
-  }, 'Created child mode session');
+  logger.info(
+    {
+      userId: input.userId,
+      childProfileId: input.childProfileId,
+      sessionId: session.id,
+    },
+    'Created child mode session'
+  );
 
   return { profile, session };
 }
@@ -322,7 +366,9 @@ export async function verifyChildModePasscode(
   }
 }
 
-export async function getChildModeExitPasscodeStatus(userId: string): Promise<ChildModeExitPasscodeStatus> {
+export async function getChildModeExitPasscodeStatus(
+  userId: string
+): Promise<ChildModeExitPasscodeStatus> {
   const user = await getUserRepository().findById(userId);
   return buildChildModeExitPasscodeStatus(user);
 }
@@ -386,7 +432,95 @@ export async function updateChildModeExitPasscode(
   };
 }
 
-export async function revokeChildModeSessions(userId: string, childProfileId: string): Promise<number> {
+function buildChildModeRecoveryLink(token: string, preferredLocale?: string | null): string {
+  const locale = preferredLocale?.slice(0, 2).toLowerCase();
+  const localePrefix = locale && locale !== 'uk' ? `/${locale}` : '';
+  const baseUrl = config.web.webAppUrl.replace(/\/+$/, '');
+  return `${baseUrl}${localePrefix}/auth/child-mode-recovery?token=${encodeURIComponent(token)}`;
+}
+
+function getStringMetadataValue(metadata: unknown, key: string): string | null {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return null;
+  }
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+export async function requestChildModeExitPasscodeRecovery(
+  userId: string,
+  childProfileId: string,
+  childSessionId: string
+): Promise<void> {
+  await requireOwnedChildProfile(userId, childProfileId);
+  const user = await getUserRepository().findById(userId);
+
+  if (!user) {
+    throw new ChildModeRecoveryError(
+      'Parent account was not found',
+      'CHILD_MODE_RECOVERY_USER_NOT_FOUND',
+      404
+    );
+  }
+
+  const tokenRepo = getPasswordResetTokenRepository();
+  const expiresAt = new Date(Date.now() + CHILD_MODE_RECOVERY_TOKEN_EXPIRY_MINUTES * 60 * 1000);
+  const tokenRow = await tokenRepo.create(user.id, expiresAt, {
+    purpose: 'child_mode_recovery',
+    metadata: {
+      childProfileId,
+      childSessionId,
+    },
+  });
+
+  await sendChildModeRecoveryEmail(
+    user.email,
+    buildChildModeRecoveryLink(tokenRow.token, user.preferredLocale),
+    user.preferredLocale
+  );
+
+  logger.info(
+    { userId, childProfileId, childSessionId },
+    'Child Mode exit passcode recovery email requested'
+  );
+}
+
+export async function consumeChildModeExitPasscodeRecoveryToken(
+  token: string
+): Promise<ChildModeRecoveryTokenResult> {
+  const tokenRepo = getPasswordResetTokenRepository();
+  const tokenRow = await tokenRepo.findByToken(token, 'child_mode_recovery');
+
+  if (!tokenRow) {
+    throw new ChildModeRecoveryError(
+      'Child Mode recovery link is invalid or expired',
+      'CHILD_MODE_RECOVERY_INVALID',
+      400
+    );
+  }
+
+  const user = await getUserRepository().findById(tokenRow.userId);
+  await tokenRepo.deleteByToken(token);
+
+  if (!user) {
+    throw new ChildModeRecoveryError(
+      'Parent account was not found',
+      'CHILD_MODE_RECOVERY_USER_NOT_FOUND',
+      404
+    );
+  }
+
+  return {
+    user,
+    childProfileId: getStringMetadataValue(tokenRow.metadata, 'childProfileId'),
+    childSessionId: getStringMetadataValue(tokenRow.metadata, 'childSessionId'),
+  };
+}
+
+export async function revokeChildModeSessions(
+  userId: string,
+  childProfileId: string
+): Promise<number> {
   await requireOwnedChildProfile(userId, childProfileId);
   const revokedCount = await getSessionRepository().deleteByChildProfileId(childProfileId);
   logger.info({ userId, childProfileId, revokedCount }, 'Revoked child mode sessions');

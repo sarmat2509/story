@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/theme';
-import { IMAGE_STYLES, IMAGE_STYLE_METADATA } from '@wondertales/shared';
+import { IMAGE_STYLES, IMAGE_STYLE_METADATA, type ImageStyle } from '@wondertales/shared';
 
 interface Goal {
   slug: string;
@@ -26,8 +26,8 @@ interface Props {
   selectedGoals?: string[];
   onGoalsChange: (goals: string[]) => void;
 
-  imageStyle?: string;
-  onImageStyleChange: (style: string | undefined) => void;
+  imageStyle?: ImageStyle;
+  onImageStyleChange: (style: ImageStyle | undefined) => void;
 
   userNotes?: string;
   onNotesChange: (notes: string) => void;

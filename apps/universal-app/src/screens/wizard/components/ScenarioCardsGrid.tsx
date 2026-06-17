@@ -126,7 +126,7 @@ export function ScenarioCardsGrid({ scenarios, selected, onSelect }: Props) {
 const styles = StyleSheet.create({
   container: {
     marginBottom: theme.spacing[6],
-    padding: theme.spacing[4],
+    padding: theme.spacing[5],
     borderRadius: theme.borders.radius.lg,
     borderWidth: theme.borders.width.thin,
     borderColor: modernColors.border,

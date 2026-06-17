@@ -24,6 +24,14 @@ create_deploy_tarball() {
   COPYFILE_DISABLE=1 tar --no-xattrs -czf "$output" "$@"
 }
 
+upsert_remote_env_var() {
+  local env_file="$1"
+  local key="$2"
+  local value="$3"
+
+  ssh ${DROPLET_USER}@${DROPLET_IP} "if grep -q '^${key}=' '${env_file}'; then perl -0pi -e 's/^${key}=.*\$/${key}=${value}/m' '${env_file}'; else printf '\n${key}=${value}\n' >> '${env_file}'; fi"
+}
+
 sync_nginx_config() {
   echo "🔧 Syncing nginx and compose config..."
   local nginx_tarball="/tmp/kazka-nginx-config.tar.gz"
@@ -57,6 +65,11 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate nginx
 EOF
 }
 
+restart_shared_proxy_if_present() {
+  echo "🔄 Refreshing shared public proxy upstreams..."
+  ssh ${DROPLET_USER}@${DROPLET_IP} "docker ps --format '{{.Names}}' | grep -qx 'shared-nginx-proxy' && docker restart shared-nginx-proxy >/dev/null || true"
+}
+
 # 1. Build webapp locally (clear all caches to avoid stale builds)
 echo "📦 Building webapp locally..."
 cd apps/universal-app
@@ -86,6 +99,8 @@ if [ -z "$EXPO_BUNDLE" ]; then
   exit 1
 fi
 
+EXPO_BUNDLE_HASH=$(shasum -a 256 "$EXPO_BUNDLE" | awk '{print substr($1, 1, 12)}')
+
 mkdir -p apps/universal-app/dist/static/js
 cp "$EXPO_BUNDLE" apps/universal-app/dist/static/js/bundle.js
 echo "   ✓ Created SSR compatibility bundle at /static/js/bundle.js"
@@ -103,6 +118,10 @@ scp apps/universal-app/dist.tar.gz ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}
 # 5. Sync nginx/compose before recreating webapp, so new volume mounts apply
 sync_nginx_config
 
+echo "🔖 Updating WEB_BUILD_ID for SSR..."
+upsert_remote_env_var "${DROPLET_PATH}/.env.production" "WEB_BUILD_ID" "${EXPO_BUNDLE_HASH}"
+echo "   ✓ WEB_BUILD_ID=${EXPO_BUNDLE_HASH}"
+
 # 6. Extract on droplet and recreate
 echo "🔄 Extracting and recreating services..."
 ssh ${DROPLET_USER}@${DROPLET_IP} << 'EOF'
@@ -116,9 +135,11 @@ if [ -e dist ]; then
   rm -rf dist
   ln -sfn apps/universal-app/dist dist
 fi
-docker compose -f docker-compose.prod.yml up -d --force-recreate webapp
+docker compose -f docker-compose.prod.yml up -d --force-recreate api webapp
 docker compose -f docker-compose.prod.yml ps
 EOF
+
+restart_shared_proxy_if_present
 
 # 7. Cleanup
 echo "🧹 Cleaning up..."

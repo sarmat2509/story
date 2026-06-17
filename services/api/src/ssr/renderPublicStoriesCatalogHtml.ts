@@ -61,11 +61,84 @@ const CATALOG_COPY: Record<PublicSeoLocale, {
     emptyTitle: 'No public stories yet',
     emptyBody: 'Stories will appear here after families publish them to the public catalog.',
   },
+  ru: {
+    title: 'Опубликованные детские истории - WonderTales',
+    description: 'Публичный каталог детских историй WonderTales с иллюстрациями, временем чтения и безопасным семейным контекстом.',
+    navStories: 'Истории',
+    navPricing: 'Тарифы',
+    eyebrow: 'Публичная библиотека',
+    h1: 'Опубликованные истории WonderTales',
+    intro: 'Подборка историй, которые семьи открыли для публичного просмотра. Приватные, скрытые и unlisted истории здесь не появляются.',
+    storyCount: (count) => `${count} историй в каталоге`,
+    readStory: 'Читать историю',
+    authorLabel: 'Автор',
+    emptyTitle: 'Публичных историй пока нет',
+    emptyBody: 'Истории появятся здесь, когда семьи опубликуют их в публичном каталоге.',
+  },
+  es: {
+    title: 'Cuentos infantiles publicados - WonderTales',
+    description: 'Un catálogo público de cuentos infantiles de WonderTales con ilustraciones, tiempo de lectura y controles seguros para familias.',
+    navStories: 'Cuentos',
+    navPricing: 'Precios',
+    eyebrow: 'Biblioteca pública',
+    h1: 'Cuentos publicados de WonderTales',
+    intro: 'Una selección de cuentos que las familias han decidido compartir públicamente. Los cuentos privados, ocultos y no listados no aparecen aquí.',
+    storyCount: (count) => `${count} cuentos en el catálogo`,
+    readStory: 'Leer cuento',
+    authorLabel: 'Autor',
+    emptyTitle: 'Aún no hay cuentos públicos',
+    emptyBody: 'Los cuentos aparecerán aquí cuando las familias los publiquen en el catálogo público.',
+  },
+  de: {
+    title: 'Veröffentlichte Kindergeschichten - WonderTales',
+    description: 'Ein öffentlicher Katalog von WonderTales-Kindergeschichten mit Illustrationen, Lesezeit und sicheren Familienfreigaben.',
+    navStories: 'Geschichten',
+    navPricing: 'Preise',
+    eyebrow: 'Öffentliche Bibliothek',
+    h1: 'Veröffentlichte WonderTales-Geschichten',
+    intro: 'Eine Sammlung von Geschichten, die Familien bewusst öffentlich freigegeben haben. Private, versteckte und nicht gelistete Geschichten erscheinen hier nicht.',
+    storyCount: (count) => `${count} Geschichten im Katalog`,
+    readStory: 'Geschichte lesen',
+    authorLabel: 'Autor',
+    emptyTitle: 'Noch keine öffentlichen Geschichten',
+    emptyBody: 'Geschichten erscheinen hier, sobald Familien sie im öffentlichen Katalog veröffentlichen.',
+  },
+  fr: {
+    title: 'Histoires pour enfants publiées - WonderTales',
+    description: 'Un catalogue public d’histoires WonderTales pour enfants avec illustrations, temps de lecture et partage familial sécurisé.',
+    navStories: 'Histoires',
+    navPricing: 'Tarifs',
+    eyebrow: 'Bibliothèque publique',
+    h1: 'Histoires WonderTales publiées',
+    intro: 'Une sélection d’histoires que les familles ont choisi de rendre publiques. Les histoires privées, masquées ou non répertoriées n’apparaissent pas ici.',
+    storyCount: (count) => `${count} histoires dans le catalogue`,
+    readStory: 'Lire l’histoire',
+    authorLabel: 'Auteur',
+    emptyTitle: 'Aucune histoire publique pour le moment',
+    emptyBody: 'Les histoires apparaîtront ici lorsque les familles les publieront dans le catalogue public.',
+  },
+  pl: {
+    title: 'Opublikowane historie dla dzieci - WonderTales',
+    description: 'Publiczny katalog historii WonderTales dla dzieci z ilustracjami, czasem czytania i bezpiecznym udostępnianiem rodzinnym.',
+    navStories: 'Historie',
+    navPricing: 'Cennik',
+    eyebrow: 'Biblioteka publiczna',
+    h1: 'Opublikowane historie WonderTales',
+    intro: 'Zbiór historii, które rodziny świadomie udostępniły publicznie. Historie prywatne, ukryte i niepubliczne nie pojawiają się tutaj.',
+    storyCount: (count) => `${count} historii w katalogu`,
+    readStory: 'Czytaj historię',
+    authorLabel: 'Autor',
+    emptyTitle: 'Nie ma jeszcze publicznych historii',
+    emptyBody: 'Historie pojawią się tutaj, gdy rodziny opublikują je w publicznym katalogu.',
+  },
 };
 
 const CATALOG_STYLES = `
 *{box-sizing:border-box}
+html,body{min-height:100%;height:100%}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#f8fafc;color:#172033}
+#root{min-height:100%;height:100%;display:flex;flex-direction:column}
+#root>*{flex:1 1 auto;min-height:0}
 a{color:inherit;text-decoration:none}
 .page{max-width:1180px;margin:0 auto;padding:28px 20px 56px}
 .topnav{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:36px}
@@ -113,14 +186,14 @@ function getStoryImage(story: PublicStoryListItem, apiBase: string): string | nu
 }
 
 function getLanguageName(language: string, locale: PublicSeoLocale): string {
-  const names: Record<string, { uk: string; en: string }> = {
-    uk: { uk: 'Українська', en: 'Ukrainian' },
-    en: { uk: 'Англійська', en: 'English' },
-    es: { uk: 'Іспанська', en: 'Spanish' },
-    ru: { uk: 'Російська', en: 'Russian' },
-    de: { uk: 'Німецька', en: 'German' },
-    fr: { uk: 'Французька', en: 'French' },
-    pl: { uk: 'Польська', en: 'Polish' },
+  const names: Record<string, Record<PublicSeoLocale, string>> = {
+    uk: { uk: 'Українська', en: 'Ukrainian', ru: 'Украинский', es: 'Ucraniano', de: 'Ukrainisch', fr: 'Ukrainien', pl: 'Ukraiński' },
+    en: { uk: 'Англійська', en: 'English', ru: 'Английский', es: 'Inglés', de: 'Englisch', fr: 'Anglais', pl: 'Angielski' },
+    es: { uk: 'Іспанська', en: 'Spanish', ru: 'Испанский', es: 'Español', de: 'Spanisch', fr: 'Espagnol', pl: 'Hiszpański' },
+    ru: { uk: 'Російська', en: 'Russian', ru: 'Русский', es: 'Ruso', de: 'Russisch', fr: 'Russe', pl: 'Rosyjski' },
+    de: { uk: 'Німецька', en: 'German', ru: 'Немецкий', es: 'Alemán', de: 'Deutsch', fr: 'Allemand', pl: 'Niemiecki' },
+    fr: { uk: 'Французька', en: 'French', ru: 'Французский', es: 'Francés', de: 'Französisch', fr: 'Français', pl: 'Francuski' },
+    pl: { uk: 'Польська', en: 'Polish', ru: 'Польский', es: 'Polaco', de: 'Polnisch', fr: 'Polonais', pl: 'Polski' },
   };
   return names[language]?.[locale] ?? language.toUpperCase();
 }

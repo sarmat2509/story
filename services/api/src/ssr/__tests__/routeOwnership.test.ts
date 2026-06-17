@@ -31,8 +31,8 @@ const nginxConfigs = [
 
 assert.deepEqual(
   [...PUBLIC_SEO_LOCALES],
-  ['uk', 'en'],
-  'public SEO locales must stay limited to launch-ready public/legal locales'
+  ['uk', 'en', 'ru', 'es', 'de', 'fr', 'pl'],
+  'public SEO locales should cover all public marketing locales'
 );
 
 assert.equal(APP_ROUTE_PATHS.billingPlans, 'billing/plans');
@@ -40,7 +40,29 @@ assert.notEqual(APP_ROUTE_PATHS.billingPlans, 'pricing');
 
 assert.deepEqual(
   buildPublicSeoSitemapStaticRoutes().map((route) => route.path),
-  ['/', '/pricing', '/stories', '/en/', '/en/pricing', '/en/stories'],
+  [
+    '/',
+    '/pricing',
+    '/stories',
+    '/en/',
+    '/en/pricing',
+    '/en/stories',
+    '/ru/',
+    '/ru/pricing',
+    '/ru/stories',
+    '/es/',
+    '/es/pricing',
+    '/es/stories',
+    '/de/',
+    '/de/pricing',
+    '/de/stories',
+    '/fr/',
+    '/fr/pricing',
+    '/fr/stories',
+    '/pl/',
+    '/pl/pricing',
+    '/pl/stories',
+  ],
   'sitemap static SEO routes should come from the shared route manifest'
 );
 
@@ -51,6 +73,21 @@ assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/stories<\/loc>/);
 assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/en\/<\/loc>/);
 assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/en\/pricing<\/loc>/);
 assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/en\/stories<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/de\/<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/de\/pricing<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/de\/stories<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/es\/<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/es\/pricing<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/es\/stories<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/fr\/<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/fr\/pricing<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/fr\/stories<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/pl\/<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/pl\/pricing<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/pl\/stories<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/ru\/<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/ru\/pricing<\/loc>/);
+assert.match(emptySitemap, /<loc>https:\/\/wondertales\.art\/ru\/stories<\/loc>/);
 assert.doesNotMatch(emptySitemap, /<loc>https:\/\/wondertales\.art\/u\//);
 assert.doesNotMatch(emptySitemap, /<loc>https:\/\/wondertales\.art\/billing\//);
 
@@ -67,8 +104,9 @@ for (const { name, value } of nginxConfigs) {
   assert.match(value, /location = \/privacy\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/privacy/, `${name} should route default privacy to API SSR`);
   assert.match(value, /location ~ \^\/en\/terms\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/terms\/en/, `${name} should route localized terms to API SSR`);
   assert.match(value, /location ~ \^\/en\/privacy\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/privacy\/en/, `${name} should route localized privacy to API SSR`);
-  assert.match(value, /location = \/stories\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/stories/, `${name} should route exact /stories to API SSR`);
-  assert.match(value, /location ~ \^\/en\/stories\/\?\$\s*\{[\s\S]*?\/ssr\/stories\/catalog\/en/, `${name} should route localized /en/stories to API SSR`);
+assert.match(value, /location = \/stories\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/stories/, `${name} should route exact /stories to API SSR`);
+  assert.match(value, /location ~ \^\/\(en\|ru\|es\|de\|fr\|pl\)\/stories\/\?\$\s*\{[\s\S]*?\/ssr\/stories\/catalog\/\$1/, `${name} should route localized stories routes to API SSR`);
+  assert.match(value, /location ~ \^\/\(en\|ru\|es\|de\|fr\|pl\)\/support\/\?\$\s*\{[\s\S]*?\/ssr\/support\/\$1/, `${name} should route localized support routes to API SSR`);
   assert.match(value, /location \^~ \/stories\/\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/stories\//, `${name} should route story detail pages to API SSR`);
   assert.match(value, /location \^~ \/authors\/\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/authors\//, `${name} should route author pages to API SSR`);
   assert.match(value, /location \^~ \/u\/\s*\{[\s\S]*?X-Robots-Tag "noindex,nofollow"[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/u\//, `${name} should route unlisted stories to noindex SSR`);
@@ -94,7 +132,8 @@ assert.match(commonSsrRoutes, /location = \/privacy\s*\{[\s\S]*?proxy_pass http:
 assert.match(commonSsrRoutes, /location ~ \^\/en\/terms\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/terms\/en/);
 assert.match(commonSsrRoutes, /location ~ \^\/en\/privacy\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/privacy\/en/);
 assert.match(commonSsrRoutes, /location = \/stories\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/stories/);
-assert.match(commonSsrRoutes, /location ~ \^\/en\/stories\/\?\$\s*\{[\s\S]*?\/ssr\/stories\/catalog\/en/);
+assert.match(commonSsrRoutes, /location ~ \^\/\(en\|ru\|es\|de\|fr\|pl\)\/stories\/\?\$\s*\{[\s\S]*?\/ssr\/stories\/catalog\/\$1/);
+assert.match(commonSsrRoutes, /location ~ \^\/\(en\|ru\|es\|de\|fr\|pl\)\/support\/\?\$\s*\{[\s\S]*?\/ssr\/support\/\$1/);
 assert.match(commonSsrRoutes, /location \^~ \/stories\/\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/stories\//);
 assert.match(commonSsrRoutes, /location \^~ \/authors\/\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/authors\//);
 assert.match(commonSsrRoutes, /location \^~ \/u\/\s*\{[\s\S]*?X-Robots-Tag "noindex,nofollow"/);

@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background.primary,
   },
   content: {
-    padding: theme.spacing[4],
+    padding: theme.spacing[6],
     paddingBottom: theme.spacing[8],
   },
   centerContainer: {

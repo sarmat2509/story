@@ -20,6 +20,9 @@ dist/
 
 # Secrets
 secrets/
+# Outreach account registry; never commit profile/account tracking notes.
+secrets/forum-outreach-accounts.md
+secrets/forum-outreach-comments.md
 *.json
 services/api/gen-lang-client-*.json
 # Except config files

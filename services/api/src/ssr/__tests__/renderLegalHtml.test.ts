@@ -2,12 +2,10 @@ import assert from 'node:assert/strict';
 import { renderLegalHtml, resolveLegalLocale } from '../renderLegalHtml';
 
 void (async function main() {
-  const unsupportedLocales = ['ru', 'es', 'de', 'fr', 'pl'];
-
   assert.equal(resolveLegalLocale(undefined), 'uk');
   assert.equal(resolveLegalLocale('uk'), 'uk');
   assert.equal(resolveLegalLocale('en'), 'en');
-  assert.equal(resolveLegalLocale('ru'), 'uk');
+  assert.equal(resolveLegalLocale('ru'), 'en');
 
   const ukTerms = await renderLegalHtml({ doc: 'terms', locale: 'uk' });
   assert.match(ukTerms, /<html lang="uk">/);
@@ -38,7 +36,7 @@ void (async function main() {
   assert.doesNotMatch(enPrivacy, /onchange=/);
   assert.doesNotMatch(enPrivacy, /Content not available/);
 
-  for (const locale of unsupportedLocales) {
+  for (const locale of ['ru', 'es', 'de', 'fr', 'pl']) {
     assert.doesNotMatch(enPrivacy, new RegExp(`hreflang="${locale}"`));
     assert.doesNotMatch(enPrivacy, new RegExp(`/${locale}/privacy`));
     assert.doesNotMatch(ukTerms, new RegExp(`/${locale}/terms`));

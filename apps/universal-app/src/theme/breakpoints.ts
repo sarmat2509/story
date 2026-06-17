@@ -6,9 +6,9 @@ export const breakpoints = {
 
 export const layout = {
   drawer: {
-    widthDesktop: 240,
-    widthTablet: 280,
-    widthCollapsed: 73,
+    widthDesktop: 220,
+    widthTablet: 256,
+    widthCollapsed: 68,
   },
   sidebar: {
     widthFixed: 360, // StoryViewer right column

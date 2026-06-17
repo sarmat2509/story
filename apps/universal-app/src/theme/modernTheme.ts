@@ -6,11 +6,16 @@ export const modernColors = {
   page: theme.colors.background.primary,
   pageMuted: theme.colors.background.secondary,
   surface: theme.colors.background.primary,
-  surfaceMuted: hexAlpha(theme.colors.primary[50], 0.52),
-  border: hexAlpha(theme.colors.primary[200], 0.58),
-  borderStrong: hexAlpha(theme.colors.primary[300], 0.72),
-  accentSoft: hexAlpha(theme.colors.primary[100], 0.7),
-  accentWash: hexAlpha(theme.colors.primary[50], 0.84),
+  surfaceMuted: hexAlpha(theme.colors.primary[50], 0.34),
+  surfaceRaised: hexAlpha('#FFFFFF', 0.96),
+  border: hexAlpha(theme.colors.primary[200], 0.34),
+  borderStrong: hexAlpha(theme.colors.primary[300], 0.48),
+  accentSoft: hexAlpha(theme.colors.primary[100], 0.5),
+  accentWash: hexAlpha(theme.colors.primary[50], 0.68),
+  accentWarm: '#FF8A5B',
+  accentWarmSoft: '#FFF0E8',
+  accentMint: '#7BC8B2',
+  accentMintSoft: '#EAF8F4',
 };
 
 export const modernGradients = {
@@ -29,7 +34,7 @@ export const modernShadows = {
     },
     android: { elevation: 3 },
     web: {
-      boxShadow: `0 18px 48px -34px ${hexAlpha(theme.colors.primary[900], 0.3)}`,
+      boxShadow: `0 22px 56px -36px ${hexAlpha(theme.colors.primary[900], 0.22)}`,
     } as unknown as ViewStyle,
     default: {},
   }) as ViewStyle,
@@ -42,7 +47,7 @@ export const modernShadows = {
     },
     android: { elevation: 5 },
     web: {
-      boxShadow: `0 24px 64px -34px ${hexAlpha(theme.colors.primary[900], 0.36)}`,
+      boxShadow: `0 28px 80px -38px ${hexAlpha(theme.colors.primary[900], 0.28)}`,
     } as unknown as ViewStyle,
     default: {},
   }) as ViewStyle,
@@ -55,7 +60,7 @@ export const modernShadows = {
     },
     android: { elevation: 2 },
     web: {
-      boxShadow: `0 10px 30px -24px ${hexAlpha(theme.colors.primary[900], 0.24)}`,
+      boxShadow: `0 14px 34px -26px ${hexAlpha(theme.colors.primary[900], 0.16)}`,
     } as unknown as ViewStyle,
     default: {},
   }) as ViewStyle,

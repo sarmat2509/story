@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useLayoutEffect } from 'react';
+import React, { useEffect, useMemo, useState, useLayoutEffect } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -41,6 +41,7 @@ import {
 } from '@wondertales/shared';
 
 type ChildDetailRoute = RouteProp<MainDrawerParamList, 'ChildDetail'>;
+type ChildDetailTab = 'profile' | 'childProfile' | 'story' | 'access' | 'data';
 
 function mapChildToInitialData(child: Record<string, unknown>): ChildFormInitialData {
   const birthDate = child.birthDate ?? child.birthdate;
@@ -85,13 +86,18 @@ function getFiniteLimit(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
+const HEADER_AVATAR_HEIGHT = 72;
+const HEADER_AVATAR_MIN_WIDTH = 44;
+const HEADER_AVATAR_MAX_WIDTH = 104;
+
 export default function ChildDetailScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
   const route = useRoute<ChildDetailRoute>();
   const { isMobile } = useResponsive();
-  const [activeTab, setActiveTab] = useState<'profile' | 'access'>('profile');
+  const [activeTab, setActiveTab] = useState<ChildDetailTab>('profile');
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [childAvatarAspectRatio, setChildAvatarAspectRatio] = useState<number | null>(null);
   const { data, isLoading } = useChildren();
   const { data: themesData } = useStoryThemes();
   const { data: characters = [] } = useCharacters();
@@ -106,6 +112,18 @@ export default function ChildDetailScreen() {
     () => (child ? mapChildToInitialData(child as unknown as Record<string, unknown>) : undefined),
     [child]
   );
+  const childAvatarUrl = useMemo(() => {
+    if (!child) return null;
+    const record = child as unknown as Record<string, unknown>;
+    const turnaroundSheet = (record.turnaroundSheet ?? record.turnaroundsheet) as
+      | { url: string; frontUrl?: string }
+      | undefined;
+    const referencePhotos = (record.referencePhotos ?? record.referencephotos) as
+      | { url: string }[]
+      | undefined;
+
+    return turnaroundSheet?.frontUrl || turnaroundSheet?.url || referencePhotos?.[0]?.url || null;
+  }, [child]);
   const [childDataDeletionRequestVisible, setChildDataDeletionRequestVisible] = useState(false);
 
   useLayoutEffect(() => {
@@ -113,6 +131,33 @@ export default function ChildDetailScreen() {
       headerRight: () => <FeedbackHeaderButton onPress={() => setShowFeedbackModal(true)} />,
     });
   }, [navigation]);
+
+  useEffect(() => {
+    if (!childAvatarUrl) {
+      setChildAvatarAspectRatio(null);
+      return;
+    }
+
+    let isCancelled = false;
+    const resolvedAvatarUrl = formatAssetUrl(childAvatarUrl) ?? childAvatarUrl;
+
+    Image.getSize(
+      resolvedAvatarUrl,
+      (width, height) => {
+        if (isCancelled || !width || !height) return;
+        setChildAvatarAspectRatio(width / height);
+      },
+      () => {
+        if (!isCancelled) {
+          setChildAvatarAspectRatio(null);
+        }
+      }
+    );
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [childAvatarUrl]);
 
   const labels = {
     title: t('children_screen.child_mode_title'),
@@ -273,11 +318,6 @@ export default function ChildDetailScreen() {
       | 'instant'
       | 'artisan'
       | undefined) ?? 'instant';
-  const childAvatarUrl =
-    childCardData.turnaroundSheet?.frontUrl ||
-    childCardData.turnaroundSheet?.url ||
-    childCardData.referencePhotos?.[0]?.url ||
-    null;
   const childModeReadyToStart =
     childCardData.childModeEnabled === true && childCardData.childModePasscodeConfigured === true;
   const childModeNeedsPassword =
@@ -342,12 +382,64 @@ export default function ChildDetailScreen() {
     });
   };
 
+  const headerAvatarWidth = childAvatarAspectRatio
+    ? Math.max(
+        HEADER_AVATAR_MIN_WIDTH,
+        Math.min(
+          HEADER_AVATAR_MAX_WIDTH,
+          Math.round(HEADER_AVATAR_HEIGHT * childAvatarAspectRatio)
+        )
+      )
+    : 56;
+  const childModeStartActionLabel = childCardData.childModeEnabled
+    ? !childCardData.childModePasscodeConfigured
+      ? labels.setPasscodeToStart
+      : enterChildMode.isPending && enterChildMode.variables === child.id
+        ? labels.starting
+        : labels.start
+    : labels.enableToStart;
+  const childModeStartActionDisabled =
+    childCardData.childModeEnabled !== true ||
+    childCardData.childModePasscodeConfigured !== true ||
+    (enterChildMode.isPending && enterChildMode.variables === child.id);
+  const detailTabs: Array<{
+    key: ChildDetailTab;
+    icon: keyof typeof Ionicons.glyphMap;
+    label: string;
+  }> = [
+    {
+      key: 'profile',
+      icon: 'person-circle-outline',
+      label: t('children_screen.child_detail_profile_tab', { defaultValue: 'Profile' }),
+    },
+    {
+      key: 'childProfile',
+      icon: 'sparkles-outline',
+      label: t('children_screen.child_detail_child_profile_tab', { defaultValue: 'Child portrait' }),
+    },
+    {
+      key: 'story',
+      icon: 'book-outline',
+      label: t('children_screen.child_detail_story_tab', { defaultValue: 'Stories' }),
+    },
+    {
+      key: 'access',
+      icon: 'shield-checkmark-outline',
+      label: t('children_screen.child_detail_access_tab', { defaultValue: 'Access' }),
+    },
+    {
+      key: 'data',
+      icon: 'document-text-outline',
+      label: t('children_screen.child_detail_data_tab', { defaultValue: 'Data' }),
+    },
+  ];
+
   return (
     <View style={styles.container}>
       <View style={[styles.pageContent, isMobile && styles.pageContentMobile]}>
         <View style={[styles.headerPanel, isMobile && styles.headerPanelMobile]}>
           <View style={styles.identityRow}>
-            <View style={styles.avatarShell}>
+            <View style={[styles.avatarShell, { width: headerAvatarWidth }]}>
               {childAvatarUrl ? (
                 <Image
                   source={{ uri: formatAssetUrl(childAvatarUrl) ?? childAvatarUrl }}
@@ -371,175 +463,83 @@ export default function ChildDetailScreen() {
               </Text>
             </View>
           </View>
-          <View
-            style={[
-              styles.statusPill,
-              childModeReadyToStart
-                ? styles.statusPillEnabled
-                : childModeNeedsPassword
-                  ? styles.statusPillWarning
-                  : styles.statusPillDisabled,
-            ]}
-          >
-            <Ionicons
-              name={
-                childModeReadyToStart
-                  ? 'shield-checkmark'
-                  : childModeNeedsPassword
-                    ? 'key-outline'
-                    : 'shield-outline'
-              }
-              size={16}
-              color={
-                childModeReadyToStart
-                  ? theme.colors.status.success
-                  : childModeNeedsPassword
-                    ? theme.colors.interactive.primary
-                    : theme.colors.text.tertiary
-              }
-            />
-            <Text
+          <View style={[styles.headerActions, isMobile && styles.headerActionsMobile]}>
+            <View
               style={[
-                styles.statusPillText,
-                childModeReadyToStart && styles.statusPillTextEnabled,
-                childModeNeedsPassword && styles.statusPillTextWarning,
+                styles.statusPill,
+                childModeReadyToStart
+                  ? styles.statusPillEnabled
+                  : childModeNeedsPassword
+                    ? styles.statusPillWarning
+                    : styles.statusPillDisabled,
               ]}
             >
-              {childModeHeaderStatus}
-            </Text>
+              <Ionicons
+                name={
+                  childModeReadyToStart
+                    ? 'shield-checkmark'
+                    : childModeNeedsPassword
+                      ? 'key-outline'
+                      : 'shield-outline'
+                }
+                size={16}
+                color={
+                  childModeReadyToStart
+                    ? theme.colors.status.success
+                    : childModeNeedsPassword
+                      ? theme.colors.interactive.primary
+                      : theme.colors.text.tertiary
+                }
+              />
+              <Text
+                style={[
+                  styles.statusPillText,
+                  childModeReadyToStart && styles.statusPillTextEnabled,
+                  childModeNeedsPassword && styles.statusPillTextWarning,
+                ]}
+              >
+                {childModeHeaderStatus}
+              </Text>
+            </View>
+            <AppButton
+              label={childModeStartActionLabel}
+              disabled={childModeStartActionDisabled}
+              loading={enterChildMode.isPending && enterChildMode.variables === child.id}
+              onPress={() => enterChildMode.mutate(child.id)}
+              size="md"
+              leading={
+                <Ionicons name="play-circle-outline" size={17} color={theme.colors.text.inverse} />
+              }
+              style={[styles.headerStartAction, isMobile && styles.headerStartActionMobile]}
+            />
           </View>
         </View>
 
         <View style={styles.tabBar}>
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'profile' && styles.tabButtonActive]}
-            onPress={() => setActiveTab('profile')}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={t('children_screen.child_detail_profile_tab', {
-              defaultValue: 'Profile',
-            })}
-            focusable
-          >
-            <Ionicons
-              name="person-circle-outline"
-              size={18}
-              color={
-                activeTab === 'profile' ? theme.colors.text.inverse : theme.colors.text.secondary
-              }
-            />
-            <Text style={[styles.tabText, activeTab === 'profile' && styles.tabTextActive]}>
-              {t('children_screen.child_detail_profile_tab', { defaultValue: 'Profile' })}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'access' && styles.tabButtonActive]}
-            onPress={() => setActiveTab('access')}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={t('children_screen.child_detail_access_tab', {
-              defaultValue: 'Access',
-            })}
-            focusable
-          >
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={18}
-              color={
-                activeTab === 'access' ? theme.colors.text.inverse : theme.colors.text.secondary
-              }
-            />
-            <Text style={[styles.tabText, activeTab === 'access' && styles.tabTextActive]}>
-              {t('children_screen.child_detail_access_tab', { defaultValue: 'Access' })}
-            </Text>
-          </TouchableOpacity>
+          {detailTabs.map((tab) => {
+            const selected = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.tabButton, selected && styles.tabButtonActive]}
+                onPress={() => setActiveTab(tab.key)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={tab.label}
+                focusable
+              >
+                <Ionicons
+                  name={tab.icon}
+                  size={18}
+                  color={selected ? theme.colors.text.inverse : theme.colors.text.secondary}
+                />
+                <Text style={[styles.tabText, selected && styles.tabTextActive]}>{tab.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        {activeTab === 'profile' ? (
-          <ScrollView
-            contentContainerStyle={styles.profileContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.profilePanel}>
-              <View style={styles.storySetupPanel}>
-                <View style={styles.storySetupCopy}>
-                  <Text style={styles.storySetupTitle}>{t('children_screen.story_setup_title')}</Text>
-                  <Text style={styles.storySetupText}>{t('children_screen.story_setup_body')}</Text>
-                </View>
-                <View style={[styles.storyModeRow, isMobile && styles.storyModeRowMobile]}>
-                  {(['instant', 'artisan'] as const).map((mode) => {
-                    const selected = storyCreationMode === mode;
-                    return (
-                      <TouchableOpacity
-                        key={mode}
-                        style={[styles.storyModeButton, selected && styles.storyModeButtonSelected]}
-                        activeOpacity={0.8}
-                        disabled={updateChild.isPending}
-                        onPress={() =>
-                          updateChild.mutate({ id: child.id, data: { storyCreationMode: mode } })
-                        }
-                      >
-                        <Ionicons
-                          name={mode === 'instant' ? 'flash-outline' : 'color-palette-outline'}
-                          size={18}
-                          color={selected ? theme.colors.text.inverse : theme.colors.text.secondary}
-                        />
-                        <View style={styles.storyModeTextWrap}>
-                          <Text
-                            style={[
-                              styles.storyModeTitle,
-                              selected && styles.storyModeTitleSelected,
-                            ]}
-                          >
-                            {mode === 'instant'
-                              ? t('mode_selection.instant_mode')
-                              : t('mode_selection.artisan_mode')}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.storyModeDescription,
-                              selected && styles.storyModeDescriptionSelected,
-                            ]}
-                          >
-                            {mode === 'instant'
-                              ? t('mode_selection.instant_description')
-                              : t('mode_selection.artisan_description')}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-              <ChildFormContent
-                childId={child.id}
-                initialData={childInitialData}
-                onSuccess={() => undefined}
-                variant="inline"
-              />
-              <View style={styles.privacyPanel}>
-                <View style={styles.privacyCopy}>
-                  <Text style={styles.privacyTitle}>
-                    {t('children_screen.child_data_deletion_request_button')}
-                  </Text>
-                  <Text style={styles.privacyText}>
-                    {t('children_screen.child_data_deletion_request_body')}
-                  </Text>
-                </View>
-                <AppButton
-                  label={t('children_screen.child_data_deletion_request_button')}
-                  onPress={() => setChildDataDeletionRequestVisible(true)}
-                  variant="secondary"
-                  size="md"
-                  leading={
-                    <Ionicons name="shield-outline" size={17} color={theme.colors.interactive.primary} />
-                  }
-                  style={styles.privacyAction}
-                />
-              </View>
-            </View>
-          </ScrollView>
-        ) : (
+        {activeTab === 'access' ? (
           <ScrollView
             contentContainerStyle={styles.accessContent}
             showsVerticalScrollIndicator={false}
@@ -567,12 +567,140 @@ export default function ChildDetailScreen() {
                 onChildModeSettingsChange={handleChildModeSettingsChange}
                 onEnterChildMode={(childId) => enterChildMode.mutate(childId)}
                 onRevokeChildModeSessions={(childId) => revokeChildModeSessions.mutate(childId)}
+                showChildModeStatus={false}
+                showChildModeStartAction={false}
                 isChildModeUpdating={updateChildModeControls.isPending}
                 isEnteringChildMode={
                   enterChildMode.isPending && enterChildMode.variables === child.id
                 }
                 isRevokingChildSessions={revokeChildModeSessions.isPending}
               />
+            </View>
+          </ScrollView>
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.profileContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.profilePanel}>
+              {activeTab === 'profile' && (
+                <ChildFormContent
+                  childId={child.id}
+                  initialData={childInitialData}
+                  onSuccess={() => undefined}
+                  variant="inline"
+                  inlineSection="identity"
+                />
+              )}
+
+              {activeTab === 'childProfile' && (
+                <ChildFormContent
+                  childId={child.id}
+                  initialData={childInitialData}
+                  onSuccess={() => undefined}
+                  variant="inline"
+                  inlineSection="childProfile"
+                />
+              )}
+
+              {activeTab === 'story' && (
+                <>
+                  <View style={styles.storySetupPanel}>
+                    <View style={styles.storySetupCopy}>
+                      <Text style={styles.storySetupTitle}>
+                        {t('children_screen.story_setup_title')}
+                      </Text>
+                      <Text style={styles.storySetupText}>{t('children_screen.story_setup_body')}</Text>
+                    </View>
+                    <View style={[styles.storyModeRow, isMobile && styles.storyModeRowMobile]}>
+                      {(['instant', 'artisan'] as const).map((mode) => {
+                        const selected = storyCreationMode === mode;
+                        return (
+                          <TouchableOpacity
+                            key={mode}
+                            style={[
+                              styles.storyModeButton,
+                              selected && styles.storyModeButtonSelected,
+                            ]}
+                            activeOpacity={0.8}
+                            disabled={updateChild.isPending}
+                            onPress={() =>
+                              updateChild.mutate({
+                                id: child.id,
+                                data: { storyCreationMode: mode },
+                              })
+                            }
+                          >
+                            <Ionicons
+                              name={mode === 'instant' ? 'flash-outline' : 'color-palette-outline'}
+                              size={18}
+                              color={
+                                selected ? theme.colors.text.inverse : theme.colors.text.secondary
+                              }
+                            />
+                            <View style={styles.storyModeTextWrap}>
+                              <Text
+                                style={[
+                                  styles.storyModeTitle,
+                                  selected && styles.storyModeTitleSelected,
+                                ]}
+                              >
+                                {mode === 'instant'
+                                  ? t('mode_selection.instant_mode')
+                                  : t('mode_selection.artisan_mode')}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.storyModeDescription,
+                                  selected && styles.storyModeDescriptionSelected,
+                                ]}
+                              >
+                                {mode === 'instant'
+                                  ? t('mode_selection.instant_description')
+                                  : t('mode_selection.artisan_description')}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                  <ChildFormContent
+                    childId={child.id}
+                    initialData={childInitialData}
+                    onSuccess={() => undefined}
+                    variant="inline"
+                    inlineSection="storyAuthor"
+                  />
+                </>
+              )}
+
+              {activeTab === 'data' && (
+                <View style={styles.privacyPanel}>
+                  <View style={styles.privacyCopy}>
+                    <Text style={styles.privacyTitle}>
+                      {t('children_screen.child_data_deletion_request_button')}
+                    </Text>
+                    <Text style={styles.privacyText}>
+                      {t('children_screen.child_data_deletion_request_body')}
+                    </Text>
+                  </View>
+                  <AppButton
+                    label={t('children_screen.child_data_deletion_request_button')}
+                    onPress={() => setChildDataDeletionRequestVisible(true)}
+                    variant="secondary"
+                    size="md"
+                    leading={
+                      <Ionicons
+                        name="shield-outline"
+                        size={17}
+                        color={theme.colors.interactive.primary}
+                      />
+                    }
+                    style={styles.privacyAction}
+                  />
+                </View>
+              )}
             </View>
           </ScrollView>
         )}
@@ -660,8 +788,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatarShell: {
-    width: 56,
-    height: 56,
+    height: HEADER_AVATAR_HEIGHT,
     borderRadius: theme.borders.radius.lg,
     backgroundColor: theme.colors.neutral[50],
     borderWidth: theme.borders.width.thin,
@@ -687,6 +814,24 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     fontSize: theme.typography.fontSize.sm,
     marginTop: theme.spacing[1],
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: theme.spacing[3],
+  },
+  headerActionsMobile: {
+    width: '100%',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+  },
+  headerStartAction: {
+    minWidth: 220,
+  },
+  headerStartActionMobile: {
+    flex: 1,
+    minWidth: 220,
   },
   statusPill: {
     flexDirection: 'row',
@@ -723,6 +868,7 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: theme.spacing[2],
     marginBottom: theme.spacing[3],
   },
@@ -845,10 +991,8 @@ const styles = StyleSheet.create({
   privacyPanel: {
     gap: theme.spacing[4],
     paddingHorizontal: theme.spacing[6],
-    paddingTop: theme.spacing[5],
+    paddingTop: theme.spacing[3],
     paddingBottom: theme.spacing[6],
-    borderTopWidth: theme.borders.width.thin,
-    borderTopColor: theme.colors.border.light,
     backgroundColor: theme.colors.background.primary,
   },
   privacyCopy: {

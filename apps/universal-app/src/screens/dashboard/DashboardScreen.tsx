@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   Platform,
+  Pressable,
+  Image,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
@@ -27,9 +29,29 @@ import { AppButton } from '@/components/AppButton';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { theme } from '@/theme';
 import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
+import { formatAssetUrl } from '@/utils/assetUrl';
+
+type ExtendedPressableState = {
+  pressed: boolean;
+  hovered?: boolean;
+};
 
 /** Page background — follows active palette (not hardcoded lavender). */
 const DASHBOARD_BG_GRADIENT = modernGradients.page;
+
+function getStoryCover(story: {
+  coverThumbnailUrl?: string | null;
+  coverImageUrl?: string | null;
+  scenes?: Array<{ image?: { url?: string } }>;
+}) {
+  return formatAssetUrl(
+    story.coverThumbnailUrl ||
+      story.coverImageUrl ||
+      story.scenes?.find((scene) => scene.image?.url)?.image?.url ||
+      null
+  );
+}
+
 export default function DashboardScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList>>();
@@ -69,13 +91,16 @@ export default function DashboardScreen() {
   const canCreateMoreChildren = childrenData?.canCreateMore ?? true;
   const storiesCount = Number(storiesData?.pagination?.total) || 0;
   const childrenCount = children.length;
+  const featuredStory = stories[0];
+  const featuredCover = featuredStory ? getStoryCover(featuredStory) : null;
+  const shelfStories = stories.slice(featuredStory ? 1 : 0, featuredStory ? 7 : 6);
   const isLoading = storiesLoading || (!isChildSession && childrenLoading);
   const hasError = storiesError || (!isChildSession && childrenError);
   const greetingName = isChildSession ? activeChild?.name : user?.displayName;
 
   // Responsive columns: 1 on mobile, 2 on tablet, 3 on desktop
   const { width } = useWindowDimensions();
-  const isCompact = width < 760;
+  const isWideHero = width >= 1120;
   const numColumns = width < 640 ? 1 : width < 1024 ? 2 : 3;
   const gridCellStyle =
     numColumns === 1
@@ -123,27 +148,64 @@ export default function DashboardScreen() {
       <LinearGradient colors={DASHBOARD_BG_GRADIENT} style={styles.gradientBackground}>
         <ScrollView contentContainerStyle={styles.content}>
           <AnimatedSection delay={0} trigger={enterKey}>
-            <View style={[styles.heroPanel, isCompact && styles.heroPanelCompact]}>
-              <View style={styles.heroCopy}>
-                <Text style={styles.eyebrow}>{t('navigation.dashboard')}</Text>
-                <Text style={styles.greeting}>
-                  {t('dashboard.welcome_back', { name: greetingName || 'User' })}
-                </Text>
-                <Text style={styles.subtext}>{t('dashboard.tagline')}</Text>
-                <View style={styles.statPills}>
-                  <View style={styles.statPill}>
-                    <Text style={styles.statPillValue}>{storiesCount}</Text>
-                    <Text style={styles.statPillLabel}>{t('dashboard.stats.stories')}</Text>
-                  </View>
-                  {!isChildSession ? (
-                    <View style={styles.statPill}>
-                      <Text style={styles.statPillValue}>{childrenCount}</Text>
-                      <Text style={styles.statPillLabel}>{t('dashboard.stats.children')}</Text>
+            <View style={[styles.topSection, !isWideHero && styles.topSectionCompact]}>
+              <View style={styles.heroColumn}>
+                <View style={styles.heroBadgeRow}>
+                  <Text style={styles.eyebrow}>
+                    {t('dashboard.story_corner', { defaultValue: 'Story corner' })}
+                  </Text>
+                  {featuredStory ? (
+                    <View style={styles.liveBadge}>
+                      <View style={styles.liveBadgeDot} />
+                      <Text style={styles.liveBadgeText}>
+                        {t('dashboard.featured_story_badge', { defaultValue: 'Continue reading' })}
+                      </Text>
                     </View>
                   ) : null}
                 </View>
-              </View>
-              <View style={[styles.heroActions, isCompact && styles.heroActionsCompact]}>
+                <Text style={styles.greeting}>
+                  {t('dashboard.welcome_back', { name: greetingName || 'User' })}
+                </Text>
+                <Text style={styles.subtext}>
+                  {featuredStory
+                    ? t('dashboard.hero_context_resume', {
+                        defaultValue:
+                          'Your family shelf is ready. Jump back into the latest story or start a new one while the inspiration is fresh.',
+                      })
+                    : t('dashboard.hero_context_start', {
+                        defaultValue:
+                          'Start a fresh bedtime adventure and build a little library your family will want to come back to.',
+                      })}
+                </Text>
+                <View style={styles.inlineMetrics}>
+                  <View style={styles.inlineMetric}>
+                    <Text style={styles.inlineMetricValue}>{storiesCount}</Text>
+                    <Text style={styles.inlineMetricLabel}>{t('dashboard.stats.stories')}</Text>
+                  </View>
+                  {!isChildSession ? (
+                    <View style={styles.inlineMetric}>
+                      <Text style={styles.inlineMetricValue}>{childrenCount}</Text>
+                      <Text style={styles.inlineMetricLabel}>{t('dashboard.stats.children')}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                {!isChildSession ? (
+                  <Pressable
+                    onPress={() => navigation.navigate('Children')}
+                    style={styles.inlineProfilesAction}
+                  >
+                    <Ionicons
+                      name={canCreateMoreChildren ? 'person-add-outline' : 'people-outline'}
+                      size={18}
+                      color={theme.colors.primary[700]}
+                    />
+                    <Text style={styles.inlineProfilesActionText}>
+                      {canCreateMoreChildren
+                        ? t('dashboard.actions.add_child')
+                        : t('dashboard.actions.view_profiles')}
+                    </Text>
+                  </Pressable>
+                ) : null}
                 <AppButton
                   label={t('dashboard.actions.create_story')}
                   onPress={() => navigation.navigate('Wizard')}
@@ -151,53 +213,126 @@ export default function DashboardScreen() {
                   leading={
                     <Ionicons
                       name="sparkles-outline"
-                      size={22}
+                      size={20}
                       color={theme.colors.text.inverse}
                     />
                   }
                   style={styles.primaryHeroAction}
+                  size="md"
                 />
-                {!isChildSession ? (
-                  <AppButton
-                    label={
-                      canCreateMoreChildren
-                        ? t('dashboard.actions.add_child')
-                        : t('dashboard.actions.view_profiles')
-                    }
-                    onPress={() => navigation.navigate('Children')}
-                    accessibilityLabel={
-                      canCreateMoreChildren
-                        ? t('dashboard.actions.add_child')
-                        : t('dashboard.actions.view_profiles')
-                    }
-                    variant="secondary"
-                    leading={
-                      <Ionicons
-                        name={canCreateMoreChildren ? 'person-add-outline' : 'people-outline'}
-                        size={22}
-                        color={theme.colors.text.primary}
+              </View>
+
+              <View style={styles.featuredColumn}>
+                {featuredStory ? (
+                  <Pressable
+                    onPress={() => navigateToStory(featuredStory.id)}
+                    style={({ hovered, pressed }: ExtendedPressableState) => [
+                      styles.featuredCard,
+                      hovered && Platform.OS === 'web' ? styles.featuredCardHover : null,
+                      pressed ? styles.featuredCardPressed : null,
+                    ]}
+                  >
+                    {featuredCover ? (
+                      <Image
+                        source={{ uri: featuredCover }}
+                        style={styles.featuredCover}
+                        resizeMode="cover"
                       />
-                    }
-                    style={styles.secondaryHeroAction}
-                  />
-                ) : null}
+                    ) : (
+                      <View style={styles.featuredPlaceholder}>
+                        <Ionicons
+                          name="sparkles-outline"
+                          size={28}
+                          color={theme.colors.primary[600]}
+                        />
+                      </View>
+                    )}
+                    <LinearGradient
+                      colors={['rgba(13, 10, 29, 0.05)', 'rgba(13, 10, 29, 0.72)']}
+                      locations={[0.18, 1]}
+                      style={styles.featuredOverlay}
+                    />
+                    <View style={styles.featuredContent}>
+                      <View style={styles.featuredPill}>
+                        <Text style={styles.featuredPillText}>
+                          {t('dashboard.latest_story', { defaultValue: 'Latest story' })}
+                        </Text>
+                      </View>
+                      <Text style={styles.featuredTitle} numberOfLines={2}>
+                        {featuredStory.title}
+                      </Text>
+                      <Text style={styles.featuredDescription} numberOfLines={2}>
+                        {t('dashboard.featured_story_description', {
+                          defaultValue:
+                            'Open the latest chapter and keep the evening story ritual moving.',
+                        })}
+                      </Text>
+                      <View style={styles.featuredActionRow}>
+                        <View style={styles.featuredAction}>
+                          <Text style={styles.featuredActionText}>
+                            {t('dashboard.continue_reading', { defaultValue: 'Continue reading' })}
+                          </Text>
+                          <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                        </View>
+                      </View>
+                    </View>
+                  </Pressable>
+                ) : (
+                  <View style={styles.featuredEmptyCard}>
+                    <View style={styles.featuredEmptyBadge}>
+                      <Ionicons
+                        name="book-outline"
+                        size={18}
+                        color={modernColors.accentWarm}
+                      />
+                      <Text style={styles.featuredEmptyBadgeText}>
+                        {t('dashboard.first_story_badge', { defaultValue: 'First story' })}
+                      </Text>
+                    </View>
+                    <Text style={styles.featuredEmptyTitle}>
+                      {t('dashboard.first_story_title', { defaultValue: 'Nothing on the shelf yet' })}
+                    </Text>
+                    <Text style={styles.featuredEmptyDescription}>
+                      {t('dashboard.first_story_description', {
+                        defaultValue:
+                          'Create your first story and this space will turn into a family reading shortcut.',
+                      })}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           </AnimatedSection>
 
-          {/* Recent Stories */}
-          {stories.length > 0 && (
+          {shelfStories.length > 0 && (
             <AnimatedSection delay={160} trigger={enterKey}>
-              <View style={styles.recentSection}>
-                <Text style={styles.sectionTitle}>{t('dashboard.recent_stories')}</Text>
+              <View style={styles.shelfSection}>
+                <View style={styles.shelfHeader}>
+                  <View style={styles.shelfHeaderCopy}>
+                    <Text style={styles.sectionTitle}>{t('dashboard.recent_stories')}</Text>
+                    <Text style={styles.sectionHint}>
+                      {t('dashboard.recent_stories_hint', {
+                        defaultValue: 'A curated shelf of the stories your family opened most recently.',
+                      })}
+                    </Text>
+                  </View>
+                  <AppButton
+                    label={t('dashboard.actions.view_library')}
+                    onPress={() => navigation.navigate('Library')}
+                    accessibilityLabel={t('dashboard.actions.view_library')}
+                    variant="secondary"
+                    size="md"
+                    style={styles.libraryAction}
+                  />
+                </View>
                 <View
                   style={[
-                    styles.recentStoriesGrid,
+                    styles.shelfGrid,
                     Platform.OS === 'web' &&
                       ({ gridTemplateColumns: `repeat(${numColumns}, 1fr)` } as any),
                   ]}
                 >
-                  {stories.slice(0, 6).map((item) => (
+                  {shelfStories.map((item) => (
                     <View key={item.id} style={[styles.gridCell, gridCellStyle]}>
                       <StoryCard
                         story={item}
@@ -211,18 +346,18 @@ export default function DashboardScreen() {
             </AnimatedSection>
           )}
 
-          {/* View Library Button */}
-          <AnimatedSection delay={260} trigger={enterKey}>
-            <AppButton
-              label={t('dashboard.actions.view_library')}
-              onPress={() => navigation.navigate('Library')}
-              accessibilityLabel={t('dashboard.actions.view_library')}
-              leading={
-                <Ionicons name="library-outline" size={22} color={theme.colors.text.inverse} />
-              }
-              style={styles.dashboardActionSpacingBelow}
-            />
-          </AnimatedSection>
+          {!featuredStory ? (
+            <AnimatedSection delay={220} trigger={enterKey}>
+              <AppButton
+                label={t('dashboard.actions.view_library')}
+                onPress={() => navigation.navigate('Library')}
+                accessibilityLabel={t('dashboard.actions.view_library')}
+                variant="secondary"
+                size="md"
+                style={styles.emptyLibraryAction}
+              />
+            </AnimatedSection>
+          ) : null}
         </ScrollView>
       </LinearGradient>
       <FeedbackModal
@@ -239,14 +374,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: theme.spacing[6],
+    padding: theme.spacing[8],
     minHeight: '100%',
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing[6],
+    padding: theme.spacing[8],
   },
   loadingText: {
     marginTop: theme.spacing[4],
@@ -268,36 +403,52 @@ const styles = StyleSheet.create({
   retryAction: {
     minWidth: 200,
   },
-  heroPanel: {
+  topSection: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    justifyContent: 'space-between',
-    gap: theme.spacing[6],
-    padding: theme.spacing[6],
-    marginBottom: theme.spacing[8],
-    borderRadius: theme.borders.radius.lg,
-    borderWidth: theme.borders.width.thin,
-    borderColor: modernColors.border,
-    backgroundColor: modernColors.surface,
-    ...modernShadows.raised,
+    gap: theme.spacing[8],
+    marginBottom: theme.spacing[10],
   },
-  heroPanelCompact: {
+  topSectionCompact: {
     flexDirection: 'column',
-    gap: theme.spacing[5],
+    gap: theme.spacing[6],
   },
-  heroCopy: {
+  heroColumn: {
     flex: 1,
     minWidth: 0,
-    justifyContent: 'center',
+    padding: theme.spacing[8],
+    borderRadius: 32,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surfaceRaised,
+    ...modernShadows.raised,
   },
-  heroActions: {
-    width: 360,
-    maxWidth: '100%',
-    justifyContent: 'center',
+  heroBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: theme.spacing[3],
+    marginBottom: theme.spacing[5],
   },
-  heroActionsCompact: {
-    width: '100%',
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: modernColors.accentWarmSoft,
+  },
+  liveBadgeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: modernColors.accentWarm,
+  },
+  liveBadgeText: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: '#AE4B24',
   },
   eyebrow: {
     alignSelf: 'flex-start',
@@ -308,10 +459,9 @@ const styles = StyleSheet.create({
     color: theme.colors.primary[700],
     fontSize: theme.typography.fontSize.xs,
     fontWeight: theme.typography.fontWeight.semibold,
-    marginBottom: theme.spacing[3],
   },
   greeting: {
-    fontSize: theme.typography.fontSize['3xl'],
+    fontSize: theme.typography.fontSize['4xl'],
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[2],
@@ -319,57 +469,213 @@ const styles = StyleSheet.create({
   subtext: {
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.secondary,
+    lineHeight: 28,
+    maxWidth: 520,
   },
-  statPills: {
+  inlineMetrics: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: theme.spacing[4],
-    marginTop: theme.spacing[5],
+    gap: theme.spacing[5],
+    marginTop: theme.spacing[6],
   },
-  statPill: {
-    minWidth: 104,
-    paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[4],
-    borderRadius: theme.borders.radius.lg,
-    borderWidth: theme.borders.width.thin,
-    borderColor: modernColors.border,
-    backgroundColor: modernColors.surfaceMuted,
+  inlineMetric: {
+    minWidth: 96,
   },
-  statPillValue: {
-    fontSize: theme.typography.fontSize['2xl'],
+  inlineMetricValue: {
+    fontSize: theme.typography.fontSize['3xl'],
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.primary[700],
   },
-  statPillLabel: {
-    marginTop: 2,
+  inlineMetricLabel: {
+    marginTop: theme.spacing[1],
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
     fontWeight: theme.typography.fontWeight.medium,
   },
+  inlineProfilesAction: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    marginTop: theme.spacing[4],
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: modernColors.surfaceMuted,
+  },
+  inlineProfilesActionText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.primary[700],
+  },
   primaryHeroAction: {
-    alignSelf: 'stretch',
+    alignSelf: 'flex-start',
+    marginTop: theme.spacing[6],
   },
-  secondaryHeroAction: {
+  featuredColumn: {
+    width: 420,
+    maxWidth: '100%',
     alignSelf: 'stretch',
+    flexShrink: 0,
   },
-  sectionTitle: {
-    fontSize: theme.typography.fontSize.xl,
+  featuredCard: {
+    position: 'relative',
+    flex: 1,
+    minHeight: 360,
+    overflow: 'hidden',
+    borderRadius: 34,
+    backgroundColor: modernColors.surfaceRaised,
+    ...modernShadows.raised,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'transform 180ms ease, box-shadow 180ms ease',
+      } as any,
+      default: {},
+    }),
+  },
+  featuredCardHover: Platform.select({
+    web: {
+      transform: 'translateY(-4px)',
+    } as any,
+    default: {},
+  }),
+  featuredCardPressed: {
+    opacity: 0.96,
+  },
+  featuredCover: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  featuredOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  featuredContent: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: theme.spacing[6],
+  },
+  featuredPill: {
+    alignSelf: 'flex-start',
+    marginBottom: theme.spacing[3],
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  featuredPillText: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: '#FFFFFF',
+  },
+  featuredTitle: {
+    fontSize: theme.typography.fontSize['2xl'],
+    lineHeight: 36,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: '#FFFFFF',
+  },
+  featuredDescription: {
+    marginTop: theme.spacing[2],
+    fontSize: theme.typography.fontSize.base,
+    lineHeight: 24,
+    color: 'rgba(255,255,255,0.88)',
+    maxWidth: 320,
+  },
+  featuredActionRow: {
+    marginTop: theme.spacing[5],
+  },
+  featuredAction: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
+  featuredActionText: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: '#FFFFFF',
+  },
+  featuredPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: modernColors.accentMintSoft,
+  },
+  featuredEmptyCard: {
+    flex: 1,
+    minHeight: 360,
+    padding: theme.spacing[8],
+    borderRadius: 34,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surfaceRaised,
+    justifyContent: 'center',
+    ...modernShadows.card,
+  },
+  featuredEmptyBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    marginBottom: theme.spacing[5],
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: modernColors.accentWarmSoft,
+  },
+  featuredEmptyBadgeText: {
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: '#AE4B24',
+  },
+  featuredEmptyTitle: {
+    fontSize: theme.typography.fontSize['2xl'],
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
-    marginBottom: theme.spacing[4],
+    marginBottom: theme.spacing[3],
   },
-  recentSection: {
-    marginBottom: theme.spacing[6],
+  featuredEmptyDescription: {
+    fontSize: theme.typography.fontSize.base,
+    lineHeight: 26,
+    color: theme.colors.text.secondary,
   },
-  recentStoriesGrid: Platform.select({
+  sectionTitle: {
+    fontSize: theme.typography.fontSize['2xl'],
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+  },
+  sectionHint: {
+    marginTop: theme.spacing[2],
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.secondary,
+  },
+  shelfSection: {
+    marginBottom: theme.spacing[8],
+  },
+  shelfHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: theme.spacing[4],
+    marginBottom: theme.spacing[5],
+  },
+  shelfHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  libraryAction: {
+    alignSelf: 'flex-start',
+  },
+  shelfGrid: Platform.select({
     web: {
       display: 'grid' as any,
-      gap: theme.spacing[4],
+      gap: theme.spacing[5],
     },
     default: {
       flexDirection: 'row' as const,
       flexWrap: 'wrap' as const,
-      gap: theme.spacing[4],
+      gap: theme.spacing[5],
     },
   }),
   gridCell: {
@@ -385,7 +691,8 @@ const styles = StyleSheet.create({
   gridCellThird: {
     flexBasis: '30%',
   },
-  dashboardActionSpacingBelow: {
-    marginBottom: theme.spacing[6],
+  emptyLibraryAction: {
+    alignSelf: 'flex-start',
+    marginBottom: theme.spacing[8],
   },
 });

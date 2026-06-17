@@ -4,6 +4,7 @@ import {
   buildPublicLegalPath,
   buildPublicPricingPath,
   buildPublicStoriesPath,
+  buildPublicSupportPath,
   normalizePublicSeoLocale,
   PUBLIC_SEO_LOCALES,
   type PublicSeoLocale,
@@ -30,11 +31,21 @@ export interface PublicFooterLanguageLink {
 const PUBLIC_LANGUAGE_LABELS: Record<PublicSeoLocale, string> = {
   uk: 'Українська',
   en: 'English',
+  ru: 'Русский',
+  es: 'Español',
+  de: 'Deutsch',
+  fr: 'Français',
+  pl: 'Polski',
 };
 
 const PUBLIC_LANGUAGE_CONTROL_LABELS: Record<PublicSeoLocale, string> = {
   uk: 'Мова',
   en: 'Language',
+  ru: 'Язык',
+  es: 'Idioma',
+  de: 'Sprache',
+  fr: 'Langue',
+  pl: 'Język',
 };
 
 function escapeHtml(value: string): string {
@@ -93,13 +104,14 @@ export function renderPublicPageFooter(
   languageLinks?: PublicFooterLanguageLink[]
 ): string {
   const normalizedLocale = normalizePublicSeoLocale(locale);
+  const legalLocale = normalizedLocale === 'uk' ? 'uk' : 'en';
   const links = [
     { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLandingPath(normalizedLocale)), label: 'Home' },
     { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicPricingPath(normalizedLocale)), label: 'Pricing' },
     { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath(normalizedLocale)), label: 'Stories' },
-    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('terms', normalizedLocale)), label: 'Terms' },
-    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', normalizedLocale)), label: 'Privacy' },
-    { href: buildAbsoluteRouteUrl(webAppUrl, '/support'), label: 'Support' },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('terms', legalLocale)), label: 'Terms' },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', legalLocale)), label: 'Privacy' },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicSupportPath(normalizedLocale)), label: 'Support' },
   ];
 
   return `

@@ -63,6 +63,16 @@ interface PasswordResetEmailCopy {
   footer: string;
 }
 
+interface ChildModeRecoveryEmailCopy {
+  subject: string;
+  preview: string;
+  intro: string;
+  cta: string;
+  expires_notice: string;
+  ignore_notice: string;
+  footer: string;
+}
+
 export interface SafeEmailLogContext {
   recipientDomain: string;
   recipientHash: string;
@@ -72,6 +82,7 @@ interface TranslationShape {
   transactional_emails?: {
     welcome?: WelcomeEmailCopy;
     password_reset?: PasswordResetEmailCopy;
+    child_mode_recovery?: ChildModeRecoveryEmailCopy;
   };
 }
 
@@ -95,11 +106,7 @@ export function buildSafeEmailLogContext(email: string): SafeEmailLogContext {
 
   return {
     recipientDomain,
-    recipientHash: crypto
-      .createHash('sha256')
-      .update(normalizedEmail)
-      .digest('hex')
-      .slice(0, 16),
+    recipientHash: crypto.createHash('sha256').update(normalizedEmail).digest('hex').slice(0, 16),
   };
 }
 
@@ -116,10 +123,7 @@ function getResend(): Resend | null {
 
 function normalizeLocale(locale?: string | null): SupportedEmailLocale {
   const normalized = locale?.slice(0, 2).toLowerCase();
-  return (
-    SUPPORTED_EMAIL_LOCALES.find((supportedLocale) => supportedLocale === normalized) ??
-    'en'
-  );
+  return SUPPORTED_EMAIL_LOCALES.find((supportedLocale) => supportedLocale === normalized) ?? 'en';
 }
 
 function getWelcomeEmailCopy(locale: SupportedEmailLocale): WelcomeEmailCopy {
@@ -152,6 +156,25 @@ function getPasswordResetEmailCopy(locale: SupportedEmailLocale): PasswordResetE
   }
 
   throw new Error('Password reset email translations missing');
+}
+
+function getChildModeRecoveryEmailCopy(locale: SupportedEmailLocale): ChildModeRecoveryEmailCopy {
+  const copy = TRANSLATIONS[locale]?.transactional_emails?.child_mode_recovery;
+  const fallbackCopy = TRANSLATIONS.en?.transactional_emails?.child_mode_recovery;
+
+  if (copy) {
+    return copy;
+  }
+
+  if (fallbackCopy) {
+    logger.warn(
+      { locale },
+      'Child Mode recovery email translations missing, falling back to English'
+    );
+    return fallbackCopy;
+  }
+
+  throw new Error('Child Mode recovery email translations missing');
 }
 
 async function sendTransactionalEmail(options: TransactionalEmailOptions): Promise<void> {
@@ -251,6 +274,46 @@ export async function sendPasswordResetEmail(
     logContext: { ...buildSafeEmailLogContext(to), type: 'password-reset', locale },
     successMessage: 'Password reset email sent',
     failureMessage: 'Failed to send password reset email',
+    ...content,
+  });
+}
+
+export async function sendChildModeRecoveryEmail(
+  to: string,
+  recoveryLink: string,
+  preferredLocale?: string | null
+): Promise<void> {
+  const locale = normalizeLocale(preferredLocale);
+  const copy = getChildModeRecoveryEmailCopy(locale);
+
+  const content = renderTransactionalEmail({
+    subject: copy.subject,
+    preview: copy.preview,
+    title: copy.subject,
+    intro: copy.intro,
+    action: {
+      label: copy.cta,
+      url: recoveryLink,
+    },
+    notices: [
+      {
+        text: copy.expires_notice,
+        tone: 'warning',
+      },
+      {
+        text: copy.ignore_notice,
+        tone: 'quiet',
+      },
+    ],
+    footer: copy.footer,
+    supportEmail: config.web.supportEmail,
+  });
+
+  await sendTransactionalEmail({
+    to,
+    logContext: { ...buildSafeEmailLogContext(to), type: 'child-mode-recovery', locale },
+    successMessage: 'Child Mode recovery email sent',
+    failureMessage: 'Failed to send Child Mode recovery email',
     ...content,
   });
 }

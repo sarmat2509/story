@@ -110,6 +110,7 @@ interface Props {
   onSuccess: () => void;
   onCancel?: () => void;
   variant?: 'modal' | 'inline';
+  inlineSection?: 'full' | 'identity' | 'childProfile' | 'storyAuthor';
 }
 
 export function ChildFormContent({
@@ -118,17 +119,26 @@ export function ChildFormContent({
   onSuccess,
   onCancel,
   variant = 'modal',
+  inlineSection = 'full',
 }: Props) {
   const { t, i18n } = useTranslation();
   const { isMobile } = useResponsive();
   const createChild = useCreateChild();
   const updateChild = useUpdateChild();
   const analyzeChild = useAnalyzeChild();
-  const currentPreviewUrl =
-    initialData?.turnaroundSheet?.frontUrl ?? initialData?.turnaroundSheet?.url ?? null;
-
   const [currentStep, setCurrentStep] = useState(1);
   const scrollRef = useRef<ScrollView>(null);
+  const currentPreviewUrl =
+    initialData?.turnaroundSheet?.frontUrl ?? initialData?.turnaroundSheet?.url ?? null;
+  const isInline = variant === 'inline';
+  const activeInlineSection = isInline ? inlineSection : 'full';
+  const isSectionedInline = isInline && activeInlineSection !== 'full';
+  const showInlineHeader = isInline && !isSectionedInline;
+  const showFullStepTwo = activeInlineSection === 'full' && currentStep === 2;
+  const showIdentityFields =
+    activeInlineSection === 'identity' || (activeInlineSection === 'full' && currentStep === 1);
+  const showStoryAuthorFields = activeInlineSection === 'storyAuthor' || showFullStepTwo;
+  const showChildProfileFields = activeInlineSection === 'childProfile' || showFullStepTwo;
 
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState(new Date());
@@ -282,10 +292,12 @@ export function ChildFormContent({
     setErrors({});
   }, [initialData, childId]);
 
-  // Auto-analyze on step 2 entry (create only, when photos exist)
+  // Auto-analyze on the child-profile step (create only, when photos exist)
   const hasAnalyzedRef = React.useRef(false);
   useEffect(() => {
-    if (!childId && currentStep === 2 && !hasAnalyzedRef.current) {
+    const childProfileSectionActive =
+      currentStep === 2 || (isInline && activeInlineSection === 'childProfile');
+    if (!childId && childProfileSectionActive && !hasAnalyzedRef.current) {
       const uploadedPhotos = photos
         .filter((p) => !p.isUploading && isServerAssetUrl(p.url))
         .map((p) => p.url!);
@@ -323,7 +335,16 @@ export function ChildFormContent({
     if (currentStep === 1) {
       hasAnalyzedRef.current = false;
     }
-  }, [childId, currentStep, photos, description, analyzeChild.mutate, i18n.language]);
+  }, [
+    activeInlineSection,
+    childId,
+    currentStep,
+    description,
+    analyzeChild.mutate,
+    i18n.language,
+    isInline,
+    photos,
+  ]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
@@ -474,7 +495,6 @@ export function ChildFormContent({
 
   const showCloseButton = variant === 'modal' && !!onCancel;
   const showCancelInFooter = variant === 'modal' && !!onCancel;
-  const isInline = variant === 'inline';
   const inlineButtonStyle = isInline
     ? isMobile
       ? styles.inlineButtonMobile
@@ -520,7 +540,7 @@ export function ChildFormContent({
         </View>
       )}
 
-      {isInline && (
+      {showInlineHeader && (
         <View style={styles.inlineHeader}>
           <Text style={styles.inlineTitle}>
             {childId ? t('child_form.title_edit') : t('child_form.title_create')}
@@ -540,7 +560,7 @@ export function ChildFormContent({
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {currentStep === 1 && (
+        {showIdentityFields && (
           <>
             <View style={styles.field}>
               <Text style={styles.label}>{t('child_form.name_label')}</Text>
@@ -642,9 +662,9 @@ export function ChildFormContent({
           </>
         )}
 
-        {currentStep === 2 && (
+        {(showStoryAuthorFields || showChildProfileFields) && (
           <>
-            {childId && currentPreviewUrl ? (
+            {showChildProfileFields && childId && currentPreviewUrl ? (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>{t('child_form.current_image') || 'Аватар'}</Text>
                 <View style={[styles.currentImageCard, isInline && styles.currentImageCardInline]}>
@@ -657,228 +677,252 @@ export function ChildFormContent({
               </View>
             ) : null}
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                {t('child_form.author_section_title', { defaultValue: 'Author profile' })}
-              </Text>
-              <View style={styles.field}>
-                <Text style={styles.label}>
-                  {t('child_form.author_pseudonym_label', { defaultValue: 'Pseudonym' })}
+            {showStoryAuthorFields && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>
+                  {t('child_form.author_section_title', { defaultValue: 'Author profile' })}
                 </Text>
-                <TextInput
-                  style={[styles.input, isInline && styles.inputInline]}
-                  value={authorPseudonym}
-                  onChangeText={setAuthorPseudonym}
-                  placeholder={t('child_form.author_pseudonym_placeholder', {
-                    defaultValue: name || 'Story author',
-                  })}
-                  placeholderTextColor={theme.colors.text.disabled}
-                  maxLength={100}
-                />
-              </View>
-              <View style={styles.field}>
-                <Text style={styles.label}>
-                  {t('child_form.author_about_label', { defaultValue: 'About the author' })}
-                </Text>
-                <TextInput
-                  style={[styles.input, isInline && styles.inputInline, styles.multilineInput]}
-                  value={authorAboutMe}
-                  onChangeText={setAuthorAboutMe}
-                  placeholder={t('child_form.author_about_placeholder', {
-                    defaultValue: 'A short public bio for published stories',
-                  })}
-                  placeholderTextColor={theme.colors.text.disabled}
-                  multiline
-                  numberOfLines={3}
-                  maxLength={1000}
-                  textAlignVertical="top"
-                />
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t('child_form.description')}</Text>
-              {photos.some((p) => !p.isUploading && isServerAssetUrl(p.url)) &&
-              analyzeChild.isPending ? (
-                <View style={styles.turnaroundGenerating}>
-                  <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
-                  <Text style={styles.turnaroundGeneratingText}>
-                    {t('child_form.analyzing_photos')}
+                <View style={styles.field}>
+                  <Text style={styles.label}>
+                    {t('child_form.author_pseudonym_label', { defaultValue: 'Pseudonym' })}
                   </Text>
+                  <TextInput
+                    style={[styles.input, isInline && styles.inputInline]}
+                    value={authorPseudonym}
+                    onChangeText={setAuthorPseudonym}
+                    placeholder={t('child_form.author_pseudonym_placeholder', {
+                      defaultValue: name || 'Story author',
+                    })}
+                    placeholderTextColor={theme.colors.text.disabled}
+                    maxLength={100}
+                  />
                 </View>
-              ) : (
-                <TextInput
-                  style={[
-                    styles.input,
-                    isInline && styles.inputInline,
-                    styles.multilineInput,
-                    isInline && styles.descriptionInputInline,
-                  ]}
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder={t('child_form.description_placeholder')}
-                  placeholderTextColor={theme.colors.text.disabled}
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                  editable={
-                    childId ? true : !photos.some((p) => !p.isUploading && isServerAssetUrl(p.url))
-                  }
-                />
-              )}
-              {description && !analyzeChild.isPending ? (
-                <Text style={styles.hint}>{t('child_form.generated_by_ai_hint')}</Text>
-              ) : null}
-              {!photos.some((p) => !p.isUploading && isServerAssetUrl(p.url)) ? (
-                <Text style={styles.hint}>{t('child_form.description_upload_photos_first')}</Text>
-              ) : null}
-            </View>
-
-            <ExpandableCard title={t('child_form.appearance_title')} defaultExpanded={false}>
-              <ChipSelector
-                label={t('character_form.hair_color')}
-                options={HAIR_COLORS}
-                selected={appearance.hairColor || ''}
-                onSelect={(val) => setAppearance({ ...appearance, hairColor: val as HairColor })}
-                translationPrefix="character_form.hair_colors"
-                getTranslation={t}
-              />
-              <ChipSelector
-                label={t('character_form.hair_length')}
-                options={HAIR_LENGTHS}
-                selected={appearance.hairLength || ''}
-                onSelect={(val) => setAppearance({ ...appearance, hairLength: val as HairLength })}
-                translationPrefix="character_form.hair_lengths"
-                getTranslation={t}
-              />
-              <ChipSelector
-                label={t('character_form.hair_style')}
-                options={HAIR_STYLES}
-                selected={appearance.hairStyle || ''}
-                onSelect={(val) => setAppearance({ ...appearance, hairStyle: val as HairStyle })}
-                translationPrefix="character_form.hair_styles"
-                getTranslation={t}
-              />
-              <ChipSelector
-                label={t('character_form.eye_color')}
-                options={EYE_COLORS}
-                selected={appearance.eyeColor || ''}
-                onSelect={(val) => setAppearance({ ...appearance, eyeColor: val as EyeColor })}
-                translationPrefix="character_form.eye_colors"
-                getTranslation={t}
-              />
-              <ChipSelector
-                label={t('character_form.skin_tone')}
-                options={SKIN_TONES}
-                selected={appearance.skinTone || ''}
-                onSelect={(val) => setAppearance({ ...appearance, skinTone: val as SkinTone })}
-                translationPrefix="character_form.skin_tones"
-                getTranslation={t}
-              />
-              <ChipSelector
-                label={t('character_form.distinctive_features')}
-                options={DISTINCTIVE_FEATURES}
-                selected={appearance.distinctiveFeatures}
-                onSelect={(val) =>
-                  setAppearance({ ...appearance, distinctiveFeatures: val as DistinctiveFeature[] })
-                }
-                multiple
-                max={3}
-                translationPrefix="child_form.features"
-                getTranslation={t}
-              />
-            </ExpandableCard>
-
-            <ExpandableCard title={t('child_form.personality_title')} defaultExpanded={false}>
-              <ChipSelector
-                label={t('character_form.personality_traits')}
-                options={PERSONALITY_TRAITS}
-                selected={personality.traits}
-                onSelect={(val) =>
-                  setPersonality({ ...personality, traits: val as PersonalityTrait[] })
-                }
-                multiple
-                max={5}
-                translationPrefix="child_form.traits"
-                getTranslation={t}
-              />
-              <ChipSelector
-                label={t('character_form.favorite_activities')}
-                options={FAVORITE_ACTIVITIES}
-                selected={personality.favoriteActivities}
-                onSelect={(val) =>
-                  setPersonality({ ...personality, favoriteActivities: val as FavoriteActivity[] })
-                }
-                multiple
-                max={5}
-                translationPrefix="child_form.activities"
-                getTranslation={t}
-              />
-            </ExpandableCard>
-
-            <ExpandableCard title={t('child_form.interests_title')} defaultExpanded={false}>
-              <ChipSelector
-                label={t('child_form.interests_title')}
-                options={INTERESTS}
-                selected={interests}
-                onSelect={(val) => setInterests(val as Interest[])}
-                multiple
-                max={7}
-                translationPrefix="child_form.interests"
-                getTranslation={t}
-              />
-            </ExpandableCard>
-
-            <ExpandableCard title={t('child_form.sensitivities_title')} defaultExpanded={false}>
-              <View style={styles.field}>
-                <Text style={styles.label}>{t('child_form.fear_level_label')}</Text>
-                <View style={styles.genderButtons}>
-                  {(['none', 'low', 'medium', 'high'] as const).map((level) => (
-                    <TouchableOpacity
-                      key={level}
-                      style={[
-                        styles.genderButton,
-                        sensitivities.fearLevel === level && styles.genderButtonSelected,
-                      ]}
-                      onPress={() => setSensitivities({ ...sensitivities, fearLevel: level })}
-                    >
-                      <Text
-                        style={[
-                          styles.genderButtonText,
-                          sensitivities.fearLevel === level && styles.genderButtonTextSelected,
-                        ]}
-                      >
-                        {t(`child_form.fear_level_${level}`)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                <View style={styles.field}>
+                  <Text style={styles.label}>
+                    {t('child_form.author_about_label', { defaultValue: 'About the author' })}
+                  </Text>
+                  <TextInput
+                    style={[styles.input, isInline && styles.inputInline, styles.multilineInput]}
+                    value={authorAboutMe}
+                    onChangeText={setAuthorAboutMe}
+                    placeholder={t('child_form.author_about_placeholder', {
+                      defaultValue: 'A short public bio for published stories',
+                    })}
+                    placeholderTextColor={theme.colors.text.disabled}
+                    multiline
+                    numberOfLines={3}
+                    maxLength={1000}
+                    textAlignVertical="top"
+                  />
                 </View>
               </View>
-              <ChipSelector
-                label={t('child_form.common_fears_label')}
-                options={COMMON_FEARS}
-                selected={sensitivities.commonFears}
-                onSelect={(val) =>
-                  setSensitivities({ ...sensitivities, commonFears: val as CommonFear[] })
-                }
-                multiple
-                max={5}
-                translationPrefix="child_form.fears"
-                getTranslation={t}
-              />
-              <ChipSelector
-                label={t('child_form.avoid_topics_label')}
-                options={AVOID_TOPICS}
-                selected={sensitivities.avoidTopics}
-                onSelect={(val) =>
-                  setSensitivities({ ...sensitivities, avoidTopics: val as AvoidTopic[] })
-                }
-                multiple
-                max={5}
-                translationPrefix="child_form.avoid"
-                getTranslation={t}
-              />
-            </ExpandableCard>
+            )}
+
+            {showChildProfileFields && (
+              <>
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>{t('child_form.description')}</Text>
+                  {photos.some((p) => !p.isUploading && isServerAssetUrl(p.url)) &&
+                  analyzeChild.isPending ? (
+                    <View style={styles.turnaroundGenerating}>
+                      <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+                      <Text style={styles.turnaroundGeneratingText}>
+                        {t('child_form.analyzing_photos')}
+                      </Text>
+                    </View>
+                  ) : (
+                    <TextInput
+                      style={[
+                        styles.input,
+                        isInline && styles.inputInline,
+                        styles.multilineInput,
+                        isInline && styles.descriptionInputInline,
+                      ]}
+                      value={description}
+                      onChangeText={setDescription}
+                      placeholder={t('child_form.description_placeholder')}
+                      placeholderTextColor={theme.colors.text.disabled}
+                      multiline
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                      editable={
+                        childId
+                          ? true
+                          : !photos.some((p) => !p.isUploading && isServerAssetUrl(p.url))
+                      }
+                    />
+                  )}
+                  {description && !analyzeChild.isPending ? (
+                    <Text style={styles.hint}>{t('child_form.generated_by_ai_hint')}</Text>
+                  ) : null}
+                  {!photos.some((p) => !p.isUploading && isServerAssetUrl(p.url)) ? (
+                    <Text style={styles.hint}>{t('child_form.description_upload_photos_first')}</Text>
+                  ) : null}
+                </View>
+
+                <ExpandableCard title={t('child_form.appearance_title')} defaultExpanded={false}>
+                  <ChipSelector
+                    label={t('character_form.hair_color')}
+                    options={HAIR_COLORS}
+                    selected={appearance.hairColor || ''}
+                    onSelect={(val) =>
+                      setAppearance({ ...appearance, hairColor: val as HairColor })
+                    }
+                    translationPrefix="character_form.hair_colors"
+                    getTranslation={t}
+                  />
+                  <ChipSelector
+                    label={t('character_form.hair_length')}
+                    options={HAIR_LENGTHS}
+                    selected={appearance.hairLength || ''}
+                    onSelect={(val) =>
+                      setAppearance({ ...appearance, hairLength: val as HairLength })
+                    }
+                    translationPrefix="character_form.hair_lengths"
+                    getTranslation={t}
+                  />
+                  <ChipSelector
+                    label={t('character_form.hair_style')}
+                    options={HAIR_STYLES}
+                    selected={appearance.hairStyle || ''}
+                    onSelect={(val) =>
+                      setAppearance({ ...appearance, hairStyle: val as HairStyle })
+                    }
+                    translationPrefix="character_form.hair_styles"
+                    getTranslation={t}
+                  />
+                  <ChipSelector
+                    label={t('character_form.eye_color')}
+                    options={EYE_COLORS}
+                    selected={appearance.eyeColor || ''}
+                    onSelect={(val) =>
+                      setAppearance({ ...appearance, eyeColor: val as EyeColor })
+                    }
+                    translationPrefix="character_form.eye_colors"
+                    getTranslation={t}
+                  />
+                  <ChipSelector
+                    label={t('character_form.skin_tone')}
+                    options={SKIN_TONES}
+                    selected={appearance.skinTone || ''}
+                    onSelect={(val) =>
+                      setAppearance({ ...appearance, skinTone: val as SkinTone })
+                    }
+                    translationPrefix="character_form.skin_tones"
+                    getTranslation={t}
+                  />
+                  <ChipSelector
+                    label={t('character_form.distinctive_features')}
+                    options={DISTINCTIVE_FEATURES}
+                    selected={appearance.distinctiveFeatures}
+                    onSelect={(val) =>
+                      setAppearance({
+                        ...appearance,
+                        distinctiveFeatures: val as DistinctiveFeature[],
+                      })
+                    }
+                    multiple
+                    max={3}
+                    translationPrefix="child_form.features"
+                    getTranslation={t}
+                  />
+                </ExpandableCard>
+
+                <ExpandableCard title={t('child_form.personality_title')} defaultExpanded={false}>
+                  <ChipSelector
+                    label={t('character_form.personality_traits')}
+                    options={PERSONALITY_TRAITS}
+                    selected={personality.traits}
+                    onSelect={(val) =>
+                      setPersonality({ ...personality, traits: val as PersonalityTrait[] })
+                    }
+                    multiple
+                    max={5}
+                    translationPrefix="child_form.traits"
+                    getTranslation={t}
+                  />
+                  <ChipSelector
+                    label={t('character_form.favorite_activities')}
+                    options={FAVORITE_ACTIVITIES}
+                    selected={personality.favoriteActivities}
+                    onSelect={(val) =>
+                      setPersonality({
+                        ...personality,
+                        favoriteActivities: val as FavoriteActivity[],
+                      })
+                    }
+                    multiple
+                    max={5}
+                    translationPrefix="child_form.activities"
+                    getTranslation={t}
+                  />
+                </ExpandableCard>
+
+                <ExpandableCard title={t('child_form.interests_title')} defaultExpanded={false}>
+                  <ChipSelector
+                    label={t('child_form.interests_title')}
+                    options={INTERESTS}
+                    selected={interests}
+                    onSelect={(val) => setInterests(val as Interest[])}
+                    multiple
+                    max={7}
+                    translationPrefix="child_form.interests"
+                    getTranslation={t}
+                  />
+                </ExpandableCard>
+
+                <ExpandableCard title={t('child_form.sensitivities_title')} defaultExpanded={false}>
+                  <View style={styles.field}>
+                    <Text style={styles.label}>{t('child_form.fear_level_label')}</Text>
+                    <View style={styles.genderButtons}>
+                      {(['none', 'low', 'medium', 'high'] as const).map((level) => (
+                        <TouchableOpacity
+                          key={level}
+                          style={[
+                            styles.genderButton,
+                            sensitivities.fearLevel === level && styles.genderButtonSelected,
+                          ]}
+                          onPress={() => setSensitivities({ ...sensitivities, fearLevel: level })}
+                        >
+                          <Text
+                            style={[
+                              styles.genderButtonText,
+                              sensitivities.fearLevel === level && styles.genderButtonTextSelected,
+                            ]}
+                          >
+                            {t(`child_form.fear_level_${level}`)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                  <ChipSelector
+                    label={t('child_form.common_fears_label')}
+                    options={COMMON_FEARS}
+                    selected={sensitivities.commonFears}
+                    onSelect={(val) =>
+                      setSensitivities({ ...sensitivities, commonFears: val as CommonFear[] })
+                    }
+                    multiple
+                    max={5}
+                    translationPrefix="child_form.fears"
+                    getTranslation={t}
+                  />
+                  <ChipSelector
+                    label={t('child_form.avoid_topics_label')}
+                    options={AVOID_TOPICS}
+                    selected={sensitivities.avoidTopics}
+                    onSelect={(val) =>
+                      setSensitivities({ ...sensitivities, avoidTopics: val as AvoidTopic[] })
+                    }
+                    multiple
+                    max={5}
+                    translationPrefix="child_form.avoid"
+                    getTranslation={t}
+                  />
+                </ExpandableCard>
+              </>
+            )}
 
             {errors.submit && (
               <Text style={[styles.errorText, styles.submitError]}>{errors.submit}</Text>
@@ -890,7 +934,15 @@ export function ChildFormContent({
       <View
         style={[styles.footer, isInline && styles.footerInline, isMobile && styles.footerMobile]}
       >
-        {currentStep === 1 ? (
+        {isSectionedInline ? (
+          <AppButton
+            label={t('child_form.save_button')}
+            onPress={handleSubmit}
+            disabled={updateChild.isPending || !name.trim() || photos.some((p) => p.isUploading)}
+            loading={updateChild.isPending}
+            style={[styles.footerAction, inlineButtonStyle]}
+          />
+        ) : currentStep === 1 ? (
           <>
             {showCancelInFooter && (
               <AppButton
@@ -1138,11 +1190,9 @@ const styles = StyleSheet.create({
   },
   footerInline: {
     justifyContent: 'flex-end',
-    borderTopWidth: theme.borders.width.thin,
-    borderTopColor: theme.colors.border.light,
     backgroundColor: theme.colors.background.primary,
     paddingHorizontal: theme.spacing[6],
-    paddingTop: theme.spacing[5],
+    paddingTop: theme.spacing[2],
     paddingBottom: theme.spacing[6],
   },
   footerMobile: {
@@ -1156,8 +1206,9 @@ const styles = StyleSheet.create({
   },
   inlineButton: {
     flex: 0,
-    width: 220,
-    maxWidth: 220,
+    width: 288,
+    minWidth: 288,
+    maxWidth: 288,
     alignSelf: 'center',
   },
   inlineButtonMobile: {

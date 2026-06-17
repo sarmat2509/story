@@ -51,14 +51,21 @@ export function PublishedStoryCard({ story, onPress, variant, cardWidth }: Props
             <Text style={styles.gridTitle} numberOfLines={2}>
               {story.title}
             </Text>
-            <Text style={styles.gridAuthor} numberOfLines={1}>
-              {story.authorDisplayName || 'Anonymous'}
-            </Text>
-            {story.rating && story.rating.count > 0 && (
-              <Text style={styles.gridRating}>
-                {emojiForAvg(story.rating.avg)} {story.rating.avg.toFixed(1)} ({story.rating.count})
+            <View style={styles.gridMetaBlock}>
+              <Text style={styles.gridAuthor} numberOfLines={1}>
+                {story.authorDisplayName || 'Anonymous'}
               </Text>
-            )}
+              <Text
+                style={[
+                  styles.gridRating,
+                  !(story.rating && story.rating.count > 0) && styles.gridRatingPlaceholder,
+                ]}
+              >
+                {story.rating && story.rating.count > 0
+                  ? `${emojiForAvg(story.rating.avg)} ${story.rating.avg.toFixed(1)} (${story.rating.count})`
+                  : '00.0 (0)'}
+              </Text>
+            </View>
           </View>
         </TouchableOpacity>
         {hasAudio && (
@@ -110,12 +117,15 @@ export function PublishedStoryCard({ story, onPress, variant, cardWidth }: Props
 const styles = StyleSheet.create({
   gridCard: {
     backgroundColor: theme.colors.background.secondary,
-    borderRadius: theme.borders.radius.lg,
+    borderRadius: theme.borders.radius.xl,
     overflow: 'hidden',
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
+    minHeight: 0,
   },
-  gridCardTouchable: {},
+  gridCardTouchable: {
+    height: '100%',
+  },
   gridThumbnail: {
     aspectRatio: 16 / 9,
     width: '100%',
@@ -127,22 +137,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   gridContent: {
-    padding: theme.spacing[3],
+    padding: theme.spacing[4],
+    minHeight: 132,
+    height: 132,
+    justifyContent: 'space-between',
   },
   gridTitle: {
     fontSize: theme.typography.fontSize.base,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
     marginBottom: theme.spacing[1],
+    lineHeight: 28,
+    minHeight: 56,
+  },
+  gridMetaBlock: {
+    minHeight: 44,
+    justifyContent: 'space-between',
   },
   gridAuthor: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
+    lineHeight: 20,
+    minHeight: 20,
   },
   gridRating: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
     marginTop: theme.spacing[1],
+    lineHeight: 20,
+    minHeight: 20,
+  },
+  gridRatingPlaceholder: {
+    opacity: 0,
   },
   audioBadge: {
     position: 'absolute',
@@ -154,7 +180,7 @@ const styles = StyleSheet.create({
   },
   listCard: {
     marginBottom: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
+    borderRadius: theme.borders.radius.xl,
     backgroundColor: theme.colors.background.secondary,
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.light,
@@ -177,7 +203,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     flex: 1,
-    padding: theme.spacing[4],
+    padding: theme.spacing[5],
   },
   listTitle: {
     fontSize: theme.typography.fontSize.lg,

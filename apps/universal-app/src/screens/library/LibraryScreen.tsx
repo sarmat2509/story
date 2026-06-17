@@ -421,27 +421,27 @@ const styles = StyleSheet.create({
     backgroundColor: modernColors.page,
   },
   grid: {
-    padding: theme.spacing[4],
+    padding: theme.spacing[6],
   },
   gridContainer: Platform.select({
     web: {
       display: 'grid' as any,
-      gap: theme.spacing[4],
+      gap: theme.spacing[6],
     },
     default: {
       flexDirection: 'row' as const,
       flexWrap: 'wrap' as const,
-      gap: theme.spacing[4],
+      gap: theme.spacing[6],
     },
   }),
   list: {
-    padding: theme.spacing[4],
+    padding: theme.spacing[6],
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing[6],
+    padding: theme.spacing[8],
   },
   loadingText: {
     marginTop: theme.spacing[4],

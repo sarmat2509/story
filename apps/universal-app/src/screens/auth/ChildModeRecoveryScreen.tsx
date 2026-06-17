@@ -1,0 +1,186 @@
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Linking, Platform, StyleSheet, Text, View } from 'react-native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
+import type { MainDrawerParamList } from '@/types/navigation';
+import { useCompleteChildModeExitRecovery } from '@/api/auth';
+import { AppButton } from '@/components/AppButton';
+import { theme } from '@/theme';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
+import { getWebSearch } from '@/utils/webRuntime';
+
+type ChildModeRecoveryRouteProp = RouteProp<MainDrawerParamList, 'ChildModeRecovery'>;
+
+function useRecoveryToken(): string | null {
+  const route = useRoute<ChildModeRecoveryRouteProp>();
+  const [token, setToken] = useState<string | null>(null);
+
+  const extractTokenFromUrl = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      return parsed.searchParams.get('token');
+    } catch {
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    const tokenFromRoute = route.params?.token;
+    if (tokenFromRoute) {
+      setToken(tokenFromRoute);
+      return;
+    }
+
+    if (Platform.OS === 'web') {
+      const params = new URLSearchParams(getWebSearch() ?? '');
+      const tokenFromSearch = params.get('token');
+      if (tokenFromSearch) setToken(tokenFromSearch);
+      return;
+    }
+
+    Linking.getInitialURL().then((url) => {
+      if (!url) return;
+      const tokenFromUrl = extractTokenFromUrl(url);
+      if (tokenFromUrl) setToken(tokenFromUrl);
+    });
+
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      const tokenFromUrl = extractTokenFromUrl(url);
+      if (tokenFromUrl) setToken(tokenFromUrl);
+    });
+
+    return () => subscription.remove();
+  }, [route.params?.token]);
+
+  return token;
+}
+
+export default function ChildModeRecoveryScreen() {
+  const { t } = useTranslation();
+  const navigation = useNavigation();
+  const token = useRecoveryToken();
+  const recovery = useCompleteChildModeExitRecovery();
+  const [error, setError] = useState<string | null>(null);
+  const [completed, setCompleted] = useState(false);
+  const [submittedToken, setSubmittedToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token || submittedToken === token) return;
+
+    setSubmittedToken(token);
+    setError(null);
+    recovery.mutate(token, {
+      onSuccess: () => setCompleted(true),
+      onError: (err) =>
+        setError(getLocalizedApiError(t, err, 'child_mode.recovery_complete_error')),
+    });
+  }, [recovery, submittedToken, t, token]);
+
+  const title = completed
+    ? t('child_mode.recovery_complete_success_title', {
+        defaultValue: 'Parent area unlocked',
+      })
+    : error || !token
+      ? t('child_mode.recovery_complete_error_title', {
+          defaultValue: 'Recovery link did not work',
+        })
+      : t('child_mode.recovery_complete_title', {
+          defaultValue: 'Opening parent area',
+        });
+
+  const body = completed
+    ? t('child_mode.recovery_complete_success_body', {
+        defaultValue: 'You can now update the Child Mode exit password in the parent profile.',
+      })
+    : error || !token
+      ? error ||
+        t('child_mode.recovery_complete_missing_token', {
+          defaultValue: 'This recovery link is missing its token.',
+        })
+      : t('child_mode.recovery_complete_body', {
+          defaultValue: 'Checking the secure link from the parent email.',
+        });
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.card}>
+        {recovery.isPending ? (
+          <ActivityIndicator
+            size="large"
+            color={theme.colors.interactive.primary}
+            style={styles.loader}
+          />
+        ) : null}
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.body}>{body}</Text>
+        {completed ? (
+          <AppButton
+            label={t('child_mode.recovery_complete_go_profile', {
+              defaultValue: 'Open profile settings',
+            })}
+            onPress={() => (navigation as any).navigate('Profile')}
+            style={styles.action}
+          />
+        ) : null}
+        {error || !token ? (
+          <AppButton
+            label={t('auth.back_to_login')}
+            onPress={() => (navigation as any).navigate('Welcome')}
+            variant="secondary"
+            style={styles.action}
+          />
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.secondary,
+    padding: theme.spacing[5],
+  },
+  card: {
+    width: '100%',
+    maxWidth: 460,
+    alignItems: 'center',
+    borderRadius: theme.borders.radius.xl,
+    backgroundColor: theme.colors.background.primary,
+    padding: theme.spacing[8],
+    ...Platform.select({
+      web: {
+        boxShadow: '0 24px 60px rgba(31, 26, 64, 0.16)',
+      } as any,
+      default: {
+        shadowColor: '#000',
+        shadowOpacity: 0.14,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 10 },
+        elevation: 8,
+      },
+    }),
+  },
+  loader: {
+    marginBottom: theme.spacing[4],
+  },
+  title: {
+    textAlign: 'center',
+    fontSize: theme.typography.fontSize['2xl'],
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing[2],
+  },
+  body: {
+    textAlign: 'center',
+    fontSize: theme.typography.fontSize.base,
+    lineHeight: 24,
+    color: theme.colors.text.secondary,
+  },
+  action: {
+    marginTop: theme.spacing[5],
+    alignSelf: 'stretch',
+  },
+});

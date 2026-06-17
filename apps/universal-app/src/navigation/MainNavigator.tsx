@@ -26,6 +26,7 @@ import NotFoundScreen from '@/screens/public/NotFoundScreen';
 import RegisterScreen from '@/screens/auth/RegisterScreen';
 import ForgotPasswordScreen from '@/screens/auth/ForgotPasswordScreen';
 import ResetPasswordScreen from '@/screens/auth/ResetPasswordScreen';
+import ChildModeRecoveryScreen from '@/screens/auth/ChildModeRecoveryScreen';
 import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
 import DashboardScreen from '@/screens/dashboard/DashboardScreen';
 import WizardScreen from '@/screens/wizard/WizardScreen';
@@ -557,6 +558,16 @@ function TabNavigator() {
         }}
       />
       <Tab.Screen
+        name="ChildModeRecovery"
+        component={ChildModeRecoveryScreen}
+        options={{
+          title: t('child_mode.recovery_complete_title', {
+            defaultValue: 'Opening parent area',
+          }),
+          tabBarButton: () => null,
+        }}
+      />
+      <Tab.Screen
         name="OAuthCallback"
         component={OAuthCallbackScreen}
         options={{
@@ -805,11 +816,13 @@ function DrawerNavigator() {
         drawerType: isDesktop ? 'permanent' : 'front',
         drawerActiveTintColor: theme.colors.interactive.primary,
         drawerInactiveTintColor: theme.colors.text.tertiary,
-        drawerStyle: { width: drawerWidth, backgroundColor: modernColors.surface },
+        drawerStyle: { width: drawerWidth, backgroundColor: modernColors.surfaceRaised },
         headerStyle: {
-          backgroundColor: modernColors.surface,
+          backgroundColor: modernColors.surfaceRaised,
         },
         headerShadowVisible: false,
+        headerLeftContainerStyle: isDesktop ? { paddingLeft: theme.spacing[4] } : undefined,
+        headerRightContainerStyle: isDesktop ? { paddingRight: theme.spacing[5] } : undefined,
         headerLeft: isTablet || isDesktop ? () => <DrawerBurgerButton /> : undefined,
       }}
     >
@@ -845,6 +858,16 @@ function DrawerNavigator() {
         component={ResetPasswordScreen}
         options={{
           title: t('auth.reset_password'),
+          drawerItemStyle: { display: 'none' },
+        }}
+      />
+      <Drawer.Screen
+        name="ChildModeRecovery"
+        component={ChildModeRecoveryScreen}
+        options={{
+          title: t('child_mode.recovery_complete_title', {
+            defaultValue: 'Opening parent area',
+          }),
           drawerItemStyle: { display: 'none' },
         }}
       />

@@ -13,7 +13,10 @@ import { getVersionedWebBundleUrl } from './webBundleUrl';
 // Key values mirror the app theme: drawer.widthCollapsed=73, header=56, spacing[6]=24, etc.
 const LAYOUT_STYLES = `
 *{box-sizing:border-box}
+html,body{min-height:100%;height:100%}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fff;color:#1e293b;margin:0;padding:0}
+#root{min-height:100%;height:100%;display:flex;flex-direction:column}
+#root>*{flex:1 1 auto;min-height:0}
 
 /* ── Nav rail (permanent icon-only drawer on desktop) ── */
 .nav-rail{position:fixed;top:0;left:0;bottom:0;width:73px;background:#fff;border-right:1px solid #e2e8f0;z-index:100}

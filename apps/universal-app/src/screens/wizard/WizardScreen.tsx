@@ -18,7 +18,6 @@ import { Ionicons } from '@expo/vector-icons';
 import i18n from '@/config/i18n';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { theme } from '@/theme';
-import { ExpandableCard } from '@/components/ExpandableCard';
 import { GenerationProgressModal } from '@/components/GenerationProgressModal';
 import { ChildFormModal } from '@/components/ChildFormModal';
 import { CharacterFormModal } from '@/components/CharacterFormModal';
@@ -48,6 +47,7 @@ import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
 import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
+import { IMAGE_STYLE_METADATA, type ImageStyle } from '@wondertales/shared';
 
 export default function WizardScreen() {
   const { t } = useTranslation();
@@ -72,7 +72,7 @@ export default function WizardScreen() {
   const [scenarioCardId, setScenarioCardId] = useState<string | null>(null);
   const [childProfileId, setChildProfileId] = useState<string | undefined>(undefined);
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
-  const [imageStyle, setImageStyle] = useState<string | undefined>(undefined);
+  const [imageStyle, setImageStyle] = useState<ImageStyle | undefined>(undefined);
   const [userNotes, setUserNotes] = useState('');
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
   const [selectedChildren, setSelectedChildren] = useState<string[]>([]); // NEW: Selected child profiles
@@ -163,18 +163,73 @@ export default function WizardScreen() {
   }, [themesData?.scenarioCards, t]);
 
   const selectedScenario = scenarioOptions.find((scenario) => scenario.id === scenarioCardId);
+  const selectedChildProfile = children.find((child) => child.id === childProfileId);
+  const selectedGoalNames = availableGoals
+    .filter((goal) => selectedGoals.includes(goal.slug))
+    .map((goal) => goal.name);
+  const selectedCharacterNames = [
+    ...children
+      .filter((child) => selectedChildren.includes(child.id) && child.id !== childProfileId)
+      .map((child) => child.name),
+    ...availableCharacters
+      .filter((character) => selectedCharacters.includes(character.id))
+      .map((character) => character.name),
+  ];
+  const selectedImageStyleLabel = imageStyle
+    ? t(IMAGE_STYLE_METADATA[imageStyle]?.i18nKey ?? imageStyle, {
+        defaultValue: imageStyle,
+      })
+    : null;
+  const trimmedUserNotes = userNotes.trim();
   const selectedLanguageLabel = storyLanguage
     ? t(`language_names.${storyLanguage}`, { defaultValue: storyLanguage.toUpperCase() })
     : t('wizard.language_required', { defaultValue: 'Choose a language' });
   const summaryItems = [
-    selectedScenario?.name ?? t('wizard.free_theme'),
-    selectedLanguageLabel,
-    selectedCharacters.length + selectedChildren.length > 0
-      ? t('wizard.summary_characters_count', {
-          count: selectedCharacters.length + selectedChildren.length,
-          defaultValue: '{{count}} characters',
-        })
-      : t('wizard.summary_no_characters', { defaultValue: 'No extra characters' }),
+    {
+      key: 'scenario',
+      label: `${t('wizard.theme_title')}: ${selectedScenario?.name ?? t('wizard.free_theme')}`,
+    },
+    { key: 'language', label: `${t('wizard.language')}: ${selectedLanguageLabel}` },
+    ...(selectedChildProfile
+      ? [
+          {
+            key: 'child-profile',
+            label: `${t('wizard.story_for')}: ${selectedChildProfile.name}`,
+          },
+        ]
+      : []),
+    ...(selectedGoalNames.length > 0
+      ? [
+          {
+            key: 'goal',
+            label: `${t('wizard.goal_label')}: ${selectedGoalNames.join(', ')}`,
+          },
+        ]
+      : []),
+    ...(selectedImageStyleLabel
+      ? [
+          {
+            key: 'image-style',
+            label: `${t('wizard.image_style_label')}: ${selectedImageStyleLabel}`,
+          },
+        ]
+      : []),
+    ...(trimmedUserNotes
+      ? [
+          {
+            key: 'notes',
+            label: `${t('wizard.notes_label')}: ${trimmedUserNotes}`,
+          },
+        ]
+      : []),
+    {
+      key: 'characters',
+      label: `${t('characters.title', { defaultValue: 'Characters' })}: ${
+        selectedCharacterNames.length > 0
+          ? selectedCharacterNames.join(', ')
+          : t('wizard.summary_no_characters', { defaultValue: 'No extra characters' })
+      }`,
+    },
   ];
   const steps = [
     { key: 'basics', label: t('wizard.step_basics'), icon: 'sparkles-outline' as const },
@@ -323,10 +378,13 @@ export default function WizardScreen() {
                 <Ionicons name="sparkles-outline" size={24} color={theme.colors.primary[700]} />
               </View>
               <View style={styles.heroText}>
-                <Text style={styles.title}>{t('wizard.title', { defaultValue: 'Create story' })}</Text>
+                <Text style={styles.title}>
+                  {t('wizard.title', { defaultValue: 'Create story' })}
+                </Text>
                 <Text style={styles.subtitle}>
                   {t('wizard.subtitle', {
-                    defaultValue: 'Choose the story ingredients and keep the final setup in view.',
+                    defaultValue:
+                      "Pick a theme, heroes, and tiny details. We'll turn them into your story.",
                   })}
                 </Text>
               </View>
@@ -412,7 +470,9 @@ export default function WizardScreen() {
                       childProfileId={childProfileId}
                       onChildProfileChange={setChildProfileId}
                       children={children}
-                      onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
+                      onAddChild={
+                        canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined
+                      }
                       showChildProfileSelector={!isChildSession}
                       goals={availableGoals}
                       selectedGoals={selectedGoals}
@@ -427,7 +487,11 @@ export default function WizardScreen() {
                 ) : null}
 
                 {activeStep === 2 ? (
-                  <ExpandableCard title={t('wizard.add_characters')} icon="people-outline">
+                  <View style={styles.detailsPanel}>
+                    <View style={styles.sectionHeading}>
+                      <Ionicons name="people-outline" size={24} color={theme.colors.text.primary} />
+                      <Text style={styles.sectionHeadingText}>{t('wizard.add_characters')}</Text>
+                    </View>
                     <CharactersForm
                       characters={availableCharacters}
                       selectedCharacters={selectedCharacters}
@@ -437,9 +501,11 @@ export default function WizardScreen() {
                       onChildrenChange={setSelectedChildren}
                       showChildren={!isChildSession}
                       onAddCharacter={() => setIsCharacterModalVisible(true)}
-                      onAddChild={canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined}
+                      onAddChild={
+                        canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined
+                      }
                     />
-                  </ExpandableCard>
+                  </View>
                 ) : null}
               </AnimatedSection>
 
@@ -461,7 +527,11 @@ export default function WizardScreen() {
                     onPress={() => setActiveStep((step) => Math.min(steps.length - 1, step + 1))}
                     size="md"
                     trailing={
-                      <Ionicons name="chevron-forward" size={18} color={theme.colors.text.inverse} />
+                      <Ionicons
+                        name="chevron-forward"
+                        size={18}
+                        color={theme.colors.text.inverse}
+                      />
                     }
                     style={styles.stepAction}
                   />
@@ -477,13 +547,17 @@ export default function WizardScreen() {
               ]}
             >
               <View style={styles.summaryCard}>
-                <Text style={styles.summaryEyebrow}>{t('wizard.story_preview', { defaultValue: 'Story setup' })}</Text>
-                <Text style={styles.summaryTitle}>{t('wizard.your_story', { defaultValue: 'Your story' })}</Text>
+                <Text style={styles.summaryEyebrow}>
+                  {t('wizard.story_preview', { defaultValue: 'Story setup' })}
+                </Text>
+                <Text style={styles.summaryTitle}>
+                  {t('wizard.your_story', { defaultValue: 'Your story' })}
+                </Text>
                 <View style={styles.summaryList}>
                   {summaryItems.map((item) => (
-                    <View key={item} style={styles.summaryItem}>
+                    <View key={item.key} style={styles.summaryItem}>
                       <View style={styles.summaryDot} />
-                      <Text style={styles.summaryItemText}>{item}</Text>
+                      <Text style={styles.summaryItemText}>{item.label}</Text>
                     </View>
                   ))}
                 </View>
@@ -559,7 +633,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: theme.spacing[6],
+    padding: theme.spacing[8],
     minHeight: '100%',
   },
   loadingContainer: {
@@ -576,10 +650,10 @@ const styles = StyleSheet.create({
   heroPanel: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing[4],
+    gap: theme.spacing[5],
     padding: theme.spacing[5],
-    marginBottom: theme.spacing[6],
-    borderRadius: theme.borders.radius.lg,
+    marginBottom: theme.spacing[8],
+    borderRadius: theme.borders.radius.xl,
     borderWidth: theme.borders.width.thin,
     borderColor: modernColors.border,
     backgroundColor: modernColors.surface,
@@ -609,7 +683,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   workspace: {
-    gap: theme.spacing[6],
+    gap: theme.spacing[8],
   },
   workspaceWide: {
     flexDirection: 'row',
@@ -623,9 +697,9 @@ const styles = StyleSheet.create({
     flexBasis: 0,
   },
   stepperCard: {
-    padding: theme.spacing[4],
-    marginBottom: theme.spacing[5],
-    borderRadius: theme.borders.radius.lg,
+    padding: theme.spacing[5],
+    marginBottom: theme.spacing[6],
+    borderRadius: theme.borders.radius.xl,
     borderWidth: theme.borders.width.thin,
     borderColor: modernColors.border,
     backgroundColor: modernColors.surface,
@@ -682,14 +756,14 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
   },
   stepContent: {
-    gap: theme.spacing[5],
+    gap: theme.spacing[6],
   },
   stepActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: theme.spacing[3],
-    marginTop: theme.spacing[5],
+    gap: theme.spacing[4],
+    marginTop: theme.spacing[6],
   },
   stepAction: {
     minWidth: 120,
@@ -698,7 +772,7 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   summaryColumn: {
-    width: 320,
+    width: 344,
     maxWidth: '100%',
   },
   summaryColumnFixed: {
@@ -711,9 +785,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   summaryCard: {
-    gap: theme.spacing[4],
-    padding: theme.spacing[5],
-    borderRadius: theme.borders.radius.lg,
+    gap: theme.spacing[5],
+    padding: theme.spacing[6],
+    borderRadius: theme.borders.radius.xl,
     borderWidth: theme.borders.width.thin,
     borderColor: modernColors.border,
     backgroundColor: modernColors.surface,
@@ -752,12 +826,23 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   detailsPanel: {
-    padding: theme.spacing[5],
-    borderRadius: theme.borders.radius.lg,
+    padding: theme.spacing[6],
+    borderRadius: theme.borders.radius.xl,
     borderWidth: theme.borders.width.thin,
     borderColor: modernColors.border,
     backgroundColor: modernColors.surface,
     ...modernShadows.subtle,
+  },
+  sectionHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    marginBottom: theme.spacing[4],
+  },
+  sectionHeadingText: {
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
   },
   summaryLimit: {
     paddingTop: theme.spacing[2],

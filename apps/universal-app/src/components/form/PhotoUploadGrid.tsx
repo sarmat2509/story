@@ -1,5 +1,5 @@
 import type { PhotoTypeUserUpload } from '@wondertales/shared';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -56,6 +56,35 @@ export const PhotoUploadGrid: React.FC<PhotoUploadGridProps> = ({
   const { t } = useTranslation();
   const [, setUploadingIndex] = useState<number | null>(null);
   const [photoAspectRatios, setPhotoAspectRatios] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    photos.forEach((photo) => {
+      if (photoAspectRatios[photo.url]) return;
+      const resolvedUrl = (formatUrl ? formatUrl(photo.url) : photo.url) || photo.url;
+      if (!resolvedUrl) return;
+
+      Image.getSize(
+        resolvedUrl,
+        (width, height) => {
+          if (isCancelled || !width || !height) return;
+          const nextAspectRatio = width / height;
+          setPhotoAspectRatios((current) =>
+            current[photo.url] === nextAspectRatio
+              ? current
+              : { ...current, [photo.url]: nextAspectRatio }
+          );
+        },
+        () => undefined
+      );
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [formatUrl, photoAspectRatios, photos]);
+
   const requestPermission = async () => {
     if (Platform.OS !== 'web') {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -208,9 +237,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: theme.spacing[4],
+    alignItems: 'flex-start',
   },
   photoItem: {
     marginBottom: theme.spacing[4],
+    alignSelf: 'flex-start',
   },
   image: {
     height: PHOTO_HEIGHT,

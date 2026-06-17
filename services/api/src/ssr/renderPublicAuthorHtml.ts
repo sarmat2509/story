@@ -7,7 +7,10 @@ import { getVersionedWebBundleUrl } from './webBundleUrl';
 
 const AUTHOR_STYLES = `
 *{box-sizing:border-box}
+html,body{min-height:100%;height:100%}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#f8fafc;color:#1e293b;margin:0}
+#root{min-height:100%;height:100%;display:flex;flex-direction:column}
+#root>*{flex:1 1 auto;min-height:0}
 a{color:inherit;text-decoration:none}
 .page{max-width:1120px;margin:0 auto;padding:32px 20px 56px}
 .topnav{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;color:#475569}

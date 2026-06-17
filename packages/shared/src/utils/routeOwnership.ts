@@ -2,7 +2,7 @@ import { DEFAULT_LOCALE } from '../config/languages';
 
 export const DEFAULT_PUBLIC_SEO_LOCALE = 'uk' as const;
 
-export const PUBLIC_SEO_LOCALES = ['uk', 'en'] as const;
+export const PUBLIC_SEO_LOCALES = ['uk', 'en', 'ru', 'es', 'de', 'fr', 'pl'] as const;
 export type PublicSeoLocale = typeof PUBLIC_SEO_LOCALES[number];
 
 export const APP_SUPPORTED_LOCALES = ['uk', 'ru', 'en', 'es', 'de', 'fr', 'pl'] as const;
@@ -214,6 +214,11 @@ export function buildPublicPricingPath(locale?: string | null): string {
 export function buildPublicStoriesPath(locale?: string | null): string {
   const normalized = normalizePublicSeoLocale(locale);
   return normalized === DEFAULT_PUBLIC_SEO_LOCALE ? '/stories' : `/${normalized}/stories`;
+}
+
+export function buildPublicSupportPath(locale?: string | null): string {
+  const normalized = normalizePublicSeoLocale(locale);
+  return normalized === DEFAULT_PUBLIC_SEO_LOCALE ? '/support' : `/${normalized}/support`;
 }
 
 export type PublicLegalDoc = 'terms' | 'privacy';

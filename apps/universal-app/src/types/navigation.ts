@@ -26,6 +26,7 @@ export type MainDrawerParamList = {
   Register: undefined;
   ForgotPassword: undefined;
   ResetPassword: { token?: string };
+  ChildModeRecovery: { token?: string };
   NotFound: undefined;
   OAuthCallback: { provider: 'google' | 'apple' };
   Dashboard: undefined;

@@ -17,7 +17,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useChildModeSwitcherChildren, useEnterChildMode } from '@/api/children';
-import { useParentGate } from '@/api/auth';
+import { useParentGate, useRequestChildModeExitRecovery } from '@/api/auth';
 import { resetToMainRoute } from '@/navigation/navigationRef';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
@@ -53,7 +53,7 @@ function getChildAvatarUrl(child?: AvatarSource | null): string | null {
     child?.referencePhotos?.[0]?.url ??
     child?.referencephotos?.[0]?.url ??
     null;
-  return rawUrl ? formatAssetUrl(rawUrl) ?? rawUrl : null;
+  return rawUrl ? (formatAssetUrl(rawUrl) ?? rawUrl) : null;
 }
 
 function escapeCssUrl(url: string): string {
@@ -93,13 +93,15 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
   const [password, setPassword] = useState('');
   const [target, setTarget] = useState<ChildSwitcherTarget | null>(null);
   const [error, setError] = useState('');
+  const [recoverySent, setRecoverySent] = useState(false);
   const shouldLoadSwitcherChildren = visible || Boolean(activeChild);
   const { data, isLoading } = useChildModeSwitcherChildren(shouldLoadSwitcherChildren);
   const parentGate = useParentGate();
+  const childModeRecovery = useRequestChildModeExitRecovery();
   const enterChildMode = useEnterChildMode();
   const children = data?.children ?? (activeChild ? [activeChild] : []);
   const freshActiveChild = activeChild
-    ? children.find((child) => child.id === activeChild.id) ?? activeChild
+    ? (children.find((child) => child.id === activeChild.id) ?? activeChild)
     : null;
   const avatarUrl = getChildAvatarUrl(freshActiveChild);
   const isSubmitting = parentGate.isPending || enterChildMode.isPending;
@@ -110,12 +112,14 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
     setTarget(null);
     setPassword('');
     setError('');
+    setRecoverySent(false);
   };
 
   const requestTarget = (nextTarget: ChildSwitcherTarget) => {
     setTarget(nextTarget);
     setPassword('');
     setError('');
+    setRecoverySent(false);
   };
 
   const submitParentGate = async () => {
@@ -135,6 +139,22 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
       setError(
         t('child_mode.parent_gate_wrong_password', {
           defaultValue: 'Password did not work. Try again.',
+        })
+      );
+    }
+  };
+
+  const requestRecoveryEmail = async () => {
+    if (childModeRecovery.isPending) return;
+    try {
+      setError('');
+      setRecoverySent(false);
+      await childModeRecovery.mutateAsync();
+      setRecoverySent(true);
+    } catch (_err) {
+      setError(
+        t('child_mode.recovery_request_failed', {
+          defaultValue: 'Could not send the recovery link. Try again in a moment.',
         })
       );
     }
@@ -199,6 +219,29 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
                   autoFocus
                   onSubmitEditing={submitParentGate}
                 />
+                <Pressable
+                  style={({ pressed }) => [styles.recoveryLink, pressed && styles.buttonPressed]}
+                  disabled={childModeRecovery.isPending}
+                  onPress={requestRecoveryEmail}
+                >
+                  <Text style={styles.recoveryLinkText}>
+                    {childModeRecovery.isPending
+                      ? t('child_mode.recovery_request_sending', {
+                          defaultValue: 'Sending recovery link...',
+                        })
+                      : t('child_mode.recovery_request_link', {
+                          defaultValue: 'Forgot the exit password?',
+                        })}
+                  </Text>
+                </Pressable>
+                {recoverySent ? (
+                  <Text style={styles.recoverySuccessText}>
+                    {t('child_mode.recovery_request_sent', {
+                      defaultValue:
+                        'A recovery link was sent to the parent email. It works for 30 minutes.',
+                    })}
+                  </Text>
+                ) : null}
                 {error ? <Text style={styles.errorText}>{error}</Text> : null}
                 <View style={styles.gateActions}>
                   <Pressable
@@ -211,6 +254,7 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
                       setTarget(null);
                       setPassword('');
                       setError('');
+                      setRecoverySent(false);
                     }}
                   >
                     <Text style={styles.secondaryButtonText}>
@@ -261,11 +305,7 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
                           <ChildAvatarImage uri={childAvatarUrl} style={styles.itemAvatar} />
                         ) : (
                           <View style={styles.itemAvatarFallback}>
-                            <Ionicons
-                              name="person"
-                              size={15}
-                              color={theme.colors.text.secondary}
-                            />
+                            <Ionicons name="person" size={15} color={theme.colors.text.secondary} />
                           </View>
                         )}
                         <View style={styles.itemCopy}>
@@ -292,10 +332,7 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
 
                 <View style={styles.separator} />
                 <Pressable
-                  style={({ pressed }) => [
-                    styles.menuItem,
-                    pressed && styles.menuItemPressed,
-                  ]}
+                  style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
                   onPress={() => requestTarget({ type: 'parent' })}
                 >
                   <View style={styles.itemAvatarFallback}>
@@ -457,6 +494,22 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.primary,
     backgroundColor: theme.colors.background.primary,
+  },
+  recoveryLink: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+  },
+  recoveryLinkText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.interactive.primary,
+  },
+  recoverySuccessText: {
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 19,
+    color: theme.colors.status.success,
+    paddingHorizontal: theme.spacing[2],
   },
   errorText: {
     fontSize: theme.typography.fontSize.sm,

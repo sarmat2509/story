@@ -79,6 +79,7 @@ import {
   BUILDS,
   CLOTHING_STYLES,
   HUMAN_DISTINCTIVE_FEATURES,
+  COLOR_SUGGESTIONS,
   SIZE_SUGGESTIONS,
   MAGICAL_FEATURES_SUGGESTIONS,
   FurColor,
@@ -131,6 +132,131 @@ const CATEGORY_TYPES = [
 
 type SubtypeOption = { value: string; key: string };
 type SubtypeSection = { section?: string; items?: SubtypeOption[] } & Partial<SubtypeOption>;
+
+const COLOR_SWATCHES: Record<string, { backgroundColor: string; borderColor?: string }> = {
+  rainbow: { backgroundColor: '#FF6B6B', borderColor: '#4D96FF' },
+  gold: { backgroundColor: '#D4AF37' },
+  silver: { backgroundColor: '#C0C0C0' },
+  sparkly: { backgroundColor: '#FACC15' },
+  transparent: { backgroundColor: '#FFFFFF', borderColor: '#94A3B8' },
+  glowing: { backgroundColor: '#FDE047' },
+  changing: { backgroundColor: '#A78BFA' },
+  purple: { backgroundColor: '#8B5CF6' },
+  pink: { backgroundColor: '#EC4899' },
+  blue: { backgroundColor: '#3B82F6' },
+  green: { backgroundColor: '#22C55E' },
+  red: { backgroundColor: '#EF4444' },
+  yellow: { backgroundColor: '#FACC15' },
+  orange: { backgroundColor: '#F97316' },
+  multicolor: { backgroundColor: '#14B8A6', borderColor: '#F97316' },
+  pastel: { backgroundColor: '#F9A8D4', borderColor: '#93C5FD' },
+};
+
+const isSuggestedColor = (value: string) =>
+  (COLOR_SUGGESTIONS as readonly string[]).includes(value);
+
+function formatSuggestionLabel(value: string): string {
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function getColorSuggestionLabel(
+  getTranslation: (key: string, options?: Record<string, unknown>) => string,
+  value: string
+): string {
+  return getTranslation(`character_form.color_suggestions.${value}`, {
+    defaultValue: formatSuggestionLabel(value),
+  });
+}
+
+interface ColorPillSelectorProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  customPlaceholder: string;
+  showCustom: boolean;
+  onShowCustomChange: (showCustom: boolean) => void;
+  getTranslation: (key: string, options?: Record<string, unknown>) => string;
+}
+
+function ColorPillSelector({
+  label,
+  value,
+  onChange,
+  customPlaceholder,
+  showCustom,
+  onShowCustomChange,
+  getTranslation,
+}: ColorPillSelectorProps) {
+  const customSelected = value.trim().length > 0 && !isSuggestedColor(value);
+  const shouldShowCustom = showCustom || customSelected;
+
+  return (
+    <View style={styles.colorSelector}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.colorPillGrid}>
+        {COLOR_SUGGESTIONS.map((color) => {
+          const selected = value === color && !shouldShowCustom;
+          const swatch = COLOR_SWATCHES[color] ?? { backgroundColor: theme.colors.border.medium };
+
+          return (
+            <TouchableOpacity
+              key={color}
+              style={[styles.colorPill, selected && styles.colorPillSelected]}
+              onPress={() => {
+                onShowCustomChange(false);
+                onChange(color);
+              }}
+            >
+              <View
+                style={[
+                  styles.colorDot,
+                  {
+                    backgroundColor: swatch.backgroundColor,
+                    borderColor: swatch.borderColor ?? swatch.backgroundColor,
+                  },
+                ]}
+              />
+              <Text style={[styles.colorPillText, selected && styles.colorPillTextSelected]}>
+                {getColorSuggestionLabel(getTranslation, color)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+
+        <TouchableOpacity
+          style={[styles.colorPill, shouldShowCustom && styles.colorPillSelected]}
+          onPress={() => {
+            onShowCustomChange(true);
+            if (!customSelected) {
+              onChange('');
+            }
+          }}
+        >
+          <View style={[styles.colorDot, styles.customColorDot]}>
+            <Ionicons
+              name="pencil"
+              size={14}
+              color={shouldShowCustom ? theme.colors.text.inverse : theme.colors.text.secondary}
+            />
+          </View>
+          <Text style={[styles.colorPillText, shouldShowCustom && styles.colorPillTextSelected]}>
+            {getTranslation('characters.subtype_sections.other', { defaultValue: 'Other' })}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {shouldShowCustom && (
+        <TextInput
+          style={[styles.input, styles.colorCustomInput]}
+          value={customSelected ? value : ''}
+          onChangeText={onChange}
+          placeholder={customPlaceholder}
+          placeholderTextColor={theme.colors.text.disabled}
+        />
+      )}
+    </View>
+  );
+}
 
 const SUBTYPE_OPTIONS: Record<CharacterType, SubtypeSection[]> = {
   person: [
@@ -230,12 +356,10 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
     initialData?.referencePhotos?.[0]?.url ??
     null;
 
-  // Wizard state
-  const [currentStep, setCurrentStep] = useState<1 | 2>(1);
-  const scrollRef = useRef<ScrollView>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   /** Full-screen second modal while create/update request runs (form modal hidden). */
   const [isSubmittingOverlay, setIsSubmittingOverlay] = useState(false);
+  const hasAnalyzedRef = useRef(false);
 
   // Basic fields
   const [name, setName] = useState('');
@@ -282,12 +406,22 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
     size: '',
     magicalFeatures: [] as string[],
   });
+  const [showPrimaryColorCustom, setShowPrimaryColorCustom] = useState(false);
+  const [showSecondaryColorCustom, setShowSecondaryColorCustom] = useState(false);
 
   // Personality (universal structure)
   const [personality, setPersonality] = useState({
     traits: [] as (PetPersonalityTrait | string)[],
     favoriteActivities: [] as (PetActivity | string)[],
   });
+
+  const hasUploadingPhotos = photos.some((photo) => photo.isUploading);
+  const hasUploadedPhotos = photos.some(
+    (photo) => !photo.isUploading && isServerAssetUrl(photo.url)
+  );
+  const hasAnalyzablePhotos = photos.some(
+    (photo) => !photo.isUploading && photo.url && formatAssetUrl(photo.url) !== null
+  );
 
   useEffect(() => {
     if (!visible) {
@@ -314,7 +448,9 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
   // Reset form when modal opens/closes
   useEffect(() => {
     if (visible) {
-      setCurrentStep(1);
+      hasAnalyzedRef.current = false;
+      setShowPrimaryColorCustom(false);
+      setShowSecondaryColorCustom(false);
       if (initialData) {
         setName(initialData.name);
         setChildProfileId(initialData.childProfileId ?? null);
@@ -469,84 +605,78 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
     return 'person';
   }
 
-  // Auto-analyze on step 2 entry (create only, when photos exist)
-  const hasAnalyzedRef = React.useRef(false);
+  // Auto-analyze create-only photos once they are ready.
   useEffect(() => {
-    if (!characterId && currentStep === 2 && !hasAnalyzedRef.current) {
-      const uploadedPhotos = photos
-        .filter((p) => !p.isUploading && p.url && formatAssetUrl(p.url) !== null)
-        .map((p) => formatAssetUrl(p.url)!);
-      if (uploadedPhotos.length > 0 && !description.trim()) {
-        hasAnalyzedRef.current = true;
-        const characterType = getAnalysisCharacterType(type);
-        storage.getLanguage().then((saved) => {
-          let userLanguage = i18n.language;
-          if (!userLanguage || userLanguage === 'en-US') {
-            userLanguage = saved || APP_CONFIG.defaultLanguage;
-          }
-          const apiLanguage = toBaseLocale(userLanguage);
-          analyzeCharacter.mutate(
-            { photos: uploadedPhotos, characterType, language: apiLanguage },
-            {
-              onSuccess: (analysis) => {
-                setDescription(analysis.description || '');
-                setDescriptionLanguage(apiLanguage);
-                if (analysis.petAppearance && isAnimalType(type)) {
-                  setPetAppearance({
-                    breed: analysis.petAppearance.breed || undefined,
-                    furColor: analysis.petAppearance.furColor as FurColor | undefined,
-                    furPattern: analysis.petAppearance.furPattern as FurPattern | undefined,
-                    furLength: analysis.petAppearance.furLength as FurLength | undefined,
-                    size: analysis.petAppearance.size as PetSize | undefined,
-                    eyeColor: analysis.petAppearance.eyeColor as PetEyeColor | undefined,
-                    distinctiveFeatures: (analysis.petAppearance.distinctiveFeatures ||
-                      []) as PetDistinctiveFeature[],
-                  });
-                }
-                if (analysis.humanAppearance && isHumanType(type)) {
-                  setHumanAppearance({
-                    ageRange: analysis.humanAppearance.ageRange as AgeRange | undefined,
-                    hairColor: analysis.humanAppearance.hairColor as HumanHairColor | undefined,
-                    hairLength: analysis.humanAppearance.hairLength as HumanHairLength | undefined,
-                    hairStyle: analysis.humanAppearance.hairStyle as HumanHairStyle | undefined,
-                    eyeColor: analysis.humanAppearance.eyeColor as EyeColor | undefined,
-                    skinTone: analysis.humanAppearance.skinTone as SkinTone | undefined,
-                    height: analysis.humanAppearance.height as Height | undefined,
-                    build: analysis.humanAppearance.build as Build | undefined,
-                    clothingStyle: analysis.humanAppearance.clothingStyle as
-                      | ClothingStyle
-                      | undefined,
-                    distinctiveFeatures: (analysis.humanAppearance.distinctiveFeatures ||
-                      []) as HumanDistinctiveFeature[],
-                  });
-                }
-                if (analysis.imaginaryAppearance && isImaginaryType(type)) {
-                  setImaginaryAppearance({
-                    species: analysis.imaginaryAppearance.species || '',
-                    primaryColor: analysis.imaginaryAppearance.primaryColor || '',
-                    secondaryColor: analysis.imaginaryAppearance.secondaryColor || '',
-                    size: analysis.imaginaryAppearance.size || '',
-                    magicalFeatures: analysis.imaginaryAppearance.magicalFeatures || [],
-                  });
-                }
-              },
-            }
-          );
-        });
-      }
+    if (!visible || characterId || hasAnalyzedRef.current || description.trim()) {
+      return;
     }
-    if (currentStep === 1) {
+
+    const uploadedPhotos = photos
+      .filter((p) => !p.isUploading && p.url && formatAssetUrl(p.url) !== null)
+      .map((p) => formatAssetUrl(p.url)!);
+
+    if (uploadedPhotos.length === 0) {
       hasAnalyzedRef.current = false;
+      return;
     }
-  }, [characterId, currentStep, photos, description, type, analyzeCharacter.mutate, i18n.language]);
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
-  }, [currentStep]);
+    hasAnalyzedRef.current = true;
+    const characterType = getAnalysisCharacterType(type);
+    storage.getLanguage().then((saved) => {
+      let userLanguage = i18n.language;
+      if (!userLanguage || userLanguage === 'en-US') {
+        userLanguage = saved || APP_CONFIG.defaultLanguage;
+      }
+      const apiLanguage = toBaseLocale(userLanguage);
+      analyzeCharacter.mutate(
+        { photos: uploadedPhotos, characterType, language: apiLanguage },
+        {
+          onSuccess: (analysis) => {
+            setDescription(analysis.description || '');
+            setDescriptionLanguage(apiLanguage);
+            if (analysis.petAppearance && isAnimalType(type)) {
+              setPetAppearance({
+                breed: analysis.petAppearance.breed || undefined,
+                furColor: analysis.petAppearance.furColor as FurColor | undefined,
+                furPattern: analysis.petAppearance.furPattern as FurPattern | undefined,
+                furLength: analysis.petAppearance.furLength as FurLength | undefined,
+                size: analysis.petAppearance.size as PetSize | undefined,
+                eyeColor: analysis.petAppearance.eyeColor as PetEyeColor | undefined,
+                distinctiveFeatures: (analysis.petAppearance.distinctiveFeatures ||
+                  []) as PetDistinctiveFeature[],
+              });
+            }
+            if (analysis.humanAppearance && isHumanType(type)) {
+              setHumanAppearance({
+                ageRange: analysis.humanAppearance.ageRange as AgeRange | undefined,
+                hairColor: analysis.humanAppearance.hairColor as HumanHairColor | undefined,
+                hairLength: analysis.humanAppearance.hairLength as HumanHairLength | undefined,
+                hairStyle: analysis.humanAppearance.hairStyle as HumanHairStyle | undefined,
+                eyeColor: analysis.humanAppearance.eyeColor as EyeColor | undefined,
+                skinTone: analysis.humanAppearance.skinTone as SkinTone | undefined,
+                height: analysis.humanAppearance.height as Height | undefined,
+                build: analysis.humanAppearance.build as Build | undefined,
+                clothingStyle: analysis.humanAppearance.clothingStyle as ClothingStyle | undefined,
+                distinctiveFeatures: (analysis.humanAppearance.distinctiveFeatures ||
+                  []) as HumanDistinctiveFeature[],
+              });
+            }
+            if (analysis.imaginaryAppearance && isImaginaryType(type)) {
+              setImaginaryAppearance({
+                species: analysis.imaginaryAppearance.species || '',
+                primaryColor: analysis.imaginaryAppearance.primaryColor || '',
+                secondaryColor: analysis.imaginaryAppearance.secondaryColor || '',
+                size: analysis.imaginaryAppearance.size || '',
+                magicalFeatures: analysis.imaginaryAppearance.magicalFeatures || [],
+              });
+            }
+          },
+        }
+      );
+    });
+  }, [visible, characterId, photos, description, type, analyzeCharacter.mutate, i18n.language]);
 
-  // Handler for Step 1 "Continue" button
-  const handleContinue = () => {
-    // Basic validation
+  const handleSubmit = async () => {
     if (!name.trim()) {
       Alert.alert(t('error') || 'Error', t('character_form.name_required'));
       return;
@@ -562,18 +692,11 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
       return;
     }
 
-    // Check for uploading photos
-    const hasUploadingPhotos = photos.some((photo) => photo.isUploading);
     if (hasUploadingPhotos) {
       Alert.alert(t('character_form.upload_in_progress'), t('character_form.wait_for_upload'));
       return;
     }
 
-    // Move to step 2
-    setCurrentStep(2);
-  };
-
-  const handleSubmit = async () => {
     // Prepare appearance traits based on type
     let appearanceTraits;
     if (isAnimalType(type)) {
@@ -606,12 +729,14 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
       appearanceTraits = Object.keys(humanData).length > 0 ? humanData : undefined;
     } else if (isImaginaryType(type)) {
       const imagData: any = {};
-      if (imaginaryAppearance.species) imagData.species = imaginaryAppearance.species;
-      if (imaginaryAppearance.primaryColor)
-        imagData.primaryColor = imaginaryAppearance.primaryColor;
-      if (imaginaryAppearance.secondaryColor)
-        imagData.secondaryColor = imaginaryAppearance.secondaryColor;
-      if (imaginaryAppearance.size) imagData.size = imaginaryAppearance.size;
+      const speciesValue =
+        imaginaryAppearance.species.trim() || (subtype ? String(subtype).trim() : '');
+      if (speciesValue) imagData.species = speciesValue;
+      const primaryColor = imaginaryAppearance.primaryColor.trim();
+      const secondaryColor = imaginaryAppearance.secondaryColor.trim();
+      if (primaryColor) imagData.primaryColor = primaryColor;
+      if (secondaryColor) imagData.secondaryColor = secondaryColor;
+      if (imaginaryAppearance.size) imagData.size = imaginaryAppearance.size.trim();
       if (imaginaryAppearance.magicalFeatures.length > 0) {
         imagData.magicalFeatures = imaginaryAppearance.magicalFeatures;
       }
@@ -623,13 +748,6 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
       personality.traits.length > 0 || personality.favoriteActivities.length > 0
         ? personality
         : undefined;
-
-    // Check if any photos are still uploading
-    const hasUploadingPhotos = photos.some((photo) => photo.isUploading);
-    if (hasUploadingPhotos) {
-      Alert.alert(t('character_form.upload_in_progress'), t('character_form.wait_for_upload'));
-      return;
-    }
 
     // Filter only uploaded photos with valid URLs (exclude blob/file URIs).
     // Convert to absolute URLs for Zod .url() validation (schema rejects relative paths).
@@ -704,586 +822,525 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                 <Text style={styles.title}>
                   {characterId ? t('character_form.title_edit') : t('character_form.title_create')}
                 </Text>
-                <Text style={styles.stepIndicator}>
-                  {t('character_form.step_indicator', { current: currentStep, total: 2 })}
-                </Text>
               </View>
               <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
                 <Ionicons name="close" size={24} color={theme.colors.text.primary} />
               </TouchableOpacity>
             </View>
 
-            <ScrollView ref={scrollRef} style={styles.content} showsVerticalScrollIndicator={false}>
-              {/* STEP 1: Basic Info */}
-              {currentStep === 1 && (
-                <>
-                  {/* Name */}
-                  <View style={styles.field}>
-                    <Text style={styles.label}>{t('character_form.name_label')}</Text>
-                    <TextInput
-                      style={[styles.input, errors.name && styles.inputError]}
-                      value={name}
-                      onChangeText={setName}
-                      placeholder={t('character_form.name_placeholder')}
-                      placeholderTextColor={theme.colors.text.disabled}
-                    />
-                    {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
-                  </View>
+            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+              {/* Name */}
+              <View style={styles.field}>
+                <Text style={styles.label}>{t('character_form.name_label')}</Text>
+                <TextInput
+                  style={[styles.input, errors.name && styles.inputError]}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder={t('character_form.name_placeholder')}
+                  placeholderTextColor={theme.colors.text.disabled}
+                />
+                {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+              </View>
 
-                  {!isChildSession && !characterId && childOptions.length > 0 && (
-                    <View style={styles.field}>
-                      <Text style={styles.label}>
-                        {t('character_form.child_profile_label', { defaultValue: 'For child' })}
-                      </Text>
-                      <View style={styles.childChips}>
-                        {childOptions.map((child) => (
-                          <TouchableOpacity
-                            key={child.id}
-                            style={[
-                              styles.childChip,
-                              childProfileId === child.id && styles.childChipSelected,
-                            ]}
-                            onPress={() => setChildProfileId(child.id)}
-                          >
-                            <Text
-                              style={[
-                                styles.childChipText,
-                                childProfileId === child.id && styles.childChipTextSelected,
-                              ]}
-                            >
-                              {child.name}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Category */}
-                  <View style={styles.field}>
-                    <Text style={styles.label}>{t('character_form.category_label')}</Text>
-                    <View style={styles.typeGrid}>
-                      {CATEGORY_TYPES.map((category) => (
-                        <TouchableOpacity
-                          key={category.value}
+              {!isChildSession && !characterId && childOptions.length > 0 && (
+                <View style={styles.field}>
+                  <Text style={styles.label}>
+                    {t('character_form.child_profile_label', { defaultValue: 'For child' })}
+                  </Text>
+                  <View style={styles.childChips}>
+                    {childOptions.map((child) => (
+                      <TouchableOpacity
+                        key={child.id}
+                        style={[
+                          styles.childChip,
+                          childProfileId === child.id && styles.childChipSelected,
+                        ]}
+                        onPress={() => setChildProfileId(child.id)}
+                      >
+                        <Text
                           style={[
-                            styles.typeButton,
-                            type === category.value && styles.typeButtonSelected,
+                            styles.childChipText,
+                            childProfileId === child.id && styles.childChipTextSelected,
                           ]}
-                          onPress={() => {
-                            setType(category.value);
-                            setSubtype(null); // Reset subtype when category changes
-                          }}
                         >
-                          <Text style={styles.typeIcon}>{category.icon}</Text>
-                          <Text
-                            style={[
-                              styles.typeText,
-                              type === category.value && styles.typeTextSelected,
-                            ]}
-                          >
-                            {t(`characters.categories.${category.key}`)}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    {errors.type && <Text style={styles.errorText}>{errors.type}</Text>}
-                  </View>
-
-                  {/* Photos - Available for all character types */}
-                  <View style={styles.field}>
-                    <Text style={styles.label}>{t('character_form.photos_title')}</Text>
-                    {isImaginaryType(type) && (
-                      <Text style={styles.hint}>{t('character_form.imaginary_photos_hint')}</Text>
-                    )}
-                    {characterId && currentPreviewUrl && photos.length === 0 ? (
-                      <View style={styles.currentImageCard}>
-                        <Text style={styles.currentImageLabel}>
-                          {t('child_form.current_image') || 'Текущее изображение'}
+                          {child.name}
                         </Text>
-                        <Image
-                          source={{ uri: formatAssetUrl(currentPreviewUrl) ?? currentPreviewUrl }}
-                          style={styles.currentImage}
-                          resizeMode="contain"
-                        />
-                      </View>
-                    ) : null}
-                    <PhotoUploadGrid
-                      photos={photos}
-                      onPhotosChange={setPhotos}
-                      maxPhotos={5}
-                      photoType="character"
-                      formatUrl={formatAssetUrl}
-                    />
+                      </TouchableOpacity>
+                    ))}
                   </View>
-                </>
+                </View>
               )}
 
-              {/* STEP 2: Details */}
-              {currentStep === 2 && (
-                <>
-                  {/* Back Button */}
-                  <TouchableOpacity onPress={() => setCurrentStep(1)} style={styles.backButton}>
-                    <Ionicons
-                      name="arrow-back"
-                      size={20}
-                      color={theme.colors.interactive.primary}
-                    />
-                    <Text style={styles.backLinkText}>{t('character_form.back')}</Text>
-                  </TouchableOpacity>
-
-                  {/* Subtype selection */}
-                  <View style={styles.field}>
-                    <ScrollView
-                      style={styles.subtypeList}
-                      showsVerticalScrollIndicator={false}
-                      nestedScrollEnabled
+              {/* Category */}
+              <View style={styles.field}>
+                <Text style={styles.label}>{t('character_form.category_label')}</Text>
+                <View style={styles.typeGrid}>
+                  {CATEGORY_TYPES.map((category) => (
+                    <TouchableOpacity
+                      key={category.value}
+                      style={[
+                        styles.typeButton,
+                        type === category.value && styles.typeButtonSelected,
+                      ]}
+                      onPress={() => {
+                        setType(category.value);
+                        setSubtype(null); // Reset subtype when category changes
+                      }}
                     >
-                      {SUBTYPE_OPTIONS[type].map((section, index) => {
-                        // Extract options for this section
-                        const sectionItems = section.items || [section];
-                        const options = sectionItems
-                          .filter((item) => item.value && item.key)
-                          .map((item) => item.value!);
-
-                        // Create label with section prefix if exists
-                        const label = section.section
-                          ? `${t('character_form.subtype_label')} (${t(`characters.subtype_sections.${section.section}`)})`
-                          : t('character_form.subtype_label');
-
-                        return (
-                          <View
-                            key={section.section || `section-${index}`}
-                            style={styles.subtypeChipGroup}
-                          >
-                            <ChipSelector
-                              label={label}
-                              options={options}
-                              selected={subtype || ''}
-                              onSelect={(val) => setSubtype(val as CharacterSubtype)}
-                              translationPrefix="characters.subtypes"
-                              getTranslation={t}
-                            />
-                          </View>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
-
-                  {/* Description */}
-                  <View style={styles.field}>
-                    <Text style={styles.label}>{t('character_form.description_label')}</Text>
-                    {photos.some(
-                      (p) => !p.isUploading && p.url && formatAssetUrl(p.url) !== null
-                    ) && analyzeCharacter.isPending ? (
-                      <View style={styles.turnaroundGenerating}>
-                        <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
-                        <Text style={styles.turnaroundGeneratingText}>
-                          {t('character_form.analyzing_photos')}
-                        </Text>
-                      </View>
-                    ) : (
-                      <TextInput
+                      <Text style={styles.typeIcon}>{category.icon}</Text>
+                      <Text
                         style={[
-                          styles.input,
-                          styles.textArea,
-                          errors.description && styles.inputError,
+                          styles.typeText,
+                          type === category.value && styles.typeTextSelected,
                         ]}
-                        value={description}
-                        onChangeText={setDescription}
-                        placeholder={t('character_form.description_placeholder')}
-                        placeholderTextColor={theme.colors.text.disabled}
-                        multiline
-                        numberOfLines={4}
-                        textAlignVertical="top"
-                        editable={
-                          characterId
-                            ? true
-                            : !photos.some(
-                                (p) => !p.isUploading && p.url && formatAssetUrl(p.url) !== null
-                              )
-                        }
-                      />
-                    )}
-                    {description && !analyzeCharacter.isPending && (
-                      <Text style={styles.hint}>{t('character_form.ai_generated_hint')}</Text>
-                    )}
-                    {errors.description && (
-                      <Text style={styles.errorText}>{errors.description}</Text>
-                    )}
-                    {!photos.some(
-                      (p) => !p.isUploading && p.url && formatAssetUrl(p.url) !== null
-                    ) && (
-                      <Text style={styles.hint}>
-                        {t('character_form.description_upload_photos_first')}
+                      >
+                        {t(`characters.categories.${category.key}`)}
                       </Text>
-                    )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {errors.type && <Text style={styles.errorText}>{errors.type}</Text>}
+              </View>
+
+              {/* Photos - Available for all character types */}
+              <View style={styles.field}>
+                <Text style={styles.label}>{t('character_form.photos_title')}</Text>
+                {isImaginaryType(type) && (
+                  <Text style={styles.hint}>{t('character_form.imaginary_photos_hint')}</Text>
+                )}
+                {characterId && currentPreviewUrl && photos.length === 0 ? (
+                  <View style={styles.currentImageCard}>
+                    <Text style={styles.currentImageLabel}>
+                      {t('child_form.current_image') || 'Текущее изображение'}
+                    </Text>
+                    <Image
+                      source={{ uri: formatAssetUrl(currentPreviewUrl) ?? currentPreviewUrl }}
+                      style={styles.currentImage}
+                      resizeMode="contain"
+                    />
                   </View>
+                ) : null}
+                <PhotoUploadGrid
+                  photos={photos}
+                  onPhotosChange={setPhotos}
+                  maxPhotos={5}
+                  photoType="character"
+                  formatUrl={formatAssetUrl}
+                />
+              </View>
+              {/* Subtype selection */}
+              <View style={styles.field}>
+                <ScrollView
+                  style={styles.subtypeList}
+                  showsVerticalScrollIndicator={false}
+                  nestedScrollEnabled
+                >
+                  {SUBTYPE_OPTIONS[type].map((section, index) => {
+                    // Extract options for this section
+                    const sectionItems = section.items || [section];
+                    const options = sectionItems
+                      .filter((item) => item.value && item.key)
+                      .map((item) => item.value!);
 
-                  {/* Appearance Section */}
-                  <ExpandableCard
-                    title={t('character_form.appearance_title')}
-                    defaultExpanded={true}
-                  >
-                    {/* Pet Appearance */}
-                    {isAnimalType(type) && (
-                      <View>
-                        {/* Breed - free text input */}
-                        <View style={styles.field}>
-                          <Text style={styles.label}>{t('character_form.breed')}</Text>
-                          <TextInput
-                            style={styles.input}
-                            value={petAppearance.breed || ''}
-                            onChangeText={(val) =>
-                              setPetAppearance({ ...petAppearance, breed: val || undefined })
-                            }
-                            placeholder={t('character_form.breed_placeholder')}
-                            placeholderTextColor={theme.colors.text.disabled}
-                          />
-                        </View>
+                    // Create label with section prefix if exists
+                    const label = section.section
+                      ? `${t('character_form.subtype_label')} (${t(`characters.subtype_sections.${section.section}`)})`
+                      : t('character_form.subtype_label');
 
+                    return (
+                      <View
+                        key={section.section || `section-${index}`}
+                        style={styles.subtypeChipGroup}
+                      >
                         <ChipSelector
-                          label={t('character_form.fur_color')}
-                          options={FUR_COLORS}
-                          selected={petAppearance.furColor || ''}
-                          onSelect={(val) =>
-                            setPetAppearance({ ...petAppearance, furColor: val as FurColor })
-                          }
-                          translationPrefix="character_form.fur_colors"
-                          getTranslation={t}
-                        />
-
-                        <ChipSelector
-                          label={t('character_form.fur_pattern')}
-                          options={FUR_PATTERNS}
-                          selected={petAppearance.furPattern || ''}
-                          onSelect={(val) =>
-                            setPetAppearance({ ...petAppearance, furPattern: val as FurPattern })
-                          }
-                          translationPrefix="character_form.fur_patterns"
-                          getTranslation={t}
-                        />
-
-                        <ChipSelector
-                          label={t('character_form.fur_length')}
-                          options={FUR_LENGTHS}
-                          selected={petAppearance.furLength || ''}
-                          onSelect={(val) =>
-                            setPetAppearance({ ...petAppearance, furLength: val as FurLength })
-                          }
-                          translationPrefix="character_form.fur_lengths"
-                          getTranslation={t}
-                        />
-
-                        <ChipSelector
-                          label={t('character_form.size')}
-                          options={PET_SIZES}
-                          selected={petAppearance.size || ''}
-                          onSelect={(val) =>
-                            setPetAppearance({ ...petAppearance, size: val as PetSize })
-                          }
-                          translationPrefix="character_form.sizes"
-                          getTranslation={t}
-                        />
-
-                        <ChipSelector
-                          label={t('character_form.eye_color')}
-                          options={PET_EYE_COLORS}
-                          selected={petAppearance.eyeColor || ''}
-                          onSelect={(val) =>
-                            setPetAppearance({ ...petAppearance, eyeColor: val as PetEyeColor })
-                          }
-                          translationPrefix="character_form.eye_colors"
-                          getTranslation={t}
-                        />
-
-                        <ChipSelector
-                          label={t('character_form.distinctive_features')}
-                          options={PET_DISTINCTIVE_FEATURES}
-                          selected={petAppearance.distinctiveFeatures}
-                          onSelect={(val) =>
-                            setPetAppearance({
-                              ...petAppearance,
-                              distinctiveFeatures: val as PetDistinctiveFeature[],
-                            })
-                          }
-                          multiple
-                          max={5}
-                          translationPrefix="character_form.pet_features"
+                          label={label}
+                          options={options}
+                          selected={subtype || ''}
+                          onSelect={(val) => setSubtype(val as CharacterSubtype)}
+                          translationPrefix="characters.subtypes"
                           getTranslation={t}
                         />
                       </View>
-                    )}
+                    );
+                  })}
+                </ScrollView>
+              </View>
 
-                    {/* Human Appearance */}
-                    {isHumanType(type) && (
-                      <View>
-                        <ChipSelector
-                          label={t('character_form.age_range')}
-                          options={AGE_RANGES}
-                          selected={humanAppearance.ageRange || ''}
-                          onSelect={(val) =>
-                            setHumanAppearance({ ...humanAppearance, ageRange: val as AgeRange })
-                          }
-                          translationPrefix="character_form.age_ranges"
-                          getTranslation={t}
-                        />
+              {/* Description */}
+              <View style={styles.field}>
+                <Text style={styles.label}>{t('character_form.description_label')}</Text>
+                {hasAnalyzablePhotos && analyzeCharacter.isPending ? (
+                  <View style={styles.turnaroundGenerating}>
+                    <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+                    <Text style={styles.turnaroundGeneratingText}>
+                      {t('character_form.analyzing_photos')}
+                    </Text>
+                  </View>
+                ) : (
+                  <TextInput
+                    style={[styles.input, styles.textArea, errors.description && styles.inputError]}
+                    value={description}
+                    onChangeText={setDescription}
+                    placeholder={t('character_form.description_placeholder')}
+                    placeholderTextColor={theme.colors.text.disabled}
+                    multiline
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                    editable={!analyzeCharacter.isPending}
+                  />
+                )}
+                {description && !analyzeCharacter.isPending && (
+                  <Text style={styles.hint}>{t('character_form.ai_generated_hint')}</Text>
+                )}
+                {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
+                {!hasAnalyzablePhotos && (
+                  <Text style={styles.hint}>
+                    {t('character_form.turnaround_add_photo_or_description')}
+                  </Text>
+                )}
+              </View>
 
-                        <ChipSelector
-                          label={t('character_form.hair_color')}
-                          options={HUMAN_HAIR_COLORS}
-                          selected={humanAppearance.hairColor || ''}
-                          onSelect={(val) =>
-                            setHumanAppearance({
-                              ...humanAppearance,
-                              hairColor: val as HumanHairColor,
-                            })
-                          }
-                          translationPrefix="character_form.hair_colors"
-                          getTranslation={t}
-                        />
+              {/* Appearance Section */}
+              <ExpandableCard title={t('character_form.appearance_title')} defaultExpanded={true}>
+                {/* Pet Appearance */}
+                {isAnimalType(type) && (
+                  <View>
+                    {/* Breed - free text input */}
+                    <View style={styles.field}>
+                      <Text style={styles.label}>{t('character_form.breed')}</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={petAppearance.breed || ''}
+                        onChangeText={(val) =>
+                          setPetAppearance({ ...petAppearance, breed: val || undefined })
+                        }
+                        placeholder={t('character_form.breed_placeholder')}
+                        placeholderTextColor={theme.colors.text.disabled}
+                      />
+                    </View>
 
-                        <ChipSelector
-                          label={t('character_form.hair_length')}
-                          options={HUMAN_HAIR_LENGTHS}
-                          selected={humanAppearance.hairLength || ''}
-                          onSelect={(val) =>
-                            setHumanAppearance({
-                              ...humanAppearance,
-                              hairLength: val as HumanHairLength,
-                            })
-                          }
-                          translationPrefix="character_form.hair_lengths"
-                          getTranslation={t}
-                        />
+                    <ChipSelector
+                      label={t('character_form.fur_color')}
+                      options={FUR_COLORS}
+                      selected={petAppearance.furColor || ''}
+                      onSelect={(val) =>
+                        setPetAppearance({ ...petAppearance, furColor: val as FurColor })
+                      }
+                      translationPrefix="character_form.fur_colors"
+                      getTranslation={t}
+                    />
 
-                        <ChipSelector
-                          label={t('character_form.hair_style')}
-                          options={HUMAN_HAIR_STYLES}
-                          selected={humanAppearance.hairStyle || ''}
-                          onSelect={(val) =>
-                            setHumanAppearance({
-                              ...humanAppearance,
-                              hairStyle: val as HumanHairStyle,
-                            })
-                          }
-                          translationPrefix="character_form.hair_styles"
-                          getTranslation={t}
-                        />
+                    <ChipSelector
+                      label={t('character_form.fur_pattern')}
+                      options={FUR_PATTERNS}
+                      selected={petAppearance.furPattern || ''}
+                      onSelect={(val) =>
+                        setPetAppearance({ ...petAppearance, furPattern: val as FurPattern })
+                      }
+                      translationPrefix="character_form.fur_patterns"
+                      getTranslation={t}
+                    />
 
-                        <ChipSelector
-                          label={t('character_form.eye_color')}
-                          options={EYE_COLORS}
-                          selected={humanAppearance.eyeColor || ''}
-                          onSelect={(val) =>
-                            setHumanAppearance({ ...humanAppearance, eyeColor: val as EyeColor })
-                          }
-                          translationPrefix="character_form.eye_colors"
-                          getTranslation={t}
-                        />
+                    <ChipSelector
+                      label={t('character_form.fur_length')}
+                      options={FUR_LENGTHS}
+                      selected={petAppearance.furLength || ''}
+                      onSelect={(val) =>
+                        setPetAppearance({ ...petAppearance, furLength: val as FurLength })
+                      }
+                      translationPrefix="character_form.fur_lengths"
+                      getTranslation={t}
+                    />
 
-                        <ChipSelector
-                          label={t('character_form.skin_tone')}
-                          options={SKIN_TONES}
-                          selected={humanAppearance.skinTone || ''}
-                          onSelect={(val) =>
-                            setHumanAppearance({ ...humanAppearance, skinTone: val as SkinTone })
-                          }
-                          translationPrefix="character_form.skin_tones"
-                          getTranslation={t}
-                        />
+                    <ChipSelector
+                      label={t('character_form.size')}
+                      options={PET_SIZES}
+                      selected={petAppearance.size || ''}
+                      onSelect={(val) =>
+                        setPetAppearance({ ...petAppearance, size: val as PetSize })
+                      }
+                      translationPrefix="character_form.sizes"
+                      getTranslation={t}
+                    />
 
-                        <ChipSelector
-                          label={t('character_form.height')}
-                          options={HEIGHTS}
-                          selected={humanAppearance.height || ''}
-                          onSelect={(val) =>
-                            setHumanAppearance({ ...humanAppearance, height: val as Height })
-                          }
-                          translationPrefix="character_form.heights"
-                          getTranslation={t}
-                        />
+                    <ChipSelector
+                      label={t('character_form.eye_color')}
+                      options={PET_EYE_COLORS}
+                      selected={petAppearance.eyeColor || ''}
+                      onSelect={(val) =>
+                        setPetAppearance({ ...petAppearance, eyeColor: val as PetEyeColor })
+                      }
+                      translationPrefix="character_form.eye_colors"
+                      getTranslation={t}
+                    />
 
-                        <ChipSelector
-                          label={t('character_form.build')}
-                          options={BUILDS}
-                          selected={humanAppearance.build || ''}
-                          onSelect={(val) =>
-                            setHumanAppearance({ ...humanAppearance, build: val as Build })
-                          }
-                          translationPrefix="character_form.builds"
-                          getTranslation={t}
-                        />
+                    <ChipSelector
+                      label={t('character_form.distinctive_features')}
+                      options={PET_DISTINCTIVE_FEATURES}
+                      selected={petAppearance.distinctiveFeatures}
+                      onSelect={(val) =>
+                        setPetAppearance({
+                          ...petAppearance,
+                          distinctiveFeatures: val as PetDistinctiveFeature[],
+                        })
+                      }
+                      multiple
+                      max={5}
+                      translationPrefix="character_form.pet_features"
+                      getTranslation={t}
+                    />
+                  </View>
+                )}
 
-                        <ChipSelector
-                          label={t('character_form.clothing_style')}
-                          options={CLOTHING_STYLES}
-                          selected={humanAppearance.clothingStyle || ''}
-                          onSelect={(val) =>
-                            setHumanAppearance({
-                              ...humanAppearance,
-                              clothingStyle: val as ClothingStyle,
-                            })
-                          }
-                          translationPrefix="character_form.clothing_styles"
-                          getTranslation={t}
-                        />
+                {/* Human Appearance */}
+                {isHumanType(type) && (
+                  <View>
+                    <ChipSelector
+                      label={t('character_form.age_range')}
+                      options={AGE_RANGES}
+                      selected={humanAppearance.ageRange || ''}
+                      onSelect={(val) =>
+                        setHumanAppearance({ ...humanAppearance, ageRange: val as AgeRange })
+                      }
+                      translationPrefix="character_form.age_ranges"
+                      getTranslation={t}
+                    />
 
-                        <ChipSelector
-                          label={t('character_form.distinctive_features')}
-                          options={HUMAN_DISTINCTIVE_FEATURES}
-                          selected={humanAppearance.distinctiveFeatures}
-                          onSelect={(val) =>
-                            setHumanAppearance({
-                              ...humanAppearance,
-                              distinctiveFeatures: val as HumanDistinctiveFeature[],
-                            })
-                          }
-                          multiple
-                          max={5}
-                          translationPrefix="character_form.human_features"
-                          getTranslation={t}
-                        />
-                      </View>
-                    )}
+                    <ChipSelector
+                      label={t('character_form.hair_color')}
+                      options={HUMAN_HAIR_COLORS}
+                      selected={humanAppearance.hairColor || ''}
+                      onSelect={(val) =>
+                        setHumanAppearance({
+                          ...humanAppearance,
+                          hairColor: val as HumanHairColor,
+                        })
+                      }
+                      translationPrefix="character_form.hair_colors"
+                      getTranslation={t}
+                    />
 
-                    {/* Imaginary Appearance */}
-                    {isImaginaryType(type) && (
-                      <View>
-                        <View style={styles.field}>
-                          <Text style={styles.label}>{t('character_form.species')}</Text>
-                          <TextInput
-                            style={styles.input}
-                            value={imaginaryAppearance.species}
-                            onChangeText={(val) =>
-                              setImaginaryAppearance({ ...imaginaryAppearance, species: val })
-                            }
-                            placeholder={t('character_form.species_placeholder')}
-                            placeholderTextColor={theme.colors.text.disabled}
-                          />
-                        </View>
+                    <ChipSelector
+                      label={t('character_form.hair_length')}
+                      options={HUMAN_HAIR_LENGTHS}
+                      selected={humanAppearance.hairLength || ''}
+                      onSelect={(val) =>
+                        setHumanAppearance({
+                          ...humanAppearance,
+                          hairLength: val as HumanHairLength,
+                        })
+                      }
+                      translationPrefix="character_form.hair_lengths"
+                      getTranslation={t}
+                    />
 
-                        <View style={styles.field}>
-                          <Text style={styles.label}>{t('character_form.primary_color')}</Text>
-                          <TextInput
-                            style={styles.input}
-                            value={imaginaryAppearance.primaryColor}
-                            onChangeText={(val) =>
-                              setImaginaryAppearance({ ...imaginaryAppearance, primaryColor: val })
-                            }
-                            placeholder={t('character_form.primary_color_placeholder')}
-                            placeholderTextColor={theme.colors.text.disabled}
-                          />
-                        </View>
+                    <ChipSelector
+                      label={t('character_form.hair_style')}
+                      options={HUMAN_HAIR_STYLES}
+                      selected={humanAppearance.hairStyle || ''}
+                      onSelect={(val) =>
+                        setHumanAppearance({
+                          ...humanAppearance,
+                          hairStyle: val as HumanHairStyle,
+                        })
+                      }
+                      translationPrefix="character_form.hair_styles"
+                      getTranslation={t}
+                    />
 
-                        <View style={styles.field}>
-                          <Text style={styles.label}>{t('character_form.secondary_color')}</Text>
-                          <TextInput
-                            style={styles.input}
-                            value={imaginaryAppearance.secondaryColor}
-                            onChangeText={(val) =>
-                              setImaginaryAppearance({
-                                ...imaginaryAppearance,
-                                secondaryColor: val,
-                              })
-                            }
-                            placeholder={t('character_form.secondary_color_placeholder')}
-                            placeholderTextColor={theme.colors.text.disabled}
-                          />
-                        </View>
+                    <ChipSelector
+                      label={t('character_form.eye_color')}
+                      options={EYE_COLORS}
+                      selected={humanAppearance.eyeColor || ''}
+                      onSelect={(val) =>
+                        setHumanAppearance({ ...humanAppearance, eyeColor: val as EyeColor })
+                      }
+                      translationPrefix="character_form.eye_colors"
+                      getTranslation={t}
+                    />
 
-                        <TagsInput
-                          label={t('character_form.size')}
-                          tags={imaginaryAppearance.size ? [imaginaryAppearance.size] : []}
-                          onTagsChange={(tags) =>
-                            setImaginaryAppearance({ ...imaginaryAppearance, size: tags[0] || '' })
-                          }
-                          suggestions={SIZE_SUGGESTIONS}
-                          max={1}
-                          placeholder={t('character_form.size_placeholder')}
-                        />
+                    <ChipSelector
+                      label={t('character_form.skin_tone')}
+                      options={SKIN_TONES}
+                      selected={humanAppearance.skinTone || ''}
+                      onSelect={(val) =>
+                        setHumanAppearance({ ...humanAppearance, skinTone: val as SkinTone })
+                      }
+                      translationPrefix="character_form.skin_tones"
+                      getTranslation={t}
+                    />
 
-                        <TagsInput
-                          label={t('character_form.magical_features')}
-                          tags={imaginaryAppearance.magicalFeatures}
-                          onTagsChange={(tags) =>
-                            setImaginaryAppearance({
-                              ...imaginaryAppearance,
-                              magicalFeatures: tags,
-                            })
-                          }
-                          suggestions={MAGICAL_FEATURES_SUGGESTIONS}
-                          max={10}
-                          placeholder={t('character_form.magical_features_placeholder')}
-                        />
-                      </View>
-                    )}
-                  </ExpandableCard>
+                    <ChipSelector
+                      label={t('character_form.height')}
+                      options={HEIGHTS}
+                      selected={humanAppearance.height || ''}
+                      onSelect={(val) =>
+                        setHumanAppearance({ ...humanAppearance, height: val as Height })
+                      }
+                      translationPrefix="character_form.heights"
+                      getTranslation={t}
+                    />
 
-                  {/* Personality Section */}
-                  <ExpandableCard
-                    title={t('character_form.personality_title')}
-                    defaultExpanded={false}
-                  >
-                    {isAnimalType(type) ? (
-                      <View>
-                        <ChipSelector
-                          label={t('character_form.personality_traits')}
-                          options={PET_PERSONALITY_TRAITS}
-                          selected={personality.traits}
-                          onSelect={(val) =>
-                            setPersonality({ ...personality, traits: val as PetPersonalityTrait[] })
-                          }
-                          multiple
-                          max={5}
-                          translationPrefix="character_form.pet_traits"
-                          getTranslation={t}
-                        />
+                    <ChipSelector
+                      label={t('character_form.build')}
+                      options={BUILDS}
+                      selected={humanAppearance.build || ''}
+                      onSelect={(val) =>
+                        setHumanAppearance({ ...humanAppearance, build: val as Build })
+                      }
+                      translationPrefix="character_form.builds"
+                      getTranslation={t}
+                    />
 
-                        <ChipSelector
-                          label={t('character_form.favorite_activities')}
-                          options={PET_ACTIVITIES}
-                          selected={personality.favoriteActivities}
-                          onSelect={(val) =>
-                            setPersonality({
-                              ...personality,
-                              favoriteActivities: val as PetActivity[],
-                            })
-                          }
-                          multiple
-                          max={5}
-                          translationPrefix="character_form.pet_activities"
-                          getTranslation={t}
-                        />
-                      </View>
-                    ) : (
-                      <View>
-                        <TagsInput
-                          label={t('character_form.personality_traits')}
-                          tags={personality.traits}
-                          onTagsChange={(tags) => setPersonality({ ...personality, traits: tags })}
-                          max={5}
-                          placeholder={t('character_form.personality_trait_placeholder')}
-                        />
+                    <ChipSelector
+                      label={t('character_form.clothing_style')}
+                      options={CLOTHING_STYLES}
+                      selected={humanAppearance.clothingStyle || ''}
+                      onSelect={(val) =>
+                        setHumanAppearance({
+                          ...humanAppearance,
+                          clothingStyle: val as ClothingStyle,
+                        })
+                      }
+                      translationPrefix="character_form.clothing_styles"
+                      getTranslation={t}
+                    />
 
-                        <TagsInput
-                          label={t('character_form.favorite_activities')}
-                          tags={personality.favoriteActivities}
-                          onTagsChange={(tags) =>
-                            setPersonality({ ...personality, favoriteActivities: tags })
-                          }
-                          max={5}
-                          placeholder={t('character_form.favorite_activity_placeholder')}
-                        />
-                      </View>
-                    )}
-                  </ExpandableCard>
+                    <ChipSelector
+                      label={t('character_form.distinctive_features')}
+                      options={HUMAN_DISTINCTIVE_FEATURES}
+                      selected={humanAppearance.distinctiveFeatures}
+                      onSelect={(val) =>
+                        setHumanAppearance({
+                          ...humanAppearance,
+                          distinctiveFeatures: val as HumanDistinctiveFeature[],
+                        })
+                      }
+                      multiple
+                      max={5}
+                      translationPrefix="character_form.human_features"
+                      getTranslation={t}
+                    />
+                  </View>
+                )}
 
-                  {/* Submit error */}
-                  {errors.submit && (
-                    <Text style={[styles.errorText, styles.submitError]}>{errors.submit}</Text>
-                  )}
-                </>
+                {/* Imaginary Appearance */}
+                {isImaginaryType(type) && (
+                  <View>
+                    <ColorPillSelector
+                      label={t('character_form.primary_color')}
+                      value={imaginaryAppearance.primaryColor}
+                      onChange={(val) =>
+                        setImaginaryAppearance({ ...imaginaryAppearance, primaryColor: val })
+                      }
+                      customPlaceholder={t('character_form.primary_color_placeholder')}
+                      showCustom={showPrimaryColorCustom}
+                      onShowCustomChange={setShowPrimaryColorCustom}
+                      getTranslation={t}
+                    />
+
+                    <ColorPillSelector
+                      label={t('character_form.secondary_color')}
+                      value={imaginaryAppearance.secondaryColor}
+                      onChange={(val) =>
+                        setImaginaryAppearance({
+                          ...imaginaryAppearance,
+                          secondaryColor: val,
+                        })
+                      }
+                      customPlaceholder={t('character_form.secondary_color_placeholder')}
+                      showCustom={showSecondaryColorCustom}
+                      onShowCustomChange={setShowSecondaryColorCustom}
+                      getTranslation={t}
+                    />
+
+                    <TagsInput
+                      label={t('character_form.size')}
+                      tags={imaginaryAppearance.size ? [imaginaryAppearance.size] : []}
+                      onTagsChange={(tags) =>
+                        setImaginaryAppearance({ ...imaginaryAppearance, size: tags[0] || '' })
+                      }
+                      suggestions={SIZE_SUGGESTIONS}
+                      max={1}
+                      placeholder={t('character_form.size_placeholder')}
+                    />
+
+                    <TagsInput
+                      label={t('character_form.magical_features')}
+                      tags={imaginaryAppearance.magicalFeatures}
+                      onTagsChange={(tags) =>
+                        setImaginaryAppearance({
+                          ...imaginaryAppearance,
+                          magicalFeatures: tags,
+                        })
+                      }
+                      suggestions={MAGICAL_FEATURES_SUGGESTIONS}
+                      max={10}
+                      placeholder={t('character_form.magical_features_placeholder')}
+                    />
+                  </View>
+                )}
+              </ExpandableCard>
+
+              {/* Personality Section */}
+              <ExpandableCard title={t('character_form.personality_title')} defaultExpanded={false}>
+                {isAnimalType(type) ? (
+                  <View>
+                    <ChipSelector
+                      label={t('character_form.personality_traits')}
+                      options={PET_PERSONALITY_TRAITS}
+                      selected={personality.traits}
+                      onSelect={(val) =>
+                        setPersonality({ ...personality, traits: val as PetPersonalityTrait[] })
+                      }
+                      multiple
+                      max={5}
+                      translationPrefix="character_form.pet_traits"
+                      getTranslation={t}
+                    />
+
+                    <ChipSelector
+                      label={t('character_form.favorite_activities')}
+                      options={PET_ACTIVITIES}
+                      selected={personality.favoriteActivities}
+                      onSelect={(val) =>
+                        setPersonality({
+                          ...personality,
+                          favoriteActivities: val as PetActivity[],
+                        })
+                      }
+                      multiple
+                      max={5}
+                      translationPrefix="character_form.pet_activities"
+                      getTranslation={t}
+                    />
+                  </View>
+                ) : (
+                  <View>
+                    <TagsInput
+                      label={t('character_form.personality_traits')}
+                      tags={personality.traits}
+                      onTagsChange={(tags) => setPersonality({ ...personality, traits: tags })}
+                      max={5}
+                      placeholder={t('character_form.personality_trait_placeholder')}
+                    />
+
+                    <TagsInput
+                      label={t('character_form.favorite_activities')}
+                      tags={personality.favoriteActivities}
+                      onTagsChange={(tags) =>
+                        setPersonality({ ...personality, favoriteActivities: tags })
+                      }
+                      max={5}
+                      placeholder={t('character_form.favorite_activity_placeholder')}
+                    />
+                  </View>
+                )}
+              </ExpandableCard>
+
+              {/* Submit error */}
+              {errors.submit && (
+                <Text style={[styles.errorText, styles.submitError]}>{errors.submit}</Text>
               )}
             </ScrollView>
 
@@ -1296,28 +1353,21 @@ export function CharacterFormModal({ visible, onClose, characterId, initialData 
                 style={styles.footerAction}
               />
 
-              {currentStep === 1 ? (
-                <AppButton
-                  label={t('character_form.continue_button')}
-                  onPress={handleContinue}
-                  disabled={!name.trim() || photos.some((p) => p.isUploading)}
-                  style={styles.footerAction}
-                />
-              ) : (
-                <AppButton
-                  label={t('character_form.save_button')}
-                  onPress={handleSubmit}
-                  disabled={
-                    isSubmittingOverlay ||
-                    createCharacter.isPending ||
-                    updateCharacter.isPending ||
-                    (!characterId && !description.trim()) ||
-                    (!characterId && analyzeCharacter.isPending)
-                  }
-                  loading={createCharacter.isPending || updateCharacter.isPending}
-                  style={styles.footerAction}
-                />
-              )}
+              <AppButton
+                label={t('character_form.save_button')}
+                onPress={handleSubmit}
+                disabled={
+                  isSubmittingOverlay ||
+                  createCharacter.isPending ||
+                  updateCharacter.isPending ||
+                  hasUploadingPhotos ||
+                  !name.trim() ||
+                  (!characterId && !description.trim() && !hasUploadedPhotos) ||
+                  (!characterId && analyzeCharacter.isPending)
+                }
+                loading={createCharacter.isPending || updateCharacter.isPending}
+                style={styles.footerAction}
+              />
             </View>
 
             <TouchableOpacity
@@ -1401,18 +1451,6 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: theme.spacing[1],
   },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing[4],
-    paddingVertical: theme.spacing[2],
-  },
-  backLinkText: {
-    fontSize: theme.typography.fontSize.base,
-    color: theme.colors.interactive.primary,
-    marginLeft: theme.spacing[2],
-    fontWeight: theme.typography.fontWeight.medium,
-  },
   hint: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
@@ -1459,6 +1497,54 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base,
     color: theme.colors.text.primary,
     backgroundColor: theme.colors.background.secondary,
+  },
+  colorSelector: {
+    marginBottom: theme.spacing[4],
+  },
+  colorPillGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[2],
+  },
+  colorPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 42,
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.medium,
+    backgroundColor: theme.colors.background.secondary,
+    marginBottom: theme.spacing[2],
+  },
+  colorPillSelected: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  colorDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    marginRight: theme.spacing[2],
+  },
+  customColorDot: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.primary,
+    borderColor: theme.colors.border.medium,
+  },
+  colorPillText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.primary,
+    fontWeight: theme.typography.fontWeight.medium,
+  },
+  colorPillTextSelected: {
+    color: theme.colors.text.inverse,
+  },
+  colorCustomInput: {
+    marginTop: theme.spacing[2],
   },
   inputError: {
     borderColor: theme.colors.status.error,

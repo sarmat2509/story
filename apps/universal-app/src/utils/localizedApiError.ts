@@ -39,6 +39,8 @@ const API_ERROR_KEY_BY_CODE: Record<string, string> = {
   CHILD_MODE_PASSCODE_REQUIRED: 'child_mode_passcode_required',
   CHILD_MODE_PASSCODE_NOT_CONFIGURED: 'child_mode_passcode_not_configured',
   CHILD_MODE_PASSCODE_INVALID: 'child_mode_passcode_invalid',
+  CHILD_MODE_RECOVERY_INVALID: 'child_mode_recovery_invalid',
+  CHILD_MODE_RECOVERY_USER_NOT_FOUND: 'child_mode_recovery_invalid',
   PROMPT_SAFETY_BLOCKED: 'prompt_safety_blocked',
   PROMPT_SAFETY_REJECTED: 'prompt_safety_blocked',
   PHOTO_URL_NOT_ALLOWED: 'photo_input_invalid',

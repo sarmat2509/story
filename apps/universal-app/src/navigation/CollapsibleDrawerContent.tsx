@@ -175,133 +175,157 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
   return (
     <DrawerContentScrollView
       {...rest}
-      contentContainerStyle={drawerContentContainerStyle}
+      contentContainerStyle={[drawerContentContainerStyle, styles.scrollContent]}
       style={drawerContentStyle}
     >
-      {isChildSession ? (
-        <ChildProfileSwitcher
-          menuStyle={styles.childSwitcherMenu}
-          renderTrigger={({ avatarUrl, open }) => (
-            <PlatformPressable
-              onPress={open}
-              role="button"
-              pressColor={undefined}
-              pressOpacity={0.75}
-            >
-              <View style={[styles.childSessionCard, collapsed && styles.childSessionCardCollapsed]}>
-                {avatarUrl ? (
-                  <ChildAvatarImage
-                    uri={avatarUrl}
-                    style={styles.childAvatar}
-                  />
-                ) : (
-                  <View style={styles.childAvatarFallback}>
-                    <Ionicons
-                      name="person-circle-outline"
-                      size={28}
-                      color={theme.colors.interactive.primary}
-                    />
-                  </View>
-                )}
-                {!collapsed ? (
-                  <View style={styles.childSessionCopy}>
-                    <Text style={styles.childSessionLabel} numberOfLines={1}>
-                      {t('child_mode.title')}
-                    </Text>
-                    <Text style={styles.childSessionName} numberOfLines={1}>
-                      {activeChild?.name}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            </PlatformPressable>
-          )}
-        />
-      ) : null}
-      {visibleRoutes.map((route) => {
-        const focused = state.routes[state.index].key === route.key;
-        const onPress = () => {
-          const event = navigation.emit({
-            type: 'drawerItemPress',
-            target: route.key,
-            canPreventDefault: true,
-          });
-          if (!event.defaultPrevented) {
-            navigation.dispatch({
-              ...(focused ? DrawerActions.closeDrawer() : CommonActions.navigate(route)),
-              target: state.key,
-            });
-          }
-        };
-
-        return (
-          <CollapsibleDrawerItem
-            key={route.key}
-            route={route}
-            focused={focused}
-            descriptors={descriptors}
-            state={state}
-            navigation={navigation}
-            onPress={onPress}
-            href={buildHref(route.name, route.params)}
-          />
-        );
-      })}
-      {Platform.OS === 'web' && user?.role === 'admin' ? (
-        <View
-          style={[
-            styles.itemContainer,
-            { backgroundColor: 'transparent' },
-            collapsed && {
-              alignSelf: 'center',
-              justifyContent: 'center',
-              alignItems: 'center',
-            },
-          ]}
-        >
-          <PlatformPressable
-            onPress={handleAdminPress}
-            role="button"
-            href="/admin/stories"
-            pressColor={undefined}
-            pressOpacity={0.7}
-          >
-            <View style={[styles.itemWrapper, collapsed && styles.itemWrapperCollapsed]}>
-              <Ionicons
-                name="shield-checkmark-outline"
-                size={24}
-                color={theme.colors.interactive.primary}
-              />
-              {!collapsed ? (
-                <View style={styles.labelContainer}>
-                  <Text
-                    numberOfLines={1}
-                    style={[
-                      styles.labelText,
-                      { color: theme.colors.interactive.primary, fontWeight: '700' },
-                    ]}
+      <View style={styles.scrollInner}>
+        <View>
+          {isChildSession ? (
+            <ChildProfileSwitcher
+              menuStyle={styles.childSwitcherMenu}
+              renderTrigger={({ avatarUrl, open }) => (
+                <PlatformPressable
+                  onPress={open}
+                  role="button"
+                  pressColor={undefined}
+                  pressOpacity={0.75}
+                >
+                  <View
+                    style={[styles.childSessionCard, collapsed && styles.childSessionCardCollapsed]}
                   >
-                    Admin
-                  </Text>
+                    {avatarUrl ? (
+                      <ChildAvatarImage
+                        uri={avatarUrl}
+                        style={styles.childAvatar}
+                      />
+                    ) : (
+                      <View style={styles.childAvatarFallback}>
+                        <Ionicons
+                          name="person-circle-outline"
+                          size={28}
+                          color={theme.colors.interactive.primary}
+                        />
+                      </View>
+                    )}
+                    {!collapsed ? (
+                      <View style={styles.childSessionCopy}>
+                        <Text style={styles.childSessionLabel} numberOfLines={1}>
+                          {t('child_mode.title')}
+                        </Text>
+                        <Text style={styles.childSessionName} numberOfLines={1}>
+                          {activeChild?.name}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </PlatformPressable>
+              )}
+            />
+          ) : null}
+          {visibleRoutes.map((route) => {
+            const focused = state.routes[state.index].key === route.key;
+            const onPress = () => {
+              const event = navigation.emit({
+                type: 'drawerItemPress',
+                target: route.key,
+                canPreventDefault: true,
+              });
+              if (!event.defaultPrevented) {
+                navigation.dispatch({
+                  ...(focused ? DrawerActions.closeDrawer() : CommonActions.navigate(route)),
+                  target: state.key,
+                });
+              }
+            };
+
+            return (
+              <CollapsibleDrawerItem
+                key={route.key}
+                route={route}
+                focused={focused}
+                descriptors={descriptors}
+                state={state}
+                navigation={navigation}
+                onPress={onPress}
+                href={buildHref(route.name, route.params)}
+              />
+            );
+          })}
+          {Platform.OS === 'web' && user?.role === 'admin' ? (
+            <View
+              style={[
+                styles.itemContainer,
+                { backgroundColor: 'transparent' },
+                collapsed && {
+                  alignSelf: 'center',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                },
+              ]}
+            >
+              <PlatformPressable
+                onPress={handleAdminPress}
+                role="button"
+                href="/admin/stories"
+                pressColor={undefined}
+                pressOpacity={0.7}
+              >
+                <View style={[styles.itemWrapper, collapsed && styles.itemWrapperCollapsed]}>
+                  <Ionicons
+                    name="shield-checkmark-outline"
+                    size={24}
+                    color={theme.colors.interactive.primary}
+                  />
+                  {!collapsed ? (
+                    <View style={styles.labelContainer}>
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.labelText,
+                          { color: theme.colors.interactive.primary, fontWeight: '700' },
+                        ]}
+                      >
+                        Admin
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
-              ) : null}
+              </PlatformPressable>
             </View>
-          </PlatformPressable>
+          ) : null}
         </View>
-      ) : null}
+        {__DEV__ ? (
+          <View style={[styles.devBadge, collapsed && styles.devBadgeCollapsed]}>
+            <Text style={styles.devBadgeText}>DEV</Text>
+          </View>
+        ) : null}
+      </View>
     </DrawerContentScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollContent: {
+    flexGrow: 1,
+  },
+  scrollInner: {
+    flex: 1,
+    justifyContent: 'space-between',
+    minHeight: '100%',
+    paddingBottom: theme.spacing[4],
+  },
   itemContainer: {
-    borderRadius: COLLAPSED_HIGHLIGHT_SIZE / 2,
+    marginHorizontal: theme.spacing[2],
+    marginBottom: theme.spacing[1],
+    borderRadius: 18,
     overflow: 'hidden',
   },
   itemWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: theme.spacing[3],
+    minHeight: 48,
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
   },
   itemWrapperCollapsed: {
     justifyContent: 'center',
@@ -321,21 +345,22 @@ const styles = StyleSheet.create({
   labelText: {
     lineHeight: 24,
     textAlignVertical: 'center',
-    fontSize: theme.typography.fontSize.base,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.medium,
   },
   childSessionCard: {
     minHeight: 64,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing[3],
-    marginHorizontal: theme.spacing[3],
+    marginHorizontal: theme.spacing[2],
     marginBottom: theme.spacing[3],
     paddingHorizontal: theme.spacing[3],
     paddingVertical: theme.spacing[2],
-    borderRadius: theme.borders.radius.lg,
+    borderRadius: theme.borders.radius.xl,
     borderWidth: theme.borders.width.thin,
     borderColor: modernColors.border,
-    backgroundColor: modernColors.accentWash,
+    backgroundColor: modernColors.surfaceMuted,
   },
   childSessionCardCollapsed: {
     width: COLLAPSED_HIGHLIGHT_SIZE,
@@ -379,5 +404,29 @@ const styles = StyleSheet.create({
   childSwitcherMenu: {
     top: Platform.OS === 'web' ? theme.spacing[3] : 78,
     left: theme.spacing[3],
+  },
+  devBadge: {
+    alignSelf: 'flex-start',
+    marginTop: theme.spacing[4],
+    marginHorizontal: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: modernColors.surfaceMuted,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+  },
+  devBadgeCollapsed: {
+    alignSelf: 'center',
+    minWidth: COLLAPSED_HIGHLIGHT_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 0,
+  },
+  devBadgeText: {
+    color: theme.colors.interactive.primary,
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.bold,
+    letterSpacing: 0.6,
   },
 });

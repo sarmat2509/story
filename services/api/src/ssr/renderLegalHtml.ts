@@ -7,18 +7,15 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { marked } from 'marked';
 import {
-  PUBLIC_SEO_LOCALES,
   buildAbsoluteRouteUrl,
   buildPublicLandingPath,
   buildPublicLegalPath,
-  normalizePublicSeoLocale,
-  type PublicSeoLocale,
 } from '@wondertales/shared';
 import { config } from '../config';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import {
   PUBLIC_FOOTER_STYLES,
-  buildPublicFooterLanguageLinks,
+  type PublicFooterLanguageLink,
   renderPublicPageFooter,
 } from './publicPageFooter';
 
@@ -59,7 +56,10 @@ export interface RenderLegalOptions {
   locale: string;
 }
 
-const LEGAL_COPY: Record<PublicSeoLocale, {
+const PUBLIC_LEGAL_LOCALES = ['uk', 'en'] as const;
+type PublicLegalLocale = typeof PUBLIC_LEGAL_LOCALES[number];
+
+const LEGAL_COPY: Record<PublicLegalLocale, {
   termsTitle: string;
   termsDescription: string;
   privacyTitle: string;
@@ -82,8 +82,15 @@ const LEGAL_COPY: Record<PublicSeoLocale, {
   },
 };
 
-export function resolveLegalLocale(locale?: string | null): PublicSeoLocale {
-  return normalizePublicSeoLocale(locale);
+export function resolveLegalLocale(locale?: string | null): PublicLegalLocale {
+  const normalized = locale?.slice(0, 2).toLowerCase();
+  if (!normalized) {
+    return 'uk';
+  }
+
+  return PUBLIC_LEGAL_LOCALES.includes(normalized as PublicLegalLocale)
+    ? (normalized as PublicLegalLocale)
+    : 'en';
 }
 
 async function loadMarkdown(doc: 'terms' | 'privacy', locale: string): Promise<string> {
@@ -107,12 +114,28 @@ async function loadMarkdown(doc: 'terms' | 'privacy', locale: string): Promise<s
 
 function buildLegalAlternateLinks(webAppUrl: string, doc: 'terms' | 'privacy'): string {
   const defaultUrl = escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath(doc, 'uk')));
-  const alternates = PUBLIC_SEO_LOCALES.map((locale) => {
+  const alternates = PUBLIC_LEGAL_LOCALES.map((locale) => {
     const href = buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath(doc, locale));
     return `<link rel="alternate" hreflang="${locale}" href="${escapeHtml(href)}">`;
   });
   alternates.push(`<link rel="alternate" hreflang="x-default" href="${defaultUrl}">`);
   return alternates.join('\n  ');
+}
+
+function buildLegalFooterLanguageLinks(
+  webAppUrl: string,
+  doc: 'terms' | 'privacy'
+): PublicFooterLanguageLink[] {
+  const labels: Record<PublicLegalLocale, string> = {
+    uk: 'Українська',
+    en: 'English',
+  };
+
+  return PUBLIC_LEGAL_LOCALES.map((locale) => ({
+    locale,
+    label: labels[locale],
+    href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath(doc, locale)),
+  }));
 }
 
 export async function renderLegalHtml(options: RenderLegalOptions): Promise<string> {
@@ -156,7 +179,7 @@ export async function renderLegalHtml(options: RenderLegalOptions): Promise<stri
     ${renderPublicPageFooter(
       webAppUrl,
       resolvedLocale,
-      buildPublicFooterLanguageLinks(webAppUrl, (footerLocale) => buildPublicLegalPath(doc, footerLocale))
+      buildLegalFooterLanguageLinks(webAppUrl, doc)
     )}
   </div>
 </body>

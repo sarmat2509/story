@@ -114,6 +114,151 @@ const PARENT_TRUST_COPY: Record<PublicSeoLocale, {
       },
     ],
   },
+  ru: {
+    title: 'Родительский контроль и приватность с первой истории',
+    subtitle:
+      'WonderTales создан для семей: взрослый владеет аккаунтом, данные ребёнка остаются приватными, а поддержка помогает с вопросами приватности и удаления.',
+    cards: [
+      {
+        title: 'Аккаунт принадлежит взрослому',
+        body:
+          'Дети пользуются профилями внутри взрослого аккаунта. Оплата, настройки, публикация и удаление остаются под контролем родителей.',
+      },
+      {
+        title: 'Приватно по умолчанию',
+        body:
+          'Профили детей, загрузки, созданные истории, аудио и изображения не становятся публичными, пока родитель сам не выберет публикацию или приватную ссылку.',
+        linkLabel: 'Политика конфиденциальности',
+      },
+      {
+        title: 'Детский режим с границами',
+        body:
+          'Детский режим позволяет создавать истории только в рамках родительских настроек: возраст, разрешённые темы, лимиты и проверка перед публикацией.',
+      },
+      {
+        title: 'Удаление данных и поддержка',
+        body:
+          'Родители могут в любой момент обратиться в поддержку по вопросам аккаунта, экспорта, удаления или приватности.',
+        linkLabel: 'Связаться с поддержкой',
+      },
+    ],
+  },
+  es: {
+    title: 'Control parental y privacidad desde la primera historia',
+    subtitle:
+      'WonderTales está pensado para familias: los adultos controlan la cuenta, los datos del niño permanecen privados y soporte puede ayudar con privacidad o eliminación.',
+    cards: [
+      {
+        title: 'Cuentas gestionadas por adultos',
+        body:
+          'Los niños usan perfiles dentro de la cuenta de un adulto. La facturación, la configuración, la publicación y las acciones sensibles quedan bajo acceso parental.',
+      },
+      {
+        title: 'Privado por defecto',
+        body:
+          'Los perfiles infantiles, las subidas, las historias, el audio y las imágenes no son públicos salvo que un padre decida publicarlos o compartir un enlace privado.',
+        linkLabel: 'Política de privacidad',
+      },
+      {
+        title: 'Modo infantil con límites',
+        body:
+          'El modo infantil permite crear historias dentro de los límites definidos por los padres: edad, temas permitidos, cupos y revisión antes de compartir.',
+      },
+      {
+        title: 'Eliminación de datos y soporte',
+        body:
+          'Los padres pueden contactar con soporte en cualquier momento para ayuda con la cuenta, exportación, eliminación o privacidad.',
+        linkLabel: 'Contactar soporte',
+      },
+    ],
+  },
+  de: {
+    title: 'Elternkontrolle und Datenschutz ab der ersten Geschichte',
+    subtitle:
+      'WonderTales ist für Familien gebaut: Erwachsene verwalten das Konto, Kinderdaten bleiben privat und der Support hilft bei Datenschutz- oder Löschanfragen.',
+    cards: [
+      {
+        title: 'Konten unter Elternaufsicht',
+        body:
+          'Kinder nutzen Profile innerhalb eines Erwachsenenkontos. Abrechnung, Einstellungen, Veröffentlichung und sensible Aktionen bleiben hinter dem Elternzugang.',
+      },
+      {
+        title: 'Standardmäßig privat',
+        body:
+          'Kinderprofile, Uploads, erstellte Geschichten, Audio und Bilder sind nicht öffentlich, solange Eltern sie nicht bewusst veröffentlichen oder per privatem Link teilen.',
+        linkLabel: 'Datenschutz',
+      },
+      {
+        title: 'Kindermodus mit Grenzen',
+        body:
+          'Der Kindermodus erlaubt Geschichten nur innerhalb der elterlichen Regeln: Alter, erlaubte Themen, Limits und Freigabe vor dem Teilen.',
+      },
+      {
+        title: 'Löschung und Support',
+        body:
+          'Eltern können sich jederzeit an den Support wenden, wenn es um Konto, Export, Löschung oder Datenschutz geht.',
+        linkLabel: 'Support kontaktieren',
+      },
+    ],
+  },
+  fr: {
+    title: 'Contrôle parental et confidentialité dès la première histoire',
+    subtitle:
+      'WonderTales est conçu pour les familles : les adultes gardent le contrôle du compte, les données de l’enfant restent privées et le support aide pour la confidentialité ou la suppression.',
+    cards: [
+      {
+        title: 'Des comptes pilotés par les parents',
+        body:
+          'Les enfants utilisent des profils dans le compte d’un adulte. Paiement, réglages, publication et actions sensibles restent derrière l’accès parent.',
+      },
+      {
+        title: 'Privé par défaut',
+        body:
+          'Les profils enfants, les uploads, les histoires générées, l’audio et les images ne deviennent pas publics tant qu’un parent ne choisit pas de les publier ou partager.',
+        linkLabel: 'Politique de confidentialité',
+      },
+      {
+        title: 'Mode enfant avec limites',
+        body:
+          'Le mode enfant permet de créer des histoires dans les limites définies par les parents : âge, thèmes autorisés, quotas et validation avant partage.',
+      },
+      {
+        title: 'Suppression des données et support',
+        body:
+          'Les parents peuvent contacter le support à tout moment pour le compte, l’export, la suppression ou les questions de confidentialité.',
+        linkLabel: 'Contacter le support',
+      },
+    ],
+  },
+  pl: {
+    title: 'Kontrola rodzicielska i prywatność od pierwszej historii',
+    subtitle:
+      'WonderTales powstało z myślą o rodzinach: dorośli zarządzają kontem, dane dziecka pozostają prywatne, a wsparcie pomaga w sprawach prywatności i usuwania danych.',
+    cards: [
+      {
+        title: 'Konto pod kontrolą dorosłego',
+        body:
+          'Dzieci korzystają z profili wewnątrz konta dorosłego. Płatności, ustawienia, publikacja i działania wrażliwe pozostają po stronie rodzica.',
+      },
+      {
+        title: 'Prywatność domyślnie',
+        body:
+          'Profile dzieci, przesłane materiały, wygenerowane historie, audio i obrazy nie są publiczne, dopóki rodzic sam nie zdecyduje o publikacji lub prywatnym linku.',
+        linkLabel: 'Polityka prywatności',
+      },
+      {
+        title: 'Tryb dziecięcy z granicami',
+        body:
+          'Tryb dziecięcy pozwala tworzyć historie w granicach ustawionych przez rodziców: wiek, dozwolone tematy, limity i akceptacja przed udostępnieniem.',
+      },
+      {
+        title: 'Usuwanie danych i wsparcie',
+        body:
+          'Rodzice mogą w każdej chwili skontaktować się ze wsparciem w sprawie konta, eksportu, usuwania lub prywatności.',
+        linkLabel: 'Skontaktuj się ze wsparciem',
+      },
+    ],
+  },
 };
 
 /** Inline SVG icons for trust chips (currentColor = inherits white from .trust-chip) */
@@ -649,7 +794,8 @@ function renderSafetyTrust(_webAppUrl: string, content: LandingContent): string 
 function renderParentTrust(webAppUrl: string, locale?: string): string {
   const seoLocale = normalizePublicSeoLocale(locale);
   const copy = PARENT_TRUST_COPY[seoLocale];
-  const privacyUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', seoLocale));
+  const legalLocale = seoLocale === 'uk' ? 'uk' : 'en';
+  const privacyUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', legalLocale));
   const supportUrl = buildAbsoluteRouteUrl(webAppUrl, '/support');
   const cards = copy.cards.map((card, index) => {
     const href = card.href || (index === 1 ? privacyUrl : index === 3 ? supportUrl : undefined);

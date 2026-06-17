@@ -64,6 +64,7 @@ const TRACKED_ROUTE_PATTERNS: Record<string, string> = {
   Register: APP_ROUTE_PATHS.register,
   ForgotPassword: 'auth/forgot-password',
   ResetPassword: 'auth/reset-password',
+  ChildModeRecovery: 'auth/child-mode-recovery',
   Dashboard: APP_ROUTE_PATHS.dashboard,
   Wizard: APP_ROUTE_PATHS.wizard,
   Library: APP_ROUTE_PATHS.library,
@@ -218,7 +219,13 @@ function getNavigationPath(routeName: string | undefined): string | undefined {
 }
 
 const linking: any = {
-  prefixes: ['wondertales://', 'http://localhost:8081', 'https://app.wondertales.com'],
+  prefixes: [
+    'wondertales://',
+    'http://localhost:8081',
+    'http://localhost:8082',
+    'https://wondertales.art',
+    'https://app.wondertales.com',
+  ],
   getStateFromPath(path: string, options: any) {
     const state = defaultGetStateFromPath(
       normalizeLegacyChildDetailPath(stripLocalePrefix(path)),
@@ -242,6 +249,7 @@ const linking: any = {
           Register: APP_ROUTE_PATHS.register,
           ForgotPassword: 'auth/forgot-password',
           ResetPassword: 'auth/reset-password',
+          ChildModeRecovery: 'auth/child-mode-recovery',
           Dashboard: APP_ROUTE_PATHS.dashboard,
           Wizard: APP_ROUTE_PATHS.wizard,
           Library: APP_ROUTE_PATHS.library,

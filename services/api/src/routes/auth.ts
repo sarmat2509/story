@@ -15,7 +15,11 @@ import {
 } from '../services/oauthService';
 import { createSession, deleteSession, deleteAllUserSessions } from '../services/sessionService';
 import { generateToken } from '../services/jwtService';
-import { requireAuth, requireChildSession, requireParentSession } from '../middleware/authMiddleware';
+import {
+  requireAuth,
+  requireChildSession,
+  requireParentSession,
+} from '../middleware/authMiddleware';
 import { logger } from '../utils/logger';
 import { setSessionCookie, clearSessionCookie } from '../utils/sessionCookie';
 import {
@@ -38,6 +42,9 @@ import {
 } from '../services/oauthParentGateStateService';
 import {
   ChildModePasscodeError,
+  ChildModeRecoveryError,
+  consumeChildModeExitPasscodeRecoveryToken,
+  requestChildModeExitPasscodeRecovery,
   verifyChildModePasscode,
 } from '../services/childModeControlsService';
 import { toUserResponse } from '../utils/userResponse';
@@ -72,6 +79,10 @@ const resetPasswordSchema = z.object({
 
 const parentGateSchema = z.object({
   password: z.string().min(4).max(128),
+});
+
+const childModeRecoveryCompleteSchema = z.object({
+  token: z.string().min(1).max(512),
 });
 
 const OAuthRegistrationConsentSchema = z.object({
@@ -111,12 +122,16 @@ if (config.oauth.google.clientId && config.oauth.google.clientSecret) {
             name: profile.displayName,
             picture: profile.photos?.[0]?.value,
           };
-          
+
           if (!googleProfile.email) {
             return done(new Error('Email is required from Google profile'));
           }
-          
-          done(null, { profile: googleProfile, accessToken, refreshToken } as unknown as Express.User);
+
+          done(null, {
+            profile: googleProfile,
+            accessToken,
+            refreshToken,
+          } as unknown as Express.User);
         } catch (error) {
           done(error as Error);
         }
@@ -133,12 +148,13 @@ if (config.oauth.google.clientId && config.oauth.google.clientSecret) {
 // Helper to extract device info from request
 function extractDeviceInfo(req: Request) {
   const userAgent = req.headers['user-agent'] || '';
-  const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '';
-  
+  const ipAddress =
+    (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '';
+
   // Simple device detection
   let deviceType: 'ios' | 'android' | 'web' = 'web';
   let deviceName = 'Web Browser';
-  
+
   if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
     deviceType = 'ios';
     deviceName = userAgent.includes('iPad') ? 'iPad' : 'iPhone';
@@ -146,7 +162,7 @@ function extractDeviceInfo(req: Request) {
     deviceType = 'android';
     deviceName = 'Android Device';
   }
-  
+
   return { deviceType, deviceName, ipAddress, userAgent };
 }
 
@@ -196,7 +212,7 @@ function parseAppleState(state: unknown): Record<string, unknown> {
   try {
     const parsed = JSON.parse(state);
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
+      ? (parsed as Record<string, unknown>)
       : {};
   } catch {
     return {};
@@ -228,10 +244,14 @@ function isAppleOAuthConfigured(): boolean {
   return hasConfiguredOAuthValue(config.oauth.apple.clientId);
 }
 
-function buildWebOAuthCallbackUrl(provider: 'google' | 'apple', token: string, options: {
-  isNewUser?: boolean;
-  parentGate?: boolean;
-} = {}): URL {
+function buildWebOAuthCallbackUrl(
+  provider: 'google' | 'apple',
+  token: string,
+  options: {
+    isNewUser?: boolean;
+    parentGate?: boolean;
+  } = {}
+): URL {
   const callbackConfig =
     provider === 'google' ? config.oauth.google.callbackUrl : config.oauth.apple.callbackUrl;
   const cbUrl = new URL(callbackConfig);
@@ -265,7 +285,10 @@ function buildWebAuthErrorUrl(provider: 'google' | 'apple', message: string, cod
   return errorUrl;
 }
 
-function buildFinalDeviceInfo(req: Request, input?: { deviceName?: string; deviceType?: 'ios' | 'android' | 'web' }) {
+function buildFinalDeviceInfo(
+  req: Request,
+  input?: { deviceName?: string; deviceType?: 'ios' | 'android' | 'web' }
+) {
   const deviceInfo = extractDeviceInfo(req);
   return {
     deviceType: input?.deviceType || deviceInfo.deviceType,
@@ -295,13 +318,16 @@ async function createParentGateSession(
 
   await deleteSession(previousChildSessionId);
 
-  logger.info({
-    userId: parentUser.id,
-    previousChildSessionId,
-    parentSessionId: parentSession.id,
-    childProfileId: req.childProfileId,
-    deviceType: finalDeviceInfo.deviceType,
-  }, 'Parent gate completed from child session');
+  logger.info(
+    {
+      userId: parentUser.id,
+      previousChildSessionId,
+      parentSessionId: parentSession.id,
+      childProfileId: req.childProfileId,
+      deviceType: finalDeviceInfo.deviceType,
+    },
+    'Parent gate completed from child session'
+  );
 
   return {
     token,
@@ -311,7 +337,10 @@ async function createParentGateSession(
   };
 }
 
-function rejectSuspendedUser(user: NonNullable<Request['user']> | { status?: string | null }, res: Response): boolean {
+function rejectSuspendedUser(
+  user: NonNullable<Request['user']> | { status?: string | null },
+  res: Response
+): boolean {
   if (!user.status || user.status === 'active') {
     return false;
   }
@@ -351,7 +380,10 @@ async function verifyGoogleIdTokenProfile(idToken: string): Promise<GoogleProfil
   };
 }
 
-async function verifyAppleIdentityTokenProfile(identityToken: string, user: unknown): Promise<AppleProfile> {
+async function verifyAppleIdentityTokenProfile(
+  identityToken: string,
+  user: unknown
+): Promise<AppleProfile> {
   const appleSignin = require('apple-signin-auth');
 
   const payload = await appleSignin.verifyIdToken(identityToken, {
@@ -367,7 +399,7 @@ async function verifyAppleIdentityTokenProfile(identityToken: string, user: unkn
   let email = payload.email;
 
   if (user) {
-    const userData = typeof user === 'string' ? JSON.parse(user) : user as any;
+    const userData = typeof user === 'string' ? JSON.parse(user) : (user as any);
     if (userData.name) {
       displayName = `${userData.name.firstName || ''} ${userData.name.lastName || ''}`.trim();
     }
@@ -434,10 +466,13 @@ router.get(
           parentGate: true,
         });
 
-        logger.info({
-          userId: parentUser.id,
-          ...buildSafeOAuthCallbackLogContext('google', callbackUrl),
-        }, 'Google parent gate callback - redirecting to app callback');
+        logger.info(
+          {
+            userId: parentUser.id,
+            ...buildSafeOAuthCallbackLogContext('google', callbackUrl),
+          },
+          'Google parent gate callback - redirecting to app callback'
+        );
         setSessionCookie(res, gateResult.token);
         res.redirect(callbackUrl.toString());
         return;
@@ -467,10 +502,13 @@ router.get(
         isNewUser: result.isNewUser,
       });
 
-      logger.info({
-        userId: result.user.id,
-        ...buildSafeOAuthCallbackLogContext('google', callbackUrl),
-      }, 'OAuth callback - redirecting to app callback');
+      logger.info(
+        {
+          userId: result.user.id,
+          ...buildSafeOAuthCallbackLogContext('google', callbackUrl),
+        },
+        'OAuth callback - redirecting to app callback'
+      );
       setSessionCookie(res, token);
       res.redirect(callbackUrl.toString());
     } catch (error) {
@@ -491,16 +529,16 @@ router.get(
 router.post('/google/token', oauthLimiter, async (req: Request, res: Response) => {
   try {
     const { idToken, deviceName, deviceType } = req.body;
-    
+
     if (!idToken) {
       return res.status(400).json({
         status: 'error',
         message: 'idToken is required',
       });
     }
-    
+
     const profile = await verifyGoogleIdTokenProfile(idToken);
-    
+
     // Use same OAuth callback logic as web flow
     const result = await handleGoogleCallback(
       profile,
@@ -513,10 +551,10 @@ router.post('/google/token', oauthLimiter, async (req: Request, res: Response) =
       )
     );
     if (rejectSuspendedUser(result.user, res)) return;
-    
+
     // Extract device info
     const deviceInfo = extractDeviceInfo(req);
-    
+
     // Override device info with client-provided values if available
     const finalDeviceInfo = {
       deviceType: (deviceType as 'ios' | 'android' | 'web') || deviceInfo.deviceType,
@@ -524,24 +562,27 @@ router.post('/google/token', oauthLimiter, async (req: Request, res: Response) =
       ipAddress: deviceInfo.ipAddress,
       userAgent: deviceInfo.userAgent,
     };
-    
+
     // Create session
     const session = await createSession({
       userId: result.user.id,
       ...finalDeviceInfo,
     });
-    
+
     // Generate JWT
     const token = generateToken({
       userId: result.user.id,
       sessionId: session.id, // Use session.id (UUID), not session.token
     });
-    
-    logger.info({ 
-      userId: result.user.id, 
-      deviceType: finalDeviceInfo.deviceType 
-    }, 'Mobile Google OAuth successful');
-    
+
+    logger.info(
+      {
+        userId: result.user.id,
+        deviceType: finalDeviceInfo.deviceType,
+      },
+      'Mobile Google OAuth successful'
+    );
+
     // Return token and user info (JSON response for mobile)
     setSessionCookie(res, token);
     res.json({
@@ -580,7 +621,7 @@ router.get('/apple/start', oauthLimiter, (req: Request, res: Response) => {
 
   const redirectUri = req.query.redirect_uri as string;
   const consentInput = parseOAuthRegistrationConsentInput(req.query);
-  
+
   // Generate Apple OAuth URL
   const params = new URLSearchParams({
     client_id: config.oauth.apple.clientId,
@@ -593,9 +634,9 @@ router.get('/apple/start', oauthLimiter, (req: Request, res: Response) => {
       ...consentInput,
     }),
   });
-  
+
   const authUrl = `https://appleid.apple.com/auth/authorize?${params.toString()}`;
-  
+
   logger.info({ redirectUri }, 'Redirecting to Apple OAuth');
   res.redirect(authUrl);
 });
@@ -612,14 +653,14 @@ router.post('/apple/callback', oauthLimiter, async (req: Request, res: Response)
     }
 
     const { code, id_token, user, state } = req.body;
-    
+
     if (!id_token) {
       return res.status(400).json({
         status: 'error',
         message: 'id_token is required',
       });
     }
-    
+
     const profile = await verifyAppleIdentityTokenProfile(id_token, user);
 
     const parentGateState = parseParentGateOAuthState(state, 'apple');
@@ -658,31 +699,31 @@ router.post('/apple/callback', oauthLimiter, async (req: Request, res: Response)
       )
     );
     if (rejectSuspendedUser(result.user, res)) return;
-    
+
     // Create session
     const deviceInfo = extractDeviceInfo(req);
     const session = await createSession({
       userId: result.user.id,
       ...deviceInfo,
     });
-    
+
     // Generate JWT
     const token = generateToken({
       userId: result.user.id,
       sessionId: session.id, // Use session.id (UUID), not session.token
     });
-    
+
     logger.info({ userId: result.user.id }, 'Apple OAuth callback successful');
-    
+
     // Parse state for redirect_uri
     const stateObj = appleState;
     const redirectUri = stateObj.redirect_uri || 'wondertales://auth/apple/callback';
-    
+
     // Redirect with token
     const callbackUrl = new URL(redirectUri);
     callbackUrl.searchParams.set('token', token);
     callbackUrl.searchParams.set('isNewUser', result.isNewUser.toString());
-    
+
     setSessionCookie(res, token);
     res.redirect(callbackUrl.toString());
   } catch (error) {
@@ -710,28 +751,24 @@ router.post('/apple/token', oauthLimiter, async (req: Request, res: Response) =>
     }
 
     const { identityToken, authorizationCode, user, deviceName, deviceType } = req.body;
-    
+
     if (!identityToken) {
       return res.status(400).json({
         status: 'error',
         message: 'identityToken is required',
       });
     }
-    
+
     const profile = await verifyAppleIdentityTokenProfile(identityToken, user);
-    
+
     // Use same OAuth callback logic
     const result = await handleAppleCallback(
       profile,
       identityToken,
-      getOAuthRegistrationConsentOptions(
-        req,
-        'apple',
-        parseOAuthRegistrationConsentInput(req.body)
-      )
+      getOAuthRegistrationConsentOptions(req, 'apple', parseOAuthRegistrationConsentInput(req.body))
     );
     if (rejectSuspendedUser(result.user, res)) return;
-    
+
     // Extract device info
     const deviceInfo = extractDeviceInfo(req);
     const finalDeviceInfo = {
@@ -740,24 +777,27 @@ router.post('/apple/token', oauthLimiter, async (req: Request, res: Response) =>
       ipAddress: deviceInfo.ipAddress,
       userAgent: deviceInfo.userAgent,
     };
-    
+
     // Create session
     const session = await createSession({
       userId: result.user.id,
       ...finalDeviceInfo,
     });
-    
+
     // Generate JWT
     const token = generateToken({
       userId: result.user.id,
       sessionId: session.id, // Use session.id (UUID), not session.token
     });
-    
-    logger.info({ 
-      userId: result.user.id, 
-      deviceType: finalDeviceInfo.deviceType 
-    }, 'Mobile Apple OAuth successful');
-    
+
+    logger.info(
+      {
+        userId: result.user.id,
+        deviceType: finalDeviceInfo.deviceType,
+      },
+      'Mobile Apple OAuth successful'
+    );
+
     // Return token and user info
     setSessionCookie(res, token);
     res.json({
@@ -856,7 +896,8 @@ router.post('/register', async (req: Request, res: Response) => {
         details: validationResult.error.errors,
       });
     }
-    const { email, password, termsAccepted, privacyAccepted, isAdultGuardian, captchaToken } = validationResult.data;
+    const { email, password, termsAccepted, privacyAccepted, isAdultGuardian, captchaToken } =
+      validationResult.data;
 
     const missingConsents = validateRegistrationConsents({
       termsAccepted,
@@ -982,6 +1023,115 @@ router.post('/reset-password', async (req: Request, res: Response) => {
   }
 });
 
+router.post(
+  '/child-mode/recovery',
+  passwordResetLimiter,
+  requireAuth,
+  requireChildSession,
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.user || !req.sessionId || !req.childProfileId) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Not authenticated',
+          code: 'AUTHENTICATION_REQUIRED',
+        });
+      }
+
+      await requestChildModeExitPasscodeRecovery(req.user.id, req.childProfileId, req.sessionId);
+
+      res.json({
+        status: 'success',
+        message: 'If the parent email can receive mail, a recovery link will be sent',
+      });
+    } catch (error) {
+      if (error instanceof ChildModeRecoveryError) {
+        return res.status(error.statusCode).json({
+          status: 'error',
+          message: error.message,
+          code: error.code,
+        });
+      }
+      logger.error(
+        { err: error, userId: req.user?.id, sessionId: req.sessionId },
+        'Child Mode recovery request failed'
+      );
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to request Child Mode recovery',
+      });
+    }
+  }
+);
+
+router.post(
+  '/child-mode/recovery/complete',
+  passwordResetLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const validationResult = childModeRecoveryCompleteSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid request data',
+          details: validationResult.error.errors,
+        });
+      }
+
+      const recovery = await consumeChildModeExitPasscodeRecoveryToken(validationResult.data.token);
+      if (rejectSuspendedUser(recovery.user, res)) return;
+
+      const finalDeviceInfo = buildFinalDeviceInfo(req);
+      const parentSession = await createSession({
+        userId: recovery.user.id,
+        mode: 'parent',
+        parentUserId: recovery.user.id,
+        ...finalDeviceInfo,
+      });
+      const authToken = generateToken({
+        userId: recovery.user.id,
+        sessionId: parentSession.id,
+      });
+
+      if (recovery.childSessionId) {
+        await deleteSession(recovery.childSessionId);
+      }
+
+      logger.info(
+        {
+          userId: recovery.user.id,
+          childProfileId: recovery.childProfileId,
+          childSessionId: recovery.childSessionId,
+          parentSessionId: parentSession.id,
+          deviceType: finalDeviceInfo.deviceType,
+        },
+        'Child Mode recovery completed'
+      );
+
+      setSessionCookie(res, authToken);
+      res.json({
+        token: authToken,
+        user: toUserResponse(recovery.user),
+        expiresAt: parentSession.expiresAt.getTime(),
+        sessionMode: 'parent' as const,
+      });
+    } catch (error) {
+      if (error instanceof ChildModeRecoveryError) {
+        return res.status(error.statusCode).json({
+          status: 'error',
+          message: error.message,
+          code: error.code,
+        });
+      }
+      logger.error({ err: error }, 'Child Mode recovery completion failed');
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to complete Child Mode recovery',
+      });
+    }
+  }
+);
+
 function sendPasscodeParentGateRequired(res: Response) {
   return res.status(410).json({
     status: 'error',
@@ -990,97 +1140,130 @@ function sendPasscodeParentGateRequired(res: Response) {
   });
 }
 
-router.post('/parent-gate/google/start', requireAuth, requireChildSession, (_req: Request, res: Response) => {
-  return sendPasscodeParentGateRequired(res);
-});
+router.post(
+  '/parent-gate/google/start',
+  requireAuth,
+  requireChildSession,
+  (_req: Request, res: Response) => {
+    return sendPasscodeParentGateRequired(res);
+  }
+);
 
-router.post('/parent-gate/apple/start', requireAuth, requireChildSession, (_req: Request, res: Response) => {
-  return sendPasscodeParentGateRequired(res);
-});
+router.post(
+  '/parent-gate/apple/start',
+  requireAuth,
+  requireChildSession,
+  (_req: Request, res: Response) => {
+    return sendPasscodeParentGateRequired(res);
+  }
+);
 
-router.post('/parent-gate/google-token', requireAuth, requireChildSession, (_req: Request, res: Response) => {
-  return sendPasscodeParentGateRequired(res);
-});
+router.post(
+  '/parent-gate/google-token',
+  requireAuth,
+  requireChildSession,
+  (_req: Request, res: Response) => {
+    return sendPasscodeParentGateRequired(res);
+  }
+);
 
-router.post('/parent-gate/apple-token', requireAuth, requireChildSession, (_req: Request, res: Response) => {
-  return sendPasscodeParentGateRequired(res);
-});
+router.post(
+  '/parent-gate/apple-token',
+  requireAuth,
+  requireChildSession,
+  (_req: Request, res: Response) => {
+    return sendPasscodeParentGateRequired(res);
+  }
+);
 
 // Parent gate: child session -> parent session via the account-level Child Mode exit passcode.
-router.post('/parent-gate', requireAuth, requireChildSession, async (req: Request, res: Response) => {
-  try {
-    if (!req.user || !req.sessionId || !req.childProfileId) {
-      return res.status(401).json({
+router.post(
+  '/parent-gate',
+  requireAuth,
+  requireChildSession,
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.user || !req.sessionId || !req.childProfileId) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Not authenticated',
+          code: 'AUTHENTICATION_REQUIRED',
+        });
+      }
+
+      const validationResult = parentGateSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid request data',
+          details: validationResult.error.errors,
+        });
+      }
+
+      await verifyChildModePasscode(
+        req.user.id,
+        req.childProfileId,
+        validationResult.data.password
+      );
+
+      const gateResult = await createParentGateSession(req, req.user, req.sessionId);
+
+      setSessionCookie(res, gateResult.token);
+      res.json(gateResult);
+    } catch (error) {
+      if (error instanceof ChildModePasscodeError) {
+        return res.status(error.statusCode).json({
+          status: 'error',
+          message: error.message,
+          code: error.code,
+        });
+      }
+      logger.error(
+        { err: error, userId: req.user?.id, sessionId: req.sessionId },
+        'Parent gate failed'
+      );
+      res.status(500).json({
         status: 'error',
-        message: 'Not authenticated',
-        code: 'AUTHENTICATION_REQUIRED',
+        message: 'Parent gate failed',
       });
     }
-
-    const validationResult = parentGateSchema.safeParse(req.body);
-    if (!validationResult.success) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Invalid request data',
-        details: validationResult.error.errors,
-      });
-    }
-
-    await verifyChildModePasscode(
-      req.user.id,
-      req.childProfileId,
-      validationResult.data.password
-    );
-
-    const gateResult = await createParentGateSession(req, req.user, req.sessionId);
-
-    setSessionCookie(res, gateResult.token);
-    res.json(gateResult);
-  } catch (error) {
-    if (error instanceof ChildModePasscodeError) {
-      return res.status(error.statusCode).json({
-        status: 'error',
-        message: error.message,
-        code: error.code,
-      });
-    }
-    logger.error({ err: error, userId: req.user?.id, sessionId: req.sessionId }, 'Parent gate failed');
-    res.status(500).json({
-      status: 'error',
-      message: 'Parent gate failed',
-    });
   }
-});
+);
 
 // Delete all sessions (logout from all devices)
-router.delete('/sessions', requireAuth, requireParentSession, async (req: Request, res: Response) => {
-  try {
-    if (!req.user) {
-      res.status(401).json({
-        status: 'error',
-        message: 'Not authenticated',
+router.delete(
+  '/sessions',
+  requireAuth,
+  requireParentSession,
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          status: 'error',
+          message: 'Not authenticated',
+        });
+        return;
+      }
+
+      const deletedCount = await deleteAllUserSessions(req.user.id);
+
+      logger.info({ userId: req.user.id, deletedCount }, 'User logged out from all devices');
+
+      clearSessionCookie(res);
+      res.json({
+        status: 'success',
+        message: `Logged out from ${deletedCount} device(s)`,
+        deletedCount,
       });
-      return;
+    } catch (error) {
+      logger.error({ err: error, userId: req.user?.id }, 'Logout all failed');
+      res.status(500).json({
+        status: 'error',
+        message: 'Logout failed',
+      });
     }
-    
-    const deletedCount = await deleteAllUserSessions(req.user.id);
-    
-    logger.info({ userId: req.user.id, deletedCount }, 'User logged out from all devices');
-    
-    clearSessionCookie(res);
-    res.json({
-      status: 'success',
-      message: `Logged out from ${deletedCount} device(s)`,
-      deletedCount,
-    });
-  } catch (error) {
-    logger.error({ err: error, userId: req.user?.id }, 'Logout all failed');
-    res.status(500).json({
-      status: 'error',
-      message: 'Logout failed',
-    });
   }
-});
+);
 
 // Delete current session (logout from current device)
 router.delete('/sessions/current', requireAuth, async (req: Request, res: Response) => {
@@ -1092,11 +1275,14 @@ router.delete('/sessions/current', requireAuth, async (req: Request, res: Respon
       });
       return;
     }
-    
+
     await deleteSession(req.sessionId);
-    
-    logger.info({ userId: req.user?.id, sessionId: req.sessionId }, 'User logged out from current device');
-    
+
+    logger.info(
+      { userId: req.user?.id, sessionId: req.sessionId },
+      'User logged out from current device'
+    );
+
     clearSessionCookie(res);
     res.json({
       status: 'success',
@@ -1121,11 +1307,11 @@ router.post('/logout', requireAuth, async (req: Request, res: Response) => {
       });
       return;
     }
-    
+
     await deleteSession(req.sessionId);
-    
+
     logger.warn({ userId: req.user?.id }, 'Used deprecated POST /logout endpoint');
-    
+
     clearSessionCookie(res);
     res.json({
       status: 'success',
@@ -1151,15 +1337,15 @@ router.put('/sessions/current', requireAuth, async (req: Request, res: Response)
       });
       return;
     }
-    
+
     // Generate new JWT with same session
     const token = generateToken({
       userId: req.user.id,
       sessionId: req.sessionId,
     });
-    
+
     logger.info({ userId: req.user.id, sessionId: req.sessionId }, 'Session token refreshed');
-    
+
     setSessionCookie(res, token);
     res.json({
       token,
@@ -1184,14 +1370,14 @@ router.post('/refresh', requireAuth, async (req: Request, res: Response) => {
       });
       return;
     }
-    
+
     const token = generateToken({
       userId: req.user.id,
       sessionId: req.sessionId,
     });
-    
+
     logger.warn({ userId: req.user.id }, 'Used deprecated POST /refresh endpoint');
-    
+
     setSessionCookie(res, token);
     res.json({
       token,

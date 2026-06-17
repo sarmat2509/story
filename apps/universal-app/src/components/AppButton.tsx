@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { theme } from '@/theme';
 import { hexAlpha } from '@/theme/colorAlpha';
+import { modernColors, modernShadows } from '@/theme/modernTheme';
 
 export type AppButtonVariant = 'primary' | 'secondary' | 'danger' | 'dangerSecondary' | 'ghost';
 export type AppButtonSize = 'sm' | 'md' | 'lg';
@@ -54,7 +55,8 @@ const webCursor: ViewStyle = Platform.select({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cursor: 'pointer' as any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    transition: 'background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease' as any,
+    transition:
+      'background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease' as any,
   },
   default: {},
 }) as ViewStyle;
@@ -136,34 +138,30 @@ export function AppButton({
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 52,
+    minHeight: 56,
     paddingVertical: theme.spacing[3],
-    paddingHorizontal: theme.spacing[5],
-    borderRadius: theme.borders.radius.md,
+    paddingHorizontal: theme.spacing[6],
+    borderRadius: theme.borders.radius.full,
     borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.interactive.primary,
+    borderColor: hexAlpha(theme.colors.interactive.primary, 0.08),
     backgroundColor: theme.colors.interactive.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: theme.colors.primary[900],
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 2,
+    ...modernShadows.card,
   },
   buttonMd: {
-    minHeight: 46,
+    minHeight: 48,
     paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[4],
+    paddingHorizontal: theme.spacing[5],
   },
   buttonSm: {
-    minHeight: 36,
+    minHeight: 40,
     paddingVertical: theme.spacing[1],
-    paddingHorizontal: theme.spacing[3],
+    paddingHorizontal: theme.spacing[4],
   },
   secondary: {
-    backgroundColor: theme.colors.background.primary,
-    borderColor: theme.colors.border.medium,
+    backgroundColor: modernColors.surfaceMuted,
+    borderColor: hexAlpha(theme.colors.primary[200], 0.16),
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -172,8 +170,8 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.status.error,
   },
   dangerSecondary: {
-    backgroundColor: theme.colors.background.primary,
-    borderColor: theme.colors.status.error,
+    backgroundColor: theme.colors.error[50],
+    borderColor: hexAlpha(theme.colors.status.error, 0.16),
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -186,22 +184,38 @@ const styles = StyleSheet.create({
   primaryHovered: {
     backgroundColor: theme.colors.interactive.primaryHover,
     borderColor: theme.colors.interactive.primaryHover,
-    shadowOpacity: 0.16,
+    ...Platform.select({
+      web: {
+        transform: [{ translateY: -1 }],
+      },
+      default: {},
+    }),
   },
   secondaryHovered: {
-    backgroundColor: theme.colors.background.secondary,
-    borderColor: theme.colors.primary[300],
+    backgroundColor: modernColors.accentWash,
+    borderColor: hexAlpha(theme.colors.primary[300], 0.2),
+    ...Platform.select({
+      web: {
+        transform: [{ translateY: -1 }],
+      },
+      default: {},
+    }),
   },
   dangerHovered: {
     backgroundColor: theme.colors.error[700],
     borderColor: theme.colors.error[700],
-    shadowOpacity: 0.14,
+    ...Platform.select({
+      web: {
+        transform: [{ translateY: -1 }],
+      },
+      default: {},
+    }),
   },
   dangerSecondaryHovered: {
-    backgroundColor: theme.colors.error[50],
+    backgroundColor: hexAlpha(theme.colors.status.error, 0.1),
   },
   ghostHovered: {
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: modernColors.surfaceMuted,
   },
   pressed: {
     opacity: 0.86,
@@ -221,6 +235,7 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
     textAlign: 'center',
     letterSpacing: 0,
+    lineHeight: 22,
   },
   labelSm: {
     fontSize: theme.typography.fontSize.sm,

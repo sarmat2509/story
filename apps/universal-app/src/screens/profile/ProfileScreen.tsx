@@ -12,6 +12,7 @@ import {
   Image,
   Alert,
   Switch,
+  Modal,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -89,6 +90,7 @@ export default function ProfileScreen() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showChildModePasscodeModal, setShowChildModePasscodeModal] = useState(false);
   const [privacyRequestIntent, setPrivacyRequestIntent] =
     useState<ProfilePrivacyRequestIntent | null>(null);
   const [analyticsConsent, setAnalyticsConsentState] = useState<AnalyticsConsent>(() =>
@@ -357,6 +359,7 @@ export default function ProfileScreen() {
       setCurrentExitPasscode('');
       setNewExitPasscode('');
       setConfirmExitPasscode('');
+      setShowChildModePasscodeModal(false);
       Alert.alert(
         t('profile.child_mode_exit_passcode_success_title'),
         t('profile.child_mode_exit_passcode_success_message')
@@ -367,6 +370,14 @@ export default function ProfileScreen() {
         getLocalizedApiError(t, error, 'profile.child_mode_exit_passcode_error')
       );
     }
+  };
+
+  const handleCloseChildModePasscodeModal = () => {
+    if (updateChildModeExitPasscode.isPending) return;
+    setShowChildModePasscodeModal(false);
+    setCurrentExitPasscode('');
+    setNewExitPasscode('');
+    setConfirmExitPasscode('');
   };
 
   const handleRemoveAvatar = async () => {
@@ -409,11 +420,9 @@ export default function ProfileScreen() {
           </View>
         </AnimatedSection>
 
-        <AnimatedSection delay={120} trigger={enterKey} style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('profile.account_info')}</Text>
-
-          <View style={styles.profileCard}>
-            <View style={styles.avatarSection}>
+        <View style={styles.profileLayout}>
+          <AnimatedSection delay={120} trigger={enterKey} style={styles.profileAside}>
+            <View style={styles.profileAsideCard}>
               <TouchableOpacity
                 style={styles.avatarContainer}
                 onPress={handlePickAvatar}
@@ -432,6 +441,22 @@ export default function ProfileScreen() {
                   </View>
                 ) : null}
               </TouchableOpacity>
+
+              <Text style={styles.profileAsideName}>
+                {displayName.trim() || profileUser?.email || t('profile.not_set')}
+              </Text>
+              <Text style={styles.profileAsideEmail}>
+                {profileUser?.email || t('profile.not_set')}
+              </Text>
+
+              <View style={styles.profileAsidePlanPill}>
+                <Ionicons
+                  name="diamond-outline"
+                  size={16}
+                  color={theme.colors.interactive.primary}
+                />
+                <Text style={styles.profileAsidePlanText}>{currentPlanName}</Text>
+              </View>
 
               <View style={styles.avatarActions}>
                 <AppButton
@@ -462,377 +487,396 @@ export default function ProfileScreen() {
                 ) : null}
               </View>
             </View>
+          </AnimatedSection>
 
-            <View style={styles.accountColumns}>
-              <View style={styles.accountColumn}>
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>{t('profile.name')}</Text>
-                  <TextInput
-                    style={styles.pseudonymInput}
-                    value={displayName}
-                    onChangeText={setDisplayName}
-                    placeholder={t('profile.not_set')}
-                    placeholderTextColor={theme.colors.text.tertiary}
-                    maxLength={255}
-                  />
-                </View>
-
-                <View style={[styles.infoRow, styles.infoRowLastInColumn]}>
-                  <Text style={styles.label}>{t('profile.email')}</Text>
-                  <Text style={styles.value}>{profileUser?.email || t('profile.not_set')}</Text>
-                </View>
-              </View>
-
-              <View style={styles.accountColumn}>
-                <View style={styles.infoRow}>
-                  <Text style={styles.label}>{t('profile.pseudonym')}</Text>
-                  <TextInput
-                    style={styles.pseudonymInput}
-                    value={pseudonym}
-                    onChangeText={setPseudonym}
-                    placeholder={t('profile.pseudonym')}
-                    placeholderTextColor={theme.colors.text.tertiary}
-                    maxLength={100}
-                  />
-                </View>
-
-                <View style={[styles.infoRow, styles.infoRowLastInColumn]}>
-                  <Text style={styles.label}>{t('profile.about_me')}</Text>
-                  <TextInput
-                    style={[styles.pseudonymInput, styles.aboutMeInput]}
-                    value={aboutMe}
-                    onChangeText={setAboutMe}
-                    placeholder={t('profile.about_me_placeholder')}
-                    placeholderTextColor={theme.colors.text.tertiary}
-                    maxLength={1000}
-                    multiline
-                    textAlignVertical="top"
-                  />
-                </View>
-              </View>
-            </View>
-
-            <AppButton
-              label={t('common.save')}
-              onPress={handleSaveProfile}
-              disabled={updateProfile.isPending}
-              loading={updateProfile.isPending}
-              style={styles.profileSaveAction}
-            />
-          </View>
-        </AnimatedSection>
-
-        <AnimatedSection delay={180} trigger={enterKey} style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('profile.child_mode_exit_passcode_section')}</Text>
-
-          <View style={styles.profileCard}>
-            <View style={styles.exitPasscodeHeader}>
-              <View style={styles.exitPasscodeHeaderText}>
-                <Text style={styles.exitPasscodeTitle}>
-                  {t('profile.child_mode_exit_passcode_title')}
-                </Text>
-                <Text style={styles.exitPasscodeDescription}>
-                  {t('profile.child_mode_exit_passcode_body')}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.exitPasscodeStatusPill,
-                  childModeExitPasscodeConfigured && styles.exitPasscodeStatusPillEnabled,
-                ]}
-              >
+          <View style={styles.settingsGrid}>
+            <AnimatedSection
+              delay={120}
+              trigger={enterKey}
+              style={[styles.settingsPanel, styles.settingsPanelWide]}
+            >
+              <View style={styles.settingsPanelHeader}>
                 <Ionicons
-                  name={
-                    childModeExitPasscodeConfigured ? 'shield-checkmark-outline' : 'shield-outline'
-                  }
-                  size={16}
-                  color={
-                    childModeExitPasscodeConfigured
-                      ? theme.colors.status.success
-                      : theme.colors.text.tertiary
-                  }
+                  name="person-outline"
+                  size={20}
+                  color={theme.colors.interactive.primary}
                 />
-                <Text
+                <Text style={styles.sectionTitle}>{t('profile.account_info')}</Text>
+              </View>
+
+              <View style={styles.accountColumns}>
+                <View style={styles.accountColumn}>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.label}>{t('profile.name')}</Text>
+                    <TextInput
+                      style={styles.pseudonymInput}
+                      value={displayName}
+                      onChangeText={setDisplayName}
+                      placeholder={t('profile.not_set')}
+                      placeholderTextColor={theme.colors.text.tertiary}
+                      maxLength={255}
+                    />
+                  </View>
+
+                  <View style={[styles.infoRow, styles.infoRowLastInColumn]}>
+                    <Text style={styles.label}>{t('profile.email')}</Text>
+                    <Text style={styles.value}>{profileUser?.email || t('profile.not_set')}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.accountColumn}>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.label}>{t('profile.pseudonym')}</Text>
+                    <TextInput
+                      style={styles.pseudonymInput}
+                      value={pseudonym}
+                      onChangeText={setPseudonym}
+                      placeholder={t('profile.pseudonym')}
+                      placeholderTextColor={theme.colors.text.tertiary}
+                      maxLength={100}
+                    />
+                  </View>
+
+                  <View style={[styles.infoRow, styles.infoRowLastInColumn]}>
+                    <Text style={styles.label}>{t('profile.about_me')}</Text>
+                    <TextInput
+                      style={[styles.pseudonymInput, styles.aboutMeInput]}
+                      value={aboutMe}
+                      onChangeText={setAboutMe}
+                      placeholder={t('profile.about_me_placeholder')}
+                      placeholderTextColor={theme.colors.text.tertiary}
+                      maxLength={1000}
+                      multiline
+                      textAlignVertical="top"
+                    />
+                  </View>
+                </View>
+              </View>
+
+              <AppButton
+                label={t('common.save')}
+                onPress={handleSaveProfile}
+                disabled={updateProfile.isPending}
+                loading={updateProfile.isPending}
+                style={styles.profileSaveAction}
+              />
+            </AnimatedSection>
+
+            <AnimatedSection delay={180} trigger={enterKey} style={styles.settingsPanel}>
+              <View style={styles.settingsPanelHeader}>
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={20}
+                  color={theme.colors.interactive.primary}
+                />
+                <Text style={styles.sectionTitle}>
+                  {t('profile.child_mode_exit_passcode_section')}
+                </Text>
+              </View>
+
+              <View style={styles.exitPasscodeHeader}>
+                <View style={styles.exitPasscodeHeaderText}>
+                  <Text style={styles.exitPasscodeTitle}>
+                    {t('profile.child_mode_exit_passcode_title')}
+                  </Text>
+                  <Text style={styles.exitPasscodeDescription}>
+                    {t('profile.child_mode_exit_passcode_body')}
+                  </Text>
+                </View>
+                <View
                   style={[
-                    styles.exitPasscodeStatusText,
-                    childModeExitPasscodeConfigured && styles.exitPasscodeStatusTextEnabled,
+                    styles.exitPasscodeStatusPill,
+                    childModeExitPasscodeConfigured && styles.exitPasscodeStatusPillEnabled,
                   ]}
                 >
-                  {childModeExitPasscodeConfigured
-                    ? t('profile.child_mode_exit_passcode_set')
-                    : t('profile.child_mode_exit_passcode_not_set')}
-                </Text>
-              </View>
-            </View>
-
-            {childModeExitPasscodeConfigured ? (
-              <View style={styles.infoRow}>
-                <Text style={styles.label}>{t('profile.child_mode_exit_passcode_current')}</Text>
-                <TextInput
-                  style={styles.pseudonymInput}
-                  value={currentExitPasscode}
-                  onChangeText={setCurrentExitPasscode}
-                  placeholder={t('profile.child_mode_exit_passcode_current')}
-                  placeholderTextColor={theme.colors.text.tertiary}
-                  secureTextEntry
-                  maxLength={128}
-                />
-              </View>
-            ) : null}
-
-            <View style={styles.exitPasscodeFields}>
-              <View style={styles.exitPasscodeField}>
-                <Text style={styles.label}>{t('profile.child_mode_exit_passcode_new')}</Text>
-                <TextInput
-                  style={styles.pseudonymInput}
-                  value={newExitPasscode}
-                  onChangeText={setNewExitPasscode}
-                  placeholder={t('profile.child_mode_exit_passcode_placeholder')}
-                  placeholderTextColor={theme.colors.text.tertiary}
-                  secureTextEntry
-                  maxLength={128}
-                />
-              </View>
-              <View style={styles.exitPasscodeField}>
-                <Text style={styles.label}>{t('profile.child_mode_exit_passcode_confirm')}</Text>
-                <TextInput
-                  style={styles.pseudonymInput}
-                  value={confirmExitPasscode}
-                  onChangeText={setConfirmExitPasscode}
-                  placeholder={t('profile.child_mode_exit_passcode_placeholder')}
-                  placeholderTextColor={theme.colors.text.tertiary}
-                  secureTextEntry
-                  maxLength={128}
-                  onSubmitEditing={handleSaveChildModeExitPasscode}
-                />
-              </View>
-            </View>
-
-            <AppButton
-              label={
-                childModeExitPasscodeConfigured
-                  ? t('profile.child_mode_exit_passcode_change')
-                  : t('profile.child_mode_exit_passcode_save')
-              }
-              onPress={handleSaveChildModeExitPasscode}
-              disabled={!canSaveChildModeExitPasscode}
-              loading={updateChildModeExitPasscode.isPending}
-              style={styles.profileSaveAction}
-            />
-          </View>
-        </AnimatedSection>
-
-        <AnimatedSection delay={220} trigger={enterKey} style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('profile.preferences')}</Text>
-
-          <TouchableOpacity
-            style={styles.settingButton}
-            onPress={() => navigation.navigate('LanguageSettings')}
-          >
-            <Text style={styles.settingText}>{t('profile.language_settings')}</Text>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.settingButton}
-            onPress={() => navigation.navigate('ThemeSettings')}
-          >
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingText}>{t('profile.theme_settings')}</Text>
-              {profileUser?.themePalette ? (
-                <Text style={styles.settingValue}>
-                  {t(`theme.palette_names.${profileUser.themePalette}`)}
-                </Text>
-              ) : null}
-            </View>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingButton}>
-            <Text style={styles.settingText}>{t('profile.notification_settings')}</Text>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
-
-          {Platform.OS === 'web' ? (
-            <View style={styles.settingButton}>
-              <View style={styles.settingLeft}>
-                <Text style={styles.settingText}>{t('profile.analytics_settings')}</Text>
-                <Text style={styles.settingValue}>
-                  {analyticsConsent === 'granted'
-                    ? t('profile.analytics_enabled')
-                    : t('profile.analytics_disabled')}
-                </Text>
-              </View>
-              <Switch
-                value={analyticsConsent === 'granted'}
-                onValueChange={handleAnalyticsConsentChange}
-                trackColor={{
-                  false: theme.colors.neutral[300],
-                  true: theme.colors.interactive.primary,
-                }}
-                thumbColor={theme.colors.background.primary}
-              />
-            </View>
-          ) : null}
-
-          <TouchableOpacity
-            style={styles.settingButton}
-            onPress={() => navigation.navigate('Children')}
-          >
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingText}>{t('profile.child_data_deletion_requests')}</Text>
-              <Text style={styles.settingValue}>
-                {t('profile.child_data_deletion_requests_hint')}
-              </Text>
-            </View>
-            <Text style={styles.settingArrow}>›</Text>
-          </TouchableOpacity>
-
-          <View style={styles.privacyActionsPanel}>
-            <Text style={styles.privacyActionsTitle}>{t('profile.data_requests_title')}</Text>
-            <Text style={styles.privacyActionsBody}>{t('profile.data_requests_body')}</Text>
-            <View style={styles.privacyActionsRow}>
-              <AppButton
-                label={t('profile.request_data_export')}
-                style={styles.privacyActionButton}
-                disabled={createPrivacyRequest.isPending}
-                onPress={() => openProfilePrivacyRequest('export')}
-                variant="secondary"
-                size="md"
-                leading={
                   <Ionicons
-                    name="download-outline"
+                    name={
+                      childModeExitPasscodeConfigured
+                        ? 'shield-checkmark-outline'
+                        : 'shield-outline'
+                    }
                     size={16}
-                    color={theme.colors.interactive.primary}
+                    color={
+                      childModeExitPasscodeConfigured
+                        ? theme.colors.status.success
+                        : theme.colors.text.tertiary
+                    }
                   />
-                }
-              />
-              <AppButton
-                label={t('profile.request_data_deletion')}
-                style={styles.privacyActionButton}
-                disabled={createPrivacyRequest.isPending}
-                onPress={() => openProfilePrivacyRequest('deletion')}
-                variant="dangerSecondary"
-                size="md"
-                leading={
-                  <Ionicons name="trash-outline" size={16} color={theme.colors.status.error} />
-                }
-              />
-            </View>
-            <View style={styles.deleteAccountPanel}>
-              <Text style={styles.deleteAccountTitle}>{t('profile.delete_account_title')}</Text>
-              <Text style={styles.deleteAccountBody}>{t('profile.delete_account_body')}</Text>
+                  <Text
+                    style={[
+                      styles.exitPasscodeStatusText,
+                      childModeExitPasscodeConfigured && styles.exitPasscodeStatusTextEnabled,
+                    ]}
+                  >
+                    {childModeExitPasscodeConfigured
+                      ? t('profile.child_mode_exit_passcode_set')
+                      : t('profile.child_mode_exit_passcode_not_set')}
+                  </Text>
+                </View>
+              </View>
+
               <AppButton
                 label={
-                  deleteAccount.isPending
-                    ? t('profile.delete_account_deleting')
-                    : t('profile.delete_account_button')
+                  childModeExitPasscodeConfigured
+                    ? t('profile.child_mode_exit_passcode_change')
+                    : t('profile.child_mode_exit_passcode_save')
                 }
-                style={styles.deleteAccountAction}
-                disabled={deleteAccount.isPending}
-                onPress={() => setShowDeleteAccountConfirm(true)}
-                variant="danger"
-                size="md"
-                leading={
-                  <Ionicons name="warning-outline" size={16} color={theme.colors.text.inverse} />
-                }
+                onPress={() => setShowChildModePasscodeModal(true)}
+                style={styles.profileSaveAction}
               />
-            </View>
-          </View>
+            </AnimatedSection>
 
-          {privacyRequestsQuery.isLoading || recentPrivacyRequests.length > 0 ? (
-            <View style={styles.privacyRequestsPanel}>
-              <Text style={styles.privacyRequestsTitle}>
-                {t('profile.privacy_requests_recent')}
-              </Text>
-              {privacyRequestsQuery.isLoading ? (
+            <AnimatedSection delay={220} trigger={enterKey} style={styles.settingsPanel}>
+              <View style={styles.settingsPanelHeader}>
+                <Ionicons
+                  name="options-outline"
+                  size={20}
+                  color={theme.colors.interactive.primary}
+                />
+                <Text style={styles.sectionTitle}>{t('profile.preferences')}</Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.settingButton}
+                onPress={() => navigation.navigate('LanguageSettings')}
+              >
+                <Text style={styles.settingText}>{t('profile.language_settings')}</Text>
+                <Text style={styles.settingArrow}>›</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.settingButton}
+                onPress={() => navigation.navigate('ThemeSettings')}
+              >
+                <View style={styles.settingLeft}>
+                  <Text style={styles.settingText}>{t('profile.theme_settings')}</Text>
+                  {profileUser?.themePalette ? (
+                    <Text style={styles.settingValue}>
+                      {t(`theme.palette_names.${profileUser.themePalette}`)}
+                    </Text>
+                  ) : null}
+                </View>
+                <Text style={styles.settingArrow}>›</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.settingButton}>
+                <Text style={styles.settingText}>{t('profile.notification_settings')}</Text>
+                <Text style={styles.settingArrow}>›</Text>
+              </TouchableOpacity>
+
+              {Platform.OS === 'web' ? (
+                <View style={styles.settingButton}>
+                  <View style={styles.settingLeft}>
+                    <Text style={styles.settingText}>{t('profile.analytics_settings')}</Text>
+                    <Text style={styles.settingValue}>
+                      {analyticsConsent === 'granted'
+                        ? t('profile.analytics_enabled')
+                        : t('profile.analytics_disabled')}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={analyticsConsent === 'granted'}
+                    onValueChange={handleAnalyticsConsentChange}
+                    trackColor={{
+                      false: theme.colors.neutral[300],
+                      true: theme.colors.interactive.primary,
+                    }}
+                    thumbColor={theme.colors.background.primary}
+                  />
+                </View>
+              ) : null}
+            </AnimatedSection>
+
+            <AnimatedSection delay={280} trigger={enterKey} style={styles.settingsPanel}>
+              <View style={styles.settingsPanelHeader}>
+                <Ionicons
+                  name="diamond-outline"
+                  size={20}
+                  color={theme.colors.interactive.primary}
+                />
+                <Text style={styles.sectionTitle}>{t('profile.subscription')}</Text>
+              </View>
+
+              {plansLoading ? (
                 <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
               ) : (
-                recentPrivacyRequests.map((request) => (
-                  <View key={request.id} style={styles.privacyRequestRow}>
-                    <View style={styles.privacyRequestInfo}>
-                      <Text style={styles.privacyRequestType}>
-                        {getPrivacyRequestTypeLabel(request.requestType)}
-                      </Text>
-                      <Text style={styles.privacyRequestDate}>
-                        {new Date(request.createdAt).toLocaleDateString()}
-                      </Text>
-                    </View>
-                    <View style={styles.privacyRequestStatusPill}>
-                      <Text style={styles.privacyRequestStatusText}>
-                        {getPrivacyRequestStatusLabel(request.status)}
-                      </Text>
-                    </View>
-                  </View>
-                ))
+                <>
+                  <Text style={styles.subscriptionPlan}>{currentPlanName}</Text>
+                  {hasPaymentIssue ? (
+                    <Text style={styles.subscriptionDetail}>
+                      {t('profile.subscription_payment_issue')}
+                    </Text>
+                  ) : usage?.cancelAtPeriodEnd && formattedPeriodEnd ? (
+                    <Text style={styles.subscriptionDetail}>
+                      {t('profile.subscription_canceling', { date: formattedPeriodEnd })}
+                    </Text>
+                  ) : formattedPeriodEnd ? (
+                    <Text style={styles.subscriptionDetail}>
+                      {t('profile.subscription_until', { date: formattedPeriodEnd })}
+                    </Text>
+                  ) : null}
+                  {usage ? (
+                    <UsageSummaryCard
+                      usage={usage}
+                      periodEndFormatted={formattedPeriodEnd}
+                      hidePeriodEnd={usage.cancelAtPeriodEnd === true}
+                      variant="embedded"
+                    />
+                  ) : usageLoading ? (
+                    <Text style={styles.subscriptionDetail}>{t('common.loading')}</Text>
+                  ) : (
+                    <Text style={styles.subscriptionDetail}>
+                      {t('profile.stories_per_month', { count: storiesLimit })}
+                    </Text>
+                  )}
+                  <AppButton
+                    label={
+                      canManageSubscription
+                        ? t('billing.manage_subscription')
+                        : t('profile.upgrade_plan')
+                    }
+                    style={styles.subscriptionAction}
+                    onPress={handleManageSubscription}
+                    disabled={createPortalSession.isPending}
+                    loading={createPortalSession.isPending}
+                    variant="primary"
+                  />
+                </>
               )}
-            </View>
-          ) : null}
-        </AnimatedSection>
+            </AnimatedSection>
 
-        <AnimatedSection delay={320} trigger={enterKey} style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('profile.subscription')}</Text>
-
-          {plansLoading ? (
-            <View style={styles.subscriptionCard}>
-              <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
-            </View>
-          ) : (
-            <View style={styles.subscriptionCard}>
-              <Text style={styles.subscriptionPlan}>{currentPlanName}</Text>
-              {hasPaymentIssue ? (
-                <Text style={styles.subscriptionDetail}>
-                  {t('profile.subscription_payment_issue')}
-                </Text>
-              ) : usage?.cancelAtPeriodEnd && formattedPeriodEnd ? (
-                <Text style={styles.subscriptionDetail}>
-                  {t('profile.subscription_canceling', { date: formattedPeriodEnd })}
-                </Text>
-              ) : formattedPeriodEnd ? (
-                <Text style={styles.subscriptionDetail}>
-                  {t('profile.subscription_until', { date: formattedPeriodEnd })}
-                </Text>
-              ) : null}
-              {usage ? (
-                <UsageSummaryCard
-                  usage={usage}
-                  periodEndFormatted={formattedPeriodEnd}
-                  hidePeriodEnd={usage.cancelAtPeriodEnd === true}
-                  variant="embedded"
+            <AnimatedSection
+              delay={320}
+              trigger={enterKey}
+              style={[styles.settingsPanel, styles.settingsPanelWide]}
+            >
+              <View style={styles.settingsPanelHeader}>
+                <Ionicons
+                  name="document-text-outline"
+                  size={20}
+                  color={theme.colors.interactive.primary}
                 />
-              ) : usageLoading ? (
-                <Text style={styles.subscriptionDetail}>{t('common.loading')}</Text>
-              ) : (
-                <Text style={styles.subscriptionDetail}>
-                  {t('profile.stories_per_month', { count: storiesLimit })}
-                </Text>
-              )}
+                <Text style={styles.sectionTitle}>{t('profile.data_requests_title')}</Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.settingButton}
+                onPress={() => navigation.navigate('Children')}
+              >
+                <View style={styles.settingLeft}>
+                  <Text style={styles.settingText}>
+                    {t('profile.child_data_deletion_requests')}
+                  </Text>
+                  <Text style={styles.settingValue}>
+                    {t('profile.child_data_deletion_requests_hint')}
+                  </Text>
+                </View>
+                <Text style={styles.settingArrow}>›</Text>
+              </TouchableOpacity>
+
+              <View style={styles.privacyActionsPanel}>
+                <Text style={styles.privacyActionsBody}>{t('profile.data_requests_body')}</Text>
+                <View style={styles.privacyActionsRow}>
+                  <AppButton
+                    label={t('profile.request_data_export')}
+                    style={styles.privacyActionButton}
+                    disabled={createPrivacyRequest.isPending}
+                    onPress={() => openProfilePrivacyRequest('export')}
+                    variant="secondary"
+                    size="md"
+                    leading={
+                      <Ionicons
+                        name="download-outline"
+                        size={16}
+                        color={theme.colors.interactive.primary}
+                      />
+                    }
+                  />
+                  <AppButton
+                    label={t('profile.request_data_deletion')}
+                    style={styles.privacyActionButton}
+                    disabled={createPrivacyRequest.isPending}
+                    onPress={() => openProfilePrivacyRequest('deletion')}
+                    variant="dangerSecondary"
+                    size="md"
+                    leading={
+                      <Ionicons name="trash-outline" size={16} color={theme.colors.status.error} />
+                    }
+                  />
+                </View>
+                <View style={styles.deleteAccountPanel}>
+                  <Text style={styles.deleteAccountTitle}>{t('profile.delete_account_title')}</Text>
+                  <Text style={styles.deleteAccountBody}>{t('profile.delete_account_body')}</Text>
+                  <AppButton
+                    label={
+                      deleteAccount.isPending
+                        ? t('profile.delete_account_deleting')
+                        : t('profile.delete_account_button')
+                    }
+                    style={styles.deleteAccountAction}
+                    disabled={deleteAccount.isPending}
+                    onPress={() => setShowDeleteAccountConfirm(true)}
+                    variant="danger"
+                    size="md"
+                    leading={
+                      <Ionicons
+                        name="warning-outline"
+                        size={16}
+                        color={theme.colors.text.inverse}
+                      />
+                    }
+                  />
+                </View>
+              </View>
+
+              {privacyRequestsQuery.isLoading || recentPrivacyRequests.length > 0 ? (
+                <View style={styles.privacyRequestsPanel}>
+                  <Text style={styles.privacyRequestsTitle}>
+                    {t('profile.privacy_requests_recent')}
+                  </Text>
+                  {privacyRequestsQuery.isLoading ? (
+                    <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+                  ) : (
+                    recentPrivacyRequests.map((request) => (
+                      <View key={request.id} style={styles.privacyRequestRow}>
+                        <View style={styles.privacyRequestInfo}>
+                          <Text style={styles.privacyRequestType}>
+                            {getPrivacyRequestTypeLabel(request.requestType)}
+                          </Text>
+                          <Text style={styles.privacyRequestDate}>
+                            {new Date(request.createdAt).toLocaleDateString()}
+                          </Text>
+                        </View>
+                        <View style={styles.privacyRequestStatusPill}>
+                          <Text style={styles.privacyRequestStatusText}>
+                            {getPrivacyRequestStatusLabel(request.status)}
+                          </Text>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
+              ) : null}
+            </AnimatedSection>
+
+            <AnimatedSection
+              delay={420}
+              trigger={enterKey}
+              style={[styles.settingsPanel, styles.settingsPanelFooter]}
+            >
               <AppButton
-                label={
-                  canManageSubscription ? t('billing.manage_subscription') : t('profile.upgrade_plan')
-                }
-                style={styles.subscriptionAction}
-                onPress={handleManageSubscription}
-                disabled={createPortalSession.isPending}
-                loading={createPortalSession.isPending}
-                variant="primary"
+                label={t('profile.logout')}
+                onPress={handleLogout}
+                variant="dangerSecondary"
+                style={styles.logoutAction}
               />
-            </View>
-          )}
-        </AnimatedSection>
 
-        <AnimatedSection delay={420} trigger={enterKey}>
-          <AppButton
-            label={t('profile.logout')}
-            onPress={handleLogout}
-            variant="dangerSecondary"
-            style={styles.logoutAction}
-          />
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>WonderTales v1.0.0</Text>
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>WonderTales v1.0.0</Text>
+              </View>
+            </AnimatedSection>
           </View>
-        </AnimatedSection>
+        </View>
       </ScrollView>
 
       <ConfirmDialog
@@ -892,17 +936,117 @@ export default function ProfileScreen() {
         onClose={() => setShowFeedbackModal(false)}
         initialReportedScreen="profile"
       />
+
+      <Modal
+        visible={showChildModePasscodeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseChildModePasscodeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.passcodeModal}>
+            <View style={styles.passcodeModalHeader}>
+              <View style={styles.passcodeModalHeaderText}>
+                <Text style={styles.passcodeModalTitle}>
+                  {t('profile.child_mode_exit_passcode_title')}
+                </Text>
+                <Text style={styles.passcodeModalDescription}>
+                  {t('profile.child_mode_exit_passcode_body')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={handleCloseChildModePasscodeModal}
+                style={styles.passcodeModalClose}
+                disabled={updateChildModeExitPasscode.isPending}
+                accessibilityRole="button"
+              >
+                <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            {childModeExitPasscodeConfigured ? (
+              <View style={styles.infoRow}>
+                <Text style={styles.label}>{t('profile.child_mode_exit_passcode_current')}</Text>
+                <TextInput
+                  style={styles.pseudonymInput}
+                  value={currentExitPasscode}
+                  onChangeText={setCurrentExitPasscode}
+                  placeholder={t('profile.child_mode_exit_passcode_current')}
+                  placeholderTextColor={theme.colors.text.tertiary}
+                  secureTextEntry
+                  maxLength={128}
+                />
+              </View>
+            ) : null}
+
+            <View style={styles.exitPasscodeFields}>
+              <View style={styles.exitPasscodeField}>
+                <Text style={styles.label}>{t('profile.child_mode_exit_passcode_new')}</Text>
+                <TextInput
+                  style={styles.pseudonymInput}
+                  value={newExitPasscode}
+                  onChangeText={setNewExitPasscode}
+                  placeholder={t('profile.child_mode_exit_passcode_placeholder')}
+                  placeholderTextColor={theme.colors.text.tertiary}
+                  secureTextEntry
+                  maxLength={128}
+                />
+              </View>
+              <View style={styles.exitPasscodeField}>
+                <Text style={styles.label}>{t('profile.child_mode_exit_passcode_confirm')}</Text>
+                <TextInput
+                  style={styles.pseudonymInput}
+                  value={confirmExitPasscode}
+                  onChangeText={setConfirmExitPasscode}
+                  placeholder={t('profile.child_mode_exit_passcode_placeholder')}
+                  placeholderTextColor={theme.colors.text.tertiary}
+                  secureTextEntry
+                  maxLength={128}
+                  onSubmitEditing={handleSaveChildModeExitPasscode}
+                />
+              </View>
+            </View>
+
+            <View style={styles.passcodeModalActions}>
+              <AppButton
+                label={t('common.cancel')}
+                onPress={handleCloseChildModePasscodeModal}
+                disabled={updateChildModeExitPasscode.isPending}
+                variant="secondary"
+                size="md"
+                style={styles.passcodeModalAction}
+              />
+              <AppButton
+                label={
+                  childModeExitPasscodeConfigured
+                    ? t('profile.child_mode_exit_passcode_change')
+                    : t('profile.child_mode_exit_passcode_save')
+                }
+                onPress={handleSaveChildModeExitPasscode}
+                disabled={!canSaveChildModeExitPasscode}
+                loading={updateChildModeExitPasscode.isPending}
+                size="md"
+                style={styles.passcodeModalAction}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    padding: theme.spacing[6],
+    padding: theme.spacing[8],
+    paddingBottom: theme.spacing[12],
     minHeight: '100%',
     backgroundColor: modernColors.page,
   },
   header: {
+    width: '100%',
+    maxWidth: 1280,
+    alignSelf: 'center',
     marginBottom: theme.spacing[6],
   },
   title: {
@@ -910,19 +1054,108 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.bold,
     color: theme.colors.text.primary,
   },
+  profileLayout: {
+    width: '100%',
+    maxWidth: 1280,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing[6],
+  },
+  profileAside: {
+    width: 340,
+    flexShrink: 0,
+    ...(Platform.OS === 'web'
+      ? {
+          position: 'sticky' as any,
+          top: theme.spacing[8],
+        }
+      : {}),
+  },
+  profileAsideCard: {
+    backgroundColor: modernColors.surface,
+    borderRadius: theme.borders.radius.xl,
+    padding: theme.spacing[6],
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    alignItems: 'center',
+    ...modernShadows.subtle,
+  },
+  profileAsideName: {
+    marginTop: theme.spacing[4],
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+  },
+  profileAsideEmail: {
+    marginTop: theme.spacing[1],
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+  },
+  profileAsidePlanPill: {
+    minHeight: 36,
+    marginTop: theme.spacing[4],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: theme.colors.background.primary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[1],
+  },
+  profileAsidePlanText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  settingsGrid: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'stretch',
+    gap: theme.spacing[5],
+  },
+  settingsPanel: {
+    flexGrow: 1,
+    flexBasis: 380,
+    minWidth: 320,
+    backgroundColor: modernColors.surface,
+    borderRadius: theme.borders.radius.xl,
+    padding: theme.spacing[6],
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    ...modernShadows.subtle,
+  },
+  settingsPanelWide: {
+    flexBasis: '100%',
+  },
+  settingsPanelFooter: {
+    flexBasis: '100%',
+    alignItems: 'center',
+  },
+  settingsPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    marginBottom: theme.spacing[4],
+  },
   section: {
-    marginBottom: theme.spacing[8],
+    marginBottom: theme.spacing[10],
   },
   sectionTitle: {
     fontSize: theme.typography.fontSize.lg,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
-    marginBottom: theme.spacing[4],
+    marginBottom: 0,
   },
   profileCard: {
     backgroundColor: modernColors.surface,
-    borderRadius: theme.borders.radius.lg,
-    padding: theme.spacing[5],
+    borderRadius: theme.borders.radius.xl,
+    padding: theme.spacing[6],
     borderWidth: theme.borders.width.thin,
     borderColor: modernColors.border,
     ...modernShadows.subtle,
@@ -962,15 +1195,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginTop: theme.spacing[3],
+    width: '100%',
+    gap: theme.spacing[2],
+    marginTop: theme.spacing[5],
   },
   avatarAction: {
-    minWidth: 132,
-    marginHorizontal: theme.spacing[1],
-    marginTop: theme.spacing[2],
+    width: '100%',
   },
   accountColumns: {
     flexDirection: 'row',
@@ -1068,12 +1298,70 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 220,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing[5],
+  },
+  passcodeModal: {
+    width: '100%',
+    maxWidth: 720,
+    backgroundColor: modernColors.surface,
+    borderRadius: theme.borders.radius.xl,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    padding: theme.spacing[5],
+    ...modernShadows.subtle,
+  },
+  passcodeModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: theme.spacing[3],
+    marginBottom: theme.spacing[5],
+  },
+  passcodeModalHeaderText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  passcodeModalTitle: {
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing[2],
+  },
+  passcodeModalDescription: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+  },
+  passcodeModalClose: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.borders.radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.primary,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+  },
+  passcodeModalActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[3],
+    marginTop: theme.spacing[5],
+  },
+  passcodeModalAction: {
+    minWidth: 180,
+  },
   settingButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: theme.spacing[4],
-    backgroundColor: modernColors.surface,
+    backgroundColor: theme.colors.background.primary,
     borderRadius: theme.borders.radius.md,
     borderWidth: theme.borders.width.thin,
     borderColor: modernColors.border,
@@ -1101,12 +1389,7 @@ const styles = StyleSheet.create({
   },
   privacyActionsPanel: {
     gap: theme.spacing[3],
-    padding: theme.spacing[4],
-    backgroundColor: modernColors.surface,
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: modernColors.border,
-    marginBottom: theme.spacing[2],
+    marginTop: theme.spacing[3],
   },
   privacyActionsTitle: {
     fontSize: theme.typography.fontSize.base,
@@ -1149,11 +1432,10 @@ const styles = StyleSheet.create({
   },
   privacyRequestsPanel: {
     gap: theme.spacing[2],
-    padding: theme.spacing[4],
-    backgroundColor: modernColors.surface,
-    borderRadius: theme.borders.radius.md,
-    borderWidth: theme.borders.width.thin,
-    borderColor: modernColors.border,
+    marginTop: theme.spacing[4],
+    paddingTop: theme.spacing[4],
+    borderTopWidth: theme.borders.width.thin,
+    borderTopColor: theme.colors.border.light,
   },
   privacyRequestsTitle: {
     fontSize: theme.typography.fontSize.sm,
@@ -1201,8 +1483,8 @@ const styles = StyleSheet.create({
   },
   subscriptionCard: {
     backgroundColor: modernColors.surface,
-    borderRadius: theme.borders.radius.lg,
-    padding: theme.spacing[5],
+    borderRadius: theme.borders.radius.xl,
+    padding: theme.spacing[6],
     borderWidth: theme.borders.width.thin,
     borderColor: modernColors.border,
     ...modernShadows.subtle,
@@ -1223,9 +1505,7 @@ const styles = StyleSheet.create({
     minWidth: 240,
   },
   logoutAction: {
-    alignSelf: 'center',
     minWidth: 220,
-    marginTop: theme.spacing[6],
   },
   footer: {
     alignItems: 'center',

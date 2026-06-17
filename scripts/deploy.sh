@@ -133,6 +133,14 @@ ssh_droplet() {
   ssh $SSH_OPTS "${DROPLET_USER}@${DROPLET_IP}" "$@"
 }
 
+upsert_remote_env_var() {
+  local env_file="$1"
+  local key="$2"
+  local value="$3"
+
+  ssh_droplet "if grep -q '^${key}=' '${env_file}'; then perl -0pi -e 's/^${key}=.*\$/${key}=${value}/m' '${env_file}'; else printf '\n${key}=${value}\n' >> '${env_file}'; fi"
+}
+
 create_deploy_tarball() {
   local output="$1"
   shift
@@ -316,6 +324,11 @@ EOF
   echo "✅ Legacy nginx config validates. Deploy live public nginx from /var/www/proxy with the proxy repo."
 }
 
+restart_shared_proxy_if_present() {
+  echo "🔄 Refreshing shared public proxy upstreams..."
+  ssh_droplet "docker ps --format '{{.Names}}' | grep -qx 'shared-nginx-proxy' && docker restart shared-nginx-proxy >/dev/null || true"
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 1: Run pending migrations on droplet
 # ─────────────────────────────────────────────────────────────────────────────
@@ -464,6 +477,11 @@ deploy_webapp() {
 
   sync_nginx_config
 
+  print_step "Updating SSR web bundle version..."
+  upsert_remote_env_var "${DROPLET_PATH}/.env.production" "WEB_BUILD_ID" "${expo_bundle_hash}"
+  echo "   ✓ WEB_BUILD_ID=${expo_bundle_hash}"
+  print_step_done
+
   print_step "Extracting and recreating webapp..."
   ssh_droplet << 'EOF'
 cd /var/www/kazka
@@ -475,8 +493,10 @@ if [ -e dist ]; then
   rm -rf dist
   ln -sfn apps/universal-app/dist dist
 fi
-docker compose -f docker-compose.prod.yml up -d --force-recreate webapp
+docker compose -f docker-compose.prod.yml up -d --force-recreate api webapp
 EOF
+
+  restart_shared_proxy_if_present
 
   echo "✅ Webapp deployed"
 }

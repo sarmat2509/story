@@ -39,6 +39,11 @@ assert.match(xml, /<loc>https:\/\/wondertales\.art\/stories\/public-one<\/loc>/)
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/stories\/public-two<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/stories<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/en\/stories<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/ru\/stories<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/es\/stories<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/de\/stories<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/fr\/stories<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/pl\/stories<\/loc>/);
 
 assert.strictEqual(
   countOccurrences(xml, `<loc>https://wondertales.art/authors/${authorA}</loc>`),

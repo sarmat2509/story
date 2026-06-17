@@ -17,6 +17,10 @@ type ParentGateOAuthStartResponse = {
   status: string;
   url: string;
 };
+type ChildModeRecoveryRequestResponse = {
+  status: string;
+  message: string;
+};
 
 /**
  * Mirror the user's server-side theme palette preference into the local
@@ -186,6 +190,38 @@ export const useParentGate = () => {
       const response = await apiClient.post<ParentGateResponse>('/api/v1/auth/parent-gate', data, {
         skipAuthLogoutOn401: true,
       });
+      return response.data;
+    },
+    onSuccess: async (data) => {
+      await applyParentGateResponse(data, queryClient, returnToParentSession);
+    },
+  });
+};
+
+export const useRequestChildModeExitRecovery = () => {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post<ChildModeRecoveryRequestResponse>(
+        '/api/v1/auth/child-mode/recovery',
+        {},
+        { skipAuthLogoutOn401: true }
+      );
+      return response.data;
+    },
+  });
+};
+
+export const useCompleteChildModeExitRecovery = () => {
+  const queryClient = useQueryClient();
+  const { returnToParentSession } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async (token: string) => {
+      const response = await apiClient.post<ParentGateResponse>(
+        '/api/v1/auth/child-mode/recovery/complete',
+        { token },
+        { skipAuthLogoutOn401: true }
+      );
       return response.data;
     },
     onSuccess: async (data) => {

@@ -44,6 +44,8 @@ interface Props {
   childModeCharacterOptions?: ChildModeOption[];
   childModeLimitHints?: ChildModeLimitHints;
   showProfileSummary?: boolean;
+  showChildModeStatus?: boolean;
+  showChildModeStartAction?: boolean;
   onChildModeEnabledChange?: (childId: string, enabled: boolean) => void;
   onChildModeSettingsChange?: (childId: string, settings: Partial<ChildModeSettings>) => void;
   onEnterChildMode?: (childId: string, childName: string) => void;
@@ -438,6 +440,8 @@ export function ChildCard({
   childModeCharacterOptions = [],
   childModeLimitHints,
   showProfileSummary = true,
+  showChildModeStatus = true,
+  showChildModeStartAction = true,
   onChildModeEnabledChange,
   onChildModeSettingsChange,
   onEnterChildMode,
@@ -553,30 +557,38 @@ export function ChildCard({
               />
             </View>
 
-            <Text style={styles.childModeStatus}>{childModeStatusText}</Text>
+            {showChildModeStatus ? (
+              <Text style={styles.childModeStatus}>{childModeStatusText}</Text>
+            ) : null}
 
-            <AppButton
-              label={
-                childModeEnabled
-                  ? !childModePasscodeConfigured
-                    ? labels.setPasscodeToStart
-                    : isEnteringChildMode
-                      ? labels.starting
-                      : labels.start
-                  : labels.enableToStart
-              }
-              disabled={
-                !childModeEnabled ||
-                !childModePasscodeConfigured ||
-                isEnteringChildMode ||
-                !onEnterChildMode
-              }
-              loading={isEnteringChildMode}
-              onPress={() => onEnterChildMode?.(child.id, child.name)}
-              leading={
-                <Ionicons name="play-circle-outline" size={18} color={theme.colors.text.inverse} />
-              }
-            />
+            {showChildModeStartAction ? (
+              <AppButton
+                label={
+                  childModeEnabled
+                    ? !childModePasscodeConfigured
+                      ? labels.setPasscodeToStart
+                      : isEnteringChildMode
+                        ? labels.starting
+                        : labels.start
+                    : labels.enableToStart
+                }
+                disabled={
+                  !childModeEnabled ||
+                  !childModePasscodeConfigured ||
+                  isEnteringChildMode ||
+                  !onEnterChildMode
+                }
+                loading={isEnteringChildMode}
+                onPress={() => onEnterChildMode?.(child.id, child.name)}
+                leading={
+                  <Ionicons
+                    name="play-circle-outline"
+                    size={18}
+                    color={theme.colors.text.inverse}
+                  />
+                }
+              />
+            ) : null}
 
             <View style={styles.limitsPanel}>
               <Text style={styles.limitsTitle}>{labels.limitsTitle}</Text>

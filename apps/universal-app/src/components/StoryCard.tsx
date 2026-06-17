@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { TouchableOpacity, View, Text, Image, StyleSheet, Pressable, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { LinearGradient } from '@/components/AppLinearGradient';
@@ -28,7 +28,6 @@ interface Props {
 }
 
 const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Props) => {
-  const [gridHovered, setGridHovered] = useState(false);
   const { t } = useTranslation();
 
   // Prefer thumbnail for library (smaller, faster loading), fallback to full image
@@ -86,8 +85,6 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
       <View style={styles.gridRoot}>
         <Pressable
           onPress={() => onPress(story.id)}
-          onHoverIn={() => Platform.OS === 'web' && setGridHovered(true)}
-          onHoverOut={() => Platform.OS === 'web' && setGridHovered(false)}
           style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
             styles.gridShadowOuter,
             Platform.OS === 'web' && hovered && styles.gridShadowOuterHover,
@@ -97,14 +94,7 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
           <View style={styles.gridClip}>
             <View style={styles.gridMedia}>
               {thumbnail ? (
-                <Image
-                  source={{ uri: thumbnail }}
-                  style={[
-                    styles.gridThumbnail,
-                    Platform.OS === 'web' && gridHovered && styles.gridThumbnailHover,
-                  ]}
-                  resizeMode="cover"
-                />
+                <Image source={{ uri: thumbnail }} style={styles.gridThumbnail} resizeMode="cover" />
               ) : (
                 <View style={styles.gridPlaceholder}>
                   <Text style={styles.placeholderIcon}>📖</Text>
@@ -208,7 +198,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: theme.spacing[3],
-    borderRadius: theme.borders.radius.lg,
+    borderRadius: theme.borders.radius.xl,
     backgroundColor: modernColors.surface,
     borderWidth: theme.borders.width.thin,
     borderColor: modernColors.border,
@@ -219,7 +209,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: theme.spacing[4],
+    padding: theme.spacing[5],
   },
   title: {
     fontSize: theme.typography.fontSize.lg,
@@ -271,14 +261,16 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   gridShadowOuter: {
-    borderRadius: theme.borders.radius.lg,
+    borderRadius: theme.borders.radius.xl,
     backgroundColor: modernColors.surface,
-    borderWidth: theme.borders.width.thin,
+    borderWidth: 0,
     borderColor: modernColors.border,
     ...modernShadows.card,
     ...Platform.select({
       web: {
         cursor: 'pointer',
+        transform: 'translateY(0px)',
+        transition: 'transform 180ms ease, box-shadow 180ms ease',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
       default: {},
@@ -292,6 +284,7 @@ const styles = StyleSheet.create({
     },
     android: { elevation: 8 },
     web: {
+      transform: 'translateY(-3px)',
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any,
   }),
@@ -299,7 +292,7 @@ const styles = StyleSheet.create({
     opacity: 0.97,
   },
   gridClip: {
-    borderRadius: theme.borders.radius.lg,
+    borderRadius: 26,
     overflow: 'hidden',
   },
   gridMedia: {
@@ -312,21 +305,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
-    ...Platform.select({
-      web: {
-        transform: [{ scale: 1.05 }],
-        transition: 'transform 400ms ease',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any,
-    }),
   },
-  gridThumbnailHover: Platform.select({
-    web: {
-      transform: [{ scale: 1 }],
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any,
-    default: {},
-  }),
   gridPlaceholder: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: theme.colors.background.tertiary,
@@ -341,16 +320,16 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: '64%',
+    height: '70%',
   },
   gridTitleBlock: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: theme.spacing[4],
+    paddingHorizontal: theme.spacing[5],
     paddingBottom: theme.spacing[5],
-    paddingTop: theme.spacing[5],
+    paddingTop: theme.spacing[6],
     justifyContent: 'flex-end',
   },
   gridTitle: {
@@ -361,7 +340,8 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.45)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
-    maxWidth: '70%',
+    lineHeight: 24,
+    maxWidth: '82%',
   },
   reviewBadgeGrid: {
     position: 'absolute',
