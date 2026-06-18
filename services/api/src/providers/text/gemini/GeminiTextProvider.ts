@@ -83,40 +83,15 @@ export class GeminiTextProvider implements ITextProvider {
 
     try {
       const cachedPrefix = request.cachedPrefix?.content?.trim();
-      let promptText = request.prompt;
-      let cachedContentName: string | null = null;
+      const promptText = cachedPrefix ? `${cachedPrefix}\n\n${request.prompt}` : request.prompt;
       if (cachedPrefix) {
-        const cacheDecision = shouldUseGeminiContextCache({
-          cachedContent: cachedPrefix,
-          runtimeContent: request.prompt,
-          minEstimatedTokens: config.ai.geminiContextCacheMinEstimatedTokens,
-          minShare: config.ai.geminiContextCacheMinShare,
-        });
-        if (cacheDecision.useCache) {
-          cachedContentName = await this.contextCacheService.getOrCreate({
-            model: modelName,
-            key: request.cachedPrefix!.key,
-            content: cachedPrefix,
-            ttlSeconds: request.cachedPrefix?.ttlSeconds,
-            displayName: request.cachedPrefix?.displayName,
-          });
-          if (!cachedContentName) {
-            promptText = `${cachedPrefix}\n\n${request.prompt}`;
-          }
-        } else {
-          promptText = `${cachedPrefix}\n\n${request.prompt}`;
-          logger.info(
-            {
-              cacheKey: request.cachedPrefix?.key,
-              model: modelName,
-              reason: cacheDecision.reason,
-              estimatedCachedTokens: cacheDecision.estimatedCachedTokens,
-              estimatedRuntimeTokens: cacheDecision.estimatedRuntimeTokens,
-              cachedShare: Number(cacheDecision.cachedShare.toFixed(3)),
-            },
-            'Skipping Gemini context cache',
-          );
-        }
+        // Gemini 3.x rejects cachedContent when a structured response schema is sent
+        // because the SDK represents responseSchema as tool/tool_config. Inline the
+        // cached rules for structured JSON calls and keep context cache for free text.
+        logger.info(
+          { cacheKey: request.cachedPrefix?.key, model: modelName },
+          'Skipping Gemini context cache for structured generation',
+        );
       }
 
       // Build content parts for Gemini (text + optional images)
@@ -168,7 +143,6 @@ export class GeminiTextProvider implements ITextProvider {
             maxOutputTokens: Math.min(98304, Math.max(request.maxTokens ?? 8192, 8192)),
             ...(request.topP && { topP: request.topP }),
             ...(request.topK && { topK: request.topK }),
-            ...(cachedContentName && { cachedContent: cachedContentName }),
             // Use OFF for all children's content generation — our prompts enforce safety.
             // Gemini's built-in filters produce false positives on character descriptions
             // (e.g. "sharp white teeth" on an imaginary creature drawn by a child).

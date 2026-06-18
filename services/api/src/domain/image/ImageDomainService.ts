@@ -538,7 +538,7 @@ export class ImageDomainService {
 
     return runProductImageValidation(this.textProvider, params, {
       visionModel:
-        config.ai?.validationModel || config.ai?.geminiVisionModel || 'gemini-2.5-flash-lite',
+        config.ai?.validationModel || config.ai?.geminiVisionModel || 'gemini-3.1-flash-lite',
       operation: 'image_validation',
     });
   }

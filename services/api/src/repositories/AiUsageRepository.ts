@@ -22,6 +22,19 @@ export interface CreateAiUsageEventInput {
   metadata?: Record<string, unknown> | null;
 }
 
+export interface MatchedImageValidationUsage {
+  provider: string;
+  operation: string;
+  model: string | null;
+  inputUnits: number | null;
+  outputUnits: number | null;
+  costUsd: number | null;
+  durationMs: number | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: Date;
+  matchedDeltaMs: number;
+}
+
 export class AiUsageRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
@@ -107,6 +120,58 @@ export class AiUsageRepository {
       metadata: (row.metadata as Record<string, unknown> | null) ?? null,
       costUsd: row.costUsd != null ? Number(row.costUsd) : null,
     }));
+  }
+
+  async findNearestImageValidationUsage(params: {
+    storyId: string;
+    model?: string | null;
+    createdAt: Date;
+    windowSeconds?: number;
+  }): Promise<MatchedImageValidationUsage | null> {
+    const windowSeconds = params.windowSeconds ?? 60;
+    const createdAtUtc = sql`${schema.aiUsageEvents.createdAt} AT TIME ZONE 'UTC'`;
+    const deltaSeconds = sql<number>`ABS(EXTRACT(EPOCH FROM (${createdAtUtc} - ${params.createdAt})))`;
+    const conditions = [
+      eq(schema.aiUsageEvents.storyId, params.storyId),
+      eq(schema.aiUsageEvents.operation, 'image_validation'),
+      sql`${deltaSeconds} <= ${windowSeconds}`,
+    ];
+
+    if (params.model) {
+      conditions.push(eq(schema.aiUsageEvents.model, params.model));
+    }
+
+    const [row] = await this.db
+      .select({
+        provider: schema.aiUsageEvents.provider,
+        operation: schema.aiUsageEvents.operation,
+        model: schema.aiUsageEvents.model,
+        inputUnits: schema.aiUsageEvents.inputUnits,
+        outputUnits: schema.aiUsageEvents.outputUnits,
+        costUsd: schema.aiUsageEvents.costUsd,
+        durationMs: schema.aiUsageEvents.durationMs,
+        metadata: schema.aiUsageEvents.metadata,
+        createdAt: schema.aiUsageEvents.createdAt,
+        deltaMs: sql<number>`${deltaSeconds} * 1000`,
+      })
+      .from(schema.aiUsageEvents)
+      .where(and(...conditions))
+      .orderBy(deltaSeconds)
+      .limit(1);
+
+    if (!row) return null;
+    return {
+      provider: row.provider,
+      operation: row.operation,
+      model: row.model,
+      inputUnits: row.inputUnits,
+      outputUnits: row.outputUnits,
+      costUsd: row.costUsd != null ? Number(row.costUsd) : null,
+      durationMs: row.durationMs,
+      metadata: (row.metadata as Record<string, unknown> | null) ?? null,
+      createdAt: row.createdAt,
+      matchedDeltaMs: Math.round(Number(row.deltaMs ?? 0)),
+    };
   }
 
   async getUserMonthlyCost(userId: string, year: number, month: number): Promise<number> {

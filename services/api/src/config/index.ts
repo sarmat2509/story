@@ -173,7 +173,7 @@ export const config = {
      */
     ttsProsodyTagsModel:
       (process.env.GEMINI_TTS_PROSODY_MODEL || '').trim() || 'gemini-2.5-flash',
-    validationModel: process.env.GEMINI_VALIDATION_MODEL || 'gemini-2.5-flash-lite',
+    validationModel: process.env.GEMINI_VALIDATION_MODEL || 'gemini-3.1-flash-lite',
     geminiContextCacheMinEstimatedTokens: parseInt(
       process.env.GEMINI_CONTEXT_CACHE_MIN_ESTIMATED_TOKENS || '1024',
       10

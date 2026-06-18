@@ -270,6 +270,24 @@ export default function AdminValidationDetailScreen() {
                     <Text style={styles.valueText}>{item.visionModel ?? 'n/a'}</Text>
                   </View>
                   <View style={styles.booleanFieldRow}>
+                    <Text style={styles.valueKey}>COST</Text>
+                    <Text style={styles.valueText}>
+                      {item.usage?.costUsd != null ? `$${item.usage.costUsd.toFixed(8)}` : 'n/a'}
+                    </Text>
+                  </View>
+                  <View style={styles.booleanFieldRow}>
+                    <Text style={styles.valueKey}>DURATION</Text>
+                    <Text style={styles.valueText}>
+                      {item.usage?.durationMs != null ? `${item.usage.durationMs} ms` : 'n/a'}
+                    </Text>
+                  </View>
+                  <View style={styles.booleanFieldRow}>
+                    <Text style={styles.valueKey}>USAGE MATCH</Text>
+                    <Text style={styles.valueText}>
+                      {item.usage ? `${item.usage.matchedDeltaMs} ms` : 'n/a'}
+                    </Text>
+                  </View>
+                  <View style={styles.booleanFieldRow}>
                     <Text style={styles.valueKey}>CREATED</Text>
                     <Text style={styles.valueText}>
                       {new Date(item.createdAt).toLocaleString()}

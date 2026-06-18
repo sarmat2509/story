@@ -97,7 +97,22 @@ export type AdminImageValidationItem = {
   createdAt: string;
 };
 
-export type AdminImageValidationDetail = AdminImageValidationItem;
+export type AdminImageValidationUsage = {
+  provider: string;
+  operation: string;
+  model: string | null;
+  inputUnits: number | null;
+  outputUnits: number | null;
+  costUsd: number | null;
+  durationMs: number | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  matchedDeltaMs: number;
+};
+
+export type AdminImageValidationDetail = AdminImageValidationItem & {
+  usage: AdminImageValidationUsage | null;
+};
 
 export type AdminDirectorSceneItem = {
   id: string;

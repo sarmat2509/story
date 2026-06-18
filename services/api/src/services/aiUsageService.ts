@@ -44,7 +44,7 @@ function getConfigKey(provider: string, model?: string): string {
 
 function getTextCostConfig(modelKey: string) {
   if (AI_COST_CONFIG.text[modelKey]) return AI_COST_CONFIG.text[modelKey];
-  // Validation currently defaults to gemini-2.5-flash-lite, which may not have
+  // Legacy validation runs used gemini-2.5-flash-lite, which may not have
   // an explicit pricing row in local config. Use same-family flash pricing as a
   // conservative fallback instead of unrelated gemini-3-flash-preview pricing.
   if (modelKey.startsWith('gemini-2.5-flash-lite')) {

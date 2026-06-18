@@ -1,6 +1,7 @@
 import {
   getAdminConfigRepository,
   getAdminDashboardRepository,
+  getAiUsageRepository,
   getAssetRepository,
   getEnvironmentImageCacheRepository,
   getFeedbackRepository,
@@ -307,6 +308,12 @@ export async function getAdminImageValidation(id: string) {
   const row = await getImageValidationById(id);
   if (!row) return null;
 
+  const matchedUsage = await getAiUsageRepository().findNearestImageValidationUsage({
+    storyId: row.storyId,
+    model: row.visionModel,
+    createdAt: row.createdAt,
+  });
+
   return {
     id: row.id,
     storyId: row.storyId,
@@ -317,6 +324,21 @@ export async function getAdminImageValidation(id: string) {
     validationScore: row.validationScore,
     visionModel: row.visionModel,
     result: row.result,
+    usage: matchedUsage
+      ? {
+          provider: matchedUsage.provider,
+          operation: matchedUsage.operation,
+          model: matchedUsage.model,
+          inputUnits: matchedUsage.inputUnits,
+          outputUnits: matchedUsage.outputUnits,
+          costUsd:
+            matchedUsage.costUsd != null ? Math.round(matchedUsage.costUsd * 1e8) / 1e8 : null,
+          durationMs: matchedUsage.durationMs,
+          metadata: matchedUsage.metadata,
+          createdAt: matchedUsage.createdAt.toISOString(),
+          matchedDeltaMs: matchedUsage.matchedDeltaMs,
+        }
+      : null,
     createdAt: row.createdAt.toISOString(),
   };
 }
