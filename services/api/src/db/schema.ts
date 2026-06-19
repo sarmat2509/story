@@ -700,7 +700,7 @@ export const translations = pgTable(
   'translations',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    entityType: varchar('entity_type', { length: 50 }).notNull(), // 'story_goal' | 'scenario_card'
+    entityType: varchar('entity_type', { length: 50 }).notNull(), // 'story_goal' | 'scenario_card' | 'character'
     entityId: varchar('entity_id', { length: 100 }).notNull(),
     locale: varchar('locale', { length: 5 }).notNull(), // 'uk' | 'ru' | 'en' | 'es'
     fieldName: varchar('field_name', { length: 50 }).notNull(), // 'name' | 'description'

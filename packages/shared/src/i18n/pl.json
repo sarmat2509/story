@@ -275,6 +275,7 @@
     "language": "Jezyk historii",
     "generating": "Tworzenie...",
     "create_error": "Cos poszlo nie tak podczas tworzenia historii. Sprobuj ponownie.",
+    "taking_longer_than_expected": "To zajmuje troche wiecej czasu, niz oczekiwano.",
     "retry": "Sprobuj ponownie",
     "retry_error": "Nie udalo sie ponowic generacji obrazow. Sprobuj ponownie.",
     "advanced_settings": "Ustawienia zaawansowane",

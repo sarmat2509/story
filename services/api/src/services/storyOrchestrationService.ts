@@ -107,7 +107,7 @@ import {
   mergeCharacters,
 } from './storyOrchestration/storyRecords';
 import { validateStoryScenes } from './storyOrchestration/validation';
-import { mergeDirectorIntoText, extractLlmCharactersFromText, getIllustrationSceneIds, getIllustrationBlockStartSceneIds, composeScenesIntoBlocks } from './storyOrchestration/utilities';
+import { mergeDirectorIntoText, extractLlmCharactersFromText, getIllustrationBlockStartSceneIds, composeScenesIntoBlocks } from './storyOrchestration/utilities';
 import { persistImageValidationResult } from './imageValidationPersistenceService';
 import { persistStoryDirectorScenes } from './storyDirectorScenePersistenceService';
 import {
@@ -118,6 +118,7 @@ import {
 import { assertStoryPromptSafety, isPromptSafetyError } from './promptSafetyService';
 import { assertVoiceAccessForUser } from './voiceAccessService';
 import { assertSceneImageGenerationAccessForStory } from './imageStoryLimitService';
+import { localizeCharacterNames } from './translationService';
 import {
   buildStoryCreationAttribution,
   getStoryCreationAttributionInputFromRequest,
@@ -145,10 +146,7 @@ function estimateTrackedImageCount(totalScenes: number, imagesPerStory: number):
     return 0;
   }
 
-  const sceneIds = config.features.useDirectorFlow
-    ? getIllustrationBlockStartSceneIds(totalScenes, imagesPerStory)
-    : getIllustrationSceneIds(totalScenes, imagesPerStory);
-
+  const sceneIds = getIllustrationBlockStartSceneIds(totalScenes, imagesPerStory);
   return Math.min(2, sceneIds.length);
 }
 
@@ -183,11 +181,7 @@ function buildFixedStagePlan(params: {
 
   const trackedImageCount = estimateTrackedImageCount(sceneCount, imagesPerStory);
   const illustrationCount = imagesPerStory > 0
-    ? (
-        config.features.useDirectorFlow
-          ? getIllustrationBlockStartSceneIds(sceneCount, imagesPerStory).length
-          : getIllustrationSceneIds(sceneCount, imagesPerStory).length
-      )
+    ? getIllustrationBlockStartSceneIds(sceneCount, imagesPerStory).length
     : 0;
 
   return [
@@ -541,7 +535,7 @@ export async function processStoryRequest(requestId: string): Promise<{
           coefficients,
           sceneCount: estimateSceneCountForAgeGroup(spec.ageGroup),
           imagesPerStory: userPlan.imagesPerStory || 0,
-          includeProducer: config.features.useDirectorFlow && (userPlan.imagesPerStory || 0) > 0,
+          includeProducer: (userPlan.imagesPerStory || 0) > 0,
         }),
       );
 
@@ -594,76 +588,71 @@ export async function processStoryRequest(requestId: string): Promise<{
           }),
       };
 
-      if (config.features.useDirectorFlow) {
-        const plainText = await storyDomain.generateTextPlain(spec, textGenOptions);
-        textGenerationTimeMs = Date.now() - textGenStart;
-        const imagesPerStory = userPlan.imagesPerStory || 0;
-        if (imagesPerStory > 0) {
-          const blocks = composeScenesIntoBlocks(plainText.scenes, imagesPerStory);
-          const userCharacters = selectedCharacters.map((c: any) => ({ id: c.id, name: c.name }));
-          await transitionTask(requestId, STORY_TASKS.GENERATING_TEXT, STORY_TASKS.PRODUCING_VISUALS, {
-            estimatedMs: estimateProducerMs(blocks.length),
-          });
-          const directorResult = await storyDomain.callDirector(
-            {
-              blocks,
-              imagesPerStory,
-              spec,
-              userCharacters,
-            },
-            { onUsage: (u) => recordUsage(u, usageContext) }
-          );
-          await completeTask(requestId, STORY_TASKS.PRODUCING_VISUALS);
-          text = mergeDirectorIntoText(plainText, directorResult, imagesPerStory);
-          text.language = spec.language;
-          const anchorSceneIds = getIllustrationBlockStartSceneIds(plainText.scenes.length, imagesPerStory);
-          logger.info(
-            {
-              requestId,
-              mergedOutfitsCount: Array.isArray((text as any).outfits) ? (text as any).outfits.length : 0,
-              directorOutfitIds: (directorResult.outfits || [])
-                .map((o: { id?: string }) => o?.id)
-                .filter(Boolean),
-              illustrationsWardrobe: (directorResult.illustrations || []).map((ill: any, idx: number) => {
-                const chars = ill?.sceneVisual?.cameraComposition?.characters;
-                const list = Array.isArray(chars) ? chars : [];
-                return {
-                  blockIndex: idx,
-                  anchorSceneId: anchorSceneIds[idx],
-                  cameraCharacterCount: list.length,
-                  cameraOutfitsPreview: list.slice(0, 8).map((c: any) => ({
-                    name: c?.name,
-                    outfitId: c?.outfitId,
-                  })),
-                };
-              }),
-            },
-            'Director merged into text (outfits + per-block camera outfitIds)',
-          );
-        } else {
-          await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
-          text = {
-            title: plainText.title,
-            language: spec.language,
-            description: plainText.description,
-            characters: [],
-            environments: [],
-            outfits: [],
-            scenes: plainText.scenes.map((scene) => ({ ...scene })),
-            fullText: plainText.fullText,
-            wordCount: plainText.wordCount,
-          } as any;
-          logger.info({ requestId }, 'Skipped Director because imagesPerStory=0');
-        }
+      const plainText = await storyDomain.generateTextPlain(spec, textGenOptions);
+      textGenerationTimeMs = Date.now() - textGenStart;
+      const imagesPerStory = userPlan.imagesPerStory || 0;
+      if (imagesPerStory > 0) {
+        const blocks = composeScenesIntoBlocks(plainText.scenes, imagesPerStory);
+        const userCharacters = selectedCharacters.map((c: any) => ({ id: c.id, name: c.name }));
+        await transitionTask(requestId, STORY_TASKS.GENERATING_TEXT, STORY_TASKS.PRODUCING_VISUALS, {
+          estimatedMs: estimateProducerMs(blocks.length),
+        });
+        const directorResult = await storyDomain.callDirector(
+          {
+            blocks,
+            imagesPerStory,
+            spec,
+            userCharacters,
+          },
+          { onUsage: (u) => recordUsage(u, usageContext) }
+        );
+        await completeTask(requestId, STORY_TASKS.PRODUCING_VISUALS);
+        text = mergeDirectorIntoText(plainText, directorResult, imagesPerStory);
+        text.language = spec.language;
+        const anchorSceneIds = getIllustrationBlockStartSceneIds(plainText.scenes.length, imagesPerStory);
+        logger.info(
+          {
+            requestId,
+            mergedOutfitsCount: Array.isArray((text as any).outfits) ? (text as any).outfits.length : 0,
+            directorOutfitIds: (directorResult.outfits || [])
+              .map((o: { id?: string }) => o?.id)
+              .filter(Boolean),
+            illustrationsWardrobe: (directorResult.illustrations || []).map((ill: any, idx: number) => {
+              const chars = ill?.sceneVisual?.cameraComposition?.characters;
+              const list = Array.isArray(chars) ? chars : [];
+              return {
+                blockIndex: idx,
+                anchorSceneId: anchorSceneIds[idx],
+                cameraCharacterCount: list.length,
+                cameraOutfitsPreview: list.slice(0, 8).map((c: any) => ({
+                  name: c?.name,
+                  outfitId: c?.outfitId,
+                })),
+              };
+            }),
+          },
+          'Director merged into text (outfits + per-block camera outfitIds)',
+        );
       } else {
-        text = await storyDomain.generateText(spec, textGenOptions);
-        textGenerationTimeMs = Date.now() - textGenStart;
         await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
+        text = {
+          title: plainText.title,
+          language: spec.language,
+          description: plainText.description,
+          characters: [],
+          environments: [],
+          outfits: [],
+          scenes: plainText.scenes.map((scene) => ({ ...scene })),
+          fullText: plainText.fullText,
+          wordCount: plainText.wordCount,
+        } as any;
+        logger.info({ requestId }, 'Skipped Director because imagesPerStory=0');
       }
       
       logger.info({ requestId, title: text.title, wordCount: text.wordCount, textGenerationTimeMs }, 'Text generated');
       
-      // Log environments from LLM output
+      // Log environments from Director output when illustrations are enabled.
+      const plannedImagesPerStory = userPlan.imagesPerStory || 0;
       const textEnvironments = (text as any).environments;
       if (textEnvironments && textEnvironments.length > 0) {
         logger.info({
@@ -674,7 +663,7 @@ export async function processStoryRequest(requestId: string): Promise<{
             id: e.id,
             name: e.name,
           })),
-        }, 'LLM generated story environments');
+        }, 'Director generated story environments');
 
         // Log scene-to-environment mapping
         const sceneEnvMapping = text.scenes.map((s: any) => ({
@@ -689,9 +678,9 @@ export async function processStoryRequest(requestId: string): Promise<{
         logger.info({
           requestId,
           sceneEnvMapping,
-        }, 'Scene-to-environment mapping from LLM');
-      } else {
-        logger.warn({ requestId }, 'LLM did not generate environments array — images will use raw visualPrompt without setting context');
+        }, 'Scene-to-environment mapping from Director');
+      } else if (plannedImagesPerStory > 0) {
+        logger.warn({ requestId }, 'Director did not generate environments array — images will use raw visualPrompt without setting context');
       }
 
       // Extract LLM-generated characters (same as main flow — includes originalCharacterId from [ID: uuid])
@@ -710,6 +699,7 @@ export async function processStoryRequest(requestId: string): Promise<{
         request.userId,
         llmCharacters,
         selectedCharacters as CharacterData[],
+        spec.language,
       );
       
       // Enrich mergedCharacters with DB IDs for LLM characters
@@ -775,7 +765,7 @@ export async function processStoryRequest(requestId: string): Promise<{
     logger.info({ requestId, checkpoint: 'validation' }, 'Checkpoint saved');
     }
 
-    if (config.features.useDirectorFlow && storyId) {
+    if (storyId) {
       const imagesPerStory = userPlan.imagesPerStory || 0;
       persistStoryDirectorScenes(storyId, text.scenes, imagesPerStory).catch((error) => {
         logger.error(
@@ -1674,7 +1664,10 @@ async function prepareSceneOutfitPlateReferences(params: {
  * Process story images for a request (runs in image queue after text+validation)
  * Loads all necessary context from intermediateData and generates scene images sequentially.
  */
-export async function processStoryImages(requestId: string): Promise<void> {
+export async function processStoryImages(
+  requestId: string,
+  options: { takingLongerThanExpected?: boolean } = {},
+): Promise<void> {
   const startTime = Date.now();
   
   try {
@@ -1704,9 +1697,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
     let scenesToGenerate: any[] = [];
     const imagesPerStory = userPlan.imagesPerStory || 0;
     const totalScenes = text.scenes.length;
-    const sceneIds = config.features.useDirectorFlow
-      ? getIllustrationBlockStartSceneIds(totalScenes, imagesPerStory)
-      : getIllustrationSceneIds(totalScenes, imagesPerStory);
+    const sceneIds = getIllustrationBlockStartSceneIds(totalScenes, imagesPerStory);
     scenesToGenerate = sceneIds
       .map((id) => text.scenes.find((s: any) => s.sceneId === id))
       .filter(Boolean);
@@ -1716,6 +1707,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
     // Progress budget is bound to the foreground UX completion threshold, not background renders.
     await startTask(requestId, STORY_TASKS.GENERATING_IMAGES, {
       estimatedMs: coefficients.avgMsPerImage * trackedImageTarget,
+      ...(options.takingLongerThanExpected && { takingLongerThanExpected: true }),
     });
 
     if (config.image.skipGeneration) {
@@ -1872,7 +1864,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
       let requestMarkedCompleted = false;
       let readyImagesCount = 0; // Generated or already-existing images that count toward UX completion
 
-      const syncForegroundImageProgress = async () => {
+      const syncForegroundImageProgress = async (details?: Record<string, unknown>) => {
         if (requestMarkedCompleted) {
           return;
         }
@@ -1888,6 +1880,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
           {
             current: Math.min(readyImagesCount, trackedImageTarget),
             total: trackedImageTarget,
+            ...details,
           },
         );
       };
@@ -2104,6 +2097,10 @@ export async function processStoryImages(requestId: string): Promise<void> {
             userPlan, userId: request.userId, assetStorage, imageDomain,
             referenceImageDataArray, imageSystemInstruction, imageIndexMap,
             currentEnvironmentId, currentEnvironment,
+            requestId,
+            onValidationRetry: async () => {
+              await syncForegroundImageProgress({ takingLongerThanExpected: true });
+            },
           });
 
           const preloadedSceneRecord = existingScenesBySceneId.get(scene.sceneId);
@@ -2129,6 +2126,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
           failedScenes.push({ sceneId: scene.sceneId, errorMessage: errMsg });
 
           if (!requestMarkedCompleted && i === 0) {
+            await syncForegroundImageProgress({ takingLongerThanExpected: true });
             throw error;
           }
         }
@@ -2177,15 +2175,7 @@ export async function processStoryImages(requestId: string): Promise<void> {
       errorMessage: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     }, 'Story image generation failed');
-    
-    const failedRequest = await getStoryRepository().findRequestById(requestId);
-    const failedCheckpoints = (failedRequest?.intermediateData as Record<string, unknown>) || {};
-    await getStoryRepository().updateRequest(requestId, {
-      status: 'failed',
-      storyId: (failedRequest?.storyId ?? failedCheckpoints.storyId) as string | undefined, // So client can retry images only
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-    });
-    
+
     throw error;
   }
 }
@@ -2240,9 +2230,13 @@ export interface ContinuationContext {
  * Build story spec from request data
  * When continuationContext is provided, uses requiredCharacters + optionalCharacters instead of loading from request
  */
-async function buildStorySpec(
+export async function buildStorySpec(
   request: StoryRequestData,
-  options?: { continuationContext?: ContinuationContext }
+  options?: {
+    continuationContext?: ContinuationContext;
+    plotExampleId?: string;
+    worldRuleId?: string;
+  }
 ): Promise<{
   spec: StorySpec & { childProfile?: ChildProfileData };
   selectedCharacters: CharacterData[];
@@ -2257,6 +2251,7 @@ async function buildStorySpec(
     const goalDataPromise = request.goal
       ? getDictionaryRepository().findGoalBySlug(request.goal)
       : Promise.resolve(null);
+    const storyLanguage = normalizeStoryLocale(request.storyLanguage);
 
     // Get child profile if specified
     let childName: string | undefined = undefined; // Will be set if child is a character
@@ -2301,11 +2296,43 @@ async function buildStorySpec(
 
       // Standard mode: load selected characters from request
       if (userCharacters.length > 0) {
+        const characterNameTranslations = new Map<string, string>();
+        const translations = await getDictionaryRepository().findTranslations(
+          'character',
+          userCharacters.map(c => c.id),
+          storyLanguage,
+        );
+        for (const translation of translations) {
+          if (translation.fieldName === 'name' && translation.value.trim()) {
+            characterNameTranslations.set(translation.entityId, translation.value.trim());
+          }
+        }
+        const missingLocalizedNames = userCharacters.filter(c => !characterNameTranslations.has(c.id));
+        if (missingLocalizedNames.length > 0) {
+          await Promise.all(
+            missingLocalizedNames.map(async (character) => {
+              try {
+                const localizations = await localizeCharacterNames(character, {
+                  onUsage: (u) => recordUsage(u, { userId: request.userId, characterId: character.id }),
+                  sourceLocale: character.descriptionLanguage,
+                });
+                characterNameTranslations.set(character.id, localizations[storyLanguage] || character.name);
+              } catch (err) {
+                logger.warn(
+                  { err, requestId: request.id, characterId: character.id },
+                  'Lazy character name localization failed; using canonical name',
+                );
+              }
+            })
+          );
+        }
+
         selectedCharacters = userCharacters
         .filter(c => c.name) // Only include characters with valid name
         .map(c => ({
           id: c.id,
-          name: c.name,
+          name: characterNameTranslations.get(c.id) || stripCharacterIdFromName(c.name) || c.name,
+          canonicalName: c.name,
           type: c.type,
           traits: c.personality || undefined,
           referencePhotos: c.referencePhotos as ReferencePhoto[] | undefined,
@@ -2326,6 +2353,7 @@ async function buildStorySpec(
         loadedCharactersCount: selectedCharacters.length,
         charactersWithReferences: selectedCharacters.filter(c => c.referencePhotos && c.referencePhotos.length > 0).map(c => ({
           name: c.name,
+          canonicalName: (c as any).canonicalName,
           type: c.type,
           referencePhotoCount: c.referencePhotos?.length || 0
         }))
@@ -2433,7 +2461,7 @@ async function buildStorySpec(
       const translations = await getDictionaryRepository().findTranslations(
         'scenario_card',
         [card.id],
-        request.storyLanguage
+        storyLanguage
       );
       
       const nameTranslation = translations.find(t => t.fieldName === 'name');
@@ -2455,11 +2483,14 @@ async function buildStorySpec(
       const plotExamples = await getDictionaryRepository().findActivePlotExamples(scenarioCard.id);
       if (plotExamples.length > 0) {
         let available = plotExamples;
+        let picked = options?.plotExampleId
+          ? plotExamples.find(e => e.id === options.plotExampleId)
+          : undefined;
 
         // Series dedup: exclude examples used in previous parts
         const intermediateData = (request as any).intermediateData as Record<string, any> | undefined;
         const seriesId = intermediateData?.seriesId as string | undefined;
-        if (seriesId) {
+        if (!picked && seriesId) {
           const usedIds = await getUsedPlotExampleIds(seriesId);
           const filtered = plotExamples.filter(e => !usedIds.has(e.id));
           if (filtered.length > 0) available = filtered;
@@ -2471,7 +2502,14 @@ async function buildStorySpec(
           }, 'Plot example series dedup');
         }
 
-        const picked = available[Math.floor(Math.random() * available.length)];
+        if (!picked && options?.plotExampleId) {
+          logger.warn({
+            scenarioCardId: scenarioCard.id,
+            plotExampleId: options.plotExampleId,
+          }, 'Requested plot example not found; falling back to random selection');
+        }
+
+        picked = picked || available[Math.floor(Math.random() * available.length)];
         scenarioCard.promptGuidance = picked.setting;
         chosenPlotExampleId = picked.id;
 
@@ -2486,9 +2524,12 @@ async function buildStorySpec(
       const worldRules = await getDictionaryRepository().findActiveWorldRules(scenarioCard.id);
       if (worldRules.length > 0) {
         let availableRules = worldRules;
+        let pickedRule = options?.worldRuleId
+          ? worldRules.find(r => r.id === options.worldRuleId)
+          : undefined;
         const intermediateData = (request as any).intermediateData as Record<string, any> | undefined;
         const seriesId = intermediateData?.seriesId as string | undefined;
-        if (seriesId) {
+        if (!pickedRule && seriesId) {
           const usedWorldRuleIds = await getUsedWorldRuleIds(seriesId);
           const filtered = worldRules.filter(r => !usedWorldRuleIds.has(r.id));
           if (filtered.length > 0) availableRules = filtered;
@@ -2499,7 +2540,13 @@ async function buildStorySpec(
             availableAfterDedup: availableRules.length,
           }, 'World rule series dedup');
         }
-        const pickedRule = availableRules[Math.floor(Math.random() * availableRules.length)];
+        if (!pickedRule && options?.worldRuleId) {
+          logger.warn({
+            scenarioCardId: scenarioCard.id,
+            worldRuleId: options.worldRuleId,
+          }, 'Requested world rule not found; falling back to random selection');
+        }
+        pickedRule = pickedRule || availableRules[Math.floor(Math.random() * availableRules.length)];
         chosenWorldRuleId = pickedRule.id;
         worldRule = { name: pickedRule.name, description: pickedRule.description };
         logger.info({
@@ -2510,8 +2557,6 @@ async function buildStorySpec(
       }
     }
     
-    const storyLanguage = normalizeStoryLocale(request.storyLanguage);
-
     // Load goal with guidance and translations
     let goalWithGuidance: { slug: string; name: string; promptGuidance: string } | undefined;
     const goalData = await goalDataPromise;
@@ -3161,16 +3206,10 @@ export function evaluateGeneratedImageSafety(input: {
     };
   }
 
-  return {
-    allowed: false,
-    code: 'IMAGE_VALIDATION_FAILED',
-    message: `Image validation failed after ${input.attempts} attempt(s). The generated image was not saved.`,
-    details: {
-      attempts: input.attempts,
-      minAcceptScore: input.minAcceptScore,
-      score,
-    },
-  };
+  // A completed validation below the acceptance threshold is a QA signal, not a
+  // display blocker. The best scored attempt is still persisted for the user;
+  // public publishing has a stricter validation gate in storyPublishSafetyService.
+  return { allowed: true };
 }
 
 /**
@@ -3325,6 +3364,8 @@ async function generateSceneImageWithReference(
     imageIndexMap?: Map<string, number>;
     currentEnvironmentId?: string;
     currentEnvironment?: StoryEnvironment;
+    requestId?: string;
+    onValidationRetry?: () => Promise<void>;
   }
 ): Promise<{ imageUrl: string }> {
   const startTime = Date.now();
@@ -3531,7 +3572,7 @@ async function generateSceneImageWithReference(
     };
 
     const maxAttempts = config.image.enableValidation
-      ? config.image.validationMaxRetries + 1
+      ? Math.min(config.image.validationMaxRetries + 1, 2)
       : 1;
 
     let image = await generateWithRetry(
@@ -3699,6 +3740,7 @@ async function generateSceneImageWithReference(
 
           // Always full regeneration on validation failure (no image-edit retry path).
           if (attempt < maxAttempts) {
+            await context.onValidationRetry?.();
             logger.info({
               storyId, sceneId: scene.sceneId, attempt,
               feedback: validation.overallFeedback,

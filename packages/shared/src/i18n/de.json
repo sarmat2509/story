@@ -234,6 +234,7 @@
     "generate_button": "Geschichte erstellen",
     "generating": "Erstellt...",
     "create_error": "Beim Erstellen der Geschichte ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.",
+    "taking_longer_than_expected": "Das dauert etwas länger als erwartet.",
     "retry": "Erneut versuchen",
     "retry_error": "Illustrationen konnten nicht erneut generiert werden. Bitte versuchen Sie es erneut.",
     "advanced_settings": "Erweiterte Einstellungen",

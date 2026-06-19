@@ -470,7 +470,6 @@ export const config = {
   // Feature Flags
   features: {
     enableCharacterAnalysis: process.env.ENABLE_CHARACTER_ANALYSIS !== 'false', // Enabled by default
-    useDirectorFlow: process.env.USE_DIRECTOR_FLOW === 'true', // Plain text + Director for visuals (N scenes only)
     enableRealPayments: process.env.ENABLE_REAL_PAYMENTS === 'true', // M1: Stripe/RevenueCat; false = stub (PUT /plans/upgrade)
     /** When true, logs the complete Director LLM prompt (search app.log for msg "Director full prompt"). Large. */
     logDirectorFullPrompt: process.env.LOG_DIRECTOR_FULL_PROMPT === 'true',

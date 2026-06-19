@@ -234,6 +234,7 @@
     "generate_button": "Créer l'histoire",
     "generating": "Création...",
     "create_error": "Une erreur s'est produite lors de la création de l'histoire. Veuillez réessayer.",
+    "taking_longer_than_expected": "Cela prend un peu plus de temps que prévu.",
     "retry": "Réessayer",
     "retry_error": "Impossible de réessayer la génération des illustrations. Veuillez réessayer.",
     "advanced_settings": "Paramètres avancés",

@@ -28,6 +28,7 @@ import {
   getUsageEventsRepository,
 } from '../repositories';
 import { isGrokBlockedForStoryLanguage } from '../providers/audio/grok/supportedLocales';
+import { getIllustrationBlockStartSceneIds } from '../services/storyOrchestration/utilities';
 
 const ESTIMATED_SCENE_COUNT_BY_AGE_GROUP: Record<string, number> = {
   '0-1': 5,
@@ -48,9 +49,7 @@ function estimateTrackedImageCount(totalScenes: number, imagesPerStory: number):
     return 0;
   }
 
-  const illustratedSceneCount = config.features.useDirectorFlow
-    ? Math.ceil(totalScenes / Math.max(imagesPerStory, 1))
-    : Math.min(totalScenes, imagesPerStory);
+  const illustratedSceneCount = getIllustrationBlockStartSceneIds(totalScenes, imagesPerStory).length;
 
   return Math.min(2, illustratedSceneCount);
 }
@@ -177,6 +176,29 @@ async function releaseStoryQuotaAfterPermanentFailure(
   );
 }
 
+async function markImageRequestAfterPermanentFailure(job: ImageGenerationJob, error: unknown): Promise<void> {
+  if (job.type !== 'image_batch') {
+    return;
+  }
+
+  await getStoryRepository().updateRequest(job.requestId, {
+    status: 'failed',
+    storyId: job.storyId,
+    errorMessage: 'Story illustrations could not be completed. Please try again.',
+    updatedAt: new Date(),
+  });
+
+  logger.info(
+    {
+      requestId: job.requestId,
+      storyId: job.storyId,
+      retries: job.retries,
+      error: errorMessage(error),
+    },
+    'Image request marked failed after permanent queue failure'
+  );
+}
+
 // ── New Queue Instances ──
 
 /**
@@ -202,6 +224,7 @@ export const imageQueue = new ConcurrentJobQueue<ImageGenerationJob>({
   maxConcurrency: () => config.queue.imageConcurrency,
   processor: processImageGeneration,
   groupKeyFn: (job) => job.storyId,
+  onPermanentFailure: markImageRequestAfterPermanentFailure,
   pollIntervalMs: config.queue.pollIntervalMs,
 });
 
@@ -329,7 +352,9 @@ async function processImageGeneration(job: ImageGenerationJob): Promise<void> {
     }, 'Processing image batch');
 
     const { processStoryImages } = await import('../services/storyOrchestrationService');
-    await processStoryImages(job.requestId);
+    await processStoryImages(job.requestId, {
+      takingLongerThanExpected: job.retries > 0,
+    });
 
     logger.info({ storyId: job.storyId, requestId: job.requestId }, 'Image batch completed');
   } else {
@@ -659,17 +684,13 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
       userPlan.imagesPerStory || 0,
     );
     const illustrationCount = userPlan.imagesPerStory > 0
-      ? (
-          config.features.useDirectorFlow
-            ? Math.ceil(estimatedSceneCount / Math.max(userPlan.imagesPerStory || 1, 1))
-            : Math.min(estimatedSceneCount, userPlan.imagesPerStory || 0)
-        )
+      ? getIllustrationBlockStartSceneIds(estimatedSceneCount, userPlan.imagesPerStory || 0).length
       : 0;
 
     await setPlannedTasks(requestId, [
       { task: STORY_TASKS.ANALYZING_PHOTOS, estimatedMs: 30000 },
       { task: STORY_TASKS.GENERATING_TEXT, estimatedMs: coefficients.avgTextMs },
-      ...(config.features.useDirectorFlow
+      ...(userPlan.imagesPerStory > 0
         ? [{ task: STORY_TASKS.PRODUCING_VISUALS, estimatedMs: estimateProducerMs(illustrationCount) }]
         : []),
       {
@@ -713,6 +734,7 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
     const { CharacterAnalysisService } = await import('../services/characterAnalysisService');
     const { GeminiTextProvider } = await import('../providers/text/gemini/GeminiTextProvider');
     const { generateTurnaroundSheetFromReference, isTurnaroundSheetEnabled } = await import('../services/turnaroundSheetService');
+    const { localizeCharacterNames } = await import('../services/translationService');
     const { getCharacterRepository } = await import('../repositories');
     
     const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
@@ -774,6 +796,16 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
           characterSubtype: character.subtype,
           detectedFrom: group.characterType
         }, 'Character created from photos (instant mode)');
+
+        localizeCharacterNames(character, {
+          onUsage: (u) => recordUsage(u, charAnalysisUsageContext),
+          sourceLocale: language,
+        }).catch(err => {
+          logger.error(
+            { err, requestId, characterId: character.id, characterName: character.name },
+            'Character name localization failed (instant mode)',
+          );
+        });
         
         // 2.3: Generate turnaround sheet for ALL character types (person, animal, imaginary)
         if (isTurnaroundSheetEnabled() && group.photoUrls.length > 0) {

@@ -28,8 +28,6 @@ export interface StoryDomainOptions {
   };
 }
 import {
-  buildDirectTextPrompt,
-  buildDirectTextPromptCachedPrefix,
   buildDirectTextPromptPlain,
   buildDirectTextPromptPlainCachedPrefix,
   buildDirectorPrompt,
@@ -43,15 +41,13 @@ import {
   TEXT_REGENERATION_CACHE_KEY,
   TEXT_VALIDATION_CACHE_KEY,
   WRITER_PLAIN_CACHE_KEY,
-  WRITER_STRUCTURED_CACHE_KEY,
 } from '../../prompts/text';
 import config from '../../config';
 import { estimateUsageCostUsd } from '../../services/aiUsageService';
 import { logger } from '../../utils/logger';
-import { TEXT_SCHEMA, VALIDATION_SCHEMA, BATCH_VALIDATION_SCHEMA, BATCH_REGENERATION_SCHEMA } from './schemas';
+import { VALIDATION_SCHEMA, BATCH_VALIDATION_SCHEMA, BATCH_REGENERATION_SCHEMA } from './schemas';
 import { DIRECTOR_SCHEMA } from './directorSchema';
 import { parsePlainTextToScenes } from './parsePlainText';
-import { normalizeOutfitBindingsOnEpisodeText } from '../../utils/characterOutfits';
 import { countNarrationWords } from '../../utils/audioTags';
 
 /** Plain writer output budget — avoids truncated endings when the model hits provider defaults (e.g. Gemini `maxOutputTokens` 4096). */
@@ -95,74 +91,22 @@ export class StoryDomainService {
   }
 
   /**
-   * Generate story text directly (1-step process)
-   * Business logic: determines scene count and vocabulary level based on age group
-   * When isContinuation=true, uses continuation-specific prompt sections
+   * Compatibility wrapper for older call sites. The Writer now always returns plain prose;
+   * DirectorPrompt is the only step that creates visual metadata.
    */
   async generateText(spec: StorySpec, options?: StoryDomainOptions): Promise<EpisodeText> {
-    const isContinuation = options?.isContinuation && options?.continuationContext;
-    logger.info(
-      { ageGroup: spec.ageGroup, language: spec.language, isContinuation },
-      isContinuation ? 'Generating story continuation' : 'Generating story text'
-    );
-
-    const sceneCount = this.getSceneCount(spec.ageGroup);
-    const vocabLevel = this.getVocabularyLevel(spec.ageGroup);
-
-    const promptParams: Parameters<typeof buildDirectTextPrompt>[0] = { spec, sceneCount, vocabLevel };
-    if (isContinuation && options?.continuationContext) {
-      const ctx = options.continuationContext;
-      const toContinuationChar = (c: { name: string; type: string; description?: string; appearance?: string; role?: string }) => ({
-        name: c.name,
-        type: c.type,
-        description: c.description || c.appearance || c.name,
-        role: c.role || 'character',
-      });
-      promptParams.isContinuation = true;
-      promptParams.previousOutlines = ctx.previousOutlines;
-      promptParams.usedPlots = ctx.usedPlots;
-      promptParams.requiredCharacters = ctx.requiredCharacters.map(toContinuationChar);
-      promptParams.optionalCharacters =
-        ctx.optionalCharacters?.length > 0 ? ctx.optionalCharacters.map(toContinuationChar) : undefined;
-      promptParams.previousEnvironments = ctx.previousEnvironments;
-      promptParams.previousOutfits = ctx.previousOutfits;
-    }
-
-    const prompt = buildDirectTextPrompt(promptParams);
-    
-    // Log the FULL prompt being sent
-    logger.debug({ 
-      promptLength: prompt.length,
-      prompt: prompt // Full prompt for debugging
-    }, 'Text generation prompt');
-
-    try {
-      // Call provider with provider-agnostic request
-      const text = await this.textProvider.generateStructured<EpisodeText>({
-        prompt,
-        cachedPrefix: {
-          key: WRITER_STRUCTURED_CACHE_KEY,
-          content: buildDirectTextPromptCachedPrefix(),
-          displayName: WRITER_STRUCTURED_CACHE_KEY,
-        },
-        schema: TEXT_SCHEMA,
-        temperature: 0.9,
-        onUsage: options?.onUsage,
-        operation: isContinuation ? 'text_continuation' : 'text_structured',
-      });
-
-      normalizeOutfitBindingsOnEpisodeText(text as { scenes?: Array<Record<string, unknown>> });
-
-      // Compute fullText and wordCount server-side for consistency (word count excludes bracket audio tags)
-      text.fullText = text.scenes.map(s => s.text).join('\n\n');
-      text.wordCount = countNarrationWords(text.fullText);
-
-      logger.info({ wordCount: text.wordCount, sceneCount: text.scenes.length }, 'Story text generated successfully');
-      return text;
-    } catch (error) {
-      logger.error({ error }, 'Failed to generate text');
-      throw new Error(`Text generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    const plainText = await this.generateTextPlain(spec, options);
+    return {
+      title: plainText.title,
+      language: spec.language,
+      description: plainText.description,
+      characters: [],
+      environments: [],
+      outfits: [],
+      scenes: plainText.scenes.map((scene) => ({ ...scene })),
+      fullText: plainText.fullText,
+      wordCount: plainText.wordCount,
+    } as EpisodeText;
   }
 
   /**

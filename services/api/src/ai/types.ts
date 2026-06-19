@@ -152,7 +152,7 @@ export interface EpisodeOutline {
  * Episode text - full story content
  * Scene-by-scene structure prepared for M4 image generation
  */
-/** Canonical wardrobe row from structured text generation (matches TEXT_SCHEMA). */
+/** Canonical wardrobe row from Director output. */
 export interface StoryOutfitRow {
   id: string;
   characterName: string;

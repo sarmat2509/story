@@ -56,7 +56,7 @@ export function getContentPolicy(params: {
     imageSafetyAdditions: buildImageSafetyAdditions(ageGroup, isScaryStory),
     imageStyleNightModifier: buildImageStyleNightModifier(isScaryStory),
     audioTagsRules: buildAudioTagsRules(isScaryStory),
-    validationRules: buildValidationRules(ageGroup),
+    validationRules: buildValidationRules(policyProfile, isScaryStory, ageGroup),
   };
 }
 
@@ -223,10 +223,20 @@ function buildAudioTagsRules(isScaryStory: boolean): string {
   return baseRules.join('\n');
 }
 
-function buildValidationRules(ageGroup: string): string {
-  return [
+function buildValidationRules(policy: PolicyProfile, isScaryStory: boolean, ageGroup: string): string {
+  const rules = [
     `1. Content must be safe and age-appropriate for ${ageGroup}`,
     '2. Language and themes must match age group',
     '3. Be fair — only flag real safety issues, not minor style choices',
-  ].join('\n');
+  ];
+
+  if (policy.promptGuidelines && policy.promptGuidelines.trim()) {
+    rules.push('', 'DB CONTENT POLICY TO ENFORCE:', policy.promptGuidelines);
+  }
+
+  if (isScaryStory) {
+    rules.push('', getScaryStoryRequirements(ageGroup));
+  }
+
+  return rules.join('\n');
 }

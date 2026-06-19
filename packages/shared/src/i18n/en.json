@@ -282,6 +282,7 @@
     "language": "Story Language",
     "generating": "Creating...",
     "create_error": "Something went wrong while creating the story. Please try again.",
+    "taking_longer_than_expected": "This is taking a little longer than expected.",
     "retry": "Try again",
     "retry_error": "Failed to retry image generation. Please try again.",
     "advanced_settings": "Advanced Settings",

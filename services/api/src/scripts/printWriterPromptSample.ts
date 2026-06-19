@@ -1,5 +1,5 @@
 /**
- * Prints full writer prompts (plain + structured) for a fixed sample StorySpec — no LLM calls.
+ * Prints the full plain Writer prompt for a fixed sample StorySpec — no LLM calls.
  * Run: pnpm --filter wondertales-api print:writer-prompts
  *
  * Loads .env first. Asserts plain prompt omits writer audio-tag rules (deferred prosody at TTS is always on).
@@ -7,7 +7,7 @@
 import './loadEnvForScripts';
 import type { StorySpec } from '../ai/types';
 import { getAllAudioTags } from '../constants/audioTags';
-import { buildDirectTextPrompt, buildDirectTextPromptPlain } from '../prompts/text';
+import { buildDirectTextPromptPlain } from '../prompts/text';
 
 const STATIC_POLICY = {
   ageGroup: '6-8' as const,
@@ -33,12 +33,6 @@ const SCENE_COUNT = 9;
 const VOCAB_LEVEL = 'intermediate';
 
 const plain = buildDirectTextPromptPlain({
-  spec: STATIC_STORY_SPEC,
-  sceneCount: SCENE_COUNT,
-  vocabLevel: VOCAB_LEVEL,
-});
-
-const structured = buildDirectTextPrompt({
   spec: STATIC_STORY_SPEC,
   sceneCount: SCENE_COUNT,
   vocabLevel: VOCAB_LEVEL,
@@ -70,8 +64,3 @@ for (const tag of getAllAudioTags()) {
   }
 }
 console.log('[OK] defer-audio-tags: plain prompt has no writer audio-tag rules or whitelist [tag] examples.');
-console.log('\n');
-console.log('='.repeat(80));
-console.log('STRUCTURED WRITER — buildDirectTextPrompt');
-console.log('='.repeat(80));
-console.log(structured);

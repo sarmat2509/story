@@ -35,6 +35,8 @@
     "db:migrate:closing-keepsake": "tsx src/scripts/runMigration.ts 0075_add_story_closing_keepsake_label.sql",
     "db:migrate:deactivate-grok-voices": "tsx src/scripts/runAllMigrations.ts 0076_deactivate_grok_tts_voices.sql",
     "db:migrate:audio-synthesis-tagged-text": "tsx src/scripts/runAllMigrations.ts 0077_add_audio_assets_synthesis_tagged_text.sql",
+    "backfill:character-name-translations": "tsx src/scripts/backfillCharacterNameTranslations.ts",
+    "writer:story": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 tsx src/scripts/rerunWriterForStory.ts",
     "print:writer-prompts": "tsx src/scripts/printWriterPromptSample.ts",
     "print:tts-prosody-llm-prompt": "tsx src/scripts/printTtsProsodyLlmPrompt.ts",
     "verify:defer-tts-prosody": "tsx src/scripts/verifyDeferredTtsProsody.ts",

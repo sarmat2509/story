@@ -6,19 +6,17 @@ import {
 
 assert.deepStrictEqual(
   getAllowedIllustrationSceneIds({
-    totalScenes: 6,
+    totalScenes: 9,
     imagesPerStory: 3,
-    useDirectorFlow: false,
   }),
-  [1, 3, 5],
-  'standard image selection is capped by images_per_story'
+  [1, 4, 7],
+  'illustration scene selection uses Director block anchors'
 );
 
 assert.deepStrictEqual(
   getAllowedIllustrationSceneIds({
     totalScenes: 6,
     imagesPerStory: 3,
-    useDirectorFlow: true,
   }),
   [1, 3, 5],
   'director image selection is capped by images_per_story'
@@ -28,7 +26,6 @@ assert.deepStrictEqual(
   getAllowedIllustrationSceneIds({
     totalScenes: 2,
     imagesPerStory: 5,
-    useDirectorFlow: false,
   }),
   [1, 2],
   'allowed scene IDs are unique when a plan limit is larger than the scene count'
@@ -40,7 +37,6 @@ assert.deepStrictEqual(
     totalScenes: 6,
     imagesPerStory: 3,
     existingImageSceneIds: [1, 3, 5],
-    useDirectorFlow: false,
   }),
   {
     allowed: false,
@@ -61,7 +57,6 @@ assert.deepStrictEqual(
     totalScenes: 6,
     imagesPerStory: 3,
     existingImageSceneIds: [1, 3, 5],
-    useDirectorFlow: false,
   }),
   {
     allowed: true,
@@ -76,7 +71,6 @@ assert.deepStrictEqual(
     totalScenes: 6,
     imagesPerStory: 3,
     existingImageSceneIds: [1, 3],
-    useDirectorFlow: false,
   }),
   {
     allowed: true,
@@ -91,7 +85,6 @@ assert.deepStrictEqual(
     totalScenes: 6,
     imagesPerStory: 0,
     existingImageSceneIds: [],
-    useDirectorFlow: false,
   }),
   {
     allowed: false,

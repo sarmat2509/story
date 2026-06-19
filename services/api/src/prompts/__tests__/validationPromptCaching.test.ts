@@ -14,7 +14,10 @@ import {
 function testTextValidationPromptSplit() {
   const cached = buildBatchValidationCachedPrefix();
   const runtime = buildBatchValidationRuntimePrompt({
-    policy: { ageGroup: '4-5' } as any,
+    policy: {
+      ageGroup: '4-5',
+      promptGuidelines: '- DB rule: no dangerous tool instructions.',
+    } as any,
     scenes: [
       {
         sceneId: 1,
@@ -33,6 +36,8 @@ function testTextValidationPromptSplit() {
   assert.ok(!cached.includes('Mia waves to the owl.'));
   assert.ok(runtime.includes('Mia waves to the owl.'));
   assert.ok(runtime.includes('"shot":"wide"'));
+  assert.ok(runtime.includes('DB CONTENT POLICY TO ENFORCE:'));
+  assert.ok(runtime.includes('no dangerous tool instructions'));
   assert.ok(!runtime.includes('Output contract'));
 }
 

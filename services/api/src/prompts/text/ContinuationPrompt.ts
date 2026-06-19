@@ -33,130 +33,6 @@ export interface ContinuationPromptParams {
 }
 
 /**
- * Build continuation generation prompt
- *
- * @deprecated Use DirectTextPrompt with isContinuation and continuationContext instead.
- * Continuation logic is now unified in buildDirectTextPrompt.
- */
-export function buildContinuationPrompt(params: ContinuationPromptParams): string {
-  const { spec, sceneCount, vocabLevel, previousOutlines, requiredCharacters, optionalCharacters, usedPlots } = params;
-  
-  const partNumber = previousOutlines.length + 1;
-  
-  // Filter out characters with undefined/empty descriptions
-  const validRequiredChars = requiredCharacters.filter(char => 
-    char.description && char.description !== 'undefined' && char.description.trim().length > 0
-  );
-  const validOptionalChars = optionalCharacters.filter(char => 
-    char.description && char.description !== 'undefined' && char.description.trim().length > 0
-  );
-  
-  // Filter out empty plot elements
-  const validUsedPlots = usedPlots.filter(plot => plot && plot.trim().length > 0);
-  
-  // Build previous episodes section
-  const previousEpisodesText = previousOutlines.map((outline, i) => {
-    const hasMoral = outline.moral && outline.moral.trim().length > 0;
-    const validScenes = outline.scenes
-      .map(s => s.goal)
-      .filter(goal => goal && goal.trim().length > 0);
-    
-    let episodeText = `Episode ${i + 1}: "${outline.title}"`;
-    if (hasMoral) {
-      episodeText += `\n- Moral: ${outline.moral}`;
-    }
-    if (validScenes.length > 0) {
-      episodeText += `\n- Key Scenes: ${validScenes.join('; ')}`;
-    }
-    return episodeText;
-  }).join('\n\n');
-  
-  return helpers.cleanTemplate`
-You are continuing an ongoing story series for a child.
-
-LANGUAGE: Write entirely in ${helpers.getLanguageName(spec.language)}.
-
-PREVIOUS EPISODES SUMMARY:
-${previousEpisodesText}
-
-${validRequiredChars.length > 0 ? `
-REQUIRED CHARACTERS (MUST USE):
-These are user-provided main characters that MUST appear in the story:
-${validRequiredChars.map(char => `
-- ${char.name} (${char.type}): ${char.description}
-  Role: ${char.role}
-`).join('\n')}
-` : ''}
-
-${validOptionalChars.length > 0 ? `
-OPTIONAL CHARACTERS (MAY USE):
-These are additional characters from previous episodes. You MAY feature them if relevant to the plot, but it is NOT required:
-${validOptionalChars.map(char => `
-- ${char.name} (${char.type}): ${char.description}
-  Role: ${char.role}
-`).join('\n')}
-` : ''}
-
-${helpers.formatChildProfile(spec)}
-
-STORY CONTINUATION REQUIREMENTS:
-- This is Part ${partNumber} of the series
-- The story MUST connect to the previous episode. Reference events, characters, or outcomes from Part ${partNumber - 1}. Maintain narrative continuity while introducing a NEW world rule and NEW setting.
-${validRequiredChars.length > 0 ? '- MUST feature all REQUIRED characters from above\n' : ''}
-${validOptionalChars.length > 0 ? '- MAY feature OPTIONAL characters if they fit the story (not required)\n' : ''}
-- Create NEW events and challenges (not covered in previous episodes)
-- Build on previous story but make this episode standalone enjoyable
-- Introduce new secondary characters if needed (return them in "characters" output)
-${validUsedPlots.length > 0 ? `- DO NOT repeat these plot elements: ${validUsedPlots.join(', ')}\n` : ''}
-- Maintain the same tone and age-appropriateness
-- MUST have a satisfying conclusion for this episode
-- OPTIONAL: Add a gentle cliffhanger or hint for next episode
-- DO NOT repeat physical appearance of required/optional characters (from previous episodes). Use names and actions directly. Avoid "Emilia with her bright eyes...", "Flash, round and yellow...". Start with action.
-- Do NOT mention clothing in scene prose, even if clothes changed. Wardrobe belongs in outfits[] and sceneVisual only.
-- Avoid prose about hair color, eye color, freckles, face shape, skin tone, or other stable appearance traits unless one brief mention is truly needed for a NEW character's first introduction.
-- Describe physical appearance in scene prose only for genuinely NEW LLM-invented characters that were not present in the provided story context before this story/episode.
-- NEW characters: if needed, give only one brief first-glance visual cue in scene prose at first introduction. Add the full detailed appearance to characters[] instead.
-
-${helpers.formatStoryRequirements({
-    spec,
-    sceneCount,
-    targetWordCountScope: config.audio.deferAudioTagsToTts ? 'prose_only' : 'audio_tags_in_manuscript',
-  })}
-
-${helpers.formatAgeRequirements(spec.ageGroup)}
-
-${helpers.formatWritingStyle(spec, vocabLevel)}
-
-${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRule: !!spec.worldRule, worldRuleText: spec.worldRule?.description })}
-
-${helpers.formatNarrativeContinuityRules()}
-
-${helpers.formatVisualStoryRules({
-    imageStyle: spec.imageStyle,
-    scenarioCardId: spec.scenarioCard?.id,
-    policyProfile: spec.policyProfile,
-    includeAudioTagsRules: !config.audio.deferAudioTagsToTts,
-  })}
-
-OUTPUT FORMAT: Same as DirectTextPrompt (JSON with title, language, characters, moral, scenes with sceneVisual.cameraComposition.characters each including outfitId, outfits array, environments). Generate outfits then environments LAST. Wardrobe is ONLY in outfits[] and per-character outfitId on camera rows — not on environments.
-
-IMPORTANT - Character Descriptions:
-- In scene TEXT: Do NOT re-describe required/optional characters. NEW characters may get only one brief first-glance appearance cue when first introduced.
-- In scene TEXT: NEVER describe clothing or outfit details. Do not mention jackets, coats, bombers, dresses, scarves, boots, hats, uniforms, or color/pattern details of clothes.
-- In scene TEXT: Minimize stable appearance details such as hair color/style, eye color, freckles, face shape, skin tone, or body build. Use them only if absolutely needed once for a NEW character's first introduction.
-- In scene TEXT: Describe physical appearance only for genuinely NEW LLM-invented characters that were not already present in the provided story context.
-- characters array: Include ONLY new characters. Provide DETAILED visual descriptions (appearance, colors, size, distinctive features, clothing) for each.
-${validRequiredChars.length > 0 || validOptionalChars.length > 0 
-  ? '- Do NOT include required/optional characters from above in output\n' 
-  : ''}
-- Be SPECIFIC and CONSISTENT for image generation
-
-TITLE: Be creative and imaginative. Reflect the ESSENCE of this story — the main event, conflict, or theme. Do NOT use generic templates like "Пригоди X у Y". Use poetic, intriguing, or whimsical phrasing when it fits. Spark curiosity. Examples: "Таємниця висохлого озера", "Чарівна крапля надії", "Таємниця печери мрій", "Подорож до зірок"
-- TITLE (continuations): Do NOT use "Частина 2/3/N". Each episode gets a unique title.
-`;
-}
-
-/**
  * Build continuation prompt in PLAIN TEXT format (Director flow)
  *
  * @deprecated Use DirectTextPrompt with isContinuation and continuationContext instead.
@@ -205,7 +81,7 @@ ${previousEpisodesText}
 ${validRequiredChars.length > 0 ? `
 REQUIRED CHARACTERS (MUST USE):
 ${validRequiredChars.map(char => `
-- ${char.name} (${char.type}): ${char.description}
+- ${helpers.formatWriterCharacterName(char.name)} (${char.type}): ${char.description}
   Role: ${char.role}
 `).join('\n')}
 ` : ''}
@@ -213,7 +89,7 @@ ${validRequiredChars.map(char => `
 ${validOptionalChars.length > 0 ? `
 OPTIONAL CHARACTERS (MAY USE):
 ${validOptionalChars.map(char => `
-- ${char.name} (${char.type}): ${char.description}
+- ${helpers.formatWriterCharacterName(char.name)} (${char.type}): ${char.description}
   Role: ${char.role}
 `).join('\n')}
 ` : ''}
@@ -231,7 +107,7 @@ ${validUsedPlots.length > 0 ? `- DO NOT repeat these plot elements: ${validUsedP
 - Maintain the same tone and age-appropriateness
 - MUST have a satisfying conclusion for this episode
 - DO NOT repeat physical appearance of required/optional characters (from previous episodes). Use names and actions directly. Avoid "Emilia with her bright eyes...", "Flash, round and yellow...". Start with action.
-- Do NOT mention clothing in scene prose, even if clothes changed. Wardrobe belongs in outfits[] and sceneVisual only.
+- Do not output technical wardrobe keys or clothing lists. Mention clothing only when it matters naturally to the story (weather, disguise, pajamas, costume, safety gear); visual wardrobe rows belong to the later Director step.
 - Avoid prose about hair color, eye color, freckles, face shape, skin tone, or other stable appearance traits unless one brief mention is truly needed for a NEW character's first introduction.
 - Describe physical appearance in scene prose only for genuinely NEW LLM-invented characters that were not present in the provided story context before this story/episode.
 - NEW characters: if needed, give only one brief first-glance visual cue in scene prose at first introduction.

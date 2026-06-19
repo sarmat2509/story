@@ -12,6 +12,7 @@ import { createSceneRecords } from './utilities';
 import type { CreateStoryParams, CreateStoryStubParams } from './types';
 import type { CharacterData } from '../types';
 import { buildStoryCreationAttribution } from '../storyCreationAttributionService';
+import type { Locale } from '@wondertales/shared';
 
 /**
  * Create minimal story stub before text generation.
@@ -485,6 +486,7 @@ export async function persistLlmCharacters(
   userId: string,
   llmCharacters: Array<{ name: string; type: string; description: string; role?: string; personality?: any; appearance?: string }>,
   initialCharacters: CharacterData[],
+  sourceLocale?: Locale | string | null,
 ): Promise<Map<string, { characterId: string; isNew: boolean; hasTurnaround: boolean }>> {
   const results = new Map<string, { characterId: string; isNew: boolean; hasTurnaround: boolean }>();
 
@@ -507,7 +509,7 @@ export async function persistLlmCharacters(
   }, 'Starting LLM character persistence with hybrid dedup');
 
   for (const llmChar of purelyLlmChars) {
-    const result = await findOrCreateLlmCharacter(userId, llmChar, existingHiddenChars);
+    const result = await findOrCreateLlmCharacter(userId, llmChar, existingHiddenChars, { sourceLocale });
     results.set(normalizeCharacterName(llmChar.name), result);
     logger.info({
       llmCharName: llmChar.name,

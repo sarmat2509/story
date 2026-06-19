@@ -16,7 +16,7 @@ import {
   parseBatchCustomId,
 } from '../services/batchImageService';
 import { notifyNewContinuationReady } from '../services/notificationService';
-import { getIllustrationBlockStartSceneIds, getIllustrationSceneIds } from '../services/storyOrchestration/utilities';
+import { getIllustrationBlockStartSceneIds } from '../services/storyOrchestration/utilities';
 import config from '../config';
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 min
@@ -62,9 +62,7 @@ export async function runBatchImageWorker(): Promise<void> {
     }
 
     const totalScenes = text.scenes?.length || 0;
-    const sceneIdsToGenerate = config.features.useDirectorFlow
-      ? getIllustrationBlockStartSceneIds(totalScenes, imagesPerStory)
-      : getIllustrationSceneIds(totalScenes, imagesPerStory);
+    const sceneIdsToGenerate = getIllustrationBlockStartSceneIds(totalScenes, imagesPerStory);
 
     const context = {
       storyId: p.storyId,

@@ -6,7 +6,7 @@ import { CharacterAnalysisService } from './characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
 import { collectEntityAssetPaths, deleteEntityAssets } from './entityAssetCleanupService';
-import { translateCharacterDescription } from './translationService';
+import { localizeCharacterNames, translateCharacterDescription } from './translationService';
 import type { CharacterType } from '@wondertales/shared';
 
 // Re-export CharacterType for use in routes
@@ -121,6 +121,25 @@ function triggerDescriptionTranslation(character: Character): void {
   });
 }
 
+/**
+ * Trigger async localization of character names for every story language.
+ * Non-blocking: story generation falls back to the canonical DB name if a locale is missing.
+ */
+function triggerNameLocalization(character: Character): void {
+  if (!character.name?.trim()) return;
+
+  const usageContext = { userId: character.userId, characterId: character.id };
+  localizeCharacterNames(character, {
+    onUsage: (u) => recordUsage(u, usageContext),
+    sourceLocale: character.descriptionLanguage,
+  }).catch(err => {
+    logger.error(
+      { err, characterId: character.id, characterName: character.name },
+      'Character name localization failed',
+    );
+  });
+}
+
 // Character CRUD
 export async function createCharacter(
   userId: string,
@@ -137,6 +156,7 @@ export async function createCharacter(
   
   // Trigger async translation of description to English
   triggerDescriptionTranslation(character);
+  triggerNameLocalization(character);
   
   return character;
 }
@@ -214,6 +234,10 @@ export async function updateCharacter(
   // Re-translate description if it changed
   if (data.description || data.aiGeneratedDescription) {
     triggerDescriptionTranslation(updated);
+  }
+
+  if (data.name && data.name !== existing.name) {
+    triggerNameLocalization(updated);
   }
   
   return updated;

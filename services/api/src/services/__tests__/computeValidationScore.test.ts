@@ -242,7 +242,7 @@ function testGeneratedImageSafetyAllowsValidatedOrDisabledImages() {
   );
 }
 
-function testGeneratedImageSafetyBlocksFailedOrUnvalidatedImages() {
+function testGeneratedImageSafetyAllowsBestValidatedAttemptBelowThreshold() {
   assert.deepStrictEqual(
     evaluateGeneratedImageSafety({
       imageValidationEnabled: true,
@@ -251,15 +251,12 @@ function testGeneratedImageSafetyBlocksFailedOrUnvalidatedImages() {
       minAcceptScore: 85,
       attempts: 3,
     }),
-    {
-      allowed: false,
-      code: 'IMAGE_VALIDATION_FAILED',
-      message: 'Image validation failed after 3 attempt(s). The generated image was not saved.',
-      details: { attempts: 3, minAcceptScore: 85, score: 84 },
-    },
-    'images at or below the threshold must not be persisted as completed assets'
+    { allowed: true },
+    'below-threshold images with a completed validation should persist the best attempt for user display'
   );
+}
 
+function testGeneratedImageSafetyBlocksUnvalidatedImages() {
   assert.deepStrictEqual(
     evaluateGeneratedImageSafety({
       imageValidationEnabled: true,
@@ -286,5 +283,6 @@ testNonHumanWithRefAppliesEquallyToAnimalAndImaginary();
 testLeniencyCoversIdentityBooleansAndSilhouette();
 testHamsterRegression();
 testGeneratedImageSafetyAllowsValidatedOrDisabledImages();
-testGeneratedImageSafetyBlocksFailedOrUnvalidatedImages();
+testGeneratedImageSafetyAllowsBestValidatedAttemptBelowThreshold();
+testGeneratedImageSafetyBlocksUnvalidatedImages();
 console.log('computeValidationScore tests passed');

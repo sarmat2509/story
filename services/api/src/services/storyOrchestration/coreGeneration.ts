@@ -66,14 +66,14 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
     await startTask(requestId, STORY_TASKS.GENERATING_TEXT, { estimatedMs: coefficients.avgTextMs });
 
     const usageContext = { userId: request.userId, storyId };
-    let text: any;
+    let plainText: any;
     if (generationType === 'standard') {
-      text = await storyDomain.generateText(spec, {
+      plainText = await storyDomain.generateTextPlain(spec, {
         onUsage: (u) => recordUsage(u, usageContext),
       });
     } else {
       // Continuation
-      text = await storyDomain.generateContinuation(
+      plainText = await storyDomain.generateContinuationPlain(
         {
           spec,
           previousOutlines: continuationContext!.previousOutlines,
@@ -84,6 +84,17 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
         { onUsage: (u) => recordUsage(u, usageContext) }
       );
     }
+    const text: any = {
+      title: plainText.title,
+      language: spec.language,
+      description: plainText.description,
+      characters: [],
+      environments: [],
+      outfits: [],
+      scenes: plainText.scenes.map((scene: any) => ({ ...scene })),
+      fullText: plainText.fullText,
+      wordCount: plainText.wordCount,
+    };
     
     const textGenerationTimeMs = Date.now() - textGenStart;
     await completeTask(requestId, STORY_TASKS.GENERATING_TEXT);
@@ -111,6 +122,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
       request.userId,
       llmCharacters,
       initialCharacters,
+      spec.language,
     );
     
     // Enrich mergedCharacters with DB IDs

@@ -8,6 +8,8 @@ import { getCharacterRepository } from '../../repositories';
 import { logger } from '../../utils/logger';
 import { crossScriptIdentityKey } from '../../utils/characterNormalization';
 import { generateEmbedding, cosineSimilarity } from '../embeddingService';
+import { localizeCharacterNames } from '../translationService';
+import { isValidLocale, type Locale } from '@wondertales/shared';
 
 export const LLM_CHARACTER_EMBEDDING_SIMILARITY_THRESHOLD = 0.85;
 
@@ -17,6 +19,11 @@ export type TurnaroundSheetPayload = {
   generatedAt: string;
   sourcePhotoUrl: string;
 };
+
+function normalizeSourceLocale(locale?: Locale | string | null): Locale | null {
+  const normalized = locale?.slice(0, 2).toLowerCase();
+  return normalized && isValidLocale(normalized) ? normalized : null;
+}
 
 /**
  * Build a payload suitable for CharacterRepository.updateTurnaroundSheet from a stored JSON value.
@@ -54,9 +61,11 @@ export async function findOrCreateLlmCharacter(
   userId: string,
   llmChar: { name: string; type: string; description: string },
   existingHiddenChars: any[],
+  options: { sourceLocale?: Locale | string | null } = {},
 ): Promise<{ characterId: string; isNew: boolean; hasTurnaround: boolean }> {
   const characterRepo = getCharacterRepository();
   const mappedType = mapLlmTypeToCharacterType(llmChar.type);
+  const sourceLocale = normalizeSourceLocale(options.sourceLocale);
 
   const identityKey = crossScriptIdentityKey(llmChar.name);
   const nameMatch = existingHiddenChars.find(
@@ -104,11 +113,19 @@ export async function findOrCreateLlmCharacter(
     type: mappedType,
     description: llmChar.description,
     aiGeneratedDescription: llmChar.description,
+    descriptionLanguage: sourceLocale,
     descriptionEmbedding: embedding,
     isHidden: true,
   } as any);
 
   existingHiddenChars.push(created);
+
+  localizeCharacterNames(created, { sourceLocale }).catch(err => {
+    logger.error(
+      { err, characterId: created.id, characterName: created.name },
+      'LLM character name localization failed',
+    );
+  });
 
   let hasTurnaround = false;
   if (bestMatch) {

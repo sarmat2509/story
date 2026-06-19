@@ -1,11 +1,7 @@
-import { config } from '../config';
 import { getSceneRepository, getStoryRepository } from '../repositories';
 import type { Story } from '../db/schema';
 import { getPlanFeatures } from './planService';
-import {
-  getIllustrationBlockStartSceneIds,
-  getIllustrationSceneIds,
-} from './storyOrchestration/utilities';
+import { getIllustrationBlockStartSceneIds } from './storyOrchestration/utilities';
 
 export type ImageStoryLimitCode =
   | 'IMAGE_GENERATION_NOT_AVAILABLE'
@@ -50,7 +46,6 @@ export function isImageStoryLimitError(error: unknown): error is ImageStoryLimit
 export function getAllowedIllustrationSceneIds(input: {
   totalScenes: number;
   imagesPerStory: number;
-  useDirectorFlow?: boolean;
 }): number[] {
   const imagesPerStory = Math.max(0, Math.floor(input.imagesPerStory || 0));
   const totalScenes = Math.max(0, Math.floor(input.totalScenes || 0));
@@ -59,9 +54,7 @@ export function getAllowedIllustrationSceneIds(input: {
   }
   const targetImages = Math.min(imagesPerStory, totalScenes);
 
-  const ids = input.useDirectorFlow
-    ? getIllustrationBlockStartSceneIds(totalScenes, targetImages)
-    : getIllustrationSceneIds(totalScenes, targetImages);
+  const ids = getIllustrationBlockStartSceneIds(totalScenes, targetImages);
   return Array.from(new Set(ids));
 }
 
@@ -70,7 +63,6 @@ export function evaluateSceneImageGenerationAccess(input: {
   totalScenes: number;
   imagesPerStory: number;
   existingImageSceneIds: Iterable<number>;
-  useDirectorFlow?: boolean;
 }): ImageStoryLimitDecision {
   const limit = Math.max(0, Math.floor(input.imagesPerStory || 0));
   const existingImageSceneIds = new Set(input.existingImageSceneIds);
@@ -78,7 +70,6 @@ export function evaluateSceneImageGenerationAccess(input: {
   const allowedSceneIds = getAllowedIllustrationSceneIds({
     totalScenes: input.totalScenes,
     imagesPerStory: limit,
-    useDirectorFlow: input.useDirectorFlow,
   });
 
   if (limit <= 0) {
@@ -153,7 +144,6 @@ export async function assertSceneImageGenerationAccessForStory(input: {
     totalScenes,
     imagesPerStory: userPlan.imagesPerStory || 0,
     existingImageSceneIds,
-    useDirectorFlow: config.features.useDirectorFlow,
   });
 
   if (decision.allowed === false) {

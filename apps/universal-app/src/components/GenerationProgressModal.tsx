@@ -24,7 +24,6 @@ export function GenerationProgressModal({
   status,
   progress,
   progressData,
-  errorMessage,
   onClose,
   onRetry,
   onReport,
@@ -114,7 +113,9 @@ export function GenerationProgressModal({
       return 'Готово! 🎉';
     }
     if (status === 'failed') {
-      return errorMessage || 'Виникла помилка';
+      return t('wizard.create_error', {
+        defaultValue: 'Виникла помилка при створенні історії. Спробуйте ще раз.',
+      });
     }
     return 'Обробляємо запит...';
   };
@@ -128,6 +129,37 @@ export function GenerationProgressModal({
     maxSeenProgressRef.current = clampedProgress;
     return clampedProgress;
   };
+
+  const isTakingLongerThanExpected = () => {
+    if (status !== 'processing') {
+      return false;
+    }
+
+    const activeTask = progressData?.activeTasks?.[0];
+    if (!activeTask) {
+      return false;
+    }
+
+    if (activeTask.details?.takingLongerThanExpected === true) {
+      return true;
+    }
+
+    const timelineEntry = progressData?.taskTimeline?.[activeTask.task];
+    const startedAt = Number(timelineEntry?.startedAt ?? activeTask.details?.startedAt);
+    const estimatedMs = Number(timelineEntry?.estimatedMs ?? activeTask.details?.estimatedMs);
+    if (!Number.isFinite(startedAt) || !Number.isFinite(estimatedMs) || estimatedMs <= 0) {
+      return false;
+    }
+
+    return Date.now() - startedAt > estimatedMs * 1.15;
+  };
+
+  const progressPercentage = getProgressPercentage();
+  const progressHint = isTakingLongerThanExpected()
+    ? t('wizard.taking_longer_than_expected', {
+        defaultValue: 'Це зайняло трохи більше часу, ніж очікувалося.',
+      })
+    : null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -158,14 +190,13 @@ export function GenerationProgressModal({
           {status !== 'completed' && status !== 'failed' && (
             <>
               <View style={styles.progressBarContainer}>
-                <View style={[styles.progressBar, { width: `${getProgressPercentage()}%` }]} />
+                <View style={[styles.progressBar, { width: `${progressPercentage}%` }]} />
               </View>
-              <Text style={styles.progressText}>{Math.round(getProgressPercentage())}%</Text>
+              <Text style={[styles.progressText, progressHint && styles.progressTextWithHint]}>
+                {Math.round(progressPercentage)}%
+              </Text>
+              {progressHint && <Text style={styles.progressHint}>{progressHint}</Text>}
             </>
-          )}
-
-          {status === 'failed' && errorMessage && (
-            <Text style={styles.errorMessage}>{errorMessage}</Text>
           )}
 
           {status === 'failed' && (
@@ -277,11 +308,14 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     marginBottom: theme.spacing[4],
   },
-  errorMessage: {
+  progressTextWithHint: {
+    marginBottom: theme.spacing[1],
+  },
+  progressHint: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.tertiary,
     textAlign: 'center',
-    marginBottom: theme.spacing[6],
+    marginBottom: theme.spacing[4],
   },
   failedActions: {
     flexDirection: 'row',

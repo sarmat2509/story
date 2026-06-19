@@ -41,6 +41,13 @@ export class CharacterRepository {
       .where(eq(schema.characters.userId, userId));
   }
 
+  async findAll(): Promise<schema.Character[]> {
+    return this.db
+      .select()
+      .from(schema.characters)
+      .where(eq(schema.characters.isActive, true));
+  }
+
   async findById(id: string, userId: string, options: CharacterScopeOptions = {}): Promise<schema.Character | null> {
     const conditions = [
       eq(schema.characters.id, id),

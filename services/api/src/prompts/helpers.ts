@@ -7,7 +7,7 @@
  */
 
 import type { StorySpec, PolicyProfile } from '../ai/types';
-import { getLanguageFullDisplay, type Locale } from '@wondertales/shared';
+import { getLanguageFullDisplay, stripCharacterIdFromName, type Locale } from '@wondertales/shared';
 import { getTextStyleGuidance } from './image/styles';
 import { getContentPolicy } from './contentPolicy';
 
@@ -18,6 +18,10 @@ import { getContentPolicy } from './contentPolicy';
  */
 export function getLanguageName(code: Locale): string {
   return getLanguageFullDisplay(code);
+}
+
+export function formatWriterCharacterName(name: string): string {
+  return stripCharacterIdFromName(name).trim() || name;
 }
 
 /**
@@ -107,14 +111,12 @@ Characters should enhance the story and support the narrative goals.`;
   const parts = [
     'SUPPORTING CHARACTERS:',
     'IMPORTANT: Include ALL these characters in the story. They should participate in scenes, interact with the main character, and be part of the plot.',
-    'When referencing these characters in your response, include their ID in square brackets after the name (e.g., "Mokhovyk [ID: abc-123]").',
+    'Use the exact story names listed here. Do not translate, rename, or append bracket metadata to character names.',
     ''
   ];
 
   spec.characters.forEach((char, index) => {
-    // Include character ID for cross-language matching
-    const nameWithId = char.id ? `${char.name} [ID: ${char.id}]` : char.name;
-    const charParts = [`${index + 1}. ${nameWithId}`];
+    const charParts = [`${index + 1}. ${formatWriterCharacterName(char.name)}`];
     
     // Add type
     if (char.type) {
@@ -196,7 +198,7 @@ Create diverse, interesting characters appropriate for the age group and scenari
       'REQUIRED CHARACTERS (MUST USE):',
       'These characters MUST appear in the story:',
       ...validRequired.map(
-        (c) => `- ${c.name} (${c.type}): ${c.description}\n  Role: ${c.role || 'character'}`
+        (c) => `- ${formatWriterCharacterName(c.name)} (${c.type}): ${c.description}\n  Role: ${c.role || 'character'}`
       ),
       ''
     );
@@ -207,7 +209,7 @@ Create diverse, interesting characters appropriate for the age group and scenari
       'OPTIONAL CHARACTERS (MAY USE):',
       'You MAY feature these if relevant to the plot, but it is NOT required:',
       ...validOptional.map(
-        (c) => `- ${c.name} (${c.type}): ${c.description}\n  Role: ${c.role || 'character'}`
+        (c) => `- ${formatWriterCharacterName(c.name)} (${c.type}): ${c.description}\n  Role: ${c.role || 'character'}`
       ),
       ''
     );
@@ -260,6 +262,19 @@ export function formatStoryRequirements(params: {
     parts.push(`- Goal/Moral: ${goalDisplay}`);
     if (params.spec.goalGuidance) {
       parts.push(`  Guidance: ${params.spec.goalGuidance}`);
+    }
+    const goalSafetyText = [
+      params.spec.goal,
+      params.spec.goalName,
+      params.spec.goalGuidance,
+    ].filter(Boolean).join(' ').toLowerCase();
+    if (/(stranger|незнайом|незнаком|чуж|desconoc|extrañ|fremd|inconnu|nieznaj)/i.test(goalSafetyText)) {
+      parts.push(
+        '  Stranger-safety handling: show the child making a safe choice: short refusal, create distance, move toward a trusted adult or safe group, and tell the adult clearly. Do not have the child chase, trap, restrain, fight, punish, or negotiate with the stranger; adults handle the situation after the child alerts them. For ages under 6, keep the stranger at a distance or mostly offscreen, with no grabbing, pursuit, threats, candy/gift/treasure bribes, or detailed luring.',
+      );
+      parts.push(
+        '  Forbidden stranger-safety wording/moves: do not write "remembered the safety rule", "the main rule", "safety rules", "learned the lesson", "did the right thing", "good/correct behavior", or equivalents in the story language. Avoid Ukrainian/Russian-style phrases such as "добре вчинила", "правильно зробила", "вчинила правильно", "згадала правило". Do not give the stranger a tempting box, candy, treasure, toy, prize, or secret reward. If the stranger speaks, keep it brief and neutral, then shift focus to the child moving away and telling a trusted adult.',
+      );
     }
   }
 
@@ -402,7 +417,7 @@ export function formatWritingStyle(spec: StorySpec, _vocabLevel: string): string
 
 /**
  * Format core story rules (PLOT, PACING, HOOKS, VOCAB) for full story generation.
- * Formulas: MissionScene = min(2, ceil(N*0.25)), RuleScene = ceil(N*0.45),
+ * Formulas: MissionScene = min(2, ceil(N*0.25)), RulePressureScene = ceil(N*0.45),
  * ClimaxScene = ceil(N*0.85), ResolutionScene = N.
  */
 export function formatCoreStoryRules(params: {
@@ -419,28 +434,40 @@ export function formatCoreStoryRules(params: {
   if (!isYoung && sceneCount > 0) {
     const N = sceneCount;
     const missionScene = Math.min(2, Math.ceil(N * 0.25));
-    const ruleScene = Math.ceil(N * 0.45);
+    const rulePressureScene = Math.ceil(N * 0.45);
     const climaxScene = Math.ceil(N * 0.85);
     const resolutionScene = N;
 
-    let plotText = `PLOT STRUCTURE:
+    const plotText = `PLOT STRUCTURE:
 - By end of Scene ${missionScene}: state 1-sentence mission.
-- Scenes ${missionScene + 1}–${climaxScene - 1}: 2–3 escalating obstacles.`;
-
-    if (hasWorldRule && worldRuleText) {
-      plotText += `\n- In Scene ${ruleScene}: introduce the world rule.`;
-    }
-
-    plotText += `
+- Scenes ${missionScene + 1}-${climaxScene - 1}: 2-3 escalating obstacles.
 - Scene ${climaxScene}: decisive brave action solves main problem.
-- Scene ${resolutionScene}: happy return + small tangible token + tiny sequel hint.
+- Scene ${resolutionScene}: happy return + small tangible token + warm sequel hint. Unless the scenario is explicitly a scary story, the final hint must invite curiosity about a NEW safe adventure (a plan, place, invitation, funny discovery, or cheerful question), not imply that the solved danger has returned.
 - Keepsake marker (Scene ${resolutionScene}, exactly once in the whole story): when the hero receives or keeps that small tangible token, put its short name inside a single pair of curly braces in the scene prose — e.g. ...treasured {silver pebble} from... Use the story language inside the braces (2–6 words, no nested braces). Exactly one {...} in the entire manuscript for this keepsake only; do not use curly braces for anything else.`;
 
     sections.push(plotText);
 
     if (hasWorldRule && worldRuleText) {
-      sections.push(`WORLD RULE: ${worldRuleText}\nIntroduce this rule in Scene ${ruleScene}.`);
+      sections.push(`WORLD RULE DRAMATURGY (author-only constraint):
+- Hidden law to obey: ${worldRuleText}
+- Treat this as the world's cause-and-effect, not as a lesson or exposition paragraph.
+- Do NOT name it as a "rule", "world rule", "main rule", "the rule says", "the hero knew", "the hero remembered", or equivalent phrasing in the story language.
+- Do NOT shortcut the hidden law with narrator phrases like "the hero understood/realized/remembered/knew" or "use the power wisely/save energy." Show it through body sensations, changed results, hesitation, visible traces, and choices.
+- Do NOT let any character explain, diagnose, or summarize the hidden law ("your power is running out", "the magic is used up", "it needs rest"). A character may notice only one concrete sensory fact, like a dim glow or tingling fingers.
+- Forbidden world-rule wording: do not write "she understood/realized/remembered", "her power was exhausted", "the magic stopped working", "only one use remained", "save your energy", or equivalents in the story language. Also avoid Ukrainian/Russian-style phrases such as "вона зрозуміла", "згадала правило", "сила вичерпалася", "магія не спрацювала", "руки стали звичайними", "не витрачати сили", "берегти сили".
+- Do not make the rule instantly solve the problem. Around Scene ${rulePressureScene}, let the law first create friction, a failed attempt, a surprising consequence, or a clue the child can infer.
+- Let characters discover the pattern through action, sensory changes, and natural dialogue. A character may react to what happened, but should not explain the full rule to the reader.
+- Pay it off in Scene ${climaxScene}: the hero's brave choice works because they have learned how the world behaves.
+- If deleting a sentence that explains the rule would make the scene more magical and still understandable, delete that sentence.`);
     }
+
+    sections.push(`STORY ARCHITECTURE:
+- The selected plot example is a seed, not a checklist. Change surface details when needed so the story feels fresh.
+- Each important new helper, object, clue, path, or location must either cause a later choice, complicate the mission, or pay off before the ending.
+- If the opening establishes a child-scale project, game, performance, build, race, recipe, map, collection, or shared plan, return to it after the main problem is resolved. Show one concrete completed or happily adapted result in the final scene so the starting goal feels honored, not abandoned.
+- The protagonist must make at least one meaningful choice before the climax; do not let adults, helpers, or magic solve everything for them.
+- Show the moral through the protagonist's choice and consequences. Avoid a final adult lecture, a sentence that directly names the lesson, or dialogue praising the child for "knowing the rules."
+- The title and SEO description should sell the adventure, not announce the moral lesson.`);
   }
 
   // PACING — simplified for young ages
@@ -461,7 +488,8 @@ export function formatCoreStoryRules(params: {
 - End scenes with a small surprise or question when possible.`);
   } else {
     sections.push(`HOOKS:
-- End every scene with a micro-hook (question / new clue / small twist). No scene ends flat.`);
+- End every scene before the resolution with a micro-hook (question / new clue / small twist). No scene ends flat.
+- The final scene may end with a sequel hint, but it must preserve comfort and closure. For non-scary scenarios, do not end on a rustle, shadow, strange noise, unknown watcher, reopened danger, or anything that suggests the child is still unsafe.`);
   }
 
   // VOCAB — for 4-5 and above
@@ -484,6 +512,8 @@ export function formatNarrativeContinuityRules(): string {
     '- Significant objects before use: If a character uses, opens, reads, holds, shows, or gives an object that matters to the plot, establish first how they have it (found, received, brought from home, packed, given by someone, etc.) in the same scene or an earlier scene. Do not start a scene with the character already interacting with an object that has never appeared in the story.',
     '- Framed clues and hints: If the narration calls something a clue, hint, trail, sign, or "another hint," either show within the next one or two scenes why it mattered to the story, or resolve it (returned, stored, explained to a friend), or avoid clue/hint wording so readers are not promised a payoff that never comes.',
     '- Persistent possessions: When the plot implies that a character keeps carrying the same items across multiple scenes or locations, treat those items consistently: establish them when they first matter, and if something new appears on the character late, give a clear in-story reason (gift, found, packed before leaving). Applies to any setting (bag, toolkit, toy, instrument, uniform piece — not only travel).',
+    '- Literal spatial logic: Before inventing a claim about where something is, check whether the object/location can physically or magically contain it in the established scene. Do not put treasures, rooms, doors, creatures, or secrets "inside" a bridge, wall, beam, path, cloud, signal, shadow, or other non-container unless the story has first established a hollow space, opening, portal, or compartment. Prefer "near", "under", "behind", "on", or "beside" when that is the literal relationship.',
+    '- Cause-and-effect sanity: If a new invented detail would change the problem, create a new location, or imply a hidden object, it must either be established before use or be immediately visible and plausible from the current scene. Avoid poetic but illogical shortcuts that sound pretty while contradicting the scene.',
     '- Scene boundaries: If moving to a new scene could hide an important change (new key object, new companion, major prop), either show that change in the text or add a brief explicit bridge so nothing important appears without introduction.',
   ].join('\n');
 }

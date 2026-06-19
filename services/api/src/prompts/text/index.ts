@@ -4,11 +4,8 @@
  */
 
 export {
-  buildDirectTextPrompt,
   buildDirectTextPromptPlain,
-  buildDirectTextPromptCachedPrefix,
   buildDirectTextPromptPlainCachedPrefix,
-  WRITER_STRUCTURED_CACHE_KEY,
   WRITER_PLAIN_CACHE_KEY,
 } from './DirectTextPrompt';
 export { buildDirectorPrompt, buildDirectorPromptCachedPrefix, DIRECTOR_CACHE_KEY } from './DirectorPrompt';
@@ -25,7 +22,7 @@ export {
   buildBatchRegenerationRuntimePrompt,
   TEXT_REGENERATION_CACHE_KEY,
 } from './RegenerationPrompt';
-export { buildContinuationPrompt, buildContinuationPromptPlain } from './ContinuationPrompt';
+export { buildContinuationPromptPlain } from './ContinuationPrompt';
 
 export type { DirectTextPromptParams } from './DirectTextPrompt';
 export type { ValidationPromptParams, BatchValidationPromptParams } from './ValidationPrompt';

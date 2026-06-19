@@ -148,22 +148,6 @@ export function buildInitialContext(
 export { parsePlainTextToScenes } from '../../domain/story/parsePlainText';
 
 /**
- * Get scene IDs for illustration placement (Director flow).
- * First image always before scene 1; rest evenly distributed.
- * E.g. 3 images in 9 scenes → [1, 4, 7]; 5 images in 9 → [1, 3, 5, 7, 9]
- */
-export function getIllustrationSceneIds(totalScenes: number, imagesPerStory: number): number[] {
-  if (imagesPerStory <= 0 || totalScenes <= 0) return [];
-  if (imagesPerStory === 1) return [1];
-  const step = Math.floor((totalScenes - 1) / (imagesPerStory - 1));
-  const ids: number[] = [];
-  for (let i = 0; i < imagesPerStory; i++) {
-    ids.push(Math.min(1 + i * step, totalScenes));
-  }
-  return ids;
-}
-
-/**
  * Block-start placement for Director flow: image i appears before scene (1 + i*blockSize), covers that block.
  * E.g. 9 scenes, 3 images → [1, 4, 7] (block 1: scenes 1-3, block 2: 4-6, block 3: 7-9).
  */

@@ -83,4 +83,30 @@ export class DictionaryRepository {
         )
       );
   }
+
+  async upsertTranslation(input: schema.NewTranslation): Promise<schema.Translation> {
+    const now = new Date();
+    const [translation] = await this.db
+      .insert(schema.translations)
+      .values({
+        ...input,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.translations.entityType,
+          schema.translations.entityId,
+          schema.translations.locale,
+          schema.translations.fieldName,
+        ],
+        set: {
+          value: input.value,
+          updatedAt: now,
+        },
+      })
+      .returning();
+
+    if (!translation) throw new Error('Translation upsert failed');
+    return translation;
+  }
 }

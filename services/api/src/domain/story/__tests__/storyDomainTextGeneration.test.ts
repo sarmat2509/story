@@ -75,65 +75,118 @@ async function testGenerateTextPlainUsesDomainAndParsesScenes() {
     (stub.lastGenerateTextRequest!.prompt?.length ?? 0) > 500,
     'prompt is built (child profile, rules, plain output contract)',
   );
+  assert.ok(
+    stub.lastGenerateTextRequest!.prompt.includes('Role boundary: you are the Story Writer, not the Visual Director.'),
+    'Writer prompt keeps visual metadata in the Director step',
+  );
+  assert.ok(
+    stub.lastGenerateTextRequest!.prompt.includes('WORLD RULE DRAMATURGY (author-only constraint):'),
+    'world rules are treated as hidden dramaturgy, not exposition',
+  );
+  assert.ok(
+    !stub.lastGenerateTextRequest!.prompt.includes('Introduce this rule in Scene'),
+    'prompt must not ask Writer to explicitly introduce a world rule',
+  );
+  assert.ok(
+    !stub.lastGenerateTextRequest!.prompt.includes('OUTPUT FORMAT (JSON)'),
+    'plain Writer prompt must not include the old structured JSON contract',
+  );
   assert.strictEqual(stub.lastGenerateTextRequest!.operation, 'text_plain');
 }
 
-const STRUCTURED_LLM_FIXTURE = {
-  title: 'Stub Adventure',
-  language: 'en',
-  characters: [] as Array<Record<string, unknown>>,
-  moral: 'Helping others feels good.',
-  outfits: [
-    { id: 'o_hero_1', characterName: 'River', description: 'natural appearance' },
-  ],
-  environments: [{ id: 'meadow', name: 'Meadow', description: 'Green grass, distant hills, afternoon sun.' }],
-  scenes: [
-    {
-      sceneId: 1,
-      environmentId: 'meadow',
-      text: 'River ran through the meadow. The air smelled sweet.',
-      sceneVisual: {
-        setting: 'Open grass, wildflowers near foreground.',
-        cameraComposition: {
-          shot: 'Medium shot',
-          characters: [{ name: 'River', description: 'running, smiling', outfitId: 'o_hero_1' }],
-        },
-        lighting: 'Warm afternoon sunlight.',
-      },
-    },
-  ],
-};
-
-/** Stub: only structured generation is used */
-class StructuredOnlyStubTextProvider implements ITextProvider {
-  public lastGenerateStructuredRequest: GenerateStructuredRequest<unknown> | null = null;
-
-  async generateText(_request: GenerateTextRequest): Promise<string> {
-    throw new Error('generateText must not be called for generateText');
-  }
-
-  async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
-    this.lastGenerateStructuredRequest = request;
-    return STRUCTURED_LLM_FIXTURE as T;
-  }
-}
-
-async function testGenerateTextUsesDomainAndBuildsFullText() {
-  const stub = new StructuredOnlyStubTextProvider();
+async function testGenerateTextCompatibilityUsesPlainWriter() {
+  const stub = new PlainOnlyStubTextProvider();
   const domain = new StoryDomainService(stub);
 
   const result = await domain.generateText(STATIC_STORY_SPEC);
 
-  assert.strictEqual(result.title, 'Stub Adventure');
+  assert.strictEqual(result.title, 'The Tiny Light');
   assert.strictEqual(result.language, 'en');
-  assert.strictEqual(result.scenes.length, 1);
-  assert.ok(result.scenes[0].text.includes('River ran'), 'scene text from fixture');
-  assert.ok(result.fullText.includes('River ran'), 'fullText derived from scenes');
-  assert.ok((result.wordCount ?? 0) >= 5);
+  assert.strictEqual(result.scenes.length, 2);
+  assert.deepStrictEqual(result.characters, [], 'plain Writer does not create a JSON character roster');
+  assert.deepStrictEqual(result.environments, [], 'visual environments belong to Director, not Writer');
+  assert.deepStrictEqual(result.outfits, [], 'outfits belong to Director, not Writer');
+  assert.ok(stub.lastGenerateTextRequest, 'provider received a plain text request');
+  assert.strictEqual(stub.lastGenerateTextRequest!.operation, 'text_plain');
+}
 
-  assert.ok(stub.lastGenerateStructuredRequest, 'provider received structured request');
-  assert.ok((stub.lastGenerateStructuredRequest!.prompt?.length ?? 0) > 500, 'structured prompt is non-trivial');
-  assert.strictEqual(stub.lastGenerateStructuredRequest!.operation, 'text_structured');
+async function testWriterPromptDoesNotExposeCharacterIds() {
+  const stub = new PlainOnlyStubTextProvider();
+  const domain = new StoryDomainService(stub);
+
+  await domain.generateTextPlain({
+    ...STATIC_STORY_SPEC,
+    characters: [
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        name: 'Емілія',
+        type: 'person',
+        description: 'A curious child who likes building things.',
+      } as any,
+    ],
+  });
+
+  assert.ok(stub.lastGenerateTextRequest, 'provider received a request');
+  assert.ok(
+    stub.lastGenerateTextRequest!.prompt.includes('1. Емілія'),
+    'Writer prompt lists the localized story name',
+  );
+  assert.ok(
+    stub.lastGenerateTextRequest!.prompt.includes('Do not translate, rename, or append bracket metadata'),
+    'Writer prompt instructs prose names to stay clean',
+  );
+  assert.ok(
+    !stub.lastGenerateTextRequest!.prompt.includes('[ID:'),
+    'Writer prompt must not expose technical character IDs',
+  );
+}
+
+async function testContinuationWriterPromptDoesNotExposeIds() {
+  const stub = new PlainOnlyStubTextProvider();
+  const domain = new StoryDomainService(stub);
+
+  await domain.generateTextPlain(STATIC_STORY_SPEC, {
+    isContinuation: true,
+    continuationContext: {
+      previousOutlines: [
+        {
+          title: 'First Part',
+          moral: 'Friends help each other.',
+          scenes: [{ setting: 'Forest', goal: 'They found a glowing path.' }],
+        },
+      ],
+      requiredCharacters: [
+        {
+          name: 'Snow Spirit [ID: snow-spirit-1]',
+          type: 'imaginary',
+          description: 'A gentle snowy helper.',
+          role: 'friend',
+        },
+      ],
+      optionalCharacters: [],
+      usedPlots: [],
+      previousEnvironments: [
+        {
+          id: 'env_forest_001',
+          name: 'Winter Forest',
+          description: 'Snowy trees and a quiet trail.',
+        },
+      ],
+      previousOutfits: [
+        {
+          id: 'outfit_snow_001',
+          characterName: 'Snow Spirit [ID: snow-spirit-1]',
+          description: 'natural snowy glow',
+        },
+      ],
+    },
+  });
+
+  assert.ok(stub.lastGenerateTextRequest, 'provider received a continuation request');
+  assert.ok(stub.lastGenerateTextRequest!.prompt.includes('Snow Spirit (imaginary)'), 'character name is clean');
+  assert.ok(!stub.lastGenerateTextRequest!.prompt.includes('[ID:'), 'continuation prompt must not expose IDs');
+  assert.ok(!stub.lastGenerateTextRequest!.prompt.includes('env_forest_001'), 'environment IDs stay out of Writer prompt');
+  assert.ok(!stub.lastGenerateTextRequest!.prompt.includes('outfit_snow_001'), 'outfit IDs stay out of Writer prompt');
 }
 
 class BlockedValidationStubTextProvider implements ITextProvider {
@@ -191,7 +244,9 @@ async function testValidateScenesBatchFailsClosedWhenProviderBlocksValidation() 
 
 void (async () => {
   await testGenerateTextPlainUsesDomainAndParsesScenes();
-  await testGenerateTextUsesDomainAndBuildsFullText();
+  await testGenerateTextCompatibilityUsesPlainWriter();
+  await testWriterPromptDoesNotExposeCharacterIds();
+  await testContinuationWriterPromptDoesNotExposeIds();
   await testValidateSceneFailsClosedWhenProviderBlocksValidation();
   await testValidateScenesBatchFailsClosedWhenProviderBlocksValidation();
   console.log('storyDomainTextGeneration tests OK');
