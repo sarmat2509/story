@@ -199,6 +199,7 @@ export const useUpdateChildModeControls = () => {
     },
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['children'] });
+      queryClient.invalidateQueries({ queryKey: ['children', 'child-mode', 'switcher'] });
       queryClient.invalidateQueries({ queryKey: ['children', variables.id, 'child-mode'] });
     },
   });

@@ -109,6 +109,17 @@
     "cta_view_stories": "Browse stories",
     "cta_view_pricing": "View pricing"
   },
+  "public_footer": {
+    "aria_label": "Footer navigation",
+    "language": "Language",
+    "home": "Home",
+    "pricing": "Pricing",
+    "stories": "Stories",
+    "blog": "Blog",
+    "terms": "Terms",
+    "privacy": "Privacy",
+    "support": "Support"
+  },
   "story": {
     "create_title": "Create Story",
     "create_subtitle": "Story in 60 seconds",
@@ -1459,6 +1470,7 @@
     "profile_switcher": "Switch profile",
     "switcher_title": "Profiles",
     "current_child": "Current profile",
+    "current_profile": "Current profile",
     "parent_profile": "Parent profile",
     "password_required": "Password required",
     "parent_gate_parent_profile": "Enter the exit password to open the parent profile.",

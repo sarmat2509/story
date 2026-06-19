@@ -30,6 +30,7 @@ import { resetToMainRoute } from '@/navigation/navigationRef';
 import { resolveBillingEntryTarget } from '@/utils/billingEntry';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 import { assignWebLocation, getWebPathname } from '@/utils/webRuntime';
+import { replaceWithStoredWebAuthRedirect } from '@/utils/authRedirect';
 import { getLegalUrl } from '@/config/constants';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -69,6 +70,9 @@ export default function WelcomeScreen() {
       setError(null);
       setShowSkipOption(false);
       await emailLoginMutation.mutateAsync({ email, password });
+      if (replaceWithStoredWebAuthRedirect()) {
+        return;
+      }
       if (!resetToMainRoute({ name: 'Dashboard' })) {
         navigation.reset({
           index: 0,

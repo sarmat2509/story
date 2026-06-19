@@ -5,6 +5,7 @@ import type { NavigationProp } from '@react-navigation/native';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { hasAuthStoreHydrated, useAuthStore } from '@/store/authStore';
 import { theme } from '@/theme';
+import { rememberCurrentWebPathForAuthRedirect } from '@/utils/authRedirect';
 
 type AuthGuardProps = {
   children: React.ReactNode;
@@ -42,6 +43,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   useEffect(() => {
     if (hasHydrated && !isLoading && !isAuthenticated) {
+      rememberCurrentWebPathForAuthRedirect();
       navigation.navigate('Welcome');
     }
   }, [hasHydrated, isAuthenticated, isLoading, navigation]);

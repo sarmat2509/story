@@ -1,5 +1,6 @@
 import {
   buildAbsoluteRouteUrl,
+  buildPublicBlogIndexPath,
   buildPublicLandingPath,
   buildPublicLegalPath,
   buildPublicPricingPath,
@@ -9,6 +10,13 @@ import {
   PUBLIC_SEO_LOCALES,
   type PublicSeoLocale,
 } from '@wondertales/shared';
+import deTranslations from '@wondertales/shared/i18n/de.json';
+import enTranslations from '@wondertales/shared/i18n/en.json';
+import esTranslations from '@wondertales/shared/i18n/es.json';
+import frTranslations from '@wondertales/shared/i18n/fr.json';
+import plTranslations from '@wondertales/shared/i18n/pl.json';
+import ruTranslations from '@wondertales/shared/i18n/ru.json';
+import ukTranslations from '@wondertales/shared/i18n/uk.json';
 
 export const PUBLIC_FOOTER_STYLES = `
 .site-footer{border-top:1px solid rgba(148,163,184,.35);padding:28px 24px;text-align:center;color:#64748b;background:rgba(255,255,255,.88)}
@@ -28,24 +36,31 @@ export interface PublicFooterLanguageLink {
   href: string;
 }
 
-const PUBLIC_LANGUAGE_LABELS: Record<PublicSeoLocale, string> = {
-  uk: 'Українська',
-  en: 'English',
-  ru: 'Русский',
-  es: 'Español',
-  de: 'Deutsch',
-  fr: 'Français',
-  pl: 'Polski',
-};
+interface PublicFooterCopy {
+  aria_label: string;
+  language: string;
+  home: string;
+  pricing: string;
+  stories: string;
+  blog: string;
+  terms: string;
+  privacy: string;
+  support: string;
+}
 
-const PUBLIC_LANGUAGE_CONTROL_LABELS: Record<PublicSeoLocale, string> = {
-  uk: 'Мова',
-  en: 'Language',
-  ru: 'Язык',
-  es: 'Idioma',
-  de: 'Sprache',
-  fr: 'Langue',
-  pl: 'Język',
+interface PublicI18nBundle {
+  language_names: Record<PublicSeoLocale, string>;
+  public_footer: PublicFooterCopy;
+}
+
+const PUBLIC_I18N: Record<PublicSeoLocale, PublicI18nBundle> = {
+  uk: ukTranslations,
+  en: enTranslations,
+  ru: ruTranslations,
+  es: esTranslations,
+  de: deTranslations,
+  fr: frTranslations,
+  pl: plTranslations,
 };
 
 function escapeHtml(value: string): string {
@@ -63,7 +78,7 @@ export function buildPublicFooterLanguageLinks(
 ): PublicFooterLanguageLink[] {
   return PUBLIC_SEO_LOCALES.map((locale) => ({
     locale,
-    label: PUBLIC_LANGUAGE_LABELS[locale],
+    label: PUBLIC_I18N[locale].language_names[locale],
     href: buildAbsoluteRouteUrl(webAppUrl, buildPath(locale)),
   }));
 }
@@ -76,7 +91,7 @@ function renderLanguageSwitcher(
     return '';
   }
 
-  const label = PUBLIC_LANGUAGE_CONTROL_LABELS[currentLocale];
+  const label = PUBLIC_I18N[currentLocale].public_footer.language;
   const options = languageLinks.map((link) => {
     const selected = link.locale === currentLocale ? ' selected' : '';
     return `<option value="${escapeHtml(link.href)}"${selected}>${escapeHtml(link.label)}</option>`;
@@ -104,19 +119,21 @@ export function renderPublicPageFooter(
   languageLinks?: PublicFooterLanguageLink[]
 ): string {
   const normalizedLocale = normalizePublicSeoLocale(locale);
+  const copy = PUBLIC_I18N[normalizedLocale].public_footer;
   const legalLocale = normalizedLocale === 'uk' ? 'uk' : 'en';
   const links = [
-    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLandingPath(normalizedLocale)), label: 'Home' },
-    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicPricingPath(normalizedLocale)), label: 'Pricing' },
-    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath(normalizedLocale)), label: 'Stories' },
-    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('terms', legalLocale)), label: 'Terms' },
-    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', legalLocale)), label: 'Privacy' },
-    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicSupportPath(normalizedLocale)), label: 'Support' },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLandingPath(normalizedLocale)), label: copy.home },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicPricingPath(normalizedLocale)), label: copy.pricing },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath(normalizedLocale)), label: copy.stories },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicBlogIndexPath(normalizedLocale)), label: copy.blog },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('terms', legalLocale)), label: copy.terms },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', legalLocale)), label: copy.privacy },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicSupportPath(normalizedLocale)), label: copy.support },
   ];
 
   return `
     <footer class="site-footer">
-      <nav aria-label="Footer">
+      <nav aria-label="${escapeHtml(copy.aria_label)}">
         ${links.map((link) => `<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`).join('')}
       </nav>
       ${renderLanguageSwitcher(normalizedLocale, languageLinks)}

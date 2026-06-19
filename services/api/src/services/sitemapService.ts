@@ -13,8 +13,9 @@ import {
   buildPublicSeoSitemapStaticRoutes,
 } from '@wondertales/shared';
 import type * as schema from '../db/schema';
+import { getBlogSitemapRoutes } from '../ssr/blogContent';
 
-const SITEMAP_CACHE_KEY = 'sitemap:xml:v3';
+const SITEMAP_CACHE_KEY = 'sitemap:xml:v4';
 const SITEMAP_TTL = 3600; // 1 hour
 
 function escapeXml(str: string): string {
@@ -69,9 +70,14 @@ export function buildSitemapXmlForStories(
     return `  <url>\n    <loc>${loc}</loc>\n    <changefreq>${route.changefreq}</changefreq>\n    <priority>${route.priority}</priority>\n  </url>`;
   });
 
+  const blogUrls = getBlogSitemapRoutes().map((route) => {
+    const loc = escapeXml(buildAbsoluteRouteUrl(baseUrl, route.path));
+    return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${escapeXml(route.lastmod)}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>${route.locale === 'uk' ? '0.78' : '0.68'}</priority>\n  </url>`;
+  });
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${[...staticUrls, ...storyUrls, ...authorUrls].join('\n')}
+${[...staticUrls, ...blogUrls, ...storyUrls, ...authorUrls].join('\n')}
 </urlset>`;
 }
 

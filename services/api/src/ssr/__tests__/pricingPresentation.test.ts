@@ -88,7 +88,7 @@ void (async function main() {
   });
 
   assert.match(html, /10 stories and 2 audio stories per month/);
-  assert.match(html, /3 illustrations in story/);
+  assert.match(html, /3 personalized illustrations per story/);
   assert.match(html, /Unlimited child profiles/);
   assert.doesNotMatch(html, /Story from drawing/);
   assert.doesNotMatch(html, /Image quality/);
@@ -100,6 +100,8 @@ void (async function main() {
   assert.match(html, /<option value="https:\/\/app\.wondertales\.com\/pricing">Українська<\/option>/);
   assert.match(html, /<option value="https:\/\/app\.wondertales\.com\/en\/pricing" selected>English<\/option>/);
   assert.doesNotMatch(html, /onchange=/);
+  assert.ok(html.includes('href="https://app.wondertales.com/en/wizard"'));
+  assert.doesNotMatch(html, /href="[^"]*\/welcome"/);
 
   const pricingJsonLd = extractJsonLd(html);
   const product = pricingJsonLd.find((entry) => entry['@type'] === 'Product');

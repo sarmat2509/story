@@ -27,6 +27,7 @@ import ssrLandingRoutes from './routes/ssrLanding';
 import ssrPricingRoutes from './routes/ssrPricing';
 import ssrLegalRoutes from './routes/ssrLegal';
 import ssrSupportRoutes from './routes/ssrSupport';
+import ssrBlogRoutes from './routes/ssrBlog';
 import shareCardRoutes from './routes/shareCard';
 import sitemapRoute from './routes/sitemap';
 import billingRoutes from './routes/billing';
@@ -195,6 +196,7 @@ app.use('/ssr/landing', ssrLandingRoutes); // Static landing page for SEO
 app.use('/ssr/pricing', ssrPricingRoutes); // Static pricing page for SEO
 app.use('/ssr/legal', ssrLegalRoutes); // Terms of Service, Privacy Policy
 app.use('/ssr/support', ssrSupportRoutes); // Support/contact page
+app.use('/ssr/blog', ssrBlogRoutes); // Static blog pages for SEO
 app.use('/share-card', apiLimiter, shareCardRoutes); // og:image 1200×630
 app.use('/api/v1/assets', apiLimiter, assetsRoutes); // M4: asset serving (local dev)
 app.use('/api/v1/voices', apiLimiter, voicesRoutes); // M5: TTS voices

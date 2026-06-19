@@ -38,6 +38,8 @@ type TriggerRenderArgs = {
 };
 
 interface ChildProfileSwitcherProps {
+  autoLoad?: boolean;
+  fallbackAvatarUrl?: string | null;
   menuStyle?: StyleProp<ViewStyle>;
   renderTrigger?: (args: TriggerRenderArgs) => React.ReactNode;
 }
@@ -86,15 +88,22 @@ export function ChildAvatarImage({
   return <Image source={{ uri }} style={style as StyleProp<ImageStyle>} resizeMode="cover" />;
 }
 
-export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileSwitcherProps) {
+export function ChildProfileSwitcher({
+  autoLoad = false,
+  fallbackAvatarUrl = null,
+  menuStyle,
+  renderTrigger,
+}: ChildProfileSwitcherProps) {
   const { t } = useTranslation();
   const activeChild = useAuthStore((state) => state.activeChild);
+  const sessionMode = useAuthStore((state) => state.sessionMode);
   const [visible, setVisible] = useState(false);
   const [password, setPassword] = useState('');
   const [target, setTarget] = useState<ChildSwitcherTarget | null>(null);
   const [error, setError] = useState('');
   const [recoverySent, setRecoverySent] = useState(false);
-  const shouldLoadSwitcherChildren = visible || Boolean(activeChild);
+  const isChildSession = sessionMode === 'child';
+  const shouldLoadSwitcherChildren = autoLoad || visible || Boolean(activeChild);
   const { data, isLoading } = useChildModeSwitcherChildren(shouldLoadSwitcherChildren);
   const parentGate = useParentGate();
   const childModeRecovery = useRequestChildModeExitRecovery();
@@ -104,7 +113,9 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
     ? (children.find((child) => child.id === activeChild.id) ?? activeChild)
     : null;
   const avatarUrl = getChildAvatarUrl(freshActiveChild);
+  const triggerAvatarUrl = avatarUrl ?? fallbackAvatarUrl;
   const isSubmitting = parentGate.isPending || enterChildMode.isPending;
+  const hasSwitcherProfiles = children.length > 0;
 
   const closeMenu = () => {
     if (isSubmitting) return;
@@ -115,7 +126,28 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
     setRecoverySent(false);
   };
 
-  const requestTarget = (nextTarget: ChildSwitcherTarget) => {
+  const requestTarget = async (nextTarget: ChildSwitcherTarget) => {
+    if (!isChildSession) {
+      if (nextTarget.type === 'parent') {
+        closeMenu();
+        resetToMainRoute({ name: 'Profile' });
+        return;
+      }
+
+      try {
+        setError('');
+        await enterChildMode.mutateAsync(nextTarget.childId);
+        closeMenu();
+      } catch (_err) {
+        setError(
+          t('children_screen.child_mode_start_failed', {
+            defaultValue: 'Could not start Child Mode. Try again in a moment.',
+          })
+        );
+      }
+      return;
+    }
+
     setTarget(nextTarget);
     setPassword('');
     setError('');
@@ -162,10 +194,14 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
 
   const open = () => setVisible(true);
 
+  if (!hasSwitcherProfiles && !activeChild) {
+    return null;
+  }
+
   return (
     <>
       {renderTrigger ? (
-        renderTrigger({ avatarUrl, open })
+        renderTrigger({ avatarUrl: triggerAvatarUrl, open })
       ) : (
         <TouchableOpacity
           style={styles.avatarButton}
@@ -176,8 +212,8 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
             defaultValue: 'Switch profile',
           })}
         >
-          {avatarUrl ? (
-            <ChildAvatarImage uri={avatarUrl} style={styles.avatarImage} />
+          {triggerAvatarUrl ? (
+            <ChildAvatarImage uri={triggerAvatarUrl} style={styles.avatarImage} />
           ) : (
             <View style={styles.avatarFallback}>
               <Ionicons name="person" size={18} color={theme.colors.interactive.primary} />
@@ -299,7 +335,9 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
                           pressed && !isActive && styles.menuItemPressed,
                         ]}
                         disabled={isActive}
-                        onPress={() => requestTarget({ type: 'child', childId: child.id })}
+                        onPress={() => {
+                          void requestTarget({ type: 'child', childId: child.id });
+                        }}
                       >
                         {childAvatarUrl ? (
                           <ChildAvatarImage uri={childAvatarUrl} style={styles.itemAvatar} />
@@ -332,8 +370,14 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
 
                 <View style={styles.separator} />
                 <Pressable
-                  style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
-                  onPress={() => requestTarget({ type: 'parent' })}
+                  style={({ pressed }) => [
+                    styles.menuItem,
+                    !isChildSession && styles.menuItemActive,
+                    pressed && styles.menuItemPressed,
+                  ]}
+                  onPress={() => {
+                    void requestTarget({ type: 'parent' });
+                  }}
                 >
                   <View style={styles.itemAvatarFallback}>
                     <Ionicons
@@ -347,9 +391,18 @@ export function ChildProfileSwitcher({ menuStyle, renderTrigger }: ChildProfileS
                       {t('child_mode.parent_profile', { defaultValue: 'Parent profile' })}
                     </Text>
                     <Text style={styles.itemSubtitle}>
-                      {t('child_mode.password_required', { defaultValue: 'Password required' })}
+                      {isChildSession
+                        ? t('child_mode.password_required', { defaultValue: 'Password required' })
+                        : t('child_mode.current_profile', { defaultValue: 'Current profile' })}
                     </Text>
                   </View>
+                  {!isChildSession ? (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={19}
+                      color={theme.colors.interactive.primary}
+                    />
+                  ) : null}
                 </Pressable>
               </>
             )}

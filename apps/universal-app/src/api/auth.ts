@@ -343,6 +343,7 @@ export const useUpdateChildModeExitPasscode = () => {
       storage.setUser(user);
       queryClient.setQueryData(['user'], user);
       queryClient.invalidateQueries({ queryKey: ['children'] });
+      queryClient.invalidateQueries({ queryKey: ['children', 'child-mode', 'switcher'] });
     },
   });
 };

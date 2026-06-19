@@ -1,8 +1,18 @@
 import assert from 'node:assert';
+import {
+  PUBLIC_SEO_LOCALES,
+  buildPublicBlogArticlePath,
+  buildPublicBlogIndexPath,
+} from '@wondertales/shared';
 import { buildSitemapXmlForStories } from '../sitemapService';
+import { getBlogSlugs } from '../../ssr/blogContent';
 
 function countOccurrences(value: string, pattern: string): number {
   return value.split(pattern).length - 1;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 const authorA = '11111111-1111-4111-8111-111111111111';
@@ -38,12 +48,40 @@ const xml = buildSitemapXmlForStories(
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/stories\/public-one<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/stories\/public-two<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/stories<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/blog<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/blog\/adhd-story-attention<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/en\/stories<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/en\/blog\/adhd-story-attention<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/ru\/stories<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/ru\/blog\/adhd-story-attention<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/es\/stories<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/es\/blog\/adhd-story-attention<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/de\/stories<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/de\/blog\/adhd-story-attention<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/fr\/stories<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/fr\/blog\/adhd-story-attention<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/pl\/stories<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/pl\/blog\/adhd-story-attention<\/loc>/);
+
+for (const locale of PUBLIC_SEO_LOCALES) {
+  const indexUrl = `https://wondertales.art${buildPublicBlogIndexPath(locale)}`;
+  assert.match(xml, new RegExp(`<loc>${escapeRegExp(indexUrl)}</loc>`), `sitemap should include blog index for ${locale}`);
+
+  for (const slug of getBlogSlugs()) {
+    const articleUrl = `https://wondertales.art${buildPublicBlogArticlePath(slug, locale)}`;
+    assert.match(
+      xml,
+      new RegExp(`<loc>${escapeRegExp(articleUrl)}</loc>`),
+      `sitemap should include blog article ${slug} for ${locale}`
+    );
+  }
+}
+
+assert.strictEqual(
+  countOccurrences(xml, '<loc>https://wondertales.art/blog'),
+  getBlogSlugs().length + 1,
+  'default locale sitemap should include one blog index and every default blog article'
+);
 
 assert.strictEqual(
   countOccurrences(xml, `<loc>https://wondertales.art/authors/${authorA}</loc>`),

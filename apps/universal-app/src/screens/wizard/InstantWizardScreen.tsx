@@ -31,12 +31,14 @@ import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
+import { getWebSearch } from '@/utils/webRuntime';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { useChildren } from '@/api/children';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from '@/components/AppLinearGradient';
 import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
+import { getWizardScenarioPreset } from './wizardRouteParams';
 
 type AgeGroup = '2-3' | '4-5' | '6-7' | '8-9' | '10-12';
 
@@ -89,6 +91,11 @@ export default function InstantWizardScreen() {
   const enterKey = useScreenEnter();
   const { width } = useWindowDimensions();
   const isWide = width >= 960;
+  const presetScenarioCardId = useMemo(
+    () => getWizardScenarioPreset(route.params, getWebSearch()),
+    [route.params]
+  );
+  const presetScenarioAppliedRef = React.useRef(false);
   const sessionMode = useAuthStore((state) => state.sessionMode);
   const activeChild = useAuthStore((state) => state.activeChild);
   const isChildSession = sessionMode === 'child';
@@ -144,6 +151,18 @@ export default function InstantWizardScreen() {
       setAgeGroup(normalizedAgeGroup);
     }
   }, [activeChild?.age, childrenData?.children, isChildSession, route.params?.childId]);
+
+  useEffect(() => {
+    if (presetScenarioAppliedRef.current || !presetScenarioCardId) return;
+
+    const scenarioExists = (themesData?.scenarioCards ?? []).some(
+      (scenario) => scenario.id === presetScenarioCardId
+    );
+    if (!scenarioExists) return;
+
+    setScenarioCardId(presetScenarioCardId);
+    presetScenarioAppliedRef.current = true;
+  }, [presetScenarioCardId, themesData?.scenarioCards]);
 
   // Track image_generation_failed when modal shows failed state
   const failedTrackedRef = React.useRef(false);

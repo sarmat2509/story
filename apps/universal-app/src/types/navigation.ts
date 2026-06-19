@@ -30,7 +30,15 @@ export type MainDrawerParamList = {
   NotFound: undefined;
   OAuthCallback: { provider: 'google' | 'apple' };
   Dashboard: undefined;
-  Wizard: { childId?: string; storyCreationMode?: 'instant' | 'artisan' } | undefined;
+  Wizard:
+    | {
+        childId?: string;
+        storyCreationMode?: 'instant' | 'artisan';
+        scenarioCardId?: string;
+        scenario?: string;
+        theme?: string;
+      }
+    | undefined;
   Library: { scenarioCardId?: string } | undefined;
   LibraryRedirect: undefined;
   Series: undefined;

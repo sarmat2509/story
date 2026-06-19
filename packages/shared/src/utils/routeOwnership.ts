@@ -21,7 +21,7 @@ export interface RouteContract {
 
 export interface DynamicRouteContract extends Omit<RouteContract, 'path' | 'sitemap'> {
   pattern: string;
-  sitemap: false | 'eligible-public-stories' | 'eligible-public-authors';
+  sitemap: false | 'eligible-public-stories' | 'eligible-public-authors' | 'static-blog-articles';
 }
 
 export const PUBLIC_STATIC_ROUTE_CONTRACTS = [
@@ -42,6 +42,13 @@ export const PUBLIC_STATIC_ROUTE_CONTRACTS = [
   {
     id: 'stories-catalog',
     path: '/stories',
+    owner: 'api-ssr',
+    robots: 'index,follow',
+    sitemap: true,
+  },
+  {
+    id: 'blog-index',
+    path: '/blog',
     owner: 'api-ssr',
     robots: 'index,follow',
     sitemap: true,
@@ -76,6 +83,13 @@ export const PUBLIC_DYNAMIC_ROUTE_CONTRACTS = [
     owner: 'api-ssr',
     robots: 'index,follow',
     sitemap: 'eligible-public-authors',
+  },
+  {
+    id: 'blog-article',
+    pattern: '/blog/:slug',
+    owner: 'api-ssr',
+    robots: 'index,follow',
+    sitemap: 'static-blog-articles',
   },
   {
     id: 'unlisted-story',
@@ -216,6 +230,16 @@ export function buildPublicStoriesPath(locale?: string | null): string {
   return normalized === DEFAULT_PUBLIC_SEO_LOCALE ? '/stories' : `/${normalized}/stories`;
 }
 
+export function buildPublicBlogIndexPath(locale?: string | null): string {
+  const normalized = normalizePublicSeoLocale(locale);
+  return normalized === DEFAULT_PUBLIC_SEO_LOCALE ? '/blog' : `/${normalized}/blog`;
+}
+
+export function buildPublicBlogArticlePath(slug: string, locale?: string | null): string {
+  const cleanSlug = encodeURIComponent(slug);
+  return `${buildPublicBlogIndexPath(locale)}/${cleanSlug}`;
+}
+
 export function buildPublicSupportPath(locale?: string | null): string {
   const normalized = normalizePublicSeoLocale(locale);
   return normalized === DEFAULT_PUBLIC_SEO_LOCALE ? '/support' : `/${normalized}/support`;
@@ -236,7 +260,7 @@ export function buildAbsoluteRouteUrl(baseUrl: string, path: string): string {
 }
 
 export function buildPublicSeoSitemapStaticRoutes(): Array<{
-  id: 'landing' | 'pricing' | 'stories-catalog';
+  id: 'landing' | 'pricing' | 'stories-catalog' | 'blog-index';
   path: string;
   locale: PublicSeoLocale;
   changefreq: 'weekly';
@@ -263,6 +287,13 @@ export function buildPublicSeoSitemapStaticRoutes(): Array<{
       locale,
       changefreq: 'weekly' as const,
       priority: locale === DEFAULT_PUBLIC_SEO_LOCALE ? '0.85' : '0.75',
+    },
+    {
+      id: 'blog-index' as const,
+      path: buildPublicBlogIndexPath(locale),
+      locale,
+      changefreq: 'weekly' as const,
+      priority: locale === DEFAULT_PUBLIC_SEO_LOCALE ? '0.82' : '0.72',
     },
   ]));
 }

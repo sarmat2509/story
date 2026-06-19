@@ -23,6 +23,7 @@ import { renderPricingStructuredData } from './publicStructuredData';
 import {
   buildPublicLandingPath,
   buildPublicPricingPath,
+  buildLocalizedAppPath,
   formatPricingPrice,
   getCombinedPricingUsageHighlight,
   getPricingFeatureLabel,
@@ -102,14 +103,13 @@ function getLandingUrl(webAppUrl: string, locale?: string | null): string {
   return base ? `${base}${path}` : path;
 }
 
-function getWelcomePath(locale?: string | null): string {
-  const normalized = normalizeLandingLocale(locale);
-  return normalized === 'uk' ? '/welcome' : `/${normalized}/welcome`;
+function getWizardPath(locale?: string | null): string {
+  return buildLocalizedAppPath('/wizard', normalizeLandingLocale(locale));
 }
 
-function getWelcomeUrl(webAppUrl: string, locale?: string | null): string {
+function getWizardUrl(webAppUrl: string, locale?: string | null): string {
   const base = webAppUrl.replace(/\/$/, '');
-  const path = getWelcomePath(locale);
+  const path = getWizardPath(locale);
   return base ? `${base}${path}` : path;
 }
 
@@ -344,7 +344,7 @@ export function renderPricingHtml(params: {
           }).join('');
           const action = !paymentsEnabled && isPaidPlan
             ? `<span class="btn-disabled">${escapeHtml(plansI18n.payments_disabled_button || 'Payments coming soon')}</span>`
-            : `<a class="btn" href="${escapeHtml(getWelcomeUrl(webAppUrl, locale))}">${escapeHtml(plansI18n.subscribe_button)}</a>`;
+            : `<a class="btn" href="${escapeHtml(getWizardUrl(webAppUrl, locale))}">${escapeHtml(plansI18n.subscribe_button)}</a>`;
 
           return `
           <article class="card${plan.slug === 'golden' ? ' card-featured' : ''}">

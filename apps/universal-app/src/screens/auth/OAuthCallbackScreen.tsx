@@ -7,6 +7,7 @@ import apiClient from '@/api/client';
 import { resetToMainRoute } from '@/navigation/navigationRef';
 import { applyUserPreferredLocale } from '@/utils/localePreference';
 import { getWebHistory, getWebLocation, getWebSearch } from '@/utils/webRuntime';
+import { clearWebAuthRedirectPath, replaceWithStoredWebAuthRedirect } from '@/utils/authRedirect';
 
 type PersistedAuthStore = typeof useAuthStore & {
   persist?: {
@@ -90,6 +91,14 @@ export default function OAuthCallbackScreen() {
 
         if (Platform.OS === 'web' && typeof window !== 'undefined' && window.sessionStorage) {
           window.sessionStorage.removeItem('oauth_redirect');
+        }
+
+        if (!parentGate && replaceWithStoredWebAuthRedirect()) {
+          return;
+        }
+
+        if (parentGate) {
+          clearWebAuthRedirectPath();
         }
 
         const tabName = parentGate ? 'Children' : 'Dashboard';

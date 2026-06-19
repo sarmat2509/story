@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Linking } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { buildLocalizedAppPath } from '@wondertales/shared';
 import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 
@@ -28,10 +29,10 @@ export function PublishedStoryCta({
   }
 
   const locale = i18n.language?.split('-')[0]?.toLowerCase();
-  const loginUrl = locale && locale !== 'uk' ? `/${locale}/welcome` : '/welcome';
+  const wizardUrl = buildLocalizedAppPath('/wizard', locale);
 
   const handlePress = () => {
-    Linking.openURL(loginUrl);
+    Linking.openURL(wizardUrl);
   };
 
   return (

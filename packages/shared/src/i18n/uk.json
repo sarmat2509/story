@@ -109,6 +109,17 @@
     "cta_view_stories": "Переглянути історії",
     "cta_view_pricing": "Тарифи"
   },
+  "public_footer": {
+    "aria_label": "Навігація у футері",
+    "language": "Мова",
+    "home": "Головна",
+    "pricing": "Тарифи",
+    "stories": "Історії",
+    "blog": "Блог",
+    "terms": "Умови користування",
+    "privacy": "Політика конфіденційності",
+    "support": "Підтримка"
+  },
   "story": {
     "create_title": "Створити казку",
     "create_subtitle": "Казка за 60 секунд",
@@ -1459,6 +1470,7 @@
     "profile_switcher": "Перемкнути профіль",
     "switcher_title": "Профілі",
     "current_child": "Поточний профіль",
+    "current_profile": "Поточний профіль",
     "parent_profile": "Профіль батьків",
     "password_required": "Потрібен пароль",
     "parent_gate_parent_profile": "Введіть пароль виходу, щоб відкрити профіль батьків.",

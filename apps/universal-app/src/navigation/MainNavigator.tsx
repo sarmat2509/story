@@ -55,6 +55,7 @@ import { AuthGuard } from '@/components/AuthGuard';
 import { navigationRef, navigateToMainRoute } from '@/navigation/navigationRef';
 import type { MainDrawerParamList, MainTabParamList } from '@/types/navigation';
 import { replaceWebLocation } from '@/utils/webRuntime';
+import { formatAssetUrl } from '@/utils/assetUrl';
 import { buildPublicPricingPath } from '@wondertales/shared';
 import { useChildren } from '@/api/children';
 
@@ -498,6 +499,9 @@ function TabNavigator() {
   const { user, isAuthenticated, sessionMode } = useAuthStore();
   const isInstantMode = user?.mode === 'instant';
   const isChildSession = isAuthenticated && sessionMode === 'child';
+  const profileSwitcherAvatarUrl = user?.avatarUrl
+    ? (formatAssetUrl(user.avatarUrl) ?? user.avatarUrl)
+    : null;
 
   return (
     <Tab.Navigator
@@ -506,7 +510,9 @@ function TabNavigator() {
       backBehavior="history"
       screenOptions={{
         headerShown: true,
-        headerLeft: isChildSession ? () => <ChildProfileSwitcher /> : undefined,
+        headerLeft: isAuthenticated
+          ? () => <ChildProfileSwitcher autoLoad fallbackAvatarUrl={profileSwitcherAvatarUrl} />
+          : undefined,
         headerStyle: {
           backgroundColor: modernColors.surface,
         },

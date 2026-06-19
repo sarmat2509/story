@@ -109,6 +109,17 @@
     "cta_view_stories": "Смотреть истории",
     "cta_view_pricing": "Тарифы"
   },
+  "public_footer": {
+    "aria_label": "Навигация в футере",
+    "language": "Язык",
+    "home": "Главная",
+    "pricing": "Тарифы",
+    "stories": "Истории",
+    "blog": "Блог",
+    "terms": "Условия",
+    "privacy": "Конфиденциальность",
+    "support": "Поддержка"
+  },
   "story": {
     "create_title": "Создать сказку",
     "create_subtitle": "Сказка за 60 секунд",
@@ -1444,6 +1455,7 @@
     "profile_switcher": "Переключить профиль",
     "switcher_title": "Профили",
     "current_child": "Текущий профиль",
+    "current_profile": "Текущий профиль",
     "parent_profile": "Профиль родителя",
     "password_required": "Нужен пароль",
     "parent_gate_parent_profile": "Введите пароль выхода, чтобы открыть профиль родителя.",

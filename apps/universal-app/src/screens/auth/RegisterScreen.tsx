@@ -23,6 +23,7 @@ import { theme } from '@/theme';
 import { resetToMainRoute } from '@/navigation/navigationRef';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 import { assignWebLocation } from '@/utils/webRuntime';
+import { replaceWithStoredWebAuthRedirect } from '@/utils/authRedirect';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -60,6 +61,9 @@ export default function RegisterScreen() {
         privacyAccepted,
         isAdultGuardian,
       });
+      if (replaceWithStoredWebAuthRedirect()) {
+        return;
+      }
       if (!resetToMainRoute({ name: 'Dashboard' })) {
         navigation.reset({
           index: 0,

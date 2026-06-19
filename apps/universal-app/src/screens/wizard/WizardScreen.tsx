@@ -46,8 +46,10 @@ import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
+import { getWebSearch } from '@/utils/webRuntime';
 import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
 import { IMAGE_STYLE_METADATA, type ImageStyle } from '@wondertales/shared';
+import { getWizardScenarioPreset } from './wizardRouteParams';
 
 export default function WizardScreen() {
   const { t } = useTranslation();
@@ -57,6 +59,11 @@ export default function WizardScreen() {
   const enterKey = useScreenEnter();
   const { width } = useWindowDimensions();
   const isWide = width >= 1100;
+  const presetScenarioCardId = useMemo(
+    () => getWizardScenarioPreset(route.params, getWebSearch()),
+    [route.params]
+  );
+  const presetScenarioAppliedRef = React.useRef(false);
   const sessionMode = useAuthStore((state) => state.sessionMode);
   const activeChild = useAuthStore((state) => state.activeChild);
   const isChildSession = sessionMode === 'child';
@@ -161,6 +168,18 @@ export default function WizardScreen() {
     };
     return [freeThemeCard, ...(themesData?.scenarioCards ?? [])];
   }, [themesData?.scenarioCards, t]);
+
+  useEffect(() => {
+    if (presetScenarioAppliedRef.current || !presetScenarioCardId) return;
+
+    const scenarioExists = (themesData?.scenarioCards ?? []).some(
+      (scenario) => scenario.id === presetScenarioCardId
+    );
+    if (!scenarioExists) return;
+
+    setScenarioCardId(presetScenarioCardId);
+    presetScenarioAppliedRef.current = true;
+  }, [presetScenarioCardId, themesData?.scenarioCards]);
 
   const selectedScenario = scenarioOptions.find((scenario) => scenario.id === scenarioCardId);
   const selectedChildProfile = children.find((child) => child.id === childProfileId);

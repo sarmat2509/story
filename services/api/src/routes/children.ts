@@ -4,16 +4,27 @@ import type { ChildProfile } from '../db/schema';
 import * as childProfileService from '../services/childProfileService';
 import * as childModeControlsService from '../services/childModeControlsService';
 import * as planService from '../services/planService';
-import { CreateChildProfileSchema, UpdateChildModeControlsSchema, UpdateChildProfileSchema } from '@wondertales/shared';
+import {
+  CreateChildProfileSchema,
+  UpdateChildModeControlsSchema,
+  UpdateChildProfileSchema,
+} from '@wondertales/shared';
 import { logger } from '../utils/logger';
-import { sanitizeChildProfileBody, sanitizeAnalysisAppearance } from '../utils/sanitizeChildProfile';
+import {
+  sanitizeChildProfileBody,
+  sanitizeAnalysisAppearance,
+} from '../utils/sanitizeChildProfile';
 import { generateToken } from '../services/jwtService';
 import { setSessionCookie } from '../utils/sessionCookie';
 
 import { CharacterAnalysisService } from '../services/characterAnalysisService';
 import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider';
 import { config } from '../config';
-import { generateTurnaroundSheetFromReference, generateTurnaroundSheetFromDescription, isTurnaroundSheetEnabled } from '../services/turnaroundSheetService';
+import {
+  generateTurnaroundSheetFromReference,
+  generateTurnaroundSheetFromDescription,
+  isTurnaroundSheetEnabled,
+} from '../services/turnaroundSheetService';
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
 import {
   assertUserPhotoInputs,
@@ -27,7 +38,10 @@ import {
 
 const router = Router();
 
-function sendPhotoInputSafetyError(res: Parameters<typeof requireAuth>[1], error: unknown): boolean {
+function sendPhotoInputSafetyError(
+  res: Parameters<typeof requireAuth>[1],
+  error: unknown
+): boolean {
   if (!isPhotoInputSafetyError(error)) {
     return false;
   }
@@ -41,7 +55,10 @@ function sendPhotoInputSafetyError(res: Parameters<typeof requireAuth>[1], error
   return true;
 }
 
-function sendStoryFromDrawingAccessError(res: Parameters<typeof requireAuth>[1], error: unknown): boolean {
+function sendStoryFromDrawingAccessError(
+  res: Parameters<typeof requireAuth>[1],
+  error: unknown
+): boolean {
   if (!isStoryFromDrawingAccessError(error)) {
     return false;
   }
@@ -71,7 +88,10 @@ function sendChildModeError(res: Parameters<typeof requireAuth>[1], error: unkno
   return true;
 }
 
-function sendChildProfileLimitError(res: Parameters<typeof requireAuth>[1], error: unknown): boolean {
+function sendChildProfileLimitError(
+  res: Parameters<typeof requireAuth>[1],
+  error: unknown
+): boolean {
   if (!childProfileService.isChildProfileLimitError(error)) {
     return false;
   }
@@ -114,7 +134,10 @@ function extractDeviceInfo(req: Parameters<typeof requireAuth>[0]) {
 const geminiProvider = new GeminiTextProvider(config.google.apiKey, config.ai.modelVersion);
 const analysisService = new CharacterAnalysisService(geminiProvider);
 
-function buildConsentAuditContext(req: Parameters<typeof requireAuth>[0], source: string): ConsentAuditContext {
+function buildConsentAuditContext(
+  req: Parameters<typeof requireAuth>[0],
+  source: string
+): ConsentAuditContext {
   const forwardedFor = req.headers['x-forwarded-for'];
   const ipAddress =
     (typeof forwardedFor === 'string' ? forwardedFor.split(',')[0]?.trim() : null) ||
@@ -128,10 +151,18 @@ function buildConsentAuditContext(req: Parameters<typeof requireAuth>[0], source
 }
 
 function getChildDataConsentValue(body: Record<string, unknown>): unknown {
-  return body.childDataConsentAccepted ?? body.child_data_consent_accepted ?? body.parentalConsentAccepted;
+  return (
+    body.childDataConsentAccepted ??
+    body.child_data_consent_accepted ??
+    body.parentalConsentAccepted
+  );
 }
 
-async function requireChildDataConsent(req: Parameters<typeof requireAuth>[0], res: Parameters<typeof requireAuth>[1], source: string): Promise<boolean> {
+async function requireChildDataConsent(
+  req: Parameters<typeof requireAuth>[0],
+  res: Parameters<typeof requireAuth>[1],
+  source: string
+): Promise<boolean> {
   const accepted = await ensureChildDataConsent(
     req.user!.id,
     getChildDataConsentValue(req.body as Record<string, unknown>),
@@ -147,7 +178,9 @@ async function requireChildDataConsent(req: Parameters<typeof requireAuth>[0], r
   return false;
 }
 
-function toSafeChildProfile(profile: ChildProfile): Omit<ChildProfile, 'childModePasscodeHash' | 'childModePasscodeSetAt'> {
+function toSafeChildProfile(
+  profile: ChildProfile
+): Omit<ChildProfile, 'childModePasscodeHash' | 'childModePasscodeSetAt'> {
   const {
     childModePasscodeHash: _childModePasscodeHash,
     childModePasscodeSetAt: _childModePasscodeSetAt,
@@ -156,7 +189,9 @@ function toSafeChildProfile(profile: ChildProfile): Omit<ChildProfile, 'childMod
   return safeProfile;
 }
 
-function addAgeToChildProfile(profile: Omit<ChildProfile, 'childModePasscodeHash' | 'childModePasscodeSetAt'>) {
+function addAgeToChildProfile(
+  profile: Omit<ChildProfile, 'childModePasscodeHash' | 'childModePasscodeSetAt'>
+) {
   const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
   return {
     ...profile,
@@ -174,7 +209,7 @@ function addAgeToChildProfile(profile: Omit<ChildProfile, 'childModePasscodeHash
 // POST /api/v1/children/analyze - Analyze child photos
 router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
   const { photos, language } = req.body;
-  
+
   try {
     if (!(await requireChildDataConsent(req, res, 'child_photo_analysis'))) return;
 
@@ -182,7 +217,7 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
     if (!photos || !Array.isArray(photos) || photos.length === 0) {
       return res.status(400).json({
         status: 'error',
-        error: 'Photos array is required and must not be empty'
+        error: 'Photos array is required and must not be empty',
       });
     }
 
@@ -195,13 +230,16 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
       userId: req.user!.id,
       photoCount: photos.length,
     });
-    
-    logger.info({ 
-      userId: req.user!.id, 
-      photoCount: photos.length,
-      language: language || 'en'
-    }, 'Analyzing child photos');
-    
+
+    logger.info(
+      {
+        userId: req.user!.id,
+        photoCount: photos.length,
+        language: language || 'en',
+      },
+      'Analyzing child photos'
+    );
+
     // Call analysis service (always 'person' for children)
     const { recordUsage } = await import('../services/aiUsageService');
     const usageContext = { userId: req.user!.id };
@@ -210,40 +248,48 @@ router.post('/analyze', requireAuth, requireParentSession, async (req, res) => {
         photos,
         characterType: 'person',
         language: language || 'en',
-        isChildProfile: true
+        isChildProfile: true,
       },
       { onUsage: (u) => recordUsage(u, usageContext) }
     );
-    
+
     // Map result to child-specific format
     const analysis: any = {
-      description: result.detailedDescription
+      description: result.detailedDescription,
     };
-    
+
     if (result.appearanceTraits) {
-      analysis.appearance = sanitizeAnalysisAppearance(result.appearanceTraits as Record<string, unknown>);
+      analysis.appearance = sanitizeAnalysisAppearance(
+        result.appearanceTraits as Record<string, unknown>
+      );
     }
-    
+
     res.json({
       status: 'success',
-      analysis
+      analysis,
     });
   } catch (error) {
     if (sendPhotoInputSafetyError(res, error)) return;
     if (sendStoryFromDrawingAccessError(res, error)) return;
 
-    logger.error({ 
-      error: error instanceof Error ? {
-        message: error.message,
-        name: error.name,
-        stack: error.stack
-      } : error,
-      userId: req.user?.id,
-      photoCount: photos?.length || 0
-    }, 'Error analyzing child photos');
+    logger.error(
+      {
+        error:
+          error instanceof Error
+            ? {
+                message: error.message,
+                name: error.name,
+                stack: error.stack,
+              }
+            : error,
+        userId: req.user?.id,
+        photoCount: photos?.length || 0,
+      },
+      'Error analyzing child photos'
+    );
     res.status(500).json({
       status: 'error',
-      error: 'Failed to analyze photos'
+      error: 'Failed to analyze photos',
     });
   }
 });
@@ -253,22 +299,36 @@ router.get('/child-mode/switcher', requireAuth, async (req, res) => {
   try {
     const userId = req.parentUserId || req.user!.id;
     const profiles = await childProfileService.getChildProfiles(userId);
+    const childModeExitPasscode =
+      await childModeControlsService.getChildModeExitPasscodeStatus(userId);
 
     res.json({
       status: 'success',
-      children: profiles.map((profile) => {
-        const safeProfile = toSafeChildProfile(profile);
-        return {
-          id: safeProfile.id,
-          name: safeProfile.name,
-          referencePhotos: safeProfile.referencePhotos,
-          turnaroundSheet: (safeProfile as any).turnaroundSheet,
-          storyCreationMode: safeProfile.storyCreationMode,
-        };
-      }),
+      children: profiles
+        .filter((profile) => {
+          const controls = childModeControlsService.buildChildModeControls(
+            profile,
+            0,
+            childModeExitPasscode.configured
+          );
+          return controls.childModeEnabled && controls.childModePasscodeConfigured;
+        })
+        .map((profile) => {
+          const safeProfile = toSafeChildProfile(profile);
+          return {
+            id: safeProfile.id,
+            name: safeProfile.name,
+            referencePhotos: safeProfile.referencePhotos,
+            turnaroundSheet: (safeProfile as any).turnaroundSheet,
+            storyCreationMode: safeProfile.storyCreationMode,
+          };
+        }),
     });
   } catch (error) {
-    logger.error({ error, userId: req.parentUserId || req.user?.id }, 'Error fetching child mode switcher profiles');
+    logger.error(
+      { error, userId: req.parentUserId || req.user?.id },
+      'Error fetching child mode switcher profiles'
+    );
     res.status(500).json({
       status: 'error',
       error: 'Failed to fetch child profiles',
@@ -281,16 +341,17 @@ router.get('/', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const profiles = await childProfileService.getChildProfiles(userId);
-    
+
     // Get limit for display
     const limit = await planService.getFeatureLimit(userId, 'child_profiles_limit');
     const canCreateMore = limit === null || profiles.length < limit;
     const childModeSessionCounts = await childModeControlsService.getChildModeSessionCounts(
       profiles.map((profile) => profile.id)
     );
-    const childModeExitPasscode = await childModeControlsService.getChildModeExitPasscodeStatus(userId);
-    
-    const profilesWithAge = profiles.map(profile => {
+    const childModeExitPasscode =
+      await childModeControlsService.getChildModeExitPasscodeStatus(userId);
+
+    const profilesWithAge = profiles.map((profile) => {
       const ageData = childProfileService.getAgeData(new Date(profile.birthDate));
       const childModeControls = childModeControlsService.buildChildModeControls(
         profile,
@@ -310,22 +371,22 @@ router.get('/', requireAuth, requireParentSession, async (req, res) => {
           totalMonths: ageData.ageMonths,
           ageGroup: ageData.ageGroup,
           isBirthdayToday: ageData.isBirthdayToday,
-          daysUntilBirthday: ageData.daysUntilBirthday
-        }
+          daysUntilBirthday: ageData.daysUntilBirthday,
+        },
       };
     });
-    
+
     res.json({
       status: 'success',
       children: profilesWithAge,
       limit,
-      canCreateMore
+      canCreateMore,
     });
   } catch (error) {
     logger.error({ error, userId: req.user?.id }, 'Error fetching child profiles');
     res.status(500).json({
       status: 'error',
-      error: 'Failed to fetch child profiles'
+      error: 'Failed to fetch child profiles',
     });
   }
 });
@@ -344,10 +405,10 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
       return res.status(400).json({
         status: 'error',
         error: 'Validation failed',
-        details: validation.error.format()
+        details: validation.error.format(),
       });
     }
-    
+
     const data = validation.data;
     if (!(await requireChildDataConsent(req, res, 'child_profile_create'))) return;
 
@@ -364,26 +425,31 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
 
     const dataForCreate = {
       ...data,
-      birthDate: data.birthDate instanceof Date ? data.birthDate.toISOString().split('T')[0] : data.birthDate,
+      birthDate:
+        data.birthDate instanceof Date
+          ? data.birthDate.toISOString().split('T')[0]
+          : data.birthDate,
     };
 
     // Create profile (feature check happens in service)
     const profile = await childProfileService.createChildProfile(userId, dataForCreate);
-    
+
     // Generate a turnaround when the profile has enough visual/text reference data.
     // First-launch profiles can be intentionally lightweight and add photos later.
     if (isTurnaroundSheetEnabled()) {
       try {
         const referencePhotos = profile.referencePhotos as Array<{ url?: string }> | undefined;
-        const hasPhotos = referencePhotos && Array.isArray(referencePhotos) && referencePhotos.length > 0;
-        const firstPhoto = hasPhotos ? referencePhotos!.find(p => p && p.url) : undefined;
-        const hasDescription = profile.aiGeneratedDescription && profile.aiGeneratedDescription.trim().length > 0;
+        const hasPhotos =
+          referencePhotos && Array.isArray(referencePhotos) && referencePhotos.length > 0;
+        const firstPhoto = hasPhotos ? referencePhotos!.find((p) => p && p.url) : undefined;
+        const hasDescription =
+          profile.aiGeneratedDescription && profile.aiGeneratedDescription.trim().length > 0;
 
         if (firstPhoto?.url) {
           await generateTurnaroundSheetFromReference({
             targetType: 'child',
             targetId: profile.id,
-            referencePhotoUrls: referencePhotos!.map(p => p.url!).filter(Boolean),
+            referencePhotoUrls: referencePhotos!.map((p) => p.url!).filter(Boolean),
             characterName: profile.name,
             userId,
             aiDescription: profile.aiGeneratedDescription,
@@ -398,11 +464,14 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
           });
         }
       } catch (turnaroundError) {
-        logger.error({
-          err: turnaroundError,
-          childId: profile.id,
-          userId,
-        }, 'Turnaround generation failed, rolling back child create');
+        logger.error(
+          {
+            err: turnaroundError,
+            childId: profile.id,
+            userId,
+          },
+          'Turnaround generation failed, rolling back child create'
+        );
         await childProfileService.deleteChildProfile(profile.id, userId);
         return res.status(500).json({
           status: 'error',
@@ -414,12 +483,12 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
     // Refetch profile to get full turnaroundSheet data
     const updatedProfile = await childProfileService.getChildProfileById(profile.id, userId);
     const profileToReturn = updatedProfile ?? profile;
-    
+
     const profileWithAge = addAgeToChildProfile(toSafeChildProfile(profileToReturn));
-    
+
     res.status(201).json({
       status: 'success',
-      child: profileWithAge
+      child: profileWithAge,
     });
   } catch (error: unknown) {
     if (sendPhotoInputSafetyError(res, error)) return;
@@ -430,14 +499,14 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
     if (errorMessage.includes('limit reached')) {
       return res.status(403).json({
         status: 'error',
-        error: errorMessage
+        error: errorMessage,
       });
     }
-    
+
     logger.error({ error, userId: req.user?.id }, 'Error creating child profile');
     res.status(500).json({
       status: 'error',
-      error: 'Failed to create child profile'
+      error: 'Failed to create child profile',
     });
   }
 });
@@ -445,14 +514,20 @@ router.post('/', requireAuth, requireParentSession, async (req, res) => {
 // GET /api/v1/children/:id/child-mode - Get Child Mode controls
 router.get('/:id/child-mode', requireAuth, requireParentSession, async (req, res) => {
   try {
-    const controls = await childModeControlsService.getChildModeControls(req.user!.id, req.params.id);
+    const controls = await childModeControlsService.getChildModeControls(
+      req.user!.id,
+      req.params.id
+    );
     res.json({
       status: 'success',
       childMode: controls,
     });
   } catch (error) {
     if (sendChildModeError(res, error)) return;
-    logger.error({ error, userId: req.user?.id, childId: req.params.id }, 'Error fetching child mode controls');
+    logger.error(
+      { error, userId: req.user?.id, childId: req.params.id },
+      'Error fetching child mode controls'
+    );
     res.status(500).json({
       status: 'error',
       error: 'Failed to fetch child mode controls',
@@ -484,7 +559,10 @@ router.patch('/:id/child-mode', requireAuth, requireParentSession, async (req, r
     });
   } catch (error) {
     if (sendChildModeError(res, error)) return;
-    logger.error({ error, userId: req.user?.id, childId: req.params.id }, 'Error updating child mode controls');
+    logger.error(
+      { error, userId: req.user?.id, childId: req.params.id },
+      'Error updating child mode controls'
+    );
     res.status(500).json({
       status: 'error',
       error: 'Failed to update child mode controls',
@@ -506,7 +584,10 @@ router.post('/:id/child-mode/sessions', requireAuth, requireParentSession, async
     });
 
     setSessionCookie(res, token);
-    const controls = await childModeControlsService.getChildModeControls(req.user!.id, req.params.id);
+    const controls = await childModeControlsService.getChildModeControls(
+      req.user!.id,
+      req.params.id
+    );
 
     res.status(201).json({
       status: 'success',
@@ -534,7 +615,10 @@ router.post('/:id/child-mode/sessions', requireAuth, requireParentSession, async
     });
   } catch (error) {
     if (sendChildModeError(res, error)) return;
-    logger.error({ error, userId: req.user?.id, childId: req.params.id }, 'Error creating child mode session');
+    logger.error(
+      { error, userId: req.user?.id, childId: req.params.id },
+      'Error creating child mode session'
+    );
     res.status(500).json({
       status: 'error',
       error: 'Failed to create child mode session',
@@ -545,14 +629,20 @@ router.post('/:id/child-mode/sessions', requireAuth, requireParentSession, async
 // DELETE /api/v1/children/:id/child-mode/sessions - Revoke active Child Mode sessions
 router.delete('/:id/child-mode/sessions', requireAuth, requireParentSession, async (req, res) => {
   try {
-    const revokedCount = await childModeControlsService.revokeChildModeSessions(req.user!.id, req.params.id);
+    const revokedCount = await childModeControlsService.revokeChildModeSessions(
+      req.user!.id,
+      req.params.id
+    );
     res.json({
       status: 'success',
       revokedCount,
     });
   } catch (error) {
     if (sendChildModeError(res, error)) return;
-    logger.error({ error, userId: req.user?.id, childId: req.params.id }, 'Error revoking child mode sessions');
+    logger.error(
+      { error, userId: req.user?.id, childId: req.params.id },
+      'Error revoking child mode sessions'
+    );
     res.status(500).json({
       status: 'error',
       error: 'Failed to revoke child mode sessions',
@@ -575,40 +665,46 @@ router.patch('/:id', requireAuth, requireParentSession, async (req, res) => {
       return res.status(400).json({
         status: 'error',
         error: 'Validation failed',
-        details: validation.error.format()
+        details: validation.error.format(),
       });
     }
-    
+
     const data = validation.data;
     const dataForUpdate = {
       ...data,
       ...(data.birthDate && {
-        birthDate: data.birthDate instanceof Date ? data.birthDate.toISOString().split('T')[0] : data.birthDate,
+        birthDate:
+          data.birthDate instanceof Date
+            ? data.birthDate.toISOString().split('T')[0]
+            : data.birthDate,
       }),
     };
 
     // Update profile (ownership check happens in service)
     const profile = await childProfileService.updateChildProfile(id, userId, dataForUpdate);
-    
+
     const profileWithAge = addAgeToChildProfile(toSafeChildProfile(profile));
-    
+
     res.json({
       status: 'success',
-      child: profileWithAge
+      child: profileWithAge,
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes('not found')) {
       return res.status(404).json({
         status: 'error',
-        error: 'Child profile not found'
+        error: 'Child profile not found',
       });
     }
-    
-    logger.error({ error, userId: req.user?.id, childId: req.params.id }, 'Error updating child profile');
+
+    logger.error(
+      { error, userId: req.user?.id, childId: req.params.id },
+      'Error updating child profile'
+    );
     res.status(500).json({
       status: 'error',
-      error: 'Failed to update child profile'
+      error: 'Failed to update child profile',
     });
   }
 });
@@ -618,24 +714,27 @@ router.delete('/:id', requireAuth, requireParentSession, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    
+
     // Delete profile (ownership check happens in service)
     await childProfileService.deleteChildProfile(id, userId);
-    
+
     res.status(204).send();
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes('not found')) {
       return res.status(404).json({
         status: 'error',
-        error: 'Child profile not found'
+        error: 'Child profile not found',
       });
     }
-    
-    logger.error({ error, userId: req.user?.id, childId: req.params.id }, 'Error deleting child profile');
+
+    logger.error(
+      { error, userId: req.user?.id, childId: req.params.id },
+      'Error deleting child profile'
+    );
     res.status(500).json({
       status: 'error',
-      error: 'Failed to delete child profile'
+      error: 'Failed to delete child profile',
     });
   }
 });

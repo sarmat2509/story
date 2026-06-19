@@ -28,6 +28,6 @@ assert.match(enWithStoryHtml, /href="https:\/\/app\.wondertales\.com\/en\/storie
 const emptyUkHtml = renderLandingHtml({ locale: 'uk', exampleStories: [] });
 
 assert.match(emptyUkHtml, /Історій цією мовою поки що немає/);
-assert.match(emptyUkHtml, /href="https:\/\/app\.wondertales\.com\/welcome" class="cta-purple"/);
+assert.match(emptyUkHtml, /href="https:\/\/app\.wondertales\.com\/wizard" class="cta-purple"/);
 
 console.log('renderLandingExamples tests passed');

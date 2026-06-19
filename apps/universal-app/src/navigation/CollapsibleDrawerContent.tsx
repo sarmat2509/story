@@ -1,12 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  Animated,
-  Platform,
-  type StyleProp,
-  StyleSheet,
-  type ViewStyle,
-  View,
-} from 'react-native';
+import { Animated, Platform, type StyleProp, StyleSheet, type ViewStyle, View } from 'react-native';
 import {
   CommonActions,
   DrawerActions,
@@ -27,6 +20,7 @@ import { theme } from '@/theme';
 import { modernColors } from '@/theme/modernTheme';
 import { ChildAvatarImage, ChildProfileSwitcher } from '@/navigation/ChildProfileSwitcher';
 import type { RootStackParamList } from '@/types/navigation';
+import { formatAssetUrl } from '@/utils/assetUrl';
 
 const LABEL_ANIMATION_DURATION = 250;
 const COLLAPSED_HIGHLIGHT_SIZE = 48; // icon 24 + padding 12 each side
@@ -86,8 +80,7 @@ function CollapsibleDrawerItem({
   const activeTintColor = drawerActiveTintColor ?? theme.colors.interactive.primary;
   const inactiveTintColor = drawerInactiveTintColor ?? theme.colors.text.tertiary;
   const color = focused ? activeTintColor : inactiveTintColor;
-  const activeBackgroundColor =
-    drawerActiveBackgroundColor ?? modernColors.accentWash;
+  const activeBackgroundColor = drawerActiveBackgroundColor ?? modernColors.accentWash;
   const inactiveBackgroundColor = drawerInactiveBackgroundColor ?? 'transparent';
   const backgroundColor = focused ? activeBackgroundColor : inactiveBackgroundColor;
 
@@ -171,6 +164,9 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
     (route) => !isItemHidden(descriptors[route.key].options.drawerItemStyle)
   );
   const isChildSession = sessionMode === 'child' && activeChild;
+  const parentAvatarUrl = user?.avatarUrl
+    ? (formatAssetUrl(user.avatarUrl) ?? user.avatarUrl)
+    : null;
 
   return (
     <DrawerContentScrollView
@@ -180,8 +176,9 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
     >
       <View style={styles.scrollInner}>
         <View>
-          {isChildSession ? (
+          {user ? (
             <ChildProfileSwitcher
+              autoLoad
               menuStyle={styles.childSwitcherMenu}
               renderTrigger={({ avatarUrl, open }) => (
                 <PlatformPressable
@@ -193,9 +190,9 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
                   <View
                     style={[styles.childSessionCard, collapsed && styles.childSessionCardCollapsed]}
                   >
-                    {avatarUrl ? (
+                    {avatarUrl || parentAvatarUrl ? (
                       <ChildAvatarImage
-                        uri={avatarUrl}
+                        uri={avatarUrl ?? parentAvatarUrl!}
                         style={styles.childAvatar}
                       />
                     ) : (
@@ -210,10 +207,16 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
                     {!collapsed ? (
                       <View style={styles.childSessionCopy}>
                         <Text style={styles.childSessionLabel} numberOfLines={1}>
-                          {t('child_mode.title')}
+                          {isChildSession
+                            ? t('child_mode.title')
+                            : t('child_mode.switcher_title', { defaultValue: 'Profiles' })}
                         </Text>
                         <Text style={styles.childSessionName} numberOfLines={1}>
-                          {activeChild?.name}
+                          {isChildSession
+                            ? activeChild?.name
+                            : user.displayName ||
+                              user.email ||
+                              t('child_mode.parent_profile', { defaultValue: 'Parent profile' })}
                         </Text>
                       </View>
                     ) : null}
