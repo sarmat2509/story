@@ -1,0 +1,67 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Wonder Tales W icon experiment periwinkle white-lilac</title>
+  <desc id="desc">A Wonder Tales W app icon experiment with periwinkle background and white lilac symbol.</desc>
+  <defs>
+    <linearGradient id="glyphStroke" x1="512" y1="280" x2="512" y2="792" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.42" stop-color="#F6EEFF"/>
+      <stop offset="0.74" stop-color="#D8C0FF"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <linearGradient id="starFill" x1="512" y1="176" x2="512" y2="358" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.58" stop-color="#EAD9FF"/>
+      <stop offset="1" stop-color="#B98BFF"/>
+    </linearGradient>
+    <filter id="softIconShadow" x="20" y="20" width="984" height="984" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="24" stdDeviation="24" flood-color="#000714" flood-opacity="0.22"/>
+    </filter>
+    <filter id="glyphDepth" x="120" y="180" width="784" height="680" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#3A2459" flood-opacity="0.34"/>
+      <feDropShadow dx="0" dy="-2" stdDeviation="1.5" flood-color="#FFFFFF" flood-opacity="0.24"/>
+    </filter>
+    <filter id="starGlow" x="410" y="165" width="204" height="204" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="11" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 1  0 1 0 0 0.78  0 0 1 0 0.34  0 0 0 0.58 0" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <clipPath id="iconClip">
+      <rect x="64" y="64" width="896" height="896" rx="194"/>
+    </clipPath>
+  </defs>
+
+  <rect x="64" y="64" width="896" height="896" rx="194" fill="#DAD7FF"/>
+  <g clip-path="url(#iconClip)">
+    <circle cx="512" cy="408" r="360" fill="#B9B4F4" opacity="0.26"/>
+    <circle cx="504" cy="546" r="526" fill="#9D95E1" opacity="0.20"/>
+  </g>
+
+  <g filter="url(#glyphDepth)" stroke-linecap="round" stroke-linejoin="round">
+    <g opacity="0.28" stroke="#3A2459" stroke-width="29" transform="translate(0 10)">
+      <path d="M224 376C304 365 364 413 390 520L448 770C387 798 304 783 281 719L225 390"/>
+      <path d="M800 376C720 365 660 413 634 520L576 770C637 798 720 783 743 719L799 390"/>
+      <path d="M278 337C348 346 389 418 417 548L466 760L512 586L558 760L607 548C635 418 676 346 746 337"/>
+      <path d="M329 299C390 329 419 424 444 562L489 756L512 440L535 756L580 562C605 424 634 329 695 299"/>
+    </g>
+    <g stroke="url(#glyphStroke)" stroke-width="17">
+      <path d="M224 376C304 365 364 413 390 520L448 770C387 798 304 783 281 719L225 390"/>
+      <path d="M800 376C720 365 660 413 634 520L576 770C637 798 720 783 743 719L799 390"/>
+      <path d="M278 337C348 346 389 418 417 548L466 760L512 586L558 760L607 548C635 418 676 346 746 337"/>
+      <path d="M329 299C390 329 419 424 444 562L489 756L512 440L535 756L580 562C605 424 634 329 695 299"/>
+    </g>
+    <g stroke="#FFFFFF" stroke-opacity="0.68" stroke-width="5">
+      <path d="M229 376C305 369 357 417 381 520"/>
+      <path d="M795 376C719 369 667 417 643 520"/>
+      <path d="M280 337C341 348 378 410 405 533L459 738L512 593L565 738L619 533C646 410 683 348 744 337"/>
+      <path d="M336 305C388 338 414 429 438 557L487 732L512 459L537 732L586 557C610 429 636 338 688 305"/>
+    </g>
+  </g>
+
+  <g filter="url(#starGlow)">
+    <path d="M512 204C522 245 535 258 576 268C535 278 522 291 512 332C502 291 489 278 448 268C489 258 502 245 512 204Z" fill="url(#starFill)"/>
+    <path d="M512 216C520 249 531 260 564 268C531 276 520 287 512 320C504 287 493 276 460 268C493 260 504 249 512 216Z" stroke="#FFFFFF" stroke-opacity="0.72" stroke-width="3"/>
+  </g>
+</svg>

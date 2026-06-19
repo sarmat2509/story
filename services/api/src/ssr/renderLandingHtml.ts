@@ -444,8 +444,8 @@ interface ResponsiveImageOptions {
 }
 
 function getOptimizedImagePath(src: string, width: number, format: ResponsiveImageFormat): string | null {
-  if (src === '/hero-mockup.webp') {
-    return `/landing/optimized/hero-mockup-${width}.${format}`;
+  if (src === '/skeleton-light-alpha-clean.png') {
+    return `/landing/optimized/skeleton-light-alpha-clean-${width}.${format}`;
   }
 
   const match = src.match(/^\/landing\/([^/?#]+)\.(?:png|jpe?g|webp)$/i);
@@ -520,7 +520,7 @@ function renderHero(webAppUrl: string, content: LandingContent, locale?: string)
     </div>
     
     <div class="hero-mockup">
-      ${renderResponsiveImage('/hero-mockup.webp', content.hero.imageAlt, {
+      ${renderResponsiveImage('/skeleton-light-alpha-clean.png', content.hero.imageAlt, {
         width: 1600,
         height: 893,
         widths: HERO_IMAGE_WIDTHS,

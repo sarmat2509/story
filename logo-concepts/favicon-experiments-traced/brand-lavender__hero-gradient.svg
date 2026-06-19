@@ -1,0 +1,85 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Wonder Tales traced favicon experiment brand-lavender hero-gradient</title>
+  <desc id="desc">A thicker Wonder Tales favicon experiment with brand lavender background and hero gradient symbol.</desc>
+  <defs>
+    <linearGradient id="background" x1="178" y1="88" x2="846" y2="944" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A998D5"/>
+      <stop offset="0.45" stop-color="#8B7CB8"/>
+      <stop offset="1" stop-color="#5E4D87"/>
+    </linearGradient>
+    <radialGradient id="backgroundGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(512 352) rotate(90) scale(438)">
+      <stop stop-color="#B7A9DE" stop-opacity="0.44"/>
+      <stop offset="0.62" stop-color="#8B7CB8" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#8B7CB8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="pageStroke" x1="512" y1="255" x2="512" y2="850" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8068D8"/>
+      <stop offset="0.48" stop-color="#A86AA6"/>
+      <stop offset="1" stop-color="#D86559"/>
+    </linearGradient>
+    <linearGradient id="starFill" x1="512" y1="164" x2="512" y2="348" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8068D8"/>
+      <stop offset="0.48" stop-color="#A86AA6"/>
+      <stop offset="1" stop-color="#D86559"/>
+    </linearGradient>
+    <filter id="iconShadow" x="12" y="12" width="1000" height="1000" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="24" stdDeviation="24" flood-color="#00040D" flood-opacity="0.26"/>
+    </filter>
+    <filter id="lineShadow" x="120" y="200" width="784" height="700" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="11" stdDeviation="8" flood-color="#FFFFFF" flood-opacity="0.34"/>
+      <feDropShadow dx="0" dy="-2" stdDeviation="1.4" flood-color="#FFFFFF" flood-opacity="0.2"/>
+    </filter>
+    <filter id="starGlow" x="392" y="140" width="240" height="250" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="11" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 1  0 1 0 0 0.72  0 0 1 0 0.22  0 0 0 0.48 0" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <clipPath id="clip">
+      <rect x="52" y="52" width="920" height="920" rx="184"/>
+    </clipPath>
+  </defs>
+
+  <g filter="url(#iconShadow)">
+    <rect x="52" y="52" width="920" height="920" rx="184" fill="url(#background)"/>
+  </g>
+  <g clip-path="url(#clip)">
+    <rect x="52" y="52" width="920" height="920" rx="184" fill="url(#backgroundGlow)"/>
+  </g>
+
+  <g filter="url(#lineShadow)" stroke-linecap="round" stroke-linejoin="round">
+    <g opacity="0.28" stroke="#FFFFFF" stroke-width="38" transform="translate(0 12)">
+      <path d="M228 350C302 346 358 394 382 503L452 834C386 854 286 833 260 738L205 380C202 361 212 352 228 350Z"/>
+      <path d="M796 350C722 346 666 394 642 503L572 834C638 854 738 833 764 738L819 380C822 361 812 352 796 350Z"/>
+    </g>
+    <g opacity="0.28" stroke="#FFFFFF" stroke-width="31" transform="translate(0 12)">
+      <path d="M302 286C390 320 421 457 449 604L486 753L512 452L538 753L575 604C603 457 634 320 722 286"/>
+      <path d="M270 330C358 349 398 466 426 626L462 796L512 613L562 796L598 626C626 466 666 349 754 330"/>
+    </g>
+
+    <g stroke="url(#pageStroke)" stroke-width="23">
+      <path d="M228 350C302 346 358 394 382 503L452 834C386 854 286 833 260 738L205 380C202 361 212 352 228 350Z"/>
+      <path d="M796 350C722 346 666 394 642 503L572 834C638 854 738 833 764 738L819 380C822 361 812 352 796 350Z"/>
+    </g>
+    <g stroke="url(#pageStroke)" stroke-width="18">
+      <path d="M302 286C390 320 421 457 449 604L486 753L512 452L538 753L575 604C603 457 634 320 722 286"/>
+      <path d="M270 330C358 349 398 466 426 626L462 796L512 613L562 796L598 626C626 466 666 349 754 330"/>
+    </g>
+
+    <g stroke="#FFE6F0" stroke-opacity="0.68" stroke-width="6">
+      <path d="M226 351C295 350 347 394 370 500L438 812"/>
+      <path d="M798 351C729 350 677 394 654 500L586 812"/>
+      <path d="M303 287C374 318 401 423 429 561L466 710"/>
+      <path d="M721 287C650 318 623 423 595 561L558 710"/>
+      <path d="M276 331C350 347 383 442 412 588L453 762"/>
+      <path d="M748 331C674 347 641 442 612 588L571 762"/>
+    </g>
+  </g>
+
+  <g filter="url(#starGlow)">
+    <path d="M512 184C525 236 541 252 593 265C541 278 525 294 512 346C499 294 483 278 431 265C483 252 499 236 512 184Z" fill="url(#starFill)"/>
+    <path d="M512 200C522 241 535 254 576 265C535 276 522 289 512 330C502 289 489 276 448 265C489 254 502 241 512 200Z" stroke="#FFE6F0" stroke-opacity="0.82" stroke-width="4"/>
+  </g>
+</svg>

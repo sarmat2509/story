@@ -43,13 +43,13 @@ const inputs = [
 ];
 
 const heroResponsiveAsset = {
-  src: path.join(publicDir, 'hero-mockup.webp'),
+  src: path.join(publicDir, 'skeleton-light-alpha-clean.png'),
   destDir: optimizedLandingDir,
-  outputBaseName: 'hero-mockup',
+  outputBaseName: 'skeleton-light-alpha-clean',
   widths: [720, 1080, 1440, 1800],
   webpQuality: 78,
   avifQuality: 44,
-  description: 'Hero mockup responsive variants',
+  description: 'Hero skeleton responsive variants',
 };
 
 const landingResponsiveAssets = [
