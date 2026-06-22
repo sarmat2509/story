@@ -36,6 +36,36 @@ void (async function main() {
     'published story SSR links public author pages when author id is present'
   );
 
+  const artifactLeakAttemptHtml = renderPublishedStoryHtml({
+    story: {
+      ...story,
+      fullText: 'A plain public story.',
+      scenes: [
+        {
+          sceneId: 1,
+          text: 'A plain scene without collectible controls.',
+          artifactMention: { artifactId: 'artifact-1', label: 'Secret Compass' },
+          textSegments: [
+            { type: 'text', text: 'A plain scene with ' },
+            { type: 'artifact', text: 'Secret Compass', label: 'Secret Compass' },
+          ],
+        },
+      ],
+      closingArtifact: {
+        id: 'artifact-1',
+        title: 'Secret Compass',
+        imageUrl: '/artifact.png',
+      },
+      closingKeepsakeLabel: 'Secret Compass',
+    } as any,
+    useStaticBody: true,
+  });
+  assert.doesNotMatch(
+    artifactLeakAttemptHtml,
+    /Secret Compass|artifact-1|artifact_collect|Collect|Забрати/,
+    'published story SSR ignores artifact metadata and does not render collect affordances'
+  );
+
   const unlistedHtml = renderPublishedStoryHtml({
     story,
     useStaticBody: false,
