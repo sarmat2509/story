@@ -3,8 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { LogBox, Platform } from 'react-native';
-import Toast from 'react-native-toast-message';
+import { LogBox, Platform, StyleSheet } from 'react-native';
+import Toast, { BaseToast, type ToastConfig } from 'react-native-toast-message';
 import { initI18n } from '@/config/i18n';
 import i18n from '@/config/i18n';
 import { storage } from '@/utils/storage';
@@ -56,6 +56,42 @@ const queryClient = new QueryClient({
   },
 });
 
+const toastConfig: ToastConfig = {
+  success: (props) => (
+    <BaseToast
+      {...props}
+      style={[styles.toast, styles.toastSuccess]}
+      contentContainerStyle={styles.toastContent}
+      text1Style={styles.toastTitle}
+      text1NumberOfLines={3}
+      text2Style={styles.toastMessage}
+      text2NumberOfLines={4}
+    />
+  ),
+  error: (props) => (
+    <BaseToast
+      {...props}
+      style={[styles.toast, styles.toastError]}
+      contentContainerStyle={styles.toastContent}
+      text1Style={styles.toastTitle}
+      text1NumberOfLines={3}
+      text2Style={styles.toastMessage}
+      text2NumberOfLines={4}
+    />
+  ),
+  info: (props) => (
+    <BaseToast
+      {...props}
+      style={[styles.toast, styles.toastInfo]}
+      contentContainerStyle={styles.toastContent}
+      text1Style={styles.toastTitle}
+      text1NumberOfLines={3}
+      text2Style={styles.toastMessage}
+      text2NumberOfLines={4}
+    />
+  ),
+};
+
 const TRACKED_ROUTE_PATTERNS: Record<string, string> = {
   OAuthCallback: 'auth/:provider/callback',
   ModeSelection: APP_ROUTE_PATHS.modeSelection,
@@ -69,6 +105,7 @@ const TRACKED_ROUTE_PATTERNS: Record<string, string> = {
   Wizard: APP_ROUTE_PATHS.wizard,
   Library: APP_ROUTE_PATHS.library,
   LibraryRedirect: 'library',
+  MapTiles: APP_ROUTE_PATHS.mapTiles,
   Series: APP_ROUTE_PATHS.series,
   SeriesDetail: 'me/series/:seriesId',
   Story: APP_ROUTE_PATHS.story,
@@ -254,6 +291,7 @@ const linking: any = {
           Wizard: APP_ROUTE_PATHS.wizard,
           Library: APP_ROUTE_PATHS.library,
           LibraryRedirect: 'library',
+          MapTiles: APP_ROUTE_PATHS.mapTiles,
           Series: APP_ROUTE_PATHS.series,
           SeriesDetail: 'me/series/:seriesId',
           Story: APP_ROUTE_PATHS.story,
@@ -436,8 +474,45 @@ export default function App() {
             )}
           </QueryClientProvider>
         </GestureHandlerRootView>
-        <Toast />
+        <Toast config={toastConfig} />
       </ErrorBoundary>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  toast: {
+    width: '92%',
+    maxWidth: 560,
+    minHeight: 72,
+    height: 'auto',
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+  },
+  toastSuccess: {
+    borderLeftColor: '#69C779',
+  },
+  toastError: {
+    borderLeftColor: '#FE6301',
+  },
+  toastInfo: {
+    borderLeftColor: '#87CEFA',
+  },
+  toastContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  toastTitle: {
+    color: '#1F1720',
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '700',
+    width: '100%',
+  },
+  toastMessage: {
+    color: '#6B5D67',
+    fontSize: 13,
+    lineHeight: 18,
+    width: '100%',
+  },
+});

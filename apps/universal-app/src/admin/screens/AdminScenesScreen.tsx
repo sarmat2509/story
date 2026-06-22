@@ -13,15 +13,18 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { stripCharacterIdFromName } from '@wondertales/shared';
 import {
+  type AdminMapTileAssetPayload,
   useAdminDirectorScenes,
   useAdminRegenerateSceneImage,
   useAdminResetStoryAudio,
 } from '@/admin/api/admin';
 import { AdminLayout } from '@/admin/components/AdminLayout';
 import { AdminErrorState, AdminLoadingState } from '@/admin/components/AdminState';
+import { API_BASE_URL } from '@/config/constants';
 import { theme } from '@/theme';
 import type { AdminStackParamList } from '@/types/navigation';
 import { formatAssetUrl } from '@/utils/assetUrl';
+import { storage } from '@/utils/storage';
 
 function confirmAdminAudioAction(message: string): Promise<boolean> {
   if (
@@ -47,6 +50,15 @@ function formatDurationMs(ms: number | null | undefined): string {
     return `${Math.round(ms)} ms`;
   }
   return `${Math.round(ms)} ms (${(ms / 1000).toFixed(1)} s)`;
+}
+
+function formatAdminApiUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/api/')) {
+    return Platform.OS === 'web' ? url : `${API_BASE_URL.replace(/\/$/, '')}${url}`;
+  }
+  return url;
 }
 
 function toLabel(key: string): string {
@@ -247,6 +259,294 @@ function renderSceneVisual(
             )}
           </View>
         ) : null}
+      </View>
+    </View>
+  );
+}
+
+function AuthenticatedAdminImagePreview({
+  url,
+  style,
+  resizeMode,
+  emptyLabel,
+  iconName,
+}: {
+  url: string | null;
+  style: any;
+  resizeMode: 'cover' | 'contain';
+  emptyLabel: string;
+  iconName: keyof typeof Ionicons.glyphMap;
+}) {
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+
+    setResolvedUrl(null);
+    setFailed(false);
+
+    if (!url) {
+      return () => undefined;
+    }
+
+    if (Platform.OS !== 'web' || url.startsWith('blob:') || url.startsWith('data:')) {
+      setResolvedUrl(url);
+      return () => undefined;
+    }
+
+    const load = async () => {
+      try {
+        const token = await storage.getAuthToken();
+        const response = await fetch(url, {
+          credentials: 'include',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!response.ok) {
+          throw new Error(`Image request failed: ${response.status}`);
+        }
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) {
+          setResolvedUrl(objectUrl);
+        }
+      } catch (_error) {
+        if (!cancelled) {
+          setFailed(true);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [url]);
+
+  if (!url || failed) {
+    return (
+      <View style={[style, styles.mapTilePreviewEmptyState]}>
+        <Ionicons name={iconName} size={26} color={theme.colors.text.secondary} />
+        <Text style={styles.metaText}>{emptyLabel}</Text>
+      </View>
+    );
+  }
+
+  if (!resolvedUrl) {
+    return (
+      <View style={[style, styles.mapTilePreviewEmptyState]}>
+        <Text style={styles.metaText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  return <Image source={{ uri: resolvedUrl }} style={style} resizeMode={resizeMode} />;
+}
+
+function renderFeatureChips(features: unknown, keyPrefix: string): React.ReactNode {
+  const list = Array.isArray(features)
+    ? features.filter((feature): feature is string => typeof feature === 'string' && feature.length > 0)
+    : [];
+
+  if (list.length === 0) {
+    return <Text style={styles.metaText}>n/a</Text>;
+  }
+
+  return (
+    <View style={styles.mapTileChipRow}>
+      {list.map((feature) => (
+        <View key={`${keyPrefix}-${feature}`} style={styles.mapTileFeatureChip}>
+          <Text style={styles.mapTileFeatureChipText}>{feature}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function renderConnectorChips(connectors: unknown): React.ReactNode {
+  if (!connectors || typeof connectors !== 'object' || Array.isArray(connectors)) {
+    return <Text style={styles.metaText}>n/a</Text>;
+  }
+
+  const entries = Object.entries(connectors as Record<string, unknown>).filter(
+    ([, value]) => typeof value === 'string' && value.length > 0
+  );
+  if (entries.length === 0) {
+    return <Text style={styles.metaText}>n/a</Text>;
+  }
+
+  return (
+    <View style={styles.mapTileChipRow}>
+      {entries.map(([side, value]) => (
+        <View key={`connector-${side}`} style={styles.mapTileConnectorChip}>
+          <Text style={styles.mapTileConnectorSide}>{side}</Text>
+          <Text style={styles.mapTileConnectorValue}>{String(value)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function renderRouteGroups(routeGroups: unknown): React.ReactNode {
+  if (!Array.isArray(routeGroups) || routeGroups.length === 0) {
+    return <Text style={styles.metaText}>n/a</Text>;
+  }
+
+  return (
+    <View style={styles.mapTileRouteList}>
+      {routeGroups.map((group, index) => {
+        const routeGroup =
+          group && typeof group === 'object' && !Array.isArray(group)
+            ? (group as Record<string, unknown>)
+            : {};
+        const kind = typeof routeGroup.kind === 'string' ? routeGroup.kind : `GROUP ${index + 1}`;
+        const endpoints = Array.isArray(routeGroup.endpoints)
+          ? routeGroup.endpoints.map(String)
+          : [];
+
+        return (
+          <View key={`route-group-${index}`} style={styles.mapTileRouteItem}>
+            <Text style={styles.mapTileRouteKind}>{kind}</Text>
+            <Text style={styles.mapTileRouteEndpoints}>
+              {endpoints.length > 0 ? endpoints.join(' -> ') : 'n/a'}
+            </Text>
+            {typeof routeGroup.note === 'string' && routeGroup.note.length > 0 ? (
+              <Text style={styles.mapTileRouteNote}>{routeGroup.note}</Text>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function renderMapTile(
+  mapTile: unknown,
+  mapTileAsset: AdminMapTileAssetPayload | null | undefined
+): React.ReactNode {
+  if (!mapTile || typeof mapTile !== 'object') {
+    return <Text style={styles.metaText}>n/a</Text>;
+  }
+
+  const tile = mapTile as Record<string, unknown>;
+  const rawAssetImageUrl = mapTileAsset?.imageUrl ?? null;
+  const assetImageUrl = rawAssetImageUrl?.startsWith('/api/')
+    ? formatAdminApiUrl(rawAssetImageUrl)
+    : formatAssetUrl(rawAssetImageUrl);
+  const mask = mapTileAsset?.mask ?? null;
+  const maskImageUrl = formatAdminApiUrl(mask?.imageUrl ?? null);
+  const rawGenerationParams = mapTileAsset?.generationParams
+    ? JSON.stringify(mapTileAsset.generationParams, null, 2)
+    : null;
+
+  return (
+    <View style={styles.mapTilePanel}>
+      <View style={styles.mapTileHeader}>
+        <View style={styles.sceneVisualHeading}>
+          <Ionicons name="map-outline" size={18} color={theme.colors.interactive.primary} />
+          <Text style={styles.sceneVisualHeadingText}>MAP TILE</Text>
+        </View>
+        {mapTileAsset?.createdAt ? (
+          <Text style={styles.mapTileGeneratedAt}>
+            Current tile asset from {new Date(mapTileAsset.createdAt).toLocaleString()}
+          </Text>
+        ) : (
+          <Text style={styles.mapTileGeneratedAt}>No generated tile asset yet</Text>
+        )}
+      </View>
+
+      <View style={styles.mapTileHeroRow}>
+        <View style={styles.mapTileMetadataColumn}>
+          <View style={styles.mapTileField}>
+            <Text style={styles.mapTileFieldLabel}>Director description</Text>
+            <Text selectable style={styles.mapTileDescriptionText}>
+              {typeof tile.description === 'string' && tile.description.trim()
+                ? tile.description
+                : 'n/a'}
+            </Text>
+          </View>
+
+          <View style={styles.mapTileField}>
+            <Text style={styles.mapTileFieldLabel}>Required features</Text>
+            {renderFeatureChips(tile.requiredFeatures, 'mapTile-requiredFeatures')}
+          </View>
+
+          <View style={styles.mapTileTechGrid}>
+            <View style={styles.mapTileTechCard}>
+              <Text style={styles.mapTileFieldLabel}>Mask</Text>
+              <Text selectable style={styles.mapTileTechTitle}>
+                {mask?.id ?? 'n/a'}
+              </Text>
+              {mask?.label ? <Text style={styles.mapTileTechText}>{mask.label}</Text> : null}
+              {mask?.topology ? <Text style={styles.mapTileTechText}>{mask.topology}</Text> : null}
+            </View>
+
+            <View style={styles.mapTileTechCard}>
+              <Text style={styles.mapTileFieldLabel}>Mask features</Text>
+              {renderFeatureChips(mask?.features, 'mapTile-maskFeatures')}
+            </View>
+
+            <View style={styles.mapTileTechCard}>
+              <Text style={styles.mapTileFieldLabel}>Connectors</Text>
+              {renderConnectorChips(mask?.connectors)}
+            </View>
+
+            <View style={styles.mapTileTechCard}>
+              <Text style={styles.mapTileFieldLabel}>Asset</Text>
+              <Text style={styles.mapTileTechText}>mime: {mapTileAsset?.mimeType ?? 'n/a'}</Text>
+              <Text style={styles.mapTileTechText}>
+                generation: {formatDurationMs(mapTileAsset?.generationTimeMs)}
+              </Text>
+              <Text style={styles.mapTileTechText}>
+                size: {mapTileAsset?.fileSizeBytes ? `${mapTileAsset.fileSizeBytes} bytes` : 'n/a'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.mapTileField}>
+            <Text style={styles.mapTileFieldLabel}>Route groups</Text>
+            {renderRouteGroups(mask?.routeGroups)}
+          </View>
+        </View>
+
+        <View style={styles.mapTilePreviewColumn}>
+          <Text style={styles.mapTileFieldLabel}>Tile image</Text>
+          <AuthenticatedAdminImagePreview
+            url={assetImageUrl}
+            style={styles.mapTilePreviewImage}
+            resizeMode="cover"
+            emptyLabel="No tile image"
+            iconName="image-outline"
+          />
+          {mapTileAsset?.id ? (
+            <Text selectable style={styles.mapTileAssetId}>
+              asset: {mapTileAsset.id}
+            </Text>
+          ) : null}
+
+          <Text style={styles.mapTileFieldLabel}>Mask image</Text>
+          <AuthenticatedAdminImagePreview
+            url={maskImageUrl}
+            style={styles.mapTileMaskPreviewImage}
+            resizeMode="contain"
+            emptyLabel="No mask image"
+            iconName="grid-outline"
+          />
+        </View>
+      </View>
+
+      <View style={styles.mapTileField}>
+        <Text style={styles.mapTileFieldLabel}>Raw generation params</Text>
+        <ScrollView style={styles.mapTileRawBox} nestedScrollEnabled>
+          <Text selectable style={styles.audioPre}>
+            {rawGenerationParams ?? 'n/a'}
+          </Text>
+        </ScrollView>
       </View>
     </View>
   );
@@ -511,6 +811,11 @@ export default function AdminScenesScreen() {
             Per-scene «STORY TEXT» is the writer manuscript (prose). Inline `[…]` TTS prosody
             markup, when the pipeline stores it, appears only above under AUDIO → «Synthesis text».
           </Text>
+        ) : null}
+        {routeStoryId && !scenesQuery.isLoading && !scenesQuery.error ? (
+          <View style={styles.sceneCard}>
+            {renderMapTile(storyMeta?.mapTile, storyMeta?.mapTileAsset)}
+          </View>
         ) : null}
         {routeStoryId && !scenesQuery.isLoading && !scenesQuery.error ? (
           scenes.length > 0 ? (
@@ -1079,6 +1384,177 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: theme.colors.text.primary,
     lineHeight: 23,
+  },
+  mapTilePanel: {
+    gap: 18,
+  },
+  mapTileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    flexWrap: 'wrap',
+  },
+  mapTileGeneratedAt: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+  },
+  mapTileHeroRow: {
+    flexDirection: 'row',
+    gap: 20,
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+  },
+  mapTileMetadataColumn: {
+    flex: 1,
+    minWidth: 360,
+    gap: 16,
+  },
+  mapTilePreviewColumn: {
+    width: 280,
+    flexShrink: 0,
+    gap: 10,
+  },
+  mapTilePreviewImage: {
+    width: 280,
+    height: 280,
+    backgroundColor: theme.colors.background.secondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+  },
+  mapTileMaskPreviewImage: {
+    width: 280,
+    height: 280,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+  },
+  mapTilePreviewEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  mapTileAssetId: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: theme.colors.text.secondary,
+  },
+  mapTileField: {
+    gap: 8,
+  },
+  mapTileFieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.text.secondary,
+    textTransform: 'uppercase',
+  },
+  mapTileDescriptionText: {
+    fontSize: 16,
+    lineHeight: 25,
+    color: theme.colors.text.primary,
+  },
+  mapTileChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  mapTileFeatureChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: theme.colors.primary[50],
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+  },
+  mapTileFeatureChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.interactive.primary,
+  },
+  mapTileConnectorChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  mapTileConnectorSide: {
+    minWidth: 34,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '800',
+    color: theme.colors.text.inverse,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  mapTileConnectorValue: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  mapTileTechGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  mapTileTechCard: {
+    minWidth: 220,
+    flex: 1,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+    gap: 8,
+  },
+  mapTileTechTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  mapTileTechText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: theme.colors.text.secondary,
+  },
+  mapTileRouteList: {
+    gap: 8,
+  },
+  mapTileRouteItem: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+    gap: 4,
+  },
+  mapTileRouteKind: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: theme.colors.interactive.primary,
+  },
+  mapTileRouteEndpoints: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  mapTileRouteNote: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: theme.colors.text.secondary,
+  },
+  mapTileRawBox: {
+    maxHeight: 260,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+    padding: 10,
   },
   costCard: {
     borderWidth: 1,

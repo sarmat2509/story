@@ -416,6 +416,65 @@ export const useGenerateAlignment = () => {
   });
 };
 
+export type GeneratedMapTileResponse = {
+  dryRun: boolean;
+  mask: {
+    id: string;
+    label: string;
+    description: string;
+    connectors: Record<string, string>;
+    topology: string;
+    features: string[];
+  };
+  mapTile: {
+    description: string;
+    requiredFeatures: string[];
+  };
+  referenceAssets: Array<{
+    id: string;
+    sceneIndex: number | null;
+    storagePath: string;
+    mimeType: string;
+    source: 'story_scene_image' | 'explicit_asset_id';
+  }>;
+  asset?: {
+    id: string;
+    imageUrl: string;
+    storagePath: string;
+    mimeType: string;
+    width: number;
+    height: number;
+  };
+};
+
+export const useGenerateMapTile = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      storyId,
+      useStoryImageReferences = true,
+      maxStoryImageReferences = 3,
+    }: {
+      storyId: string;
+      useStoryImageReferences?: boolean;
+      maxStoryImageReferences?: number;
+    }) => {
+      const response = await apiClient.post<{
+        status: string;
+        mapTile: GeneratedMapTileResponse;
+      }>(`/api/v1/stories/${storyId}/map-tile`, {
+        useStoryImageReferences,
+        maxStoryImageReferences,
+      });
+      return response.data.mapTile;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['story', variables.storyId] });
+    },
+  });
+};
+
 // Delete story
 export const useDeleteStory = () => {
   const queryClient = useQueryClient();

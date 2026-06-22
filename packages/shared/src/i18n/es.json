@@ -848,7 +848,11 @@
     "series": "Series de historias",
     "page_not_found": "Página no encontrada",
     "page_not_found_message": "La página que buscas no existe o ha sido movida.",
-    "go_home": "Ir al inicio"
+    "go_home": "Ir al inicio",
+    "artifacts": "Artefactos",
+    "tab_artifacts": "Artefactos",
+    "map_tiles": "Mapa",
+    "tab_map_tiles": "Mapa"
   },
   "story_rating": {
     "heading": "¿Te gustó la historia?",
@@ -953,7 +957,26 @@
     "schedule_cadence_every_2_days": "Cada 2 días",
     "schedule_cadence_twice_weekly": "Dos veces por semana",
     "schedule_cadence_weekly": "Semanal",
-    "schedule_button": "Programar"
+    "schedule_button": "Programar",
+    "artifact_collect": "Guardar",
+    "artifact_collected_title": "Artefacto guardado",
+    "artifact_collected_message": "{{title}} ahora está en la colección.",
+    "artifact_already_collected_title": "Ya guardado",
+    "artifact_already_collected_message": "{{title}} ya está guardado.",
+    "artifact_already_in_chest": "Ya está en tu cofre",
+    "artifact_already_in_chest_prefix": "Ya está en tu",
+    "artifact_already_in_chest_link": "cofre de artefactos",
+    "artifact_collect_error": "No se pudo guardar el artefacto",
+    "map_tile_generate": "Crear pieza de mapa",
+    "map_tile_generating": "Creando pieza de mapa...",
+    "map_tile_generated_title": "Pieza de mapa creada",
+    "map_tile_generated_message": "La nueva pieza del mapa está lista. Referencias usadas: {{count}}.",
+    "map_tile_generate_error": "No se pudo crear la pieza de mapa",
+    "map_tile_claim_prize": "Recoger premio",
+    "map_tile_prize_title": "Pieza del mapa",
+    "map_tile_collect": "Recoger",
+    "map_tile_collect_error": "No se pudo recoger la pieza del mapa",
+    "map_tile_already_on_map": "La pieza ya está en el mapa"
   },
   "dashboard": {
     "welcome_back": "Bienvenido de nuevo, {{name}}!",
@@ -1325,5 +1348,28 @@
     "child_statement": "Si la imagen incluye a un niño, soy su padre/madre o tutor legal, o tengo permiso de su padre/madre o tutor legal.",
     "public_figures_statement": "No subiré imágenes de figuras públicas, celebridades, influencers u otras personas sin permiso.",
     "confirm": "Confirmo"
+  },
+  "artifacts": {
+    "title": "Artefactos",
+    "empty_title": "La colección está vacía",
+    "empty_subtitle": "Los artefactos aparecerán aquí después de historias donde el héroe recibe un recuerdo.",
+    "obtained_in_story": "Obtenido en “{{title}}”",
+    "open_story": "Abrir historia"
+  },
+  "map_tiles": {
+    "title": "Mapa lector",
+    "inventory_title": "Piezas nuevas",
+    "inventory_hint": "Arrastra piezas al mapa o de vuelta a esta fila.",
+    "inventory_empty": "No hay piezas de reserva",
+    "empty_title": "Tu mapa está esperando",
+    "empty_subtitle": "Recoge piezas después de las historias y construye aquí tu universo lector.",
+    "layout_save_error": "No se pudo guardar el mapa",
+    "cell_occupied": "Esa celda ya está ocupada",
+    "connectors_mismatch": "Los caminos y el agua deben coincidir con bordes iguales",
+    "inventory_count": "Piezas de reserva: {{count}}",
+    "mode_pan": "Mover mapa",
+    "mode_select": "Mover piezas",
+    "inventory_collapse": "Contraer fila de piezas",
+    "inventory_expand": "Expandir fila de piezas"
   }
 }

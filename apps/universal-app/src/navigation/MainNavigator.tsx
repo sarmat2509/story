@@ -32,6 +32,8 @@ import DashboardScreen from '@/screens/dashboard/DashboardScreen';
 import WizardScreen from '@/screens/wizard/WizardScreen';
 import InstantWizardScreen from '@/screens/wizard/InstantWizardScreen';
 import LibraryScreen from '@/screens/library/LibraryScreen';
+import ArtifactsScreen from '@/screens/artifacts/ArtifactsScreen';
+import MapTilesScreen from '@/screens/map/MapTilesScreen';
 import SeriesListScreen from '@/screens/series/SeriesListScreen';
 import SeriesDetailScreen from '@/screens/series/SeriesDetailScreen';
 import LegacyRedirectScreen from '@/screens/LegacyRedirectScreen';
@@ -102,6 +104,20 @@ function LibraryScreenWithAuth() {
   return (
     <AuthGuard>
       <LibraryScreen />
+    </AuthGuard>
+  );
+}
+function ArtifactsScreenWithAuth() {
+  return (
+    <AuthGuard>
+      <ArtifactsScreen />
+    </AuthGuard>
+  );
+}
+function MapTilesScreenWithAuth() {
+  return (
+    <AuthGuard>
+      <MapTilesScreen />
     </AuthGuard>
   );
 }
@@ -223,6 +239,8 @@ const TABLET_TAB_ORDER: (keyof MainTabParamList)[] = [
   'Dashboard',
   'Wizard',
   'Library',
+  'Artifacts',
+  'MapTiles',
   'Children',
   'Characters',
   'Plans',
@@ -230,6 +248,8 @@ const TABLET_TAB_ORDER: (keyof MainTabParamList)[] = [
 ];
 const MORE_MENU_ROUTES: (keyof MainTabParamList)[] = [
   'Series',
+  'Artifacts',
+  'MapTiles',
   'Stories',
   'Children',
   'Plans',
@@ -246,9 +266,11 @@ const TABLET_TAB_ORDER_CHILD: (keyof MainTabParamList)[] = [
   'Wizard',
   'Library',
   'Characters',
+  'Artifacts',
+  'MapTiles',
   'Stories',
 ];
-const MORE_MENU_ROUTES_CHILD: (keyof MainTabParamList)[] = ['Stories'];
+const MORE_MENU_ROUTES_CHILD: (keyof MainTabParamList)[] = ['Artifacts', 'MapTiles', 'Stories'];
 
 const MOBILE_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories'];
 const TABLET_TAB_ORDER_PUBLIC: (keyof MainTabParamList)[] = ['Welcome', 'Stories'];
@@ -259,6 +281,8 @@ const TAB_LABELS: Record<string, string> = {
   Dashboard: 'navigation.tab_dashboard',
   Wizard: 'navigation.tab_create_story',
   Library: 'navigation.tab_library',
+  Artifacts: 'navigation.tab_artifacts',
+  MapTiles: 'navigation.tab_map_tiles',
   Characters: 'navigation.tab_characters',
   Children: 'navigation.tab_children',
   Plans: 'navigation.tab_plans',
@@ -271,6 +295,8 @@ const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Dashboard: 'home-outline',
   Wizard: 'create-outline',
   Library: 'library-outline',
+  Artifacts: 'sparkles-outline',
+  MapTiles: 'map-outline',
   Characters: 'body-outline',
   Children: 'people-outline',
   Plans: 'diamond-outline',
@@ -294,7 +320,7 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
   const moreMenuRoutes = isChildSession
     ? childCanReadPublicStories
       ? MORE_MENU_ROUTES_CHILD
-      : []
+      : MORE_MENU_ROUTES_CHILD.filter((name) => name !== 'Stories')
     : isAuthenticated
       ? MORE_MENU_ROUTES
       : MORE_MENU_ROUTES_PUBLIC;
@@ -334,12 +360,18 @@ function MobileTabBar({ state, descriptors: _d, navigation, isAuthenticated }: M
     icon: keyof typeof Ionicons.glyphMap;
     labelKey: string;
   }[] = isChildSession
-    ? childCanReadPublicStories
-      ? [{ name: 'Stories', icon: 'newspaper-outline', labelKey: 'navigation.published_stories' }]
-      : []
+    ? [
+        { name: 'Artifacts', icon: 'sparkles-outline', labelKey: 'navigation.artifacts' },
+        { name: 'MapTiles', icon: 'map-outline', labelKey: 'navigation.map_tiles' },
+        ...(childCanReadPublicStories
+          ? [{ name: 'Stories' as const, icon: 'newspaper-outline' as const, labelKey: 'navigation.published_stories' }]
+          : []),
+      ]
     : isAuthenticated
       ? [
           { name: 'Series', icon: 'layers-outline', labelKey: 'navigation.series' },
+          { name: 'Artifacts', icon: 'sparkles-outline', labelKey: 'navigation.artifacts' },
+          { name: 'MapTiles', icon: 'map-outline', labelKey: 'navigation.map_tiles' },
           { name: 'Stories', icon: 'newspaper-outline', labelKey: 'navigation.published_stories' },
           { name: 'Children', icon: 'people-outline', labelKey: 'navigation.tab_children' },
           { name: 'Plans', icon: 'diamond-outline', labelKey: 'navigation.tab_plans' },
@@ -621,6 +653,30 @@ function TabNavigator() {
         name="LibraryRedirect"
         component={LegacyRedirectScreen}
         options={{ tabBarButton: () => null }}
+      />
+      <Tab.Screen
+        name="Artifacts"
+        component={ArtifactsScreenWithAuth}
+        options={{
+          title: t('navigation.artifacts'),
+          tabBarLabel: t('navigation.tab_artifacts'),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="sparkles-outline" size={size} color={color} />
+          ),
+          tabBarButton: !isAuthenticated ? () => null : undefined,
+        }}
+      />
+      <Tab.Screen
+        name="MapTiles"
+        component={MapTilesScreenWithAuth}
+        options={{
+          title: t('navigation.map_tiles'),
+          tabBarLabel: t('navigation.tab_map_tiles'),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="map-outline" size={size} color={color} />
+          ),
+          tabBarButton: !isAuthenticated ? () => null : undefined,
+        }}
       />
       <Tab.Screen
         name="Series"
@@ -914,6 +970,28 @@ function DrawerNavigator() {
           title: t('navigation.library'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="library-outline" size={size} color={color} />
+          ),
+          drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
+        }}
+      />
+      <Drawer.Screen
+        name="Artifacts"
+        component={ArtifactsScreenWithAuth}
+        options={{
+          title: t('navigation.artifacts'),
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="sparkles-outline" size={size} color={color} />
+          ),
+          drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
+        }}
+      />
+      <Drawer.Screen
+        name="MapTiles"
+        component={MapTilesScreenWithAuth}
+        options={{
+          title: t('navigation.map_tiles'),
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="map-outline" size={size} color={color} />
           ),
           drawerItemStyle: !isAuthenticated ? { display: 'none' } : undefined,
         }}

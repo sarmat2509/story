@@ -306,7 +306,11 @@
     "series": "Geschichtenserie",
     "page_not_found": "Seite nicht gefunden",
     "page_not_found_message": "Die gesuchte Seite existiert nicht oder wurde verschoben.",
-    "go_home": "Zur Startseite"
+    "go_home": "Zur Startseite",
+    "artifacts": "Artefakte",
+    "tab_artifacts": "Artefakte",
+    "map_tiles": "Karte",
+    "tab_map_tiles": "Karte"
   },
   "story_rating": {
     "heading": "Hat Ihnen die Geschichte gefallen?",
@@ -412,7 +416,26 @@
     "schedule_cadence_every_2_days": "Alle 2 Tage",
     "schedule_cadence_twice_weekly": "Zweimal pro Woche",
     "schedule_cadence_weekly": "Wöchentlich",
-    "schedule_button": "Planen"
+    "schedule_button": "Planen",
+    "artifact_collect": "Sammeln",
+    "artifact_collected_title": "Artefakt gespeichert",
+    "artifact_collected_message": "{{title}} ist jetzt in der Sammlung.",
+    "artifact_already_collected_title": "Schon gespeichert",
+    "artifact_already_collected_message": "{{title}} ist bereits gespeichert.",
+    "artifact_already_in_chest": "Schon in deiner Truhe",
+    "artifact_already_in_chest_prefix": "Schon in deiner",
+    "artifact_already_in_chest_link": "Artefakttruhe",
+    "artifact_collect_error": "Artefakt konnte nicht gespeichert werden",
+    "map_tile_generate": "Kartenteil erstellen",
+    "map_tile_generating": "Kartenteil wird erstellt...",
+    "map_tile_generated_title": "Kartenteil erstellt",
+    "map_tile_generated_message": "Ein neues Kartenteil ist bereit. Verwendete Story-Referenzen: {{count}}.",
+    "map_tile_generate_error": "Kartenteil konnte nicht erstellt werden",
+    "map_tile_claim_prize": "Belohnung holen",
+    "map_tile_prize_title": "Kartenteil",
+    "map_tile_collect": "Sammeln",
+    "map_tile_collect_error": "Kartenteil konnte nicht gesammelt werden",
+    "map_tile_already_on_map": "Das Teil ist schon auf der Karte"
   },
   "dashboard": {
     "welcome_back": "Willkommen zurück, {{name}}!",
@@ -1001,5 +1024,28 @@
     "child_statement": "Wenn das Bild ein Kind zeigt, bin ich der Elternteil/gesetzliche Vormund oder habe die Erlaubnis des Elternteils/gesetzlichen Vormunds.",
     "public_figures_statement": "Ich werde keine Bilder von öffentlichen Personen, Prominenten, Influencern oder anderen Menschen ohne Erlaubnis hochladen.",
     "confirm": "Ich bestätige"
+  },
+  "artifacts": {
+    "title": "Artefakte",
+    "empty_title": "Die Sammlung ist leer",
+    "empty_subtitle": "Artefakte erscheinen hier nach Geschichten, in denen der Held ein Andenken erhält.",
+    "obtained_in_story": "Erhalten in „{{title}}“",
+    "open_story": "Geschichte öffnen"
+  },
+  "map_tiles": {
+    "title": "Lesekarte",
+    "inventory_title": "Neue Teile",
+    "inventory_hint": "Ziehe Teile auf die Karte oder zurück in diese Reihe.",
+    "inventory_empty": "Keine Ersatzteile",
+    "empty_title": "Deine Karte wartet",
+    "empty_subtitle": "Sammle Kartenteile nach Geschichten und baue hier dein Leseuniversum.",
+    "layout_save_error": "Kartenlayout konnte nicht gespeichert werden",
+    "cell_occupied": "Diese Zelle ist bereits belegt",
+    "connectors_mismatch": "Wege und Wasser müssen an passende Kanten anschließen",
+    "inventory_count": "Reserveteile: {{count}}",
+    "mode_pan": "Karte bewegen",
+    "mode_select": "Teile bewegen",
+    "inventory_collapse": "Teilereihe einklappen",
+    "inventory_expand": "Teilereihe ausklappen"
   }
 }

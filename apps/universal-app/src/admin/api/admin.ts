@@ -749,6 +749,28 @@ export type AdminStoryAudioPayload = {
   chunks: AdminStoryAudioChunkPayload[];
 };
 
+export type AdminMapTileAssetPayload = {
+  id: string;
+  imageUrl: string;
+  storagePath: string;
+  thumbnailPath: string | null;
+  mimeType: string;
+  fileSizeBytes: number | null;
+  generationTimeMs: number | null;
+  createdAt: string;
+  mask: {
+    id: string;
+    label?: string;
+    description?: string;
+    connectors?: Record<string, string>;
+    topology?: string;
+    routeGroups?: unknown[];
+    features?: string[];
+    imageUrl?: string;
+  } | null;
+  generationParams: Record<string, unknown>;
+};
+
 export function useAdminDirectorScenes(storyId?: string) {
   return useQuery({
     queryKey: ['admin', 'director-scenes', storyId ?? ''],
@@ -759,6 +781,8 @@ export function useAdminDirectorScenes(storyId?: string) {
           story: {
             id: string;
             title: string;
+            mapTile: unknown;
+            mapTileAsset: AdminMapTileAssetPayload | null;
             createdAt: string;
           };
           storyScenes: AdminStorySceneItem[];

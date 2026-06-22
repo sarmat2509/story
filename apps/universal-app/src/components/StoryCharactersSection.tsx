@@ -18,6 +18,8 @@ import { formatAssetUrl } from '@/utils/assetUrl';
 export interface StoryCharacter {
   id: string;
   name: string;
+  localizedName?: string | null;
+  nameTranslations?: Record<string, string | null | undefined>;
   type: string;
   referencePhotoUrl?: string | null;
   isHidden?: boolean;
@@ -31,6 +33,7 @@ interface StoryCharactersSectionProps {
   onSaveCharacter: (characterId: string, description?: string | null) => void;
   isSavePending: boolean;
   collapsible?: boolean;
+  storyLanguage?: string | null;
 }
 
 /** Fixed box for reference photo; image is ~90% of the box so content has a slight inset from the frame. */
@@ -183,6 +186,18 @@ const CHARACTER_TYPE_KEYS: Record<string, string> = {
   imaginary: 'story_viewer.character_type_imaginary',
 };
 
+function normalizeLocale(locale?: string | null): string | null {
+  return locale?.split('-')[0]?.toLowerCase() || null;
+}
+
+function getCharacterDisplayName(character: StoryCharacter, storyLanguage?: string | null): string {
+  const locale = normalizeLocale(storyLanguage);
+  const translatedName = locale ? character.nameTranslations?.[locale] : null;
+  const candidate = translatedName || character.localizedName || character.name;
+  const displayName = stripCharacterIdFromName(candidate).trim();
+  return displayName || stripCharacterIdFromName(character.name);
+}
+
 function StoryCharactersSectionInner({
   characters,
   savedCharacterIds,
@@ -190,6 +205,7 @@ function StoryCharactersSectionInner({
   onSaveCharacter,
   isSavePending,
   collapsible = false,
+  storyLanguage,
 }: StoryCharactersSectionProps) {
   const { t } = useTranslation();
   const savedSet = new Set(savedCharacterIds);
@@ -231,6 +247,7 @@ function StoryCharactersSectionInner({
       {shouldShowCharacters && characters.map((char) => {
         const isEffectivelyHidden = char.isHidden && !savedSet.has(char.id);
         const canSaveCharacter = isEffectivelyHidden && isArtisanMode;
+        const displayName = getCharacterDisplayName(char, storyLanguage);
         return (
           <View
             key={char.id}
@@ -287,7 +304,7 @@ function StoryCharactersSectionInner({
                 </View>
               )}
               <View style={styles.characterInfo}>
-                <Text style={styles.characterName}>{stripCharacterIdFromName(char.name)}</Text>
+                <Text style={styles.characterName}>{displayName}</Text>
                 <Text style={styles.characterType}>{getCharacterTypeLabel(char.type)}</Text>
               </View>
             </View>

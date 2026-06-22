@@ -946,7 +946,26 @@
     "bundle_hint": "Kup pakiet w Cenniku — wiecej do {{periodEnd}}.",
     "bundle_hint_no_date": "Kup pakiet w Cenniku, aby miec wiecej historii i audio.",
     "bundle_pricing_link": "Cennik i pakiety",
-    "character_type_imaginary_friend": "Wymyslony przyjaciel"
+    "character_type_imaginary_friend": "Wymyslony przyjaciel",
+    "artifact_collect": "Zabierz",
+    "artifact_collected_title": "Artefakt zapisany",
+    "artifact_collected_message": "{{title}} jest teraz w kolekcji.",
+    "artifact_already_collected_title": "Już zapisany",
+    "artifact_already_collected_message": "{{title}} jest już zapisany.",
+    "artifact_already_in_chest": "Już w twojej skrzyni",
+    "artifact_already_in_chest_prefix": "Już w twojej",
+    "artifact_already_in_chest_link": "skrzyni artefaktów",
+    "artifact_collect_error": "Nie udało się zapisać artefaktu",
+    "map_tile_generate": "Utwórz kafelek mapy",
+    "map_tile_generating": "Tworzymy kafelek mapy...",
+    "map_tile_generated_title": "Kafelek mapy utworzony",
+    "map_tile_generated_message": "Nowy fragment mapy jest gotowy. Użyte referencje z historii: {{count}}.",
+    "map_tile_generate_error": "Nie udało się utworzyć kafelka mapy",
+    "map_tile_claim_prize": "Odbierz nagrodę",
+    "map_tile_prize_title": "Kawałek mapy",
+    "map_tile_collect": "Zabierz",
+    "map_tile_collect_error": "Nie udało się zabrać kafelka mapy",
+    "map_tile_already_on_map": "Kafelek jest już na mapie"
   },
   "published_story": {
     "cta_title": "Twoje dziecko jest bohaterem wlasnej opowiesci",
@@ -1161,7 +1180,11 @@
     "series": "Serie historii",
     "page_not_found": "Nie znaleziono strony",
     "page_not_found_message": "Strona, ktorej szukasz, nie istnieje lub zostala przeniesiona.",
-    "go_home": "Przejdz do strony glownej"
+    "go_home": "Przejdz do strony glownej",
+    "artifacts": "Artefakty",
+    "tab_artifacts": "Artefakty",
+    "map_tiles": "Mapa",
+    "tab_map_tiles": "Mapa"
   },
   "dashboard": {
     "welcome_back": "Witaj ponownie, {{name}}!",
@@ -1608,5 +1631,28 @@
     "child_statement": "Jesli obraz przedstawia dziecko, jestem jego rodzicem/opiekunem prawnym albo mam zgode rodzica/opiekuna prawnego.",
     "public_figures_statement": "Nie bede przesylac obrazow osob publicznych, celebrytow, influencerow ani innych osob bez pozwolenia.",
     "confirm": "Potwierdzam"
+  },
+  "artifacts": {
+    "title": "Artefakty",
+    "empty_title": "Kolekcja jest pusta",
+    "empty_subtitle": "Artefakty pojawią się tutaj po historiach, w których bohater otrzyma pamiątkę.",
+    "obtained_in_story": "Zdobyto w historii „{{title}}”",
+    "open_story": "Otwórz historię"
+  },
+  "map_tiles": {
+    "title": "Mapa czytelnika",
+    "inventory_title": "Nowe kafelki",
+    "inventory_hint": "Przeciągaj kafelki na mapę albo z powrotem do tego rzędu.",
+    "inventory_empty": "Brak kafelków w zapasie",
+    "empty_title": "Twoja mapa czeka",
+    "empty_subtitle": "Zbieraj kawałki mapy po historiach i buduj tu swój czytelniczy świat.",
+    "layout_save_error": "Nie udało się zapisać układu mapy",
+    "cell_occupied": "Ta komórka jest już zajęta",
+    "connectors_mismatch": "Drogi i woda muszą łączyć się z pasującymi krawędziami",
+    "inventory_count": "W zapasie: {{count}}",
+    "mode_pan": "Przesuwaj mapę",
+    "mode_select": "Przesuwaj kafelki",
+    "inventory_collapse": "Zwiń rząd kafelków",
+    "inventory_expand": "Rozwiń rząd kafelków"
   }
 }

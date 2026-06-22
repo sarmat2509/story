@@ -306,7 +306,11 @@
     "series": "Séries d'histoires",
     "page_not_found": "Page non trouvée",
     "page_not_found_message": "La page que vous recherchez n'existe pas ou a été déplacée.",
-    "go_home": "Retour à l'accueil"
+    "go_home": "Retour à l'accueil",
+    "artifacts": "Artefacts",
+    "tab_artifacts": "Artefacts",
+    "map_tiles": "Carte",
+    "tab_map_tiles": "Carte"
   },
   "story_rating": {
     "heading": "L'histoire vous a plu ?",
@@ -409,7 +413,26 @@
     "schedule_cadence_every_2_days": "Tous les 2 jours",
     "schedule_cadence_twice_weekly": "Deux fois par semaine",
     "schedule_cadence_weekly": "Hebdomadaire",
-    "schedule_button": "Planifier"
+    "schedule_button": "Planifier",
+    "artifact_collect": "Garder",
+    "artifact_collected_title": "Artefact enregistré",
+    "artifact_collected_message": "{{title}} est maintenant dans la collection.",
+    "artifact_already_collected_title": "Déjà enregistré",
+    "artifact_already_collected_message": "{{title}} est déjà enregistré.",
+    "artifact_already_in_chest": "Déjà dans ton coffre",
+    "artifact_already_in_chest_prefix": "Déjà dans ton",
+    "artifact_already_in_chest_link": "coffre d’artefacts",
+    "artifact_collect_error": "Impossible d’enregistrer l’artefact",
+    "map_tile_generate": "Créer une tuile de carte",
+    "map_tile_generating": "Création de la tuile...",
+    "map_tile_generated_title": "Tuile de carte créée",
+    "map_tile_generated_message": "Un nouveau morceau de carte est prêt. Références utilisées : {{count}}.",
+    "map_tile_generate_error": "Impossible de créer la tuile de carte",
+    "map_tile_claim_prize": "Récupérer le prix",
+    "map_tile_prize_title": "Morceau de carte",
+    "map_tile_collect": "Récupérer",
+    "map_tile_collect_error": "Impossible de récupérer le morceau de carte",
+    "map_tile_already_on_map": "Le morceau est déjà sur la carte"
   },
   "dashboard": {
     "welcome_back": "Bienvenue, {{name}}!",
@@ -962,5 +985,28 @@
     "child_statement": "Si l’image montre un enfant, je suis son parent/tuteur légal ou j’ai l’autorisation de son parent/tuteur légal.",
     "public_figures_statement": "Je ne téléverserai pas d’images de personnalités publiques, célébrités, influenceurs ou autres personnes sans autorisation.",
     "confirm": "Je confirme"
+  },
+  "artifacts": {
+    "title": "Artefacts",
+    "empty_title": "La collection est vide",
+    "empty_subtitle": "Les artefacts apparaîtront ici après les histoires où le héros reçoit un souvenir.",
+    "obtained_in_story": "Obtenu dans « {{title}} »",
+    "open_story": "Ouvrir l’histoire"
+  },
+  "map_tiles": {
+    "title": "Carte de lecture",
+    "inventory_title": "Nouveaux morceaux",
+    "inventory_hint": "Fais glisser les morceaux sur la carte ou dans cette rangée.",
+    "inventory_empty": "Aucun morceau en réserve",
+    "empty_title": "Ta carte attend",
+    "empty_subtitle": "Récupère des morceaux après les histoires et construis ton univers de lecture.",
+    "layout_save_error": "Impossible d’enregistrer la carte",
+    "cell_occupied": "Cette case est déjà occupée",
+    "connectors_mismatch": "Les chemins et l’eau doivent rejoindre des bords identiques",
+    "inventory_count": "Morceaux en réserve : {{count}}",
+    "mode_pan": "Déplacer la carte",
+    "mode_select": "Déplacer les morceaux",
+    "inventory_collapse": "Replier la rangée",
+    "inventory_expand": "Déplier la rangée"
   }
 }

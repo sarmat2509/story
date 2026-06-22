@@ -41,6 +41,8 @@ export type MainDrawerParamList = {
     | undefined;
   Library: { scenarioCardId?: string } | undefined;
   LibraryRedirect: undefined;
+  Artifacts: undefined;
+  MapTiles: { rewardTileId?: string; storyId?: string; childProfileId?: string } | undefined;
   Series: undefined;
   SeriesDetail: { seriesId: string };
   Story: { storyId: string; autoPlay?: boolean };

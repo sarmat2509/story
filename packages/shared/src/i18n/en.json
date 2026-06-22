@@ -958,7 +958,26 @@
     "schedule_cadence_twice_weekly": "Twice weekly",
     "schedule_cadence_weekly": "Weekly",
     "schedule_button": "Schedule",
-    "character_type_imaginary_friend": "Imaginary friend"
+    "character_type_imaginary_friend": "Imaginary friend",
+    "artifact_collect": "Collect",
+    "artifact_collected_title": "Artifact saved",
+    "artifact_collected_message": "{{title}} is now in the collection.",
+    "artifact_already_collected_title": "Already collected",
+    "artifact_already_collected_message": "{{title}} is already saved.",
+    "artifact_already_in_chest": "Already in your chest",
+    "artifact_already_in_chest_prefix": "Already in your",
+    "artifact_already_in_chest_link": "artifact chest",
+    "artifact_collect_error": "Could not save artifact",
+    "map_tile_generate": "Create map tile",
+    "map_tile_generating": "Creating map tile...",
+    "map_tile_generated_title": "Map tile created",
+    "map_tile_generated_message": "A new map piece is ready. Used {{count}} story image reference(s).",
+    "map_tile_generate_error": "Could not create map tile",
+    "map_tile_claim_prize": "Claim prize",
+    "map_tile_prize_title": "Map piece",
+    "map_tile_collect": "Collect",
+    "map_tile_collect_error": "Could not collect map tile",
+    "map_tile_already_on_map": "Tile already on the map"
   },
   "published_story": {
     "cta_title": "Your child is the hero of their own tale",
@@ -1200,7 +1219,11 @@
     "series": "Story Series",
     "page_not_found": "Page Not Found",
     "page_not_found_message": "The page you're looking for doesn't exist or has been moved.",
-    "go_home": "Go to Home"
+    "go_home": "Go to Home",
+    "artifacts": "Artifacts",
+    "tab_artifacts": "Artifacts",
+    "map_tiles": "Map",
+    "tab_map_tiles": "Map"
   },
   "dashboard": {
     "welcome_back": "Welcome back, {{name}}!",
@@ -1668,5 +1691,28 @@
     "prompt_safety_blocked": "This idea is not safe for a children's story. Please choose a gentler topic or rewrite it with a grown-up.",
     "photo_input_invalid": "Use a photo uploaded inside WonderTales for this action.",
     "photo_owner_mismatch": "This photo belongs to another account. Please upload it again from this account."
+  },
+  "artifacts": {
+    "title": "Artifacts",
+    "empty_title": "The collection is empty",
+    "empty_subtitle": "Artifacts will appear here after stories where the hero receives a keepsake.",
+    "obtained_in_story": "Obtained in “{{title}}”",
+    "open_story": "Open story"
+  },
+  "map_tiles": {
+    "title": "Reader map",
+    "inventory_title": "New pieces",
+    "inventory_hint": "Drag pieces onto the map or back into this row.",
+    "inventory_empty": "No spare pieces",
+    "empty_title": "Your map is waiting",
+    "empty_subtitle": "Collect map pieces after stories and build your reading universe here.",
+    "layout_save_error": "Could not save the map layout",
+    "cell_occupied": "That cell is already occupied",
+    "connectors_mismatch": "Roads and water must connect to matching edges",
+    "inventory_count": "Spare pieces: {{count}}",
+    "mode_pan": "Move map",
+    "mode_select": "Move tiles",
+    "inventory_collapse": "Collapse tile row",
+    "inventory_expand": "Expand tile row"
   }
 }

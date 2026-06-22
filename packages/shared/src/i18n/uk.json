@@ -958,7 +958,26 @@
     "schedule_cadence_twice_weekly": "Двічі на тиждень",
     "schedule_cadence_weekly": "Раз на тиждень",
     "schedule_button": "Запланувати",
-    "character_type_imaginary_friend": "Уявний друг"
+    "character_type_imaginary_friend": "Уявний друг",
+    "artifact_collect": "Забрати",
+    "artifact_collected_title": "Артефакт збережено",
+    "artifact_collected_message": "{{title}} тепер у колекції.",
+    "artifact_already_collected_title": "Артефакт уже в колекції",
+    "artifact_already_collected_message": "{{title}} вже збережено.",
+    "artifact_already_in_chest": "Уже в твоїй скрині",
+    "artifact_already_in_chest_prefix": "Уже в твоїй скрині",
+    "artifact_already_in_chest_link": "артефактів",
+    "artifact_collect_error": "Не вдалося зберегти артефакт",
+    "map_tile_generate": "Створити тайл мапи",
+    "map_tile_generating": "Створюємо тайл мапи...",
+    "map_tile_generated_title": "Тайл мапи створено",
+    "map_tile_generated_message": "Новий шматочок мапи готовий. Використано референсів з історії: {{count}}.",
+    "map_tile_generate_error": "Не вдалося створити тайл мапи",
+    "map_tile_claim_prize": "Забрати приз",
+    "map_tile_prize_title": "Шматочок мапи",
+    "map_tile_collect": "Забрати",
+    "map_tile_collect_error": "Не вдалося забрати тайл мапи",
+    "map_tile_already_on_map": "Тайл вже на мапі"
   },
   "toast": {
     "audio_ready_title": "Аудіоказка готова!",
@@ -1200,7 +1219,11 @@
     "series": "Серії історій",
     "page_not_found": "Сторінку не знайдено",
     "page_not_found_message": "Сторінка, яку ви шукаєте, не існує або була переміщена.",
-    "go_home": "На головну"
+    "go_home": "На головну",
+    "artifacts": "Артефакти",
+    "tab_artifacts": "Артефакти",
+    "map_tiles": "Мапа",
+    "tab_map_tiles": "Мапа"
   },
   "dashboard": {
     "welcome_back": "Ласкаво просимо назад, {{name}}!",
@@ -1668,5 +1691,28 @@
     "prompt_safety_blocked": "Ця ідея не підходить для дитячої історії. Оберіть м’якшу тему або переформулюйте її разом із дорослим.",
     "photo_input_invalid": "Використайте фото, завантажене у WonderTales для цієї дії.",
     "photo_owner_mismatch": "Це фото належить іншому акаунту. Завантажте його ще раз із цього акаунта."
+  },
+  "artifacts": {
+    "title": "Артефакти",
+    "empty_title": "Колекція ще порожня",
+    "empty_subtitle": "Артефакти зʼявляться тут після історій, у яких герой отримує памʼятний предмет.",
+    "obtained_in_story": "Отриманий в історії «{{title}}»",
+    "open_story": "Відкрити історію"
+  },
+  "map_tiles": {
+    "title": "Читацька мапа",
+    "inventory_title": "Нові тайли",
+    "inventory_hint": "Перетягуй тайли на мапу або назад у цей ряд.",
+    "inventory_empty": "Немає тайлів у запасі",
+    "empty_title": "Мапа чекає на перші місця",
+    "empty_subtitle": "Забирай шматочки мапи після історій і складай тут свою читацьку всесвіт.",
+    "layout_save_error": "Не вдалося зберегти розкладку мапи",
+    "cell_occupied": "Ця клітинка вже зайнята",
+    "connectors_mismatch": "Дороги й вода мають з’єднуватися з такими самими краями",
+    "inventory_count": "У запасі: {{count}}",
+    "mode_pan": "Рухати мапу",
+    "mode_select": "Переміщувати тайли",
+    "inventory_collapse": "Згорнути ряд тайлів",
+    "inventory_expand": "Розгорнути ряд тайлів"
   }
 }

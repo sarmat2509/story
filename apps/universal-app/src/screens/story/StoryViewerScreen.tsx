@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
+  Modal,
   Platform,
   ImageStyle,
   Share,
@@ -25,6 +26,7 @@ import {
   useStoryGenerationStatus,
   useGenerateAudio,
   useGenerateAlignment,
+  useGenerateMapTile,
   useAudioStatus,
   useAudioUrl,
   useDeleteStory,
@@ -32,6 +34,8 @@ import {
   usePublishStory,
   useReviewChildStory,
 } from '@/api/stories';
+import { useCollectedArtifacts, useCollectStoryArtifact } from '@/api/artifacts';
+import { useCollectMapTile, useStoryMapTileStatus } from '@/api/mapTiles';
 import { useUpdateMe } from '@/api/auth';
 import { useSubscriptionUsage } from '@/api/plans';
 import { useVoices } from '@/api/voices';
@@ -72,9 +76,35 @@ import { storage } from '@/utils/storage';
 
 type StoryViewerRouteProp = RouteProp<MainDrawerParamList, 'Story'>;
 
+type ManifestClosingArtifact = {
+  id: string;
+  title: string;
+  description: string;
+  imagePath?: string | null;
+  fullImagePath?: string | null;
+  fullImageUrl?: string | null;
+  thumbnailPath?: string | null;
+  thumbnailUrl?: string | null;
+  imageUrl?: string | null;
+};
+
 // Helper: strip bracket tags (audio, IDs) and ** emphasis for display (align with API stripAllTags)
 const removeAudioTags = (text: string): string =>
   stripMarkdownStyleEmphasis(text.replace(/\[[^\]]*\]/g, ''));
+
+const inlineNoSpaceBeforeRe = /^[\s,.;:!?…)\]}»”’"'%]/;
+const inlineOpeningBoundaryRe = /[\s([{«„“"']$/;
+
+const needsInlineSpaceBefore = (previousText: string, currentText: string): boolean =>
+  Boolean(
+    previousText &&
+      currentText &&
+      !inlineOpeningBoundaryRe.test(previousText) &&
+      !inlineNoSpaceBeforeRe.test(currentText)
+  );
+
+const needsInlineSpaceAfter = (currentText: string, nextText: string): boolean =>
+  Boolean(currentText && nextText && !inlineNoSpaceBeforeRe.test(nextText));
 
 // Format wait time using i18n translations
 const formatWaitTime = (
@@ -338,7 +368,34 @@ export default function StoryViewerScreen() {
   const deleteStory = useDeleteStory();
   const publishStory = usePublishStory();
   const reviewChildStory = useReviewChildStory();
+  const collectStoryArtifact = useCollectStoryArtifact();
+  const generateMapTile = useGenerateMapTile();
+  const collectMapTile = useCollectMapTile();
+  const artifactCollectionChildProfileId =
+    !isChildSession && story?.createdByMode === 'child' && story.createdByChildProfileId
+      ? story.createdByChildProfileId
+      : undefined;
+  const {
+    data: storyMapTileStatus,
+    isLoading: isStoryMapTileStatusLoading,
+  } = useStoryMapTileStatus(storyId, {
+    childProfileId: artifactCollectionChildProfileId,
+  });
+  const {
+    data: collectedArtifacts = [],
+    isLoading: isCollectedArtifactsLoading,
+  } = useCollectedArtifacts({
+    locale: i18n.language,
+    childProfileId: artifactCollectionChildProfileId,
+  });
   const updateMe = useUpdateMe();
+  const closingArtifact = ((story as any)?.closingArtifact ?? null) as ManifestClosingArtifact | null;
+  const artifactModalImageUrl =
+    formatAssetUrl(closingArtifact?.thumbnailUrl ?? closingArtifact?.imageUrl ?? closingArtifact?.imagePath) ??
+    closingArtifact?.thumbnailUrl ??
+    closingArtifact?.imageUrl ??
+    closingArtifact?.imagePath ??
+    null;
   const parentReviewStatus =
     story?.createdByMode === 'child' ? story.parentReviewStatus : 'not_required';
   const parentReviewBlocksSharing =
@@ -351,6 +408,27 @@ export default function StoryViewerScreen() {
   const [publishShareUrl, setPublishShareUrl] = useState<string | null>(null);
   const [publishDialogOpenedFromShare, setPublishDialogOpenedFromShare] = useState(false);
   const [unpublishDialogVisible, setUnpublishDialogVisible] = useState(false);
+  const [artifactModal, setArtifactModal] = useState<{ label: string } | null>(null);
+  const [artifactModalVisible, setArtifactModalVisible] = useState(false);
+  const [mapTileModal, setMapTileModal] = useState<{
+    assetId?: string;
+    imageUrl: string | null;
+    alreadyCollected: boolean;
+  } | null>(null);
+  const [mapTileModalVisible, setMapTileModalVisible] = useState(false);
+  const mapTileModalImageUrl =
+    formatAssetUrl(mapTileModal?.imageUrl) ?? mapTileModal?.imageUrl ?? null;
+  const artifactModalTitle = artifactModal?.label || closingArtifact?.title || '';
+  const artifactFallbackTitle = artifactModalTitle || closingArtifact?.title || '';
+  const isArtifactAlreadyCollected = useMemo(() => {
+    if (!storyId || !closingArtifact) {
+      return false;
+    }
+
+    return collectedArtifacts.some(
+      (item) => item.storyId === storyId && item.artifactId === closingArtifact.id
+    );
+  }, [closingArtifact, collectedArtifacts, storyId]);
 
   // M8: Series continuation
   // Audio limit state (story-based, not minutes)
@@ -690,6 +768,128 @@ export default function StoryViewerScreen() {
     sceneTexts
   );
 
+  const handleOpenArtifact = useCallback((label: string) => {
+    if (!closingArtifact) return;
+    setArtifactModal({ label });
+    setArtifactModalVisible(true);
+  }, [closingArtifact]);
+
+  const handleCloseArtifactModal = useCallback(() => {
+    setArtifactModalVisible(false);
+  }, []);
+
+  const handleOpenArtifactsChest = useCallback(() => {
+    handleCloseArtifactModal();
+    navigation.navigate('Artifacts');
+  }, [handleCloseArtifactModal, navigation]);
+
+  const handleCollectArtifact = useCallback(async () => {
+    if (!storyId || !closingArtifact) return;
+
+    try {
+      const result = await collectStoryArtifact.mutateAsync({
+        storyId,
+        artifactId: closingArtifact.id,
+        childProfileId: artifactCollectionChildProfileId,
+        locale: i18n.language,
+      });
+      const title =
+        result.artifact.acquiredLabel ||
+        result.artifact.artifact.title ||
+        artifactFallbackTitle;
+
+      toastService.success(
+        result.alreadyCollected
+          ? t('story_viewer.artifact_already_collected_title')
+          : t('story_viewer.artifact_collected_title'),
+        t(
+          result.alreadyCollected
+            ? 'story_viewer.artifact_already_collected_message'
+            : 'story_viewer.artifact_collected_message',
+          { title }
+        )
+      );
+      handleCloseArtifactModal();
+    } catch (error) {
+      toastService.error(t('story_viewer.artifact_collect_error'));
+    }
+  }, [artifactCollectionChildProfileId, artifactFallbackTitle, closingArtifact, collectStoryArtifact, handleCloseArtifactModal, i18n.language, storyId, t]);
+
+  const handleCloseMapTileModal = useCallback(() => {
+    setMapTileModalVisible(false);
+  }, []);
+
+  const handleOpenMapTilePrize = useCallback(async () => {
+    if (!storyId) return;
+
+    try {
+      if (storyMapTileStatus?.collected) {
+        setMapTileModal({
+          assetId: storyMapTileStatus.collected.assetId,
+          imageUrl: storyMapTileStatus.collected.imageUrl,
+          alreadyCollected: true,
+        });
+        setMapTileModalVisible(true);
+        return;
+      }
+
+      if (storyMapTileStatus?.generated) {
+        setMapTileModal({
+          assetId: storyMapTileStatus.generated.id,
+          imageUrl: storyMapTileStatus.generated.imageUrl,
+          alreadyCollected: false,
+        });
+        setMapTileModalVisible(true);
+        return;
+      }
+
+      const generated = await generateMapTile.mutateAsync({
+        storyId,
+        useStoryImageReferences: true,
+        maxStoryImageReferences: 3,
+      });
+      queryClient.invalidateQueries({ queryKey: ['story-map-tile-status', storyId] });
+      if (generated.asset) {
+        setMapTileModal({
+          assetId: generated.asset.id,
+          imageUrl: generated.asset.imageUrl,
+          alreadyCollected: false,
+        });
+        setMapTileModalVisible(true);
+      }
+    } catch (error) {
+      toastService.error(t('story_viewer.map_tile_generate_error'));
+    }
+  }, [generateMapTile, queryClient, storyId, storyMapTileStatus, t]);
+
+  const handleCollectMapTile = useCallback(async () => {
+    if (!storyId || !mapTileModal?.assetId) return;
+
+    try {
+      const result = await collectMapTile.mutateAsync({
+        storyId,
+        assetId: mapTileModal.assetId,
+        childProfileId: artifactCollectionChildProfileId,
+      });
+      handleCloseMapTileModal();
+      navigation.navigate('MapTiles', {
+        rewardTileId: result.tile.id,
+        storyId,
+        childProfileId: artifactCollectionChildProfileId,
+      });
+    } catch (error) {
+      toastService.error(t('story_viewer.map_tile_collect_error'));
+    }
+  }, [
+    artifactCollectionChildProfileId,
+    collectMapTile,
+    handleCloseMapTileModal,
+    mapTileModal?.assetId,
+    navigation,
+    storyId,
+    t,
+  ]);
+
   // Debug: log what is actively highlighted when sentence/word changes
   useEffect(() => {
     if (!effectiveHighlightEnabled) return;
@@ -779,6 +979,7 @@ export default function StoryViewerScreen() {
         onSaveCharacter={handleSaveCharacter}
         isSavePending={updateCharacterMutation.isPending}
         collapsible={isMobile}
+        storyLanguage={story?.language}
       />
     );
   }, [
@@ -789,6 +990,7 @@ export default function StoryViewerScreen() {
     handleSaveCharacter,
     updateCharacterMutation.isPending,
     isMobile,
+    story?.language,
   ]);
 
   // Handle delete story with confirmation
@@ -1466,9 +1668,71 @@ export default function StoryViewerScreen() {
     );
   };
 
+  const renderArtifactAwareSceneText = (scene: any, fallbackText: string) => {
+    if (!closingArtifact || !Array.isArray(scene?.textSegments)) {
+      return fallbackText;
+    }
+
+    const segments = scene.textSegments
+      .map((segment: any, index: number) => {
+        const text = removeAudioTags(String(segment?.text ?? ''));
+        if (!text) return null;
+
+        return {
+          key: `${segment?.type || 'text'}-${index}`,
+          type: segment?.type,
+          text,
+          label: String(segment?.label || text).trim(),
+        };
+      })
+      .filter(Boolean) as Array<{ key: string; type: string; text: string; label: string }>;
+
+    const rendered = segments
+      .map((segment, index) => {
+        if (segment.type === 'artifact') {
+          const text = segment.text.trim();
+          const previousText = segments[index - 1]?.text ?? '';
+          const nextText = segments[index + 1]?.text ?? '';
+          const prefix = needsInlineSpaceBefore(previousText, text) ? ' ' : '';
+          const suffix = needsInlineSpaceAfter(text, nextText) ? ' ' : '';
+
+          return (
+            <React.Fragment key={segment.key}>
+              {prefix}
+              <Text style={styles.artifactInline} onPress={() => handleOpenArtifact(segment.label)}>
+                <Ionicons
+                  name="sparkles-outline"
+                  size={18}
+                  color={theme.colors.interactive.primary}
+                  style={styles.artifactInlineIcon}
+                />
+                {'\u00A0'}
+                {text}
+              </Text>
+              {suffix}
+            </React.Fragment>
+          );
+        }
+
+        return segment.text;
+      })
+      .filter(Boolean);
+
+    return rendered.length > 0 ? rendered : fallbackText;
+  };
+
   // M6: Helper to render scene text with sentence/word wrappers
-  const renderSceneTextWithHighlight = (sceneText: string, sceneIndex: number) => {
+  const renderSceneTextWithHighlight = (scene: any, sceneIndex: number) => {
+    const sceneText = typeof scene === 'string' ? scene : scene?.text || '';
     const cleanedSceneText = removeAudioTags(sceneText);
+
+    if (!effectiveHighlightEnabled) {
+      return (
+        <Text style={styles.sceneText}>
+          {renderArtifactAwareSceneText(scene, cleanedSceneText)}
+        </Text>
+      );
+    }
 
     // If no alignment, render plain text
     if (!story.audioMetadata?.alignment || sentences.length === 0) {
@@ -1599,11 +1863,38 @@ export default function StoryViewerScreen() {
           ) : null}
 
           <View style={styles.sceneTextWrapper}>
-            {renderSceneTextWithHighlight(scene.text, sceneIndex)}
+            {renderSceneTextWithHighlight(scene, sceneIndex)}
           </View>
         </View>
       );
     });
+  };
+
+  const renderMapTileRewardButton = () => {
+    const imagesReady = story?.imageGenerationComplete !== false;
+    const disabled = generateMapTile.isPending || isStoryMapTileStatusLoading || !imagesReady;
+
+    return (
+      <View style={styles.mapTileReward}>
+        <AppButton
+          label={
+            generateMapTile.isPending
+              ? t('story_viewer.map_tile_generating')
+              : t('story_viewer.map_tile_claim_prize')
+          }
+          onPress={handleOpenMapTilePrize}
+          disabled={disabled}
+          leading={
+            generateMapTile.isPending || isStoryMapTileStatusLoading ? (
+              <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+            ) : (
+              <Ionicons name="gift-outline" size={20} color={theme.colors.text.inverse} />
+            )
+          }
+          style={styles.mapTileRewardButton}
+        />
+      </View>
+    );
   };
 
   const parentReviewPanel = renderParentReviewPanel();
@@ -1659,6 +1950,8 @@ export default function StoryViewerScreen() {
             {/* Story Scenes */}
             {renderScenesWithHighlight()}
 
+            {renderMapTileRewardButton()}
+
             {/* Continue Story Button */}
             {renderContinueButton()}
           </ScrollView>
@@ -1690,6 +1983,7 @@ export default function StoryViewerScreen() {
               onSaveCharacter={!isChildSession && isArtisanMode ? handleSaveCharacter : undefined}
               savedCharacterIds={savedCharacterIdsArray}
               userMode={user?.mode}
+              storyLanguage={story?.language}
             />
           )}
         </>
@@ -1700,6 +1994,8 @@ export default function StoryViewerScreen() {
           <ScrollView ref={scrollViewRef} style={styles.leftColumn}>
             {/* Story Scenes */}
             {renderScenesWithHighlight()}
+
+            {renderMapTileRewardButton()}
 
             {/* Continue Story Button */}
             {renderContinueButton()}
@@ -1897,6 +2193,123 @@ export default function StoryViewerScreen() {
         }
         openedFromShare={publishDialogOpenedFromShare}
       />
+
+      <Modal
+        visible={Boolean(artifactModalVisible && artifactModal && closingArtifact)}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseArtifactModal}
+        onDismiss={() => setArtifactModal(null)}
+      >
+        <View style={styles.artifactModalRoot}>
+          <TouchableOpacity
+            style={styles.artifactModalBackdrop}
+            activeOpacity={1}
+            onPress={handleCloseArtifactModal}
+          />
+          <View style={styles.artifactModalCard}>
+            <TouchableOpacity
+              style={styles.artifactModalClose}
+              onPress={handleCloseArtifactModal}
+              accessibilityRole="button"
+            >
+              <Ionicons name="close-outline" size={22} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+            {artifactModalImageUrl ? (
+              <Image
+                source={{ uri: artifactModalImageUrl }}
+                style={styles.artifactModalImage}
+                resizeMode="contain"
+              />
+            ) : null}
+            <Text style={styles.artifactModalTitle}>{artifactModalTitle}</Text>
+            {isArtifactAlreadyCollected ? (
+              <Text style={styles.artifactCollectedStatus}>
+                {t('story_viewer.artifact_already_in_chest_prefix')}{' '}
+                <Text style={styles.artifactCollectedLink} onPress={handleOpenArtifactsChest}>
+                  {t('story_viewer.artifact_already_in_chest_link')}
+                </Text>
+              </Text>
+            ) : isCollectedArtifactsLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={theme.colors.interactive.primary}
+                style={styles.artifactCollectLoading}
+              />
+            ) : (
+              <AppButton
+                label={t('story_viewer.artifact_collect')}
+                onPress={handleCollectArtifact}
+                disabled={collectStoryArtifact.isPending}
+                leading={
+                  collectStoryArtifact.isPending ? (
+                    <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+                  ) : (
+                    <Ionicons name="sparkles-outline" size={18} color={theme.colors.text.inverse} />
+                  )
+                }
+                style={styles.artifactCollectButton}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={Boolean(mapTileModalVisible && mapTileModal)}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseMapTileModal}
+        onDismiss={() => setMapTileModal(null)}
+      >
+        <View style={styles.artifactModalRoot}>
+          <TouchableOpacity
+            style={styles.artifactModalBackdrop}
+            activeOpacity={1}
+            onPress={handleCloseMapTileModal}
+          />
+          <View style={styles.artifactModalCard}>
+            <TouchableOpacity
+              style={styles.artifactModalClose}
+              onPress={handleCloseMapTileModal}
+              accessibilityRole="button"
+            >
+              <Ionicons name="close-outline" size={22} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+            {mapTileModalImageUrl ? (
+              <Image
+                source={{ uri: mapTileModalImageUrl }}
+                style={styles.mapTileModalImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.mapTileModalFallback}>
+                <Ionicons name="map-outline" size={54} color={theme.colors.text.tertiary} />
+              </View>
+            )}
+            <Text style={styles.artifactModalTitle}>{t('story_viewer.map_tile_prize_title')}</Text>
+            {mapTileModal?.alreadyCollected ? (
+              <Text style={styles.artifactCollectedStatus}>
+                {t('story_viewer.map_tile_already_on_map')}
+              </Text>
+            ) : (
+              <AppButton
+                label={t('story_viewer.map_tile_collect')}
+                onPress={handleCollectMapTile}
+                disabled={collectMapTile.isPending}
+                leading={
+                  collectMapTile.isPending ? (
+                    <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+                  ) : (
+                    <Ionicons name="map-outline" size={18} color={theme.colors.text.inverse} />
+                  )
+                }
+                style={styles.artifactCollectButton}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
 
       <FeedbackModal
         visible={showFeedbackModal}
@@ -2208,6 +2621,108 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.lg,
     lineHeight: theme.typography.fontSize.lg * 1.6,
     color: theme.colors.text.primary,
+  },
+  mapTileReward: {
+    marginHorizontal: theme.spacing[6],
+    marginBottom: theme.spacing[8],
+  },
+  mapTileRewardButton: {
+    alignSelf: 'stretch',
+  },
+  artifactInline: {
+    color: theme.colors.interactive.primary,
+    fontWeight: theme.typography.fontWeight.semibold,
+    textDecorationLine: 'underline',
+  },
+  artifactInlineIcon: {
+    lineHeight: theme.typography.fontSize.lg * 1.6,
+  },
+  artifactModalRoot: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing[5],
+    backgroundColor: 'rgba(15, 23, 42, 0.48)',
+  },
+  artifactModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  artifactModalCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+    padding: theme.spacing[5],
+    alignItems: 'center',
+    shadowColor: theme.colors.black,
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+  },
+  artifactModalClose: {
+    position: 'absolute',
+    top: theme.spacing[3],
+    right: theme.spacing[3],
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.primary,
+    zIndex: 1,
+  },
+  artifactModalImage: {
+    width: 188,
+    height: 188,
+    borderRadius: theme.borders.radius.md,
+    marginBottom: theme.spacing[4],
+    overflow: 'hidden',
+  },
+  mapTileModalImage: {
+    width: 220,
+    height: 220,
+    borderRadius: 8,
+    marginBottom: theme.spacing[4],
+    overflow: 'hidden',
+    backgroundColor: theme.colors.background.tertiary,
+  },
+  mapTileModalFallback: {
+    width: 220,
+    height: 220,
+    borderRadius: 8,
+    marginBottom: theme.spacing[4],
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.primary,
+  },
+  artifactModalTitle: {
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+    marginBottom: theme.spacing[2],
+  },
+  artifactCollectButton: {
+    alignSelf: 'stretch',
+    marginTop: theme.spacing[4],
+  },
+  artifactCollectLoading: {
+    marginTop: theme.spacing[4],
+    minHeight: 44,
+  },
+  artifactCollectedStatus: {
+    marginTop: theme.spacing[3],
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+  },
+  artifactCollectedLink: {
+    color: theme.colors.interactive.primary,
+    textDecorationLine: 'underline',
   },
   limitExceededContainer: {
     backgroundColor: theme.colors.background.secondary,
