@@ -364,7 +364,7 @@ const HANDMADE_MAP_TILE_MASK_VARIANT_DEFS: MapTileMaskVariantDef[] = [
         kind: 'WATER',
         endpoints: ['N', 'PORTAL', 'E'],
         portalPosition: 'north',
-        note: 'use one centered grotto entrance as the portal: top edge river becomes a falling water curtain over the grotto mouth, crystals sit inside the dark mouth, and the lower river leaves from the curtain base before continuing to the East edge at the right-edge center',
+        note: 'top edge water becomes a falling water curtain over the portal marker, then the lower river starts at the curtain base and continues to the right edge center',
       },
       {
         kind: 'PATH',

@@ -29,7 +29,9 @@ function testMapTilePromptKeepsMaskGeometryAndStandardPathEdges() {
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('A WATER route with a waterfall marker stays continuous through the waterfall marker and into its endpoint.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Show waterfalls as a top-down water curtain crossing over the portal mouth while preserving the flat route footprint.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('ordinary river on the high side, a short falling-water curtain at the ledge, and ordinary lower river after the curtain'));
-  assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('For a waterfall plus portal route, use one grotto mouth at the portal marker'));
+  assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('For a waterfall plus portal route, place the story entrance at the portal marker'));
+  assert.ok(!MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('crystals sit'));
+  assert.ok(!MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('use one grotto mouth'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Style every PATH with two continuous light warm-stone edge lines.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Fill the PATH interior according to the tile brief and story reference images.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Style the tile according to the tile brief and story reference images.'));

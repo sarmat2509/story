@@ -174,7 +174,7 @@ A WATER route that includes a PORTAL places the story entrance on the water rout
 A WATER route with a waterfall marker stays continuous through the waterfall marker and into its endpoint.
 Show waterfalls as a top-down water curtain crossing over the portal mouth while preserving the flat route footprint.
 For a waterfall marker, draw ordinary river on the high side, a short falling-water curtain at the ledge, and ordinary lower river after the curtain.
-For a waterfall plus portal route, use one grotto mouth at the portal marker; the water curtain overlaps the mouth, story details sit inside the dark mouth, and the lower river starts at the curtain base before reaching its edge connector center.
+For a waterfall plus portal route, place the story entrance at the portal marker; the water curtain overlaps that entrance, and the lower river starts at the curtain base before reaching its edge connector center.
 Style every PATH with two continuous light warm-stone edge lines.
 Fill the PATH interior according to the tile brief and story reference images.
 Style the tile according to the tile brief and story reference images.
