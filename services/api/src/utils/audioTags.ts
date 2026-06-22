@@ -8,6 +8,38 @@ import { getAllAudioTags } from '../constants/audioTags';
 
 /** Whitelist of allowed audio tags (lowercase, normalized). Used for stripForAudio. */
 const ALLOWED_AUDIO_TAGS = new Set(getAllAudioTags().map((t) => t.toLowerCase()));
+const inlineNoSpaceBeforeRe = /^[\s,.;:!?…)\]}»”’"'%]/;
+const inlineOpeningBoundaryRe = /[\s([{«„“"']$/;
+
+function needsInlineSpaceBefore(previousText: string, currentText: string): boolean {
+  return Boolean(
+    previousText &&
+      currentText &&
+      !inlineOpeningBoundaryRe.test(previousText) &&
+      !inlineNoSpaceBeforeRe.test(currentText)
+  );
+}
+
+function needsInlineSpaceAfter(currentText: string, nextText: string): boolean {
+  return Boolean(currentText && nextText && !inlineNoSpaceBeforeRe.test(nextText));
+}
+
+function unwrapCurlyMarkerWithSpacing(
+  _match: string,
+  inner: string,
+  offset: number,
+  source: string
+): string {
+  const label = inner.trim();
+  if (!label) return '';
+
+  const previousText = source.slice(0, offset);
+  const nextText = source.slice(offset + _match.length);
+  const prefix = needsInlineSpaceBefore(previousText, label) ? ' ' : '';
+  const suffix = needsInlineSpaceAfter(label, nextText) ? ' ' : '';
+
+  return `${prefix}${label}${suffix}`;
+}
 
 /**
  * Remove SSML-style <break .../> tags and normalize whitespace around them.
@@ -96,8 +128,8 @@ export function stripAllTags(text: string): string {
   // Remove [content] in square brackets (metadata: audio tags, character IDs)
   result = result.replace(/\[[^\]]*\]/g, '');
 
-  // Unwrap {keepsake} markers (single-level; extractStoryKeepsakeLabel reads raw text before this)
-  result = result.replace(/\{([^{}]+)\}/g, (_, inner: string) => inner.trim());
+  // Unwrap {keepsake} markers while keeping readable spacing around the inline label.
+  result = result.replace(/\{([^{}]+)\}/g, unwrapCurlyMarkerWithSpacing);
 
   result = stripMarkdownStyleEmphasis(result);
 
@@ -172,7 +204,7 @@ export function stripForAudio(text: string): string {
       const tag = content.trim().toLowerCase().replace(/\s{2,}/g, ' ');
       return ALLOWED_AUDIO_TAGS.has(tag) ? `[${content}]` : '';
     })
-    .replace(/\{([^{}]+)\}/g, (_, inner: string) => inner.trim())
+    .replace(/\{([^{}]+)\}/g, unwrapCurlyMarkerWithSpacing)
     .replace(/\s{2,}/g, ' ')
     .trim();
 }

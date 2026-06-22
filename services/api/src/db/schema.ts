@@ -14,6 +14,7 @@ import {
   decimal,
   primaryKey,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 // Users table
 export const users = pgTable(
@@ -695,6 +696,35 @@ export const scenarioWorldRules = pgTable('scenario_world_rules', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Story artifact catalog used as concrete closing keepsakes in generated stories
+export const storyArtifacts = pgTable(
+  'story_artifacts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    artifactCode: varchar('artifact_code', { length: 3 }).notNull(),
+    title: varchar('title', { length: 120 }).notNull(),
+    description: text('description').notNull(),
+    imagePath: text('image_path').notNull(),
+    semanticTags: jsonb('semantic_tags').$type<string[]>().notNull().default([]),
+    scenarioAffinities: jsonb('scenario_affinities').$type<string[]>().notNull().default([]),
+    descriptionEmbedding: jsonb('description_embedding').$type<number[]>(),
+    embeddingModel: varchar('embedding_model', { length: 80 }),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      artifactCodeIdx: uniqueIndex('story_artifacts_artifact_code_uidx').on(table.artifactCode),
+      activeIdx: index('story_artifacts_active_idx').on(table.isActive),
+      scenarioAffinitiesIdx: index('story_artifacts_scenario_affinities_idx').on(
+        table.scenarioAffinities
+      ),
+      semanticTagsIdx: index('story_artifacts_semantic_tags_idx').on(table.semanticTags),
+    };
+  }
+);
+
 // Translations table (M6)
 export const translations = pgTable(
   'translations',
@@ -865,6 +895,9 @@ export const stories = pgTable(
     wordCount: integer('word_count'),
     /** Small tangible token label from `{...}` in resolution scene prose (writer convention). */
     closingKeepsakeLabel: varchar('closing_keepsake_label', { length: 500 }),
+    closingArtifactId: uuid('closing_artifact_id').references(() => storyArtifacts.id, {
+      onDelete: 'set null',
+    }),
 
     modelVersion: varchar('model_version', { length: 50 }),
     generationTimeMs: integer('generation_time_ms'),
@@ -923,11 +956,95 @@ export const stories = pgTable(
       parentReviewStatusIdx: index('stories_parent_review_status_idx').on(table.parentReviewStatus),
       languageIdx: index('stories_language_idx').on(table.language),
       ageGroupIdx: index('stories_age_group_idx').on(table.ageGroup),
+      closingArtifactIdIdx: index('stories_closing_artifact_id_idx').on(table.closingArtifactId),
       createdAtIdx: index('stories_created_at_idx').on(table.createdAt),
       seriesIdIdx: index('stories_series_id_idx').on(table.seriesId),
       shareTokenIdx: index('stories_share_token_idx').on(table.shareToken),
     };
   }
+);
+
+// User/child collections of story artifacts acquired from generated stories.
+export const collectedStoryArtifacts = pgTable(
+  'collected_story_artifacts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    childProfileId: uuid('child_profile_id').references(() => childProfiles.id, {
+      onDelete: 'cascade',
+    }),
+    artifactId: uuid('artifact_id')
+      .references(() => storyArtifacts.id, { onDelete: 'cascade' })
+      .notNull(),
+    storyId: uuid('story_id')
+      .references(() => stories.id, { onDelete: 'cascade' })
+      .notNull(),
+    acquiredLabel: varchar('acquired_label', { length: 500 }),
+    acquiredAt: timestamp('acquired_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userChildAcquiredIdx: index('collected_story_artifacts_user_child_acquired_idx').on(
+      table.userId,
+      table.childProfileId,
+      table.acquiredAt
+    ),
+    artifactIdx: index('collected_story_artifacts_artifact_id_idx').on(table.artifactId),
+    storyIdx: index('collected_story_artifacts_story_id_idx').on(table.storyId),
+  })
+);
+
+// User/child collections of generated story map tiles, including board placement.
+export const collectedMapTiles = pgTable(
+  'collected_map_tiles',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    childProfileId: uuid('child_profile_id').references(() => childProfiles.id, {
+      onDelete: 'cascade',
+    }),
+    storyId: uuid('story_id')
+      .references(() => stories.id, { onDelete: 'cascade' })
+      .notNull(),
+    assetId: uuid('asset_id').notNull(),
+    acquiredLabel: varchar('acquired_label', { length: 500 }),
+    maskId: varchar('mask_id', { length: 160 }).notNull(),
+    connectors: jsonb('connectors').$type<Record<string, string>>().notNull().default({}),
+    location: varchar('location', { length: 20 }).notNull().default('inventory'),
+    boardX: integer('board_x'),
+    boardY: integer('board_y'),
+    inventoryOrder: integer('inventory_order').notNull().default(0),
+    acquiredAt: timestamp('acquired_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    parentStoryIdx: uniqueIndex('collected_map_tiles_parent_story_uidx')
+      .on(table.userId, table.storyId)
+      .where(sql`${table.childProfileId} IS NULL`),
+    childStoryIdx: uniqueIndex('collected_map_tiles_child_story_uidx')
+      .on(table.userId, table.childProfileId, table.storyId)
+      .where(sql`${table.childProfileId} IS NOT NULL`),
+    userChildLocationIdx: index('collected_map_tiles_user_child_location_idx').on(
+      table.userId,
+      table.childProfileId,
+      table.location,
+      table.inventoryOrder
+    ),
+    boardIdx: index('collected_map_tiles_board_idx').on(
+      table.userId,
+      table.childProfileId,
+      table.boardX,
+      table.boardY
+    ),
+    storyIdx: index('collected_map_tiles_story_id_idx').on(table.storyId),
+    assetIdx: index('collected_map_tiles_asset_id_idx').on(table.assetId),
+  })
 );
 
 // Safe moderation audit trail for support review. Stores categories/codes and hashed refs, not raw child content.
@@ -1127,6 +1244,9 @@ export type NewScenarioPlotExample = typeof scenarioPlotExamples.$inferInsert;
 export type ScenarioWorldRule = typeof scenarioWorldRules.$inferSelect;
 export type NewScenarioWorldRule = typeof scenarioWorldRules.$inferInsert;
 
+export type StoryArtifact = typeof storyArtifacts.$inferSelect;
+export type NewStoryArtifact = typeof storyArtifacts.$inferInsert;
+
 export type Translation = typeof translations.$inferSelect;
 export type NewTranslation = typeof translations.$inferInsert;
 
@@ -1138,6 +1258,12 @@ export type NewStorySeries = typeof storySeries.$inferInsert;
 
 export type Story = typeof stories.$inferSelect;
 export type NewStory = typeof stories.$inferInsert;
+
+export type CollectedStoryArtifact = typeof collectedStoryArtifacts.$inferSelect;
+export type NewCollectedStoryArtifact = typeof collectedStoryArtifacts.$inferInsert;
+
+export type CollectedMapTile = typeof collectedMapTiles.$inferSelect;
+export type NewCollectedMapTile = typeof collectedMapTiles.$inferInsert;
 
 export type ModerationDecisionEvent = typeof moderationDecisionEvents.$inferSelect;
 export type NewModerationDecisionEvent = typeof moderationDecisionEvents.$inferInsert;

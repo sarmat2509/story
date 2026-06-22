@@ -176,7 +176,13 @@ ${getContentPolicy({ policyProfile: spec.policyProfile, scenarioCardId: spec.sce
 
 ${helpers.formatWritingStyle(spec, vocabLevel)}
 
-${helpers.formatCoreStoryRules({ sceneCount, ageGroup: spec.ageGroup, hasWorldRule: !!spec.worldRule, worldRuleText: spec.worldRule?.description })}
+${helpers.formatCoreStoryRules({
+    sceneCount,
+    ageGroup: spec.ageGroup,
+    hasWorldRule: !!spec.worldRule,
+    worldRuleText: spec.worldRule?.description,
+    closingArtifact: spec.closingArtifact,
+  })}
 
 ${helpers.formatNarrativeContinuityRules()}
 

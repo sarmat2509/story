@@ -425,8 +425,9 @@ export function formatCoreStoryRules(params: {
   ageGroup: string;
   hasWorldRule?: boolean;
   worldRuleText?: string;
+  closingArtifact?: StorySpec['closingArtifact'];
 }): string {
-  const { sceneCount, ageGroup, hasWorldRule = false, worldRuleText } = params;
+  const { sceneCount, ageGroup, hasWorldRule = false, worldRuleText, closingArtifact } = params;
   const isYoung = YOUNG_AGE_GROUPS.includes(ageGroup);
   const sections: string[] = [];
 
@@ -438,12 +439,19 @@ export function formatCoreStoryRules(params: {
     const climaxScene = Math.ceil(N * 0.85);
     const resolutionScene = N;
 
+    const keepsakeRule = closingArtifact
+      ? `- Required keepsake marker (Scene ${resolutionScene}, exactly once in the whole story): the small tangible token MUST be this catalog artifact: "${closingArtifact.title}". Artifact identity: ${closingArtifact.description}
+- Introduce "${closingArtifact.title}" naturally as a found, earned, gifted, or kept object that fits the plot. Do not replace it with a different token.
+- Treat the artifact identity as canonical: do not add material, color, shape, size, symbol, or function details that conflict with it. You may add only compatible sensory details.
+- When the hero receives or keeps it, put one natural story-language phrase for this artifact inside one pair of curly braces exactly once. The phrase may inflect or translate the artifact title to fit the sentence grammar, and may include 1-2 compatible qualities from the artifact identity (for example: {small glowing feather clasp}). Do NOT force nominative case or the exact catalog title if it sounds unnatural. Keep surrounding spaces and punctuation correct so the text does not concatenate words around the marker. No nested braces, and do not use curly braces anywhere else.`
+      : `- Keepsake marker (Scene ${resolutionScene}, exactly once in the whole story): when the hero receives or keeps that small tangible token, put its natural story-language name inside a single pair of curly braces in the scene prose — e.g. ...treasured {small silver pebble} from... Use 2–8 words that fit the sentence grammar, with correct spaces around the marker and no nested braces. Exactly one {...} in the entire manuscript for this keepsake only; do not use curly braces for anything else.`;
+
     const plotText = `PLOT STRUCTURE:
 - By end of Scene ${missionScene}: state 1-sentence mission.
 - Scenes ${missionScene + 1}-${climaxScene - 1}: 2-3 escalating obstacles.
 - Scene ${climaxScene}: decisive brave action solves main problem.
 - Scene ${resolutionScene}: happy return + small tangible token + warm sequel hint. Unless the scenario is explicitly a scary story, the final hint must invite curiosity about a NEW safe adventure (a plan, place, invitation, funny discovery, or cheerful question), not imply that the solved danger has returned.
-- Keepsake marker (Scene ${resolutionScene}, exactly once in the whole story): when the hero receives or keeps that small tangible token, put its short name inside a single pair of curly braces in the scene prose — e.g. ...treasured {silver pebble} from... Use the story language inside the braces (2–6 words, no nested braces). Exactly one {...} in the entire manuscript for this keepsake only; do not use curly braces for anything else.`;
+${keepsakeRule}`;
 
     sections.push(plotText);
 
@@ -722,6 +730,59 @@ export function formatDirectorImagePromptRules(): string {
     'KEEP IT LEAN:',
     '- Do not overload the prompt with unnecessary details that do not help recognizability or scene clarity.',
     '- If extra detail does not change what the illustrator should draw, leave it out.',
+  ].join('\n');
+}
+
+/**
+ * Director-only: create one compact story-level map-tile brief.
+ */
+export function formatDirectorMapTileRules(): string {
+  return [
+    'CRITICAL - MAP TILE BRIEF:',
+    'Create exactly ONE top-level mapTile for the whole story, not one per illustration.',
+    'mapTile is separate from illustrations[].sceneVisual. sceneVisual stages book illustrations with characters; mapTile stages the single modular board-game reward tile for the finished story.',
+    'The tile must summarize the important visible locations and landmarks from ALL planned illustrations, not only the first or last illustration.',
+    'If the illustrations show a river in one scene, a bridge over that river in another scene, and a gate/door/portal in another scene, the single mapTile should include river + bridge + portal when they can coexist on one map tile.',
+    'Do not add implied feature tokens. A bridge does not imply river; a portal does not imply cave; pond does not imply river. Waterfall must be paired with river. requiredFeatures is an exact mask contract.',
+    'requiredFeatures describes physical mask geometry on the tile surface, not decorative or background objects seen through windows, portholes, screens, paintings, dreams, memories, or the sky.',
+    'Every tile has a road/path as its main connector. requiredFeatures must include path; if the Director omits it, backend normalization will add path automatically.',
+    'The Director does NOT choose geometry, orientation, side directions, connector directions, mask ids, or exact placement. The mask selector will choose geometry only from exact requiredFeatures matches.',
+    '',
+    'mapTile.description:',
+    '- Return one compact English paragraph with drawable visual information only.',
+    '- Write it like a dry art-director inventory for image generation, not like story prose.',
+    '- Start with ONE primary visible anchor: the largest readable place, landmark, environment, or surface system on the tile.',
+    '- Then add 2-4 secondary visible landmarks or environmental features. Use concrete nouns, visible materials, shapes, colors, scale, and clear physical state.',
+    '- Then add only a few minor visible details. Minor details must stay small, sparse, and non-repeating; do not turn a small prop, symbol, tool, doorway, glow, smoke, or decoration into the visual theme unless the whole story is mainly about it.',
+    '- End with continuous visible filler: broad physical surfaces and background objects that fill remaining non-route areas.',
+    '- Keep the priority order, but write normal prose. Omit meta labels such as primary anchor, main anchor, secondary landmarks, minor details, filler surfaces, or broad filler from the returned paragraph.',
+    '- Each visual idea should appear at only one priority level. If a key, symbol, gate, portal, object, or texture is minor, mention it once as minor; do not repeat it in the primary anchor, secondary landmarks, and filler.',
+    '- Use only things an image model can draw directly. Replace abstract or literary words with visible effects: say "white cloth napkin strip across black ink" instead of "enchanted napkin"; say "gold specks on wood" instead of "magic dust makes the ink fade".',
+    '- Use static visible states instead of personality labels: say "closed worn book with gray puffs above the cover" instead of "\\"sleepy\\" book"; say "small gnawed hole in a web" instead of "secret opening".',
+    '- Name environments as physical places and surfaces: say "old bookshop aisle with wooden shelf floor" instead of "secret book-world"; say "round metal hatch" instead of "mysterious portal".',
+    '- Omit story titles, sensory cues, feelings, emotions, comfort, danger, importance, narrative purpose, implied story meaning, and quoted nickname/adjective labels.',
+    '- Avoid wording like secret, hidden, world, universe, cozy, warm scent, enchanted, magical, mysterious, suggests, seems, feels, atmosphere, dominates, scent, sleepy, trembling, or "story-book soft" unless the sentence names an actual visible shape, material, color, light, texture, or object state.',
+    '- Route geometry is controlled later by a mask, not by this description. You may name the route surface material or crossing material when it matters, but do not describe where a path, trail, road, bridge approach, corridor, route, or walkway goes, continues, threads, leads, winds, branches, or connects.',
+    '- Do not make the route line itself the primary anchor or a secondary landmark. An environment may be an interior corridor, room, clearing, deck, shore, or passage setting; the connector layout belongs only to the mask.',
+    '- Decorative/background story elements such as a bridge seen through a porthole, window, screen, memory, dream, or sky may stay in description with that viewing context. They are scenery, not requiredFeatures.',
+    '- If the story has guiding flowers, lights, stones, dust, cables, papers, or similar directional motifs, describe them as sparse accents around landmarks or across the environment, not as a continuous path line.',
+    '- Describe contents and materials, not directions. Do not say north/south/east/west/top/bottom/left/right, do not specify edge positions, do not specify where connectors enter.',
+    '- Do not make characters the main subject. Tiny scale markers are acceptable only when they do not compete with landmarks.',
+    '- Avoid empty space by naming broad filler categories from the story world, but keep filler visually quieter than the primary anchor and secondary landmarks.',
+    '',
+    'mapTile.requiredFeatures:',
+    '- Return short normalized feature hints for deterministic mask selection.',
+    '- Use only these exact lowercase tokens: path, river, waterfall, pond, sea, bridge, portal.',
+    '- Always include path. It means the required road/corridor/trail connector that makes every tile placeable.',
+    '- Do not include biome/style words such as forest, interior, spaceship. Put those in mapTile.description instead.',
+    '- Use river for flowing water: river, stream, creek, brook.',
+    '- Use waterfall when falling water, a cascade, or a water curtain is a visible tile-surface landmark on a river route. Include river with waterfall.',
+    '- Use pond for contained still water or contained liquid: pond, small lake, lagoon, ink pool, large puddle.',
+    '- Use sea for large edge water: sea, ocean, coast, beach, bay, shoreline.',
+    '- Use portal for any meaningful entrance connector: doorway, arch, gate, hatch, airlock, cave, tunnel, cavern, grotto, crystal cave, magical entrance.',
+    '- Include bridge ONLY for a route-level traversable crossing on the tile surface: bridge, pier, plank, cloth walkway, napkin strip, raised crossing, or a path crossing over a visible obstacle.',
+    '- Do NOT include bridge for a distant, decorative, symbolic, broken, inaccessible, or background bridge seen through a window, porthole, screen, painting, sky, memory, or dream. Put that object in mapTile.description with clear wording such as "visible through the porthole" if it matters.',
+    '- Do not add river/pond/sea unless that water or liquid is explicitly story-supported.',
   ].join('\n');
 }
 

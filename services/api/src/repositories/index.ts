@@ -38,6 +38,9 @@ import { BundleRepository } from './BundleRepository';
 import { UserConsentRepository } from './UserConsentRepository';
 import { DataPrivacyRequestRepository } from './DataPrivacyRequestRepository';
 import { ModerationDecisionRepository } from './ModerationDecisionRepository';
+import { StoryArtifactRepository } from './StoryArtifactRepository';
+import { CollectedStoryArtifactRepository } from './CollectedStoryArtifactRepository';
+import { CollectedMapTileRepository } from './CollectedMapTileRepository';
 
 // Re-export classes for type usage
 export { UserRepository } from './UserRepository';
@@ -71,6 +74,9 @@ export { BundleRepository } from './BundleRepository';
 export { UserConsentRepository } from './UserConsentRepository';
 export { DataPrivacyRequestRepository } from './DataPrivacyRequestRepository';
 export { ModerationDecisionRepository } from './ModerationDecisionRepository';
+export { StoryArtifactRepository } from './StoryArtifactRepository';
+export { CollectedStoryArtifactRepository } from './CollectedStoryArtifactRepository';
+export { CollectedMapTileRepository } from './CollectedMapTileRepository';
 
 // Singleton instances
 let userRepo: UserRepository;
@@ -104,6 +110,9 @@ let bundleRepo: BundleRepository;
 let userConsentRepo: UserConsentRepository;
 let dataPrivacyRequestRepo: DataPrivacyRequestRepository;
 let moderationDecisionRepo: ModerationDecisionRepository;
+let storyArtifactRepo: StoryArtifactRepository;
+let collectedStoryArtifactRepo: CollectedStoryArtifactRepository;
+let collectedMapTileRepo: CollectedMapTileRepository;
 
 export function getUserRepository(): UserRepository {
   if (!userRepo) userRepo = new UserRepository(db);
@@ -261,4 +270,20 @@ export function getDataPrivacyRequestRepository(): DataPrivacyRequestRepository 
 export function getModerationDecisionRepository(): ModerationDecisionRepository {
   if (!moderationDecisionRepo) moderationDecisionRepo = new ModerationDecisionRepository(db);
   return moderationDecisionRepo;
+}
+
+export function getStoryArtifactRepository(): StoryArtifactRepository {
+  if (!storyArtifactRepo) storyArtifactRepo = new StoryArtifactRepository(db);
+  return storyArtifactRepo;
+}
+
+export function getCollectedStoryArtifactRepository(): CollectedStoryArtifactRepository {
+  if (!collectedStoryArtifactRepo)
+    collectedStoryArtifactRepo = new CollectedStoryArtifactRepository(db);
+  return collectedStoryArtifactRepo;
+}
+
+export function getCollectedMapTileRepository(): CollectedMapTileRepository {
+  if (!collectedMapTileRepo) collectedMapTileRepo = new CollectedMapTileRepository(db);
+  return collectedMapTileRepo;
 }

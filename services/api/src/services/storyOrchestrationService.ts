@@ -8,6 +8,7 @@ import {
   getEnvironmentImageCacheRepository,
   getStoryEnvironmentCacheRepository,
   getAlignmentRepository,
+  getStoryArtifactRepository,
 } from '../repositories';
 import {
   DEFAULT_LOCALE,
@@ -39,7 +40,11 @@ import {
 } from '../domain/image/imageValidationRun';
 import { logger } from '../utils/logger';
 import { incrementLandingRenderVersion, removePublishedSlug } from '../ssr/storyCache';
-import { extractClosingKeepsakeFromEpisodeText, stripCharacterIds, stripAllTags } from '../utils/audioTags';
+import {
+  extractClosingKeepsakeFromEpisodeText,
+  stripCharacterIds,
+  stripAllTags,
+} from '../utils/audioTags';
 import {
   isNaturalAppearanceOutfit,
   parseCharacterOutfitsString,
@@ -124,6 +129,8 @@ import {
   getStoryCreationAttributionInputFromRequest,
   type StoryCreatedByMode,
 } from './storyCreationAttributionService';
+import { storyArtifactImageUrls } from './storyArtifactImageService';
+import { resolveStoryArtifactTitle, selectStoryArtifactForPrompt } from './storyArtifactService';
 
 const ESTIMATED_SCENE_COUNT_BY_AGE_GROUP: Record<string, number> = {
   '0-1': 5,
@@ -804,6 +811,11 @@ export async function processStoryRequest(requestId: string): Promise<{
           modelVersion: config.ai.modelVersion,
           plotExampleId: chosenPlotExampleId,
           worldRuleId: chosenWorldRuleId,
+          storyArtifactId: spec.closingArtifact?.id,
+          storyArtifactCode: spec.closingArtifact?.artifactCode,
+          storyArtifactTitle: spec.closingArtifact?.title,
+          storyArtifactImagePath: spec.closingArtifact?.imagePath,
+          storyArtifactSelection: (spec.closingArtifact as any)?.selection,
           llmGeneratedCharacters: (text as any).characters || [],
           imageStyle: (spec as any).imageStyle,
           ...((text as any).description && { seoDescription: (text as any).description }),
@@ -2579,6 +2591,23 @@ export async function buildStorySpec(
     
     // Build policy profile
     const policyProfile = await buildPolicyProfile(ageGroup, storyLanguage);
+
+    const closingArtifact = await selectStoryArtifactForPrompt({
+      locale: storyLanguage,
+      scenarioCard,
+      scenarioGuidance: scenarioCard?.promptGuidance,
+      goalName: goalWithGuidance?.name,
+      goalGuidance: goalWithGuidance?.promptGuidance,
+      userNotes: request.userNotes || undefined,
+      worldRule,
+      childProfile,
+    }).catch((err) => {
+      logger.warn(
+        { err, requestId: request.id, scenarioCardId: scenarioCard?.id },
+        'Story artifact selection failed; writer will use generic keepsake rule',
+      );
+      return undefined;
+    });
     
     const spec: StorySpec & { childProfile?: ChildProfileData } = {
       language: storyLanguage,
@@ -2595,6 +2624,7 @@ export async function buildStorySpec(
       scenarioCard, // NEW: Add scenario card to spec
       scenarioGuidance: scenarioCard?.promptGuidance, // NEW: Detailed plot guidance
       worldRule,
+      closingArtifact,
     };
     
     // Verify characters are included (especially for instant mode)
@@ -4273,7 +4303,7 @@ async function saveStory(
     parentReviewRequired?: boolean | null;
   },
   spec: StorySpec,
-  text: { title: string; language: string; scenes: any[]; fullText: string; wordCount: number; characters?: any[] },
+  text: { title: string; language: string; scenes: any[]; fullText: string; wordCount: number; characters?: any[]; mapTile?: any },
   mergedCharacters: CharacterReference[],
   generationTimeMs: number,
   timingData?: {
@@ -4317,14 +4347,23 @@ async function saveStory(
           fullText: text.fullText,
           scenes: text.scenes,
         }),
+        closingArtifactId: spec.closingArtifact?.id ?? null,
         modelVersion: config.ai.modelVersion,
         generationTimeMs,
         metadata: {
           llmGeneratedCharacters: llmCharacters,
           imageStyle: (spec as any).imageStyle,
           mergedCharacters: mergedCharacters,
+          mapTile: (text as any).mapTile ?? null,
           ...(chosenPlotExampleId && { plotExampleId: chosenPlotExampleId }),
           ...(chosenWorldRuleId && { worldRuleId: chosenWorldRuleId }),
+          ...(spec.closingArtifact && {
+            storyArtifactId: spec.closingArtifact.id,
+            storyArtifactCode: spec.closingArtifact.artifactCode,
+            storyArtifactTitle: spec.closingArtifact.title,
+            storyArtifactImagePath: spec.closingArtifact.imagePath,
+            storyArtifactSelection: (spec.closingArtifact as any).selection,
+          }),
           // Generation timing data for coefficient calculation
           ...(timingData && {
             textGenerationTimeMs: timingData.textGenerationTimeMs,
@@ -4646,6 +4685,30 @@ async function fetchStoryChildren(
   );
 }
 
+async function getLocalizedCharacterNames(
+  characterIds: string[],
+  locale: string
+): Promise<Map<string, string>> {
+  if (characterIds.length === 0) return new Map();
+
+  const translations = await getDictionaryRepository().findTranslations(
+    'character',
+    characterIds,
+    locale
+  );
+  const names = new Map<string, string>();
+
+  for (const translation of translations) {
+    if (translation.fieldName !== 'name') continue;
+    const value = stripCharacterIdFromName(translation.value).trim();
+    if (value) {
+      names.set(translation.entityId, value);
+    }
+  }
+
+  return names;
+}
+
 /**
  * Get story by ID
  */
@@ -4661,6 +4724,10 @@ export async function getStory(storyId: string, userId: string) {
   
   // Enrich characters with signed reference photo URL
   const assetStorage = getAssetStorageService();
+  const localizedCharacterNames = await getLocalizedCharacterNames(
+    linkedCharactersRaw.map((char) => char.id),
+    story.language,
+  );
   const enrichedCharacters = await Promise.all(
     linkedCharactersRaw.map(async (char) => {
       let referencePhotoUrl: string | null = null;
@@ -4686,6 +4753,10 @@ export async function getStory(storyId: string, userId: string) {
       return {
         id: char.id,
         name: char.name,
+        localizedName: localizedCharacterNames.get(char.id) ?? null,
+        nameTranslations: localizedCharacterNames.has(char.id)
+          ? { [story.language]: localizedCharacterNames.get(char.id)! }
+          : undefined,
         type: char.type,
         role: char.role,
         isHidden: char.isHidden,
@@ -4700,6 +4771,9 @@ export async function getStory(storyId: string, userId: string) {
     story.childProfileId,
     userId,
   );
+  const metadata = (story.metadata && typeof story.metadata === 'object')
+    ? story.metadata as Record<string, unknown>
+    : {};
   
   return {
     id: story.id,
@@ -4708,6 +4782,7 @@ export async function getStory(storyId: string, userId: string) {
     ageGroup: story.ageGroup,
     moralTheme: story.moralTheme,
     scenes: story.scenes,
+    mapTile: metadata.mapTile ?? null,
     fullText: story.fullText,
     wordCount: story.wordCount,
     outline: story.outline,
@@ -4961,6 +5036,59 @@ export async function deleteStory(storyId: string, userId: string): Promise<bool
  * Get story manifest with all scenes and assets (M4)
  * Returns scenes with signed URLs for images and audio
  */
+
+const inlineNoSpaceBeforeRe = /^[\s,.;:!?…)\]}»”’"'%]/;
+const inlineOpeningBoundaryRe = /[\s([{«„“"']$/;
+
+function needsInlineSpaceBefore(previousText: string, currentText: string): boolean {
+  return Boolean(
+    previousText &&
+      currentText &&
+      !inlineOpeningBoundaryRe.test(previousText) &&
+      !inlineNoSpaceBeforeRe.test(currentText)
+  );
+}
+
+function needsInlineSpaceAfter(currentText: string, nextText: string): boolean {
+  return Boolean(currentText && nextText && !inlineNoSpaceBeforeRe.test(nextText));
+}
+
+function buildArtifactTextSegments(
+  rawText: string,
+  artifact: { id: string } | null
+):
+  | {
+      label: string;
+      segments: Array<
+        | { type: 'text'; text: string }
+        | { type: 'artifact'; text: string; label: string; artifactId: string }
+      >;
+    }
+  | null {
+  if (!artifact) return null;
+
+  const match = rawText.match(/\{([^{}]+)\}/);
+  if (!match || match.index === undefined) return null;
+
+  const before = stripAllTags(rawText.slice(0, match.index));
+  const label = stripAllTags(match[1]).trim();
+  const after = stripAllTags(rawText.slice(match.index + match[0].length));
+
+  if (!label) return null;
+
+  const segments = [
+    before
+      ? { type: 'text' as const, text: `${before}${needsInlineSpaceBefore(before, label) ? ' ' : ''}` }
+      : null,
+    { type: 'artifact' as const, text: label, label, artifactId: artifact.id },
+    after
+      ? { type: 'text' as const, text: `${needsInlineSpaceAfter(label, after) ? ' ' : ''}${after}` }
+      : null,
+  ].filter((segment): segment is NonNullable<typeof segment> => Boolean(segment));
+
+  return { label, segments };
+}
+
 export async function getStoryManifest(storyId: string) {
   const story = await getStoryRepository().findById(storyId);
   
@@ -4977,6 +5105,10 @@ export async function getStoryManifest(storyId: string) {
   // Get linked characters with enrichment
   const linkedCharactersRaw = await getStoryRepository().findLinkedCharactersByStoryId(storyId);
   const assetStorage = getAssetStorageService();
+  const localizedCharacterNames = await getLocalizedCharacterNames(
+    linkedCharactersRaw.map((char) => char.id),
+    story.language,
+  );
   
   // Resolve scenario card info for breadcrumbs
   let scenarioCardId: string | null = null;
@@ -5002,6 +5134,29 @@ export async function getStoryManifest(storyId: string) {
   const sceneIdsWithImages = (storyMeta.sceneIdsWithImages as number[] | undefined) ?? [];
   const imageGenerationComplete = storyMeta.imageGenerationComplete as boolean | undefined;
   const failedScenes = (storyMeta.failedScenes as Array<{ sceneId: number; errorMessage: string }> | undefined) ?? [];
+  const closingArtifact = story.closingArtifactId
+    ? await getStoryArtifactRepository().findById(story.closingArtifactId)
+    : null;
+  const localizedClosingArtifactTitle = closingArtifact
+    ? await resolveStoryArtifactTitle(closingArtifact, story.language)
+    : null;
+  const closingArtifactImage = closingArtifact
+    ? storyArtifactImageUrls(closingArtifact.imagePath)
+    : null;
+  const closingArtifactPayload = closingArtifact
+    ? {
+        id: closingArtifact.id,
+        artifactCode: closingArtifact.artifactCode,
+        title: localizedClosingArtifactTitle || closingArtifact.title,
+        description: closingArtifact.description,
+        imagePath: closingArtifact.imagePath,
+        fullImagePath: closingArtifactImage!.fullImagePath,
+        fullImageUrl: closingArtifactImage!.fullImageUrl,
+        thumbnailPath: closingArtifactImage!.thumbnailPath,
+        thumbnailUrl: closingArtifactImage!.thumbnailUrl,
+        imageUrl: closingArtifactImage!.imageUrl,
+      }
+    : null;
 
   const config = (await import('../config')).config;
   const webAppUrl = config.web?.webAppUrl || 'https://app.wondertales.com';
@@ -5035,6 +5190,7 @@ export async function getStoryManifest(storyId: string) {
     createdByMode: story.createdByMode,
     createdByChildProfileId: story.createdByChildProfileId ?? null,
     parentReviewStatus: story.parentReviewStatus,
+    closingArtifact: closingArtifactPayload,
     fullText: stripAllTags(story.fullText || ''),
     audioMetadata,
     // M8: Series fields
@@ -5046,6 +5202,8 @@ export async function getStoryManifest(storyId: string) {
     sceneIdsWithImages,
     failedScenes,
     scenes: storyScenes.map(scene => {
+      const rawSceneText = scene.text || '';
+      const artifactText = buildArtifactTextSegments(rawSceneText, closingArtifactPayload);
       const sceneAssets = storyAssets.filter(
         a => a.sceneId === scene.id
       );
@@ -5070,7 +5228,11 @@ export async function getStoryManifest(storyId: string) {
 
       return {
         sceneId: scene.sceneId,
-        text: stripAllTags(scene.text || ''),
+        text: stripAllTags(rawSceneText),
+        artifactMention: artifactText
+          ? { artifactId: closingArtifactPayload!.id, label: artifactText.label }
+          : null,
+        ...(artifactText ? { textSegments: artifactText.segments } : {}),
         // Return structured sceneVisual when available, otherwise legacy visualPrompt
         ...(sceneVisual
           ? { sceneVisual, visualPrompt: undefined }
@@ -5115,6 +5277,10 @@ export async function getStoryManifest(storyId: string) {
           return {
             id: char.id,
             name: char.name,
+            localizedName: localizedCharacterNames.get(char.id) ?? null,
+            nameTranslations: localizedCharacterNames.has(char.id)
+              ? { [story.language]: localizedCharacterNames.get(char.id)! }
+              : undefined,
             type: char.type,
             role: char.role,
             isHidden: char.isHidden,

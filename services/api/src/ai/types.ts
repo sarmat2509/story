@@ -4,7 +4,7 @@
  */
 
 import type { Locale } from '@wondertales/shared';
-import type { CharacterData, SceneVisual } from '../services/types';
+import type { CharacterData, MapTileVisual, SceneVisual } from '../services/types';
 
 /**
  * Scene validation result - for parallel scene-by-scene validation
@@ -112,6 +112,13 @@ export interface StorySpec {
   };
   scenarioGuidance?: string; // NEW: Detailed plot guidance (30-50 words)
   worldRule?: { name: string; description: string }; // World rule for scenario (randomly selected)
+  closingArtifact?: {
+    id: string;
+    artifactCode: string;
+    title: string;
+    description: string;
+    imagePath: string;
+  };
 }
 
 /**
@@ -134,6 +141,7 @@ export interface EpisodeOutline {
   language: Locale;
   moral: string;
   environments?: StoryEnvironment[]; // Persistent location descriptions
+  mapTile?: MapTileVisual; // Board-game story reward tile brief for the whole story
   scenes: Array<{
     sceneId: number;
     setting: string;
@@ -165,6 +173,7 @@ export interface EpisodeText {
   environments?: StoryEnvironment[]; // Persistent location descriptions
   /** Canonical wardrobe; scenes reference rows via sceneVisual.cameraComposition.characters[].outfitId (LLM) → normalized to characterOutfitIds. */
   outfits?: StoryOutfitRow[];
+  mapTile?: MapTileVisual; // Board-game story reward tile brief for the whole story
   characters?: Array<{
     // NEW - optional for backward compatibility
     name: string;

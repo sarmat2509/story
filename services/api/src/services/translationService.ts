@@ -1,7 +1,7 @@
 import { logger } from '../utils/logger';
 import { getTextProvider } from './aiService';
 import { getCharacterRepository, getChildProfileRepository, getDictionaryRepository } from '../repositories';
-import type { Character, ChildProfile } from '../db/schema';
+import type { Character, ChildProfile, StoryArtifact } from '../db/schema';
 import type { UsageMetadata } from '../providers/base/UsageMetadata';
 import {
   getLanguageFullDisplay,
@@ -17,6 +17,10 @@ export interface TranslationOptions {
 }
 
 export type CharacterNameLocalizations = Record<Locale, string>;
+export type StoryArtifactTitleLocalizations = Record<Locale, string>;
+
+export const STORY_ARTIFACT_TRANSLATION_ENTITY = 'story_artifact';
+export const STORY_ARTIFACT_TITLE_FIELD = 'title';
 
 function extractJsonObject(text: string): Record<string, unknown> | null {
   const trimmed = text
@@ -96,6 +100,33 @@ Character:
 - Type: ${character.type}${character.subtype ? ` / ${character.subtype}` : ''}
 ${description ? `- Description: ${description}` : ''}
 ${personality ? `- Personality/context: ${personality}` : ''}`;
+}
+
+function buildStoryArtifactTitleLocalizationPrompt(artifact: StoryArtifact): string {
+  const locales = LOCALE_IDS
+    .map((locale) => `- ${locale}: ${getLanguageFullDisplay(locale)}`)
+    .join('\n');
+
+  return `You localize short catalog artifact titles for children's stories.
+
+Return ONLY a compact JSON object with exactly these locale keys:
+${locales}
+
+Source title language: Russian (ru).
+
+Rules:
+- Preserve the same physical artifact identity across all languages.
+- Translate the meaning naturally for each target language; do not transliterate Russian words unless the item is a proper cultural name.
+- Keep titles short, concrete, and suitable as collectible item labels.
+- Use nominative/base form for catalog labels. Story prose may inflect these later.
+- Capitalize naturally for the target language.
+- No explanations, no brackets, no IDs, no metadata.
+- If a title is ambiguous, use the visual description to choose the most concrete translation.
+
+Artifact:
+- Code: ${artifact.artifactCode}
+- Source title: ${artifact.title}
+- Visual identity: ${artifact.description}`;
 }
 
 /**
@@ -181,6 +212,96 @@ export async function localizeCharacterNames(
           entityId: character.id,
           locale,
           fieldName: 'name',
+          value: defaults[locale],
+        })
+      )
+    );
+
+    return defaults;
+  }
+}
+
+/**
+ * Generate and persist localized artifact catalog titles for every supported story language.
+ * Stored in translations as entityType='story_artifact', entityId=artifactCode, fieldName='title'.
+ */
+export async function localizeStoryArtifactTitle(
+  artifact: StoryArtifact,
+  options?: TranslationOptions
+): Promise<StoryArtifactTitleLocalizations> {
+  const fallback = artifact.title?.trim();
+  if (!fallback) {
+    throw new Error(`Cannot localize empty story artifact title for ${artifact.id}`);
+  }
+
+  const defaults = LOCALE_IDS.reduce((acc, locale) => {
+    acc[locale] = fallback;
+    return acc;
+  }, {} as StoryArtifactTitleLocalizations);
+
+  try {
+    logger.info(
+      { artifactId: artifact.id, artifactCode: artifact.artifactCode, title: artifact.title },
+      'Localizing story artifact title',
+    );
+
+    const textProvider = getTextProvider();
+    const raw = await textProvider.generateText({
+      prompt: buildStoryArtifactTitleLocalizationPrompt(artifact),
+      temperature: 0.1,
+      maxTokens: 8192,
+      onUsage: options?.onUsage,
+      operation: 'translation',
+    });
+
+    const parsed = extractJsonObject(raw);
+    if (!parsed) {
+      logger.warn(
+        { artifactId: artifact.id, artifactCode: artifact.artifactCode, raw: raw.slice(0, 300) },
+        'Story artifact title localization returned non-JSON; falling back to canonical title',
+      );
+    }
+
+    const localizations = LOCALE_IDS.reduce((acc, locale) => {
+      acc[locale] = normalizeLocalizedName(parsed?.[locale], fallback);
+      return acc;
+    }, {} as StoryArtifactTitleLocalizations);
+
+    await Promise.all(
+      LOCALE_IDS.map((locale) =>
+        getDictionaryRepository().upsertTranslation({
+          entityType: STORY_ARTIFACT_TRANSLATION_ENTITY,
+          entityId: artifact.artifactCode,
+          locale,
+          fieldName: STORY_ARTIFACT_TITLE_FIELD,
+          value: localizations[locale],
+        })
+      )
+    );
+
+    logger.info(
+      { artifactId: artifact.id, artifactCode: artifact.artifactCode, localizations },
+      'Story artifact title localized and saved',
+    );
+
+    return localizations;
+  } catch (error) {
+    logger.error(
+      {
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error),
+        artifactId: artifact.id,
+        artifactCode: artifact.artifactCode,
+      },
+      'Failed to localize story artifact title',
+    );
+
+    await Promise.all(
+      LOCALE_IDS.map((locale) =>
+        getDictionaryRepository().upsertTranslation({
+          entityType: STORY_ARTIFACT_TRANSLATION_ENTITY,
+          entityId: artifact.artifactCode,
+          locale,
+          fieldName: STORY_ARTIFACT_TITLE_FIELD,
           value: defaults[locale],
         })
       )

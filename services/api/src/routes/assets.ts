@@ -480,7 +480,8 @@ router.get('/*', async (req: Request, res: Response) => {
 
     if (
       assetPath.startsWith('env_cache/') ||
-      assetPath.startsWith('outfit_plate_cache/')
+      assetPath.startsWith('outfit_plate_cache/') ||
+      assetPath.startsWith('story-artifacts/')
     ) {
       try {
         await sendPublicFile(res, assetPath);

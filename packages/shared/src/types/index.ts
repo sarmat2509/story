@@ -587,6 +587,18 @@ export interface StoryManifestApi extends StoryApi {
   shareUrl: string | null;
   visibility: 'public' | 'unlisted' | null;
   shareCardSceneId: number | null;
+  closingArtifact?: {
+    id: string;
+    artifactCode: string;
+    title: string;
+    description: string;
+    imagePath: string;
+    fullImagePath: string;
+    fullImageUrl: string;
+    thumbnailPath: string;
+    thumbnailUrl: string;
+    imageUrl: string;
+  } | null;
   characters?: unknown[];
   audioMetadata?: StoryAudioMetadata | null;
   fullText?: string;

@@ -26,6 +26,13 @@ function testStripAllTagsUnwrapsKeepsake() {
   );
 }
 
+function testStripAllTagsRepairsAdjacentKeepsakeSpacing() {
+  assert.strictEqual(
+    stripAllTags('Хлопчик отримав у подарунок{Перова заколка}, яка тихо сяяла.'),
+    'Хлопчик отримав у подарунок Перова заколка, яка тихо сяяла.',
+  );
+}
+
 function testStripForAudioKeepsAudioTagRemovesKeepsake() {
   const s = stripForAudio('[happy] She found {blue shell}!');
   assert.ok(s.includes('[happy]'), 'allowed audio tag kept');
@@ -33,11 +40,20 @@ function testStripForAudioKeepsAudioTagRemovesKeepsake() {
   assert.ok(s.includes('blue shell'), 'inner keepsake text remains for TTS');
 }
 
+function testStripForAudioRepairsAdjacentKeepsakeSpacing() {
+  assert.strictEqual(
+    stripForAudio('[happy] She found a{blue shell}!'),
+    '[happy] She found a blue shell!',
+  );
+}
+
 void (async () => {
   testExtractClosingFromScenesWhenFullTextHasNoMarker();
   testExtractKeepsakeLastWins();
   testStripAllTagsUnwrapsKeepsake();
+  testStripAllTagsRepairsAdjacentKeepsakeSpacing();
   testStripForAudioKeepsAudioTagRemovesKeepsake();
+  testStripForAudioRepairsAdjacentKeepsakeSpacing();
   console.log('audioTags tests OK');
 })().catch((e) => {
   console.error(e);

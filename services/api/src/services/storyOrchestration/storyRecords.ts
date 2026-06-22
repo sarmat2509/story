@@ -14,6 +14,13 @@ import type { CharacterData } from '../types';
 import { buildStoryCreationAttribution } from '../storyCreationAttributionService';
 import type { Locale } from '@wondertales/shared';
 
+function resolveClosingKeepsakeLabel(params: CreateStoryParams): string | null {
+  return extractClosingKeepsakeFromEpisodeText({
+    fullText: params.text.fullText,
+    scenes: params.text.scenes as Array<{ text?: string }> | undefined,
+  });
+}
+
 /**
  * Create minimal story stub before text generation.
  * Returns storyId for AI usage tracking. On success, call enrichStoryRecord to fill content.
@@ -77,10 +84,7 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
       parentReviewRequired: params.parentReviewRequired,
     });
 
-    const closingKeepsakeLabel = extractClosingKeepsakeFromEpisodeText({
-      fullText: params.text.fullText,
-      scenes: params.text.scenes as Array<{ text?: string }> | undefined,
-    });
+    const closingKeepsakeLabel = resolveClosingKeepsakeLabel(params);
 
     await getStoryRepository().transaction(async (tx) => {
       await getStoryRepository().updateStory(
@@ -95,6 +99,7 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
           fullText: stripCharacterIds(params.text.fullText),
           wordCount: params.text.wordCount,
           closingKeepsakeLabel,
+          closingArtifactId: params.spec.closingArtifact?.id ?? null,
           modelVersion: (params.metadata as any).modelVersion || config.ai.modelVersion,
           generationTimeMs: params.generationTimeMs,
           isPublished: !!params.seriesData,
@@ -104,8 +109,16 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
             llmGeneratedCharacters: llmCharacters,
             imageStyle: (params.spec as any).imageStyle,
             mergedCharacters: params.characters,
+            mapTile: (params.text as any).mapTile ?? null,
             ...(params.metadata.plotExampleId && { plotExampleId: params.metadata.plotExampleId }),
             ...(params.metadata.worldRuleId && { worldRuleId: params.metadata.worldRuleId }),
+            ...(params.metadata.storyArtifactId && {
+              storyArtifactId: params.metadata.storyArtifactId,
+              storyArtifactCode: params.metadata.storyArtifactCode,
+              storyArtifactTitle: params.metadata.storyArtifactTitle,
+              storyArtifactImagePath: params.metadata.storyArtifactImagePath,
+              storyArtifactSelection: params.metadata.storyArtifactSelection,
+            }),
             ...((params.metadata as any).seoDescription && { seoDescription: (params.metadata as any).seoDescription }),
             textGenerationTimeMs: params.metadata.textGenerationTimeMs,
             validationTimeMs: params.metadata.validationTimeMs,
@@ -171,8 +184,8 @@ export async function enrichStoryRecord(storyId: string, params: CreateStoryPara
         );
       }
 
-      logger.info({ storyId, sceneCount: params.text.scenes.length, characterCount: characterIdsToLink.size }, 'Story enriched with content');
-    });
+    logger.info({ storyId, sceneCount: params.text.scenes.length, characterCount: characterIdsToLink.size }, 'Story enriched with content');
+  });
 
     // Monthly story quota is reserved when the request is accepted for queueing.
   } catch (error) {
@@ -215,10 +228,7 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
       fallbackChildProfileId: params.childProfileId,
       parentReviewRequired: params.parentReviewRequired,
     });
-    const closingKeepsakeLabel = extractClosingKeepsakeFromEpisodeText({
-      fullText: params.text.fullText,
-      scenes: params.text.scenes as Array<{ text?: string }> | undefined,
-    });
+    const closingKeepsakeLabel = resolveClosingKeepsakeLabel(params);
 
     const storyId = await getStoryRepository().transaction(async (tx) => {
       // Create story record with metadata
@@ -238,14 +248,23 @@ export async function createStoryRecord(params: CreateStoryParams): Promise<stri
         fullText: stripCharacterIds(params.text.fullText),
         wordCount: params.text.wordCount,
         closingKeepsakeLabel,
+        closingArtifactId: params.spec.closingArtifact?.id ?? null,
         modelVersion: config.ai.modelVersion,
         generationTimeMs: params.generationTimeMs,
         metadata: {
           llmGeneratedCharacters: llmCharacters,
           imageStyle: (params.spec as any).imageStyle,
           mergedCharacters: params.characters,
+          mapTile: (params.text as any).mapTile ?? null,
           ...(params.metadata.plotExampleId && { plotExampleId: params.metadata.plotExampleId }),
           ...(params.metadata.worldRuleId && { worldRuleId: params.metadata.worldRuleId }),
+          ...(params.metadata.storyArtifactId && {
+            storyArtifactId: params.metadata.storyArtifactId,
+            storyArtifactCode: params.metadata.storyArtifactCode,
+            storyArtifactTitle: params.metadata.storyArtifactTitle,
+            storyArtifactImagePath: params.metadata.storyArtifactImagePath,
+            storyArtifactSelection: params.metadata.storyArtifactSelection,
+          }),
           ...((params.metadata as any).seoDescription && { seoDescription: (params.metadata as any).seoDescription }),
           textGenerationTimeMs: params.metadata.textGenerationTimeMs,
           validationTimeMs: params.metadata.validationTimeMs,

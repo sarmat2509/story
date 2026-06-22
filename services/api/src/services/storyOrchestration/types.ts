@@ -65,8 +65,14 @@ export interface CreateStoryParams {
     modelVersion: string;
     plotExampleId?: string;
     worldRuleId?: string;
+    storyArtifactId?: string;
+    storyArtifactCode?: string;
+    storyArtifactTitle?: string;
+    storyArtifactImagePath?: string;
+    storyArtifactSelection?: unknown;
     llmGeneratedCharacters?: any[];
     imageStyle?: string;
+    mapTile?: unknown;
   };
   seriesData?: {
     seriesId: string;
