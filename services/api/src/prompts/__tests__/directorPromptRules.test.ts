@@ -2,13 +2,16 @@ import assert from 'node:assert/strict';
 import {
   buildDirectorPrompt,
   buildDirectorPromptCachedPrefix,
+  buildMapTileBriefPrompt,
+  buildMapTileBriefPromptCachedPrefix,
   DIRECTOR_CACHE_KEY,
+  MAP_TILE_BRIEF_CACHE_KEY,
 } from '../text';
 
 function testDirectorCachedPrefixContainsImagePromptRules() {
   const cached = buildDirectorPromptCachedPrefix();
 
-  assert.strictEqual(DIRECTOR_CACHE_KEY, 'director_rules_v10');
+  assert.strictEqual(DIRECTOR_CACHE_KEY, 'director_rules_v23');
   assert.ok(cached.includes('CHARACTER DNA:'));
   assert.ok(cached.includes('2-3 memorable visible traits'));
   assert.ok(cached.includes('subject + key visual traits + outfit + emotion + action + setting'));
@@ -26,20 +29,45 @@ function testDirectorCachedPrefixContainsImagePromptRules() {
   assert.ok(cached.includes('internally choose ONE primary read'));
   assert.ok(cached.includes('This is the ONLY field where you explicitly name the main read in words.'));
   assert.ok(cached.includes('Do not repeat or redefine focus in sceneVisual.setting'));
+  assert.ok(cached.includes('Include characters, outfits, environments, mapTile, and illustrations.'));
   assert.ok(cached.includes('Each illustration must include environmentId, primaryRead, and sceneVisual.'));
-  assert.ok(cached.includes('Do not place the primary read in the far background while also expecting strong facial likeness'));
-  assert.ok(cached.includes('non-primary characters should usually get simple supporting behavior'));
-  assert.ok(cached.includes('If the scene contains both a large location reveal (bridge, ravine, tower, gate, courtyard, cliff, long path) and a small decisive action'));
-  assert.ok(cached.includes('If the primary read is an exchange or handoff, the giver, receiver, and object must sit in one clear readable cluster'));
-  assert.ok(cached.includes('When an environment image will exist downstream, treat environment layout as a fixed support layer.'));
-  assert.ok(cached.includes('For reference-grounded animals or creature companions, prefer morphology-safe wording'));
-  assert.ok(cached.includes('If a barrier or depth transition (ravine, river, bridge span, doorway threshold, cliff edge, balcony gap) separates camera from the key action'));
-  assert.ok(cached.includes('For handoffs, gifts, exchanges, or receiving moments: one supporting character may witness or present'));
-  assert.ok(cached.includes('Avoid extra flourishes like mid-hop comedy beats, tongue-out poses, big wing flourishes, or dramatic hover loops'));
-  assert.ok(cached.includes('For non-human sidekicks or creature companions that are reference-grounded but not the primary read, prefer calm, readable poses'));
-  assert.ok(cached.includes('keep its silhouette, head shape, ear/wing shape, facial marking pattern, and overall body proportions stable'));
-  assert.ok(cached.includes('Avoid bracketed stage-direction tags or meta markers such as "[excited]"'));
-  assert.ok(cached.includes('sceneVisual must visually realize primaryRead, not fight it.'));
+  assert.ok(cached.includes('CRITICAL - MAP TILE BRIEF:'));
+  assert.ok(cached.includes('Create exactly ONE top-level mapTile for the whole story'));
+  assert.ok(cached.includes('mapTile.description:'));
+  assert.ok(cached.includes('Return one compact English paragraph with drawable visual information only.'));
+  assert.ok(cached.includes('Write it like a dry art-director inventory for image generation, not like story prose.'));
+  assert.ok(cached.includes('Start with ONE primary visible anchor'));
+  assert.ok(cached.includes('Then add 2-4 secondary visible landmarks or environmental features.'));
+  assert.ok(cached.includes('Minor details must stay small, sparse, and non-repeating'));
+  assert.ok(cached.includes('Keep the priority order, but write normal prose.'));
+  assert.ok(cached.includes('Omit meta labels such as primary anchor, main anchor'));
+  assert.ok(cached.includes('Each visual idea should appear at only one priority level'));
+  assert.ok(cached.includes('do not repeat it in the primary anchor, secondary landmarks, and filler'));
+  assert.ok(cached.includes('Use only things an image model can draw directly.'));
+  assert.ok(cached.includes('white cloth napkin strip across black ink'));
+  assert.ok(cached.includes('closed worn book with gray puffs above the cover'));
+  assert.ok(cached.includes('old bookshop aisle with wooden shelf floor'));
+  assert.ok(cached.includes('Omit story titles, sensory cues, feelings, emotions'));
+  assert.ok(cached.includes('secret, hidden, world, universe, cozy, warm scent'));
+  assert.ok(cached.includes('Route geometry is controlled later by a mask'));
+  assert.ok(cached.includes('You may name the route surface material or crossing material when it matters'));
+  assert.ok(cached.includes('Do not make the route line itself the primary anchor or a secondary landmark'));
+  assert.ok(cached.includes('Decorative/background story elements such as a bridge seen through a porthole'));
+  assert.ok(cached.includes('describe them as sparse accents around landmarks or across the environment'));
+  assert.ok(cached.includes('Do not say north/south/east/west/top/bottom/left/right'));
+  assert.ok(cached.includes('river + bridge + portal'));
+  assert.ok(cached.includes('requiredFeatures is an exact mask contract'));
+  assert.ok(cached.includes('Waterfall must be paired with river'));
+  assert.ok(cached.includes('physical mask geometry on the tile surface'));
+  assert.ok(cached.includes('Every tile has a road/path as its main connector'));
+  assert.ok(cached.includes('Always include path'));
+  assert.ok(cached.includes('path, river, waterfall, pond, sea, bridge, portal'));
+  assert.ok(cached.includes('Do NOT include bridge for a distant, decorative, symbolic, broken, inaccessible, or background bridge'));
+  assert.ok(cached.includes('mask selector will choose geometry only from exact requiredFeatures matches'));
+  assert.ok(cached.includes('bridge does not imply river'));
+  assert.ok(!cached.includes('Each illustration must include environmentId, primaryRead, sceneVisual, and mapTile.'));
+  assert.ok(!cached.includes('connectorIntent'));
+  assert.ok(!cached.includes('landscapeLayout'));
 }
 
 function testDirectorRuntimePromptKeepsAnchorSceneSingleMomentRules() {
@@ -98,9 +126,59 @@ function testDirectorRuntimePromptKeepsAnchorSceneSingleMomentRules() {
   assert.ok(!prompt.includes('time-of-day atmosphere or specific focus'));
   assert.ok(!prompt.includes('AUDIO TAGS USAGE:'));
   assert.ok(!prompt.includes('[excited] Mia opens'));
+  assert.ok(prompt.includes('mapTile MUST be top-level and singular with exactly two conceptual fields: requiredFeatures[] and description.'));
   assert.ok(prompt.includes('Each illustration MUST include: environmentId (string), primaryRead (short English focus phrase), sceneVisual'));
+  assert.ok(prompt.includes('mapTile.description:'));
+  assert.ok(prompt.includes('mapTile.requiredFeatures:'));
+  assert.ok(!prompt.includes('connectorIntent'));
+  assert.ok(!prompt.includes('landscapeLayout'));
+}
+
+function testMapTileBriefPromptIsLightweightBackfillOnly() {
+  const cached = buildMapTileBriefPromptCachedPrefix();
+  const prompt = buildMapTileBriefPrompt({
+    imagesPerStory: 2,
+    blocks: [
+      {
+        blockIndex: 0,
+        sceneStart: 1,
+        sceneEnd: 2,
+        blockText: 'Scene 1: [whispering] A creek glows beside a mossy cave. Scene 2: A bridge crosses the creek.',
+      },
+      {
+        blockIndex: 1,
+        sceneStart: 3,
+        sceneEnd: 3,
+        blockText: 'Scene 3: Crystal gates shine inside the cavern.',
+      },
+    ],
+    spec: {
+      language: 'en',
+      ageGroup: '6-8',
+      characters: [],
+      imageStyle: 'soft_watercolor',
+    } as any,
+    userCharacters: [],
+  });
+
+  assert.strictEqual(MAP_TILE_BRIEF_CACHE_KEY, 'map_tile_brief_rules_v11');
+  assert.ok(cached.includes('Return exactly these direct top-level fields: description, requiredFeatures.'));
+  assert.ok(cached.includes('Do not wrap the result in a mapTile object.'));
+  assert.ok(cached.includes('Return one compact English paragraph with drawable visual information only.'));
+  assert.ok(cached.includes('Each visual idea should appear at only one priority level'));
+  assert.ok(cached.includes('Route geometry is controlled later by a mask'));
+  assert.ok(cached.includes('Use only these exact lowercase tokens'));
+  assert.ok(prompt.includes('MAP TILE BRIEF RUNTIME INPUT:'));
+  assert.ok(prompt.includes('A creek glows beside a mossy cave.'));
+  assert.ok(prompt.includes('Crystal gates shine inside the cavern.'));
+  assert.ok(prompt.includes('Return JSON with direct top-level fields only:'));
+  assert.ok(!prompt.includes('Include characters, outfits, environments, mapTile, and illustrations.'));
+  assert.ok(!prompt.includes('CHARACTER DNA:'));
+  assert.ok(!prompt.includes('VISUAL FOCUS HIERARCHY:'));
+  assert.ok(!prompt.includes('[whispering]'));
 }
 
 testDirectorCachedPrefixContainsImagePromptRules();
 testDirectorRuntimePromptKeepsAnchorSceneSingleMomentRules();
+testMapTileBriefPromptIsLightweightBackfillOnly();
 console.log('directorPromptRules tests passed');

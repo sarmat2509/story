@@ -43,6 +43,7 @@ services:
       # Development mode: mount source code for hot reload
       - ./services/api/src:/app/services/api/src
       - ./services/api/drizzle:/app/services/api/drizzle
+      - ./services/api/assets:/app/services/api/assets:ro
       - ./packages:/app/packages
       - ./services/api/uploads:/app/services/api/uploads  # Mount local uploads directory
       - ./image-prompt-debug:/app/image-prompt-debug

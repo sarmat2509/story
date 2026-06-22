@@ -20,6 +20,8 @@ import publicStoriesRoutes from './routes/publicStories';
 import publicAuthorsRoutes from './routes/publicAuthors';
 import publicUnlistedRoutes from './routes/publicUnlisted';
 import meStoriesRoutes from './routes/meStories';
+import meArtifactsRoutes from './routes/meArtifacts';
+import meMapTilesRoutes from './routes/meMapTiles';
 import ssrStoriesRoutes from './routes/ssrStories';
 import ssrUnlistedRoutes from './routes/ssrUnlisted';
 import ssrAuthorsRoutes from './routes/ssrAuthors';
@@ -178,6 +180,8 @@ app.use('/sitemap.xml', sitemapRoute);
 app.use('/api/v1/auth', authLimiter, authRoutes);
 app.use('/api/v1/me', apiLimiter, userRoutes);
 app.use('/api/v1/me/stories', apiLimiter, meStoriesRoutes);
+app.use('/api/v1/me/artifacts', apiLimiter, meArtifactsRoutes);
+app.use('/api/v1/me/map-tiles', apiLimiter, meMapTilesRoutes);
 app.use('/api/v1/plans', plansRoutes); // Public
 app.use('/api/v1/entitlements', apiLimiter, entitlementsRoutes);
 app.use('/api/v1/dictionaries', dictionariesRoutes); // Public

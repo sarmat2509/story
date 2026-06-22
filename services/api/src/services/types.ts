@@ -68,6 +68,20 @@ export interface SceneVisual {
 }
 
 /**
+ * Director-side brief for a story reward map tile.
+ *
+ * This is intentionally story-level and separate from sceneVisual: sceneVisual
+ * stages book illustrations, while mapTile describes one modular
+ * board-game reward tile for the whole story.
+ */
+export interface MapTileVisual {
+  /** Story-specific terrain, landmarks, architecture, interiors, and filler scenery for the map. */
+  description: string;
+  /** Semantic features used by the mask selector. Always includes path; e.g. path, river, bridge, portal. */
+  requiredFeatures: string[];
+}
+
+/**
  * Flatten a structured or string cameraComposition into a text string
  * and extract character names (if structured).
  * Used by image prompt builders and validation to get a consumable text form.
@@ -99,6 +113,7 @@ export interface StoryTextData {
   title: string;
   language: string;
   scenes: SceneData[];
+  mapTile?: MapTileVisual; // Board-game story reward tile brief for the whole story
   fullText: string;
   wordCount: number;
 }
@@ -113,6 +128,7 @@ export interface OutlineData {
     visualPrompt?: string; // Deprecated: kept for backward compatibility
     setting?: string;
   }>;
+  mapTile?: MapTileVisual;
 }
 
 export interface LLMCharacter {

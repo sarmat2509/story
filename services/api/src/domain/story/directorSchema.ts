@@ -1,10 +1,28 @@
 /**
  * JSON Schema for Director service output
- * Characters, environments, and illustrations (sceneVisual only for N scenes)
+ * Characters, environments, illustrations, and one story-level map tile brief.
  */
 
 import type { JsonSchema } from '../../providers/base/JsonSchema';
 import { CAMERA_CHARACTER_WITH_OUTFIT_SCHEMA } from './schemas';
+
+export const MAP_TILE_BRIEF_SCHEMA: JsonSchema = {
+  type: 'object',
+  properties: {
+    description: {
+      type: 'string',
+      description:
+        'Story-level map description IN ENGLISH, as one compact drawable visual inventory paragraph: largest visible place first, 2-4 secondary visible landmarks/features second, a few sparse minor visible details third, and broad physical filler surfaces last. Use normal prose without labels such as primary anchor, main anchor, secondary landmarks, minor details, or filler surfaces. Use concrete visible nouns, materials, shapes, colors, scale, and physical state only. Name environments as physical places and surfaces, not abstract worlds/universes/mysteries. Omit story titles, smells, sounds, feelings, mood, narrative meaning, quoted nickname labels, and abstract words such as enchanted, magical, mysterious, suggests, seems, feels, or atmosphere unless converted to visible light/color/shape. Mention what the tile contains, not exact directions or connector placement. Route geometry is controlled later by a mask: you may name route/crossing material, but do not describe where a path, trail, road, corridor, bridge approach, route, or walkway goes. Decorative/background objects seen through windows, portholes, screens, memories, dreams, or sky may stay in description with that viewing context.',
+    },
+    requiredFeatures: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        'Short normalized feature hints for exact mask selection. Use only these exact lowercase tokens as physical tile-surface geometry: path, river, waterfall, pond, sea, bridge, portal. Always include path; it means the required road/corridor/trail connector that every tile uses. Backend normalization will add path if omitted. Use waterfall for falling water, a cascade, or a water curtain on a river route; include river with waterfall. Use pond for contained water/liquid such as an ink pool or large puddle. Use bridge only for a route-level traversable crossing on the tile surface, such as a bridge, pier, plank, cloth walkway, napkin strip, raised crossing, or route crossing over a visible obstacle. Do not use bridge for a distant, decorative, symbolic, broken, inaccessible, or background bridge seen through a window, porthole, screen, sky, memory, or dream; put that in description instead. Do not add implied tokens: bridge does not imply river; pond does not imply river. Put biome/style words in description, not here.',
+    },
+  },
+  required: ['description', 'requiredFeatures'],
+};
 
 export const DIRECTOR_SCHEMA: JsonSchema = {
   type: 'object',
@@ -61,6 +79,25 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
       description:
         'Canonical wardrobe definitions. Build rows for every character that appears in any illustration\'s cameraComposition; each distinct look gets its own id. If a character keeps their default/reference clothes and those clothes fit the scene, description may be exactly "natural appearance". Every cameraComposition.characters[].outfitId MUST match one of these ids. Define outfits[] before assigning outfitId on each character row.',
     },
+    mapTile: {
+      type: 'object',
+      description:
+        'ONE board-game story reward tile brief for the whole story. It summarizes compatible visible landmarks from all planned illustrations into one modular map tile, not one scene and not a character illustration.',
+      properties: {
+        description: {
+          type: 'string',
+          description:
+            'Story-level map description IN ENGLISH, as one compact drawable visual inventory paragraph: largest visible place first, 2-4 secondary visible landmarks/features second, a few sparse minor visible details third, and broad physical filler surfaces last. Use normal prose without labels such as primary anchor, main anchor, secondary landmarks, minor details, or filler surfaces. Use concrete visible nouns, materials, shapes, colors, scale, and physical state only. Name environments as physical places and surfaces, not abstract worlds/universes/mysteries. Omit story titles, smells, sounds, feelings, mood, narrative meaning, quoted nickname labels, and abstract words such as enchanted, magical, mysterious, suggests, seems, feels, or atmosphere unless converted to visible light/color/shape. Mention what the tile contains, not exact directions or connector placement. Route geometry is controlled later by a mask: you may name route/crossing material, but do not describe where a path, trail, road, corridor, bridge approach, route, or walkway goes. Decorative/background objects seen through windows, portholes, screens, memories, dreams, or sky may stay in description with that viewing context.',
+        },
+        requiredFeatures: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Short normalized feature hints for exact mask selection. Use only these exact lowercase tokens as physical tile-surface geometry: path, river, waterfall, pond, sea, bridge, portal. Always include path; it means the required road/corridor/trail connector that every tile uses. Backend normalization will add path if omitted. Use waterfall for falling water, a cascade, or a water curtain on a river route; include river with waterfall. Use pond for contained water/liquid such as a pond, small lake, lagoon, ink pool, or large puddle. Use bridge only for a route-level traversable crossing on the tile surface, such as a bridge, pier, plank, cloth walkway, napkin strip, raised crossing, or route crossing over a visible obstacle. Do not use bridge for a distant, decorative, symbolic, broken, inaccessible, or background bridge seen through a window, porthole, screen, sky, memory, or dream; put that in mapTile.description instead. Use portal for cave, grotto, tunnel, doorway, arch, hatch, airlock, or magical entrance. Do not add implied tokens: bridge does not imply river; pond does not imply river; portal does not imply cave. Put biome/style words such as forest, interior, spaceship in mapTile.description, not here.',
+        },
+      },
+      required: ['description', 'requiredFeatures'],
+    },
     illustrations: {
       type: 'array',
       items: {
@@ -102,8 +139,8 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
         required: ['environmentId', 'primaryRead', 'sceneVisual'],
       },
       description:
-        'Visual descriptions for each illustration. Order matches placement: 1st=opening, rest=evenly distributed. Each sceneVisual.cameraComposition.characters[] entry MUST include outfitId (schema-enforced, same strictness as environmentId).',
+        'Visual descriptions for each illustration. Order matches placement: 1st=opening, rest=evenly distributed. Each sceneVisual.cameraComposition.characters[] entry MUST include outfitId (schema-enforced, same strictness as environmentId). The story reward map tile is top-level mapTile, not inside illustrations.',
     },
   },
-  required: ['characters', 'environments', 'outfits', 'illustrations'],
+  required: ['characters', 'environments', 'outfits', 'mapTile', 'illustrations'],
 };

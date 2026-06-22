@@ -202,6 +202,7 @@ export async function generateStoryText(params: GenerateTextParams): Promise<Gen
         worldRuleId: chosenWorldRuleId,
         llmGeneratedCharacters: llmCharacters,
         imageStyle: (spec as any).imageStyle,
+        mapTile: (validatedText as any).mapTile ?? null,
       },
       ...(generationType === 'continuation' && {
         seriesData: {

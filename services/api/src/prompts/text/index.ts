@@ -8,7 +8,14 @@ export {
   buildDirectTextPromptPlainCachedPrefix,
   WRITER_PLAIN_CACHE_KEY,
 } from './DirectTextPrompt';
-export { buildDirectorPrompt, buildDirectorPromptCachedPrefix, DIRECTOR_CACHE_KEY } from './DirectorPrompt';
+export {
+  buildDirectorPrompt,
+  buildDirectorPromptCachedPrefix,
+  buildMapTileBriefPrompt,
+  buildMapTileBriefPromptCachedPrefix,
+  DIRECTOR_CACHE_KEY,
+  MAP_TILE_BRIEF_CACHE_KEY,
+} from './DirectorPrompt';
 export {
   buildValidationPrompt,
   buildBatchValidationPrompt,

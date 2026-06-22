@@ -71,6 +71,7 @@ COPY services/api/tsconfig.json ./services/api/
 # Copy drizzle config and migrations
 COPY services/api/drizzle ./services/api/drizzle
 COPY services/api/drizzle.config.ts ./services/api/
+COPY services/api/assets ./services/api/assets
 
 WORKDIR /app/services/api
 
@@ -108,6 +109,7 @@ COPY --from=builder /app/services/api/package.json ./services/api/
 # Copy migrations and schema (needed for drizzle-kit)
 COPY services/api/drizzle ./services/api/drizzle
 COPY services/api/drizzle.config.ts ./services/api/
+COPY services/api/assets ./services/api/assets
 COPY services/api/src/db ./services/api/src/db
 COPY services/api/src/scripts ./services/api/src/scripts
 COPY services/api/src/config ./services/api/src/config

@@ -74,6 +74,8 @@ export class NanoBananaProProvider implements IImageProvider {
         characterName: ref.characterName || null,
         referenceKind: ref.referenceKind ?? null,
       })),
+      hasSystemInstruction: !!request.systemInstruction,
+      systemInstructionLength: request.systemInstruction?.length || 0,
       aspectRatio: request.aspectRatio,
       model: this.model,
     }, 'Generating image with Nano Banana Pro - Full Request Details');
@@ -537,10 +539,13 @@ export class NanoBananaProProvider implements IImageProvider {
   
   /**
    * Check if the current model supports the personGeneration config parameter.
-   * Some models (e.g. gemini-3-pro-image-preview) reject it with a 400 error.
+   * Some models reject it before the request is sent through the Gemini API.
    */
   private supportsPersonGeneration(): boolean {
     const unsupportedModels = [
+      'gemini-3.1-flash-image-preview',
+      'gemini-3.0-flash-image-preview',
+      'gemini-3-flash-image-preview',
       'gemini-3-pro-image-preview',
       'gemini-3.0-pro-image-preview',
     ];

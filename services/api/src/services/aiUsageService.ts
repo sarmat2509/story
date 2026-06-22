@@ -18,6 +18,7 @@ export interface UsageContext {
 /** Distinct ai_usage_events.operation values; priced like scene image_generate */
 export const USAGE_OP_IMAGE_ENVIRONMENT = 'image_environment';
 export const USAGE_OP_IMAGE_OUTFIT_PLATE = 'image_outfit_plate';
+export const USAGE_OP_IMAGE_MAP_TILE = 'image_map_tile';
 
 /** Deferred TTS prosody LLM (`enrichDeferredProsodyForTtsChunk`); priced like text tokens (same provider/model). */
 export const USAGE_OP_TTS_PROSODY_TAGS = 'tts_prosody_tags';
@@ -27,7 +28,8 @@ function isImageGenerationPricedOperation(operation: string): boolean {
     operation === 'image_generate' ||
     operation === 'image_edit' ||
     operation === USAGE_OP_IMAGE_ENVIRONMENT ||
-    operation === USAGE_OP_IMAGE_OUTFIT_PLATE
+    operation === USAGE_OP_IMAGE_OUTFIT_PLATE ||
+    operation === USAGE_OP_IMAGE_MAP_TILE
   );
 }
 

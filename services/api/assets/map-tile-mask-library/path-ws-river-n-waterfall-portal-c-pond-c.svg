@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254">
+  <rect width="1254" height="1254" fill="#ffffff" />
+  <ellipse cx="627" cy="627" rx="230" ry="155" fill="#56c7ef" stroke="#1b7da1" stroke-width="14" />
+  <path d="M 627 0 L 627 190 C 667 275 532 532 627 627" fill="none" stroke="#1b7da1" stroke-width="164" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 627 0 L 627 190 C 667 275 532 532 627 627" fill="none" stroke="#56c7ef" stroke-width="150" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 0 627 L 190 627 C 235 730 292 900 420 1010 C 500 1080 595 1088 627 1064 L 627 1254" fill="none" stroke="#626262" stroke-width="164" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 0 627 L 190 627 C 235 730 292 900 420 1010 C 500 1080 595 1088 627 1064 L 627 1254" fill="none" stroke="#8f8f8f" stroke-width="150" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 460 565 C 452 425 520 330 627 315 C 734 330 802 425 794 565 Z" fill="#4a403a" stroke="#1d1917" stroke-width="16" />
+  <path d="M 535 560 C 532 468 575 405 627 396 C 679 405 722 468 719 560 Z" fill="#111111" />
+  <path d="M 552 0 L 552 306 C 531 340 537 468 559 558 C 585 598 669 598 695 558 C 717 468 723 340 702 306 L 702 0 Z" fill="#56c7ef" stroke="#1b7da1" stroke-width="14" />
+  <path d="M 511 300 C 553 270 589 318 627 292 C 672 262 705 318 743 294" fill="none" stroke="#5f625f" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 515 300 C 557 276 589 316 627 296 C 671 270 707 314 739 294" fill="none" stroke="#c9c3b4" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 581 36 C 569 150 595 260 579 386 C 567 466 587 514 573 558 M 627 42 C 641 158 617 278 635 402 C 645 472 617 530 631 574 M 675 34 C 685 145 661 268 677 390 C 689 470 667 518 681 560" stroke="#d8f6ff" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.92" />
+  <path d="M 509 568 C 543 532 579 596 609 560 C 643 526 679 596 711 558 C 735 532 765 575 793 548" fill="none" stroke="#d8f6ff" stroke-width="18" stroke-linecap="round" opacity="0.9" />
+</svg>

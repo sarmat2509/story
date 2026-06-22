@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254">
+  <rect width="1254" height="1254" fill="#ffffff" />
+  <path d="M 1254 0 L 1254 1254 L 890 1254 C 1035 905 1000 720 922 610 C 845 500 950 330 890 0 Z" fill="#56c7ef" stroke="#1b7da1" stroke-width="14" />
+  <path d="M 0 627 L 190 627 C 335 627 455 735 550 760 C 655 790 627 920 627 1064 L 627 1254" fill="none" stroke="#626262" stroke-width="164" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 445 650 C 390 570 335 475 300 390" fill="none" stroke="#626262" stroke-width="164" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 0 627 L 190 627 C 335 627 455 735 550 760 C 655 790 627 920 627 1064 L 627 1254" fill="none" stroke="#8f8f8f" stroke-width="150" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 445 650 C 390 570 335 475 300 390" fill="none" stroke="#8f8f8f" stroke-width="150" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 165 435 C 158 306 220 210 305 190 C 415 208 475 305 458 435 Z" fill="#4a403a" stroke="#1d1917" stroke-width="16" />
+  <path d="M 232 430 C 228 342 266 279 314 268 C 376 282 408 342 398 430 Z" fill="#111111" />
+  <path d="M 150 627 C 275 627 410 643 535 627" fill="none" stroke="#5d3924" stroke-width="188" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 150 627 C 275 627 410 643 535 627" fill="none" stroke="#9a6a42" stroke-width="170" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

@@ -119,6 +119,21 @@ export interface SceneImageWithReferenceRequest {
   hasEnvironmentImageRef?: boolean;
 }
 
+export interface MapTileImageRequest {
+  prompt: string;
+  systemInstruction?: string;
+  maskImage: {
+    buffer: Buffer;
+    mimeType: string;
+    instructionText?: string;
+  };
+  storyReferenceImages?: Array<{
+    buffer: Buffer;
+    mimeType: string;
+    instructionText: string;
+  }>;
+}
+
 /**
  * ImageDomainService - Business logic for image generation
  *
@@ -305,6 +320,59 @@ export class ImageDomainService {
       systemInstruction,
       aspectRatio: providerRequest.aspectRatio,
       referenceImages: refImages?.map((ref) => ({
+        instructionText: ref.instructionText,
+        characterName: ref.characterName,
+        referenceKind: ref.referenceKind,
+        mimeType: ref.mimeType,
+        fileUri: ref.fileUri,
+        hasBase64Data: !!ref.base64Data,
+        url: ref.url,
+      })),
+    });
+
+    return await this.imageProvider.generateImage(providerRequest);
+  }
+
+  /**
+   * Generate a square story reward map tile from a strict geometry mask.
+   *
+   * The mask is passed as Image 1 / object reference. The system instruction
+   * carries stable tile rules; the prompt carries story-specific geometry and brief.
+   */
+  async generateMapTile(
+    request: MapTileImageRequest,
+    options?: ImageDomainOptions
+  ): Promise<GeneratedImage> {
+    const providerRequest: GenerateImageRequest = {
+      prompt: request.prompt,
+      systemInstruction: request.systemInstruction,
+      aspectRatio: '1:1',
+      referenceImages: [
+        {
+          base64Data: request.maskImage.buffer.toString('base64'),
+          mimeType: request.maskImage.mimeType,
+          instructionText:
+            request.maskImage.instructionText ??
+            'Image 1 is the strict geometry control map. Preserve its connector geometry exactly.',
+          referenceKind: 'object',
+        },
+        ...(request.storyReferenceImages?.map((ref) => ({
+          base64Data: ref.buffer.toString('base64'),
+          mimeType: ref.mimeType,
+          instructionText: ref.instructionText,
+          referenceKind: 'object' as const,
+        })) ?? []),
+      ],
+      personGeneration: 'dont_allow',
+      onUsage: options?.onUsage,
+      operation: 'image_map_tile',
+    };
+
+    await options?.onBuiltPrompt?.({
+      prompt: request.prompt,
+      systemInstruction: request.systemInstruction,
+      aspectRatio: providerRequest.aspectRatio,
+      referenceImages: providerRequest.referenceImages?.map((ref) => ({
         instructionText: ref.instructionText,
         characterName: ref.characterName,
         referenceKind: ref.referenceKind,

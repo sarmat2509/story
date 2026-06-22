@@ -13,6 +13,7 @@
 import type { StorySpec, EpisodeText, PolicyProfile, SceneValidationResult } from '../../ai/types';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
 import type { UsageMetadata } from '../../providers/base/UsageMetadata';
+import { canonicalizeMapTileFeatures } from './mapTileMasks';
 
 export interface StoryDomainOptions {
   onUsage?: (usage: UsageMetadata) => void;
@@ -32,12 +33,15 @@ import {
   buildDirectTextPromptPlainCachedPrefix,
   buildDirectorPrompt,
   buildDirectorPromptCachedPrefix,
+  buildMapTileBriefPrompt,
+  buildMapTileBriefPromptCachedPrefix,
   buildValidationPrompt,
   buildBatchValidationCachedPrefix,
   buildBatchValidationRuntimePrompt,
   buildBatchRegenerationCachedPrefix,
   buildBatchRegenerationRuntimePrompt,
   DIRECTOR_CACHE_KEY,
+  MAP_TILE_BRIEF_CACHE_KEY,
   TEXT_REGENERATION_CACHE_KEY,
   TEXT_VALIDATION_CACHE_KEY,
   WRITER_PLAIN_CACHE_KEY,
@@ -46,7 +50,7 @@ import config from '../../config';
 import { estimateUsageCostUsd } from '../../services/aiUsageService';
 import { logger } from '../../utils/logger';
 import { VALIDATION_SCHEMA, BATCH_VALIDATION_SCHEMA, BATCH_REGENERATION_SCHEMA } from './schemas';
-import { DIRECTOR_SCHEMA } from './directorSchema';
+import { DIRECTOR_SCHEMA, MAP_TILE_BRIEF_SCHEMA } from './directorSchema';
 import { parsePlainTextToScenes } from './parsePlainText';
 import { countNarrationWords } from '../../utils/audioTags';
 
@@ -195,6 +199,10 @@ export class StoryDomainService {
     characters: Array<{ name: string; type: string; description: string; role?: string; personality?: string }>;
     environments: Array<{ id: string; name: string; description: string }>;
     outfits: Array<{ id: string; characterName: string; description: string }>;
+    mapTile: {
+      description: string;
+      requiredFeatures: string[];
+    };
     illustrations: Array<{
       environmentId: string;
       primaryRead: string;
@@ -229,6 +237,7 @@ export class StoryDomainService {
         characters: any[];
         environments: any[];
         outfits: any[];
+        mapTile: any;
         illustrations: Array<{
           environmentId: string;
           primaryRead: string;
@@ -269,10 +278,94 @@ export class StoryDomainService {
         );
       }
 
-      return result as any;
+      return {
+        ...result,
+        mapTile: {
+          ...(result.mapTile ?? {}),
+          description: typeof result.mapTile?.description === 'string' ? result.mapTile.description.trim() : '',
+          requiredFeatures: canonicalizeMapTileFeatures(
+            Array.isArray(result.mapTile?.requiredFeatures) ? result.mapTile.requiredFeatures : []
+          ),
+        },
+      } as any;
     } catch (error) {
       logger.error({ error }, 'Director call failed');
       throw new Error(`Director failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Lightweight Director shortcut for backfilling legacy stories.
+   * Standard story generation still uses callDirector(); this returns only the
+   * two story-level map tile fields that are persisted in stories.metadata.
+   */
+  async generateMapTileBrief(
+    params: {
+      blocks: Array<{ blockIndex: number; sceneStart: number; sceneEnd: number; blockText: string }>;
+      imagesPerStory: number;
+      spec: StorySpec;
+      userCharacters: Array<{ id?: string; name: string }>;
+    },
+    options?: StoryDomainOptions
+  ): Promise<{
+    description: string;
+    requiredFeatures: string[];
+  }> {
+    const prompt = buildMapTileBriefPrompt(params);
+
+    logger.info(
+      {
+        imagesPerStory: params.imagesPerStory,
+        blockCount: params.blocks.length,
+        promptLength: prompt.length,
+      },
+      'Calling map tile brief Director',
+    );
+
+    try {
+      const parentOnUsage = options?.onUsage;
+      const result = await this.directorTextProvider.generateStructured<{
+        description: string;
+        requiredFeatures: string[];
+      }>({
+        prompt,
+        cachedPrefix: {
+          key: MAP_TILE_BRIEF_CACHE_KEY,
+          content: buildMapTileBriefPromptCachedPrefix(),
+          displayName: MAP_TILE_BRIEF_CACHE_KEY,
+        },
+        schema: MAP_TILE_BRIEF_SCHEMA,
+        temperature: 0.4,
+        onUsage: (usage) => {
+          if (usage.operation === 'map_tile_brief') {
+            const costUsd = estimateUsageCostUsd(usage);
+            logger.info(
+              {
+                provider: usage.provider,
+                model: usage.model,
+                inputTokens: usage.inputUnits,
+                outputTokens: usage.outputUnits ?? 0,
+                costUsd,
+              },
+              'Map tile brief LLM request usage (estimated cost USD)',
+            );
+          }
+          parentOnUsage?.(usage);
+        },
+        operation: 'map_tile_brief',
+      });
+
+      return {
+        description: typeof result.description === 'string' ? result.description.trim() : '',
+        requiredFeatures: canonicalizeMapTileFeatures(
+          Array.isArray(result.requiredFeatures)
+            ? result.requiredFeatures.filter((feature): feature is string => typeof feature === 'string')
+            : []
+        ),
+      };
+    } catch (error) {
+      logger.error({ error }, 'Map tile brief Director call failed');
+      throw new Error(`Map tile brief Director failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

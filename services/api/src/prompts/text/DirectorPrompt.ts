@@ -16,14 +16,20 @@ export interface DirectorPromptParams {
   userCharacters: Array<{ id?: string; name: string }>;
 }
 
-export const DIRECTOR_CACHE_KEY = 'director_rules_v10';
+export const DIRECTOR_CACHE_KEY = 'director_rules_v23';
+export const MAP_TILE_BRIEF_CACHE_KEY = 'map_tile_brief_rules_v11';
 
 const DIRECTOR_SYSTEM_PROMPT = `You are the visual director for a children's story. Your role is to translate the story text into visual descriptions for illustrations: describe characters (appearance, clothing), environments (locations, setting), and the composition of each image (camera angle, character placement, lighting). You do not write the story text — it is already written. You are responsible only for how the story will look in illustrations: what to draw, where to place elements, what angle to show. Your descriptions go to an image generation system, so they must be concrete, visual, and in English.
 
 The story text may lack visual details (e.g. character appearance, room layout). You may invent such details yourself — but never contradict what is explicitly stated in the text.`;
 
+const MAP_TILE_BRIEF_SYSTEM_PROMPT = `You create only the story-level reward map tile brief for a children's story. The brief is used later by a deterministic mask selector and an image generator to create one modular board-game tile for the whole story.
+
+You do not create illustration prompts, characters, outfits, environments, scene visuals, or image composition data. You return only the compact map tile brief fields needed for existing-story backfill.`;
+
 export function buildDirectorPromptCachedPrefix(): string {
   const imagePromptRules = helpers.formatDirectorImagePromptRules();
+  const mapTileRules = helpers.formatDirectorMapTileRules();
   return `${DIRECTOR_SYSTEM_PROMPT}
 
 General Director rules:
@@ -32,15 +38,72 @@ General Director rules:
 - Keep illustrations faithful to the anchor scene.
 - Maintain consistency of characters, wardrobe, props, and environments across illustrations.
 - sceneVisual fields must describe one place and one moment only.
+- mapTile must be one top-level story reward tile brief that combines key visible landmarks from all planned illustrations.
 
 Output contract:
 - Return JSON only.
-- Include characters, outfits, environments, and illustrations.
+- Include characters, outfits, environments, mapTile, and illustrations.
 - Each illustration must include environmentId, primaryRead, and sceneVisual.
 - Each cameraComposition.characters row must include name, description, and outfitId.
 - New characters must receive detailed visual descriptions for image generation.
 
-${imagePromptRules}`;
+${imagePromptRules}
+
+${mapTileRules}`;
+}
+
+export function buildMapTileBriefPromptCachedPrefix(): string {
+  const mapTileRules = helpers.formatDirectorMapTileRules();
+  return `${MAP_TILE_BRIEF_SYSTEM_PROMPT}
+
+General map tile backfill rules:
+- Output JSON only.
+- Return exactly these direct top-level fields: description, requiredFeatures.
+- Do not wrap the result in a mapTile object.
+- All description text must be in English.
+- Do not generate characters, outfits, environments, illustrations, sceneVisual, primaryRead, cameraComposition, or image prompts.
+- Do not choose geometry, orientation, side directions, connector directions, mask ids, or exact placement.
+- Where the shared rules say mapTile.description or mapTile.requiredFeatures, fill the direct top-level JSON fields description and requiredFeatures.
+
+${mapTileRules}`;
+}
+
+export function buildMapTileBriefPrompt(params: DirectorPromptParams): string {
+  const { blocks, imagesPerStory, spec } = params;
+
+  const blocksText =
+    imagesPerStory === 1
+      ? blocks.map(b => `STORY (all scenes):\n${stripAllTags(b.blockText)}`).join('\n\n')
+      : blocks
+          .map(b =>
+            b.sceneStart === b.sceneEnd
+              ? `BLOCK ${b.blockIndex + 1} — planned illustration ${b.blockIndex + 1} = Scene ${b.sceneStart}:\n${stripAllTags(b.blockText)}`
+              : `BLOCK ${b.blockIndex + 1} — planned illustration ${b.blockIndex + 1} would depict Scene ${b.sceneStart}. Scenes ${b.sceneStart + 1}-${b.sceneEnd} are context:\n${stripAllTags(b.blockText)}`
+          )
+          .join('\n\n---\n\n');
+
+  const scenarioContext = spec.scenarioCard
+    ? `SCENARIO CONTEXT:\n${spec.scenarioCard.name}${spec.scenarioCard.description ? ` - ${spec.scenarioCard.description}` : ''}`
+    : '';
+
+  return helpers.cleanTemplate`
+MAP TILE BRIEF RUNTIME INPUT:
+Use the cached map tile brief rules above. Create only the direct JSON fields description and requiredFeatures.
+
+${scenarioContext}
+
+STORY BLOCKS:
+${blocksText}
+
+TASK:
+Create one compact story-level reward tile brief for the whole story. Consider all story blocks together. If different planned illustrations contain compatible landmarks, combine them into the same tile brief.
+
+Return JSON with direct top-level fields only:
+- description: one compact English paragraph of drawable visual inventory only. Name the largest visible place first, then secondary visible landmarks, sparse small details, and broad physical filler surfaces. Use normal prose without labels like primary anchor, main anchor, secondary landmarks, minor details, or filler surfaces. Use concrete visible nouns/materials/shapes/colors/states only. Name environments as physical places/surfaces, not abstract worlds. Omit story titles, smells, feelings, mood, narrative meaning, quoted nickname labels, and abstract words such as enchanted/magical/mysterious unless converted to visible light/color/shape.
+- requiredFeatures: array of exact lowercase mask-selection tokens. Allowed tokens only: path, river, waterfall, pond, sea, bridge, portal. Always include path.
+
+Do not return characters, outfits, environments, illustrations, sceneVisual, cameraComposition, primaryRead, mapTile wrapper, geometry, orientation, connector sides, or directions.
+`;
 }
 
 export function buildDirectorPrompt(params: DirectorPromptParams): string {
@@ -72,6 +135,7 @@ export function buildDirectorPrompt(params: DirectorPromptParams): string {
   const physicalReadability = helpers.formatDirectorPhysicalReadabilityRules();
   const deicticActions = helpers.formatDirectorDeicticActionsRules();
   const functionalDeviceComposition = helpers.formatDirectorFunctionalDeviceCompositionRules();
+  const mapTileRules = helpers.formatDirectorMapTileRules();
 
   let instructionBlock: string;
   const costumeRules = helpers.formatDirectorCostumeContinuityRules();
@@ -135,9 +199,12 @@ ${deicticActions}
 
 ${functionalDeviceComposition}
 
+${mapTileRules}
+
 ${instructionBlock}
 
-OUTPUT JSON — order helps you satisfy dependencies: (1) characters, (2) outfits (define every id you will use), (3) environments (one row per unique environmentId referenced below), (4) illustrations (length ${imagesPerStory}).
+OUTPUT JSON — order helps you satisfy dependencies: (1) characters, (2) outfits (define every id you will use), (3) environments (one row per unique environmentId referenced below), (4) mapTile (one story-level reward tile), (5) illustrations (length ${imagesPerStory}).
+mapTile MUST be top-level and singular with exactly two conceptual fields: requiredFeatures[] and description. It must combine key compatible visible landmarks from all planned illustrations, but must not choose geometry, orientation, connector sides, or exact placement.
 Each illustration MUST include: environmentId (string), primaryRead (short English focus phrase), sceneVisual (setting, cameraComposition with shot + characters[], lighting).
 Each cameraComposition.characters[] row MUST include: name, description, outfitId (exact outfits[].id for that character in this shot). Non-empty characters array; every person in the frame must have outfitId set — the schema enforces this like environmentId.
 Wardrobe descriptions must match weather, season, and indoor/outdoor context of the anchor moment.

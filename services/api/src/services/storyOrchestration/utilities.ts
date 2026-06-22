@@ -188,6 +188,7 @@ export function mergeDirectorIntoText(
     characters: any[];
     environments: any[];
     outfits?: any[];
+    mapTile?: any;
     illustrations: Array<{
       environmentId: string;
       primaryRead?: string;
@@ -236,6 +237,7 @@ export function mergeDirectorIntoText(
     characters: directorResult.characters,
     environments: directorResult.environments,
     outfits: Array.isArray(directorResult.outfits) ? directorResult.outfits : [],
+    mapTile: directorResult.mapTile,
     scenes: Array.from(sceneMap.values()).sort((a, b) => a.sceneId - b.sceneId),
     fullText: plainText.fullText,
     wordCount: plainText.wordCount,

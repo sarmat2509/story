@@ -1,9 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import fs from 'fs/promises';
+import path from 'path';
 import { FEEDBACK_CATEGORIES, FEEDBACK_TOPICS } from '@wondertales/shared';
 import { requireAdmin, requireAuth } from '../middleware/authMiddleware';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
-import { getStoryRepository } from '../repositories';
+import { getAssetRepository, getStoryRepository } from '../repositories';
 import {
   createAdminConfigItem,
   deleteAdminConfigItem,
@@ -31,6 +33,7 @@ import {
   updateAdminDataPrivacyRequest,
 } from '../services/dataPrivacyRequestService';
 import { listAdminModerationDecisionEvents } from '../services/moderationDecisionService';
+import { MAP_TILE_MASK_VARIANTS } from '../domain/story/mapTileMasks';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -75,6 +78,14 @@ const DashboardQuerySchema = z.object({
 
 const StoryIdParamsSchema = z.object({
   storyId: z.string().uuid(),
+});
+
+const MapTileMaskImageParamsSchema = z.object({
+  maskId: z.string().trim().min(1).max(180).regex(/^[a-z0-9-]+$/),
+});
+
+const AdminAssetImageParamsSchema = z.object({
+  assetId: z.string().uuid(),
 });
 
 const UserIdParamsSchema = z.object({
@@ -163,6 +174,53 @@ const UpdateAdminUserBodySchema = z.object({
 const UpdateAdminStoryBodySchema = z.object({
   showOnHomePage: z.boolean(),
 }).strict();
+
+const UPLOADS_DIR_CANDIDATES = [
+  path.resolve(process.cwd(), 'uploads'),
+  path.resolve(process.cwd(), 'services', 'api', 'uploads'),
+  path.resolve(__dirname, '..', '..', 'uploads'),
+];
+
+async function resolveUploadFilePath(storagePath: string): Promise<string | null> {
+  for (const uploadsDir of UPLOADS_DIR_CANDIDATES) {
+    const fullPath = path.resolve(uploadsDir, storagePath);
+    const safe = fullPath === uploadsDir || fullPath.startsWith(uploadsDir + path.sep);
+    if (!safe) continue;
+
+    try {
+      await fs.access(fullPath);
+      return fullPath;
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function resolveMapTileMaskImagePath(maskId: string): Promise<string | null> {
+  const relative = path.join('assets', 'map-tile-mask-library', `${maskId}.png`);
+  const candidates = [
+    path.resolve(process.cwd(), relative),
+    path.resolve(process.cwd(), 'services', 'api', relative),
+    path.resolve(__dirname, '..', '..', relative),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+  }
+
+  return null;
+}
 
 const StoryGoalPatchSchema = z.object({
   name: z.string().trim().min(1).optional(),
@@ -998,6 +1056,84 @@ router.post('/stories/:storyId/audio/reset', async (req: Request, res: Response)
     return res.status(500).json({
       status: 'error',
       message: error instanceof Error ? error.message : 'Failed to reset story audio',
+    });
+  }
+});
+
+router.get('/assets/:assetId/image', async (req: Request, res: Response) => {
+  try {
+    const parsedParams = AdminAssetImageParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid params',
+        details: parsedParams.error.flatten(),
+      });
+    }
+
+    const asset = await getAssetRepository().findById(parsedParams.data.assetId);
+    if (!asset || asset.assetType !== 'image') {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Asset not found',
+      });
+    }
+
+    const filePath = await resolveUploadFilePath(asset.storagePath);
+    if (!filePath) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Asset file not found',
+      });
+    }
+
+    res.setHeader('Content-Type', asset.mimeType || 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    return res.sendFile(filePath);
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin asset image failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to load asset image',
+    });
+  }
+});
+
+router.get('/map-tile-masks/:maskId/image', async (req: Request, res: Response) => {
+  try {
+    const parsedParams = MapTileMaskImageParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid params',
+        details: parsedParams.error.flatten(),
+      });
+    }
+
+    const mask = MAP_TILE_MASK_VARIANTS.find((item) => item.id === parsedParams.data.maskId);
+    if (!mask) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Map tile mask not found',
+      });
+    }
+
+    const filePath = await resolveMapTileMaskImagePath(mask.id);
+    if (!filePath) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Map tile mask image not found',
+      });
+    }
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    return res.sendFile(filePath);
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin map tile mask image failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to load map tile mask image',
     });
   }
 });

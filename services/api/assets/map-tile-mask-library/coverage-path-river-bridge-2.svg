@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254">
+  <rect width="1254" height="1254" fill="#ffffff" />
+  <path d="M 0 627 L 190 627 C 360 593 520 669 627 627 C 760 579 900 655 1064 627 L 1254 627" fill="none" stroke="#1b7da1" stroke-width="164" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 0 627 L 190 627 C 360 593 520 669 627 627 C 760 579 900 655 1064 627 L 1254 627" fill="none" stroke="#56c7ef" stroke-width="150" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 627 0 L 627 190 C 627 330 627 460 627 627 C 627 790 627 920 627 1064 L 627 1254" fill="none" stroke="#626262" stroke-width="164" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 627 0 L 627 190 C 627 330 627 460 627 627 C 627 790 627 920 627 1064 L 627 1254" fill="none" stroke="#8f8f8f" stroke-width="150" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 627 287 C 609 462 645 792 627 967" fill="none" stroke="#5d3924" stroke-width="188" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 627 287 C 609 462 645 792 627 967" fill="none" stroke="#9a6a42" stroke-width="170" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

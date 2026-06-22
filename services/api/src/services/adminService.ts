@@ -29,9 +29,10 @@ import { incrementLandingRenderVersion } from '../ssr/storyCache';
 import { getUserSubscription } from './planService';
 import { getUsageForPeriod } from './usageEventsService';
 import { readVendorStylePromptEnFromGenerationParams } from './ttsProsodyTaggingService';
-import type { AudioAsset } from '../db/schema';
+import type { Asset, AudioAsset } from '../db/schema';
 import type { StoryAudioMetadata } from '@wondertales/shared';
 import { clearStoryAudioData, type ClearStoryAudioResult } from './storyAudioCleanupService';
+import { MAP_TILE_MASK_VARIANTS } from '../domain/story/mapTileMasks';
 import { logger } from '../utils/logger';
 
 export async function getAdminDashboard(days: number) {
@@ -380,6 +381,43 @@ function adminStoryAudioRowOrder(
   return a.createdAt.getTime() - b.createdAt.getTime();
 }
 
+function serializeAdminMapTileAsset(asset: Asset | null) {
+  if (!asset) return null;
+
+  const generationParams =
+    asset.generationParams && typeof asset.generationParams === 'object'
+      ? (asset.generationParams as Record<string, unknown>)
+      : {};
+  const maskId = typeof generationParams.maskId === 'string' ? generationParams.maskId : null;
+  const mask = maskId ? MAP_TILE_MASK_VARIANTS.find((item) => item.id === maskId) ?? null : null;
+
+  return {
+    id: asset.id,
+    imageUrl: `/api/v1/admin/assets/${asset.id}/image`,
+    storagePath: asset.storagePath,
+    thumbnailPath: asset.thumbnailPath,
+    mimeType: asset.mimeType,
+    fileSizeBytes: asset.fileSizeBytes,
+    generationTimeMs: asset.generationTimeMs,
+    createdAt: asset.createdAt.toISOString(),
+    mask: mask
+      ? {
+          id: mask.id,
+          label: mask.label,
+          description: mask.description,
+          connectors: mask.connectors,
+          topology: mask.topology,
+          routeGroups: mask.routeGroups,
+          features: mask.features,
+          imageUrl: `/api/v1/admin/map-tile-masks/${mask.id}/image`,
+        }
+      : maskId
+        ? { id: maskId }
+        : null,
+    generationParams,
+  };
+}
+
 export async function listAdminDirectorScenes(storyId: string) {
   const story = await getStoryRepository().findById(storyId);
   if (!story) return null;
@@ -396,7 +434,13 @@ export async function listAdminDirectorScenes(storyId: string) {
   const metadata = (story.metadata ?? {}) as {
     environments?: Array<{ id: string; name?: string; description?: string }>;
     outfits?: Array<{ id: string; characterName?: string; description?: string }>;
+    mapTile?: unknown;
+    mapTileAssetId?: unknown;
   };
+  const mapTileAssetId =
+    typeof metadata.mapTileAssetId === 'string' && metadata.mapTileAssetId.trim()
+      ? metadata.mapTileAssetId
+      : null;
   const [
     items,
     storyEnvironmentMappings,
@@ -406,6 +450,8 @@ export async function listAdminDirectorScenes(storyId: string) {
     costBreakdown,
     cacheStats,
     finalAudio,
+    mapTileAssetById,
+    latestMapTileAsset,
   ] = await Promise.all([
     getStoryDirectorSceneRepository().listByStoryId(storyId),
     getStoryEnvironmentCacheRepository().listByStoryId(storyId),
@@ -415,7 +461,11 @@ export async function listAdminDirectorScenes(storyId: string) {
     getStoryCostBreakdown(storyId),
     getStoryCacheStats(storyId),
     getAssetRepository().findFinalCompletedAudioByStoryId(storyId),
+    mapTileAssetId ? getAssetRepository().findById(mapTileAssetId) : Promise.resolve(null),
+    getAssetRepository().findLatestCompletedMapTileByStoryId(storyId),
   ]);
+  const mapTileAsset =
+    mapTileAssetById?.storyId === storyId ? mapTileAssetById : latestMapTileAsset;
 
   const environmentCaches = await getEnvironmentImageCacheRepository().getByIds([
     ...new Set(storyEnvironmentMappings.map((item) => item.cacheId)),
@@ -594,6 +644,8 @@ export async function listAdminDirectorScenes(storyId: string) {
     story: {
       id: story.id,
       title: story.title,
+      mapTile: metadata.mapTile ?? null,
+      mapTileAsset: serializeAdminMapTileAsset(mapTileAsset),
       createdAt: story.createdAt.toISOString(),
     },
     storyScenes: storyScenes

@@ -58,6 +58,8 @@ export class OpenAIImageProvider implements IImageProvider {
         instructionText: ref.instructionText || null,
         characterName: ref.characterName || null,
       })),
+      hasSystemInstruction: !!request.systemInstruction,
+      systemInstructionLength: request.systemInstruction?.length || 0,
       size,
       mainlineModel: this.mainlineModel,
       quality: this.quality,
@@ -144,6 +146,7 @@ export class OpenAIImageProvider implements IImageProvider {
 
       const response = await this.client.responses.create({
         model: this.mainlineModel,
+        ...(request.systemInstruction ? { instructions: request.systemInstruction } : {}),
         input: [
           {
             role: 'user',

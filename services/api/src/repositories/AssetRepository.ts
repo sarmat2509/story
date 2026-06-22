@@ -1,4 +1,4 @@
-import { eq, and, inArray, sql, desc, isNotNull, isNull } from 'drizzle-orm';
+import { eq, and, inArray, sql, desc, asc, isNotNull, isNull } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 
@@ -61,11 +61,60 @@ export class AssetRepository {
       ));
   }
 
+  async findCompletedSceneImagesByStoryId(storyId: string): Promise<Array<{
+    id: string;
+    storyId: string;
+    sceneId: string | null;
+    sceneNumber: number | null;
+    sceneImageUrl: string | null;
+    storagePath: string;
+    mimeType: string;
+    generationParams: unknown;
+    createdAt: Date;
+  }>> {
+    return this.db
+      .select({
+        id: schema.assets.id,
+        storyId: schema.assets.storyId,
+        sceneId: schema.assets.sceneId,
+        sceneNumber: schema.scenes.sceneId,
+        sceneImageUrl: schema.scenes.imageUrl,
+        storagePath: schema.assets.storagePath,
+        mimeType: schema.assets.mimeType,
+        generationParams: schema.assets.generationParams,
+        createdAt: schema.assets.createdAt,
+      })
+      .from(schema.assets)
+      .innerJoin(schema.scenes, eq(schema.assets.sceneId, schema.scenes.id))
+      .where(and(
+        eq(schema.assets.storyId, storyId),
+        eq(schema.assets.assetType, 'image'),
+        eq(schema.assets.status, 'completed'),
+        isNotNull(schema.assets.sceneId)
+      ))
+      .orderBy(asc(schema.scenes.sceneId), desc(schema.assets.createdAt));
+  }
+
   async findByStoragePath(storagePath: string): Promise<schema.Asset | null> {
     const [asset] = await this.db
       .select()
       .from(schema.assets)
       .where(eq(schema.assets.storagePath, storagePath))
+      .limit(1);
+    return asset || null;
+  }
+
+  async findLatestCompletedMapTileByStoryId(storyId: string): Promise<schema.Asset | null> {
+    const [asset] = await this.db
+      .select()
+      .from(schema.assets)
+      .where(and(
+        eq(schema.assets.storyId, storyId),
+        eq(schema.assets.assetType, 'image'),
+        eq(schema.assets.status, 'completed'),
+        sql`${schema.assets.generationParams}->>'kind' = 'map_tile'`
+      ))
+      .orderBy(desc(schema.assets.createdAt))
       .limit(1);
     return asset || null;
   }

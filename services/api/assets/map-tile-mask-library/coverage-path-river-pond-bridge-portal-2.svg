@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254">
+  <rect width="1254" height="1254" fill="#ffffff" />
+  <ellipse cx="627" cy="627" rx="230" ry="155" fill="#56c7ef" stroke="#1b7da1" stroke-width="14" />
+  <path d="M 0 627 L 190 627 C 285 517 502 712 627 627" fill="none" stroke="#1b7da1" stroke-width="164" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 0 627 L 190 627 C 285 517 502 712 627 627" fill="none" stroke="#56c7ef" stroke-width="150" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 627 0 L 627 190 C 627 330 627 460 627 627 C 627 790 627 920 627 1064 L 627 1254" fill="none" stroke="#626262" stroke-width="164" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 627 0 L 627 190 C 565 240 425 310 300 390" fill="none" stroke="#626262" stroke-width="164" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 627 0 L 627 190 C 627 330 627 460 627 627 C 627 790 627 920 627 1064 L 627 1254" fill="none" stroke="#8f8f8f" stroke-width="150" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 627 0 L 627 190 C 565 240 425 310 300 390" fill="none" stroke="#8f8f8f" stroke-width="150" stroke-linecap="butt" stroke-linejoin="round" />
+  <path d="M 165 435 C 158 306 220 210 305 190 C 415 208 475 305 458 435 Z" fill="#4a403a" stroke="#1d1917" stroke-width="16" />
+  <path d="M 232 430 C 228 342 266 279 314 268 C 376 282 408 342 398 430 Z" fill="#111111" />
+  <path d="M 627 287 C 609 462 645 792 627 967" fill="none" stroke="#5d3924" stroke-width="188" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 627 287 C 609 462 645 792 627 967" fill="none" stroke="#9a6a42" stroke-width="170" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

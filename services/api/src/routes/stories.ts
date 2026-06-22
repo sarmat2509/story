@@ -40,7 +40,13 @@ import { getFaceDeduplicationService } from '../services/faceDeduplicationServic
 import { createCharacter } from '../services/characterService';
 import { config } from '../config';
 import { startTask, completeTask, STORY_TASKS } from '../services/storyProgress';
-import { getStoryRepository, getAssetRepository, getChildProfileRepository } from '../repositories';
+import {
+  getStoryRepository,
+  getAssetRepository,
+  getChildProfileRepository,
+  getCollectedMapTileRepository,
+  getSceneRepository,
+} from '../repositories';
 import { getStoryCacheStats, getStoryCost, getStoryCostBreakdown } from '../services/aiUsageService';
 import { isStoryQuotaError, releaseStoryQuotaReservationForRequest } from '../services/storyQuotaService';
 import { ensureChildDataConsent, type ConsentAuditContext } from '../services/consentService';
@@ -68,6 +74,7 @@ import {
   setLegacyPublicStoriesDeprecationHeaders,
 } from '../utils/deprecatedPublicStoryRoutes';
 import { expensiveGenerationLimiter } from '../middleware/rateLimiter';
+import { generateMapTile } from '../services/mapTileGenerationService';
 
 /**
  * Parse stored visualPrompt: if it contains JSON sceneVisual, return structured object;
@@ -337,6 +344,25 @@ const GenerateFromPhotosSchema = z.object({
 
 const RegenerateSceneSchema = z.object({
   visualPrompt: z.string().max(2000).optional(),
+});
+
+const MapTileBriefSchema = z
+  .object({
+    description: z.string().trim().min(1).max(3000),
+    requiredFeatures: z.array(z.string().max(40)).max(8).default([]),
+  })
+  .strict();
+
+const GenerateMapTileSchema = z.object({
+  mapTile: MapTileBriefSchema.optional(),
+  storyContext: z.string().max(3000).optional(),
+  useStoryImageReferences: z.boolean().optional().default(true),
+  referenceAssetIds: z.array(z.string().uuid()).max(3).optional(),
+  maxStoryImageReferences: z.number().int().min(0).max(3).optional().default(3),
+  maskId: z.string().max(120).optional(),
+  randomizeDirections: z.boolean().optional(),
+  dryRun: z.boolean().optional(),
+  includePrompt: z.boolean().optional(),
 });
 
 /**
@@ -2028,6 +2054,148 @@ router.get('/:id/generation-status', requireAuth, async (req: Request, res: Resp
     });
   }
 });
+
+/**
+ * POST /api/v1/stories/:id/map-tile
+ * Generate one square story reward map tile for the whole story from the Visual Director tile brief + strict mask.
+ *
+ * Body:
+ * - mapTile optional override. If omitted, uses persisted Visual Director metadata.mapTile for the story.
+ * - useStoryImageReferences true by default: pass up to 3 existing scene illustrations as visual references.
+ * - referenceAssetIds optional: choose exact completed scene image assets instead of auto-selecting latest scene images.
+ * - dryRun true returns selected mask + built prompt without calling the image model.
+ */
+router.post(
+  '/:id/map-tile',
+  requireAuth,
+  expensiveGenerationLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      const parseResult = GenerateMapTileSchema.safeParse(req.body ?? {});
+      if (!parseResult.success) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid map tile generation parameters',
+          details: parseResult.error.flatten().fieldErrors,
+        });
+      }
+
+      const body = parseResult.data;
+      const ownerUserId = getRequestOwnerUserId(req);
+      const story = await getStoryRepository().findByIdAndUser(id, ownerUserId);
+      if (!story) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Story not found',
+        });
+      }
+      if (!storyReadableByRequestSession(req, story)) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Story not found',
+        });
+      }
+
+      const metadata = story.metadata && typeof story.metadata === 'object'
+        ? story.metadata as Record<string, unknown>
+        : {};
+      const persistedBrief = metadata.mapTile ?? null;
+      const tileBriefResult = body.mapTile
+        ? MapTileBriefSchema.safeParse(body.mapTile)
+        : MapTileBriefSchema.safeParse(persistedBrief);
+
+      if (!tileBriefResult.success) {
+        return res.status(422).json({
+          status: 'error',
+          message:
+            'No valid story-level mapTile brief found. Pass mapTile in the request body or regenerate Director data for the story.',
+          details: tileBriefResult.error.flatten().fieldErrors,
+        });
+      }
+
+      const mapTile = tileBriefResult.data;
+      const storyContext = body.storyContext?.trim() || undefined;
+
+      assertPromptSafety({
+        text: [
+          mapTile.description,
+          mapTile.requiredFeatures?.join(', '),
+          storyContext,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        source: 'map_tile_generation_prompt',
+        userId: req.user!.id,
+      });
+
+      const result = await generateMapTile({
+        userId: ownerUserId,
+        storyId: id,
+        storyContext,
+        mapTile,
+        useStoryImageReferences: body.useStoryImageReferences,
+        referenceAssetIds: body.referenceAssetIds,
+        maxStoryImageReferences: body.maxStoryImageReferences,
+        maskId: body.maskId,
+        randomizeDirections: body.randomizeDirections,
+        dryRun: body.dryRun,
+        includePrompt: body.includePrompt,
+      });
+
+      if (!result.dryRun && result.asset) {
+        await getStoryRepository().updateStory(id, {
+          metadata: {
+            ...metadata,
+            mapTile,
+            mapTileAssetId: result.asset.id,
+            mapTileMaskId: result.mask.id,
+          },
+          updatedAt: new Date(),
+        });
+
+        const updatedCollectedTiles = await getCollectedMapTileRepository().replaceStoryAssetReference({
+          storyId: id,
+          assetId: result.asset.id,
+          maskId: result.mask.id,
+          connectors: { ...(result.mask.connectors ?? {}) },
+        });
+
+        if (updatedCollectedTiles > 0) {
+          logger.info(
+            {
+              storyId: id,
+              assetId: result.asset.id,
+              updatedCollectedTiles,
+            },
+            'Collected map tiles relinked to newly generated story tile'
+          );
+        }
+      }
+
+      res.json({
+        status: 'success',
+        mapTile: result,
+      });
+    } catch (error) {
+      if (sendPromptSafetyError(res, error)) return;
+
+      logger.error(
+        {
+          err: error,
+          userId: req.user?.id,
+          storyId: req.params.id,
+        },
+        'Generate map tile failed'
+      );
+      res.status(500).json({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Failed to generate map tile',
+      });
+    }
+  }
+);
 
 /**
  * POST /api/v1/stories/:id/scenes/:sceneId/regenerate

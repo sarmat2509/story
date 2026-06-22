@@ -20,7 +20,8 @@ export type PromptSafetySource =
   | 'child_mode_story_goal'
   | 'child_mode_story_notes'
   | 'story_continuation_notes'
-  | 'scene_regeneration_prompt';
+  | 'scene_regeneration_prompt'
+  | 'map_tile_generation_prompt';
 
 export type PromptSafetyDecision =
   | { allowed: true }

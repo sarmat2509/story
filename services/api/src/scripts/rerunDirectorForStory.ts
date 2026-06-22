@@ -229,6 +229,7 @@ async function run() {
     illustrationCount: result.illustrations?.length ?? 0,
     environmentCount: result.environments?.length ?? 0,
     outfitDefinitionCount: result.outfits?.length ?? 0,
+    mapTile: (result as any).mapTile ?? null,
     environments: envPreview,
     outfits: outfitsPreview,
     illustrationsCameraOutfits: illOutfitPreview,
