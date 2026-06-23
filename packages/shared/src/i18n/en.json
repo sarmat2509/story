@@ -916,6 +916,7 @@
     "audio_generation_failed_inline": "Something went wrong during generation",
     "audio_error_default": "Something went wrong. Please try again.",
     "delete_story": "Delete Story",
+    "open_admin_panel": "Open in admin",
     "delete": "Delete",
     "delete_confirm_title": "Delete This Story?",
     "delete_confirm_message": "This action cannot be undone. All scenes, images, and audio will be permanently deleted.",

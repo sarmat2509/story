@@ -1079,6 +1079,7 @@
     "audio_generation_failed_inline": "Algo salió mal durante la generación",
     "audio_error_default": "Algo salió mal. Por favor, inténtalo de nuevo.",
     "delete_story": "Eliminar cuento",
+    "open_admin_panel": "Abrir en admin",
     "delete": "Eliminar",
     "delete_confirm_title": "¿Eliminar este cuento?",
     "delete_confirm_message": "Esta acción no se puede deshacer. Todas las escenas, imágenes y audio se eliminarán permanentemente.",

@@ -455,6 +455,7 @@
     "audio_generation_failed_inline": "Quelque chose s'est mal passé lors de la génération",
     "audio_error_default": "Quelque chose s'est mal passé. Veuillez réessayer.",
     "delete_story": "Supprimer l'histoire",
+    "open_admin_panel": "Ouvrir dans l'admin",
     "delete": "Supprimer",
     "delete_confirm_title": "Supprimer cette histoire?",
     "delete_confirm_message": "Cette action est irréversible. Toutes les scènes, images et audio seront définitivement supprimés.",

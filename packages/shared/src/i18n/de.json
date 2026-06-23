@@ -458,6 +458,7 @@
     "audio_generation_failed_inline": "Bei der Generierung ist etwas schief gelaufen",
     "audio_error_default": "Etwas ist schief gelaufen. Bitte versuchen Sie es erneut.",
     "delete_story": "Geschichte löschen",
+    "open_admin_panel": "In Admin öffnen",
     "delete": "Löschen",
     "delete_confirm_title": "Diese Geschichte löschen?",
     "delete_confirm_message": "Diese Aktion kann nicht rückgängig gemacht werden. Alle Szenen, Bilder und Audio werden dauerhaft gelöscht.",

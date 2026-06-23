@@ -874,6 +874,7 @@
     "audio_generation_failed_inline": "Cos poszlo nie tak podczas generowania",
     "audio_error_default": "Cos poszlo nie tak. Sprobuj ponownie.",
     "delete_story": "Usun historie",
+    "open_admin_panel": "Otworz w adminie",
     "delete": "Usun",
     "delete_confirm_title": "Usun te historie?",
     "delete_confirm_message": "Tej operacji nie mozna cofnac. Wszystkie sceny, obrazy i audio zostana trwale usuniete.",

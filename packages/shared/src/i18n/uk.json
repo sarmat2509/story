@@ -916,6 +916,7 @@
     "audio_generation_failed_inline": "Щось пішло не так під час генерації",
     "audio_error_default": "Щось пішло не так. Спробуйте ще раз.",
     "delete_story": "Видалити казку",
+    "open_admin_panel": "Відкрити в адмінці",
     "delete": "Видалити",
     "delete_confirm_title": "Видалити цю казку?",
     "delete_confirm_message": "Цю дію не можна скасувати. Всі сцени, зображення та аудіо будуть видалені назавжди.",

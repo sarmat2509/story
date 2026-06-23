@@ -74,6 +74,7 @@ import { StoryViewerSkeleton } from '@/components/StoryViewerSkeleton';
 import { getReadingTimeMinutes, stripMarkdownStyleEmphasis } from '@wondertales/shared';
 import { getAnalytics } from '@/services/analytics';
 import { storage } from '@/utils/storage';
+import { assignWebLocation } from '@/utils/webRuntime';
 
 type StoryViewerRouteProp = RouteProp<MainDrawerParamList, 'Story'>;
 
@@ -134,6 +135,7 @@ export default function StoryViewerScreen() {
   const isChildSession = sessionMode === 'child';
   const isArtisanMode = user?.mode === 'artisan';
   const storyId = route.params?.storyId;
+  const canOpenAdminStory = Platform.OS === 'web' && user?.role === 'admin' && !isChildSession;
   const autoPlay = route.params?.autoPlay;
   const hadAudioGenerationRef = useRef(false);
   const { data: story, isLoading, error, refetch } = useStory(storyId!);
@@ -1002,6 +1004,11 @@ export default function StoryViewerScreen() {
   const handleDeleteStory = useCallback(() => {
     setDeleteDialogVisible(true);
   }, []);
+
+  const handleOpenAdminStory = useCallback(() => {
+    if (!storyId) return;
+    assignWebLocation(`/admin/stories/${encodeURIComponent(storyId)}`);
+  }, [storyId]);
 
   const confirmDelete = useCallback(async () => {
     await deleteStory.mutateAsync(storyId);
@@ -2166,6 +2173,22 @@ export default function StoryViewerScreen() {
 
                 {!isChildSession ? parentReviewPanel : null}
 
+                {canOpenAdminStory ? (
+                  <AppButton
+                    label={t('story_viewer.open_admin_panel')}
+                    onPress={handleOpenAdminStory}
+                    variant="secondary"
+                    leading={
+                      <Ionicons
+                        name="shield-checkmark-outline"
+                        size={20}
+                        color={theme.colors.interactive.primary}
+                      />
+                    }
+                    style={styles.adminStoryAction}
+                  />
+                ) : null}
+
                 {/* Publication block */}
                 {!isChildSession ? (
                   <View style={styles.publicationSection}>
@@ -2612,6 +2635,10 @@ const styles = StyleSheet.create({
   },
   publicationAction: {
     alignSelf: 'stretch',
+  },
+  adminStoryAction: {
+    alignSelf: 'stretch',
+    marginBottom: theme.spacing[4],
   },
   deleteStoryAction: {
     alignSelf: 'stretch',
