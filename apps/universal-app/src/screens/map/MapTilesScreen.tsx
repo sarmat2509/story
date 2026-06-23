@@ -45,7 +45,6 @@ const MAX_ZOOM = 3;
 const SPLIT_DELAY_MS = 2000;
 const WHEEL_ZOOM_SENSITIVITY = 0.0012;
 const TILE_DRAG_START_THRESHOLD = 8;
-const EMPTY_MAP_TILES: CollectedMapTileApi[] = [];
 
 type MapTilesRouteProp = RouteProp<MainDrawerParamList, 'MapTiles'>;
 type Rect = { x: number; y: number; width: number; height: number };
@@ -241,10 +240,11 @@ export default function MapTilesScreen() {
   const returnAnim = useRef(new Animated.Value(0)).current;
   const updateLayout = useUpdateMapTileLayout();
   const childProfileId = route.params?.childProfileId;
-  const { data: serverTiles = EMPTY_MAP_TILES, isLoading, error, refetch } = useCollectedMapTiles({
+  const { data: serverTiles, isLoading, error, refetch } = useCollectedMapTiles({
     childProfileId,
   });
   const [tiles, setTiles] = useState<CollectedMapTileApi[]>([]);
+  const [tilesHydrated, setTilesHydrated] = useState(false);
   const [rootRect, setRootRect] = useState<Rect | null>(null);
   const [boardRect, setBoardRect] = useState<Rect | null>(null);
   const [inventoryRect, setInventoryRect] = useState<Rect | null>(null);
@@ -283,11 +283,20 @@ export default function MapTilesScreen() {
   const lastHoverDebugRef = useRef<string | null>(null);
   const handledWheelEventsRef = useRef<WeakSet<object>>(new WeakSet());
   const rewardTileId = rewardTile?.id ?? null;
+  const hasBoardLayout = Boolean(boardRect && boardRect.width > 0 && boardRect.height > 0);
+  const isMapReady = tilesHydrated && hasBoardLayout;
 
   useEffect(() => {
+    if (serverTiles === undefined) {
+      if (!drag && !layoutSaveInFlightRef.current) {
+        setTilesHydrated(false);
+      }
+      return;
+    }
     if (!drag && !layoutSaveInFlightRef.current) {
       tilesRef.current = serverTiles;
       setTiles(serverTiles);
+      setTilesHydrated(true);
     }
   }, [drag, serverTiles]);
 
@@ -1346,8 +1355,10 @@ export default function MapTilesScreen() {
       <View
         ref={boardRef}
         testID="map-tiles-board"
+        pointerEvents={isMapReady ? 'auto' : 'none'}
         style={[
           styles.board,
+          !isMapReady && styles.mapSurfaceHidden,
           Platform.OS === 'web'
             ? ({
                 cursor: interactionMode === 'pan' ? (isMapPanning ? 'grabbing' : 'grab') : 'default',
@@ -1440,7 +1451,12 @@ export default function MapTilesScreen() {
       <View
         ref={inventoryRef}
         testID="map-tiles-inventory"
-        style={[styles.inventory, inventoryCollapsed && styles.inventoryCollapsed]}
+        pointerEvents={isMapReady ? 'auto' : 'none'}
+        style={[
+          styles.inventory,
+          inventoryCollapsed && styles.inventoryCollapsed,
+          !isMapReady && styles.mapSurfaceHidden,
+        ]}
         onLayout={handleInventoryLayout}
       >
         <View style={styles.inventoryHeader}>
@@ -1553,7 +1569,7 @@ export default function MapTilesScreen() {
         )}
       </View>
 
-      {selectedTile && !drag && !returningDrag && !rewardTile && (
+      {isMapReady && selectedTile && !drag && !returningDrag && !rewardTile && (
         <View
           testID="map-tile-details"
           style={[styles.tileDetailsPanel, tileDetailsDynamicStyle]}
@@ -1597,7 +1613,7 @@ export default function MapTilesScreen() {
         </View>
       )}
 
-      {drag && (
+      {isMapReady && drag && (
         <View
           pointerEvents="none"
           testID="map-drag-tile"
@@ -1615,7 +1631,7 @@ export default function MapTilesScreen() {
         </View>
       )}
 
-      {returningDrag && (
+      {isMapReady && returningDrag && (
         <Animated.View
           pointerEvents="none"
           testID="map-returning-tile"
@@ -1645,7 +1661,7 @@ export default function MapTilesScreen() {
         </Animated.View>
       )}
 
-      {rewardTile && rewardFlightLayout && (
+      {isMapReady && rewardTile && rewardFlightLayout && (
         <View pointerEvents="none" style={styles.rewardOverlay}>
           <Animated.View
             style={[
@@ -1698,42 +1714,51 @@ export default function MapTilesScreen() {
         </View>
       )}
 
-      <View pointerEvents="box-none" style={styles.mapControls}>
-        <View pointerEvents="none" style={styles.zoomBadge}>
-          <Ionicons name="search-outline" size={16} color={theme.colors.text.secondary} />
-          <Text style={styles.zoomText}>{Math.round(zoom * 100)}%</Text>
+      {isMapReady && (
+        <View pointerEvents="box-none" style={styles.mapControls}>
+          <View pointerEvents="none" style={styles.zoomBadge}>
+            <Ionicons name="search-outline" size={16} color={theme.colors.text.secondary} />
+            <Text style={styles.zoomText}>{Math.round(zoom * 100)}%</Text>
+          </View>
+          <View style={styles.modeControls} testID="map-mode-controls">
+            <TouchableOpacity
+              testID="map-mode-pan"
+              accessibilityRole="button"
+              accessibilityLabel={t('map_tiles.mode_pan')}
+              accessibilityState={{ selected: interactionMode === 'pan' }}
+              style={[styles.modeButton, interactionMode === 'pan' && styles.modeButtonActive]}
+              onPress={() => setInteractionMode('pan')}
+            >
+              <Ionicons
+                name="move-outline"
+                size={19}
+                color={interactionMode === 'pan' ? theme.colors.white : theme.colors.text.secondary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="map-mode-select"
+              accessibilityRole="button"
+              accessibilityLabel={t('map_tiles.mode_select')}
+              accessibilityState={{ selected: interactionMode === 'select' }}
+              style={[styles.modeButton, interactionMode === 'select' && styles.modeButtonActive]}
+              onPress={() => setInteractionMode('select')}
+            >
+              <Ionicons
+                name="navigate-outline"
+                size={19}
+                color={interactionMode === 'select' ? theme.colors.white : theme.colors.text.secondary}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
-        <View style={styles.modeControls} testID="map-mode-controls">
-          <TouchableOpacity
-            testID="map-mode-pan"
-            accessibilityRole="button"
-            accessibilityLabel={t('map_tiles.mode_pan')}
-            accessibilityState={{ selected: interactionMode === 'pan' }}
-            style={[styles.modeButton, interactionMode === 'pan' && styles.modeButtonActive]}
-            onPress={() => setInteractionMode('pan')}
-          >
-            <Ionicons
-              name="move-outline"
-              size={19}
-              color={interactionMode === 'pan' ? theme.colors.white : theme.colors.text.secondary}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            testID="map-mode-select"
-            accessibilityRole="button"
-            accessibilityLabel={t('map_tiles.mode_select')}
-            accessibilityState={{ selected: interactionMode === 'select' }}
-            style={[styles.modeButton, interactionMode === 'select' && styles.modeButtonActive]}
-            onPress={() => setInteractionMode('select')}
-          >
-            <Ionicons
-              name="navigate-outline"
-              size={19}
-              color={interactionMode === 'select' ? theme.colors.white : theme.colors.text.secondary}
-            />
-          </TouchableOpacity>
+      )}
+
+      {!isMapReady && (
+        <View testID="map-preparing-overlay" pointerEvents="auto" style={styles.mapPreparingOverlay}>
+          <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+          <Text style={styles.centerText}>{t('common.loading')}</Text>
         </View>
-      </View>
+      )}
     </View>
   );
 }
@@ -1755,6 +1780,17 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     overflow: 'hidden',
+    backgroundColor: '#F4F1EA',
+  },
+  mapSurfaceHidden: {
+    opacity: 0,
+  },
+  mapPreparingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing[6],
     backgroundColor: '#F4F1EA',
   },
   boardTile: {
