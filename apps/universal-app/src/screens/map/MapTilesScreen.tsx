@@ -270,6 +270,7 @@ export default function MapTilesScreen() {
   const layoutSaveInFlightRef = useRef(false);
   const lastDragDebugAtRef = useRef(0);
   const lastHoverDebugRef = useRef<string | null>(null);
+  const handledWheelEventsRef = useRef<WeakSet<object>>(new WeakSet());
   const rewardTileId = rewardTile?.id ?? null;
 
   useEffect(() => {
@@ -282,6 +283,23 @@ export default function MapTilesScreen() {
   useEffect(() => {
     return () => {
       if (splitTimerRef.current) clearTimeout(splitTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
+
+    const documentElement = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverscrollX = documentElement.style.overscrollBehaviorX;
+    const previousBodyOverscrollX = body.style.overscrollBehaviorX;
+
+    documentElement.style.overscrollBehaviorX = 'none';
+    body.style.overscrollBehaviorX = 'none';
+
+    return () => {
+      documentElement.style.overscrollBehaviorX = previousHtmlOverscrollX;
+      body.style.overscrollBehaviorX = previousBodyOverscrollX;
     };
   }, []);
 
@@ -1018,12 +1036,17 @@ export default function MapTilesScreen() {
     (event: any) => {
       if (Platform.OS !== 'web') return;
 
+      const nativeEvent = event.nativeEvent ?? event;
+      if (nativeEvent && typeof nativeEvent === 'object') {
+        if (handledWheelEventsRef.current.has(nativeEvent)) return;
+        handledWheelEventsRef.current.add(nativeEvent);
+      }
+
       event.preventDefault?.();
       event.stopPropagation?.();
       event.nativeEvent?.preventDefault?.();
       event.nativeEvent?.stopPropagation?.();
 
-      const nativeEvent = event.nativeEvent ?? event;
       const rawDeltaY = firstFinite(nativeEvent.deltaY) ?? 0;
       if (rawDeltaY === 0) return;
 
@@ -1067,7 +1090,13 @@ export default function MapTilesScreen() {
   );
 
   const boardWheelProps = useMemo(
-    () => (Platform.OS === 'web' ? ({ onWheel: handleBoardWheel } as any) : {}),
+    () =>
+      Platform.OS === 'web'
+        ? ({
+            onWheel: handleBoardWheel,
+            onWheelCapture: handleBoardWheel,
+          } as any)
+        : {},
     [handleBoardWheel]
   );
 
@@ -1226,6 +1255,10 @@ export default function MapTilesScreen() {
           Platform.OS === 'web'
             ? ({
                 cursor: interactionMode === 'pan' ? (isMapPanning ? 'grabbing' : 'grab') : 'default',
+                overscrollBehavior: 'none',
+                overscrollBehaviorX: 'none',
+                overscrollBehaviorY: 'none',
+                touchAction: 'none',
               } as any)
             : null,
         ]}
