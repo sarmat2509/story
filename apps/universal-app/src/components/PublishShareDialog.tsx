@@ -19,8 +19,8 @@ import { formatAssetUrl } from '@/utils/assetUrl';
 
 export type PublishVisibility = 'public' | 'unlisted';
 
-export interface ShareCardScene {
-  index: number;
+export interface CoverAssetOption {
+  assetId: string;
   imageUrl: string | null;
 }
 
@@ -28,7 +28,7 @@ interface PublishShareDialogProps {
   visible: boolean;
   onPublishAndShare: (
     visibility: PublishVisibility,
-    shareCardSceneId?: number,
+    coverAssetId?: string | null,
     pseudonym?: string,
     aboutMe?: string
   ) => void;
@@ -39,10 +39,10 @@ interface PublishShareDialogProps {
   userPseudonym?: string | null;
   authorAboutMe?: string | null;
   allowAuthorProfileEdit?: boolean;
-  /** Scenes with images for share-card cover selection (0-based index) */
-  scenes?: ShareCardScene[];
-  /** Currently selected share-card scene index. Default 0. */
-  shareCardSceneId?: number | null;
+  /** Scene image assets available for cover selection. */
+  coverAssets?: CoverAssetOption[];
+  /** Currently selected cover asset id. */
+  coverAssetId?: string | null;
   /** Called when user taps "Unpublish" link (when shareUrl is shown) */
   onUnpublish?: () => void;
   /** Current story visibility when opening for update (pre-select in dialog) */
@@ -64,39 +64,43 @@ export function PublishShareDialog({
   userPseudonym = null,
   authorAboutMe = null,
   allowAuthorProfileEdit = false,
-  scenes = [],
-  shareCardSceneId: initialShareCardSceneId = null,
+  coverAssets = [],
+  coverAssetId: initialCoverAssetId = null,
   onUnpublish,
   initialVisibility = 'public',
   openedFromShare = false,
 }: PublishShareDialogProps) {
   const { t } = useTranslation();
   const [selectedVisibility, setSelectedVisibility] = React.useState<PublishVisibility>('public');
-  const [selectedShareCardIndex, setSelectedShareCardIndex] = React.useState<number>(0);
+  const [selectedCoverAssetId, setSelectedCoverAssetId] = React.useState<string | null>(null);
   const [pseudonymInput, setPseudonymInput] = React.useState('');
   const [aboutMeInput, setAboutMeInput] = React.useState('');
   const isPostPublish = !!shareUrl;
 
-  const scenesWithImages = useMemo(
-    () => scenes.filter((s): s is ShareCardScene & { imageUrl: string } => !!s.imageUrl),
-    [scenes]
+  const coverAssetsWithImages = useMemo(
+    () => coverAssets.filter((asset): asset is CoverAssetOption & { imageUrl: string } => !!asset.imageUrl),
+    [coverAssets]
   );
 
-  const validInitialIndex = useMemo(() => {
-    const idx = initialShareCardSceneId ?? 0;
-    if (scenesWithImages.some((s) => s.index === idx)) return idx;
-    return scenesWithImages[0]?.index ?? 0;
-  }, [initialShareCardSceneId, scenesWithImages]);
+  const validInitialCoverAssetId = useMemo(() => {
+    if (
+      initialCoverAssetId &&
+      coverAssetsWithImages.some((asset) => asset.assetId === initialCoverAssetId)
+    ) {
+      return initialCoverAssetId;
+    }
+    return coverAssetsWithImages[0]?.assetId ?? null;
+  }, [initialCoverAssetId, coverAssetsWithImages]);
 
   // Sync when dialog opens with new initial value
   React.useEffect(() => {
     if (visible) {
-      setSelectedShareCardIndex(validInitialIndex);
+      setSelectedCoverAssetId(validInitialCoverAssetId);
       setPseudonymInput(userPseudonym ?? '');
       setAboutMeInput(authorAboutMe ?? '');
       setSelectedVisibility(initialVisibility);
     }
-  }, [visible, validInitialIndex, initialVisibility, userPseudonym, authorAboutMe]);
+  }, [visible, validInitialCoverAssetId, initialVisibility, userPseudonym, authorAboutMe]);
 
   const displayUrl = useMemo(() => {
     if (!shareUrl) return '';
@@ -243,7 +247,7 @@ export function PublishShareDialog({
                 </View>
               )}
 
-              {scenesWithImages.length > 0 && (
+              {coverAssetsWithImages.length > 0 && (
                 <>
                   <Text style={styles.carouselLabel}>
                     {t('story_viewer.share_card_cover', 'Обкладинка для поширення')}
@@ -254,17 +258,17 @@ export function PublishShareDialog({
                     contentContainerStyle={styles.carouselContent}
                     style={styles.carousel}
                   >
-                    {scenesWithImages.map((scene) => {
-                      const isSelected = selectedShareCardIndex === scene.index;
+                    {coverAssetsWithImages.map((asset) => {
+                      const isSelected = selectedCoverAssetId === asset.assetId;
                       return (
                         <TouchableOpacity
-                          key={scene.index}
+                          key={asset.assetId}
                           style={[styles.thumbWrapper, isSelected && styles.thumbWrapperSelected]}
-                          onPress={() => setSelectedShareCardIndex(scene.index)}
+                          onPress={() => setSelectedCoverAssetId(asset.assetId)}
                           activeOpacity={0.8}
                         >
                           <Image
-                            source={{ uri: formatAssetUrl(scene.imageUrl) ?? '' }}
+                            source={{ uri: formatAssetUrl(asset.imageUrl) ?? '' }}
                             style={styles.thumb}
                             resizeMode="cover"
                           />
@@ -370,7 +374,7 @@ export function PublishShareDialog({
                 onPress={() =>
                   onPublishAndShare(
                     selectedVisibility,
-                    scenesWithImages.length > 0 ? selectedShareCardIndex : undefined,
+                    selectedCoverAssetId,
                     (!userPseudonym || allowAuthorProfileEdit) && pseudonymInput.trim()
                       ? pseudonymInput.trim()
                       : undefined,

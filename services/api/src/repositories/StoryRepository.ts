@@ -353,6 +353,7 @@ export class StoryRepository {
     isPublished: boolean | null;
     audioMetadata: StoryAudioMetadata | null;
     scenes: unknown;
+    coverAssetId: string | null;
     createdAt: Date;
     scenarioCardId: string | null;
     partNumber: number | null;
@@ -388,6 +389,7 @@ export class StoryRepository {
       isPublished: schema.stories.isPublished,
       audioMetadata: schema.stories.audioMetadata,
       scenes: schema.stories.scenes,
+      coverAssetId: schema.stories.coverAssetId,
       createdAt: schema.stories.createdAt,
       scenarioCardId: schema.storyRequests.scenarioCardId,
       partNumber: schema.stories.partNumber,
@@ -569,10 +571,11 @@ export class StoryRepository {
     tx?: NodePgDatabase<typeof schema>
   ): Promise<schema.Story> {
     const conn = tx || this.db;
-    const [story] = await conn
+    const rows = await conn
       .insert(schema.stories)
       .values(data)
       .returning();
+    const [story] = rows as schema.Story[];
     return story;
   }
 
@@ -772,10 +775,18 @@ export class StoryRepository {
       .orderBy(desc(schema.storySeries.createdAt));
   }
 
-  async findStoriesByIdsWithScenes(ids: string[]): Promise<Array<{ id: string; scenes: unknown }>> {
+  async findStoriesByIdsWithScenes(ids: string[]): Promise<Array<{
+    id: string;
+    scenes: unknown;
+    coverAssetId: string | null;
+  }>> {
     if (ids.length === 0) return [];
     const rows = await this.db
-      .select({ id: schema.stories.id, scenes: schema.stories.scenes })
+      .select({
+        id: schema.stories.id,
+        scenes: schema.stories.scenes,
+        coverAssetId: schema.stories.coverAssetId,
+      })
       .from(schema.stories)
       .where(inArray(schema.stories.id, ids));
     return rows;

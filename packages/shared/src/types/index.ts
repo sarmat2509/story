@@ -491,6 +491,7 @@ export interface StorySummary {
   created_by_mode?: 'parent' | 'child';
   created_by_child_profile_id?: string | null;
   parent_review_status?: 'not_required' | 'pending' | 'approved' | 'rejected';
+  cover_asset_id?: string | null;
   cover_image_url?: string;
   cover_thumbnail_url?: string;
   has_audio: boolean;
@@ -586,7 +587,7 @@ export interface StoryManifestApi extends StoryApi {
   isPublished: boolean;
   shareUrl: string | null;
   visibility: 'public' | 'unlisted' | null;
-  shareCardSceneId: number | null;
+  coverAssetId: string | null;
   closingArtifact?: {
     id: string;
     artifactCode: string;

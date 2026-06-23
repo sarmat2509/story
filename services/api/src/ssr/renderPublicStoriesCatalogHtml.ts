@@ -182,7 +182,10 @@ function trimExcerpt(value: string | null | undefined, maxLength = 150): string 
 }
 
 function getStoryImage(story: PublicStoryListItem, apiBase: string): string | null {
-  return absoluteUrl(story.scenes.find((scene) => scene.imageUrl)?.imageUrl, apiBase);
+  return absoluteUrl(
+    story.coverImageUrl ?? story.scenes.find((scene) => scene.imageUrl)?.imageUrl,
+    apiBase
+  );
 }
 
 function getLanguageName(language: string, locale: PublicSeoLocale): string {
@@ -259,10 +262,12 @@ function buildInitialCatalogStories(stories: PublicStoryListItem[]) {
       authorId: story.authorId,
       authorDisplayName: story.authorDisplayName,
       authorAvatarUrl: story.authorAvatarUrl ?? null,
+      coverImageUrl: story.coverImageUrl,
+      coverThumbnailUrl: story.coverThumbnailUrl,
       scenes: coverScene
         ? [{
             sceneId: coverScene.sceneId,
-            imageUrl: coverScene.imageUrl ?? null,
+            imageUrl: story.coverImageUrl ?? coverScene.imageUrl ?? null,
           }]
         : [],
       hasAudio: story.hasAudio,

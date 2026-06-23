@@ -58,7 +58,10 @@ function formatDate(value: string | null): string {
 
 function renderStoryCard(story: PublicStoryListItem, webAppUrl: string, apiBase: string): string {
   const storyUrl = `${webAppUrl.replace(/\/$/, '')}/stories/${encodeURIComponent(story.publishedSlug)}`;
-  const imageUrl = absoluteUrl(story.scenes.find((scene) => scene.imageUrl)?.imageUrl, apiBase);
+  const imageUrl = absoluteUrl(
+    story.coverImageUrl ?? story.scenes.find((scene) => scene.imageUrl)?.imageUrl,
+    apiBase
+  );
   const readingTime = getReadingTimeMinutes(story.scenes);
   const metaParts = [formatDate(story.publishedAt)];
   if (readingTime > 0) metaParts.push(`~${readingTime} хв`);

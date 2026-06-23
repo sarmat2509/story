@@ -10,6 +10,7 @@ import type { Story } from '../db/schema';
 import { and, eq, desc, isNull } from 'drizzle-orm';
 import { getChildProfileRepository, getStoryRepository, getAlignmentRepository, getUserRepository } from '../repositories';
 import { enrichAllStoriesWithImages } from './storyOrchestrationService';
+import { loadStoryCoverAssets } from './storyCoverService';
 import { getAssetStorageService } from './assetStorageService';
 import { logger } from '../utils/logger';
 import { stripAllTags } from '../utils/audioTags';
@@ -109,8 +110,9 @@ async function getAudioUrlAndAlignment(storyId: string): Promise<{ url: string |
 function getOgImageUrl(story: any, apiBase: string, slugOrToken: string, isUnlisted: boolean): string {
   const scenes = Array.isArray(story.scenes) ? story.scenes : [];
   const hasSceneImage = scenes.some((s: any) => s?.image?.url ?? s?.imageUrl);
+  const hasCoverImage = !!story.coverAssetId || !!story.coverImageUrl;
   const webAppUrl = config.web?.webAppUrl?.replace(/\/$/, '') || '';
-  if (hasSceneImage) {
+  if (hasCoverImage || hasSceneImage) {
     return `${webAppUrl}/share-card/${isUnlisted ? `u/${slugOrToken}` : slugOrToken}`;
   }
   return `${webAppUrl}/favicon.png`;
@@ -213,11 +215,11 @@ export async function getStoryForShareCard(slugOrToken: string, isUnlisted: bool
   return storyRepo.findByPublishedSlug(slugOrToken);
 }
 
-/** Minimal story shape needed for share-card (id, scenes, shareCardSceneId) */
+/** Minimal story shape needed for share-card. */
 interface StoryForShareCard {
   id: string;
+  coverAssetId?: string | null;
   scenes: unknown;
-  shareCardSceneId?: number | null;
 }
 
 /**
@@ -228,25 +230,10 @@ export async function getShareCardImageBuffer(
   _slugOrToken: string,
   _isUnlisted: boolean
 ): Promise<Buffer | null> {
-  const scenesRaw = Array.isArray(story.scenes) ? story.scenes : [];
-  const enrichedMap = await enrichAllStoriesWithImages([
-    { id: story.id, scenes: scenesRaw },
+  const coverByStoryId = await loadStoryCoverAssets([
+    { id: story.id, coverAssetId: story.coverAssetId ?? null },
   ]);
-  const scenes = enrichedMap.get(story.id) || scenesRaw;
-  if (!Array.isArray(scenes) || scenes.length === 0) return null;
-
-  const sceneIndex = story.shareCardSceneId != null
-    ? Math.min(Math.max(0, story.shareCardSceneId), scenes.length - 1)
-    : 0;
-  const scene = scenes[sceneIndex] as { image?: { url?: string }; imageUrl?: string } | undefined;
-  const imgUrl = scene?.image?.url ?? scene?.imageUrl;
-  if (!imgUrl) return null;
-
-  const storagePath = String(imgUrl)
-    .replace(/^https?:\/\/[^/]+\/api\/v1\/assets\//, '')
-    .replace(/^\/api\/v1\/assets\//, '')
-    .split('?')[0]
-    .trim();
+  const storagePath = coverByStoryId.get(story.id)?.storagePath;
   if (!storagePath) return null;
 
   try {
@@ -296,6 +283,9 @@ export interface PublicStoryListItem {
   authorId: string;
   authorDisplayName: string;
   authorAvatarUrl?: string | null;
+  coverAssetId: string | null;
+  coverImageUrl: string | null;
+  coverThumbnailUrl: string | null;
   publishedAt: string | null;
   publishedSlug: string;
   scenes: Array<{ sceneId: number; text: string; imageUrl: string | null }>;
@@ -344,9 +334,14 @@ export async function listPublicStories(options: {
     ...childAuthors.map((author) => [author.id, buildPublicAuthorView(buildChildAuthorSource(author))] as const),
   ]);
 
-  const enrichedScenesMap = await enrichAllStoriesWithImages(
-    stories.map(s => ({ id: s.id, scenes: (s.scenes as any[]) || [] }))
-  );
+  const [enrichedScenesMap, coverByStoryId] = await Promise.all([
+    enrichAllStoriesWithImages(
+      stories.map(s => ({ id: s.id, scenes: (s.scenes as any[]) || [] }))
+    ),
+    loadStoryCoverAssets(
+      stories.map((story) => ({ id: story.id, coverAssetId: story.coverAssetId }))
+    ),
+  ]);
 
   const webAppUrl = config.web?.webAppUrl?.replace(/\/$/, '') || '';
 
@@ -358,6 +353,7 @@ export async function listPublicStories(options: {
       const scenarioCardId = (s as any).scenarioCardId ?? null;
       const authorId = getStoryAuthorId(s);
       const author = authorById.get(authorId);
+      const cover = coverByStoryId.get(s.id);
       const normalizedScenes = scenes.map((sc: any) => {
         const imgPath = sc.image?.url ?? sc.imageUrl;
         const imageUrl = imgPath
@@ -377,6 +373,9 @@ export async function listPublicStories(options: {
         authorId,
         authorDisplayName: author?.displayName || 'Anonymous',
         authorAvatarUrl: author?.avatarUrl ?? null,
+        coverAssetId: cover?.assetId ?? null,
+        coverImageUrl: cover?.imageUrl ?? null,
+        coverThumbnailUrl: cover?.thumbnailUrl ?? null,
         publishedAt: s.publishedAt ? s.publishedAt.toISOString?.() ?? String(s.publishedAt) : null,
         publishedSlug: s.publishedSlug!,
         scenes: normalizedScenes,

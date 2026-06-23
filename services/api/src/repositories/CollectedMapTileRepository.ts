@@ -14,6 +14,7 @@ export interface CollectedMapTileDetails {
     id: string;
     title: string;
     language: string;
+    coverAssetId: string | null;
     createdAt: Date;
   };
 }
@@ -50,6 +51,7 @@ export class CollectedMapTileRepository {
           id: schema.stories.id,
           title: schema.stories.title,
           language: schema.stories.language,
+          coverAssetId: schema.stories.coverAssetId,
           createdAt: schema.stories.createdAt,
         },
       })
@@ -74,6 +76,7 @@ export class CollectedMapTileRepository {
           id: schema.stories.id,
           title: schema.stories.title,
           language: schema.stories.language,
+          coverAssetId: schema.stories.coverAssetId,
           createdAt: schema.stories.createdAt,
         },
       })
@@ -95,6 +98,7 @@ export class CollectedMapTileRepository {
           id: schema.stories.id,
           title: schema.stories.title,
           language: schema.stories.language,
+          coverAssetId: schema.stories.coverAssetId,
           createdAt: schema.stories.createdAt,
         },
       })
@@ -134,6 +138,7 @@ export class CollectedMapTileRepository {
           id: schema.stories.id,
           title: schema.stories.title,
           language: schema.stories.language,
+          coverAssetId: schema.stories.coverAssetId,
           createdAt: schema.stories.createdAt,
         },
       })

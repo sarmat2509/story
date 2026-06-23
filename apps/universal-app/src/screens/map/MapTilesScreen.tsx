@@ -44,6 +44,8 @@ const MIN_ZOOM = 0.45;
 const MAX_ZOOM = 3;
 const SPLIT_DELAY_MS = 2000;
 const WHEEL_ZOOM_SENSITIVITY = 0.0012;
+const TILE_DRAG_START_THRESHOLD = 8;
+const EMPTY_MAP_TILES: CollectedMapTileApi[] = [];
 
 type MapTilesRouteProp = RouteProp<MainDrawerParamList, 'MapTiles'>;
 type Rect = { x: number; y: number; width: number; height: number };
@@ -68,6 +70,13 @@ type ReturningDragState = {
   fromTop: number;
   toLeft: number;
   toTop: number;
+  displaySize: number;
+};
+type PendingTileInteraction = {
+  tile: CollectedMapTileApi;
+  source: DragSource;
+  locationX: number;
+  locationY: number;
   displaySize: number;
 };
 type InventoryHover = { index: number; ready: boolean };
@@ -232,7 +241,7 @@ export default function MapTilesScreen() {
   const returnAnim = useRef(new Animated.Value(0)).current;
   const updateLayout = useUpdateMapTileLayout();
   const childProfileId = route.params?.childProfileId;
-  const { data: serverTiles = [], isLoading, error, refetch } = useCollectedMapTiles({
+  const { data: serverTiles = EMPTY_MAP_TILES, isLoading, error, refetch } = useCollectedMapTiles({
     childProfileId,
   });
   const [tiles, setTiles] = useState<CollectedMapTileApi[]>([]);
@@ -261,8 +270,10 @@ export default function MapTilesScreen() {
   const [hoverInventory, setHoverInventory] = useState<InventoryHover | null>(null);
   const [boardError, setBoardError] = useState<BoardError | null>(null);
   const [rewardTile, setRewardTile] = useState<CollectedMapTileApi | null>(null);
+  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const tilesRef = useRef<CollectedMapTileApi[]>([]);
   const dragRef = useRef<DragState | null>(null);
+  const pendingTileInteractionRef = useRef<PendingTileInteraction | null>(null);
   const hoverCellRef = useRef<BoardCell | null>(null);
   const hoverInventoryRef = useRef<InventoryHover | null>(null);
   const boardLookupRef = useRef<Map<string, CollectedMapTileApi>>(new Map());
@@ -325,6 +336,17 @@ export default function MapTilesScreen() {
     () => inventoryTiles.filter((tile) => tile.id !== rewardTileId).length,
     [inventoryTiles, rewardTileId]
   );
+  const selectedTile = useMemo(
+    () => (selectedTileId ? tiles.find((tile) => tile.id === selectedTileId) ?? null : null),
+    [selectedTileId, tiles]
+  );
+  const selectedStoryImageUrl = useMemo(() => {
+    if (!selectedTile) return null;
+    return (
+      formatAssetUrl(selectedTile.story.coverThumbnailUrl || selectedTile.story.coverImageUrl) ??
+      null
+    );
+  }, [selectedTile]);
 
   const boardLookup = useMemo(() => {
     const lookup = new Map<string, CollectedMapTileApi>();
@@ -354,8 +376,16 @@ export default function MapTilesScreen() {
     interactionModeRef.current = interactionMode;
     if (interactionMode !== 'pan') {
       setIsMapPanning(false);
+    } else {
+      setSelectedTileId(null);
     }
   }, [interactionMode]);
+
+  useEffect(() => {
+    if (selectedTileId && !selectedTile) {
+      setSelectedTileId(null);
+    }
+  }, [selectedTile, selectedTileId]);
 
   useEffect(() => {
     inventoryTilesRef.current = inventoryTiles;
@@ -747,6 +777,15 @@ export default function MapTilesScreen() {
     ]
   );
 
+  const handleTilePress = useCallback((tile: CollectedMapTileApi) => {
+    setSelectedTileId(tile.id);
+  }, []);
+
+  const handleOpenSelectedStory = useCallback(() => {
+    if (!selectedTile) return;
+    navigation.navigate('Story', { storyId: selectedTile.story.id || selectedTile.storyId });
+  }, [navigation, selectedTile]);
+
   const startDrag = useCallback(
     (
       tile: CollectedMapTileApi,
@@ -761,9 +800,10 @@ export default function MapTilesScreen() {
       returnAnim.stopAnimation();
       returnAnim.setValue(0);
       setReturningDrag(null);
+      setSelectedTileId(null);
       const offsetX = Number.isFinite(locationX) ? locationX : displaySize / 2;
       const offsetY = Number.isFinite(locationY) ? locationY : displaySize / 2;
-      const nextDrag = {
+      const nextDrag: DragState = {
         tile,
         source,
         left: pageX - offsetX,
@@ -790,6 +830,7 @@ export default function MapTilesScreen() {
       setHoverCell(null);
       setHoverInventory(null);
       setDrag(nextDrag);
+      return nextDrag;
     },
     [boardRect, inventoryRect, measureRects, returnAnim]
   );
@@ -930,26 +971,57 @@ export default function MapTilesScreen() {
             pageX: Math.round(point.pageX),
             pageY: Math.round(point.pageY),
           });
-          startDrag(
+          pendingTileInteractionRef.current = {
             tile,
             source,
-            point.pageX,
-            point.pageY,
-            point.locationX,
-            point.locationY,
-            displaySize
-          );
+            locationX: point.locationX,
+            locationY: point.locationY,
+            displaySize,
+          };
         },
         onPanResponderMove: (event, gestureState) => {
           if (interactionModeRef.current !== 'select') return;
-          setDrag((current) => {
-            const activeDrag = current ?? dragRef.current;
-            if (!activeDrag || activeDrag.tile.id !== tile.id) return current;
+          const activeDrag = dragRef.current;
+          if (!activeDrag) {
+            const pending = pendingTileInteractionRef.current;
+            if (!pending || pending.tile.id !== tile.id) return;
+            const movement = Math.hypot(gestureState.dx, gestureState.dy);
+            if (movement < TILE_DRAG_START_THRESHOLD) return;
             const point = readResponderPoint(event.nativeEvent as any, {
               pageX: gestureState.moveX,
               pageY: gestureState.moveY,
-              locationX: activeDrag.offsetX,
-              locationY: activeDrag.offsetY,
+              locationX: pending.locationX,
+              locationY: pending.locationY,
+            });
+            if (!point) {
+              debugMapTiles('drag_move_missing_point', {
+                tileId: tile.id,
+                nativeKeys: Object.keys(event.nativeEvent as any),
+              });
+              return;
+            }
+            pendingTileInteractionRef.current = null;
+            const startedDrag = startDrag(
+              tile,
+              source,
+              point.pageX,
+              point.pageY,
+              pending.locationX,
+              pending.locationY,
+              displaySize
+            );
+            updateDragHover(startedDrag);
+            return;
+          }
+
+          setDrag((current) => {
+            const currentDrag = current ?? activeDrag;
+            if (!currentDrag || currentDrag.tile.id !== tile.id) return current;
+            const point = readResponderPoint(event.nativeEvent as any, {
+              pageX: gestureState.moveX,
+              pageY: gestureState.moveY,
+              locationX: currentDrag.offsetX,
+              locationY: currentDrag.offsetY,
             });
             if (!point) {
               debugMapTiles('drag_move_missing_point', {
@@ -959,9 +1031,9 @@ export default function MapTilesScreen() {
               return current;
             }
             const next = {
-              ...activeDrag,
-              left: point.pageX - activeDrag.offsetX,
-              top: point.pageY - activeDrag.offsetY,
+              ...currentDrag,
+              left: point.pageX - currentDrag.offsetX,
+              top: point.pageY - currentDrag.offsetY,
             };
             dragRef.current = next;
             const now = Date.now();
@@ -981,14 +1053,22 @@ export default function MapTilesScreen() {
         },
         onPanResponderRelease: () => {
           if (interactionModeRef.current !== 'select') return;
+          const pending = pendingTileInteractionRef.current;
+          pendingTileInteractionRef.current = null;
+          if (!dragRef.current && pending?.tile.id === tile.id) {
+            handleTilePress(tile);
+            return;
+          }
           finishDrag();
         },
         onPanResponderTerminate: () => {
           if (interactionModeRef.current !== 'select') return;
+          pendingTileInteractionRef.current = null;
+          if (!dragRef.current) return;
           finishDrag();
         },
       }),
-    [finishDrag, startDrag, updateDragHover]
+    [finishDrag, handleTilePress, startDrag, updateDragHover]
   );
 
   const boardPanResponder = useMemo(
@@ -998,6 +1078,7 @@ export default function MapTilesScreen() {
         onMoveShouldSetPanResponder: () => interactionModeRef.current === 'pan',
         onPanResponderGrant: (event) => {
           if (interactionModeRef.current !== 'pan') return;
+          setSelectedTileId(null);
           setIsMapPanning(true);
           panGestureRef.current = {
             panX: panRef.current.x,
@@ -1245,6 +1326,21 @@ export default function MapTilesScreen() {
     );
   }
 
+  const tileDetailsBottom =
+    (inventoryCollapsed ? INVENTORY_COLLAPSED_HEIGHT : INVENTORY_HEIGHT) + theme.spacing[3];
+  const tileDetailsDynamicStyle =
+    width >= 760
+      ? {
+          right: theme.spacing[4],
+          bottom: tileDetailsBottom,
+          width: Math.min(380, width - theme.spacing[8]),
+        }
+      : {
+          left: theme.spacing[3],
+          right: theme.spacing[3],
+          bottom: tileDetailsBottom,
+        };
+
   return (
     <View ref={rootRef} testID="map-tiles-screen" style={styles.root} onLayout={measureRects}>
       <View
@@ -1316,6 +1412,7 @@ export default function MapTilesScreen() {
             displaySize
           );
           const isDragging = drag?.tile.id === tile.id || returningDrag?.tile.id === tile.id;
+          const isSelected = selectedTileId === tile.id;
           return (
             <View
               key={tile.id}
@@ -1323,6 +1420,7 @@ export default function MapTilesScreen() {
               pointerEvents={interactionMode === 'pan' ? 'none' : 'auto'}
               style={[
                 styles.boardTile,
+                isSelected && styles.selectedTile,
                 {
                   left: pos.left,
                   top: pos.top,
@@ -1436,6 +1534,7 @@ export default function MapTilesScreen() {
                         testID={`map-inventory-tile-${tile.id}`}
                         style={[
                           styles.inventoryTile,
+                          selectedTileId === tile.id && styles.selectedTile,
                           styles.inventoryTileMotion,
                           splitShift !== 0 && { transform: [{ translateX: splitShift }] },
                           (drag?.tile.id === tile.id || returningDrag?.tile.id === tile.id) &&
@@ -1453,6 +1552,50 @@ export default function MapTilesScreen() {
           </ScrollView>
         )}
       </View>
+
+      {selectedTile && !drag && !returningDrag && !rewardTile && (
+        <View
+          testID="map-tile-details"
+          style={[styles.tileDetailsPanel, tileDetailsDynamicStyle]}
+        >
+          <View style={styles.tileDetailsImageFrame}>
+            {selectedStoryImageUrl ? (
+              <Image
+                source={{ uri: selectedStoryImageUrl }}
+                style={styles.tileDetailsImage as ImageStyle}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.tileDetailsImageFallback}>
+                <Ionicons name="book-outline" size={30} color={theme.colors.text.tertiary} />
+              </View>
+            )}
+          </View>
+          <View style={styles.tileDetailsText}>
+            <Text style={styles.tileDetailsTitle} numberOfLines={2}>
+              {selectedTile.story.title}
+            </Text>
+            <TouchableOpacity
+              testID="map-tile-open-story"
+              accessibilityRole="button"
+              style={styles.tileDetailsCta}
+              onPress={handleOpenSelectedStory}
+            >
+              <Ionicons name="book-outline" size={17} color={theme.colors.white} />
+              <Text style={styles.tileDetailsCtaText}>{t('artifacts.open_story')}</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            testID="map-tile-details-close"
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+            style={styles.tileDetailsClose}
+            onPress={() => setSelectedTileId(null)}
+          >
+            <Ionicons name="close-outline" size={20} color={theme.colors.text.secondary} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {drag && (
         <View
@@ -1625,6 +1768,24 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 5 },
     elevation: 5,
   },
+  selectedTile: {
+    zIndex: 2,
+    ...Platform.select({
+      web: {
+        outlineColor: theme.colors.interactive.primary,
+        outlineOffset: 2,
+        outlineStyle: 'solid',
+        outlineWidth: 2,
+      } as any,
+      default: {
+        shadowColor: theme.colors.interactive.primary,
+        shadowOpacity: 0.55,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 0 },
+        elevation: 8,
+      },
+    }),
+  },
   tileImage: {
     borderRadius: 0,
     backgroundColor: theme.colors.background.tertiary,
@@ -1767,6 +1928,87 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 9 },
     elevation: 12,
+  },
+  tileDetailsPanel: {
+    position: 'absolute',
+    zIndex: 23,
+    minHeight: 118,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    padding: theme.spacing[3],
+    paddingRight: 46,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 116, 84, 0.22)',
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    shadowColor: theme.colors.black,
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 9,
+    ...Platform.select({
+      web: {
+        backdropFilter: 'blur(12px)' as any,
+      },
+      default: {},
+    }),
+  },
+  tileDetailsImageFrame: {
+    width: 104,
+    height: 78,
+    flexShrink: 0,
+    overflow: 'hidden',
+    borderRadius: 6,
+    backgroundColor: theme.colors.background.tertiary,
+  },
+  tileDetailsImage: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: theme.colors.background.tertiary,
+  },
+  tileDetailsImageFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.secondary,
+  },
+  tileDetailsText: {
+    flex: 1,
+    minWidth: 0,
+    gap: theme.spacing[2],
+  },
+  tileDetailsTitle: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    lineHeight: 20,
+  },
+  tileDetailsCta: {
+    alignSelf: 'flex-start',
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: 999,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  tileDetailsCtaText: {
+    color: theme.colors.white,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  tileDetailsClose: {
+    position: 'absolute',
+    top: theme.spacing[2],
+    right: theme.spacing[2],
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
   },
   rewardOverlay: {
     ...StyleSheet.absoluteFillObject,

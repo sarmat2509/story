@@ -22,10 +22,17 @@ import type {
 import type { Asset } from '../db/schema';
 import { MAP_TILE_MASK_VARIANTS } from '../domain/story/mapTileMasks';
 import { canReadStoryForSession } from '../services/childStoryAccessService';
+import { loadStoryCoverAssets } from '../services/storyCoverService';
 import { stripCharacterIds } from '../utils/audioTags';
 import { logger } from '../utils/logger';
 
 const router = Router();
+
+type StoryCoverImage = {
+  assetId?: string | null;
+  imageUrl: string | null;
+  thumbnailUrl: string | null;
+};
 
 const listQuerySchema = z.object({
   childProfileId: z.string().uuid().optional(),
@@ -56,11 +63,18 @@ function publicAssetUrl(asset: Pick<Asset, 'storagePath' | 'storageUrl'>): strin
 }
 
 function isMapTileAsset(asset: Asset): boolean {
-  const params = asset.generationParams as Record<string, unknown> | null;
   return (
     asset.assetType === 'image' &&
     asset.status === 'completed' &&
-    params?.kind === 'map_tile'
+    isMapTileGenerationParams(asset.generationParams)
+  );
+}
+
+function isMapTileGenerationParams(params: unknown): boolean {
+  return (
+    !!params &&
+    typeof params === 'object' &&
+    (params as Record<string, unknown>).kind === 'map_tile'
   );
 }
 
@@ -117,7 +131,7 @@ function mapGeneratedAsset(asset: Asset | null) {
   };
 }
 
-function mapCollectedTile(details: CollectedMapTileDetails) {
+function mapCollectedTile(details: CollectedMapTileDetails, storyCover?: StoryCoverImage | null) {
   const { collection, asset, story } = details;
   return {
     id: collection.id,
@@ -141,8 +155,28 @@ function mapCollectedTile(details: CollectedMapTileDetails) {
       title: stripCharacterIds(story.title),
       language: story.language,
       createdAt: story.createdAt,
+      coverAssetId: storyCover?.assetId ?? story.coverAssetId ?? null,
+      coverImageUrl: storyCover?.imageUrl ?? null,
+      coverThumbnailUrl: storyCover?.thumbnailUrl ?? null,
     },
   };
+}
+
+async function mapCollectedTilesWithCovers(details: CollectedMapTileDetails[]) {
+  const coverByStoryId = await loadStoryCoverAssets(
+    details.map((item) => ({
+      id: item.story.id,
+      coverAssetId: item.story.coverAssetId,
+    }))
+  );
+  return details.map((item) => mapCollectedTile(item, coverByStoryId.get(item.story.id)));
+}
+
+async function mapCollectedTileWithCover(details: CollectedMapTileDetails) {
+  const coverByStoryId = await loadStoryCoverAssets([
+    { id: details.story.id, coverAssetId: details.story.coverAssetId },
+  ]);
+  return mapCollectedTile(details, coverByStoryId.get(details.story.id));
 }
 
 async function syncCollectedMapTileReference(storyId: string, asset: Asset | null): Promise<void> {
@@ -190,7 +224,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     const rows = await getCollectedMapTileRepository().listForOwner(ownerResult.owner);
     return res.json({
       status: 'success',
-      tiles: rows.map(mapCollectedTile),
+      tiles: await mapCollectedTilesWithCovers(rows),
     });
   } catch (error) {
     logger.error({ err: error, userId: req.user?.id }, 'List collected map tiles failed');
@@ -236,10 +270,14 @@ router.get('/story/:storyId', requireAuth, async (req: Request, res: Response) =
         ? await getCollectedMapTileRepository().findForOwnerStory(ownerResult.owner, storyId)
         : initialCollected;
 
+    const coverByStoryId = await loadStoryCoverAssets([
+      { id: storyId, coverAssetId: story.coverAssetId },
+    ]);
+
     return res.json({
       status: 'success',
       generated: mapGeneratedAsset(generated),
-      collected: collected ? mapCollectedTile(collected) : null,
+      collected: collected ? mapCollectedTile(collected, coverByStoryId.get(storyId)) : null,
     });
   } catch (error) {
     logger.error({ err: error, userId: req.user?.id }, 'Get story map tile status failed');
@@ -292,7 +330,7 @@ router.post('/collect', requireAuth, async (req: Request, res: Response) => {
       const syncedExisting = await repo.findForOwnerStory(ownerResult.owner, storyId);
       return res.json({
         status: 'success',
-        tile: mapCollectedTile(syncedExisting ?? existing),
+        tile: await mapCollectedTileWithCover(syncedExisting ?? existing),
         alreadyCollected: true,
       });
     }
@@ -323,7 +361,7 @@ router.post('/collect', requireAuth, async (req: Request, res: Response) => {
 
     return res.status(201).json({
       status: 'success',
-      tile: mapCollectedTile(created),
+      tile: await mapCollectedTileWithCover(created),
       alreadyCollected: false,
     });
   } catch (error) {
@@ -414,7 +452,7 @@ router.put('/layout', requireAuth, async (req: Request, res: Response) => {
     const updated = await repo.updatePlacementsForOwner(ownerResult.owner, placements);
     return res.json({
       status: 'success',
-      tiles: updated.map(mapCollectedTile),
+      tiles: await mapCollectedTilesWithCovers(updated),
     });
   } catch (error) {
     logger.error({ err: error, userId: req.user?.id }, 'Update map tile layout failed');

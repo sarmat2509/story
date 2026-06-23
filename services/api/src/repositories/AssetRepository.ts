@@ -14,6 +14,14 @@ export class AssetRepository {
     return asset || null;
   }
 
+  async findByIds(ids: string[]): Promise<schema.Asset[]> {
+    if (ids.length === 0) return [];
+    return this.db
+      .select()
+      .from(schema.assets)
+      .where(inArray(schema.assets.id, ids));
+  }
+
   // Image/general assets
   async findByStoryId(storyId: string, assetType?: string): Promise<schema.Asset[]> {
     const conditions = [eq(schema.assets.storyId, storyId)];
@@ -133,10 +141,11 @@ export class AssetRepository {
   }
 
   async create(data: schema.NewAsset): Promise<schema.Asset> {
-    const [asset] = await this.db
+    const rows = await this.db
       .insert(schema.assets)
       .values(data)
       .returning();
+    const [asset] = rows as schema.Asset[];
     return asset;
   }
 

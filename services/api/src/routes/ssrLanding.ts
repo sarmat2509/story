@@ -79,7 +79,12 @@ async function handleLanding(req: Request, res: Response) {
       title: s.title,
       time: formatStoryTime(locale, s.audioMetadata as any, s.scenes ?? []),
       slug: s.publishedSlug,
-      thumbnailUrl: s.scenes?.[0]?.imageUrl ?? s.scenes?.find((sc) => sc.imageUrl)?.imageUrl ?? null,
+      thumbnailUrl:
+        s.coverThumbnailUrl ??
+        s.coverImageUrl ??
+        s.scenes?.[0]?.imageUrl ??
+        s.scenes?.find((sc) => sc.imageUrl)?.imageUrl ??
+        null,
     }));
   } catch {
     // Fallback to empty — renderLandingHtml will use hardcoded examples

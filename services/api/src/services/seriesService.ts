@@ -6,7 +6,7 @@
 import { getStoryRepository } from '../repositories';
 import type { Story } from '../db/schema';
 import logger from '../utils/logger';
-import { enrichAllStoriesWithImages } from './storyOrchestrationService';
+import { loadStoryCoverAssets } from './storyCoverService';
 
 /**
  * Create or get existing series for a story
@@ -453,18 +453,15 @@ export async function listUserSeries(userId: string): Promise<
 
   const uniqueStoryIds = [...new Set(storyIdsToFetch)];
   const storyRows = await getStoryRepository().findStoriesByIdsWithScenes(uniqueStoryIds);
-  const enrichedScenesMap = await enrichAllStoriesWithImages(
-    storyRows.map((r) => ({ id: r.id, scenes: (r.scenes as any[]) || [] }))
+  const coverByStoryId = await loadStoryCoverAssets(
+    storyRows.map((story) => ({ id: story.id, coverAssetId: story.coverAssetId }))
   );
 
   const getCoverForStory = (storyId: string) => {
-    const enrichedScenes = enrichedScenesMap.get(storyId) || [];
-    const firstWithImage = Array.isArray(enrichedScenes)
-      ? enrichedScenes.find((s: any) => s.image?.url)
-      : null;
+    const cover = coverByStoryId.get(storyId);
     return {
-      coverImageUrl: firstWithImage?.image?.url ?? null,
-      coverThumbnailUrl: firstWithImage?.image?.thumbnailUrl ?? null,
+      coverImageUrl: cover?.imageUrl ?? null,
+      coverThumbnailUrl: cover?.thumbnailUrl ?? null,
     };
   };
 

@@ -116,6 +116,12 @@ import { mergeDirectorIntoText, extractLlmCharactersFromText, getIllustrationBlo
 import { persistImageValidationResult } from './imageValidationPersistenceService';
 import { persistStoryDirectorScenes } from './storyDirectorScenePersistenceService';
 import {
+  ensureStoryDefaultCoverAssetId,
+  loadStoryCoverAssets,
+  refreshStoryCoverAssetForScene,
+  setStoryCoverAssetIfMissing,
+} from './storyCoverService';
+import {
   createStoryRequestWithQuotaReservation,
   isStoryQuotaError,
   type StoryQuotaReservationSource,
@@ -2120,6 +2126,9 @@ export async function processStoryImages(
             await getSceneRepository().update(preloadedSceneRecord.id, {
               imageUrl: imageResult.imageUrl,
             });
+            if (sceneIndex === sceneIndices[0]) {
+              await setStoryCoverAssetIfMissing(storyId, imageResult.assetId);
+            }
           }
 
           // Count completed images toward both UX threshold and background bookkeeping
@@ -2143,6 +2152,8 @@ export async function processStoryImages(
           }
         }
       });
+
+      await ensureStoryDefaultCoverAssetId(storyId);
 
       // 5. Mark image generation complete, persist failed scenes
       const finalMetadata = (await getStoryRepository().findById(storyId))?.metadata as Record<string, unknown> | null;
@@ -2171,6 +2182,7 @@ export async function processStoryImages(
           imageGenerationComplete: true,
         },
       });
+      await ensureStoryDefaultCoverAssetId(storyId);
     }
 
     // Clear intermediate data now that all images are generated (or skipped)
@@ -3397,7 +3409,7 @@ async function generateSceneImageWithReference(
     requestId?: string;
     onValidationRetry?: () => Promise<void>;
   }
-): Promise<{ imageUrl: string }> {
+): Promise<{ imageUrl: string; assetId: string }> {
   const startTime = Date.now();
   
   try {
@@ -3951,6 +3963,7 @@ async function generateSceneImageWithReference(
     // Return the base64 image data, mime type, scene DB ID, and storage path for reference tracking
     return {
       imageUrl: uploadResult.storagePath, // Use storagePath, not storageUrl
+      assetId: createdAsset.id,
     };
     
   } catch (error) {
@@ -4797,28 +4810,32 @@ export async function getStory(storyId: string, userId: string) {
 
 /**
  * Batch-enrich scenes with image data for multiple stories at once.
- * Uses a single SELECT to load all image assets for all stories
- * and builds plain public URLs from storagePath.
+ * Uses scenes.imageUrl as the source of truth for the approved scene image.
+ * Asset rows are used only to attach a thumbnail for that exact storage path.
  */
 export async function enrichAllStoriesWithImages(
   storyRows: Array<{ id: string; scenes: any[] }>
 ): Promise<Map<string, any[]>> {
-  const storyIds = storyRows.map(s => s.id);
+  const storyIds = Array.from(new Set(storyRows.map(s => s.id)));
   const result = new Map<string, any[]>();
 
   if (storyIds.length === 0) {
     return result;
   }
 
-  // Single batch query for all image assets across all stories
-  const imageAssets = await getAssetRepository().findCompletedImagesByStoryIds(storyIds);
+  const [approvedScenes, imageAssets] = await Promise.all([
+    getSceneRepository().findByStoryIds(storyIds),
+    getAssetRepository().findCompletedImagesByStoryIds(storyIds),
+  ]);
 
-  // Group assets by storyId
-  const assetsByStory = new Map<string, typeof imageAssets>();
+  const approvedSceneByKey = new Map<string, (typeof approvedScenes)[number]>();
+  for (const scene of approvedScenes) {
+    approvedSceneByKey.set(`${scene.storyId}:${scene.sceneId}`, scene);
+  }
+
+  const thumbnailPathByStoragePath = new Map<string, string | null>();
   for (const asset of imageAssets) {
-    const list = assetsByStory.get(asset.storyId) || [];
-    list.push(asset);
-    assetsByStory.set(asset.storyId, list);
+    thumbnailPathByStoragePath.set(asset.storagePath, asset.thumbnailPath);
   }
 
   for (const story of storyRows) {
@@ -4828,26 +4845,19 @@ export async function enrichAllStoriesWithImages(
       continue;
     }
 
-    const storyAssets = assetsByStory.get(story.id) || [];
-
-    // Match assets to scenes: prefer sceneId integer, fall back to visualPrompt for old assets
     const enrichedScenes = scenes.map((scene: any) => {
-      const matchingAsset = storyAssets.find(a => {
-        if (a.sceneNumber != null && a.sceneNumber === scene.sceneId) return true;
-        if (a.sceneNumber == null) {
-          const scenePrompt = scene.visualPrompt?.trim().replace(/\s+/g, ' ');
-          const assetPrompt = a.visualPrompt?.trim().replace(/\s+/g, ' ');
-          return scenePrompt && assetPrompt && scenePrompt === assetPrompt;
-        }
-        return false;
-      });
+      const approvedScene = approvedSceneByKey.get(`${story.id}:${scene.sceneId}`);
+      const approvedImageUrl = approvedScene?.imageUrl ?? null;
+      const approvedThumbnailPath = approvedImageUrl
+        ? thumbnailPathByStoragePath.get(approvedImageUrl)
+        : null;
 
       return {
         ...scene,
-        image: matchingAsset?.storagePath ? {
-          url: `/api/v1/assets/${matchingAsset.storagePath}`,
-          thumbnailUrl: matchingAsset.thumbnailPath 
-            ? `/api/v1/assets/${matchingAsset.thumbnailPath}` 
+        image: approvedImageUrl ? {
+          url: `/api/v1/assets/${approvedImageUrl}`,
+          thumbnailUrl: approvedThumbnailPath
+            ? `/api/v1/assets/${approvedThumbnailPath}`
             : null,
         } : null,
       };
@@ -4858,8 +4868,7 @@ export async function enrichAllStoriesWithImages(
 
   logger.debug({
     totalStories: storyIds.length,
-    totalAssets: imageAssets.length,
-    storiesWithAssets: assetsByStory.size,
+    approvedScenesWithImages: approvedScenes.filter(scene => !!scene.imageUrl).length,
   }, 'enrichAllStoriesWithImages - batch enrichment complete');
 
   return result;
@@ -4934,24 +4943,21 @@ export async function listUserStorySummaries(
     childProfileId,
   });
 
-  // Batch-enrich with images to extract cover image URL
-  const enrichedScenesMap = await enrichAllStoriesWithImages(
-    results.map(r => ({ id: r.id, scenes: r.scenes as any[] }))
+  const coverByStoryId = await loadStoryCoverAssets(
+    results.map((story) => ({ id: story.id, coverAssetId: story.coverAssetId }))
   );
 
   return results.map(story => {
-    const enrichedScenes = enrichedScenesMap.get(story.id) || [];
-    const firstSceneWithImage = Array.isArray(enrichedScenes)
-      ? enrichedScenes.find((s: any) => s.image?.url)
-      : null;
+    const cover = coverByStoryId.get(story.id);
 
     return {
       id: story.id,
       title: story.title,
       language: story.language,
       status: story.isPublished ? 'completed' : 'draft',
-      coverImageUrl: firstSceneWithImage?.image?.url ?? null,
-      coverThumbnailUrl: firstSceneWithImage?.image?.thumbnailUrl ?? null,
+      coverAssetId: cover?.assetId ?? null,
+      coverImageUrl: cover?.imageUrl ?? null,
+      coverThumbnailUrl: cover?.thumbnailUrl ?? null,
       hasAudio: !!(story.audioMetadata as any)?.finalAssetId,
       scenarioCardId: story.scenarioCardId ?? null,
       partNumber: (story as any).partNumber ?? null,
@@ -5186,7 +5192,7 @@ export async function getStoryManifest(storyId: string) {
       : story.shareToken
         ? `${webAppUrl.replace(/\/$/, '')}/u/${story.shareToken}`
         : null,
-    shareCardSceneId: story.shareCardSceneId ?? null,
+    coverAssetId: story.coverAssetId ?? null,
     createdByMode: story.createdByMode,
     createdByChildProfileId: story.createdByChildProfileId ?? null,
     parentReviewStatus: story.parentReviewStatus,
@@ -5681,6 +5687,7 @@ export async function regenerateSceneImage(
     await getSceneRepository().update(scene.id, {
       imageUrl: imageResult.imageUrl,
     });
+    await refreshStoryCoverAssetForScene(storyId, scene.id, imageResult.assetId);
   }
 
   for (const oldAsset of oldAssets) {

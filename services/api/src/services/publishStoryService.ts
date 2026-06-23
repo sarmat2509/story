@@ -10,6 +10,7 @@ import { invalidateSitemapCache } from './sitemapService';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { assertStoryPublishSafety } from './storyPublishSafetyService';
+import { resolveStoryCoverAssetId, validateStoryCoverAssetId } from './storyCoverService';
 import crypto from 'crypto';
 import anyAscii from 'any-ascii';
 
@@ -61,6 +62,17 @@ export interface PublishResult {
   publishedStoriesCount?: number;
 }
 
+export class PublishStoryError extends Error {
+  constructor(
+    public statusCode: number,
+    public code: string,
+    message: string
+  ) {
+    super(message);
+    this.name = 'PublishStoryError';
+  }
+}
+
 export interface UnpublishStoryUpdate {
   isPublished: false;
   publishedAt: null;
@@ -96,7 +108,7 @@ export async function publishStory(
   storyId: string,
   userId: string,
   visibility: PublishVisibility = 'public',
-  shareCardSceneId?: number
+  requestedCoverAssetId?: string | null
 ): Promise<PublishResult | null> {
   const storyRepo = getStoryRepository();
 
@@ -109,9 +121,30 @@ export async function publishStory(
 
   const webAppUrl = config.web.webAppUrl.replace(/\/$/, '');
   const currentVisibility = story.visibility || (story.publishedSlug ? 'public' : 'unlisted');
+  const resolvedCoverAssetId = requestedCoverAssetId
+    ? await validateStoryCoverAssetId(storyId, requestedCoverAssetId)
+    : story.coverAssetId ?? await resolveStoryCoverAssetId(storyId);
+  if (requestedCoverAssetId && !resolvedCoverAssetId) {
+    throw new PublishStoryError(
+      400,
+      'INVALID_COVER_ASSET',
+      'Cover asset must be a completed final scene image for this story'
+    );
+  }
+  const coverUpdate =
+    resolvedCoverAssetId && resolvedCoverAssetId !== story.coverAssetId
+      ? { coverAssetId: resolvedCoverAssetId }
+      : {};
 
   // Already published with same visibility - return existing URL
   if (story.isPublished && currentVisibility === visibility) {
+    if (Object.keys(coverUpdate).length > 0) {
+      await storyRepo.updateStory(storyId, {
+        ...coverUpdate,
+      });
+      await storyRepo.incrementPublicRenderVersion(storyId);
+    }
+
     const publishedStoriesCount = await storyRepo.countPublishedByUser(userId);
     if (visibility === 'public' && story.publishedSlug) {
       return {
@@ -143,8 +176,8 @@ export async function publishStory(
       visibility: 'unlisted',
       shareToken: token,
       ...authorUpdate,
+      ...coverUpdate,
       ...(shouldClearHomePageFlag ? { showOnHomePage: false } : {}),
-      ...(shareCardSceneId != null && { shareCardSceneId }),
     });
     await storyRepo.incrementPublicRenderVersion(storyId);
     if (story.publishedSlug) {
@@ -178,7 +211,7 @@ export async function publishStory(
     visibility: 'public',
     shareToken: null,
     ...authorUpdate,
-    ...(shareCardSceneId != null && { shareCardSceneId }),
+    ...coverUpdate,
   });
   await storyRepo.incrementPublicRenderVersion(storyId);
   await addPublishedSlug(slug);

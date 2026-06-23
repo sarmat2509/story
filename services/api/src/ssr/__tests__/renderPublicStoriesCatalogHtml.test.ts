@@ -10,6 +10,9 @@ const story: PublicStoryListItem = {
   authorId: '11111111-1111-4111-8111-111111111111',
   authorDisplayName: 'Ada',
   authorAvatarUrl: null,
+  coverAssetId: '22222222-2222-4222-8222-222222222222',
+  coverImageUrl: '/api/v1/assets/development/user/story/image/scene-1.jpg',
+  coverThumbnailUrl: null,
   publishedAt: '2026-04-10T10:00:00.000Z',
   publishedSlug: 'moonlit-garden',
   scenes: [

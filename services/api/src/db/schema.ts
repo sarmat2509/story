@@ -930,7 +930,7 @@ export const stories = pgTable(
     }),
     visibility: varchar('visibility', { length: 20 }).default('public'), // 'public' | 'unlisted'
     shareToken: varchar('share_token', { length: 64 }), // For unlisted: token for /u/:token URL
-    shareCardSceneId: integer('share_card_scene_id'), // 0-based scene index for og:image. NULL = first
+    coverAssetId: uuid('cover_asset_id').references(() => assets.id, { onDelete: 'set null' }),
     publicRenderVersion: integer('public_render_version').default(1), // Bump on publish/unpublish/audio/alignment/theme
     showOnHomePage: boolean('show_on_home_page').default(false).notNull(),
 
@@ -961,6 +961,7 @@ export const stories = pgTable(
       createdAtIdx: index('stories_created_at_idx').on(table.createdAt),
       seriesIdIdx: index('stories_series_id_idx').on(table.seriesId),
       shareTokenIdx: index('stories_share_token_idx').on(table.shareToken),
+      coverAssetIdIdx: index('stories_cover_asset_id_idx').on(table.coverAssetId),
     };
   }
 );

@@ -21,7 +21,7 @@ import {
   getStoryGenerationStatus,
   enrichAllStoriesWithImages,
 } from '../services/storyOrchestrationService';
-import { publishStory, unpublishStory } from '../services/publishStoryService';
+import { PublishStoryError, publishStory, unpublishStory } from '../services/publishStoryService';
 import { PublishSafetyError } from '../services/storyPublishSafetyService';
 import {
   reviewChildCreatedStory,
@@ -1007,7 +1007,7 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
 const PublishStorySchema = z.object({
   isPublished: z.boolean(),
   visibility: z.enum(['public', 'unlisted']).optional().default('public'),
-  shareCardSceneId: z.number().int().min(0).optional(),
+  coverAssetId: z.string().uuid().nullable().optional(),
   childAuthorPseudonym: z.string().trim().max(100).optional(),
   childAuthorAboutMe: z.string().trim().max(1000).optional(),
 });
@@ -1113,7 +1113,7 @@ router.patch('/:id', requireAuth, async (req: Request, res: Response) => {
     }
 
     if (body.isPublished) {
-      const result = await publishStory(id, ownerUserId, body.visibility, body.shareCardSceneId);
+      const result = await publishStory(id, ownerUserId, body.visibility, body.coverAssetId);
       if (!result) {
         return res.status(404).json({
           status: 'error',
@@ -1153,6 +1153,13 @@ router.patch('/:id', requireAuth, async (req: Request, res: Response) => {
         message: error.message,
         code: error.code,
         ...(error.details ? { details: error.details } : {}),
+      });
+    }
+    if (error instanceof PublishStoryError) {
+      return res.status(error.statusCode).json({
+        status: 'error',
+        message: error.message,
+        code: error.code,
       });
     }
     if (sendChildModePolicyError(res, error)) return;

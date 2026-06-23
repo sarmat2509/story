@@ -26,6 +26,9 @@ export interface CollectedMapTileApi {
     title: string;
     language: string;
     createdAt: string;
+    coverAssetId: string | null;
+    coverImageUrl: string | null;
+    coverThumbnailUrl: string | null;
   };
 }
 

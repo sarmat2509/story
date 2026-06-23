@@ -44,7 +44,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { PublishShareDialog, type ShareCardScene } from '@/components/PublishShareDialog';
+import { PublishShareDialog, type CoverAssetOption } from '@/components/PublishShareDialog';
 import { AppButton } from '@/components/AppButton';
 import { toastService } from '@/services/toastService';
 import { audioNotificationService } from '@/services/audioNotificationService';
@@ -1052,7 +1052,7 @@ export default function StoryViewerScreen() {
   const handlePublishAndShare = useCallback(
     async (
       visibility: 'public' | 'unlisted' = 'public',
-      shareCardSceneId?: number,
+      coverAssetId?: string | null,
       pseudonym?: string,
       aboutMe?: string
     ) => {
@@ -1072,7 +1072,7 @@ export default function StoryViewerScreen() {
           storyId,
           isPublished: true,
           visibility,
-          shareCardSceneId,
+          coverAssetId,
           ...(isChildSession && pseudonym ? { childAuthorPseudonym: pseudonym } : {}),
           ...(isChildSession && aboutMe ? { childAuthorAboutMe: aboutMe } : {}),
         });
@@ -2296,16 +2296,18 @@ export default function StoryViewerScreen() {
         authorAboutMe={isChildSession ? activeChild?.authorAboutMe : null}
         allowAuthorProfileEdit={isChildSession}
         onUnpublish={handleUnpublish}
-        scenes={story?.scenes?.map(
+        coverAssets={story?.scenes?.flatMap(
           (
-            s: { image?: { url?: string }; imageUrl?: string | null },
-            i: number
-          ): ShareCardScene => ({
-            index: i,
-            imageUrl: s.image?.url ?? s.imageUrl ?? null,
-          })
+            s: { image?: { id?: string; url?: string }; imageUrl?: string | null }
+          ): CoverAssetOption[] =>
+            s.image?.id
+              ? [{
+                  assetId: s.image.id,
+                  imageUrl: s.image?.url ?? s.imageUrl ?? null,
+                }]
+              : []
         )}
-        shareCardSceneId={story?.shareCardSceneId ?? null}
+        coverAssetId={story?.coverAssetId ?? null}
         initialVisibility={
           story?.visibility === 'unlisted' ? 'unlisted' : story?.isPublished ? 'public' : 'unlisted'
         }

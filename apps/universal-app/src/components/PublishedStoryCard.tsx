@@ -13,6 +13,8 @@ export interface PublicStoryListItem {
   authorId?: string;
   authorDisplayName: string;
   authorAvatarUrl?: string | null;
+  coverImageUrl?: string | null;
+  coverThumbnailUrl?: string | null;
   scenes?: Array<{ sceneId: number; imageUrl?: string | null }>;
   hasAudio?: boolean;
   audioMetadata?: StoryAudioMetadata | null;
@@ -28,7 +30,11 @@ interface Props {
 
 export function PublishedStoryCard({ story, onPress, variant, cardWidth }: Props) {
   const coverUrl =
-    story.scenes?.[0]?.imageUrl ?? story.scenes?.find((s) => s.imageUrl)?.imageUrl ?? null;
+    story.coverThumbnailUrl ??
+    story.coverImageUrl ??
+    story.scenes?.[0]?.imageUrl ??
+    story.scenes?.find((s) => s.imageUrl)?.imageUrl ??
+    null;
   const thumbnail = coverUrl ? formatAssetUrl(coverUrl) : null;
   const hasAudio = story.hasAudio ?? !!story.audioMetadata;
 
