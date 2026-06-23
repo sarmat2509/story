@@ -66,5 +66,22 @@ void (async function main() {
     'admin users can pass admin guard'
   );
 
+  assert.deepStrictEqual(
+    runAdminGuard({
+      user: { id: 'admin-1', role: USER_ROLE_ADMIN } as Request['user'],
+      sessionMode: 'child' as Request['sessionMode'],
+    }),
+    {
+      nextCalled: false,
+      statusCode: 403,
+      body: {
+        status: 'error',
+        message: 'Parent session required',
+        code: 'PARENT_SESSION_REQUIRED',
+      },
+    },
+    'child sessions cannot pass admin guard even when the parent user is admin'
+  );
+
   console.log('authMiddlewareAdmin tests passed');
 })();

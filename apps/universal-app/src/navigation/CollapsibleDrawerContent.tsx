@@ -254,7 +254,7 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
               />
             );
           })}
-          {Platform.OS === 'web' && user?.role === 'admin' ? (
+          {Platform.OS === 'web' && user?.role === 'admin' && !isChildSession ? (
             <View
               style={[
                 styles.itemContainer,

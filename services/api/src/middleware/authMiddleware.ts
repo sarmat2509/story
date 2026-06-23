@@ -216,7 +216,7 @@ export function requireSessionScope(scope: string) {
   };
 }
 
-/** Use after requireAuth. Returns 403 unless users.role is admin. */
+/** Use after requireAuth. Returns 403 unless this is a parent admin session. */
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) {
     res.status(401).json({
@@ -229,6 +229,14 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
     res.status(403).json({
       status: 'error',
       message: 'Forbidden',
+    });
+    return;
+  }
+  if (req.sessionMode === 'child') {
+    res.status(403).json({
+      status: 'error',
+      message: 'Parent session required',
+      code: 'PARENT_SESSION_REQUIRED',
     });
     return;
   }

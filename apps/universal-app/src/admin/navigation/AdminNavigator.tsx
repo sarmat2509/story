@@ -22,18 +22,20 @@ export default function AdminNavigator() {
   const navigation = useNavigation<any>();
   const user = useAuthStore((state) => state.user);
   const isLoading = useAuthStore((state) => state.isLoading);
+  const sessionMode = useAuthStore((state) => state.sessionMode);
+  const isChildSession = sessionMode === 'child';
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
       navigation.replace('Main');
       return;
     }
-    if (!isLoading && user?.role !== 'admin') {
-      navigation.replace('Main', { screen: 'Profile' });
+    if (!isLoading && (user?.role !== 'admin' || isChildSession)) {
+      navigation.replace('Main', { screen: isChildSession ? 'Dashboard' : 'Profile' });
     }
-  }, [isLoading, navigation, user?.role]);
+  }, [isChildSession, isLoading, navigation, user?.role]);
 
-  if (Platform.OS !== 'web' || isLoading || user?.role !== 'admin') {
+  if (Platform.OS !== 'web' || isLoading || user?.role !== 'admin' || isChildSession) {
     return (
       <View
         style={{
