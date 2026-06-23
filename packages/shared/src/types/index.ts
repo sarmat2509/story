@@ -609,3 +609,174 @@ export interface StoryManifestApi extends StoryApi {
   seriesId?: string | null;
   partNumber?: number | null;
 }
+
+export type StoryQuizAgeBucket = '1y' | '2-3' | '4-5' | '6-8' | '9-12';
+
+export type StoryQuizStatus = 'generating' | 'completed' | 'failed';
+
+export type StoryQuizRubric = 'check_reward' | 'think_talk';
+
+export type StoryQuizDeliveryMode = 'parent_led' | 'assisted' | 'self_read';
+
+export type StoryQuizResultKind = 'objective' | 'text_supported' | 'reflective';
+
+export type StoryQuizActivityKind =
+  | 'choose_character'
+  | 'choose_object'
+  | 'choose_emotion'
+  | 'color_mood'
+  | 'scene_pick'
+  | 'repeat_phrase'
+  | 'choose_trait'
+  | 'match_character_action'
+  | 'match_object_owner'
+  | 'sequence_three_events'
+  | 'simple_cause_effect'
+  | 'story_true_false'
+  | 'helper_choice'
+  | 'safe_choice'
+  | 'choose_three_traits'
+  | 'fact_opinion_unknown'
+  | 'find_evidence'
+  | 'cause_effect_chain'
+  | 'compare_characters'
+  | 'sort_by_importance'
+  | 'who_needs_artifact'
+  | 'what_if'
+  | 'emotion_change'
+  | 'was_hero_right'
+  | 'two_sides_argument'
+  | 'motive_detective'
+  | 'perspective_switch'
+  | 'theme_detective'
+  | 'consequence_tree'
+  | 'symbol_analysis'
+  | 'advice_from_story'
+  | 'change_one_decision'
+  | 'reliability_check';
+
+export type StoryQuizInteractionType =
+  | 'single_choice'
+  | 'multi_select'
+  | 'match_pairs'
+  | 'sequence_order'
+  | 'evidence_choice'
+  | 'categorize'
+  | 'color_choice'
+  | 'symbol_choice'
+  | 'short_response'
+  | 'hotspot_choice'
+  | 'rating_scale'
+  | 'rank_order'
+  | 'branch_choice'
+  | 'fill_blank';
+
+export interface StoryQuizOptionApi {
+  id: string;
+  label: string;
+  sceneId?: number;
+  colorHex?: string;
+}
+
+export interface StoryQuizPairApi {
+  leftId: string;
+  rightId: string;
+}
+
+export interface StoryQuizActivityApi {
+  id: string;
+  rubric: StoryQuizRubric;
+  kind: StoryQuizActivityKind;
+  interactionType: StoryQuizInteractionType;
+  resultKind: StoryQuizResultKind;
+  deliveryMode: StoryQuizDeliveryMode;
+  question: string;
+  parentReadText?: string;
+  options?: StoryQuizOptionApi[];
+  correctOptionId?: string;
+  correctOptionIds?: string[];
+  preferredOrderIds?: string[];
+  pairs?: StoryQuizPairApi[];
+  evidenceSceneIds?: number[];
+  hint?: string;
+  retryHint?: string;
+  rewardSpark?: string;
+}
+
+export interface StoryQuizSectionApi {
+  rubric: StoryQuizRubric;
+  title: string;
+  subtitle?: string;
+  activityIds: string[];
+}
+
+export interface StoryQuizRewardApi {
+  label: string;
+  unlockPolicy: 'complete_check_reward';
+  bonusRules: Array<'first_attempt' | 'used_evidence' | 'retry_resolved' | 'all_check_completed'>;
+}
+
+export interface StoryQuizPayloadApi {
+  title: string;
+  language: string;
+  sourceAgeGroup: string;
+  quizAgeBucket: StoryQuizAgeBucket;
+  sections: StoryQuizSectionApi[];
+  activities: StoryQuizActivityApi[];
+  reward: StoryQuizRewardApi;
+  createdAt: string;
+}
+
+export type StoryQuizProgressOwnerType = 'parent_user' | 'child_profile';
+export type StoryQuizAnswerResultApi = 'correct' | 'retry' | 'reflective';
+
+export interface StoryQuizAnswerApi {
+  activityId: string;
+  selectedIds: string[];
+  matchedPairs?: StoryQuizPairApi[];
+  result: StoryQuizAnswerResultApi;
+  answeredAt: string;
+}
+
+export interface StoryQuizProgressApi {
+  id: string;
+  storyId: string;
+  storyQuizId: string;
+  userId: string;
+  childProfileId?: string | null;
+  ownerType: StoryQuizProgressOwnerType;
+  ownerId: string;
+  answers: Record<string, StoryQuizAnswerApi>;
+  completedCheckRewardAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaveStoryQuizAnswerInputApi {
+  selectedIds?: string[];
+  matchedPairs?: StoryQuizPairApi[];
+}
+
+export interface StoryQuizCandidateApi {
+  storyId: string;
+  title: string;
+  quizStatus: StoryQuizStatus | 'not_generated';
+}
+
+export interface StoryQuizApi {
+  id: string;
+  storyId: string;
+  childProfileId?: string | null;
+  language: string;
+  sourceAgeGroup: string;
+  quizAgeBucket: StoryQuizAgeBucket;
+  promptVersion: string;
+  sourceFingerprint: string;
+  status: StoryQuizStatus;
+  payload?: StoryQuizPayloadApi | null;
+  errorMessage?: string | null;
+  generationTimeMs?: number | null;
+  progress?: StoryQuizProgressApi | null;
+  createdAt: string;
+  updatedAt: string;
+}

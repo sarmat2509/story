@@ -67,6 +67,7 @@ import { ContinueSeriesSection } from '@/components/ContinueSeriesSection';
 import { StoryBottomSheet } from '@/components/StoryBottomSheet';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
+import { StoryReflectionSection } from '@/components/StoryReflectionSection';
 import { StoryCharactersSection, type StoryCharacter } from '@/components/StoryCharactersSection';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { StoryViewerSkeleton } from '@/components/StoryViewerSkeleton';
@@ -197,9 +198,13 @@ export default function StoryViewerScreen() {
     isHighlightEnabledRef.current = effectiveHighlightEnabled;
   }, [effectiveHighlightEnabled]);
   const [currentPosition, setCurrentPosition] = useState(0);
+  const [highlightedQuizSceneId, setHighlightedQuizSceneId] = useState<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const quizSectionRef = useRef<View | null>(null);
   const sceneRefs = useRef<Record<number, View | null>>({});
   const lastPositionUpdateTime = useRef(0);
+  const quizHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quizAutoScrollKeyRef = useRef<string | null>(null);
 
   // M7: Audio playback state persistence (global service handles saving/restoring)
 
@@ -1198,6 +1203,101 @@ export default function StoryViewerScreen() {
     }
   }, [activeSceneIndex, effectiveHighlightEnabled]);
 
+  const quizEnabled =
+    !isChildSession || activeChild?.childMode?.childModeSettings?.quizGenerationEnabled !== false;
+
+  useEffect(() => {
+    if (!route.params?.scrollToQuiz || !storyId || !story || !quizEnabled) return;
+    const autoScrollKey = `${storyId}:quiz`;
+    if (quizAutoScrollKeyRef.current === autoScrollKey) return;
+    quizAutoScrollKeyRef.current = autoScrollKey;
+
+    const timeout = setTimeout(() => {
+      const quizElement = quizSectionRef.current;
+      if (!quizElement) {
+        quizAutoScrollKeyRef.current = null;
+        return;
+      }
+
+      if (Platform.OS === 'web') {
+        const element = quizElement as any;
+        if (element?.scrollIntoView) {
+          element.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+            inline: 'nearest',
+          });
+        }
+        return;
+      }
+
+      quizElement.measureLayout(
+        scrollViewRef.current as any,
+        (_x, y) => {
+          scrollViewRef.current?.scrollTo({
+            y: Math.max(y - 80, 0),
+            animated: true,
+          });
+        },
+        () => {}
+      );
+    }, 450);
+
+    return () => clearTimeout(timeout);
+  }, [quizEnabled, route.params?.scrollToQuiz, story, storyId]);
+
+  useEffect(() => {
+    return () => {
+      if (quizHighlightTimeoutRef.current) {
+        clearTimeout(quizHighlightTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleQuizScenePress = useCallback(
+    (sceneId: number) => {
+      const scenes = Array.isArray(story?.scenes) ? story.scenes : [];
+      const sceneIndex = scenes.findIndex((scene: any) => scene.sceneId === sceneId);
+      if (sceneIndex < 0) return;
+
+      const sceneElement = sceneRefs.current[sceneIndex];
+      if (!sceneElement) return;
+
+      setHighlightedQuizSceneId(sceneId);
+      if (quizHighlightTimeoutRef.current) {
+        clearTimeout(quizHighlightTimeoutRef.current);
+      }
+      quizHighlightTimeoutRef.current = setTimeout(() => {
+        setHighlightedQuizSceneId((current) => (current === sceneId ? null : current));
+        quizHighlightTimeoutRef.current = null;
+      }, 4200);
+
+      if (Platform.OS === 'web') {
+        const element = sceneElement as any;
+        if (element?.scrollIntoView) {
+          element.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+            inline: 'nearest',
+          });
+        }
+        return;
+      }
+
+      sceneElement.measureLayout(
+        scrollViewRef.current as any,
+        (_x, y) => {
+          scrollViewRef.current?.scrollTo({
+            y: y - 100,
+            animated: true,
+          });
+        },
+        () => {}
+      );
+    },
+    [story?.scenes]
+  );
+
   const handleGenerateAudio = async () => {
     console.log('[handleGenerateAudio] Called with:', {
       selectedVoiceId,
@@ -1829,6 +1929,7 @@ export default function StoryViewerScreen() {
   // M6: Render story scenes with optional highlighting
   const renderScenesWithHighlight = () => {
     return story.scenes?.map((scene: any, sceneIndex: number) => {
+      const isQuizHighlighted = highlightedQuizSceneId === scene.sceneId;
       return (
         <View
           key={scene.sceneId || sceneIndex}
@@ -1863,6 +1964,9 @@ export default function StoryViewerScreen() {
           ) : null}
 
           <View style={styles.sceneTextWrapper}>
+            {isQuizHighlighted ? (
+              <View pointerEvents="none" style={styles.sceneTextWrapperQuizHighlightLayer} />
+            ) : null}
             {renderSceneTextWithHighlight(scene, sceneIndex)}
           </View>
         </View>
@@ -1950,7 +2054,14 @@ export default function StoryViewerScreen() {
             {/* Story Scenes */}
             {renderScenesWithHighlight()}
 
-            {renderMapTileRewardButton()}
+            <View ref={quizSectionRef}>
+              <StoryReflectionSection
+                storyId={storyId}
+                enabled={quizEnabled}
+                onScenePress={handleQuizScenePress}
+                rewardAction={renderMapTileRewardButton()}
+              />
+            </View>
 
             {/* Continue Story Button */}
             {renderContinueButton()}
@@ -1995,7 +2106,14 @@ export default function StoryViewerScreen() {
             {/* Story Scenes */}
             {renderScenesWithHighlight()}
 
-            {renderMapTileRewardButton()}
+            <View ref={quizSectionRef}>
+              <StoryReflectionSection
+                storyId={storyId}
+                enabled={quizEnabled}
+                onScenePress={handleQuizScenePress}
+                rewardAction={renderMapTileRewardButton()}
+              />
+            </View>
 
             {/* Continue Story Button */}
             {renderContinueButton()}
@@ -2615,7 +2733,19 @@ const styles = StyleSheet.create({
     color: theme.colors.status.error,
   },
   sceneTextWrapper: {
+    position: 'relative',
     paddingHorizontal: theme.spacing[6],
+  },
+  sceneTextWrapperQuizHighlightLayer: {
+    position: 'absolute',
+    top: -theme.spacing[2],
+    bottom: -theme.spacing[2],
+    left: theme.spacing[4],
+    right: theme.spacing[4],
+    borderRadius: theme.borders.radius.md,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.primary[50],
   },
   sceneText: {
     fontSize: theme.typography.fontSize.lg,
@@ -2623,8 +2753,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
   },
   mapTileReward: {
-    marginHorizontal: theme.spacing[6],
-    marginBottom: theme.spacing[8],
+    alignSelf: 'stretch',
   },
   mapTileRewardButton: {
     alignSelf: 'stretch',

@@ -62,6 +62,34 @@ function estimateProducerMs(illustrationCount: number): number {
   return Math.max(15000, illustrationCount * 15000);
 }
 
+async function warmStoryQuizGeneration(storyId: string, requestId: string): Promise<void> {
+  try {
+    const story = await getStoryRepository().findById(storyId);
+    if (!story) {
+      logger.warn({ requestId, storyId }, 'Skipping story quiz warmup: story not found');
+      return;
+    }
+
+    const { generateStoryQuiz } = await import('../services/storyQuizService');
+    await generateStoryQuiz(story, {
+      userId: story.userId,
+      childProfileId: story.createdByChildProfileId ?? story.childProfileId ?? null,
+    });
+    logger.info({ requestId, storyId }, 'Story quiz warmup completed');
+  } catch (error) {
+    logger.warn(
+      { err: error, requestId, storyId },
+      'Story quiz warmup failed; quiz can still be generated on demand'
+    );
+  }
+}
+
+function startStoryQuizWarmup(storyId: string, requestId: string): void {
+  setImmediate(() => {
+    void warmStoryQuizGeneration(storyId, requestId);
+  });
+}
+
 // ── Job Types ──
 
 export interface TextGenerationJob extends BaseJob {
@@ -295,6 +323,7 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
   const { processStoryRequest } = await import('../services/storyOrchestrationService');
   const result = await processStoryRequest(job.requestId);
   storyId = result.storyId;
+  startStoryQuizWarmup(storyId, job.requestId);
 
   if (result.isScheduledContinuation) {
     // Scheduled continuation: add to batch_image_pending for batch worker, skip imageQueue

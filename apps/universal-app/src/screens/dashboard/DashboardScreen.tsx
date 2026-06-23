@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from '@/components/AppLinearGradient';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
-import { useStories } from '@/api/stories';
+import { useStories, useStoryQuizCandidate } from '@/api/stories';
 import { useChildren } from '@/api/children';
 import { navigateToStory } from '@/navigation/navigationRef';
 import { StoryCard } from '@/components/StoryCard';
@@ -58,6 +58,8 @@ export default function DashboardScreen() {
   const queryClient = useQueryClient();
   const { user, sessionMode, activeChild } = useAuthStore();
   const isChildSession = sessionMode === 'child';
+  const childQuizEnabled =
+    !isChildSession || activeChild?.childMode?.childModeSettings?.quizGenerationEnabled !== false;
   const enterKey = useScreenEnter();
   const {
     data: storiesData,
@@ -65,6 +67,7 @@ export default function DashboardScreen() {
     error: storiesError,
     refetch: refetchStories,
   } = useStories();
+  const { data: quizCandidate } = useStoryQuizCandidate(isChildSession && childQuizEnabled);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   useLayoutEffect(() => {
@@ -304,6 +307,51 @@ export default function DashboardScreen() {
             </View>
           </AnimatedSection>
 
+          {isChildSession && childQuizEnabled && quizCandidate ? (
+            <AnimatedSection delay={90} trigger={enterKey}>
+              <Pressable
+                onPress={() =>
+                  navigation.navigate('Story', {
+                    storyId: quizCandidate.storyId,
+                    scrollToQuiz: true,
+                  })
+                }
+                style={({ hovered, pressed }: ExtendedPressableState) => [
+                  styles.quizBanner,
+                  hovered && Platform.OS === 'web' ? styles.quizBannerHover : null,
+                  pressed ? styles.quizBannerPressed : null,
+                ]}
+              >
+                <View style={styles.quizBannerIcon}>
+                  <Ionicons name="gift-outline" size={21} color={theme.colors.text.inverse} />
+                </View>
+                <View style={styles.quizBannerCopy}>
+                  <Text style={styles.quizBannerTitle}>
+                    {t('dashboard.quiz_banner.title', {
+                      defaultValue: 'Win a new tile for your world',
+                    })}
+                  </Text>
+                  <Text style={styles.quizBannerText} numberOfLines={1}>
+                    {t('dashboard.quiz_banner.body', {
+                      title: quizCandidate.title,
+                      defaultValue: 'Take a story quiz and open a prize in "{{title}}".',
+                    })}
+                  </Text>
+                </View>
+                <View style={styles.quizBannerAction}>
+                  <Text style={styles.quizBannerActionText}>
+                    {t('dashboard.quiz_banner.cta', { defaultValue: 'Go to quiz' })}
+                  </Text>
+                  <Ionicons
+                    name="arrow-forward"
+                    size={16}
+                    color={theme.colors.primary[700]}
+                  />
+                </View>
+              </Pressable>
+            </AnimatedSection>
+          ) : null}
+
           {shelfStories.length > 0 && (
             <AnimatedSection delay={160} trigger={enterKey}>
               <View style={styles.shelfSection}>
@@ -412,6 +460,78 @@ const styles = StyleSheet.create({
   topSectionCompact: {
     flexDirection: 'column',
     gap: theme.spacing[6],
+  },
+  quizBanner: {
+    minHeight: 76,
+    marginTop: -theme.spacing[4],
+    marginBottom: theme.spacing[8],
+    paddingVertical: theme.spacing[4],
+    paddingHorizontal: theme.spacing[5],
+    borderRadius: 18,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surfaceRaised,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: theme.spacing[4],
+    ...modernShadows.card,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'transform 160ms ease, box-shadow 160ms ease',
+      } as any,
+      default: {},
+    }),
+  },
+  quizBannerHover: Platform.select({
+    web: {
+      transform: 'translateY(-2px)',
+    } as any,
+    default: {},
+  }),
+  quizBannerPressed: {
+    opacity: 0.94,
+  },
+  quizBannerIcon: {
+    width: 42,
+    height: 42,
+    flexShrink: 0,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  quizBannerCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  quizBannerTitle: {
+    fontSize: theme.typography.fontSize.base,
+    lineHeight: 22,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+  },
+  quizBannerText: {
+    marginTop: 2,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 19,
+    color: theme.colors.text.secondary,
+  },
+  quizBannerAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+    gap: theme.spacing[2],
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    borderRadius: theme.borders.radius.full,
+    backgroundColor: modernColors.accentWash,
+  },
+  quizBannerActionText: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.primary[700],
   },
   heroColumn: {
     flex: 1,

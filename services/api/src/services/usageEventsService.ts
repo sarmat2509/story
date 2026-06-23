@@ -10,14 +10,16 @@ export type UsageEventType =
   | 'story_created'
   | 'image_generated'
   | 'audio_synthesized'
+  | 'story_quiz_generated'
   | 'plan_upgraded';
 
-export type UsageResourceType = 'story' | 'image' | 'audio' | 'plan';
+export type UsageResourceType = 'story' | 'image' | 'audio' | 'quiz' | 'plan';
 
 const EVENT_TO_RESOURCE: Record<UsageEventType, UsageResourceType> = {
   story_created: 'story',
   image_generated: 'image',
   audio_synthesized: 'audio',
+  story_quiz_generated: 'quiz',
   plan_upgraded: 'plan',
 };
 

@@ -66,6 +66,7 @@ interface ChildModeSettings {
   allowedCharacterIds: string[];
   freeTextPromptsEnabled: boolean;
   audioGenerationEnabled: boolean;
+  quizGenerationEnabled: boolean;
   parentReviewRequired: boolean;
   allowSiblingCharacters: boolean;
   allowSharedFamilyStories: boolean;
@@ -88,6 +89,8 @@ interface ChildModeLabels {
   freeTextDescription: string;
   audio: string;
   audioDescription: string;
+  quizzes: string;
+  quizzesDescription: string;
   review: string;
   reviewDescription: string;
   storyGeneration: string;
@@ -140,6 +143,7 @@ const DEFAULT_CHILD_MODE_SETTINGS: ChildModeSettings = {
   allowedCharacterIds: [],
   freeTextPromptsEnabled: true,
   audioGenerationEnabled: true,
+  quizGenerationEnabled: true,
   parentReviewRequired: false,
   allowSiblingCharacters: false,
   allowSharedFamilyStories: false,
@@ -666,6 +670,15 @@ export function ChildCard({
               disabled={controlsDisabled}
               onValueChange={(audioGenerationEnabled) =>
                 onChildModeSettingsChange?.(child.id, { audioGenerationEnabled })
+              }
+            />
+            <SettingSwitch
+              label={labels.quizzes}
+              description={labels.quizzesDescription}
+              value={childModeSettings.quizGenerationEnabled}
+              disabled={controlsDisabled}
+              onValueChange={(quizGenerationEnabled) =>
+                onChildModeSettingsChange?.(child.id, { quizGenerationEnabled })
               }
             />
             <SettingSwitch

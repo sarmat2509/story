@@ -1,7 +1,7 @@
 /**
  * Gemini Schema Adapter
  * Converts provider-agnostic JsonSchema to Gemini-specific SchemaType
- * 
+ *
  * This is the ONLY file that should import Gemini-specific types for schemas.
  * Domain Services and Prompt Builders work with JsonSchema only.
  */
@@ -28,7 +28,7 @@ export interface GeminiSchema {
 
 /**
  * GeminiSchemaAdapter - Converts JsonSchema to Gemini SchemaType
- * 
+ *
  * Handles the conversion between provider-agnostic JSON schemas
  * and Gemini's specific schema format.
  */
@@ -42,22 +42,22 @@ export class GeminiSchemaAdapter {
     // Handle union types (e.g., ['object', 'null'])
     let schemaType = schema.type;
     let isNullable = false;
-    
+
     if (Array.isArray(schemaType)) {
       // Extract non-null type and set nullable flag
-      const types = schemaType.filter(t => t !== 'null');
+      const types = schemaType.filter((t) => t !== 'null');
       isNullable = schemaType.includes('null');
-      
+
       if (types.length === 0) {
         throw new Error('Schema must have at least one non-null type');
       }
-      
+
       // Use the first non-null type
       schemaType = types[0];
     }
-    
+
     const geminiSchema: GeminiSchema = {
-      type: this.convertType(schemaType as JsonSchemaType)
+      type: this.convertType(schemaType as JsonSchemaType),
     };
 
     // Set nullable flag if type is a union with null
@@ -72,7 +72,7 @@ export class GeminiSchemaAdapter {
 
     if (schema.enum) {
       // Filter out null from enum if present (handled by nullable flag)
-      geminiSchema.enum = schema.enum.filter(v => v !== null);
+      geminiSchema.enum = schema.enum.filter((v) => v !== null);
     }
 
     if (schema.minimum !== undefined) {

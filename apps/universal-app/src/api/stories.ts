@@ -6,6 +6,10 @@ import type {
   StorySummaryApi,
   StoryManifestApi,
   StoryAudioMetadata,
+  SaveStoryQuizAnswerInputApi,
+  StoryQuizApi,
+  StoryQuizCandidateApi,
+  StoryQuizProgressApi,
   CreateStoryRequestInput,
   UserStoryLanguagesResponse,
   RequestStatus,
@@ -162,6 +166,110 @@ export const useStory = (id: string) => {
     refetchInterval: false,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+  });
+};
+
+export const useStoryQuiz = (storyId: string | undefined, enabled = true) => {
+  return useQuery({
+    queryKey: ['story-quiz', storyId],
+    enabled: enabled && !!storyId,
+    retry: false,
+    queryFn: async (): Promise<StoryQuizApi | null> => {
+      try {
+        const response = await apiClient.get<{ status: string; quiz: StoryQuizApi }>(
+          `/api/v1/me/stories/${storyId}/quiz`
+        );
+        return response.data.quiz;
+      } catch (error: any) {
+        const status = error.response?.status;
+        const code = error.response?.data?.code;
+        if (status === 404 || code === 'QUIZ_NOT_GENERATED') {
+          return null;
+        }
+        if (status === 409 || code === 'QUIZ_GENERATION_IN_PROGRESS') {
+          return {
+            id: '',
+            storyId: storyId!,
+            language: '',
+            sourceAgeGroup: '',
+            quizAgeBucket: '4-5',
+            promptVersion: '',
+            sourceFingerprint: '',
+            status: 'generating',
+            payload: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        throw error;
+      }
+    },
+    refetchInterval: (query) => {
+      return query.state.data?.status === 'generating' ? 3000 : false;
+    },
+  });
+};
+
+export const useStoryQuizCandidate = (enabled = true) => {
+  return useQuery({
+    queryKey: ['story-quiz-candidate'],
+    enabled,
+    retry: false,
+    staleTime: 60 * 1000,
+    queryFn: async (): Promise<StoryQuizCandidateApi | null> => {
+      const response = await apiClient.get<{
+        status: string;
+        candidate: StoryQuizCandidateApi | null;
+      }>('/api/v1/me/stories/quiz-candidate');
+      return response.data.candidate ?? null;
+    },
+  });
+};
+
+export const useGenerateStoryQuiz = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ storyId, force = false }: { storyId: string; force?: boolean }) => {
+      const response = await apiClient.post<{ status: string; quiz: StoryQuizApi }>(
+        `/api/v1/me/stories/${storyId}/quiz`,
+        { force },
+        { timeout: 120000 }
+      );
+      return response.data.quiz;
+    },
+    onSuccess: (quiz) => {
+      queryClient.setQueryData(['story-quiz', quiz.storyId], quiz);
+      queryClient.invalidateQueries({ queryKey: ['story-quiz', quiz.storyId] });
+    },
+  });
+};
+
+export const useSaveStoryQuizAnswer = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      storyId,
+      activityId,
+      selectedIds,
+      matchedPairs,
+    }: {
+      storyId: string;
+      activityId: string;
+    } & SaveStoryQuizAnswerInputApi) => {
+      const response = await apiClient.put<{ status: string; progress: StoryQuizProgressApi }>(
+        `/api/v1/me/stories/${storyId}/quiz/answers/${activityId}`,
+        { selectedIds, matchedPairs }
+      );
+      return { storyId, progress: response.data.progress };
+    },
+    onSuccess: ({ storyId, progress }) => {
+      queryClient.setQueryData<StoryQuizApi | null>(['story-quiz', storyId], (current) =>
+        current ? { ...current, progress } : current
+      );
+      queryClient.invalidateQueries({ queryKey: ['story-quiz-candidate'] });
+    },
   });
 };
 

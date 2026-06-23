@@ -307,6 +307,34 @@ export class StoryRepository {
       .orderBy(desc(schema.stories.createdAt));
   }
 
+  async findQuizCandidateStoriesByUser(
+    userId: string,
+    options: { childProfileId?: string; limit?: number } = {}
+  ): Promise<schema.Story[]> {
+    const { childProfileId, limit = 50 } = options;
+    const conditions = [
+      eq(schema.stories.userId, userId),
+      eq(schema.stories.hidden, false),
+      sql<boolean>`char_length(coalesce(${schema.stories.fullText}, '')) >= 20`,
+      sql<boolean>`${schema.stories.title} <> 'Generating...'`,
+    ];
+
+    if (childProfileId) {
+      const childCondition = or(
+        eq(schema.stories.childProfileId, childProfileId),
+        eq(schema.stories.createdByChildProfileId, childProfileId)
+      );
+      if (childCondition) conditions.push(childCondition);
+    }
+
+    return this.db
+      .select()
+      .from(schema.stories)
+      .where(and(...conditions))
+      .orderBy(desc(schema.stories.createdAt))
+      .limit(limit);
+  }
+
   async findSummariesByUser(
     userId: string,
     options: {

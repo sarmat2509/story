@@ -69,6 +69,7 @@ export interface ChildModeSettings {
   allowedCharacterIds: string[];
   freeTextPromptsEnabled: boolean;
   audioGenerationEnabled: boolean;
+  quizGenerationEnabled: boolean;
   parentReviewRequired: boolean;
   allowSiblingCharacters: boolean;
   allowSharedFamilyStories: boolean;

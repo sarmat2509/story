@@ -41,6 +41,8 @@ import { ModerationDecisionRepository } from './ModerationDecisionRepository';
 import { StoryArtifactRepository } from './StoryArtifactRepository';
 import { CollectedStoryArtifactRepository } from './CollectedStoryArtifactRepository';
 import { CollectedMapTileRepository } from './CollectedMapTileRepository';
+import { StoryQuizRepository } from './StoryQuizRepository';
+import { StoryQuizProgressRepository } from './StoryQuizProgressRepository';
 
 // Re-export classes for type usage
 export { UserRepository } from './UserRepository';
@@ -77,6 +79,8 @@ export { ModerationDecisionRepository } from './ModerationDecisionRepository';
 export { StoryArtifactRepository } from './StoryArtifactRepository';
 export { CollectedStoryArtifactRepository } from './CollectedStoryArtifactRepository';
 export { CollectedMapTileRepository } from './CollectedMapTileRepository';
+export { StoryQuizRepository } from './StoryQuizRepository';
+export { StoryQuizProgressRepository } from './StoryQuizProgressRepository';
 
 // Singleton instances
 let userRepo: UserRepository;
@@ -113,6 +117,8 @@ let moderationDecisionRepo: ModerationDecisionRepository;
 let storyArtifactRepo: StoryArtifactRepository;
 let collectedStoryArtifactRepo: CollectedStoryArtifactRepository;
 let collectedMapTileRepo: CollectedMapTileRepository;
+let storyQuizRepo: StoryQuizRepository;
+let storyQuizProgressRepo: StoryQuizProgressRepository;
 
 export function getUserRepository(): UserRepository {
   if (!userRepo) userRepo = new UserRepository(db);
@@ -286,4 +292,14 @@ export function getCollectedStoryArtifactRepository(): CollectedStoryArtifactRep
 export function getCollectedMapTileRepository(): CollectedMapTileRepository {
   if (!collectedMapTileRepo) collectedMapTileRepo = new CollectedMapTileRepository(db);
   return collectedMapTileRepo;
+}
+
+export function getStoryQuizRepository(): StoryQuizRepository {
+  if (!storyQuizRepo) storyQuizRepo = new StoryQuizRepository(db);
+  return storyQuizRepo;
+}
+
+export function getStoryQuizProgressRepository(): StoryQuizProgressRepository {
+  if (!storyQuizProgressRepo) storyQuizProgressRepo = new StoryQuizProgressRepository(db);
+  return storyQuizProgressRepo;
 }

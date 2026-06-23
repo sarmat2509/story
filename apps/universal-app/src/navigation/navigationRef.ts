@@ -45,9 +45,12 @@ export function resetToMainRoute(route: Exclude<LastMainRoute, null>): boolean {
  * Navigate to Story screen from anywhere in the app.
  * Works regardless of current navigator context (Tab/Drawer/Outside).
  * @param storyId - Story ID to navigate to
- * @param params - Optional additional params (e.g., autoPlay)
+ * @param params - Optional additional params (e.g., autoPlay, scrollToQuiz)
  */
-export function navigateToStory(storyId: string, params?: { autoPlay?: boolean }): void {
+export function navigateToStory(
+  storyId: string,
+  params?: { autoPlay?: boolean; scrollToQuiz?: boolean }
+): void {
   if (!navigationRef.isReady()) return;
   navigationRef.navigate('Main', {
     screen: 'Story',

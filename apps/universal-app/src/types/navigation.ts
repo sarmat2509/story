@@ -45,7 +45,7 @@ export type MainDrawerParamList = {
   MapTiles: { rewardTileId?: string; storyId?: string; childProfileId?: string } | undefined;
   Series: undefined;
   SeriesDetail: { seriesId: string };
-  Story: { storyId: string; autoPlay?: boolean };
+  Story: { storyId: string; autoPlay?: boolean; scrollToQuiz?: boolean };
   StoryRedirect: { storyId: string };
   Stories: undefined;
   PublishedStory: { slug: string };

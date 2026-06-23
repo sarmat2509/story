@@ -505,6 +505,7 @@ export const childProfiles = pgTable(
       allowedCharacterIds: [],
       freeTextPromptsEnabled: true,
       audioGenerationEnabled: true,
+      quizGenerationEnabled: true,
       parentReviewRequired: false,
       allowSiblingCharacters: false,
       allowSharedFamilyStories: false,
@@ -1264,6 +1265,94 @@ export type NewCollectedStoryArtifact = typeof collectedStoryArtifacts.$inferIns
 
 export type CollectedMapTile = typeof collectedMapTiles.$inferSelect;
 export type NewCollectedMapTile = typeof collectedMapTiles.$inferInsert;
+
+export const storyQuizzes = pgTable(
+  'story_quizzes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    storyId: uuid('story_id')
+      .references(() => stories.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    childProfileId: uuid('child_profile_id').references(() => childProfiles.id, {
+      onDelete: 'set null',
+    }),
+    language: varchar('language', { length: 10 }).notNull(),
+    sourceAgeGroup: varchar('source_age_group', { length: 20 }).notNull(),
+    quizAgeBucket: varchar('quiz_age_bucket', { length: 10 }).notNull(),
+    promptVersion: varchar('prompt_version', { length: 40 }).notNull(),
+    sourceFingerprint: varchar('source_fingerprint', { length: 64 }).notNull(),
+    status: varchar('status', { length: 20 }).notNull().default('generating'),
+    payload: jsonb('payload'),
+    errorMessage: text('error_message'),
+    generationTimeMs: integer('generation_time_ms'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => {
+    return {
+      storyIdIdx: index('story_quizzes_story_id_idx').on(table.storyId),
+      userIdIdx: index('story_quizzes_user_id_idx').on(table.userId),
+      childProfileIdIdx: index('story_quizzes_child_profile_id_idx').on(table.childProfileId),
+      statusIdx: index('story_quizzes_status_idx').on(table.status),
+      cacheIdx: uniqueIndex('story_quizzes_cache_uidx').on(
+        table.storyId,
+        table.language,
+        table.quizAgeBucket,
+        table.promptVersion,
+        table.sourceFingerprint
+      ),
+    };
+  }
+);
+
+export type StoryQuiz = typeof storyQuizzes.$inferSelect;
+export type NewStoryQuiz = typeof storyQuizzes.$inferInsert;
+
+export const storyQuizProgress = pgTable(
+  'story_quiz_progress',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    storyQuizId: uuid('story_quiz_id')
+      .references(() => storyQuizzes.id, { onDelete: 'cascade' })
+      .notNull(),
+    storyId: uuid('story_id')
+      .references(() => stories.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    childProfileId: uuid('child_profile_id').references(() => childProfiles.id, {
+      onDelete: 'set null',
+    }),
+    ownerType: varchar('owner_type', { length: 20 }).notNull(),
+    ownerId: uuid('owner_id').notNull(),
+    answers: jsonb('answers').$type<Record<string, unknown>>().notNull().default({}),
+    completedCheckRewardAt: timestamp('completed_check_reward_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => {
+    return {
+      storyQuizIdIdx: index('story_quiz_progress_story_quiz_id_idx').on(table.storyQuizId),
+      storyIdIdx: index('story_quiz_progress_story_id_idx').on(table.storyId),
+      userIdIdx: index('story_quiz_progress_user_id_idx').on(table.userId),
+      childProfileIdIdx: index('story_quiz_progress_child_profile_id_idx').on(
+        table.childProfileId
+      ),
+      ownerIdx: uniqueIndex('story_quiz_progress_owner_uidx').on(
+        table.storyQuizId,
+        table.ownerType,
+        table.ownerId
+      ),
+    };
+  }
+);
+
+export type StoryQuizProgress = typeof storyQuizProgress.$inferSelect;
+export type NewStoryQuizProgress = typeof storyQuizProgress.$inferInsert;
 
 export type ModerationDecisionEvent = typeof moderationDecisionEvents.$inferSelect;
 export type NewModerationDecisionEvent = typeof moderationDecisionEvents.$inferInsert;

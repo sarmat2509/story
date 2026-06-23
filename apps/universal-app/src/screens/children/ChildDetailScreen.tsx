@@ -209,6 +209,12 @@ export default function ChildDetailScreen() {
     audioDescription: t('children_screen.child_mode_audio_description', {
       defaultValue: 'Allows generating and listening to story narration.',
     }),
+    quizzes: t('children_screen.child_mode_quizzes', {
+      defaultValue: 'Story quizzes',
+    }),
+    quizzesDescription: t('children_screen.child_mode_quizzes_description', {
+      defaultValue: 'Allows opening and generating activities after reading stories.',
+    }),
     review: t('children_screen.child_mode_review'),
     reviewDescription: t('children_screen.child_mode_review_description', {
       defaultValue: 'Stories wait for parent approval before the child can read them.',

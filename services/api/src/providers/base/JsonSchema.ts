@@ -5,7 +5,7 @@
 
 import type { UsageMetadata } from './UsageMetadata';
 
-export type JsonSchemaType = 
+export type JsonSchemaType =
   | 'string'
   | 'number'
   | 'integer'

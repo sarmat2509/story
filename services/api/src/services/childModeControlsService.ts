@@ -23,6 +23,7 @@ export interface ChildModeSettings {
   allowedCharacterIds: string[];
   freeTextPromptsEnabled: boolean;
   audioGenerationEnabled: boolean;
+  quizGenerationEnabled: boolean;
   parentReviewRequired: boolean;
   allowSiblingCharacters: boolean;
   allowSharedFamilyStories: boolean;
@@ -74,6 +75,7 @@ export const DEFAULT_CHILD_MODE_SETTINGS: ChildModeSettings = {
   allowedCharacterIds: [],
   freeTextPromptsEnabled: true,
   audioGenerationEnabled: true,
+  quizGenerationEnabled: true,
   parentReviewRequired: false,
   allowSiblingCharacters: false,
   allowSharedFamilyStories: false,
@@ -175,6 +177,10 @@ export function normalizeChildModeSettings(raw: unknown): ChildModeSettings {
       input.audioGenerationEnabled,
       DEFAULT_CHILD_MODE_SETTINGS.audioGenerationEnabled
     ),
+    quizGenerationEnabled: normalizeBoolean(
+      input.quizGenerationEnabled,
+      DEFAULT_CHILD_MODE_SETTINGS.quizGenerationEnabled
+    ),
     parentReviewRequired: normalizeBoolean(
       input.parentReviewRequired,
       DEFAULT_CHILD_MODE_SETTINGS.parentReviewRequired
@@ -226,6 +232,7 @@ export function buildChildSessionScopes(settings: ChildModeSettings): string[] {
   const scopes = ['child_mode'];
   if (settings.freeTextPromptsEnabled) scopes.push('story:free_text');
   if (settings.audioGenerationEnabled) scopes.push('story:audio');
+  if (settings.quizGenerationEnabled) scopes.push('story:quiz');
   return scopes;
 }
 

@@ -850,6 +850,38 @@
     "parent_review_approved": "Approved",
     "parent_review_rejected": "Rejected"
   },
+  "story_quiz": {
+    "section_title": "Activities after the story",
+    "check_label": "Check yourself and claim a prize",
+    "talk_label": "Shall we talk about this story?",
+    "parent_read": "Read this to the child",
+    "sequence_helper": "Chronological order:",
+    "pairs_helper": "Pairs selected",
+    "check_answer": "Check",
+    "scene_number": "Scene {{sceneId}}",
+    "scene_hint": "Text clue",
+    "scene_hint_accessibility": "Text clue {{index}}",
+    "correct_feedback": "Exactly! You spotted the story clue.",
+    "correct_feedbacks": [
+      "Exactly! You spotted the story clue.",
+      "Great thinking, careful reader.",
+      "Nice catch. That detail mattered.",
+      "Yes! You remembered the story well.",
+      "Sharp answer. You followed the clue.",
+      "Beautifully noticed."
+    ],
+    "retry_feedback": "Almost. Look at the hint and try again.",
+    "retry_button": "Try again",
+    "reflective_feedback": "Good thought. You can talk about it together.",
+    "invitation_title": "Want to open a small activity after the story?",
+    "invitation_subtitle": "Let's check a few moments and unlock a reward.",
+    "loading": "Preparing activities...",
+    "generate_cta": "Prepare activities",
+    "not_now": "Not now",
+    "error": "Could not prepare activities. Try again.",
+    "age_bucket": "Difficulty: {{bucket}}",
+    "reward_unlocked": "Reward unlocked"
+  },
   "story_viewer": {
     "untitled_story": "Story",
     "create_audio": "Create Audio Story",
@@ -1238,6 +1270,11 @@
     "first_story_badge": "First story",
     "first_story_title": "Nothing on the shelf yet",
     "first_story_description": "Create your first story and this space will turn into a family reading shortcut.",
+    "quiz_banner": {
+      "title": "Win a new tile for your world",
+      "body": "Take the quiz for “{{title}}” and unlock a prize.",
+      "cta": "Go to quiz"
+    },
     "recent_stories_hint": "A curated shelf of the stories your family opened most recently.",
     "stats": {
       "stories": "Stories",
@@ -1415,6 +1452,8 @@
     "child_mode_free_text_description": "Allows custom story ideas instead of only preset choices.",
     "child_mode_audio": "Audio",
     "child_mode_audio_description": "Allows narration generation and audio playback.",
+    "child_mode_quizzes": "Story quizzes",
+    "child_mode_quizzes_description": "Allows opening and generating activities after reading stories.",
     "child_mode_review": "Review required",
     "child_mode_review_description": "New stories wait for parent approval before the child can read them.",
     "child_mode_allowed_themes": "Allowed themes",

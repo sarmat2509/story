@@ -23,6 +23,7 @@ void (async function main() {
       allowedCharacterIds: ['char-1'],
       freeTextPromptsEnabled: true,
       audioGenerationEnabled: true,
+      quizGenerationEnabled: true,
       parentReviewRequired: false,
       allowSiblingCharacters: true,
       allowSharedFamilyStories: true,
@@ -52,6 +53,7 @@ void (async function main() {
       {
         freeTextPromptsEnabled: true,
         audioGenerationEnabled: false,
+        quizGenerationEnabled: false,
       }
     ),
     {
@@ -59,6 +61,7 @@ void (async function main() {
       dailyGenerationLimit: 2,
       freeTextPromptsEnabled: true,
       audioGenerationEnabled: false,
+      quizGenerationEnabled: false,
     },
     'partial patches preserve existing settings'
   );
@@ -100,10 +103,20 @@ void (async function main() {
       ...DEFAULT_CHILD_MODE_SETTINGS,
       freeTextPromptsEnabled: true,
       audioGenerationEnabled: true,
+      quizGenerationEnabled: true,
       allowSharedFamilyStories: true,
     }),
-    ['child_mode', 'story:free_text', 'story:audio'],
+    ['child_mode', 'story:free_text', 'story:audio', 'story:quiz'],
     'child session scopes reflect enabled creation controls without sibling-story reads'
+  );
+
+  assert.deepStrictEqual(
+    buildChildSessionScopes({
+      ...DEFAULT_CHILD_MODE_SETTINGS,
+      quizGenerationEnabled: false,
+    }),
+    ['child_mode', 'story:free_text', 'story:audio'],
+    'quiz scope is omitted when parent disables quiz generation'
   );
 
   console.log('childModeControlsService tests passed');

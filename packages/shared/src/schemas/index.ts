@@ -232,6 +232,7 @@ export const ChildModeSettingsSchema = z.object({
   allowedCharacterIds: z.array(z.string().uuid()).max(50).optional(),
   freeTextPromptsEnabled: z.boolean().optional(),
   audioGenerationEnabled: z.boolean().optional(),
+  quizGenerationEnabled: z.boolean().optional(),
   parentReviewRequired: z.boolean().optional(),
   allowSiblingCharacters: z.boolean().optional(),
   allowSharedFamilyStories: z.boolean().optional(),
