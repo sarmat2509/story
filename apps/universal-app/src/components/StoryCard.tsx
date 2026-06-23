@@ -27,8 +27,31 @@ interface Props {
   variant?: 'list' | 'grid';
 }
 
+type WebTitleNode = {
+  setAttribute: (name: string, value: string) => void;
+};
+
+const isWebTitleNode = (node: unknown): node is WebTitleNode => {
+  return !!node && typeof (node as Partial<WebTitleNode>).setAttribute === 'function';
+};
+
 const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Props) => {
   const { t } = useTranslation();
+  const audioBadgeTitle = t('story_card.audio_badge_title');
+  const deleteButtonTitle = t('story_card.delete_button_title');
+  const setWebTitle = React.useCallback((node: unknown, title: string) => {
+    if (Platform.OS === 'web' && isWebTitleNode(node)) {
+      node.setAttribute('title', title);
+    }
+  }, []);
+  const audioBadgeRef = React.useCallback(
+    (node: unknown) => setWebTitle(node, audioBadgeTitle),
+    [audioBadgeTitle, setWebTitle]
+  );
+  const deleteButtonRef = React.useCallback(
+    (node: unknown) => setWebTitle(node, deleteButtonTitle),
+    [deleteButtonTitle, setWebTitle]
+  );
 
   // Prefer thumbnail for library (smaller, faster loading), fallback to full image
   const thumbnailRaw =
@@ -94,7 +117,11 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
           <View style={styles.gridClip}>
             <View style={styles.gridMedia}>
               {thumbnail ? (
-                <Image source={{ uri: thumbnail }} style={styles.gridThumbnail} resizeMode="cover" />
+                <Image
+                  source={{ uri: thumbnail }}
+                  style={styles.gridThumbnail}
+                  resizeMode="cover"
+                />
               ) : (
                 <View style={styles.gridPlaceholder}>
                   <Text style={styles.placeholderIcon}>📖</Text>
@@ -121,7 +148,12 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
 
         {/* Audio badge - top left corner */}
         {hasAudio && (
-          <View style={[styles.audioBadge, reviewBadge && styles.audioBadgeWithReview]}>
+          <View
+            style={[styles.audioBadge, reviewBadge && styles.audioBadgeWithReview]}
+            accessibilityRole="image"
+            accessibilityLabel={audioBadgeTitle}
+            ref={audioBadgeRef}
+          >
             <Ionicons name="headset" size={18} color={theme.colors.interactive.primary} />
           </View>
         )}
@@ -135,6 +167,9 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
               pressed && styles.deleteButtonGridPressed,
             ]}
             onPress={() => onDelete(story.id, story.title)}
+            accessibilityRole="button"
+            accessibilityLabel={deleteButtonTitle}
+            ref={deleteButtonRef}
           >
             <Ionicons name="trash-outline" size={20} color="#fff" />
           </Pressable>
@@ -164,6 +199,9 @@ const StoryCardComponent = ({ story, onPress, onDelete, variant = 'list' }: Prop
           style={styles.deleteButtonList}
           onPress={() => onDelete(story.id, story.title)}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={deleteButtonTitle}
+          ref={deleteButtonRef}
         >
           <Ionicons name="trash-outline" size={20} color={theme.colors.text.tertiary} />
         </TouchableOpacity>
@@ -353,9 +391,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: theme.spacing[2],
     left: theme.spacing[2],
+    width: 36,
+    height: 36,
     backgroundColor: theme.colors.background.primary,
     borderRadius: theme.borders.radius.full,
-    padding: theme.spacing[2],
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 10,
     elevation: 5,
     shadowColor: '#000',
@@ -370,9 +411,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: theme.spacing[2],
     right: theme.spacing[2],
+    width: 36,
+    height: 36,
     backgroundColor: 'rgba(220, 38, 38, 0.9)',
     borderRadius: theme.borders.radius.full,
-    padding: theme.spacing[2],
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 10,
     elevation: 5,
     ...Platform.select({

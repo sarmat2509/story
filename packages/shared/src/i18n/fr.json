@@ -420,6 +420,8 @@
     "already_voted": "Vous avez déjà voté"
   },
   "story_card": {
+    "audio_badge_title": "Histoire audio",
+    "delete_button_title": "Supprimer l'histoire",
     "parent_review_pending": "À vérifier",
     "parent_review_approved": "Approuvée",
     "parent_review_rejected": "Rejetée"

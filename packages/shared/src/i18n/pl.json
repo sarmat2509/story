@@ -839,6 +839,8 @@
     "already_voted": "Juz oddales glos"
   },
   "story_card": {
+    "audio_badge_title": "Historia audio",
+    "delete_button_title": "Usun historie",
     "parent_review_pending": "Wymaga sprawdzenia",
     "parent_review_approved": "Zatwierdzona",
     "parent_review_rejected": "Odrzucona"

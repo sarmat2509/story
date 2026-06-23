@@ -1044,6 +1044,8 @@
     "already_voted": "Ya has votado"
   },
   "story_card": {
+    "audio_badge_title": "Audiocuento",
+    "delete_button_title": "Eliminar cuento",
     "parent_review_pending": "Requiere revisión",
     "parent_review_approved": "Aprobada",
     "parent_review_rejected": "Rechazada"

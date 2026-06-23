@@ -846,6 +846,8 @@
     "already_voted": "You have already voted"
   },
   "story_card": {
+    "audio_badge_title": "Audio story",
+    "delete_button_title": "Delete story",
     "parent_review_pending": "Needs review",
     "parent_review_approved": "Approved",
     "parent_review_rejected": "Rejected"

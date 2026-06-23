@@ -846,6 +846,8 @@
     "already_voted": "Ви вже проголосували"
   },
   "story_card": {
+    "audio_badge_title": "Аудіоказка",
+    "delete_button_title": "Видалити казку",
     "parent_review_pending": "Потрібна перевірка",
     "parent_review_approved": "Схвалено",
     "parent_review_rejected": "Відхилено"
