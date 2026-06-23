@@ -83,6 +83,8 @@ export interface ChildModeSettings {
 export interface CharacterData {
   id?: string;
   name: string;
+  canonicalName?: string;
+  nameAliases?: string[];
   type: string;
   referencePhotos?: ReferencePhoto[];
   appearanceTraits?: any; // Flexible - can be BasicAppearanceTraits or full union type

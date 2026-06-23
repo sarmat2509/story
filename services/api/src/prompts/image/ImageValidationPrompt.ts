@@ -27,7 +27,7 @@ export interface ImageValidationPromptParams {
   }>;
 }
 
-export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v5';
+export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v9';
 export const IMAGE_VALIDATION_CACHE_KEY_LITE = 'image_validation_rules_lite_v3';
 
 function promptKindLabel(kind: ImageValidationCharacterKind): string {
@@ -91,14 +91,19 @@ Output JSON rules:
     content: `You are a quality assurance inspector for children's book illustrations.
 
 Ground truth:
-- Identity reference images are the ground truth for face, hair, body proportions, silhouette, species/body type, and stable markings. Unless an outfit plate is explicitly provided as clothing ground truth, ignore the clothing shown on identity reference images.
+- Identity reference images are the ground truth for face, hair, body proportions, silhouette, species/body type, stable markings, and default clothing when no separate clothing ground truth is supplied. If scene wardrobe text or an outfit plate is supplied, do not use identity-reference clothing as wardrobe ground truth for that character.
+- Outfit plates are clothing-only references. They never replace or weaken identity requirements from the identity reference image: face, age read, hairstyle, hair silhouette, body proportions, and stable marks still come from the identity reference.
 - The authoritative designer scene brief is the ground truth for what is happening in THIS scene: expression, pose, action, emotion, temporary magical effects, transparency/opacity, glow, motion, and scene-specific presentation.
-- Scene context and "Expected outfit for THIS scene" are the ground truth for wardrobe.
-- Do not fail outfit because it differs from the turnaround sheet when the scene wardrobe differs.
-- If an outfit plate reference is provided for a character, that outfit plate is the strongest clothing ground truth for that character in this scene. Use scene outfit text as supporting clarification, not as a reason to fail a matching outfit plate.
+- Scene context and "Expected outfit for THIS scene" are wardrobe ground truth only when supplied.
+- If no outfit plate and no expected outfit text is supplied for a referenced character, the identity reference/default clothes are the wardrobe ground truth.
+- If an outfit plate reference is provided for a character, that outfit plate is the strongest clothing ground truth for that character in this scene.
 
 Identity rules:
 - HUMAN: highest-weight checks are face structure, age read, visible hairstyle, then proportions/silhouette, then stable colors/markings.
+- HUMAN face must be evaluated as its own identity slot, separate from hairstyle, clothing, pose, and temporary expression. Set faceMatchesReference=false when the underlying face/head identity differs: face/head shape, eye shape/spacing, nose, mouth, cheeks, jaw/chin, freckles/glasses/stable marks. Do not make faceMatchesReference=false only because the hairstyle is wrong or because the character has a scene-driven expression/gaze.
+- HUMAN hairstyle must be compared structurally and by color zoning, not by broad hair color alone: hairline/parting, bangs/front locks, number and placement of braids/ponytails/buns, braid thickness, loose-vs-tied sections, length, side placement, natural/base-color regions, dyed/accent-color regions, and distinctive colored streak placement all matter. If the identity reference has multiple/front braids or a high ponytail but the generated image has one thick braid, a single side braid, or a simplified braid silhouette, set hairMatchesReference=false and mention that concrete drift. If the generated image spreads accent colors into natural/base hair regions, removes accent colors from dyed/accent regions, or places color streaks in the wrong hair sections, set hairMatchesReference=false and mention hair color placement drift.
+- HUMAN face and hair booleans must be independent: if the face matches but hair is structurally wrong, set faceMatchesReference=true and hairMatchesReference=false; if hair matches but the face/head identity drifts, set hairMatchesReference=true and faceMatchesReference=false.
+- If HUMAN hairMatchesReference=false, recognizableScore cannot be 1.0. Do not claim "hair color/style matches" when only broad color matches but hairstyle structure or hair color zoning differs.
 - ANIMAL: highest-weight checks are body type / silhouette, species read (e.g. hamster vs cat), head/muzzle shape, proportions, fur/feather pattern, and stable markings/coloration. For ANIMAL, interpret sameOverallDesignRead = same body type + species read, silhouetteDriftSeverity = body-proportions/silhouette drift, proportionsMatchReference = head-to-body ratio. Leave faceMatchesReference / hairMatchesReference / ageReadMatchesReference as null for animals — those are human identity slots.
 - IMAGINARY_CREATURE: highest-weight checks are silhouette, body type, subtype read, head/muzzle shape, proportions, and signature markings/colors. Use the same sameOverallDesignRead / silhouetteDriftSeverity / proportionsMatchReference fields as animals; leave human-only identity booleans null.
 - Matching clothes, palette, pose, or broad archetype cannot compensate for wrong identity.
@@ -118,18 +123,20 @@ Scoring guide:
 Validation rules:
 - Compare colors only for stable identity colors, not clothing.
 - When the designer scene brief explicitly requests a temporary scene-state effect, evaluate fidelity to that brief first. Do not treat the neutral reference's default state as a contradiction.
-- Validate outfit against scene wardrobe text only.
-- If an outfit plate reference is present, validate outfit primarily against that plate's garment shapes, layers, and key colors/patterns. Do not fail just because the outfit differs from the neutral identity sheet when it matches the outfit plate.
-- Never treat the clothing shown on an identity reference image as a mismatch by itself when the scene wardrobe or outfit plate authorizes different clothes.
+- Validate outfit against the outfit plate when one is present; otherwise validate against scene wardrobe text when supplied; otherwise keep identity reference/default clothes for referenced characters.
+- If an outfit plate reference is present, validate outfit primarily against that plate's garment shapes, layers, and key colors/patterns.
+- Never treat the clothing shown on an identity reference image as a mismatch by itself when scene wardrobe text or an outfit plate authorizes different clothes.
 - Check duplicates, missing characters, unexpected characters, text/letters, and rendering artifacts.
 - Apply scene-appropriate occlusion before failing outfit or visibility checks.
 
 Output JSON rules:
 - characterKind must be exactly "human", "animal", or "imaginary" and MUST match the KIND listed for that name in the expected roster. Do not answer "human" for a character listed as ANIMAL just because they appear small or cute.
 - For HUMAN with an identity reference: faceMatchesReference, hairMatchesReference, ageReadMatchesReference, proportionsMatchReference are expected booleans.
+- For HUMAN faceMatchesReference, evaluate the whole face/head identity from the identity reference, not isolated features, clothing, or hairstyle.
+- For HUMAN hairMatchesReference, evaluate hairstyle structure and hair color zoning against the identity reference even when an outfit plate is present. A matching outfit, broad hair color, or overall palette must not turn a structurally different hairstyle or wrong hair color placement into hairMatchesReference=true.
 - For ANIMAL / IMAGINARY_CREATURE: leave faceMatchesReference, hairMatchesReference, and ageReadMatchesReference as null (they are human identity slots). Use sameOverallDesignRead, silhouetteDriftSeverity, and proportionsMatchReference to express identity drift.
 - Do not fail faceMatchesReference for temporary emotion alone when the same underlying face/head design is preserved.
-- identityComparisonSummary must state what matches, what differs, and whether first-glance design read drifted.
+- identityComparisonSummary must state what matches, what differs, and whether first-glance design read drifted. For HUMAN with an identity reference, explicitly mention face/head identity status separately from hairstyle status.
 - Do NOT list wardrobe differences inside identityComparisonSummary when those differences are authorized by scene wardrobe text or by an outfit plate. Clothing mismatch belongs in matchesOutfit / issue, not in identity drift commentary.
 - sameOverallDesignRead is true only when overall design read is unchanged.
 - silhouetteDriftSeverity is one of none | mild | moderate | severe.
@@ -183,7 +190,7 @@ export function buildImageValidationRuntimePrompt(params: ImageValidationPromptP
 
   return [
     'Validate Image 1 against the expected character roster and return JSON only.',
-    'For IDENTITY references: use them for identity only and ignore their clothing unless no separate outfit ground truth exists.',
+    'For IDENTITY references: use them for identity and default clothing when no separate outfit ground truth exists.',
     'AUTHORITATIVE PRIORITY: if the designer scene brief describes a temporary scene-specific state, that brief overrides the neutral/default state shown in identity references.',
     `EXPECTED CHARACTERS (${expectedCharacters.length}):`,
     characterList,

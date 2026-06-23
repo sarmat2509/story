@@ -24,7 +24,10 @@ import {
   extractSceneCharacters,
   type CharacterReference,
 } from '../../prompts/image';
-import { buildImageEditPrompt } from '../../prompts/image/ImageEditPrompt';
+import {
+  buildImageEditPrompt,
+  type ImageEditRepairManifest,
+} from '../../prompts/image/ImageEditPrompt';
 import {
   buildTurnaroundPrompt,
   buildTextOnlyTurnaroundPrompt,
@@ -83,8 +86,8 @@ export interface SceneImageWithReferenceRequest {
   aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
 
   // Pre-classified character data (prepared by orchestration layer)
-  realWorldCharacters: Array<{ name: string; description: string }>;
-  imaginaryCharacters: Array<{ name: string; isTurnaround?: boolean }>;
+  realWorldCharacters: Array<{ name: string; description: string; nameAliases?: string[] }>;
+  imaginaryCharacters: Array<{ name: string; isTurnaround?: boolean; nameAliases?: string[] }>;
 
   // Reference images with per-image labels
   referenceImages?: Array<{
@@ -147,7 +150,8 @@ export interface MapTileImageRequest {
 export class ImageDomainService {
   constructor(
     private imageProvider: IImageProvider,
-    private textProvider?: ITextProvider // For vision-based image validation (Gemini Vision)
+    private textProvider?: ITextProvider, // Primary provider for vision-based image validation
+    private fallbackTextProvider?: ITextProvider // Optional secondary provider when primary validation is blocked
   ) {}
 
   /**
@@ -607,6 +611,8 @@ export class ImageDomainService {
     return runProductImageValidation(this.textProvider, params, {
       visionModel:
         config.ai?.validationModel || config.ai?.geminiVisionModel || 'gemini-3.1-flash-lite',
+      fallbackTextProvider: this.fallbackTextProvider,
+      fallbackVisionModel: config.ai?.openaiValidationModel || 'gpt-4o',
       operation: 'image_validation',
     });
   }
@@ -636,6 +642,9 @@ export class ImageDomainService {
       referenceKind?: 'character' | 'object';
     }>;
     systemInstruction?: string;
+    targetedRepairManifest?: ImageEditRepairManifest;
+    targetedRepairInstruction?: string;
+    previousInteractionId?: string;
     personGeneration?: 'allow_adult' | 'allow_all' | 'dont_allow';
     onUsage?: (usage: UsageMetadata) => void;
   }): Promise<GeneratedImage> {
@@ -647,6 +656,8 @@ export class ImageDomainService {
     const editInstructions = buildImageEditPrompt({
       validationResult: params.validationResult,
       sceneDescription: params.sceneDescription,
+      targetedRepairManifest: params.targetedRepairManifest,
+      targetedRepairInstruction: params.targetedRepairInstruction,
     });
 
     logger.info(
@@ -655,7 +666,11 @@ export class ImageDomainService {
         editInstructionsPreview: editInstructions.substring(0, 200),
         originalMimeType: params.originalMimeType,
         referenceCount: params.referenceImages?.length || 0,
+        targetedRepairManifest: params.targetedRepairManifest ?? null,
+        targetedRepairInstruction: params.targetedRepairInstruction ?? null,
         hasSystemInstruction: !!params.systemInstruction,
+        hasPreviousInteractionId: !!params.previousInteractionId,
+        previousInteractionId: params.previousInteractionId ?? null,
       },
       'Editing scene image based on validation feedback'
     );
@@ -676,8 +691,9 @@ export class ImageDomainService {
           referenceKind:
             ref.referenceKind ??
             inferReferenceKind({ source: ref.source, type: (ref as { type?: string }).type }),
-        })) || undefined,
+      })) || undefined,
       systemInstruction: params.systemInstruction,
+      previousInteractionId: params.previousInteractionId,
       personGeneration: params.personGeneration,
       onUsage: params.onUsage,
       operation: 'image_edit',

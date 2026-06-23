@@ -24,6 +24,10 @@ function testMapTilePromptKeepsMaskGeometryAndStandardPathEdges() {
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Image 1 is the geometry map in final canvas coordinates.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Follow Image 1 for road, water, bridge, connector mouths, edge positions, width, curves, junctions, and route connections.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Use portal markers as entrance placement and route contact points; design each entrance from the story.'));
+  assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Hard camera rule: the final image must look like a printed board-game map viewed directly from above.'));
+  assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Do not draw a landscape illustration, eye-level scene, tilted camera view, horizon line, sky band'));
+  assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Story illustration references are for materials, colors, landmark motifs, and texture language only.'));
+  assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('The portal marker shape in Image 1 is only a placement/contact marker.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Use the route list as the map contract.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('A WATER route that includes a PORTAL places the story entrance on the water route at the portal marker.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('A WATER route with a waterfall marker stays continuous through the waterfall marker and into its endpoint.'));
@@ -36,6 +40,8 @@ function testMapTilePromptKeepsMaskGeometryAndStandardPathEdges() {
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Fill the PATH interior according to the tile brief and story reference images.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Style the tile according to the tile brief and story reference images.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Represent waterfall, cave, grotto, ledge, cliff, and valley words from the tile brief as flat plan-view map landmarks locked to Image 1.'));
+  assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Represent a cave, tunnel, or portal as a flat dark entrance mark at the route contact point'));
+  assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Represent cliffs, slopes, ledges, and mountains as contour bands'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Route labels, edge names, arrows, and words in the prompt are instructions only; the tile image uses unlabeled natural scenery.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('Camera: strict orthographic top-down board-game map tile.'));
   assert.ok(MAP_TILE_STRUCTURE_SYSTEM_PROMPT.includes('The route geometry is a flat plan-view footprint in the square canvas.'));
@@ -47,6 +53,11 @@ function testMapTilePromptKeepsMaskGeometryAndStandardPathEdges() {
   assert.ok(prompt.includes('PATH 1: left edge <-> right edge; branch to upper-left area portal'));
   assert.ok(prompt.includes('Edge mouths: right edge=PATH; left edge=PATH.'));
   assert.ok(prompt.includes('Closed scenery edges: top edge, bottom edge.'));
+  assert.ok(prompt.includes('Plan-view conversion:'));
+  assert.ok(prompt.includes('The final tile must stay orthographic top-down even when the brief mentions slopes, cliffs, mountainsides'));
+  assert.ok(prompt.includes('Omit sky, horizon, and cloud objects.'));
+  assert.ok(prompt.includes('Draw cave, tunnel, grotto, doorway, or portal features as flat dark entrance marks'));
+  assert.ok(prompt.includes("Never copy the portal marker's drawn arch/door shape from Image 1."));
   assert.ok(!prompt.includes('Final geometry lock:'));
   assert.ok(!prompt.includes('Do not'));
   assert.ok(!prompt.includes('No road'));

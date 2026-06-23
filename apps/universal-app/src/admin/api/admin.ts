@@ -91,8 +91,11 @@ export type AdminImageValidationItem = {
   attempt: number;
   imageStoragePath: string;
   imageUrl: string;
-  validationScore: number;
+  validationScore: number | null;
+  validationStatus: string;
   visionModel: string | null;
+  requestManifest: unknown;
+  providerError: string | null;
   result: unknown;
   createdAt: string;
 };
@@ -139,8 +142,11 @@ export type AdminStoryValidationItem = {
   attempt: number;
   imageStoragePath: string;
   imageUrl: string;
-  validationScore: number;
+  validationScore: number | null;
+  validationStatus: string;
   visionModel: string | null;
+  requestManifest: unknown;
+  providerError: string | null;
   result: unknown;
   createdAt: string;
 };

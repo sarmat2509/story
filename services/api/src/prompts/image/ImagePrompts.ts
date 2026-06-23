@@ -37,16 +37,235 @@ function resolveOutfitPlateImageIndex(
   return undefined;
 }
 
-function formatOutfitPlateCrossRef(plateIdx: number, identityImageIdx?: number): string {
-  if (identityImageIdx !== undefined && identityImageIdx !== plateIdx) {
-    return ` They are wearing the outfit from Image ${plateIdx}. Keep face, hair, and body identity from Image ${identityImageIdx}. Use the plate for clothing details only.`;
+function resolveCharacterImageIndex(
+  characterName: string,
+  imageIndexMap?: Map<string, number>,
+): number | undefined {
+  if (!imageIndexMap || imageIndexMap.size === 0) return undefined;
+  if (imageIndexMap.has(characterName)) return imageIndexMap.get(characterName);
+  const base = stripCharacterIdFromName(characterName).trim();
+  if (base && imageIndexMap.has(base)) return imageIndexMap.get(base);
+  const lower = base.toLowerCase();
+  for (const [k, v] of imageIndexMap) {
+    if (stripCharacterIdFromName(k).trim().toLowerCase() === lower) return v;
   }
-  return ` They are wearing the outfit from Image ${plateIdx}. Use the plate for clothing details only.`;
+  return undefined;
+}
+
+function aliasSuffix(index: number): string {
+  let n = index + 1;
+  let out = '';
+  while (n > 0) {
+    n -= 1;
+    out = String.fromCharCode(65 + (n % 26)) + out;
+    n = Math.floor(n / 26);
+  }
+  return out;
+}
+
+function subjectAlias(index: number): string {
+  return `Subject ${aliasSuffix(index)}`;
+}
+
+function clothesAliasForSubject(alias?: string): string | undefined {
+  return alias ? alias.replace(/^Subject\b/, 'Clothes') : undefined;
+}
+
+type SubjectAliasContext = {
+  byNormalizedName: Map<string, string>;
+  byImageIndex: Map<number, string>;
+  replacementAliases: Array<{ alias: string; subject: string }>;
+};
+
+function normalizedSubjectName(name: string): string {
+  return stripCharacterIdFromName(name).trim().toLowerCase();
+}
+
+function nameAliasVariants(name: string): string[] {
+  const full = name.trim();
+  const base = stripCharacterIdFromName(name).trim();
+  const variants = new Set<string>();
+  for (const value of [full, base]) {
+    if (!value || value.length < 2) continue;
+    variants.add(value);
+    const ascii = anyAscii(value).trim();
+    if (ascii && ascii.length >= 2) {
+      variants.add(ascii);
+      variants.add(ascii.replace(/ii/g, 'i'));
+      variants.add(ascii.replace(/iya$/i, 'ia'));
+      variants.add(ascii.replace(/^ie/i, 'e'));
+      variants.add(ascii.replace(/^ye/i, 'e'));
+    }
+    const phonetic = toPhoneticKey(value);
+    if (phonetic && phonetic.length >= 2) {
+      variants.add(phonetic);
+      variants.add(phonetic.replace(/^ie/i, 'e'));
+      variants.add(phonetic.replace(/^ye/i, 'e'));
+    }
+    const crossScript = crossScriptIdentityKey(value);
+    if (crossScript && crossScript.length >= 2) {
+      variants.add(crossScript);
+      variants.add(crossScript.replace(/^ie/i, 'e'));
+      variants.add(crossScript.replace(/^ye/i, 'e'));
+    }
+  }
+  return [...variants].filter((value) => value.length >= 2);
+}
+
+function addSubjectAliasName(
+  context: SubjectAliasContext,
+  name: string,
+  alias: string,
+): void {
+  const normalized = normalizedSubjectName(name);
+  if (normalized) context.byNormalizedName.set(normalized, alias);
+  for (const variant of nameAliasVariants(name)) {
+    context.replacementAliases.push({ alias: variant, subject: alias });
+  }
+}
+
+function buildSubjectAliasContext(params: {
+  sceneVisual: SceneVisual;
+  imageIndexMap?: Map<string, number>;
+  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }>;
+  realWorldCharacters?: Array<{ name: string; description: string; nameAliases?: string[] }>;
+}): SubjectAliasContext {
+  const context: SubjectAliasContext = {
+    byNormalizedName: new Map(),
+    byImageIndex: new Map(),
+    replacementAliases: [],
+  };
+
+  const sceneCharacterNames =
+    typeof params.sceneVisual.cameraComposition === 'string'
+      ? []
+      : params.sceneVisual.cameraComposition.characters.map((char) => char.name);
+  const rawReferenceEntries =
+    (params.referenceCharacterNames ?? []).map((entry) => ({
+      name: typeof entry === 'string' ? entry : entry.name,
+      nameAliases: typeof entry === 'string' ? [] : (entry.nameAliases ?? []),
+    }));
+  const rawReferenceNames = rawReferenceEntries.map((entry) => entry.name);
+  const placeholderMap = buildPlaceholderReferenceNameMap(rawReferenceNames, sceneCharacterNames);
+  let nextAliasIndex = 0;
+
+  const addCandidate = (
+    name: string | undefined,
+    imageIdx?: number,
+    originalName?: string,
+    nameAliases?: string[],
+  ) => {
+    if (!name) return;
+    const normalized = normalizedSubjectName(name);
+    if (!normalized) return;
+    let alias = context.byNormalizedName.get(normalized);
+    if (!alias) {
+      alias = subjectAlias(nextAliasIndex);
+      nextAliasIndex += 1;
+    }
+    addSubjectAliasName(context, name, alias);
+    if (originalName && originalName !== name) {
+      addSubjectAliasName(context, originalName, alias);
+    }
+    for (const nameAlias of nameAliases ?? []) {
+      addSubjectAliasName(context, nameAlias, alias);
+    }
+    if (imageIdx !== undefined) {
+      context.byImageIndex.set(imageIdx, alias);
+    }
+  };
+
+  const referenceCandidates = rawReferenceEntries
+    .map((entry) => {
+      const originalName = entry.name;
+      const resolvedName = placeholderMap.get(originalName) ?? originalName;
+      return {
+        originalName,
+        resolvedName,
+        nameAliases: entry.nameAliases,
+        imageIdx:
+          resolveCharacterImageIndex(originalName, params.imageIndexMap) ??
+          resolveCharacterImageIndex(resolvedName, params.imageIndexMap),
+      };
+    })
+    .sort((a, b) => (a.imageIdx ?? Number.MAX_SAFE_INTEGER) - (b.imageIdx ?? Number.MAX_SAFE_INTEGER));
+
+  for (const candidate of referenceCandidates) {
+    addCandidate(
+      candidate.resolvedName,
+      candidate.imageIdx,
+      candidate.originalName,
+      candidate.nameAliases,
+    );
+  }
+
+  for (const name of sceneCharacterNames) {
+    addCandidate(name, resolveCharacterImageIndex(name, params.imageIndexMap));
+  }
+
+  for (const char of params.realWorldCharacters ?? []) {
+    addCandidate(
+      char.name,
+      resolveCharacterImageIndex(char.name, params.imageIndexMap),
+      undefined,
+      char.nameAliases,
+    );
+  }
+
+  context.replacementAliases = context.replacementAliases
+    .filter((entry, index, list) =>
+      list.findIndex((other) =>
+        other.alias.toLowerCase() === entry.alias.toLowerCase() && other.subject === entry.subject,
+      ) === index,
+    )
+    .sort((a, b) => b.alias.length - a.alias.length);
+
+  return context;
+}
+
+function replaceSubjectNames(text: string, aliasContext?: SubjectAliasContext): string {
+  if (!aliasContext || !text.trim()) return text;
+  let result = text;
+  for (const { alias, subject } of aliasContext.replacementAliases) {
+    const pattern = new RegExp(
+      `(^|[^\\p{L}\\p{N}_])(${escapeRegExp(alias)})(?=$|[^\\p{L}\\p{N}_])`,
+      'giu',
+    );
+    result = result.replace(pattern, `$1${subject}`);
+  }
+  return cleanupPromptText(result);
+}
+
+function getSubjectAliasForName(
+  name: string,
+  aliasContext?: SubjectAliasContext,
+  imageIdx?: number,
+): string {
+  if (imageIdx !== undefined) {
+    const byImage = aliasContext?.byImageIndex.get(imageIdx);
+    if (byImage) return byImage;
+  }
+  const normalized = normalizedSubjectName(name);
+  return aliasContext?.byNormalizedName.get(normalized) ?? 'Subject';
+}
+
+function formatOutfitPlateCrossRef(
+  plateIdx: number,
+  identityImageIdx?: number,
+  subject?: string,
+): string {
+  const subjectLabel = subject ?? 'the matching subject';
+  const clothesLabel = clothesAliasForSubject(subject) ?? 'the clothing/accessories';
+  if (identityImageIdx !== undefined && identityImageIdx !== plateIdx) {
+    return ` Draw ${subjectLabel} from Image ${identityImageIdx} wearing ${clothesLabel} from Image ${plateIdx}. Image ${identityImageIdx} is PERSON SOURCE; Image ${plateIdx} is CLOTHES SOURCE only.`;
+  }
+  return ` ${subjectLabel} is wearing ${clothesLabel} from Image ${plateIdx}. Image ${plateIdx} is CLOTHES SOURCE only; do not let it change face, hair, body identity, or silhouette.`;
 }
 
 function sanitizeSettingForImagePrompt(setting: string): string {
   if (!setting.trim()) return setting;
   let sanitized = setting;
+  sanitized = sanitized.replace(/\[\s*(?:STYLE|PROMPT|NOTE|INSTRUCTION|CAMERA|LIGHTING)\s*:[^\]]*\]/gi, '');
   const inlineStyleClauses = [
     /\b(?:a|an)\s+watercolor\s+children[’'`]s-book\s+look\b[^.?!;]*/gi,
     /\b(?:a|an)\s+storybook\s+look\b[^.?!;]*/gi,
@@ -144,28 +363,37 @@ function cleanupPromptText(text: string): string {
 function buildCompositionText(params: {
   sceneVisual: SceneVisual;
   imageIndexMap?: Map<string, number>;
-  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean }>;
-  realWorldCharacters?: Array<{ name: string; description: string }>;
+  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }>;
+  realWorldCharacters?: Array<{ name: string; description: string; nameAliases?: string[] }>;
+  aliasContext?: SubjectAliasContext;
 }): string {
   const cam = params.sceneVisual.cameraComposition;
   if (typeof cam === 'string') {
-    return canonicalizeReferenceNameMentions(cleanupPromptText(cam), [
+    const canonical = canonicalizeReferenceNameMentions(cleanupPromptText(cam), [
       ...(params.referenceCharacterNames ?? []).map((entry) => typeof entry === 'string' ? entry : entry.name),
       ...(params.realWorldCharacters ?? []).map((char) => char.name),
     ]);
+    return replaceSubjectNames(canonical, params.aliasContext);
   }
 
   const canonicalNames = [
     ...(params.referenceCharacterNames ?? []).map((entry) => typeof entry === 'string' ? entry : entry.name),
     ...(params.realWorldCharacters ?? []).map((char) => char.name),
   ];
-  const shot = cleanupPromptText(canonicalizeReferenceNameMentions(cam.shot, canonicalNames));
+  const shot = replaceSubjectNames(
+    cleanupPromptText(canonicalizeReferenceNameMentions(cam.shot, canonicalNames)),
+    params.aliasContext,
+  );
   const characterLines = cam.characters.map((character) => {
-    const description = sanitizeCharacterDescriptionForImagePrompt(character.description, {
-      canonicalNames,
-    });
-    const imageIdx = params.imageIndexMap?.get(character.name);
-    const label = imageIdx ? `${character.name} (Image ${imageIdx})` : character.name;
+    const description = replaceSubjectNames(
+      sanitizeCharacterDescriptionForImagePrompt(character.description, {
+        canonicalNames,
+      }),
+      params.aliasContext,
+    );
+    const imageIdx = resolveCharacterImageIndex(character.name, params.imageIndexMap);
+    const alias = getSubjectAliasForName(character.name, params.aliasContext, imageIdx);
+    const label = imageIdx ? `${alias} (Image ${imageIdx})` : alias;
     return `${label}: ${description}`;
   });
 
@@ -197,9 +425,9 @@ export function buildSceneImagePrompt(params: {
   ageGroup: string;
   style: string;
   // Imaginary creatures with reference drawings attached as images
-  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean }>;
+  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }>;
   // Real-world characters (people, animals) with text descriptions from Gemini Vision
-  realWorldCharacters?: Array<{ name: string; description: string }>;
+  realWorldCharacters?: Array<{ name: string; description: string; nameAliases?: string[] }>;
   hasReferences?: boolean;
   // Google Asset Graph pattern: maps normalized character name -> Image index
   imageIndexMap?: Map<string, number>;
@@ -241,6 +469,28 @@ export function buildSceneImagePrompt(params: {
   const cleanVisualPrompt = stripAllTags(params.visualPrompt || '');
 
   if (params.hasReferences) {
+    const legacyAliasContext = buildSubjectAliasContext({
+      sceneVisual: {
+        setting: cleanVisualPrompt,
+        cameraComposition: {
+          shot: cleanVisualPrompt,
+          characters: [
+            ...(params.referenceCharacterNames ?? []).map((entry) => ({
+              name: typeof entry === 'string' ? entry : entry.name,
+              description: '',
+            })),
+            ...(params.realWorldCharacters ?? []).map((char) => ({
+              name: char.name,
+              description: '',
+            })),
+          ],
+        },
+        lighting: '',
+      } as SceneVisual,
+      imageIndexMap: params.imageIndexMap,
+      referenceCharacterNames: params.referenceCharacterNames,
+      realWorldCharacters: params.realWorldCharacters,
+    });
     const characterLines = buildCharacterSection(
       params.realWorldCharacters,
       params.referenceCharacterNames,
@@ -248,9 +498,10 @@ export function buildSceneImagePrompt(params: {
       params.imageIndexMap,
       params.characterOutfits,
       params.outfitPlateImageIndexByCharacter,
+      legacyAliasContext,
     );
     const charSection = characterLines ? `\n\n${characterLines}` : '';
-    return `${stylePrefix}, ${cleanVisualPrompt}${charSection}, ${safetyAdditions}. Do not include any text, letters, captions, or character name labels in the image.`;
+    return `${stylePrefix}, ${replaceSubjectNames(cleanVisualPrompt, legacyAliasContext)}${charSection}, ${safetyAdditions}. Do not include any text, letters, captions, or character name labels in the image.`;
   }
 
   // Non-reference legacy path (Imagen 3)
@@ -279,8 +530,8 @@ function buildStructuredPrompt(params: {
   sceneVisual: SceneVisual;
   stylePrefix: string;
   safetyAdditions: string;
-  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean }>;
-  realWorldCharacters?: Array<{ name: string; description: string }>;
+  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }>;
+  realWorldCharacters?: Array<{ name: string; description: string; nameAliases?: string[] }>;
   hasReferences?: boolean;
   imageIndexMap?: Map<string, number>;
   outfitPlateImageIndexByCharacter?: Map<string, number>;
@@ -289,13 +540,22 @@ function buildStructuredPrompt(params: {
   hasEnvironmentImageRef?: boolean;
 }): string {
   const { sceneVisual, hasEnvironmentImageRef } = params;
+  const aliasContext = buildSubjectAliasContext({
+    sceneVisual,
+    imageIndexMap: params.imageIndexMap,
+    referenceCharacterNames: params.referenceCharacterNames,
+    realWorldCharacters: params.realWorldCharacters,
+  });
 
   const sections: string[] = [];
 
   // SETTING (scene-specific). When env image ref: only delta, labeled "Scene-specific"
   if (sceneVisual.setting) {
     const settingLabel = hasEnvironmentImageRef ? 'Scene-specific' : 'Scene';
-    const sanitizedSetting = sanitizeSettingForImagePrompt(sceneVisual.setting);
+    const sanitizedSetting = replaceSubjectNames(
+      sanitizeSettingForImagePrompt(sceneVisual.setting),
+      aliasContext,
+    );
     if (sanitizedSetting) {
       sections.push(`- ${settingLabel}: ${sanitizedSetting}`);
     }
@@ -309,6 +569,7 @@ function buildStructuredPrompt(params: {
     params.imageIndexMap,
     params.characterOutfits,
     params.outfitPlateImageIndexByCharacter,
+    aliasContext,
   );
   if (characterLines) {
     sections.push(characterLines);
@@ -321,19 +582,14 @@ function buildStructuredPrompt(params: {
       imageIndexMap: params.imageIndexMap,
       referenceCharacterNames: params.referenceCharacterNames,
       realWorldCharacters: params.realWorldCharacters,
+      aliasContext,
     });
     sections.push(`- Composition: ${composition}`);
   }
 
   // LIGHTING (scene-specific)
   if (sceneVisual.lighting) {
-    sections.push(`- Lighting: ${cleanupPromptText(sceneVisual.lighting)}`);
-  }
-
-  if (params.outfitPlateImageIndexByCharacter && params.outfitPlateImageIndexByCharacter.size > 0) {
-    sections.push(
-      '- Technical: Keep each character\'s identity from the matching character sheet or reference photo. If a character has an outfit plate, they are wearing that outfit. Do not draw the mannequin.',
-    );
+    sections.push(`- Lighting: ${replaceSubjectNames(cleanupPromptText(sceneVisual.lighting), aliasContext)}`);
   }
 
   // Safety and format: keep concise and at the end
@@ -353,7 +609,9 @@ function escapeRegExp(str: string): string {
  * Build unified CHARACTERS section with per-character instructions.
  * Uses Google's "Image N" back-references for characters with visual references.
  * Real-world characters get their description inline (no longer in system instruction).
- * If characterOutfits are provided, appends scene-specific outfit to the description.
+ * If characterOutfits are provided, appends scene-specific outfit only for text-only
+ * characters. Reference-backed characters keep their reference clothes unless an
+ * outfit plate is attached.
  */
 function structuralOutfitHint(outfitText: string): string {
   const t = outfitText.trim();
@@ -369,13 +627,22 @@ function formatOutfitOverrideForPrompt(outfitText: string): string {
   return ` Outfit in this scene: ${outfitText}.${structural}`;
 }
 
+function shouldAppendTextOutfitOverride(params: {
+  hasCharacterReference: boolean;
+  outfitPlateImageIndex?: number;
+}): boolean {
+  if (params.outfitPlateImageIndex !== undefined) return false;
+  return !params.hasCharacterReference;
+}
+
 function buildCharacterSection(
-  realWorldCharacters?: Array<{ name: string; description: string }>,
-  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean }>,
+  realWorldCharacters?: Array<{ name: string; description: string; nameAliases?: string[] }>,
+  referenceCharacterNames?: Array<string | { name: string; isTurnaround?: boolean; nameAliases?: string[] }>,
   _hasReferences?: boolean,
   imageIndexMap?: Map<string, number>,
   characterOutfits?: Record<string, string>,
   outfitPlateImageIndexByCharacter?: Map<string, number>,
+  aliasContext?: SubjectAliasContext,
 ): string {
   const lines: string[] = [];
   const referenceBackedNames = new Set<string>();
@@ -395,21 +662,28 @@ function buildCharacterSection(
       const originalName = typeof entry === 'string' ? entry : entry.name;
       const name = resolvedReferenceNames.get(originalName) ?? originalName;
       referenceBackedNames.add(stripCharacterIdFromName(name).trim().toLowerCase());
-      const imgIdx = imageIndexMap?.get(originalName) ?? imageIndexMap?.get(name);
+      const imgIdx =
+        resolveCharacterImageIndex(originalName, imageIndexMap) ??
+        resolveCharacterImageIndex(name, imageIndexMap);
+      const alias = getSubjectAliasForName(name, aliasContext, imgIdx);
       const plateIdx =
         resolveOutfitPlateImageIndex(name, outfitPlateImageIndexByCharacter) ??
         resolveOutfitPlateImageIndex(originalName, outfitPlateImageIndexByCharacter);
       // When an outfit plate is attached, wardrobe must come from that image only — no text mix.
-      const outfitOverride =
-        plateIdx === undefined ? lookupOutfitForCharacterName(name, characterOutfits) : undefined;
+      const outfitOverride = shouldAppendTextOutfitOverride({
+        hasCharacterReference: true,
+        outfitPlateImageIndex: plateIdx,
+      })
+        ? lookupOutfitForCharacterName(name, characterOutfits)
+        : undefined;
       const outfitSuffix = outfitOverride ? formatOutfitOverrideForPrompt(outfitOverride) : '';
       const plateSuffix =
-        plateIdx !== undefined ? formatOutfitPlateCrossRef(plateIdx, imgIdx) : '';
+        plateIdx !== undefined ? formatOutfitPlateCrossRef(plateIdx, imgIdx, alias) : '';
       if (imgIdx) {
         const sheetType = (typeof entry !== 'string' && entry.isTurnaround) ? 'character design from the sheet' : 'reference photo';
-        lines.push(`- ${name} (Image ${imgIdx}): match the ${sheetType}.${outfitSuffix}${plateSuffix}`);
+        lines.push(`- ${alias} (Image ${imgIdx}): match the ${sheetType}.${outfitSuffix}${plateSuffix}`);
       } else if (!isPlaceholderReferenceName(originalName)) {
-        lines.push(`- ${name}: match the attached reference image.${outfitSuffix}${plateSuffix}`);
+        lines.push(`- ${alias}: match the attached reference image.${outfitSuffix}${plateSuffix}`);
       }
     }
   }
@@ -421,19 +695,27 @@ function buildCharacterSection(
       if (referenceBackedNames.has(normalized)) {
         continue;
       }
-      const imgIdx = imageIndexMap?.get(char.name);
+      const imgIdx = resolveCharacterImageIndex(char.name, imageIndexMap);
+      const alias = getSubjectAliasForName(char.name, aliasContext, imgIdx);
       const plateIdx = resolveOutfitPlateImageIndex(char.name, outfitPlateImageIndexByCharacter);
-      const outfitOverride =
-        plateIdx === undefined ? lookupOutfitForCharacterName(char.name, characterOutfits) : undefined;
-      const desc = outfitOverride
-        ? `${char.description}.${formatOutfitOverrideForPrompt(outfitOverride)}`
-        : char.description;
+      const outfitOverride = shouldAppendTextOutfitOverride({
+        hasCharacterReference: imgIdx !== undefined,
+        outfitPlateImageIndex: plateIdx,
+      })
+        ? lookupOutfitForCharacterName(char.name, characterOutfits)
+        : undefined;
+      const desc = replaceSubjectNames(
+        outfitOverride
+          ? `${char.description}.${formatOutfitOverrideForPrompt(outfitOverride)}`
+          : char.description,
+        aliasContext,
+      );
       const plateSuffix =
-        plateIdx !== undefined ? formatOutfitPlateCrossRef(plateIdx, imgIdx) : '';
+        plateIdx !== undefined ? formatOutfitPlateCrossRef(plateIdx, imgIdx, alias) : '';
       if (imgIdx) {
-        lines.push(`- ${char.name} (Image ${imgIdx}): ${desc}${plateSuffix}`);
+        lines.push(`- ${alias} (Image ${imgIdx}): ${desc}${plateSuffix}`);
       } else {
-        lines.push(`- ${char.name}: ${desc}${plateSuffix}`);
+        lines.push(`- ${alias}: ${desc}${plateSuffix}`);
       }
     }
   }
@@ -607,9 +889,9 @@ export function buildImageSystemInstruction(params: {
   // Reference image rules (only when turnaround sheets are attached)
   if (params.hasReferences) {
     sections.push(
-      'REFERENCES: Character sheets establish IDENTITY: face, age, body proportions, silhouette, skin/hair palette, and distinctive marks. Match those consistently and re-draw them in the scene art style. ' +
-      'When the prompt pairs identity Image M with an outfit plate Image N, use M for face, hair, and body identity; use N as the sole source for all clothing. ' +
-      'If there is no outfit plate for a character, wardrobe may come from the prompt text. Do not draw the mannequin from an outfit plate in the final scene.',
+      'REFERENCES: Character sheets establish locked IDENTITY: face, age, body proportions, silhouette, exact hairstyle structure, hair placement, skin/hair palette, and distinctive marks. Keep those traits exactly recognizable while rendering them in the scene art style. Do not redesign, re-braid, re-style, simplify, beautify, or reinterpret hair or facial identity. ' +
+      'When the prompt pairs identity Image M with outfit plate Image N, follow this declarative command exactly: draw the person from Image M wearing the clothing/accessories from Image N. Image M is PERSON SOURCE. Image N is CLOTHES SOURCE only. Only the clothes should change. ' +
+      'If there is no outfit plate and no scene outfit text for a character, keep their default/reference clothes. Do not draw the mannequin from an outfit plate in the final scene.',
     );
   }
 
@@ -622,7 +904,7 @@ export function buildImageSystemInstruction(params: {
 
   // Clothing: outfit comes from environment.characterOutfits (per-environment, consistent within location)
   sections.push(
-    'CLOTHING: If a character has an outfit plate, that image defines the clothing for the scene. Otherwise, characterOutfits text in the prompt is wardrobe-only. If a characterOutfits line says "natural appearance", keep that character in their default/reference clothes for the scene.',
+    'CLOTHING: If a character has an outfit plate, that image defines only the clothing/accessories for the scene. Applying an outfit plate must not alter the character\'s locked face, exact hairstyle, age read, body proportions, or silhouette. If a text-only character has characterOutfits text in the prompt, that text is wardrobe-only. If no outfit plate or outfit text is supplied for a referenced character, keep that character in their default/reference clothes for the scene.',
   );
 
   // Tone / safety

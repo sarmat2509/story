@@ -61,7 +61,7 @@
     "@google-cloud/aiplatform": "^6.5.0",
     "@google-cloud/storage": "^7.14.0",
     "@google-cloud/text-to-speech": "^6.4.0",
-    "@google/genai": "^1.41.0",
+    "@google/genai": "^2.9.0",
     "@wondertales/shared": "workspace:*",
     "any-ascii": "^0.3.3",
     "apple-signin-auth": "^1.7.6",

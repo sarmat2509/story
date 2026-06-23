@@ -52,6 +52,12 @@ function formatDurationMs(ms: number | null | undefined): string {
   return `${Math.round(ms)} ms (${(ms / 1000).toFixed(1)} s)`;
 }
 
+function formatValidationScore(score: number | null, status: string): string {
+  if (score != null) return `${score}/100`;
+  if (status === 'provider_blocked') return 'blocked';
+  return 'n/a';
+}
+
 function formatAdminApiUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
@@ -928,10 +934,16 @@ export default function AdminScenesScreen() {
                                     Attempt {validation.attempt}
                                   </Text>
                                   <Text style={styles.validationScore}>
-                                    {validation.validationScore}/100
+                                    {formatValidationScore(
+                                      validation.validationScore,
+                                      validation.validationStatus
+                                    )}
                                   </Text>
                                 </View>
                                 <View style={styles.validationMetaRow}>
+                                  <Text style={styles.validationMetaText}>
+                                    {validation.validationStatus}
+                                  </Text>
                                   <Text style={styles.validationMetaText}>
                                     {validation.visionModel ?? 'n/a'}
                                   </Text>

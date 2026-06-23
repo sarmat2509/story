@@ -8,7 +8,7 @@ import {
   selectMapTileMask,
 } from '../domain/story/mapTileMasks';
 import { buildMapTilePromptParts } from '../prompts/image';
-import { getImageDomainService } from './aiService';
+import { getMapTileImageDomainService } from './aiService';
 import { getAssetStorageService } from './assetStorageService';
 import { recordUsage, USAGE_OP_IMAGE_MAP_TILE } from './aiUsageService';
 import { logger } from '../utils/logger';
@@ -224,8 +224,10 @@ function storyReferenceInstruction(ref: ResolvedMapTileReferenceAsset, index: nu
   return [
     `Image ${imageNumber} is a story illustration reference${sceneText}.`,
     'Use it for landmark appearance, materials, colors, texture language, and story-specific visual consistency.',
+    'Do not copy its camera angle, horizon, sky, framing, foreground/background depth, character staging, or scene composition.',
+    'Flatten any referenced landmark into a top-down board-game map symbol or surface texture that follows Image 1.',
     'Convert readable writing, book titles, screen text, symbols, and labels into abstract decorative marks.',
-    'Image 1 remains the geometry map.',
+    'Image 1 remains the geometry map and the only source for layout, route positions, and camera perspective.',
   ].join(' ');
 }
 
@@ -293,7 +295,7 @@ export async function generateMapTile(
     };
   }
 
-  const imageDomain = getImageDomainService();
+  const imageDomain = getMapTileImageDomainService();
   const image = await imageDomain.generateMapTile(
     {
       prompt,
@@ -302,7 +304,7 @@ export async function generateMapTile(
         buffer: maskImage.buffer,
         mimeType: 'image/png',
         instructionText:
-          'Image 1 is the geometry map in final square canvas coordinates. Use its road, water, bridge, connector-mouth, edge-position, width, curve, junction, and route-connection geometry. Treat waterfall symbols as local drop markers between higher and lower water segments. Portal markers give entrance area and route contact point. Style materials and scenery from the story.',
+          'Image 1 is the geometry map in final square canvas coordinates. Use its road, water, bridge, connector-mouth, edge-position, width, curve, junction, and route-connection geometry. Treat waterfall symbols as local drop markers between higher and lower water segments. Portal markers give entrance area and route contact point only; do not copy their drawn arch, door shape, color, or front-facing perspective. Style materials and scenery from the story.',
       },
       storyReferenceImages: referenceAssets
         .filter((ref): ref is ResolvedMapTileReferenceAsset & { buffer: Buffer } => !!ref.buffer)

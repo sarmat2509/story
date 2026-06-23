@@ -26,6 +26,14 @@ function run() {
     shouldGenerateOutfitPlateForCharacter({ name: 'Mom', type: 'person' } as CharacterData),
     true,
   );
+  assert.equal(
+    shouldGenerateOutfitPlateForCharacter({
+      name: 'Lera',
+      type: 'person',
+      source: 'llm_generated',
+    } as CharacterData),
+    false,
+  );
 
   assert.equal(
     shouldGenerateOutfitPlateForCharacter({ name: 'Dog', type: 'animal' } as CharacterData),

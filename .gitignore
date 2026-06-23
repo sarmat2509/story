@@ -51,6 +51,7 @@ lerna-debug.log*
 # Debug
 *.log
 image-prompt-debug/
+image-generation-compare/
 
 # IDE
 .idea/

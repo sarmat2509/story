@@ -11,8 +11,11 @@ export interface InsertImageValidationInput {
   sceneIndex: number;
   attempt: number;
   imageStoragePath: string;
-  validationScore: number;
+  validationScore: number | null;
+  validationStatus?: string;
   visionModel?: string | null;
+  requestManifest?: Record<string, unknown> | null;
+  providerError?: string | null;
   result: Record<string, unknown>;
 }
 
@@ -28,7 +31,10 @@ export class ImageValidationRepository {
         attempt: input.attempt,
         imageStoragePath: input.imageStoragePath,
         validationScore: input.validationScore,
+        validationStatus: input.validationStatus ?? 'completed',
         visionModel: input.visionModel ?? null,
+        requestManifest: input.requestManifest ?? null,
+        providerError: input.providerError ?? null,
         result: input.result,
       })
       .returning();

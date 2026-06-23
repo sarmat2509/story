@@ -43,7 +43,8 @@ export interface PublishSafetyStoryLike {
 
 export interface PublishImageValidationScore {
   storagePath: string;
-  score: number;
+  score: number | null;
+  validationStatus?: string | null;
 }
 
 function getPolicyFlag(policyChecks: unknown, key: string): boolean {
@@ -112,6 +113,7 @@ export function evaluateStoryPublishSafety(input: {
   ) {
     const bestScoreByPath = new Map<string, number>();
     for (const row of input.imageValidationScores) {
+      if (row.validationStatus === 'provider_blocked' || row.score == null) continue;
       const previous = bestScoreByPath.get(row.storagePath);
       if (previous == null || row.score > previous) {
         bestScoreByPath.set(row.storagePath, row.score);
@@ -176,6 +178,7 @@ export async function assertStoryPublishSafety(
     imageValidationScores: validationRows.map((row) => ({
       storagePath: row.imageStoragePath,
       score: row.validationScore,
+      validationStatus: row.validationStatus,
     })),
   });
 

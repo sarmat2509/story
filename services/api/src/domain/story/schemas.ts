@@ -176,13 +176,13 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
             type: 'boolean',
             nullable: true,
             description:
-              'HUMAN-only identity slot. Visible face/head identity vs reference: face shape, eye shape/size, nose/mouth, cheeks, jaw/chin, freckles/glasses when stable. Temporary emotional expression alone should NOT make this false if the same underlying face/head design is preserved. Leave null for ANIMAL / IMAGINARY_CREATURE or when head fully obscured and scene explains occlusion.',
+              'HUMAN-only identity slot. Evaluate the whole visible face/head identity vs reference separately from hairstyle, outfit, pose, and temporary expression: face/head shape, eye shape/spacing, nose/mouth, cheeks, jaw/chin, freckles/glasses when stable. Temporary emotional expression alone should NOT make this false if the same underlying face/head design is preserved. Wrong hairstyle alone must NOT make this false. Leave null for ANIMAL / IMAGINARY_CREATURE or when head fully obscured and scene explains occlusion.',
           },
           hairMatchesReference: {
             type: 'boolean',
             nullable: true,
             description:
-              'HUMAN-only identity slot. Visible hair vs reference (length, cut, silhouette, parting, texture, braid/ponytail/loose) unless scene explicitly authorizes a change. Leave null for ANIMAL / IMAGINARY_CREATURE — fur/feather/mane drift belongs to sameOverallDesignRead + silhouetteDriftSeverity instead.',
+              'HUMAN-only identity slot. Evaluate the whole visible hairstyle structure and hair color zoning vs reference independently from face/outfit: length, cut, silhouette, parting, bangs/front locks, texture, braid count/placement/thickness, ponytail/bun placement, loose-vs-tied sections, natural/base-color regions, dyed/accent-color regions, and distinctive colored streak placement. Do not mark true merely because broad hair color matches. Leave null for ANIMAL / IMAGINARY_CREATURE — fur/feather/mane drift belongs to sameOverallDesignRead + silhouetteDriftSeverity instead.',
           },
           ageReadMatchesReference: {
             type: 'boolean',
@@ -199,7 +199,7 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
           matchesColors: {
             type: 'boolean',
             description:
-              'Whether persistent identity colors match the reference: skin/fur/feathers, eyes, visible hair color, stable markings. False if hair color clearly wrong vs reference without scene excuse. Do not use clothing fabric color vs sheet here—that is matchesOutfit vs scene text. Do NOT fail this only because a designer-authorized temporary glow, aura, magical lighting, transparency, spectral effect, or shimmer changes apparent brightness/color.',
+              'Whether persistent identity colors match the reference: skin/fur/feathers, eyes, visible hair color and hair color zoning, stable markings. False if hair color or color placement is clearly wrong vs reference without scene excuse. Do not use clothing fabric color vs sheet here—that is matchesOutfit vs scene text. Do NOT fail this only because a designer-authorized temporary glow, aura, magical lighting, transparency, spectral effect, or shimmer changes apparent brightness/color.',
           },
           matchesOutfit: {
             type: 'boolean',
@@ -209,7 +209,7 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
           identityComparisonSummary: {
             type: 'string',
             description:
-              'Contrastive format required: (1) MATCHES—what aligns (silhouette, body type, head/muzzle, markings, subtype read for imaginary, proportions). (2) DIFFERS—what does not match or is reinterpreted. (3) FIRST-GLANCE—one sentence: unchanged vs drifted design read. For imaginary creatures always mention subtype read (e.g. spirit-like vs insect-like). No vague merged praise. Do NOT list clothing differences here when the outfit is authorized by scene wardrobe text or an outfit plate; that belongs in matchesOutfit/issue only. Do NOT list designer-authorized temporary scene states such as transparency, glow, shimmering outline, magical aura, or scene-driven facial expression as identity drift unless they truly change the first-glance character design.',
+              'Contrastive format required: (1) MATCHES—what aligns (silhouette, body type, head/muzzle, markings, subtype read for imaginary, proportions). For HUMANS with an identity reference, mention face/head status separately from hairstyle status. (2) DIFFERS—what does not match or is reinterpreted. (3) FIRST-GLANCE—one sentence: unchanged vs drifted design read. For imaginary creatures always mention subtype read (e.g. spirit-like vs insect-like). No vague merged praise. Do NOT list clothing differences here when the outfit is authorized by scene wardrobe text or an outfit plate; that belongs in matchesOutfit/issue only. Do NOT list designer-authorized temporary scene states such as transparency, glow, shimmering outline, magical aura, or scene-driven facial expression as identity drift unless they truly change the first-glance character design.',
           },
           sameOverallDesignRead: {
             type: 'boolean',

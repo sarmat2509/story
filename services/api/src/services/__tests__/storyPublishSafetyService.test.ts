@@ -136,6 +136,26 @@ void (async function main() {
   assert.deepStrictEqual(
     evaluateStoryPublishSafety({
       ...baseInput,
+      imageValidationScores: [
+        {
+          storagePath: 'development/user/story/image/scene-1.jpg',
+          score: null,
+          validationStatus: 'provider_blocked',
+        },
+      ],
+    }),
+    {
+      allowed: false,
+      code: 'IMAGE_VALIDATION_REQUIRED',
+      message: 'Story images must pass validation before public publishing',
+      details: { missingValidationCount: 1 },
+    },
+    'provider-blocked validation rows do not satisfy public publishing validation'
+  );
+
+  assert.deepStrictEqual(
+    evaluateStoryPublishSafety({
+      ...baseInput,
       visibility: 'unlisted',
       imageValidationScores: [],
     }),

@@ -111,6 +111,9 @@ export class GeminiTextProvider implements ITextProvider {
       // Supports both inline base64 and Files API URI references
       if (request.imageData && request.imageData.length > 0) {
         for (const image of request.imageData) {
+          if (image.instructionText?.trim()) {
+            contentParts.push({ text: image.instructionText.trim() });
+          }
           if (image.fileUri) {
             // Use Files API reference (avoids re-sending large base64 payloads)
             contentParts.push({
@@ -142,10 +145,11 @@ export class GeminiTextProvider implements ITextProvider {
             // System instruction helps prevent PROHIBITED_CONTENT false positives
             // on children's imaginary creature descriptions (e.g. "sharp teeth", "claws")
             systemInstruction:
+              request.systemInstruction ||
               "You are a children's story generation engine for a safe, age-appropriate bedtime stories app. " +
-              "All input comes from parents describing their children's drawings and imaginary friends. " +
-              'All output must be positive, safe, and suitable for children ages 0-12. ' +
-              "Character descriptions may include fantasy creature features (teeth, claws, horns) — these are from children's drawings and are always playful and non-threatening.",
+                "All input comes from parents describing their children's drawings and imaginary friends. " +
+                'All output must be positive, safe, and suitable for children ages 0-12. ' +
+                "Character descriptions may include fantasy creature features (teeth, claws, horns) — these are from children's drawings and are always playful and non-threatening.",
             responseMimeType: 'application/json',
             responseSchema: geminiSchema as any, // TypeScript workaround for complex nested schemas
             temperature: request.temperature ?? 0.7,

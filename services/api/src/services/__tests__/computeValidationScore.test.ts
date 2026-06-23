@@ -90,8 +90,27 @@ function testNoKindMismatchOnEqualKinds() {
   assert.strictEqual(score, 100, 'Equal kinds must not trigger kind-mismatch penalty');
 }
 
+function testHumanHairDriftTriggersRepairBelowDefaultThreshold() {
+  const score = computeValidationScore(makeResult({
+    recognizableScore: 0.9,
+    hairMatchesReference: false,
+    issue: 'single thick braid instead of reference braided crown',
+  }), {
+    expectedCharacters: [{ name: 'Emma', characterKind: 'human' }],
+    referenceNamesNormalized: new Set(['emma']),
+    validationReferenceImages: [{ characterName: 'Emma', mimeType: 'image/png' }],
+    scoringOverride: baseScoring,
+  });
+
+  assert.ok(
+    score <= 85,
+    `Hair drift score should not auto-accept at default threshold 85; got ${score}`
+  );
+}
+
 function testHumanWithRefOnlyWhenBothHuman() {
   // Both sides human with a reference: each false identity flag costs humanIdentityFlagPenalty=8.
+  // Hair also carries a small structural extra penalty so simplified hairstyles trigger repair.
   const human = makeResult({
     faceMatchesReference: false,
     hairMatchesReference: false,
@@ -103,7 +122,7 @@ function testHumanWithRefOnlyWhenBothHuman() {
     referenceNamesNormalized: new Set(['emma']),
     scoringOverride: baseScoring,
   });
-  assert.strictEqual(scoreHuman, 100 - 4 * 8, 'Four human identity flags = 4 * 8 = 32');
+  assert.strictEqual(scoreHuman, 100 - 4 * 8 - 6, 'Four human identity flags plus hair structure extra penalty');
 
   // Model says human, but expected is animal → kind mismatch, humanWithRef branch SKIPPED.
   const scoreKindMismatch = computeValidationScore(human, {
@@ -275,9 +294,25 @@ function testGeneratedImageSafetyBlocksUnvalidatedImages() {
   );
 }
 
+function testGeneratedImageSafetyAllowsProviderBlockedValidation() {
+  assert.deepStrictEqual(
+    evaluateGeneratedImageSafety({
+      imageValidationEnabled: true,
+      acceptedByValidationScore: false,
+      finalValidationScore: null,
+      validationProviderBlocked: true,
+      minAcceptScore: 85,
+      attempts: 0,
+    }),
+    { allowed: true },
+    'provider safety blocks are inconclusive QA, not a visual failure or transport outage'
+  );
+}
+
 testBaselineCleanResult();
 testKindMismatchUsesConfigurablePenalty();
 testNoKindMismatchOnEqualKinds();
+testHumanHairDriftTriggersRepairBelowDefaultThreshold();
 testHumanWithRefOnlyWhenBothHuman();
 testNonHumanWithRefAppliesEquallyToAnimalAndImaginary();
 testLeniencyCoversIdentityBooleansAndSilhouette();
@@ -285,4 +320,5 @@ testHamsterRegression();
 testGeneratedImageSafetyAllowsValidatedOrDisabledImages();
 testGeneratedImageSafetyAllowsBestValidatedAttemptBelowThreshold();
 testGeneratedImageSafetyBlocksUnvalidatedImages();
+testGeneratedImageSafetyAllowsProviderBlockedValidation();
 console.log('computeValidationScore tests passed');

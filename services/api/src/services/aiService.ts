@@ -36,12 +36,14 @@ import { logger } from '../utils/logger';
 // Singleton instances
 let storyDomainService: StoryDomainService | null = null;
 let imageDomainService: ImageDomainService | null = null;
+let mapTileImageDomainService: ImageDomainService | null = null;
 let audioDomainService: AudioDomainService | null = null;
 
 // Provider instances (private to this module)
 let textProvider: ITextProvider | null = null;
 let directorTextProvider: ITextProvider | null = null;
 let validationTextProvider: ITextProvider | null = null;
+let imageValidationFallbackTextProvider: ITextProvider | null = null;
 let imageProvider: IImageProvider | null = null;
 let environmentImageProvider: IImageProvider | null = null;
 let batchImageProvider: IImageProvider | null = null;
@@ -87,15 +89,37 @@ export function getImageDomainService(): ImageDomainService {
     const validationTextProvider = config.image.enableValidation
       ? getValidationTextProvider()
       : undefined;
+    const validationFallbackTextProvider = config.image.enableValidation
+      ? getImageValidationFallbackTextProvider()
+      : undefined;
     if (validationTextProvider) {
       logger.info('Image validation enabled — injecting text provider for Gemini Vision');
     }
     
     // Create domain service with both providers
-    imageDomainService = new ImageDomainService(provider, validationTextProvider);
+    imageDomainService = new ImageDomainService(
+      provider,
+      validationTextProvider,
+      validationFallbackTextProvider,
+    );
   }
   
   return imageDomainService;
+}
+
+/**
+ * Reward map tiles can be model-switched independently from story scene generation.
+ */
+export function getMapTileImageDomainService(): ImageDomainService {
+  if (!mapTileImageDomainService) {
+    const model = config.image.mapTileModel || config.nanoBanana?.model || 'gemini-3.1-flash-image';
+    logger.info({ model }, 'Initializing map tile image provider');
+    mapTileImageDomainService = new ImageDomainService(
+      new NanoBananaProProvider(config.google.apiKey, model),
+    );
+  }
+
+  return mapTileImageDomainService;
 }
 
 /**
@@ -200,6 +224,25 @@ export function getValidationTextProvider(): ITextProvider {
     'Gemini validation provider unavailable, falling back to main text provider',
   );
   return getTextProvider();
+}
+
+function getImageValidationFallbackTextProvider(): ITextProvider | undefined {
+  if (!config.ai.openaiApiKey?.trim()) {
+    return undefined;
+  }
+
+  if (!imageValidationFallbackTextProvider) {
+    logger.info(
+      { model: config.ai.openaiValidationModel },
+      'Initializing OpenAI fallback provider for image validation'
+    );
+    imageValidationFallbackTextProvider = new OpenAITextProvider(
+      config.ai.openaiApiKey,
+      config.ai.openaiValidationModel,
+    );
+  }
+
+  return imageValidationFallbackTextProvider;
 }
 
 /**
@@ -528,6 +571,8 @@ export function resetServices(): void {
   audioDomainService = null;
   textProvider = null;
   directorTextProvider = null;
+  validationTextProvider = null;
+  imageValidationFallbackTextProvider = null;
   imageProvider = null;
   environmentImageProvider = null;
   batchImageProvider = null;

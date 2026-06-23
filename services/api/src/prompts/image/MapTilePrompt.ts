@@ -161,12 +161,29 @@ function buildMaskGeometrySection(params: {
   return lines.length > 1 ? lines.join('\n') : '';
 }
 
+const MAP_TILE_PLAN_VIEW_CONVERSION = [
+  'Plan-view conversion:',
+  '- Treat the tile brief as a materials-and-landmarks inventory, not as camera framing.',
+  '- The final tile must stay orthographic top-down even when the brief mentions slopes, cliffs, mountainsides, cave mouths, sky, clouds, mist, steam, or weather.',
+  '- Omit sky, horizon, and cloud objects. Show storm/cloud/weather only as subtle gray surface washes, shadow patches, puddles, or mist marks on the map surface.',
+  '- Draw mountains, cliffs, slopes, ledges, rifts, and valleys as flat contour bands, rock polygons, cracks, ridge lines, and texture regions seen from above.',
+  '- Draw cave, tunnel, grotto, doorway, or portal features as flat dark entrance marks attached to the Image 1 route contact point, never as a front-facing hole in a wall.',
+  '- Never copy the portal marker\'s drawn arch/door shape from Image 1. Use only its route contact point.',
+  '- Keep Image 1 route geometry and edge connector mouths visible and placeable.',
+].join('\n');
+
 export const MAP_TILE_STRUCTURE_SYSTEM_PROMPT = `
 Create one square 1:1 illustrated board-game map tile.
 
 Image 1 is the geometry map in final canvas coordinates.
 Follow Image 1 for road, water, bridge, connector mouths, edge positions, width, curves, junctions, and route connections.
 Use portal markers as entrance placement and route contact points; design each entrance from the story.
+The portal marker shape in Image 1 is only a placement/contact marker. Do not copy its drawn arch, door shape, color, or front-facing perspective.
+
+Hard camera rule: the final image must look like a printed board-game map viewed directly from above.
+Do not draw a landscape illustration, eye-level scene, tilted camera view, horizon line, sky band, skyline, foreground/background depth, vanishing point, or distant background.
+If the tile brief or story references mention sky, clouds, weather, mountain slopes, cave mouths, cliffs, ledges, valleys, or waterfalls, convert them into flat plan-view map symbols and surface textures locked to Image 1.
+Story illustration references are for materials, colors, landmark motifs, and texture language only. Never copy their camera angle, framing, perspective, horizon, character staging, or scene composition.
 
 Use the route list as the map contract.
 A WATER route ending at pond/lake or sea/shore is a river mouth; keep its edge connector and endpoint.
@@ -179,6 +196,8 @@ Style every PATH with two continuous light warm-stone edge lines.
 Fill the PATH interior according to the tile brief and story reference images.
 Style the tile according to the tile brief and story reference images.
 Represent waterfall, cave, grotto, ledge, cliff, and valley words from the tile brief as flat plan-view map landmarks locked to Image 1.
+Represent a cave, tunnel, or portal as a flat dark entrance mark at the route contact point, not as a front-facing hole in a mountainside.
+Represent cliffs, slopes, ledges, and mountains as contour bands, rock patches, ridge marks, or shaded surface regions seen from above, not as side-view walls.
 Route labels, edge names, arrows, and words in the prompt are instructions only; the tile image uses unlabeled natural scenery.
 
 Camera: strict orthographic top-down board-game map tile.
@@ -207,6 +226,7 @@ export function buildMapTilePrompt(params: {
     tileBrief.requiredFeatures?.length
       ? `Required features: ${tileBrief.requiredFeatures.join(', ')}`
       : '',
+    MAP_TILE_PLAN_VIEW_CONVERSION,
   ].filter(Boolean);
 
   return sections.join('\n\n');

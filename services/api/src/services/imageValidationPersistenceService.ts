@@ -11,7 +11,7 @@ export async function persistImageValidationResult(params: {
   sceneIndex: number;
   attempt: number;
   imageStoragePath: string;
-  validationScore: number;
+  validationScore: number | null;
   visionModel?: string | null;
   validation: ImageValidationResult;
 }): Promise<void> {
@@ -22,7 +22,10 @@ export async function persistImageValidationResult(params: {
       attempt: params.attempt,
       imageStoragePath: params.imageStoragePath,
       validationScore: params.validationScore,
+      validationStatus: params.validation.validationStatus ?? 'completed',
       visionModel: params.visionModel ?? null,
+      requestManifest: params.validation.requestManifest ?? null,
+      providerError: params.validation.providerError ?? null,
       result: params.validation as unknown as Record<string, unknown>,
     });
   } catch (err) {

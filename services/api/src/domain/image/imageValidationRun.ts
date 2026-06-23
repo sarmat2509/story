@@ -3,6 +3,7 @@
  * Used by ImageDomainService and diagnostic scripts so prompt, schema, image order, and temperature match production.
  */
 
+import { createHash } from 'node:crypto';
 import { stripCharacterIdFromName } from '@wondertales/shared';
 import sharp from 'sharp';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
@@ -15,7 +16,7 @@ import {
   type ImageValidationCharacterKind,
 } from '../../prompts/image/ImageValidationPrompt';
 import { IMAGE_VALIDATION_SCHEMA } from '../story/schemas';
-import { flattenCameraComposition, type SceneVisual } from '../../services/types';
+import { type SceneVisual } from '../../services/types';
 import {
   hashModerationSubject,
   recordModerationDecision,
@@ -49,6 +50,11 @@ export type ProductImageValidationInput = {
 export type ProductImageValidationOptions = {
   /** Model id passed to the text provider (e.g. gemini-2.5-flash, gpt-4o). */
   visionModel?: string;
+  /** Optional secondary provider used when the primary provider blocks the validation request. */
+  fallbackTextProvider?: ITextProvider;
+  fallbackVisionModel?: string;
+  /** Diagnostic scripts can disable moderation persistence for validation-provider blocks. */
+  recordModeration?: boolean;
   operation?: string;
 };
 
@@ -64,12 +70,145 @@ type PreparedValidationImage = {
   resized: boolean;
 };
 
+type ValidationPromptMode = 'compact' | 'reduced';
+type ValidationProviderRole = 'primary' | 'fallback';
+
+const IMAGE_VALIDATION_SYSTEM_INSTRUCTION = [
+  "You are an image quality assurance inspector for a safe children's book illustration app.",
+  'The attached images are already-generated or approved visual references. Do not generate story content.',
+  'Inspect only observable visual details and return the requested JSON object.',
+  'If a child or fantasy character appears, treat the scene as benign storybook art and avoid sexualized or violent interpretations.',
+  'When uncertain, report uncertainty in the JSON fields instead of blocking or expanding beyond the visual QA task.',
+].join(' ');
+
+const VALIDATION_HINT_RE =
+  /\b(standing|sitting|kneeling|leaning|running|jumping|flying|walking|crouching|sleeping|mid-hop|turning|tilted|gaze|looking|look|expression|smil(?:e|ing)|frown(?:ing)?|wide-eyed|surprised|startled|delighted|determined|curious|alert|calm|worried|sleepy|glow(?:ing)?|transparent|translucent|shimmer(?:ing)?|spark(?:le|ling)|aura|mist|smoke|wet|muddy|snowy)\b/i;
+
+function sha256Short(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex').slice(0, 16);
+}
+
+function compactWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function truncateText(text: string, maxChars: number): string {
+  const compact = compactWhitespace(text);
+  if (compact.length <= maxChars) return compact;
+  return `${compact.slice(0, Math.max(0, maxChars - 3)).trim()}...`;
+}
+
+function stripObjectTailForValidationHint(text: string): string {
+  return compactWhitespace(
+    text
+      .replace(/\b(with|while|beside|near|toward|towards|onto|into|inside|around|above|under|behind|at|on|in)\b[\s\S]*$/i, '')
+      .replace(/[,:;.\s]+$/g, '')
+  );
+}
+
+function extractObservableHints(text: string | undefined): string[] {
+  if (!text?.trim()) return [];
+  const hints: string[] = [];
+  for (const rawClause of text.split(/[.;]/)) {
+    if (!VALIDATION_HINT_RE.test(rawClause)) continue;
+    const hint = stripObjectTailForValidationHint(rawClause);
+    if (!hint) continue;
+    hints.push(truncateText(hint, 90));
+    if (hints.length >= 3) break;
+  }
+  return hints;
+}
+
+function buildExpectedCharactersForPrompt(
+  expectedCharacters: ProductImageValidationInput['expectedCharacters'],
+  hasReferenceImages: boolean,
+  mode: ValidationPromptMode
+): ProductImageValidationInput['expectedCharacters'] {
+  return expectedCharacters.map((c) => ({
+    name: c.name,
+    characterKind: c.characterKind,
+    speciesSubtype: c.speciesSubtype,
+    // With references, the images are the primary identity ground truth. Keep verbose
+    // prose only in text-only validation or in the first compact pass when no refs exist.
+    description: hasReferenceImages || mode === 'reduced' ? undefined : c.description,
+    expectedOutfitForScene: mode === 'reduced' ? undefined : c.expectedOutfitForScene,
+  }));
+}
+
+function buildCompactValidationSceneManifest(
+  sceneVisual: SceneVisual,
+  outfitLine: string | undefined,
+  mode: ValidationPromptMode
+): string | undefined {
+  if (mode === 'reduced') {
+    return outfitLine
+      ? `VALIDATION MANIFEST:\nwardrobe_text: ${truncateText(outfitLine, 360)}`
+      : undefined;
+  }
+
+  const cameraComposition = sceneVisual.cameraComposition;
+  const characterHintLines =
+    typeof cameraComposition === 'string'
+      ? []
+      : cameraComposition.characters
+          .map((char) => {
+            const hints = extractObservableHints(char.description);
+            return hints.length > 0 ? `${char.name}: ${hints.join('; ')}` : undefined;
+          })
+          .filter((line): line is string => !!line);
+
+  const sceneText = [
+    sceneVisual.setting,
+    sceneVisual.lighting,
+    typeof cameraComposition === 'string' ? cameraComposition : cameraComposition.shot,
+    typeof cameraComposition === 'string'
+      ? undefined
+      : cameraComposition.characters.map((char) => char.description).join(' '),
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const sceneStateHints = extractObservableHints(sceneText).slice(0, 4);
+
+  const lines = [
+    'VALIDATION MANIFEST:',
+    'task: compare generated illustration to expected roster and visual references',
+    sceneStateHints.length > 0 ? `scene_state_hints: ${sceneStateHints.join('; ')}` : undefined,
+    characterHintLines.length > 0
+      ? `character_pose_expression_hints:\n${characterHintLines.map((line) => `- ${line}`).join('\n')}`
+      : undefined,
+    outfitLine ? `wardrobe_text: ${truncateText(outfitLine, 360)}` : undefined,
+  ].filter(Boolean);
+
+  return lines.length > 2 ? lines.join('\n') : undefined;
+}
+
+function isProviderBlockedError(message: string): boolean {
+  return /PROHIBITED_CONTENT|content_filter|blocked/i.test(message);
+}
+
 function normalizeVisionMimeType(mimeType: string): SupportedVisionMimeType {
   const normalized = mimeType.trim().toLowerCase();
   if (normalized === 'image/jpg' || normalized === 'image/jpeg') return 'image/jpeg';
   if (normalized === 'image/webp') return 'image/webp';
   if (normalized === 'image/gif') return 'image/gif';
   return 'image/png';
+}
+
+function buildValidationImageInstruction(params: {
+  imageIndex: number;
+  characterName?: string;
+  referenceKind?: 'identity' | 'outfit_plate';
+}): string {
+  if (params.imageIndex === 1) {
+    return 'Image 1: GENERATED ILLUSTRATION to inspect. Validate this image against the expected roster and references that follow.';
+  }
+
+  const name = params.characterName?.trim() || 'unknown character';
+  if (params.referenceKind === 'outfit_plate') {
+    return `Image ${params.imageIndex}: OUTFIT PLATE for "${name}". Clothing only. Use this as the strongest wardrobe ground truth for this character in the generated illustration.`;
+  }
+
+  return `Image ${params.imageIndex}: IDENTITY reference for "${name}". Use this for face, hair, age read, body proportions, silhouette, palette, stable markings, and default clothing only when no outfit plate or scene wardrobe text exists.`;
 }
 
 async function prepareImageForValidation(
@@ -301,6 +440,7 @@ export async function runProductImageValidation(
   const refMeta =
     preparedReferenceImages?.map((r) => ({
       characterName: r.characterName,
+      referenceKind: r.referenceKind ?? 'identity',
       mimeType: r.mimeType,
       delivery: r.fileUri ? ('file_uri' as const) : ('inline_base64' as const),
     })) ?? [];
@@ -329,7 +469,9 @@ export async function runProductImageValidation(
       referencesSent: refMeta,
       imageOrderToModel: [
         '1_generated_illustration',
-        ...(preparedReferenceImages ?? []).map((r, i) => `${i + 2}_reference_${r.characterName}`),
+        ...(preparedReferenceImages ?? []).map((r, i) =>
+          `${i + 2}_${r.referenceKind ?? 'identity'}_${r.characterName}`
+        ),
       ],
       totalAttachmentCount: 1 + refMeta.length,
     },
@@ -340,10 +482,12 @@ export async function runProductImageValidation(
     mimeType: SupportedVisionMimeType;
     data: string;
     fileUri?: string;
+    instructionText?: string;
   }> = [
     {
       mimeType: preparedGeneratedImage.mimeType,
       data: preparedGeneratedImage.buffer.toString('base64'),
+      instructionText: buildValidationImageInstruction({ imageIndex: 1 }),
     },
   ];
 
@@ -353,167 +497,258 @@ export async function runProductImageValidation(
         mimeType: normalizeVisionMimeType(ref.mimeType),
         data: ref.imageData || '',
         fileUri: ref.fileUri,
+        instructionText: buildValidationImageInstruction({
+          imageIndex: imageDataArray.length + 1,
+          characterName: ref.characterName,
+          referenceKind: ref.referenceKind ?? 'identity',
+        }),
       });
     }
   }
 
-  const { text: compositionText } = flattenCameraComposition(input.sceneVisual.cameraComposition);
-  const sceneSetting = input.sceneVisual.setting?.trim();
-  const sceneLighting = input.sceneVisual.lighting?.trim();
-  const cameraComposition = input.sceneVisual.cameraComposition;
-  const shotText =
-    typeof cameraComposition === 'string' ? undefined : cameraComposition.shot?.trim();
-  const characterDirectionLines =
-    typeof cameraComposition === 'string'
-      ? []
-      : cameraComposition.characters
-          .map((char) => {
-            const description = char.description?.trim();
-            return description ? `${char.name}: ${description}` : char.name;
-          })
-          .filter(Boolean);
   const outfitLine = input.sceneCharacterOutfitsText?.trim();
-  const sceneContext = [
-    'This designer scene brief is authoritative for the specific scene moment.',
-    'If it requests temporary scene-driven changes like transparency, glow, shimmering outline, magical aura, expression, pose, motion, or emotional state, those details have priority over the neutral/default state visible in identity references.',
-    sceneSetting ? `SETTING: ${sceneSetting}` : undefined,
-    sceneLighting ? `LIGHTING: ${sceneLighting}` : undefined,
-    shotText ? `SHOT: ${shotText}` : undefined,
-    characterDirectionLines.length > 0
-      ? `CHARACTER DIRECTIONS:\n${characterDirectionLines.map((line) => `- ${line}`).join('\n')}`
-      : compositionText
-        ? `CAMERA COMPOSITION:\n${compositionText}`
-        : undefined,
-    outfitLine
-      ? `CHARACTER OUTFITS (authoritative for clothing and accessories in this scene; identity references are not wardrobe ground truth): ${outfitLine}`
-      : undefined,
-  ]
-    .filter(Boolean)
-    .join('\n');
-
   const hasReferenceImages = (input.referenceImages?.length ?? 0) > 0;
-  const prompt = buildImageValidationRuntimePrompt({
-    expectedCharacters: input.expectedCharacters,
-    sceneContext: sceneContext || undefined,
-    referenceImages: preparedReferenceImages,
-  });
   const cachedPrefix = getImageValidationCachedPrefix(hasReferenceImages);
 
-  try {
-    const raw = await textProvider.generateStructured<ImageValidationResult>({
-      model: visionModel,
-      prompt,
-      cachedPrefix,
-      imageData: imageDataArray,
-      schema: IMAGE_VALIDATION_SCHEMA,
-      temperature: 0.2,
-      relaxedSafety: true,
-      onUsage: input.onUsage,
-      operation,
-    });
+  const imageOrder = [
+    '1_generated_illustration',
+    ...(preparedReferenceImages ?? []).map((r, i) =>
+      `${i + 2}_${r.referenceKind ?? 'identity'}_${r.characterName}`
+    ),
+  ];
+  const requestManifest: Record<string, unknown> = {
+    version: 1,
+    validationSystemInstruction: 'image_validation_qa_v1',
+    cacheKey: cachedPrefix.key,
+    operation,
+    imageOrder,
+    generatedImage: {
+      role: 'generated_scene',
+      mimeType: preparedGeneratedImage.mimeType,
+      width: preparedGeneratedImage.width,
+      height: preparedGeneratedImage.height,
+      originalWidth: preparedGeneratedImage.originalWidth,
+      originalHeight: preparedGeneratedImage.originalHeight,
+      resized: preparedGeneratedImage.resized,
+      sha256: sha256Short(preparedGeneratedImage.buffer),
+    },
+    references: (preparedReferenceImages ?? []).map((r, i) => ({
+      imageIndex: i + 2,
+      characterName: r.characterName,
+      referenceKind: r.referenceKind ?? 'identity',
+      mimeType: r.mimeType,
+      delivery: r.fileUri ? 'file_uri' : 'inline_base64',
+      sha256: r.imageData ? sha256Short(Buffer.from(r.imageData, 'base64')) : undefined,
+    })),
+    attempts: [],
+  };
+  const manifestAttempts = requestManifest.attempts as Array<Record<string, unknown>>;
 
-    const result = normalizeImageValidationResult(
-      raw,
-      input.expectedCharacters,
-      preparedReferenceImages
-    );
-
-    const issueSummaries = result.characters
-      .map((c) => summarizeValidationIssues(c, input.expectedCharacters, input.referenceImages))
-      .filter((s): s is string => s != null);
-
-    logger.info(
+  const attemptSpecs: Array<{
+    providerRole: ValidationProviderRole;
+    provider: ITextProvider;
+    model?: string;
+    promptMode: ValidationPromptMode;
+  }> = [
+    { providerRole: 'primary', provider: textProvider, model: visionModel, promptMode: 'compact' },
+    { providerRole: 'primary', provider: textProvider, model: visionModel, promptMode: 'reduced' },
+  ];
+  if (options.fallbackTextProvider) {
+    attemptSpecs.push(
       {
-        characterCount: result.characterCount,
-        expectedCharacterCount: result.expectedCharacterCount,
-        hasUnexpected: result.hasUnexpectedCharacters,
-        hasText: result.hasTextOrLetters,
-        issues: issueSummaries,
+        providerRole: 'fallback',
+        provider: options.fallbackTextProvider,
+        model: options.fallbackVisionModel,
+        promptMode: 'compact',
       },
-      'Image validation result'
+      {
+        providerRole: 'fallback',
+        provider: options.fallbackTextProvider,
+        model: options.fallbackVisionModel,
+        promptMode: 'reduced',
+      }
     );
+  }
 
-    return result;
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+  let lastBlockedError = '';
+  let lastBlockedAttemptKind = '';
 
-    if (errorMsg.includes('PROHIBITED_CONTENT') || errorMsg.includes('blocked')) {
-      void recordModerationDecision({
-        storyId: input.logContext?.storyId,
-        stage: 'generated_image_validation',
-        source: 'image_validation_provider',
-        subjectType: 'scene_image',
-        subjectRefHash: hashModerationSubject(
-          `${input.logContext?.storyId ?? 'story'}:${input.logContext?.sceneId ?? 'scene'}:${input.logContext?.attempt ?? 'attempt'}`
-        ),
-        decision: 'blocked',
-        code: 'IMAGE_VALIDATION_PROVIDER_BLOCKED',
-        category: 'provider_safety_filter',
-        metadata: {
-          sceneId: input.logContext?.sceneId,
-          attempt: input.logContext?.attempt,
-          expectedCharacterCount: input.expectedCharacters.length,
-        },
+  for (const attemptSpec of attemptSpecs) {
+    const promptMode = attemptSpec.promptMode;
+    const expectedCharactersForPrompt = buildExpectedCharactersForPrompt(
+      input.expectedCharacters,
+      hasReferenceImages,
+      promptMode
+    );
+    const sceneContext = buildCompactValidationSceneManifest(
+      input.sceneVisual,
+      outfitLine,
+      promptMode
+    );
+    const prompt = buildImageValidationRuntimePrompt({
+      expectedCharacters: expectedCharactersForPrompt,
+      sceneContext,
+      referenceImages: preparedReferenceImages,
+    });
+    const attemptKind = `${attemptSpec.providerRole}_${promptMode}`;
+    const attemptManifest: Record<string, unknown> = {
+      attemptKind,
+      providerRole: attemptSpec.providerRole,
+      promptMode,
+      model: attemptSpec.model,
+      cacheKey: cachedPrefix.key,
+      cachedPrefixChars: cachedPrefix.content.length,
+      runtimePromptChars: prompt.length,
+      combinedPromptChars: cachedPrefix.content.length + 2 + prompt.length,
+      runtimePrompt: prompt,
+    };
+    manifestAttempts.push(attemptManifest);
+
+    try {
+      const raw = await attemptSpec.provider.generateStructured<ImageValidationResult>({
+        model: attemptSpec.model,
+        systemInstruction: IMAGE_VALIDATION_SYSTEM_INSTRUCTION,
+        prompt,
+        cachedPrefix,
+        imageData: imageDataArray,
+        schema: IMAGE_VALIDATION_SCHEMA,
+        temperature: 0.2,
+        relaxedSafety: true,
+        onUsage: input.onUsage,
+        operation,
       });
-      logger.warn(
-        { ...input.logContext, error: errorMsg },
-        'Image validation blocked by safety filter — returning skipped result (no auto-pass)'
+
+      const result = normalizeImageValidationResult(
+        raw,
+        input.expectedCharacters,
+        preparedReferenceImages
+      );
+      result.validationStatus = 'completed';
+      result.validationAttemptKind = attemptKind;
+      result.validationModelUsed = attemptSpec.model;
+      result.requestManifest = requestManifest;
+      attemptManifest.outcome = 'completed';
+
+      const issueSummaries = result.characters
+        .map((c) => summarizeValidationIssues(c, input.expectedCharacters, input.referenceImages))
+        .filter((s): s is string => s != null);
+
+      logger.info(
+        {
+          ...input.logContext,
+          attemptKind,
+          characterCount: result.characterCount,
+          expectedCharacterCount: result.expectedCharacterCount,
+          hasUnexpected: result.hasUnexpectedCharacters,
+          hasText: result.hasTextOrLetters,
+          issues: issueSummaries,
+        },
+        'Image validation result'
       );
 
-      // Return a deterministic "skipped" result. recognizableScore is deliberately below the
-      // default acceptance threshold so orchestration does not silently accept the image; the
-      // retry loop / catch path decides what to do next. Identity booleans stay null so nothing
-      // downstream can mistake this for a real vision verdict.
-      return {
-        characterCount: input.expectedCharacters.length,
-        expectedCharacterCount: input.expectedCharacters.length,
-        characters: input.expectedCharacters.map((c) => ({
-          name: c.name,
-          characterKind: c.characterKind,
-          found: false,
-          duplicated: false,
-          recognizableScore: 0.5,
-          faceMatchesReference: null,
-          hairMatchesReference: null,
-          ageReadMatchesReference: null,
-          proportionsMatchReference: null,
-          matchesColors: false,
-          matchesOutfit: false,
-          identityComparisonSummary: 'Validation safety-auto-skipped — no visual verdict.',
-          issue: 'safety_auto_skipped',
-        })),
-        hasUnexpectedCharacters: false,
-        hasTextOrLetters: false,
-        hasRenderingArtifacts: false,
-        overallFeedback: `safety-auto-skipped: ${errorMsg}`,
-      };
-    }
+      return result;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      attemptManifest.error = errorMsg;
 
-    void recordModerationDecision({
-      storyId: input.logContext?.storyId,
-      stage: 'generated_image_validation',
-      source: 'image_validation_provider',
-      subjectType: 'scene_image',
-      subjectRefHash: hashModerationSubject(
-        `${input.logContext?.storyId ?? 'story'}:${input.logContext?.sceneId ?? 'scene'}:${input.logContext?.attempt ?? 'attempt'}`
-      ),
-      decision: 'failed',
-      code: 'IMAGE_VALIDATION_FAILED',
-      metadata: {
-        sceneId: input.logContext?.sceneId,
-        attempt: input.logContext?.attempt,
-        errorName: error instanceof Error ? error.name : typeof error,
-      },
-    });
-    logger.error(
-      {
-        err:
-          error instanceof Error
-            ? { message: error.message, name: error.name, stack: error.stack }
-            : String(error),
-      },
-      'Image validation failed'
-    );
-    throw new Error(`Image validation failed: ${errorMsg}`);
+      if (isProviderBlockedError(errorMsg)) {
+        attemptManifest.outcome = 'provider_blocked';
+        lastBlockedError = errorMsg;
+        lastBlockedAttemptKind = attemptKind;
+        if (options.recordModeration !== false) {
+          void recordModerationDecision({
+            storyId: input.logContext?.storyId,
+            stage: 'generated_image_validation',
+            source: 'image_validation_provider',
+            subjectType: 'scene_image',
+            subjectRefHash: hashModerationSubject(
+              `${input.logContext?.storyId ?? 'story'}:${input.logContext?.sceneId ?? 'scene'}:${input.logContext?.attempt ?? 'attempt'}:${attemptKind}`
+            ),
+            decision: 'blocked',
+            code: 'IMAGE_VALIDATION_PROVIDER_BLOCKED',
+            category: 'provider_safety_filter',
+            metadata: {
+              sceneId: input.logContext?.sceneId,
+              attempt: input.logContext?.attempt,
+              validationAttemptKind: attemptKind,
+              expectedCharacterCount: input.expectedCharacters.length,
+            },
+          });
+        }
+        logger.warn(
+          { ...input.logContext, attemptKind, error: errorMsg },
+          'Image validation provider blocked request; trying fallback/reduced validator if available'
+        );
+        continue;
+      }
+
+      attemptManifest.outcome = 'failed';
+      if (options.recordModeration !== false) {
+        void recordModerationDecision({
+          storyId: input.logContext?.storyId,
+          stage: 'generated_image_validation',
+          source: 'image_validation_provider',
+          subjectType: 'scene_image',
+          subjectRefHash: hashModerationSubject(
+            `${input.logContext?.storyId ?? 'story'}:${input.logContext?.sceneId ?? 'scene'}:${input.logContext?.attempt ?? 'attempt'}:${attemptKind}`
+          ),
+          decision: 'failed',
+          code: 'IMAGE_VALIDATION_FAILED',
+          metadata: {
+            sceneId: input.logContext?.sceneId,
+            attempt: input.logContext?.attempt,
+            validationAttemptKind: attemptKind,
+            errorName: error instanceof Error ? error.name : typeof error,
+          },
+        });
+      }
+      logger.error(
+        {
+          ...input.logContext,
+          attemptKind,
+          err:
+            error instanceof Error
+              ? { message: error.message, name: error.name, stack: error.stack }
+              : String(error),
+        },
+        'Image validation failed'
+      );
+      throw new Error(`Image validation failed: ${errorMsg}`);
+    }
   }
+
+  logger.warn(
+    { ...input.logContext, lastBlockedAttemptKind, error: lastBlockedError },
+    'All image validation provider attempts were blocked; returning inconclusive provider_blocked result'
+  );
+
+  return {
+    validationStatus: 'provider_blocked',
+    validationAttemptKind: lastBlockedAttemptKind || 'all_blocked',
+    validationModelUsed:
+      (manifestAttempts[manifestAttempts.length - 1]?.model as string | undefined) ?? visionModel,
+    providerError: lastBlockedError || 'All image validation provider attempts were blocked',
+    requestManifest,
+    characterCount: input.expectedCharacters.length,
+    expectedCharacterCount: input.expectedCharacters.length,
+    characters: input.expectedCharacters.map((c) => ({
+      name: c.name,
+      characterKind: c.characterKind,
+      found: true,
+      duplicated: false,
+      recognizableScore: 1,
+      faceMatchesReference: null,
+      hairMatchesReference: null,
+      ageReadMatchesReference: null,
+      proportionsMatchReference: null,
+      matchesColors: true,
+      matchesOutfit: true,
+      identityComparisonSummary: 'Provider blocked validation; no visual verdict.',
+      issue: 'provider_blocked_no_visual_verdict',
+    })),
+    hasUnexpectedCharacters: false,
+    hasTextOrLetters: false,
+    hasRenderingArtifacts: false,
+    overallFeedback: `provider-blocked: ${lastBlockedError || 'no visual verdict'}`,
+  };
 }

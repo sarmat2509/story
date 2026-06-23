@@ -99,7 +99,7 @@ function testImageValidationPromptSplit() {
   });
 
   assert.ok(cached.content.includes('Scoring guide'));
-  assert.strictEqual(cached.key, 'image_validation_rules_full_v5');
+  assert.strictEqual(cached.key, 'image_validation_rules_full_v9');
   assert.ok(cached.content.includes('Temporary expression changes alone are NOT identity drift.'));
   assert.ok(
     cached.content.includes(
@@ -110,12 +110,19 @@ function testImageValidationPromptSplit() {
     cached.content.includes('Do not fail faceMatchesReference for temporary emotion alone')
   );
   assert.ok(
+    cached.content.includes('HUMAN face and hair booleans must be independent')
+  );
+  assert.ok(
+    cached.content.includes('explicitly mention face/head identity status separately from hairstyle status')
+  );
+  assert.ok(cached.content.includes('hair color zoning'));
+  assert.ok(
     cached.content.includes(
       'If an outfit plate reference is provided for a character, that outfit plate is the strongest clothing ground truth'
     )
   );
   assert.ok(cached.content.includes('validate outfit primarily against that plate'));
-  assert.ok(cached.content.includes('ignore the clothing shown on identity reference images'));
+  assert.ok(cached.content.includes('identity reference/default clothes are the wardrobe ground truth'));
   assert.ok(
     cached.content.includes('Do NOT list wardrobe differences inside identityComparisonSummary')
   );
@@ -125,7 +132,7 @@ function testImageValidationPromptSplit() {
   assert.ok(runtime.includes('Image 2: identity reference for "Mia [ID: 123]"'));
   assert.ok(
     runtime.includes(
-      'For IDENTITY references: use them for identity only and ignore their clothing'
+      'For IDENTITY references: use them for identity and default clothing'
     )
   );
   assert.ok(runtime.includes('KIND=HUMAN'));

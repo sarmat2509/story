@@ -54,6 +54,8 @@ export interface GeneratedImage {
   height: number;
   format: 'png' | 'jpeg' | 'webp';
   revisedPrompt?: string; // Some providers modify the prompt
+  /** Provider-specific stateful generation id, e.g. Gemini Interactions id. */
+  providerInteractionId?: string;
   // REMOVED: seed (Imagen 3 doesn't support deterministic generation)
 }
 
@@ -69,6 +71,8 @@ export interface EditImageRequest {
   aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
   referenceImages?: ReferenceImage[]; // Character references for consistency
   systemInstruction?: string;      // Static context (style, characters)
+  /** Continue a provider-side image interaction when supported. */
+  previousInteractionId?: string;
   personGeneration?: 'allow_adult' | 'allow_all' | 'dont_allow';
   onUsage?: (usage: UsageMetadata) => void; // Optional callback for cost tracking
   operation?: string; // Operation name for usage callback (e.g. 'image_edit')
@@ -163,4 +167,3 @@ export interface BatchResult {
   mimeType?: string;
   error?: string;
 }
-

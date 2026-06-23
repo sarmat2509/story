@@ -10,6 +10,12 @@ import type { AdminStackParamList } from '@/types/navigation';
 
 const PAGE_SIZE = 20;
 
+function formatValidationScore(score: number | null, status: string): string {
+  if (score != null) return String(score);
+  if (status === 'provider_blocked') return 'blocked';
+  return 'n/a';
+}
+
 export default function AdminValidationsScreen() {
   const navigation = useNavigation<NavigationProp<AdminStackParamList>>();
   const [offset, setOffset] = useState(0);
@@ -19,7 +25,8 @@ export default function AdminValidationsScreen() {
     item.storyId,
     item.sceneIndex,
     item.attempt,
-    item.validationScore,
+    formatValidationScore(item.validationScore, item.validationStatus),
+    item.validationStatus,
     item.visionModel ?? 'n/a',
     new Date(item.createdAt).toLocaleString(),
     <TouchableOpacity
@@ -39,7 +46,16 @@ export default function AdminValidationsScreen() {
       {!isLoading && !error ? (
         <>
           <AdminTable
-            headers={['Story', 'Scene', 'Attempt', 'Score', 'Vision model', 'Created', 'View']}
+            headers={[
+              'Story',
+              'Scene',
+              'Attempt',
+              'Score',
+              'Status',
+              'Vision model',
+              'Created',
+              'View',
+            ]}
             rows={rows}
             emptyText="No validations found."
           />

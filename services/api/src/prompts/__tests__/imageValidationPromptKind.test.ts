@@ -14,7 +14,7 @@ import {
 } from '../image/ImageValidationPrompt';
 
 function testCacheKeysBumped() {
-  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_FULL, 'image_validation_rules_full_v5');
+  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_FULL, 'image_validation_rules_full_v9');
   assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_LITE, 'image_validation_rules_lite_v3');
 
   const full = getImageValidationCachedPrefix(true);
@@ -37,6 +37,30 @@ function testCacheKeysBumped() {
   assert.ok(
     /null for animals|human identity slots/.test(full.content),
     'Full prompt should tell the model to leave human-identity slots null for non-humans'
+  );
+  assert.ok(
+    full.content.includes('hairstyle must be compared structurally'),
+    'Full prompt should require structural hairstyle comparison'
+  );
+  assert.ok(
+    full.content.includes('hair color zoning'),
+    'Full prompt should require hair color zoning comparison'
+  );
+  assert.ok(
+    full.content.includes('places color streaks in the wrong hair sections'),
+    'Full prompt should fail wrong placement of accent hair colors'
+  );
+  assert.ok(
+    full.content.includes('HUMAN face must be evaluated as its own identity slot'),
+    'Full prompt should require separate human face evaluation'
+  );
+  assert.ok(
+    full.content.includes('HUMAN face and hair booleans must be independent'),
+    'Full prompt should keep face and hair booleans independent'
+  );
+  assert.ok(
+    full.content.includes('Outfit plates are clothing-only references'),
+    'Full prompt should keep outfit plates from weakening identity checks'
   );
 }
 

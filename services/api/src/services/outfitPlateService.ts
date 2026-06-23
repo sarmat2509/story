@@ -23,11 +23,14 @@ export function normalizeOutfitPlateCharacterKey(characterName: string): string 
 
 /**
  * Outfit plates (mannequin + garment) are only generated for human cast:
- * child profile (`child`) and user/LLM humans (`person`). Animals and imaginary
- * characters keep turnaround-only consistency.
+ * child profile (`child`) and user-provided humans (`person`). LLM-generated
+ * characters already have a full default turnaround design, so they keep
+ * turnaround-only consistency unless a future flow creates a dedicated visual
+ * wardrobe reference. Animals and imaginary characters also stay on references.
  */
 export function shouldGenerateOutfitPlateForCharacter(char: CharacterData | undefined): boolean {
   if (!char?.type || typeof char.type !== 'string') return false;
+  if ((char as any).source === 'llm_generated') return false;
   if (char.type === 'child') return true;
   return isHumanType(char.type as CharacterType);
 }

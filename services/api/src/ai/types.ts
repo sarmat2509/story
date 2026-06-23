@@ -36,6 +36,16 @@ export interface SceneValidationResult {
  * Detects character hallucinations, duplicates, missing characters, reference fidelity issues.
  */
 export interface ImageValidationResult {
+  /** Machine-readable run status. Missing means legacy completed validation. */
+  validationStatus?: 'completed' | 'provider_blocked';
+  /** Model/provider attempt that produced this result, or the last blocked attempt. */
+  validationAttemptKind?: string;
+  /** Model id that produced the visual verdict, or the last blocked model. */
+  validationModelUsed?: string;
+  /** Provider error when validation could not produce a visual verdict. */
+  providerError?: string;
+  /** Debug manifest for admin-only persistence. */
+  requestManifest?: Record<string, unknown>;
   characterCount: number;
   expectedCharacterCount: number;
   characters: Array<{

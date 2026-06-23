@@ -65,12 +65,18 @@ export class OpenAITextProvider implements ITextProvider {
     try {
       // Build message content (text + optional images for vision)
       const content = this.buildMessageContent(effectivePrompt, request.imageData);
+      const messages: Array<any> = request.systemInstruction?.trim()
+        ? [
+            { role: 'system', content: request.systemInstruction.trim() },
+            { role: 'user', content },
+          ]
+        : [{ role: 'user', content }];
 
       // Call OpenAI API with retry logic
       const response = await this.callWithRetry(async () => {
         return await this.client.chat.completions.create({
           model: modelName,
-          messages: [{ role: 'user', content }],
+          messages,
           temperature: request.temperature ?? 0.9,
           ...(request.maxTokens && { max_tokens: request.maxTokens }),
           ...(request.topP && { top_p: request.topP }),
@@ -276,7 +282,7 @@ export class OpenAITextProvider implements ITextProvider {
    */
   private buildMessageContent(
     prompt: string,
-    imageData?: Array<{ mimeType: string; data: string }>
+    imageData?: Array<{ mimeType: string; data: string; instructionText?: string }>
   ): string | Array<any> {
     if (!imageData || imageData.length === 0) {
       return prompt;
@@ -287,6 +293,12 @@ export class OpenAITextProvider implements ITextProvider {
 
     // Add images first (same order as Gemini provider)
     for (const image of imageData) {
+      if (image.instructionText?.trim()) {
+        content.push({
+          type: 'text',
+          text: image.instructionText.trim(),
+        });
+      }
       content.push({
         type: 'image_url',
         image_url: {

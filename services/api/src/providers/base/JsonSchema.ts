@@ -49,6 +49,8 @@ export interface ImageData {
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
   data: string; // base64 encoded (can be empty when fileUri is provided)
   fileUri?: string; // Files API URI — when present, used instead of inline data
+  /** Optional text placed immediately before this image in multimodal requests. */
+  instructionText?: string;
 }
 
 export interface PromptCacheConfig {
@@ -64,6 +66,8 @@ export interface PromptCacheConfig {
 export interface GenerateStructuredRequest<T = any> {
   prompt: string;
   schema: JsonSchema;
+  /** Optional provider-level system instruction. Use for operation-specific framing such as image QA. */
+  systemInstruction?: string;
   model?: string; // Optional model override
   temperature?: number;
   maxTokens?: number;

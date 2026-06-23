@@ -2,7 +2,7 @@
  * Nano Banana Pro Provider - Gemini Image Generation Implementation
  * Implements IImageProvider using @google/genai SDK
  * 
- * Model: gemini-2.5-flash-image (also known as "Nano Banana")
+ * Model: gemini-3.1-flash-image (Nano Banana 2)
  * Supports:
  * - Cartoon/illustration styles (better than Imagen 3 for non-photorealistic)
  * - AI-generated images as references (for character consistency)
@@ -31,7 +31,7 @@ export class NanoBananaProProvider implements IImageProvider {
     }
     
     this.client = new GoogleGenAI({ apiKey: key });
-    this.model = modelOverride || config.nanoBanana?.model || 'gemini-2.5-flash-image';
+    this.model = modelOverride || config.nanoBanana?.model || 'gemini-3.1-flash-image';
     
     logger.info({ 
       model: this.model 
@@ -116,13 +116,21 @@ export class NanoBananaProProvider implements IImageProvider {
       referenceCount: request.referenceImages?.length || 0,
       aspectRatio: request.aspectRatio,
       model: this.model,
+      hasPreviousInteractionId: !!request.previousInteractionId,
+      previousInteractionId: request.previousInteractionId ?? null,
     }, 'Editing image with Nano Banana Pro - Image Edit Request');
 
     try {
       // Build content parts: reference images first, then original image, then edit instructions
       const parts: any[] = await this.buildReferenceParts(request.referenceImages);
 
-      // Add the original generated image that needs editing
+      parts.push({
+        text:
+          'FAILED SCENE ILLUSTRATION TO REPAIR: use this image for composition, pose intent, background, lighting, and art style continuity only. ' +
+          'Do not use it as the source of truth for any character face, hairstyle, body identity, or outfit detail that the edit instructions identify as wrong.',
+      });
+
+      // Add the original generated image that needs editing.
       parts.push({
         inlineData: {
           mimeType: request.originalMimeType,
@@ -141,6 +149,7 @@ export class NanoBananaProProvider implements IImageProvider {
         promptLength: request.editInstructions.length,
         referenceCount: request.referenceImages?.length || 0,
         operationType: 'edit',
+        previousInteractionId: request.previousInteractionId,
         onUsage: request.onUsage,
         operation: request.operation ?? 'image_edit',
       });
@@ -231,10 +240,22 @@ export class NanoBananaProProvider implements IImageProvider {
     promptLength: number;
     referenceCount: number;
     operationType: 'generate' | 'edit';
+    previousInteractionId?: string;
     onUsage?: (u: UsageMetadata) => void;
     operation?: string;
   }): Promise<GeneratedImage> {
-    const { parts, aspectRatio, systemInstruction, personGeneration, promptLength, referenceCount, operationType, onUsage, operation: op } = params;
+    const {
+      parts,
+      aspectRatio,
+      systemInstruction,
+      personGeneration,
+      promptLength,
+      referenceCount,
+      operationType,
+      previousInteractionId,
+      onUsage,
+      operation: op,
+    } = params;
 
     // Log full request structure (untruncated for debugging)
     logger.info({
@@ -269,6 +290,8 @@ export class NanoBananaProProvider implements IImageProvider {
       aspectRatio,
       model: this.model,
       operationType,
+      hasPreviousInteractionId: !!previousInteractionId,
+      previousInteractionId: previousInteractionId ?? null,
     }, `Calling Gemini API for image ${operationType}`);
 
     // Count tokens before generation (optional but helpful for diagnostics)
@@ -295,6 +318,30 @@ export class NanoBananaProProvider implements IImageProvider {
       }
     } catch (tokenError) {
       logger.debug({ error: tokenError }, 'Could not count tokens (non-critical)');
+    }
+
+    try {
+      return await this.callGeminiInteractionsImageAPI({
+        parts,
+        aspectRatio,
+        systemInstruction,
+        promptLength,
+        referenceCount,
+        operationType,
+        previousInteractionId,
+        onUsage,
+        operation: op,
+      });
+    } catch (interactionError) {
+      logger.warn({
+        err: interactionError instanceof Error
+          ? { message: interactionError.message, name: interactionError.name, stack: interactionError.stack }
+          : String(interactionError),
+        model: this.model,
+        operationType,
+        hasPreviousInteractionId: !!previousInteractionId,
+        previousInteractionId: previousInteractionId ?? null,
+      }, 'Gemini Interactions image call failed — falling back to generateContent');
     }
 
     const response = await this.client.models.generateContent({
@@ -397,7 +444,7 @@ export class NanoBananaProProvider implements IImageProvider {
           `Gemini could not ${operationType === 'edit' ? 'edit' : 'generate'} an image. ` +
           `This may occur due to: ` +
           `1) Prompt too long (current: ${promptLength} chars), ` +
-          `2) Too many or incompatible reference images (current: ${referenceCount}; for gemini-3.1-flash-image-preview use separate character vs object caps — see IMAGE_MAX_CHARACTER_REFERENCE_IMAGES / IMAGE_MAX_OBJECT_REFERENCE_IMAGES), ` +
+          `2) Too many or incompatible reference images (current: ${referenceCount}; for gemini-3.1-flash-image use separate character vs object caps — see IMAGE_MAX_CHARACTER_REFERENCE_IMAGES / IMAGE_MAX_OBJECT_REFERENCE_IMAGES), ` +
           `3) Unsupported content in prompt. ` +
           `Try simplifying the prompt or reducing object references (environment / outfit plates) first.`
         );
@@ -484,7 +531,7 @@ export class NanoBananaProProvider implements IImageProvider {
     if (onUsage && usageMeta) {
       const inputUnits = usageMeta.promptTokenCount ?? 0;
       const thoughtTokens = usageMeta.thoughtsTokenCount ?? usageMeta.candidatesTokenCountDetails?.thoughtTokenCount ?? 0;
-      const imageTokens = 1120; // Gemini 3.1 Flash Image 1K output per Vertex AI pricing
+      const imageTokens = this.getOutputImageTokens();
       onUsage({
         provider: 'gemini',
         operation: op ?? (operationType === 'edit' ? 'image_edit' : 'image_generate'),
@@ -502,6 +549,236 @@ export class NanoBananaProProvider implements IImageProvider {
       height: dimensions.height,
       format,
     };
+  }
+
+  /**
+   * Gemini Interactions API is the only Gemini path that supports
+   * previous_interaction_id. We still send the full reference pack on every turn;
+   * the previous id adds provider-side continuity for image repair.
+   */
+  private async callGeminiInteractionsImageAPI(params: {
+    parts: any[];
+    aspectRatio?: string;
+    systemInstruction?: string;
+    promptLength: number;
+    referenceCount: number;
+    operationType: 'generate' | 'edit';
+    previousInteractionId?: string;
+    onUsage?: (u: UsageMetadata) => void;
+    operation?: string;
+  }): Promise<GeneratedImage> {
+    const {
+      parts,
+      aspectRatio,
+      systemInstruction,
+      promptLength,
+      referenceCount,
+      operationType,
+      previousInteractionId,
+      onUsage,
+      operation: op,
+    } = params;
+
+    const interactionInput = this.convertPartsToInteractionInput(parts);
+    const responseFormat: Record<string, unknown> = {
+      type: 'image',
+      mime_type: 'image/jpeg',
+      ...(aspectRatio && { aspect_ratio: aspectRatio }),
+      image_size: config.nanoBanana?.imageSize || '1K',
+    };
+
+    const interaction = await (this.client as unknown as {
+      interactions: {
+        create: (params: Record<string, unknown>) => Promise<Record<string, any>>;
+      };
+    }).interactions.create({
+      model: this.model,
+      input: interactionInput,
+      stream: false,
+      store: true,
+      response_format: responseFormat,
+      ...(systemInstruction && { system_instruction: systemInstruction }),
+      ...(previousInteractionId && { previous_interaction_id: previousInteractionId }),
+    });
+
+    logger.info({
+      interactionId: interaction.id,
+      previousInteractionId: previousInteractionId ?? null,
+      status: interaction.status,
+      model: interaction.model ?? this.model,
+      outputCount: Array.isArray(interaction.outputs) ? interaction.outputs.length : 0,
+      usage: interaction.usage ?? null,
+      operationType,
+    }, `Received response from Gemini Interactions API (${operationType})`);
+
+    if (interaction.status && interaction.status !== 'completed') {
+      throw new Error(`Gemini Interactions image ${operationType} did not complete. Status: ${interaction.status}`);
+    }
+
+    const outputParts = [
+      ...this.flattenInteractionOutputs(interaction.output_image ?? interaction.outputImage),
+      ...this.flattenInteractionOutputs(interaction.outputs),
+      ...this.flattenInteractionSteps(interaction.steps),
+    ];
+    const textOutputs = outputParts.filter((part) => this.getInteractionText(part));
+    if (textOutputs.length > 0) {
+      const modelText = textOutputs.map((part) => this.getInteractionText(part)).filter(Boolean).join('\n');
+      logger.info({
+        textPartsCount: textOutputs.length,
+        modelText: modelText.substring(0, 500),
+        fullLength: modelText.length,
+        operationType,
+      }, `Interactions model returned text alongside ${operationType === 'edit' ? 'edited' : 'generated'} image`);
+    }
+
+    const imageOutput = outputParts.find((part) => this.getInteractionImageData(part) || this.getInteractionImageUri(part));
+    if (!imageOutput) {
+      logger.error({
+        interactionId: interaction.id,
+        status: interaction.status,
+        outputCount: outputParts.length,
+        outputTypes: outputParts.map((part) => part?.type ?? Object.keys(part ?? {})),
+        promptLength,
+        referenceCount,
+        operationType,
+      }, 'No image data in Gemini Interactions output');
+      throw new Error('No image data in Gemini Interactions output');
+    }
+
+    const imageDataBase64 = this.getInteractionImageData(imageOutput);
+    const imageUri = this.getInteractionImageUri(imageOutput);
+    const imageData = imageDataBase64
+      ? Buffer.from(imageDataBase64, 'base64')
+      : await this.downloadImage(imageUri!);
+
+    const dimensions = this.calculateDimensions(aspectRatio);
+    const mimeType = this.getInteractionImageMimeType(imageOutput) || 'image/png';
+    const format = this.getFormatFromMimeType(mimeType);
+
+    logger.info({
+      interactionId: interaction.id,
+      previousInteractionId: previousInteractionId ?? null,
+      imageSize: imageData.length,
+      mimeType,
+      width: dimensions.width,
+      height: dimensions.height,
+      operationType,
+    }, `Image ${operationType === 'edit' ? 'edited' : 'generated'} successfully via Interactions`);
+
+    const usage = interaction.usage as {
+      total_input_tokens?: number;
+      total_output_tokens?: number;
+      total_tokens?: number;
+      total_thought_tokens?: number;
+    } | undefined;
+    if (onUsage && usage) {
+      onUsage({
+        provider: 'gemini',
+        operation: op ?? (operationType === 'edit' ? 'image_edit' : 'image_generate'),
+        model: this.model,
+        inputUnits: usage.total_input_tokens ?? 0,
+        thoughtTokens: usage.total_thought_tokens ?? 0,
+        imageTokens: this.getOutputImageTokens(),
+      });
+    }
+
+    return {
+      imageData,
+      mimeType,
+      width: dimensions.width,
+      height: dimensions.height,
+      format,
+      providerInteractionId: typeof interaction.id === 'string' ? interaction.id : undefined,
+    };
+  }
+
+  private convertPartsToInteractionInput(parts: any[]): any[] {
+    return parts.map((part, index) => {
+      if (part?.text) {
+        return { type: 'text', text: part.text };
+      }
+      if (part?.inlineData) {
+        return {
+          type: 'image',
+          data: part.inlineData.data,
+          mime_type: part.inlineData.mimeType || 'image/png',
+        };
+      }
+      if (part?.fileData) {
+        return {
+          type: 'image',
+          uri: part.fileData.fileUri,
+          mime_type: part.fileData.mimeType || 'image/png',
+        };
+      }
+      throw new Error(`Unsupported Gemini part for Interactions input at index ${index}`);
+    });
+  }
+
+  private flattenInteractionOutputs(outputs: unknown): any[] {
+    if (outputs && !Array.isArray(outputs)) {
+      return this.flattenInteractionOutputs([outputs]);
+    }
+
+    if (!Array.isArray(outputs)) {
+      return [];
+    }
+
+    return outputs.flatMap((output: any) => {
+      if (Array.isArray(output?.parts)) {
+        return output.parts;
+      }
+      return [output];
+    });
+  }
+
+  private flattenInteractionSteps(steps: unknown): any[] {
+    if (!Array.isArray(steps)) {
+      return [];
+    }
+
+    return steps.flatMap((step: any) => [
+      ...this.flattenInteractionOutputs(step?.content),
+      ...this.flattenInteractionOutputs(step?.summary),
+      ...this.flattenInteractionOutputs(step?.output),
+    ]);
+  }
+
+  private getInteractionText(output: any): string | undefined {
+    if (!output || typeof output !== 'object') {
+      return undefined;
+    }
+    return typeof output.text === 'string' ? output.text : undefined;
+  }
+
+  private getInteractionImageData(output: any): string | undefined {
+    if (!output || typeof output !== 'object') {
+      return undefined;
+    }
+    if (typeof output.data === 'string') return output.data;
+    if (typeof output.inlineData?.data === 'string') return output.inlineData.data;
+    if (typeof output.inline_data?.data === 'string') return output.inline_data.data;
+    return undefined;
+  }
+
+  private getInteractionImageUri(output: any): string | undefined {
+    if (!output || typeof output !== 'object') {
+      return undefined;
+    }
+    if (typeof output.uri === 'string') return output.uri;
+    if (typeof output.fileData?.fileUri === 'string') return output.fileData.fileUri;
+    if (typeof output.file_data?.file_uri === 'string') return output.file_data.file_uri;
+    return undefined;
+  }
+
+  private getInteractionImageMimeType(output: any): string | undefined {
+    if (!output || typeof output !== 'object') {
+      return undefined;
+    }
+    return output.mime_type
+      || output.mimeType
+      || output.inlineData?.mimeType
+      || output.inline_data?.mime_type;
   }
   
   /**
@@ -536,6 +813,27 @@ export class NanoBananaProProvider implements IImageProvider {
     }
     return 'png'; // Default
   }
+
+  private getOutputImageTokens(): number {
+    if (this.model.includes('gemini-2.5-flash-image')) {
+      return 1290;
+    }
+
+    const imageSize = (config.nanoBanana?.imageSize || '1K').toUpperCase();
+    if (this.model.includes('gemini-3.1-flash-image')) {
+      if (imageSize === '0.5K' || imageSize === '512' || imageSize === '512PX') return 747;
+      if (imageSize === '2K') return 1680;
+      if (imageSize === '4K') return 2520;
+      return 1120;
+    }
+
+    if (this.model.includes('gemini-3-pro-image')) {
+      if (imageSize === '4K') return 2000;
+      return 1120;
+    }
+
+    return 1120;
+  }
   
   /**
    * Check if the current model supports the personGeneration config parameter.
@@ -544,9 +842,11 @@ export class NanoBananaProProvider implements IImageProvider {
   private supportsPersonGeneration(): boolean {
     const unsupportedModels = [
       'gemini-3.1-flash-image-preview',
+      'gemini-3.1-flash-image',
       'gemini-3.0-flash-image-preview',
       'gemini-3-flash-image-preview',
       'gemini-3-pro-image-preview',
+      'gemini-3-pro-image',
       'gemini-3.0-pro-image-preview',
     ];
     return !unsupportedModels.some(m => this.model.includes(m));

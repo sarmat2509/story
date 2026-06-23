@@ -25,6 +25,12 @@ function isScalarValue(value: unknown): boolean {
   );
 }
 
+function formatValidationScore(score: number | null, status?: string): string {
+  if (score != null) return String(score);
+  if (status === 'provider_blocked') return 'blocked';
+  return 'n/a';
+}
+
 function renderCharacterCards(characters: unknown[], keyPrefix: string): React.ReactNode {
   return (
     <ScrollView
@@ -263,11 +269,21 @@ export default function AdminValidationDetailScreen() {
                   </View>
                   <View style={styles.booleanFieldRow}>
                     <Text style={styles.valueKey}>VALIDATION SCORE</Text>
-                    <Text style={styles.valueText}>{item.validationScore}</Text>
+                    <Text style={styles.valueText}>
+                      {formatValidationScore(item.validationScore, item.validationStatus)}
+                    </Text>
+                  </View>
+                  <View style={styles.booleanFieldRow}>
+                    <Text style={styles.valueKey}>VALIDATION STATUS</Text>
+                    <Text style={styles.valueText}>{item.validationStatus ?? 'n/a'}</Text>
                   </View>
                   <View style={styles.booleanFieldRow}>
                     <Text style={styles.valueKey}>VISION MODEL</Text>
                     <Text style={styles.valueText}>{item.visionModel ?? 'n/a'}</Text>
+                  </View>
+                  <View style={styles.valueRow}>
+                    <Text style={styles.valueKey}>PROVIDER ERROR</Text>
+                    <Text style={styles.valueText}>{item.providerError ?? 'n/a'}</Text>
                   </View>
                   <View style={styles.booleanFieldRow}>
                     <Text style={styles.valueKey}>COST</Text>
@@ -309,6 +325,10 @@ export default function AdminValidationDetailScreen() {
               {renderCharacterCards(resultCharacters, 'validation-result-characters')}
             </DetailCard>
           ) : null}
+
+          <DetailCard title="Request Manifest" icon="file-tray-full-outline">
+            {renderStructuredValue(item.requestManifest, 'validation-request-manifest')}
+          </DetailCard>
         </ScrollView>
       ) : null}
     </AdminLayout>

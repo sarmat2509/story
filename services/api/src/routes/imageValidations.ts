@@ -21,8 +21,11 @@ function rowToDto(row: {
   sceneIndex: number;
   attempt: number;
   imageStoragePath: string;
-  validationScore: number;
+  validationScore: number | null;
+  validationStatus?: string;
   visionModel: string | null;
+  requestManifest?: unknown;
+  providerError?: string | null;
   result: unknown;
   createdAt: Date;
 }) {
@@ -34,7 +37,10 @@ function rowToDto(row: {
     imageStoragePath: row.imageStoragePath,
     imageUrl: `/api/v1/assets/${row.imageStoragePath}`,
     validationScore: row.validationScore,
+    validationStatus: row.validationStatus ?? 'completed',
     visionModel: row.visionModel,
+    requestManifest: row.requestManifest,
+    providerError: row.providerError,
     result: row.result,
     createdAt: row.createdAt.toISOString(),
   };

@@ -158,6 +158,7 @@ export const config = {
     geminiVisionModel: process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash',
     openaiApiKey: process.env.OPENAI_API_KEY || '',
     openaiModel: process.env.OPENAI_TEXT_MODEL || 'gpt-5.2',
+    openaiValidationModel: process.env.OPENAI_VALIDATION_MODEL || 'gpt-4o',
     /** When set, Director (`callDirector`) uses this text vendor; otherwise same as textVendor */
     directorTextVendor: (process.env.AI_DIRECTOR_TEXT_VENDOR || '').trim() || undefined,
     /** OpenAI model for Director only; falls back to OPENAI_TEXT_MODEL default */
@@ -187,13 +188,15 @@ export const config = {
   image: {
     skipGeneration: process.env.SKIP_IMAGE_GENERATION === 'true',
     provider: process.env.IMAGE_PROVIDER || 'nanobananapro', // Default to Nano Banana Pro
-    /** gemini-2.5-flash-image: env images, legacy IMAGE_PROVIDER=gemini, LLM text-only turnaround */
+    /** Cheap image path: env images, legacy IMAGE_PROVIDER=gemini, LLM text-only turnaround */
     flashImageModel: process.env.GEMINI_FLASH_IMAGE_MODEL || 'gemini-2.5-flash-image',
+    /** Optional override for reward map tile images only. Falls back to Nano Banana model. */
+    mapTileModel: (process.env.MAP_TILE_IMAGE_MODEL || '').trim(),
     gemini: {
       projectId: process.env.GOOGLE_CLOUD_PROJECT || '',
       location: process.env.GOOGLE_CLOUD_LOCATION || 'us-central1',
       batchGcsBucket: process.env.BATCH_IMAGE_GCS_BUCKET || '', // For scheduled continuation batch (Vertex AI)
-      batchModel: process.env.GEMINI_BATCH_MODEL || 'gemini-2.5-flash-image',
+      batchModel: process.env.GEMINI_BATCH_MODEL || 'gemini-3.1-flash-image',
     },
     defaultStyle: 'soft_watercolor',
     defaultAspectRatio: '16:9',
@@ -210,6 +213,8 @@ export const config = {
     // Post-generation validation (Gemini Vision)
     enableValidation: process.env.ENABLE_IMAGE_VALIDATION === 'true',
     validationMaxRetries: parseInt(process.env.IMAGE_VALIDATION_MAX_RETRIES || '2', 10),
+    /** When validation fails, use one image-edit repair pass instead of full regeneration. */
+    validationUseEditRepair: process.env.IMAGE_VALIDATION_USE_EDIT_REPAIR === 'true',
     /** Scene image accepted when computeValidationScore(...) is strictly greater than this (no LLM isValid). */
     validationMinAcceptScore: parseInt(process.env.IMAGE_VALIDATION_MIN_ACCEPT_SCORE || '85', 10),
     /** Validation-only downscale for the generated scene image sent to the vision model. */
@@ -285,9 +290,9 @@ export const config = {
     quality: process.env.OPENAI_IMAGE_QUALITY || 'medium', // low | medium | high | auto
   },
 
-  // Nano Banana Pro (Gemini 3 Pro Image) - for cartoon/illustration with character consistency
+  // Nano Banana (Gemini 3.1 Flash Image) - for cartoon/illustration with character consistency
   nanoBanana: {
-    model: process.env.NANO_BANANA_MODEL || 'gemini-3-pro-image-preview', // Upgraded from gemini-2.5-flash-image for better character consistency
+    model: process.env.NANO_BANANA_MODEL || 'gemini-3.1-flash-image',
     aspectRatio: process.env.NANO_BANANA_ASPECT_RATIO || '16:9',
     imageSize: process.env.NANO_BANANA_IMAGE_SIZE || '1K', // Output resolution: 1K | 2K | 4K
     enableReferenceImages: process.env.ENABLE_FIRST_IMAGE_REFERENCE !== 'false', // Enabled by default

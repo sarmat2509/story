@@ -50,19 +50,22 @@ export const AI_COST_CONFIG = {
       inputPer1M: 2,
       thinkingRatePer1M: 12,
     } as ImageTokenCostConfig,
+    // Gemini 2.5 Flash Image (Nano Banana) — cheaper path for environment/reference utility images.
+    // Standard: Input $0.30/1M, Output $30/1M (1K=1290 tokens=$0.039)
     'gemini-2.5-flash-image': {
       imageTokensPer1K: 1290,
       imageRatePer1M: 30,
       inputPer1M: 0.3,
       thinkingRatePer1M: 2.5,
     } as ImageTokenCostConfig,
-    // Gemini 3.1 Flash Image Preview (Nano Banana) — Vertex AI March 2026
+    // Gemini 3.1 Flash Image (Nano Banana 2) — Google AI paid tier, June 2026.
     // Standard: Input $0.50/1M (text+reference images), Output $60/1M (1K=1120 tokens=$0.067)
     // Flex/Batch: Input $0.25/1M, Output $30/1M
-    'gemini-3.1-flash-image-preview': {
+    'gemini-3.1-flash-image': {
       imageTokensPer1K: 1120,
       imageRatePer1M: 60,
       inputPer1M: 0.5,
+      thinkingRatePer1M: 3,
     } as ImageTokenCostConfig,
     'openai-gpt-image': 0.08 as number,
   } as Record<string, number | ImageTokenCostConfig>,
