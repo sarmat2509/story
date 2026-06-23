@@ -42,6 +42,8 @@ const getCharacterIcon = (type: string): string => {
   }
 };
 
+const CHARACTER_IMAGE_MATTE = '#FFFFFF';
+
 export function CharacterCard({ character, onPress, onDelete }: Props) {
   const avatarUrl =
     character.turnaroundSheet?.frontUrl ??
@@ -101,7 +103,7 @@ const styles = StyleSheet.create<{
     position: 'relative',
   },
   card: {
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: CHARACTER_IMAGE_MATTE,
     borderRadius: theme.borders.radius.lg,
     overflow: 'hidden',
     borderWidth: theme.borders.width.thin,
@@ -112,11 +114,12 @@ const styles = StyleSheet.create<{
     height: 180,
     width: '100%',
     alignSelf: 'center',
-    backgroundColor: theme.colors.background.primary,
+    backgroundColor: CHARACTER_IMAGE_MATTE,
   },
   image: {
     width: '100%',
     height: '100%',
+    backgroundColor: CHARACTER_IMAGE_MATTE,
   },
   placeholder: {
     width: '100%',
