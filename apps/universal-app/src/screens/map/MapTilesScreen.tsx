@@ -40,11 +40,13 @@ const INVENTORY_GAP = 14;
 const INVENTORY_PADDING = 18;
 const INVENTORY_HEIGHT = CELL_SIZE + 84;
 const INVENTORY_COLLAPSED_HEIGHT = 68;
+const INVENTORY_COLLAPSED_VERTICAL_PADDING = 14;
 const MIN_ZOOM = 0.45;
 const MAX_ZOOM = 3;
 const SPLIT_DELAY_MS = 2000;
 const WHEEL_ZOOM_SENSITIVITY = 0.0012;
 const TILE_DRAG_START_THRESHOLD = 8;
+const INITIAL_VIEWPORT_PADDING = 48;
 
 type MapTilesRouteProp = RouteProp<MainDrawerParamList, 'MapTiles'>;
 type Rect = { x: number; y: number; width: number; height: number };
@@ -222,6 +224,36 @@ function makePlacements(tiles: CollectedMapTileApi[]): MapTilePlacementInput[] {
   }));
 }
 
+function getInitialBoardViewport(boardTiles: CollectedMapTileApi[], boardRect: Rect) {
+  if (boardTiles.length === 0 || boardRect.width <= 0 || boardRect.height <= 0) {
+    return { pan: { x: 0, y: 0 }, zoom: 1 };
+  }
+
+  const minLeft = Math.min(...boardTiles.map((tile) => (tile.boardX ?? 0) * CELL_SIZE));
+  const maxRight = Math.max(...boardTiles.map((tile) => ((tile.boardX ?? 0) + 1) * CELL_SIZE));
+  const minTop = Math.min(...boardTiles.map((tile) => (tile.boardY ?? 0) * CELL_SIZE));
+  const maxBottom = Math.max(...boardTiles.map((tile) => ((tile.boardY ?? 0) + 1) * CELL_SIZE));
+  const contentWidth = Math.max(CELL_SIZE, maxRight - minLeft);
+  const contentHeight = Math.max(CELL_SIZE, maxBottom - minTop);
+  const availableWidth = Math.max(CELL_SIZE, boardRect.width - INITIAL_VIEWPORT_PADDING * 2);
+  const availableHeight = Math.max(CELL_SIZE, boardRect.height - INITIAL_VIEWPORT_PADDING * 2);
+  const nextZoom = clamp(
+    Math.min(1, availableWidth / contentWidth, availableHeight / contentHeight),
+    MIN_ZOOM,
+    MAX_ZOOM
+  );
+  const centerX = minLeft + contentWidth / 2;
+  const centerY = minTop + contentHeight / 2;
+
+  return {
+    pan: {
+      x: -centerX * nextZoom,
+      y: -centerY * nextZoom,
+    },
+    zoom: nextZoom,
+  };
+}
+
 export default function MapTilesScreen() {
   const route = useRoute<MapTilesRouteProp>();
   const navigation = useNavigation<NavigationProp<MainDrawerParamList, 'MapTiles'>>();
@@ -245,6 +277,7 @@ export default function MapTilesScreen() {
   });
   const [tiles, setTiles] = useState<CollectedMapTileApi[]>([]);
   const [tilesHydrated, setTilesHydrated] = useState(false);
+  const [viewportReady, setViewportReady] = useState(false);
   const [rootRect, setRootRect] = useState<Rect | null>(null);
   const [boardRect, setBoardRect] = useState<Rect | null>(null);
   const [inventoryRect, setInventoryRect] = useState<Rect | null>(null);
@@ -284,12 +317,13 @@ export default function MapTilesScreen() {
   const handledWheelEventsRef = useRef<WeakSet<object>>(new WeakSet());
   const rewardTileId = rewardTile?.id ?? null;
   const hasBoardLayout = Boolean(boardRect && boardRect.width > 0 && boardRect.height > 0);
-  const isMapReady = tilesHydrated && hasBoardLayout;
+  const isMapReady = tilesHydrated && hasBoardLayout && viewportReady;
 
   useEffect(() => {
     if (serverTiles === undefined) {
       if (!drag && !layoutSaveInFlightRef.current) {
         setTilesHydrated(false);
+        setViewportReady(false);
       }
       return;
     }
@@ -299,6 +333,10 @@ export default function MapTilesScreen() {
       setTilesHydrated(true);
     }
   }, [drag, serverTiles]);
+
+  useEffect(() => {
+    setViewportReady(false);
+  }, [childProfileId]);
 
   useEffect(() => {
     return () => {
@@ -399,6 +437,16 @@ export default function MapTilesScreen() {
   useEffect(() => {
     inventoryTilesRef.current = inventoryTiles;
   }, [inventoryTiles]);
+
+  useEffect(() => {
+    if (!tilesHydrated || !boardRect || !hasBoardLayout || viewportReady) return;
+    const nextViewport = getInitialBoardViewport(boardTiles, boardRect);
+    panRef.current = nextViewport.pan;
+    zoomRef.current = nextViewport.zoom;
+    setPan(nextViewport.pan);
+    setZoom(nextViewport.zoom);
+    setViewportReady(true);
+  }, [boardRect, boardTiles, hasBoardLayout, tilesHydrated, viewportReady]);
 
   const boardBounds = useMemo(() => {
     if (boardTiles.length === 0) {
@@ -1459,7 +1507,7 @@ export default function MapTilesScreen() {
         ]}
         onLayout={handleInventoryLayout}
       >
-        <View style={styles.inventoryHeader}>
+        <View style={[styles.inventoryHeader, inventoryCollapsed && styles.inventoryHeaderCollapsed]}>
           <View style={styles.inventoryHeaderText}>
             <Text style={styles.inventoryTitle}>{t('map_tiles.inventory_title')}</Text>
             <Text style={styles.inventoryHint}>
@@ -1862,6 +1910,8 @@ const styles = StyleSheet.create({
   },
   inventoryCollapsed: {
     height: INVENTORY_COLLAPSED_HEIGHT,
+    paddingTop: INVENTORY_COLLAPSED_VERTICAL_PADDING,
+    paddingBottom: INVENTORY_COLLAPSED_VERTICAL_PADDING,
   },
   inventoryHeader: {
     minHeight: INVENTORY_COLLAPSED_HEIGHT - theme.spacing[3],
@@ -1871,6 +1921,10 @@ const styles = StyleSheet.create({
     gap: theme.spacing[3],
     paddingHorizontal: INVENTORY_PADDING,
     marginBottom: theme.spacing[2],
+  },
+  inventoryHeaderCollapsed: {
+    minHeight: INVENTORY_COLLAPSED_HEIGHT - INVENTORY_COLLAPSED_VERTICAL_PADDING * 2,
+    marginBottom: 0,
   },
   inventoryHeaderText: {
     flex: 1,
