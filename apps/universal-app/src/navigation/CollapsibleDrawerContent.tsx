@@ -24,6 +24,7 @@ import { formatAssetUrl } from '@/utils/assetUrl';
 
 const LABEL_ANIMATION_DURATION = 250;
 const COLLAPSED_HIGHLIGHT_SIZE = 48; // icon 24 + padding 12 each side
+const NAV_ITEM_HEIGHT = 44;
 
 function isItemHidden(drawerItemStyle?: StyleProp<ViewStyle>): boolean {
   if (!drawerItemStyle) return false;
@@ -100,11 +101,7 @@ function CollapsibleDrawerItem({
       style={[
         styles.itemContainer,
         { backgroundColor },
-        collapsed && {
-          alignSelf: 'center',
-          justifyContent: 'center',
-          alignItems: 'center',
-        },
+        collapsed && styles.itemContainerCollapsed,
         drawerItemStyle,
       ]}
     >
@@ -114,6 +111,7 @@ function CollapsibleDrawerItem({
         href={href}
         pressColor={undefined}
         pressOpacity={0.7}
+        style={styles.itemPressable}
       >
         <View style={[styles.itemWrapper, collapsed && styles.itemWrapperCollapsed]}>
           {iconNode}
@@ -259,11 +257,7 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
               style={[
                 styles.itemContainer,
                 { backgroundColor: 'transparent' },
-                collapsed && {
-                  alignSelf: 'center',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                },
+                collapsed && styles.itemContainerCollapsed,
               ]}
             >
               <PlatformPressable
@@ -272,6 +266,7 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
                 href="/admin/stories"
                 pressColor={undefined}
                 pressOpacity={0.7}
+                style={styles.itemPressable}
               >
                 <View style={[styles.itemWrapper, collapsed && styles.itemWrapperCollapsed]}>
                   <Ionicons
@@ -280,15 +275,12 @@ export function CollapsibleDrawerContent(props: DrawerContentComponentProps) {
                     color={theme.colors.interactive.primary}
                   />
                   {!collapsed ? (
-                    <View style={styles.labelContainer}>
+                    <View style={[styles.labelContainer, styles.adminLabelContainer]}>
                       <Text
-                        numberOfLines={1}
-                        style={[
-                          styles.labelText,
-                          { color: theme.colors.interactive.primary, fontWeight: '700' },
-                        ]}
+                        numberOfLines={2}
+                        style={[styles.labelText, styles.adminLabel]}
                       >
-                        Admin
+                        {t('navigation.admin', { defaultValue: 'Admin' })}
                       </Text>
                     </View>
                   ) : null}
@@ -318,25 +310,35 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing[4],
   },
   itemContainer: {
+    height: NAV_ITEM_HEIGHT,
     marginHorizontal: theme.spacing[2],
-    marginBottom: theme.spacing[1],
+    marginBottom: 0,
     borderRadius: 18,
     overflow: 'hidden',
+  },
+  itemPressable: {
+    height: '100%',
+  },
+  itemContainerCollapsed: {
+    alignSelf: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: COLLAPSED_HIGHLIGHT_SIZE,
   },
   itemWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 48,
+    height: '100%',
     paddingHorizontal: theme.spacing[3],
-    paddingVertical: theme.spacing[2],
   },
   itemWrapperCollapsed: {
+    width: COLLAPSED_HIGHLIGHT_SIZE,
     justifyContent: 'center',
+    paddingHorizontal: 0,
   },
   labelContainer: {
     flex: 1,
     marginEnd: 12,
-    marginVertical: 4,
     overflow: 'hidden',
   },
   labelContainerCollapsed: {
@@ -350,6 +352,13 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.medium,
+  },
+  adminLabelContainer: {
+    marginStart: 12,
+  },
+  adminLabel: {
+    color: theme.colors.interactive.primary,
+    fontWeight: theme.typography.fontWeight.bold,
   },
   childSessionCard: {
     minHeight: 64,

@@ -20,7 +20,7 @@ const apiClient = FetchClient.create({
 
 // Request interceptor - add auth token + transform camelCase → snake_case
 apiClient.interceptors.request.use(async (config) => {
-  const token = await storage.getAuthToken();
+  const token = useAuthStore.getState().token ?? (await storage.getAuthToken());
 
   if (token) {
     config.headers = config.headers || {};

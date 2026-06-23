@@ -255,6 +255,8 @@ export default function WizardScreen() {
     { key: 'details', label: t('wizard.step_details'), icon: 'options-outline' as const },
     { key: 'characters', label: t('wizard.step_characters'), icon: 'people-outline' as const },
   ];
+  const isLastStep = activeStep === steps.length - 1;
+  const handleNextStep = () => setActiveStep((step) => Math.min(steps.length - 1, step + 1));
 
   useEffect(() => {
     const allowedIds = new Set(availableCharacters.map((character) => character.id));
@@ -528,34 +530,6 @@ export default function WizardScreen() {
                 ) : null}
               </AnimatedSection>
 
-              <View style={styles.stepActions}>
-                <AppButton
-                  label={t('common.back')}
-                  onPress={() => setActiveStep((step) => Math.max(0, step - 1))}
-                  disabled={activeStep === 0}
-                  variant="secondary"
-                  size="md"
-                  leading={
-                    <Ionicons name="chevron-back" size={18} color={theme.colors.text.secondary} />
-                  }
-                  style={[styles.stepAction, activeStep === 0 && styles.stepActionHidden]}
-                />
-                {activeStep < steps.length - 1 ? (
-                  <AppButton
-                    label={t('common.next')}
-                    onPress={() => setActiveStep((step) => Math.min(steps.length - 1, step + 1))}
-                    size="md"
-                    trailing={
-                      <Ionicons
-                        name="chevron-forward"
-                        size={18}
-                        color={theme.colors.text.inverse}
-                      />
-                    }
-                    style={styles.stepAction}
-                  />
-                ) : null}
-              </View>
             </View>
 
             <View
@@ -589,13 +563,41 @@ export default function WizardScreen() {
                     })}
                   </Text>
                 ) : null}
-                <AppButton
-                  label={t('wizard.generate_button')}
-                  onPress={handleGenerate}
-                  disabled={!storyLanguage || isGenerating || !canGenerateStories}
-                  loading={isGenerating}
-                  style={styles.generateButton}
-                />
+                <View style={styles.summaryActions}>
+                  {activeStep > 0 ? (
+                    <AppButton
+                      label={t('common.back')}
+                      onPress={() => setActiveStep((step) => Math.max(0, step - 1))}
+                      variant="secondary"
+                      size="md"
+                      leading={
+                        <Ionicons name="chevron-back" size={18} color={theme.colors.text.secondary} />
+                      }
+                      style={styles.summaryBackButton}
+                    />
+                  ) : null}
+                  <AppButton
+                    label={isLastStep ? t('common.create') : t('common.next')}
+                    onPress={isLastStep ? handleGenerate : handleNextStep}
+                    size="md"
+                    disabled={
+                      isLastStep
+                        ? !storyLanguage || isGenerating || !canGenerateStories
+                        : isGenerating
+                    }
+                    loading={isLastStep && isGenerating}
+                    trailing={
+                      !isLastStep ? (
+                        <Ionicons
+                          name="chevron-forward"
+                          size={18}
+                          color={theme.colors.text.inverse}
+                        />
+                      ) : undefined
+                    }
+                    style={styles.summaryPrimaryButton}
+                  />
+                </View>
               </View>
             </View>
           </View>
@@ -777,19 +779,6 @@ const styles = StyleSheet.create({
   stepContent: {
     gap: theme.spacing[6],
   },
-  stepActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: theme.spacing[4],
-    marginTop: theme.spacing[6],
-  },
-  stepAction: {
-    minWidth: 120,
-  },
-  stepActionHidden: {
-    opacity: 0,
-  },
   summaryColumn: {
     width: 344,
     maxWidth: '100%',
@@ -871,7 +860,15 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
   },
-  generateButton: {
-    alignSelf: 'stretch',
+  summaryActions: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: theme.spacing[3],
+  },
+  summaryBackButton: {
+    minWidth: 112,
+  },
+  summaryPrimaryButton: {
+    flex: 1,
   },
 });
