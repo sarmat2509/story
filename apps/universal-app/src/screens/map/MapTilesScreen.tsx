@@ -33,6 +33,18 @@ import { theme } from '@/theme';
 import { modernColors } from '@/theme/modernTheme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 import type { MainDrawerParamList } from '@/types/navigation';
+import {
+  buildWalkerRoadGraph,
+  findNearestRoadSnap,
+  findNextWalkerPatrolRoute,
+  findRandomPortalExit,
+  hasReachableWalkerPatrolTarget,
+  pointAlongPolyline,
+  polylineLength,
+  snapForRoadNode,
+  type WalkerRoadGraph,
+  type WalkerRoadSnap,
+} from './mapWalkerGraph';
 
 const CELL_SIZE = 200;
 const BOARD_HOVER_MIN_OVERLAP_RATIO = 0.5;
@@ -47,11 +59,15 @@ const SPLIT_DELAY_MS = 2000;
 const WHEEL_ZOOM_SENSITIVITY = 0.0012;
 const TILE_DRAG_START_THRESHOLD = 8;
 const INITIAL_VIEWPORT_PADDING = 48;
+const WALKER_SNAP_RADIUS = 28;
+const WALKER_SPEED = 72;
+const MODE_HINT_DELAY_MS = 5000;
+const INVENTORY_COLLAPSED_SESSION_KEY = 'wondertales.mapTiles.inventoryCollapsed';
 
 type MapTilesRouteProp = RouteProp<MainDrawerParamList, 'MapTiles'>;
 type Rect = { x: number; y: number; width: number; height: number };
 type BoardCell = { x: number; y: number };
-type InteractionMode = 'select' | 'pan';
+type InteractionMode = 'select' | 'pan' | 'walk';
 type DragSource =
   | { kind: 'board'; boardX: number; boardY: number }
   | { kind: 'inventory'; index: number };
@@ -88,6 +104,12 @@ type ResponderPoint = {
   locationX: number;
   locationY: number;
 };
+type WalkerFrame = {
+  point: { x: number; y: number };
+  angle: number;
+  walking: boolean;
+};
+type WalkerFacing = 1 | -1;
 
 const sideDeltas: Record<MapTileSide, BoardCell> = {
   N: { x: 0, y: -1 },
@@ -122,6 +144,45 @@ function distanceBetweenTouches(touches: Array<{ pageX: number; pageY: number }>
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function normalizeAngle(angle: number): number {
+  let normalized = angle;
+  while (normalized > Math.PI) normalized -= Math.PI * 2;
+  while (normalized < -Math.PI) normalized += Math.PI * 2;
+  return normalized;
+}
+
+function getWalkerRouteFacing(route: Array<{ x: number; y: number }>, fallback: WalkerFacing): WalkerFacing {
+  const start = route[0];
+  const end = route[route.length - 1];
+  if (!start || !end) return fallback;
+  const dx = end.x - start.x;
+  if (Math.abs(dx) < 1) return fallback;
+  return dx < 0 ? -1 : 1;
+}
+
+function getWalkerVisualAngle(angle: number, facing: WalkerFacing): number {
+  const normalized = normalizeAngle(angle);
+  return facing === -1 ? normalizeAngle(normalized + Math.PI) : normalized;
+}
+
+function readInventoryCollapsedSession(): boolean {
+  if (Platform.OS !== 'web') return false;
+  try {
+    return globalThis.sessionStorage?.getItem(INVENTORY_COLLAPSED_SESSION_KEY) === 'true';
+  } catch (_error) {
+    return false;
+  }
+}
+
+function writeInventoryCollapsedSession(collapsed: boolean) {
+  if (Platform.OS !== 'web') return;
+  try {
+    globalThis.sessionStorage?.setItem(INVENTORY_COLLAPSED_SESSION_KEY, collapsed ? 'true' : 'false');
+  } catch (_error) {
+    // sessionStorage can be unavailable in hardened browser contexts.
+  }
 }
 
 function debugMapTiles(event: string, payload: Record<string, unknown> = {}) {
@@ -270,6 +331,10 @@ export default function MapTilesScreen() {
   const rewardScrollPreparedRef = useRef<string | null>(null);
   const rewardAnim = useRef(new Animated.Value(0)).current;
   const returnAnim = useRef(new Animated.Value(0)).current;
+  const walkerTravelAnim = useRef(new Animated.Value(0)).current;
+  const walkerStepAnim = useRef(new Animated.Value(0)).current;
+  const walkerOpacityAnim = useRef(new Animated.Value(1)).current;
+  const walkerPortalScaleAnim = useRef(new Animated.Value(1)).current;
   const updateLayout = useUpdateMapTileLayout();
   const childProfileId = route.params?.childProfileId;
   const { data: serverTiles, isLoading, error, refetch } = useCollectedMapTiles({
@@ -283,10 +348,13 @@ export default function MapTilesScreen() {
   const [inventoryRect, setInventoryRect] = useState<Rect | null>(null);
   const [rewardTargetRect, setRewardTargetRect] = useState<Rect | null>(null);
   const [inventoryScrollX, setInventoryScrollX] = useState(0);
-  const [inventoryCollapsed, setInventoryCollapsed] = useState(false);
+  const [inventoryCollapsed, setInventoryCollapsed] = useState(readInventoryCollapsedSession);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [interactionMode, setInteractionMode] = useState<InteractionMode>('select');
+  const [modeHint, setModeHint] = useState<InteractionMode | null>(null);
+  const [modeHintRequestId, setModeHintRequestId] = useState(0);
+  const [mapRulesVisible, setMapRulesVisible] = useState(false);
   const [isMapPanning, setIsMapPanning] = useState(false);
   const panRef = useRef({ x: 0, y: 0 });
   const zoomRef = useRef(1);
@@ -304,9 +372,22 @@ export default function MapTilesScreen() {
   const [boardError, setBoardError] = useState<BoardError | null>(null);
   const [rewardTile, setRewardTile] = useState<CollectedMapTileApi | null>(null);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const [walkerFrame, setWalkerFrame] = useState<WalkerFrame | null>(null);
+  const [walkerTeleporting, setWalkerTeleporting] = useState(false);
+  const [walkerFacing, setWalkerFacing] = useState<WalkerFacing>(1);
   const tilesRef = useRef<CollectedMapTileApi[]>([]);
   const dragRef = useRef<DragState | null>(null);
   const pendingTileInteractionRef = useRef<PendingTileInteraction | null>(null);
+  const walkerRouteRef = useRef<Array<{ x: number; y: number }>>([]);
+  const walkerFrameRef = useRef<WalkerFrame | null>(null);
+  const walkerFacingRef = useRef<WalkerFacing>(1);
+  const walkerGraphRef = useRef<WalkerRoadGraph | null>(null);
+  const walkerRunIdRef = useRef(0);
+  const runNextWalkerLegRef = useRef<(snap: WalkerRoadSnap, runId: number) => void>(() => {});
+  const handleWalkerBoardTapRef = useRef<(pageX: number, pageY: number) => void>(() => {});
+  const walkerTapStartRef = useRef<ResponderPoint | null>(null);
+  const modeHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const modeHintInteractionRef = useRef<(mode: InteractionMode) => void>(() => {});
   const hoverCellRef = useRef<BoardCell | null>(null);
   const hoverInventoryRef = useRef<InventoryHover | null>(null);
   const boardLookupRef = useRef<Map<string, CollectedMapTileApi>>(new Map());
@@ -318,6 +399,24 @@ export default function MapTilesScreen() {
   const rewardTileId = rewardTile?.id ?? null;
   const hasBoardLayout = Boolean(boardRect && boardRect.width > 0 && boardRect.height > 0);
   const isMapReady = tilesHydrated && hasBoardLayout && viewportReady;
+
+  const markModeExpectedAction = useCallback((mode: InteractionMode) => {
+    if (modeHintTimerRef.current) {
+      clearTimeout(modeHintTimerRef.current);
+      modeHintTimerRef.current = null;
+    }
+    setModeHint((current) => (current === mode ? null : current));
+  }, []);
+
+  const handleInteractionModePress = useCallback((mode: InteractionMode) => {
+    if (modeHintTimerRef.current) {
+      clearTimeout(modeHintTimerRef.current);
+      modeHintTimerRef.current = null;
+    }
+    setModeHint(null);
+    setModeHintRequestId((requestId) => requestId + 1);
+    setInteractionMode(mode);
+  }, []);
 
   useEffect(() => {
     if (serverTiles === undefined) {
@@ -341,6 +440,7 @@ export default function MapTilesScreen() {
   useEffect(() => {
     return () => {
       if (splitTimerRef.current) clearTimeout(splitTimerRef.current);
+      if (modeHintTimerRef.current) clearTimeout(modeHintTimerRef.current);
     };
   }, []);
 
@@ -402,10 +502,26 @@ export default function MapTilesScreen() {
     }
     return lookup;
   }, [boardTiles]);
+  const walkerRoadGraph = useMemo<WalkerRoadGraph>(
+    () => buildWalkerRoadGraph(boardTiles, CELL_SIZE),
+    [boardTiles]
+  );
 
   useEffect(() => {
     tilesRef.current = tiles;
   }, [tiles]);
+
+  useEffect(() => {
+    walkerFrameRef.current = walkerFrame;
+  }, [walkerFrame]);
+
+  useEffect(() => {
+    walkerFacingRef.current = walkerFacing;
+  }, [walkerFacing]);
+
+  useEffect(() => {
+    walkerGraphRef.current = walkerRoadGraph;
+  }, [walkerRoadGraph]);
 
   useEffect(() => {
     boardLookupRef.current = boardLookup;
@@ -423,10 +539,51 @@ export default function MapTilesScreen() {
     interactionModeRef.current = interactionMode;
     if (interactionMode !== 'pan') {
       setIsMapPanning(false);
-    } else {
+    }
+    if (interactionMode !== 'select') {
       setSelectedTileId(null);
     }
-  }, [interactionMode]);
+    if (interactionMode !== 'walk') {
+      walkerRunIdRef.current += 1;
+      walkerTravelAnim.stopAnimation();
+      walkerOpacityAnim.stopAnimation();
+      walkerPortalScaleAnim.stopAnimation();
+      walkerOpacityAnim.setValue(1);
+      walkerPortalScaleAnim.setValue(1);
+      walkerRouteRef.current = [];
+      setWalkerTeleporting(false);
+      setWalkerFrame(null);
+    }
+  }, [interactionMode, walkerOpacityAnim, walkerPortalScaleAnim, walkerTravelAnim]);
+
+  useEffect(() => {
+    modeHintInteractionRef.current = markModeExpectedAction;
+  }, [markModeExpectedAction]);
+
+  useEffect(() => {
+    if (modeHintTimerRef.current) {
+      clearTimeout(modeHintTimerRef.current);
+      modeHintTimerRef.current = null;
+    }
+    setModeHint(null);
+
+    if (!isMapReady || modeHintRequestId === 0) return undefined;
+
+    const requestedMode = interactionMode;
+    modeHintTimerRef.current = setTimeout(() => {
+      modeHintTimerRef.current = null;
+      if (interactionModeRef.current === requestedMode) {
+        setModeHint(requestedMode);
+      }
+    }, MODE_HINT_DELAY_MS);
+
+    return () => {
+      if (modeHintTimerRef.current) {
+        clearTimeout(modeHintTimerRef.current);
+        modeHintTimerRef.current = null;
+      }
+    };
+  }, [interactionMode, isMapReady, modeHintRequestId]);
 
   useEffect(() => {
     if (selectedTileId && !selectedTile) {
@@ -437,6 +594,66 @@ export default function MapTilesScreen() {
   useEffect(() => {
     inventoryTilesRef.current = inventoryTiles;
   }, [inventoryTiles]);
+
+  useEffect(() => {
+    const listenerId = walkerTravelAnim.addListener(({ value }) => {
+      const frame = pointAlongPolyline(walkerRouteRef.current, value);
+      if (!frame) return;
+      setWalkerFrame({
+        point: frame.point,
+        angle: frame.angle,
+        walking: true,
+      });
+    });
+
+    return () => {
+      walkerTravelAnim.removeListener(listenerId);
+    };
+  }, [walkerTravelAnim]);
+
+  useEffect(() => {
+    if (!walkerFrame?.walking) {
+      walkerStepAnim.stopAnimation();
+      walkerStepAnim.setValue(0);
+      return undefined;
+    }
+
+    const stepLoop = Animated.loop(
+      Animated.timing(walkerStepAnim, {
+        toValue: 1,
+        duration: 520,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: true,
+      })
+    );
+    stepLoop.start();
+    return () => stepLoop.stop();
+  }, [walkerFrame?.walking, walkerStepAnim]);
+
+  useEffect(() => {
+    const currentFrame = walkerFrameRef.current;
+    if (!currentFrame || currentFrame.walking) return;
+    if (walkerRoadGraph.segments.length === 0) {
+      walkerRouteRef.current = [];
+      setWalkerFrame(null);
+      return;
+    }
+
+    const snap = findNearestRoadSnap(walkerRoadGraph, currentFrame.point, WALKER_SNAP_RADIUS * 1.5);
+    if (!snap) {
+      walkerRouteRef.current = [];
+      setWalkerFrame(null);
+      return;
+    }
+
+    if (
+      Math.abs(snap.point.x - currentFrame.point.x) > 0.5 ||
+      Math.abs(snap.point.y - currentFrame.point.y) > 0.5
+    ) {
+      walkerRouteRef.current = [snap.point];
+      setWalkerFrame({ ...currentFrame, point: snap.point, walking: false });
+    }
+  }, [walkerRoadGraph]);
 
   useEffect(() => {
     if (!tilesHydrated || !boardRect || !hasBoardLayout || viewportReady) return;
@@ -517,6 +734,10 @@ export default function MapTilesScreen() {
   useEffect(() => {
     measureRects();
   }, [inventoryCollapsed, measureRects]);
+
+  useEffect(() => {
+    writeInventoryCollapsedSession(inventoryCollapsed);
+  }, [inventoryCollapsed]);
 
   const showBoardError = useCallback((cell: BoardCell) => {
     setBoardError({ ...cell, nonce: Date.now() });
@@ -695,6 +916,270 @@ export default function MapTilesScreen() {
     },
     [boardRect, pan.x, pan.y, zoom]
   );
+
+  const stopWalkerAutomation = useCallback(() => {
+    walkerRunIdRef.current += 1;
+    walkerTravelAnim.stopAnimation();
+    walkerOpacityAnim.stopAnimation();
+    walkerPortalScaleAnim.stopAnimation();
+    walkerOpacityAnim.setValue(1);
+    walkerPortalScaleAnim.setValue(1);
+    setWalkerTeleporting(false);
+  }, [walkerOpacityAnim, walkerPortalScaleAnim, walkerTravelAnim]);
+
+  const handleStopWalker = useCallback(() => {
+    stopWalkerAutomation();
+    const currentFrame = walkerFrameRef.current;
+    if (!currentFrame) return;
+    walkerRouteRef.current = [currentFrame.point];
+    setWalkerFrame({
+      ...currentFrame,
+      walking: false,
+    });
+  }, [stopWalkerAutomation]);
+
+  const animateWalkerRoute = useCallback(
+    (
+      route: Array<{ x: number; y: number }>,
+      runId: number,
+      onComplete: () => void
+    ) => {
+      const routeLength = polylineLength(route);
+      const startFrame = pointAlongPolyline(route, 0);
+      if (!startFrame) return;
+      const routeFacing = getWalkerRouteFacing(route, walkerFacingRef.current);
+      walkerFacingRef.current = routeFacing;
+
+      walkerTravelAnim.stopAnimation();
+      walkerOpacityAnim.setValue(1);
+      walkerPortalScaleAnim.setValue(1);
+      setWalkerTeleporting(false);
+      setWalkerFacing(routeFacing);
+      walkerRouteRef.current = route;
+
+      if (routeLength < 1) {
+        setWalkerFrame({
+          point: startFrame.point,
+          angle: startFrame.angle,
+          walking: false,
+        });
+        onComplete();
+        return;
+      }
+
+      walkerTravelAnim.setValue(0);
+      setWalkerFrame({
+        point: startFrame.point,
+        angle: startFrame.angle,
+        walking: true,
+      });
+
+      Animated.timing(walkerTravelAnim, {
+        toValue: routeLength,
+        duration: clamp((routeLength / WALKER_SPEED) * 1000, 260, 15000),
+        easing: Easing.linear,
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        if (!finished || walkerRunIdRef.current !== runId) return;
+        const finalFrame = pointAlongPolyline(route, routeLength);
+        if (!finalFrame) return;
+        walkerRouteRef.current = [finalFrame.point];
+        setWalkerFrame({
+          point: finalFrame.point,
+          angle: finalFrame.angle,
+          walking: false,
+        });
+        onComplete();
+      });
+    },
+    [walkerOpacityAnim, walkerPortalScaleAnim, walkerTravelAnim]
+  );
+
+  const handlePortalTeleport = useCallback(
+    (portalNodeId: string, runId: number) => {
+      const graph = walkerGraphRef.current;
+      if (!graph || walkerRunIdRef.current !== runId) return;
+      setWalkerTeleporting(true);
+
+      Animated.parallel([
+        Animated.timing(walkerOpacityAnim, {
+          toValue: 0,
+          duration: 320,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(walkerPortalScaleAnim, {
+          toValue: 0.5,
+          duration: 320,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (!finished || walkerRunIdRef.current !== runId) return;
+
+        const exitPortal = findRandomPortalExit(graph, portalNodeId);
+        if (!exitPortal) {
+          const portalSnap = snapForRoadNode(graph, portalNodeId);
+          if (portalSnap) {
+            Animated.parallel([
+              Animated.timing(walkerOpacityAnim, {
+                toValue: 1,
+                duration: 320,
+                easing: Easing.in(Easing.quad),
+                useNativeDriver: true,
+              }),
+              Animated.timing(walkerPortalScaleAnim, {
+                toValue: 1,
+                duration: 320,
+                easing: Easing.in(Easing.quad),
+                useNativeDriver: true,
+              }),
+            ]).start(({ finished: fadeBackFinished }) => {
+              if (!fadeBackFinished || walkerRunIdRef.current !== runId) return;
+              setWalkerTeleporting(false);
+              runNextWalkerLegRef.current(portalSnap, runId);
+            });
+          }
+          return;
+        }
+
+        debugMapTiles('walker_portal_exit', {
+          fromNodeId: portalNodeId,
+          toNodeId: exitPortal.nodeId,
+        });
+
+        setWalkerFrame({
+          point: exitPortal.point,
+          angle: walkerFrameRef.current?.angle ?? 0,
+          walking: false,
+        });
+        walkerRouteRef.current = [exitPortal.point];
+
+        Animated.parallel([
+          Animated.timing(walkerOpacityAnim, {
+            toValue: 1,
+            duration: 320,
+            easing: Easing.in(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(walkerPortalScaleAnim, {
+            toValue: 1,
+            duration: 320,
+            easing: Easing.in(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]).start(({ finished: fadeInFinished }) => {
+          if (!fadeInFinished || walkerRunIdRef.current !== runId) return;
+          setWalkerTeleporting(false);
+          const exitSnap = snapForRoadNode(graph, exitPortal.nodeId);
+          if (exitSnap) {
+            runNextWalkerLegRef.current(exitSnap, runId);
+          }
+        });
+      });
+    },
+    [walkerOpacityAnim, walkerPortalScaleAnim]
+  );
+
+  const runNextWalkerLeg = useCallback(
+    (startSnap: WalkerRoadSnap, runId: number) => {
+      const graph = walkerGraphRef.current;
+      if (!graph || walkerRunIdRef.current !== runId) return;
+      const patrolRoute = findNextWalkerPatrolRoute(graph, startSnap);
+      if (!patrolRoute) {
+        setWalkerFrame((current) => (current ? { ...current, walking: false } : current));
+        return;
+      }
+      debugMapTiles('walker_leg', {
+        targetNodeId: patrolRoute.target.nodeId,
+        targetKind: patrolRoute.target.kind,
+        distance: Math.round(patrolRoute.target.distance),
+      });
+
+      animateWalkerRoute(patrolRoute.route, runId, () => {
+        if (walkerRunIdRef.current !== runId) return;
+        if (patrolRoute.target.kind === 'portal') {
+          handlePortalTeleport(patrolRoute.target.nodeId, runId);
+          return;
+        }
+
+        const nextSnap = snapForRoadNode(graph, patrolRoute.target.nodeId);
+        if (nextSnap) {
+          runNextWalkerLegRef.current(nextSnap, runId);
+        }
+      });
+    },
+    [animateWalkerRoute, handlePortalTeleport]
+  );
+
+  useEffect(() => {
+    runNextWalkerLegRef.current = runNextWalkerLeg;
+  }, [runNextWalkerLeg]);
+
+  const handleResumeWalker = useCallback(() => {
+    const currentFrame = walkerFrameRef.current;
+    const graph = walkerGraphRef.current;
+    if (!currentFrame || currentFrame.walking || walkerTeleporting || !graph) return;
+
+    const startSnap = findNearestRoadSnap(graph, currentFrame.point, WALKER_SNAP_RADIUS * 1.5);
+    if (!startSnap) {
+      toastService.info(t('map_tiles.walker_no_road'));
+      return;
+    }
+
+    if (!hasReachableWalkerPatrolTarget(graph, startSnap)) {
+      toastService.info(t('map_tiles.walker_no_path'));
+      return;
+    }
+
+    stopWalkerAutomation();
+    const runId = walkerRunIdRef.current;
+    walkerRouteRef.current = [startSnap.point];
+    setWalkerFrame({
+      point: startSnap.point,
+      angle: currentFrame.angle,
+      walking: false,
+    });
+    runNextWalkerLeg(startSnap, runId);
+  }, [runNextWalkerLeg, stopWalkerAutomation, t, walkerTeleporting]);
+
+  const handleWalkerBoardTap = useCallback(
+    (pageX: number, pageY: number) => {
+      const boardPoint = screenToBoardPoint(pageX, pageY);
+      if (!boardPoint || walkerRoadGraph.segments.length === 0) {
+        toastService.info(t('map_tiles.walker_no_road'));
+        return;
+      }
+
+      const startSnap = findNearestRoadSnap(walkerRoadGraph, boardPoint, WALKER_SNAP_RADIUS);
+      if (!startSnap) {
+        toastService.info(t('map_tiles.walker_no_road'));
+        return;
+      }
+
+      stopWalkerAutomation();
+      const runId = walkerRunIdRef.current;
+      walkerRouteRef.current = [startSnap.point];
+      setWalkerFrame({
+        point: startSnap.point,
+        angle: walkerFrameRef.current?.angle ?? 0,
+        walking: false,
+      });
+
+      if (!hasReachableWalkerPatrolTarget(walkerRoadGraph, startSnap)) {
+        toastService.info(t('map_tiles.walker_no_path'));
+        return;
+      }
+
+      modeHintInteractionRef.current('walk');
+      runNextWalkerLeg(startSnap, runId);
+    },
+    [runNextWalkerLeg, screenToBoardPoint, stopWalkerAutomation, t, walkerRoadGraph]
+  );
+
+  useEffect(() => {
+    handleWalkerBoardTapRef.current = handleWalkerBoardTap;
+  }, [handleWalkerBoardTap]);
 
   const findHoverBoardCell = useCallback(
     (state: DragState): BoardCell | null => {
@@ -887,6 +1372,7 @@ export default function MapTilesScreen() {
       setHoverCell(null);
       setHoverInventory(null);
       setDrag(nextDrag);
+      modeHintInteractionRef.current('select');
       return nextDrag;
     },
     [boardRect, inventoryRect, measureRects, returnAnim]
@@ -1131,9 +1617,15 @@ export default function MapTilesScreen() {
   const boardPanResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => interactionModeRef.current === 'pan',
-        onMoveShouldSetPanResponder: () => interactionModeRef.current === 'pan',
+        onStartShouldSetPanResponder: () =>
+          interactionModeRef.current === 'pan' || interactionModeRef.current === 'walk',
+        onMoveShouldSetPanResponder: () =>
+          interactionModeRef.current === 'pan' || interactionModeRef.current === 'walk',
         onPanResponderGrant: (event) => {
+          if (interactionModeRef.current === 'walk') {
+            walkerTapStartRef.current = readResponderPoint(event.nativeEvent as any);
+            return;
+          }
           if (interactionModeRef.current !== 'pan') return;
           setSelectedTileId(null);
           setIsMapPanning(true);
@@ -1145,25 +1637,42 @@ export default function MapTilesScreen() {
           };
         },
         onPanResponderMove: (event, gestureState) => {
+          if (interactionModeRef.current === 'walk') return;
           if (interactionModeRef.current !== 'pan') return;
           const touches = event.nativeEvent.touches as any;
           if (touches.length >= 2) {
             const distance = distanceBetweenTouches(touches);
             const initialDistance = panGestureRef.current.touchDistance || distance;
             if (initialDistance > 0) {
+              modeHintInteractionRef.current('pan');
               setZoom(clamp(panGestureRef.current.zoom * (distance / initialDistance), MIN_ZOOM, MAX_ZOOM));
             }
             return;
           }
+          modeHintInteractionRef.current('pan');
           setPan({
             x: panGestureRef.current.panX + gestureState.dx,
             y: panGestureRef.current.panY + gestureState.dy,
           });
         },
-        onPanResponderRelease: () => {
+        onPanResponderRelease: (event, gestureState) => {
+          if (interactionModeRef.current === 'walk') {
+            const startPoint = walkerTapStartRef.current;
+            walkerTapStartRef.current = null;
+            const releasePoint = readResponderPoint(event.nativeEvent as any, startPoint ?? {});
+            if (
+              releasePoint &&
+              Math.abs(gestureState.dx) <= TILE_DRAG_START_THRESHOLD &&
+              Math.abs(gestureState.dy) <= TILE_DRAG_START_THRESHOLD
+            ) {
+              handleWalkerBoardTapRef.current(releasePoint.pageX, releasePoint.pageY);
+            }
+            return;
+          }
           setIsMapPanning(false);
         },
         onPanResponderTerminate: () => {
+          walkerTapStartRef.current = null;
           setIsMapPanning(false);
         },
       }),
@@ -1200,6 +1709,9 @@ export default function MapTilesScreen() {
       if (Math.abs(nextZoom - currentZoom) < 0.001) return;
 
       if (!boardRect) {
+        if (interactionModeRef.current === 'pan') {
+          modeHintInteractionRef.current('pan');
+        }
         zoomRef.current = nextZoom;
         setZoom(nextZoom);
         return;
@@ -1221,6 +1733,9 @@ export default function MapTilesScreen() {
 
       panRef.current = nextPan;
       zoomRef.current = nextZoom;
+      if (interactionModeRef.current === 'pan') {
+        modeHintInteractionRef.current('pan');
+      }
       setPan(nextPan);
       setZoom(nextZoom);
     },
@@ -1397,6 +1912,28 @@ export default function MapTilesScreen() {
           right: theme.spacing[3],
           bottom: tileDetailsBottom,
         };
+  const walkerSize = walkerFrame ? clamp(34 * zoom, 24, 54) : 0;
+  const walkerScreenPoint =
+    walkerFrame && boardRect
+      ? {
+          left: boardRect.width / 2 + pan.x + walkerFrame.point.x * zoom - walkerSize / 2,
+          top: boardRect.height / 2 + pan.y + walkerFrame.point.y * zoom - walkerSize / 2,
+        }
+      : null;
+  const walkerBob = walkerStepAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, -5, 0],
+  });
+  const walkerPulse = walkerStepAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [1, 1.08, 1],
+  });
+  const walkerScale = walkerFrame?.walking
+    ? Animated.multiply(walkerPulse, walkerPortalScaleAnim)
+    : walkerPortalScaleAnim;
+  const isWalkerActive = !!walkerFrame && (walkerFrame.walking || walkerTeleporting);
+  const walkerVisualAngle = walkerFrame ? getWalkerVisualAngle(walkerFrame.angle, walkerFacing) : 0;
+  const modeHintText = modeHint && !mapRulesVisible ? t(`map_tiles.mode_hint_${modeHint}`) : null;
 
   return (
     <View ref={rootRef} testID="map-tiles-screen" style={styles.root} onLayout={measureRects}>
@@ -1409,7 +1946,14 @@ export default function MapTilesScreen() {
           !isMapReady && styles.mapSurfaceHidden,
           Platform.OS === 'web'
             ? ({
-                cursor: interactionMode === 'pan' ? (isMapPanning ? 'grabbing' : 'grab') : 'default',
+                cursor:
+                  interactionMode === 'pan'
+                    ? isMapPanning
+                      ? 'grabbing'
+                      : 'grab'
+                    : interactionMode === 'walk'
+                      ? 'crosshair'
+                      : 'default',
                 overscrollBehavior: 'none',
                 overscrollBehaviorX: 'none',
                 overscrollBehaviorY: 'none',
@@ -1476,7 +2020,7 @@ export default function MapTilesScreen() {
             <View
               key={tile.id}
               testID={`map-board-tile-${tile.id}`}
-              pointerEvents={interactionMode === 'pan' ? 'none' : 'auto'}
+              pointerEvents={interactionMode === 'select' ? 'auto' : 'none'}
               style={[
                 styles.boardTile,
                 isSelected && styles.selectedTile,
@@ -1494,6 +2038,49 @@ export default function MapTilesScreen() {
             </View>
           );
         })}
+
+        {isMapReady && walkerFrame && walkerScreenPoint && (
+          <View
+            testID="map-walker"
+            pointerEvents="none"
+            style={[
+              styles.walkerLayer,
+              {
+                left: walkerScreenPoint.left,
+                top: walkerScreenPoint.top,
+                width: walkerSize,
+                height: walkerSize,
+              },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.walkerToken,
+                {
+                  width: walkerSize,
+                  height: walkerSize,
+                  borderRadius: walkerSize / 2,
+                  opacity: walkerOpacityAnim,
+                  transform: [
+                    { translateY: walkerBob },
+                    { rotate: `${walkerVisualAngle}rad` },
+                    { scale: walkerScale },
+                    { scaleX: walkerFacing },
+                  ],
+                },
+              ]}
+            >
+              <Ionicons name="walk" size={Math.max(17, walkerSize * 0.62)} color="#4B2F1B" />
+            </Animated.View>
+          </View>
+        )}
+
+        {isMapReady && modeHintText && (
+          <View testID="map-mode-hint" pointerEvents="none" style={styles.modeHintNotification}>
+            <Ionicons name="information-circle-outline" size={18} color={theme.colors.text.primary} />
+            <Text style={styles.modeHintText}>{modeHintText}</Text>
+          </View>
+        )}
       </View>
 
       <View
@@ -1770,12 +2357,29 @@ export default function MapTilesScreen() {
           </View>
           <View style={styles.modeControls} testID="map-mode-controls">
             <TouchableOpacity
+              testID="map-rules-toggle"
+              accessibilityRole="button"
+              accessibilityLabel={t('map_tiles.rules_button')}
+              accessibilityState={{ selected: mapRulesVisible }}
+              style={[styles.modeButton, mapRulesVisible && styles.modeButtonActive]}
+              onPress={() => {
+                setModeHint(null);
+                setMapRulesVisible((visible) => !visible);
+              }}
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={20}
+                color={mapRulesVisible ? theme.colors.white : theme.colors.text.secondary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
               testID="map-mode-pan"
               accessibilityRole="button"
               accessibilityLabel={t('map_tiles.mode_pan')}
               accessibilityState={{ selected: interactionMode === 'pan' }}
               style={[styles.modeButton, interactionMode === 'pan' && styles.modeButtonActive]}
-              onPress={() => setInteractionMode('pan')}
+              onPress={() => handleInteractionModePress('pan')}
             >
               <Ionicons
                 name="move-outline"
@@ -1789,7 +2393,7 @@ export default function MapTilesScreen() {
               accessibilityLabel={t('map_tiles.mode_select')}
               accessibilityState={{ selected: interactionMode === 'select' }}
               style={[styles.modeButton, interactionMode === 'select' && styles.modeButtonActive]}
-              onPress={() => setInteractionMode('select')}
+              onPress={() => handleInteractionModePress('select')}
             >
               <Ionicons
                 name="navigate-outline"
@@ -1797,6 +2401,68 @@ export default function MapTilesScreen() {
                 color={interactionMode === 'select' ? theme.colors.white : theme.colors.text.secondary}
               />
             </TouchableOpacity>
+            <TouchableOpacity
+              testID="map-mode-walk"
+              accessibilityRole="button"
+              accessibilityLabel={t('map_tiles.mode_walk')}
+              accessibilityState={{ selected: interactionMode === 'walk' }}
+              style={[styles.modeButton, interactionMode === 'walk' && styles.modeButtonActive]}
+              onPress={() => handleInteractionModePress('walk')}
+            >
+              <Ionicons
+                name="walk-outline"
+                size={19}
+                color={interactionMode === 'walk' ? theme.colors.white : theme.colors.text.secondary}
+              />
+            </TouchableOpacity>
+            {walkerFrame && (
+              <TouchableOpacity
+                testID={isWalkerActive ? 'map-walker-stop' : 'map-walker-play'}
+                accessibilityRole="button"
+                accessibilityLabel={t(isWalkerActive ? 'map_tiles.walker_stop' : 'map_tiles.walker_play')}
+                style={styles.modeButton}
+                onPress={isWalkerActive ? handleStopWalker : handleResumeWalker}
+              >
+                <Ionicons
+                  name={isWalkerActive ? 'stop-circle-outline' : 'play-circle-outline'}
+                  size={20}
+                  color={theme.colors.text.secondary}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
+
+      {isMapReady && mapRulesVisible && (
+        <View testID="map-rules-panel" style={styles.mapRulesPanel}>
+          <View style={styles.mapRulesHeader}>
+            <Text style={styles.mapRulesTitle}>{t('map_tiles.rules_title')}</Text>
+            <TouchableOpacity
+              testID="map-rules-close"
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close')}
+              style={styles.mapRulesClose}
+              onPress={() => setMapRulesVisible(false)}
+            >
+              <Ionicons name="close-outline" size={20} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.mapRuleLine}>
+            <Ionicons name="trail-sign-outline" size={18} color={theme.colors.text.secondary} />
+            <Text style={styles.mapRuleText}>{t('map_tiles.rules_roads')}</Text>
+          </View>
+          <View style={styles.mapRuleLine}>
+            <Ionicons name="water-outline" size={18} color={theme.colors.text.secondary} />
+            <Text style={styles.mapRuleText}>{t('map_tiles.rules_water')}</Text>
+          </View>
+          <View style={styles.mapRuleLine}>
+            <Ionicons name="alert-circle-outline" size={18} color={theme.colors.text.secondary} />
+            <Text style={styles.mapRuleText}>{t('map_tiles.rules_mismatch')}</Text>
+          </View>
+          <View style={styles.mapRuleLine}>
+            <Ionicons name="search-outline" size={18} color={theme.colors.text.secondary} />
+            <Text style={styles.mapRuleText}>{t('map_tiles.rules_zoom')}</Text>
           </View>
         </View>
       )}
@@ -1893,6 +2559,105 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: theme.colors.status.error,
     backgroundColor: 'rgba(220, 38, 38, 0.12)',
+  },
+  modeHintNotification: {
+    position: 'absolute',
+    top: theme.spacing[4],
+    left: theme.spacing[4],
+    zIndex: 23,
+    maxWidth: 340,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(15, 23, 42, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    shadowColor: theme.colors.black,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  modeHintText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 18,
+    color: theme.colors.text.primary,
+  },
+  mapRulesPanel: {
+    position: 'absolute',
+    top: theme.spacing[4],
+    left: theme.spacing[4],
+    right: theme.spacing[4],
+    zIndex: 25,
+    maxWidth: 420,
+    padding: theme.spacing[3],
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(15, 23, 42, 0.14)',
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    shadowColor: theme.colors.black,
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  mapRulesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing[2],
+    marginBottom: theme.spacing[2],
+  },
+  mapRulesTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  mapRulesClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.secondary,
+  },
+  mapRuleLine: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing[2],
+    paddingVertical: 5,
+  },
+  mapRuleText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: 19,
+    color: theme.colors.text.secondary,
+  },
+  walkerLayer: {
+    position: 'absolute',
+    zIndex: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  walkerToken: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFE4A8',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: theme.colors.black,
+    shadowOpacity: 0.24,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 9,
   },
   inventory: {
     height: INVENTORY_HEIGHT,

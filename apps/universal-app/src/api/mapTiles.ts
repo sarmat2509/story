@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { MapTileLayer, MapTileRouteGroup } from '@wondertales/shared';
 import apiClient from './client';
 
 export type MapTileConnector = 'PATH' | 'WATER' | 'PORTAL' | 'SHORE';
@@ -17,6 +18,9 @@ export interface CollectedMapTileApi {
   mimeType: string;
   maskId: string;
   connectors: Partial<Record<MapTileSide, MapTileConnector>>;
+  features: string[];
+  layers: MapTileLayer[];
+  routeGroups: MapTileRouteGroup[];
   location: 'board' | 'inventory';
   boardX: number | null;
   boardY: number | null;
@@ -40,6 +44,9 @@ export interface GeneratedStoryMapTileApi {
   mimeType: string;
   maskId: string;
   connectors: Partial<Record<MapTileSide, MapTileConnector>>;
+  features: string[];
+  layers: MapTileLayer[];
+  routeGroups: MapTileRouteGroup[];
   createdAt: string;
 }
 

@@ -81,6 +81,9 @@ function isMapTileGenerationParams(params: unknown): boolean {
 function readMapTileAssetGeometry(asset: Asset): {
   maskId: string;
   connectors: Record<string, string>;
+  features: string[];
+  layers: unknown[];
+  routeGroups: unknown[];
 } {
   const params = asset.generationParams as Record<string, unknown> | null;
   const maskId = typeof params?.maskId === 'string' ? params.maskId : 'path-we';
@@ -88,6 +91,22 @@ function readMapTileAssetGeometry(asset: Asset): {
   return {
     maskId,
     connectors: { ...(mask?.connectors ?? {}) },
+    features: [...(mask?.features ?? [])],
+    layers: [...(mask?.layers ?? [])],
+    routeGroups: [...(mask?.routeGroups ?? [])],
+  };
+}
+
+function readMapTileMaskGeometry(maskId: string): {
+  features: string[];
+  layers: unknown[];
+  routeGroups: unknown[];
+} {
+  const mask = MAP_TILE_MASK_VARIANTS.find((item) => item.id === maskId);
+  return {
+    features: [...(mask?.features ?? [])],
+    layers: [...(mask?.layers ?? [])],
+    routeGroups: [...(mask?.routeGroups ?? [])],
   };
 }
 
@@ -127,12 +146,16 @@ function mapGeneratedAsset(asset: Asset | null) {
     mimeType: asset.mimeType,
     maskId: geometry.maskId,
     connectors: geometry.connectors,
+    features: geometry.features,
+    layers: geometry.layers,
+    routeGroups: geometry.routeGroups,
     createdAt: asset.createdAt,
   };
 }
 
 function mapCollectedTile(details: CollectedMapTileDetails, storyCover?: StoryCoverImage | null) {
   const { collection, asset, story } = details;
+  const geometry = readMapTileMaskGeometry(collection.maskId);
   return {
     id: collection.id,
     userId: collection.userId,
@@ -146,6 +169,9 @@ function mapCollectedTile(details: CollectedMapTileDetails, storyCover?: StoryCo
     mimeType: asset.mimeType,
     maskId: collection.maskId,
     connectors: collection.connectors ?? {},
+    features: geometry.features,
+    layers: geometry.layers,
+    routeGroups: geometry.routeGroups,
     location: collection.location,
     boardX: collection.boardX,
     boardY: collection.boardY,
