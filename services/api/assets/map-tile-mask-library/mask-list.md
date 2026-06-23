@@ -1,6 +1,6 @@
 # Map Tile Mask List
 
-Total masks: 122
+Total masks: 142
 
 - path-we — path
 - path-ws — path
@@ -124,3 +124,23 @@ Total masks: 122
 - coverage-path-river-pond-sea-bridge-2 — path+river+pond+sea+bridge
 - coverage-path-river-pond-sea-bridge-portal-1 — path+river+pond+sea+bridge+portal
 - coverage-path-river-pond-sea-bridge-portal-2 — path+river+pond+sea+bridge+portal
+- path-ne-mirror-ew — path
+- path-ne-river-ws-mirror-ew — path+river
+- path-w-portal-nw-and-path-ne-mirror-ew — path+portal
+- path-s-portal-sw-and-path-ne-mirror-ew — path+portal
+- path-ne-pond-sw-mirror-ew — path+pond
+- shore-w-path-ne-mirror-ew — path+sea
+- coverage-path-pond-sea-portal-2-mirror-ew — path+pond+sea+portal
+- coverage-path-river-waterfall-2-mirror-ew — path+river+waterfall
+- coverage-path-river-waterfall-portal-2-mirror-ew — path+river+waterfall+portal
+- coverage-path-river-waterfall-sea-2-mirror-ew — path+river+waterfall+sea
+- coverage-path-river-waterfall-sea-portal-2-mirror-ew — path+river+waterfall+sea+portal
+- coverage-path-river-waterfall-pond-2-mirror-ew — path+river+waterfall+pond
+- coverage-path-river-waterfall-pond-portal-2-mirror-ew — path+river+waterfall+pond+portal
+- coverage-path-river-waterfall-pond-sea-2-mirror-ew — path+river+waterfall+pond+sea
+- coverage-path-river-waterfall-pond-sea-portal-2-mirror-ew — path+river+waterfall+pond+sea+portal
+- coverage-path-river-sea-2-mirror-ew — path+river+sea
+- coverage-path-river-sea-portal-2-mirror-ew — path+river+sea+portal
+- coverage-path-river-pond-2-mirror-ew — path+river+pond
+- coverage-path-river-pond-sea-2-mirror-ew — path+river+pond+sea
+- coverage-path-river-pond-sea-portal-2-mirror-ew — path+river+pond+sea+portal

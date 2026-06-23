@@ -1341,13 +1341,161 @@ function buildCoverageMaskVariantDefs(
   return coverageDefs;
 }
 
+function mirrorHorizontalSide(side: MapTileSide): MapTileSide {
+  if (side === 'E') return 'W';
+  if (side === 'W') return 'E';
+  return side;
+}
+
+function mirrorHorizontalEndpoint(endpoint: MapTileRouteGroupEndpoint): MapTileRouteGroupEndpoint {
+  if (endpoint === 'E' || endpoint === 'W') {
+    return mirrorHorizontalSide(endpoint);
+  }
+  return endpoint;
+}
+
+function mirrorHorizontalPosition(position: MapTilePosition | undefined): MapTilePosition | undefined {
+  switch (position) {
+    case 'east':
+      return 'west';
+    case 'west':
+      return 'east';
+    case 'northeast':
+      return 'northwest';
+    case 'northwest':
+      return 'northeast';
+    case 'southeast':
+      return 'southwest';
+    case 'southwest':
+      return 'southeast';
+    default:
+      return position;
+  }
+}
+
+function mirrorHorizontalLayer(layer: MapTileLayer): MapTileLayer {
+  if (layer.kind === 'path' || layer.kind === 'river') {
+    return {
+      ...layer,
+      sides: layer.sides.map(mirrorHorizontalSide),
+      position: mirrorHorizontalPosition(layer.position),
+    };
+  }
+
+  return {
+    ...layer,
+    position: mirrorHorizontalPosition(layer.position),
+  };
+}
+
+function mirrorHorizontalConnectors(
+  connectors: MapTileMaskVariantDef['connectors']
+): MapTileMaskVariantDef['connectors'] {
+  const mirrored: MapTileMaskVariantDef['connectors'] = {};
+  const sides: MapTileSide[] = ['N', 'E', 'S', 'W'];
+
+  for (const side of sides) {
+    const value = connectors[side];
+    if (value) {
+      mirrored[mirrorHorizontalSide(side)] = value;
+    }
+  }
+
+  return mirrored;
+}
+
+function variantHasNorthEastPathLayer(variant: Pick<MapTileMaskVariantDef, 'layers'>): boolean {
+  return variant.layers.some((layer) => {
+    if (layer.kind !== 'path' || layer.sides.length !== 2) return false;
+    const sides = new Set(layer.sides);
+    return sides.has('N') && sides.has('E');
+  });
+}
+
+function canonicalLayerForSignature(layer: MapTileLayer): unknown {
+  if (layer.kind === 'path' || layer.kind === 'river') {
+    return {
+      kind: layer.kind,
+      sides: layer.sides,
+      curve: layer.curve,
+      position: layer.position,
+    };
+  }
+
+  return {
+    kind: layer.kind,
+    position: layer.position,
+  };
+}
+
+function variantStructureSignature(variant: MapTileMaskVariantDef): string {
+  const sides: MapTileSide[] = ['N', 'E', 'S', 'W'];
+  return JSON.stringify({
+    features: canonicalFeatureTokens(variant.features),
+    connectors: Object.fromEntries(
+      sides.flatMap((side) => {
+        const value = variant.connectors[side];
+        return value ? [[side, value]] : [];
+      })
+    ),
+    layers: variant.layers.map(canonicalLayerForSignature),
+  });
+}
+
+function makeHorizontalNorthEastMirrorVariant(def: MapTileMaskVariantDef): MapTileMaskVariantDef {
+  return {
+    id: `${def.id}-mirror-ew`,
+    label: `${def.label} horizontal mirror`,
+    description: `Horizontal mirror of "${def.label}"; east and west sides are swapped so a north-east road becomes a north-west road.`,
+    connectors: mirrorHorizontalConnectors(def.connectors),
+    topology: `${def.topology} Horizontal mirror: east and west are swapped.`,
+    features: [...def.features],
+    layers: def.layers.map(mirrorHorizontalLayer),
+    routeGroups: def.routeGroups?.map((group) => ({
+      ...group,
+      endpoints: group.endpoints.map(mirrorHorizontalEndpoint),
+      portalPosition: mirrorHorizontalPosition(group.portalPosition),
+    })),
+  };
+}
+
+function buildHorizontalNorthEastMirrorVariantDefs(
+  baseDefs: readonly MapTileMaskVariantDef[]
+): MapTileMaskVariantDef[] {
+  const usedIds = new Set(baseDefs.map((def) => def.id));
+  const usedStructures = new Set(baseDefs.map(variantStructureSignature));
+  const mirroredDefs: MapTileMaskVariantDef[] = [];
+
+  for (const def of baseDefs) {
+    if (!variantHasNorthEastPathLayer(def)) continue;
+
+    const mirrored = makeHorizontalNorthEastMirrorVariant(def);
+    const signature = variantStructureSignature(mirrored);
+    if (usedIds.has(mirrored.id) || usedStructures.has(signature)) continue;
+
+    usedIds.add(mirrored.id);
+    usedStructures.add(signature);
+    mirroredDefs.push(mirrored);
+  }
+
+  return mirroredDefs;
+}
+
 const COVERAGE_MAP_TILE_MASK_VARIANT_DEFS = buildCoverageMaskVariantDefs(
   HANDMADE_MAP_TILE_MASK_VARIANT_DEFS
 );
 
-const MAP_TILE_MASK_VARIANT_DEFS: MapTileMaskVariantDef[] = [
+const BASE_MAP_TILE_MASK_VARIANT_DEFS: MapTileMaskVariantDef[] = [
   ...HANDMADE_MAP_TILE_MASK_VARIANT_DEFS,
   ...COVERAGE_MAP_TILE_MASK_VARIANT_DEFS,
+];
+
+const HORIZONTAL_NORTH_EAST_MIRROR_MAP_TILE_MASK_VARIANT_DEFS =
+  buildHorizontalNorthEastMirrorVariantDefs(BASE_MAP_TILE_MASK_VARIANT_DEFS);
+
+const MAP_TILE_MASK_VARIANT_DEFS: MapTileMaskVariantDef[] = [
+  ...BASE_MAP_TILE_MASK_VARIANT_DEFS,
+  ...HORIZONTAL_NORTH_EAST_MIRROR_MAP_TILE_MASK_VARIANT_DEFS,
 ];
 
 export const MAP_TILE_MASK_VARIANTS: MapTileMaskVariant[] = MAP_TILE_MASK_VARIANT_DEFS.map(

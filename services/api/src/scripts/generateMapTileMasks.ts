@@ -345,6 +345,24 @@ function routePath(layer: Extract<MapTileLayer, { kind: 'path' | 'river' }>, var
     ].join(' ');
   }
 
+  if (key === 'NW') {
+    return [
+      startChunk,
+      `C ${fmt(CENTER + (wavy ? 52 : 20))} ${fmt(320)} ${fmt(CENTER - 96)} ${fmt(430)} ${fmt(482)} ${fmt(514)}`,
+      `C ${fmt(335)} ${fmt(590)} ${fmt(245)} ${fmt(CENTER)} ${fmt(endThroat.x)} ${fmt(endThroat.y)}`,
+      endChunk,
+    ].join(' ');
+  }
+
+  if (key === 'WN') {
+    return [
+      startChunk,
+      `C ${fmt(245)} ${fmt(CENTER)} ${fmt(335)} ${fmt(590)} ${fmt(482)} ${fmt(514)}`,
+      `C ${fmt(CENTER - 96)} ${fmt(430)} ${fmt(CENTER + (wavy ? 52 : 20))} ${fmt(320)} ${fmt(endThroat.x)} ${fmt(endThroat.y)}`,
+      endChunk,
+    ].join(' ');
+  }
+
   throw new Error(`Unsupported route pair ${key} in ${variant.id}`);
 }
 
@@ -639,6 +657,14 @@ function bridgeRoutePath(
       `M ${fmt(CENTER)} ${fmt(245)}`,
       `C ${fmt(CENTER + 10)} ${fmt(385)} ${fmt(760)} ${fmt(505)} ${fmt(845)} ${fmt(560)}`,
       `C ${fmt(940)} ${fmt(615)} ${fmt(1015)} ${fmt(CENTER)} ${fmt(1010)} ${fmt(CENTER)}`,
+    ].join(' ');
+  }
+
+  if (key === 'NW' || key === 'WN') {
+    return [
+      `M ${fmt(CENTER)} ${fmt(245)}`,
+      `C ${fmt(CENTER - 10)} ${fmt(385)} ${fmt(494)} ${fmt(505)} ${fmt(409)} ${fmt(560)}`,
+      `C ${fmt(314)} ${fmt(615)} ${fmt(239)} ${fmt(CENTER)} ${fmt(244)} ${fmt(CENTER)}`,
     ].join(' ');
   }
 

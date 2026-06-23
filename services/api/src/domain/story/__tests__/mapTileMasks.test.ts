@@ -41,6 +41,31 @@ function testMaskCatalogHasStableGeometry() {
   }
 }
 
+function testMaskCatalogHasNoDuplicateVariants() {
+  const ids = new Set<string>();
+  const structures = new Map<string, string>();
+
+  for (const variant of MAP_TILE_MASK_VARIANTS) {
+    assert.ok(!ids.has(variant.id), `Duplicate mask id: ${variant.id}`);
+    ids.add(variant.id);
+
+    const structure = JSON.stringify({
+      features: variant.features,
+      connectors: variant.connectors,
+      layers: variant.layers,
+    });
+    const existingId = structures.get(structure);
+    assert.equal(
+      existingId,
+      undefined,
+      existingId
+        ? `Duplicate mask structure: ${variant.id} duplicates ${existingId}`
+        : `Duplicate mask structure: ${variant.id}`
+    );
+    structures.set(structure, variant.id);
+  }
+}
+
 function testIndependentRouteGroupsAreExplicit() {
   const variant = MAP_TILE_MASK_VARIANTS.find(
     (item) => item.id === 'path-w-portal-nw-and-path-ne'
@@ -266,7 +291,7 @@ function testRandomDirectionSelection() {
       requiredFeatures: ['portal'],
       random: () => 0.55,
     }).id,
-    'path-w-portal-nw-and-path-ne'
+    'path-n-portal-nw-and-path-es'
   );
 
   assert.equal(
@@ -274,7 +299,7 @@ function testRandomDirectionSelection() {
       requiredFeatures: ['portal'],
       random: () => 0.99,
     }).id,
-    'path-s-portal-sw-and-path-ne'
+    'path-s-portal-sw-and-path-ne-mirror-ew'
   );
 
   assert.equal(
@@ -298,7 +323,7 @@ function testRandomDirectionSelection() {
       requiredFeatures: ['river'],
       random: () => 0.8,
     }).id,
-    'path-ne-river-ws'
+    'path-ne-river-ws-mirror-ew'
   );
 
   assert.equal(
@@ -314,7 +339,29 @@ function testRandomDirectionSelection() {
       requiredFeatures: [],
       random: () => 0.9,
     }).id,
-    'path-nsw-junction'
+    'path-ne-mirror-ew'
+  );
+}
+
+function testHorizontalMirrorsIncreaseNorthWestRoadMasks() {
+  const hasSides = (sides: readonly string[], a: string, b: string) =>
+    sides.includes(a) && sides.includes(b);
+  const explicitNorthWestRoadMasks = MAP_TILE_MASK_VARIANTS.filter((variant) =>
+    variant.layers.some((layer) => layer.kind === 'path' && hasSides(layer.sides, 'N', 'W'))
+  );
+  const explicitNorthEastRoadMasks = MAP_TILE_MASK_VARIANTS.filter((variant) =>
+    variant.layers.some((layer) => layer.kind === 'path' && hasSides(layer.sides, 'N', 'E'))
+  );
+
+  assert.equal(explicitNorthWestRoadMasks.length, explicitNorthEastRoadMasks.length);
+  assert.ok(
+    explicitNorthWestRoadMasks.some((variant) => variant.id === 'path-ne-mirror-ew'),
+    'Expected a horizontal mirror for the simple north-east path'
+  );
+  assert.ok(
+    explicitNorthWestRoadMasks.every((variant) =>
+      variant.layers.some((layer) => layer.kind === 'path' && hasSides(layer.sides, 'N', 'W'))
+    )
   );
 }
 
@@ -627,10 +674,12 @@ function testNonBridgeMasksDoNotHaveCanonicalRoadWaterCrossings() {
 }
 
 testMaskCatalogHasStableGeometry();
+testMaskCatalogHasNoDuplicateVariants();
 testIndependentRouteGroupsAreExplicit();
 testFeatureNormalization();
 testMaskSelection();
 testRandomDirectionSelection();
+testHorizontalMirrorsIncreaseNorthWestRoadMasks();
 testPathJunctionMasksCoverAllTOrientations();
 testPathJunctionMasksCoverStaticWaterLandmarks();
 testPondBridgeCatalogKeepsStraightAndTJunctionRoads();

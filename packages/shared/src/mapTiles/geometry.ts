@@ -319,6 +319,24 @@ function pathLayerCommands(
     ];
   }
 
+  if (key === 'NW') {
+    return [
+      ...commandsStart,
+      cubicTo(CENTER + (isWavy ? 52 : 20), 320, CENTER - 96, 430, 482, 514),
+      cubicTo(335, 590, 245, CENTER, endThroat.x, endThroat.y),
+      ...commandsEnd,
+    ];
+  }
+
+  if (key === 'WN') {
+    return [
+      ...commandsStart,
+      cubicTo(245, CENTER, 335, 590, 482, 514),
+      cubicTo(CENTER - 96, 430, CENTER + (isWavy ? 52 : 20), 320, endThroat.x, endThroat.y),
+      ...commandsEnd,
+    ];
+  }
+
   return [];
 }
 
