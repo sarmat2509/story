@@ -127,7 +127,7 @@ function CollapsibleDrawerItem({
           >
             {typeof label === 'string' ? (
               <Text
-                numberOfLines={1}
+                numberOfLines={2}
                 allowFontScaling={drawerAllowFontScaling}
                 style={[styles.labelText, { color }, drawerLabelStyle]}
               >
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
     marginStart: 0,
   },
   labelText: {
-    lineHeight: 24,
+    lineHeight: 18,
     textAlignVertical: 'center',
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.medium,
