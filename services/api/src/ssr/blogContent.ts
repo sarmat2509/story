@@ -140,6 +140,43 @@ function localizeParagraphs(value: MaybeLocalizedParagraphs, locale: PublicSeoLo
   return Array.isArray(localized) ? localized : [localized];
 }
 
+function l10n(
+  uk: string,
+  en: string,
+  ru: string,
+  es: string,
+  de: string,
+  fr: string,
+  pl: string
+): LocalizedString {
+  return { uk, en, ru, es, de, fr, pl };
+}
+
+function articleInlineImages(
+  slug: string,
+  scene2Alt: LocalizedString,
+  scene2Caption: LocalizedString,
+  scene3Alt: LocalizedString,
+  scene3Caption: LocalizedString
+): NonNullable<BlogArticleDefinition['inlineImages']> {
+  return [
+    {
+      src: `/landing/blog/${slug}-scene-02.webp`,
+      sectionIndex: 2,
+      afterParagraphIndex: 0,
+      alt: scene2Alt,
+      caption: scene2Caption,
+    },
+    {
+      src: `/landing/blog/${slug}-scene-03.webp`,
+      sectionIndex: 3,
+      afterParagraphIndex: 0,
+      alt: scene3Alt,
+      caption: scene3Caption,
+    },
+  ];
+}
+
 const UI_COPY: Record<PublicSeoLocale, {
   readingTime: string;
   checklistTitle: string;
@@ -663,7 +700,7 @@ const ARTICLES: BlogArticleDefinition[] = [
   },
   {
     slug: 'personalized-childrens-stories',
-    heroImage: '/landing/optimized/personal-keepsake-960.webp',
+    heroImage: '/landing/blog/personalized-childrens-stories-scene-01.webp',
     updatedAt: '2026-06-17',
     category: {
       uk: 'Персоналізація',
@@ -815,6 +852,45 @@ const ARTICLES: BlogArticleDefinition[] = [
     ],
     visualDirection: 'A keepsake book opening into a child’s room with tiny recognizable family details hidden in the illustration.',
     relatedSlugs: ['child-created-characters', 'story-morals-without-lecturing'],
+    inlineImages: articleInlineImages(
+      'personalized-childrens-stories',
+      l10n(
+        'Дитина обирає іграшкову ракету поруч із планшетом, щоб задати одну деталь історії',
+        'A child chooses a toy rocket beside a tablet to anchor one story detail',
+        'Ребенок выбирает игрушечную ракету рядом с планшетом как одну деталь истории',
+        'Un niño elige un cohete de juguete junto a una tableta como detalle de la historia',
+        'Ein Kind wählt neben einem Tablet eine Spielzeugrakete als Detail der Geschichte',
+        'Un enfant choisit une fusée jouet près d’une tablette comme détail de l’histoire',
+        'Dziecko wybiera zabawkową rakietę obok tabletu jako szczegół historii'
+      ),
+      l10n(
+        'Одна впізнавана деталь допомагає персоналізації працювати на сюжет, а не шуміти.',
+        'One recognizable detail helps personalization serve the plot instead of making noise.',
+        'Одна узнаваемая деталь помогает персонализации работать на сюжет, а не шуметь.',
+        'Un detalle reconocible ayuda a que la personalización sirva a la trama, no al ruido.',
+        'Ein erkennbares Detail hilft der Personalisierung, der Handlung zu dienen statt zu stören.',
+        'Un détail reconnaissable aide la personnalisation à servir le récit sans le brouiller.',
+        'Jeden rozpoznawalny szczegół pomaga personalizacji wspierać fabułę, a nie robić szum.'
+      ),
+      l10n(
+        'Знайомий плюшевий дракон продовжує пригоду біля планшета у подушковому будиночку',
+        'A familiar plush dragon continues an adventure near a tablet in a pillow fort',
+        'Знакомый плюшевый дракон продолжает приключение рядом с планшетом в домике из подушек',
+        'Un dragón de peluche conocido continúa la aventura junto a una tableta en un fuerte de cojines',
+        'Ein vertrauter Plüschdrache setzt neben einem Tablet im Kissenlager das Abenteuer fort',
+        'Un dragon en peluche familier poursuit l’aventure près d’une tablette dans une cabane de coussins',
+        'Znany pluszowy smok kontynuuje przygodę obok tabletu w bazie z poduszek'
+      ),
+      l10n(
+        'Знайомий герой робить наступний епізод легшим для входу і залишає місце для магії.',
+        'A familiar hero makes the next episode easier to enter while leaving room for magic.',
+        'Знакомый герой помогает легче войти в следующий эпизод и оставляет место для магии.',
+        'Un héroe familiar facilita entrar en el siguiente episodio y deja espacio para la magia.',
+        'Eine vertraute Figur erleichtert den Einstieg in die nächste Folge und lässt Raum für Magie.',
+        'Un héros familier aide à entrer dans l’épisode suivant tout en gardant la place pour la magie.',
+        'Znany bohater ułatwia wejście w kolejny odcinek i zostawia miejsce na magię.'
+      )
+    ),
     insightCards: {
       uk: [
         { eyebrow: 'Опора', title: 'Одна деталь працює краще за десять', body: 'Ім’я, улюблений предмет або знайоме місце мають допомагати сцені рухатися, а не просто доводити, що історія “про дитину”.' },
@@ -1013,7 +1089,7 @@ const ARTICLES: BlogArticleDefinition[] = [
   },
   {
     slug: 'age-appropriate-story-complexity',
-    heroImage: '/landing/optimized/age-adaptation-960.webp',
+    heroImage: '/landing/blog/age-appropriate-story-complexity-scene-01.webp',
     updatedAt: '2026-06-17',
     category: { uk: 'Вік і мова', en: 'Age and language', ru: 'Возраст и язык', es: 'Edad y lenguaje', de: 'Alter und Sprache', fr: 'Âge et langage', pl: 'Wiek i język' },
     title: {
@@ -1108,6 +1184,45 @@ const ARTICLES: BlogArticleDefinition[] = [
     ],
     visualDirection: 'A gentle growth ladder of story pages, with scenes becoming richer as the child climbs.',
     relatedSlugs: ['reading-without-pressure', 'five-minute-stories'],
+    inlineImages: articleInlineImages(
+      'age-appropriate-story-complexity',
+      l10n(
+        'Місячні підказки повторюються поруч із планшетом і допомагають зрозуміти нову ідею',
+        'Repeated moon clues beside a tablet help a child understand a new idea',
+        'Повторяющиеся лунные подсказки рядом с планшетом помогают понять новую идею',
+        'Pistas de luna repetidas junto a una tableta ayudan a entender una idea nueva',
+        'Wiederholte Mondhinweise neben einem Tablet helfen, eine neue Idee zu verstehen',
+        'Des indices de lune répétés près d’une tablette aident à comprendre une idée nouvelle',
+        'Powtarzające się księżycowe wskazówki obok tabletu pomagają zrozumieć nowy pomysł'
+      ),
+      l10n(
+        'Нове слово легше втримати, коли поруч є дія, образ і повтор.',
+        'A new word is easier to hold when action, image, and repetition stay nearby.',
+        'Новое слово легче удержать, когда рядом есть действие, образ и повтор.',
+        'Una palabra nueva se sostiene mejor con acción, imagen y repetición cerca.',
+        'Ein neues Wort bleibt leichter, wenn Handlung, Bild und Wiederholung nah sind.',
+        'Un mot nouveau se retient mieux avec action, image et répétition à côté.',
+        'Nowe słowo łatwiej zapamiętać, gdy obok są działanie, obraz i powtórzenie.'
+      ),
+      l10n(
+        'Дитина рухає світлий камінець через іграшковий міст біля планшета',
+        'A child moves a glowing pebble across a toy bridge beside a tablet',
+        'Ребенок двигает светящийся камешек через игрушечный мост рядом с планшетом',
+        'Un niño mueve una piedra brillante por un puente de juguete junto a una tableta',
+        'Ein Kind bewegt neben einem Tablet einen leuchtenden Stein über eine Spielzeugbrücke',
+        'Un enfant déplace un galet lumineux sur un pont jouet près d’une tablette',
+        'Dziecko przesuwa świecący kamyk przez zabawkowy most obok tabletu'
+      ),
+      l10n(
+        'Для старших дітей можна додати другий наслідок, якщо маршрут усе ще зрозумілий.',
+        'Older children can handle a second consequence when the path still stays clear.',
+        'Старшим детям можно добавить второе последствие, если маршрут остается понятным.',
+        'Los niños mayores pueden seguir una segunda consecuencia si el camino sigue claro.',
+        'Ältere Kinder können eine zweite Folge tragen, wenn der Weg klar bleibt.',
+        'Les plus grands peuvent suivre une seconde conséquence si le chemin reste clair.',
+        'Starsze dzieci udźwigną drugą konsekwencję, jeśli droga nadal jest jasna.'
+      )
+    ),
     insightCards: {
       uk: [
         { eyebrow: 'Занадто легко', title: 'Дитина вгадує все наперед', body: 'Якщо сюжет не дає жодної нової думки, дитина може перебивати, поспішати до фіналу або втрачати інтерес.' },
@@ -1306,7 +1421,7 @@ const ARTICLES: BlogArticleDefinition[] = [
   },
   {
     slug: 'audio-bedtime-stories',
-    heroImage: '/landing/optimized/voice-narration-960.webp',
+    heroImage: '/landing/blog/audio-bedtime-stories-scene-01.webp',
     updatedAt: '2026-06-17',
     category: { uk: 'Аудіоісторії', en: 'Audio stories', ru: 'Аудиоистории', es: 'Historias de audio', de: 'Hörgeschichten', fr: 'Histoires audio', pl: 'Audiohistorie' },
     title: {
@@ -1401,6 +1516,45 @@ const ARTICLES: BlogArticleDefinition[] = [
     ],
     visualDirection: 'A warm nightstand, headphones, a glowing storybook, and a calm bedroom in WonderTales illustration style.',
     relatedSlugs: ['bedtime-story-family-ritual', 'five-minute-stories'],
+    inlineImages: articleInlineImages(
+      'audio-bedtime-stories',
+      l10n(
+        'Дитина робить маленький вибір на планшеті перед вечірньою аудіоісторією',
+        'A child makes one small choice on a tablet before a bedtime audio story',
+        'Ребенок делает маленький выбор на планшете перед вечерней аудиоисторией',
+        'Un niño hace una pequeña elección en una tableta antes de la historia de audio',
+        'Ein Kind trifft vor der Hörgeschichte eine kleine Wahl auf dem Tablet',
+        'Un enfant fait un petit choix sur une tablette avant l’histoire audio du soir',
+        'Dziecko dokonuje małego wyboru na tablecie przed wieczorną audiohistorią'
+      ),
+      l10n(
+        'Маленький вибір на старті допомагає ритуалу початися без нескінченного перемикання.',
+        'A small choice at the start helps the ritual begin without endless switching.',
+        'Маленький выбор в начале помогает ритуалу начаться без бесконечного переключения.',
+        'Una elección pequeña al inicio ayuda a empezar el ritual sin cambios infinitos.',
+        'Eine kleine Wahl am Anfang lässt das Ritual beginnen, ohne endloses Wechseln.',
+        'Un petit choix au départ aide le rituel à commencer sans basculer sans fin.',
+        'Mały wybór na początku pomaga zacząć rytuał bez ciągłego przełączania.'
+      ),
+      l10n(
+        'Планшет лежить на низькому столику, поки дитина спокійно слухає поруч із дорослим',
+        'A tablet rests on a low table while a child listens calmly beside a parent',
+        'Планшет лежит на низком столике, пока ребенок спокойно слушает рядом с взрослым',
+        'Una tableta descansa en una mesa baja mientras el niño escucha junto a un adulto',
+        'Ein Tablet liegt auf einem niedrigen Tisch, während das Kind ruhig neben einem Elternteil zuhört',
+        'Une tablette repose sur une table basse pendant que l’enfant écoute calmement près d’un parent',
+        'Tablet leży na niskim stoliku, gdy dziecko spokojnie słucha obok rodzica'
+      ),
+      l10n(
+        'Аудіо краще працює як місток до сну, коли екран не керує всім вечором.',
+        'Audio works better as a bridge to sleep when the screen does not run the evening.',
+        'Аудио лучше работает как мостик ко сну, когда экран не управляет всем вечером.',
+        'El audio funciona mejor como puente hacia el sueño cuando la pantalla no dirige la noche.',
+        'Audio hilft besser als Brücke in den Schlaf, wenn der Bildschirm nicht den Abend steuert.',
+        'L’audio aide mieux comme passage vers le sommeil quand l’écran ne dirige pas la soirée.',
+        'Audio lepiej prowadzi do snu, gdy ekran nie przejmuje całego wieczoru.'
+      )
+    ),
     insightCards: {
       uk: [
         { eyebrow: 'Коли допомагає', title: 'Одна історія і зрозумілий фінал', body: 'Дитина розслабляється, слухає знайомий ритм і приймає завершення без нескінченного “ще одну”.' },
@@ -1599,7 +1753,7 @@ const ARTICLES: BlogArticleDefinition[] = [
   },
   {
     slug: 'five-minute-stories',
-    heroImage: '/landing/optimized/create-in-minutes-960.webp',
+    heroImage: '/landing/blog/five-minute-stories-scene-01.webp',
     updatedAt: '2026-06-17',
     category: { uk: 'Швидкі історії', en: 'Quick stories', ru: 'Быстрые истории', es: 'Historias rápidos', de: 'Kurze Geschichten', fr: 'Histoires rapides', pl: 'Szybkie historie' },
     title: {
@@ -1694,6 +1848,45 @@ const ARTICLES: BlogArticleDefinition[] = [
     ],
     visualDirection: 'A small glowing story button in a parent’s hand, opening into a finished illustrated mini-adventure.',
     relatedSlugs: ['audio-bedtime-stories', 'reading-without-pressure'],
+    inlineImages: articleInlineImages(
+      'five-minute-stories',
+      l10n(
+        'Планшет лежить на столику в поїзді, поки коротка історія займає частину дороги',
+        'A tablet lies on a train table while a short story fills part of the ride',
+        'Планшет лежит на столике в поезде, пока короткая история занимает часть дороги',
+        'Una tableta está sobre la mesa del tren mientras una historia breve acompaña el viaje',
+        'Ein Tablet liegt auf dem Zugtisch, während eine kurze Geschichte die Fahrt begleitet',
+        'Une tablette repose sur la table du train pendant qu’une courte histoire accompagne le trajet',
+        'Tablet leży na stoliku w pociągu, a krótka historia wypełnia część drogi'
+      ),
+      l10n(
+        'П’яти хвилин достатньо, якщо сцена має один початок, одну дію і м’який фінал.',
+        'Five minutes can be enough when the scene has one start, one action, and a soft ending.',
+        'Пяти минут достаточно, если у сцены есть одно начало, одно действие и мягкий финал.',
+        'Cinco minutos pueden bastar con un inicio, una acción y un cierre suave.',
+        'Fünf Minuten reichen, wenn die Szene einen Anfang, eine Handlung und ein weiches Ende hat.',
+        'Cinq minutes peuvent suffire avec un début, une action et une fin douce.',
+        'Pięć minut wystarczy, gdy scena ma jeden początek, jedno działanie i miękki finał.'
+      ),
+      l10n(
+        'Коротка історія на планшеті завершує вечір за кухонним столом',
+        'A short story on a tablet closes the evening at the kitchen table',
+        'Короткая история на планшете завершает вечер за кухонным столом',
+        'Una historia breve en la tableta cierra la tarde en la mesa de la cocina',
+        'Eine kurze Geschichte auf dem Tablet rundet den Abend am Küchentisch ab',
+        'Une courte histoire sur la tablette clôt la soirée à la table de cuisine',
+        'Krótka historia na tablecie zamyka wieczór przy kuchennym stole'
+      ),
+      l10n(
+        'Короткий формат допомагає знайти маленьку казку навіть у завантажений день.',
+        'A short format makes room for a small story even on a crowded day.',
+        'Короткий формат помогает найти место для маленькой сказки даже в загруженный день.',
+        'El formato breve deja espacio para una pequeña historia incluso en un día lleno.',
+        'Das kurze Format schafft Platz für eine kleine Geschichte selbst an vollen Tagen.',
+        'Le format court laisse une place à une petite histoire même dans une journée chargée.',
+        'Krótki format robi miejsce na małą opowieść nawet w pełny dzień.'
+      )
+    ),
     insightCards: {
       uk: [
         { eyebrow: 'Реальне життя', title: 'П’ять хвилин краще за ідеальний план', body: 'Коротка історія працює тоді, коли її справді можна повторити: у черзі, в машині, перед сном або між справами.' },
@@ -1892,7 +2085,7 @@ const ARTICLES: BlogArticleDefinition[] = [
   },
   {
     slug: 'story-morals-without-lecturing',
-    heroImage: '/landing/morale.png',
+    heroImage: '/landing/blog/story-morals-without-lecturing-scene-01.webp',
     updatedAt: '2026-06-18',
     category: { uk: 'Мораль історії', en: 'Story morals', ru: 'Мораль истории', es: 'Moralejas', de: 'Moral der Geschichte', fr: 'Morale de l’histoire', pl: 'Morał historii' },
     title: {
@@ -2102,6 +2295,45 @@ const ARTICLES: BlogArticleDefinition[] = [
     ],
     visualDirection: 'A hero at a fork in a glowing path, with friendship, patience, and courage represented as small story charms.',
     relatedSlugs: ['personalized-childrens-stories', 'reading-without-pressure'],
+    inlineImages: articleInlineImages(
+      'story-morals-without-lecturing',
+      l10n(
+        'Дитина і дорослий спокійно будують місток із кубиків поруч із планшетом',
+        'A child and parent calmly rebuild a block bridge beside a tablet',
+        'Ребенок и взрослый спокойно строят мостик из кубиков рядом с планшетом',
+        'Un niño y un adulto reconstruyen con calma un puente de bloques junto a una tableta',
+        'Ein Kind und ein Elternteil bauen neben einem Tablet ruhig eine Klötzchenbrücke neu',
+        'Un enfant et un parent reconstruisent calmement un pont de cubes près d’une tablette',
+        'Dziecko i rodzic spokojnie odbudowują most z klocków obok tabletu'
+      ),
+      l10n(
+        'Терпіння видно краще через другу спробу, ніж через пояснення, як треба поводитися.',
+        'Patience is easier to see through a second try than through an explanation of behavior.',
+        'Терпение лучше видно через вторую попытку, чем через объяснение, как нужно себя вести.',
+        'La paciencia se ve mejor en un segundo intento que en una explicación de conducta.',
+        'Geduld zeigt sich besser im zweiten Versuch als in einer Erklärung richtigen Verhaltens.',
+        'La patience se voit mieux dans un second essai que dans une leçon de conduite.',
+        'Cierpliwość lepiej widać w drugiej próbie niż w wyjaśnianiu zachowania.'
+      ),
+      l10n(
+        'Дитина і дорослий розмовляють після історії, планшет лежить між подушками',
+        'A child and parent talk after the story while a tablet rests between pillows',
+        'Ребенок и взрослый разговаривают после истории, а планшет лежит между подушками',
+        'Un niño y un adulto conversan después de la historia con una tableta entre cojines',
+        'Ein Kind und ein Elternteil sprechen nach der Geschichte, während ein Tablet zwischen Kissen liegt',
+        'Un enfant et un parent discutent après l’histoire, une tablette posée entre les coussins',
+        'Dziecko i rodzic rozmawiają po historii, a tablet leży między poduszkami'
+      ),
+      l10n(
+        'Питання після сцени залишає місце для власного висновку дитини.',
+        'A question after the scene leaves room for the child’s own conclusion.',
+        'Вопрос после сцены оставляет место для собственного вывода ребенка.',
+        'Una pregunta después de la escena deja espacio para la conclusión del niño.',
+        'Eine Frage nach der Szene lässt Raum für die eigene Schlussfolgerung des Kindes.',
+        'Une question après la scène laisse de la place à la conclusion de l’enfant.',
+        'Pytanie po scenie zostawia miejsce na własny wniosek dziecka.'
+      )
+    ),
     insightCards: {
       uk: [
         { eyebrow: 'Не лекція', title: 'Цінність має відбутися в дії', body: 'Дружба переконує краще, коли герой чекає друга, ділиться підказкою або визнає помилку без довгої пояснювальної промови.' },
@@ -2307,7 +2539,7 @@ const ARTICLES: BlogArticleDefinition[] = [
   },
   {
     slug: 'reading-without-pressure',
-    heroImage: '/landing/optimized/reading-and-language-960.webp',
+    heroImage: '/landing/blog/reading-without-pressure-scene-01.webp',
     updatedAt: '2026-06-17',
     category: { uk: 'Читання без тиску', en: 'Reading without pressure', ru: 'Чтение без давления', es: 'Leer sin presión', de: 'Lesen ohne Druck', fr: 'Lire sans pression', pl: 'Czytanie bez presji' },
     title: {
@@ -2518,6 +2750,45 @@ const ARTICLES: BlogArticleDefinition[] = [
     ],
     visualDirection: 'A parent and child reading the same glowing page, with text becoming gentle stepping stones.',
     relatedSlugs: ['age-appropriate-story-complexity', 'five-minute-stories'],
+    inlineImages: articleInlineImages(
+      'reading-without-pressure',
+      l10n(
+        'Дитина грає маленьку роль у сцені з пальчиковими героями поруч із планшетом',
+        'A child plays a small role with finger puppets beside a tablet',
+        'Ребенок играет маленькую роль с пальчиковыми героями рядом с планшетом',
+        'Un niño participa con títeres de dedo junto a una tableta',
+        'Ein Kind übernimmt neben einem Tablet eine kleine Rolle mit Fingerpuppen',
+        'Un enfant joue un petit rôle avec des marionnettes à doigts près d’une tablette',
+        'Dziecko odgrywa małą rolę pacynkami obok tabletu'
+      ),
+      l10n(
+        'Маленька керована роль дає участь без відчуття перевірки.',
+        'A small guided role creates participation without feeling like a test.',
+        'Маленькая управляемая роль дает участие без ощущения проверки.',
+        'Un papel pequeño y guiado crea participación sin sensación de examen.',
+        'Eine kleine geführte Rolle schafft Beteiligung ohne Prüfungsgefühl.',
+        'Un petit rôle guidé permet de participer sans impression de test.',
+        'Mała prowadzona rola daje udział bez poczucia testu.'
+      ),
+      l10n(
+        'Дитина слухає в навушниках і дивиться на планшет, а дорослий сидить поруч',
+        'A child listens with headphones and looks at a tablet while a parent sits nearby',
+        'Ребенок слушает в наушниках и смотрит на планшет, а взрослый сидит рядом',
+        'Un niño escucha con auriculares y mira una tableta mientras un adulto está cerca',
+        'Ein Kind hört mit Kopfhörern und schaut auf ein Tablet, während ein Elternteil nahe sitzt',
+        'Un enfant écoute au casque et regarde une tablette pendant qu’un parent reste près de lui',
+        'Dziecko słucha w słuchawkach i patrzy na tablet, a rodzic siedzi obok'
+      ),
+      l10n(
+        'Аудіо може бути містком, коли читання очима поки забирає занадто багато сил.',
+        'Audio can be a bridge when eye reading still takes too much effort.',
+        'Аудио может быть мостиком, когда чтение глазами пока забирает слишком много сил.',
+        'El audio puede ser un puente cuando leer con los ojos aún exige demasiado.',
+        'Audio kann eine Brücke sein, wenn Lesen mit den Augen noch zu viel Kraft kostet.',
+        'L’audio peut servir de pont quand lire avec les yeux demande encore trop d’effort.',
+        'Audio może być mostem, gdy czytanie oczami wciąż kosztuje za dużo wysiłku.'
+      )
+    ),
     insightCards: {
       uk: [
         { eyebrow: 'Контакт', title: 'Спільне читання теж рахується', body: 'Якщо дорослий читає частину тексту, дитина все одно працює зі змістом, мовою, емоціями й передбаченням.' },
@@ -2723,7 +2994,7 @@ const ARTICLES: BlogArticleDefinition[] = [
   },
   {
     slug: 'bedtime-story-family-ritual',
-    heroImage: '/landing/optimized/bedtime-moments-960.webp',
+    heroImage: '/landing/blog/bedtime-story-family-ritual-scene-01.webp',
     updatedAt: '2026-06-17',
     category: { uk: 'Сімейний ритуал', en: 'Family ritual', ru: 'Семейный ритуал', es: 'Ritual familiar', de: 'Familienritual', fr: 'Rituel familial', pl: 'Rytuał rodzinny' },
     title: {
@@ -2956,6 +3227,45 @@ const ARTICLES: BlogArticleDefinition[] = [
     ],
     visualDirection: 'A cozy family bedtime scene where the glowing story page fades into stars over the room.',
     relatedSlugs: ['audio-bedtime-stories', 'five-minute-stories'],
+    inlineImages: articleInlineImages(
+      'bedtime-story-family-ritual',
+      l10n(
+        'Планшет лежить на комоді, поки дорослий сидить поруч із дитиною в ліжку',
+        'A tablet rests on a dresser while a parent sits beside a child in bed',
+        'Планшет лежит на комоде, пока взрослый сидит рядом с ребенком в кровати',
+        'Una tableta descansa sobre una cómoda mientras un adulto se sienta junto al niño en la cama',
+        'Ein Tablet liegt auf einer Kommode, während ein Elternteil neben dem Kind im Bett sitzt',
+        'Une tablette repose sur une commode pendant qu’un parent s’assoit près de l’enfant au lit',
+        'Tablet leży na komodzie, gdy rodzic siedzi obok dziecka w łóżku'
+      ),
+      l10n(
+        'Коли планшет не в руках дитини, історія краще залишається частиною спокійного ритуалу.',
+        'When the tablet is not in the child’s hands, the story stays part of a calm ritual.',
+        'Когда планшет не в руках ребенка, история лучше остается частью спокойного ритуала.',
+        'Cuando la tableta no está en las manos del niño, la historia sigue siendo un ritual tranquilo.',
+        'Liegt das Tablet nicht in Kinderhänden, bleibt die Geschichte Teil eines ruhigen Rituals.',
+        'Quand la tablette n’est pas dans les mains de l’enfant, l’histoire reste un rituel calme.',
+        'Gdy tablet nie jest w rękach dziecka, historia pozostaje częścią spokojnego rytuału.'
+      ),
+      l10n(
+        'Планшет відкладений на плетений піднос, а дорослий завершує вечірній ритуал',
+        'A tablet is set aside on a woven tray while a parent closes the bedtime ritual',
+        'Планшет отложен на плетеный поднос, а взрослый завершает вечерний ритуал',
+        'La tableta queda apartada en una bandeja tejida mientras el adulto cierra el ritual',
+        'Das Tablet liegt auf einem geflochtenen Tablett, während der Elternteil das Abendritual abschließt',
+        'La tablette est posée sur un plateau tressé pendant que le parent clôt le rituel du soir',
+        'Tablet odłożono na plecioną tacę, a rodzic kończy wieczorny rytuał'
+      ),
+      l10n(
+        'Фінальний жест показує: історія завершена, дитина в безпеці, вечір рухається до сну.',
+        'The final gesture says: the story is complete, the child is safe, and the evening moves toward sleep.',
+        'Финальный жест говорит: история завершена, ребенок в безопасности, вечер движется ко сну.',
+        'El gesto final dice: la historia terminó, el niño está seguro y la noche avanza hacia el sueño.',
+        'Die letzte Geste sagt: Die Geschichte ist fertig, das Kind ist sicher, der Abend führt in den Schlaf.',
+        'Le geste final dit : l’histoire est terminée, l’enfant est en sécurité, la soirée va vers le sommeil.',
+        'Ostatni gest mówi: historia skończona, dziecko jest bezpieczne, wieczór prowadzi do snu.'
+      )
+    ),
     insightCards: {
       uk: [
         { eyebrow: 'Рамка', title: 'Ритуал має берегти кінець дня', body: 'Історія допомагає, коли вона завершує вечір, а не відкриває новий нескінченний вибір.' },
@@ -3154,7 +3464,7 @@ const ARTICLES: BlogArticleDefinition[] = [
   },
   {
     slug: 'child-created-characters',
-    heroImage: '/landing/optimized/draw-to-hero-960.webp',
+    heroImage: '/landing/blog/child-created-characters-scene-01.webp',
     updatedAt: '2026-06-17',
     category: { uk: 'Персонажі', en: 'Characters', ru: 'Персонажи', es: 'Personajes', de: 'Figuren', fr: 'Personnages', pl: 'Postacie' },
     title: {
@@ -3379,6 +3689,45 @@ const ARTICLES: BlogArticleDefinition[] = [
     ],
     visualDirection: 'A child choosing colorful character tokens that assemble into an illustrated hero on the page.',
     relatedSlugs: ['personalized-childrens-stories', 'safe-scary-stories'],
+    inlineImages: articleInlineImages(
+      'child-created-characters',
+      l10n(
+        'Дитина створює героя з простих предметів, а планшет лежить на столі поруч',
+        'A child builds a hero from simple objects while a tablet lies on the table nearby',
+        'Ребенок создает героя из простых предметов, а планшет лежит рядом на столе',
+        'Un niño crea un héroe con objetos simples mientras una tableta está en la mesa',
+        'Ein Kind baut aus einfachen Gegenständen eine Figur, während ein Tablet daneben liegt',
+        'Un enfant crée un héros avec de simples objets, une tablette posée sur la table',
+        'Dziecko tworzy bohatera z prostych przedmiotów, a tablet leży obok na stole'
+      ),
+      l10n(
+        'Тип, колір і роль героя дають образу стійкість, а дивна деталь лишає свободу.',
+        'Type, color, and role give the hero stability, while one strange detail keeps freedom alive.',
+        'Тип, цвет и роль героя дают образу устойчивость, а странная деталь оставляет свободу.',
+        'Tipo, color y rol dan estabilidad al héroe, y un detalle extraño deja libertad.',
+        'Art, Farbe und Rolle geben der Figur Halt, ein seltsames Detail bewahrt Freiheit.',
+        'Type, couleur et rôle stabilisent le héros; un détail étrange garde la liberté.',
+        'Typ, kolor i rola dają postaci stabilność, a dziwny szczegół zostawia wolność.'
+      ),
+      l10n(
+        'Планшет лежить біля подушкового будиночка, де оживає вигаданий персонаж дитини',
+        'A tablet lies near a pillow fort where the child’s invented character comes alive',
+        'Планшет лежит у домика из подушек, где оживает придуманный ребенком персонаж',
+        'Una tableta está junto a un fuerte de cojines donde cobra vida el personaje inventado',
+        'Ein Tablet liegt am Kissenlager, wo die erfundene Figur des Kindes lebendig wird',
+        'Une tablette repose près d’une cabane de coussins où le personnage inventé prend vie',
+        'Tablet leży przy bazie z poduszek, gdzie ożywa wymyślona przez dziecko postać'
+      ),
+      l10n(
+        'Коли персонаж повертається в сценах, дитині легше впізнавати його роль і розвивати ідею.',
+        'When a character returns across scenes, the child can recognize its role and grow the idea.',
+        'Когда персонаж возвращается в сценах, ребенку легче узнавать его роль и развивать идею.',
+        'Cuando un personaje vuelve en las escenas, el niño reconoce su rol y desarrolla la idea.',
+        'Kehrt eine Figur in Szenen zurück, erkennt das Kind ihre Rolle und entwickelt die Idee weiter.',
+        'Quand un personnage revient d’une scène à l’autre, l’enfant reconnaît son rôle et développe l’idée.',
+        'Gdy postać wraca w scenach, dziecku łatwiej rozpoznać jej rolę i rozwijać pomysł.'
+      )
+    ),
     insightCards: {
       uk: [
         { eyebrow: 'Авторство', title: 'Дитина має відчути “це мій герой”', body: 'Навіть кілька виборів — ім’я, колір, сила — дають більше залучення, ніж довга анкета, яку заповнює дорослий.' },
@@ -3577,7 +3926,7 @@ const ARTICLES: BlogArticleDefinition[] = [
   },
   {
     slug: 'safe-scary-stories',
-    heroImage: '/landing/topics/optimized/ghost.webp',
+    heroImage: '/landing/blog/safe-scary-stories-scene-01.webp',
     updatedAt: '2026-06-17',
     category: { uk: 'Страшилки', en: 'Safe scares', ru: 'Страшилки', es: 'Miedos seguros', de: 'Sicher gruseln', fr: 'Frissons sûrs', pl: 'Bezpieczne strachy' },
     title: {
@@ -3821,6 +4170,45 @@ const ARTICLES: BlogArticleDefinition[] = [
     ],
     visualDirection: 'A cute ghost holding a lantern, shadows turning into harmless shapes, warm safe ending.',
     relatedSlugs: ['story-morals-without-lecturing', 'child-created-characters'],
+    inlineImages: articleInlineImages(
+      'safe-scary-stories',
+      l10n(
+        'Дитина з ліхтариком досліджує шафу, а планшет лежить на низькому столику поруч',
+        'A child investigates a closet with a flashlight while a tablet rests on a low stool nearby',
+        'Ребенок с фонариком исследует шкаф, а планшет лежит на низком столике рядом',
+        'Un niño explora el armario con una linterna mientras una tableta descansa cerca',
+        'Ein Kind untersucht mit einer Taschenlampe den Schrank, während ein Tablet auf einem niedrigen Hocker liegt',
+        'Un enfant explore le placard avec une lampe, une tablette posée sur un tabouret bas',
+        'Dziecko z latarką sprawdza szafę, a tablet leży obok na niskim stołku'
+      ),
+      l10n(
+        'Безпечна страшна історія дає дитині контроль: можна подивитися, зупинити і зрозуміти.',
+        'A safe scary story gives the child control: look, pause, and understand.',
+        'Безопасная страшная история дает ребенку контроль: посмотреть, остановиться и понять.',
+        'Una historia de miedo segura da control: mirar, pausar y entender.',
+        'Eine sichere Gruselgeschichte gibt Kontrolle: hinschauen, pausieren und verstehen.',
+        'Une histoire qui fait peur sans danger donne du contrôle : regarder, faire pause, comprendre.',
+        'Bezpieczna straszna historia daje kontrolę: spojrzeć, zatrzymać się i zrozumieć.'
+      ),
+      l10n(
+        'Дитина і дорослий дивляться на дружнього маленького привида, планшет лежить на сидінні біля вікна',
+        'A child and parent see a friendly little ghost while a tablet rests on the window seat',
+        'Ребенок и взрослый смотрят на маленького дружелюбного призрака, а планшет лежит у окна',
+        'Un niño y un adulto ven un pequeño fantasma amable mientras la tableta está junto a la ventana',
+        'Ein Kind und ein Elternteil sehen einen freundlichen kleinen Geist, während ein Tablet auf der Fensterbank liegt',
+        'Un enfant et un parent voient un petit fantôme amical, la tablette posée près de la fenêtre',
+        'Dziecko i rodzic patrzą na małego przyjaznego ducha, a tablet leży przy oknie'
+      ),
+      l10n(
+        'Фінал повертає напругу в м’яке диво: страшне стає зрозумілим і добрим.',
+        'The ending turns tension into gentle wonder: the scary thing becomes understandable and kind.',
+        'Финал превращает напряжение в мягкое чудо: страшное становится понятным и добрым.',
+        'El final convierte la tensión en maravilla suave: lo inquietante se vuelve comprensible y amable.',
+        'Das Ende verwandelt Spannung in sanftes Staunen: Das Unheimliche wird verständlich und freundlich.',
+        'La fin transforme la tension en douce merveille : ce qui faisait peur devient compréhensible et gentil.',
+        'Finał zmienia napięcie w łagodny zachwyt: straszne staje się zrozumiałe i dobre.'
+      )
+    ),
     insightCards: {
       uk: [
         { eyebrow: 'Контроль', title: 'Дитина має право зупинити історію', body: 'Сигнал “стоп” перед стартом робить страх керованим, а не нав’язаним.' },
