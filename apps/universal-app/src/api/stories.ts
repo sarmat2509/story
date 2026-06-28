@@ -386,6 +386,8 @@ export const useGraphicNovel = (storyId: string | undefined, enabled: boolean = 
     },
     enabled: enabled && !!storyId,
     staleTime: 1000,
+    refetchInterval: enabled ? 30000 : false,
+    refetchIntervalInBackground: false,
   });
 };
 

@@ -430,6 +430,31 @@ export default function StoryViewerScreen() {
     }, [storyId, setViewingStoryId])
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      if (isGraphicNovel) {
+        void refetchGraphicNovel();
+      }
+    }, [isGraphicNovel, refetchGraphicNovel])
+  );
+
+  useEffect(() => {
+    if (!isGraphicNovel || Platform.OS !== 'web') return;
+    const webDocument = (globalThis as unknown as { document?: Document }).document;
+    if (!webDocument?.addEventListener) return;
+
+    const refreshGraphicNovelOnVisible = () => {
+      if (webDocument.visibilityState === 'visible') {
+        void refetchGraphicNovel();
+      }
+    };
+
+    webDocument.addEventListener('visibilitychange', refreshGraphicNovelOnVisible);
+    return () => {
+      webDocument.removeEventListener('visibilitychange', refreshGraphicNovelOnVisible);
+    };
+  }, [isGraphicNovel, refetchGraphicNovel]);
+
   // Set header title from database after story loads (with scenario breadcrumb)
   const { data: seriesInfo } = useSeriesInfo(storyId);
   useEffect(() => {
