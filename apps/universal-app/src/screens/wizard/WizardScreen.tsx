@@ -748,7 +748,9 @@ export default function WizardScreen() {
                     </Text>
                     {storyFormat === 'comic' && usage.graphicNovels ? (
                       <Text style={styles.summaryLimit}>
-                        {t('usage_summary.graphic_novels', { defaultValue: 'Comics' })}:{' '}
+                        {t('usage_summary.graphic_novels_in_story_limit', {
+                          defaultValue: 'Comics within stories',
+                        })}:{' '}
                         {formatUsageLimitLabel(usage.graphicNovels)}
                       </Text>
                     ) : null}

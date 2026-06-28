@@ -12,7 +12,6 @@ import {
   getValidationTextProvider,
 } from './aiService';
 import type { StoryEnvironment } from '../ai/types';
-import { getPlanFeatures } from './planService';
 import { recordUsage } from './aiUsageService';
 import {
   STORY_TASKS,
@@ -77,6 +76,7 @@ import {
 import { logger } from '../utils/logger';
 
 const GRAPHIC_NOVEL_KIND = 'graphic_novel';
+export const GRAPHIC_NOVEL_DEFAULT_PAGE_COUNT = 8;
 const GRAPHIC_NOVEL_PROGRESS_STAGES = [
   'generating_script',
   'planning_pages',
@@ -1454,8 +1454,7 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
       updatedAt: new Date(),
     });
 
-    const userPlan = await getPlanFeatures(request.userId);
-    const pageCount = Math.max(1, Math.min(24, userPlan.graphicNovelPagesPerStory || 8));
+    const pageCount = GRAPHIC_NOVEL_DEFAULT_PAGE_COUNT;
     const specData = await buildStorySpec({
       ...request,
       selectedCharacters: Array.isArray(request.selectedCharacters)

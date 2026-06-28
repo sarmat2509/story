@@ -144,15 +144,14 @@ async function main(): Promise<void> {
     const [
       { buildStorySpec },
       { getGraphicNovelDomainService },
-      { getPlanFeatures },
+      { GRAPHIC_NOVEL_DEFAULT_PAGE_COUNT },
     ] = await Promise.all([
       import('../services/storyOrchestrationService'),
       import('../services/aiService'),
-      import('../services/planService'),
+      import('../services/graphicNovelOrchestrationService'),
     ]);
 
-    const userPlan = await getPlanFeatures(sourceStory.userId);
-    const pageCount = Math.max(1, Math.min(24, userPlan.graphicNovelPagesPerStory || 8));
+    const pageCount = GRAPHIC_NOVEL_DEFAULT_PAGE_COUNT;
     const { spec } = await buildStorySpec({
       ...sourceRequest,
       selectedCharacters: Array.isArray(sourceRequest.selectedCharacters) ? sourceRequest.selectedCharacters : [],

@@ -4,7 +4,6 @@ export const PRICING_FEATURE_ORDER = [
   'stories_per_day',
   'images_per_story',
   'graphic_novels_per_month',
-  'graphic_novel_pages_per_story',
   'premium_voices',
   'follow_narrator',
   'child_profiles_limit',
@@ -15,6 +14,7 @@ export const PRICING_FEATURE_ORDER = [
 const HIDDEN_PRICING_FEATURE_SLUGS = new Set([
   'stories_per_month',
   'audio_stories_per_month',
+  'graphic_novel_pages_per_story',
   'story_from_drawing',
   'image_quality',
 ]);
@@ -114,16 +114,11 @@ export function sortPricingFeatureEntries<T extends PricingFeatureLike>(
   const asRecord = Array.isArray(features)
     ? Object.fromEntries(features.map((feature) => [feature.name ?? '', feature])) as Record<string, T>
     : features;
-  const graphicNovelsFeature = asRecord.graphic_novels_per_month;
-  const graphicNovelsAvailable = graphicNovelsFeature
-    ? isPricingFeatureAvailable(graphicNovelsFeature)
-    : false;
   const available: Array<[string, T]> = [];
   const unavailable: Array<[string, T]> = [];
 
   Object.entries(asRecord).forEach(([slug, feature]) => {
     if (!slug || HIDDEN_PRICING_FEATURE_SLUGS.has(slug)) return;
-    if (slug === 'graphic_novel_pages_per_story' && !graphicNovelsAvailable) return;
     (isPricingFeatureAvailable(feature) ? available : unavailable).push([slug, feature]);
   });
 
@@ -254,6 +249,11 @@ function getMetricHighlight(
   return value || null;
 }
 
+function getPositiveNumericFeatureLimit(feature?: PricingFeatureLike): number | null {
+  const limit = getFeatureValueObject(feature ?? {})?.limit;
+  return typeof limit === 'number' && limit > 0 ? limit : null;
+}
+
 function stripMonthlySuffix(locale: Locale, value: string): string {
   const suffix = MONTHLY_SUFFIXES[locale];
   if (!suffix) return value.trim();
@@ -269,13 +269,27 @@ export function getCombinedPricingUsageHighlight(
   const locale = normalizePricingLocale(localeInput);
   const stories = getMetricHighlight(locale, translate, 'features.stories_per_month', features.stories_per_month);
   const audio = getMetricHighlight(locale, translate, 'audio_stories', features.audio_stories_per_month);
-  const comics = getMetricHighlight(
-    locale,
-    translate,
-    'features.graphic_novels_per_month',
-    features.graphic_novels_per_month
-  );
-  const metrics = [stories, audio, comics].filter((value): value is string => Boolean(value));
+  const comicsLimit = getPositiveNumericFeatureLimit(features.graphic_novels_per_month);
+
+  if (stories && comicsLimit) {
+    const storiesBase = stripMonthlySuffix(locale, stories);
+    if (audio) {
+      const audioBase = stripMonthlySuffix(locale, audio);
+      return translate(
+        'features.monthly_usage_with_comics_and_audio',
+        { stories: storiesBase, comics: comicsLimit, audio: audioBase },
+        `${storiesBase}, including up to ${comicsLimit} comics, and ${audioBase} ${MONTHLY_SUFFIXES[locale]}`
+      );
+    }
+
+    return translate(
+      'features.monthly_usage_with_comics',
+      { stories: storiesBase, comics: comicsLimit },
+      `${storiesBase}, including up to ${comicsLimit} comics ${MONTHLY_SUFFIXES[locale]}`
+    );
+  }
+
+  const metrics = [stories, audio].filter((value): value is string => Boolean(value));
 
   if (metrics.length === 0) return null;
   if (metrics.length === 1) return metrics[0];

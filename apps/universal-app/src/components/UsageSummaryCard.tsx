@@ -98,7 +98,9 @@ export function UsageSummaryCard({
           />
           {usage.graphicNovels ? (
             <UsageRow
-              label={t('usage_summary.graphic_novels', { defaultValue: 'Comics' })}
+              label={t('usage_summary.graphic_novels_in_story_limit', {
+                defaultValue: 'Comics within stories',
+              })}
               bucket={usage.graphicNovels}
             />
           ) : null}
