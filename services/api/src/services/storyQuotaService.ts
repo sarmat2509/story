@@ -11,6 +11,7 @@ import { resolveActiveSubscriptionPeriod } from './subscriptionPeriodService';
 
 export type StoryQuotaReservationSource =
   | 'wizard'
+  | 'graphic_novel'
   | 'instant'
   | 'child_mode'
   | 'continuation'

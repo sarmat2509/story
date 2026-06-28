@@ -15,6 +15,9 @@ const translate: PricingTranslate = (key, params = {}, defaultValue = '') => {
     audio_stories_one: '{{count}} audio story per month',
     audio_stories: '{{count}} audio stories per month',
     audio_stories_other: '{{count}} audio stories per month',
+    'features.graphic_novels_per_month': '{{value}} comics per month',
+    'features.graphic_novel_pages_per_story': '{{value}} pages per comic',
+    'features.graphic_novels_locked': 'Comics',
     'features.images_per_story_one': '{{value}} illustration in story',
     'features.images_per_story_other': '{{value}} illustrations in story',
     'features.images_per_story': '{{value}} illustrations in story',
@@ -30,6 +33,8 @@ const translate: PricingTranslate = (key, params = {}, defaultValue = '') => {
 const features = {
   stories_per_month: { name: 'Stories per month', value: { limit: 10 }, category: 'usage' },
   audio_stories_per_month: { name: 'Audio per month', value: { limit: 2 }, category: 'usage' },
+  graphic_novels_per_month: { name: 'Comics per month', value: { limit: 5 }, category: 'usage' },
+  graphic_novel_pages_per_story: { name: 'Comic pages', value: { limit: 8 }, category: 'usage' },
   story_from_drawing: { name: 'Story from drawing', value: { enabled: true }, category: 'creation' },
   image_quality: { name: 'Image quality', value: { selected: 'standard' }, category: 'media' },
   images_per_story: { name: 'Images per story', value: { limit: 3 }, category: 'usage' },
@@ -61,14 +66,33 @@ void (async function main() {
 
   assert.strictEqual(
     getCombinedPricingUsageHighlight('en', translate, features),
-    '10 stories and 2 audio stories per month',
+    '10 stories, 2 audio stories and 5 comics per month',
     'pricing usage highlight should combine story and audio monthly limits'
   );
 
   assert.deepStrictEqual(
     sortPricingFeatureEntries(features).map(([slug]) => slug),
-    ['images_per_story', 'child_profiles_limit', 'premium_voices'],
+    [
+      'images_per_story',
+      'graphic_novels_per_month',
+      'graphic_novel_pages_per_story',
+      'child_profiles_limit',
+      'premium_voices',
+    ],
     'pricing feature order and hidden-feature rules should be shared'
+  );
+
+  assert.deepStrictEqual(
+    sortPricingFeatureEntries({
+      ...features,
+      graphic_novels_per_month: {
+        name: 'Comics per month',
+        value: { limit: 0 },
+        category: 'usage',
+      },
+    }).map(([slug]) => slug),
+    ['images_per_story', 'child_profiles_limit', 'graphic_novels_per_month', 'premium_voices'],
+    'comic page count should not be shown on plans without comic access'
   );
 
   const html = renderPricingHtml({
@@ -87,8 +111,10 @@ void (async function main() {
     ],
   });
 
-  assert.match(html, /10 stories and 2 audio stories per month/);
+  assert.match(html, /10 stories, 2 audio stories and 5 comics per month/);
   assert.match(html, /3 personalized illustrations per story/);
+  assert.match(html, /5 comics per month/);
+  assert.match(html, /8 pages per comic/);
   assert.match(html, /Unlimited child profiles/);
   assert.doesNotMatch(html, /Story from drawing/);
   assert.doesNotMatch(html, /Image quality/);
@@ -181,7 +207,7 @@ void (async function main() {
   assert.match(fallbackHtml, /<div class="name">Golden Stars<\/div>/);
   assert.match(fallbackHtml, /<div class="name">Fairy World<\/div>/);
   assert.match(fallbackHtml, /3 stories and 1 audio story per month/);
-  assert.match(fallbackHtml, /30 stories and 15 audio stories per month/);
+  assert.match(fallbackHtml, /30 stories, 15 audio stories and 15 comics per month/);
 
   console.log('pricingPresentation tests passed');
 })();

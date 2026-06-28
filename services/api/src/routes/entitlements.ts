@@ -25,6 +25,7 @@ type FeatureOutput = FeatureWithUsage | BooleanFeatureValue | EnumFeatureValue;
 // Map feature slug to usage_events eventType
 const FEATURE_SLUG_TO_EVENT_TYPE: Record<string, UsageEventType> = {
   stories_per_month: 'story_created',
+  graphic_novels_per_month: 'graphic_novel_created',
   audio_stories_per_month: 'audio_synthesized',
 };
 
@@ -82,7 +83,11 @@ router.get('/', requireAuth, requireParentSession, async (req, res) => {
           used,
           remaining: Math.max(0, effectiveLimit - used),
         };
-        if (slug === 'stories_per_month' || slug === 'audio_stories_per_month') {
+        if (
+          slug === 'stories_per_month' ||
+          slug === 'audio_stories_per_month' ||
+          slug === 'graphic_novels_per_month'
+        ) {
           row.plan_limit = planLimit;
           row.bundle_bonus = bundleBonusQty;
         }

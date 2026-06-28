@@ -220,6 +220,7 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
     const { getPlanFeatures, getUserSubscription } = await import('../services/planService');
     const { getUsageForPeriod } = await import('../services/usageEventsService');
     const { getBundleBonusForPeriod } = await import('../services/bundleService');
+    const { getGraphicNovelUsageForPeriod } = await import('../services/graphicNovelQuotaService');
     const usageOwnerId = req.parentUserId || req.user!.id;
     const childSafe = req.sessionMode === 'child';
     const features = await getPlanFeatures(usageOwnerId);
@@ -242,13 +243,20 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
       currentPeriodEnd
     );
 
-    const [storiesUsed, audioUsed] = await Promise.all([
+    const [storiesUsed, graphicNovelsUsed, audioUsed] = await Promise.all([
       getUsageForPeriod(usageOwnerId, currentPeriodStart, currentPeriodEnd, 'story_created'),
+      getGraphicNovelUsageForPeriod({
+        userId: usageOwnerId,
+        periodStart: currentPeriodStart,
+        periodEnd: currentPeriodEnd,
+      }),
       getUsageForPeriod(usageOwnerId, currentPeriodStart, currentPeriodEnd, 'audio_synthesized'),
     ]);
     const storiesPlanLimit = features.storiesPerMonth;
+    const graphicNovelsPlanLimit = features.graphicNovelsPerMonth;
     const audioPlanLimit = features.audioStoriesPerMonth;
     const storiesLimit = storiesPlanLimit + bundleBonus.extraStories;
+    const graphicNovelsLimit = graphicNovelsPlanLimit;
     const audioLimit = audioPlanLimit + bundleBonus.extraAudio;
 
     const { default: config } = await import('../config');
@@ -260,6 +268,12 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
         remaining: Math.max(0, storiesLimit - storiesUsed),
         plan_limit: storiesPlanLimit,
         bundle_bonus: bundleBonus.extraStories,
+      },
+      graphicNovels: {
+        used: graphicNovelsUsed,
+        limit: graphicNovelsLimit,
+        remaining: graphicNovelsLimit < 0 ? -1 : Math.max(0, graphicNovelsLimit - graphicNovelsUsed),
+        plan_limit: graphicNovelsPlanLimit,
       },
       audio: {
         used: audioUsed,

@@ -73,9 +73,11 @@ export function PaywallModal({
     (limitInfo
       ? t('paywall.stories_limit_message', { used: limitInfo.used, limit: limitInfo.limit })
       : t('paywall.stories_limit_message_default'));
-  const bundleHintText = periodEndFormatted
-    ? t('paywall.bundle_hint', { periodEnd: periodEndFormatted })
-    : t('paywall.bundle_hint_no_date');
+  const bundleHintText = limitInfo
+    ? periodEndFormatted
+      ? t('paywall.bundle_hint', { periodEnd: periodEndFormatted })
+      : t('paywall.bundle_hint_no_date')
+    : null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -86,14 +88,18 @@ export function PaywallModal({
           </View>
           <Text style={styles.title}>{displayTitle}</Text>
           <Text style={styles.message}>{displayMessage}</Text>
-          <Text style={styles.bundleHint}>{bundleHintText}</Text>
-          <AppButton
-            label={t('paywall.bundle_pricing_link')}
-            onPress={handleOpenPricing}
-            variant="ghost"
-            size="md"
-            style={styles.bundlePricingAction}
-          />
+          {bundleHintText ? (
+            <>
+              <Text style={styles.bundleHint}>{bundleHintText}</Text>
+              <AppButton
+                label={t('paywall.bundle_pricing_link')}
+                onPress={handleOpenPricing}
+                variant="ghost"
+                size="md"
+                style={styles.bundlePricingAction}
+              />
+            </>
+          ) : null}
           <AppButton
             label={t('paywall.upgrade_button')}
             onPress={handleUpgrade}

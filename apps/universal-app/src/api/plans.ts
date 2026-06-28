@@ -74,6 +74,13 @@ export interface SubscriptionUsageData {
     planLimit?: number;
     bundleBonus?: number;
   };
+  graphicNovels?: {
+    used: number;
+    limit: number;
+    remaining: number;
+    planLimit?: number;
+    bundleBonus?: number;
+  };
   audio: {
     used: number;
     limit: number;
@@ -103,6 +110,14 @@ type SubscriptionUsageApiData = SubscriptionUsageData & {
     plan_limit?: number;
     bundle_bonus?: number;
   };
+  graphicNovels?: SubscriptionUsageData['stories'] & {
+    plan_limit?: number;
+    bundle_bonus?: number;
+  };
+  graphic_novels?: SubscriptionUsageData['stories'] & {
+    plan_limit?: number;
+    bundle_bonus?: number;
+  };
 };
 
 function normalizeUsageBucket(
@@ -120,6 +135,11 @@ function normalizeUsageBucket(
 function normalizeSubscriptionUsage(data: SubscriptionUsageApiData): SubscriptionUsageData {
   return {
     stories: normalizeUsageBucket(data.stories),
+    graphicNovels: data.graphicNovels
+      ? normalizeUsageBucket(data.graphicNovels)
+      : data.graphic_novels
+        ? normalizeUsageBucket(data.graphic_novels)
+        : undefined,
     audio: normalizeUsageBucket(data.audio),
     resetsAt: data.resetsAt,
     currentPeriodEnd: data.currentPeriodEnd ?? data.current_period_end,
@@ -165,7 +185,8 @@ export const usePlansWithAuth = (enabled: boolean = true, currency?: BillingCurr
         plans: response.data.plans,
         enableRealPayments: response.data.enableRealPayments ?? false,
         billingCurrency: response.data.billingCurrency ?? currency ?? 'EUR',
-        preferredBillingCurrency: response.data.preferredBillingCurrency ?? response.data.billingCurrency ?? 'EUR',
+        preferredBillingCurrency:
+          response.data.preferredBillingCurrency ?? response.data.billingCurrency ?? 'EUR',
         supportedBillingCurrencies: response.data.supportedBillingCurrencies ?? ['EUR', 'USD'],
       };
     },

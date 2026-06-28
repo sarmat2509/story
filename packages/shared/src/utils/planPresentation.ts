@@ -3,6 +3,8 @@ import { DEFAULT_LOCALE, isValidLocale, type Locale } from '../config/languages'
 export const PRICING_FEATURE_ORDER = [
   'stories_per_day',
   'images_per_story',
+  'graphic_novels_per_month',
+  'graphic_novel_pages_per_story',
   'premium_voices',
   'follow_narrator',
   'child_profiles_limit',
@@ -112,11 +114,16 @@ export function sortPricingFeatureEntries<T extends PricingFeatureLike>(
   const asRecord = Array.isArray(features)
     ? Object.fromEntries(features.map((feature) => [feature.name ?? '', feature])) as Record<string, T>
     : features;
+  const graphicNovelsFeature = asRecord.graphic_novels_per_month;
+  const graphicNovelsAvailable = graphicNovelsFeature
+    ? isPricingFeatureAvailable(graphicNovelsFeature)
+    : false;
   const available: Array<[string, T]> = [];
   const unavailable: Array<[string, T]> = [];
 
   Object.entries(asRecord).forEach(([slug, feature]) => {
     if (!slug || HIDDEN_PRICING_FEATURE_SLUGS.has(slug)) return;
+    if (slug === 'graphic_novel_pages_per_story' && !graphicNovelsAvailable) return;
     (isPricingFeatureAvailable(feature) ? available : unavailable).push([slug, feature]);
   });
 
@@ -187,6 +194,10 @@ export function getPricingFeatureLabel(
     }, fallback);
   }
 
+  if (slug === 'graphic_novels_per_month' && typeof value?.limit === 'number' && value.limit <= 0) {
+    return translate('features.graphic_novels_locked', undefined, feature.name ?? slug);
+  }
+
   return translate(`features.${slug}`, {
     value: renderPricingFeatureValue(feature),
   }, feature.name ?? slug);
@@ -229,6 +240,7 @@ function getMetricHighlight(
 ): string | null {
   const limit = getFeatureValueObject(feature ?? {})?.limit;
   if (typeof limit !== 'number') return null;
+  if (limit <= 0) return null;
   const fallback = translate(key, { count: limit, value: limit }, '');
   const category = pluralCategory(locale, limit);
   const pluralKey = category === 'one'
@@ -257,12 +269,19 @@ export function getCombinedPricingUsageHighlight(
   const locale = normalizePricingLocale(localeInput);
   const stories = getMetricHighlight(locale, translate, 'features.stories_per_month', features.stories_per_month);
   const audio = getMetricHighlight(locale, translate, 'audio_stories', features.audio_stories_per_month);
+  const comics = getMetricHighlight(
+    locale,
+    translate,
+    'features.graphic_novels_per_month',
+    features.graphic_novels_per_month
+  );
+  const metrics = [stories, audio, comics].filter((value): value is string => Boolean(value));
 
-  if (!stories && !audio) return null;
-  if (!stories) return audio;
-  if (!audio) return stories;
+  if (metrics.length === 0) return null;
+  if (metrics.length === 1) return metrics[0];
 
-  const storiesBase = stripMonthlySuffix(locale, stories);
-  const audioBase = stripMonthlySuffix(locale, audio);
-  return `${storiesBase} ${MONTHLY_CONJUNCTIONS[locale]} ${audioBase} ${MONTHLY_SUFFIXES[locale]}`;
+  const bases = metrics.map((metric) => stripMonthlySuffix(locale, metric));
+  const last = bases[bases.length - 1];
+  const prefix = bases.slice(0, -1).join(', ');
+  return `${prefix} ${MONTHLY_CONJUNCTIONS[locale]} ${last} ${MONTHLY_SUFFIXES[locale]}`;
 }

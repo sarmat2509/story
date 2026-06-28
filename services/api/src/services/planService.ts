@@ -10,6 +10,7 @@ import type {
 } from '../db/schema';
 import { logger } from '../utils/logger';
 import { resolveActiveSubscriptionPeriod } from './subscriptionPeriodService';
+import type { UsageEventType } from './usageEventsService';
 
 // Plan queries
 export async function getActivePlans(): Promise<Plan[]> {
@@ -23,6 +24,8 @@ export interface PlanWithLimits extends Plan {
   storiesPerMonth: number;
   audioStoriesPerMonth: number;
   imagesPerStory: number;
+  graphicNovelPagesPerStory: number;
+  graphicNovelsPerMonth: number;
 }
 
 export async function getPlansWithLimits(): Promise<PlanWithLimits[]> {
@@ -41,6 +44,8 @@ export async function getPlansWithLimits(): Promise<PlanWithLimits[]> {
         storiesPerMonth: getLimit('stories_per_month', 3),
         audioStoriesPerMonth: getLimit('audio_stories_per_month', 1),
         imagesPerStory: getLimit('images_per_story', 3),
+        graphicNovelPagesPerStory: getLimit('graphic_novel_pages_per_story', 0),
+        graphicNovelsPerMonth: getLimit('graphic_novels_per_month', 0),
       };
     })
   );
@@ -170,6 +175,8 @@ export async function hasFeature(userId: string, featureSlug: string): Promise<b
  */
 export interface PlanFeatures {
   imagesPerStory: number;
+  graphicNovelPagesPerStory: number;
+  graphicNovelsPerMonth: number;
   imageQuality: string;
   imageRegenerationPerDay: number;
   allowReferencePhotos: boolean;
@@ -192,6 +199,8 @@ export async function getPlanFeatures(userId: string): Promise<PlanFeatures> {
   if (!subscription) {
     const defaultFeatures: PlanFeatures = {
       imagesPerStory: 3,
+      graphicNovelPagesPerStory: 0,
+      graphicNovelsPerMonth: 0,
       imageQuality: 'low',
       imageRegenerationPerDay: 0,
       allowReferencePhotos: false,
@@ -212,6 +221,12 @@ export async function getPlanFeatures(userId: string): Promise<PlanFeatures> {
   // Extract image-related features with defaults
   const result: PlanFeatures = {
     imagesPerStory: getNumericFeature(featureMap, 'images_per_story', 3),
+    graphicNovelPagesPerStory: getNumericFeature(
+      featureMap,
+      'graphic_novel_pages_per_story',
+      0
+    ),
+    graphicNovelsPerMonth: getNumericFeature(featureMap, 'graphic_novels_per_month', 0),
     imageQuality: getEnumFeature(featureMap, 'image_quality', 'low'),
     imageRegenerationPerDay: getNumericFeature(featureMap, 'image_regeneration_per_day', 0),
     allowReferencePhotos: getBooleanFeature(
@@ -324,10 +339,11 @@ export async function incrementUsage(
   }
 }
 
-const FEATURE_SLUG_TO_EVENT_TYPE: Record<string, 'story_created' | 'audio_synthesized'> = {
+const FEATURE_SLUG_TO_EVENT_TYPE: Record<string, UsageEventType> = {
   stories_per_month: 'story_created',
   audio_stories_per_month: 'audio_synthesized',
   audio_minutes_per_month: 'audio_synthesized', // legacy slug, same as audio stories
+  graphic_novels_per_month: 'graphic_novel_created',
 };
 
 export async function checkUsageLimit(

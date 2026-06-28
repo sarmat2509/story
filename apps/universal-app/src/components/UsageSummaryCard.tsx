@@ -22,18 +22,22 @@ function clampPercent(value: number) {
 
 function UsageRow({ label, bucket }: { label: string; bucket: UsageBucket }) {
   const { t } = useTranslation();
-  const percentUsed = bucket.limit > 0 ? clampPercent((bucket.used / bucket.limit) * 100) : 0;
+  const isUnlimited = bucket.limit < 0;
+  const percentUsed =
+    !isUnlimited && bucket.limit > 0 ? clampPercent((bucket.used / bucket.limit) * 100) : 0;
 
   return (
     <View style={styles.row}>
       <View style={styles.rowHeader}>
         <Text style={styles.rowLabel}>{label}</Text>
         <Text style={styles.rowValue}>
-          {t('usage_summary.remaining_of_limit', {
-            remaining: bucket.remaining,
-            limit: bucket.limit,
-            defaultValue: '{{remaining}} of {{limit}} left',
-          })}
+          {isUnlimited
+            ? t('usage_summary.unlimited', { defaultValue: 'Unlimited' })
+            : t('usage_summary.remaining_of_limit', {
+                remaining: bucket.remaining,
+                limit: bucket.limit,
+                defaultValue: '{{remaining}} of {{limit}} left',
+              })}
         </Text>
       </View>
       <View style={styles.progressTrack}>
@@ -92,6 +96,12 @@ export function UsageSummaryCard({
             label={t('usage_summary.stories', { defaultValue: 'Stories' })}
             bucket={usage.stories}
           />
+          {usage.graphicNovels ? (
+            <UsageRow
+              label={t('usage_summary.graphic_novels', { defaultValue: 'Comics' })}
+              bucket={usage.graphicNovels}
+            />
+          ) : null}
           <UsageRow
             label={t('usage_summary.audio', { defaultValue: 'Audio stories' })}
             bucket={usage.audio}
