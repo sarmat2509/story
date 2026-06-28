@@ -14,6 +14,7 @@ import { logger } from '../utils/logger';
 import config from '../config';
 import {
   explainTaggedCanonMismatch,
+  moveApprovedBracketTagsToSentenceStarts,
   sanitizeVendorMarkup,
   validateTaggedAgainstCanon,
 } from '../utils/ttsProsodyTaggedText';
@@ -217,7 +218,8 @@ function buildSystemPrompt(
 
   const tagPlacement = [
     'TAG PLACEMENT:',
-    'Place delivery markup on the words that should sound different. For quoted speech, place the tag immediately before the opening quote or wrap the quoted speech, depending on the vendor format. Do not place delivery markup only on the attribution phrase.',
+    'Place bracket delivery markup at the beginning of the complete sentence it should affect. Do not put bracket tags inside words, between syllables, or after the first character of a sentence.',
+    'For quoted speech, place the sentence-level bracket tag before the sentence that contains the quote, or wrap the quoted speech when the vendor format supports wrappers. Do not place delivery markup only on the attribution phrase.',
   ].join('\n');
 
   const postSpeechAttribution = [
@@ -527,6 +529,21 @@ function finalizeTaggedProsodyOnCanon(params: {
         'Prosody branch failed canon after repair/projection'
       );
       return { ok: false, tagged: canonText };
+    }
+  }
+  const sentenceInitialTagged = moveApprovedBracketTagsToSentenceStarts(tagged, catalog);
+  if (sentenceInitialTagged !== tagged) {
+    if (validateTaggedAgainstCanon(sentenceInitialTagged, canonText, catalog, language)) {
+      tagged = sentenceInitialTagged;
+      logger.info(
+        { storyId, prosodySource: sourceLabel },
+        'Prosody: moved bracket tags to sentence starts'
+      );
+    } else {
+      logger.warn(
+        { storyId, prosodySource: sourceLabel },
+        'Prosody: sentence-start tag normalization failed canon validation; keeping prior tagged text'
+      );
     }
   }
   return { ok: true, tagged };

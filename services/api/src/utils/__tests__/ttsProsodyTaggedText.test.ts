@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import type { TtsSpeechTagCatalog } from '../../providers/base/TtsSpeechTagCatalog';
 import {
+  moveApprovedBracketTagsToSentenceStarts,
   normalizeCanonLikeAudioDomain,
   sanitizeVendorMarkup,
   splitTaggedTextForTtsChunks,
@@ -110,6 +111,22 @@ function testSplitSingleShort() {
   assert.strictEqual(parts[0], s);
 }
 
+function testMoveApprovedBracketTagsToSentenceStarts() {
+  const cat: TtsSpeechTagCatalog = {
+    ...mockCatalog,
+    inlineBracketTags: ['short pause', 'interest', 'gasp', 'shouting', 'excited'],
+  };
+  const canon = 'Це небо дає нам сигнал. Так! Це найкраща частина.';
+  const tagged =
+    'Це неб[short pause][interest]о дає на[gasp]м сигнал. Так! Ц[shouting][excited]е найкраща частина.';
+  const out = moveApprovedBracketTagsToSentenceStarts(tagged, cat);
+  assert.strictEqual(
+    out,
+    '[short pause][interest][gasp]Це небо дає нам сигнал. Так! [shouting][excited]Це найкраща частина.'
+  );
+  assert.strictEqual(validateTaggedAgainstCanon(out, canon, cat, 'uk'), true);
+}
+
 void (async () => {
   testSanitizeRemovesUnknownBracket();
   testSanitizePreservesWhisperPair();
@@ -120,6 +137,7 @@ void (async () => {
   testStripApprovedRemovesInline();
   testSplitRespectsBracketBoundaries();
   testSplitSingleShort();
+  testMoveApprovedBracketTagsToSentenceStarts();
   console.log('ttsProsodyTaggedText tests OK');
 })().catch((e) => {
   console.error(e);

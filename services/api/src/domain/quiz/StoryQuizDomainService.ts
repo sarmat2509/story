@@ -3,7 +3,7 @@ import type { StoryQuizActivityApi, StoryQuizPayloadApi } from '@wondertales/sha
 import type { ITextProvider } from '../../providers/base/ITextProvider';
 import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 import { stripAllTags } from '../../utils/audioTags';
-import { buildQuizPrompt } from '../../prompts/text/QuizPrompt';
+import { buildQuizPrompt, buildQuizSystemInstruction } from '../../prompts/text/QuizPrompt';
 import {
   QUIZ_PROMPT_VERSION,
   collectStoryQuizQualityIssues,
@@ -275,14 +275,18 @@ function sceneEventOption(scene: StoryQuizSourceScene, language: string) {
   };
 }
 
-function convertUkrainianPastVerbToInfinitive(word: string): string | null {
+function convertUkrainianActionVerbToPresent(word: string): string | null {
   const lower = word.toLocaleLowerCase('uk');
   const replacements: Array<[RegExp, string]> = [
-    [/^дав$|^дала$|^дало$|^дали$/u, 'дати'],
-    [/^взяв$|^взяла$|^взяло$|^взяли$/u, 'взяти'],
-    [/^пішов$|^пішла$|^пішло$|^пішли$/u, 'піти'],
-    [/^знайшов$|^знайшла$|^знайшло$|^знайшли$/u, 'знайти'],
-    [/^допоміг$|^допомогла$|^допомогло$|^допомогли$/u, 'допомогти'],
+    [/^дав$|^дала$|^дало$|^дали$|^дати$/u, 'дає'],
+    [/^взяв$|^взяла$|^взяло$|^взяли$|^взяти$/u, 'бере'],
+    [/^пішов$|^пішла$|^пішло$|^пішли$|^піти$/u, 'іде'],
+    [/^знайшов$|^знайшла$|^знайшло$|^знайшли$|^знайти$/u, 'знаходить'],
+    [/^допоміг$|^допомогла$|^допомогло$|^допомогли$|^допомогти$/u, 'допомагає'],
+    [/^відчув$|^відчула$|^відчуло$|^відчули$|^відчував$|^відчувала$|^відчувало$|^відчували$|^відчувати$/u, 'відчуває'],
+    [/^показав$|^показала$|^показало$|^показали$|^показати$|^показував$|^показувала$|^показувало$|^показували$|^показувати$/u, 'показує'],
+    [/^зав['’ʼ]язав$|^зав['’ʼ]язала$|^зав['’ʼ]язало$|^зав['’ʼ]язали$|^зав['’ʼ]язував$|^зав['’ʼ]язувала$|^зав['’ʼ]язувало$|^зав['’ʼ]язували$|^зав['’ʼ]язувати$/u, "зав'язує"],
+    [/^заблокував$|^заблокувала$|^заблокувало$|^заблокували$|^заблокувати$/u, 'блокує'],
   ];
 
   for (const [pattern, replacement] of replacements) {
@@ -290,20 +294,21 @@ function convertUkrainianPastVerbToInfinitive(word: string): string | null {
   }
 
   const suffixRules: Array<[RegExp, string]> = [
-    [/(нув|нула|нуло|нули)$/u, 'нути'],
-    [/(ював|ювала|ювало|ювали)$/u, 'ювати'],
-    [/(ав|ала|ало|али)$/u, 'ати'],
-    [/(ив|ила|ило|или)$/u, 'ити'],
+    [/(ював|ювала|ювало|ювали|ювати)$/u, 'ює'],
+    [/(ував|увала|увало|ували|увати)$/u, 'ує'],
+    [/(ав|ала|ало|али|ати)$/u, 'ає'],
+    [/(ив|ила|ило|или|ити)$/u, 'ить'],
+    [/(нув|нула|нуло|нули|нути)$/u, 'ає'],
   ];
 
-  for (const [suffix, infinitiveEnding] of suffixRules) {
-    if (suffix.test(lower)) return lower.replace(suffix, infinitiveEnding);
+  for (const [suffix, presentEnding] of suffixRules) {
+    if (suffix.test(lower)) return lower.replace(suffix, presentEnding);
   }
 
   return null;
 }
 
-function neutralizeMatchActionLabel(label: string, language: string): string {
+function presentTenseMatchActionLabel(label: string, language: string): string {
   if (!language.startsWith('uk')) return label;
   const words = label.split(/(\s+)/);
   let converted = false;
@@ -313,10 +318,10 @@ function neutralizeMatchActionLabel(label: string, language: string): string {
     const match = part.match(/^([^\p{L}]*)([\p{L}'’ʼ-]+)([^\p{L}]*)$/u);
     if (!match) return part;
     const [, prefix, core, suffix] = match;
-    const infinitive = convertUkrainianPastVerbToInfinitive(core);
-    if (!infinitive) return part;
+    const present = convertUkrainianActionVerbToPresent(core);
+    if (!present) return part;
     converted = true;
-    return `${prefix}${infinitive}${suffix}`;
+    return `${prefix}${present}${suffix}`;
   });
 
   return converted ? nextWords.join('') : label;
@@ -341,7 +346,7 @@ function repairGeneratedQuizPayload(
         ...activity,
         options: (activity.options ?? []).map((option) =>
           rightIds.has(option.id)
-            ? { ...option, label: neutralizeMatchActionLabel(option.label, language) }
+            ? { ...option, label: presentTenseMatchActionLabel(option.label, language) }
             : option
         ),
       };
@@ -626,10 +631,16 @@ export class StoryQuizDomainService {
       closingKeepsakeLabel: input.closingKeepsakeLabel,
       scenarioCardName: input.scenarioCardName,
     });
+    const systemInstruction = buildQuizSystemInstruction({
+      language: input.language,
+      sourceAgeGroup,
+      quizAgeBucket,
+    });
 
     try {
       const generated = await this.textProvider.generateStructured<StoryQuizPayloadApi>({
         prompt,
+        systemInstruction,
         schema: storyQuizResponseSchema,
         temperature: 0.7,
         maxTokens: QUIZ_MAX_OUTPUT_TOKENS,

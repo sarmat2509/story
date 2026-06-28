@@ -12,7 +12,7 @@ import type { JsonSchema } from '../../providers/base/JsonSchema';
 
 export const QUIZ_AGE_BUCKETS: StoryQuizAgeBucket[] = ['1y', '2-3', '4-5', '6-8', '9-12'];
 
-export const QUIZ_PROMPT_VERSION = 'quiz-v20';
+export const QUIZ_PROMPT_VERSION = 'quiz-v21';
 
 export const STORY_QUIZ_GENERATION_STALE_MS = 10 * 60 * 1000;
 
@@ -363,36 +363,6 @@ function isHexColor(value: string | undefined): boolean {
   return typeof value === 'string' && /^#[0-9a-f]{6}$/iu.test(value.trim());
 }
 
-function isCyrillicPastTenseActionLabel(label: string): boolean {
-  const neutralActionAdverbs = new Set([
-    'весело',
-    'радісно',
-    'голосно',
-    'тихо',
-    'обережно',
-    'швидко',
-    'повільно',
-    'міцно',
-    'сміливо',
-    'спокійно',
-  ]);
-  const words = label
-    .trim()
-    .toLocaleLowerCase('uk')
-    .split(/\s+/)
-    .map((word) => word.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, ''))
-    .filter(Boolean);
-
-  return words.some((word) => {
-    if (!/[а-яёіїєґ]/iu.test(word)) return false;
-    if (neutralActionAdverbs.has(word)) return false;
-    return (
-      /[аеиіоуюяїє][вл]$/iu.test(word) ||
-      /(ла|ло|ли|лася|лися|лось|лись|лась|лся)$/iu.test(word)
-    );
-  });
-}
-
 export function validateStoryQuizPayload(
   payload: StoryQuizPayloadApi,
   context: {
@@ -504,17 +474,6 @@ export function validateStoryQuizPayload(
     }
     if (activity.pairs?.some((pair) => !ids.has(pair.leftId) || !ids.has(pair.rightId))) {
       issues.push(`${activity.id}: all pairs must reference options`);
-    }
-
-    if (activity.kind === 'match_character_action' && activity.interactionType === 'match_pairs') {
-      const rightIds = new Set((activity.pairs ?? []).map((pair) => pair.rightId));
-      for (const option of activity.options ?? []) {
-        if (rightIds.has(option.id) && isCyrillicPastTenseActionLabel(option.label)) {
-          issues.push(
-            `${activity.id}: match action ${option.id} must use a neutral action label, not a gendered finite verb`
-          );
-        }
-      }
     }
 
     for (const option of activity.options ?? []) {

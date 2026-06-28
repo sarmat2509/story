@@ -175,6 +175,91 @@ export function sanitizeVendorMarkup(
   return { text: s, unknownTagStripped };
 }
 
+function approvedBracketTagSpans(text: string, catalog: TtsSpeechTagCatalog): Array<{
+  literal: string;
+  start: number;
+  end: number;
+}> {
+  const inlineWhitelist = new Set(catalog.inlineBracketTags.map((t) => tagKey(t)));
+  const spans: Array<{ literal: string; start: number; end: number }> = [];
+  const re = /\[([^\]]+)\]/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    const literal = match[0];
+    const inner = match[1] || '';
+    if (inlineWhitelist.has(tagKey(inner))) {
+      spans.push({
+        literal,
+        start: match.index,
+        end: match.index + literal.length,
+      });
+    }
+  }
+  return spans;
+}
+
+function sentenceStartBefore(text: string, position: number): number {
+  const clamped = Math.max(0, Math.min(position, text.length));
+  let start = 0;
+
+  for (let i = 0; i < clamped; i++) {
+    if (!/[.!?…]/u.test(text[i] || '')) continue;
+
+    let j = i + 1;
+    while (j < text.length && /[.!?…]/u.test(text[j] || '')) j++;
+    while (j < text.length && /[\s"'“”‘’«»„\)\]\}]/u.test(text[j] || '')) j++;
+    start = j;
+    i = j;
+  }
+
+  return start;
+}
+
+/**
+ * Server-side invariant for bracket-only prosody: approved `[tag]` markers may guide a sentence,
+ * but must not split a word or appear mid-sentence. This preserves the canonical spoken text because
+ * only approved non-lexical tags move; stripping tags still yields the same narration.
+ */
+export function moveApprovedBracketTagsToSentenceStarts(
+  taggedText: string,
+  catalog: TtsSpeechTagCatalog
+): string {
+  if (catalog.inlineBracketTags.length === 0) return taggedText;
+
+  const spans = approvedBracketTagSpans(taggedText, catalog);
+  if (spans.length === 0) return taggedText;
+
+  const insertsByPlainIndex = new Map<number, string[]>();
+  let plain = '';
+  let cursor = 0;
+
+  for (const span of spans) {
+    plain += taggedText.slice(cursor, span.start);
+    const plainIndex = plain.length;
+    const sentenceStart = sentenceStartBefore(plain, plainIndex);
+    const list = insertsByPlainIndex.get(sentenceStart) || [];
+    list.push(span.literal);
+    insertsByPlainIndex.set(sentenceStart, list);
+    cursor = span.end;
+  }
+  plain += taggedText.slice(cursor);
+
+  if (insertsByPlainIndex.size === 0) return plain;
+
+  let out = '';
+  for (let i = 0; i <= plain.length; i++) {
+    const inserts = insertsByPlainIndex.get(i);
+    if (inserts && inserts.length > 0) {
+      out += inserts.join('');
+    }
+    if (i < plain.length) {
+      out += plain[i];
+    }
+  }
+
+  return out;
+}
+
 export function validateTaggedAgainstCanon(
   taggedSanitized: string,
   canonPlain: string,

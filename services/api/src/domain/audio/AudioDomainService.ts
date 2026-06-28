@@ -28,6 +28,7 @@ import { config } from '../../config';
 import { ElevenLabsProvider } from '../../providers/audio/elevenlabs/ElevenLabsProvider';
 import { stripForAudio } from '../../utils/audioTags';
 import {
+  moveApprovedBracketTagsToSentenceStarts,
   stripApprovedCatalogMarkup,
   sanitizeVendorMarkup,
   validateTaggedAgainstCanon,
@@ -219,8 +220,9 @@ export class AudioDomainService {
           const rawStored = priorAudio?.synthesisTaggedText?.trim();
           if (rawStored) {
             const { text: sanitized } = sanitizeVendorMarkup(rawStored, catalog);
-            if (validateTaggedAgainstCanon(sanitized, fullCanon, catalog, story.language)) {
-              taggedFull = sanitized;
+            const sentenceInitial = moveApprovedBracketTagsToSentenceStarts(sanitized, catalog);
+            if (validateTaggedAgainstCanon(sentenceInitial, fullCanon, catalog, story.language)) {
+              taggedFull = sentenceInitial;
               reusedFullFromDb = true;
               if (priorAudio?.assetId) {
                 const priorAsset = await getAssetRepository().findById(priorAudio.assetId);
@@ -835,8 +837,9 @@ export class AudioDomainService {
           const rawStored = priorAudio?.synthesisTaggedText?.trim();
           if (rawStored) {
             const { text: sanitized } = sanitizeVendorMarkup(rawStored, deferCatalog);
-            if (validateTaggedAgainstCanon(sanitized, normalizedText, deferCatalog, story.language)) {
-              normalizedText = sanitized;
+            const sentenceInitial = moveApprovedBracketTagsToSentenceStarts(sanitized, deferCatalog);
+            if (validateTaggedAgainstCanon(sentenceInitial, normalizedText, deferCatalog, story.language)) {
+              normalizedText = sentenceInitial;
               reusedFromDb = true;
               if (priorAudio?.assetId) {
                 const priorAsset = await getAssetRepository().findById(priorAudio.assetId);
