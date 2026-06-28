@@ -10,6 +10,8 @@ const BUBBLE_OUTLINE_EXTRA_PX = 14;
 const SPEECH_MAX_LINE_CHARS = 24;
 const CAPTION_MAX_LINE_CHARS = 30;
 const MIN_LINE_CHARS = 8;
+const VISUAL_TEXT_WIDTH_FACTOR = 0.66;
+const BOLD_CHARACTER_WIDTH_FACTOR = 0.64;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -115,16 +117,24 @@ export function measureGraphicNovelBubbleTextBox(params: {
   const maxLines = kind === 'caption' ? 2 : 4;
   const visibleLines = wrappedLines.slice(0, maxLines);
   const widestLineUnits = Math.max(...visibleLines.map(visualTextUnits), 1);
-  const widestLinePx = widestLineUnits * fontSizePx * 0.56;
+  const widestLineChars = Math.max(...visibleLines.map(charLength), 1);
+  const widestLinePx = Math.max(
+    widestLineUnits * fontSizePx * VISUAL_TEXT_WIDTH_FACTOR,
+    widestLineChars * fontSizePx * BOLD_CHARACTER_WIDTH_FACTOR
+  );
+  const preferredWrappedLinePx = wrappedLines.length > 1
+    ? Math.min(maxContentWidthPx, maxCharsPerLine * fontSizePx * BOLD_CHARACTER_WIDTH_FACTOR)
+    : 0;
+  const targetContentWidthPx = Math.max(widestLinePx, preferredWrappedLinePx);
   const maxHeightPx = Math.max(
     lineHeightPx + verticalChromePx,
     Math.min(zoneHeightPx * 0.96, panelHeightPx * (kind === 'caption' ? 0.24 : 0.34))
   );
   const minWidthPx = Math.min(
     maxWidthPx,
-    Math.max(fontSizePx * 3.2 + horizontalChromePx, Math.min(widestLinePx + horizontalChromePx, fontSizePx * 8 + horizontalChromePx))
+    Math.max(fontSizePx * 3.2 + horizontalChromePx, targetContentWidthPx + horizontalChromePx)
   );
-  const widthPx = clamp(widestLinePx + horizontalChromePx, minWidthPx, maxWidthPx);
+  const widthPx = clamp(targetContentWidthPx + horizontalChromePx, minWidthPx, maxWidthPx);
   const requestedHeightPx = visibleLines.length * lineHeightPx + verticalChromePx;
 
   return {

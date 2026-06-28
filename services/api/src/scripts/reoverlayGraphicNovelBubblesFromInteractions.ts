@@ -13,6 +13,10 @@
  * To redraw only deterministic SVG frames/bubbles over the same original art,
  * keeping the current bubble positions:
  *   ... --story-id=<uuid> --reuse-layout
+ *
+ * To recalculate bubble geometry from the already saved vision analysis,
+ * without a new vision call:
+ *   ... --story-id=<uuid> --page=1 --reuse-vision
  */
 
 import './loadEnvForScripts';
@@ -25,6 +29,7 @@ import {
   applyGraphicNovelBubbleVisionLayout,
   buildGraphicNovelPageTextOverlay,
   overlayGraphicNovelTemplate,
+  type GraphicNovelBubbleVisionAnalysis,
   type PlannedGraphicNovelPage,
 } from '../domain/graphicNovel';
 import { getAssetRepository, getGraphicNovelRepository, getStoryRepository } from '../repositories';
@@ -128,12 +133,14 @@ function summarizeBubblePlacement(page: PlannedGraphicNovelPage): Record<string,
 
 async function main(): Promise<void> {
   const storyId = argValue('story-id') || '8d1db0cd-7161-43ce-9654-cd5ce26c5c21';
+  const pageNumber = Number(argValue('page'));
   const dryRun = boolFlag('dry-run');
   const reuseLayout = boolFlag('reuse-layout');
+  const reuseVision = boolFlag('reuse-vision');
   const outputDir = path.resolve(
     process.cwd(),
     'output',
-    `graphic-novel-reoverlay-${reuseLayout ? 'reuse-layout-' : ''}${storyId}-${Date.now()}`
+    `graphic-novel-reoverlay-${reuseLayout ? 'reuse-layout-' : reuseVision ? 'reuse-vision-' : ''}${storyId}-${Date.now()}`
   );
   await fs.mkdir(outputDir, { recursive: true });
 
@@ -142,7 +149,8 @@ async function main(): Promise<void> {
   const project = await getGraphicNovelRepository().findProjectByStoryId(storyId);
   if (!project) throw new Error(`Graphic novel project not found for story: ${storyId}`);
 
-  const pages = await getGraphicNovelRepository().findPagesByProjectId(project.id);
+  const pages = (await getGraphicNovelRepository().findPagesByProjectId(project.id))
+    .filter((page) => !Number.isFinite(pageNumber) || page.pageNumber === pageNumber);
   const textProvider = getValidationTextProvider();
   const ai = new GoogleGenAI({
     apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
@@ -174,7 +182,18 @@ async function main(): Promise<void> {
     let placedPage = plannedPage;
     let placementSummary = summarizeBubblePlacement(plannedPage);
 
-    if (!reuseLayout) {
+    if (reuseLayout) {
+      analysis = (generationParams.bubbleVisionAnalysis as Awaited<ReturnType<typeof analyzeGraphicNovelBubbleVisionByPanelCrops>>) ?? null;
+    } else if (reuseVision) {
+      analysis = (generationParams.bubbleVisionAnalysis as GraphicNovelBubbleVisionAnalysis | null) ?? null;
+      if (!analysis?.panels?.length) {
+        report.push({ pageNumber: page.pageNumber, skipped: true, reason: 'missing_saved_bubble_vision_analysis' });
+        continue;
+      }
+      const applied = applyGraphicNovelBubbleVisionLayout(plannedPage, analysis);
+      placedPage = applied.page;
+      placementSummary = applied.placementSummary;
+    } else {
       analysis = await analyzeGraphicNovelBubbleVisionByPanelCrops({
         textProvider,
         page: plannedPage,
@@ -185,8 +204,6 @@ async function main(): Promise<void> {
       const applied = applyGraphicNovelBubbleVisionLayout(plannedPage, analysis);
       placedPage = applied.page;
       placementSummary = applied.placementSummary;
-    } else {
-      analysis = (generationParams.bubbleVisionAnalysis as Awaited<ReturnType<typeof analyzeGraphicNovelBubbleVisionByPanelCrops>>) ?? null;
     }
     const finalImage = await overlayGraphicNovelTemplate(raw.data, placedPage);
     await fs.writeFile(path.join(outputDir, `page-${page.pageNumber}-with-new-bubbles.png`), finalImage);
