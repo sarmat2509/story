@@ -18,7 +18,10 @@ import {
   normalizeLandingLocale,
 } from '../ssr/landingContent';
 import { listPublicStories } from '../services/publicStoryService';
-import * as planService from '../services/planService';
+import {
+  buildPlansWithFeatures,
+  normalizeBillingCurrency,
+} from '../services/planPresentationService';
 import { getVoiceRepository } from '../repositories';
 
 const router = Router();
@@ -57,6 +60,10 @@ function resolveLocale(req: Request): string {
   return normalizeLandingLocale(resolveLandingRouteLocale(routeLocale));
 }
 
+function resolveBillingCurrency(req: Request): string {
+  return normalizeBillingCurrency(typeof req.query.currency === 'string' ? req.query.currency : null);
+}
+
 /**
  * GET /ssr/landing
  * Returns full static HTML for the landing page.
@@ -64,9 +71,10 @@ function resolveLocale(req: Request): string {
  */
 async function handleLanding(req: Request, res: Response) {
   const locale = resolveLocale(req);
+  const billingCurrency = resolveBillingCurrency(req);
   let exampleStories: Array<{ age: string; title: string; time: string; slug: string; thumbnailUrl: string | null }> = [];
 
-  let plans: Awaited<ReturnType<typeof planService.getPlansWithLimits>> = [];
+  let plans: Awaited<ReturnType<typeof buildPlansWithFeatures>> = [];
   let voices: LandingVoices = [];
   try {
     const { items } = await listPublicStories({
@@ -90,7 +98,7 @@ async function handleLanding(req: Request, res: Response) {
     // Fallback to empty — renderLandingHtml will use hardcoded examples
   }
   try {
-    plans = await planService.getPlansWithLimits();
+    plans = await buildPlansWithFeatures({ locale, billingCurrency });
   } catch {
     // Fallback to empty — renderLandingHtml will use hardcoded plans
   }
@@ -100,7 +108,7 @@ async function handleLanding(req: Request, res: Response) {
     // Fallback to empty — renderLandingHtml will use hardcoded voices
   }
 
-  const html = renderLandingHtml({ locale, exampleStories, plans, voices });
+  const html = renderLandingHtml({ locale, exampleStories, plans, voices, billingCurrency });
   const etag = buildLandingEtag(html);
   if (req.headers['if-none-match'] === etag) {
     res.status(304);
