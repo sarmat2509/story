@@ -18,12 +18,12 @@ function testLongUkrainianSpeechGetsReadableWidth(): void {
 
   assert.equal(measured.overflow, false);
   assert.ok(
-    measured.width > 0.3,
-    `long speech bubble should be wide enough for 28px bold text; got ${measured.width.toFixed(3)}`
+    measured.width > 0.22,
+    `long speech bubble should be wide enough for 20px bold text; got ${measured.width.toFixed(3)}`
   );
   assert.ok(measured.lineCount <= 4, 'speech should wrap within the expected line budget');
   assert.ok(
-    measured.height > 0.07,
+    measured.height > 0.055,
     `long speech bubble should reserve a balanced-wrap safety line; got ${measured.height.toFixed(3)}`
   );
 }
@@ -37,12 +37,12 @@ function testCaptionGetsReadableWidth(): void {
 
   assert.equal(measured.overflow, false);
   assert.ok(
-    measured.width > 0.36,
-    `caption bubble should fit balanced 28px text without narrow wrapping; got ${measured.width.toFixed(3)}`
+    measured.width > 0.27,
+    `caption bubble should fit balanced 20px text without narrow wrapping; got ${measured.width.toFixed(3)}`
   );
   assert.ok(measured.lineCount <= 2, 'caption should fit the expected two-line budget');
   assert.ok(
-    measured.height > 0.055,
+    measured.height > 0.045,
     `caption bubble should reserve a balanced-wrap safety line; got ${measured.height.toFixed(3)}`
   );
 }
@@ -56,7 +56,7 @@ function testShortSpeechStaysCompact(): void {
 
   assert.equal(measured.overflow, false);
   assert.ok(
-    measured.width < 0.11,
+    measured.width < 0.08,
     `short speech bubble should remain compact; got ${measured.width.toFixed(3)}`
   );
 }

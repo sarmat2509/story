@@ -188,10 +188,10 @@ function getArtifactDisplayRanges(rawText: string): Array<{ start: number; end: 
   return ranges;
 }
 
-const GRAPHIC_NOVEL_BUBBLE_FONT_SIZE = 28;
-const GRAPHIC_NOVEL_BUBBLE_LINE_HEIGHT = 32;
-const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X = 20;
-const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y = 8;
+const GRAPHIC_NOVEL_BUBBLE_FONT_SIZE = 20;
+const GRAPHIC_NOVEL_BUBBLE_LINE_HEIGHT = 23;
+const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X = 14;
+const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y = 6;
 const GRAPHIC_NOVEL_CANONICAL_PAGE_WIDTH = 1536;
 
 const inlineNoSpaceBeforeRe = /^[\s,.;:!?…)\]}»”’"'%]/;
