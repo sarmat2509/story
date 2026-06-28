@@ -76,6 +76,31 @@ export interface ImageValidationResult {
   hasUnexpectedCharacters: boolean;
   hasTextOrLetters: boolean;
   hasRenderingArtifacts: boolean;
+  /** Optional layout QA for panel/bubble-based images, enabled only by validation request flag. */
+  hasArtworkOutsidePanelBounds?: boolean;
+  /** Optional layout QA for panel/bubble-based images, enabled only by validation request flag. */
+  hasArtworkOverSpeechBubbles?: boolean;
+  /** Optional layout QA: true when the image visually contains extra panels/sub-scenes beyond the planned panel boxes. */
+  hasExtraPanelStructure?: boolean;
+  /** Optional layout QA: true when visible guide-template colors remain in the generated art. */
+  hasTemplateColorResidue?: boolean;
+  /** Optional deterministic server-side details for guide-template color residue. */
+  templateColorResidueDetails?: {
+    hasResidue: boolean;
+    matchedPixels: number;
+    thresholdPixels: number;
+    thresholdPanelRatio: number;
+    panels: Array<{
+      panelIndex: number;
+      panelId: string;
+      guideColor: string;
+      matchedPixels: number;
+      panelPixels: number;
+      ratio: number;
+    }>;
+  };
+  /** Optional explanation for layout QA fields. */
+  layoutFeedback?: string;
   overallFeedback: string; // Human-readable summary for logging
 }
 

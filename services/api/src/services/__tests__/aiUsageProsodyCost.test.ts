@@ -1,5 +1,12 @@
 import assert from 'node:assert';
-import { estimateUsageCostUsd, USAGE_OP_TTS_PROSODY_TAGS } from '../aiUsageService';
+import {
+  estimateStoredUsageCostUsd,
+  estimateUsageCostUsd,
+  USAGE_OP_GRAPHIC_NOVEL_PAGE_EDIT,
+  USAGE_OP_GRAPHIC_NOVEL_PAGE_VALIDATION_REPAIR_EDIT,
+  USAGE_OP_GRAPHIC_NOVEL_PANEL_ART_GENERATE,
+  USAGE_OP_TTS_PROSODY_TAGS,
+} from '../aiUsageService';
 
 function testProsodyTagsPricedLikeTextGemini() {
   const cost = estimateUsageCostUsd({
@@ -25,9 +32,120 @@ function testProsodyTagsUnknownModelFallsBackLikeText() {
   assert.strictEqual(cost, 0);
 }
 
+function testHistoricalUnpricedOperationsArePriced() {
+  const cases = [
+    {
+      provider: 'gemini',
+      operation: 'validateScene',
+      model: 'gemini-2.5-flash',
+      inputUnits: 25_541,
+      outputUnits: 39_814,
+    },
+    {
+      provider: 'gemini',
+      operation: 'regenerateScene',
+      model: 'gemini-2.5-flash',
+      inputUnits: 11_272,
+      outputUnits: 48_285,
+    },
+    {
+      provider: 'gemini',
+      operation: 'director',
+      model: 'gemini-2.5-flash',
+      inputUnits: 78_344,
+      outputUnits: 55_980,
+    },
+    {
+      provider: 'gemini',
+      operation: 'graphic_novel_script',
+      model: 'gemini-3-flash-preview',
+      inputUnits: 25_460,
+      outputUnits: 134_077,
+    },
+    {
+      provider: 'gemini',
+      operation: 'graphic_novel_bubble_vision',
+      model: 'gemini-3.1-flash-lite',
+      inputUnits: 3_921,
+      outputUnits: 3_050,
+    },
+    {
+      provider: 'gemini',
+      operation: 'graphic_novel_bubble_vision_panel_crop',
+      model: 'gemini-3.1-flash-lite',
+      inputUnits: 25_304,
+      outputUnits: 8_869,
+    },
+    {
+      provider: 'gemini',
+      operation: USAGE_OP_GRAPHIC_NOVEL_PAGE_EDIT,
+      model: 'gemini-3.1-flash-image',
+      inputUnits: 83_335,
+      outputUnits: 0,
+      metadata: { imageTokens: 1120, thoughtTokens: 0 },
+    },
+    {
+      provider: 'gemini',
+      operation: USAGE_OP_GRAPHIC_NOVEL_PANEL_ART_GENERATE,
+      model: 'gemini-3.1-flash-image',
+      inputUnits: 21_630,
+      outputUnits: 0,
+      metadata: { imageTokens: 1120 },
+    },
+    {
+      provider: 'gemini',
+      operation: USAGE_OP_GRAPHIC_NOVEL_PAGE_VALIDATION_REPAIR_EDIT,
+      model: 'gemini-3.1-flash-image',
+      inputUnits: 10_000,
+      outputUnits: 0,
+      metadata: { imageTokens: 1120 },
+    },
+    {
+      provider: 'gemini',
+      operation: 'map_tile_brief',
+      model: 'gemini-3.1-flash-lite',
+      inputUnits: 1_000,
+      outputUnits: 1_000,
+    },
+    {
+      provider: 'gemini',
+      operation: 'image_validation_problem_recheck',
+      model: 'gemini-3.1-flash-lite',
+      inputUnits: 1_000,
+      outputUnits: 1_000,
+    },
+  ];
+
+  for (const sample of cases) {
+    const cost = estimateStoredUsageCostUsd(sample);
+    assert.ok(cost != null && cost > 0, `expected positive cost for ${sample.operation}, got ${cost}`);
+  }
+}
+
+function testStoredUsageUsesEffectiveUnitsAndImageMetadata() {
+  const cost = estimateStoredUsageCostUsd({
+    provider: 'gemini',
+    operation: USAGE_OP_GRAPHIC_NOVEL_PAGE_EDIT,
+    model: 'gemini-3.1-flash-image',
+    inputUnits: 1_000_000,
+    outputUnits: 0,
+    metadata: {
+      effectiveInputUnits: 500_000,
+      imageTokens: 2_000,
+      thoughtTokens: 1_000,
+    },
+  });
+
+  assert.ok(cost != null, 'expected stored image usage cost');
+  // 0.25 input + 0.12 image + 0.003 thinking for gemini-3.1-flash-image.
+  assert.ok(Math.abs(cost! - 0.373) < 0.0001, String(cost));
+}
+
 void (async () => {
   testProsodyTagsPricedLikeTextGemini();
   testProsodyTagsUnknownModelFallsBackLikeText();
+  testHistoricalUnpricedOperationsArePriced();
+  testStoredUsageUsesEffectiveUnitsAndImageMetadata();
   console.log('aiUsageProsodyCost tests OK');
 })().catch((e) => {
   console.error(e);

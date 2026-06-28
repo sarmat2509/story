@@ -266,6 +266,63 @@ export const IMAGE_VALIDATION_SCHEMA: JsonSchema = {
   ],
 };
 
+export function buildImageValidationSchema(
+  params: {
+    includeLayoutChecks?: boolean;
+    includeBubbleChecks?: boolean;
+  } = {}
+): JsonSchema {
+  if (!params.includeLayoutChecks) {
+    return IMAGE_VALIDATION_SCHEMA;
+  }
+  const includeBubbleChecks = params.includeBubbleChecks !== false;
+
+  return {
+    ...IMAGE_VALIDATION_SCHEMA,
+    properties: {
+      ...IMAGE_VALIDATION_SCHEMA.properties,
+      hasArtworkOutsidePanelBounds: {
+        type: 'boolean',
+        description:
+          'Graphic-novel layout check. True if any illustration/art/background/character pixels visibly extend outside their intended panel box into gutters, page margins, or another panel. Panel frames/bubble outlines/text do not count as artwork.',
+      },
+      ...(includeBubbleChecks
+        ? {
+            hasArtworkOverSpeechBubbles: {
+              type: 'boolean',
+              description:
+                'Graphic-novel layout check. True if any illustration/art/background/character pixels overlap, cover, or reduce readability of speech bubbles, thought bubbles, caption boxes, bubble tails, outlines, or text. The bubble itself and its printed text do not count as artwork.',
+            },
+          }
+        : {}),
+      hasExtraPanelStructure: {
+        type: 'boolean',
+        description:
+          'Graphic-novel layout check. True if the generated image visually contains more panels/scenes than the planned template: extra panel borders, fake gutters, split-screen dividers, inset panels, or a single planned panel split into multiple distinct locations/camera shots/story beats.',
+      },
+      hasTemplateColorResidue: {
+        type: 'boolean',
+        description:
+          'Graphic-novel template check. True if any visible color-coded guide-template fill remains in the final artwork, such as sky-blue, peach, mint, lavender, yellow, or pink template patches, strips, bands, or unpainted rectangular areas along panel edges or behind the illustration.',
+      },
+      layoutFeedback: {
+        type: 'string',
+        description: includeBubbleChecks
+          ? 'Short explanation of panel-boundary, speech-bubble, and extra-panel-structure issues, or "ok" when all layout checks pass.'
+          : 'Short explanation of panel-boundary and extra-panel-structure issues, or "ok" when all layout checks pass.',
+      },
+    },
+    required: [
+      ...(IMAGE_VALIDATION_SCHEMA.required || []),
+      'hasArtworkOutsidePanelBounds',
+      ...(includeBubbleChecks ? ['hasArtworkOverSpeechBubbles'] : []),
+      'hasExtraPanelStructure',
+      'hasTemplateColorResidue',
+      'layoutFeedback',
+    ],
+  };
+}
+
 /**
  * Schema for batch regeneration - returns all corrected scenes
  */

@@ -14,8 +14,9 @@ import {
   buildImageValidationRuntimePrompt,
   getImageValidationCachedPrefix,
   type ImageValidationCharacterKind,
+  type ImageValidationReferenceKind,
 } from '../../prompts/image/ImageValidationPrompt';
-import { IMAGE_VALIDATION_SCHEMA } from '../story/schemas';
+import { buildImageValidationSchema } from '../story/schemas';
 import { type SceneVisual } from '../../services/types';
 import {
   hashModerationSubject,
@@ -40,11 +41,18 @@ export type ProductImageValidationInput = {
     imageData?: string;
     fileUri?: string;
     mimeType: string;
-    referenceKind?: 'identity' | 'outfit_plate';
+    referenceKind?: ImageValidationReferenceKind;
   }>;
   /** Optional ids for structured logs (what we send to the vision model). */
   logContext?: { storyId?: string; sceneId?: number; attempt?: number };
   onUsage?: (usage: UsageMetadata) => void;
+  /**
+   * When true, the validation prompt/schema also checks graphic-novel layout:
+   * artwork must stay inside panel boxes and must not overlap bubbles/captions.
+   */
+  includeLayoutChecks?: boolean;
+  /** When false, layout checks omit speech/thought/caption bubble overlap QA. */
+  includeBubbleChecks?: boolean;
 };
 
 export type ProductImageValidationOptions = {
@@ -101,7 +109,10 @@ function truncateText(text: string, maxChars: number): string {
 function stripObjectTailForValidationHint(text: string): string {
   return compactWhitespace(
     text
-      .replace(/\b(with|while|beside|near|toward|towards|onto|into|inside|around|above|under|behind|at|on|in)\b[\s\S]*$/i, '')
+      .replace(
+        /\b(with|while|beside|near|toward|towards|onto|into|inside|around|above|under|behind|at|on|in)\b[\s\S]*$/i,
+        ''
+      )
       .replace(/[,:;.\s]+$/g, '')
   );
 }
@@ -197,7 +208,7 @@ function normalizeVisionMimeType(mimeType: string): SupportedVisionMimeType {
 function buildValidationImageInstruction(params: {
   imageIndex: number;
   characterName?: string;
-  referenceKind?: 'identity' | 'outfit_plate';
+  referenceKind?: ImageValidationReferenceKind;
 }): string {
   if (params.imageIndex === 1) {
     return 'Image 1: GENERATED ILLUSTRATION to inspect. Validate this image against the expected roster and references that follow.';
@@ -206,6 +217,10 @@ function buildValidationImageInstruction(params: {
   const name = params.characterName?.trim() || 'unknown character';
   if (params.referenceKind === 'outfit_plate') {
     return `Image ${params.imageIndex}: OUTFIT PLATE for "${name}". Clothing only. Use this as the strongest wardrobe ground truth for this character in the generated illustration.`;
+  }
+
+  if (params.referenceKind === 'layout_template') {
+    return `Image ${params.imageIndex}: LAYOUT TEMPLATE reference. Use this as the exact page geometry for the generated graphic novel page: outer page aspect, panel rectangles, black frames, gutters, row/column splits, and color guide areas that should be fully covered by final art.`;
   }
 
   return `Image ${params.imageIndex}: IDENTITY reference for "${name}". Use this for face, hair, age read, body proportions, silhouette, palette, stable markings, and default clothing only when no outfit plate or scene wardrobe text exists.`;
@@ -284,10 +299,19 @@ export function findExpectedForValidationChar(
 
 export function charHasIdentityReference(
   charName: string,
-  refs: ReadonlyArray<{ characterName: string; imageData?: string; fileUri?: string }> | undefined
+  refs:
+    | ReadonlyArray<{
+        characterName: string;
+        imageData?: string;
+        fileUri?: string;
+        referenceKind?: ImageValidationReferenceKind;
+      }>
+    | undefined
 ): boolean {
   if (!refs?.length) return false;
-  return refs.some((r) => validationNamesMatch(r.characterName, charName));
+  return refs.some(
+    (r) => r.referenceKind !== 'layout_template' && validationNamesMatch(r.characterName, charName)
+  );
 }
 
 /**
@@ -296,10 +320,27 @@ export function charHasIdentityReference(
 export function normalizeImageValidationResult(
   result: ImageValidationResult & { isValid?: boolean },
   expectedCharacters: ProductImageValidationInput['expectedCharacters'],
-  referenceImages: ProductImageValidationInput['referenceImages'] | undefined
+  referenceImages: ProductImageValidationInput['referenceImages'] | undefined,
+  includeLayoutChecks = false,
+  includeBubbleChecks = true
 ): ImageValidationResult {
   const { isValid: _ignored, ...rest } = result;
   const out = { ...rest } as ImageValidationResult;
+  if (includeLayoutChecks && out.hasArtworkOutsidePanelBounds == null) {
+    out.hasArtworkOutsidePanelBounds = false;
+  }
+  if (includeLayoutChecks && includeBubbleChecks && out.hasArtworkOverSpeechBubbles == null) {
+    out.hasArtworkOverSpeechBubbles = false;
+  }
+  if (includeLayoutChecks && out.hasExtraPanelStructure == null) {
+    out.hasExtraPanelStructure = false;
+  }
+  if (includeLayoutChecks && out.hasTemplateColorResidue == null) {
+    out.hasTemplateColorResidue = false;
+  }
+  if (includeLayoutChecks && out.layoutFeedback == null) {
+    out.layoutFeedback = 'not_requested';
+  }
 
   for (const c of out.characters) {
     const exp = findExpectedForValidationChar(c.name, expectedCharacters);
@@ -467,10 +508,11 @@ export async function runProductImageValidation(
       },
       referenceCount: refMeta.length,
       referencesSent: refMeta,
+      includeLayoutChecks: input.includeLayoutChecks === true,
       imageOrderToModel: [
         '1_generated_illustration',
-        ...(preparedReferenceImages ?? []).map((r, i) =>
-          `${i + 2}_${r.referenceKind ?? 'identity'}_${r.characterName}`
+        ...(preparedReferenceImages ?? []).map(
+          (r, i) => `${i + 2}_${r.referenceKind ?? 'identity'}_${r.characterName}`
         ),
       ],
       totalAttachmentCount: 1 + refMeta.length,
@@ -512,8 +554,8 @@ export async function runProductImageValidation(
 
   const imageOrder = [
     '1_generated_illustration',
-    ...(preparedReferenceImages ?? []).map((r, i) =>
-      `${i + 2}_${r.referenceKind ?? 'identity'}_${r.characterName}`
+    ...(preparedReferenceImages ?? []).map(
+      (r, i) => `${i + 2}_${r.referenceKind ?? 'identity'}_${r.characterName}`
     ),
   ];
   const requestManifest: Record<string, unknown> = {
@@ -521,6 +563,8 @@ export async function runProductImageValidation(
     validationSystemInstruction: 'image_validation_qa_v1',
     cacheKey: cachedPrefix.key,
     operation,
+    includeLayoutChecks: input.includeLayoutChecks === true,
+    includeBubbleChecks: input.includeBubbleChecks !== false,
     imageOrder,
     generatedImage: {
       role: 'generated_scene',
@@ -589,6 +633,8 @@ export async function runProductImageValidation(
       expectedCharacters: expectedCharactersForPrompt,
       sceneContext,
       referenceImages: preparedReferenceImages,
+      includeLayoutChecks: input.includeLayoutChecks,
+      includeBubbleChecks: input.includeBubbleChecks,
     });
     const attemptKind = `${attemptSpec.providerRole}_${promptMode}`;
     const attemptManifest: Record<string, unknown> = {
@@ -611,7 +657,10 @@ export async function runProductImageValidation(
         prompt,
         cachedPrefix,
         imageData: imageDataArray,
-        schema: IMAGE_VALIDATION_SCHEMA,
+        schema: buildImageValidationSchema({
+          includeLayoutChecks: input.includeLayoutChecks,
+          includeBubbleChecks: input.includeBubbleChecks,
+        }),
         temperature: 0.2,
         relaxedSafety: true,
         onUsage: input.onUsage,
@@ -621,7 +670,9 @@ export async function runProductImageValidation(
       const result = normalizeImageValidationResult(
         raw,
         input.expectedCharacters,
-        preparedReferenceImages
+        preparedReferenceImages,
+        input.includeLayoutChecks === true,
+        input.includeBubbleChecks !== false
       );
       result.validationStatus = 'completed';
       result.validationAttemptKind = attemptKind;
@@ -722,7 +773,7 @@ export async function runProductImageValidation(
     'All image validation provider attempts were blocked; returning inconclusive provider_blocked result'
   );
 
-  return {
+  const blockedResult: ImageValidationResult = {
     validationStatus: 'provider_blocked',
     validationAttemptKind: lastBlockedAttemptKind || 'all_blocked',
     validationModelUsed:
@@ -751,4 +802,14 @@ export async function runProductImageValidation(
     hasRenderingArtifacts: false,
     overallFeedback: `provider-blocked: ${lastBlockedError || 'no visual verdict'}`,
   };
+  if (input.includeLayoutChecks) {
+    blockedResult.hasArtworkOutsidePanelBounds = false;
+    if (input.includeBubbleChecks !== false) {
+      blockedResult.hasArtworkOverSpeechBubbles = false;
+    }
+    blockedResult.hasExtraPanelStructure = false;
+    blockedResult.hasTemplateColorResidue = false;
+    blockedResult.layoutFeedback = 'provider_blocked_no_layout_verdict';
+  }
+  return blockedResult;
 }

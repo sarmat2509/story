@@ -91,20 +91,82 @@ function testNoKindMismatchOnEqualKinds() {
 }
 
 function testHumanHairDriftTriggersRepairBelowDefaultThreshold() {
-  const score = computeValidationScore(makeResult({
-    recognizableScore: 0.9,
-    hairMatchesReference: false,
-    issue: 'single thick braid instead of reference braided crown',
-  }), {
-    expectedCharacters: [{ name: 'Emma', characterKind: 'human' }],
-    referenceNamesNormalized: new Set(['emma']),
-    validationReferenceImages: [{ characterName: 'Emma', mimeType: 'image/png' }],
-    scoringOverride: baseScoring,
-  });
+  const score = computeValidationScore(
+    makeResult({
+      recognizableScore: 0.9,
+      hairMatchesReference: false,
+      issue: 'single thick braid instead of reference braided crown',
+    }),
+    {
+      expectedCharacters: [{ name: 'Emma', characterKind: 'human' }],
+      referenceNamesNormalized: new Set(['emma']),
+      validationReferenceImages: [{ characterName: 'Emma', mimeType: 'image/png' }],
+      scoringOverride: baseScoring,
+    }
+  );
 
   assert.ok(
     score <= 85,
     `Hair drift score should not auto-accept at default threshold 85; got ${score}`
+  );
+}
+
+function testLayoutFailuresUseArtifactsPenalty() {
+  const score = computeValidationScore(
+    makeResult(
+      {},
+      {
+        hasArtworkOutsidePanelBounds: true,
+        hasArtworkOverSpeechBubbles: true,
+        hasExtraPanelStructure: true,
+        hasTemplateColorResidue: true,
+      }
+    ),
+    {
+      expectedCharacters: [{ name: 'Emma', characterKind: 'human' }],
+      scoringOverride: baseScoring,
+    }
+  );
+  assert.strictEqual(
+    score,
+    100 - baseScoring.artifactsPenalty * 4,
+    'Graphic novel layout/template failures should use artifacts penalty'
+  );
+}
+
+function testTemplateColorResidueDetailsAddSeverityPenalty() {
+  const score = computeValidationScore(
+    makeResult(
+      {},
+      {
+        hasTemplateColorResidue: true,
+        templateColorResidueDetails: {
+          hasResidue: true,
+          matchedPixels: 44488,
+          thresholdPixels: 500,
+          thresholdPanelRatio: 0.002,
+          panels: [
+            {
+              panelIndex: 2,
+              panelId: 'p2',
+              guideColor: 'peach',
+              matchedPixels: 16497,
+              panelPixels: 482349,
+              ratio: 0.0342,
+            },
+          ],
+        },
+      }
+    ),
+    {
+      expectedCharacters: [{ name: 'Emma', characterKind: 'human' }],
+      scoringOverride: baseScoring,
+    }
+  );
+  assert.strictEqual(
+    score,
+    68,
+    'Visible template residue should fall below graphic-novel repair threshold'
   );
 }
 
@@ -122,7 +184,11 @@ function testHumanWithRefOnlyWhenBothHuman() {
     referenceNamesNormalized: new Set(['emma']),
     scoringOverride: baseScoring,
   });
-  assert.strictEqual(scoreHuman, 100 - 4 * 8 - 6, 'Four human identity flags plus hair structure extra penalty');
+  assert.strictEqual(
+    scoreHuman,
+    100 - 4 * 8 - 6,
+    'Four human identity flags plus hair structure extra penalty'
+  );
 
   // Model says human, but expected is animal → kind mismatch, humanWithRef branch SKIPPED.
   const scoreKindMismatch = computeValidationScore(human, {
@@ -313,6 +379,8 @@ testBaselineCleanResult();
 testKindMismatchUsesConfigurablePenalty();
 testNoKindMismatchOnEqualKinds();
 testHumanHairDriftTriggersRepairBelowDefaultThreshold();
+testLayoutFailuresUseArtifactsPenalty();
+testTemplateColorResidueDetailsAddSeverityPenalty();
 testHumanWithRefOnlyWhenBothHuman();
 testNonHumanWithRefAppliesEquallyToAnimalAndImaginary();
 testLeniencyCoversIdentityBooleansAndSilhouette();

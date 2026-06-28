@@ -7,7 +7,10 @@
 import assert from 'node:assert/strict';
 import type { ImageValidationResult } from '../../../ai/types';
 import type { ITextProvider } from '../../../providers/base/ITextProvider';
-import type { GenerateStructuredRequest, GenerateTextRequest } from '../../../providers/base/JsonSchema';
+import type {
+  GenerateStructuredRequest,
+  GenerateTextRequest,
+} from '../../../providers/base/JsonSchema';
 import { runProductImageValidation } from '../imageValidationRun';
 
 const TINY_PNG = Buffer.from(
@@ -72,6 +75,17 @@ function validResult(): ImageValidationResult {
     hasTextOrLetters: false,
     hasRenderingArtifacts: false,
     overallFeedback: 'ok',
+  };
+}
+
+function validLayoutResult(): ImageValidationResult {
+  return {
+    ...validResult(),
+    hasArtworkOutsidePanelBounds: false,
+    hasArtworkOverSpeechBubbles: false,
+    hasExtraPanelStructure: false,
+    hasTemplateColorResidue: false,
+    layoutFeedback: 'ok',
   };
 }
 
@@ -163,9 +177,87 @@ async function testAllBlockedReturnsProviderBlocked() {
   );
 }
 
+async function testLayoutChecksSchemaAndPromptAreFlagged() {
+  const primary = new MockTextProvider([validLayoutResult()]);
+
+  const result = await runProductImageValidation(
+    primary,
+    {
+      ...validationInput,
+      includeLayoutChecks: true,
+    },
+    {
+      visionModel: 'gemini-test',
+    }
+  );
+
+  assert.strictEqual(result.hasArtworkOutsidePanelBounds, false);
+  assert.strictEqual(result.hasArtworkOverSpeechBubbles, false);
+  assert.strictEqual(result.hasExtraPanelStructure, false);
+  assert.strictEqual(result.hasTemplateColorResidue, false);
+  assert.strictEqual(result.layoutFeedback, 'ok');
+  assert.strictEqual(primary.calls.length, 1);
+  assert.match(primary.calls[0].prompt, /GRAPHIC NOVEL LAYOUT CHECKS/);
+  assert.ok((primary.calls[0].schema.required || []).includes('hasArtworkOutsidePanelBounds'));
+  assert.ok((primary.calls[0].schema.required || []).includes('hasArtworkOverSpeechBubbles'));
+  assert.ok((primary.calls[0].schema.required || []).includes('hasExtraPanelStructure'));
+  assert.ok((primary.calls[0].schema.required || []).includes('hasTemplateColorResidue'));
+  assert.ok((primary.calls[0].schema.required || []).includes('layoutFeedback'));
+}
+
+async function testLayoutTemplateReferenceIsAttachedForValidation() {
+  const primary = new MockTextProvider([validLayoutResult()]);
+
+  const result = await runProductImageValidation(
+    primary,
+    {
+      ...validationInput,
+      includeLayoutChecks: true,
+      includeBubbleChecks: false,
+      referenceImages: [
+        {
+          characterName: 'Graphic novel page 3 layout template',
+          imageData: TINY_PNG.toString('base64'),
+          mimeType: 'image/png',
+          referenceKind: 'layout_template',
+        },
+        ...validationInput.referenceImages,
+      ],
+    },
+    {
+      visionModel: 'gemini-test',
+    }
+  );
+
+  assert.strictEqual(result.validationStatus, 'completed');
+  assert.strictEqual(primary.calls.length, 1);
+  assert.match(primary.calls[0].prompt, /LAYOUT TEMPLATE REFERENCES/);
+  assert.match(primary.calls[0].prompt, /Image 2: exact page layout template/);
+  assert.match(primary.calls[0].prompt, /"Lera" -> Image 3 \[HUMAN; IDENTITY\]/);
+  assert.ok(!primary.calls[0].prompt.includes('"Graphic novel page 3 layout template" ->'));
+  assert.match(
+    primary.calls[0].imageData?.[1]?.instructionText ?? '',
+    /LAYOUT TEMPLATE reference/
+  );
+  const manifest = result.requestManifest as {
+    imageOrder: string[];
+    references: Array<{ referenceKind: string; imageIndex: number }>;
+  };
+  assert.deepStrictEqual(manifest.imageOrder, [
+    '1_generated_illustration',
+    '2_layout_template_Graphic novel page 3 layout template',
+    '3_identity_Lera',
+    '4_identity_Druzhok',
+  ]);
+  assert.strictEqual(manifest.references[0].referenceKind, 'layout_template');
+  assert.strictEqual(manifest.references[0].imageIndex, 2);
+}
+
 async function main() {
   await testFallbackAfterPrimaryBlocked();
   await testAllBlockedReturnsProviderBlocked();
+  await testLayoutChecksSchemaAndPromptAreFlagged();
+  await testLayoutTemplateReferenceIsAttachedForValidation();
   console.log('imageValidationRun tests passed');
 }
 

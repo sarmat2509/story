@@ -19,9 +19,40 @@ export interface UsageContext {
 export const USAGE_OP_IMAGE_ENVIRONMENT = 'image_environment';
 export const USAGE_OP_IMAGE_OUTFIT_PLATE = 'image_outfit_plate';
 export const USAGE_OP_IMAGE_MAP_TILE = 'image_map_tile';
+export const USAGE_OP_GRAPHIC_NOVEL_PAGE_EDIT = 'graphic_novel_page_edit';
+export const USAGE_OP_GRAPHIC_NOVEL_PAGE_ART_EDIT = 'graphic_novel_page_art_edit';
+export const USAGE_OP_GRAPHIC_NOVEL_PANEL_ART_GENERATE = 'graphic_novel_panel_art_generate';
+export const USAGE_OP_GRAPHIC_NOVEL_PAGE_VALIDATION_REPAIR_EDIT =
+  'graphic_novel_page_validation_repair_edit';
 
 /** Deferred TTS prosody LLM (`enrichDeferredProsodyForTtsChunk`); priced like text tokens (same provider/model). */
 export const USAGE_OP_TTS_PROSODY_TAGS = 'tts_prosody_tags';
+
+const TEXT_PRICED_OPERATIONS = new Set([
+  USAGE_OP_TTS_PROSODY_TAGS,
+  'character_analysis',
+  'translation',
+  'face_dedup',
+  'image_validation',
+  'validateScene',
+  'regenerateScene',
+  'director',
+  'map_tile_brief',
+  'graphic_novel_script',
+  'graphic_novel_script_safety_fallback',
+  'graphic_novel_bubble_vision',
+  'graphic_novel_bubble_vision_panel_crop',
+]);
+
+function isTextPricedOperation(operation: string): boolean {
+  return (
+    operation.includes('text') ||
+    TEXT_PRICED_OPERATIONS.has(operation) ||
+    operation.startsWith('image_validation') ||
+    operation.startsWith('director_compare') ||
+    operation.startsWith('verify_defer_tts')
+  );
+}
 
 function isImageGenerationPricedOperation(operation: string): boolean {
   return (
@@ -29,7 +60,11 @@ function isImageGenerationPricedOperation(operation: string): boolean {
     operation === 'image_edit' ||
     operation === USAGE_OP_IMAGE_ENVIRONMENT ||
     operation === USAGE_OP_IMAGE_OUTFIT_PLATE ||
-    operation === USAGE_OP_IMAGE_MAP_TILE
+    operation === USAGE_OP_IMAGE_MAP_TILE ||
+    operation === USAGE_OP_GRAPHIC_NOVEL_PAGE_EDIT ||
+    operation === USAGE_OP_GRAPHIC_NOVEL_PAGE_ART_EDIT ||
+    operation === USAGE_OP_GRAPHIC_NOVEL_PANEL_ART_GENERATE ||
+    operation === USAGE_OP_GRAPHIC_NOVEL_PAGE_VALIDATION_REPAIR_EDIT
   );
 }
 
@@ -37,8 +72,6 @@ function getConfigKey(provider: string, model?: string): string {
   if (model) return model;
   if (provider === 'elevenlabs') return 'elevenlabs-eleven_v3';
   if (provider === 'google-tts') return 'gemini-2.5-flash-tts';
-  if (provider === 'grok') return 'xai-tts';
-  if (provider === 'openai') return 'gpt-4o-mini-tts';
   if (provider === 'grok') return 'xai-tts';
   if (provider === 'openai') return 'gpt-4o-mini-tts';
   return 'gemini-3-flash-preview';
@@ -67,17 +100,7 @@ function calculateCost(usage: UsageMetadata): number | null {
       : Math.max(usage.inputUnits - (usage.cachedInputUnits ?? 0), 0);
 
   try {
-    if (
-      operation.includes('text') ||
-      operation === USAGE_OP_TTS_PROSODY_TAGS ||
-      operation === 'character_analysis' ||
-      operation === 'translation' ||
-      operation === 'face_dedup' ||
-      operation === 'image_validation' ||
-      operation === 'validateScene' ||
-      operation === 'regenerateScene' ||
-      operation === 'director'
-    ) {
+    if (isTextPricedOperation(operation)) {
       const textConfig = getTextCostConfig(modelKey);
       if (textConfig && 'inputPer1M' in textConfig) {
         const inputCost = (billedInputUnits / 1e6) * textConfig.inputPer1M;
@@ -134,6 +157,54 @@ function calculateCost(usage: UsageMetadata): number | null {
 /** Estimated USD cost from usage metadata (same formula as DB recording). */
 export function estimateUsageCostUsd(usage: UsageMetadata): number | null {
   return calculateCost(usage);
+}
+
+export interface StoredUsageCostInput {
+  provider: string;
+  operation: string;
+  model?: string | null;
+  inputUnits?: number | null;
+  outputUnits?: number | null;
+  durationMs?: number | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+function coerceNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function coerceBoolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    if (value.toLowerCase() === 'true') return true;
+    if (value.toLowerCase() === 'false') return false;
+  }
+  return undefined;
+}
+
+/** Estimated USD cost for an already persisted ai_usage_events row. */
+export function estimateStoredUsageCostUsd(input: StoredUsageCostInput): number | null {
+  const metadata = input.metadata ?? {};
+
+  return calculateCost({
+    provider: input.provider,
+    operation: input.operation,
+    model: input.model ?? undefined,
+    inputUnits: input.inputUnits ?? 0,
+    outputUnits: input.outputUnits ?? undefined,
+    durationMs: input.durationMs ?? undefined,
+    thoughtTokens: coerceNumber(metadata.thoughtTokens),
+    imageTokens: coerceNumber(metadata.imageTokens),
+    durationSeconds: coerceNumber(metadata.durationSeconds),
+    cachedInputUnits: coerceNumber(metadata.cachedInputUnits),
+    effectiveInputUnits: coerceNumber(metadata.effectiveInputUnits),
+    cacheHit: coerceBoolean(metadata.cacheHit),
+  });
 }
 
 /**

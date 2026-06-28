@@ -132,9 +132,58 @@ function testNfcNameMatchingBetweenRosterAndRefs() {
   );
 }
 
+function testLayoutChecksAreFlaggedRuntimeOnly() {
+  const withoutLayout = buildImageValidationRuntimePrompt({
+    expectedCharacters: [{ name: 'Mia', characterKind: 'human' }],
+  });
+  assert.ok(!withoutLayout.includes('GRAPHIC NOVEL LAYOUT CHECKS'));
+  assert.ok(!withoutLayout.includes('hasArtworkOutsidePanelBounds'));
+  assert.ok(!withoutLayout.includes('hasTemplateColorResidue'));
+
+  const withLayout = buildImageValidationRuntimePrompt({
+    expectedCharacters: [{ name: 'Mia', characterKind: 'human' }],
+    includeLayoutChecks: true,
+  });
+  assert.ok(withLayout.includes('GRAPHIC NOVEL LAYOUT CHECKS'));
+  assert.ok(withLayout.includes('hasArtworkOutsidePanelBounds=true'));
+  assert.ok(withLayout.includes('hasArtworkOverSpeechBubbles=true'));
+  assert.ok(withLayout.includes('hasExtraPanelStructure=true'));
+  assert.ok(withLayout.includes('hasTemplateColorResidue=true'));
+  assert.ok(withLayout.includes('color-coded guide-template fill'));
+  assert.ok(withLayout.includes('exactly N panels'));
+  assert.ok(withLayout.includes('layoutFeedback'));
+}
+
+function testLayoutTemplateReferenceIsNotCharacterMapping() {
+  const runtime = buildImageValidationRuntimePrompt({
+    expectedCharacters: [{ name: 'Mia', characterKind: 'human' }],
+    referenceImages: [
+      {
+        characterName: 'Graphic novel page 3 layout template',
+        mimeType: 'image/png',
+        referenceKind: 'layout_template',
+      },
+      { characterName: 'Mia', mimeType: 'image/png', referenceKind: 'identity' },
+    ],
+    includeLayoutChecks: true,
+    includeBubbleChecks: false,
+  });
+
+  assert.ok(
+    runtime.includes('Image 2: layout template reference for the generated graphic novel page')
+  );
+  assert.ok(runtime.includes('LAYOUT TEMPLATE REFERENCES'));
+  assert.ok(runtime.includes('Compare Image 1 against the listed layout template reference'));
+  assert.ok(runtime.includes('"Mia" -> Image 3 [HUMAN; IDENTITY]'));
+  assert.ok(!runtime.includes('"Graphic novel page 3 layout template" ->'));
+  assert.ok(!runtime.includes('hasArtworkOverSpeechBubbles=true'));
+}
+
 testCacheKeysBumped();
 testKindRendering();
 testSubtypeOnlyWhenProvided();
 testValidationMappingFallback();
 testNfcNameMatchingBetweenRosterAndRefs();
+testLayoutChecksAreFlaggedRuntimeOnly();
+testLayoutTemplateReferenceIsNotCharacterMapping();
 console.log('imageValidationPromptKind tests passed');

@@ -8,6 +8,7 @@ import type {
   GenerateImageRequest,
   GeneratedImage,
   ReferenceImage,
+  EditImageRequest,
 } from '../../providers/base/IImageProvider';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
 import type { UsageMetadata } from '../../providers/base/UsageMetadata';
@@ -599,10 +600,12 @@ export class ImageDomainService {
       imageData?: string; // base64 (optional when fileUri provided)
       fileUri?: string; // Files API URI — when present, used instead of inline data
       mimeType: string;
-      referenceKind?: 'identity' | 'outfit_plate';
+      referenceKind?: 'identity' | 'outfit_plate' | 'layout_template';
     }>;
     logContext?: { storyId?: string; sceneId?: number; attempt?: number };
     onUsage?: (usage: UsageMetadata) => void;
+    includeLayoutChecks?: boolean;
+    includeBubbleChecks?: boolean;
   }): Promise<ImageValidationResult> {
     if (!this.textProvider) {
       throw new Error('Image validation requires textProvider (ENABLE_IMAGE_VALIDATION=true)');
@@ -691,12 +694,51 @@ export class ImageDomainService {
           referenceKind:
             ref.referenceKind ??
             inferReferenceKind({ source: ref.source, type: (ref as { type?: string }).type }),
-      })) || undefined,
+        })) || undefined,
       systemInstruction: params.systemInstruction,
       previousInteractionId: params.previousInteractionId,
       personGeneration: params.personGeneration,
       onUsage: params.onUsage,
       operation: 'image_edit',
+    });
+  }
+
+  async editImageWithInstructions(request: EditImageRequest): Promise<GeneratedImage> {
+    if (!this.imageProvider.editImage) {
+      throw new Error('Image provider does not support editImage');
+    }
+
+    logger.info(
+      {
+        originalMimeType: request.originalMimeType,
+        aspectRatio: request.aspectRatio,
+        referenceCount: request.referenceImages?.length || 0,
+        editInstructionsLength: request.editInstructions.length,
+      },
+      'Editing image with direct instructions'
+    );
+
+    return this.imageProvider.editImage({
+      ...request,
+      operation: request.operation || 'image_edit',
+    });
+  }
+
+  async generateImageWithInstructions(request: GenerateImageRequest): Promise<GeneratedImage> {
+    logger.info(
+      {
+        aspectRatio: request.aspectRatio,
+        referenceCount: request.referenceImages?.length || 0,
+        promptLength: request.prompt.length,
+        hasSystemInstruction: !!request.systemInstruction,
+        operation: request.operation,
+      },
+      'Generating image with direct instructions'
+    );
+
+    return this.imageProvider.generateImage({
+      ...request,
+      operation: request.operation || 'image_generate',
     });
   }
 
