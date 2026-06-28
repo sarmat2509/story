@@ -304,6 +304,42 @@ function testCoverPanelCropPrioritizesHeadWhenBodyCannotFit(): void {
     crop.cropRect.top < crop.fullPanelCropRect.top + crop.fullPanelCropRect.height * 0.24,
     'crop should move upward toward the character head'
   );
+  assert.ok(
+    crop.cropRect.left >= crop.fullPanelCropRect.left + crop.borderInsetPx,
+    'crop should stay inside the panel border'
+  );
+  assert.ok(
+    crop.cropRect.top >= crop.fullPanelCropRect.top + crop.borderInsetPx,
+    'crop should stay below the panel border'
+  );
+  const headLeft = crop.fullPanelCropRect.left + (crop.focusRect?.x ?? 0) * crop.fullPanelCropRect.width;
+  const headTop = crop.fullPanelCropRect.top + (crop.focusRect?.y ?? 0) * crop.fullPanelCropRect.height;
+  const headRight =
+    crop.fullPanelCropRect.left +
+    ((crop.focusRect?.x ?? 0) + (crop.focusRect?.width ?? 0)) * crop.fullPanelCropRect.width;
+  const headBottom =
+    crop.fullPanelCropRect.top +
+    ((crop.focusRect?.y ?? 0) + (crop.focusRect?.height ?? 0)) * crop.fullPanelCropRect.height;
+  const visibleHeadLeft = Math.max(headLeft, crop.fullPanelCropRect.left + crop.borderInsetPx);
+  const visibleHeadTop = Math.max(headTop, crop.fullPanelCropRect.top + crop.borderInsetPx);
+  const visibleHeadRight = Math.min(
+    headRight,
+    crop.fullPanelCropRect.left + crop.fullPanelCropRect.width - crop.borderInsetPx
+  );
+  const visibleHeadBottom = Math.min(
+    headBottom,
+    crop.fullPanelCropRect.top + crop.fullPanelCropRect.height - crop.borderInsetPx
+  );
+  assert.ok(crop.cropRect.left <= visibleHeadLeft, 'crop should not cut the left edge of the head focus');
+  assert.ok(
+    crop.cropRect.left + crop.cropRect.width >= visibleHeadRight,
+    'crop should not cut the right edge of the head focus'
+  );
+  assert.ok(crop.cropRect.top <= visibleHeadTop, 'crop should not cut the top of the head focus');
+  assert.ok(
+    crop.cropRect.top + crop.cropRect.height >= visibleHeadBottom,
+    'crop should not cut the bottom of the head focus'
+  );
   assert.ok(Math.abs(crop.cropRect.width / crop.cropRect.height - 672 / 384) < 0.01);
 }
 
