@@ -24,6 +24,25 @@ echo "🔨 Building API..."
 docker compose -f docker-compose.prod.yml build api
 echo "🚀 Restarting API..."
 docker compose -f docker-compose.prod.yml up -d api
+echo "🔊 Syncing localized voice samples..."
+if [ ! -d services/api/uploads/voice-samples ]; then
+  echo "❌ Missing services/api/uploads/voice-samples"
+  exit 1
+fi
+VOICE_SAMPLE_COUNT=$(find services/api/uploads/voice-samples -mindepth 2 -maxdepth 2 -type f -name '*.mp3' | wc -l | tr -d ' ')
+if [ -z "$VOICE_SAMPLE_COUNT" ] || [ "$VOICE_SAMPLE_COUNT" = "0" ]; then
+  echo "❌ No voice sample mp3 files found"
+  exit 1
+fi
+COPYFILE_DISABLE=1 tar --no-xattrs -czf /tmp/wondertales-voice-samples.tar.gz -C services/api/uploads voice-samples
+docker cp /tmp/wondertales-voice-samples.tar.gz wondertales-api-prod:/tmp/wondertales-voice-samples.tar.gz
+docker exec wondertales-api-prod sh -lc '
+  mkdir -p /app/services/api/uploads
+  tar -xzf /tmp/wondertales-voice-samples.tar.gz -C /app/services/api/uploads
+  find /app/services/api/uploads/voice-samples -type f -name "._*.mp3" -delete
+  rm -f /tmp/wondertales-voice-samples.tar.gz
+'
+rm -f /tmp/wondertales-voice-samples.tar.gz
 echo "📋 Latest logs:"
 docker compose -f docker-compose.prod.yml logs api --tail 30
 ENDSSH

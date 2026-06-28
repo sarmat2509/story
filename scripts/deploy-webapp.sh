@@ -24,6 +24,28 @@ create_deploy_tarball() {
   COPYFILE_DISABLE=1 tar --no-xattrs -czf "$output" "$@"
 }
 
+export_expo_public_env_vars() {
+  local env_file="$1"
+
+  [ -f "$env_file" ] || return 0
+
+  while IFS='=' read -r key value; do
+    case "$key" in
+      EXPO_PUBLIC_*) ;;
+      *) continue ;;
+    esac
+
+    value="${value%$'\r'}"
+    if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+      value="${value:1:-1}"
+    elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+      value="${value:1:-1}"
+    fi
+
+    export "${key}=${value}"
+  done < <(grep -E '^EXPO_PUBLIC_[A-Za-z0-9_]+=' "$env_file" || true)
+}
+
 upsert_remote_env_var() {
   local env_file="$1"
   local key="$2"
@@ -74,6 +96,7 @@ restart_shared_proxy_if_present() {
 echo "📦 Building webapp locally..."
 cd apps/universal-app
 export EXPO_PUBLIC_API_BASE_URL=https://wondertales.art
+export_expo_public_env_vars "$PROJECT_ROOT/.env.production"
 
 # Clear Metro/Expo caches (stale cache can produce old scheme like kazka://)
 rm -rf .expo node_modules/.cache 2>/dev/null || true

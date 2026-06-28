@@ -128,6 +128,25 @@ read_env_var() {
   printf '%s\n' "${value}"
 }
 
+export_expo_public_env_vars() {
+  local env_file="$1"
+
+  [[ -f "${env_file}" ]] || return 0
+
+  while IFS='=' read -r key value; do
+    [[ "${key}" =~ ^EXPO_PUBLIC_[A-Za-z0-9_]+$ ]] || continue
+
+    value="${value%$'\r'}"
+    if [[ "${value}" == \"*\" && "${value}" == *\" ]]; then
+      value="${value:1:-1}"
+    elif [[ "${value}" == \'*\' && "${value}" == *\' ]]; then
+      value="${value:1:-1}"
+    fi
+
+    export "${key}=${value}"
+  done < <(grep -E '^EXPO_PUBLIC_[A-Za-z0-9_]+=' "${env_file}" || true)
+}
+
 ssh_droplet() {
   LAST_REMOTE_COMMAND="$*"
   ssh $SSH_OPTS "${DROPLET_USER}@${DROPLET_IP}" "$@"
@@ -177,6 +196,46 @@ upload_google_credentials() {
   scp -o ControlPath=${SSH_CONTROL_PATH} "${local_credentials_path}" \
     ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/secrets/${credentials_filename}
   ssh_droplet "chmod 600 ${DROPLET_PATH}/secrets/${credentials_filename}"
+  print_step_done
+}
+
+sync_voice_samples() {
+  local voice_samples_dir="${PROJECT_ROOT}/services/api/uploads/voice-samples"
+  local voice_samples_tarball="/tmp/wondertales-voice-samples.tar.gz"
+  local voice_sample_count
+
+  if [[ ! -d "${voice_samples_dir}" ]]; then
+    echo "❌ Local voice samples directory not found: ${voice_samples_dir}"
+    exit 1
+  fi
+
+  voice_sample_count=$(find "${voice_samples_dir}" -mindepth 2 -maxdepth 2 -type f -name '*.mp3' | wc -l | tr -d ' ')
+  if [[ -z "${voice_sample_count}" || "${voice_sample_count}" == "0" ]]; then
+    echo "❌ No local voice sample mp3 files found in ${voice_samples_dir}"
+    exit 1
+  fi
+
+  print_step "Syncing localized voice samples to API upload volume..."
+  create_deploy_tarball "${voice_samples_tarball}" -C "${PROJECT_ROOT}/services/api/uploads" voice-samples
+  scp -o ControlPath=${SSH_CONTROL_PATH} "${voice_samples_tarball}" \
+    ${DROPLET_USER}@${DROPLET_IP}:/tmp/wondertales-voice-samples.tar.gz
+  rm -f "${voice_samples_tarball}"
+
+  ssh_droplet << 'EOF'
+docker cp /tmp/wondertales-voice-samples.tar.gz wondertales-api-prod:/tmp/wondertales-voice-samples.tar.gz
+docker exec wondertales-api-prod sh -lc '
+  mkdir -p /app/services/api/uploads
+  tar -xzf /tmp/wondertales-voice-samples.tar.gz -C /app/services/api/uploads
+  find /app/services/api/uploads/voice-samples -type f -name "._*.mp3" -delete
+  rm -f /tmp/wondertales-voice-samples.tar.gz
+  for d in /app/services/api/uploads/voice-samples/*; do
+    [ -d "$d" ] || continue
+    printf "%s " "$(basename "$d")"
+    find "$d" -maxdepth 1 -type f -name "*.mp3" | wc -l | tr -d " "
+  done
+'
+rm -f /tmp/wondertales-voice-samples.tar.gz
+EOF
   print_step_done
 }
 
@@ -386,6 +445,7 @@ EOF
   print_step_done
 
   rm -f /tmp/${API_IMAGE}.tar.gz
+  sync_voice_samples
   sync_nginx_config
   echo "✅ API deployed"
 }
@@ -428,6 +488,7 @@ deploy_webapp() {
   print_step "Building webapp locally..."
   cd apps/universal-app
   export EXPO_PUBLIC_API_BASE_URL=https://wondertales.art
+  export_expo_public_env_vars "${PROJECT_ROOT}/.env.production"
 
   rm -rf .expo node_modules/.cache 2>/dev/null || true
   pnpm build:web:clean
