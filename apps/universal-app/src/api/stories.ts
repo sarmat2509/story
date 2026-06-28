@@ -21,6 +21,72 @@ export type Story = StoryApi;
 export type StorySummary = StorySummaryApi;
 export type CreateStoryRequest = CreateStoryRequestInput;
 
+export interface GraphicNovelTextOverlayItem {
+  id: string;
+  htmlId: string;
+  segmentId: string;
+  pageNumber: number;
+  panelId: string;
+  panelIndex: number;
+  bubbleIndex: number;
+  readingOrder: number;
+  kind: 'speech' | 'thought' | 'caption';
+  speaker?: string;
+  rawText: string;
+  text: string;
+  audioText: string;
+  rect: { x: number; y: number; width: number; height: number };
+  cssPercent?: { left: string; top: string; width: string; height: string };
+  tailTo?: { x: number; y: number };
+  ariaLabel?: string;
+}
+
+export interface GraphicNovelTextOverlay {
+  mode: 'html_overlay';
+  coordinateSpace: 'normalized_0_1';
+  pageNumber: number;
+  pageSize: { width: number; height: number };
+  items: GraphicNovelTextOverlayItem[];
+  rawPlainText?: string;
+  plainText?: string;
+}
+
+export interface GraphicNovelPageApi {
+  id: string;
+  pageNumber: number;
+  status: 'pending' | 'planned' | 'generating' | 'completed' | 'failed' | string;
+  imageUrl?: string | null;
+  imageAssetId?: string | null;
+  templateId?: string | null;
+  layoutJson?: any;
+  bubbleLayoutJson?: any;
+  textOverlay?: GraphicNovelTextOverlay | null;
+  panels?: any[];
+  errorMessage?: string | null;
+}
+
+export interface GraphicNovelApi {
+  story: any;
+  project: any;
+  pages: GraphicNovelPageApi[];
+}
+
+export interface GraphicNovelGenerationStatusApi {
+  storyId: string;
+  projectId: string;
+  textOverlayMode?: 'html_overlay';
+  firstPageReady: boolean;
+  generationComplete: boolean;
+  readyPageNumbers: number[];
+  failedPages: Array<{ pageNumber: number; errorMessage: string }>;
+  pagesWithImages: Array<{
+    pageNumber: number;
+    imageUrl: string | null;
+    assetId?: string | null;
+    textOverlayMode?: 'html_overlay';
+  }>;
+}
+
 export interface ChildModeStoryRequestResult {
   id: string;
   status?: RequestStatus;
@@ -280,7 +346,7 @@ export const useMyStory = useStory;
 export const useMyStories = useStories;
 
 // Get lightweight generation status for polling (no scenes/assets)
-export const useStoryGenerationStatus = (id: string) => {
+export const useStoryGenerationStatus = (id: string, enabled: boolean = true) => {
   return useQuery({
     queryKey: ['story-generation-status', id],
     queryFn: async () => {
@@ -296,7 +362,7 @@ export const useStoryGenerationStatus = (id: string) => {
       }>(`/api/v1/stories/${id}/generation-status`);
       return response.data.generationStatus;
     },
-    enabled: !!id,
+    enabled: enabled && !!id,
     refetchInterval: (query) => {
       const data = query.state.data;
       // Stop polling if generation is complete
@@ -306,6 +372,43 @@ export const useStoryGenerationStatus = (id: string) => {
       return 3000; // Poll every 3 seconds
     },
     staleTime: 1000, // Keep fresh for only 1 second (we want real-time updates)
+  });
+};
+
+export const useGraphicNovel = (storyId: string | undefined, enabled: boolean = true) => {
+  return useQuery({
+    queryKey: ['graphic-novel', storyId],
+    queryFn: async (): Promise<GraphicNovelApi> => {
+      const response = await apiClient.get<{ status: string; graphicNovel: GraphicNovelApi }>(
+        `/api/v1/graphic-novels/${storyId}`
+      );
+      return response.data.graphicNovel;
+    },
+    enabled: enabled && !!storyId,
+    staleTime: 1000,
+  });
+};
+
+export const useGraphicNovelGenerationStatus = (
+  storyId: string | undefined,
+  enabled: boolean = true
+) => {
+  return useQuery({
+    queryKey: ['graphic-novel-generation-status', storyId],
+    queryFn: async (): Promise<GraphicNovelGenerationStatusApi> => {
+      const response = await apiClient.get<{
+        status: string;
+        generationStatus: GraphicNovelGenerationStatusApi;
+      }>(`/api/v1/graphic-novels/${storyId}/generation-status`);
+      return response.data.generationStatus;
+    },
+    enabled: enabled && !!storyId,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data || data.generationComplete) return false;
+      return 3000;
+    },
+    staleTime: 1000,
   });
 };
 
@@ -346,6 +449,24 @@ export const useCreateStory = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stories'] });
+    },
+  });
+};
+
+export const useCreateGraphicNovel = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: CreateStoryRequest) => {
+      const response = await apiClient.post<{ status: string; request: { id: string } }>(
+        '/api/v1/graphic-novels',
+        data
+      );
+      return response.data.request;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
     },
   });
 };

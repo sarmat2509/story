@@ -31,6 +31,7 @@ import { useChildren } from '@/api/children';
 import { useCharacters } from '@/api/characters';
 import {
   useCreateStory,
+  useCreateGraphicNovel,
   useCreateChildModeStory,
   useStoryStatus,
   useRetryStoryImages,
@@ -50,6 +51,8 @@ import { getWebSearch } from '@/utils/webRuntime';
 import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
 import { IMAGE_STYLE_METADATA, type ImageStyle } from '@wondertales/shared';
 import { getWizardScenarioPreset } from './wizardRouteParams';
+
+type StoryFormat = 'story' | 'comic';
 
 export default function WizardScreen() {
   const { t } = useTranslation();
@@ -75,6 +78,7 @@ export default function WizardScreen() {
     : [];
 
   // Form state
+  const [storyFormat, setStoryFormat] = useState<StoryFormat>('story');
   const [storyLanguage, setStoryLanguage] = useState('');
   const [scenarioCardId, setScenarioCardId] = useState<string | null>(null);
   const [childProfileId, setChildProfileId] = useState<string | undefined>(undefined);
@@ -111,15 +115,34 @@ export default function WizardScreen() {
   const canCreateMoreChildren = !isChildSession && (childrenData?.canCreateMore ?? false);
   const { data: characters, isLoading: charactersLoading } = useCharacters();
   const createStory = useCreateStory();
+  const createGraphicNovel = useCreateGraphicNovel();
   const createChildModeStory = useCreateChildModeStory();
   const retryStoryImages = useRetryStoryImages();
   const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
   const { data: usage } = useSubscriptionUsage();
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallKind, setPaywallKind] = useState<'stories' | 'graphicNovels'>('stories');
   const periodEndFormatted = useMemo(
     () => formatSubscriptionPeriodEnd(usage?.currentPeriodEnd ?? usage?.resetsAt, i18n.language),
     [usage?.currentPeriodEnd, usage?.resetsAt, i18n.language]
   );
+  const graphicNovelLimit = usage?.graphicNovels?.limit;
+  const graphicNovelAccessLocked =
+    typeof graphicNovelLimit === 'number' && graphicNovelLimit >= 0 && graphicNovelLimit <= 0;
+  const isGraphicNovelUpgradePaywall = paywallKind === 'graphicNovels' && graphicNovelAccessLocked;
+
+  const openGraphicNovelPaywall = () => {
+    setPaywallKind('graphicNovels');
+    setShowPaywall(true);
+  };
+
+  const handleStoryFormatSelect = (nextFormat: StoryFormat) => {
+    if (nextFormat === 'comic' && graphicNovelAccessLocked) {
+      openGraphicNovelPaywall();
+      return;
+    }
+    setStoryFormat(nextFormat);
+  };
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -139,6 +162,18 @@ export default function WizardScreen() {
     setChildProfileId(activeChild.id);
     setSelectedChildren([activeChild.id]);
   }, [activeChild?.id, isChildSession]);
+
+  useEffect(() => {
+    if (isChildSession && storyFormat === 'comic') {
+      setStoryFormat('story');
+    }
+  }, [isChildSession, storyFormat]);
+
+  useEffect(() => {
+    if (storyFormat === 'comic' && graphicNovelAccessLocked) {
+      setStoryFormat('story');
+    }
+  }, [graphicNovelAccessLocked, storyFormat]);
 
   useEffect(() => {
     if (isChildSession || !route.params?.childId) return;
@@ -203,7 +238,15 @@ export default function WizardScreen() {
   const selectedLanguageLabel = storyLanguage
     ? t(`language_names.${storyLanguage}`, { defaultValue: storyLanguage.toUpperCase() })
     : t('wizard.language_required', { defaultValue: 'Choose a language' });
+  const selectedStoryFormatLabel =
+    storyFormat === 'comic'
+      ? t('wizard.format_comic', { defaultValue: 'Comic' })
+      : t('wizard.format_story', { defaultValue: 'Story' });
   const summaryItems = [
+    {
+      key: 'format',
+      label: `${t('wizard.format_label', { defaultValue: 'Format' })}: ${selectedStoryFormatLabel}`,
+    },
     {
       key: 'scenario',
       label: `${t('wizard.theme_title')}: ${selectedScenario?.name ?? t('wizard.free_theme')}`,
@@ -257,6 +300,14 @@ export default function WizardScreen() {
   ];
   const isLastStep = activeStep === steps.length - 1;
   const handleNextStep = () => setActiveStep((step) => Math.min(steps.length - 1, step + 1));
+  const formatUsageLimitLabel = (bucket: { remaining: number; limit: number }) =>
+    bucket.limit < 0
+      ? t('usage_summary.unlimited', { defaultValue: 'Unlimited' })
+      : t('usage_summary.remaining_of_limit', {
+          remaining: bucket.remaining,
+          limit: bucket.limit,
+          defaultValue: '{{remaining}} of {{limit}} left',
+        });
 
   useEffect(() => {
     const allowedIds = new Set(availableCharacters.map((character) => character.id));
@@ -279,7 +330,14 @@ export default function WizardScreen() {
   // Auto-close removed - user must manually close modal
 
   const handleGenerate = async () => {
+    const isGraphicNovel = storyFormat === 'comic';
+
     if (!canGenerateStories) {
+      Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
+      return;
+    }
+
+    if (isGraphicNovel && isChildSession) {
       Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
       return;
     }
@@ -289,7 +347,24 @@ export default function WizardScreen() {
       return;
     }
 
-    if (usage && usage.stories.remaining <= 0) {
+    if (usage && usage.stories.limit >= 0 && usage.stories.remaining <= 0) {
+      setPaywallKind('stories');
+      setShowPaywall(true);
+      return;
+    }
+
+    if (isGraphicNovel && graphicNovelAccessLocked) {
+      openGraphicNovelPaywall();
+      return;
+    }
+
+    if (
+      isGraphicNovel &&
+      usage?.graphicNovels &&
+      usage.graphicNovels.limit >= 0 &&
+      usage.graphicNovels.remaining <= 0
+    ) {
+      setPaywallKind('graphicNovels');
       setShowPaywall(true);
       return;
     }
@@ -299,6 +374,7 @@ export default function WizardScreen() {
 
       getAnalytics().capture('story_generation_started', {
         wizard_type: 'artisan',
+        story_format: isGraphicNovel ? 'graphic_novel' : 'story',
         scenario_card_id: scenarioCardId ?? undefined,
         has_characters: selectedCharacters.length > 0,
         has_children: selectedChildren.length > 0,
@@ -322,15 +398,31 @@ export default function WizardScreen() {
         ...(selectedChildren.length > 0 && { selectedChildren }), // NEW: Selected children as characters
       };
 
-      const result = await (isChildSession ? createChildModeStory : createStory).mutateAsync(
-        payload
-      );
+      const createMutation = isGraphicNovel
+        ? createGraphicNovel
+        : isChildSession
+          ? createChildModeStory
+          : createStory;
+
+      const result = await createMutation.mutateAsync(payload);
       setRequestId(result.id);
     } catch (error: unknown) {
       console.error('Failed to create story:', error);
       setIsGenerating(false);
-      const status = (error as { response?: { status?: number } })?.response?.status;
-      if (status === 429) {
+      const response = (error as {
+        response?: { status?: number; data?: { code?: string; featureSlug?: string } };
+      })?.response;
+      const status = response?.status;
+      const errorCode = response?.data?.code;
+      const featureSlug = response?.data?.featureSlug;
+      if (
+        status === 403 &&
+        (errorCode === 'GRAPHIC_NOVEL_LIMIT_REACHED' ||
+          featureSlug === 'graphic_novels_per_month')
+      ) {
+        openGraphicNovelPaywall();
+      } else if (status === 429) {
+        setPaywallKind('stories');
         setShowPaywall(true);
       } else {
         Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
@@ -366,6 +458,7 @@ export default function WizardScreen() {
       getAnalytics().capture('story_created', {
         story_id: storyId,
         wizard_type: 'artisan',
+        story_format: storyFormat === 'comic' ? 'graphic_novel' : 'story',
       });
     }
     queryClient.invalidateQueries({ queryKey: ['stories'] });
@@ -471,6 +564,99 @@ export default function WizardScreen() {
               <AnimatedSection delay={140} trigger={`${enterKey}-${activeStep}`}>
                 {activeStep === 0 ? (
                   <View style={styles.stepContent}>
+                    {!isChildSession ? (
+                      <View style={styles.formatPanel}>
+                        <Text style={styles.formatTitle}>
+                          {t('wizard.format_title', { defaultValue: 'Choose format' })}
+                        </Text>
+                        <View style={styles.formatOptions}>
+                          {[
+                            {
+                              value: 'story' as const,
+                              icon: 'book-outline' as const,
+                              label: t('wizard.format_story', { defaultValue: 'Story' }),
+                              description: t('wizard.format_story_desc', {
+                                defaultValue: 'Narrative text with illustrations',
+                              }),
+                            },
+                            {
+                              value: 'comic' as const,
+                              icon: 'chatbubbles-outline' as const,
+                              label: t('wizard.format_comic', { defaultValue: 'Comic' }),
+                              description: t('wizard.format_comic_desc', {
+                                defaultValue: 'Panel pages with character dialogue',
+                              }),
+                            },
+                          ].map((option) => {
+                            const selected = storyFormat === option.value;
+                            const locked =
+                              option.value === 'comic' && graphicNovelAccessLocked;
+                            return (
+                              <TouchableOpacity
+                                key={option.value}
+                                style={[
+                                  styles.formatOption,
+                                  selected && styles.formatOptionSelected,
+                                  locked && styles.formatOptionLocked,
+                                ]}
+                                onPress={() => handleStoryFormatSelect(option.value)}
+                                activeOpacity={0.85}
+                              >
+                                <View
+                                  style={[
+                                    styles.formatIcon,
+                                    selected && styles.formatIconSelected,
+                                    locked && styles.formatIconLocked,
+                                  ]}
+                                >
+                                  <Ionicons
+                                    name={locked ? 'lock-closed-outline' : option.icon}
+                                    size={20}
+                                    color={
+                                      selected
+                                        ? theme.colors.text.inverse
+                                        : theme.colors.text.secondary
+                                    }
+                                  />
+                                </View>
+                                <View style={styles.formatText}>
+                                  <View style={styles.formatLabelRow}>
+                                    <Text
+                                      style={[
+                                        styles.formatOptionLabel,
+                                        selected && styles.formatOptionLabelSelected,
+                                        locked && styles.formatOptionLabelLocked,
+                                      ]}
+                                    >
+                                      {option.label}
+                                    </Text>
+                                    {locked ? (
+                                      <Ionicons
+                                        name="lock-closed"
+                                        size={14}
+                                        color={theme.colors.text.tertiary}
+                                      />
+                                    ) : null}
+                                  </View>
+                                  <Text
+                                    style={[
+                                      styles.formatOptionDescription,
+                                      locked && styles.formatOptionDescriptionLocked,
+                                    ]}
+                                  >
+                                    {locked
+                                      ? t('wizard.format_comic_locked_hint', {
+                                          defaultValue: 'Upgrade to create comics',
+                                        })
+                                      : option.description}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    ) : null}
                     <ScenarioCardsGrid
                       scenarios={themesData?.scenarioCards || []}
                       selected={scenarioCardId}
@@ -529,7 +715,6 @@ export default function WizardScreen() {
                   </View>
                 ) : null}
               </AnimatedSection>
-
             </View>
 
             <View
@@ -555,14 +740,28 @@ export default function WizardScreen() {
                   ))}
                 </View>
                 {usage ? (
-                  <Text style={styles.summaryLimit}>
-                    {t('usage_summary.remaining_of_limit', {
-                      remaining: usage.stories.remaining,
-                      limit: usage.stories.limit,
-                      defaultValue: '{{remaining}} of {{limit}} left',
+                  <View style={styles.summaryLimits}>
+                    <Text style={styles.summaryLimit}>
+                      {t('usage_summary.stories', { defaultValue: 'Stories' })}:{' '}
+                      {formatUsageLimitLabel(usage.stories)}
+                    </Text>
+                    {storyFormat === 'comic' && usage.graphicNovels ? (
+                      <Text style={styles.summaryLimit}>
+                        {t('usage_summary.graphic_novels', { defaultValue: 'Comics' })}:{' '}
+                        {formatUsageLimitLabel(usage.graphicNovels)}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+                <View style={styles.aiGenerationNotice}>
+                  <Ionicons name="sparkles-outline" size={16} color={theme.colors.text.tertiary} />
+                  <Text style={styles.aiGenerationNoticeText}>
+                    {t('wizard.ai_generation_notice', {
+                      defaultValue:
+                        'This story was created with AI. Minor image or text generation errors may occasionally appear, so a quick adult review is recommended.',
                     })}
                   </Text>
-                ) : null}
+                </View>
                 <View style={styles.summaryActions}>
                   {activeStep > 0 ? (
                     <AppButton
@@ -577,7 +776,13 @@ export default function WizardScreen() {
                     />
                   ) : null}
                   <AppButton
-                    label={isLastStep ? t('common.create') : t('common.next')}
+                    label={
+                      isLastStep
+                        ? storyFormat === 'comic'
+                          ? t('wizard.create_comic', { defaultValue: 'Create comic' })
+                          : t('common.create')
+                        : t('common.next')
+                    }
                     onPress={isLastStep ? handleGenerate : handleNextStep}
                     size="md"
                     disabled={
@@ -636,7 +841,38 @@ export default function WizardScreen() {
       <PaywallModal
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
-        limitInfo={usage ? { used: usage.stories.used, limit: usage.stories.limit } : undefined}
+        title={
+          paywallKind === 'graphicNovels'
+            ? isGraphicNovelUpgradePaywall
+              ? t('paywall.graphic_novels_upgrade_title', {
+                  defaultValue: 'Comics are available on paid plans',
+                })
+              : t('paywall.graphic_novels_limit_title', {
+                  defaultValue: 'Comic limit reached',
+                })
+            : undefined
+        }
+        message={
+          paywallKind === 'graphicNovels' && isGraphicNovelUpgradePaywall
+            ? t('paywall.graphic_novels_upgrade_message', {
+                defaultValue:
+                  'Upgrade your plan to create comics. They also count as stories in your monthly story limit.',
+              })
+            : paywallKind === 'graphicNovels' && usage?.graphicNovels
+            ? t('paywall.graphic_novels_limit_message', {
+                used: usage.graphicNovels.used,
+                limit: usage.graphicNovels.limit,
+                defaultValue: 'You have used {{used}} of {{limit}} comics for this billing period.',
+              })
+            : undefined
+        }
+        limitInfo={
+          usage && !isGraphicNovelUpgradePaywall
+            ? paywallKind === 'graphicNovels' && usage.graphicNovels
+              ? { used: usage.graphicNovels.used, limit: usage.graphicNovels.limit }
+              : { used: usage.stories.used, limit: usage.stories.limit }
+            : undefined
+        }
         periodEndFormatted={periodEndFormatted}
       />
 
@@ -779,6 +1015,90 @@ const styles = StyleSheet.create({
   stepContent: {
     gap: theme.spacing[6],
   },
+  formatPanel: {
+    padding: theme.spacing[5],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surface,
+    ...modernShadows.subtle,
+  },
+  formatTitle: {
+    marginBottom: theme.spacing[3],
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  formatOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing[3],
+  },
+  formatOption: {
+    flex: 1,
+    minWidth: 220,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    padding: theme.spacing[4],
+    borderRadius: theme.borders.radius.lg,
+    borderWidth: theme.borders.width.thin,
+    borderColor: modernColors.border,
+    backgroundColor: modernColors.surfaceMuted,
+  },
+  formatOptionSelected: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: modernColors.accentWash,
+  },
+  formatOptionLocked: {
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+    opacity: 0.76,
+  },
+  formatIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: modernColors.surface,
+  },
+  formatIconSelected: {
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  formatIconLocked: {
+    backgroundColor: theme.colors.background.primary,
+  },
+  formatText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  formatLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+  },
+  formatOptionLabel: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.primary,
+  },
+  formatOptionLabelSelected: {
+    color: theme.colors.primary[800],
+  },
+  formatOptionLabelLocked: {
+    color: theme.colors.text.secondary,
+  },
+  formatOptionDescription: {
+    marginTop: theme.spacing[1],
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 19,
+  },
+  formatOptionDescriptionLocked: {
+    color: theme.colors.text.tertiary,
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
   summaryColumn: {
     width: 344,
     maxWidth: '100%',
@@ -852,13 +1172,30 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
   },
-  summaryLimit: {
+  summaryLimits: {
     paddingTop: theme.spacing[2],
     borderTopWidth: theme.borders.width.thin,
     borderTopColor: modernColors.border,
+    gap: theme.spacing[1],
+  },
+  summaryLimit: {
     fontSize: theme.typography.fontSize.sm,
     fontWeight: theme.typography.fontWeight.semibold,
     color: theme.colors.text.primary,
+  },
+  aiGenerationNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing[2],
+    paddingTop: theme.spacing[2],
+    borderTopWidth: theme.borders.width.thin,
+    borderTopColor: modernColors.border,
+  },
+  aiGenerationNoticeText: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.xs,
+    lineHeight: 18,
+    color: theme.colors.text.tertiary,
   },
   summaryActions: {
     flexDirection: 'row',

@@ -10,6 +10,7 @@ import {
   Modal,
   Platform,
   ImageStyle,
+  LayoutChangeEvent,
   Share,
 } from 'react-native';
 import {
@@ -33,6 +34,10 @@ import {
   useSeriesInfo,
   usePublishStory,
   useReviewChildStory,
+  useGraphicNovel,
+  useGraphicNovelGenerationStatus,
+  type GraphicNovelPageApi,
+  type GraphicNovelTextOverlayItem,
 } from '@/api/stories';
 import { useCollectedArtifacts, useCollectStoryArtifact } from '@/api/artifacts';
 import { useCollectMapTile, useStoryMapTileStatus } from '@/api/mapTiles';
@@ -78,6 +83,8 @@ import { assignWebLocation } from '@/utils/webRuntime';
 
 type StoryViewerRouteProp = RouteProp<MainDrawerParamList, 'Story'>;
 
+type NormalizedRect = { x: number; y: number; width: number; height: number };
+
 type ManifestClosingArtifact = {
   id: string;
   title: string;
@@ -94,6 +101,98 @@ type ManifestClosingArtifact = {
 const removeAudioTags = (text: string): string =>
   stripMarkdownStyleEmphasis(text.replace(/\[[^\]]*\]/g, ''));
 
+const stripArtifactMarkers = (text: string): string =>
+  text.replace(/\{([^{}]+)\}/g, '$1');
+
+const normalizeHighlightText = (text: string): string =>
+  stripArtifactMarkers(removeAudioTags(text)).replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+
+const graphicNovelPanelKey = (pageNumber: number, panelIndex: number): string =>
+  `${pageNumber}:${panelIndex}`;
+
+function isNormalizedRect(value: unknown): value is NormalizedRect {
+  const rect = value as Partial<NormalizedRect> | null;
+  return (
+    !!rect &&
+    typeof rect.x === 'number' &&
+    typeof rect.y === 'number' &&
+    typeof rect.width === 'number' &&
+    typeof rect.height === 'number'
+  );
+}
+
+function panelRectFromGraphicNovelPage(
+  page: GraphicNovelPageApi,
+  panelIndex: number
+): NormalizedRect | null {
+  const panels = Array.isArray(page.layoutJson?.panels)
+    ? page.layoutJson.panels
+    : Array.isArray(page.panels)
+      ? page.panels
+      : [];
+  const panel = panels[panelIndex - 1];
+  const rect = panel?.templatePanel?.rect ?? panel?.rect;
+  return isNormalizedRect(rect) ? rect : null;
+}
+
+function splitArtifactMarkerText(rawText: string): Array<{
+  type: 'text' | 'artifact';
+  text: string;
+  label: string;
+}> {
+  const parts: Array<{ type: 'text' | 'artifact'; text: string; label: string }> = [];
+  const markerRe = /\{([^{}]+)\}/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = markerRe.exec(rawText)) !== null) {
+    if (match.index > lastIndex) {
+      const text = rawText.slice(lastIndex, match.index);
+      parts.push({ type: 'text', text, label: text });
+    }
+
+    const label = match[1].trim();
+    if (label) {
+      parts.push({ type: 'artifact', text: label, label });
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < rawText.length) {
+    const text = rawText.slice(lastIndex);
+    parts.push({ type: 'text', text, label: text });
+  }
+
+  return parts;
+}
+
+function getArtifactDisplayRanges(rawText: string): Array<{ start: number; end: number; label: string }> {
+  const ranges: Array<{ start: number; end: number; label: string }> = [];
+  const markerRe = /\{([^{}]+)\}/g;
+  let lastIndex = 0;
+  let displayIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = markerRe.exec(rawText)) !== null) {
+    displayIndex += rawText.slice(lastIndex, match.index).length;
+    const label = match[1].trim();
+    if (label) {
+      const start = displayIndex;
+      displayIndex += label.length;
+      ranges.push({ start, end: displayIndex, label });
+    }
+    lastIndex = match.index + match[0].length;
+  }
+
+  return ranges;
+}
+
+const GRAPHIC_NOVEL_BUBBLE_FONT_SIZE = 14;
+const GRAPHIC_NOVEL_BUBBLE_LINE_HEIGHT = 16;
+const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X = 10;
+const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y = 4;
+
 const inlineNoSpaceBeforeRe = /^[\s,.;:!?…)\]}»”’"'%]/;
 const inlineOpeningBoundaryRe = /[\s([{«„“"']$/;
 
@@ -107,6 +206,39 @@ const needsInlineSpaceBefore = (previousText: string, currentText: string): bool
 
 const needsInlineSpaceAfter = (currentText: string, nextText: string): boolean =>
   Boolean(currentText && nextText && !inlineNoSpaceBeforeRe.test(nextText));
+
+const graphicNovelReferenceToUrl = (reference: any): string | null => {
+  const candidate =
+    reference?.url ||
+    reference?.imageUrl ||
+    reference?.fullImageUrl ||
+    reference?.storagePath ||
+    reference?.path ||
+    null;
+  return typeof candidate === 'string' && candidate.trim() ? candidate : null;
+};
+
+const manifestCharacterToStoryCharacter = (character: any, index: number): StoryCharacter | null => {
+  const name = typeof character?.name === 'string' ? character.name.trim() : '';
+  if (!name) return null;
+  const references: unknown[] = Array.isArray(character?.references) ? character.references : [];
+  const referencePhotoUrl =
+    references.map(graphicNovelReferenceToUrl).find((value): value is string => !!value) ?? null;
+  const idSource =
+    (typeof character?.id === 'string' && character.id) ||
+    (typeof character?.canonicalName === 'string' && character.canonicalName) ||
+    name;
+
+  return {
+    id: `graphic-novel-${idSource}-${index}`,
+    name,
+    localizedName: typeof character?.canonicalName === 'string' ? character.canonicalName : null,
+    type: typeof character?.type === 'string' ? character.type : 'person',
+    referencePhotoUrl,
+    isHidden: false,
+    description: typeof character?.description === 'string' ? character.description : null,
+  };
+};
 
 // Format wait time using i18n translations
 const formatWaitTime = (
@@ -139,13 +271,26 @@ export default function StoryViewerScreen() {
   const autoPlay = route.params?.autoPlay;
   const hadAudioGenerationRef = useRef(false);
   const { data: story, isLoading, error, refetch } = useStory(storyId!);
+  const storyMetadata = ((story as any)?.metadata ?? {}) as Record<string, unknown>;
+  const isGraphicNovel = storyMetadata.storyFormat === 'graphic_novel';
 
   // Use lightweight status polling for image generation
-  const { data: generationStatus } = useStoryGenerationStatus(storyId!);
+  const { data: generationStatus } = useStoryGenerationStatus(
+    storyId!,
+    !!storyId && !!story && !isGraphicNovel
+  );
+  const { data: graphicNovel, refetch: refetchGraphicNovel } = useGraphicNovel(
+    storyId,
+    !!storyId && isGraphicNovel
+  );
+  const { data: graphicNovelGenerationStatus } = useGraphicNovelGenerationStatus(
+    storyId,
+    !!storyId && isGraphicNovel
+  );
 
   // Progressive image loading: update story cache as images are generated
   useEffect(() => {
-    if (!generationStatus || !story) return;
+    if (!generationStatus || !story || isGraphicNovel) return;
 
     if (generationStatus.imageGenerationComplete && !story.imageGenerationComplete) {
       // Final refetch when generation is complete
@@ -174,7 +319,23 @@ export default function StoryViewerScreen() {
         scenes: updatedScenes,
       });
     }
-  }, [generationStatus, story, refetch, storyId, queryClient]);
+  }, [generationStatus, story, refetch, storyId, queryClient, isGraphicNovel]);
+
+  const graphicNovelReadyPageKey = graphicNovelGenerationStatus?.readyPageNumbers?.join(',') ?? '';
+
+  useEffect(() => {
+    if (!isGraphicNovel || !graphicNovelGenerationStatus) return;
+    void refetchGraphicNovel();
+    if (graphicNovelGenerationStatus.generationComplete) {
+      refetch();
+    }
+  }, [
+    isGraphicNovel,
+    graphicNovelReadyPageKey,
+    graphicNovelGenerationStatus?.generationComplete,
+    refetchGraphicNovel,
+    refetch,
+  ]);
 
   const generateAudio = useGenerateAudio();
   const generateAlignment = useGenerateAlignment();
@@ -201,12 +362,18 @@ export default function StoryViewerScreen() {
   }, [effectiveHighlightEnabled]);
   const [currentPosition, setCurrentPosition] = useState(0);
   const [highlightedQuizSceneId, setHighlightedQuizSceneId] = useState<number | null>(null);
+  const [scrollViewportHeight, setScrollViewportHeight] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const quizSectionRef = useRef<View | null>(null);
   const sceneRefs = useRef<Record<number, View | null>>({});
+  const graphicNovelPanelRefs = useRef<Record<string, View | null>>({});
   const lastPositionUpdateTime = useRef(0);
   const quizHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const quizAutoScrollKeyRef = useRef<string | null>(null);
+
+  const handleScrollViewportLayout = useCallback((event: LayoutChangeEvent) => {
+    setScrollViewportHeight(event.nativeEvent.layout.height);
+  }, []);
 
   // M7: Audio playback state persistence (global service handles saving/restoring)
 
@@ -768,6 +935,34 @@ export default function StoryViewerScreen() {
     [story?.scenes]
   );
 
+  const graphicNovelPages = useMemo(
+    () =>
+      [...(graphicNovel?.pages ?? [])].sort(
+        (a, b) => Number(a.pageNumber || 0) - Number(b.pageNumber || 0)
+      ),
+    [graphicNovel?.pages]
+  );
+  const graphicNovelManifestCharacters = useMemo(() => {
+    const layoutManifest =
+      (graphicNovel?.project?.layoutManifest as any) ||
+      (graphicNovel?.project?.layout_manifest as any) ||
+      {};
+    const manifestCharacters: unknown[] = Array.isArray(layoutManifest.characters)
+      ? layoutManifest.characters
+      : [];
+    return manifestCharacters
+      .map(manifestCharacterToStoryCharacter)
+      .filter((character: StoryCharacter | null): character is StoryCharacter => !!character);
+  }, [graphicNovel?.project]);
+  const storyCharactersForSection = useMemo(() => {
+    const storyCharacters = Array.isArray(story?.characters) ? story.characters : [];
+    return storyCharacters.length > 0
+      ? (storyCharacters as StoryCharacter[])
+      : isGraphicNovel
+        ? graphicNovelManifestCharacters
+        : [];
+  }, [graphicNovelManifestCharacters, isGraphicNovel, story?.characters]);
+
   const { activeSentenceIndex, activeWordIndex, sentences } = useAlignmentSync(
     story?.fullText || '',
     story?.audioMetadata?.alignment,
@@ -976,11 +1171,11 @@ export default function StoryViewerScreen() {
 
   // Memoized characters section — prevents re-renders when parent updates (e.g. audio position)
   const charactersSection = useMemo(() => {
-    const characters = story?.characters;
+    const characters = storyCharactersForSection;
     if (!characters || characters.length === 0) return null;
     return (
       <StoryCharactersSection
-        characters={characters as StoryCharacter[]}
+        characters={characters}
         savedCharacterIds={savedCharacterIdsArray}
         isArtisanMode={!isChildSession && isArtisanMode}
         onSaveCharacter={handleSaveCharacter}
@@ -990,7 +1185,7 @@ export default function StoryViewerScreen() {
       />
     );
   }, [
-    story?.characters,
+    storyCharactersForSection,
     savedCharacterIdsArray,
     isChildSession,
     isArtisanMode,
@@ -1173,33 +1368,66 @@ export default function StoryViewerScreen() {
   // M6: Get active scene index from sentence metadata
   const activeSceneIndex =
     activeSentenceIndex !== null ? (sentences[activeSentenceIndex]?.sceneIndex ?? null) : null;
+  const activeGraphicNovelPageNumber =
+    activeSceneIndex !== null
+      ? Number(
+          (story?.scenes?.[activeSceneIndex] as any)?.graphicNovelPageNumber ?? activeSceneIndex + 1
+        )
+      : null;
+  const activeSentenceText =
+    activeSentenceIndex !== null
+      ? normalizeHighlightText(sentences[activeSentenceIndex]?.text ?? '')
+      : '';
+  const activeGraphicNovelTextItem = useMemo<GraphicNovelTextOverlayItem | null>(() => {
+    if (!isGraphicNovel || !effectiveHighlightEnabled || !activeSentenceText) return null;
+    if (activeGraphicNovelPageNumber === null) return null;
 
-  // M6: Auto-scroll active scene to center of viewport
-  useEffect(() => {
-    if (!effectiveHighlightEnabled || activeSceneIndex === null) {
-      return;
-    }
+    const page = graphicNovelPages.find(
+      (candidate) => Number(candidate.pageNumber) === activeGraphicNovelPageNumber
+    );
+    const items = page?.textOverlay?.items ?? [];
+    return (
+      items.find((item) => {
+        const itemText = normalizeHighlightText(item.text || item.audioText || item.rawText || '');
+        return !!itemText && (itemText.includes(activeSentenceText) || activeSentenceText.includes(itemText));
+      }) ?? null
+    );
+  }, [
+    activeGraphicNovelPageNumber,
+    activeSentenceText,
+    effectiveHighlightEnabled,
+    graphicNovelPages,
+    isGraphicNovel,
+  ]);
+  const activeGraphicNovelPanelKey = activeGraphicNovelTextItem
+    ? graphicNovelPanelKey(activeGraphicNovelTextItem.pageNumber, activeGraphicNovelTextItem.panelIndex)
+    : null;
 
-    const sceneElement = sceneRefs.current[activeSceneIndex];
-    if (!sceneElement) return;
+  const scrollTargetToViewportCenter = useCallback(
+    (targetElement: View | null, fallbackTopOffset = 100) => {
+      if (!targetElement) return;
 
-    // Use scrollIntoView on web, measureLayout on native
-    if (Platform.OS === 'web') {
-      const element = sceneElement as any;
-      if (element?.scrollIntoView) {
-        element.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-          inline: 'nearest',
-        });
+      if (Platform.OS === 'web') {
+        const element = targetElement as any;
+        if (element?.scrollIntoView) {
+          element.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+            inline: 'nearest',
+          });
+        }
+        return;
       }
-    } else {
-      // Native: measure and scroll using ScrollView ref
-      sceneElement.measureLayout(
+
+      targetElement.measureLayout(
         scrollViewRef.current as any,
-        (_x, y, _width, _height) => {
+        (_x, y, _width, height) => {
+          const centeredY =
+            scrollViewportHeight > 0
+              ? y + height / 2 - scrollViewportHeight / 2
+              : y - fallbackTopOffset;
           scrollViewRef.current?.scrollTo({
-            y: y - 100, // Offset to center approximately
+            y: Math.max(centeredY, 0),
             animated: true,
           });
         },
@@ -1207,8 +1435,32 @@ export default function StoryViewerScreen() {
           // Measurement failed, ignore
         }
       );
+    },
+    [scrollViewportHeight]
+  );
+
+  // M6: Auto-scroll active scene to center of viewport
+  useEffect(() => {
+    if (!effectiveHighlightEnabled || activeSceneIndex === null) {
+      return;
     }
-  }, [activeSceneIndex, effectiveHighlightEnabled]);
+
+    if (isGraphicNovel) {
+      const panelElement = activeGraphicNovelPanelKey
+        ? graphicNovelPanelRefs.current[activeGraphicNovelPanelKey]
+        : null;
+      scrollTargetToViewportCenter(panelElement ?? sceneRefs.current[activeSceneIndex]);
+      return;
+    }
+
+    scrollTargetToViewportCenter(sceneRefs.current[activeSceneIndex]);
+  }, [
+    activeGraphicNovelPanelKey,
+    activeSceneIndex,
+    effectiveHighlightEnabled,
+    isGraphicNovel,
+    scrollTargetToViewportCenter,
+  ]);
 
   const quizEnabled =
     !isChildSession || activeChild?.childMode?.childModeSettings?.quizGenerationEnabled !== false;
@@ -1776,8 +2028,16 @@ export default function StoryViewerScreen() {
   };
 
   const renderArtifactAwareSceneText = (scene: any, fallbackText: string) => {
-    if (!closingArtifact || !Array.isArray(scene?.textSegments)) {
+    if (!closingArtifact) {
       return fallbackText;
+    }
+    if (!Array.isArray(scene?.textSegments)) {
+      return renderArtifactMarkerText(
+        fallbackText,
+        stripArtifactMarkers(fallbackText),
+        `scene-${scene?.sceneId ?? 'text'}`,
+        { includeIcon: true }
+      );
     }
 
     const segments = scene.textSegments
@@ -1828,72 +2088,182 @@ export default function StoryViewerScreen() {
     return rendered.length > 0 ? rendered : fallbackText;
   };
 
-  // M6: Helper to render scene text with sentence/word wrappers
-  const renderSceneTextWithHighlight = (scene: any, sceneIndex: number) => {
-    const sceneText = typeof scene === 'string' ? scene : scene?.text || '';
-    const cleanedSceneText = removeAudioTags(sceneText);
+  function renderArtifactMarkerText(
+    rawText: string,
+    fallbackText: string,
+    keyPrefix: string,
+    options: { includeIcon?: boolean } = {}
+  ): React.ReactNode {
+    if (!closingArtifact || !rawText.includes('{')) {
+      return fallbackText;
+    }
 
-    if (!effectiveHighlightEnabled) {
-      return (
-        <Text style={styles.sceneText}>
-          {renderArtifactAwareSceneText(scene, cleanedSceneText)}
-        </Text>
+    const rendered = splitArtifactMarkerText(rawText)
+      .map((part, index) => {
+        if (!part.text) return null;
+        if (part.type !== 'artifact') return part.text;
+
+        return (
+          <Text
+            key={`${keyPrefix}-artifact-${index}`}
+            style={styles.artifactInline}
+            onPress={() => handleOpenArtifact(part.label)}
+          >
+            {options.includeIcon ? (
+              <>
+                <Ionicons
+                  name="sparkles-outline"
+                  size={18}
+                  color={theme.colors.interactive.primary}
+                  style={styles.artifactInlineIcon}
+                />
+                {'\u00A0'}
+              </>
+            ) : null}
+            {part.text}
+          </Text>
+        );
+      })
+      .filter(Boolean);
+
+    return rendered.length > 0 ? rendered : fallbackText;
+  }
+
+  const renderAlignedSentenceWords = (
+    sentence: (typeof sentences)[number],
+    sentenceIndex: number,
+    isSentenceActive: boolean
+  ): React.ReactNode[] => {
+    const artifactRanges = closingArtifact ? getArtifactDisplayRanges(sentence.text) : [];
+    const displaySentenceText = stripArtifactMarkers(sentence.text);
+    let searchFrom = 0;
+
+    const wordPositions = sentence.words.map((word) => {
+      const foundAt = displaySentenceText.indexOf(word.text, searchFrom);
+      const start = foundAt >= 0 ? foundAt : searchFrom;
+      const end = start + word.text.length;
+      searchFrom = end;
+      return { start, end };
+    });
+
+    const artifactIndexForWord = (wordIndex: number): number => {
+      const position = wordPositions[wordIndex];
+      if (!position) return -1;
+      const midpoint = position.start + (position.end - position.start) / 2;
+      return artifactRanges.findIndex((range) => midpoint >= range.start && midpoint <= range.end);
+    };
+
+    const renderedWords: React.ReactNode[] = [];
+    let wordIndex = 0;
+
+    while (wordIndex < sentence.words.length) {
+      const artifactIndex = artifactIndexForWord(wordIndex);
+      const renderWord = (word: (typeof sentence.words)[number], index: number) => {
+        const isActiveWord = isSentenceActive && index === activeWordIndex;
+        const wordStyle = isSentenceActive
+          ? isActiveWord
+            ? styles.activeWordColor
+            : styles.inactiveWordColor
+          : undefined;
+
+        return <Text style={wordStyle}>{word.text}</Text>;
+      };
+
+      if (artifactIndex >= 0) {
+        const range = artifactRanges[artifactIndex];
+        const startIndex = wordIndex;
+        const artifactWords: React.ReactNode[] = [];
+
+        while (
+          wordIndex < sentence.words.length &&
+          artifactIndexForWord(wordIndex) === artifactIndex
+        ) {
+          artifactWords.push(
+            <React.Fragment key={`${sentenceIndex}-artifact-${startIndex}-${wordIndex}`}>
+              {renderWord(sentence.words[wordIndex], wordIndex)}
+              {wordIndex < sentence.words.length - 1 &&
+              artifactIndexForWord(wordIndex + 1) === artifactIndex
+                ? ' '
+                : null}
+            </React.Fragment>
+          );
+          wordIndex += 1;
+        }
+
+        renderedWords.push(
+          <React.Fragment key={`${sentenceIndex}-artifact-${startIndex}`}>
+            <Text style={styles.artifactInline} onPress={() => handleOpenArtifact(range.label)}>
+              <Ionicons
+                name="sparkles-outline"
+                size={18}
+                color={theme.colors.interactive.primary}
+                style={styles.artifactInlineIcon}
+              />
+              {'\u00A0'}
+              {artifactWords}
+            </Text>
+            {wordIndex < sentence.words.length ? ' ' : null}
+          </React.Fragment>
+        );
+        continue;
+      }
+
+      renderedWords.push(
+        <React.Fragment key={`${sentenceIndex}-${wordIndex}`}>
+          {renderWord(sentence.words[wordIndex], wordIndex)}
+          {wordIndex < sentence.words.length - 1 ? ' ' : null}
+        </React.Fragment>
       );
+      wordIndex += 1;
     }
 
-    // If no alignment, render plain text
-    if (!story.audioMetadata?.alignment || sentences.length === 0) {
-      return <Text style={styles.sceneText}>{cleanedSceneText}</Text>;
+    return renderedWords;
+  };
+
+  const renderAlignedTextContent = (
+    cleanedText: string,
+    sceneIndex: number,
+    options: { preserveTrailingSpaces?: boolean } = {}
+  ): React.ReactNode[] | null => {
+    if (!effectiveHighlightEnabled || !story.audioMetadata?.alignment || sentences.length === 0) {
+      return null;
     }
 
-    // Find sentences that belong to this scene
     const sceneSentences = sentences.filter((s) => s.sceneIndex === sceneIndex);
 
     if (sceneSentences.length === 0) {
-      return <Text style={styles.sceneText}>{cleanedSceneText}</Text>;
+      return null;
     }
 
-    const renderedText: any[] = [];
+    const renderedText: React.ReactNode[] = [];
     let lastIndex = 0;
+    let matchedSentenceCount = 0;
 
     sceneSentences.forEach((sentence, sentenceLocalIndex) => {
       const sentenceIndex = sentences.indexOf(sentence);
       const isSentenceActive = effectiveHighlightEnabled && sentenceIndex === activeSentenceIndex;
+      const sentenceDisplayText = stripArtifactMarkers(sentence.text);
 
       // Find sentence position in scene text
-      const sentencePos = cleanedSceneText.indexOf(sentence.text, lastIndex);
+      let matchedSentenceText = sentence.text;
+      let sentencePos = cleanedText.indexOf(matchedSentenceText, lastIndex);
+      if (sentencePos === -1 && sentenceDisplayText !== sentence.text) {
+        matchedSentenceText = sentenceDisplayText;
+        sentencePos = cleanedText.indexOf(matchedSentenceText, lastIndex);
+      }
       if (sentencePos === -1) return;
+      matchedSentenceCount += 1;
 
       // Add text before sentence (if any)
       if (sentencePos > lastIndex) {
-        renderedText.push(cleanedSceneText.substring(lastIndex, sentencePos));
+        renderedText.push(cleanedText.substring(lastIndex, sentencePos));
       }
 
       // When highlight is ON: render individual words with color styles
       // When highlight is OFF: render plain sentence text without word wrappers
       if (effectiveHighlightEnabled) {
         // Render sentence wrapper with individual words
-        const sentenceWords = sentence.words.map((word, wordIndex) => {
-          const wordKey = `${sentenceIndex}-${wordIndex}`;
-          const isActiveWord = isSentenceActive && wordIndex === activeWordIndex;
-
-          // Color logic:
-          // - Active sentence + active word → black (activeWordColor)
-          // - Active sentence + inactive word → gray (inactiveWordColor)
-          // - Inactive sentence → gray (grayTextColor) applied to sentence wrapper
-          const wordStyle = isSentenceActive
-            ? isActiveWord
-              ? styles.activeWordColor
-              : styles.inactiveWordColor
-            : undefined; // Gray applied at sentence level for inactive sentences
-
-          return (
-            <React.Fragment key={wordKey}>
-              <Text style={wordStyle}>{word.text}</Text>
-              {wordIndex < sentence.words.length - 1 && ' '}
-            </React.Fragment>
-          );
-        });
+        const sentenceWords = renderAlignedSentenceWords(sentence, sentenceIndex, isSentenceActive);
 
         // Wrap sentence with background (if active) and gray color (if inactive)
         renderedText.push(
@@ -1912,29 +2282,211 @@ export default function StoryViewerScreen() {
         // Highlight OFF: render plain sentence text (no word wrappers, black color)
         renderedText.push(
           <Text key={`sentence-${sentenceIndex}`} style={styles.sentenceText}>
-            {sentence.text}
+            {sentenceDisplayText}
           </Text>
         );
       }
 
       // Add space after sentence (unless it's the last sentence)
-      if (sentenceLocalIndex < sceneSentences.length - 1) {
+      if (
+        options.preserveTrailingSpaces &&
+        sentenceLocalIndex < sceneSentences.length - 1 &&
+        sentencePos + matchedSentenceText.length < cleanedText.length
+      ) {
         renderedText.push(' ');
       }
 
-      lastIndex = sentencePos + sentence.text.length;
+      lastIndex = sentencePos + matchedSentenceText.length;
     });
 
+    if (matchedSentenceCount === 0) {
+      return null;
+    }
+
     // Add remaining text after last sentence
-    if (lastIndex < cleanedSceneText.length) {
-      renderedText.push(cleanedSceneText.substring(lastIndex));
+    if (lastIndex < cleanedText.length) {
+      renderedText.push(cleanedText.substring(lastIndex));
+    }
+
+    return renderedText;
+  };
+
+  // M6: Helper to render scene text with sentence/word wrappers
+  const renderSceneTextWithHighlight = (scene: any, sceneIndex: number) => {
+    const sceneText = typeof scene === 'string' ? scene : scene?.text || '';
+    const cleanedSceneText = removeAudioTags(sceneText);
+
+    if (!effectiveHighlightEnabled) {
+      return (
+        <Text style={styles.sceneText}>
+          {renderArtifactAwareSceneText(scene, cleanedSceneText)}
+        </Text>
+      );
+    }
+
+    const renderedText = renderAlignedTextContent(cleanedSceneText, sceneIndex, {
+      preserveTrailingSpaces: true,
+    });
+    if (!renderedText) {
+      return <Text style={styles.sceneText}>{cleanedSceneText}</Text>;
     }
 
     return <Text style={styles.sceneText}>{renderedText}</Text>;
   };
 
   // M6: Render story scenes with optional highlighting
+  const findGraphicNovelSceneIndex = (pageNumber: number) => {
+    const sceneIndex = story.scenes?.findIndex((scene: any, index: number) => {
+      const scenePageNumber = Number(scene?.graphicNovelPageNumber ?? scene?.sceneId ?? index + 1);
+      return scenePageNumber === pageNumber;
+    });
+    return typeof sceneIndex === 'number' && sceneIndex >= 0
+      ? sceneIndex
+      : Math.max(0, pageNumber - 1);
+  };
+
+  const isGraphicNovelTextActive = (item: GraphicNovelTextOverlayItem) => {
+    if (!effectiveHighlightEnabled || !activeSentenceText) return false;
+    if (activeGraphicNovelPageNumber !== item.pageNumber) return false;
+    const itemText = normalizeHighlightText(item.text || item.audioText || item.rawText || '');
+    if (!itemText) return false;
+    return itemText.includes(activeSentenceText) || activeSentenceText.includes(itemText);
+  };
+
+  const renderGraphicNovelTextItem = (item: GraphicNovelTextOverlayItem) => {
+    const rawText = removeAudioTags(item.rawText || item.text || item.audioText || '');
+    const text = stripArtifactMarkers(removeAudioTags(item.text || item.audioText || rawText));
+    if (!text.trim()) return null;
+
+    const sceneIndex = findGraphicNovelSceneIndex(item.pageNumber);
+    const highlightedText = renderAlignedTextContent(text, sceneIndex);
+    const isActive = !highlightedText && isGraphicNovelTextActive(item);
+    const rectStyle = item.cssPercent
+      ? item.cssPercent
+      : {
+          left: `${item.rect.x * 100}%`,
+          top: `${item.rect.y * 100}%`,
+          width: `${item.rect.width * 100}%`,
+          height: `${item.rect.height * 100}%`,
+        };
+
+    return (
+      <View
+        key={item.segmentId || item.id}
+        pointerEvents="box-none"
+        style={[styles.graphicNovelTextBox, rectStyle as any]}
+        accessibilityLabel={item.ariaLabel}
+      >
+        <Text
+          selectable
+          style={[
+            styles.graphicNovelBubbleText,
+            isActive && styles.graphicNovelBubbleTextActive,
+          ]}
+        >
+          {highlightedText ??
+            renderArtifactMarkerText(rawText, text, `graphic-novel-${item.segmentId || item.id}`, {
+              includeIcon: true,
+            })}
+        </Text>
+      </View>
+    );
+  };
+
+  const renderGraphicNovelPanelAnchors = (page: GraphicNovelPageApi) => {
+    const panels = Array.isArray(page.layoutJson?.panels)
+      ? page.layoutJson.panels
+      : Array.isArray(page.panels)
+        ? page.panels
+        : [];
+
+    return panels.map((_panel: any, index: number) => {
+      const panelIndex = index + 1;
+      const rect = panelRectFromGraphicNovelPage(page, panelIndex);
+      if (!rect) return null;
+
+      return (
+        <View
+          key={`panel-anchor-${page.pageNumber}-${panelIndex}`}
+          pointerEvents="none"
+          ref={(ref: View | null) => {
+            graphicNovelPanelRefs.current[graphicNovelPanelKey(page.pageNumber, panelIndex)] = ref;
+          }}
+          style={[
+            styles.graphicNovelPanelScrollAnchor,
+            {
+              left: `${rect.x * 100}%`,
+              top: `${rect.y * 100}%`,
+              width: `${rect.width * 100}%`,
+              height: `${rect.height * 100}%`,
+            },
+          ]}
+        />
+      );
+    });
+  };
+
+  const renderGraphicNovelPage = (page: GraphicNovelPageApi) => {
+    const imageUrl = page.imageUrl ? (formatAssetUrl(page.imageUrl) ?? page.imageUrl) : null;
+    const sceneIndex = findGraphicNovelSceneIndex(page.pageNumber);
+    const isActivePage =
+      effectiveHighlightEnabled && activeGraphicNovelPageNumber === page.pageNumber;
+
+    return (
+      <View
+        key={page.id || page.pageNumber}
+        ref={(ref: View | null) => {
+          sceneRefs.current[sceneIndex] = ref;
+        }}
+        style={[styles.graphicNovelPage, isActivePage && styles.graphicNovelPageActive]}
+      >
+        <View style={styles.graphicNovelPageCanvas}>
+          {imageUrl ? (
+            <>
+              <Image
+                source={{ uri: imageUrl }}
+                style={styles.graphicNovelPageImage as ImageStyle}
+                resizeMode="contain"
+              />
+              {renderGraphicNovelPanelAnchors(page)}
+              {page.textOverlay?.items?.map(renderGraphicNovelTextItem)}
+            </>
+          ) : (
+            <View style={styles.graphicNovelPagePlaceholder}>
+              <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+              <Text style={styles.graphicNovelPagePlaceholderText}>
+                {t('story_viewer.comic_page_preparing', {
+                  page: page.pageNumber,
+                  defaultValue: 'Page {{page}} is preparing...',
+                })}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderGraphicNovelPages = () => {
+    if (!graphicNovelPages.length) {
+      return (
+        <View style={styles.graphicNovelLoading}>
+          <ActivityIndicator size="large" color={theme.colors.interactive.primary} />
+          <Text style={styles.graphicNovelPagePlaceholderText}>
+            {t('story_viewer.comic_loading', { defaultValue: 'Loading comic pages...' })}
+          </Text>
+        </View>
+      );
+    }
+
+    return graphicNovelPages.map(renderGraphicNovelPage);
+  };
+
   const renderScenesWithHighlight = () => {
+    if (isGraphicNovel) {
+      return renderGraphicNovelPages();
+    }
+
     return story.scenes?.map((scene: any, sceneIndex: number) => {
       const isQuizHighlighted = highlightedQuizSceneId === scene.sceneId;
       return (
@@ -2008,6 +2560,32 @@ export default function StoryViewerScreen() {
     );
   };
 
+  const coverAssetOptions: CoverAssetOption[] = isGraphicNovel
+    ? graphicNovelPages.flatMap((page): CoverAssetOption[] =>
+        page.imageAssetId
+          ? [
+              {
+                assetId: page.imageAssetId,
+                imageUrl: page.imageUrl ?? null,
+              },
+            ]
+          : []
+      )
+    : (story?.scenes?.flatMap(
+        (s: {
+          image?: { id?: string; url?: string };
+          imageUrl?: string | null;
+        }): CoverAssetOption[] =>
+          s.image?.id
+            ? [
+                {
+                  assetId: s.image.id,
+                  imageUrl: s.image?.url ?? s.imageUrl ?? null,
+                },
+              ]
+            : []
+      ) ?? []);
+
   const parentReviewPanel = renderParentReviewPanel();
 
   return (
@@ -2016,7 +2594,11 @@ export default function StoryViewerScreen() {
       {isMobile || isTabletPortrait ? (
         // Mobile + Tablet Portrait: Single Column with FAB
         <>
-          <ScrollView ref={scrollViewRef} style={styles.container}>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.container}
+            onLayout={handleScrollViewportLayout}
+          >
             {/* Reading Time (mobile) */}
             {readingTimeMinutes > 0 && (
               <View style={styles.mobileSectionWrapper}>
@@ -2075,7 +2657,7 @@ export default function StoryViewerScreen() {
           </ScrollView>
 
           {/* FAB for Tablet Portrait only */}
-          {isTabletPortrait && (story.audioMetadata || (story?.characters?.length ?? 0) > 0) && (
+          {isTabletPortrait && (story.audioMetadata || storyCharactersForSection.length > 0) && (
             <FloatingActionButton onPress={openBottomSheet} icon="musical-notes" />
           )}
 
@@ -2097,7 +2679,7 @@ export default function StoryViewerScreen() {
               onShare={isChildSession ? undefined : handleShare}
               onUnpublish={isChildSession ? undefined : handleUnpublish}
               isPublishPending={publishStory.isPending}
-              characters={story?.characters ?? []}
+              characters={storyCharactersForSection}
               onSaveCharacter={!isChildSession && isArtisanMode ? handleSaveCharacter : undefined}
               savedCharacterIds={savedCharacterIdsArray}
               userMode={user?.mode}
@@ -2109,7 +2691,11 @@ export default function StoryViewerScreen() {
         // Tablet Landscape + Desktop: Two Column Layout
         <View style={styles.desktopLayout}>
           {/* Left Column: Story Content */}
-          <ScrollView ref={scrollViewRef} style={styles.leftColumn}>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.leftColumn}
+            onLayout={handleScrollViewportLayout}
+          >
             {/* Story Scenes */}
             {renderScenesWithHighlight()}
 
@@ -2319,17 +2905,7 @@ export default function StoryViewerScreen() {
         authorAboutMe={isChildSession ? activeChild?.authorAboutMe : null}
         allowAuthorProfileEdit={isChildSession}
         onUnpublish={handleUnpublish}
-        coverAssets={story?.scenes?.flatMap(
-          (
-            s: { image?: { id?: string; url?: string }; imageUrl?: string | null }
-          ): CoverAssetOption[] =>
-            s.image?.id
-              ? [{
-                  assetId: s.image.id,
-                  imageUrl: s.image?.url ?? s.imageUrl ?? null,
-                }]
-              : []
-        )}
+        coverAssets={coverAssetOptions}
         coverAssetId={story?.coverAssetId ?? null}
         initialVisibility={
           story?.visibility === 'unlisted' ? 'unlisted' : story?.isPublished ? 'public' : 'unlisted'
@@ -2781,6 +3357,81 @@ const styles = StyleSheet.create({
     lineHeight: theme.typography.fontSize.lg * 1.6,
     color: theme.colors.text.primary,
   },
+  graphicNovelPage: {
+    width: '100%',
+    alignSelf: 'stretch',
+    marginBottom: theme.spacing[8],
+  },
+  graphicNovelPageActive: {
+    shadowColor: theme.colors.interactive.primary,
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  graphicNovelPageCanvas: {
+    position: 'relative',
+    width: '100%',
+    aspectRatio: 3 / 4,
+    overflow: 'hidden',
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.tertiary,
+  },
+  graphicNovelPageImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  graphicNovelPanelScrollAnchor: {
+    position: 'absolute',
+    backgroundColor: 'transparent',
+  },
+  graphicNovelTextBox: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X,
+    paddingVertical: GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y,
+  },
+  graphicNovelBubbleText: {
+    color: '#111111',
+    fontSize: GRAPHIC_NOVEL_BUBBLE_FONT_SIZE,
+    lineHeight: GRAPHIC_NOVEL_BUBBLE_LINE_HEIGHT,
+    fontWeight: theme.typography.fontWeight.bold,
+    textAlign: 'center',
+    includeFontPadding: false,
+    ...Platform.select({
+      web: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        textWrap: 'balance' as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        overflowWrap: 'break-word' as any,
+      },
+      default: {},
+    }),
+  },
+  graphicNovelBubbleTextActive: {
+    backgroundColor: 'rgb(218, 239, 253)',
+    borderRadius: 4,
+  },
+  graphicNovelPagePlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing[6],
+  },
+  graphicNovelPagePlaceholderText: {
+    marginTop: theme.spacing[3],
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+  },
+  graphicNovelLoading: {
+    minHeight: 360,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing[6],
+  },
   mapTileReward: {
     alignSelf: 'stretch',
   },
@@ -2964,6 +3615,7 @@ const styles = StyleSheet.create({
   },
   activeWordColor: {
     color: '#000000', // Black for active word in active sentence
+    textDecorationLine: 'underline',
   },
   // M8: Series navigation styles
   seriesNavigation: {
