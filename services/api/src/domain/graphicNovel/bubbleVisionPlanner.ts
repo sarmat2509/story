@@ -4,6 +4,7 @@ import { measureGraphicNovelBubbleTextBox } from './bubbleTextSizing';
 import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
 import type { JsonSchema } from '../../providers/base/JsonSchema';
+import { crossScriptIdentityKey, normalizeCharacterName } from '../../utils/characterNormalization';
 import type {
   BubbleGeometry,
   PlannedGraphicNovelPage,
@@ -236,6 +237,84 @@ function normalizeName(value: string | undefined): string {
     .trim();
 }
 
+function addNameKeys(keys: Set<string>, value: string | undefined): void {
+  const raw = (value || '').trim();
+  if (!raw) return;
+  const normalized = normalizeName(raw);
+  if (normalized) keys.add(normalized);
+  const characterNormalized = normalizeCharacterName(raw);
+  if (characterNormalized) keys.add(characterNormalized);
+  const crossScript = crossScriptIdentityKey(raw);
+  if (crossScript) keys.add(crossScript);
+}
+
+function keySetsIntersect(a: Set<string>, b: Set<string>): boolean {
+  for (const key of a) {
+    if (b.has(key)) return true;
+  }
+  return false;
+}
+
+function aliasKeysForName(
+  value: string | undefined,
+  page: Pick<PlannedGraphicNovelPage, 'characterAliases'> | undefined
+): Set<string> {
+  const keys = new Set<string>();
+  addNameKeys(keys, value);
+  if (!page?.characterAliases || keys.size === 0) return keys;
+
+  for (const [canonicalName, aliases] of Object.entries(page.characterAliases)) {
+    const characterKeys = new Set<string>();
+    addNameKeys(characterKeys, canonicalName);
+    for (const alias of aliases || []) {
+      addNameKeys(characterKeys, alias);
+    }
+    if (!keySetsIntersect(keys, characterKeys)) continue;
+    for (const key of characterKeys) {
+      keys.add(key);
+    }
+  }
+
+  return keys;
+}
+
+function characterNamesMatch(
+  a: string | undefined,
+  b: string | undefined,
+  page?: Pick<PlannedGraphicNovelPage, 'characterAliases'>
+): boolean {
+  const aKeys = aliasKeysForName(a, page);
+  const bKeys = aliasKeysForName(b, page);
+  if (aKeys.size === 0 || bKeys.size === 0) return false;
+  if (keySetsIntersect(aKeys, bKeys)) return true;
+
+  const aNormalized = normalizeName(a);
+  const bNormalized = normalizeName(b);
+  return !!aNormalized && !!bNormalized && (
+    aNormalized.includes(bNormalized) || bNormalized.includes(aNormalized)
+  );
+}
+
+function characterAliasesForDisplay(
+  name: string,
+  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>
+): string[] {
+  if (!page.characterAliases) return [];
+  const nameKeys = aliasKeysForName(name, page);
+  const aliases: string[] = [];
+  for (const [canonicalName, candidateAliases] of Object.entries(page.characterAliases)) {
+    const candidateKeys = aliasKeysForName(canonicalName, page);
+    if (!keySetsIntersect(nameKeys, candidateKeys)) continue;
+    for (const alias of [canonicalName, ...(candidateAliases || [])]) {
+      const trimmed = alias.trim();
+      if (trimmed && !aliases.includes(trimmed) && trimmed !== name) {
+        aliases.push(trimmed);
+      }
+    }
+  }
+  return aliases.slice(0, 8);
+}
+
 function panelCharacterNames(panel: PlannedGraphicNovelPanel): string[] {
   const composition = panel.script.visual.sceneVisual.cameraComposition;
   if (typeof composition === 'string') return panel.script.charactersPresent || [];
@@ -257,7 +336,12 @@ function plannedPanelBrief(page: PlannedGraphicNovelPage): string {
   return page.panels
     .map((panel, index) => {
       const rect = panel.templatePanel.rect;
-      const characters = panelCharacterNames(panel).join(', ') || 'none';
+      const characters = panelCharacterNames(panel)
+        .map((name) => {
+          const aliases = characterAliasesForDisplay(name, page);
+          return aliases.length > 0 ? `${name} (aliases: ${aliases.join(', ')})` : name;
+        })
+        .join(', ') || 'none';
       const bubbles = panel.bubbles
         .map((bubble, bubbleIndex) =>
           `    Bubble ${bubbleIndex + 1}: kind=${bubble.kind}; speaker=${bubble.speaker || 'caption'}; text="${bubble.text}"`
@@ -277,7 +361,12 @@ function plannedPanelBrief(page: PlannedGraphicNovelPage): string {
 
 function plannedSinglePanelBrief(page: PlannedGraphicNovelPage, panelIndex: number): string {
   const panel = page.panels[panelIndex];
-  const characters = panelCharacterNames(panel).join(', ') || 'none';
+  const characters = panelCharacterNames(panel)
+    .map((name) => {
+      const aliases = characterAliasesForDisplay(name, page);
+      return aliases.length > 0 ? `${name} (aliases: ${aliases.join(', ')})` : name;
+    })
+    .join(', ') || 'none';
   const bubbles = panel.bubbles
     .map((bubble, bubbleIndex) =>
       `    Bubble ${bubbleIndex + 1}: kind=${bubble.kind}; speaker=${bubble.speaker || 'caption'}; text="${bubble.text}"`
@@ -457,17 +546,16 @@ function findPanelAnalysis(
 function findCharacterTarget(
   panelAnalysis: GraphicNovelBubbleVisionPanel | undefined,
   bubble: BubbleGeometry,
-  panel: PlannedGraphicNovelPanel
+  panel: PlannedGraphicNovelPanel,
+  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>
 ): { point?: VisionPoint; hasVisionTarget: boolean } {
   if (!panelAnalysis || bubble.kind === 'caption') {
     return { hasVisionTarget: false };
   }
 
-  const speakerKey = normalizeName(bubble.speaker);
-  let character = panelAnalysis.detectedCharacters.find((candidate) => {
-    const candidateKey = normalizeName(candidate.name);
-    return candidateKey === speakerKey || candidateKey.includes(speakerKey) || speakerKey.includes(candidateKey);
-  });
+  let character = panelAnalysis.detectedCharacters.find((candidate) =>
+    characterNamesMatch(candidate.name, bubble.speaker, page)
+  );
 
   if (!character && panelAnalysis.detectedCharacters.length === 1) {
     character = panelAnalysis.detectedCharacters[0];
@@ -486,15 +574,14 @@ function findCharacterTarget(
 
 function findPlannedCharacter(
   panel: PlannedGraphicNovelPanel,
-  detectedName: string | undefined
+  detectedName: string | undefined,
+  page?: Pick<PlannedGraphicNovelPage, 'characterAliases'>
 ): ReturnType<typeof panelPlannedCharacters>[number] | undefined {
-  const detectedKey = normalizeName(detectedName);
-  if (!detectedKey) return undefined;
+  if (!detectedName?.trim()) return undefined;
 
-  return panelPlannedCharacters(panel).find((candidate) => {
-    const candidateKey = normalizeName(candidate.name);
-    return candidateKey === detectedKey || candidateKey.includes(detectedKey) || detectedKey.includes(candidateKey);
-  });
+  return panelPlannedCharacters(panel).find((candidate) =>
+    characterNamesMatch(candidate.name, detectedName, page)
+  );
 }
 
 function emptyZonesForPanel(panelAnalysis: GraphicNovelBubbleVisionPanel | undefined, panelRect: Rect): Rect[] {
@@ -568,7 +655,8 @@ function countExtraVisionPanels(
 
 function characterAvoidRects(
   panelAnalysis: GraphicNovelBubbleVisionPanel | undefined,
-  panel: PlannedGraphicNovelPanel
+  panel: PlannedGraphicNovelPanel,
+  page: Pick<PlannedGraphicNovelPage, 'characterAliases'>
 ): AvoidRect[] {
   const panelRect = panel.templatePanel.rect;
   const occupiedAvoidRects = occupiedAvoidRectsForPanel(panelAnalysis, panelRect);
@@ -586,7 +674,7 @@ function characterAvoidRects(
       weight: 1,
     }));
 
-    const plannedCharacter = findPlannedCharacter(panel, character.name);
+    const plannedCharacter = findPlannedCharacter(panel, character.name, page);
     const plannedAnchor = isVisionPoint(plannedCharacter?.anchor)
       ? pagePoint(plannedCharacter.anchor, panelRect)
       : undefined;
@@ -1111,10 +1199,10 @@ export function applyGraphicNovelBubbleVisionLayout(
       const occupiedPlacementZones = hasOccupiedZones
         ? [fullPanelZone(panel.templatePanel.rect)]
         : visionEmptyZones;
-      const avoidRects = characterAvoidRects(panelAnalysis, panel);
+      const avoidRects = characterAvoidRects(panelAnalysis, panel, page);
       const placed: BubbleGeometry[] = [];
       const bubbles = panel.bubbles.map((bubble) => {
-        const targetResult = findCharacterTarget(panelAnalysis, bubble, panel);
+        const targetResult = findCharacterTarget(panelAnalysis, bubble, panel, page);
         const placementTarget = targetResult.point ?? bubble.tailTo;
         const placementZones = bubble.kind === 'caption' ? visionEmptyZones : occupiedPlacementZones;
         const placedBubble = placeBubble({

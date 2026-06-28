@@ -572,6 +572,76 @@ function testCaptionDoesNotShrinkToTinyVisionEmptyZone(): void {
   );
 }
 
+function testBubbleMatchesSpeakerByMultilingualAlias(): void {
+  const script = samplePageScript();
+  script.panels[0].dialogue = [{ speaker: 'Тік', text: 'Ми все перевірили!' }];
+  script.panels[0].charactersPresent = ['Тік', 'Моховик'];
+  const composition = script.panels[0].visual.sceneVisual.cameraComposition;
+  if (typeof composition !== 'string') {
+    composition.characters = [
+      {
+        name: 'Тік',
+        position: 'left_foreground',
+        anchor: { x: 0.32, y: 0.78 },
+        description: 'left foreground, smiling toward the other character',
+      },
+      {
+        name: 'Моховик',
+        position: 'right_foreground',
+        anchor: { x: 0.78, y: 0.72 },
+        description: 'right foreground, listening',
+      },
+    ];
+  }
+
+  const page = {
+    ...planGraphicNovelLayouts({ ageGroup: '6-8', pages: [script], randomSource: fixedRandom })[0],
+    characterAliases: {
+      'Тік': ['Тік', 'Тик', 'Tik'],
+      'Моховик': ['Моховик', 'Mossy'],
+    },
+  };
+  const panelRect = page.panels[0].templatePanel.rect;
+  const result = applyGraphicNovelBubbleVisionLayout(page, {
+    panels: [{
+      panelIndex: 1,
+      panelId: 'p1-1',
+      detectedCharacters: [
+        {
+          name: 'Tik',
+          mouthCenter: { x: 0.25, y: 0.62 },
+          faceCenter: { x: 0.25, y: 0.56 },
+          headCenter: { x: 0.25, y: 0.5 },
+          confidence: 0.95,
+        },
+        {
+          name: 'Mossy',
+          mouthCenter: { x: 0.78, y: 0.48 },
+          faceCenter: { x: 0.78, y: 0.42 },
+          headCenter: { x: 0.78, y: 0.36 },
+          confidence: 0.95,
+        },
+      ],
+      occupiedZones: [],
+      emptyZones: [{
+        x: 0.35,
+        y: 0.08,
+        width: 0.45,
+        height: 0.2,
+        confidence: 0.9,
+        description: 'open sky',
+      }],
+    }],
+  });
+
+  const bubble = result.page.panels[0].bubbles[0];
+  assert.ok(bubble.tailTo, 'bubble should receive a vision-derived target');
+  assert.ok(
+    Math.abs((bubble.tailTo!.x - panelRect.x) / panelRect.width - 0.25) < 0.02,
+    'speaker Тік should match Vision name Tik instead of the other visible character'
+  );
+}
+
 export async function runGraphicNovelBubbleVisionPlannerTests(): Promise<void> {
   testBubbleMovesToVisionEmptyZoneNearMouth();
   testBubblePrefersExpandedEmptyZoneOverCharacterBody();
@@ -580,6 +650,7 @@ export async function runGraphicNovelBubbleVisionPlannerTests(): Promise<void> {
   testBubbleAvoidsAllDetectedCharactersNotOnlySpeaker();
   testVisionPlacementAvoidsBubbleOverlap();
   testCaptionDoesNotShrinkToTinyVisionEmptyZone();
+  testBubbleMatchesSpeakerByMultilingualAlias();
 }
 
 if (require.main === module) {

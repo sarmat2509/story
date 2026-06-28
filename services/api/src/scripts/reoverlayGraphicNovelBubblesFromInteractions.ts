@@ -131,6 +131,36 @@ function summarizeBubblePlacement(page: PlannedGraphicNovelPage): Record<string,
   };
 }
 
+function pushUniqueName(names: string[], value: unknown): void {
+  const name = typeof value === 'string' ? stripCharacterIds(value).trim() : '';
+  if (!name) return;
+  if (!names.some((existing) => existing.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+    names.push(name);
+  }
+}
+
+function buildCharacterAliasMap(layoutManifest: unknown): Record<string, string[]> {
+  const characters = (layoutManifest as { characters?: Array<{
+    name?: string;
+    canonicalName?: string;
+    nameAliases?: string[];
+  }> } | null)?.characters || [];
+  const aliasMap: Record<string, string[]> = {};
+  for (const character of characters) {
+    if (!character.name) continue;
+    const aliases: string[] = [];
+    pushUniqueName(aliases, character.name);
+    pushUniqueName(aliases, character.canonicalName);
+    for (const alias of character.nameAliases || []) {
+      pushUniqueName(aliases, alias);
+    }
+    if (aliases.length > 0) {
+      aliasMap[character.name] = aliases;
+    }
+  }
+  return aliasMap;
+}
+
 async function main(): Promise<void> {
   const storyId = argValue('story-id') || '8d1db0cd-7161-43ce-9654-cd5ce26c5c21';
   const pageNumber = Number(argValue('page'));
@@ -151,6 +181,7 @@ async function main(): Promise<void> {
 
   const pages = (await getGraphicNovelRepository().findPagesByProjectId(project.id))
     .filter((page) => !Number.isFinite(pageNumber) || page.pageNumber === pageNumber);
+  const characterAliases = buildCharacterAliasMap(project.layoutManifest);
   const textProvider = getValidationTextProvider();
   const ai = new GoogleGenAI({
     apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
@@ -158,7 +189,13 @@ async function main(): Promise<void> {
 
   const report: Array<Record<string, unknown>> = [];
   for (const page of pages) {
-    const plannedPage = page.layoutJson as PlannedGraphicNovelPage | null;
+    const storedPlannedPage = page.layoutJson as PlannedGraphicNovelPage | null;
+    const plannedPage = storedPlannedPage
+      ? {
+          ...storedPlannedPage,
+          characterAliases: storedPlannedPage.characterAliases || characterAliases,
+        }
+      : null;
     if (!plannedPage?.panels?.length) {
       report.push({ pageNumber: page.pageNumber, skipped: true, reason: 'missing_layout' });
       continue;

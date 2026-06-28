@@ -4,7 +4,12 @@ import sharp from 'sharp';
 import { stripCharacterIdFromName } from '@wondertales/shared';
 import type { CreateStoryRequestInput } from '@wondertales/shared';
 import { config } from '../config';
-import { getAssetRepository, getGraphicNovelRepository, getStoryRepository } from '../repositories';
+import {
+  getAssetRepository,
+  getDictionaryRepository,
+  getGraphicNovelRepository,
+  getStoryRepository,
+} from '../repositories';
 import { getAssetStorageService } from './assetStorageService';
 import {
   getGraphicNovelDomainService,
@@ -102,6 +107,7 @@ export interface GraphicNovelTextManifest {
 type GraphicNovelCharacterManifest = Array<{
   name: string;
   canonicalName?: string;
+  nameAliases?: string[];
   type?: string;
   description?: string;
   references?: Array<{
@@ -784,6 +790,76 @@ function buildGraphicNovelCharacterReferences(
   }
 
   return refs;
+}
+
+function pushUniqueName(names: string[], value: unknown): void {
+  const name = typeof value === 'string' ? stripCharacterIdFromName(value).trim() : '';
+  if (!name) return;
+  if (!names.some((existing) => existing.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+    names.push(name);
+  }
+}
+
+async function buildGraphicNovelCharacterManifest(
+  characters: CharacterData[]
+): Promise<GraphicNovelCharacterManifest> {
+  const characterIds = characters
+    .map((character) => character.id)
+    .filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+  const translationsById = new Map<string, string[]>();
+
+  if (characterIds.length > 0) {
+    try {
+      const translations = await getDictionaryRepository().findTranslationsForEntities(
+        'character',
+        characterIds,
+        'name'
+      );
+      for (const translation of translations) {
+        const aliases = translationsById.get(translation.entityId) || [];
+        pushUniqueName(aliases, translation.value);
+        translationsById.set(translation.entityId, aliases);
+      }
+    } catch (error) {
+      logger.warn({ err: error }, 'Failed to load graphic novel character name aliases');
+    }
+  }
+
+  return characters.map((character) => {
+    const aliases: string[] = [];
+    pushUniqueName(aliases, character.name);
+    pushUniqueName(aliases, (character as any).canonicalName);
+    for (const translatedName of translationsById.get(character.id) || []) {
+      pushUniqueName(aliases, translatedName);
+    }
+
+    return {
+      name: character.name,
+      canonicalName: (character as any).canonicalName,
+      nameAliases: aliases,
+      type: character.type,
+      description: character.description || character.appearance || character.personality,
+      references: buildGraphicNovelCharacterReferences(character),
+    };
+  });
+}
+
+function buildGraphicNovelCharacterAliasMap(
+  characters: GraphicNovelCharacterManifest
+): Record<string, string[]> {
+  const aliasMap: Record<string, string[]> = {};
+  for (const character of characters) {
+    const aliases: string[] = [];
+    pushUniqueName(aliases, character.name);
+    pushUniqueName(aliases, character.canonicalName);
+    for (const alias of character.nameAliases || []) {
+      pushUniqueName(aliases, alias);
+    }
+    if (character.name && aliases.length > 0) {
+      aliasMap[character.name] = aliases;
+    }
+  }
+  return aliasMap;
 }
 
 function buildGraphicNovelExpectedCharacters(
@@ -1680,7 +1756,13 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
       environments: script.environments,
       scenarioCardId: spec.scenarioCard?.id,
     });
-    const plannedPages = graphicNovelDomain.planLayouts({ spec, script });
+    const characterManifest = await buildGraphicNovelCharacterManifest(
+      (spec.characters || []) as CharacterData[]
+    );
+    const characterAliases = buildGraphicNovelCharacterAliasMap(characterManifest);
+    const plannedPages = graphicNovelDomain
+      .planLayouts({ spec, script })
+      .map((page) => ({ ...page, characterAliases }));
     await setGraphicNovelProgressStage(requestId, 'placing_bubbles');
     await completeTask(requestId, STORY_TASKS.PRODUCING_VISUALS);
 
@@ -1747,13 +1829,7 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
         pageSize: { width: 1536, height: 2048 },
         textMode: 'html_overlay',
         textManifestVersion: textManifest.version,
-        characters: (spec.characters || []).map((character) => ({
-          name: character.name,
-          canonicalName: (character as any).canonicalName,
-          type: character.type,
-          description: character.description || character.appearance || character.personality,
-          references: buildGraphicNovelCharacterReferences(character),
-        })),
+        characters: characterManifest,
         environments: script.environments.map((environment) => ({
           id: environment.id,
           name: environment.name,
@@ -2385,11 +2461,19 @@ export async function regenerateGraphicNovelPageImage(params: {
   }
 
   const ageGroup = project.ageGroup || story.ageGroup || '6-8';
-  const plannedPage = replanGraphicNovelPageFromSavedScript({
+  const layoutManifest =
+    (project.layoutManifest as { characters?: GraphicNovelCharacterManifest } | null) || {};
+  const plannedPageWithoutAliases = replanGraphicNovelPageFromSavedScript({
     savedPage,
     ageGroup,
     preferredTemplateId: params.preferredTemplateId,
   });
+  const plannedPage: PlannedGraphicNovelPage = {
+    ...plannedPageWithoutAliases,
+    characterAliases:
+      savedPage.characterAliases ||
+      buildGraphicNovelCharacterAliasMap(layoutManifest.characters || []),
+  };
 
   const generationParams = {
     ...(pageRow.generationParams as Record<string, unknown> | null),
@@ -2420,8 +2504,6 @@ export async function regenerateGraphicNovelPageImage(params: {
     generationParams,
   };
   const script = project.scriptJson as GraphicNovelScript;
-  const layoutManifest =
-    (project.layoutManifest as { characters?: GraphicNovelCharacterManifest } | null) || {};
   const hasGraphicNovelCover = await hasReusableGraphicNovelCover(
     storyMetadata,
     story.coverAssetId

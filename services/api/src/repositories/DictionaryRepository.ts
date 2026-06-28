@@ -84,6 +84,26 @@ export class DictionaryRepository {
       );
   }
 
+  async findTranslationsForEntities(
+    entityType: string,
+    entityIds: string[],
+    fieldName?: string
+  ): Promise<schema.Translation[]> {
+    if (entityIds.length === 0) return [];
+    const conditions = [
+      eq(schema.translations.entityType, entityType),
+      inArray(schema.translations.entityId, entityIds),
+    ];
+    if (fieldName) {
+      conditions.push(eq(schema.translations.fieldName, fieldName));
+    }
+
+    return this.db
+      .select()
+      .from(schema.translations)
+      .where(and(...conditions));
+  }
+
   async upsertTranslation(input: schema.NewTranslation): Promise<schema.Translation> {
     const now = new Date();
     const [translation] = await this.db

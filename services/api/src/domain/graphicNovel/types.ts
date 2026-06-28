@@ -146,5 +146,6 @@ export interface PlannedGraphicNovelPage {
   pageRole: GraphicNovelPageRole;
   template: GraphicNovelPageTemplate;
   outfits?: StoryOutfitRow[];
+  characterAliases?: Record<string, string[]>;
   panels: PlannedGraphicNovelPanel[];
 }
