@@ -120,25 +120,27 @@ const localhostSources = isLocalDev
   ? ['http://localhost', 'http://localhost:*', 'ws://localhost', 'ws://localhost:*']
   : [];
 const posthogSources = ['https://*.i.posthog.com', 'https://*.posthog.com'];
+const turnstileSources = ['https://challenges.cloudflare.com'];
 const apiConnectSources = [
   "'self'",
   ...localhostSources,
   ...posthogSources,
+  ...turnstileSources,
   ...(isLocalDev ? ['https:', 'wss:'] : []),
 ];
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", ...(webAppOrigin ? [webAppOrigin] : []), ...posthogSources],
-      scriptSrcElem: ["'self'", "'unsafe-inline'", ...(webAppOrigin ? [webAppOrigin] : []), ...posthogSources],
+      scriptSrc: ["'self'", "'unsafe-inline'", ...(webAppOrigin ? [webAppOrigin] : []), ...posthogSources, ...turnstileSources],
+      scriptSrcElem: ["'self'", "'unsafe-inline'", ...(webAppOrigin ? [webAppOrigin] : []), ...posthogSources, ...turnstileSources],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:', 'https:', ...(isLocalDev ? ['http://localhost', 'http://localhost:*'] : [])],
       connectSrc: apiConnectSources,
       fontSrc: ["'self'", 'data:', 'https:'],
       mediaSrc: ["'self'", 'blob:', 'https:', ...(isLocalDev ? ['http://localhost', 'http://localhost:*'] : [])],
       objectSrc: ["'none'"],
-      frameSrc: ["'none'"],
+      frameSrc: ["'self'", ...turnstileSources],
     },
   },
 }));
@@ -176,6 +178,24 @@ app.use('/health', healthRoutes);
 
 // Sitemap - public, no auth, no rate limit
 app.use('/sitemap.xml', sitemapRoute);
+
+app.get(['/.well-known/security.txt', '/security.txt'], (_req, res) => {
+  const oneYearMs = 365 * 24 * 60 * 60 * 1000;
+  const expires = new Date(Date.now() + oneYearMs)
+    .toISOString()
+    .replace(/\.\d{3}Z$/, 'Z');
+
+  res
+    .type('text/plain; charset=utf-8')
+    .set('Cache-Control', 'public, max-age=3600')
+    .send([
+      `Contact: mailto:${config.web.supportEmail}`,
+      `Expires: ${expires}`,
+      'Preferred-Languages: en, uk, ru',
+      'Canonical: https://wondertales.art/.well-known/security.txt',
+      '',
+    ].join('\n'));
+});
 
 // API v1 routes
 app.use('/api/v1/auth', authLimiter, authRoutes);
