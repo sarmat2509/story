@@ -51,6 +51,10 @@ Los prompts de historias, texto generado, referencias de imagen, texto de narrac
 
 Intentamos enviar solo los datos necesarios para cada función. No suba contenido que no esté autorizado a compartir con estos processors.
 
+## Protección contra bots y abuso
+
+Usamos Cloudflare Turnstile para ayudar a proteger WonderTales frente a bots, spam y abuso. Turnstile puede procesar información técnica necesaria para comprobar si una solicitud es legítima. Cloudflare trata esta información según su Turnstile Privacy Policy: https://www.cloudflare.com/turnstile-privacy-policy/
+
 ## Compartir público y unlisted
 
 Las historias privadas están destinadas al authenticated account access.

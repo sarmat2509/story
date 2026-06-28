@@ -66,6 +66,10 @@ Story prompts, generated text, image references, narration text, quiz and artifa
 
 We try to send only the data needed for the feature. Do not upload content that you are not allowed to share with these processors.
 
+## Bot and abuse protection
+
+We use Cloudflare Turnstile to help protect WonderTales from bots, spam, and abuse. Turnstile may process technical information needed to check whether a request is legitimate. Cloudflare handles this information under its Turnstile Privacy Policy: https://www.cloudflare.com/turnstile-privacy-policy/
+
 ## Public and unlisted sharing
 
 Private stories are intended for authenticated account access.
