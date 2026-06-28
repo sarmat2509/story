@@ -122,10 +122,19 @@ type GraphicNovelReferenceImage = ReferenceImage & {
 type RenderedGraphicNovelPageAssets = {
   pageAssetId: string;
   coverAssetId?: string;
-  coverSource?: 'full_width_panel';
+  coverSource?: GraphicNovelCoverSource;
 };
 
 type PixelCropRect = { left: number; top: number; width: number; height: number };
+type GraphicNovelCoverSource = 'full_width_panel' | 'widest_first_page_panel';
+type GraphicNovelCoverPanelSelection = {
+  panelIndex: number;
+  source: GraphicNovelCoverSource;
+};
+
+function isGraphicNovelCoverSource(value: unknown): value is GraphicNovelCoverSource {
+  return value === 'full_width_panel' || value === 'widest_first_page_panel';
+}
 
 type GraphicNovelCoverPanelCrop = {
   cropRect: PixelCropRect;
@@ -133,6 +142,7 @@ type GraphicNovelCoverPanelCrop = {
   borderInsetPx: number;
   targetAspectRatio: number;
   focusRect: Rect | null;
+  focusStrategy: 'character_body' | 'head_priority' | 'action' | 'center';
 };
 
 type GraphicNovelRenderedPageValidation = {
@@ -324,12 +334,33 @@ function mergeRects(rects: Rect[]): Rect | null {
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
-function coverFocusRectFromVision(
+function tinyRectAroundVisionPoint(
+  point: { x: number; y: number },
+  size: { width: number; height: number }
+): Rect | null {
+  return clampRectToUnit({
+    x: point.x - size.width / 2,
+    y: point.y - size.height / 2,
+    width: size.width,
+    height: size.height,
+  });
+}
+
+function coverHeadFocusRectFromCharacterRect(rect: Rect): Rect | null {
+  return clampRectToUnit({
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: Math.max(0.08, Math.min(rect.height, rect.height * 0.35)),
+  });
+}
+
+function coverFocusRectsFromVision(
   analysis: GraphicNovelBubbleVisionAnalysis | null | undefined,
   panelIndex: number
-): Rect | null {
+): { body: Rect | null; head: Rect | null; action: Rect | null } {
   const panelAnalysis = analysis?.panels?.find((panel) => Number(panel.panelIndex) === panelIndex + 1);
-  if (!panelAnalysis) return null;
+  if (!panelAnalysis) return { body: null, head: null, action: null };
 
   const characterRects =
     panelAnalysis.occupiedZones
@@ -337,29 +368,27 @@ function coverFocusRectFromVision(
       .map((zone) => clampRectToUnit(zone))
       .filter((rect): rect is Rect => !!rect) ?? [];
 
-  if (characterRects.length > 0) {
-    return mergeRects(characterRects);
-  }
+  const explicitHeadRects =
+    panelAnalysis.occupiedZones
+      ?.filter((zone) => zone.kind === 'face')
+      .map((zone) => clampRectToUnit(zone))
+      .filter((rect): rect is Rect => !!rect) ?? [];
 
-  const pointRects =
+  const detectedHeadRects =
     panelAnalysis.detectedCharacters
       ?.flatMap((character) =>
-        [character.faceCenter, character.headCenter, character.mouthCenter]
+        [character.faceCenter, character.headCenter]
           .filter((point): point is { x: number; y: number } => !!point)
-          .map((point) =>
-            clampRectToUnit({
-              x: point.x - 0.08,
-              y: point.y - 0.12,
-              width: 0.16,
-              height: 0.24,
-            })
-          )
+          .map((point) => tinyRectAroundVisionPoint(point, { width: 0.18, height: 0.24 }))
           .filter((rect): rect is Rect => !!rect)
       ) ?? [];
 
-  if (pointRects.length > 0) {
-    return mergeRects(pointRects);
-  }
+  const inferredHeadRects =
+    explicitHeadRects.length === 0 && detectedHeadRects.length === 0
+      ? characterRects
+          .map(coverHeadFocusRectFromCharacterRect)
+          .filter((rect): rect is Rect => !!rect)
+      : [];
 
   const actionRects =
     panelAnalysis.occupiedZones
@@ -367,16 +396,47 @@ function coverFocusRectFromVision(
       .map((zone) => clampRectToUnit(zone))
       .filter((rect): rect is Rect => !!rect) ?? [];
 
-  return mergeRects(actionRects);
+  return {
+    body: mergeRects(characterRects),
+    head: mergeRects([...explicitHeadRects, ...detectedHeadRects, ...inferredHeadRects]),
+    action: mergeRects(actionRects),
+  };
 }
 
 export function selectGraphicNovelCoverPanel(
   page: PlannedGraphicNovelPage
-): { panelIndex: number } | null {
+): GraphicNovelCoverPanelSelection | null {
   const panelIndex = page.panels.findIndex((panel) =>
     isFullWidthHorizontalCoverPanel(panel.templatePanel.rect)
   );
-  return panelIndex >= 0 ? { panelIndex } : null;
+  if (panelIndex >= 0) {
+    return { panelIndex, source: 'full_width_panel' };
+  }
+
+  if (page.pageNumber !== 1) {
+    return null;
+  }
+
+  let widestPanelIndex = -1;
+  let widestPanelWidth = -1;
+  let widestPanelArea = -1;
+  page.panels.forEach((panel, index) => {
+    const rect = panel.templatePanel.rect;
+    const width = Number(rect.width);
+    const area = width * Number(rect.height);
+    if (
+      width > widestPanelWidth + 0.0001 ||
+      (Math.abs(width - widestPanelWidth) <= 0.0001 && area > widestPanelArea)
+    ) {
+      widestPanelIndex = index;
+      widestPanelWidth = width;
+      widestPanelArea = area;
+    }
+  });
+
+  return widestPanelIndex >= 0
+    ? { panelIndex: widestPanelIndex, source: 'widest_first_page_panel' }
+    : null;
 }
 
 function panelCropRect(
@@ -439,7 +499,31 @@ export function buildGraphicNovelCoverPanelCrop(params: {
     innerAspect > targetAspectRatio
       ? innerHeight
       : Math.max(1, Math.round(innerWidth / targetAspectRatio));
-  const focusRect = coverFocusRectFromVision(params.analysis, params.panelIndex);
+  const focusRects = coverFocusRectsFromVision(params.analysis, params.panelIndex);
+  const cropWidthUnit = cropWidth / fullPanelCropRect.width;
+  const cropHeightUnit = cropHeight / fullPanelCropRect.height;
+  const bodyFits =
+    !!focusRects.body &&
+    focusRects.body.width <= cropWidthUnit * 0.92 &&
+    focusRects.body.height <= cropHeightUnit * 0.92;
+  const focusStrategy =
+    focusRects.body && !bodyFits && focusRects.head
+      ? 'head_priority'
+      : focusRects.body
+        ? 'character_body'
+        : focusRects.head
+          ? 'head_priority'
+          : focusRects.action
+            ? 'action'
+            : 'center';
+  const focusRect =
+    focusStrategy === 'head_priority'
+      ? focusRects.head
+      : focusStrategy === 'character_body'
+        ? focusRects.body
+        : focusStrategy === 'action'
+          ? focusRects.action
+          : null;
   const focusCenterX = focusRect ? focusRect.x + focusRect.width / 2 : 0.5;
   const focusCenterY = focusRect ? focusRect.y + focusRect.height / 2 : 0.5;
   const desiredCenterX = fullPanelCropRect.left + focusCenterX * fullPanelCropRect.width;
@@ -460,6 +544,7 @@ export function buildGraphicNovelCoverPanelCrop(params: {
     borderInsetPx,
     targetAspectRatio,
     focusRect,
+    focusStrategy,
   };
 }
 
@@ -471,7 +556,7 @@ async function createGraphicNovelCoverPanelAsset(params: {
   pageAssetId: string;
   imageData: Buffer;
   bubbleVisionAnalysis?: GraphicNovelBubbleVisionAnalysis | null;
-}): Promise<{ assetId: string; source: 'full_width_panel' } | null> {
+}): Promise<{ assetId: string; source: GraphicNovelCoverSource } | null> {
   const selectedPanel = selectGraphicNovelCoverPanel(params.page);
   if (!selectedPanel) {
     return null;
@@ -515,7 +600,7 @@ async function createGraphicNovelCoverPanelAsset(params: {
     fileSizeBytes: uploadResult.fileSizeBytes,
     generationParams: {
       kind: 'graphic_novel_cover_panel',
-      source: 'full_width_panel',
+      source: selectedPanel.source,
       cropStrategy: 'smart_character_aware_ordinary_story_ratio',
       pageNumber: params.page.pageNumber,
       panelIndex: selectedPanel.panelIndex + 1,
@@ -526,6 +611,7 @@ async function createGraphicNovelCoverPanelAsset(params: {
       borderInsetPx: coverCrop.borderInsetPx,
       targetAspectRatio: coverCrop.targetAspectRatio,
       focusRect: coverCrop.focusRect,
+      focusStrategy: coverCrop.focusStrategy,
       templatePanelRect: params.page.panels[selectedPanel.panelIndex]?.templatePanel.rect ?? null,
     },
     generationTimeMs: null,
@@ -537,7 +623,7 @@ async function createGraphicNovelCoverPanelAsset(params: {
     height: 384,
     fit: 'cover',
   });
-  return { assetId: asset.id, source: 'full_width_panel' };
+  return { assetId: asset.id, source: selectedPanel.source };
 }
 
 function panelCharacterNames(panel: GraphicNovelPanelScript): string[] {
@@ -2250,7 +2336,7 @@ export async function regenerateGraphicNovelPageImage(params: {
   const layoutManifest =
     (project.layoutManifest as { characters?: GraphicNovelCharacterManifest } | null) || {};
   const hasGraphicNovelCover =
-    storyMetadata.graphicNovelCoverSource === 'full_width_panel' && !!story.coverAssetId;
+    isGraphicNovelCoverSource(storyMetadata.graphicNovelCoverSource) && !!story.coverAssetId;
 
   try {
     const renderedAssets = await renderAndStorePage({
@@ -2360,7 +2446,7 @@ export async function processGraphicNovelPages(
   const storyMetadata = (story?.metadata as Record<string, unknown> | null) || {};
   let firstPageReady = storyMetadata.firstPageReady === true || request.status === 'completed';
   let hasGraphicNovelCover =
-    storyMetadata.graphicNovelCoverSource === 'full_width_panel' && !!story?.coverAssetId;
+    isGraphicNovelCoverSource(storyMetadata.graphicNovelCoverSource) && !!story?.coverAssetId;
 
   if (!firstPageReady) {
     await setGraphicNovelProgressStage(requestId, 'generating_first_page');

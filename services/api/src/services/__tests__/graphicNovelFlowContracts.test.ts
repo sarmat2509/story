@@ -155,8 +155,12 @@ function testTextManifestFeedsStoryTextAndOverlay(): void {
   );
 }
 
-function testCoverPanelSelectionRequiresFullWidthPanel(): void {
-  const makePage = (rects: Array<{ x: number; y: number; width: number; height: number }>) => ({
+function testCoverPanelSelectionPrefersFullWidthThenFirstPageWidest(): void {
+  const makePage = (
+    rects: Array<{ x: number; y: number; width: number; height: number }>,
+    pageNumber = 1
+  ) => ({
+    pageNumber,
     panels: rects.map((rect, index) => ({
       templatePanel: {
         id: `p${index + 1}`,
@@ -171,25 +175,34 @@ function testCoverPanelSelectionRequiresFullWidthPanel(): void {
       { x: 0.0195, y: 0.37, width: 0.47, height: 0.28 },
       { x: 0.5104, y: 0.37, width: 0.47, height: 0.28 },
     ]) as any),
-    { panelIndex: 0 }
+    { panelIndex: 0, source: 'full_width_panel' }
+  );
+
+  assert.deepEqual(
+    selectGraphicNovelCoverPanel(makePage([
+      { x: 0.0195, y: 0.02, width: 0.47, height: 0.94 },
+      { x: 0.5104, y: 0.02, width: 0.47, height: 0.94 },
+    ]) as any),
+    { panelIndex: 0, source: 'widest_first_page_panel' }
+  );
+
+  assert.deepEqual(
+    selectGraphicNovelCoverPanel(makePage([
+      { x: 0.0195, y: 0.02, width: 0.9609, height: 0.86 },
+      { x: 0.0195, y: 0.9, width: 0.47, height: 0.08 },
+      { x: 0.5104, y: 0.9, width: 0.47, height: 0.08 },
+    ]) as any),
+    { panelIndex: 0, source: 'widest_first_page_panel' },
+    'first page fallback should use the widest panel even when it is tall'
   );
 
   assert.equal(
     selectGraphicNovelCoverPanel(makePage([
       { x: 0.0195, y: 0.02, width: 0.47, height: 0.94 },
       { x: 0.5104, y: 0.02, width: 0.47, height: 0.94 },
-    ]) as any),
-    null
-  );
-
-  assert.equal(
-    selectGraphicNovelCoverPanel(makePage([
-      { x: 0.0195, y: 0.02, width: 0.9609, height: 0.86 },
-      { x: 0.0195, y: 0.9, width: 0.47, height: 0.08 },
-      { x: 0.5104, y: 0.9, width: 0.47, height: 0.08 },
-    ]) as any),
+    ], 2) as any),
     null,
-    'cover should be a horizontal full-width panel, not a tall full-width panel'
+    'non-first pages should still require a horizontal full-width cover candidate'
   );
 }
 
@@ -239,6 +252,59 @@ function testCoverPanelCropMatchesStoryThumbnailRatioAndCharacters(): void {
   assert.ok(crop.cropRect.left > crop.fullPanelCropRect.left + 60, 'crop should shift toward right-side characters');
   assert.ok(Math.abs(crop.cropRect.width / crop.cropRect.height - 672 / 384) < 0.01);
   assert.equal(crop.focusRect?.x, 0.72);
+  assert.equal(crop.focusStrategy, 'character_body');
+}
+
+function testCoverPanelCropPrioritizesHeadWhenBodyCannotFit(): void {
+  const page = {
+    panels: [
+      {
+        templatePanel: {
+          id: 'p1',
+          rect: { x: 0.02, y: 0.02, width: 0.47, height: 0.94 },
+        },
+      },
+    ],
+  };
+  const crop = buildGraphicNovelCoverPanelCrop({
+    page: page as any,
+    panelIndex: 0,
+    imageWidth: 896,
+    imageHeight: 1152,
+    analysis: {
+      panels: [
+        {
+          panelIndex: 1,
+          detectedCharacters: [
+            {
+              name: 'Emilia',
+              faceCenter: { x: 0.5, y: 0.18 },
+              headCenter: { x: 0.5, y: 0.16 },
+              mouthCenter: { x: 0.5, y: 0.23 },
+            },
+          ],
+          occupiedZones: [
+            {
+              x: 0.39,
+              y: 0.08,
+              width: 0.22,
+              height: 0.82,
+              kind: 'character',
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  assert.equal(crop.focusStrategy, 'head_priority');
+  assert.ok(crop.focusRect, 'head priority should produce a focus rect');
+  assert.ok((crop.focusRect?.height ?? 1) < 0.3, 'head focus should be smaller than full body');
+  assert.ok(
+    crop.cropRect.top < crop.fullPanelCropRect.top + crop.fullPanelCropRect.height * 0.24,
+    'crop should move upward toward the character head'
+  );
+  assert.ok(Math.abs(crop.cropRect.width / crop.cropRect.height - 672 / 384) < 0.01);
 }
 
 function testGraphicNovelStoryCharacterLinksMatchStorybookFlow(): void {
@@ -263,8 +329,9 @@ function main(): void {
   testFirstPageCompletionRule();
   testGenerationStatusWithBackgroundFailure();
   testTextManifestFeedsStoryTextAndOverlay();
-  testCoverPanelSelectionRequiresFullWidthPanel();
+  testCoverPanelSelectionPrefersFullWidthThenFirstPageWidest();
   testCoverPanelCropMatchesStoryThumbnailRatioAndCharacters();
+  testCoverPanelCropPrioritizesHeadWhenBodyCannotFit();
   testGraphicNovelStoryCharacterLinksMatchStorybookFlow();
   console.log('graphicNovelFlowContracts tests passed');
 }
