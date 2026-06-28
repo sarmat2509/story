@@ -375,7 +375,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     finalCta: {
       title: 'Подаруйте дитині радість стати героєм власної історії',
       subtitle: 'Малюнок, фото або опис — WonderTales створить персоналізовану історію за хвилини.',
-      primaryCta: 'Створити історію безкоштовно',
+      primaryCta: 'Створити першу історію безкоштовно',
       secondaryCta: 'Переглянути тарифи',
     },
   },
@@ -629,7 +629,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     finalCta: {
       title: 'Подарите ребенку радость стать героем собственной истории',
       subtitle: 'Рисунок, фото или описание — WonderTales создаст персонализированную историю за считанные минуты.',
-      primaryCta: 'Создать историю бесплатно',
+      primaryCta: 'Создать первую историю бесплатно',
       secondaryCta: 'Посмотреть тарифы',
     },
   },
@@ -883,7 +883,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     finalCta: {
       title: 'Give your child the joy of becoming the hero of their own story',
       subtitle: 'A drawing, a photo, or a simple description — WonderTales can turn it into a personalized story in minutes.',
-      primaryCta: 'Create a story for free',
+      primaryCta: 'Create your first story for free',
       secondaryCta: 'View pricing',
     },
   },
@@ -1137,7 +1137,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     finalCta: {
       title: 'Regálale a tu hijo la alegría de ser el héroe de su propia historia',
       subtitle: 'Un dibujo, una foto o una breve descripción: WonderTales puede convertirlo en una historia personalizada en minutos.',
-      primaryCta: 'Crear una historia gratis',
+      primaryCta: 'Crear la primera historia gratis',
       secondaryCta: 'Ver precios',
     },
   },
@@ -1391,7 +1391,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     finalCta: {
       title: 'Schenke deinem Kind die Freude, selbst die Hauptfigur der eigenen Geschichte zu sein',
       subtitle: 'Eine Zeichnung, ein Foto oder eine kurze Beschreibung genügt — WonderTales macht daraus in Minuten eine personalisierte Geschichte.',
-      primaryCta: 'Kostenlos eine Geschichte erstellen',
+      primaryCta: 'Die erste Geschichte kostenlos erstellen',
       secondaryCta: 'Preise ansehen',
     },
   },
@@ -1645,7 +1645,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     finalCta: {
       title: 'Offrez à votre enfant la joie de devenir le héros de sa propre histoire',
       subtitle: 'Un dessin, une photo ou une simple description suffisent pour que WonderTales crée une histoire personnalisée en quelques minutes.',
-      primaryCta: 'Créer une histoire gratuitement',
+      primaryCta: 'Créer la première histoire gratuitement',
       secondaryCta: 'Voir les tarifs',
     },
   },
@@ -1899,7 +1899,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     finalCta: {
       title: 'Podaruj dziecku radość z bycia bohaterem własnej historii',
       subtitle: 'Rysunek, zdjęcie albo krótki opis wystarczą, by WonderTales stworzyło spersonalizowaną opowieść w kilka minut.',
-      primaryCta: 'Stwórz historię za darmo',
+      primaryCta: 'Stwórz pierwszą historię za darmo',
       secondaryCta: 'Zobacz ceny',
     },
   },
