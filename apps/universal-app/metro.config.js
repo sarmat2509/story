@@ -6,6 +6,7 @@ const { getDefaultConfig } = require('expo/metro-config');
 // node_modules; Metro may not find it without explicit nodeModulesPaths.
 const workspaceRoot = path.resolve(__dirname, '../..');
 const config = getDefaultConfig(__dirname);
+const appResolvePaths = [__dirname, workspaceRoot];
 config.resolver.nodeModulesPaths = [
   path.resolve(__dirname, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
@@ -24,11 +25,11 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     return { type: 'sourceFile', filePath };
   }
   if (moduleName === 'react-native-view-shot') {
-    const filePath = path.resolve(workspaceRoot, 'node_modules', 'react-native-view-shot', 'src', 'index.js');
+    const filePath = require.resolve('react-native-view-shot/src/index.js', { paths: appResolvePaths });
     return { type: 'sourceFile', filePath };
   }
   if (moduleName === 'html2canvas') {
-    const filePath = path.resolve(workspaceRoot, 'node_modules', 'html2canvas', 'dist', 'html2canvas.esm.js');
+    const filePath = require.resolve('html2canvas/dist/html2canvas.esm.js', { paths: appResolvePaths });
     return { type: 'sourceFile', filePath };
   }
   if (
