@@ -1,8 +1,8 @@
 import { getUserConsentRepository } from '../repositories';
 
 export const CONSENT_DOCUMENT_VERSIONS = {
-  termsOfService: '2026-05-01',
-  privacyPolicy: '2026-05-01',
+  termsOfService: '2026-06-28',
+  privacyPolicy: '2026-06-28',
   adultGuardian: '2026-05-01',
   childDataProcessing: '2026-05-01',
 } as const;

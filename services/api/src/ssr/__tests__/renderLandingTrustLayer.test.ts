@@ -23,10 +23,9 @@ assert.match(ukHtml, /href="https:\/\/app\.wondertales\.com\/privacy"/);
 assert.match(ukHtml, /href="https:\/\/app\.wondertales\.com\/support"/);
 assert.doesNotMatch(ukHtml, /\/uk\/privacy/);
 
-const fallbackHtml = renderLandingHtml({ locale: 'es' });
+const esHtml = renderLandingHtml({ locale: 'es' });
 
-assert.match(fallbackHtml, /Батьківський контроль і приватність з першої історії/);
-assert.match(fallbackHtml, /href="https:\/\/app\.wondertales\.com\/privacy"/);
-assert.doesNotMatch(fallbackHtml, /\/es\/privacy/);
+assert.match(esHtml, /Control parental y privacidad desde la primera historia/);
+assert.match(esHtml, /href="https:\/\/app\.wondertales\.com\/es\/privacy"/);
 
 console.log('renderLandingTrustLayer tests passed');

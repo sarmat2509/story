@@ -1,8 +1,8 @@
 /**
  * SSR Legal Routes
  * GET /ssr/legal/terms, GET /ssr/legal/privacy
- * GET /ssr/legal/terms/en, GET /ssr/legal/privacy/en
- * Proxied by nginx at /terms, /privacy, /en/terms, and /en/privacy
+ * GET /ssr/legal/terms/:locale, GET /ssr/legal/privacy/:locale
+ * Proxied by nginx at /terms, /privacy, and localized public legal routes.
  */
 
 import { Router, Request, Response } from 'express';

@@ -10,12 +10,14 @@ import {
   buildAbsoluteRouteUrl,
   buildPublicLandingPath,
   buildPublicLegalPath,
+  PUBLIC_SEO_LOCALES,
+  type PublicSeoLocale,
 } from '@wondertales/shared';
 import { config } from '../config';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import {
   PUBLIC_FOOTER_STYLES,
-  type PublicFooterLanguageLink,
+  buildPublicFooterLanguageLinks,
   renderPublicPageFooter,
 } from './publicPageFooter';
 
@@ -56,8 +58,8 @@ export interface RenderLegalOptions {
   locale: string;
 }
 
-const PUBLIC_LEGAL_LOCALES = ['uk', 'en'] as const;
-type PublicLegalLocale = typeof PUBLIC_LEGAL_LOCALES[number];
+const PUBLIC_LEGAL_LOCALES = PUBLIC_SEO_LOCALES;
+type PublicLegalLocale = PublicSeoLocale;
 
 const LEGAL_COPY: Record<PublicLegalLocale, {
   termsTitle: string;
@@ -79,6 +81,41 @@ const LEGAL_COPY: Record<PublicLegalLocale, {
     privacyTitle: 'Privacy Policy — WonderTales',
     privacyDescription: 'How WonderTales collects and uses personal data',
     backToSite: '← Back to site',
+  },
+  ru: {
+    termsTitle: 'Условия использования — WonderTales',
+    termsDescription: 'Условия использования сервиса WonderTales',
+    privacyTitle: 'Политика конфиденциальности — WonderTales',
+    privacyDescription: 'Как WonderTales собирает и использует персональные данные',
+    backToSite: '← На главную',
+  },
+  es: {
+    termsTitle: 'Términos de servicio — WonderTales',
+    termsDescription: 'Términos de uso del servicio WonderTales',
+    privacyTitle: 'Política de privacidad — WonderTales',
+    privacyDescription: 'Cómo WonderTales recopila y utiliza datos personales',
+    backToSite: '← Volver al sitio',
+  },
+  de: {
+    termsTitle: 'Nutzungsbedingungen — WonderTales',
+    termsDescription: 'Nutzungsbedingungen des WonderTales-Dienstes',
+    privacyTitle: 'Datenschutzerklärung — WonderTales',
+    privacyDescription: 'Wie WonderTales personenbezogene Daten erhebt und verwendet',
+    backToSite: '← Zur Startseite',
+  },
+  fr: {
+    termsTitle: "Conditions d'utilisation — WonderTales",
+    termsDescription: "Conditions d'utilisation du service WonderTales",
+    privacyTitle: 'Politique de confidentialité — WonderTales',
+    privacyDescription: 'Comment WonderTales collecte et utilise les données personnelles',
+    backToSite: '← Retour au site',
+  },
+  pl: {
+    termsTitle: 'Regulamin — WonderTales',
+    termsDescription: 'Warunki korzystania z usługi WonderTales',
+    privacyTitle: 'Polityka prywatności — WonderTales',
+    privacyDescription: 'Jak WonderTales zbiera i wykorzystuje dane osobowe',
+    backToSite: '← Strona główna',
   },
 };
 
@@ -120,22 +157,6 @@ function buildLegalAlternateLinks(webAppUrl: string, doc: 'terms' | 'privacy'): 
   });
   alternates.push(`<link rel="alternate" hreflang="x-default" href="${defaultUrl}">`);
   return alternates.join('\n  ');
-}
-
-function buildLegalFooterLanguageLinks(
-  webAppUrl: string,
-  doc: 'terms' | 'privacy'
-): PublicFooterLanguageLink[] {
-  const labels: Record<PublicLegalLocale, string> = {
-    uk: 'Українська',
-    en: 'English',
-  };
-
-  return PUBLIC_LEGAL_LOCALES.map((locale) => ({
-    locale,
-    label: labels[locale],
-    href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath(doc, locale)),
-  }));
 }
 
 export async function renderLegalHtml(options: RenderLegalOptions): Promise<string> {
@@ -184,4 +205,8 @@ export async function renderLegalHtml(options: RenderLegalOptions): Promise<stri
   </div>
 </body>
 </html>`;
+}
+
+function buildLegalFooterLanguageLinks(webAppUrl: string, doc: 'terms' | 'privacy') {
+  return buildPublicFooterLanguageLinks(webAppUrl, (locale) => buildPublicLegalPath(doc, locale));
 }

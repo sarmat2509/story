@@ -120,14 +120,13 @@ export function renderPublicPageFooter(
 ): string {
   const normalizedLocale = normalizePublicSeoLocale(locale);
   const copy = PUBLIC_I18N[normalizedLocale].public_footer;
-  const legalLocale = normalizedLocale === 'uk' ? 'uk' : 'en';
   const links = [
     { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLandingPath(normalizedLocale)), label: copy.home },
     { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicPricingPath(normalizedLocale)), label: copy.pricing },
     { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath(normalizedLocale)), label: copy.stories },
     { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicBlogIndexPath(normalizedLocale)), label: copy.blog },
-    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('terms', legalLocale)), label: copy.terms },
-    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', legalLocale)), label: copy.privacy },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('terms', normalizedLocale)), label: copy.terms },
+    { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', normalizedLocale)), label: copy.privacy },
     { href: buildAbsoluteRouteUrl(webAppUrl, buildPublicSupportPath(normalizedLocale)), label: copy.support },
   ];
 

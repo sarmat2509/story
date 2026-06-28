@@ -1,6 +1,6 @@
 # Privacy Policy — WonderTales
 
-Last updated: 2026-05-09
+Last updated: 2026-06-28
 
 This Privacy Policy explains how WonderTales collects, uses, shares, and deletes personal data.
 
@@ -61,6 +61,8 @@ Where laws require parent or guardian consent for children's online data, Wonder
 To provide the service, WonderTales may send necessary content to providers that help with AI text, image, narration, alignment, moderation, hosting, storage, analytics, email, payments, and support operations. Depending on configuration, these may include providers such as OpenAI, Google, ElevenLabs, Stripe, Resend, PostHog, hosting infrastructure, and storage providers.
 
 WonderTales does not replace faces in existing photos or videos and does not create deceptive realistic media. Uploaded images are used only as optional references to generate safe, fictional, illustrated story characters.
+
+Story prompts, generated text, image references, narration text, quiz and artifact data, and validation context may be processed by AI service providers to generate, improve, or check requested content. Automated checks help with quality and safety, but they do not guarantee error-free output.
 
 We try to send only the data needed for the feature. Do not upload content that you are not allowed to share with these processors.
 

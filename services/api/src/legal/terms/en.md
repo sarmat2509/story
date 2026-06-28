@@ -1,6 +1,6 @@
 # Terms of Service — WonderTales
 
-Last updated: 2026-05-09
+Last updated: 2026-06-28
 
 These Terms explain how families may use WonderTales.
 
@@ -24,7 +24,7 @@ WonderTales helps adults create personalised illustrated stories, narration, rea
 
 WonderTales does not replace faces in existing photos or videos and does not create deceptive realistic media. Uploaded images are used only as optional references to generate safe, fictional, illustrated story characters.
 
-AI output may contain mistakes, omissions, or unexpected wording. Adults should review stories before sharing them with a child or publishing them.
+AI-generated stories, illustrations, narration, quizzes, artifacts, and related features may occasionally contain minor image or text generation errors. A quick adult review is recommended before a child reads or listens to a new story.
 
 ## Your responsibilities
 

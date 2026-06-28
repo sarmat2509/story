@@ -856,8 +856,7 @@ function renderSafetyTrust(_webAppUrl: string, content: LandingContent): string 
 function renderParentTrust(webAppUrl: string, locale?: string): string {
   const seoLocale = normalizePublicSeoLocale(locale);
   const copy = PARENT_TRUST_COPY[seoLocale];
-  const legalLocale = seoLocale === 'uk' ? 'uk' : 'en';
-  const privacyUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', legalLocale));
+  const privacyUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', seoLocale));
   const supportUrl = buildAbsoluteRouteUrl(webAppUrl, '/support');
   const cards = copy.cards.map((card, index) => {
     const href = card.href || (index === 1 ? privacyUrl : index === 3 ? supportUrl : undefined);

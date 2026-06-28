@@ -118,16 +118,20 @@ assert.equal(buildPublicBlogArticlePath('adhd-story-attention', 'uk'), '/blog/ad
 assert.equal(buildPublicBlogArticlePath('adhd-story-attention', 'en'), '/en/blog/adhd-story-attention');
 assert.equal(buildPublicLegalPath('terms', 'uk'), '/terms');
 assert.equal(buildPublicLegalPath('terms', 'en'), '/en/terms');
+assert.equal(buildPublicLegalPath('terms', 'ru'), '/ru/terms');
+assert.equal(buildPublicLegalPath('terms', 'es'), '/es/terms');
 assert.equal(buildPublicLegalPath('privacy', 'uk'), '/privacy');
 assert.equal(buildPublicLegalPath('privacy', 'en'), '/en/privacy');
+assert.equal(buildPublicLegalPath('privacy', 'de'), '/de/privacy');
+assert.equal(buildPublicLegalPath('privacy', 'pl'), '/pl/privacy');
 assert.equal(getBlogSlugs().length, 10, 'initial blog set should contain ten editorial articles');
 
 for (const { name, value } of nginxConfigs) {
   assert.match(value, /location = \/pricing\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/pricing/, `${name} should route public pricing to API SSR`);
   assert.match(value, /location = \/terms\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/terms/, `${name} should route default terms to API SSR`);
   assert.match(value, /location = \/privacy\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/privacy/, `${name} should route default privacy to API SSR`);
-  assert.match(value, /location ~ \^\/en\/terms\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/terms\/en/, `${name} should route localized terms to API SSR`);
-  assert.match(value, /location ~ \^\/en\/privacy\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/privacy\/en/, `${name} should route localized privacy to API SSR`);
+  assert.match(value, /location ~ \^\/\(en\|ru\|es\|de\|fr\|pl\)\/terms\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/terms\/\$1/, `${name} should route localized terms to API SSR`);
+  assert.match(value, /location ~ \^\/\(en\|ru\|es\|de\|fr\|pl\)\/privacy\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/privacy\/\$1/, `${name} should route localized privacy to API SSR`);
 assert.match(value, /location = \/stories\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/stories/, `${name} should route exact /stories to API SSR`);
   assert.match(value, /location ~ \^\/\(en\|ru\|es\|de\|fr\|pl\)\/stories\/\?\$\s*\{[\s\S]*?\/ssr\/stories\/catalog\/\$1/, `${name} should route localized stories routes to API SSR`);
   assert.match(value, /location ~ \^\/\(en\|ru\|es\|de\|fr\|pl\)\/support\/\?\$\s*\{[\s\S]*?\/ssr\/support\/\$1/, `${name} should route localized support routes to API SSR`);
@@ -157,8 +161,8 @@ assert.match(
 assert.match(commonSsrRoutes, /location = \/pricing\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/pricing/);
 assert.match(commonSsrRoutes, /location = \/terms\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/terms/);
 assert.match(commonSsrRoutes, /location = \/privacy\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/legal\/privacy/);
-assert.match(commonSsrRoutes, /location ~ \^\/en\/terms\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/terms\/en/);
-assert.match(commonSsrRoutes, /location ~ \^\/en\/privacy\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/privacy\/en/);
+assert.match(commonSsrRoutes, /location ~ \^\/\(en\|ru\|es\|de\|fr\|pl\)\/terms\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/terms\/\$1/);
+assert.match(commonSsrRoutes, /location ~ \^\/\(en\|ru\|es\|de\|fr\|pl\)\/privacy\/\?\$\s*\{[\s\S]*?\/ssr\/legal\/privacy\/\$1/);
 assert.match(commonSsrRoutes, /location = \/stories\s*\{[\s\S]*?proxy_pass http:\/\/api_backend\/ssr\/stories/);
 assert.match(commonSsrRoutes, /location ~ \^\/\(en\|ru\|es\|de\|fr\|pl\)\/stories\/\?\$\s*\{[\s\S]*?\/ssr\/stories\/catalog\/\$1/);
 assert.match(commonSsrRoutes, /location ~ \^\/\(en\|ru\|es\|de\|fr\|pl\)\/support\/\?\$\s*\{[\s\S]*?\/ssr\/support\/\$1/);
