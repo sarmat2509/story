@@ -5,7 +5,7 @@ import path from 'path';
 import { FEEDBACK_CATEGORIES, FEEDBACK_TOPICS } from '@wondertales/shared';
 import { requireAdmin, requireAuth } from '../middleware/authMiddleware';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
-import { getAssetRepository, getStoryRepository } from '../repositories';
+import { getAssetRepository, getGraphicNovelRepository, getStoryRepository } from '../repositories';
 import {
   createAdminConfigItem,
   deleteAdminConfigItem,
@@ -119,8 +119,18 @@ const StorySceneParamsSchema = z.object({
   sceneId: z.coerce.number().int().min(1),
 });
 
+const StoryGraphicNovelPageParamsSchema = z.object({
+  storyId: z.string().uuid(),
+  pageNumber: z.coerce.number().int().min(1).max(100),
+});
+
 const AdminRegenerateSceneImageBodySchema = z.object({
   visualPrompt: z.string().trim().min(1).optional(),
+}).strict();
+
+const AdminRegenerateGraphicNovelPageImageBodySchema = z.object({
+  preferredTemplateId: z.string().trim().min(1).max(20).optional(),
+  style: z.string().trim().min(1).max(400).optional(),
 }).strict();
 
 const AdminResetStoryAudioBodySchema = z
@@ -157,6 +167,7 @@ const UpdateAdminUserBodySchema = z.object({
   suspendedReason: z.string().trim().max(1000).nullable().optional(),
   planSlug: z.string().trim().min(1).optional(),
   storiesUsedCurrentPeriod: z.coerce.number().int().min(0).optional(),
+  graphicNovelsUsedCurrentPeriod: z.coerce.number().int().min(0).optional(),
   audioStoriesUsedCurrentPeriod: z.coerce.number().int().min(0).optional(),
 }).refine(
   (value) =>
@@ -165,6 +176,7 @@ const UpdateAdminUserBodySchema = z.object({
     value.suspendedReason !== undefined ||
     value.planSlug !== undefined ||
     value.storiesUsedCurrentPeriod !== undefined ||
+    value.graphicNovelsUsedCurrentPeriod !== undefined ||
     value.audioStoriesUsedCurrentPeriod !== undefined,
   {
     message: 'At least one field is required',
@@ -914,6 +926,7 @@ router.patch('/users/:userId', async (req: Request, res: Response) => {
       suspendedReason: parsedBody.data.suspendedReason,
       planSlug: parsedBody.data.planSlug,
       storiesUsedCurrentPeriod: parsedBody.data.storiesUsedCurrentPeriod,
+      graphicNovelsUsedCurrentPeriod: parsedBody.data.graphicNovelsUsedCurrentPeriod,
       audioStoriesUsedCurrentPeriod: parsedBody.data.audioStoriesUsedCurrentPeriod,
     });
 
@@ -1247,6 +1260,100 @@ router.post('/stories/:storyId/scenes/:sceneId/regenerate-image', async (req: Re
     return res.status(500).json({
       status: 'error',
       message: 'Failed to start regeneration',
+    });
+  }
+});
+
+router.post('/stories/:storyId/graphic-novel-pages/:pageNumber/regenerate-image', async (req: Request, res: Response) => {
+  try {
+    const parsedParams = StoryGraphicNovelPageParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid params',
+        details: parsedParams.error.flatten(),
+      });
+    }
+
+    const parsedBody = AdminRegenerateGraphicNovelPageImageBodySchema.safeParse(req.body ?? {});
+    if (!parsedBody.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid body',
+        details: parsedBody.error.flatten(),
+      });
+    }
+
+    const story = await getStoryRepository().findById(parsedParams.data.storyId);
+    if (!story) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Story not found',
+      });
+    }
+
+    const metadata = (story.metadata as Record<string, unknown> | null) || {};
+    if (metadata.storyFormat !== 'graphic_novel') {
+      return res.status(409).json({
+        status: 'error',
+        message: 'Story is not a graphic novel',
+      });
+    }
+
+    const project = await getGraphicNovelRepository().findProjectByStoryId(parsedParams.data.storyId);
+    if (!project) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Graphic novel project not found',
+      });
+    }
+
+    const page = await getGraphicNovelRepository().findPageByProjectAndNumber(
+      project.id,
+      parsedParams.data.pageNumber
+    );
+    if (!page) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Graphic novel page not found',
+      });
+    }
+
+    const jobId = await storyJobQueue.addJob({
+      type: 'regenerate_graphic_novel_page_image',
+      storyId: parsedParams.data.storyId,
+      pageNumber: parsedParams.data.pageNumber,
+      preferredTemplateId: parsedBody.data.preferredTemplateId,
+      style: parsedBody.data.style,
+    });
+
+    logger.info({
+      adminUserId: req.user?.id,
+      storyId: parsedParams.data.storyId,
+      pageNumber: parsedParams.data.pageNumber,
+      preferredTemplateId: parsedBody.data.preferredTemplateId,
+      jobId,
+    }, 'Admin graphic novel page image regeneration started');
+
+    return res.json({
+      status: 'success',
+      data: {
+        jobId,
+        storyId: parsedParams.data.storyId,
+        pageNumber: parsedParams.data.pageNumber,
+      },
+      message: 'Graphic novel page regeneration started',
+    });
+  } catch (error) {
+    logger.error({
+      err: error,
+      adminUserId: req.user?.id,
+      storyId: req.params.storyId,
+      pageNumber: req.params.pageNumber,
+    }, 'Admin graphic novel page image regeneration failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to start graphic novel page regeneration',
     });
   }
 });

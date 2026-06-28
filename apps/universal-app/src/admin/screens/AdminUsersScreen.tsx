@@ -22,6 +22,7 @@ export default function AdminUsersScreen() {
   const [draftSuspendedReason, setDraftSuspendedReason] = useState('');
   const [draftPlanSlug, setDraftPlanSlug] = useState<string | null>(null);
   const [draftStoriesUsedCurrentPeriod, setDraftStoriesUsedCurrentPeriod] = useState('0');
+  const [draftGraphicNovelsUsedCurrentPeriod, setDraftGraphicNovelsUsedCurrentPeriod] = useState('0');
   const [draftAudioStoriesUsedCurrentPeriod, setDraftAudioStoriesUsedCurrentPeriod] = useState('0');
   const { data, isLoading, error } = useAdminUsers({ limit: PAGE_SIZE, offset, search });
   const { data: plans } = usePlans();
@@ -34,6 +35,7 @@ export default function AdminUsersScreen() {
     item.status,
     item.planName ?? item.planSlug ?? 'No plan',
     item.storiesUsedCurrentPeriod,
+    item.graphicNovelsUsedCurrentPeriod,
     item.audioStoriesUsedCurrentPeriod,
     new Date(item.createdAt).toLocaleString(),
     <TouchableOpacity
@@ -46,6 +48,7 @@ export default function AdminUsersScreen() {
         setDraftSuspendedReason(item.suspendedReason ?? '');
         setDraftPlanSlug(item.planSlug);
         setDraftStoriesUsedCurrentPeriod(String(item.storiesUsedCurrentPeriod));
+        setDraftGraphicNovelsUsedCurrentPeriod(String(item.graphicNovelsUsedCurrentPeriod));
         setDraftAudioStoriesUsedCurrentPeriod(String(item.audioStoriesUsedCurrentPeriod));
       }}
     >
@@ -76,6 +79,7 @@ export default function AdminUsersScreen() {
               'Status',
               'Plan',
               'Stories',
+              'Comics',
               'Audio',
               'Created',
               'Edit',
@@ -187,6 +191,18 @@ export default function AdminUsersScreen() {
               </View>
 
               <View style={styles.group}>
+                <Text style={styles.groupLabel}>Comics used this period</Text>
+                <TextInput
+                  style={styles.input}
+                  value={draftGraphicNovelsUsedCurrentPeriod}
+                  onChangeText={setDraftGraphicNovelsUsedCurrentPeriod}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={theme.colors.text.tertiary}
+                />
+              </View>
+
+              <View style={styles.group}>
                 <Text style={styles.groupLabel}>Audio stories used this period</Text>
                 <TextInput
                   style={styles.input}
@@ -217,6 +233,10 @@ export default function AdminUsersScreen() {
                       draftAudioStoriesUsedCurrentPeriod,
                       10
                     );
+                    const parsedGraphicNovelsUsedCurrentPeriod = Number.parseInt(
+                      draftGraphicNovelsUsedCurrentPeriod,
+                      10
+                    );
                     await updateUser.mutateAsync({
                       userId: selectedUser.id,
                       role: draftRole,
@@ -226,6 +246,11 @@ export default function AdminUsersScreen() {
                       planSlug: draftPlanSlug ?? undefined,
                       storiesUsedCurrentPeriod: Number.isFinite(parsedStoriesUsedCurrentPeriod)
                         ? Math.max(0, parsedStoriesUsedCurrentPeriod)
+                        : 0,
+                      graphicNovelsUsedCurrentPeriod: Number.isFinite(
+                        parsedGraphicNovelsUsedCurrentPeriod
+                      )
+                        ? Math.max(0, parsedGraphicNovelsUsedCurrentPeriod)
                         : 0,
                       audioStoriesUsedCurrentPeriod: Number.isFinite(
                         parsedAudioStoriesUsedCurrentPeriod

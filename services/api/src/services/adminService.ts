@@ -30,10 +30,48 @@ import { getUserSubscription } from './planService';
 import { getUsageForPeriod } from './usageEventsService';
 import { readVendorStylePromptEnFromGenerationParams } from './ttsProsodyTaggingService';
 import type { Asset, AudioAsset } from '../db/schema';
+import type { ImageValidationResult } from '../ai/types';
 import type { StoryAudioMetadata } from '@wondertales/shared';
 import { clearStoryAudioData, type ClearStoryAudioResult } from './storyAudioCleanupService';
 import { MAP_TILE_MASK_VARIANTS } from '../domain/story/mapTileMasks';
+import { computeValidationScore } from './storyOrchestrationService';
 import { logger } from '../utils/logger';
+
+function isStoredImageValidationResult(value: unknown): value is ImageValidationResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const row = value as Partial<ImageValidationResult>;
+  return (
+    typeof row.characterCount === 'number' &&
+    typeof row.expectedCharacterCount === 'number' &&
+    Array.isArray(row.characters) &&
+    typeof row.hasUnexpectedCharacters === 'boolean' &&
+    typeof row.hasTextOrLetters === 'boolean' &&
+    typeof row.hasRenderingArtifacts === 'boolean'
+  );
+}
+
+function resolveAdminValidationScore(row: {
+  validationScore: number | null;
+  validationStatus?: string | null;
+  result: unknown;
+}): number | null {
+  if (typeof row.validationScore === 'number' && Number.isFinite(row.validationScore)) {
+    return row.validationScore;
+  }
+  if (row.validationStatus === 'provider_blocked') {
+    return null;
+  }
+  if (!isStoredImageValidationResult(row.result)) {
+    return null;
+  }
+
+  try {
+    return computeValidationScore(row.result);
+  } catch (error) {
+    logger.warn({ err: error }, 'Failed to compute fallback admin image validation score');
+    return null;
+  }
+}
 
 export async function getAdminDashboard(days: number) {
   const dashboard = await getAdminDashboardRepository().getDashboard(days);
@@ -144,11 +182,13 @@ export async function listAdminUsers(params: { limit: number; offset: number; se
         const currentPeriodEnd = subscription?.currentPeriodEnd ?? subscription?.resetAt ?? null;
 
         let storiesUsedCurrentPeriod = 0;
+        let graphicNovelsUsedCurrentPeriod = 0;
         let audioStoriesUsedCurrentPeriod = 0;
 
         if (currentPeriodStart && currentPeriodEnd) {
-          [storiesUsedCurrentPeriod, audioStoriesUsedCurrentPeriod] = await Promise.all([
+          [storiesUsedCurrentPeriod, graphicNovelsUsedCurrentPeriod, audioStoriesUsedCurrentPeriod] = await Promise.all([
             getUsageForPeriod(item.id, currentPeriodStart, currentPeriodEnd, 'story_created'),
+            getUsageForPeriod(item.id, currentPeriodStart, currentPeriodEnd, 'graphic_novel_created'),
             getUsageForPeriod(item.id, currentPeriodStart, currentPeriodEnd, 'audio_synthesized'),
           ]);
         }
@@ -166,6 +206,7 @@ export async function listAdminUsers(params: { limit: number; offset: number; se
           currentPeriodStart: currentPeriodStart?.toISOString() ?? null,
           currentPeriodEnd: currentPeriodEnd?.toISOString() ?? null,
           storiesUsedCurrentPeriod,
+          graphicNovelsUsedCurrentPeriod,
           audioStoriesUsedCurrentPeriod,
         };
       })
@@ -296,7 +337,7 @@ export async function listAdminImageValidations(params: { limit: number; offset:
       attempt: row.attempt,
       imageStoragePath: row.imageStoragePath,
       imageUrl: `/api/v1/assets/${row.imageStoragePath}`,
-      validationScore: row.validationScore,
+      validationScore: resolveAdminValidationScore(row),
       validationStatus: row.validationStatus,
       visionModel: row.visionModel,
       requestManifest: row.requestManifest,
@@ -312,20 +353,25 @@ export async function getAdminImageValidation(id: string) {
   const row = await getImageValidationById(id);
   if (!row) return null;
 
-  const matchedUsage = await getAiUsageRepository().findNearestImageValidationUsage({
-    storyId: row.storyId,
-    model: row.visionModel,
-    createdAt: row.createdAt,
-  });
+  const [matchedUsage, story] = await Promise.all([
+    getAiUsageRepository().findNearestImageValidationUsage({
+      storyId: row.storyId,
+      model: row.visionModel,
+      createdAt: row.createdAt,
+    }),
+    getStoryRepository().findById(row.storyId),
+  ]);
+  const storyMetadata = (story?.metadata ?? {}) as { storyFormat?: unknown };
 
   return {
     id: row.id,
     storyId: row.storyId,
+    storyFormat: typeof storyMetadata.storyFormat === 'string' ? storyMetadata.storyFormat : null,
     sceneIndex: row.sceneIndex,
     attempt: row.attempt,
     imageStoragePath: row.imageStoragePath,
     imageUrl: `/api/v1/assets/${row.imageStoragePath}`,
-    validationScore: row.validationScore,
+    validationScore: resolveAdminValidationScore(row),
     validationStatus: row.validationStatus,
     visionModel: row.visionModel,
     requestManifest: row.requestManifest,
@@ -440,6 +486,7 @@ export async function listAdminDirectorScenes(storyId: string) {
   const metadata = (story.metadata ?? {}) as {
     environments?: Array<{ id: string; name?: string; description?: string }>;
     outfits?: Array<{ id: string; characterName?: string; description?: string }>;
+    storyFormat?: unknown;
     mapTile?: unknown;
     mapTileAssetId?: unknown;
   };
@@ -650,6 +697,7 @@ export async function listAdminDirectorScenes(storyId: string) {
     story: {
       id: story.id,
       title: story.title,
+      storyFormat: typeof metadata.storyFormat === 'string' ? metadata.storyFormat : null,
       mapTile: metadata.mapTile ?? null,
       mapTileAsset: serializeAdminMapTileAsset(mapTileAsset),
       createdAt: story.createdAt.toISOString(),
@@ -679,7 +727,7 @@ export async function listAdminDirectorScenes(storyId: string) {
       attempt: row.attempt,
       imageStoragePath: row.imageStoragePath,
       imageUrl: `/api/v1/assets/${row.imageStoragePath}`,
-      validationScore: row.validationScore,
+      validationScore: resolveAdminValidationScore(row),
       validationStatus: row.validationStatus,
       visionModel: row.visionModel,
       requestManifest: row.requestManifest,

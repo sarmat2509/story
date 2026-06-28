@@ -11,6 +11,7 @@ export async function updateAdminUserSettings(params: {
   suspendedReason?: string | null;
   planSlug?: string;
   storiesUsedCurrentPeriod?: number;
+  graphicNovelsUsedCurrentPeriod?: number;
   audioStoriesUsedCurrentPeriod?: number;
 }) {
   const {
@@ -21,6 +22,7 @@ export async function updateAdminUserSettings(params: {
     suspendedReason,
     planSlug,
     storiesUsedCurrentPeriod,
+    graphicNovelsUsedCurrentPeriod,
     audioStoriesUsedCurrentPeriod,
   } = params;
 
@@ -59,6 +61,7 @@ export async function updateAdminUserSettings(params: {
 
   if (
     storiesUsedCurrentPeriod !== undefined ||
+    graphicNovelsUsedCurrentPeriod !== undefined ||
     audioStoriesUsedCurrentPeriod !== undefined
   ) {
     let subscription = await getUserSubscription(userId);
@@ -97,6 +100,25 @@ export async function updateAdminUserSettings(params: {
         });
       }
       updateData.storiesUsed = storiesUsedCurrentPeriod;
+    }
+
+    if (graphicNovelsUsedCurrentPeriod !== undefined) {
+      const currentGraphicNovelsUsed = await getUsageForPeriod(
+        userId,
+        currentPeriodStart,
+        currentPeriodEnd,
+        'graphic_novel_created'
+      );
+      const graphicNovelsDelta = graphicNovelsUsedCurrentPeriod - currentGraphicNovelsUsed;
+      if (graphicNovelsDelta !== 0) {
+        await recordUsageEvent(userId, 'graphic_novel_created', graphicNovelsDelta, {
+          metadata: {
+            source: 'admin_adjustment',
+            adjustedByUserId: actorUserId ?? null,
+            targetUsage: graphicNovelsUsedCurrentPeriod,
+          },
+        });
+      }
     }
 
     if (audioStoriesUsedCurrentPeriod !== undefined) {

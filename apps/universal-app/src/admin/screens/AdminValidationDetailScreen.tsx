@@ -1,8 +1,20 @@
 import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native';
+import {
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { NavigationProp, RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAdminImageValidation, useAdminRegenerateSceneImage } from '@/admin/api/admin';
+import {
+  useAdminImageValidation,
+  useAdminRegenerateGraphicNovelPageImage,
+  useAdminRegenerateSceneImage,
+} from '@/admin/api/admin';
 import { AdminLayout } from '@/admin/components/AdminLayout';
 import { AdminErrorState, AdminLoadingState } from '@/admin/components/AdminState';
 import { theme } from '@/theme';
@@ -14,6 +26,51 @@ function toLabel(key: string): string {
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/_/g, ' ')
     .toUpperCase();
+}
+
+const negativeBooleanLabels: Record<string, { ok: string; fail: string }> = {
+  duplicated: { ok: 'NOT DUPLICATED', fail: 'DUPLICATED' },
+  hasUnexpectedCharacters: { ok: 'NO UNEXPECTED CHARACTERS', fail: 'UNEXPECTED CHARACTERS' },
+  hasExtraPanelStructure: { ok: 'NO EXTRA PANEL STRUCTURE', fail: 'EXTRA PANEL STRUCTURE' },
+  hasTextOrLetters: { ok: 'NO TEXT IN ART', fail: 'TEXT IN ART' },
+  hasRenderingArtifacts: { ok: 'NO RENDERING ARTIFACTS', fail: 'RENDERING ARTIFACTS' },
+  hasArtworkOutsidePanelBounds: {
+    ok: 'NO ARTWORK OUTSIDE PANEL BOUNDS',
+    fail: 'ARTWORK OUTSIDE PANEL BOUNDS',
+  },
+  hasArtworkOverSpeechBubbles: {
+    ok: 'NO ARTWORK OVER SPEECH BUBBLES',
+    fail: 'ARTWORK OVER SPEECH BUBBLES',
+  },
+  hasTemplateColorResidue: { ok: 'NO TEMPLATE COLOR RESIDUE', fail: 'TEMPLATE COLOR RESIDUE' },
+  hasResidue: { ok: 'NO TEMPLATE COLOR RESIDUE', fail: 'TEMPLATE COLOR RESIDUE' },
+};
+
+function getBooleanDisplay(
+  key: string,
+  value: boolean
+): { label: string; isOk: boolean; icon: React.ComponentProps<typeof Ionicons>['name'] } {
+  const negativeLabels = negativeBooleanLabels[key];
+  if (negativeLabels) {
+    return {
+      label: value ? negativeLabels.fail : negativeLabels.ok,
+      isOk: !value,
+      icon: value ? 'alert-circle' : 'checkmark-circle',
+    };
+  }
+
+  return {
+    label: toLabel(key),
+    isOk: value,
+    icon: value ? 'checkmark-circle' : 'close-circle',
+  };
+}
+
+function getFieldLabel(key: string, value: unknown): string {
+  if (typeof value === 'boolean') {
+    return getBooleanDisplay(key, value).label;
+  }
+  return toLabel(key);
 }
 
 function isScalarValue(value: unknown): boolean {
@@ -31,6 +88,171 @@ function formatValidationScore(score: number | null, status?: string): string {
   return 'n/a';
 }
 
+type Tone = 'neutral' | 'success' | 'warning' | 'danger';
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function compactId(value: string | null | undefined): string {
+  if (!value) return 'n/a';
+  return value.length > 12 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value;
+}
+
+function jsonPreview(value: unknown): string {
+  try {
+    return JSON.stringify(value ?? null, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function omitKeys(value: unknown, keys: string[]): unknown {
+  const record = asRecord(value);
+  if (!record) return value;
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.includes(key)));
+}
+
+function boolText(value: unknown): string {
+  if (typeof value !== 'boolean') return 'n/a';
+  return value ? 'yes' : 'no';
+}
+
+function getToneStyle(tone: Tone) {
+  if (tone === 'success') return styles.infoPillSuccess;
+  if (tone === 'warning') return styles.infoPillWarning;
+  if (tone === 'danger') return styles.infoPillDanger;
+  return styles.infoPillNeutral;
+}
+
+function getToneTextStyle(tone: Tone) {
+  if (tone === 'success') return styles.infoPillValueSuccess;
+  if (tone === 'warning') return styles.infoPillValueWarning;
+  if (tone === 'danger') return styles.infoPillValueDanger;
+  return styles.infoPillValueNeutral;
+}
+
+function getManifestSummary(manifest: unknown): string {
+  const record = asRecord(manifest);
+  if (!record) return 'no manifest';
+
+  const attempts = asArray(record.attempts);
+  const references = asArray(record.references);
+  const imageOrder = asArray(record.imageOrder);
+  const firstAttempt = asRecord(attempts[0]);
+  const mode = firstAttempt?.promptMode ?? record.operation ?? 'validation';
+
+  return `${attempts.length || 0} attempt(s) · ${String(mode)} · ${references.length} ref(s) · ${imageOrder.length} image(s)`;
+}
+
+function InfoPill({
+  label,
+  value,
+  tone = 'neutral',
+}: {
+  label: string;
+  value: string | number | null | undefined;
+  tone?: Tone;
+}) {
+  return (
+    <View style={[styles.infoPill, getToneStyle(tone)]}>
+      <Text style={styles.infoPillLabel}>{label}</Text>
+      <Text style={[styles.infoPillValue, getToneTextStyle(tone)]} numberOfLines={2}>
+        {value ?? 'n/a'}
+      </Text>
+    </View>
+  );
+}
+
+function VerdictFlag({
+  fieldKey,
+  value,
+  healthyWhenFalse = true,
+}: {
+  fieldKey: string;
+  value: unknown;
+  healthyWhenFalse?: boolean;
+}) {
+  if (typeof value !== 'boolean') return null;
+  const booleanDisplay = negativeBooleanLabels[fieldKey]
+    ? getBooleanDisplay(fieldKey, value)
+    : (() => {
+        const isOk = healthyWhenFalse ? !value : value;
+        return {
+          label: toLabel(fieldKey),
+          isOk,
+          icon: (isOk ? 'checkmark-circle' : 'alert-circle') as React.ComponentProps<
+            typeof Ionicons
+          >['name'],
+        };
+      })();
+  const isOk = booleanDisplay.isOk;
+
+  return (
+    <View style={[styles.flagPill, isOk ? styles.flagPillSuccess : styles.flagPillDanger]}>
+      <Ionicons
+        name={booleanDisplay.icon}
+        size={16}
+        color={isOk ? theme.colors.status.success : theme.colors.status.error}
+      />
+      <Text
+        style={[styles.flagPillText, isOk ? styles.flagPillTextSuccess : styles.flagPillTextDanger]}
+      >
+        {booleanDisplay.label}
+      </Text>
+    </View>
+  );
+}
+
+function JsonBlock({ value }: { value: unknown }) {
+  return (
+    <ScrollView style={styles.jsonScrollBox} contentContainerStyle={styles.jsonScrollContent}>
+      <Text selectable style={styles.jsonText}>
+        {jsonPreview(value)}
+      </Text>
+    </ScrollView>
+  );
+}
+
+function parseNumberedSummary(value: string): Array<{ marker: string; text: string }> {
+  const matches = Array.from(value.matchAll(/\((\d+)\)\s*([^]+?)(?=\s*\(\d+\)\s*|$)/g));
+  if (matches.length === 0) {
+    return [{ marker: '1', text: value.trim() }];
+  }
+  return matches
+    .map((match) => ({ marker: match[1], text: match[2].trim() }))
+    .filter((item) => item.text.length > 0);
+}
+
+function SummaryList({ label, value }: { label: string; value: unknown }) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const items = parseNumberedSummary(value);
+
+  return (
+    <View style={styles.summaryListBox}>
+      <Text style={styles.summaryListLabel}>{label}</Text>
+      <View style={styles.summaryListItems}>
+        {items.map((item, index) => (
+          <View key={`${label}-${item.marker}-${index}`} style={styles.summaryListItem}>
+            <View style={styles.summaryListMarker}>
+              <Text style={styles.summaryListMarkerText}>{item.marker}</Text>
+            </View>
+            <Text selectable style={styles.summaryListText}>
+              {item.text}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function renderCharacterCards(characters: unknown[], keyPrefix: string): React.ReactNode {
   return (
     <ScrollView
@@ -43,6 +265,7 @@ function renderCharacterCards(characters: unknown[], keyPrefix: string): React.R
           character && typeof character === 'object' && !Array.isArray(character)
             ? Object.entries(character as Record<string, unknown>)
             : [['value', character]];
+        const identitySummary = entries.find(([key]) => key === 'identityComparisonSummary')?.[1];
 
         return (
           <View key={`${keyPrefix}-${index}`} style={styles.characterCard}>
@@ -53,21 +276,22 @@ function renderCharacterCards(characters: unknown[], keyPrefix: string): React.R
             </Text>
             <View style={styles.valueGroup}>
               {entries
-                .filter(([key]) => key !== 'name')
+                .filter(([key]) => key !== 'name' && key !== 'identityComparisonSummary')
                 .map(([key, entry]) =>
                   isScalarValue(entry) ? (
                     <View key={`${keyPrefix}-${index}-${key}`} style={styles.booleanFieldRow}>
-                      <Text style={styles.valueKey}>{toLabel(String(key))}</Text>
-                      {renderStructuredValue(entry, `${keyPrefix}-${index}-${key}`)}
+                      <Text style={styles.valueKey}>{getFieldLabel(String(key), entry)}</Text>
+                      {renderStructuredValue(entry, `${keyPrefix}-${index}-${key}`, String(key))}
                     </View>
                   ) : (
                     <View key={`${keyPrefix}-${index}-${key}`} style={styles.valueRow}>
-                      <Text style={styles.valueKey}>{toLabel(String(key))}</Text>
-                      {renderStructuredValue(entry, `${keyPrefix}-${index}-${key}`)}
+                      <Text style={styles.valueKey}>{getFieldLabel(String(key), entry)}</Text>
+                      {renderStructuredValue(entry, `${keyPrefix}-${index}-${key}`, String(key))}
                     </View>
                   )
                 )}
             </View>
+            <SummaryList label="Identity comparison summary" value={identitySummary} />
           </View>
         );
       })}
@@ -75,14 +299,19 @@ function renderCharacterCards(characters: unknown[], keyPrefix: string): React.R
   );
 }
 
-function renderStructuredValue(value: unknown, keyPrefix: string = 'root'): React.ReactNode {
+function renderStructuredValue(
+  value: unknown,
+  keyPrefix: string = 'root',
+  fieldKey: string = keyPrefix
+): React.ReactNode {
   if (value == null) return <Text style={styles.valueText}>n/a</Text>;
   if (typeof value === 'boolean') {
+    const booleanDisplay = getBooleanDisplay(fieldKey, value);
     return (
       <Ionicons
-        name={value ? 'checkmark-circle' : 'close-circle'}
+        name={booleanDisplay.icon}
         size={18}
-        color={value ? theme.colors.status.success : theme.colors.status.error}
+        color={booleanDisplay.isOk ? theme.colors.status.success : theme.colors.status.error}
       />
     );
   }
@@ -104,12 +333,12 @@ function renderStructuredValue(value: unknown, keyPrefix: string = 'root'): Reac
           isScalarValue(entry) ? (
             <View key={`${keyPrefix}-${index}`} style={styles.booleanFieldRow}>
               <Text style={styles.valueKey}>{String(index + 1).padStart(2, '0')}</Text>
-              {renderStructuredValue(entry, `${keyPrefix}-${index}`)}
+              {renderStructuredValue(entry, `${keyPrefix}-${index}`, String(index + 1))}
             </View>
           ) : (
             <View key={`${keyPrefix}-${index}`} style={styles.valueRow}>
               <Text style={styles.valueKey}>{String(index + 1).padStart(2, '0')}</Text>
-              {renderStructuredValue(entry, `${keyPrefix}-${index}`)}
+              {renderStructuredValue(entry, `${keyPrefix}-${index}`, String(index + 1))}
             </View>
           )
         )}
@@ -121,19 +350,19 @@ function renderStructuredValue(value: unknown, keyPrefix: string = 'root'): Reac
       {Object.entries(value as Record<string, unknown>).map(([key, entry]) =>
         key === 'identityComparisonSummary' ? (
           <View key={`${keyPrefix}-${key}`} style={styles.valueRow}>
-            <Text style={styles.valueKey}>{toLabel(key)}</Text>
-            {renderStructuredValue(entry, `${keyPrefix}-${key}`)}
+            <Text style={styles.valueKey}>{getFieldLabel(key, entry)}</Text>
+            {renderStructuredValue(entry, `${keyPrefix}-${key}`, key)}
           </View>
         ) : isScalarValue(entry) ? (
           <View key={`${keyPrefix}-${key}`} style={styles.booleanFieldRow}>
-            <Text style={styles.valueKey}>{toLabel(key)}</Text>
-            {renderStructuredValue(entry, `${keyPrefix}-${key}`)}
+            <Text style={styles.valueKey}>{getFieldLabel(key, entry)}</Text>
+            {renderStructuredValue(entry, `${keyPrefix}-${key}`, key)}
           </View>
         ) : (
           <View key={`${keyPrefix}-${key}`} style={styles.inlineFieldRow}>
-            <Text style={styles.valueKey}>{toLabel(key)}</Text>
+            <Text style={styles.valueKey}>{getFieldLabel(key, entry)}</Text>
             <View style={styles.inlineFieldValue}>
-              {renderStructuredValue(entry, `${keyPrefix}-${key}`)}
+              {renderStructuredValue(entry, `${keyPrefix}-${key}`, key)}
             </View>
           </View>
         )
@@ -146,38 +375,162 @@ function DetailCard({
   title,
   icon,
   children,
+  summary,
+  defaultExpanded = true,
 }: {
   title: string;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   children: React.ReactNode;
+  summary?: string;
+  defaultExpanded?: boolean;
 }) {
+  const [expanded, setExpanded] = React.useState(defaultExpanded);
+
   return (
     <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Ionicons name={icon} size={18} color={theme.colors.interactive.primary} />
-        <Text style={styles.cardTitle}>{title}</Text>
+      <TouchableOpacity
+        activeOpacity={0.82}
+        style={styles.cardHeader}
+        onPress={() => setExpanded((value) => !value)}
+      >
+        <View style={styles.cardHeaderLeft}>
+          <Ionicons name={icon} size={18} color={theme.colors.interactive.primary} />
+          <View style={styles.cardTitleBlock}>
+            <Text style={styles.cardTitle}>{title}</Text>
+            {summary ? (
+              <Text style={styles.cardSummary} numberOfLines={1}>
+                {summary}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+        <Ionicons
+          name={expanded ? 'chevron-up' : 'chevron-down'}
+          size={18}
+          color={theme.colors.text.secondary}
+        />
+      </TouchableOpacity>
+      {expanded ? <View style={styles.cardBody}>{children}</View> : null}
+    </View>
+  );
+}
+
+function ValidationVerdict({ result }: { result: Record<string, unknown> | null }) {
+  if (!result) return <Text style={styles.valueText}>No structured result.</Text>;
+
+  const characterCount = result.characterCount;
+  const expectedCharacterCount = result.expectedCharacterCount;
+  const countValue =
+    typeof characterCount === 'number' || typeof expectedCharacterCount === 'number'
+      ? `${characterCount ?? 'n/a'} / ${expectedCharacterCount ?? 'n/a'}`
+      : 'n/a';
+  const layoutFeedback = typeof result.layoutFeedback === 'string' ? result.layoutFeedback : 'n/a';
+  const layoutTone: Tone = layoutFeedback.toLowerCase() === 'ok' ? 'success' : 'warning';
+  const overallFeedback =
+    typeof result.overallFeedback === 'string' ? result.overallFeedback : null;
+
+  return (
+    <View style={styles.sectionStack}>
+      <View style={styles.infoGrid}>
+        <InfoPill label="Characters" value={countValue} />
+        <InfoPill label="Layout" value={layoutFeedback} tone={layoutTone} />
       </View>
-      {children}
+
+      <View style={styles.flagGrid}>
+        <VerdictFlag fieldKey="hasUnexpectedCharacters" value={result.hasUnexpectedCharacters} />
+        <VerdictFlag fieldKey="hasExtraPanelStructure" value={result.hasExtraPanelStructure} />
+        <VerdictFlag fieldKey="hasTextOrLetters" value={result.hasTextOrLetters} />
+        <VerdictFlag fieldKey="hasRenderingArtifacts" value={result.hasRenderingArtifacts} />
+        <VerdictFlag
+          fieldKey="hasArtworkOutsidePanelBounds"
+          value={result.hasArtworkOutsidePanelBounds}
+        />
+        <VerdictFlag
+          fieldKey="hasArtworkOverSpeechBubbles"
+          value={result.hasArtworkOverSpeechBubbles}
+        />
+        <VerdictFlag fieldKey="hasTemplateColorResidue" value={result.hasTemplateColorResidue} />
+      </View>
+
+      {overallFeedback ? (
+        <View style={styles.feedbackBox}>
+          <Text style={styles.feedbackLabel}>OVERALL FEEDBACK</Text>
+          <Text style={styles.feedbackText}>{overallFeedback}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function RequestManifestSummary({ manifest }: { manifest: unknown }) {
+  const record = asRecord(manifest);
+  if (!record) return <Text style={styles.valueText}>No request manifest.</Text>;
+
+  const attempts = asArray(record.attempts).map(asRecord).filter(Boolean) as Array<
+    Record<string, unknown>
+  >;
+  const references = asArray(record.references);
+  const imageOrder = asArray(record.imageOrder);
+
+  return (
+    <View style={styles.sectionStack}>
+      <View style={styles.infoGrid}>
+        <InfoPill label="Version" value={String(record.version ?? 'n/a')} />
+        <InfoPill label="Operation" value={String(record.operation ?? 'n/a')} />
+        <InfoPill label="Cache key" value={String(record.cacheKey ?? 'n/a')} />
+        <InfoPill label="Layout checks" value={boolText(record.includeLayoutChecks)} />
+        <InfoPill label="References" value={references.length} />
+        <InfoPill label="Image order" value={imageOrder.length} />
+      </View>
+
+      {attempts.length > 0 ? (
+        <View style={styles.attemptList}>
+          {attempts.map((attempt, index) => (
+            <View key={`manifest-attempt-${index}`} style={styles.attemptSummary}>
+              <Text style={styles.attemptTitle}>Attempt {index + 1}</Text>
+              <View style={styles.infoGrid}>
+                <InfoPill label="Role" value={String(attempt.providerRole ?? 'n/a')} />
+                <InfoPill label="Kind" value={String(attempt.attemptKind ?? 'n/a')} />
+                <InfoPill label="Outcome" value={String(attempt.outcome ?? 'n/a')} />
+                <InfoPill label="Prompt mode" value={String(attempt.promptMode ?? 'n/a')} />
+                <InfoPill
+                  label="Runtime chars"
+                  value={String(attempt.runtimePromptChars ?? 'n/a')}
+                />
+                <InfoPill label="Cached chars" value={String(attempt.cachedPrefixChars ?? 'n/a')} />
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.rawBlockHeader}>
+        <Text style={styles.rawBlockTitle}>RAW REQUEST MANIFEST</Text>
+        <Text style={styles.rawBlockHint}>
+          Includes full runtimePrompt and image/reference order.
+        </Text>
+      </View>
+      <JsonBlock value={manifest} />
     </View>
   );
 }
 
 export default function AdminValidationDetailScreen() {
   const navigation = useNavigation<NavigationProp<AdminStackParamList>>();
-  const route = useRoute<any>();
-  const id = route.params?.id as string | undefined;
+  const route = useRoute<RouteProp<AdminStackParamList, 'AdminValidationDetail'>>();
+  const id = route.params?.id;
   const query = useAdminImageValidation(id);
   const regenerateMutation = useAdminRegenerateSceneImage();
+  const regenerateGraphicNovelPageMutation = useAdminRegenerateGraphicNovelPageImage();
   const item = query.data;
+  const isGraphicNovel = item?.storyFormat === 'graphic_novel';
   const resultObject =
     item?.result && typeof item.result === 'object' && !Array.isArray(item.result)
       ? (item.result as Record<string, unknown>)
       : null;
   const resultCharacters = Array.isArray(resultObject?.characters) ? resultObject.characters : null;
-  const resultSummary =
-    resultObject && resultCharacters
-      ? Object.fromEntries(Object.entries(resultObject).filter(([key]) => key !== 'characters'))
-      : item?.result;
+  const cleanResultJson = omitKeys(item?.result, ['requestManifest']);
+  const manifestSummary = getManifestSummary(item?.requestManifest);
 
   return (
     <AdminLayout
@@ -198,18 +551,34 @@ export default function AdminValidationDetailScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.primaryButton}
-                disabled={regenerateMutation.isPending}
-                onPress={() =>
+                disabled={
+                  isGraphicNovel
+                    ? regenerateGraphicNovelPageMutation.isPending
+                    : regenerateMutation.isPending
+                }
+                onPress={() => {
+                  if (isGraphicNovel) {
+                    regenerateGraphicNovelPageMutation.mutate({
+                      storyId: item.storyId,
+                      pageNumber: item.sceneIndex,
+                    });
+                    return;
+                  }
+
                   regenerateMutation.mutate({
                     storyId: item.storyId,
                     sceneId: item.sceneIndex,
-                  })
-                }
+                  });
+                }}
               >
                 <Text style={styles.primaryButtonText}>
-                  {regenerateMutation.isPending
-                    ? 'Queueing...'
-                    : `Regenerate scene ${item.sceneIndex}`}
+                  {isGraphicNovel
+                    ? regenerateGraphicNovelPageMutation.isPending
+                      ? 'Queueing...'
+                      : `Regenerate page ${item.sceneIndex}`
+                    : regenerateMutation.isPending
+                      ? 'Queueing...'
+                      : `Regenerate scene ${item.sceneIndex}`}
                 </Text>
               </TouchableOpacity>
             </>
@@ -237,97 +606,113 @@ export default function AdminValidationDetailScreen() {
 
       {item && !query.isLoading && !query.error ? (
         <ScrollView contentContainerStyle={styles.content}>
-          <DetailCard title="Image" icon="image-outline">
-            <Image
-              source={{ uri: formatAssetUrl(item.imageUrl) ?? item.imageUrl }}
-              style={styles.previewImage}
-              resizeMode="cover"
-            />
-            <View style={styles.valueGroup}>
-              <View style={styles.booleanFieldRow}>
-                <Text style={styles.valueKey}>STORY ID</Text>
-                <Text style={styles.valueText}>{item.storyId}</Text>
+          <DetailCard
+            title="Image & Record"
+            icon="image-outline"
+            summary={`${isGraphicNovel ? 'Graphic novel page' : 'Story scene'} ${item.sceneIndex} · score ${formatValidationScore(item.validationScore, item.validationStatus)}`}
+          >
+            <View style={styles.imageRecordGrid}>
+              <View style={styles.imageColumn}>
+                <Image
+                  source={{ uri: formatAssetUrl(item.imageUrl) ?? item.imageUrl }}
+                  style={[
+                    styles.previewImage,
+                    isGraphicNovel ? styles.previewImageGraphicNovel : null,
+                  ]}
+                  resizeMode={isGraphicNovel ? 'contain' : 'cover'}
+                />
               </View>
-              <View style={styles.booleanFieldRow}>
-                <Text style={styles.valueKey}>IMAGE STORAGE PATH</Text>
-                <Text style={styles.valueText}>{item.imageStoragePath}</Text>
+              <View style={styles.recordColumn}>
+                <View style={styles.infoGrid}>
+                  <InfoPill label="Story" value={compactId(item.storyId)} />
+                  <InfoPill label={isGraphicNovel ? 'Page' : 'Scene'} value={item.sceneIndex} />
+                  <InfoPill label="Attempt" value={item.attempt} />
+                  <InfoPill
+                    label="Score"
+                    value={formatValidationScore(item.validationScore, item.validationStatus)}
+                    tone={
+                      item.validationScore != null && item.validationScore >= 85
+                        ? 'success'
+                        : 'warning'
+                    }
+                  />
+                  <InfoPill label="Status" value={item.validationStatus ?? 'n/a'} />
+                  <InfoPill label="Vision model" value={item.visionModel ?? 'n/a'} />
+                  <InfoPill label="Created" value={new Date(item.createdAt).toLocaleString()} />
+                </View>
+
+                {item.providerError ? (
+                  <View style={styles.errorBox}>
+                    <Text style={styles.errorBoxLabel}>PROVIDER ERROR</Text>
+                    <Text style={styles.errorBoxText}>{item.providerError}</Text>
+                  </View>
+                ) : null}
+
+                <View style={styles.pathBox}>
+                  <Text style={styles.valueKey}>IMAGE STORAGE PATH</Text>
+                  <Text style={styles.pathText}>{item.imageStoragePath}</Text>
+                </View>
               </View>
             </View>
           </DetailCard>
 
-          <View style={styles.twoColumnRow}>
-            <View style={styles.column}>
-              <DetailCard title="Attempt" icon="analytics-outline">
-                <View style={styles.valueGroup}>
-                  <View style={styles.booleanFieldRow}>
-                    <Text style={styles.valueKey}>SCENE</Text>
-                    <Text style={styles.valueText}>{item.sceneIndex}</Text>
-                  </View>
-                  <View style={styles.booleanFieldRow}>
-                    <Text style={styles.valueKey}>ATTEMPT</Text>
-                    <Text style={styles.valueText}>{item.attempt}</Text>
-                  </View>
-                  <View style={styles.booleanFieldRow}>
-                    <Text style={styles.valueKey}>VALIDATION SCORE</Text>
-                    <Text style={styles.valueText}>
-                      {formatValidationScore(item.validationScore, item.validationStatus)}
-                    </Text>
-                  </View>
-                  <View style={styles.booleanFieldRow}>
-                    <Text style={styles.valueKey}>VALIDATION STATUS</Text>
-                    <Text style={styles.valueText}>{item.validationStatus ?? 'n/a'}</Text>
-                  </View>
-                  <View style={styles.booleanFieldRow}>
-                    <Text style={styles.valueKey}>VISION MODEL</Text>
-                    <Text style={styles.valueText}>{item.visionModel ?? 'n/a'}</Text>
-                  </View>
-                  <View style={styles.valueRow}>
-                    <Text style={styles.valueKey}>PROVIDER ERROR</Text>
-                    <Text style={styles.valueText}>{item.providerError ?? 'n/a'}</Text>
-                  </View>
-                  <View style={styles.booleanFieldRow}>
-                    <Text style={styles.valueKey}>COST</Text>
-                    <Text style={styles.valueText}>
-                      {item.usage?.costUsd != null ? `$${item.usage.costUsd.toFixed(8)}` : 'n/a'}
-                    </Text>
-                  </View>
-                  <View style={styles.booleanFieldRow}>
-                    <Text style={styles.valueKey}>DURATION</Text>
-                    <Text style={styles.valueText}>
-                      {item.usage?.durationMs != null ? `${item.usage.durationMs} ms` : 'n/a'}
-                    </Text>
-                  </View>
-                  <View style={styles.booleanFieldRow}>
-                    <Text style={styles.valueKey}>USAGE MATCH</Text>
-                    <Text style={styles.valueText}>
-                      {item.usage ? `${item.usage.matchedDeltaMs} ms` : 'n/a'}
-                    </Text>
-                  </View>
-                  <View style={styles.booleanFieldRow}>
-                    <Text style={styles.valueKey}>CREATED</Text>
-                    <Text style={styles.valueText}>
-                      {new Date(item.createdAt).toLocaleString()}
-                    </Text>
-                  </View>
-                </View>
-              </DetailCard>
-            </View>
-
-            <View style={styles.column}>
-              <DetailCard title="Result Summary" icon="document-text-outline">
-                {renderStructuredValue(resultSummary, 'validation-result')}
-              </DetailCard>
-            </View>
-          </View>
+          <DetailCard
+            title="Validation Verdict"
+            icon="shield-checkmark-outline"
+            summary={`${resultCharacters?.length ?? 0} character verdict(s) · layout ${String(resultObject?.layoutFeedback ?? 'n/a')}`}
+          >
+            <ValidationVerdict result={resultObject} />
+          </DetailCard>
 
           {resultCharacters && resultCharacters.length > 0 ? (
-            <DetailCard title="Characters" icon="people-outline">
+            <DetailCard
+              title="Characters"
+              icon="people-outline"
+              summary={`${resultCharacters.length} checked`}
+            >
               {renderCharacterCards(resultCharacters, 'validation-result-characters')}
             </DetailCard>
           ) : null}
 
-          <DetailCard title="Request Manifest" icon="file-tray-full-outline">
-            {renderStructuredValue(item.requestManifest, 'validation-request-manifest')}
+          {item.usage ? (
+            <DetailCard
+              title="Provider Usage"
+              icon="speedometer-outline"
+              defaultExpanded={false}
+              summary={`${item.usage.provider} · ${item.usage.operation} · matched ${item.usage.matchedDeltaMs} ms`}
+            >
+              <View style={styles.infoGrid}>
+                <InfoPill label="Provider" value={item.usage.provider} />
+                <InfoPill label="Operation" value={item.usage.operation} />
+                <InfoPill label="Input units" value={item.usage.inputUnits ?? 'n/a'} />
+                <InfoPill label="Output units" value={item.usage.outputUnits ?? 'n/a'} />
+                <InfoPill
+                  label="Cost"
+                  value={item.usage.costUsd != null ? `$${item.usage.costUsd.toFixed(8)}` : 'n/a'}
+                />
+                <InfoPill label="Created" value={new Date(item.usage.createdAt).toLocaleString()} />
+                <InfoPill label="Usage match" value={`${item.usage.matchedDeltaMs} ms`} />
+              </View>
+              {item.usage.metadata ? <JsonBlock value={item.usage.metadata} /> : null}
+            </DetailCard>
+          ) : null}
+
+          <DetailCard
+            title="Request Manifest"
+            icon="file-tray-full-outline"
+            defaultExpanded={false}
+            summary={manifestSummary}
+          >
+            <RequestManifestSummary manifest={item.requestManifest} />
+          </DetailCard>
+
+          <DetailCard
+            title="Raw Validation JSON"
+            icon="code-slash-outline"
+            defaultExpanded={false}
+            summary="result without duplicated requestManifest"
+          >
+            <JsonBlock value={cleanResultJson} />
           </DetailCard>
         </ScrollView>
       ) : null}
@@ -398,7 +783,7 @@ const styles = StyleSheet.create({
     color: theme.colors.status.error,
   },
   content: {
-    gap: 20,
+    gap: 12,
   },
   twoColumnRow: {
     flexDirection: 'row',
@@ -412,43 +797,283 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: theme.colors.background.primary,
-    borderRadius: 18,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.colors.border.light,
-    padding: 20,
-    gap: 16,
+    overflow: 'hidden',
   },
   cardHeader: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  cardHeaderLeft: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
+  cardTitleBlock: {
+    flex: 1,
+    gap: 2,
+  },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: theme.colors.text.primary,
+  },
+  cardSummary: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: theme.colors.text.secondary,
+  },
+  cardBody: {
+    padding: 14,
+    gap: 12,
+  },
+  imageRecordGrid: {
+    flexDirection: 'row',
+    gap: 14,
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+  },
+  imageColumn: {
+    flex: 1.2,
+    minWidth: 340,
+  },
+  recordColumn: {
+    flex: 1,
+    minWidth: 320,
+    gap: 12,
   },
   previewImage: {
     width: '100%',
     aspectRatio: 16 / 9,
-    borderRadius: 14,
+    borderRadius: 10,
     backgroundColor: theme.colors.background.secondary,
   },
-  valueGroup: {
+  previewImageGraphicNovel: {
+    aspectRatio: 1,
+  },
+  sectionStack: {
     gap: 12,
   },
-  valueRow: {
-    gap: 6,
+  infoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  valueKey: {
-    fontSize: 12,
+  infoPill: {
+    minWidth: 138,
+    flexGrow: 1,
+    flexBasis: 150,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 3,
+  },
+  infoPillNeutral: {
+    backgroundColor: theme.colors.background.secondary,
+    borderColor: theme.colors.border.light,
+  },
+  infoPillSuccess: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#bbf7d0',
+  },
+  infoPillWarning: {
+    backgroundColor: '#fff7ed',
+    borderColor: '#fed7aa',
+  },
+  infoPillDanger: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+  },
+  infoPillLabel: {
+    fontSize: 11,
+    lineHeight: 14,
     fontWeight: '700',
     color: theme.colors.text.secondary,
-    letterSpacing: 0.4,
+    letterSpacing: 0,
+  },
+  infoPillValue: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+  },
+  infoPillValueNeutral: {
+    color: theme.colors.text.primary,
+  },
+  infoPillValueSuccess: {
+    color: theme.colors.status.success,
+  },
+  infoPillValueWarning: {
+    color: theme.colors.status.warning,
+  },
+  infoPillValueDanger: {
+    color: theme.colors.status.error,
+  },
+  flagGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  flagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  flagPillSuccess: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#bbf7d0',
+  },
+  flagPillDanger: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+  },
+  flagPillText: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+  },
+  flagPillTextSuccess: {
+    color: theme.colors.status.success,
+  },
+  flagPillTextDanger: {
+    color: theme.colors.status.error,
+  },
+  feedbackBox: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+    padding: 12,
+    gap: 6,
+  },
+  feedbackLabel: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
+    color: theme.colors.text.secondary,
+    letterSpacing: 0,
+  },
+  feedbackText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: theme.colors.text.primary,
+  },
+  errorBox: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
+    padding: 10,
+    gap: 4,
+  },
+  errorBoxLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.colors.status.error,
+    letterSpacing: 0,
+  },
+  errorBoxText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: theme.colors.status.error,
+  },
+  pathBox: {
+    gap: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+    padding: 10,
+  },
+  pathText: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: theme.colors.text.primary,
+    fontFamily: Platform.select({
+      web: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+      default: undefined,
+    }),
+  },
+  attemptList: {
+    gap: 8,
+  },
+  attemptSummary: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+    padding: 10,
+    gap: 8,
+  },
+  attemptTitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  rawBlockHeader: {
+    gap: 3,
+  },
+  rawBlockTitle: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
+    color: theme.colors.text.secondary,
+    letterSpacing: 0,
+  },
+  rawBlockHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: theme.colors.text.secondary,
+  },
+  jsonScrollBox: {
+    maxHeight: 360,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  jsonScrollContent: {
+    padding: 10,
+  },
+  jsonText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: theme.colors.text.primary,
+    fontFamily: Platform.select({
+      web: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+      default: undefined,
+    }),
+  },
+  valueGroup: {
+    gap: 8,
+  },
+  valueRow: {
+    gap: 4,
+  },
+  valueKey: {
+    flexShrink: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.colors.text.secondary,
+    letterSpacing: 0,
   },
   valueText: {
-    fontSize: 15,
-    lineHeight: 23,
+    fontSize: 14,
+    lineHeight: 21,
     color: theme.colors.text.primary,
   },
   booleanFieldRow: {
@@ -470,23 +1095,68 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   characterRow: {
-    gap: 12,
+    gap: 10,
     paddingRight: 8,
   },
   characterCard: {
-    width: 260,
+    width: 360,
     flexShrink: 0,
-    padding: 16,
-    borderRadius: 16,
+    padding: 12,
+    borderRadius: 12,
     backgroundColor: theme.colors.background.secondary,
     borderWidth: 1,
     borderColor: theme.colors.border.light,
-    gap: 10,
+    gap: 8,
   },
   characterCardTitle: {
     fontSize: 13,
     fontWeight: '700',
     color: theme.colors.interactive.primary,
-    letterSpacing: 0.4,
+    letterSpacing: 0,
+  },
+  summaryListBox: {
+    marginTop: 4,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.light,
+    gap: 8,
+  },
+  summaryListLabel: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
+    color: theme.colors.text.secondary,
+    letterSpacing: 0,
+    textTransform: 'uppercase',
+  },
+  summaryListItems: {
+    gap: 8,
+  },
+  summaryListItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  summaryListMarker: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fce7f3',
+    borderWidth: 1,
+    borderColor: '#fbcfe8',
+  },
+  summaryListMarkerText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
+    color: theme.colors.interactive.primary,
+  },
+  summaryListText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: theme.colors.text.primary,
   },
 });

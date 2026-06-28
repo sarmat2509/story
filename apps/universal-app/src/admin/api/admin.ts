@@ -26,6 +26,7 @@ export type AdminUserListItem = {
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
   storiesUsedCurrentPeriod: number;
+  graphicNovelsUsedCurrentPeriod: number;
   audioStoriesUsedCurrentPeriod: number;
 };
 
@@ -87,6 +88,7 @@ export type AdminDataPrivacyExportPayload = {
 export type AdminImageValidationItem = {
   id: string;
   storyId: string;
+  storyFormat?: string | null;
   sceneIndex: number;
   attempt: number;
   imageStoragePath: string;
@@ -594,6 +596,7 @@ export function useUpdateAdminUser() {
       suspendedReason?: string | null;
       planSlug?: string;
       storiesUsedCurrentPeriod?: number;
+      graphicNovelsUsedCurrentPeriod?: number;
       audioStoriesUsedCurrentPeriod?: number;
     }) => {
       const response = await apiClient.patch<{
@@ -611,6 +614,7 @@ export function useUpdateAdminUser() {
         suspendedReason: params.suspendedReason,
         planSlug: params.planSlug,
         storiesUsedCurrentPeriod: params.storiesUsedCurrentPeriod,
+        graphicNovelsUsedCurrentPeriod: params.graphicNovelsUsedCurrentPeriod,
         audioStoriesUsedCurrentPeriod: params.audioStoriesUsedCurrentPeriod,
       });
       return response.data.data;
@@ -719,6 +723,38 @@ export function useAdminRegenerateSceneImage() {
   });
 }
 
+export function useAdminRegenerateGraphicNovelPageImage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      storyId: string;
+      pageNumber: number;
+      preferredTemplateId?: string;
+      style?: string;
+    }) => {
+      const response = await apiClient.post<{
+        status: string;
+        message: string;
+        data: {
+          jobId: string;
+          storyId: string;
+          pageNumber: number;
+        };
+      }>(`/api/v1/admin/stories/${params.storyId}/graphic-novel-pages/${params.pageNumber}/regenerate-image`, {
+        preferredTemplateId: params.preferredTemplateId,
+        style: params.style,
+      });
+      return response.data.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'image-validations'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'image-validation'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'director-scenes', variables.storyId] });
+    },
+  });
+}
+
 export type AdminStoryAudioTimingPayload = {
   audioGenerationTimeMs: number | null;
   prosodyTaggingTimeMs: number | null;
@@ -787,6 +823,7 @@ export function useAdminDirectorScenes(storyId?: string) {
           story: {
             id: string;
             title: string;
+            storyFormat: string | null;
             mapTile: unknown;
             mapTileAsset: AdminMapTileAssetPayload | null;
             createdAt: string;

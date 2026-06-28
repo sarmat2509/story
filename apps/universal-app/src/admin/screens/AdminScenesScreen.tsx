@@ -15,6 +15,7 @@ import { stripCharacterIdFromName } from '@wondertales/shared';
 import {
   type AdminMapTileAssetPayload,
   useAdminDirectorScenes,
+  useAdminRegenerateGraphicNovelPageImage,
   useAdminRegenerateSceneImage,
   useAdminResetStoryAudio,
 } from '@/admin/api/admin';
@@ -564,6 +565,7 @@ export default function AdminScenesScreen() {
   const routeStoryId = route.params?.storyId as string | undefined;
   const scenesQuery = useAdminDirectorScenes(routeStoryId);
   const regenerateMutation = useAdminRegenerateSceneImage();
+  const regenerateGraphicNovelPageMutation = useAdminRegenerateGraphicNovelPageImage();
   const resetAudioMutation = useAdminResetStoryAudio();
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string | null>(null);
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null);
@@ -594,6 +596,7 @@ export default function AdminScenesScreen() {
     [directorSceneByIndex, storyScenes]
   );
   const storyMeta = scenesQuery.data?.story;
+  const isGraphicNovel = storyMeta?.storyFormat === 'graphic_novel';
   const storyAudio = scenesQuery.data?.audio;
   const audioPlaybackUrl = formatAssetUrl(storyAudio?.audioUrl ?? null);
   const validations = useMemo(
@@ -855,21 +858,39 @@ export default function AdminScenesScreen() {
                         <TouchableOpacity
                           style={styles.sceneActionButton}
                           disabled={
-                            regenerateMutation.isPending &&
-                            regenerateMutation.variables?.storyId === routeStoryId &&
-                            regenerateMutation.variables?.sceneId === item.sceneIndex
+                            isGraphicNovel
+                              ? regenerateGraphicNovelPageMutation.isPending &&
+                                regenerateGraphicNovelPageMutation.variables?.storyId === routeStoryId &&
+                                regenerateGraphicNovelPageMutation.variables?.pageNumber === item.sceneIndex
+                              : regenerateMutation.isPending &&
+                                regenerateMutation.variables?.storyId === routeStoryId &&
+                                regenerateMutation.variables?.sceneId === item.sceneIndex
                           }
-                          onPress={() =>
+                          onPress={() => {
+                            if (isGraphicNovel) {
+                              regenerateGraphicNovelPageMutation.mutate({
+                                storyId: routeStoryId,
+                                pageNumber: item.sceneIndex,
+                              });
+                              return;
+                            }
+
                             regenerateMutation.mutate({
                               storyId: routeStoryId,
                               sceneId: item.sceneIndex,
-                            })
-                          }
+                            });
+                          }}
                         >
                           <Text style={styles.sceneActionButtonText}>
-                            {regenerateMutation.isPending &&
-                            regenerateMutation.variables?.storyId === routeStoryId &&
-                            regenerateMutation.variables?.sceneId === item.sceneIndex
+                            {isGraphicNovel
+                              ? regenerateGraphicNovelPageMutation.isPending &&
+                                regenerateGraphicNovelPageMutation.variables?.storyId === routeStoryId &&
+                                regenerateGraphicNovelPageMutation.variables?.pageNumber === item.sceneIndex
+                                ? 'Queueing...'
+                                : 'Regenerate page image'
+                              : regenerateMutation.isPending &&
+                                regenerateMutation.variables?.storyId === routeStoryId &&
+                                regenerateMutation.variables?.sceneId === item.sceneIndex
                               ? 'Queueing...'
                               : 'Regenerate image'}
                           </Text>
