@@ -1,0 +1,5 @@
+Contact: mailto:support@wondertales.art
+Expires: 2027-06-29T00:00:00Z
+Preferred-Languages: en, uk, ru
+Canonical: https://wondertales.art/.well-known/security.txt
+
