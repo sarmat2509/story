@@ -492,6 +492,8 @@ deploy_webapp() {
 
   rm -rf .expo node_modules/.cache 2>/dev/null || true
   pnpm build:web:clean
+  mkdir -p dist/.well-known
+  cp public/.well-known/security.txt dist/.well-known/security.txt
   cd "$PROJECT_ROOT"
 
   # Verify build scheme

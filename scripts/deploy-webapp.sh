@@ -101,6 +101,8 @@ export_expo_public_env_vars "$PROJECT_ROOT/.env.production"
 # Clear Metro/Expo caches (stale cache can produce old scheme like kazka://)
 rm -rf .expo node_modules/.cache 2>/dev/null || true
 pnpm build:web:clean
+mkdir -p dist/.well-known
+cp public/.well-known/security.txt dist/.well-known/security.txt
 
 cd "$PROJECT_ROOT"
 
