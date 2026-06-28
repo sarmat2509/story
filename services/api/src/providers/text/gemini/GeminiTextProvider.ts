@@ -228,7 +228,7 @@ export class GeminiTextProvider implements ITextProvider {
           usage.candidatesTokenCount ??
           Math.max((usage.totalTokenCount ?? inputUnits) - inputUnits, 0);
         const cachedInputUnits = usage.cachedContentTokenCount ?? 0;
-        request.onUsage({
+        await Promise.resolve(request.onUsage({
           provider: 'gemini',
           operation: request.operation ?? 'text_structured',
           model: modelName,
@@ -238,7 +238,7 @@ export class GeminiTextProvider implements ITextProvider {
           cachedInputUnits,
           cacheHit: cachedInputUnits > 0,
           thoughtTokens: usage.thoughtsTokenCount ?? 0,
-        });
+        }));
       }
 
       if (candidate?.finishReason === 'MAX_TOKENS') {

@@ -1504,6 +1504,115 @@ export const assets = pgTable(
   }
 );
 
+// Graphic novel generation tables - one project per graphic-novel story.
+export const graphicNovelProjects = pgTable(
+  'graphic_novel_projects',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    storyId: uuid('story_id')
+      .references(() => stories.id, { onDelete: 'cascade' })
+      .notNull(),
+    storyRequestId: uuid('story_request_id').references(() => storyRequests.id, {
+      onDelete: 'set null',
+    }),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    language: varchar('language', { length: 5 }).notNull(),
+    ageGroup: varchar('age_group', { length: 10 }).notNull(),
+    pageCount: integer('page_count').notNull().default(8),
+    status: varchar('status', { length: 20 }).notNull().default('generating'),
+    scriptJson: jsonb('script_json').notNull(),
+    layoutManifest: jsonb('layout_manifest').notNull().default({}),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => {
+    return {
+      storyIdIdx: uniqueIndex('graphic_novel_projects_story_id_idx').on(table.storyId),
+      requestIdIdx: index('graphic_novel_projects_story_request_id_idx').on(table.storyRequestId),
+      userIdIdx: index('graphic_novel_projects_user_id_idx').on(table.userId),
+      statusIdx: index('graphic_novel_projects_status_idx').on(table.status),
+    };
+  }
+);
+
+export const graphicNovelPages = pgTable(
+  'graphic_novel_pages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .references(() => graphicNovelProjects.id, { onDelete: 'cascade' })
+      .notNull(),
+    storyId: uuid('story_id')
+      .references(() => stories.id, { onDelete: 'cascade' })
+      .notNull(),
+    pageNumber: integer('page_number').notNull(),
+    templateId: varchar('template_id', { length: 20 }).notNull(),
+    pageRole: varchar('page_role', { length: 40 }).notNull(),
+    layoutJson: jsonb('layout_json').notNull(),
+    bubbleLayoutJson: jsonb('bubble_layout_json').notNull().default({}),
+    imageAssetId: uuid('image_asset_id').references(() => assets.id, { onDelete: 'set null' }),
+    imageUrl: text('image_url'),
+    status: varchar('status', { length: 20 }).notNull().default('pending'),
+    generationParams: jsonb('generation_params').notNull().default({}),
+    errorMessage: text('error_message'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => {
+    return {
+      projectIdIdx: index('graphic_novel_pages_project_id_idx').on(table.projectId),
+      storyIdIdx: index('graphic_novel_pages_story_id_idx').on(table.storyId),
+      uniquePageIdx: uniqueIndex('graphic_novel_pages_project_page_uidx').on(
+        table.projectId,
+        table.pageNumber
+      ),
+      statusIdx: index('graphic_novel_pages_status_idx').on(table.status),
+      imageAssetIdx: index('graphic_novel_pages_image_asset_id_idx').on(table.imageAssetId),
+    };
+  }
+);
+
+export const graphicNovelPanels = pgTable(
+  'graphic_novel_panels',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pageId: uuid('page_id')
+      .references(() => graphicNovelPages.id, { onDelete: 'cascade' })
+      .notNull(),
+    projectId: uuid('project_id')
+      .references(() => graphicNovelProjects.id, { onDelete: 'cascade' })
+      .notNull(),
+    storyId: uuid('story_id')
+      .references(() => stories.id, { onDelete: 'cascade' })
+      .notNull(),
+    pageNumber: integer('page_number').notNull(),
+    panelIndex: integer('panel_index').notNull(),
+    panelId: varchar('panel_id', { length: 40 }).notNull(),
+    speakerLines: jsonb('speaker_lines').notNull().default([]),
+    thoughtLines: jsonb('thought_lines').notNull().default([]),
+    caption: text('caption'),
+    visualAction: text('visual_action').notNull(),
+    charactersPresent: jsonb('characters_present').notNull().default([]),
+    artPrompt: text('art_prompt').notNull(),
+    bubbleGeometry: jsonb('bubble_geometry').notNull().default([]),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => {
+    return {
+      pageIdIdx: index('graphic_novel_panels_page_id_idx').on(table.pageId),
+      projectIdIdx: index('graphic_novel_panels_project_id_idx').on(table.projectId),
+      storyIdIdx: index('graphic_novel_panels_story_id_idx').on(table.storyId),
+      uniquePanelIdx: uniqueIndex('graphic_novel_panels_page_panel_uidx').on(
+        table.pageId,
+        table.panelIndex
+      ),
+    };
+  }
+);
+
 // Generated references table - AI-generated character portraits
 export const generatedReferences = pgTable(
   'generated_references',
@@ -1541,6 +1650,15 @@ export type NewScene = typeof scenes.$inferInsert;
 
 export type Asset = typeof assets.$inferSelect;
 export type NewAsset = typeof assets.$inferInsert;
+
+export type GraphicNovelProject = typeof graphicNovelProjects.$inferSelect;
+export type NewGraphicNovelProject = typeof graphicNovelProjects.$inferInsert;
+
+export type GraphicNovelPage = typeof graphicNovelPages.$inferSelect;
+export type NewGraphicNovelPage = typeof graphicNovelPages.$inferInsert;
+
+export type GraphicNovelPanel = typeof graphicNovelPanels.$inferSelect;
+export type NewGraphicNovelPanel = typeof graphicNovelPanels.$inferInsert;
 
 export type GeneratedReference = typeof generatedReferences.$inferSelect;
 export type NewGeneratedReference = typeof generatedReferences.$inferInsert;

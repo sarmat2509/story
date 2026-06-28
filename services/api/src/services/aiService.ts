@@ -21,6 +21,7 @@ import { ElevenLabsAlignmentProvider } from '../providers/alignment/elevenlabs/E
 import { StoryDomainService } from '../domain/story';
 import { ImageDomainService } from '../domain/image';
 import { AudioDomainService } from '../domain/audio';
+import { GraphicNovelDomainService } from '../domain/graphicNovel';
 import { ImageRateLimiter } from './imageRateLimiter';
 import { TextRateLimiter } from './textRateLimiter';
 import { stopAudioRateLimiter } from './audioRateLimiter';
@@ -38,6 +39,7 @@ let storyDomainService: StoryDomainService | null = null;
 let imageDomainService: ImageDomainService | null = null;
 let mapTileImageDomainService: ImageDomainService | null = null;
 let audioDomainService: AudioDomainService | null = null;
+let graphicNovelDomainService: GraphicNovelDomainService | null = null;
 
 // Provider instances (private to this module)
 let textProvider: ITextProvider | null = null;
@@ -105,6 +107,15 @@ export function getImageDomainService(): ImageDomainService {
   }
   
   return imageDomainService;
+}
+
+export function getGraphicNovelDomainService(): GraphicNovelDomainService {
+  if (!graphicNovelDomainService) {
+    logger.info('Initializing Graphic Novel Domain Service');
+    graphicNovelDomainService = new GraphicNovelDomainService(getTextProvider());
+  }
+
+  return graphicNovelDomainService;
 }
 
 /**

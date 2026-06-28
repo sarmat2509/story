@@ -14,6 +14,7 @@ import dictionariesRoutes from './routes/dictionaries';
 import childrenRoutes from './routes/children';
 import charactersRoutes from './routes/characters';
 import storiesRoutes from './routes/stories';
+import graphicNovelsRoutes from './routes/graphicNovels';
 import imageValidationsRoutes from './routes/imageValidations';
 import adminRoutes from './routes/admin';
 import publicStoriesRoutes from './routes/publicStories';
@@ -188,6 +189,7 @@ app.use('/api/v1/dictionaries', dictionariesRoutes); // Public
 app.use('/api/v1/children', apiLimiter, childrenRoutes);
 app.use('/api/v1/characters', apiLimiter, charactersRoutes);
 app.use('/api/v1/stories', storyWriteLimiter, apiLimiter, storiesRoutes); // M3: story generation
+app.use('/api/v1/graphic-novels', storyWriteLimiter, apiLimiter, graphicNovelsRoutes);
 app.use('/api/v1/image-validations', apiLimiter, imageValidationsRoutes);
 app.use('/api/v1/admin', apiLimiter, adminRoutes);
 app.use('/api/v1/public/stories', apiLimiter, publicStoriesRoutes); // Public catalog + single story

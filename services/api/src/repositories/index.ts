@@ -43,6 +43,7 @@ import { CollectedStoryArtifactRepository } from './CollectedStoryArtifactReposi
 import { CollectedMapTileRepository } from './CollectedMapTileRepository';
 import { StoryQuizRepository } from './StoryQuizRepository';
 import { StoryQuizProgressRepository } from './StoryQuizProgressRepository';
+import { GraphicNovelRepository } from './GraphicNovelRepository';
 
 // Re-export classes for type usage
 export { UserRepository } from './UserRepository';
@@ -81,6 +82,7 @@ export { CollectedStoryArtifactRepository } from './CollectedStoryArtifactReposi
 export { CollectedMapTileRepository } from './CollectedMapTileRepository';
 export { StoryQuizRepository } from './StoryQuizRepository';
 export { StoryQuizProgressRepository } from './StoryQuizProgressRepository';
+export { GraphicNovelRepository } from './GraphicNovelRepository';
 
 // Singleton instances
 let userRepo: UserRepository;
@@ -119,6 +121,7 @@ let collectedStoryArtifactRepo: CollectedStoryArtifactRepository;
 let collectedMapTileRepo: CollectedMapTileRepository;
 let storyQuizRepo: StoryQuizRepository;
 let storyQuizProgressRepo: StoryQuizProgressRepository;
+let graphicNovelRepo: GraphicNovelRepository;
 
 export function getUserRepository(): UserRepository {
   if (!userRepo) userRepo = new UserRepository(db);
@@ -153,6 +156,11 @@ export function getCharacterRepository(): CharacterRepository {
 export function getStoryRepository(): StoryRepository {
   if (!storyRepo) storyRepo = new StoryRepository(db);
   return storyRepo;
+}
+
+export function getGraphicNovelRepository(): GraphicNovelRepository {
+  if (!graphicNovelRepo) graphicNovelRepo = new GraphicNovelRepository(db);
+  return graphicNovelRepo;
 }
 
 export function getSceneRepository(): SceneRepository {

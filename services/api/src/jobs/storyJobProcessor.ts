@@ -20,6 +20,7 @@ import { assertUserPhotoInputs } from '../services/photoInputSafetyService';
 import { assertStoryFromDrawingAccessForPhotos } from '../services/storyFromDrawingAccessService';
 import { releaseAudioQuotaReservationForStory } from '../services/audioQuotaReservationService';
 import { releaseStoryQuotaReservationForRequest } from '../services/storyQuotaService';
+import { releaseGraphicNovelQuotaReservationForRequest } from '../services/graphicNovelQuotaService';
 import { getStoryCreationAttributionInputFromRequest } from '../services/storyCreationAttributionService';
 import {
   getStoryRepository,
@@ -99,7 +100,7 @@ export interface TextGenerationJob extends BaseJob {
 }
 
 export interface ImageGenerationJob extends BaseJob {
-  type: 'image_generation' | 'image_batch';
+  type: 'image_generation' | 'image_batch' | 'graphic_novel_pages';
   requestId: string;
   storyId: string;
   isContinuation?: boolean;
@@ -128,7 +129,7 @@ export interface InstantCharacterSetupJob extends BaseJob {
 // Legacy job types (for backwards compatibility during migration)
 interface LegacyBaseJob {
   id: string;
-  type: 'story_generation' | 'regenerate_scene_image' | 'audio_generation';
+  type: 'story_generation' | 'regenerate_scene_image' | 'regenerate_graphic_novel_page_image' | 'audio_generation';
   status: 'queued' | 'processing' | 'completed' | 'failed';
   retries: number;
   createdAt: Date;
@@ -147,6 +148,14 @@ interface RegenerateSceneImageJob extends LegacyBaseJob {
   visualPrompt?: string;
 }
 
+interface RegenerateGraphicNovelPageImageJob extends LegacyBaseJob {
+  type: 'regenerate_graphic_novel_page_image';
+  storyId: string;
+  pageNumber: number;
+  preferredTemplateId?: string;
+  style?: string;
+}
+
 interface AudioGenerationLegacyJob extends LegacyBaseJob {
   type: 'audio_generation';
   storyId: string;
@@ -158,7 +167,11 @@ interface AudioGenerationLegacyJob extends LegacyBaseJob {
   };
 }
 
-type LegacyJob = StoryGenerationLegacyJob | RegenerateSceneImageJob | AudioGenerationLegacyJob;
+type LegacyJob =
+  | StoryGenerationLegacyJob
+  | RegenerateSceneImageJob
+  | RegenerateGraphicNovelPageImageJob
+  | AudioGenerationLegacyJob;
 
 // Input types for StoryJobQueue.addJob (no BaseJob/LegacyBaseJob fields)
 interface AudioGenerationJobInput {
@@ -177,6 +190,14 @@ interface RegenerateSceneImageInput {
   storyId: string;
   sceneId: number;
   visualPrompt?: string;
+}
+
+interface RegenerateGraphicNovelPageImageInput {
+  type: 'regenerate_graphic_novel_page_image';
+  storyId: string;
+  pageNumber: number;
+  preferredTemplateId?: string;
+  style?: string;
 }
 
 function errorMessage(error: unknown): string {
@@ -204,15 +225,45 @@ async function releaseStoryQuotaAfterPermanentFailure(
   );
 }
 
+async function releaseQuotaAfterTextPermanentFailure(
+  requestId: string,
+  error: unknown
+): Promise<void> {
+  await releaseStoryQuotaAfterPermanentFailure(requestId, 'generation_failed', error);
+
+  const request = await getStoryRepository().findRequestById(requestId);
+  const generationKind = (request?.intermediateData as Record<string, unknown> | null | undefined)
+    ?.generationKind;
+  if (generationKind !== 'graphic_novel') {
+    return;
+  }
+
+  const result = await releaseGraphicNovelQuotaReservationForRequest(requestId, {
+    reason: 'generation_failed',
+    errorMessage: errorMessage(error),
+  });
+  logger.info(
+    {
+      requestId,
+      released: result.released,
+      netReserved: result.netReserved,
+    },
+    'Graphic novel quota reservation permanent-failure release checked'
+  );
+}
+
 async function markImageRequestAfterPermanentFailure(job: ImageGenerationJob, error: unknown): Promise<void> {
-  if (job.type !== 'image_batch') {
+  if (job.type !== 'image_batch' && job.type !== 'graphic_novel_pages') {
     return;
   }
 
   await getStoryRepository().updateRequest(job.requestId, {
     status: 'failed',
     storyId: job.storyId,
-    errorMessage: 'Story illustrations could not be completed. Please try again.',
+    errorMessage:
+      job.type === 'graphic_novel_pages'
+        ? 'Graphic novel pages could not be completed. Please try again.'
+        : 'Story illustrations could not be completed. Please try again.',
     updatedAt: new Date(),
   });
 
@@ -238,7 +289,7 @@ export const textQueue = new ConcurrentJobQueue<TextGenerationJob>({
   maxConcurrency: () => config.queue.textConcurrency,
   processor: processTextGeneration,
   onPermanentFailure: (job, error) =>
-    releaseStoryQuotaAfterPermanentFailure(job.requestId, 'generation_failed', error),
+    releaseQuotaAfterTextPermanentFailure(job.requestId, error),
   pollIntervalMs: config.queue.pollIntervalMs,
 });
 
@@ -320,6 +371,25 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
 
   let storyId: string;
 
+  const request = await getStoryRepository().findRequestById(job.requestId);
+  const generationKind = (request?.intermediateData as Record<string, unknown> | null | undefined)
+    ?.generationKind;
+
+  if (generationKind === 'graphic_novel') {
+    const { processGraphicNovelRequest } = await import('../services/graphicNovelOrchestrationService');
+    const result = await processGraphicNovelRequest(job.requestId);
+    storyId = result.storyId;
+
+    imageQueue.addJob({
+      type: 'graphic_novel_pages',
+      requestId: job.requestId,
+      storyId,
+    });
+
+    logger.info({ requestId: job.requestId, storyId }, 'Graphic novel script/layout completed, enqueued page rendering');
+    return;
+  }
+
   const { processStoryRequest } = await import('../services/storyOrchestrationService');
   const result = await processStoryRequest(job.requestId);
   storyId = result.storyId;
@@ -386,6 +456,16 @@ async function processImageGeneration(job: ImageGenerationJob): Promise<void> {
     });
 
     logger.info({ storyId: job.storyId, requestId: job.requestId }, 'Image batch completed');
+  } else if (job.type === 'graphic_novel_pages') {
+    logger.info({
+      storyId: job.storyId,
+      requestId: job.requestId,
+    }, 'Processing graphic novel pages');
+
+    const { processGraphicNovelPages } = await import('../services/graphicNovelOrchestrationService');
+    await processGraphicNovelPages(job.requestId);
+
+    logger.info({ storyId: job.storyId, requestId: job.requestId }, 'Graphic novel page rendering completed');
   } else {
     // Individual scene image regeneration
     logger.info({
@@ -969,7 +1049,13 @@ class StoryJobQueue {
     }
   }
 
-  async addJob(requestIdOrJobData: string | AudioGenerationJobInput | RegenerateSceneImageInput): Promise<string> {
+  async addJob(
+    requestIdOrJobData:
+      | string
+      | AudioGenerationJobInput
+      | RegenerateSceneImageInput
+      | RegenerateGraphicNovelPageImageInput
+  ): Promise<string> {
     let job: LegacyJob;
 
     if (typeof requestIdOrJobData === 'string') {
@@ -1068,6 +1154,8 @@ class StoryJobQueue {
     try {
       if (job.type === 'regenerate_scene_image') {
         await processRegenerateSceneImageLegacy(job as RegenerateSceneImageJob);
+      } else if (job.type === 'regenerate_graphic_novel_page_image') {
+        await processRegenerateGraphicNovelPageImageLegacy(job as RegenerateGraphicNovelPageImageJob);
       }
       job.status = 'completed';
       setTimeout(() => this.queue.delete(job.id), 60000);
@@ -1118,6 +1206,26 @@ async function processRegenerateSceneImageLegacy(job: RegenerateSceneImageJob): 
   logger.info({ storyId: job.storyId, sceneId: job.sceneId }, 'Regenerating scene image (legacy)');
   const { regenerateSceneImage } = await import('../services/storyOrchestrationService');
   await regenerateSceneImage(job.storyId, job.sceneId, job.visualPrompt);
+}
+
+async function processRegenerateGraphicNovelPageImageLegacy(
+  job: RegenerateGraphicNovelPageImageJob
+): Promise<void> {
+  logger.info(
+    {
+      storyId: job.storyId,
+      pageNumber: job.pageNumber,
+      preferredTemplateId: job.preferredTemplateId,
+    },
+    'Regenerating graphic novel page image (legacy)'
+  );
+  const { regenerateGraphicNovelPageImage } = await import('../services/graphicNovelOrchestrationService');
+  await regenerateGraphicNovelPageImage({
+    storyId: job.storyId,
+    pageNumber: job.pageNumber,
+    preferredTemplateId: job.preferredTemplateId,
+    style: job.style,
+  });
 }
 
 // ── Exports ──

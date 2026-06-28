@@ -30,6 +30,14 @@ export {
   TEXT_REGENERATION_CACHE_KEY,
 } from './RegenerationPrompt';
 export { buildContinuationPromptPlain } from './ContinuationPrompt';
+export {
+  buildGraphicNovelPrompt,
+  buildGraphicNovelSafetyFallbackPrompt,
+  GRAPHIC_NOVEL_CAPTION_MAX_CHARS,
+  GRAPHIC_NOVEL_LINE_MAX_CHARS,
+  GRAPHIC_NOVEL_SCRIPT_SCHEMA,
+  GRAPHIC_NOVEL_SPEAKER_MAX_CHARS,
+} from './GraphicNovelPrompt';
 
 export type { DirectTextPromptParams } from './DirectTextPrompt';
 export type { ValidationPromptParams, BatchValidationPromptParams } from './ValidationPrompt';

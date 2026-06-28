@@ -46,6 +46,12 @@ export interface StoryRequestData {
 export interface CameraCharacterComposition {
   name: string; // Character name (EXACT from the story character list)
   description: string; // Position, posture, action, expression, gaze
+  /** Semantic position for comic blocking, e.g. left_foreground, right_midground. */
+  position?: string;
+  /** Legacy/fallback layout hint; new graphic-novel Writer output does not request coordinates. */
+  anchor?: { x: number; y: number };
+  /** Legacy/fallback bubble-tail hint; final graphic-novel placement comes from post-art Vision. */
+  speechTarget?: { x: number; y: number };
   /** References outfits[].id for this scene (required in LLM JSON schema). */
   outfitId?: string;
 }
