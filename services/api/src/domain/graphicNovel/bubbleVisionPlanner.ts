@@ -953,6 +953,24 @@ function scoreCandidate(params: {
   }
 
   if (target) {
+    const directionZones = emptyZones.filter((zone) => {
+      const zoneCenter = rectCenter(zone);
+      return zoneCenter.y <= target.y + panelRect.height * 0.08;
+    });
+    if (directionZones.length > 0) {
+      const bubbleDirection = unitDirectionPx(target, rectCenter(rect));
+      if (bubbleDirection) {
+        const bestAlignment = Math.max(...directionZones.map((zone) => {
+          const zoneDirection = unitDirectionPx(target, rectCenter(zone));
+          return dotDirection(zoneDirection, bubbleDirection);
+        }));
+        score -= Math.max(0, bestAlignment) * 140;
+        if (bestAlignment < 0.2) {
+          score += (0.2 - bestAlignment) * 520;
+        }
+      }
+    }
+
     if (candidateKind === 'empty_direction' && sourceZone) {
       const zoneDirection = unitDirectionPx(target, rectCenter(sourceZone));
       const bubbleDirection = unitDirectionPx(target, rectCenter(rect));
