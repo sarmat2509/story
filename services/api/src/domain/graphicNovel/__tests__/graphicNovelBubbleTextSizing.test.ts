@@ -22,6 +22,10 @@ function testLongUkrainianSpeechGetsReadableWidth(): void {
     `long speech bubble should be wide enough for 14px bold text; got ${measured.width.toFixed(3)}`
   );
   assert.ok(measured.lineCount <= 4, 'speech should wrap within the expected line budget');
+  assert.ok(
+    measured.height > 0.04,
+    `long speech bubble should reserve a balanced-wrap safety line; got ${measured.height.toFixed(3)}`
+  );
 }
 
 function testCaptionGetsReadableWidth(): void {
@@ -37,6 +41,10 @@ function testCaptionGetsReadableWidth(): void {
     `caption bubble should fit balanced 14px text without narrow wrapping; got ${measured.width.toFixed(3)}`
   );
   assert.ok(measured.lineCount <= 2, 'caption should fit the expected two-line budget');
+  assert.ok(
+    measured.height > 0.03,
+    `caption bubble should reserve a balanced-wrap safety line; got ${measured.height.toFixed(3)}`
+  );
 }
 
 function testShortSpeechStaysCompact(): void {

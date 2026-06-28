@@ -116,6 +116,11 @@ export function measureGraphicNovelBubbleTextBox(params: {
   const wrappedLines = wrapTextByCharacterLimit(params.text, maxCharsPerLine);
   const maxLines = kind === 'caption' ? 2 : 4;
   const visibleLines = wrappedLines.slice(0, maxLines);
+  const balancedWrapSafetyLines = wrappedLines.length > 1 ? 1 : 0;
+  const visualLineCount = Math.min(
+    wrappedLines.length + balancedWrapSafetyLines,
+    maxLines + balancedWrapSafetyLines
+  );
   const widestLineUnits = Math.max(...visibleLines.map(visualTextUnits), 1);
   const widestLineChars = Math.max(...visibleLines.map(charLength), 1);
   const widestLinePx = Math.max(
@@ -135,7 +140,7 @@ export function measureGraphicNovelBubbleTextBox(params: {
     Math.max(fontSizePx * 3.2 + horizontalChromePx, targetContentWidthPx + horizontalChromePx)
   );
   const widthPx = clamp(targetContentWidthPx + horizontalChromePx, minWidthPx, maxWidthPx);
-  const requestedHeightPx = visibleLines.length * lineHeightPx + verticalChromePx;
+  const requestedHeightPx = visualLineCount * lineHeightPx + verticalChromePx;
 
   return {
     width: widthPx / PAGE_WIDTH,

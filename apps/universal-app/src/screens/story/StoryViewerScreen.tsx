@@ -192,6 +192,7 @@ const GRAPHIC_NOVEL_BUBBLE_FONT_SIZE = 14;
 const GRAPHIC_NOVEL_BUBBLE_LINE_HEIGHT = 16;
 const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X = 10;
 const GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y = 4;
+const GRAPHIC_NOVEL_CANONICAL_PAGE_WIDTH = 1536;
 
 const inlineNoSpaceBeforeRe = /^[\s,.;:!?…)\]}»”’"'%]/;
 const inlineOpeningBoundaryRe = /[\s([{«„“"']$/;
@@ -993,6 +994,23 @@ export default function StoryViewerScreen() {
     story?.audioMetadata?.alignment,
     currentPosition,
     sceneTexts
+  );
+  const [graphicNovelPageWidths, setGraphicNovelPageWidths] = useState<Record<number, number>>({});
+
+  const handleGraphicNovelPageCanvasLayout = useCallback(
+    (pageNumber: number, event: LayoutChangeEvent) => {
+      const nextWidth = event.nativeEvent.layout.width;
+      if (!Number.isFinite(nextWidth) || nextWidth <= 0) return;
+
+      setGraphicNovelPageWidths((current) => {
+        const previousWidth = current[pageNumber];
+        if (previousWidth && Math.abs(previousWidth - nextWidth) < 1) {
+          return current;
+        }
+        return { ...current, [pageNumber]: nextWidth };
+      });
+    },
+    []
   );
 
   const handleOpenArtifact = useCallback((label: string) => {
@@ -2378,7 +2396,7 @@ export default function StoryViewerScreen() {
     return itemText.includes(activeSentenceText) || activeSentenceText.includes(itemText);
   };
 
-  const renderGraphicNovelTextItem = (item: GraphicNovelTextOverlayItem) => {
+  const renderGraphicNovelTextItem = (item: GraphicNovelTextOverlayItem, pageScale: number) => {
     const rawText = removeAudioTags(item.rawText || item.text || item.audioText || '');
     const text = stripArtifactMarkers(removeAudioTags(item.text || item.audioText || rawText));
     if (!text.trim()) return null;
@@ -2399,13 +2417,24 @@ export default function StoryViewerScreen() {
       <View
         key={item.segmentId || item.id}
         pointerEvents="box-none"
-        style={[styles.graphicNovelTextBox, rectStyle as any]}
+        style={[
+          styles.graphicNovelTextBox,
+          rectStyle as any,
+          {
+            paddingHorizontal: GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_X * pageScale,
+            paddingVertical: GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y * pageScale,
+          },
+        ]}
         accessibilityLabel={item.ariaLabel}
       >
         <Text
           selectable
           style={[
             styles.graphicNovelBubbleText,
+            {
+              fontSize: GRAPHIC_NOVEL_BUBBLE_FONT_SIZE * pageScale,
+              lineHeight: GRAPHIC_NOVEL_BUBBLE_LINE_HEIGHT * pageScale,
+            },
             isActive && styles.graphicNovelBubbleTextActive,
           ]}
         >
@@ -2456,6 +2485,8 @@ export default function StoryViewerScreen() {
     const sceneIndex = findGraphicNovelSceneIndex(page.pageNumber);
     const isActivePage =
       effectiveHighlightEnabled && activeGraphicNovelPageNumber === page.pageNumber;
+    const pageWidth = graphicNovelPageWidths[page.pageNumber] || GRAPHIC_NOVEL_CANONICAL_PAGE_WIDTH;
+    const pageScale = pageWidth / GRAPHIC_NOVEL_CANONICAL_PAGE_WIDTH;
 
     return (
       <View
@@ -2465,7 +2496,10 @@ export default function StoryViewerScreen() {
         }}
         style={[styles.graphicNovelPage, isActivePage && styles.graphicNovelPageActive]}
       >
-        <View style={styles.graphicNovelPageCanvas}>
+        <View
+          style={styles.graphicNovelPageCanvas}
+          onLayout={(event) => handleGraphicNovelPageCanvasLayout(page.pageNumber, event)}
+        >
           {imageUrl ? (
             <>
               <Image
@@ -2474,7 +2508,7 @@ export default function StoryViewerScreen() {
                 resizeMode="contain"
               />
               {renderGraphicNovelPanelAnchors(page)}
-              {page.textOverlay?.items?.map(renderGraphicNovelTextItem)}
+              {page.textOverlay?.items?.map((item) => renderGraphicNovelTextItem(item, pageScale))}
             </>
           ) : (
             <View style={styles.graphicNovelPagePlaceholder}>
@@ -3419,6 +3453,9 @@ const styles = StyleSheet.create({
     paddingVertical: GRAPHIC_NOVEL_BUBBLE_TEXT_PADDING_Y,
   },
   graphicNovelBubbleText: {
+    width: '100%',
+    minWidth: 0,
+    flexShrink: 1,
     color: '#111111',
     fontSize: GRAPHIC_NOVEL_BUBBLE_FONT_SIZE,
     lineHeight: GRAPHIC_NOVEL_BUBBLE_LINE_HEIGHT,
