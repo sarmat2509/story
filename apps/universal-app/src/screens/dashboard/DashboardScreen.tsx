@@ -328,7 +328,7 @@ export default function DashboardScreen() {
                 <View style={styles.quizBannerCopy}>
                   <Text style={styles.quizBannerTitle}>
                     {t('dashboard.quiz_banner.title', {
-                      defaultValue: 'Win a new tile for your world',
+                      defaultValue: 'Earn a new map piece for your world',
                     })}
                   </Text>
                   <Text style={styles.quizBannerText} numberOfLines={1}>

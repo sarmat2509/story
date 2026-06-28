@@ -1013,16 +1013,16 @@
     "artifact_already_in_chest_prefix": "Already in your",
     "artifact_already_in_chest_link": "artifact chest",
     "artifact_collect_error": "Could not save artifact",
-    "map_tile_generate": "Create map tile",
-    "map_tile_generating": "Creating map tile...",
-    "map_tile_generated_title": "Map tile created",
+    "map_tile_generate": "Create map piece",
+    "map_tile_generating": "Creating map piece...",
+    "map_tile_generated_title": "Map piece created",
     "map_tile_generated_message": "A new map piece is ready. Used {{count}} story image reference(s).",
-    "map_tile_generate_error": "Could not create map tile",
+    "map_tile_generate_error": "Could not create map piece",
     "map_tile_claim_prize": "Claim prize",
     "map_tile_prize_title": "Map piece",
     "map_tile_collect": "Collect",
-    "map_tile_collect_error": "Could not collect map tile",
-    "map_tile_already_on_map": "Tile already on the map"
+    "map_tile_collect_error": "Could not collect map piece",
+    "map_tile_already_on_map": "Map piece already on the map"
   },
   "published_story": {
     "cta_title": "Your child is the hero of their own tale",
@@ -1285,7 +1285,7 @@
     "first_story_title": "Nothing on the shelf yet",
     "first_story_description": "Create your first story and this space will turn into a family reading shortcut.",
     "quiz_banner": {
-      "title": "Win a new tile for your world",
+      "title": "Earn a new map piece for your world",
       "body": "Take the quiz for “{{title}}” and unlock a prize.",
       "cta": "Go to quiz"
     },
@@ -1764,24 +1764,24 @@
     "open_story": "Open story"
   },
   "map_tiles": {
-    "title": "Reader map",
-    "inventory_title": "New pieces",
+    "title": "Reading map",
+    "inventory_title": "New map pieces",
     "inventory_hint": "Drag pieces onto the map or back into this row.",
-    "inventory_empty": "No spare pieces",
-    "empty_title": "Your map is waiting",
+    "inventory_empty": "No spare map pieces",
+    "empty_title": "Your map is ready for its first pieces",
     "empty_subtitle": "Collect map pieces after stories and build your reading universe here.",
     "layout_save_error": "Could not save the map layout",
     "cell_occupied": "That cell is already occupied",
     "connectors_mismatch": "Roads and water must connect to matching edges",
     "inventory_count": "Spare pieces: {{count}}",
     "mode_pan": "Move map",
-    "mode_select": "Move tiles",
+    "mode_select": "Move pieces",
     "mode_walk": "Walk hero",
     "mode_hint_pan": "Click an empty part of the map and drag without releasing to move the view.",
     "mode_hint_select": "Click a tile and, without releasing, drag it to another cell or back to the bottom row.",
     "mode_hint_walk": "Click a road segment on the map to place the hero; he will start walking automatically.",
     "rules_button": "Map rules",
-    "rules_title": "Map placement rules",
+    "rules_title": "Piece placement rules",
     "rules_roads": "Road edges connect only to road edges or portals.",
     "rules_water": "River, water, lake, and shore edges connect only to matching water edges.",
     "rules_mismatch": "If a neighboring edge does not match, the tile returns to where it came from.",
@@ -1790,7 +1790,7 @@
     "walker_play": "Resume hero",
     "walker_no_road": "Drop the hero onto a road",
     "walker_no_path": "No connected road from here",
-    "inventory_collapse": "Collapse tile row",
-    "inventory_expand": "Expand tile row"
+    "inventory_collapse": "Collapse piece row",
+    "inventory_expand": "Expand piece row"
   }
 }
