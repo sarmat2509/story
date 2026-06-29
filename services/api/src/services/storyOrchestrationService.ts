@@ -75,7 +75,13 @@ import {
   omitOutfitProseForNonHumanCharacters,
 } from './outfitPlateService';
 import type { CharacterReference } from '../prompts/image';
-import { buildImageSystemInstruction, buildEnvironmentImagePrompt } from '../prompts/image';
+import {
+  ENVIRONMENT_REFERENCE_CACHE_PREFIX,
+  buildEnvironmentImageCacheDescription,
+  buildImageSystemInstruction,
+  buildEnvironmentImagePrompt,
+  isCurrentEnvironmentImageCacheDescription,
+} from '../prompts/image';
 import {
   buildImageEditSystemInstruction,
   type ImageEditRepairManifest,
@@ -3022,12 +3028,13 @@ async function getOrCreateEnvironmentImage(params: {
   const envCacheRepo = getEnvironmentImageCacheRepository();
   const storyEnvRepo = getStoryEnvironmentCacheRepository();
   const threshold = config.image.environmentEmbeddingSimilarityThreshold;
+  const cacheDescription = buildEnvironmentImageCacheDescription(environment.description);
 
   // 1. Check story_environment_cache (current story)
   const existing = await storyEnvRepo.getByStoryAndEnvId(storyId, storyEnvironmentId);
   if (existing) {
     const cached = await envCacheRepo.getById(existing.cacheId);
-    if (cached) {
+    if (cached && isCurrentEnvironmentImageCacheDescription(cached.description)) {
       const buffer = await assetStorage.getAssetByPath(cached.storagePath);
       return {
         base64: buffer.toString('base64'),
@@ -3043,7 +3050,7 @@ async function getOrCreateEnvironmentImage(params: {
       const prevExisting = await storyEnvRepo.getByStoryAndEnvId(prevStoryId, storyEnvironmentId);
       if (prevExisting) {
         const cached = await envCacheRepo.getById(prevExisting.cacheId);
-        if (cached) {
+        if (cached && isCurrentEnvironmentImageCacheDescription(cached.description)) {
           const buffer = await assetStorage.getAssetByPath(cached.storagePath);
           await storyEnvRepo.upsert(storyId, storyEnvironmentId, prevExisting.cacheId);
           logger.info(
@@ -3061,8 +3068,10 @@ async function getOrCreateEnvironmentImage(params: {
   }
 
   // 2. Embedding search
-  const embedding = await generateEmbedding(environment.description);
-  const similar = await envCacheRepo.findSimilar(embedding, threshold);
+  const embedding = await generateEmbedding(cacheDescription);
+  const similar = await envCacheRepo.findSimilar(embedding, threshold, {
+    descriptionPrefix: ENVIRONMENT_REFERENCE_CACHE_PREFIX,
+  });
   if (similar) {
     const buffer = await assetStorage.getAssetByPath(similar.storagePath);
     await storyEnvRepo.upsert(storyId, storyEnvironmentId, similar.id);
@@ -3097,7 +3106,7 @@ async function getOrCreateEnvironmentImage(params: {
 
     await envCacheRepo.create({
       id: cacheId,
-      description: environment.description,
+      description: cacheDescription,
       descriptionEmbedding: embedding,
       storagePath,
       storageUrl: `/api/v1/assets/${storagePath}`,

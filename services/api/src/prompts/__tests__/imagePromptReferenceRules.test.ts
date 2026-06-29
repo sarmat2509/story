@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildSceneImagePrompt, buildImageSystemInstruction } from '../image/ImagePrompts';
+import { buildSceneImagePrompt, buildImageSystemInstruction, buildEnvironmentImagePrompt } from '../image/ImagePrompts';
 import { ImageDomainService } from '../../domain/image/ImageDomainService';
 
 function testReferenceBackedCharacterDoesNotDuplicateTextIdentity() {
@@ -260,6 +260,38 @@ function testSystemInstructionStatesReferenceIdentityWins() {
   assert.ok(systemInstruction.includes('ENVIRONMENT REFERENCE: The provided location image is for CONTENT only'));
 }
 
+function testEnvironmentPromptSanitizesCharacterOwnedLocations() {
+  const gardenPrompt = buildEnvironmentImagePrompt({
+    environment: {
+      id: 'env_old_garden',
+      name: 'Old overgrown garden',
+      description:
+        'An old overgrown garden in morning light. Behind the bench, a dense hedge of green bushes fills the background; a small arched gap in the bushes reveals the rounded rise of Matilda’s shell pushing up from under a thick layer of brown leaves.',
+    },
+  });
+  const shellPrompt = buildEnvironmentImagePrompt({
+    environment: {
+      id: 'env_shell_forest',
+      name: 'Matilda’s Shell Forest: Dew Springs Clearing',
+      description:
+        'On top of Matilda’s shell: a miniature forest clearing with springy mossy grass covering most of the ground. A dense patch of waist-high (to Emilia) fern thickets occupies the left midground. A large rounded gray boulder stands in the background right, its base surrounded by darker wet soil where snails gather. The shell’s curved edge is visible as a rough brown rim in the far background.',
+    },
+  });
+
+  assert.ok(gardenPrompt.includes('ENVIRONMENT REFERENCE PLATE ONLY'));
+  assert.ok(gardenPrompt.includes('large inert shell-shaped mound under a thick layer of brown leaves'));
+  assert.ok(gardenPrompt.includes('no people, no characters, no animals, no creatures'));
+  assert.ok(!gardenPrompt.includes('Matilda'));
+
+  assert.ok(shellPrompt.includes('on top of a large inert shell-shaped landform'));
+  assert.ok(shellPrompt.includes('small-story-scale height fern thickets'));
+  assert.ok(shellPrompt.includes('small static traces remain'));
+  assert.ok(shellPrompt.includes('render only an inert landform or prop'));
+  assert.ok(!shellPrompt.includes('Matilda'));
+  assert.ok(!shellPrompt.includes('Emilia'));
+  assert.ok(!shellPrompt.includes('snails gather'));
+}
+
 async function testImageDomainUsesPerSceneEnvironmentReferenceFlag() {
   let capturedSystemInstruction = '';
   const imageProvider = {
@@ -305,6 +337,7 @@ testReferenceBackedCharacterWithoutOutfitPlateKeepsReferenceClothes();
 testTextOnlyCharacterStillReceivesOutfitText();
 testPlaceholderReferenceNameResolvesToSingleUnmatchedSceneCharacter();
 testSystemInstructionStatesReferenceIdentityWins();
+testEnvironmentPromptSanitizesCharacterOwnedLocations();
 
 async function main() {
   await testImageDomainUsesPerSceneEnvironmentReferenceFlag();

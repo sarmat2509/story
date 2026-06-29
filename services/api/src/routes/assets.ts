@@ -69,6 +69,56 @@ async function sendPrivateFile(res: Response, relativePath: string, mimeType?: s
   res.sendFile(fullPath);
 }
 
+type StoryAssetFile = {
+  id: string;
+  storagePath: string;
+  thumbnailPath: string | null;
+  mimeType: string;
+};
+
+async function sendStoryAssetFile(
+  res: Response,
+  asset: StoryAssetFile,
+  requestedPath: string,
+  visibility: 'public' | 'private',
+): Promise<boolean> {
+  const sendFile = visibility === 'public' ? sendPublicFile : sendPrivateFile;
+  const requestedMimeType = requestedPath === asset.thumbnailPath
+    ? getMimeTypeForFile(requestedPath)
+    : asset.mimeType;
+
+  try {
+    await sendFile(res, requestedPath, requestedMimeType);
+    return true;
+  } catch (error) {
+    const canServeThumbnailFallback =
+      requestedPath === asset.storagePath &&
+      asset.thumbnailPath &&
+      asset.thumbnailPath !== requestedPath &&
+      isPathSafe(asset.thumbnailPath);
+
+    if (!canServeThumbnailFallback) {
+      logger.warn({ error, assetId: asset.id, requestedPath }, 'Story asset file missing');
+      return false;
+    }
+
+    try {
+      await sendFile(res, asset.thumbnailPath, getMimeTypeForFile(asset.thumbnailPath));
+      logger.warn(
+        { assetId: asset.id, requestedPath, thumbnailPath: asset.thumbnailPath },
+        'Story asset original missing, served thumbnail fallback',
+      );
+      return true;
+    } catch (fallbackError) {
+      logger.warn(
+        { error, fallbackError, assetId: asset.id, requestedPath, thumbnailPath: asset.thumbnailPath },
+        'Story asset original and thumbnail fallback missing',
+      );
+      return false;
+    }
+  }
+}
+
 function getStringQueryParam(value: unknown): string | null {
   if (typeof value === 'string') return value;
   if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
@@ -554,15 +604,14 @@ router.get('/*', async (req: Request, res: Response) => {
     });
 
     if (publicDecision.allowed) {
-      try {
-        await sendPublicFile(res, assetPath, asset.mimeType);
+      if (await sendStoryAssetFile(res, asset, assetPath, 'public')) {
         return;
-      } catch {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Asset file not found'
-        });
       }
+
+      return res.status(404).json({
+        status: 'error',
+        message: 'Asset file not found',
+      });
     }
 
     const session = await getAssetRequestSession(req);
@@ -577,15 +626,14 @@ router.get('/*', async (req: Request, res: Response) => {
       return sendAssetAccessDenied(res, authenticatedDecision);
     }
     
-    try {
-      await sendPrivateFile(res, assetPath, asset.mimeType);
+    if (await sendStoryAssetFile(res, asset, assetPath, 'private')) {
       return;
-    } catch {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Asset file not found'
-      });
     }
+
+    return res.status(404).json({
+      status: 'error',
+      message: 'Asset file not found',
+    });
   } catch (error) {
     logger.error({ error, path: req.params[0] }, 'Failed to serve asset');
     res.status(500).json({

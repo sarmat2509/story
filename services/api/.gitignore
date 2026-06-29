@@ -2,6 +2,7 @@ uploads/*
 !uploads/voice-samples/
 uploads/voice-samples/**
 !uploads/voice-samples/**/*.mp3
+seedream-reference-story-output/
 *.log
 .env
 .env.local

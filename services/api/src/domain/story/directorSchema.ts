@@ -49,7 +49,7 @@ export const DIRECTOR_SCHEMA: JsonSchema = {
         properties: {
           id: { type: 'string', description: 'Short unique identifier' },
           name: { type: 'string', description: 'Human-readable location name' },
-          description: { type: 'string', description: 'Base visual description IN ENGLISH. Include ALL static objects (tree, flower, path, bushes) with fixed positions and relative layout. Key objects stay in same positions across all illustrations. Include weather/time-of-day when it affects the location (snow, rain, night).' },
+          description: { type: 'string', description: 'Base visual description IN ENGLISH for a reusable EMPTY LOCATION PLATE. Include ALL static objects (tree, flower, path, bushes) with fixed positions and relative layout. Key objects stay in same positions across all illustrations. Include weather/time-of-day when it affects the location (snow, rain, night). Do not include people, animals, creatures, character actions, or named-character scale comparisons. If the location is on/inside a character-owned shell, den, nest, house, or body-adjacent place, describe only inert terrain/architecture and never the character body, face, eyes, limbs, or living anatomy.' },
         },
         required: ['id', 'name', 'description'],
       },

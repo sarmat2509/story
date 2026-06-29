@@ -51,6 +51,8 @@
     "defer-tts:tagged-to-audio": "tsx src/scripts/deferTaggedSamplesToTtsAudio.ts",
     "defer-tts:ru-scary-audio": "DEFER_TTS_LANGUAGE=ru DEFER_TTS_GOOGLE_VOICE=Charon tsx src/scripts/deferTaggedSamplesToTtsAudio.ts -- --from-file=defer-tts-ru-scary-tagged-output.txt --out=./defer-tts-ru-scary-audio-out --omit-google-style-prompt",
     "generate:ru-scary-story": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 tsx src/scripts/generateRussianScaryStorySample.ts",
+    "generate:seedream-reference-story": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 tsx src/scripts/generateSeedreamReferenceStorySample.ts",
+    "generate:seedream-existing-characters": "WT_SKIP_PROCESS_SIGNAL_HANDLERS=1 tsx src/scripts/generateSeedreamExistingCharactersSample.ts",
     "test:tts-prosody-tagged-text": "tsx src/utils/__tests__/ttsProsodyTaggedText.test.ts",
     "test:bundle-period-overlap": "tsx src/services/__tests__/bundlePeriodOverlap.test.ts",
     "test:outfit-plate-service": "tsx src/services/__tests__/outfitPlateService.test.ts",

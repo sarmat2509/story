@@ -19,6 +19,9 @@ import {
   lookupOutfitForCharacterName,
 } from '../../utils/characterOutfits';
 
+export const ENVIRONMENT_REFERENCE_PROMPT_VERSION = 'env_ref_plate_v2';
+export const ENVIRONMENT_REFERENCE_CACHE_PREFIX = `[${ENVIRONMENT_REFERENCE_PROMPT_VERSION}]`;
+
 /**
  * Resolve outfit plate "Image N" index for a character (map keys may be full or base names).
  */
@@ -300,6 +303,68 @@ function sanitizeSettingForImagePrompt(setting: string): string {
     .filter((part) => !stylePatterns.some((pattern) => pattern.test(part)));
 
   return cleanupPromptText(filtered.join(' '));
+}
+
+function sanitizeEnvironmentDescriptionForReferenceImage(description: string): string {
+  if (!description.trim()) return description;
+  let sanitized = stripAllTags(description);
+
+  sanitized = sanitized.replace(/\s*\[ID:\s*[0-9a-f-]{8,}\]/giu, '');
+
+  // Treat character-owned body/location names as inert terrain for environment plates.
+  sanitized = sanitized.replace(
+    /\bon top of\s+[\p{Lu}][\p{L}'’`-]*[’'`]\s*s\s+shell\b/giu,
+    'on top of a large inert shell-shaped landform',
+  );
+  sanitized = sanitized.replace(
+    /\bthe rounded rise of\s+(?!shell[’'`]\s*s\b)[\p{L}][\p{L}'’`-]*[’'`]\s*s\s+shell\s+pushing up from under/giu,
+    'the rounded rise of a large inert shell-shaped mound under',
+  );
+  sanitized = sanitized.replace(
+    /\b(?!shell[’'`]\s*s\b)[\p{L}][\p{L}'’`-]*[’'`]\s*s\s+shell\b/giu,
+    'a large inert shell-shaped landform',
+  );
+  sanitized = sanitized.replace(
+    /\b(?!shell[’'`]\s*s\b)[\p{L}][\p{L}'’`-]*[’'`]\s*s\s+([a-z][\p{L}-]*)\b/giu,
+    'the $1',
+  );
+  sanitized = sanitized.replace(/\bthe\s+the\b/gi, 'the');
+
+  // Scale comparisons must not invite the character into the environment image.
+  sanitized = sanitized.replace(
+    /\(\s*(?:to|for|relative to|compared to)\s+[\p{Lu}][\p{L}'’`-]*(?:\s+[A-Z][\p{L}'’`-]*)?\s*\)/gu,
+    '(small-story scale)',
+  );
+  sanitized = sanitized.replace(
+    /\b(?:waist|knee|ankle|shoulder|head)[-\s]high\s+\(small-story scale\)/gi,
+    'small-story-scale height',
+  );
+  sanitized = sanitized.replace(
+    /\b(?:waist|knee|ankle|shoulder|head)[-\s]high\s+to\s+[\p{Lu}][\p{L}'’`-]*\b/gu,
+    'small-story-scale height',
+  );
+
+  // Environment references are reusable plates, so living extras become static traces.
+  const creatureWords =
+    '(?:people|persons|children|kids|boys|girls|adults|characters|animals|creatures|snails|birds|mice|rabbits|dogs|cats|insects|butterflies|bees)';
+  sanitized = sanitized.replace(
+    new RegExp(`\\bwhere\\s+${creatureWords}\\s+(?:gather|stand|sit|wait|rest|sleep|hide|play|walk|move)\\b`, 'giu'),
+    'where small static traces remain',
+  );
+  sanitized = sanitized.replace(
+    new RegExp(`\\b${creatureWords}\\s+(?:gather|stand|sit|wait|rest|sleep|hide|play|walk|move)\\b`, 'giu'),
+    'small static traces remain',
+  );
+
+  return cleanupPromptText(sanitized);
+}
+
+export function buildEnvironmentImageCacheDescription(description: string): string {
+  return `${ENVIRONMENT_REFERENCE_CACHE_PREFIX} ${sanitizeEnvironmentDescriptionForReferenceImage(description)}`;
+}
+
+export function isCurrentEnvironmentImageCacheDescription(description: string | null | undefined): boolean {
+  return !!description?.startsWith(ENVIRONMENT_REFERENCE_CACHE_PREFIX);
 }
 
 function canonicalizeReferenceNameMentions(text: string, canonicalNames: string[]): string {
@@ -777,17 +842,28 @@ export function buildEnvironmentImagePrompt(params: {
     config.image.environmentImageStyle ||
     'clean line art, simple shapes, clear spatial layout';
   const safetyAdditions = imagePolicy.imageSafetyAdditions;
+  const environmentDescription = sanitizeEnvironmentDescriptionForReferenceImage(
+    params.environment.description,
+  );
 
   const parts = [
+    'ENVIRONMENT REFERENCE PLATE ONLY: draw a reusable empty location/terrain plate, not a story moment',
     stylePrefix,
-    params.environment.description,
+    environmentDescription,
     'Key objects must be in fixed positions relative to each other. Maintain consistent spatial layout: left, center, right. Describe relationships (path beside tree, bushes left of path, house behind trees).',
-    'Empty location, no people or animals, wide establishing shot.',
+    'Empty location, no people, no characters, no animals, no creatures, no faces, no eyes, no limbs, no silhouettes, no living figures, wide establishing shot.',
+    'If a character name appears as a place owner, scale cue, or location name, treat it only as non-visual metadata and do not draw that character.',
+    'If a shell, den, nest, or animal body is used as terrain, render only an inert landform or prop with no head, legs, eyes, face, skin, motion, or creature anatomy.',
+    'If the source description mentions animals or insects gathering, omit the living creatures and show only static environmental traces if needed.',
     safetyAdditions,
     'No text or letters in the image.',
   ];
 
-  return parts.filter(Boolean).join('. ');
+  return parts
+    .filter(Boolean)
+    .map((part) => cleanupPromptText(part).replace(/[.?!]+$/g, ''))
+    .filter(Boolean)
+    .join('. ') + '.';
 }
 
 /**

@@ -16,7 +16,7 @@ export interface DirectorPromptParams {
   userCharacters: Array<{ id?: string; name: string }>;
 }
 
-export const DIRECTOR_CACHE_KEY = 'director_rules_v23';
+export const DIRECTOR_CACHE_KEY = 'director_rules_v24';
 export const MAP_TILE_BRIEF_CACHE_KEY = 'map_tile_brief_rules_v11';
 
 const DIRECTOR_SYSTEM_PROMPT = `You are the visual director for a children's story. Your role is to translate the story text into visual descriptions for illustrations: describe characters (appearance, clothing), environments (locations, setting), and the composition of each image (camera angle, character placement, lighting). You do not write the story text — it is already written. You are responsible only for how the story will look in illustrations: what to draw, where to place elements, what angle to show. Your descriptions go to an image generation system, so they must be concrete, visual, and in English.
@@ -46,6 +46,7 @@ Output contract:
 - Each illustration must include environmentId, primaryRead, and sceneVisual.
 - Each cameraComposition.characters row must include name, description, and outfitId.
 - New characters must receive detailed visual descriptions for image generation.
+- environments[].description is a reusable EMPTY LOCATION PLATE, not a scene illustration. It must describe only stable terrain, architecture, furniture, plants, props, weather, time of day, and fixed object layout. Do not include people, animals, creatures, character poses/actions, story beats, or scale comparisons to named characters. If a location is named after a character or is on/inside a character's shell/house/den/nest, describe the visible place as inert terrain/architecture only, with no head, eyes, limbs, face, body, or living creature anatomy. Put characters only in illustrations[].sceneVisual.cameraComposition.characters.
 
 ${imagePromptRules}
 
@@ -169,6 +170,10 @@ CONSISTENCY ACROSS ILLUSTRATIONS: Scan all blocks before creating each illustrat
 CARRIED ITEMS ACROSS ILLUSTRATIONS: When the same story segment implies a character repeatedly keeps the same portable gear, reflect it consistently in outfits[].description (as worn/carried wardrobe items only), reuse the same outfitId on that character's cameraComposition row, and show it in illustrations for that segment unless the text explicitly removes or exchanges it. Do not show new portable gear only in a late illustration without support in the story text.
 
 STATIC OBJECTS CONSISTENCY: Key static objects (tree, building, path, bushes, flower, rock) MUST be in environments[].description with fixed position and mutual layout. Across all illustrations in the same environment, objects stay in the same positions relative to each other. No new static objects in sceneVisual — only state changes (bloomed, lit up) for objects from environment. The object must appear on the environment image.
+
+ENVIRONMENT PLATE PURITY: environments[].description is used to generate a reusable empty background/reference image before characters are added. It must not contain any visible people, animals, creatures, named character actions, or living extras. If the story location includes a character-owned shell, den, nest, house, or body-adjacent place, describe only the inert visible terrain/architecture (for example: "a large shell-shaped mound under leaves", "rough brown shell rim as a terrain edge"), never the character's body, face, limbs, eyes, or implied presence. Do not write scale notes like "waist-high to Emilia"; use neutral scale such as "small-story-scale" or concrete object sizes. If animals would gather there, omit them from the environment and reserve them for sceneVisual.cameraComposition.characters only when they are actual scene characters.
+Bad environment description: "Matilda's Shell Forest with waist-high (to Emilia) ferns where snails gather."
+Good environment description: "Miniature moss clearing on a large inert shell-shaped landform, small-story-scale fern thickets on the left, shallow reflective dew spring center-right, rounded gray boulder on the right, trickling stream along the foreground, rough brown shell rim as the far terrain edge."
 
 ${costumeRules}
 

@@ -17,7 +17,8 @@ export class EnvironmentImageCacheRepository {
 
   async findSimilar(
     embedding: number[],
-    threshold: number
+    threshold: number,
+    options?: { descriptionPrefix?: string }
   ): Promise<FindSimilarResult | null> {
     const all = await this.db.select().from(schema.environmentImageCache);
 
@@ -26,6 +27,9 @@ export class EnvironmentImageCacheRepository {
     let best: FindSimilarResult | null = null;
 
     for (const row of all) {
+      if (options?.descriptionPrefix && !row.description.startsWith(options.descriptionPrefix)) {
+        continue;
+      }
       const stored = row.descriptionEmbedding as number[];
       if (!stored || stored.length !== embedding.length) continue;
 

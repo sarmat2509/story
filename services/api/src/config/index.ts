@@ -300,6 +300,23 @@ export const config = {
     maxPromptLength: parseInt(process.env.NANO_BANANA_MAX_PROMPT_LENGTH || '2000', 10), // Max chars before truncation
   },
 
+  // Seedream (BytePlus ModelArk) - OpenAI-compatible image generation with references
+  seedream: {
+    apiKey: process.env.SEEDREAM_API_KEY || process.env.ARK_API_KEY || '',
+    baseUrl:
+      process.env.SEEDREAM_BASE_URL ||
+      process.env.ARK_BASE_URL ||
+      'https://ark.ap-southeast.bytepluses.com/api/v3',
+    model: process.env.SEEDREAM_MODEL || 'seedream-4-5-251128',
+    /** Optional explicit size. Empty means provider maps app aspect ratios to supported pixel sizes. */
+    size: (process.env.SEEDREAM_SIZE || '').trim(),
+    outputFormat: process.env.SEEDREAM_OUTPUT_FORMAT || 'jpeg',
+    responseFormat: process.env.SEEDREAM_RESPONSE_FORMAT || 'b64_json',
+    watermark: process.env.SEEDREAM_WATERMARK === 'true',
+    optimizePromptMode: (process.env.SEEDREAM_OPTIMIZE_PROMPT_MODE || '').trim(),
+    timeoutMs: parseInt(process.env.SEEDREAM_TIMEOUT_MS || '180000', 10),
+  },
+
   // Audio/TTS Generation (M5)
   audio: {
     provider: process.env.AUDIO_PROVIDER || 'elevenlabs', // 'elevenlabs' | 'google' | 'openai' | 'grok'

@@ -13,6 +13,7 @@ import { OpenAITextProvider } from '../providers/text/openai';
 import { GeminiQuotaProvider } from '../providers/image/gemini/GeminiQuotaProvider';
 import { NanoBananaProProvider } from '../providers/image/nanobananapro';
 import { OpenAIImageProvider } from '../providers/image/openai';
+import { SeedreamImageProvider } from '../providers/image/seedream';
 import { ElevenLabsProvider } from '../providers/audio/elevenlabs';
 import { GoogleTTSProvider } from '../providers/audio/google/GoogleTTSProvider';
 import { OpenAITTSProvider } from '../providers/audio/openai/OpenAITTSProvider';
@@ -262,6 +263,7 @@ function getImageValidationFallbackTextProvider(): ITextProvider | undefined {
  * Supports:
  * - 'nanobananapro': Gemini Flash/Pro Image (for cartoon/illustration with character consistency)
  * - 'openai': GPT Image via Responses API (for character consistency with input_fidelity)
+ * - 'seedream': BytePlus ModelArk Seedream image generation with references
  * - 'gemini': Gemini 2.5 Flash Image only (same stack as env / cheap paths; Imagen removed)
  */
 function getImageProvider(): IImageProvider {
@@ -278,6 +280,10 @@ function getImageProvider(): IImageProvider {
       case 'openai':
         // OpenAI GPT Image via Responses API
         imageProvider = new OpenAIImageProvider(config.ai.openaiApiKey);
+        break;
+      case 'seedream':
+        // BytePlus ModelArk Seedream via OpenAI-compatible Images API
+        imageProvider = new SeedreamImageProvider(config.seedream.apiKey);
         break;
       case 'gemini':
         imageProvider = new NanoBananaProProvider(
