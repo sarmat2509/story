@@ -322,7 +322,7 @@ const ARTICLES: BlogArticleDefinition[] = [
         'Важно помнить, что СДВГ и трудности чтения могут пересекаться. Если ребенок постоянно избегает текста, быстро злится, теряет строку или не понимает прочитанное, дело может быть не только во внимании. Тогда история должна стать мягче, а проверки лучше отложить.',
       ],
       es: [
-        'El apoyo conductual para el TDAH suele usar estructura, señales externas y feedback rápido. En una historia eso se traduce en objetivos visibles, pistas repetidas y pequeños logros.',
+        'El apoyo conductual para el TDAH suele usar estructura, señales externas y respuesta rápida. En una historia eso se traduce en objetivos visibles, pistas repetidas y pequeños logros.',
         'Las guías de CDC y pediatría describen el apoyo conductual con instrucciones breves, reglas predecibles, refuerzo y acompañamiento adulto. En lectura significa menos “presta atención” y más “ahora buscamos la llave, luego elegimos una puerta”.',
         'También conviene recordar que el TDAH y las dificultades lectoras pueden solaparse. Si el niño evita el texto, se enfada rápido, pierde la línea o no comprende, puede no ser solo atención. La historia debe hacerse más suave y la evaluación puede esperar.',
       ],
@@ -337,7 +337,7 @@ const ARTICLES: BlogArticleDefinition[] = [
         'Le TDAH et les difficultés de lecture peuvent aussi se croiser. Si l’enfant évite le texte, s’énerve vite, perd la ligne ou comprend peu, ce n’est peut-être pas seulement l’attention. L’histoire doit devenir plus douce, et l’évaluation peut attendre.',
       ],
       pl: [
-        'Wsparcie behawioralne przy ADHD często opiera się na strukturze, zewnętrznych wskazówkach i szybkim feedbacku. W bajce oznacza to widoczne cele i małe zwycięstwa.',
+        'Wsparcie behawioralne przy ADHD często opiera się na strukturze, zewnętrznych wskazówkach i szybkiej informacji zwrotnej. W bajce oznacza to widoczne cele i małe zwycięstwa.',
         'CDC i zalecenia pediatryczne opisują wsparcie przez krótkie instrukcje, przewidywalne zasady, wzmacnianie i pomoc dorosłego. W czytaniu oznacza to mniej “skup się”, a więcej “teraz szukamy klucza, potem wybieramy drzwi”.',
         'Warto pamiętać, że ADHD i trudności w czytaniu mogą się nakładać. Jeśli dziecko unika tekstu, szybko się złości, gubi linijkę albo nie rozumie treści, problemem może być nie tylko uwaga. Wtedy historia powinna być łagodniejsza, a sprawdzanie może poczekać.',
       ],
@@ -4406,6 +4406,917 @@ const ARTICLES: BlogArticleDefinition[] = [
     },
   },
   {
+    slug: 'rewarded-story-quizzes',
+    heroImage: '/landing/blog/rewarded-story-quizzes-scene-01.webp',
+    updatedAt: '2026-06-29',
+    category: l10n(
+      'Вікторини й мотивація',
+      'Quizzes and motivation',
+      'Викторины и мотивация',
+      'Cuestionarios y motivación',
+      'Quiz und Motivation',
+      'Quiz et motivation',
+      'Quizy i motywacja'
+    ),
+    title: l10n(
+      'Вікторини з винагородою після історії: самоперевірка без шкільного тиску',
+      'Rewarded story quizzes: self-checks without school pressure',
+      'Викторины с вознаграждением после истории: самопроверка без школьного давления',
+      'Cuestionarios con recompensa: comprobar sin presión escolar',
+      'Story-Quiz mit Belohnung: Selbstcheck ohne Schuldruck',
+      'Quiz récompensés après l’histoire : vérifier sans pression scolaire',
+      'Quizy z nagrodą po historii: sprawdzanie bez szkolnej presji'
+    ),
+    description: l10n(
+      'Як перетворити питання після казки на легку гру: пригадати деталь, отримати маленьку винагороду і поговорити, не перетворюючи читання на урок.',
+      'How to turn questions after a story into a light game: remember a detail, unlock a small reward, and talk without turning reading into a lesson.',
+      'Как превратить вопросы после сказки в легкую игру: вспомнить деталь, получить маленькую награду и поговорить, не превращая чтение в урок.',
+      'Cómo convertir las preguntas después de una historia en un juego ligero con recuerdo, premio pequeño y conversación.',
+      'Wie Fragen nach der Geschichte zu einem leichten Spiel werden: erinnern, kleine Belohnung, Gespräch statt Unterricht.',
+      'Transformer les questions après l’histoire en jeu léger : se souvenir, recevoir un petit prix et parler sans faire leçon.',
+      'Jak zmienić pytania po historii w lekką grę: przypomnieć detal, odblokować małą nagrodę i porozmawiać bez lekcji.'
+    ),
+    lead: l10n(
+      'Дитині не потрібен ще один іспит увечері. Але коротка місія після історії може допомогти помітити сенс, відчути успіх і захотіти повернутися до читання.',
+      'A child does not need another exam at night. A tiny quest after a story can help them notice meaning, feel successful, and want to come back to reading.',
+      'Ребенку не нужен еще один экзамен вечером. Но короткая миссия после истории помогает заметить смысл, почувствовать успех и захотеть вернуться к чтению.',
+      'Un niño no necesita otro examen por la noche. Una pequeña misión tras la historia puede ayudarle a notar sentido, sentir éxito y volver a leer.',
+      'Ein Kind braucht abends keine weitere Prüfung. Eine kleine Mission nach der Geschichte kann Sinn sichtbar machen, Erfolg geben und Lust aufs Lesen erhalten.',
+      'Un enfant n’a pas besoin d’un examen de plus le soir. Une petite mission après l’histoire peut aider à voir le sens, réussir et revenir lire.',
+      'Dziecko nie potrzebuje wieczorem kolejnego sprawdzianu. Mała misja po historii pomaga zauważyć sens, poczuć sukces i wrócić do czytania.'
+    ),
+    focus: {
+      uk: [
+        'Після хорошого сюжету питання має звучати як “згадай секрет героя”, а не “доведи, що слухав”. У WonderTales коротка вікторина підсвічує сенс історії: хто допоміг, що змінило рішення героя, який предмет виявився важливим.',
+        'Найчастіший батьківський страх звучить чесно: “а раптом дитина читатиме тільки за приз?”. У WonderTales винагорода не купує увагу, а працює як маленький ритуал завершення: значок, іскорка, вибір наступного героя або м’яка додаткова сцена.',
+        'Вікторина тримається короткою: кілька завдань на хвилину, щоб відновити порядок подій, вибрати предмет із сюжету, знайти емоцію персонажа або пояснити причину. Це не оцінка, а спосіб сказати дитині: “ти помітив важливе, ти всередині історії”.',
+      ],
+      en: [
+        'After a good story, the question can feel like “remember the hero’s secret,” not “prove you listened.” In WonderTales, the short quiz highlights story meaning: who helped, what changed the hero’s decision, which object mattered.',
+        'The parent worry is reasonable: “what if my child reads only for the prize?” In WonderTales, the reward does not buy attention; it acts as a tiny closing ritual: a badge, a sparkle, the right to choose the next hero, or a soft bonus scene.',
+        'The quiz stays short: a few one-minute activities to restore the order of events, choose a story object, find a character’s emotion, or explain a cause. It is not a grade; it is a way to tell the child, “you noticed something important.”',
+      ],
+      ru: [
+        'После хорошего сюжета вопрос может звучать как “вспомни секрет героя”, а не “докажи, что слушал”. В WonderTales короткая викторина подсвечивает смысл истории: кто помог, что изменило решение героя, какой предмет оказался важным.',
+        'Главный родительский страх здесь понятен: “а вдруг ребенок будет читать только ради приза?”. В WonderTales награда не покупает внимание, а работает как маленький ритуал завершения: значок, искорка, выбор следующего героя или мягкая дополнительная сцена.',
+        'Викторина остается короткой: несколько заданий на минуту, чтобы восстановить порядок событий, выбрать предмет из сюжета, найти эмоцию персонажа или объяснить причину. Это не оценка, а способ сказать ребенку: “ты заметил важное, ты внутри истории”.',
+      ],
+      es: [
+        'Tras una buena historia, la pregunta puede sonar a “recuerda el secreto del héroe”, no a “demuestra que escuchaste”. En WonderTales, el cuestionario breve ilumina el sentido: quién ayudó, qué cambió la decisión, qué objeto importaba.',
+        'La preocupación de muchas familias es razonable: “¿y si lee solo por el premio?”. En WonderTales, la recompensa no compra atención; funciona como pequeño ritual de cierre: insignia, brillo, elegir al siguiente héroe o abrir una escena extra suave.',
+        'El cuestionario se mantiene breve: unas pocas actividades de un minuto para ordenar hechos, elegir un objeto, encontrar una emoción o explicar una causa. No es una nota; es una forma de decir: “viste algo importante dentro de la historia”.',
+      ],
+      de: [
+        'Nach einer guten Geschichte kann die Frage wie “erinnere dich an das Geheimnis der Figur” klingen, nicht wie “beweise, dass du zugehört hast”. In WonderTales macht das kurze Quiz Bedeutung sichtbar: wer geholfen hat, was eine Entscheidung änderte, welcher Gegenstand wichtig war.',
+        'Die Sorge vieler Eltern ist berechtigt: “Liest mein Kind dann nur noch für die Belohnung?” In WonderTales kauft die Belohnung keine Aufmerksamkeit; sie wirkt als kleiner Abschlussritus: Abzeichen, Funkeln, die nächste Figur wählen oder eine sanfte Bonusszene öffnen.',
+        'Das Quiz bleibt kurz: wenige Ein-Minuten-Aufgaben, um Ereignisse zu ordnen, einen Gegenstand zu wählen, ein Gefühl zu finden oder eine Ursache zu erklären. Das ist keine Note, sondern die Botschaft: “Du hast etwas Wichtiges bemerkt.”',
+      ],
+      fr: [
+        'Après une bonne histoire, la question peut ressembler à “retrouve le secret du héros”, pas à “prouve que tu as écouté”. Dans WonderTales, le quiz court éclaire le sens : qui a aidé, ce qui a changé une décision, quel objet comptait.',
+        'L’inquiétude parentale est légitime : “et si mon enfant lisait seulement pour le prix ?”. Dans WonderTales, la récompense n’achète pas l’attention; elle agit comme un petit rituel de fin : badge, étincelle, choix du prochain héros ou scène bonus douce.',
+        'Le quiz reste bref : quelques activités d’une minute pour remettre les événements en ordre, choisir un objet, trouver une émotion ou expliquer une cause. Ce n’est pas une note, mais une manière de dire : “tu as remarqué quelque chose d’important”.',
+      ],
+      pl: [
+        'Po dobrej historii pytanie może brzmieć jak “przypomnij sobie sekret bohatera”, nie “udowodnij, że słuchałeś”. W WonderTales krótki quiz podświetla sens: kto pomógł, co zmieniło decyzję bohatera, jaki przedmiot był ważny.',
+        'Obawa rodziców jest zrozumiała: “czy dziecko będzie czytać tylko dla nagrody?”. W WonderTales nagroda nie kupuje uwagi; działa jak mały rytuał zakończenia: odznaka, iskierka, wybór następnego bohatera albo łagodna scena bonusowa.',
+        'Quiz pozostaje krótki: kilka minutowych zadań, aby ułożyć kolejność, wybrać przedmiot, znaleźć emocję albo wyjaśnić przyczynę. To nie ocena, lecz komunikat: “zauważyłeś coś ważnego”.',
+      ],
+    },
+    research: {
+      uk: [
+        'Henry L. Roediger III із Вашингтонського університету в Сент-Луїсі і Jeffrey D. Karpicke з Університету Пердью показали: пригадування саме по собі може зміцнювати довготривале запам’ятовування, а не тільки перевіряти знання. Великий огляд John Dunlosky з Кентського державного університету та колег назвав регулярну самоперевірку однією з найкорисніших технік навчання, особливо коли це коротка повторювана практика, а не рідкісний великий іспит.',
+        'У роботах про практику пригадування важлива не сама кнопка “правильно”, а спроба дістати зміст із пам’яті й одразу отримати зрозумілий зворотний зв’язок. Andrew C. Butler і Henry L. Roediger III з Вашингтонського університету в Сент-Луїсі показували, що зворотний зв’язок після відповіді допомагає виправляти помилки. У WonderTales це відображено через підказку з історії замість сухого “ні”.',
+        'З іншого боку, Richard M. Ryan і Edward L. Deci з Рочестерського університету нагадують: мотивацію підтримують автономія, компетентність і зв’язок. У батьківських обговореннях про призи видно дві правди: інколи маленький стимул допомагає почати, але контрольна винагорода може витіснити інтерес. Тому вікторина в WonderTales уже працює як коротка добровільна пригода, а не як оцінка.',
+      ],
+      en: [
+        'Henry L. Roediger III from Washington University in St. Louis and Jeffrey D. Karpicke from Purdue University showed that retrieval can strengthen long-term retention, not merely check knowledge. A large review led by John Dunlosky at Kent State University rated practice testing as a high-utility learning technique, especially when it is short repeated practice instead of a rare big exam.',
+        'In retrieval practice, the key is not the “correct” button; it is the attempt to bring meaning back from memory and receive usable feedback. Andrew C. Butler and Henry L. Roediger III at Washington University in St. Louis showed that feedback after an answer helps correct errors. WonderTales reflects this with a story clue instead of a flat “no.”',
+        'At the same time, Richard M. Ryan and Edward L. Deci from the University of Rochester remind us that motivation is supported by autonomy, competence, and connection. Parent discussions about rewards show two truths: a small prompt can help a child start, but controlling rewards can crowd out interest. That is why the WonderTales quiz works as a short optional adventure, not a grade.',
+      ],
+      ru: [
+        'Henry L. Roediger III из Вашингтонского университета в Сент-Луисе и Jeffrey D. Karpicke из Университета Пердью показали: припоминание может укреплять долговременное запоминание, а не только проверять знания. Большой обзор John Dunlosky из Кентского государственного университета и коллег относит регулярную самопроверку к самым полезным техникам обучения, особенно когда это короткая повторяющаяся практика, а не редкий большой экзамен.',
+        'В работах о практике припоминания важна не сама кнопка “правильно”, а попытка достать смысл из памяти и сразу получить понятную обратную связь. Andrew C. Butler и Henry L. Roediger III из Вашингтонского университета в Сент-Луисе показывали, что обратная связь после ответа помогает исправлять ошибки. В WonderTales это отражено через подсказку из истории вместо сухого “нет”.',
+        'С другой стороны, Richard M. Ryan и Edward L. Deci из Рочестерского университета напоминают: мотивацию поддерживают автономия, компетентность и связь. В родительских обсуждениях о призах видны две правды: иногда маленький стимул помогает начать, но контролирующая награда может вытеснять интерес. Поэтому викторина в WonderTales уже работает как короткое добровольное приключение, а не как оценка.',
+      ],
+      es: [
+        'Henry L. Roediger III, de la Universidad Washington en San Luis, y Jeffrey D. Karpicke, de la Universidad Purdue, mostraron que recuperar información fortalece la memoria a largo plazo, no solo la mide. Una revisión liderada por John Dunlosky en la Universidad Estatal de Kent situó la práctica de autoevaluación entre las técnicas de mayor utilidad, sobre todo cuando es breve y repetida.',
+        'En la práctica de recuperación, lo importante no es el botón “correcto”, sino intentar traer el sentido desde la memoria y recibir una ayuda clara. Andrew C. Butler y Henry L. Roediger III, de la Universidad Washington en San Luis, mostraron que la retroalimentación ayuda a corregir errores. WonderTales lo refleja con una pista de la historia en lugar de un “no” seco.',
+        'A la vez, Richard M. Ryan y Edward L. Deci, de la Universidad de Rochester, recuerdan que la motivación necesita autonomía, competencia y vínculo. En debates de padres sobre premios aparecen dos verdades: un incentivo pequeño puede ayudar a empezar, pero una recompensa controladora puede desplazar el interés. Por eso el cuestionario de WonderTales funciona como aventura breve y opcional, no como nota.',
+      ],
+      de: [
+        'Henry L. Roediger III von der Washington-Universität in St. Louis und Jeffrey D. Karpicke von der Purdue-Universität zeigten, dass Abrufen langfristiges Behalten stärkt und nicht nur Wissen prüft. Eine große Übersicht unter Leitung von John Dunlosky an der Kent-State-Universität bewertete regelmäßige Selbstabfragen als besonders nützlich, vor allem als kurze wiederholte Praxis.',
+        'Bei der Übung des Erinnerns zählt nicht der “richtig”-Knopf, sondern der Versuch, Bedeutung aus dem Gedächtnis zu holen und hilfreiche Rückmeldung zu bekommen. Andrew C. Butler und Henry L. Roediger III von der Washington-Universität in St. Louis zeigten, dass Rückmeldung nach Antworten Fehler korrigieren hilft. WonderTales greift das mit einer Spur aus der Geschichte auf, nicht mit einem trockenen “nein”.',
+        'Gleichzeitig erinnern Richard M. Ryan und Edward L. Deci von der Universität Rochester daran, dass Motivation Autonomie, Kompetenz und Beziehung braucht. In Elterndebatten über Belohnungen sieht man beides: Ein kleiner Anstoß kann den Start erleichtern, kontrollierende Belohnung kann Interesse verdrängen. Das WonderTales-Quiz funktioniert deshalb als kurzes freiwilliges Abenteuer, nicht als Note.',
+      ],
+      fr: [
+        'Henry L. Roediger III, de l’Université Washington à Saint-Louis, et Jeffrey D. Karpicke, de l’Université Purdue, ont montré que récupérer une information renforce la mémoire à long terme, pas seulement l’évalue. Une grande revue menée par John Dunlosky à l’Université d’État de Kent classe l’autoévaluation régulière parmi les techniques les plus utiles, surtout quand elle est courte et répétée.',
+        'Dans la pratique de récupération en mémoire, le cœur n’est pas le bouton “correct”, mais l’effort de retrouver le sens et de recevoir un retour utile. Andrew C. Butler et Henry L. Roediger III, de l’Université Washington à Saint-Louis, ont montré que le retour après réponse aide à corriger les erreurs. WonderTales reprend cela avec un indice tiré de l’histoire, pas un simple “non”.',
+        'En même temps, Richard M. Ryan et Edward L. Deci, de l’Université de Rochester, rappellent que la motivation s’appuie sur autonomie, compétence et lien. Les discussions de parents sur les récompenses montrent deux vérités : un petit encouragement peut aider à commencer, mais une récompense contrôlante peut étouffer l’intérêt. Le quiz WonderTales fonctionne donc comme une courte aventure volontaire, pas comme une note.',
+      ],
+      pl: [
+        'Henry L. Roediger III z Uniwersytetu Waszyngtona w St. Louis i Jeffrey D. Karpicke z Uniwersytetu Purdue pokazali, że przypominanie wzmacnia pamięć długotrwałą, a nie tylko ją sprawdza. Duży przegląd prowadzony przez John Dunlosky z Uniwersytetu Stanowego Kent uznał regularne samosprawdzanie za jedną z najbardziej użytecznych technik, szczególnie gdy jest krótką, powtarzaną praktyką.',
+        'W praktyce przypominania ważny nie jest sam przycisk “dobrze”, lecz próba wydobycia sensu z pamięci i szybka, zrozumiała informacja zwrotna. Andrew C. Butler i Henry L. Roediger III z Uniwersytetu Waszyngtona w St. Louis pokazywali, że informacja zwrotna po odpowiedzi pomaga poprawiać błędy. WonderTales wykorzystuje to jako wskazówkę z historii zamiast suchego “nie”.',
+        'Z drugiej strony Richard M. Ryan i Edward L. Deci z Uniwersytetu Rochester przypominają, że motywację wspierają autonomia, kompetencja i więź. W rozmowach rodziców o nagrodach widać dwie prawdy: mały bodziec może pomóc zacząć, ale kontrolująca nagroda może wypierać zainteresowanie. Quiz w WonderTales działa więc jak krótka dobrowolna przygoda, nie jak ocena.',
+      ],
+    },
+    storyUse: {
+      uk: [
+        'У WonderTales вікторина після історії вже подана як продовження пригоди на планшеті: “відкрий приз”, “знайди слід”, “допоможи герою згадати”. Завдання можуть бути об’єктивними, але тон лишається ігровим: дитина не складає тест, а завершує маленьку місію.',
+        'Це допомагає батькам не вигадувати перевірку з нуля. Вікторина веде дитину від факту до причинності, а потім до емоції або вибору героя: що лежало біля воріт, чому дракон зупинився, як герой зрозумів, що друг боїться.',
+        'Розмовні питання в цьому сценарії не перетворюються на бали. Дорослий може просто підхопити відповідь дитини: “спочатку твоя версія, потім подивимося підказку”. Повторна спроба лишається частиною гри, а винагорода — маленьким знаком завершеної пригоди.',
+      ],
+      en: [
+        'In WonderTales, the quiz after a story is already framed as a continuation on the tablet: “unlock the prize,” “find the clue,” “help the hero remember.” Activities can be objective while the tone stays playful: the child is finishing a small mission, not taking a test.',
+        'This helps parents avoid inventing a check from scratch. The quiz leads the child from fact to cause, then to emotion or choice: what was near the gate, why the dragon stopped, how the hero knew the friend was afraid.',
+        'Reflective questions in this flow do not become points. The adult can simply follow the child’s answer: “your version first, then we will look at the clue.” Retrying stays part of the game, and the reward is a small sign of a completed adventure.',
+      ],
+      ru: [
+        'В WonderTales викторина после истории уже подана как продолжение приключения на планшете: “открой приз”, “найди след”, “помоги герою вспомнить”. Задания могут быть объективными, но тон остается игровым: ребенок не сдает тест, а завершает маленькую миссию.',
+        'Это помогает родителям не придумывать проверку с нуля. Викторина ведет ребенка от факта к причинности, а затем к эмоции или выбору героя: что лежало у ворот, почему дракон остановился, как герой понял, что друг боится.',
+        'Вопросы-разговоры в таком сценарии не превращаются в баллы. Взрослый может просто подхватить ответ: “сначала твоя версия, потом посмотрим подсказку”. Повтор остается частью игры, а награда — маленьким знаком завершенного приключения.',
+      ],
+      es: [
+        'En WonderTales, el cuestionario ya aparece como continuación en la tableta: “abre el premio”, “encuentra la pista”, “ayuda al héroe a recordar”. Las tareas pueden ser objetivas, pero el tono sigue siendo lúdico: el niño completa una misión, no un examen.',
+        'Esto ayuda a los padres a no inventar una comprobación desde cero. El cuestionario guía del hecho a la causa y luego a emoción o elección: qué había junto a la puerta, por qué se detuvo el dragón, cómo supo el héroe que su amigo tenía miedo.',
+        'Las preguntas reflexivas no se convierten en puntos. El adulto puede seguir la respuesta: “primero tu versión, luego miramos la pista”. Reintentar queda como parte del juego, y el premio señala una aventura completada.',
+      ],
+      de: [
+        'In WonderTales ist das Quiz bereits als Fortsetzung auf dem Tablet gerahmt: “Preis öffnen”, “Spur finden”, “der Figur beim Erinnern helfen”. Aufgaben dürfen objektiv sein, der Ton bleibt spielerisch: Das Kind beendet eine kleine Mission, keine Prüfung.',
+        'Das hilft Eltern, keine eigene Abfrage erfinden zu müssen. Das Quiz führt vom Fakt zur Ursache und dann zu Gefühl oder Entscheidung: was am Tor lag, warum der Drache stehen blieb, woran die Figur merkte, dass der Freund Angst hatte.',
+        'Gesprächsfragen werden in diesem Ablauf nicht zu Punkten. Erwachsene können die Antwort einfach aufnehmen: “Erst deine Version, dann schauen wir auf den Hinweis.” Wiederholen bleibt Teil des Spiels, und die Belohnung zeigt ein abgeschlossenes Abenteuer.',
+      ],
+      fr: [
+        'Dans WonderTales, le quiz est déjà présenté comme une suite sur la tablette : “débloque le prix”, “trouve l’indice”, “aide le héros à se souvenir”. Les tâches peuvent être objectives, mais le ton reste ludique : l’enfant termine une petite mission, pas un examen.',
+        'Cela évite aux parents d’inventer une vérification. Le quiz mène du fait à la cause, puis à l’émotion ou au choix : ce qui était près de la porte, pourquoi le dragon s’est arrêté, comment le héros a vu que son ami avait peur.',
+        'Les questions de discussion ne deviennent pas des points. L’adulte peut simplement suivre la réponse : “d’abord ta version, puis on regarde l’indice”. Réessayer reste dans le jeu, et la récompense signale l’aventure terminée.',
+      ],
+      pl: [
+        'W WonderTales quiz po historii jest już dalszą częścią przygody na tablecie: “odblokuj nagrodę”, “znajdź ślad”, “pomóż bohaterowi pamiętać”. Zadania mogą być sprawdzalne, ale ton zostaje zabawowy: dziecko kończy małą misję, nie test.',
+        'To pomaga rodzicom nie wymyślać sprawdzania od zera. Quiz prowadzi od faktu do przyczyny, potem do emocji albo wyboru bohatera: co leżało przy bramie, dlaczego smok się zatrzymał, skąd bohater wiedział, że przyjaciel się boi.',
+        'Pytania do rozmowy nie zamieniają się tu w punkty. Dorosły może po prostu podchwycić odpowiedź: “najpierw twoja wersja, potem zobaczymy wskazówkę”. Powtórka zostaje częścią gry, a nagroda znakiem ukończonej przygody.',
+      ],
+    },
+    adjustment: {
+      uk: [
+        'Якщо дитина напружується, сперечається через “неправильно” або просить підказку до кожного кроку, перейдіть від самоперевірки до вкладки “Поговоримо про цю історію?” у розділі “Завдання після історії”. Там відповідь працює як думка для розмови з дорослим, а не як оцінка, тому можна спокійно обговорити: “що б ти зробив на місці героя?”.',
+        'Якщо дитина починає гнатися тільки за призом, зменште його помітність і використайте розмовну вкладку як людський місток після завдання. У WonderTales це вже розділено: приз завершує коротку гру, а “Поговоримо про цю історію?” повертає увагу до сюжету, емоцій і вибору героя.',
+        'Якщо дитина вже читає із задоволенням, вікторина не обов’язкова щовечора. Іноді достатньо відкрити “Поговоримо про цю історію?” й поговорити з батьками, іноді — пропустити завдання й залишити історію чистим відпочинком. Головний маркер: після активності дитина хоче повернутися до історій, а не втекти від них.',
+      ],
+      en: [
+        'If the child becomes tense, argues about being “wrong,” or asks for hints at every step, move from self-checking to the “Shall we talk about this story?” tab inside “Activities after the story.” There, an answer works as a thought for talking with an adult, not as a grade, so the conversation can stay open: “what would you do in the hero’s place?”',
+        'If the child starts chasing only the prize, reduce its visibility and use the talk tab as a human bridge after the activity. WonderTales already separates the two: the prize closes a short game, while “Shall we talk about this story?” brings attention back to plot, feelings, and the hero’s choice.',
+        'If the child already reads happily, the quiz does not need to appear every night. Sometimes it is enough to open “Shall we talk about this story?” and talk with a parent; sometimes it is better to skip the activities and keep the story as pure rest. The real signal is whether the child wants to return to stories afterward.',
+      ],
+      ru: [
+        'Если ребенок напрягается, спорит из-за “неправильно” или просит подсказку на каждом шаге, переходите от самопроверки к вкладке “Поговорим об этой истории?” в разделе “Задания после истории”. Там ответ работает как мысль для разговора с родителем, а не как оценка, поэтому можно спокойно обсудить: “что бы ты сделал на месте героя?”.',
+        'Если ребенок начинает гнаться только за призом, уменьшите его заметность и используйте разговорную вкладку как человеческий мостик после задания. В WonderTales это уже разделено: приз завершает короткую игру, а “Поговорим об этой истории?” возвращает внимание к сюжету, эмоциям и выбору героя.',
+        'Если ребенок уже читает с удовольствием, викторина не обязана появляться каждый вечер. Иногда достаточно открыть “Поговорим об этой истории?” и обсудить сказку с родителем, иногда — пропустить задания и оставить историю чистым отдыхом. Главный маркер: после активности ребенок хочет вернуться к историям, а не сбежать от них.',
+      ],
+      es: [
+        'Si el niño se tensa, discute por “incorrecto” o pide pista en cada paso, pasa de la autoevaluación a la pestaña “¿Hablamos de esta historia?” dentro de “Actividades después de la historia”. Allí la respuesta funciona como idea para hablar con un adulto, no como nota, así que podéis conversar: “¿qué harías tú en su lugar?”.',
+        'Si empieza a perseguir solo el premio, reduce su presencia y usa la pestaña de conversación como puente humano después de la actividad. WonderTales ya separa las dos cosas: el premio cierra un juego breve, y “¿Hablamos de esta historia?” devuelve la atención a la trama, las emociones y la elección del héroe.',
+        'Si ya lee con gusto, el quiz no tiene que aparecer cada noche. A veces basta abrir “¿Hablamos de esta historia?” y conversar con un padre; a veces conviene saltar las actividades y dejar la historia como descanso. La señal principal: después de la actividad quiere volver a las historias.',
+      ],
+      de: [
+        'Wenn das Kind angespannt wird, über “falsch” streitet oder ständig Hinweise braucht, wechsle von der Selbstprüfung zum Tab “Sprechen wir über diese Geschichte?” in “Aufgaben nach der Geschichte”. Dort zählt die Antwort als Gedanke für das Gespräch mit einem Erwachsenen, nicht als Note, also bleibt die Frage offen: “Was würdest du an der Stelle der Figur tun?”',
+        'Wenn das Kind nur noch der Belohnung nachjagt, mach sie weniger sichtbar und nutze den Gesprächs-Tab als menschliche Brücke nach der Aufgabe. WonderTales trennt das bereits: Der Preis beendet ein kurzes Spiel, “Sprechen wir über diese Geschichte?” bringt die Aufmerksamkeit zurück zu Handlung, Gefühlen und Entscheidung der Figur.',
+        'Wenn das Kind schon gern liest, braucht es das Quiz nicht jeden Abend. Manchmal reicht “Sprechen wir über diese Geschichte?” für ein Gespräch mit den Eltern; manchmal lässt man die Aufgaben aus und die Geschichte bleibt reine Erholung. Entscheidend ist: Will das Kind danach zu Geschichten zurückkehren?',
+      ],
+      fr: [
+        'Si l’enfant se crispe, discute du “faux” ou demande un indice à chaque étape, passez de l’autoévaluation à l’onglet “On parle de cette histoire ?” dans “Activités après l’histoire”. Là, la réponse devient une idée pour parler avec un adulte, pas une note; la question peut rester ouverte : “que ferais-tu à la place du héros ?”.',
+        'Si l’enfant ne cherche plus que le prix, rendez-le moins visible et utilisez l’onglet de discussion comme pont humain après l’activité. WonderTales sépare déjà les deux : le prix clôt un jeu court, tandis que “On parle de cette histoire ?” ramène l’attention vers l’intrigue, les émotions et le choix du héros.',
+        'Si l’enfant lit déjà avec plaisir, le quiz n’est pas obligatoire chaque soir. Parfois il suffit d’ouvrir “On parle de cette histoire ?” et d’échanger avec un parent; parfois mieux vaut sauter les activités et garder l’histoire comme repos. Le vrai signal : après l’activité, l’enfant veut revenir aux histoires.',
+      ],
+      pl: [
+        'Jeśli dziecko się spina, kłóci o “źle” albo prosi o podpowiedź przy każdym kroku, przejdź od samosprawdzania do karty “Porozmawiamy o tej historii?” w “Zadaniach po historii”. Tam odpowiedź jest myślą do rozmowy z dorosłym, nie oceną, więc można spokojnie zapytać: “co zrobiłbyś na miejscu bohatera?”.',
+        'Jeśli dziecko zaczyna gonić tylko za nagrodą, zmniejsz jej widoczność i użyj karty rozmowy jako ludzkiego mostu po zadaniu. WonderTales już to rozdziela: nagroda zamyka krótką grę, a “Porozmawiamy o tej historii?” wraca do fabuły, emocji i wyboru bohatera.',
+        'Jeśli dziecko już czyta z radością, quiz nie musi być co wieczór. Czasem wystarczy otworzyć “Porozmawiamy o tej historii?” i porozmawiać z rodzicem; czasem lepiej pominąć zadania i zostawić historię jako odpoczynek. Najważniejszy sygnał: po aktywności dziecko chce wrócić do historii.',
+      ],
+    },
+    checklist: {
+      uk: ['Назвіть вікторину пригодою, а не тестом.', 'Залиште 2-4 короткі питання.', 'Давайте приз за завершення, не за ідеальність.', 'Показуйте помилку як підказку, а не провал.', 'Після призу відкрийте “Поговоримо про цю історію?”.'],
+      en: ['Call the quiz a quest, not a test.', 'Keep only 2-4 short questions.', 'Reward completion, not perfection.', 'Turn mistakes into clues, not failure.', 'After the prize, open “Shall we talk about this story?”.'],
+      ru: ['Назовите викторину приключением, а не тестом.', 'Оставьте только 2-4 коротких вопроса.', 'Давайте приз за завершение, а не за идеальность.', 'Показывайте ошибку как подсказку, а не провал.', 'После приза откройте “Поговорим об этой истории?”.'],
+      es: ['Llama al cuestionario misión, no examen.', 'Deja solo 2-4 preguntas breves.', 'Premia completar, no la perfección.', 'Convierte errores en pistas, no fracasos.', 'Tras el premio, abre “¿Hablamos de esta historia?”.'],
+      de: ['Nenne das Quiz Mission, nicht Test.', 'Nutze nur 2-4 kurze Fragen.', 'Belohne Abschluss, nicht Perfektion.', 'Mach Fehler zu Hinweisen, nicht Scheitern.', 'Öffne nach dem Preis “Sprechen wir über diese Geschichte?”.'],
+      fr: ['Appelez le quiz mission, pas test.', 'Gardez seulement 2-4 questions courtes.', 'Récompensez la fin, pas la perfection.', 'Transformez l’erreur en indice, pas en échec.', 'Après le prix, ouvrez “On parle de cette histoire ?”.'],
+      pl: ['Nazwij quiz misją, nie testem.', 'Zostaw tylko 2-4 krótkie pytania.', 'Nagradzaj ukończenie, nie perfekcję.', 'Zmieniaj błąd we wskazówkę, nie porażkę.', 'Po nagrodzie otwórz “Porozmawiamy o tej historii?”.'],
+    },
+    quote: {
+      text: l10n(
+        'Тестування — потужний спосіб покращувати навчання, а не лише оцінювати його.',
+        'Testing is a powerful means of improving learning, not just assessing it.',
+        'Тестирование — мощный способ улучшать обучение, а не только оценивать его.',
+        'La prueba es una forma poderosa de mejorar el aprendizaje, no solo evaluarlo.',
+        'Testen ist ein starkes Mittel, Lernen zu verbessern, nicht nur es zu bewerten.',
+        'Tester est un moyen puissant d’améliorer l’apprentissage, pas seulement de l’évaluer.',
+        'Testowanie to mocny sposób ulepszania uczenia się, nie tylko jego oceniania.'
+      ),
+      attribution: 'Roediger & Karpicke',
+      sourceLabel: l10n('Навчання, посилене перевіркою', 'Test-Enhanced Learning', 'Обучение, усиленное проверкой', 'Aprendizaje reforzado por pruebas', 'Durch Prüfen gestärktes Lernen', 'Apprentissage renforcé par le test', 'Uczenie wzmacniane sprawdzaniem'),
+      sourceUrl: 'https://doi.org/10.1111/j.1467-9280.2006.01693.x',
+    },
+    sources: [
+      { label: 'Roediger (Вашингтонский университет в Сент-Луисе) & Karpicke (Университет Пердью): обучение, усиленное проверкой', url: 'https://doi.org/10.1111/j.1467-9280.2006.01693.x' },
+      { label: 'Dunlosky (Кентский государственный университет) и коллеги: эффективные техники обучения', url: 'https://doi.org/10.1177/1529100612453266' },
+      { label: 'Ryan & Deci (Рочестерский университет): внутренняя и внешняя мотивация', url: 'https://doi.org/10.1006/ceps.1999.1020' },
+      { label: 'Deci & Ryan (Рочестерский университет), Koestner (Университет Макгилла): награды и внутренняя мотивация', url: 'https://selfdeterminationtheory.org/wp-content/uploads/2014/04/1999_DeciKoestnerRyan_Meta.pdf' },
+      { label: 'Butler & Roediger (Вашингтонский университет в Сент-Луисе): обратная связь и вопросы с выбором ответа', url: 'https://doi.org/10.3758/MC.36.3.604' },
+    ],
+    visualDirection: 'A child and parent using a tablet story quiz as a cozy quest, with a small glowing reward badge and no school-test feeling.',
+    relatedSlugs: ['reading-without-pressure', 'story-morals-without-lecturing'],
+    inlineImages: articleInlineImages(
+      'rewarded-story-quizzes',
+      l10n(
+        'Дитина тримає нагородний жетон і вибирає картку вікторини на планшеті',
+        'A child holds a reward token and chooses a quiz card on a tablet',
+        'Ребенок держит наградной жетон и выбирает карточку викторины на планшете',
+        'Un niño sostiene una ficha de premio y elige una tarjeta del cuestionario en la tableta',
+        'Ein Kind hält einen Belohnungsjeton und wählt eine Quizkarte auf dem Tablet',
+        'Un enfant tient un jeton de récompense et choisit une carte de quiz sur la tablette',
+        'Dziecko trzyma żeton nagrody i wybiera kartę quizu na tablecie'
+      ),
+      l10n(
+        'Жетон показує завершення маленької місії, а не оцінку за правильність.',
+        'The token marks the end of a small mission, not a grade for perfection.',
+        'Жетон отмечает завершение маленькой миссии, а не оценку за идеальность.',
+        'La ficha marca el final de una pequeña misión, no una nota por perfección.',
+        'Der Jeton markiert das Ende einer kleinen Mission, nicht eine Note für Perfektion.',
+        'Le jeton marque la fin d’une petite mission, pas une note de perfection.',
+        'Żeton oznacza koniec małej misji, nie ocenę za perfekcję.'
+      ),
+      l10n(
+        'Дитина в наметі з ковдр поєднує картинки з відповідями на планшеті',
+        'A child in a blanket fort matches picture cards to answer blocks on a tablet',
+        'Ребенок в домике из одеял соединяет картинки с ответами на планшете',
+        'Un niño en una cabaña de mantas une imágenes con respuestas en la tableta',
+        'Ein Kind in einer Deckenhöhle verbindet Bildkarten mit Antwortfeldern auf dem Tablet',
+        'Un enfant dans une cabane de couvertures relie des images à des réponses sur tablette',
+        'Dziecko w bazie z koców łączy obrazki z odpowiedziami na tablecie'
+      ),
+      l10n(
+        'Завдання на відповідності допомагає пригадати деталі історії через гру зі стрілками.',
+        'A matching task helps the child recall story details through a simple arrow game.',
+        'Задание на соответствия помогает вспомнить детали истории через простую игру со стрелками.',
+        'La actividad de emparejar ayuda a recordar detalles de la historia con flechas.',
+        'Eine Zuordnungsaufgabe hilft, Details der Geschichte mit Pfeilen zu erinnern.',
+        'L’activité d’association aide à retrouver les détails de l’histoire avec des flèches.',
+        'Zadanie dopasowywania pomaga przypomnieć szczegóły historii za pomocą strzałek.'
+      )
+    ),
+    insightCards: {
+      uk: [
+        { eyebrow: 'Самоперевірка', title: 'Питання повертає до сенсу', body: 'Коротка відповідь допомагає пригадати деталь, причину або емоцію, а не доводити дорослому “я читав”.' },
+        { eyebrow: 'Мотивація', title: 'Приз завершує місію', body: 'Винагорода працює як знак завершення маленької пригоди, тому не забирає увагу від самої історії.' },
+        { eyebrow: 'Розмова', title: 'Є окрема вкладка без оцінки', body: '“Поговоримо про цю історію?” переводить дитину від правильної відповіді до думки, яку можна обговорити з батьками.' },
+      ],
+      en: [
+        { eyebrow: 'Self-check', title: 'The question returns to meaning', body: 'A short answer helps the child recall a detail, cause, or feeling instead of proving “I read it.”' },
+        { eyebrow: 'Motivation', title: 'The prize closes the mission', body: 'The reward works as a small completion signal, so it does not pull attention away from the story itself.' },
+        { eyebrow: 'Talk', title: 'A separate tab has no grade', body: '“Shall we talk about this story?” moves the child from a correct answer to a thought they can discuss with a parent.' },
+      ],
+      ru: [
+        { eyebrow: 'Самопроверка', title: 'Вопрос возвращает к смыслу', body: 'Короткий ответ помогает вспомнить деталь, причину или эмоцию, а не доказывать взрослому “я читал”.' },
+        { eyebrow: 'Мотивация', title: 'Приз завершает миссию', body: 'Награда работает как знак завершения маленького приключения, поэтому не перетягивает внимание с самой истории.' },
+        { eyebrow: 'Разговор', title: 'Есть отдельная вкладка без оценки', body: '“Поговорим об этой истории?” переводит ребенка от правильного ответа к мысли, которую можно обсудить с родителем.' },
+      ],
+      es: [
+        { eyebrow: 'Autoevaluación', title: 'La pregunta vuelve al sentido', body: 'Una respuesta breve ayuda a recordar un detalle, una causa o una emoción, no a demostrar “he leído”.' },
+        { eyebrow: 'Motivación', title: 'El premio cierra la misión', body: 'La recompensa funciona como señal de cierre de una pequeña aventura, sin robar atención a la historia.' },
+        { eyebrow: 'Conversación', title: 'Hay una pestaña sin nota', body: '“¿Hablamos de esta historia?” lleva al niño de la respuesta correcta a una idea para conversar con un padre.' },
+      ],
+      de: [
+        { eyebrow: 'Selbstcheck', title: 'Die Frage führt zurück zum Sinn', body: 'Eine kurze Antwort hilft, Detail, Ursache oder Gefühl zu erinnern, nicht “ich habe gelesen” zu beweisen.' },
+        { eyebrow: 'Motivation', title: 'Der Preis beendet die Mission', body: 'Die Belohnung markiert eine kleine abgeschlossene Abenteueraufgabe, ohne die Geschichte zu verdrängen.' },
+        { eyebrow: 'Gespräch', title: 'Ein eigener Tab ohne Note', body: '“Sprechen wir über diese Geschichte?” führt vom richtigen Ergebnis zu einem Gedanken für das Gespräch mit Eltern.' },
+      ],
+      fr: [
+        { eyebrow: 'Auto-vérification', title: 'La question revient au sens', body: 'Une réponse courte aide à retrouver un détail, une cause ou une émotion, pas à prouver “j’ai lu”.' },
+        { eyebrow: 'Motivation', title: 'Le prix clôt la mission', body: 'La récompense marque la fin d’une petite aventure sans détourner l’attention de l’histoire.' },
+        { eyebrow: 'Discussion', title: 'Un onglet séparé sans note', body: '“On parle de cette histoire ?” fait passer de la bonne réponse à une idée à discuter avec un parent.' },
+      ],
+      pl: [
+        { eyebrow: 'Samosprawdzenie', title: 'Pytanie wraca do sensu', body: 'Krótka odpowiedź pomaga przypomnieć detal, przyczynę albo emocję, nie udowodnić dorosłemu “czytałem”.' },
+        { eyebrow: 'Motywacja', title: 'Nagroda zamyka misję', body: 'Nagroda działa jak znak ukończenia małej przygody, więc nie zabiera uwagi samej historii.' },
+        { eyebrow: 'Rozmowa', title: 'Jest osobna karta bez oceny', body: '“Porozmawiamy o tej historii?” prowadzi od dobrej odpowiedzi do myśli, którą można omówić z rodzicem.' },
+      ],
+    },
+    decisionTable: {
+      uk: {
+        heading: 'Як зрозуміти, що робити після вікторини',
+        intro: 'Одна й та сама функція може підтримати або перевантажити. Орієнтир — реакція дитини, а не кількість правильних відповідей.',
+        columns: ['Що видно', 'Що це може означати', 'Що відкрити в WonderTales'],
+        rows: [
+          ['Просить підказку до кожного кроку', 'Самоперевірка стала схожою на оцінювання', 'Перейдіть до “Поговоримо про цю історію?”'],
+          ['Радіє призу й пам’ятає сюжет', 'Коротка місія підтримує увагу', 'Залиште “Перевір себе та отримай приз” короткою'],
+          ['Натискає навмання', 'Дитина втомилася або питання зарано', 'Використайте підказку в тексті й завершіть після одного завдання'],
+          ['Сперечається через “неправильно”', 'Страх помилки сильніший за інтерес', 'Дозвольте повтор і переключіть на розмовну вкладку'],
+        ],
+      },
+      en: {
+        heading: 'How to choose the next step after a quiz',
+        intro: 'The same feature can support or overload. The signal is the child’s reaction, not the number of correct answers.',
+        columns: ['What you see', 'What it may mean', 'What to open in WonderTales'],
+        rows: [
+          ['Asks for a hint at every step', 'Self-checking feels like evaluation', 'Switch to “Shall we talk about this story?”'],
+          ['Enjoys the prize and remembers the plot', 'The short mission supports attention', 'Keep “Check yourself and claim a prize” brief'],
+          ['Taps random answers', 'The child is tired or the question is too soon', 'Use the text clue and stop after one activity'],
+          ['Argues about being “wrong”', 'Fear of mistakes is louder than interest', 'Allow retry, then move to the talk tab'],
+        ],
+      },
+      ru: {
+        heading: 'Как понять, что делать после викторины',
+        intro: 'Одна и та же функция может поддержать или перегрузить. Ориентир — реакция ребенка, а не число правильных ответов.',
+        columns: ['Что видно', 'Что это может означать', 'Что открыть в WonderTales'],
+        rows: [
+          ['Просит подсказку на каждом шаге', 'Самопроверка стала похожа на оценивание', 'Перейти к “Поговорим об этой истории?”'],
+          ['Радуется призу и помнит сюжет', 'Короткая миссия поддерживает внимание', 'Оставить “Проверь себя и получи приз” короткой'],
+          ['Нажимает наугад', 'Ребенок устал или вопрос задан рано', 'Использовать подсказку в тексте и остановиться после одного задания'],
+          ['Спорит из-за “неправильно”', 'Страх ошибки сильнее интереса', 'Разрешить повтор и переключить на разговорную вкладку'],
+        ],
+      },
+      es: {
+        heading: 'Cómo elegir el siguiente paso tras el cuestionario',
+        intro: 'La misma función puede apoyar o saturar. La señal está en la reacción del niño, no en el número de aciertos.',
+        columns: ['Lo que ves', 'Qué puede significar', 'Qué abrir en WonderTales'],
+        rows: [
+          ['Pide pista en cada paso', 'La autoevaluación parece evaluación', 'Pasar a “¿Hablamos de esta historia?”'],
+          ['Disfruta el premio y recuerda la trama', 'La misión breve sostiene la atención', 'Mantener breve “Ponte a prueba y consigue un premio”'],
+          ['Toca respuestas al azar', 'Está cansado o la pregunta llega pronto', 'Usar la pista del texto y parar tras una actividad'],
+          ['Discute por “incorrecto”', 'El miedo al error pesa más que el interés', 'Permitir repetir y pasar a la pestaña de conversación'],
+        ],
+      },
+      de: {
+        heading: 'Was nach dem Quiz der nächste Schritt ist',
+        intro: 'Dieselbe Funktion kann stützen oder überlasten. Entscheidend ist die Reaktion des Kindes, nicht die Zahl richtiger Antworten.',
+        columns: ['Beobachtung', 'Mögliche Bedeutung', 'Was in WonderTales öffnen'],
+        rows: [
+          ['Braucht bei jedem Schritt einen Hinweis', 'Der Selbstcheck fühlt sich wie Bewertung an', 'Zu “Sprechen wir über diese Geschichte?” wechseln'],
+          ['Freut sich über den Preis und kennt die Handlung', 'Die kurze Mission stützt Aufmerksamkeit', '“Prüf dich und hol dir deinen Preis” kurz halten'],
+          ['Tippt wahllos Antworten an', 'Das Kind ist müde oder die Frage kommt zu früh', 'Texthinweis nutzen und nach einer Aufgabe stoppen'],
+          ['Streitet über “falsch”', 'Fehlerangst ist stärker als Interesse', 'Wiederholen erlauben und in den Gesprächs-Tab wechseln'],
+        ],
+      },
+      fr: {
+        heading: 'Choisir la suite après le quiz',
+        intro: 'La même fonction peut soutenir ou surcharger. Le repère est la réaction de l’enfant, pas le nombre de bonnes réponses.',
+        columns: ['Ce qu’on voit', 'Ce que cela peut signifier', 'Quoi ouvrir dans WonderTales'],
+        rows: [
+          ['Demande un indice à chaque étape', 'L’auto-vérification ressemble à une évaluation', 'Passer à “On parle de cette histoire ?”'],
+          ['Aime le prix et se souvient de l’intrigue', 'La petite mission soutient l’attention', 'Garder “Teste-toi et gagne un prix” court'],
+          ['Répond au hasard', 'L’enfant est fatigué ou la question arrive trop tôt', 'Utiliser l’indice du texte et arrêter après une activité'],
+          ['Discute du “faux”', 'La peur de l’erreur dépasse l’intérêt', 'Autoriser un nouvel essai puis passer à l’onglet discussion'],
+        ],
+      },
+      pl: {
+        heading: 'Jak wybrać następny krok po quizie',
+        intro: 'Ta sama funkcja może wspierać albo przeciążyć. Sygnałem jest reakcja dziecka, nie liczba dobrych odpowiedzi.',
+        columns: ['Co widać', 'Co to może znaczyć', 'Co otworzyć w WonderTales'],
+        rows: [
+          ['Prosi o podpowiedź przy każdym kroku', 'Samosprawdzanie przypomina ocenianie', 'Przejść do “Porozmawiamy o tej historii?”'],
+          ['Cieszy się nagrodą i pamięta fabułę', 'Krótka misja wspiera uwagę', 'Zostawić krótkie “Sprawdź się i zdobądź nagrodę”'],
+          ['Klika losowe odpowiedzi', 'Dziecko jest zmęczone albo pytanie jest za wcześnie', 'Użyć wskazówki w tekście i skończyć po jednym zadaniu'],
+          ['Kłóci się o “źle”', 'Lęk przed błędem jest silniejszy niż ciekawość', 'Pozwolić powtórzyć i przejść do karty rozmowy'],
+        ],
+      },
+    },
+    stepBlock: {
+      uk: {
+        eyebrow: 'Маршрут після історії',
+        heading: 'Три хвилини без уроку',
+        intro: 'Короткий порядок допомагає зберегти гру, зміст і контакт із батьками.',
+        steps: [
+          { title: 'Відкрити самоперевірку', body: 'Почніть із 2-4 коротких завдань, де відповідь прив’язана до події в історії.' },
+          { title: 'Дати підказку з тексту', body: 'Помилка не стає провалом: дитина повертається до сцени й пробує ще раз.' },
+          { title: 'Показати приз', body: 'Нагорода позначає завершення маленької місії, а не ідеальність.' },
+          { title: 'Перейти до розмови', body: 'Вкладка “Поговоримо про цю історію?” допомагає обговорити вибір героя без оцінки.' },
+        ],
+      },
+      en: {
+        eyebrow: 'After-story route',
+        heading: 'Three minutes without a lesson',
+        intro: 'A short order keeps the experience playful, meaningful, and connected to the parent.',
+        steps: [
+          { title: 'Open the self-check', body: 'Start with 2-4 brief activities tied to something that happened in the story.' },
+          { title: 'Use a text clue', body: 'A mistake is not a failure: the child returns to the scene and tries again.' },
+          { title: 'Show the prize', body: 'The reward marks completion of a small mission, not perfection.' },
+          { title: 'Move into talk', body: '“Shall we talk about this story?” helps discuss the hero’s choice without grading.' },
+        ],
+      },
+      ru: {
+        eyebrow: 'Маршрут после истории',
+        heading: 'Три минуты без урока',
+        intro: 'Короткий порядок помогает сохранить игру, смысл и контакт с родителем.',
+        steps: [
+          { title: 'Открыть самопроверку', body: 'Начните с 2-4 коротких заданий, где ответ связан с событием в истории.' },
+          { title: 'Дать подсказку из текста', body: 'Ошибка не становится провалом: ребенок возвращается к сцене и пробует еще раз.' },
+          { title: 'Показать приз', body: 'Награда отмечает завершение маленькой миссии, а не идеальность.' },
+          { title: 'Перейти к разговору', body: '“Поговорим об этой истории?” помогает обсудить выбор героя без оценки.' },
+        ],
+      },
+      es: {
+        eyebrow: 'Ruta después de la historia',
+        heading: 'Tres minutos sin lección',
+        intro: 'Un orden breve conserva juego, sentido y contacto con el padre.',
+        steps: [
+          { title: 'Abrir la autoevaluación', body: 'Empieza con 2-4 actividades breves ligadas a algo que pasó en la historia.' },
+          { title: 'Usar una pista del texto', body: 'El error no es fracaso: vuelve a la escena y prueba otra vez.' },
+          { title: 'Mostrar el premio', body: 'La recompensa marca una pequeña misión completada, no la perfección.' },
+          { title: 'Pasar a conversar', body: '“¿Hablamos de esta historia?” ayuda a hablar de la elección del héroe sin nota.' },
+        ],
+      },
+      de: {
+        eyebrow: 'Route nach der Geschichte',
+        heading: 'Drei Minuten ohne Unterricht',
+        intro: 'Eine kurze Reihenfolge hält Spiel, Sinn und Kontakt zu den Eltern zusammen.',
+        steps: [
+          { title: 'Selbstcheck öffnen', body: 'Starte mit 2-4 kurzen Aufgaben, die an ein Ereignis der Geschichte gebunden sind.' },
+          { title: 'Texthinweis nutzen', body: 'Ein Fehler ist kein Scheitern: Das Kind kehrt zur Szene zurück und versucht es erneut.' },
+          { title: 'Preis zeigen', body: 'Die Belohnung markiert eine beendete kleine Mission, nicht Perfektion.' },
+          { title: 'Ins Gespräch wechseln', body: '“Sprechen wir über diese Geschichte?” hilft, die Entscheidung der Figur ohne Note zu besprechen.' },
+        ],
+      },
+      fr: {
+        eyebrow: 'Parcours après l’histoire',
+        heading: 'Trois minutes sans leçon',
+        intro: 'Un ordre court garde le jeu, le sens et le lien avec le parent.',
+        steps: [
+          { title: 'Ouvrir l’auto-vérification', body: 'Commencez par 2-4 activités brèves liées à un événement de l’histoire.' },
+          { title: 'Utiliser l’indice du texte', body: 'L’erreur n’est pas un échec : l’enfant revient à la scène et réessaie.' },
+          { title: 'Montrer le prix', body: 'La récompense marque une petite mission terminée, pas la perfection.' },
+          { title: 'Passer à la discussion', body: '“On parle de cette histoire ?” aide à parler du choix du héros sans note.' },
+        ],
+      },
+      pl: {
+        eyebrow: 'Ścieżka po historii',
+        heading: 'Trzy minuty bez lekcji',
+        intro: 'Krótka kolejność utrzymuje zabawę, sens i kontakt z rodzicem.',
+        steps: [
+          { title: 'Otworzyć samosprawdzenie', body: 'Zacznij od 2-4 krótkich zadań związanych z wydarzeniem z historii.' },
+          { title: 'Użyć wskazówki z tekstu', body: 'Błąd nie jest porażką: dziecko wraca do sceny i próbuje jeszcze raz.' },
+          { title: 'Pokazać nagrodę', body: 'Nagroda oznacza ukończenie małej misji, nie perfekcję.' },
+          { title: 'Przejść do rozmowy', body: '“Porozmawiamy o tej historii?” pomaga omówić wybór bohatera bez oceny.' },
+        ],
+      },
+    },
+  },
+  {
+    slug: 'comic-stories-reading-bridge',
+    heroImage: '/landing/blog/comic-stories-reading-bridge-scene-01.webp',
+    updatedAt: '2026-06-29',
+    category: l10n(
+      'Комікси й читання',
+      'Comics and reading',
+      'Комиксы и чтение',
+      'Cómics y lectura',
+      'Comics und Lesen',
+      'BD et lecture',
+      'Komiksy i czytanie'
+    ),
+    title: l10n(
+      'Історії у форматі коміксу: місток до довшого читання',
+      'Comic-style stories as a bridge to longer reading',
+      'Истории в формате комиксов: мостик к чтению больших объемов',
+      'Historias tipo cómic como puente hacia lecturas más largas',
+      'Comic-Geschichten als Brücke zu längeren Texten',
+      'Histoires en BD : un pont vers des lectures plus longues',
+      'Historie komiksowe jako pomost do dłuższego czytania'
+    ),
+    description: l10n(
+      'Чому панелі, короткі репліки й візуальна послідовність допомагають дитині перейти від “дивлюся картинки” до “читаю сцену сам”.',
+      'Why panels, short speech, and visual sequencing help a child move from “looking at pictures” to “reading the scene myself.”',
+      'Почему панели, короткие реплики и визуальная последовательность помогают перейти от “смотрю картинки” к “читаю сцену сам”.',
+      'Por qué viñetas, frases breves y secuencia visual ayudan a pasar de mirar imágenes a leer escenas.',
+      'Warum Panels, kurze Sprechblasen und visuelle Reihenfolge vom Bilderanschauen zum eigenen Lesen führen.',
+      'Pourquoi cases, répliques courtes et séquence visuelle aident à passer des images à la lecture autonome.',
+      'Dlaczego kadry, krótkie wypowiedzi i sekwencja obrazów pomagają przejść od oglądania do samodzielnego czytania.'
+    ),
+    lead: l10n(
+      'Комікс не є “читанням простіше”. Для багатьох дітей це тренувальний формат: очі тримають сюжет, а короткий текст поступово бере на себе більше роботи.',
+      'A comic is not “lesser reading.” For many children it is a training format: the eyes hold the plot while short text gradually carries more of the work.',
+      'Комикс — не “чтение попроще”. Для многих детей это тренировочный формат: глаза удерживают сюжет, а короткий текст постепенно берет на себя больше работы.',
+      'Un cómic no es “lectura menor”. Para muchos niños es entrenamiento: la imagen sostiene la trama y el texto breve toma más trabajo.',
+      'Ein Comic ist kein minderwertiges Lesen. Für viele Kinder ist er Training: Bilder halten die Handlung, kurzer Text übernimmt nach und nach mehr Arbeit.',
+      'La BD n’est pas une lecture inférieure. Pour beaucoup d’enfants, c’est un entraînement : l’image porte l’intrigue et le texte prend peu à peu plus de place.',
+      'Komiks nie jest “gorszym czytaniem”. Dla wielu dzieci to trening: obraz trzyma fabułę, a krótki tekst stopniowo przejmuje więcej pracy.'
+    ),
+    focus: {
+      uk: [
+        'Коли дитині важко читати довгі абзаци, не треба одразу вимагати “справжню книгу”. Комікс розкладає історію на кроки: подивився на панель, прочитав коротку репліку, зрозумів зміну, перейшов далі. Це тренує послідовність без відчуття стіни тексту.',
+        'Батьки часто хвилюються: “він тільки дивиться картинки, це рахується читанням?”. Рахується, якщо дитина читає репліки, відстежує порядок, пояснює, що сталося між кадрами, і помічає причину. У коміксі багато змісту живе не в підписі, а в переході від одного моменту до іншого.',
+        'У WonderTales перехідний формат не перевантажує екран: дитина бачить чіткі панелі, велику дію, короткі репліки й зрозумілий напрямок читання. Так картинка не замінює читання, а тримає дитину біля тексту.',
+      ],
+      en: [
+        'When long paragraphs are hard, do not rush to demand a “real book.” A comic breaks the story into steps: look at a panel, read a short line, understand the change, move on. It trains sequence without the feeling of a wall of text.',
+        'Parents often worry: “my child is only looking at pictures; does this count as reading?” It counts when the child reads speech, follows order, explains what happened between panels, and notices cause. In comics, much of the meaning lives in the move from one moment to the next.',
+        'In WonderTales, the bridge format avoids overloading the screen: the child sees clear panels, big action, short speech, and obvious reading direction. The image does not replace reading; it keeps the child close to the text.',
+      ],
+      ru: [
+        'Когда длинные абзацы даются тяжело, не нужно сразу требовать “настоящую книгу”. Комикс раскладывает историю на шаги: посмотреть панель, прочитать короткую реплику, понять изменение, перейти дальше. Это тренирует последовательность без ощущения стены текста.',
+        'Родители часто тревожатся: “он просто смотрит картинки, это вообще считается чтением?”. Считается, если ребенок читает реплики, удерживает порядок, объясняет, что произошло между кадрами, и замечает причину. В комиксе много смысла живет не в подписи, а в переходе от одного момента к другому.',
+        'В WonderTales переходный формат не перегружает экран: ребенок видит понятные панели, крупное действие, короткие реплики и ясное направление чтения. Так картинка не заменяет чтение, а удерживает ребенка рядом с текстом.',
+      ],
+      es: [
+        'Cuando los párrafos largos cuestan, no hace falta exigir enseguida un “libro de verdad”. El cómic divide la historia: mirar una viñeta, leer una frase corta, entender el cambio y seguir. Entrena secuencia sin la sensación de muro de texto.',
+        'Muchas familias preguntan: “solo mira dibujos, ¿eso cuenta como lectura?”. Cuenta si lee diálogos, sigue el orden, explica qué pasó entre viñetas y nota la causa. En el cómic, mucho sentido vive en el paso de un momento al siguiente.',
+        'En WonderTales, el puente no sobrecarga la pantalla: el niño ve viñetas claras, acción grande, frases breves y dirección evidente. La imagen no reemplaza la lectura; mantiene al niño cerca del texto.',
+      ],
+      de: [
+        'Wenn lange Absätze schwerfallen, muss man nicht sofort ein “richtiges Buch” verlangen. Ein Comic teilt die Geschichte: Panel anschauen, kurze Zeile lesen, Veränderung verstehen, weitergehen. Das trainiert Reihenfolge ohne Textwand-Gefühl.',
+        'Viele Eltern fragen: “Schaut mein Kind nur Bilder an, zählt das als Lesen?” Es zählt, wenn das Kind Sprechblasen liest, Reihenfolge hält, erklärt, was zwischen Panels passiert, und Ursachen bemerkt. Im Comic entsteht viel Bedeutung im Übergang von einem Moment zum nächsten.',
+        'In WonderTales überlädt der Übergang den Bildschirm nicht: Das Kind sieht klare Panels, große Handlung, kurze Rede und deutliche Leserichtung. Das Bild ersetzt Lesen nicht, sondern hält das Kind am Text.',
+      ],
+      fr: [
+        'Quand les longs paragraphes sont difficiles, inutile d’exiger tout de suite un “vrai livre”. La BD découpe l’histoire : regarder une case, lire une phrase courte, comprendre le changement, avancer. Elle entraîne la séquence sans mur de texte.',
+        'Les parents demandent souvent : “il regarde seulement les images, est-ce vraiment lire ?”. Oui, si l’enfant lit les bulles, suit l’ordre, explique ce qui change entre les cases et repère la cause. Dans la BD, beaucoup de sens vit entre deux moments.',
+        'Dans WonderTales, le format-pont ne surcharge pas l’écran : l’enfant voit des cases claires, une grande action, des répliques courtes et une direction lisible. L’image ne remplace pas la lecture; elle garde l’enfant près du texte.',
+      ],
+      pl: [
+        'Gdy długie akapity są trudne, nie trzeba od razu wymagać “prawdziwej książki”. Komiks dzieli historię: spojrzeć na kadr, przeczytać krótką kwestię, zrozumieć zmianę i iść dalej. Ćwiczy kolejność bez ściany tekstu.',
+        'Rodzice często pytają: “czy to czytanie, jeśli dziecko tylko ogląda obrazki?”. Tak, jeśli czyta wypowiedzi, trzyma kolejność, wyjaśnia, co stało się między kadrami, i zauważa przyczynę. W komiksie dużo sensu mieszka w przejściu między momentami.',
+        'W WonderTales format przejściowy nie przeciąża ekranu: dziecko widzi czytelne kadry, dużą akcję, krótkie wypowiedzi i jasny kierunek. Obraz nie zastępuje czytania, lecz trzyma dziecko blisko tekstu.',
+      ],
+    },
+    research: {
+      uk: [
+        'Richard E. Mayer з Каліфорнійського університету в Санта-Барбарі формулює мультимедійний принцип просто: люди краще навчаються зі слів і картинок разом, ніж лише зі слів. Для читання це не означає замінити текст картинками; це означає дати опору, поки дитина пов’язує дію, мову, емоцію і причинність.',
+        'Joanne Ujiie та Stephen Krashen з Університету Південної Каліфорнії у дослідженні семикласників знайшли зв’язок між частішим читанням коміксів, більшим читанням для задоволення і більшою любов’ю до читання. Національна рада вчителів англійської мови також розглядає графічні романи як матеріал для розвитку грамотності: там є послідовність, уміння робити висновки, словник, діалог і візуальна грамотність.',
+        'У батьківських обговореннях про графічні романи часто видно не відмову від читання, а страх за “застрягання” на легкому форматі. Практичний висновок: не соромити комікс, а зробити з нього сходинку. Сьогодні дитина читає бульбашку, завтра переказує проміжок між кадрами, а коли впевненість зростає — наступну історію можна створити вже у звичайному текстовому форматі.',
+      ],
+      en: [
+        'Richard E. Mayer from the University of California, Santa Barbara states the multimedia principle plainly: people learn better from words and pictures together than from words alone. For reading, that does not mean replacing text with images; it means giving support while a child connects action, language, emotion, and cause.',
+        'Joanne Ujiie and Stephen Krashen from the University of Southern California found that more comic reading was associated with more pleasure reading and greater reading enjoyment among seventh graders. NCTE, the National Council of Teachers of English, also treats graphic novels as literacy material: sequence, inference, vocabulary, dialogue, and visual literacy all live there.',
+        'Parent discussions about graphic novels often reveal not hostility to reading, but fear that a child will get stuck in the easier format. The practical answer is not to shame comics; it is to make them a step. Today the child reads a bubble, tomorrow explains the gap between panels, and when confidence grows, the next story can be created in the regular text format.',
+      ],
+      ru: [
+        'Richard E. Mayer из Калифорнийского университета в Санта-Барбаре формулирует мультимедийный принцип просто: люди лучше учатся со словами и картинками вместе, чем только со словами. Для чтения это не замена текста картинками, а опора, пока ребенок связывает действие, язык, эмоцию и причинность.',
+        'Joanne Ujiie и Stephen Krashen из Университета Южной Калифорнии обнаружили у семиклассников связь между частым чтением комиксов, большим чтением для удовольствия и большей любовью к чтению. Национальный совет преподавателей английского языка также рассматривает графические романы как материал для грамотности: там есть последовательность, умение делать выводы, словарь, диалог и визуальная грамотность.',
+        'В родительских обсуждениях о графических романах часто видна не враждебность к чтению, а страх, что ребенок “застрянет” на легком формате. Практический вывод: не стыдить комикс, а сделать из него ступеньку. Сегодня ребенок читает облачко, завтра объясняет промежуток между кадрами, а когда уверенность выросла — следующую историю можно создать уже в обычном текстовом формате.',
+      ],
+      es: [
+        'Richard E. Mayer, de la Universidad de California en Santa Bárbara, resume el principio multimedia: aprendemos mejor con palabras e imágenes juntas que solo con palabras. Para leer, no significa sustituir texto por dibujos; significa apoyar la conexión entre acción, lenguaje, emoción y causa.',
+        'Joanne Ujiie y Stephen Krashen, de la Universidad del Sur de California, hallaron que leer más cómics se asociaba con más lectura por placer y disfrute lector en séptimo grado. El Consejo Nacional de Profesores de Inglés también trata la novela gráfica como material de alfabetización: secuencia, inferencia, vocabulario, diálogo y lectura visual.',
+        'En debates de padres sobre novelas gráficas se ve menos rechazo a leer y más miedo a que el niño se quede en lo fácil. La respuesta práctica no es avergonzar el cómic, sino usarlo como escalón. Hoy lee un globo, mañana explica el hueco entre viñetas y, cuando gana confianza, la siguiente historia puede crearse en formato de texto normal.',
+      ],
+      de: [
+        'Richard E. Mayer von der Universität von Kalifornien in Santa Barbara fasst das Multimedia-Prinzip klar zusammen: Menschen lernen besser mit Wörtern und Bildern zusammen als nur mit Wörtern. Beim Lesen ersetzt das Text nicht durch Bilder, sondern stützt die Verbindung von Handlung, Sprache, Gefühl und Ursache.',
+        'Joanne Ujiie und Stephen Krashen von der Universität von Südkalifornien fanden bei Siebtklässlern Zusammenhänge zwischen Comic-Lesen, mehr Lesen aus Freude und größerer Lesefreude. Der Nationale Rat der Englischlehrkräfte behandelt grafische Romane ebenfalls als Material für Lesekompetenz: Reihenfolge, Schlussfolgern, Wortschatz, Dialog und visuelle Kompetenz stecken darin.',
+        'In Elterndebatten über grafische Romane sieht man oft keine Ablehnung des Lesens, sondern Angst, dass das Kind im leichten Format stecken bleibt. Die praktische Antwort: Comics nicht beschämen, sondern als Stufe nutzen. Heute liest das Kind eine Sprechblase, morgen erklärt es die Lücke, und wenn Sicherheit wächst, kann die nächste Geschichte im normalen Textformat entstehen.',
+      ],
+      fr: [
+        'Richard E. Mayer, de l’Université de Californie à Santa Barbara, formule le principe multimédia simplement : on apprend mieux avec mots et images ensemble qu’avec mots seuls. Pour lire, cela ne remplace pas le texte par l’image; cela soutient le lien entre action, langage, émotion et cause.',
+        'Joanne Ujiie et Stephen Krashen, de l’Université de Californie du Sud, ont trouvé chez des élèves de septième année une association entre lecture de comics, lecture plaisir et plaisir de lire. Le Conseil national des enseignants d’anglais considère aussi les romans graphiques comme supports de littératie : séquence, inférence, vocabulaire, dialogue et lecture visuelle.',
+        'Dans les discussions de parents sur les romans graphiques, on voit souvent moins un rejet de la lecture qu’une peur de rester coincé dans un format facile. La réponse pratique : ne pas dévaloriser la BD, mais l’utiliser comme marche. Aujourd’hui une bulle, demain l’espace entre deux cases, puis, quand la confiance grandit, l’histoire suivante peut être créée en texte classique.',
+      ],
+      pl: [
+        'Richard E. Mayer z Uniwersytetu Kalifornijskiego w Santa Barbara ujmuje zasadę multimedialną prosto: uczymy się lepiej ze słów i obrazów razem niż z samych słów. W czytaniu nie chodzi o zastąpienie tekstu obrazkami, lecz o wsparcie połączeń między działaniem, językiem, emocją i przyczyną.',
+        'Joanne Ujiie i Stephen Krashen z Uniwersytetu Południowej Kalifornii u siódmoklasistów znaleźli związek między czytaniem komiksów, czytaniem dla przyjemności i radością czytania. Krajowa Rada Nauczycieli Języka Angielskiego także traktuje powieści graficzne jako materiał do rozwijania piśmienności: kolejność, wnioskowanie, słownictwo, dialog i czytanie obrazu.',
+        'W rozmowach rodziców o powieściach graficznych często widać nie niechęć do czytania, lecz strach, że dziecko utknie w łatwiejszym formacie. Praktyczny wniosek: nie zawstydzać komiksu, tylko zrobić z niego stopień. Dziś dymek, jutro przerwa między kadrami, a gdy rośnie pewność, następną historię można stworzyć już w zwykłym formacie tekstowym.',
+      ],
+    },
+    storyUse: {
+      uk: [
+        'У WonderTales формат коміксу вже веде дитину не від тексту, а до тексту: на планшеті сцена розкладена на зрозумілі панелі, короткі репліки й один помітний крок дії. Персоналізований герой допомагає втримати інтерес, а структура веде до читання.',
+        'Попросіть дитину пройти три кроки. Перший: прочитати репліки в бульбашках. Другий: сказати, що не намальовано між двома кадрами. Третій: коротко переказати сцену своїми словами: що герой помітив, чого злякався, чому змінив рішення.',
+        'Коли це стає легким, наступний крок — окрема нова історія у звичайному текстовому форматі. У WonderTales можна залишити дитині знайомого героя, тему або настрій. Комікс підготував порядок подій, а нова текстова історія поступово бере на себе більше читання.',
+      ],
+      en: [
+        'In WonderTales, comic format already leads a child toward text, not away from it: the tablet scene is broken into clear panels, short speech, and one visible action step. A personalized hero holds interest, and the structure points toward reading.',
+        'Invite the child through three steps. First: read the speech bubbles. Second: say what is not drawn between two panels. Third: briefly retell the scene in their own words: what the hero noticed, feared, and why they changed their mind.',
+        'When that feels easy, the next step is a separate new story in the regular text format. In WonderTales, you can keep a familiar hero, theme, or mood. The comic has prepared event order; the new text story gradually carries more of the reading.',
+      ],
+      ru: [
+        'В WonderTales формат комикса уже ведет ребенка не от текста, а к тексту: сцена на планшете разложена на понятные панели, короткие реплики и один заметный шаг действия. Персонализированный герой удерживает интерес, а структура ведет к чтению.',
+        'Попросите ребенка пройти три шага. Первый: прочитать реплики в облачках. Второй: сказать, что не нарисовано между двумя кадрами. Третий: коротко пересказать сцену своими словами: что герой заметил, чего испугался, почему изменил решение.',
+        'Когда это становится легким, следующий шаг — отдельная новая история в обычном текстовом формате. В WonderTales можно оставить знакомого героя, тему или настроение. Комикс подготовил порядок событий, а новая текстовая история постепенно берет на себя больше чтения.',
+      ],
+      es: [
+        'En WonderTales, el formato cómic ya acerca al texto, no aleja: la escena en la tableta se divide en viñetas claras, frases breves y un paso de acción visible. El héroe personalizado sostiene interés, y la estructura guía hacia leer.',
+        'Invita al niño a tres pasos. Primero: leer los globos. Segundo: decir qué no está dibujado entre dos viñetas. Tercero: contar la escena con sus propias palabras: qué notó el héroe, qué le dio miedo y por qué cambió.',
+        'Cuando sea fácil, el siguiente paso es otra historia nueva en formato de texto normal. En WonderTales, se puede mantener un héroe, tema o ambiente familiar. El cómic preparó el orden; la nueva historia de texto asume más lectura.',
+      ],
+      de: [
+        'In WonderTales führt das Comic-Format bereits zum Text hin: Die Tablet-Szene ist in klare Panels, kurze Rede und einen sichtbaren Handlungsschritt gegliedert. Die personalisierte Figur hält Interesse, und die Struktur führt zum Lesen.',
+        'Führe das Kind durch drei Schritte. Erstens: Sprechblasen lesen. Zweitens: sagen, was zwischen zwei Panels nicht gezeichnet ist. Drittens: die Szene kurz mit eigenen Worten erzählen: was die Figur bemerkte, wovor sie Angst hatte und warum sie sich entschied.',
+        'Wenn das leicht wird, ist der nächste Schritt eine getrennte neue Geschichte im normalen Textformat. In WonderTales kann sie mit vertrauter Figur, Thema oder Stimmung erstellt werden. Der Comic hat die Reihenfolge vorbereitet; die neue Textgeschichte übernimmt mehr Lesearbeit.',
+      ],
+      fr: [
+        'Dans WonderTales, le format BD mène déjà vers le texte : la scène sur tablette est découpée en cases claires, répliques courtes et une action visible. Le héros personnalisé garde l’intérêt, et la structure mène à lire.',
+        'Proposez trois étapes. D’abord : lire les bulles. Ensuite : dire ce qui n’est pas dessiné entre deux cases. Enfin : raconter brièvement la scène avec ses mots : ce que le héros remarque, ce qui lui fait peur et pourquoi il change.',
+        'Quand cela devient facile, l’étape suivante est une nouvelle histoire séparée en format texte classique. Dans WonderTales, elle peut garder un héros, un thème ou une ambiance familière. La BD prépare l’ordre; la nouvelle histoire en texte porte davantage la lecture.',
+      ],
+      pl: [
+        'W WonderTales format komiksowy już prowadzi do tekstu, nie od niego: scena na tablecie jest podzielona na czytelne kadry, krótkie wypowiedzi i jeden widoczny krok akcji. Spersonalizowany bohater trzyma uwagę, a struktura prowadzi ku czytaniu.',
+        'Poprowadź dziecko przez trzy kroki. Pierwszy: przeczytać dymki. Drugi: powiedzieć, czego nie narysowano między kadrami. Trzeci: krótko opowiedzieć scenę własnymi słowami: co bohater zauważył, czego się bał i dlaczego zmienił decyzję.',
+        'Gdy to staje się łatwe, następnym krokiem jest osobna nowa historia w zwykłym formacie tekstowym. W WonderTales można zostawić znajomego bohatera, temat albo nastrój. Komiks przygotował kolejność zdarzeń; nowa historia tekstowa przejmuje więcej czytania.',
+      ],
+    },
+    adjustment: {
+      uk: [
+        'Якщо дитина тільки перегортає картинки, додайте одну м’яку зупинку: “що змінилося між цими двома кадрами?”. Не зупиняйте після кожної панелі; достатньо одного-двох місць, де дитина вчиться бачити причинний зв’язок.',
+        'Якщо репліки дрібні, кадрів забагато або дитина губить напрямок, спростіть сцену. Одна велика панель на екрані іноді краща за сторінку з багатьма маленькими кадрами. Для перехідного читання ясність важливіша за декоративність.',
+        'Якщо дитина “застрягла” тільки на коміксах, не забирайте їх різко. Зробіть ритм між окремими історіями: сьогодні комікс, наступного разу звичайна текстова історія з дуже знайомим героєм або темою. Мета — нарощувати читацьку витривалість без сорому.',
+      ],
+      en: [
+        'If the child only flips through pictures, add one gentle stop: “what changed between these two panels?” Do not interrupt every panel; one or two places are enough for practicing cause and effect.',
+        'If speech is tiny, there are too many frames, or the child loses direction, simplify the scene. One large panel on a screen can be better than a page of many small frames. For bridge reading, clarity matters more than decoration.',
+        'If the child is “stuck” only on comics, do not remove them abruptly. Use a rhythm across separate stories: comic today, then a regular text story next time with a very familiar hero or theme. The aim is reading stamina without shame.',
+      ],
+      ru: [
+        'Если ребенок только пролистывает картинки, добавьте одну мягкую остановку: “что изменилось между этими двумя кадрами?”. Не останавливайте после каждой панели; достаточно одного-двух мест, где ребенок учится видеть причинную связь.',
+        'Если реплики мелкие, кадров слишком много или ребенок теряет направление, упростите сцену. Одна крупная панель на экране иногда лучше страницы с множеством маленьких кадров. Для переходного чтения ясность важнее декоративности.',
+        'Если ребенок “застрял” только на комиксах, не забирайте их резко. Сделайте ритм между отдельными историями: сегодня комикс, в следующий раз обычная текстовая история с очень знакомым героем или темой. Цель — наращивать читательскую выносливость без стыда.',
+      ],
+      es: [
+        'Si solo pasa imágenes, añade una pausa suave: “¿qué cambió entre estas dos viñetas?”. No interrumpas cada viñeta; uno o dos momentos bastan para practicar causa y efecto.',
+        'Si el texto es pequeño, hay demasiadas viñetas o pierde dirección, simplifica. Una viñeta grande en pantalla puede ser mejor que una página con muchos cuadros. Para lectura puente, la claridad importa más que la decoración.',
+        'Si se queda solo en cómics, no los quites de golpe. Usa ritmo entre historias separadas: hoy cómic; la próxima vez, una historia de texto normal con un héroe o tema muy familiar. La meta es resistencia lectora sin vergüenza.',
+      ],
+      de: [
+        'Wenn das Kind nur Bilder durchblättert, halte sanft an: “Was hat sich zwischen diesen zwei Panels verändert?” Nicht jedes Panel unterbrechen; ein oder zwei Stellen reichen, um Ursache und Wirkung zu üben.',
+        'Sind Sprechblasen klein, Panels zu viele oder die Richtung unklar, vereinfache. Ein großes Panel auf dem Bildschirm ist manchmal besser als viele kleine. Beim Übergangslesen zählt Klarheit mehr als Dekoration.',
+        'Wenn das Kind nur bei Comics bleibt, nimm sie nicht abrupt weg. Nutze Rhythmus zwischen getrennten Geschichten: heute Comic, beim nächsten Mal eine normale Textgeschichte mit sehr vertrauter Figur oder Thema. Ziel ist Leseausdauer ohne Scham.',
+      ],
+      fr: [
+        'Si l’enfant ne fait que tourner les images, ajoutez une pause douce : “qu’est-ce qui a changé entre ces deux cases ?”. N’interrompez pas chaque case; un ou deux endroits suffisent pour travailler cause et effet.',
+        'Si le texte est trop petit, les cases trop nombreuses ou la direction confuse, simplifiez. Une grande case à l’écran peut valoir mieux qu’une page de petits cadres. Pour une lecture-pont, la clarté compte plus que l’ornement.',
+        'Si l’enfant reste seulement sur la BD, ne la retirez pas brusquement. Créez un rythme entre histoires séparées : aujourd’hui BD, puis une histoire en texte classique avec un héros ou thème très familier. Le but : l’endurance de lecture sans honte.',
+      ],
+      pl: [
+        'Jeśli dziecko tylko przegląda obrazki, zatrzymaj łagodnie: “co zmieniło się między tymi kadrami?”. Nie zatrzymuj po każdym kadrze; wystarczy jedno lub dwa miejsca do ćwiczenia przyczyny i skutku.',
+        'Gdy dymki są małe, kadrów za dużo albo kierunek się gubi, uprość scenę. Jeden duży kadr na ekranie bywa lepszy niż strona z wieloma małymi. W czytaniu przejściowym jasność jest ważniejsza niż dekoracja.',
+        'Jeśli dziecko “utknęło” tylko przy komiksach, nie zabieraj ich nagle. Zrób rytm między osobnymi historiami: dziś komiks, następnym razem zwykła historia tekstowa z bardzo znajomym bohaterem albo tematem. Cel to wytrzymałość czytelnicza bez wstydu.',
+      ],
+    },
+    checklist: {
+      uk: ['Почніть з 4-6 панелей, не з повної сторінки тексту.', 'Перевірте, що репліки великі й короткі.', 'Попросіть пояснити зміну між двома кадрами.', 'Попросіть переказати сцену своїми словами.', 'Коли дитина готова, створіть наступну історію у звичайному текстовому форматі.'],
+      en: ['Start with 4-6 panels, not a full page of prose.', 'Make sure speech is large and short.', 'Ask what changed between two panels.', 'Ask the child to retell the scene in their own words.', 'When the child is ready, create the next story in the regular text format.'],
+      ru: ['Начните с 4-6 панелей, не с полной страницы текста.', 'Проверьте, что реплики крупные и короткие.', 'Попросите объяснить, что изменилось между двумя кадрами.', 'Попросите пересказать сцену своими словами.', 'Когда ребенок готов, создайте следующую историю в обычном текстовом формате.'],
+      es: ['Empieza con 4-6 viñetas, no una página completa.', 'Asegura globos grandes y breves.', 'Pregunta qué cambió entre dos viñetas.', 'Pide que cuente la escena con sus propias palabras.', 'Cuando esté listo, crea la siguiente historia en formato de texto normal.'],
+      de: ['Mit 4-6 Panels starten, nicht mit voller Textseite.', 'Sprechblasen groß und kurz halten.', 'Fragen, was sich zwischen zwei Panels änderte.', 'Das Kind die Szene mit eigenen Worten erzählen lassen.', 'Wenn das Kind bereit ist, die nächste Geschichte im normalen Textformat erstellen.'],
+      fr: ['Commencer par 4-6 cases, pas une page pleine.', 'Gardez des bulles grandes et courtes.', 'Demander ce qui change entre deux cases.', 'Demander à l’enfant de raconter la scène avec ses mots.', 'Quand l’enfant est prêt, créer l’histoire suivante en format texte classique.'],
+      pl: ['Zacznij od 4-6 kadrów, nie pełnej strony.', 'Dymki mają być duże i krótkie.', 'Zapytaj, co zmieniło się między kadrami.', 'Poproś dziecko, aby opowiedziało scenę własnymi słowami.', 'Gdy dziecko jest gotowe, stwórz następną historię w zwykłym formacie tekstowym.'],
+    },
+    quote: {
+      text: l10n(
+        'Люди краще навчаються зі слів і картинок, ніж лише зі слів.',
+        'People learn better from words and pictures than from words alone.',
+        'Люди лучше учатся со словами и картинками, чем только со словами.',
+        'Las personas aprenden mejor con palabras e imágenes que solo con palabras.',
+        'Menschen lernen besser mit Wörtern und Bildern als nur mit Wörtern.',
+        'Les personnes apprennent mieux avec mots et images qu’avec mots seuls.',
+        'Ludzie uczą się lepiej ze słów i obrazów niż z samych słów.'
+      ),
+      attribution: 'Richard E. Mayer',
+      sourceLabel: l10n('Мультимедійне навчання', 'Multimedia Learning', 'Мультимедийное обучение', 'Aprendizaje multimedia', 'Multimediales Lernen', 'Apprentissage multimédia', 'Uczenie multimedialne'),
+      sourceUrl: 'https://www.cambridge.org/core/books/multimedia-learning/multimedia-principle/1CC3DE892B0431BA48B4C4DCA10D0B8F',
+    },
+    sources: [
+      { label: 'Mayer (Калифорнийский университет в Санта-Барбаре): мультимедийный принцип', url: 'https://www.cambridge.org/core/books/multimedia-learning/multimedia-principle/1CC3DE892B0431BA48B4C4DCA10D0B8F' },
+      { label: 'Ujiie & Krashen (Университет Южной Калифорнии): комиксы и удовольствие от чтения', url: 'https://eric.ed.gov/?id=EJ527305' },
+      { label: 'Национальный совет преподавателей английского языка: архив о графических романах', url: 'https://ncte.org/blog/tag/graphic-novels/' },
+      { label: 'Национальный совет преподавателей английского языка: связи грамотности и графических романов', url: 'https://cdn.ncte.org/nctefiles/resources/books/sample/03920chap01_x.pdf' },
+      { label: 'Reading Rockets (проект WETA о грамотности): графические романы для младших детей', url: 'https://www.readingrockets.org/topics/childrens-books/articles/graphic-novels-young-kids' },
+      { label: 'Scholastic (издательство и образовательная компания): графические романы и навыки чтения', url: 'https://www.scholastic.com/parents/books-and-reading/raise-a-reader-blog/raising-super-readers-benefits-comic-books-and-graphic-novels.html' },
+    ],
+    visualDirection: 'A child reading a WonderTales comic story on a tablet, with clear panels, short speech bubbles, and a parent nearby.',
+    relatedSlugs: ['reading-without-pressure', 'age-appropriate-story-complexity'],
+    inlineImages: articleInlineImages(
+      'comic-stories-reading-bridge',
+      l10n(
+        'Дорослий стилусом показує три комікс-панелі, а дитина пальцем відстежує зміну',
+        'An adult points with a stylus at three comic panels while a child follows the change',
+        'Взрослый стилусом показывает три комикс-панели, а ребенок пальцем отслеживает изменение',
+        'Un adulto señala con un lápiz tres viñetas mientras el niño sigue el cambio con el dedo',
+        'Ein Erwachsener zeigt mit dem Stift auf drei Comic-Panels, während das Kind die Veränderung verfolgt',
+        'Un adulte montre trois cases avec un stylet pendant que l’enfant suit le changement du doigt',
+        'Dorosły wskazuje rysikiem trzy kadry, a dziecko palcem śledzi zmianę'
+      ),
+      l10n(
+        'Одна зупинка між кадрами вчить бачити причину й наслідок без великого абзацу.',
+        'One pause between panels teaches cause and effect without a long paragraph.',
+        'Одна остановка между кадрами учит видеть причину и следствие без большого абзаца.',
+        'Una pausa entre viñetas enseña causa y efecto sin un párrafo largo.',
+        'Eine Pause zwischen Panels zeigt Ursache und Wirkung ohne langen Absatz.',
+        'Une pause entre deux cases apprend cause et effet sans long paragraphe.',
+        'Jedna pauza między kadrami uczy przyczyny i skutku bez długiego akapitu.'
+      ),
+      l10n(
+        'Дитина відкриває звичайну текстову історію на планшеті після досвіду з коміксами',
+        'A child opens a regular text story on a tablet after practicing with comics',
+        'Ребенок открывает обычную текстовую историю на планшете после опыта с комиксами',
+        'Un niño abre una historia de texto normal en la tableta después de practicar con cómics',
+        'Ein Kind öffnet nach Comic-Erfahrung eine normale Textgeschichte auf dem Tablet',
+        'Un enfant ouvre une histoire en texte classique sur tablette après l’expérience de la BD',
+        'Dziecko otwiera zwykłą historię tekstową na tablecie po doświadczeniu z komiksami'
+      ),
+      l10n(
+        'Наступний крок показаний як окрема нова історія у звичайному текстовому форматі.',
+        'The next step is shown as a separate new story in the regular text format.',
+        'Следующий шаг показан как отдельная новая история в обычном текстовом формате.',
+        'El siguiente paso aparece como otra historia nueva en formato de texto normal.',
+        'Der nächste Schritt ist als getrennte neue Geschichte im normalen Textformat gezeigt.',
+        'L’étape suivante est montrée comme une nouvelle histoire séparée en format texte classique.',
+        'Następny krok pokazano jako osobną nową historię w zwykłym formacie tekstowym.'
+      )
+    ),
+    insightCards: {
+      uk: [
+        { eyebrow: 'Послідовність', title: 'Кадри тримають порядок', body: 'Дитина бачить, що сталося спочатку, що змінилося потім і куди рухається дія.' },
+        { eyebrow: 'Висновок', title: 'Сенс живе між кадрами', body: 'Питання “що змінилося?” тренує причинність і здогадку без великого абзацу.' },
+        { eyebrow: 'Перехід', title: 'Наступна історія може бути текстовою', body: 'Коли репліки вже даються легко, у WonderTales можна створити нову історію у звичайному текстовому форматі.' },
+      ],
+      en: [
+        { eyebrow: 'Sequence', title: 'Panels hold the order', body: 'The child sees what happened first, what changed next, and where the action is going.' },
+        { eyebrow: 'Inference', title: 'Meaning lives between panels', body: 'The question “what changed?” practices cause and inference without a long paragraph.' },
+        { eyebrow: 'Bridge', title: 'The next story can be text', body: 'When speech bubbles feel easy, WonderTales can create a new story in the regular text format.' },
+      ],
+      ru: [
+        { eyebrow: 'Последовательность', title: 'Кадры держат порядок', body: 'Ребенок видит, что было сначала, что изменилось потом и куда движется действие.' },
+        { eyebrow: 'Вывод', title: 'Смысл живет между кадрами', body: 'Вопрос “что изменилось?” тренирует причинность и догадку без большого абзаца.' },
+        { eyebrow: 'Переход', title: 'Следующая история может быть текстовой', body: 'Когда реплики уже даются легко, в WonderTales можно создать новую историю в обычном текстовом формате.' },
+      ],
+      es: [
+        { eyebrow: 'Secuencia', title: 'Las viñetas sostienen el orden', body: 'El niño ve qué pasó primero, qué cambió después y hacia dónde va la acción.' },
+        { eyebrow: 'Inferencia', title: 'El sentido vive entre viñetas', body: 'La pregunta “¿qué cambió?” entrena causa e inferencia sin un párrafo largo.' },
+        { eyebrow: 'Puente', title: 'La siguiente historia puede ser texto', body: 'Cuando los globos ya son fáciles, WonderTales puede crear una historia nueva en formato de texto normal.' },
+      ],
+      de: [
+        { eyebrow: 'Reihenfolge', title: 'Panels halten die Ordnung', body: 'Das Kind sieht, was zuerst geschah, was sich danach änderte und wohin die Handlung führt.' },
+        { eyebrow: 'Schlussfolgern', title: 'Sinn entsteht zwischen Panels', body: 'Die Frage “Was hat sich verändert?” übt Ursache und Vermutung ohne langen Absatz.' },
+        { eyebrow: 'Übergang', title: 'Die nächste Geschichte kann Text sein', body: 'Wenn Sprechblasen leicht fallen, kann WonderTales eine neue Geschichte im normalen Textformat erstellen.' },
+      ],
+      fr: [
+        { eyebrow: 'Séquence', title: 'Les cases tiennent l’ordre', body: 'L’enfant voit ce qui arrive d’abord, ce qui change ensuite et où va l’action.' },
+        { eyebrow: 'Inférence', title: 'Le sens vit entre les cases', body: 'La question “qu’est-ce qui a changé ?” entraîne cause et déduction sans long paragraphe.' },
+        { eyebrow: 'Pont', title: 'L’histoire suivante peut être en texte', body: 'Quand les bulles deviennent faciles, WonderTales peut créer une nouvelle histoire en format texte classique.' },
+      ],
+      pl: [
+        { eyebrow: 'Kolejność', title: 'Kadry trzymają porządek', body: 'Dziecko widzi, co było najpierw, co zmieniło się potem i dokąd idzie akcja.' },
+        { eyebrow: 'Wniosek', title: 'Sens mieszka między kadrami', body: 'Pytanie “co się zmieniło?” ćwiczy przyczynę i domysł bez długiego akapitu.' },
+        { eyebrow: 'Pomost', title: 'Następna historia może być tekstowa', body: 'Gdy dymki są już łatwe, WonderTales może stworzyć nową historię w zwykłym formacie tekstowym.' },
+      ],
+    },
+    decisionTable: {
+      uk: {
+        heading: 'Як вести дитину від коміксу до довшого тексту',
+        intro: 'Комікс стає сходинкою, коли дорослий використовує його для послідовності й розуміння, а текстову історію вводить окремим наступним кроком.',
+        columns: ['Що видно', 'Що тренувати', 'М’який крок'],
+        rows: [
+          ['Перегортає тільки картинки', 'Причину між кадрами', 'Запитайте: “що змінилося між цими двома панелями?”'],
+          ['Читає лише репліки', 'Розуміння діалогу', 'Запитайте: “хто це сказав і чому?”'],
+          ['Губить напрямок читання', 'Послідовність і увагу до екрана', 'Залиште одну велику панель і коротку репліку'],
+          ['Просить той самий формат', 'Готовність до текстової історії', 'Наступного разу створіть звичайну текстову історію зі знайомим героєм'],
+        ],
+      },
+      en: {
+        heading: 'How to lead from comics to longer text',
+        intro: 'Comics become a step when the adult uses them for sequence and comprehension, then introduces a text story as a separate next move.',
+        columns: ['What you see', 'What to practice', 'Gentle step'],
+        rows: [
+          ['Only flips through pictures', 'Cause between panels', 'Ask: “what changed between these two panels?”'],
+          ['Reads only speech bubbles', 'Dialogue comprehension', 'Ask: “who said this and why?”'],
+          ['Loses reading direction', 'Sequence and screen attention', 'Use one large panel and a short line'],
+          ['Asks for the same format', 'Readiness for a text story', 'Next time, create a regular text story with a familiar hero'],
+        ],
+      },
+      ru: {
+        heading: 'Как вести ребенка от комикса к более длинному тексту',
+        intro: 'Комикс становится ступенькой, когда взрослый использует его для последовательности и понимания, а текстовую историю вводит отдельным следующим шагом.',
+        columns: ['Что видно', 'Что тренировать', 'Мягкий шаг'],
+        rows: [
+          ['Пролистывает только картинки', 'Причину между кадрами', 'Спросить: “что изменилось между этими двумя панелями?”'],
+          ['Читает только реплики', 'Понимание диалога', 'Спросить: “кто это сказал и почему?”'],
+          ['Теряет направление чтения', 'Последовательность и внимание к экрану', 'Оставить одну крупную панель и короткую реплику'],
+          ['Просит тот же формат', 'Готовность к текстовой истории', 'В следующий раз создать обычную текстовую историю со знакомым героем'],
+        ],
+      },
+      es: {
+        heading: 'Cómo pasar del cómic a textos más largos',
+        intro: 'El cómic es escalón cuando el adulto lo usa para secuencia y comprensión, y presenta una historia de texto como paso siguiente separado.',
+        columns: ['Lo que ves', 'Qué practicar', 'Paso suave'],
+        rows: [
+          ['Solo pasa imágenes', 'La causa entre viñetas', 'Preguntar: “¿qué cambió entre estas dos viñetas?”'],
+          ['Lee solo globos', 'Comprensión del diálogo', 'Preguntar: “¿quién lo dijo y por qué?”'],
+          ['Pierde la dirección', 'Secuencia y atención a la pantalla', 'Usar una viñeta grande y una frase corta'],
+          ['Pide el mismo formato', 'Preparación para una historia de texto', 'La próxima vez, crear una historia de texto con un héroe familiar'],
+        ],
+      },
+      de: {
+        heading: 'Vom Comic zu längerem Text führen',
+        intro: 'Der Comic wird zur Stufe, wenn Erwachsene ihn für Reihenfolge und Verständnis nutzen und die Textgeschichte als getrennten nächsten Schritt einführen.',
+        columns: ['Beobachtung', 'Was üben', 'Sanfter Schritt'],
+        rows: [
+          ['Blättert nur Bilder durch', 'Ursache zwischen Panels', 'Fragen: “Was hat sich zwischen diesen zwei Panels verändert?”'],
+          ['Liest nur Sprechblasen', 'Dialog verstehen', 'Fragen: “Wer sagt das und warum?”'],
+          ['Verliert die Richtung', 'Reihenfolge und Aufmerksamkeit am Bildschirm', 'Ein großes Panel und eine kurze Zeile nutzen'],
+          ['Will dasselbe Format', 'Bereitschaft für Textgeschichte', 'Beim nächsten Mal eine normale Textgeschichte mit vertrauter Figur erstellen'],
+        ],
+      },
+      fr: {
+        heading: 'Passer de la BD au texte plus long',
+        intro: 'La BD devient une marche quand l’adulte l’utilise pour la séquence et la compréhension, puis introduit une histoire en texte comme étape suivante séparée.',
+        columns: ['Ce qu’on voit', 'À entraîner', 'Pas doux'],
+        rows: [
+          ['Tourne seulement les images', 'La cause entre les cases', 'Demander : “qu’est-ce qui a changé entre ces deux cases ?”'],
+          ['Lit seulement les bulles', 'Compréhension du dialogue', 'Demander : “qui le dit et pourquoi ?”'],
+          ['Perd le sens de lecture', 'Séquence et attention à l’écran', 'Garder une grande case et une phrase courte'],
+          ['Redemande le même format', 'Prêt pour une histoire en texte', 'La prochaine fois, créer une histoire texte avec un héros familier'],
+        ],
+      },
+      pl: {
+        heading: 'Jak prowadzić od komiksu do dłuższego tekstu',
+        intro: 'Komiks staje się stopniem, gdy dorosły używa go do kolejności i rozumienia, a historię tekstową wprowadza jako osobny następny krok.',
+        columns: ['Co widać', 'Co ćwiczyć', 'Łagodny krok'],
+        rows: [
+          ['Przegląda tylko obrazki', 'Przyczynę między kadrami', 'Zapytać: “co zmieniło się między tymi kadrami?”'],
+          ['Czyta tylko dymki', 'Rozumienie dialogu', 'Zapytać: “kto to powiedział i dlaczego?”'],
+          ['Gubi kierunek czytania', 'Kolejność i uwagę na ekranie', 'Zostawić jeden duży kadr i krótką wypowiedź'],
+          ['Prosi o ten sam format', 'Gotowość na historię tekstową', 'Następnym razem stworzyć zwykłą historię tekstową ze znajomym bohaterem'],
+        ],
+      },
+    },
+    stepBlock: {
+      uk: {
+        eyebrow: 'Сходинка читання',
+        heading: 'Від коміксу до текстової історії',
+        intro: 'Не треба різко забирати комікс. Краще спочатку закріпити порядок подій, а потім створити окрему історію текстом.',
+        steps: [
+          { title: 'Прочитати репліку', body: 'Дитина починає з короткого тексту в бульбашці, де видно, хто говорить.' },
+          { title: 'Назвати зміну', body: 'Між двома панелями дитина пояснює, що сталося й чому.' },
+          { title: 'Переказати сцену', body: 'Дитина коротко розповідає своїми словами, що герой зробив і що зрозумів.' },
+          { title: 'Створити текстову історію', body: 'Коли дитина готова, наступна історія створюється вже у звичайному текстовому форматі.' },
+        ],
+      },
+      en: {
+        eyebrow: 'Reading step',
+        heading: 'From comic to text story',
+        intro: 'There is no need to remove comics abruptly. First strengthen event order, then create a separate story in text.',
+        steps: [
+          { title: 'Read the line', body: 'The child starts with short bubble text where the speaker is visible.' },
+          { title: 'Name the change', body: 'Between two panels, the child explains what happened and why.' },
+          { title: 'Retell the scene', body: 'The child briefly says in their own words what the hero did and understood.' },
+          { title: 'Create a text story', body: 'When the child is ready, the next story is created in the regular text format.' },
+        ],
+      },
+      ru: {
+        eyebrow: 'Ступень чтения',
+        heading: 'От комикса к текстовой истории',
+        intro: 'Не нужно резко забирать комикс. Лучше сначала закрепить порядок событий, а затем создать отдельную историю текстом.',
+        steps: [
+          { title: 'Прочитать реплику', body: 'Ребенок начинает с короткого текста в облачке, где видно, кто говорит.' },
+          { title: 'Назвать изменение', body: 'Между двумя панелями ребенок объясняет, что произошло и почему.' },
+          { title: 'Пересказать сцену', body: 'Ребенок коротко говорит своими словами, что герой сделал и что понял.' },
+          { title: 'Создать текстовую историю', body: 'Когда ребенок готов, следующая история создается уже в обычном текстовом формате.' },
+        ],
+      },
+      es: {
+        eyebrow: 'Escalón lector',
+        heading: 'Del cómic a la historia de texto',
+        intro: 'No hace falta quitar el cómic de golpe. Primero se refuerza el orden de los hechos; después se crea otra historia en texto.',
+        steps: [
+          { title: 'Leer el globo', body: 'Empieza con texto breve donde se ve quién habla.' },
+          { title: 'Nombrar el cambio', body: 'Entre dos viñetas explica qué ocurrió y por qué.' },
+          { title: 'Contar la escena', body: 'El niño dice brevemente con sus palabras qué hizo y entendió el héroe.' },
+          { title: 'Crear una historia de texto', body: 'Cuando esté listo, la siguiente historia se crea en formato de texto normal.' },
+        ],
+      },
+      de: {
+        eyebrow: 'Lesestufe',
+        heading: 'Vom Comic zur Textgeschichte',
+        intro: 'Comics müssen nicht abrupt verschwinden. Erst wird die Ereignisfolge gestärkt, dann entsteht eine getrennte Geschichte als Text.',
+        steps: [
+          { title: 'Sprechblase lesen', body: 'Das Kind beginnt mit kurzem Text, bei dem sichtbar ist, wer spricht.' },
+          { title: 'Veränderung benennen', body: 'Zwischen zwei Panels erklärt das Kind, was passiert ist und warum.' },
+          { title: 'Szene erzählen', body: 'Das Kind sagt kurz mit eigenen Worten, was die Figur getan und verstanden hat.' },
+          { title: 'Textgeschichte erstellen', body: 'Wenn das Kind bereit ist, entsteht die nächste Geschichte im normalen Textformat.' },
+        ],
+      },
+      fr: {
+        eyebrow: 'Marche de lecture',
+        heading: 'De la BD à l’histoire en texte',
+        intro: 'Inutile de retirer la BD brusquement. On consolide d’abord l’ordre des événements, puis on crée une histoire séparée en texte.',
+        steps: [
+          { title: 'Lire la bulle', body: 'L’enfant commence par un texte court où l’on voit qui parle.' },
+          { title: 'Nommer le changement', body: 'Entre deux cases, l’enfant explique ce qui s’est passé et pourquoi.' },
+          { title: 'Raconter la scène', body: 'L’enfant dit brièvement avec ses mots ce que le héros a fait et compris.' },
+          { title: 'Créer une histoire en texte', body: 'Quand l’enfant est prêt, l’histoire suivante est créée en format texte classique.' },
+        ],
+      },
+      pl: {
+        eyebrow: 'Stopień czytania',
+        heading: 'Od komiksu do historii tekstowej',
+        intro: 'Nie trzeba nagle zabierać komiksu. Najpierw wzmacnia się kolejność zdarzeń, potem tworzy osobną historię tekstową.',
+        steps: [
+          { title: 'Przeczytać dymek', body: 'Dziecko zaczyna od krótkiego tekstu, gdzie widać, kto mówi.' },
+          { title: 'Nazwać zmianę', body: 'Między dwoma kadrami dziecko wyjaśnia, co się stało i dlaczego.' },
+          { title: 'Opowiedzieć scenę', body: 'Dziecko krótko mówi własnymi słowami, co bohater zrobił i zrozumiał.' },
+          { title: 'Stworzyć historię tekstową', body: 'Gdy dziecko jest gotowe, następna historia powstaje w zwykłym formacie tekstowym.' },
+        ],
+      },
+    },
+  },
+  {
     slug: 'siblings-shared-stories',
     heroImage: '/landing/optimized/multiple-child-profiles-960.webp',
     updatedAt: '2026-06-17',
@@ -4701,7 +5612,7 @@ const ARTICLES: BlogArticleDefinition[] = [
   },
 ];
 
-const PUBLISHED_ARTICLES = ARTICLES.slice(0, 10);
+const PUBLISHED_ARTICLES = ARTICLES.slice(0, 12);
 const ARTICLE_BY_SLUG = new Map(PUBLISHED_ARTICLES.map((article) => [article.slug, article]));
 
 export function getBlogSlugs(): string[] {

@@ -1,0 +1,4 @@
+interface:
+  display_name: "WonderTales Blog Article"
+  short_description: "Create evidence-informed WonderTales blog posts"
+  default_prompt: "Use $wondertales-blog-article to create or update a practical WonderTales blog article."

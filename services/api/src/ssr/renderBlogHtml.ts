@@ -250,6 +250,24 @@ const QUOTE_AUTHOR_BIOS: Partial<Record<string, Record<PublicSeoLocale, string>>
     fr: 'chercheuse sur la motivation en lecture, professeure de littératie et autrice sur l’engagement lecteur',
     pl: 'badaczka motywacji czytelniczej, profesorka alfabetyzacji i autorka o zaangażowaniu czytelników',
   },
+  'Roediger & Karpicke': {
+    uk: 'Henry L. Roediger III — Вашингтонський університет у Сент-Луїсі; Jeffrey D. Karpicke — Університет Пердью; дослідники пам’яті та ефекту перевірки',
+    en: 'Henry L. Roediger III, Washington University in St. Louis; Jeffrey D. Karpicke, Purdue University; memory researchers known for the testing effect',
+    ru: 'Henry L. Roediger III — Вашингтонский университет в Сент-Луисе; Jeffrey D. Karpicke — Университет Пердью; исследователи памяти и эффекта проверки',
+    es: 'Henry L. Roediger III, Universidad Washington en San Luis; Jeffrey D. Karpicke, Universidad Purdue; investigadores de memoria y efecto de prueba',
+    de: 'Henry L. Roediger III, Washington-Universität in St. Louis; Jeffrey D. Karpicke, Purdue-Universität; Gedächtnisforscher zum Prüfeffekt',
+    fr: 'Henry L. Roediger III, Université Washington à Saint-Louis; Jeffrey D. Karpicke, Université Purdue; chercheurs en mémoire et effet de test',
+    pl: 'Henry L. Roediger III, Uniwersytet Waszyngtona w St. Louis; Jeffrey D. Karpicke, Uniwersytet Purdue; badacze pamięci i efektu sprawdzania',
+  },
+  'Richard E. Mayer': {
+    uk: 'заслужений професор психології Каліфорнійського університету в Санта-Барбарі; автор когнітивної теорії мультимедійного навчання',
+    en: 'Distinguished Professor of Psychology, University of California, Santa Barbara; author of cognitive theory of multimedia learning',
+    ru: 'заслуженный профессор психологии Калифорнийского университета в Санта-Барбаре; автор когнитивной теории мультимедийного обучения',
+    es: 'profesor distinguido de Psicología, Universidad de California en Santa Bárbara; autor de la teoría cognitiva del aprendizaje multimedia',
+    de: 'renommierter Psychologieprofessor an der Universität von Kalifornien in Santa Barbara; Autor der kognitiven Theorie multimedialen Lernens',
+    fr: 'professeur distingué de psychologie à l’Université de Californie à Santa Barbara; auteur de la théorie cognitive de l’apprentissage multimédia',
+    pl: 'wyróżniony profesor psychologii na Uniwersytecie Kalifornijskim w Santa Barbara; autor poznawczej teorii uczenia multimedialnego',
+  },
   'Marc Brackett': {
     uk: 'психолог і засновник Yale Center for Emotional Intelligence',
     en: 'psychologist and founding director of the Yale Center for Emotional Intelligence',
@@ -333,6 +351,8 @@ h1{margin:0 0 18px;font-size:58px;line-height:1.02;letter-spacing:0;color:#17122
 .article-thumb{width:100%;aspect-ratio:16/10;object-fit:cover;display:block;background:#eee8f7}
 .article-card-body{padding:22px;display:flex;flex-direction:column;gap:12px;flex:1}
 .article-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:#7d67d2;font-weight:850;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.article-read-time{display:inline-flex;align-items:center;gap:5px;text-transform:none;letter-spacing:0;color:#7d67d2}
+.article-read-time svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .article-card h2{margin:0;color:#17122d;font-size:24px;line-height:1.16;letter-spacing:0}
 .article-card p{margin:0;color:#655f7d;font-size:15px;line-height:1.6}
 .article-read{margin-top:auto;color:#d96445;font-weight:850}
@@ -498,7 +518,7 @@ function renderArticleCard(article: BlogArticleSummary, webAppUrl: string, readM
   return `<a class="article-card" href="${escapeHtml(href)}">
     <img class="article-thumb" src="${escapeHtml(article.heroImage)}" alt="${escapeHtml(article.heroAlt)}" loading="lazy">
     <div class="article-card-body">
-      <div class="article-meta"><span>${escapeHtml(article.category)}</span><span>${escapeHtml(article.readingTime)}</span></div>
+      <div class="article-meta"><span>${escapeHtml(article.category)}</span><span class="article-read-time" aria-label="${escapeHtml(article.readingTime)}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg><span>7 min</span></span></div>
       <h2>${escapeHtml(article.title)}</h2>
       <p>${escapeHtml(article.description)}</p>
       <span class="article-read">${escapeHtml(readMore)} →</span>

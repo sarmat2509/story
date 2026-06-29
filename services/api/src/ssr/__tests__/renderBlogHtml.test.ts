@@ -39,6 +39,8 @@ for (const locale of PUBLIC_SEO_LOCALES) {
   assert.match(indexHtml, new RegExp(`<html lang="${locale}">`));
   assert.match(indexHtml, hrefForPath(buildPublicBlogIndexPath(locale)));
   assert.match(indexHtml, hrefForPath(buildPublicBlogArticlePath('adhd-story-attention', locale)));
+  assert.match(indexHtml, /class="article-read-time"/);
+  assert.match(indexHtml, />7 min<\/span>/);
   assert.match(indexHtml, /hreflang="x-default"/);
 
   const articleHtml = renderBlogArticleHtml({ locale, slug: 'adhd-story-attention' });
@@ -85,7 +87,20 @@ assert.match(
 );
 assert.match(safeScaryHtml, /Створити страшну історію/);
 
-assert.equal(getBlogSlugs().length, 10);
+assert.equal(getBlogSlugs().length, 12);
+assert.deepEqual(getBlogSlugs().slice(10), [
+  'rewarded-story-quizzes',
+  'comic-stories-reading-bridge',
+]);
+for (const slug of ['rewarded-story-quizzes', 'comic-stories-reading-bridge']) {
+  for (const locale of PUBLIC_SEO_LOCALES) {
+    const articleHtml = renderBlogArticleHtml({ locale, slug });
+    assert.ok(articleHtml, `${slug} should render for ${locale}`);
+    assert.match(articleHtml, /class="insight-grid"/, `${slug} should render insight cards for ${locale}`);
+    assert.match(articleHtml, /class="decision-table"/, `${slug} should render decision table for ${locale}`);
+    assert.match(articleHtml, /class="step-block"/, `${slug} should render step block for ${locale}`);
+  }
+}
 for (const slug of getBlogSlugs()) {
   const englishArticle = getBlogArticle(slug, 'en');
   assert.ok(englishArticle, `english article data should exist for ${slug}`);
