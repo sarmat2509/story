@@ -1,6 +1,10 @@
 import sharp from 'sharp';
 import type { ImageDomainService } from '../image';
-import { GRAPHIC_NOVEL_PAGE_SIZE, normalizeRect } from './layoutPlanner';
+import {
+  GRAPHIC_NOVEL_PAGE_SIZE,
+  normalizeRect,
+  pageSizeForGraphicNovelPage,
+} from './layoutPlanner';
 import type { StoryEnvironment } from '../../ai/types';
 import type { ImageValidationResult } from '../../ai/types';
 import type { ReferenceImage } from '../../providers/base/IImageProvider';
@@ -29,6 +33,8 @@ const PANEL_GUIDE_COLORS = [
 const TEMPLATE_COLOR_MAX_CHANNEL_DELTA = 14;
 const TEMPLATE_COLOR_RESIDUE_MIN_PIXELS = 500;
 const TEMPLATE_COLOR_RESIDUE_MIN_PANEL_RATIO = 0.002;
+const TEMPLATE_COLOR_RESIDUE_EDGE_IGNORE_PX = 14;
+const TEMPLATE_COLOR_RESIDUE_BUBBLE_IGNORE_PX = 8;
 
 export interface GraphicNovelTemplateColorResiduePanelCheck {
   panelIndex: number;
@@ -47,17 +53,24 @@ export interface GraphicNovelTemplateColorResidueCheck {
   panels: GraphicNovelTemplateColorResiduePanelCheck[];
 }
 
-function px(rect: Rect): Rect {
-  return normalizeRect(rect);
+type PageSize = { width: number; height: number };
+
+function px(rect: Rect, pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE): Rect {
+  return normalizeRect(rect, pageSize);
 }
 
-function rectSvg(rect: Rect, attrs: string): string {
-  const r = px(rect);
+function rectSvg(rect: Rect, attrs: string, pageSize?: PageSize): string {
+  const r = px(rect, pageSize);
   return `<rect x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}" ${attrs}/>`;
 }
 
 function panelGuideColor(index: number): (typeof PANEL_GUIDE_COLORS)[number] {
   return PANEL_GUIDE_COLORS[index % PANEL_GUIDE_COLORS.length];
+}
+
+function pageEditAspectRatio(page: PlannedGraphicNovelPage): '16:9' | '3:4' {
+  const pageSize = pageSizeForGraphicNovelPage(page);
+  return pageSize.width >= pageSize.height ? '16:9' : '3:4';
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -80,6 +93,15 @@ function colorMatchesGuideColor(
       Math.abs(r - gr) <= TEMPLATE_COLOR_MAX_CHANNEL_DELTA &&
       Math.abs(g - gg) <= TEMPLATE_COLOR_MAX_CHANNEL_DELTA &&
       Math.abs(b - gb) <= TEMPLATE_COLOR_MAX_CHANNEL_DELTA
+  );
+}
+
+function pointInsideRectWithMargin(x: number, y: number, rect: Rect, margin: number): boolean {
+  return (
+    x >= rect.x - margin &&
+    x <= rect.x + rect.width + margin &&
+    y >= rect.y - margin &&
+    y <= rect.y + rect.height + margin
   );
 }
 
@@ -229,10 +251,15 @@ function bubbleEdgePointToward(r: Rect, tail: { x: number; y: number }): { x: nu
   };
 }
 
-function bubbleTailDots(bubble: BubbleGeometry, r: Rect, attrText: string): string {
+function bubbleTailDots(
+  bubble: BubbleGeometry,
+  r: Rect,
+  attrText: string,
+  pageSize?: PageSize
+): string {
   if (!bubble.tailTo) return '';
 
-  const tail = px({ x: bubble.tailTo.x, y: bubble.tailTo.y, width: 0, height: 0 });
+  const tail = px({ x: bubble.tailTo.x, y: bubble.tailTo.y, width: 0, height: 0 }, pageSize);
   const edge = bubbleEdgePointToward(r, tail);
   const dx = tail.x - edge.x;
   const dy = tail.y - edge.y;
@@ -359,11 +386,12 @@ function concaveSideForTail(params: {
 function speechTailGeometry(
   bubble: BubbleGeometry,
   body: Rect,
-  radius: number
+  radius: number,
+  pageSize?: PageSize
 ): SpeechTailGeometry | undefined {
   if (!bubble.tailTo) return undefined;
 
-  const tail = px({ x: bubble.tailTo.x, y: bubble.tailTo.y, width: 0, height: 0 });
+  const tail = px({ x: bubble.tailTo.x, y: bubble.tailTo.y, width: 0, height: 0 }, pageSize);
   const center = { x: body.x + body.width / 2, y: body.y + body.height / 2 };
   const dx = tail.x - center.x;
   const dy = tail.y - center.y;
@@ -497,7 +525,7 @@ function speechTailGeometry(
   };
 }
 
-function classicSpeechBubblePath(bubble: BubbleGeometry, r: Rect): string {
+function classicSpeechBubblePath(bubble: BubbleGeometry, r: Rect, pageSize?: PageSize): string {
   const body = bubbleOutlineRect(r);
   const x = body.x;
   const y = body.y;
@@ -508,7 +536,7 @@ function classicSpeechBubblePath(bubble: BubbleGeometry, r: Rect): string {
     body.height / 2,
     Math.max(BUBBLE_CORNER_RADIUS_PX, body.height * 0.42)
   );
-  const tail = speechTailGeometry(bubble, body, radius);
+  const tail = speechTailGeometry(bubble, body, radius, pageSize);
   if (!tail) {
     return cloudBubblePath(r, BUBBLE_CORNER_RADIUS_PX);
   }
@@ -573,21 +601,23 @@ function classicSpeechBubblePath(bubble: BubbleGeometry, r: Rect): string {
 
 function bubbleShapeSvg(
   bubble: BubbleGeometry,
-  attrs: { fill: string; stroke: string; strokeWidth: number; fillOpacity?: number }
+  attrs: { fill: string; stroke: string; strokeWidth: number; fillOpacity?: number },
+  pageSize?: PageSize
 ): string {
-  const r = px(bubble.rect);
+  const r = px(bubble.rect, pageSize);
   const attrText = `fill="${attrs.fill}" fill-opacity="${attrs.fillOpacity ?? 1}" stroke="${attrs.stroke}" stroke-width="${attrs.strokeWidth}" stroke-linejoin="round" stroke-linecap="round"`;
   if (bubble.kind === 'speech') {
-    return `<path d="${classicSpeechBubblePath(bubble, r)}" ${attrText}/>`;
+    return `<path d="${classicSpeechBubblePath(bubble, r, pageSize)}" ${attrText}/>`;
   }
   const path = cloudBubblePath(r, BUBBLE_CORNER_RADIUS_PX);
   if (bubble.kind === 'thought') {
-    return `<path d="${path}" ${attrText}/>${bubbleTailDots(bubble, r, attrText)}`;
+    return `<path d="${path}" ${attrText}/>${bubbleTailDots(bubble, r, attrText, pageSize)}`;
   }
   return `<path d="${path}" ${attrText}/>`;
 }
 
 function bubbleSvg(page: PlannedGraphicNovelPage): string {
+  const pageSize = pageSizeForGraphicNovelPage(page);
   const bubbles = page.panels
     .flatMap((panel) => panel.bubbles)
     .sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
@@ -595,51 +625,65 @@ function bubbleSvg(page: PlannedGraphicNovelPage): string {
   const bubbleNodes: string[] = [];
   for (const bubble of bubbles) {
     bubbleNodes.push(
-      bubbleShapeSvg(bubble, {
-        fill: '#fffdf8',
-        fillOpacity: BUBBLE_FILL_OPACITY,
-        stroke: '#111',
-        strokeWidth: BUBBLE_STROKE_WIDTH_PX,
-      })
+      bubbleShapeSvg(
+        bubble,
+        {
+          fill: '#fffdf8',
+          fillOpacity: BUBBLE_FILL_OPACITY,
+          stroke: '#111',
+          strokeWidth: BUBBLE_STROKE_WIDTH_PX,
+        },
+        pageSize
+      )
     );
   }
   return bubbleNodes.join('\n');
 }
 
 function frameSvg(page: PlannedGraphicNovelPage, includeArtPlaceholders: boolean): string {
+  const pageSize = pageSizeForGraphicNovelPage(page);
   const panels = page.panels
     .map((panel, index) => {
       const color = panelGuideColor(index);
       const fill = includeArtPlaceholders ? color.artFill : color.frameFill;
-      return rectSvg(panel.templatePanel.rect, `fill="${fill}" stroke="#111" stroke-width="8"`);
+      return rectSvg(
+        panel.templatePanel.rect,
+        `fill="${fill}" stroke="#111" stroke-width="8"`,
+        pageSize
+      );
     })
     .join('\n');
   return panels;
 }
 
 function panelFrameOnlySvg(page: PlannedGraphicNovelPage): string {
+  const pageSize = pageSizeForGraphicNovelPage(page);
   return page.panels
-    .map((panel) => rectSvg(panel.templatePanel.rect, 'fill="none" stroke="#111" stroke-width="8"'))
+    .map((panel) =>
+      rectSvg(panel.templatePanel.rect, 'fill="none" stroke="#111" stroke-width="8"', pageSize)
+    )
     .join('\n');
 }
 
 function buildSvg(page: PlannedGraphicNovelPage, includeArtPlaceholders: boolean): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${GRAPHIC_NOVEL_PAGE_SIZE.width}" height="${GRAPHIC_NOVEL_PAGE_SIZE.height}" viewBox="0 0 ${GRAPHIC_NOVEL_PAGE_SIZE.width} ${GRAPHIC_NOVEL_PAGE_SIZE.height}">
+  const pageSize = pageSizeForGraphicNovelPage(page);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${pageSize.width}" height="${pageSize.height}" viewBox="0 0 ${pageSize.width} ${pageSize.height}">
   <rect width="100%" height="100%" fill="#fffaf0"/>
   ${frameSvg(page, includeArtPlaceholders)}
 </svg>`;
 }
 
 function buildOverlaySvg(page: PlannedGraphicNovelPage): string {
-  const pagePath = `M 0 0 H ${GRAPHIC_NOVEL_PAGE_SIZE.width} V ${GRAPHIC_NOVEL_PAGE_SIZE.height} H 0 Z`;
+  const pageSize = pageSizeForGraphicNovelPage(page);
+  const pagePath = `M 0 0 H ${pageSize.width} V ${pageSize.height} H 0 Z`;
   const panelHoles = page.panels
     .map((panel) => {
-      const r = px(panel.templatePanel.rect);
+      const r = px(panel.templatePanel.rect, pageSize);
       return `M ${r.x} ${r.y} H ${r.x + r.width} V ${r.y + r.height} H ${r.x} Z`;
     })
     .join(' ');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${GRAPHIC_NOVEL_PAGE_SIZE.width}" height="${GRAPHIC_NOVEL_PAGE_SIZE.height}" viewBox="0 0 ${GRAPHIC_NOVEL_PAGE_SIZE.width} ${GRAPHIC_NOVEL_PAGE_SIZE.height}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${pageSize.width}" height="${pageSize.height}" viewBox="0 0 ${pageSize.width} ${pageSize.height}">
   <path d="${pagePath} ${panelHoles}" fill="#fffaf0" fill-rule="evenodd"/>
   ${panelFrameOnlySvg(page)}
   ${bubbleSvg(page)}
@@ -658,8 +702,9 @@ export async function detectGraphicNovelTemplateColorResidue(
   imageData: Buffer,
   page: PlannedGraphicNovelPage
 ): Promise<GraphicNovelTemplateColorResidueCheck> {
+  const pageSize = pageSizeForGraphicNovelPage(page);
   const { data, info } = await sharp(imageData)
-    .resize(GRAPHIC_NOVEL_PAGE_SIZE.width, GRAPHIC_NOVEL_PAGE_SIZE.height, { fit: 'fill' })
+    .resize(pageSize.width, pageSize.height, { fit: 'fill' })
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
@@ -668,16 +713,28 @@ export async function detectGraphicNovelTemplateColorResidue(
   const panels = page.panels.map((panel, index) => {
     const color = panelGuideColor(index);
     const guideColors = [hexToRgb(color.artFill), hexToRgb(color.frameFill)];
-    const rect = px(panel.templatePanel.rect);
-    const x0 = clamp(Math.floor(rect.x), 0, info.width - 1);
-    const y0 = clamp(Math.floor(rect.y), 0, info.height - 1);
-    const x1 = clamp(Math.ceil(rect.x + rect.width), x0 + 1, info.width);
-    const y1 = clamp(Math.ceil(rect.y + rect.height), y0 + 1, info.height);
+    const rect = px(panel.templatePanel.rect, pageSize);
+    const edgeInset = Math.min(
+      TEMPLATE_COLOR_RESIDUE_EDGE_IGNORE_PX,
+      Math.max(0, Math.floor(Math.min(rect.width, rect.height) * 0.08))
+    );
+    const bubbleRects = panel.bubbles.map((bubble) => px(bubble.rect, pageSize));
+    const x0 = clamp(Math.floor(rect.x + edgeInset), 0, info.width - 1);
+    const y0 = clamp(Math.floor(rect.y + edgeInset), 0, info.height - 1);
+    const x1 = clamp(Math.ceil(rect.x + rect.width - edgeInset), x0 + 1, info.width);
+    const y1 = clamp(Math.ceil(rect.y + rect.height - edgeInset), y0 + 1, info.height);
     let matchedPixels = 0;
     let panelPixels = 0;
 
     for (let y = y0; y < y1; y += 1) {
       for (let x = x0; x < x1; x += 1) {
+        if (
+          bubbleRects.some((bubbleRect) =>
+            pointInsideRectWithMargin(x, y, bubbleRect, TEMPLATE_COLOR_RESIDUE_BUBBLE_IGNORE_PX)
+          )
+        ) {
+          continue;
+        }
         const pixelIndex = (y * info.width + x) * channels;
         const alpha = channels >= 4 ? data[pixelIndex + 3] : 255;
         if (alpha < 16) continue;
@@ -724,12 +781,13 @@ export async function overlayGraphicNovelTemplate(
   baseImage: Buffer,
   page: PlannedGraphicNovelPage
 ): Promise<Buffer> {
+  const pageSize = pageSizeForGraphicNovelPage(page);
   const overlay = await sharp(Buffer.from(buildOverlaySvg(page)))
     .png()
     .toBuffer();
 
   return sharp(baseImage)
-    .resize(GRAPHIC_NOVEL_PAGE_SIZE.width, GRAPHIC_NOVEL_PAGE_SIZE.height, { fit: 'cover' })
+    .resize(pageSize.width, pageSize.height, { fit: 'cover' })
     .composite([{ input: overlay, top: 0, left: 0 }])
     .png()
     .toBuffer();
@@ -745,10 +803,11 @@ export async function composeGraphicNovelPanelArtPage(
   page: PlannedGraphicNovelPage,
   panelArt: GraphicNovelPanelArtInput[]
 ): Promise<Buffer> {
+  const pageSize = pageSizeForGraphicNovelPage(page);
   const base = await sharp({
     create: {
-      width: GRAPHIC_NOVEL_PAGE_SIZE.width,
-      height: GRAPHIC_NOVEL_PAGE_SIZE.height,
+      width: pageSize.width,
+      height: pageSize.height,
       channels: 4,
       background: '#fffaf0',
     },
@@ -762,7 +821,7 @@ export async function composeGraphicNovelPanelArtPage(
       const art =
         artByPanelId.get(panel.script.panelId) ??
         panelArt.find((item) => item.panelIndex === index + 1);
-      const r = px(panel.templatePanel.rect);
+      const r = px(panel.templatePanel.rect, pageSize);
       const input = art
         ? await sharp(art.imageData)
             .resize(r.width, r.height, { fit: 'cover', position: 'attention' })
@@ -1163,7 +1222,7 @@ export async function editGraphicNovelPage(params: {
     originalImage: params.templateBuffer,
     originalMimeType: 'image/png',
     editInstructions,
-    aspectRatio: '3:4',
+    aspectRatio: pageEditAspectRatio(params.page),
     referenceImages,
     personGeneration: 'allow_all',
     systemInstruction: buildGraphicNovelPageSystemInstruction({

@@ -23,6 +23,12 @@ export interface GeminiSchema {
   nullable?: boolean;
   minimum?: number;
   maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
+  minProperties?: number;
+  maxProperties?: number;
   format?: string;
 }
 
@@ -81,6 +87,30 @@ export class GeminiSchemaAdapter {
 
     if (schema.maximum !== undefined) {
       geminiSchema.maximum = schema.maximum;
+    }
+
+    if (schema.minLength !== undefined) {
+      geminiSchema.minLength = schema.minLength;
+    }
+
+    if (schema.maxLength !== undefined) {
+      geminiSchema.maxLength = schema.maxLength;
+    }
+
+    if (schema.minItems !== undefined) {
+      geminiSchema.minItems = schema.minItems;
+    }
+
+    if (schema.maxItems !== undefined) {
+      geminiSchema.maxItems = schema.maxItems;
+    }
+
+    if (schema.minProperties !== undefined) {
+      geminiSchema.minProperties = schema.minProperties;
+    }
+
+    if (schema.maxProperties !== undefined) {
+      geminiSchema.maxProperties = schema.maxProperties;
     }
 
     // Handle array items

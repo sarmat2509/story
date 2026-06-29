@@ -33,11 +33,18 @@ export { buildContinuationPromptPlain } from './ContinuationPrompt';
 export {
   buildGraphicNovelPrompt,
   buildGraphicNovelSafetyFallbackPrompt,
+  graphicNovelPanelCountRange,
+  graphicNovelPanelDensityRequirement,
   GRAPHIC_NOVEL_CAPTION_MAX_CHARS,
   GRAPHIC_NOVEL_LINE_MAX_CHARS,
   GRAPHIC_NOVEL_SCRIPT_SCHEMA,
   GRAPHIC_NOVEL_SPEAKER_MAX_CHARS,
 } from './GraphicNovelPrompt';
+export {
+  buildMixedStoryPrompt,
+  buildMixedStoryScriptSchema,
+  MIXED_STORY_SCRIPT_SCHEMA,
+} from './MixedStoryPrompt';
 
 export type { DirectTextPromptParams } from './DirectTextPrompt';
 export type { ValidationPromptParams, BatchValidationPromptParams } from './ValidationPrompt';

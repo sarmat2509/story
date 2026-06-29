@@ -1,6 +1,14 @@
 export { GraphicNovelDomainService } from './GraphicNovelDomainService';
 export { GRAPHIC_NOVEL_PAGE_TEMPLATES, getTemplatesForAge } from './pageTemplates';
-export { planGraphicNovelLayouts, GRAPHIC_NOVEL_PAGE_SIZE } from './layoutPlanner';
+export {
+  planGraphicNovelLayouts,
+  GRAPHIC_NOVEL_PAGE_SIZE,
+  pageSizeForGraphicNovelPage,
+} from './layoutPlanner';
+export {
+  MIXED_STORY_STRIP_PAGE_SIZE,
+  MIXED_STORY_STRIP_TEMPLATES,
+} from './mixedStoryStripTemplates';
 export {
   analyzeGraphicNovelBubbleVision,
   analyzeGraphicNovelBubbleVisionByPanelCrops,

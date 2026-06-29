@@ -19,7 +19,7 @@ import {
   lookupOutfitForCharacterName,
 } from '../../utils/characterOutfits';
 
-export const ENVIRONMENT_REFERENCE_PROMPT_VERSION = 'env_ref_plate_v2';
+export const ENVIRONMENT_REFERENCE_PROMPT_VERSION = 'env_ref_plate_v3_color';
 export const ENVIRONMENT_REFERENCE_CACHE_PREFIX = `[${ENVIRONMENT_REFERENCE_PROMPT_VERSION}]`;
 
 /**
@@ -828,7 +828,7 @@ function buildCharacterDescriptions(characters?: CharacterReference[]): string {
 
 /**
  * Build prompt for environment reference image (Gemini Flash Image).
- * Fixed neutral style for easy re-drawing under any scene art style.
+ * Style-neutral full-color reference with stable layout, palette, lighting, and material cues.
  */
 export function buildEnvironmentImagePrompt(params: {
   environment: StoryEnvironment;
@@ -840,7 +840,7 @@ export function buildEnvironmentImagePrompt(params: {
   });
   const stylePrefix =
     config.image.environmentImageStyle ||
-    'clean line art, simple shapes, clear spatial layout';
+    'style-neutral full-color location design plate, clean readable shapes, natural color blocking, soft directional light, visible form shading, material identity cues, atmospheric depth, clear spatial layout';
   const safetyAdditions = imagePolicy.imageSafetyAdditions;
   const environmentDescription = sanitizeEnvironmentDescriptionForReferenceImage(
     params.environment.description,
@@ -850,8 +850,12 @@ export function buildEnvironmentImagePrompt(params: {
     'ENVIRONMENT REFERENCE PLATE ONLY: draw a reusable empty location/terrain plate, not a story moment',
     stylePrefix,
     environmentDescription,
-    'Key objects must be in fixed positions relative to each other. Maintain consistent spatial layout: left, center, right. Describe relationships (path beside tree, bushes left of path, house behind trees).',
-    'Empty location, no people, no characters, no animals, no creatures, no faces, no eyes, no limbs, no silhouettes, no living figures, wide establishing shot.',
+    'Make this a finished color establishing background reference, not a sketch, not a blueprint, not a coloring page, not line art. Use filled colors, soft shadows, ambient occlusion, foreground/midground/background separation, and readable depth.',
+    'Do not lock the final art medium. Avoid strong watercolor paper texture, plasticine fingerprints, felt fibers, colored-pencil strokes, comic ink styling, cel-animation linework, or glossy 3D render cues unless explicitly requested by ENVIRONMENT_IMAGE_STYLE.',
+    'Show object material identity and volume in a medium-neutral way: stone blocks have warm/cool color variation and shaded sides, wood has grain direction and thickness, fabric has folds, foliage has layered greens, roads and paths have textured surfaces.',
+    'Use a coherent palette and lighting mood that later scene images can reuse. Avoid blank white interiors, flat white skies, empty white ground, or thin grey outlines as the main look.',
+    'Key objects must be in fixed positions relative to each other. Maintain consistent spatial layout: left, center, right. Show relationships clearly (path beside tree, bushes left of path, house behind trees).',
+    'Empty location, no people, no characters, no animals, no creatures, no faces, no eyes, no limbs, no silhouettes, no living figures, wide 16:9 establishing shot.',
     'If a character name appears as a place owner, scale cue, or location name, treat it only as non-visual metadata and do not draw that character.',
     'If a shell, den, nest, or animal body is used as terrain, render only an inert landform or prop with no head, legs, eyes, face, skin, motion, or creature anatomy.',
     'If the source description mentions animals or insects gathering, omit the living creatures and show only static environmental traces if needed.',
@@ -974,7 +978,7 @@ export function buildImageSystemInstruction(params: {
   // Environment reference rules (when env image is attached)
   if (params.hasEnvironmentReference) {
     sections.push(
-      'ENVIRONMENT REFERENCE: The provided location image is for CONTENT only (layout, spatial structure, composition, objects, furniture, atmosphere) — NOT for style. Re-draw everything in the scene\'s art style. Ignore the reference\'s rendering style completely. Key objects (tree, building, furniture) must stay in the SAME positions as in the reference. Character positions are relative to these fixed objects.',
+      'ENVIRONMENT REFERENCE: The provided location image defines reusable layout, spatial structure, key objects, material identity, palette family, and lighting mood. Re-draw it in the scene art style while preserving object positions, color-family continuity, and depth cues. Do not copy the reference medium: if the selected style is clay, felt, colored pencil, cel animation, 3D, comic ink, or watercolor, translate the same location into that medium. Key objects (tree, building, furniture) must stay in the SAME positions as in the reference. Character positions are relative to these fixed objects.',
     );
   }
 

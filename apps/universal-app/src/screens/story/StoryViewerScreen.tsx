@@ -274,24 +274,26 @@ export default function StoryViewerScreen() {
   const { data: story, isLoading, error, refetch } = useStory(storyId!);
   const storyMetadata = ((story as any)?.metadata ?? {}) as Record<string, unknown>;
   const isGraphicNovel = storyMetadata.storyFormat === 'graphic_novel';
+  const isMixedStory = storyMetadata.storyFormat === 'mixed_story';
+  const hasGraphicNovelPages = isGraphicNovel || isMixedStory;
 
   // Use lightweight status polling for image generation
   const { data: generationStatus } = useStoryGenerationStatus(
     storyId!,
-    !!storyId && !!story && !isGraphicNovel
+    !!storyId && !!story && !hasGraphicNovelPages
   );
   const { data: graphicNovel, refetch: refetchGraphicNovel } = useGraphicNovel(
     storyId,
-    !!storyId && isGraphicNovel
+    !!storyId && hasGraphicNovelPages
   );
   const { data: graphicNovelGenerationStatus } = useGraphicNovelGenerationStatus(
     storyId,
-    !!storyId && isGraphicNovel
+    !!storyId && hasGraphicNovelPages
   );
 
   // Progressive image loading: update story cache as images are generated
   useEffect(() => {
-    if (!generationStatus || !story || isGraphicNovel) return;
+    if (!generationStatus || !story || hasGraphicNovelPages) return;
 
     if (generationStatus.imageGenerationComplete && !story.imageGenerationComplete) {
       // Final refetch when generation is complete
@@ -320,18 +322,18 @@ export default function StoryViewerScreen() {
         scenes: updatedScenes,
       });
     }
-  }, [generationStatus, story, refetch, storyId, queryClient, isGraphicNovel]);
+  }, [generationStatus, story, refetch, storyId, queryClient, hasGraphicNovelPages]);
 
   const graphicNovelReadyPageKey = graphicNovelGenerationStatus?.readyPageNumbers?.join(',') ?? '';
 
   useEffect(() => {
-    if (!isGraphicNovel || !graphicNovelGenerationStatus) return;
+    if (!hasGraphicNovelPages || !graphicNovelGenerationStatus) return;
     void refetchGraphicNovel();
     if (graphicNovelGenerationStatus.generationComplete) {
       refetch();
     }
   }, [
-    isGraphicNovel,
+    hasGraphicNovelPages,
     graphicNovelReadyPageKey,
     graphicNovelGenerationStatus?.generationComplete,
     refetchGraphicNovel,
@@ -433,14 +435,14 @@ export default function StoryViewerScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (isGraphicNovel) {
+      if (hasGraphicNovelPages) {
         void refetchGraphicNovel();
       }
-    }, [isGraphicNovel, refetchGraphicNovel])
+    }, [hasGraphicNovelPages, refetchGraphicNovel])
   );
 
   useEffect(() => {
-    if (!isGraphicNovel || Platform.OS !== 'web') return;
+    if (!hasGraphicNovelPages || Platform.OS !== 'web') return;
     const webDocument = (globalThis as unknown as { document?: Document }).document;
     if (!webDocument?.addEventListener) return;
 
@@ -454,7 +456,7 @@ export default function StoryViewerScreen() {
     return () => {
       webDocument.removeEventListener('visibilitychange', refreshGraphicNovelOnVisible);
     };
-  }, [isGraphicNovel, refetchGraphicNovel]);
+  }, [hasGraphicNovelPages, refetchGraphicNovel]);
 
   // Set header title from database after story loads (with scenario breadcrumb)
   const { data: seriesInfo } = useSeriesInfo(storyId);
@@ -984,10 +986,10 @@ export default function StoryViewerScreen() {
     const storyCharacters = Array.isArray(story?.characters) ? story.characters : [];
     return storyCharacters.length > 0
       ? (storyCharacters as StoryCharacter[])
-      : isGraphicNovel
+      : hasGraphicNovelPages
         ? graphicNovelManifestCharacters
         : [];
-  }, [graphicNovelManifestCharacters, isGraphicNovel, story?.characters]);
+  }, [graphicNovelManifestCharacters, hasGraphicNovelPages, story?.characters]);
 
   const { activeSentenceIndex, activeWordIndex, sentences } = useAlignmentSync(
     story?.fullText || '',
@@ -1411,18 +1413,22 @@ export default function StoryViewerScreen() {
   // M6: Get active scene index from sentence metadata
   const activeSceneIndex =
     activeSentenceIndex !== null ? (sentences[activeSentenceIndex]?.sceneIndex ?? null) : null;
+  const activeScene =
+    activeSceneIndex !== null ? ((story?.scenes?.[activeSceneIndex] as any) ?? null) : null;
   const activeGraphicNovelPageNumber =
     activeSceneIndex !== null
-      ? Number(
-          (story?.scenes?.[activeSceneIndex] as any)?.graphicNovelPageNumber ?? activeSceneIndex + 1
-        )
+      ? Number.isFinite(Number(activeScene?.graphicNovelPageNumber))
+        ? Number(activeScene?.graphicNovelPageNumber)
+        : isGraphicNovel
+          ? activeSceneIndex + 1
+          : null
       : null;
   const activeSentenceText =
     activeSentenceIndex !== null
       ? normalizeHighlightText(sentences[activeSentenceIndex]?.text ?? '')
       : '';
   const activeGraphicNovelTextItem = useMemo<GraphicNovelTextOverlayItem | null>(() => {
-    if (!isGraphicNovel || !effectiveHighlightEnabled || !activeSentenceText) return null;
+    if (!hasGraphicNovelPages || !effectiveHighlightEnabled || !activeSentenceText) return null;
     if (activeGraphicNovelPageNumber === null) return null;
 
     const page = graphicNovelPages.find(
@@ -1440,7 +1446,7 @@ export default function StoryViewerScreen() {
     activeSentenceText,
     effectiveHighlightEnabled,
     graphicNovelPages,
-    isGraphicNovel,
+    hasGraphicNovelPages,
   ]);
   const activeGraphicNovelPanelKey = activeGraphicNovelTextItem
     ? graphicNovelPanelKey(activeGraphicNovelTextItem.pageNumber, activeGraphicNovelTextItem.panelIndex)
@@ -1488,7 +1494,7 @@ export default function StoryViewerScreen() {
       return;
     }
 
-    if (isGraphicNovel) {
+    if (hasGraphicNovelPages && activeGraphicNovelPageNumber !== null) {
       const panelElement = activeGraphicNovelPanelKey
         ? graphicNovelPanelRefs.current[activeGraphicNovelPanelKey]
         : null;
@@ -1499,9 +1505,10 @@ export default function StoryViewerScreen() {
     scrollTargetToViewportCenter(sceneRefs.current[activeSceneIndex]);
   }, [
     activeGraphicNovelPanelKey,
+    activeGraphicNovelPageNumber,
     activeSceneIndex,
     effectiveHighlightEnabled,
-    isGraphicNovel,
+    hasGraphicNovelPages,
     scrollTargetToViewportCenter,
   ]);
 
@@ -2480,13 +2487,40 @@ export default function StoryViewerScreen() {
     });
   };
 
+  const graphicNovelPageSize = (page: GraphicNovelPageApi) => {
+    const candidates = [
+      page.textOverlay?.pageSize,
+      page.layoutJson?.pageSize,
+      page.layoutJson?.template?.pageSize,
+      page.bubbleLayoutJson?.textOverlay?.pageSize,
+    ];
+    return candidates.find(
+      (size) =>
+        size &&
+        typeof size.width === 'number' &&
+        Number.isFinite(size.width) &&
+        typeof size.height === 'number' &&
+        Number.isFinite(size.height) &&
+        size.width > 0 &&
+        size.height > 0
+    );
+  };
+
+  const graphicNovelPageAspectRatio = (page: GraphicNovelPageApi) => {
+    const pageSize = graphicNovelPageSize(page);
+    return pageSize ? pageSize.width / pageSize.height : 3 / 4;
+  };
+
+  const graphicNovelCanonicalWidth = (page: GraphicNovelPageApi) =>
+    graphicNovelPageSize(page)?.width ?? GRAPHIC_NOVEL_CANONICAL_PAGE_WIDTH;
+
   const renderGraphicNovelPage = (page: GraphicNovelPageApi) => {
     const imageUrl = page.imageUrl ? (formatAssetUrl(page.imageUrl) ?? page.imageUrl) : null;
     const sceneIndex = findGraphicNovelSceneIndex(page.pageNumber);
     const isActivePage =
       effectiveHighlightEnabled && activeGraphicNovelPageNumber === page.pageNumber;
-    const pageWidth = graphicNovelPageWidths[page.pageNumber] || GRAPHIC_NOVEL_CANONICAL_PAGE_WIDTH;
-    const pageScale = pageWidth / GRAPHIC_NOVEL_CANONICAL_PAGE_WIDTH;
+    const pageWidth = graphicNovelPageWidths[page.pageNumber] || graphicNovelCanonicalWidth(page);
+    const pageScale = pageWidth / graphicNovelCanonicalWidth(page);
 
     return (
       <View
@@ -2497,7 +2531,7 @@ export default function StoryViewerScreen() {
         style={[styles.graphicNovelPage, isActivePage && styles.graphicNovelPageActive]}
       >
         <View
-          style={styles.graphicNovelPageCanvas}
+          style={[styles.graphicNovelPageCanvas, { aspectRatio: graphicNovelPageAspectRatio(page) }]}
           onLayout={(event) => handleGraphicNovelPageCanvasLayout(page.pageNumber, event)}
         >
           {imageUrl ? (
@@ -2541,55 +2575,101 @@ export default function StoryViewerScreen() {
     return graphicNovelPages.map(renderGraphicNovelPage);
   };
 
+  const renderProseScene = (scene: any, sceneIndex: number, options: { showImage?: boolean } = {}) => {
+    const showImage = options.showImage !== false;
+    const isQuizHighlighted = highlightedQuizSceneId === scene.sceneId;
+    return (
+      <View
+        key={scene.sceneId || sceneIndex}
+        ref={(ref: View | null) => {
+          sceneRefs.current[sceneIndex] = ref;
+        }}
+        style={styles.scene}
+      >
+        {showImage && scene.image?.url && scene.image?.status !== 'failed' ? (
+          <Image
+            source={{ uri: formatAssetUrl(scene.image.url) ?? scene.image.url }}
+            style={styles.sceneImage as ImageStyle}
+            resizeMode="cover"
+          />
+        ) : showImage && (story?.sceneIdsWithImages as number[] | undefined)?.includes(scene.sceneId) ? (
+          <View style={styles.sceneImagePlaceholder}>
+            <Text
+              style={[
+                styles.sceneImagePlaceholderText,
+                (story?.failedScenes as Array<{ sceneId: number }> | undefined)?.some(
+                  (f) => f.sceneId === scene.sceneId
+                ) && styles.sceneImagePlaceholderTextError,
+              ]}
+            >
+              {(story?.failedScenes as Array<{ sceneId: number }> | undefined)?.some(
+                (f) => f.sceneId === scene.sceneId
+              )
+                ? t('story_viewer.image_failed')
+                : t('story_viewer.image_preparing')}
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={styles.sceneTextWrapper}>
+          {isQuizHighlighted ? (
+            <View pointerEvents="none" style={styles.sceneTextWrapperQuizHighlightLayer} />
+          ) : null}
+          {renderSceneTextWithHighlight(scene, sceneIndex)}
+        </View>
+      </View>
+    );
+  };
+
+  const renderMixedStoryBlocks = () => {
+    const pageByNumber = new Map(
+      graphicNovelPages.map((page) => [Number(page.pageNumber), page])
+    );
+    return story.scenes?.map((scene: any, sceneIndex: number) => {
+      if (scene?.mixedStoryBlockKind === 'comic' && scene.graphicNovelPageNumber) {
+        const pageNumber = Number(scene.graphicNovelPageNumber);
+        const page = pageByNumber.get(pageNumber);
+        if (page) {
+          return renderGraphicNovelPage(page);
+        }
+        return (
+          <View
+            key={`mixed-comic-pending-${scene.sceneId || pageNumber}`}
+            ref={(ref: View | null) => {
+              sceneRefs.current[sceneIndex] = ref;
+            }}
+            style={styles.graphicNovelPage}
+          >
+            <View style={[styles.graphicNovelPageCanvas, { aspectRatio: 2 }]}>
+              <View style={styles.graphicNovelPagePlaceholder}>
+                <ActivityIndicator size="small" color={theme.colors.interactive.primary} />
+                <Text style={styles.graphicNovelPagePlaceholderText}>
+                  {t('story_viewer.comic_page_preparing', {
+                    page: pageNumber,
+                    defaultValue: 'Page {{page}} is preparing...',
+                  })}
+                </Text>
+              </View>
+            </View>
+          </View>
+        );
+      }
+
+      return renderProseScene(scene, sceneIndex, { showImage: false });
+    });
+  };
+
   const renderScenesWithHighlight = () => {
     if (isGraphicNovel) {
       return renderGraphicNovelPages();
     }
+    if (isMixedStory) {
+      return renderMixedStoryBlocks();
+    }
 
-    return story.scenes?.map((scene: any, sceneIndex: number) => {
-      const isQuizHighlighted = highlightedQuizSceneId === scene.sceneId;
-      return (
-        <View
-          key={scene.sceneId || sceneIndex}
-          ref={(ref: View | null) => {
-            sceneRefs.current[sceneIndex] = ref;
-          }}
-          style={styles.scene}
-        >
-          {scene.image?.url && scene.image?.status !== 'failed' ? (
-            <Image
-              source={{ uri: formatAssetUrl(scene.image.url) ?? scene.image.url }}
-              style={styles.sceneImage as ImageStyle}
-              resizeMode="cover"
-            />
-          ) : (story?.sceneIdsWithImages as number[] | undefined)?.includes(scene.sceneId) ? (
-            <View style={styles.sceneImagePlaceholder}>
-              <Text
-                style={[
-                  styles.sceneImagePlaceholderText,
-                  (story?.failedScenes as Array<{ sceneId: number }> | undefined)?.some(
-                    (f) => f.sceneId === scene.sceneId
-                  ) && styles.sceneImagePlaceholderTextError,
-                ]}
-              >
-                {(story?.failedScenes as Array<{ sceneId: number }> | undefined)?.some(
-                  (f) => f.sceneId === scene.sceneId
-                )
-                  ? t('story_viewer.image_failed')
-                  : t('story_viewer.image_preparing')}
-              </Text>
-            </View>
-          ) : null}
-
-          <View style={styles.sceneTextWrapper}>
-            {isQuizHighlighted ? (
-              <View pointerEvents="none" style={styles.sceneTextWrapperQuizHighlightLayer} />
-            ) : null}
-            {renderSceneTextWithHighlight(scene, sceneIndex)}
-          </View>
-        </View>
-      );
-    });
+    return story.scenes?.map((scene: any, sceneIndex: number) =>
+      renderProseScene(scene, sceneIndex)
+    );
   };
 
   const renderMapTileRewardButton = () => {
@@ -2619,7 +2699,7 @@ export default function StoryViewerScreen() {
     );
   };
 
-  const coverAssetOptions: CoverAssetOption[] = isGraphicNovel
+  const coverAssetOptions: CoverAssetOption[] = hasGraphicNovelPages
     ? graphicNovelPages.flatMap((page): CoverAssetOption[] =>
         page.imageAssetId
           ? [

@@ -473,6 +473,24 @@ export const useCreateGraphicNovel = () => {
   });
 };
 
+export const useCreateMixedStory = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: CreateStoryRequest) => {
+      const response = await apiClient.post<{ status: string; request: { id: string } }>(
+        '/api/v1/mixed-stories',
+        data
+      );
+      return response.data.request;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['subscription-usage'] });
+    },
+  });
+};
+
 // Create story from a scoped Child Mode session
 export const useCreateChildModeStory = () => {
   const queryClient = useQueryClient();

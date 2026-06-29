@@ -80,7 +80,9 @@ export interface GraphicNovelPanelTemplate {
 
 export interface GraphicNovelPageTemplate {
   id: string;
-  aspectRatio: '3:4';
+  aspectRatio: '3:4' | '2:1';
+  pageSize?: { width: number; height: number };
+  templateFamily?: 'graphic_novel_page' | 'mixed_story_strip';
   panelCount: number;
   panels: GraphicNovelPanelTemplate[];
   readingOrder: string[];
@@ -145,6 +147,7 @@ export interface PlannedGraphicNovelPage {
   pageNumber: number;
   pageRole: GraphicNovelPageRole;
   template: GraphicNovelPageTemplate;
+  pageSize?: { width: number; height: number };
   outfits?: StoryOutfitRow[];
   characterAliases?: Record<string, string[]>;
   panels: PlannedGraphicNovelPanel[];

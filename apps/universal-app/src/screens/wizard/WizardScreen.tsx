@@ -32,6 +32,7 @@ import { useCharacters } from '@/api/characters';
 import {
   useCreateStory,
   useCreateGraphicNovel,
+  useCreateMixedStory,
   useCreateChildModeStory,
   useStoryStatus,
   useRetryStoryImages,
@@ -52,7 +53,7 @@ import { modernColors, modernGradients, modernShadows } from '@/theme/modernThem
 import { IMAGE_STYLE_METADATA, type ImageStyle } from '@wondertales/shared';
 import { getWizardScenarioPreset } from './wizardRouteParams';
 
-type StoryFormat = 'story' | 'comic';
+type StoryFormat = 'story' | 'comic' | 'mixed';
 
 export default function WizardScreen() {
   const { t } = useTranslation();
@@ -117,6 +118,7 @@ export default function WizardScreen() {
   const { data: characters, isLoading: charactersLoading } = useCharacters();
   const createStory = useCreateStory();
   const createGraphicNovel = useCreateGraphicNovel();
+  const createMixedStory = useCreateMixedStory();
   const createChildModeStory = useCreateChildModeStory();
   const retryStoryImages = useRetryStoryImages();
   const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
@@ -131,6 +133,13 @@ export default function WizardScreen() {
   const graphicNovelAccessLocked =
     typeof graphicNovelLimit === 'number' && graphicNovelLimit >= 0 && graphicNovelLimit <= 0;
   const isGraphicNovelUpgradePaywall = paywallKind === 'graphicNovels' && graphicNovelAccessLocked;
+  const usesGraphicQuota = storyFormat === 'comic' || storyFormat === 'mixed';
+  const storyFormatAnalytics =
+    storyFormat === 'comic'
+      ? 'graphic_novel'
+      : storyFormat === 'mixed'
+        ? 'mixed_story'
+        : 'story';
 
   const openGraphicNovelPaywall = () => {
     setPaywallKind('graphicNovels');
@@ -138,7 +147,7 @@ export default function WizardScreen() {
   };
 
   const handleStoryFormatSelect = (nextFormat: StoryFormat) => {
-    if (nextFormat === 'comic' && graphicNovelAccessLocked) {
+    if ((nextFormat === 'comic' || nextFormat === 'mixed') && graphicNovelAccessLocked) {
       openGraphicNovelPaywall();
       return;
     }
@@ -165,16 +174,16 @@ export default function WizardScreen() {
   }, [activeChild?.id, isChildSession]);
 
   useEffect(() => {
-    if (isChildSession && storyFormat === 'comic') {
+    if (isChildSession && usesGraphicQuota) {
       setStoryFormat('story');
     }
-  }, [isChildSession, storyFormat]);
+  }, [isChildSession, storyFormat, usesGraphicQuota]);
 
   useEffect(() => {
-    if (storyFormat === 'comic' && graphicNovelAccessLocked) {
+    if (usesGraphicQuota && graphicNovelAccessLocked) {
       setStoryFormat('story');
     }
-  }, [graphicNovelAccessLocked, storyFormat]);
+  }, [graphicNovelAccessLocked, storyFormat, usesGraphicQuota]);
 
   useEffect(() => {
     if (isChildSession || !route.params?.childId) return;
@@ -242,6 +251,8 @@ export default function WizardScreen() {
   const selectedStoryFormatLabel =
     storyFormat === 'comic'
       ? t('wizard.format_comic', { defaultValue: 'Comic' })
+      : storyFormat === 'mixed'
+        ? t('wizard.format_mixed', { defaultValue: 'Story + comic' })
       : t('wizard.format_story', { defaultValue: 'Story' });
   const summaryItems = [
     {
@@ -331,14 +342,12 @@ export default function WizardScreen() {
   // Auto-close removed - user must manually close modal
 
   const handleGenerate = async () => {
-    const isGraphicNovel = storyFormat === 'comic';
-
     if (!canGenerateStories) {
       Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
       return;
     }
 
-    if (isGraphicNovel && isChildSession) {
+    if (usesGraphicQuota && isChildSession) {
       Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
       return;
     }
@@ -354,13 +363,13 @@ export default function WizardScreen() {
       return;
     }
 
-    if (isGraphicNovel && graphicNovelAccessLocked) {
+    if (usesGraphicQuota && graphicNovelAccessLocked) {
       openGraphicNovelPaywall();
       return;
     }
 
     if (
-      isGraphicNovel &&
+      usesGraphicQuota &&
       usage?.graphicNovels &&
       usage.graphicNovels.limit >= 0 &&
       usage.graphicNovels.remaining <= 0
@@ -375,7 +384,7 @@ export default function WizardScreen() {
 
       getAnalytics().capture('story_generation_started', {
         wizard_type: 'artisan',
-        story_format: isGraphicNovel ? 'graphic_novel' : 'story',
+        story_format: storyFormatAnalytics,
         scenario_card_id: scenarioCardId ?? undefined,
         has_characters: selectedCharacters.length > 0,
         has_children: selectedChildren.length > 0,
@@ -399,11 +408,14 @@ export default function WizardScreen() {
         ...(selectedChildren.length > 0 && { selectedChildren }), // NEW: Selected children as characters
       };
 
-      const createMutation = isGraphicNovel
-        ? createGraphicNovel
-        : isChildSession
-          ? createChildModeStory
-          : createStory;
+      const createMutation =
+        storyFormat === 'comic'
+          ? createGraphicNovel
+          : storyFormat === 'mixed'
+            ? createMixedStory
+            : isChildSession
+              ? createChildModeStory
+              : createStory;
 
       const result = await createMutation.mutateAsync(payload);
       setRequestId(result.id);
@@ -459,7 +471,7 @@ export default function WizardScreen() {
       getAnalytics().capture('story_created', {
         story_id: storyId,
         wizard_type: 'artisan',
-        story_format: storyFormat === 'comic' ? 'graphic_novel' : 'story',
+        story_format: storyFormatAnalytics,
       });
     }
     queryClient.invalidateQueries({ queryKey: ['stories'] });
@@ -588,10 +600,19 @@ export default function WizardScreen() {
                                 defaultValue: 'Panel pages with character dialogue',
                               }),
                             },
+                            {
+                              value: 'mixed' as const,
+                              icon: 'albums-outline' as const,
+                              label: t('wizard.format_mixed', { defaultValue: 'Story + comic' }),
+                              description: t('wizard.format_mixed_desc', {
+                                defaultValue: 'Comic strips alternating with short prose',
+                              }),
+                            },
                           ].map((option) => {
                             const selected = storyFormat === option.value;
                             const locked =
-                              option.value === 'comic' && graphicNovelAccessLocked;
+                              (option.value === 'comic' || option.value === 'mixed') &&
+                              graphicNovelAccessLocked;
                             return (
                               <TouchableOpacity
                                 key={option.value}
@@ -646,9 +667,13 @@ export default function WizardScreen() {
                                     ]}
                                   >
                                     {locked
-                                      ? t('wizard.format_comic_locked_hint', {
-                                          defaultValue: 'Upgrade to create comics',
-                                        })
+                                      ? option.value === 'mixed'
+                                        ? t('wizard.format_mixed_locked_hint', {
+                                            defaultValue: 'Upgrade to create story + comic',
+                                          })
+                                        : t('wizard.format_comic_locked_hint', {
+                                            defaultValue: 'Upgrade to create comics',
+                                          })
                                       : option.description}
                                   </Text>
                                 </View>
@@ -746,7 +771,7 @@ export default function WizardScreen() {
                       {t('usage_summary.stories', { defaultValue: 'Stories' })}:{' '}
                       {formatUsageLimitLabel(usage.stories)}
                     </Text>
-                    {storyFormat === 'comic' && usage.graphicNovels ? (
+                    {usesGraphicQuota && usage.graphicNovels ? (
                       <Text style={styles.summaryLimit}>
                         {t('usage_summary.graphic_novels_in_story_limit', {
                           defaultValue: 'Comics within stories',
@@ -803,6 +828,10 @@ export default function WizardScreen() {
                       isLastStep
                         ? storyFormat === 'comic'
                           ? t('wizard.create_comic', { defaultValue: 'Create comic' })
+                          : storyFormat === 'mixed'
+                            ? t('wizard.create_mixed_story', {
+                                defaultValue: 'Create story + comic',
+                              })
                           : t('common.create')
                         : t('common.next')
                     }

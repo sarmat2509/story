@@ -156,6 +156,7 @@ export class GoogleTTSProvider extends BaseAudioProvider {
       es: 'es-ES',
       de: 'de-DE',
       fr: 'fr-FR',
+      pl: 'pl-PL',
     };
     return mapping[lang] || 'en-US';
   }
@@ -169,6 +170,7 @@ export class GoogleTTSProvider extends BaseAudioProvider {
       'es-ES': 'es',
       'de-DE': 'de',
       'fr-FR': 'fr',
+      'pl-PL': 'pl',
     };
     return mapping[langCode] || 'en';
   }

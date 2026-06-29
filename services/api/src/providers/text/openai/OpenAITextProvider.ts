@@ -38,6 +38,22 @@ export class OpenAITextProvider implements ITextProvider {
     return `${modelName}:${key}`;
   }
 
+  private tokenLimitParam(modelName: string, maxTokens?: number): Record<string, number> {
+    if (!maxTokens) return {};
+
+    const normalized = modelName.trim().toLowerCase();
+    if (
+      normalized.startsWith('gpt-5') ||
+      normalized.startsWith('o1') ||
+      normalized.startsWith('o3') ||
+      normalized.startsWith('o4')
+    ) {
+      return { max_completion_tokens: maxTokens };
+    }
+
+    return { max_tokens: maxTokens };
+  }
+
   /**
    * Generate structured JSON response using OpenAI
    * Implements ITextProvider.generateStructured
@@ -78,7 +94,7 @@ export class OpenAITextProvider implements ITextProvider {
           model: modelName,
           messages,
           temperature: request.temperature ?? 0.9,
-          ...(request.maxTokens && { max_tokens: request.maxTokens }),
+          ...this.tokenLimitParam(modelName, request.maxTokens),
           ...(request.topP && { top_p: request.topP }),
           ...(promptCacheKey && { prompt_cache_key: promptCacheKey }),
           ...(promptCacheKey && { prompt_cache_retention: '24h' }),
@@ -208,7 +224,7 @@ export class OpenAITextProvider implements ITextProvider {
           model: this.model,
           messages: [{ role: 'user', content: effectivePrompt }],
           temperature: request.temperature ?? 0.7,
-          ...(request.maxTokens && { max_tokens: request.maxTokens }),
+          ...this.tokenLimitParam(this.model, request.maxTokens),
           ...(request.topP && { top_p: request.topP }),
           ...(request.stopSequences && { stop: request.stopSequences }),
           ...(promptCacheKey && { prompt_cache_key: promptCacheKey }),

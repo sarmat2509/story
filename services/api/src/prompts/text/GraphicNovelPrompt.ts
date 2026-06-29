@@ -6,12 +6,67 @@ export const GRAPHIC_NOVEL_LINE_MAX_CHARS = 110;
 export const GRAPHIC_NOVEL_CAPTION_MAX_CHARS = 90;
 export const GRAPHIC_NOVEL_SPEAKER_MAX_CHARS = 40;
 
+export interface GraphicNovelPanelCountRange {
+  min: number;
+  max: number;
+}
+
+export interface GraphicNovelPanelDensityRequirement {
+  minimumDensePages: number;
+  denseMinPanels: number;
+  denseMaxPanels?: number;
+  maximumThreePanelPages?: number;
+}
+
+export function graphicNovelPanelCountRange(ageGroup: string): GraphicNovelPanelCountRange {
+  switch (ageGroup) {
+    case '0-1':
+    case '1y':
+    case '2-3':
+      return { min: 2, max: 2 };
+    case '4-5':
+      return { min: 2, max: 3 };
+    case '6-8':
+      return { min: 3, max: 6 };
+    case '9-12':
+      return { min: 3, max: 6 };
+    default:
+      return { min: 2, max: 3 };
+  }
+}
+
+export function graphicNovelPanelDensityRequirement(
+  ageGroup: string,
+  pageCount: number
+): GraphicNovelPanelDensityRequirement | null {
+  if (ageGroup === '6-8') {
+    const minimumDensePages = Math.max(1, Math.ceil(pageCount * 0.75));
+    const maximumThreePanelPages = Math.max(1, pageCount - minimumDensePages);
+    return {
+      minimumDensePages,
+      denseMinPanels: 4,
+      denseMaxPanels: 6,
+      maximumThreePanelPages,
+    };
+  }
+
+  if (ageGroup === '9-12') {
+    return {
+      minimumDensePages: Math.max(3, Math.ceil(pageCount * 0.75)),
+      denseMinPanels: 3,
+      denseMaxPanels: 6,
+    };
+  }
+
+  return null;
+}
+
 function writerCharacterType(type?: string): string {
   if (type === 'child') return 'person';
   return type || 'character';
 }
 
-function characterList(spec: StorySpec): string {
+export function characterList(spec: StorySpec): string {
   if (!spec.characters?.length) return 'No preselected characters.';
   return spec.characters
     .map((character) => {
@@ -39,7 +94,7 @@ function safetyFallbackCharacterList(spec: StorySpec): string {
     .join('\n');
 }
 
-function ageRules(ageGroup: string): string {
+export function ageRules(ageGroup: string): string {
   switch (ageGroup) {
     case '0-1':
     case '1y':
@@ -49,32 +104,31 @@ function ageRules(ageGroup: string): string {
     case '4-5':
       return 'Use 2-3 panels per page. Use simple exchanges, clear cause/effect, and one small conflict resolved gently. A few key lines may be a little longer, but keep most bubbles short.';
     case '6-8':
-      return 'Use 4-5 panels per page. Use 3 panels only rarely for a quiet final resolution or reflection page, not for opening/setup/action/conversation/reveal pages. Do not use 2-panel pages for this age group. Use conversational scenes, jokes, reactions, and 1-3 bubbles per panel. Dialogue should feel like early-reader chapter-book speech: complete, specific sentences with a little reason, feeling, or plan, not mostly one-word reactions.';
+      return 'Use 4-6 panels per page. Use 3 panels only rarely for a quiet final resolution or reflection page, not for opening/setup/action/conversation/reveal pages. Do not use 2-panel pages for this age group. Use conversational scenes, jokes, reactions, and 1-3 bubbles per panel. Dialogue should feel like early-reader chapter-book speech: complete, specific sentences with a little reason, feeling, or plan, not mostly one-word reactions.';
     case '9-12':
-      return 'Use 3-5 panels per page. Use stronger character voice, light subtext, and dynamic dialogue while remaining age-safe. Several panels should carry two-line exchanges.';
+      return 'Use 3-6 panels per page. Use stronger character voice, light subtext, and dynamic dialogue while remaining age-safe. Several panels should carry two-line exchanges.';
     default:
       return 'Use 2-3 panels per page, short dialogue, clear visual beats, and age-appropriate wording.';
   }
 }
 
-function panelDensityRules(ageGroup: string, pageCount: number): string {
+export function panelDensityRules(ageGroup: string, pageCount: number): string {
   if (ageGroup === '6-8') {
-    const minimumDensePages = Math.max(1, Math.ceil(pageCount * 0.75));
-    const maximumThreePanelPages = Math.max(1, pageCount - minimumDensePages);
+    const requirement = graphicNovelPanelDensityRequirement(ageGroup, pageCount)!;
     return [
-      `For this ${pageCount}-page story, at least ${minimumDensePages} pages must have 4 or 5 panels.`,
-      `Use 3-panel pages at most ${maximumThreePanelPages} time(s), only for quiet reflection or final resolution.`,
-      'Page 1/opening must have 4 or 5 panels for age 6-8.',
-      'Use 5 panels for fast dialogue, action, reveal, or back-and-forth reaction pages when the beats fit.',
+      `For this ${pageCount}-page story, at least ${requirement.minimumDensePages} pages must have 4, 5, or 6 panels.`,
+      `Use 3-panel pages at most ${requirement.maximumThreePanelPages} time(s), only for quiet reflection or final resolution.`,
+      'Page 1/opening must have 4, 5, or 6 panels for age 6-8.',
+      'Use 5-6 panels for fast dialogue, action, reveal, or back-and-forth reaction pages when the beats fit.',
       'Do not create 2-panel pages for age 6-8.',
     ].join('\n');
   }
 
   if (ageGroup === '9-12') {
-    const minimumThreePanelPages = Math.max(3, Math.ceil(pageCount * 0.75));
+    const requirement = graphicNovelPanelDensityRequirement(ageGroup, pageCount)!;
     return [
-      `For this ${pageCount}-page story, at least ${minimumThreePanelPages} pages should have 3 or more panels.`,
-      'Use 4-5 panels on action, reveal, or fast conversation pages when useful.',
+      `For this ${pageCount}-page story, at least ${requirement.minimumDensePages} pages should have 3 or more panels.`,
+      'Use 4-6 panels on action, reveal, or fast conversation pages when useful.',
       'Do not make every page low-density.',
     ].join('\n');
   }
@@ -89,7 +143,7 @@ function panelDensityRules(ageGroup: string, pageCount: number): string {
   return 'Use the age rules above for panel density. Keep pages readable and never use fewer than 2 panels.';
 }
 
-function dialogueRhythmRules(ageGroup: string, pageCount: number): string {
+export function dialogueRhythmRules(ageGroup: string, pageCount: number): string {
   if (ageGroup === '6-8') {
     const exchangePanels = Math.max(6, Math.ceil(pageCount * 2.5));
     return [
@@ -130,7 +184,7 @@ function dialogueRhythmRules(ageGroup: string, pageCount: number): string {
   return 'Use one very short bubble per panel unless the age rules allow more.';
 }
 
-function thoughtBubbleRules(ageGroup: string, pageCount: number): string {
+export function thoughtBubbleRules(ageGroup: string, pageCount: number): string {
   if (ageGroup === '0-1' || ageGroup === '1y') {
     return [
       'Avoid thought bubbles for babies unless one very simple repeated inner feeling is essential.',
@@ -176,7 +230,7 @@ function thoughtBubbleRules(ageGroup: string, pageCount: number): string {
   return 'Use thoughts sparingly, only when the inner reaction is clearer or funnier than spoken dialogue.';
 }
 
-function closingArtifactRules(spec: StorySpec): string {
+export function closingArtifactRules(spec: StorySpec): string {
   if (!spec.closingArtifact) {
     return 'No fixed keepsake artifact is required.';
   }

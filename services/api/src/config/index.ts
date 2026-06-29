@@ -187,7 +187,19 @@ export const config = {
   // Image Generation
   image: {
     skipGeneration: process.env.SKIP_IMAGE_GENERATION === 'true',
+    /** Simple visual path: ordinary story illustrations. */
     provider: process.env.IMAGE_PROVIDER || 'nanobananapro', // Default to Nano Banana Pro
+    /** Complex visual path: graphic-novel and mixed-story comic pages. */
+    complexProvider:
+      (
+        process.env.COMPLEX_IMAGE_PROVIDER ||
+        process.env.GRAPHIC_NOVEL_IMAGE_PROVIDER ||
+        ''
+      ).trim() ||
+      'nanobananapro',
+    complexModel:
+      (process.env.COMPLEX_IMAGE_MODEL || process.env.GRAPHIC_NOVEL_IMAGE_MODEL || '').trim() ||
+      'gemini-3.1-flash-image',
     /** Cheap image path: env images, legacy IMAGE_PROVIDER=gemini, LLM text-only turnaround */
     flashImageModel: process.env.GEMINI_FLASH_IMAGE_MODEL || 'gemini-2.5-flash-image',
     /** Optional override for reward map tile images only. Falls back to Nano Banana model. */
@@ -281,7 +293,8 @@ export const config = {
     // Generate environment references for every unique environment unless a reusable match is found.
     skipEnvImageForSingleScene: process.env.SKIP_ENV_IMAGE_FOR_SINGLE_SCENE === 'true',
     environmentImageStyle:
-      process.env.ENVIRONMENT_IMAGE_STYLE || 'clean line art, simple shapes, clear spatial layout',
+      process.env.ENVIRONMENT_IMAGE_STYLE ||
+      'style-neutral full-color location design plate, clean readable shapes, natural color blocking, soft directional light, visible form shading, material identity cues, atmospheric depth, clear spatial layout',
   },
 
   // OpenAI Image (GPT Image via Responses API) - for character consistency with input_fidelity

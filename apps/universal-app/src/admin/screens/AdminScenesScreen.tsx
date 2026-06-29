@@ -579,6 +579,9 @@ export default function AdminScenesScreen() {
     [scenesQuery.data?.storyScenes]
   );
   const directorScenes = useMemo(() => scenesQuery.data?.items ?? [], [scenesQuery.data?.items]);
+  const storyMeta = scenesQuery.data?.story;
+  const isGraphicPageStory =
+    storyMeta?.storyFormat === 'graphic_novel' || storyMeta?.storyFormat === 'mixed_story';
   const directorSceneByIndex = useMemo(
     () => new Map(directorScenes.map((item) => [item.sceneIndex, item])),
     [directorScenes]
@@ -590,13 +593,15 @@ export default function AdminScenesScreen() {
         return {
           sceneIndex: scene.sceneIndex,
           storyText: scene.storyText,
+          mixedStoryBlockKind: scene.mixedStoryBlockKind,
+          mixedStoryScreenOrder: scene.mixedStoryScreenOrder,
+          graphicNovelPageNumber: scene.graphicNovelPageNumber,
+          imageTargetKind: scene.imageTargetKind,
           directorScene,
         };
       }),
     [directorSceneByIndex, storyScenes]
   );
-  const storyMeta = scenesQuery.data?.story;
-  const isGraphicNovel = storyMeta?.storyFormat === 'graphic_novel';
   const storyAudio = scenesQuery.data?.audio;
   const audioPlaybackUrl = formatAssetUrl(storyAudio?.audioUrl ?? null);
   const validations = useMemo(
@@ -610,6 +615,13 @@ export default function AdminScenesScreen() {
       list.push(item);
       map.set(item.sceneIndex, list);
     }
+    for (const list of map.values()) {
+      list.sort(
+        (a, b) =>
+          a.attempt - b.attempt ||
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+    }
     return map;
   }, [validations]);
   const cost = scenesQuery.data?.cost;
@@ -618,6 +630,62 @@ export default function AdminScenesScreen() {
     [scenesQuery.data?.environments]
   );
   const outfits = useMemo(() => scenesQuery.data?.outfits ?? [], [scenesQuery.data?.outfits]);
+  const renderRegenerateButton = (item: (typeof scenes)[number]) => {
+    if (!routeStoryId) return null;
+
+    const imageTargetKind =
+      item.imageTargetKind ?? (isGraphicPageStory ? 'graphic_novel_page' : 'scene');
+    if (imageTargetKind === 'none') {
+      return <Text style={styles.metaText}>no image</Text>;
+    }
+
+    if (imageTargetKind === 'graphic_novel_page') {
+      const pageNumber = item.graphicNovelPageNumber ?? item.sceneIndex;
+      const isPending =
+        regenerateGraphicNovelPageMutation.isPending &&
+        regenerateGraphicNovelPageMutation.variables?.storyId === routeStoryId &&
+        regenerateGraphicNovelPageMutation.variables?.pageNumber === pageNumber;
+
+      return (
+        <TouchableOpacity
+          style={styles.sceneActionButton}
+          disabled={isPending}
+          onPress={() => {
+            regenerateGraphicNovelPageMutation.mutate({
+              storyId: routeStoryId,
+              pageNumber,
+            });
+          }}
+        >
+          <Text style={styles.sceneActionButtonText}>
+            {isPending ? 'Queueing...' : 'Regenerate page image'}
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+
+    const isPending =
+      regenerateMutation.isPending &&
+      regenerateMutation.variables?.storyId === routeStoryId &&
+      regenerateMutation.variables?.sceneId === item.sceneIndex;
+
+    return (
+      <TouchableOpacity
+        style={styles.sceneActionButton}
+        disabled={isPending}
+        onPress={() => {
+          regenerateMutation.mutate({
+            storyId: routeStoryId,
+            sceneId: item.sceneIndex,
+          });
+        }}
+      >
+        <Text style={styles.sceneActionButtonText}>
+          {isPending ? 'Queueing...' : 'Regenerate image'}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <AdminLayout
@@ -832,7 +900,12 @@ export default function AdminScenesScreen() {
               {scenes.map((item) => (
                 <View key={item.sceneIndex} style={styles.sceneCard}>
                   <View style={styles.sceneCardHeader}>
-                    <Text style={styles.sceneCardTitle}>SCENE {item.sceneIndex}</Text>
+                    <Text style={styles.sceneCardTitle}>
+                      SCENE {item.sceneIndex}
+                      {item.graphicNovelPageNumber
+                        ? ` · PAGE ${item.graphicNovelPageNumber}`
+                        : ''}
+                    </Text>
                     <View style={styles.sceneCardHeaderActions}>
                       {item.directorScene?.environmentId ? (
                         <TouchableOpacity
@@ -854,48 +927,7 @@ export default function AdminScenesScreen() {
                       ) : (
                         <Text style={styles.metaText}>n/a</Text>
                       )}
-                      {routeStoryId ? (
-                        <TouchableOpacity
-                          style={styles.sceneActionButton}
-                          disabled={
-                            isGraphicNovel
-                              ? regenerateGraphicNovelPageMutation.isPending &&
-                                regenerateGraphicNovelPageMutation.variables?.storyId === routeStoryId &&
-                                regenerateGraphicNovelPageMutation.variables?.pageNumber === item.sceneIndex
-                              : regenerateMutation.isPending &&
-                                regenerateMutation.variables?.storyId === routeStoryId &&
-                                regenerateMutation.variables?.sceneId === item.sceneIndex
-                          }
-                          onPress={() => {
-                            if (isGraphicNovel) {
-                              regenerateGraphicNovelPageMutation.mutate({
-                                storyId: routeStoryId,
-                                pageNumber: item.sceneIndex,
-                              });
-                              return;
-                            }
-
-                            regenerateMutation.mutate({
-                              storyId: routeStoryId,
-                              sceneId: item.sceneIndex,
-                            });
-                          }}
-                        >
-                          <Text style={styles.sceneActionButtonText}>
-                            {isGraphicNovel
-                              ? regenerateGraphicNovelPageMutation.isPending &&
-                                regenerateGraphicNovelPageMutation.variables?.storyId === routeStoryId &&
-                                regenerateGraphicNovelPageMutation.variables?.pageNumber === item.sceneIndex
-                                ? 'Queueing...'
-                                : 'Regenerate page image'
-                              : regenerateMutation.isPending &&
-                                regenerateMutation.variables?.storyId === routeStoryId &&
-                                regenerateMutation.variables?.sceneId === item.sceneIndex
-                              ? 'Queueing...'
-                              : 'Regenerate image'}
-                          </Text>
-                        </TouchableOpacity>
-                      ) : null}
+                      {renderRegenerateButton(item)}
                     </View>
                   </View>
 
@@ -953,6 +985,9 @@ export default function AdminScenesScreen() {
                                 <View style={styles.validationCardHeader}>
                                   <Text style={styles.validationCardTitle}>
                                     Attempt {validation.attempt}
+                                    {validation.graphicNovelPageNumber
+                                      ? ` · Page ${validation.graphicNovelPageNumber}`
+                                      : ''}
                                   </Text>
                                   <Text style={styles.validationScore}>
                                     {formatValidationScore(

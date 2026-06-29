@@ -13,6 +13,10 @@
 import type { StoryAudioMetadata } from '@wondertales/shared';
 import { DEFAULT_LOCALE } from '@wondertales/shared';
 import { logger } from '../utils/logger';
+import {
+  imageJobTypeForGenerationKind,
+  isGraphicNovelStyleGenerationKind,
+} from '../services/generationKindRouting';
 import { recordUsage } from '../services/aiUsageService';
 import { ConcurrentJobQueue, type BaseJob } from './ConcurrentJobQueue';
 import { config } from '../config';
@@ -234,7 +238,7 @@ async function releaseQuotaAfterTextPermanentFailure(
   const request = await getStoryRepository().findRequestById(requestId);
   const generationKind = (request?.intermediateData as Record<string, unknown> | null | undefined)
     ?.generationKind;
-  if (generationKind !== 'graphic_novel') {
+  if (!isGraphicNovelStyleGenerationKind(generationKind as any)) {
     return;
   }
 
@@ -375,9 +379,12 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
   const generationKind = (request?.intermediateData as Record<string, unknown> | null | undefined)
     ?.generationKind;
 
-  if (generationKind === 'graphic_novel') {
-    const { processGraphicNovelRequest } = await import('../services/graphicNovelOrchestrationService');
-    const result = await processGraphicNovelRequest(job.requestId);
+  if (imageJobTypeForGenerationKind(generationKind as any) === 'graphic_novel_pages') {
+    const { processGraphicNovelRequest, processMixedStoryRequest } = await import('../services/graphicNovelOrchestrationService');
+    const result =
+      generationKind === 'mixed_story'
+        ? await processMixedStoryRequest(job.requestId)
+        : await processGraphicNovelRequest(job.requestId);
     storyId = result.storyId;
 
     imageQueue.addJob({
@@ -386,7 +393,10 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
       storyId,
     });
 
-    logger.info({ requestId: job.requestId, storyId }, 'Graphic novel script/layout completed, enqueued page rendering');
+    logger.info(
+      { requestId: job.requestId, storyId, generationKind },
+      'Graphic novel-style script/layout completed, enqueued page rendering'
+    );
     return;
   }
 

@@ -24,7 +24,7 @@ import {
   renderGraphicNovelPageTemplate,
 } from '../domain/graphicNovel';
 import { GRAPHIC_NOVEL_PAGE_SIZE, planGraphicNovelLayouts } from '../domain/graphicNovel/layoutPlanner';
-import { getImageDomainService, getValidationTextProvider } from '../services/aiService';
+import { getComplexImageDomainService, getValidationTextProvider } from '../services/aiService';
 import { buildStorySpec } from '../services/storyOrchestrationService';
 import { getAssetStorageService } from '../services/assetStorageService';
 import type { GraphicNovelScript, PlannedGraphicNovelPage, Rect } from '../domain/graphicNovel';
@@ -301,7 +301,7 @@ async function main(): Promise<void> {
       },
     };
   } else {
-    const imageDomain = getImageDomainService();
+    const imageDomain = getComplexImageDomainService();
     rendered = await editGraphicNovelPage({
       imageDomain,
       page,

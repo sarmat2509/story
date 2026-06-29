@@ -1,4 +1,4 @@
-import { GRAPHIC_NOVEL_PAGE_SIZE } from './layoutPlanner';
+import { pageSizeForGraphicNovelPage } from './layoutPlanner';
 import type {
   GraphicNovelPageTextOverlay,
   GraphicNovelTextOverlayItem,
@@ -94,7 +94,7 @@ export function buildGraphicNovelPageTextOverlay(
     mode: 'html_overlay',
     coordinateSpace: 'normalized_0_1',
     pageNumber: page.pageNumber,
-    pageSize: GRAPHIC_NOVEL_PAGE_SIZE,
+    pageSize: pageSizeForGraphicNovelPage(page),
     items,
     rawPlainText: items.map((item) => item.rawText).filter(Boolean).join('\n'),
     plainText: items.map((item) => item.audioText).filter(Boolean).join('\n'),

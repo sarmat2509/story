@@ -23,6 +23,7 @@ import { StoryDomainService } from '../domain/story';
 import { ImageDomainService } from '../domain/image';
 import { AudioDomainService } from '../domain/audio';
 import { GraphicNovelDomainService } from '../domain/graphicNovel';
+import { MixedStoryDomainService } from '../domain/mixedStory';
 import { ImageRateLimiter } from './imageRateLimiter';
 import { TextRateLimiter } from './textRateLimiter';
 import { stopAudioRateLimiter } from './audioRateLimiter';
@@ -38,9 +39,11 @@ import { logger } from '../utils/logger';
 // Singleton instances
 let storyDomainService: StoryDomainService | null = null;
 let imageDomainService: ImageDomainService | null = null;
+let complexImageDomainService: ImageDomainService | null = null;
 let mapTileImageDomainService: ImageDomainService | null = null;
 let audioDomainService: AudioDomainService | null = null;
 let graphicNovelDomainService: GraphicNovelDomainService | null = null;
+let mixedStoryDomainService: MixedStoryDomainService | null = null;
 
 // Provider instances (private to this module)
 let textProvider: ITextProvider | null = null;
@@ -48,6 +51,7 @@ let directorTextProvider: ITextProvider | null = null;
 let validationTextProvider: ITextProvider | null = null;
 let imageValidationFallbackTextProvider: ITextProvider | null = null;
 let imageProvider: IImageProvider | null = null;
+let complexImageProvider: IImageProvider | null = null;
 let environmentImageProvider: IImageProvider | null = null;
 let batchImageProvider: IImageProvider | null = null;
 let audioProvider: IAudioProvider | null = null;
@@ -83,31 +87,24 @@ export function getStoryDomainService(): StoryDomainService {
  */
 export function getImageDomainService(): ImageDomainService {
   if (!imageDomainService) {
-    logger.info('Initializing Image Domain Service');
-    
-    // Create image provider (hidden from orchestration)
-    const provider = getImageProvider();
-    
-    // Inject text provider for Vision-based image validation (only when enabled)
-    const validationTextProvider = config.image.enableValidation
-      ? getValidationTextProvider()
-      : undefined;
-    const validationFallbackTextProvider = config.image.enableValidation
-      ? getImageValidationFallbackTextProvider()
-      : undefined;
-    if (validationTextProvider) {
-      logger.info('Image validation enabled — injecting text provider for Gemini Vision');
-    }
-    
-    // Create domain service with both providers
-    imageDomainService = new ImageDomainService(
-      provider,
-      validationTextProvider,
-      validationFallbackTextProvider,
-    );
+    logger.info('Initializing simple Image Domain Service');
+    imageDomainService = createImageDomainService(getImageProvider(), 'simple');
   }
   
   return imageDomainService;
+}
+
+/**
+ * Complex visual path for full comic pages (graphic_novel and mixed_story comic blocks).
+ * Kept separate so simple story illustrations can use a cheaper/lighter provider.
+ */
+export function getComplexImageDomainService(): ImageDomainService {
+  if (!complexImageDomainService) {
+    logger.info('Initializing complex Image Domain Service');
+    complexImageDomainService = createImageDomainService(getComplexImageProvider(), 'complex');
+  }
+
+  return complexImageDomainService;
 }
 
 export function getGraphicNovelDomainService(): GraphicNovelDomainService {
@@ -117,6 +114,15 @@ export function getGraphicNovelDomainService(): GraphicNovelDomainService {
   }
 
   return graphicNovelDomainService;
+}
+
+export function getMixedStoryDomainService(): MixedStoryDomainService {
+  if (!mixedStoryDomainService) {
+    logger.info('Initializing Mixed Story Domain Service');
+    mixedStoryDomainService = new MixedStoryDomainService(getDirectorTextProvider());
+  }
+
+  return mixedStoryDomainService;
 }
 
 /**
@@ -257,47 +263,99 @@ function getImageValidationFallbackTextProvider(): ITextProvider | undefined {
   return imageValidationFallbackTextProvider;
 }
 
+function createImageDomainService(
+  provider: IImageProvider,
+  visualComplexity: 'simple' | 'complex'
+): ImageDomainService {
+  // Inject text provider for Vision-based image validation (only when enabled)
+  const validationTextProvider = config.image.enableValidation
+    ? getValidationTextProvider()
+    : undefined;
+  const validationFallbackTextProvider = config.image.enableValidation
+    ? getImageValidationFallbackTextProvider()
+    : undefined;
+  if (validationTextProvider) {
+    logger.info(
+      { visualComplexity },
+      'Image validation enabled — injecting text provider for Gemini Vision'
+    );
+  }
+
+  return new ImageDomainService(provider, validationTextProvider, validationFallbackTextProvider);
+}
+
 /**
- * Get image provider instance (private)
- * Only called by getImageDomainService()
+ * Get simple image provider instance (private).
+ * Used for ordinary story illustrations and other light visuals.
+ */
+function getImageProvider(): IImageProvider {
+  if (!imageProvider) {
+    imageProvider = createConfiguredImageProvider({
+      provider: config.image.provider || 'nanobananapro',
+      role: 'simple',
+    });
+  }
+
+  return imageProvider;
+}
+
+/**
+ * Get complex image provider instance (private).
+ * Used for full comic pages where Seedream currently underperforms.
+ */
+function getComplexImageProvider(): IImageProvider {
+  if (!complexImageProvider) {
+    complexImageProvider = createConfiguredImageProvider({
+      provider: config.image.complexProvider || 'nanobananapro',
+      modelOverride: config.image.complexModel || 'gemini-3.1-flash-image',
+      role: 'complex',
+    });
+  }
+
+  return complexImageProvider;
+}
+
+/**
  * Supports:
  * - 'nanobananapro': Gemini Flash/Pro Image (for cartoon/illustration with character consistency)
  * - 'openai': GPT Image via Responses API (for character consistency with input_fidelity)
  * - 'seedream': BytePlus ModelArk Seedream image generation with references
- * - 'gemini': Gemini 2.5 Flash Image only (same stack as env / cheap paths; Imagen removed)
+ * - 'gemini': Gemini Flash Image stack with explicit model override or cheap flash fallback
  */
-function getImageProvider(): IImageProvider {
-  if (!imageProvider) {
-    const provider = config.image.provider || 'nanobananapro';
-    
-    logger.info({ provider }, 'Initializing image provider');
-    
-    switch (provider) {
-      case 'nanobananapro':
-        // Nano Banana Pro (Gemini Flash/Pro Image) - for cartoon/illustration
-        imageProvider = new NanoBananaProProvider(config.google.apiKey);
-        break;
-      case 'openai':
-        // OpenAI GPT Image via Responses API
-        imageProvider = new OpenAIImageProvider(config.ai.openaiApiKey);
-        break;
-      case 'seedream':
-        // BytePlus ModelArk Seedream via OpenAI-compatible Images API
-        imageProvider = new SeedreamImageProvider(config.seedream.apiKey);
-        break;
-      case 'gemini':
-        imageProvider = new NanoBananaProProvider(
-          config.google.apiKey,
-          config.image.flashImageModel,
-        );
-        break;
-      default:
-        logger.warn({ provider }, 'Unknown image provider, falling back to nanobananapro');
-        imageProvider = new NanoBananaProProvider(config.google.apiKey);
-    }
+function createConfiguredImageProvider(params: {
+  provider: string;
+  role: 'simple' | 'complex';
+  modelOverride?: string;
+}): IImageProvider {
+  const provider = params.provider || 'nanobananapro';
+
+  logger.info(
+    { provider, role: params.role, modelOverride: params.modelOverride || null },
+    'Initializing image provider'
+  );
+
+  switch (provider) {
+    case 'nanobananapro':
+      // Nano Banana Pro (Gemini Flash/Pro Image) - for cartoon/illustration
+      return new NanoBananaProProvider(config.google.apiKey, params.modelOverride);
+    case 'openai':
+      // OpenAI GPT Image via Responses API
+      return new OpenAIImageProvider(config.ai.openaiApiKey);
+    case 'seedream':
+      // BytePlus ModelArk Seedream via OpenAI-compatible Images API
+      return new SeedreamImageProvider(config.seedream.apiKey);
+    case 'gemini':
+      return new NanoBananaProProvider(
+        config.google.apiKey,
+        params.modelOverride || config.image.flashImageModel
+      );
+    default:
+      logger.warn(
+        { provider, role: params.role },
+        'Unknown image provider, falling back to nanobananapro'
+      );
+      return new NanoBananaProProvider(config.google.apiKey, params.modelOverride);
   }
-  
-  return imageProvider;
 }
 
 /**
@@ -585,12 +643,17 @@ export function stopAllRateLimiters(): void {
 export function resetServices(): void {
   storyDomainService = null;
   imageDomainService = null;
+  complexImageDomainService = null;
+  mapTileImageDomainService = null;
   audioDomainService = null;
+  graphicNovelDomainService = null;
+  mixedStoryDomainService = null;
   textProvider = null;
   directorTextProvider = null;
   validationTextProvider = null;
   imageValidationFallbackTextProvider = null;
   imageProvider = null;
+  complexImageProvider = null;
   environmentImageProvider = null;
   batchImageProvider = null;
   audioProvider = null;

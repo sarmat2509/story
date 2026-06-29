@@ -1293,10 +1293,10 @@ router.post('/stories/:storyId/graphic-novel-pages/:pageNumber/regenerate-image'
     }
 
     const metadata = (story.metadata as Record<string, unknown> | null) || {};
-    if (metadata.storyFormat !== 'graphic_novel') {
+    if (metadata.storyFormat !== 'graphic_novel' && metadata.storyFormat !== 'mixed_story') {
       return res.status(409).json({
         status: 'error',
-        message: 'Story is not a graphic novel',
+        message: 'Story is not a graphic novel or mixed story',
       });
     }
 

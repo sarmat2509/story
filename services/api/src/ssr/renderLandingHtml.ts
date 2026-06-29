@@ -420,8 +420,8 @@ body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica
 .plan-card .plan-cta{margin-top:auto;padding-top:16px}
 .landing-currency-toggle-wrap{display:flex;justify-content:center;margin:-8px 0 26px}
 .landing-currency-toggle{display:inline-flex;align-items:center;gap:4px;margin:0;padding:4px;border-radius:12px;border:1px solid rgba(139,124,184,.24);background:rgba(255,255,255,.76);box-shadow:0 8px 22px rgba(18,27,44,.06)}
-.landing-currency-toggle a{display:inline-flex;align-items:center;justify-content:center;min-width:84px;min-height:38px;padding:0 14px;border-radius:9px;color:#475569;font-size:14px;font-weight:800}
-.landing-currency-toggle a.active{background:#8b7cb8;color:#fff;box-shadow:0 8px 20px rgba(139,124,184,.18)}
+.landing-currency-toggle button{display:inline-flex;align-items:center;justify-content:center;min-width:84px;min-height:38px;padding:0 14px;border:0;border-radius:9px;background:transparent;color:#475569;font:inherit;font-size:14px;font-weight:800;cursor:pointer}
+.landing-currency-toggle button.active{background:#8b7cb8;color:#fff;box-shadow:0 8px 20px rgba(139,124,184,.18)}
 .pricing-reassurance{text-align:center;font-size:14px;color:#64748b;margin-bottom:24px}
 .faq-list{max-width:720px;margin:0 auto 32px}
 .faq-accordion-item{border-radius:24px;margin-bottom:14px;overflow:hidden;box-shadow:0 14px 34px rgba(18,27,44,0.08),0 1px 0 rgba(18,27,44,0.05);background:#fff}
@@ -449,7 +449,7 @@ body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica
 @media(min-width:701px) and (max-width:1100px) and (max-height:820px){.brand{margin-bottom:10px}.brand .brand-mark{width:40px;height:40px}.hero{padding-top:12px}.hero h1{font-size:36px;line-height:1.1;margin-bottom:10px}.hero .subheadline{font-size:16px;line-height:1.45;margin-bottom:18px}.hero-mockup{margin:-154px calc(-1 * var(--tablet-page-pad)) -12px}.hero-mockup img{transform:none}}
 @media(max-width:900px){.landing{padding-bottom:72px}.hero{padding-top:16px}.hero h1{font-size:40px;max-width:660px}.hero .subheadline{max-width:600px;margin-bottom:24px}.value-cards,.benefit-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.flow-steps{grid-template-columns:repeat(2,minmax(0,1fr))}.plans-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.parent-trust-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.story-cards,.testimonial-cards{grid-template-columns:1fr}.voice-cards{position:static;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:0}.voice-card{position:static;width:100%;left:auto;top:auto;margin:0}.feature-sticky{grid-template-columns:1fr;gap:24px}.feature-sticky-titles{position:static;display:flex;gap:10px;overflow-x:auto;padding:0 2px 10px;scroll-snap-type:x proximity}.feature-sticky-title-item{flex:0 0 min(260px,80vw);padding:12px 14px;border:1px solid rgba(116,102,166,0.24);border-radius:9999px;background:rgba(255,255,255,0.72);scroll-snap-align:start}.feature-sticky-title-item:first-child{padding-top:12px}.feature-sticky-title-item.active{background:#fff;box-shadow:0 2px 10px rgba(15,23,42,0.08)}.feature-sticky-title-item h3{font-size:15px}.feature-sticky-card-inner .feature-item-image{aspect-ratio:16/9;max-height:360px}}
 @media(min-width:701px) and (max-width:900px){.value-cards{grid-auto-rows:auto}.value-card--featured{grid-column:1 / -1;grid-row:auto;min-height:0;position:relative;justify-content:flex-start;padding:24px;background:rgba(255,255,255,0.94);color:var(--wt-ink)}.value-card--featured .value-card-image{position:relative;inset:auto;height:260px;margin:-24px -24px 22px;background:linear-gradient(135deg,#e8e4f3,#f5e6f0)}.value-card--featured .value-card-image::after{content:none}.value-card--featured h3{position:static;z-index:auto;font-size:22px;color:var(--wt-ink);max-width:none;text-shadow:none}.value-card--featured p{position:static;z-index:auto;color:var(--wt-muted);max-width:none}.value-card--wide{grid-column:auto;grid-row:auto;display:flex;min-height:0}.value-card--wide .value-card-image{grid-column:auto;grid-row:auto;height:auto;aspect-ratio:960 / 644;min-height:0;margin:-24px -24px 16px;align-self:auto;border-radius:0}.value-card--wide .value-card-image img{object-fit:contain}.value-card--wide h3,.value-card--wide p{grid-column:auto;align-self:auto}.flow-step{min-height:304px}}
-@media(max-width:700px){.landing{padding:0 16px 64px}.brand{margin-bottom:12px}.hero{--mobile-page-pad:16px;margin-left:calc(-1 * var(--mobile-page-pad));margin-right:calc(-1 * var(--mobile-page-pad));padding:14px var(--mobile-page-pad) 44px}.hero h1{font-size:31px;line-height:1.12;max-width:362px;margin-bottom:12px}.hero .subheadline{font-size:16px;line-height:1.48;margin-bottom:22px}.hero-mockup{margin:-10px calc(-1 * var(--mobile-page-pad)) 10px;width:auto;overflow:visible}.hero-mockup picture{height:auto}.hero-mockup img{width:100%;height:auto;min-height:0;transform:none;filter:none}.actions{gap:10px}.cta-purple,.cta-purple-outline{padding:13px 20px;font-size:15px}.section{padding-top:8px;margin-bottom:48px}.section h2{font-size:26px}.section .section-subtitle{font-size:15px;margin-bottom:24px}.landing-currency-toggle-wrap{margin-top:-6px}.landing-currency-toggle{width:100%;max-width:280px}.landing-currency-toggle a{flex:1;min-width:0}.value-cards,.benefit-cards,.flow-steps,.safety-points,.parent-trust-grid,.plans-grid,.story-cards,.testimonial-cards{grid-template-columns:1fr;gap:16px}.value-card,.benefit-card,.plan-card,.testimonial-card{padding:18px;border-radius:8px}.value-card .value-card-image,.benefit-card .benefit-card-image{height:170px;margin:-18px -18px 14px}.story-card{border-radius:8px}.story-card .story-illustration{height:190px}.story-card .story-info{padding:18px}.story-card .story-meta-badges{gap:6px}.story-card .story-badge{padding:5px 8px;font-size:11px}.feature-sticky-cards{gap:20px}.feature-sticky-card-inner .feature-item-image{aspect-ratio:16/10;max-height:260px}.feature-sticky-card-inner .feature-item-content{padding:16px 18px}.safety-point{align-items:flex-start}.voice-cards{grid-template-columns:1fr;gap:12px}.voice-card{padding:14px 16px;border-radius:8px}.final-cta{margin-top:40px;margin-bottom:-64px;padding:58px 16px 66px}.final-cta h2{font-size:28px}.final-cta .final-subheadline{font-size:16px}.announcement-bar{flex-direction:column;gap:12px}}
+@media(max-width:700px){.landing{padding:0 16px 64px}.brand{margin-bottom:12px}.hero{--mobile-page-pad:16px;margin-left:calc(-1 * var(--mobile-page-pad));margin-right:calc(-1 * var(--mobile-page-pad));padding:14px var(--mobile-page-pad) 44px}.hero h1{font-size:31px;line-height:1.12;max-width:362px;margin-bottom:12px}.hero .subheadline{font-size:16px;line-height:1.48;margin-bottom:22px}.hero-mockup{margin:-10px calc(-1 * var(--mobile-page-pad)) 10px;width:auto;overflow:visible}.hero-mockup picture{height:auto}.hero-mockup img{width:100%;height:auto;min-height:0;transform:none;filter:none}.actions{gap:10px}.cta-purple,.cta-purple-outline{padding:13px 20px;font-size:15px}.section{padding-top:8px;margin-bottom:48px}.section h2{font-size:26px}.section .section-subtitle{font-size:15px;margin-bottom:24px}.landing-currency-toggle-wrap{margin-top:-6px}.landing-currency-toggle{width:100%;max-width:280px}.landing-currency-toggle button{flex:1;min-width:0}.value-cards,.benefit-cards,.flow-steps,.safety-points,.parent-trust-grid,.plans-grid,.story-cards,.testimonial-cards{grid-template-columns:1fr;gap:16px}.value-card,.benefit-card,.plan-card,.testimonial-card{padding:18px;border-radius:8px}.value-card .value-card-image,.benefit-card .benefit-card-image{height:170px;margin:-18px -18px 14px}.story-card{border-radius:8px}.story-card .story-illustration{height:190px}.story-card .story-info{padding:18px}.story-card .story-meta-badges{gap:6px}.story-card .story-badge{padding:5px 8px;font-size:11px}.feature-sticky-cards{gap:20px}.feature-sticky-card-inner .feature-item-image{aspect-ratio:16/10;max-height:260px}.feature-sticky-card-inner .feature-item-content{padding:16px 18px}.safety-point{align-items:flex-start}.voice-cards{grid-template-columns:1fr;gap:12px}.voice-card{padding:14px 16px;border-radius:8px}.final-cta{margin-top:40px;margin-bottom:-64px;padding:58px 16px 66px}.final-cta h2{font-size:28px}.final-cta .final-subheadline{font-size:16px}.announcement-bar{flex-direction:column;gap:12px}}
 @media(max-width:420px){.landing{padding-left:14px;padding-right:14px}.hero{--mobile-page-pad:14px}.hero h1{font-size:30px}.hero-mockup{margin-top:-4px;width:calc(100% + 28px)}.hero .microcopy{gap:8px;font-size:12px}.story-card .story-meta-badges{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.story-card .story-badge{justify-content:center}}
 @media(max-width:700px){.hero-mockup img{-webkit-mask-image:none;mask-image:none}.value-cards{grid-auto-rows:auto}.value-card,.benefit-card,.flow-step,.story-card,.plan-card,.testimonial-card{border-radius:24px}.value-card--featured,.value-card--wide{grid-column:auto;grid-row:auto;min-height:0;display:flex;position:relative;justify-content:flex-start;background:rgba(255,255,255,0.92);color:var(--wt-ink)}.value-card--featured .value-card-image,.value-card--wide .value-card-image{position:relative;inset:auto;grid-column:auto;grid-row:auto;height:170px;aspect-ratio:auto;min-height:0;margin:-18px -18px 14px;align-self:auto;border-radius:0;background:linear-gradient(135deg,#e8e4f3,#f5e6f0)}.value-card--featured .value-card-image::after{content:none}.value-card--wide .value-card-image{height:auto;aspect-ratio:960 / 644}.value-card--wide .value-card-image img{object-fit:contain}.value-card--featured h3,.value-card--wide h3{position:static;z-index:auto;grid-column:auto;align-self:auto;font-size:19px;line-height:1.32;color:var(--wt-ink);max-width:none;text-shadow:none}.value-card--featured p,.value-card--wide p{position:static;z-index:auto;grid-column:auto;align-self:auto;color:var(--wt-muted);max-width:none}.flow-step{min-height:0;padding:22px 18px}.flow-step h3{min-height:0}.voice-card{border-radius:24px}}
 @media(prefers-reduced-motion:reduce){.faq-accordion-item summary::before{transition:none}}
@@ -527,10 +527,6 @@ function getLocalizedWizardUrl(webAppUrl: string, locale?: string | null): strin
 
 function getLocalizedPricingUrl(webAppUrl: string, locale?: string | null): string {
   return buildAbsoluteRouteUrl(webAppUrl, buildPublicPricingPath(locale));
-}
-
-function getLocalizedLandingCurrencyPath(locale: string, currency: BillingCurrency): string {
-  return `${getLandingPath(locale)}?currency=${currency}`;
 }
 
 function readPlanFeatureLimit(plan: PresentedPlan, slug: string, fallback: number): number {
@@ -939,6 +935,7 @@ const PREMIUM_VOICE_NAMES = new Set([
 ]);
 
 const PREMIUM_VOICE_CROWN_ICON = '<svg class="voice-premium-crown-svg" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M4.2 8.1 8.9 12l3.1-6.2 3.1 6.2 4.7-3.9-1.5 9.3H5.7L4.2 8.1Z" fill="currentColor" opacity="0.18"/><path d="M4.2 8.1 8.9 12l3.1-6.2 3.1 6.2 4.7-3.9-1.5 9.3H5.7L4.2 8.1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M6.2 20h11.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+const VOICE_SAMPLE_ASSET_VERSION = '20260629';
 
 function getVoiceAvatarPath(voiceName: string): string {
   const idx = VOICE_AVATAR_MAP[voiceName.toLowerCase()];
@@ -955,7 +952,10 @@ function isPremiumVoice(voice: LandingVoice): boolean {
 function buildVoiceSampleUrl(sampleAudioUrl: string | null): string {
   if (!sampleAudioUrl) return '';
   if (sampleAudioUrl.startsWith('http')) return sampleAudioUrl;
-  return `/api/v1/assets/${sampleAudioUrl}`;
+  const url = `/api/v1/assets/${sampleAudioUrl}`;
+  return sampleAudioUrl.startsWith('voice-samples/')
+    ? `${url}?v=${VOICE_SAMPLE_ASSET_VERSION}`
+    : url;
 }
 
 /** Ellipse layout: card 0 at center, cards 1..N-1 on ellipse. Returns { left, top } in px. */
@@ -1064,10 +1064,16 @@ function renderPricing(
 
   const presentedPlans = plans.map((p) => {
     const selectedPrice = getPlanPriceForCurrency(p, billingCurrency);
+    const priceByCurrency = SUPPORTED_BILLING_CURRENCIES.reduce((acc, currency) => {
+      const price = getPlanPriceForCurrency(p, currency);
+      acc[currency] = formatPlanPrice(locale, price.priceMonthly, price.pricingCurrency);
+      return acc;
+    }, {} as Record<BillingCurrency, string>);
     return {
       slug: p.slug,
       name: getPlanDisplayName(locale, p.slug, p.name),
       price: formatPlanPrice(locale, selectedPrice.priceMonthly, selectedPrice.pricingCurrency),
+      priceByCurrency,
       desc: buildPlanDescription(
         locale,
         p.slug,
@@ -1084,10 +1090,9 @@ function renderPricing(
     <h2>${escapeHtml(content.pricing.title)}</h2>
     <p class="section-subtitle">${escapeHtml(content.pricing.subtitle)}</p>
     <div class="landing-currency-toggle-wrap">
-      <div class="landing-currency-toggle" aria-label="Billing currency">
+      <div class="landing-currency-toggle" aria-label="Billing currency" data-landing-currency-toggle>
         ${SUPPORTED_BILLING_CURRENCIES.map((currency) => {
-          const href = getLocalizedLandingCurrencyPath(locale, currency);
-          return `<a href="${escapeHtml(href)}" class="${billingCurrency === currency ? 'active' : ''}" aria-current="${billingCurrency === currency ? 'true' : 'false'}">${currency === 'EUR' ? '€ EUR' : '$ USD'}</a>`;
+          return `<button type="button" data-currency-option="${currency}" class="${billingCurrency === currency ? 'active' : ''}" aria-pressed="${billingCurrency === currency ? 'true' : 'false'}">${currency === 'EUR' ? '€ EUR' : '$ USD'}</button>`;
         }).join('')}
       </div>
     </div>
@@ -1096,7 +1101,7 @@ function renderPricing(
       <div class="plan-card${p.featured ? ' featured' : ''}">
         ${p.featured ? `<span class="plan-badge">${escapeHtml(content.pricing.popularBadge)}</span>` : ''}
         <div class="plan-name">${escapeHtml(p.name)}</div>
-        <div class="plan-price">${escapeHtml(p.price)}${p.slug !== 'free' ? `<span style="font-size:14px;font-weight:400;color:#64748b">${escapeHtml(content.pricing.perMonthSuffix)}</span>` : ''}</div>
+        <div class="plan-price"><span data-plan-price data-price-eur="${escapeHtml(p.priceByCurrency.EUR)}" data-price-usd="${escapeHtml(p.priceByCurrency.USD)}">${escapeHtml(p.price)}</span>${p.slug !== 'free' ? `<span style="font-size:14px;font-weight:400;color:#64748b">${escapeHtml(content.pricing.perMonthSuffix)}</span>` : ''}</div>
         <div class="plan-desc">${escapeHtml(p.desc)}</div>
       </div>`).join('')}
     </div>
@@ -1104,6 +1109,47 @@ function renderPricing(
     <div class="cta-block">
       <a href="${escapeHtml(getLocalizedPricingUrl(webAppUrl, locale))}" class="cta-purple">${escapeHtml(content.pricing.cta)}</a>
     </div>
+    <script>
+(function(){
+  var key='wondertales.landing.billingCurrency';
+  var supported=['EUR','USD'];
+  var toggle=document.querySelector('[data-landing-currency-toggle]');
+  if(!toggle)return;
+  var buttons=toggle.querySelectorAll('[data-currency-option]');
+  var prices=document.querySelectorAll('[data-plan-price]');
+  var initial='${billingCurrency}';
+  function normalize(value){
+    var normalized=String(value||'').toUpperCase();
+    return supported.indexOf(normalized)>=0?normalized:initial;
+  }
+  function readStored(){
+    try{return normalize(window.sessionStorage.getItem(key));}catch(e){return initial;}
+  }
+  function writeStored(currency){
+    try{window.sessionStorage.setItem(key,currency);}catch(e){}
+  }
+  function applyCurrency(currency){
+    currency=normalize(currency);
+    buttons.forEach(function(btn){
+      var active=btn.dataset.currencyOption===currency;
+      btn.classList.toggle('active',active);
+      btn.setAttribute('aria-pressed',active?'true':'false');
+    });
+    prices.forEach(function(price){
+      var next=currency==='USD'?price.dataset.priceUsd:price.dataset.priceEur;
+      if(next)price.textContent=next;
+    });
+    return currency;
+  }
+  buttons.forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var currency=applyCurrency(btn.dataset.currencyOption);
+      writeStored(currency);
+    });
+  });
+  applyCurrency(readStored());
+})();
+    </script>
   </section>`;
 }
 

@@ -21,6 +21,7 @@ const BUBBLE_OVERLAP_EPSILON = 0.000001;
 
 type BubbleLineForLayout = { kind: BubbleGeometry['kind']; speaker?: string; text: string };
 type RandomSource = () => number;
+type PageSize = { width: number; height: number };
 
 interface BubblePlacementCandidate {
   label: string;
@@ -546,13 +547,23 @@ function textLoad(panel: GraphicNovelPanelScript): number {
 function selectTemplate(
   ageGroup: string,
   page: GraphicNovelPageScript,
-  randomSource: RandomSource
+  randomSource: RandomSource,
+  options: {
+    templates?: GraphicNovelPageTemplate[];
+    minPanelCount?: number;
+  } = {}
 ): GraphicNovelPageTemplate[] {
-  const eligible = getTemplatesForAge(ageGroup);
-  const requiredPanelCount = Math.max(MIN_PANEL_COUNT, page.panels.length);
+  const templatePool = options.templates ?? GRAPHIC_NOVEL_PAGE_TEMPLATES;
+  const ageTemplatePool = options.templates
+    ? templatePool.filter((template) =>
+        template.allowedAgeGroups.includes((ageGroup || '4-5') as any)
+      )
+    : getTemplatesForAge(ageGroup);
+  const eligible = ageTemplatePool.length > 0 ? ageTemplatePool : templatePool;
+  const requiredPanelCount = Math.max(options.minPanelCount ?? MIN_PANEL_COUNT, page.panels.length);
   const pageTextLoad = page.panels.reduce((sum, panel) => sum + textLoad(panel), 0);
   const ageCandidates = eligible.filter((template) => template.panelCount === requiredPanelCount);
-  const fallbackCandidates = GRAPHIC_NOVEL_PAGE_TEMPLATES.filter((template) =>
+  const fallbackCandidates = templatePool.filter((template) =>
     template.panelCount === requiredPanelCount
   );
   const candidates = ageCandidates.length > 0 ? ageCandidates : fallbackCandidates;
@@ -722,6 +733,8 @@ export function planGraphicNovelLayouts(params: {
   outfits?: PlannedGraphicNovelPage['outfits'];
   preservePanelCount?: boolean;
   preferredTemplateId?: string;
+  templates?: GraphicNovelPageTemplate[];
+  minPanelCount?: number;
   randomSource?: RandomSource;
 }): PlannedGraphicNovelPage[] {
   const randomSource = params.randomSource ?? Math.random;
@@ -730,10 +743,14 @@ export function planGraphicNovelLayouts(params: {
       ? page.panels
       : ensureMinimumPanels(page, params.ageGroup);
     const pageForTemplate = { ...page, panels };
-    let candidates = selectTemplate(params.ageGroup, pageForTemplate, randomSource);
+    const templatePool = params.templates ?? GRAPHIC_NOVEL_PAGE_TEMPLATES;
+    let candidates = selectTemplate(params.ageGroup, pageForTemplate, randomSource, {
+      templates: params.templates,
+      minPanelCount: params.minPanelCount,
+    });
 
     if (params.preferredTemplateId) {
-      const preferred = GRAPHIC_NOVEL_PAGE_TEMPLATES.find((template) =>
+      const preferred = templatePool.find((template) =>
         template.id === params.preferredTemplateId
       );
       if (!preferred) {
@@ -777,18 +794,23 @@ export function planGraphicNovelLayouts(params: {
       pageNumber: page.pageNumber,
       pageRole: page.pageRole,
       template,
+      pageSize: template.pageSize ?? GRAPHIC_NOVEL_PAGE_SIZE,
       outfits: params.outfits,
       panels: finalSelected?.plannedPanels ?? planPanelsForTemplate(panels, template),
     };
   });
 }
 
-export function normalizeRect(rect: Rect): Rect {
+export function pageSizeForGraphicNovelPage(page: Pick<PlannedGraphicNovelPage, 'pageSize' | 'template'>): PageSize {
+  return page.pageSize ?? page.template.pageSize ?? GRAPHIC_NOVEL_PAGE_SIZE;
+}
+
+export function normalizeRect(rect: Rect, pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE): Rect {
   return {
-    x: Math.round(rect.x * PAGE_WIDTH),
-    y: Math.round(rect.y * PAGE_HEIGHT),
-    width: Math.round(rect.width * PAGE_WIDTH),
-    height: Math.round(rect.height * PAGE_HEIGHT),
+    x: Math.round(rect.x * pageSize.width),
+    y: Math.round(rect.y * pageSize.height),
+    width: Math.round(rect.width * pageSize.width),
+    height: Math.round(rect.height * pageSize.height),
   };
 }
 

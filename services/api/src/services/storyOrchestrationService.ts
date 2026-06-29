@@ -6217,6 +6217,15 @@ export async function getStoryManifest(storyId: string) {
   const imageGenerationComplete = storyMeta.imageGenerationComplete as boolean | undefined;
   const failedScenes =
     (storyMeta.failedScenes as Array<{ sceneId: number; errorMessage: string }> | undefined) ?? [];
+  const storySceneExtrasBySceneId = new Map<number, Record<string, unknown>>();
+  if (Array.isArray(story.scenes)) {
+    for (const scene of story.scenes as any[]) {
+      const sceneId = Number(scene?.sceneId);
+      if (Number.isFinite(sceneId)) {
+        storySceneExtrasBySceneId.set(sceneId, scene as Record<string, unknown>);
+      }
+    }
+  }
   const closingArtifact = story.closingArtifactId
     ? await getStoryArtifactRepository().findById(story.closingArtifactId)
     : null;
@@ -6287,6 +6296,7 @@ export async function getStoryManifest(storyId: string) {
     failedScenes,
     scenes: storyScenes.map((scene) => {
       const rawSceneText = scene.text || '';
+      const sceneExtras = storySceneExtrasBySceneId.get(scene.sceneId) || {};
       const artifactText = buildArtifactTextSegments(rawSceneText, closingArtifactPayload);
       const sceneAssets = storyAssets.filter((a) => a.sceneId === scene.id);
 
@@ -6315,6 +6325,27 @@ export async function getStoryManifest(storyId: string) {
       return {
         sceneId: scene.sceneId,
         text: stripAllTags(rawSceneText),
+        ...(typeof sceneExtras.mixedStoryBlockKind === 'string'
+          ? { mixedStoryBlockKind: sceneExtras.mixedStoryBlockKind }
+          : {}),
+        ...(typeof sceneExtras.mixedStoryScreenOrder === 'number'
+          ? { mixedStoryScreenOrder: sceneExtras.mixedStoryScreenOrder }
+          : {}),
+        ...(Array.isArray(sceneExtras.mixedStorySourceSceneIds)
+          ? { mixedStorySourceSceneIds: sceneExtras.mixedStorySourceSceneIds }
+          : {}),
+        ...(typeof sceneExtras.mixedStoryAnchorSceneId === 'number'
+          ? { mixedStoryAnchorSceneId: sceneExtras.mixedStoryAnchorSceneId }
+          : {}),
+        ...(typeof sceneExtras.graphicNovelPageNumber === 'number'
+          ? { graphicNovelPageNumber: sceneExtras.graphicNovelPageNumber }
+          : {}),
+        ...(typeof sceneExtras.graphicNovelTextMode === 'string'
+          ? { graphicNovelTextMode: sceneExtras.graphicNovelTextMode }
+          : {}),
+        ...(Array.isArray(sceneExtras.graphicNovelTextSegmentIds)
+          ? { graphicNovelTextSegmentIds: sceneExtras.graphicNovelTextSegmentIds }
+          : {}),
         artifactMention: artifactText
           ? { artifactId: closingArtifactPayload!.id, label: artifactText.label }
           : null,

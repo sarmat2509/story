@@ -5,6 +5,7 @@ import {
   getAssetRepository,
   getEnvironmentImageCacheRepository,
   getFeedbackRepository,
+  getGraphicNovelRepository,
   getOutfitPlateCacheRepository,
   getStoryDirectorSceneRepository,
   getStoryEnvironmentCacheRepository,
@@ -71,6 +72,152 @@ function resolveAdminValidationScore(row: {
     logger.warn({ err: error }, 'Failed to compute fallback admin image validation score');
     return null;
   }
+}
+
+type AdminImageTargetKind = 'scene' | 'graphic_novel_page' | 'none';
+
+type AdminStorySceneSource = {
+  sceneId?: unknown;
+  text?: unknown;
+  mixedStoryBlockKind?: unknown;
+  mixedStoryScreenOrder?: unknown;
+  graphicNovelPageNumber?: unknown;
+};
+
+type AdminGraphicNovelPageTarget = {
+  sceneIndex: number;
+  imageTargetKind: 'graphic_novel_page';
+  graphicNovelPageNumber: number;
+  mixedStoryScreenOrder: number | null;
+};
+
+function numberOrNull(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function normalizeAssetPath(value: unknown): string | null {
+  const raw = stringOrNull(value);
+  if (!raw) return null;
+  return raw.replace(/^\/api\/v1\/assets\//, '');
+}
+
+function adminSceneImageTargetKind(
+  storyFormat: string | null,
+  scene: AdminStorySceneSource
+): AdminImageTargetKind {
+  if (storyFormat === 'mixed_story') {
+    return scene.mixedStoryBlockKind === 'comic' && numberOrNull(scene.graphicNovelPageNumber)
+      ? 'graphic_novel_page'
+      : 'none';
+  }
+  if (storyFormat === 'graphic_novel') return 'graphic_novel_page';
+  return 'scene';
+}
+
+function buildGraphicNovelPageTargets(params: {
+  storyFormat: string | null;
+  storyScenes: AdminStorySceneSource[];
+  pages: Array<{
+    pageNumber: number;
+    imageUrl: string | null;
+    layoutJson: unknown;
+    generationParams: unknown;
+  }>;
+}): {
+  byPageNumber: Map<number, AdminGraphicNovelPageTarget>;
+  bySceneIndex: Map<number, AdminGraphicNovelPageTarget>;
+  byStoragePath: Map<string, AdminGraphicNovelPageTarget>;
+} {
+  const byPageNumber = new Map<number, AdminGraphicNovelPageTarget>();
+  const bySceneIndex = new Map<number, AdminGraphicNovelPageTarget>();
+  const byStoragePath = new Map<string, AdminGraphicNovelPageTarget>();
+  const mixedSceneByPageNumber = new Map<number, number>();
+
+  for (const scene of params.storyScenes) {
+    const pageNumber = numberOrNull(scene.graphicNovelPageNumber);
+    const screenOrder = numberOrNull(scene.mixedStoryScreenOrder) ?? numberOrNull(scene.sceneId);
+    if (pageNumber != null && screenOrder != null) {
+      mixedSceneByPageNumber.set(pageNumber, screenOrder);
+    }
+  }
+
+  for (const page of params.pages) {
+    const layout = (page.layoutJson ?? {}) as Record<string, unknown>;
+    const generationParams = (page.generationParams ?? {}) as Record<string, unknown>;
+    const screenOrder =
+      numberOrNull(layout.mixedStoryScreenOrder) ??
+      numberOrNull(generationParams.mixedStoryScreenOrder) ??
+      mixedSceneByPageNumber.get(page.pageNumber) ??
+      (params.storyFormat === 'mixed_story' ? null : page.pageNumber);
+    const target: AdminGraphicNovelPageTarget = {
+      sceneIndex: screenOrder ?? page.pageNumber,
+      imageTargetKind: 'graphic_novel_page',
+      graphicNovelPageNumber: page.pageNumber,
+      mixedStoryScreenOrder: screenOrder,
+    };
+
+    byPageNumber.set(page.pageNumber, target);
+    if (screenOrder != null) bySceneIndex.set(screenOrder, target);
+
+    const storagePath =
+      normalizeAssetPath(generationParams.storagePath) ?? normalizeAssetPath(page.imageUrl);
+    if (storagePath) byStoragePath.set(storagePath, target);
+  }
+
+  return { byPageNumber, bySceneIndex, byStoragePath };
+}
+
+function resolveAdminValidationTarget(params: {
+  storyFormat: string | null;
+  sceneIndex: number;
+  imageStoragePath: string;
+  pageTargets: ReturnType<typeof buildGraphicNovelPageTargets>;
+}): {
+  sceneIndex: number;
+  sourceSceneIndex: number;
+  imageTargetKind: AdminImageTargetKind;
+  graphicNovelPageNumber: number | null;
+  mixedStoryScreenOrder: number | null;
+} {
+  const sourceSceneIndex = params.sceneIndex;
+  const pageTarget =
+    params.pageTargets.byStoragePath.get(params.imageStoragePath) ??
+    params.pageTargets.byPageNumber.get(sourceSceneIndex) ??
+    params.pageTargets.bySceneIndex.get(sourceSceneIndex);
+
+  if (pageTarget && (params.storyFormat === 'mixed_story' || params.storyFormat === 'graphic_novel')) {
+    return {
+      sceneIndex: pageTarget.sceneIndex,
+      sourceSceneIndex,
+      imageTargetKind: pageTarget.imageTargetKind,
+      graphicNovelPageNumber: pageTarget.graphicNovelPageNumber,
+      mixedStoryScreenOrder: pageTarget.mixedStoryScreenOrder,
+    };
+  }
+
+  return {
+    sceneIndex: sourceSceneIndex,
+    sourceSceneIndex,
+    imageTargetKind: params.storyFormat === 'graphic_novel' ? 'graphic_novel_page' : 'scene',
+    graphicNovelPageNumber: params.storyFormat === 'graphic_novel' ? sourceSceneIndex : null,
+    mixedStoryScreenOrder: null,
+  };
+}
+
+async function loadAdminGraphicNovelPages(storyId: string, storyFormat: string | null) {
+  if (storyFormat !== 'graphic_novel' && storyFormat !== 'mixed_story') return [];
+  const project = await getGraphicNovelRepository().findProjectByStoryId(storyId);
+  if (!project) return [];
+  return getGraphicNovelRepository().findPagesByProjectId(project.id);
 }
 
 export async function getAdminDashboard(days: number) {
@@ -362,12 +509,35 @@ export async function getAdminImageValidation(id: string) {
     getStoryRepository().findById(row.storyId),
   ]);
   const storyMetadata = (story?.metadata ?? {}) as { storyFormat?: unknown };
+  const storyFormat =
+    typeof storyMetadata.storyFormat === 'string' ? storyMetadata.storyFormat : null;
+  const storyScenes = Array.isArray(story?.scenes)
+    ? (story!.scenes as AdminStorySceneSource[])
+    : [];
+  const graphicNovelPages = story
+    ? await loadAdminGraphicNovelPages(story.id, storyFormat)
+    : [];
+  const pageTargets = buildGraphicNovelPageTargets({
+    storyFormat,
+    storyScenes,
+    pages: graphicNovelPages,
+  });
+  const target = resolveAdminValidationTarget({
+    storyFormat,
+    sceneIndex: row.sceneIndex,
+    imageStoragePath: row.imageStoragePath,
+    pageTargets,
+  });
 
   return {
     id: row.id,
     storyId: row.storyId,
-    storyFormat: typeof storyMetadata.storyFormat === 'string' ? storyMetadata.storyFormat : null,
-    sceneIndex: row.sceneIndex,
+    storyFormat,
+    sceneIndex: target.sceneIndex,
+    sourceSceneIndex: target.sourceSceneIndex,
+    imageTargetKind: target.imageTargetKind,
+    graphicNovelPageNumber: target.graphicNovelPageNumber,
+    mixedStoryScreenOrder: target.mixedStoryScreenOrder,
     attempt: row.attempt,
     imageStoragePath: row.imageStoragePath,
     imageUrl: `/api/v1/assets/${row.imageStoragePath}`,
@@ -475,12 +645,12 @@ export async function listAdminDirectorScenes(storyId: string) {
   if (!story) return null;
 
   const storyScenes = Array.isArray(story.scenes)
-    ? (story.scenes as Array<{ sceneId?: number; text?: string }>)
+    ? (story.scenes as AdminStorySceneSource[])
     : [];
   const storyTextBySceneIndex = new Map<number, string>(
     storyScenes
-      .filter((item) => typeof item.sceneId === 'number')
-      .map((item) => [item.sceneId as number, item.text ?? ''])
+      .filter((item) => numberOrNull(item.sceneId) != null)
+      .map((item) => [numberOrNull(item.sceneId)!, typeof item.text === 'string' ? item.text : ''])
   );
 
   const metadata = (story.metadata ?? {}) as {
@@ -490,6 +660,7 @@ export async function listAdminDirectorScenes(storyId: string) {
     mapTile?: unknown;
     mapTileAssetId?: unknown;
   };
+  const storyFormat = typeof metadata.storyFormat === 'string' ? metadata.storyFormat : null;
   const mapTileAssetId =
     typeof metadata.mapTileAssetId === 'string' && metadata.mapTileAssetId.trim()
       ? metadata.mapTileAssetId
@@ -542,6 +713,12 @@ export async function listAdminDirectorScenes(storyId: string) {
     if (!cache || outfitImageUrlByKey.has(mapping.characterKey)) continue;
     outfitImageUrlByKey.set(mapping.characterKey, `/api/v1/assets/${cache.storagePath}`);
   }
+  const graphicNovelPages = await loadAdminGraphicNovelPages(storyId, storyFormat);
+  const pageTargets = buildGraphicNovelPageTargets({
+    storyFormat,
+    storyScenes,
+    pages: graphicNovelPages,
+  });
 
   const gp = finalAudio?.asset?.generationParams as Record<string, unknown> | undefined;
   const am = (story.audioMetadata ?? {}) as StoryAudioMetadata;
@@ -697,17 +874,27 @@ export async function listAdminDirectorScenes(storyId: string) {
     story: {
       id: story.id,
       title: story.title,
-      storyFormat: typeof metadata.storyFormat === 'string' ? metadata.storyFormat : null,
+      storyFormat,
       mapTile: metadata.mapTile ?? null,
       mapTileAsset: serializeAdminMapTileAsset(mapTileAsset),
       createdAt: story.createdAt.toISOString(),
     },
     storyScenes: storyScenes
-      .filter((item) => typeof item.sceneId === 'number')
-      .map((item) => ({
-        sceneIndex: item.sceneId as number,
-        storyText: item.text ?? '',
-      })),
+      .filter((item) => numberOrNull(item.sceneId) != null)
+      .map((item) => {
+        const sceneIndex = numberOrNull(item.sceneId)!;
+        const imageTargetKind = adminSceneImageTargetKind(storyFormat, item);
+        const graphicNovelPageNumber = numberOrNull(item.graphicNovelPageNumber);
+        return {
+          sceneIndex,
+          storyText: typeof item.text === 'string' ? item.text : '',
+          mixedStoryBlockKind:
+            typeof item.mixedStoryBlockKind === 'string' ? item.mixedStoryBlockKind : null,
+          mixedStoryScreenOrder: numberOrNull(item.mixedStoryScreenOrder),
+          graphicNovelPageNumber,
+          imageTargetKind,
+        };
+      }),
     items: items.map((item) => ({
       id: item.id,
       storyId: item.storyId,
@@ -720,21 +907,33 @@ export async function listAdminDirectorScenes(storyId: string) {
       isBlockAnchor: item.isBlockAnchor,
       createdAt: item.createdAt.toISOString(),
     })),
-    validations: validationsResult.items.map((row) => ({
-      id: row.id,
-      storyId: row.storyId,
-      sceneIndex: row.sceneIndex,
-      attempt: row.attempt,
-      imageStoragePath: row.imageStoragePath,
-      imageUrl: `/api/v1/assets/${row.imageStoragePath}`,
-      validationScore: resolveAdminValidationScore(row),
-      validationStatus: row.validationStatus,
-      visionModel: row.visionModel,
-      requestManifest: row.requestManifest,
-      providerError: row.providerError,
-      result: row.result,
-      createdAt: row.createdAt.toISOString(),
-    })),
+    validations: validationsResult.items.map((row) => {
+      const target = resolveAdminValidationTarget({
+        storyFormat,
+        sceneIndex: row.sceneIndex,
+        imageStoragePath: row.imageStoragePath,
+        pageTargets,
+      });
+      return {
+        id: row.id,
+        storyId: row.storyId,
+        sceneIndex: target.sceneIndex,
+        sourceSceneIndex: target.sourceSceneIndex,
+        imageTargetKind: target.imageTargetKind,
+        graphicNovelPageNumber: target.graphicNovelPageNumber,
+        mixedStoryScreenOrder: target.mixedStoryScreenOrder,
+        attempt: row.attempt,
+        imageStoragePath: row.imageStoragePath,
+        imageUrl: `/api/v1/assets/${row.imageStoragePath}`,
+        validationScore: resolveAdminValidationScore(row),
+        validationStatus: row.validationStatus,
+        visionModel: row.visionModel,
+        requestManifest: row.requestManifest,
+        providerError: row.providerError,
+        result: row.result,
+        createdAt: row.createdAt.toISOString(),
+      };
+    }),
     cost: {
       costUsd: Math.round(costUsdRaw * 1e8) / 1e8,
       cacheStats: {

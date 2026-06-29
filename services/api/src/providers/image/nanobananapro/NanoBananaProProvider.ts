@@ -783,10 +783,93 @@ export class NanoBananaProProvider implements IImageProvider {
   }
   
   /**
-   * Calculate image dimensions based on aspect ratio
-   * Gemini generates up to ~1344x768 for 16:9
+   * Estimate returned dimensions from Gemini image_size + aspect ratio.
+   * Used for metadata only; the generated image bytes remain the source of truth.
    */
   private calculateDimensions(aspectRatio?: string): { width: number; height: number } {
+    const normalizedAspectRatio = aspectRatio || '16:9';
+    const imageSize = (config.nanoBanana?.imageSize || '1K').toUpperCase();
+
+    if (this.model.includes('gemini-3.1-flash-image')) {
+      const dimensionsByImageSize: Record<string, Record<string, { width: number; height: number }>> = {
+        '512': {
+          '1:1': { width: 512, height: 512 },
+          '1:4': { width: 256, height: 1024 },
+          '1:8': { width: 192, height: 1536 },
+          '2:3': { width: 424, height: 632 },
+          '3:2': { width: 632, height: 424 },
+          '3:4': { width: 448, height: 600 },
+          '4:1': { width: 1024, height: 256 },
+          '4:3': { width: 600, height: 448 },
+          '4:5': { width: 464, height: 576 },
+          '5:4': { width: 576, height: 464 },
+          '8:1': { width: 1536, height: 192 },
+          '9:16': { width: 384, height: 688 },
+          '16:9': { width: 688, height: 384 },
+          '21:9': { width: 792, height: 168 },
+        },
+        '1K': {
+          '1:1': { width: 1024, height: 1024 },
+          '1:4': { width: 512, height: 2048 },
+          '1:8': { width: 384, height: 3072 },
+          '2:3': { width: 848, height: 1264 },
+          '3:2': { width: 1264, height: 848 },
+          '3:4': { width: 896, height: 1200 },
+          '4:1': { width: 2048, height: 512 },
+          '4:3': { width: 1200, height: 896 },
+          '4:5': { width: 928, height: 1152 },
+          '5:4': { width: 1152, height: 928 },
+          '8:1': { width: 3072, height: 384 },
+          '9:16': { width: 768, height: 1376 },
+          '16:9': { width: 1376, height: 768 },
+          '21:9': { width: 1584, height: 672 },
+        },
+        '2K': {
+          '1:1': { width: 2048, height: 2048 },
+          '1:4': { width: 1024, height: 4096 },
+          '1:8': { width: 768, height: 6144 },
+          '2:3': { width: 1696, height: 2528 },
+          '3:2': { width: 2528, height: 1696 },
+          '3:4': { width: 1792, height: 2400 },
+          '4:1': { width: 4096, height: 1024 },
+          '4:3': { width: 2400, height: 1792 },
+          '4:5': { width: 1856, height: 2304 },
+          '5:4': { width: 2304, height: 1856 },
+          '8:1': { width: 6144, height: 768 },
+          '9:16': { width: 1536, height: 2752 },
+          '16:9': { width: 2752, height: 1536 },
+          '21:9': { width: 3168, height: 1344 },
+        },
+        '4K': {
+          '1:1': { width: 4096, height: 4096 },
+          '1:4': { width: 2048, height: 8192 },
+          '1:8': { width: 1536, height: 12288 },
+          '2:3': { width: 3392, height: 5056 },
+          '3:2': { width: 5056, height: 3392 },
+          '3:4': { width: 3584, height: 4800 },
+          '4:1': { width: 8192, height: 2048 },
+          '4:3': { width: 4800, height: 3584 },
+          '4:5': { width: 3712, height: 4608 },
+          '5:4': { width: 4608, height: 3712 },
+          '8:1': { width: 12288, height: 1536 },
+          '9:16': { width: 3072, height: 5504 },
+          '16:9': { width: 5504, height: 3072 },
+          '21:9': { width: 6336, height: 2688 },
+        },
+      };
+      const sizeKey =
+        imageSize === '0.5K' || imageSize === '512PX'
+          ? '512'
+          : imageSize === '2K' || imageSize === '4K'
+            ? imageSize
+            : '1K';
+      return (
+        dimensionsByImageSize[sizeKey]?.[normalizedAspectRatio] ||
+        dimensionsByImageSize[sizeKey]?.['16:9'] ||
+        dimensionsByImageSize['1K']['16:9']
+      );
+    }
+
     const dimensionsMap: Record<string, { width: number; height: number }> = {
       '1:1': { width: 1024, height: 1024 },
       '16:9': { width: 1344, height: 768 },
@@ -799,8 +882,8 @@ export class NanoBananaProProvider implements IImageProvider {
       '5:4': { width: 1280, height: 1024 },
       '21:9': { width: 1344, height: 576 },
     };
-    
-    return dimensionsMap[aspectRatio || '16:9'] || dimensionsMap['16:9'];
+
+    return dimensionsMap[normalizedAspectRatio] || dimensionsMap['16:9'];
   }
   
   /**

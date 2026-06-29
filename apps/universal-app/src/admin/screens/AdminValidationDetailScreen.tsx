@@ -523,7 +523,11 @@ export default function AdminValidationDetailScreen() {
   const regenerateMutation = useAdminRegenerateSceneImage();
   const regenerateGraphicNovelPageMutation = useAdminRegenerateGraphicNovelPageImage();
   const item = query.data;
-  const isGraphicNovel = item?.storyFormat === 'graphic_novel';
+  const isGraphicPageValidation =
+    item?.imageTargetKind === 'graphic_novel_page' ||
+    item?.storyFormat === 'graphic_novel' ||
+    item?.storyFormat === 'mixed_story';
+  const graphicNovelPageNumber = item?.graphicNovelPageNumber ?? item?.sceneIndex;
   const resultObject =
     item?.result && typeof item.result === 'object' && !Array.isArray(item.result)
       ? (item.result as Record<string, unknown>)
@@ -552,15 +556,15 @@ export default function AdminValidationDetailScreen() {
               <TouchableOpacity
                 style={styles.primaryButton}
                 disabled={
-                  isGraphicNovel
+                  isGraphicPageValidation
                     ? regenerateGraphicNovelPageMutation.isPending
                     : regenerateMutation.isPending
                 }
                 onPress={() => {
-                  if (isGraphicNovel) {
+                  if (isGraphicPageValidation && graphicNovelPageNumber != null) {
                     regenerateGraphicNovelPageMutation.mutate({
                       storyId: item.storyId,
-                      pageNumber: item.sceneIndex,
+                      pageNumber: graphicNovelPageNumber,
                     });
                     return;
                   }
@@ -572,10 +576,10 @@ export default function AdminValidationDetailScreen() {
                 }}
               >
                 <Text style={styles.primaryButtonText}>
-                  {isGraphicNovel
+                  {isGraphicPageValidation
                     ? regenerateGraphicNovelPageMutation.isPending
                       ? 'Queueing...'
-                      : `Regenerate page ${item.sceneIndex}`
+                      : `Regenerate page ${graphicNovelPageNumber ?? item.sceneIndex}`
                     : regenerateMutation.isPending
                       ? 'Queueing...'
                       : `Regenerate scene ${item.sceneIndex}`}
@@ -592,13 +596,22 @@ export default function AdminValidationDetailScreen() {
         </View>
       </View>
 
-      {regenerateMutation.isSuccess && item ? (
+      {(regenerateMutation.isSuccess || regenerateGraphicNovelPageMutation.isSuccess) && item ? (
         <Text style={styles.statusSuccess}>
-          Regeneration queued for story {item.storyId}, scene {item.sceneIndex}.
+          Regeneration queued for story {item.storyId},{' '}
+          {isGraphicPageValidation
+            ? `page ${graphicNovelPageNumber ?? item.sceneIndex}`
+            : `scene ${item.sceneIndex}`}
+          .
         </Text>
       ) : null}
       {regenerateMutation.error ? (
         <Text style={styles.statusError}>{(regenerateMutation.error as Error).message}</Text>
+      ) : null}
+      {regenerateGraphicNovelPageMutation.error ? (
+        <Text style={styles.statusError}>
+          {(regenerateGraphicNovelPageMutation.error as Error).message}
+        </Text>
       ) : null}
 
       {query.isLoading ? <AdminLoadingState /> : null}
@@ -609,7 +622,9 @@ export default function AdminValidationDetailScreen() {
           <DetailCard
             title="Image & Record"
             icon="image-outline"
-            summary={`${isGraphicNovel ? 'Graphic novel page' : 'Story scene'} ${item.sceneIndex} · score ${formatValidationScore(item.validationScore, item.validationStatus)}`}
+            summary={`${isGraphicPageValidation ? 'Graphic novel page' : 'Story scene'} ${
+              isGraphicPageValidation ? graphicNovelPageNumber ?? item.sceneIndex : item.sceneIndex
+            } · score ${formatValidationScore(item.validationScore, item.validationStatus)}`}
           >
             <View style={styles.imageRecordGrid}>
               <View style={styles.imageColumn}>
@@ -617,15 +632,28 @@ export default function AdminValidationDetailScreen() {
                   source={{ uri: formatAssetUrl(item.imageUrl) ?? item.imageUrl }}
                   style={[
                     styles.previewImage,
-                    isGraphicNovel ? styles.previewImageGraphicNovel : null,
+                    isGraphicPageValidation ? styles.previewImageGraphicNovel : null,
                   ]}
-                  resizeMode={isGraphicNovel ? 'contain' : 'cover'}
+                  resizeMode={isGraphicPageValidation ? 'contain' : 'cover'}
                 />
               </View>
               <View style={styles.recordColumn}>
                 <View style={styles.infoGrid}>
                   <InfoPill label="Story" value={compactId(item.storyId)} />
-                  <InfoPill label={isGraphicNovel ? 'Page' : 'Scene'} value={item.sceneIndex} />
+                  <InfoPill
+                    label={isGraphicPageValidation ? 'Page' : 'Scene'}
+                    value={
+                      isGraphicPageValidation
+                        ? graphicNovelPageNumber ?? item.sceneIndex
+                        : item.sceneIndex
+                    }
+                  />
+                  {isGraphicPageValidation ? (
+                    <InfoPill label="Screen scene" value={item.sceneIndex} />
+                  ) : null}
+                  {item.sourceSceneIndex != null && item.sourceSceneIndex !== item.sceneIndex ? (
+                    <InfoPill label="DB index" value={item.sourceSceneIndex} />
+                  ) : null}
                   <InfoPill label="Attempt" value={item.attempt} />
                   <InfoPill
                     label="Score"

@@ -78,6 +78,18 @@ export class OpenAISchemaAdapter {
     if (schema.items) {
       result.items = this.convertNode(schema.items);
     }
+    if (schema.minItems !== undefined) {
+      result.minItems = schema.minItems;
+    }
+    if (schema.maxItems !== undefined) {
+      result.maxItems = schema.maxItems;
+    }
+    if (schema.minProperties !== undefined) {
+      result.minProperties = schema.minProperties;
+    }
+    if (schema.maxProperties !== undefined) {
+      result.maxProperties = schema.maxProperties;
+    }
 
     // Object properties
     if (schema.properties) {

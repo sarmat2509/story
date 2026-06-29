@@ -1,6 +1,7 @@
 import config from '../../config';
 import sharp from 'sharp';
 import { measureGraphicNovelBubbleTextBox } from './bubbleTextSizing';
+import { GRAPHIC_NOVEL_PAGE_SIZE, pageSizeForGraphicNovelPage } from './layoutPlanner';
 import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
 import type { JsonSchema } from '../../providers/base/JsonSchema';
@@ -66,10 +67,9 @@ export interface GraphicNovelBubbleVisionLayoutResult {
 
 const MIN_EMPTY_ZONE_CONFIDENCE = 0.15;
 const OVERLAP_EPSILON = 0.000001;
-const PAGE_WIDTH = 1536;
-const PAGE_HEIGHT = 2048;
 const IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX = 100;
 const IDEAL_BUBBLE_DISTANCE_TOLERANCE_PX = 24;
+type PageSize = { width: number; height: number };
 
 interface BubbleCandidate {
   rect: Rect;
@@ -488,36 +488,47 @@ function distanceFromRectToPoint(rect: Rect, point: VisionPoint): number {
   return Math.hypot(dx, dy);
 }
 
-function distancePxFromRectToPoint(rect: Rect, point: VisionPoint): number {
-  const dx = Math.max(rect.x - point.x, 0, point.x - rectRight(rect)) * PAGE_WIDTH;
-  const dy = Math.max(rect.y - point.y, 0, point.y - rectBottom(rect)) * PAGE_HEIGHT;
+function distancePxFromRectToPoint(
+  rect: Rect,
+  point: VisionPoint,
+  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE
+): number {
+  const dx = Math.max(rect.x - point.x, 0, point.x - rectRight(rect)) * pageSize.width;
+  const dy = Math.max(rect.y - point.y, 0, point.y - rectBottom(rect)) * pageSize.height;
   return Math.hypot(dx, dy);
 }
 
-function pointPx(point: VisionPoint): VisionPoint {
+function pointPx(point: VisionPoint, pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE): VisionPoint {
   return {
-    x: point.x * PAGE_WIDTH,
-    y: point.y * PAGE_HEIGHT,
+    x: point.x * pageSize.width,
+    y: point.y * pageSize.height,
   };
 }
 
-function rectFromPx(params: {
-  centerX: number;
-  centerY: number;
-  widthPx: number;
-  heightPx: number;
-}): Rect {
+function rectFromPx(
+  params: {
+    centerX: number;
+    centerY: number;
+    widthPx: number;
+    heightPx: number;
+  },
+  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE
+): Rect {
   return {
-    x: (params.centerX - params.widthPx / 2) / PAGE_WIDTH,
-    y: (params.centerY - params.heightPx / 2) / PAGE_HEIGHT,
-    width: params.widthPx / PAGE_WIDTH,
-    height: params.heightPx / PAGE_HEIGHT,
+    x: (params.centerX - params.widthPx / 2) / pageSize.width,
+    y: (params.centerY - params.heightPx / 2) / pageSize.height,
+    width: params.widthPx / pageSize.width,
+    height: params.heightPx / pageSize.height,
   };
 }
 
-function unitDirectionPx(from: VisionPoint, to: VisionPoint): VisionPoint | undefined {
-  const fromPx = pointPx(from);
-  const toPx = pointPx(to);
+function unitDirectionPx(
+  from: VisionPoint,
+  to: VisionPoint,
+  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE
+): VisionPoint | undefined {
+  const fromPx = pointPx(from, pageSize);
+  const toPx = pointPx(to, pageSize);
   const dx = toPx.x - fromPx.x;
   const dy = toPx.y - fromPx.y;
   const length = Math.hypot(dx, dy);
@@ -728,14 +739,15 @@ function characterAvoidRects(
 function candidateNearTarget(
   target: VisionPoint,
   bubble: BubbleGeometry,
-  panelRect: Rect
+  panelRect: Rect,
+  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE
 ): BubbleCandidate[] {
   const gapX = Math.min(
-    IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX / PAGE_WIDTH,
+    IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX / pageSize.width,
     panelRect.width * 0.18
   );
   const gapY = Math.min(
-    IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX / PAGE_HEIGHT,
+    IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX / pageSize.height,
     panelRect.height * 0.18
   );
   const measured = measureGraphicNovelBubbleTextBox({
@@ -764,16 +776,17 @@ function candidateNearTarget(
 function candidateTargetRingAtSpeakerDistance(
   target: VisionPoint,
   bubble: BubbleGeometry,
-  panelRect: Rect
+  panelRect: Rect,
+  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE
 ): BubbleCandidate[] {
   const measured = measureGraphicNovelBubbleTextBox({
     text: bubble.text,
     kind: bubble.kind,
     panelRect,
   });
-  const widthPx = measured.width * PAGE_WIDTH;
-  const heightPx = measured.height * PAGE_HEIGHT;
-  const targetPx = pointPx(target);
+  const widthPx = measured.width * pageSize.width;
+  const heightPx = measured.height * pageSize.height;
+  const targetPx = pointPx(target, pageSize);
   const angles = [
     -160, -135, -110, -90, -65, -40, -18,
     0,
@@ -791,12 +804,15 @@ function candidateTargetRingAtSpeakerDistance(
     const centerDistancePx = IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX + supportPx;
 
     return distanceOffsets.map((distanceOffsetPx) => ({
-      rect: clampRectToPanel(rectFromPx({
-        centerX: targetPx.x + direction.x * (centerDistancePx + distanceOffsetPx),
-        centerY: targetPx.y + direction.y * (centerDistancePx + distanceOffsetPx),
-        widthPx,
-        heightPx,
-      }), panelRect),
+      rect: clampRectToPanel(
+        rectFromPx({
+          centerX: targetPx.x + direction.x * (centerDistancePx + distanceOffsetPx),
+          centerY: targetPx.y + direction.y * (centerDistancePx + distanceOffsetPx),
+          widthPx,
+          heightPx,
+        }, pageSize),
+        panelRect
+      ),
       overflow: measured.overflow,
       candidateKind: 'target_ring' as const,
     }));
@@ -887,7 +903,8 @@ function candidateTowardEmptyZoneAtSpeakerDistance(
   zone: Rect,
   bubble: BubbleGeometry,
   panelRect: Rect,
-  target?: VisionPoint
+  target?: VisionPoint,
+  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE
 ): BubbleCandidate[] {
   if (!target) return [];
 
@@ -896,12 +913,12 @@ function candidateTowardEmptyZoneAtSpeakerDistance(
     kind: bubble.kind,
     panelRect,
   });
-  const widthPx = measured.width * PAGE_WIDTH;
-  const heightPx = measured.height * PAGE_HEIGHT;
-  const direction = unitDirectionPx(target, rectCenter(zone));
+  const widthPx = measured.width * pageSize.width;
+  const heightPx = measured.height * pageSize.height;
+  const direction = unitDirectionPx(target, rectCenter(zone), pageSize);
   if (!direction) return [];
 
-  const targetPx = pointPx(target);
+  const targetPx = pointPx(target, pageSize);
   const supportPx = Math.abs(direction.x) * widthPx / 2 + Math.abs(direction.y) * heightPx / 2;
   const centerDistancePx = IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX + supportPx;
   const baseCenter = {
@@ -914,12 +931,15 @@ function candidateTowardEmptyZoneAtSpeakerDistance(
 
   return uniqueCandidates(distanceOffsets.flatMap((distanceOffsetPx) =>
     perpendicularOffsets.map((perpendicularOffsetPx) => ({
-      rect: clampRectToPanel(rectFromPx({
-        centerX: baseCenter.x + direction.x * distanceOffsetPx + perpendicular.x * perpendicularOffsetPx,
-        centerY: baseCenter.y + direction.y * distanceOffsetPx + perpendicular.y * perpendicularOffsetPx,
-        widthPx,
-        heightPx,
-      }), panelRect),
+      rect: clampRectToPanel(
+        rectFromPx({
+          centerX: baseCenter.x + direction.x * distanceOffsetPx + perpendicular.x * perpendicularOffsetPx,
+          centerY: baseCenter.y + direction.y * distanceOffsetPx + perpendicular.y * perpendicularOffsetPx,
+          widthPx,
+          heightPx,
+        }, pageSize),
+        panelRect
+      ),
       overflow: measured.overflow,
       candidateKind: 'empty_direction' as const,
       sourceZone: zone,
@@ -943,7 +963,8 @@ function candidateRectsInsideZone(
   zone: Rect,
   bubble: BubbleGeometry,
   panelRect: Rect,
-  target?: VisionPoint
+  target?: VisionPoint,
+  pageSize: PageSize = GRAPHIC_NOVEL_PAGE_SIZE
 ): BubbleCandidate[] {
   const measured = measureGraphicNovelBubbleTextBox({
     text: bubble.text,
@@ -970,7 +991,7 @@ function candidateRectsInsideZone(
 
   return uniqueCandidates([
     candidateInsideZone(zone, bubble, panelRect, target),
-    ...candidateTowardEmptyZoneAtSpeakerDistance(zone, bubble, panelRect, target),
+    ...candidateTowardEmptyZoneAtSpeakerDistance(zone, bubble, panelRect, target, pageSize),
     ...candidateAroundZone(zone, bubble, panelRect, target),
     ...xs.flatMap((x) => ys.map((y) =>
       ({
@@ -999,8 +1020,21 @@ function scoreCandidate(params: {
   candidateKind: 'empty_zone' | 'empty_zone_expanded' | 'empty_direction' | 'target_ring' | 'near_target';
   overflow: boolean;
   sourceZone?: Rect;
+  pageSize?: PageSize;
 }): number {
-  const { rect, bubble, panelRect, target, placed, emptyZones, avoidRects, candidateKind, overflow, sourceZone } = params;
+  const {
+    rect,
+    bubble,
+    panelRect,
+    target,
+    placed,
+    emptyZones,
+    avoidRects,
+    candidateKind,
+    overflow,
+    sourceZone,
+    pageSize = GRAPHIC_NOVEL_PAGE_SIZE,
+  } = params;
   const bubbleArea = Math.max(rectArea(rect), OVERLAP_EPSILON);
   const panelDiagonal = Math.max(Math.hypot(panelRect.width, panelRect.height), OVERLAP_EPSILON);
   let score = candidateKind === 'empty_zone'
@@ -1046,10 +1080,10 @@ function scoreCandidate(params: {
       return zoneCenter.y <= target.y + panelRect.height * 0.08;
     });
     if (directionZones.length > 0) {
-      const bubbleDirection = unitDirectionPx(target, rectCenter(rect));
+      const bubbleDirection = unitDirectionPx(target, rectCenter(rect), pageSize);
       if (bubbleDirection) {
         const bestAlignment = Math.max(...directionZones.map((zone) => {
-          const zoneDirection = unitDirectionPx(target, rectCenter(zone));
+          const zoneDirection = unitDirectionPx(target, rectCenter(zone), pageSize);
           return dotDirection(zoneDirection, bubbleDirection);
         }));
         score -= Math.max(0, bestAlignment) * 140;
@@ -1060,8 +1094,8 @@ function scoreCandidate(params: {
     }
 
     if (candidateKind === 'empty_direction' && sourceZone) {
-      const zoneDirection = unitDirectionPx(target, rectCenter(sourceZone));
-      const bubbleDirection = unitDirectionPx(target, rectCenter(rect));
+      const zoneDirection = unitDirectionPx(target, rectCenter(sourceZone), pageSize);
+      const bubbleDirection = unitDirectionPx(target, rectCenter(rect), pageSize);
       const alignment = dotDirection(zoneDirection, bubbleDirection);
       score -= Math.max(0, alignment) * 180;
       if (alignment < 0.72) {
@@ -1078,7 +1112,7 @@ function scoreCandidate(params: {
       }
     }
 
-    const distancePx = distancePxFromRectToPoint(rect, target);
+    const distancePx = distancePxFromRectToPoint(rect, target, pageSize);
     score += (distanceFromRectToPoint(rect, target) / panelDiagonal) * 90;
     const distanceDeltaPx = Math.abs(distancePx - IDEAL_BUBBLE_DISTANCE_FROM_SPEAKER_PX);
     if (distanceDeltaPx <= IDEAL_BUBBLE_DISTANCE_TOLERANCE_PX) {
@@ -1131,19 +1165,28 @@ function placeBubble(params: {
   placed: BubbleGeometry[];
   emptyZones: Rect[];
   avoidRects: AvoidRect[];
+  pageSize?: PageSize;
 }): BubbleGeometry {
-  const { bubble, panel, target, placed, emptyZones, avoidRects } = params;
+  const {
+    bubble,
+    panel,
+    target,
+    placed,
+    emptyZones,
+    avoidRects,
+    pageSize = GRAPHIC_NOVEL_PAGE_SIZE,
+  } = params;
   const panelRect = panel.templatePanel.rect;
   const zoneCandidates = emptyZones.flatMap((zone) =>
-    candidateRectsInsideZone(zone, bubble, panelRect, target)
+    candidateRectsInsideZone(zone, bubble, panelRect, target, pageSize)
   );
   const candidates = [
     ...(target
-      ? candidateTargetRingAtSpeakerDistance(target, bubble, panelRect)
+      ? candidateTargetRingAtSpeakerDistance(target, bubble, panelRect, pageSize)
       : []),
     ...zoneCandidates,
     ...(target
-      ? candidateNearTarget(target, bubble, panelRect)
+      ? candidateNearTarget(target, bubble, panelRect, pageSize)
       : []),
   ];
 
@@ -1162,6 +1205,7 @@ function placeBubble(params: {
         candidateKind: candidate.candidateKind,
         overflow: candidate.overflow,
         sourceZone: candidate.sourceZone,
+        pageSize,
       }),
     }))
     .sort((a, b) => a.score - b.score);
@@ -1184,6 +1228,7 @@ export function applyGraphicNovelBubbleVisionLayout(
   page: PlannedGraphicNovelPage,
   analysis: GraphicNovelBubbleVisionAnalysis
 ): GraphicNovelBubbleVisionLayoutResult {
+  const pageSize = pageSizeForGraphicNovelPage(page);
   let bubblesPlaced = 0;
   let bubblesWithVisionTargets = 0;
   let bubblesWithVisionEmptyZones = 0;
@@ -1212,6 +1257,7 @@ export function applyGraphicNovelBubbleVisionLayout(
           placed,
           emptyZones: placementZones,
           avoidRects,
+          pageSize,
         });
         placed.push(placedBubble);
         bubblesPlaced += 1;

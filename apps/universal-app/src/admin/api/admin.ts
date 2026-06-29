@@ -90,6 +90,10 @@ export type AdminImageValidationItem = {
   storyId: string;
   storyFormat?: string | null;
   sceneIndex: number;
+  sourceSceneIndex?: number;
+  imageTargetKind?: 'scene' | 'graphic_novel_page' | 'none';
+  graphicNovelPageNumber?: number | null;
+  mixedStoryScreenOrder?: number | null;
   attempt: number;
   imageStoragePath: string;
   imageUrl: string;
@@ -135,12 +139,20 @@ export type AdminDirectorSceneItem = {
 export type AdminStorySceneItem = {
   sceneIndex: number;
   storyText: string;
+  mixedStoryBlockKind?: string | null;
+  mixedStoryScreenOrder?: number | null;
+  graphicNovelPageNumber?: number | null;
+  imageTargetKind?: 'scene' | 'graphic_novel_page' | 'none';
 };
 
 export type AdminStoryValidationItem = {
   id: string;
   storyId: string;
   sceneIndex: number;
+  sourceSceneIndex?: number;
+  imageTargetKind?: 'scene' | 'graphic_novel_page' | 'none';
+  graphicNovelPageNumber?: number | null;
+  mixedStoryScreenOrder?: number | null;
   attempt: number;
   imageStoragePath: string;
   imageUrl: string;

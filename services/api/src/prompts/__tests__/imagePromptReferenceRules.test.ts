@@ -257,7 +257,8 @@ function testSystemInstructionStatesReferenceIdentityWins() {
   assert.ok(systemInstruction.includes('Image M is PERSON SOURCE. Image N is CLOTHES SOURCE only.'));
   assert.ok(systemInstruction.includes('Only the clothes should change.'));
   assert.ok(systemInstruction.includes('Do not redesign, re-braid, re-style, simplify, beautify, or reinterpret hair'));
-  assert.ok(systemInstruction.includes('ENVIRONMENT REFERENCE: The provided location image is for CONTENT only'));
+  assert.ok(systemInstruction.includes('ENVIRONMENT REFERENCE: The provided location image defines reusable layout'));
+  assert.ok(systemInstruction.includes('Do not copy the reference medium'));
 }
 
 function testEnvironmentPromptSanitizesCharacterOwnedLocations() {
@@ -279,6 +280,9 @@ function testEnvironmentPromptSanitizesCharacterOwnedLocations() {
   });
 
   assert.ok(gardenPrompt.includes('ENVIRONMENT REFERENCE PLATE ONLY'));
+  assert.ok(gardenPrompt.includes('style-neutral full-color location design plate'));
+  assert.ok(gardenPrompt.includes('not line art'));
+  assert.ok(gardenPrompt.includes('Do not lock the final art medium'));
   assert.ok(gardenPrompt.includes('large inert shell-shaped mound under a thick layer of brown leaves'));
   assert.ok(gardenPrompt.includes('no people, no characters, no animals, no creatures'));
   assert.ok(!gardenPrompt.includes('Matilda'));

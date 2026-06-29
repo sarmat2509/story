@@ -35,7 +35,7 @@ import {
 } from '../repositories';
 import { getAssetStorageService } from '../services/assetStorageService';
 import {
-  getImageDomainService,
+  getComplexImageDomainService,
   getValidationTextProvider,
 } from '../services/aiService';
 import { recordUsage } from '../services/aiUsageService';
@@ -112,7 +112,7 @@ async function loadRequiredCharacterReferences(params: {
   }
 
   const assetStorage = getAssetStorageService();
-  const imageDomain = getImageDomainService();
+  const imageDomain = getComplexImageDomainService();
   const references: GraphicNovelReferenceImage[] = [];
   const missing: string[] = [];
 
@@ -321,7 +321,7 @@ async function main(): Promise<void> {
     },
   }, null, 2));
 
-  const imageDomain = getImageDomainService();
+  const imageDomain = getComplexImageDomainService();
   const rendered = await editGraphicNovelPage({
     imageDomain,
     page,
