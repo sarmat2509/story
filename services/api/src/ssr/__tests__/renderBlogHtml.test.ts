@@ -88,8 +88,9 @@ assert.match(
 assert.match(safeScaryHtml, /Створити страшну історію/);
 
 const blogSlugs = getBlogSlugs();
-assert.equal(blogSlugs.length, 13);
-assert.deepEqual(blogSlugs.slice(0, 3), [
+assert.equal(blogSlugs.length, 14);
+assert.deepEqual(blogSlugs.slice(0, 4), [
+  'ten-year-old-reading-comprehension',
   'text-display-reading-comfort',
   'rewarded-story-quizzes',
   'comic-stories-reading-bridge',
@@ -100,7 +101,12 @@ assert.deepEqual(
   [...blogDates].sort((a, b) => b.localeCompare(a)),
   'blog articles should be ordered from newest to oldest'
 );
-for (const slug of ['rewarded-story-quizzes', 'comic-stories-reading-bridge', 'text-display-reading-comfort']) {
+for (const slug of [
+  'ten-year-old-reading-comprehension',
+  'rewarded-story-quizzes',
+  'comic-stories-reading-bridge',
+  'text-display-reading-comfort',
+]) {
   for (const locale of PUBLIC_SEO_LOCALES) {
     const articleHtml = renderBlogArticleHtml({ locale, slug });
     assert.ok(articleHtml, `${slug} should render for ${locale}`);

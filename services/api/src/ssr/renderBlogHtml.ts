@@ -268,6 +268,15 @@ const QUOTE_AUTHOR_BIOS: Partial<Record<string, Record<PublicSeoLocale, string>>
     fr: 'Henry L. Roediger III, Université Washington à Saint-Louis; Jeffrey D. Karpicke, Université Purdue; chercheurs en mémoire et effet de test',
     pl: 'Henry L. Roediger III, Uniwersytet Waszyngtona w St. Louis; Jeffrey D. Karpicke, Uniwersytet Purdue; badacze pamięci i efektu sprawdzania',
   },
+  'IES Practice Guide Panel': {
+    uk: 'група експертів What Works Clearinghouse при Institute of Education Sciences, що готує практичні освітні рекомендації',
+    en: 'What Works Clearinghouse expert panel at the Institute of Education Sciences, publishing education practice recommendations',
+    ru: 'экспертная группа What Works Clearinghouse при Institute of Education Sciences, публикующая практические образовательные рекомендации',
+    es: 'panel experto de What Works Clearinghouse en el Institute of Education Sciences, con recomendaciones prácticas de educación',
+    de: 'Expertengremium des What Works Clearinghouse am Institute of Education Sciences mit praxisnahen Bildungsempfehlungen',
+    fr: 'groupe d’experts What Works Clearinghouse de l’Institute of Education Sciences, auteur de recommandations éducatives pratiques',
+    pl: 'panel ekspertów What Works Clearinghouse przy Institute of Education Sciences, publikujący praktyczne zalecenia edukacyjne',
+  },
   'Richard E. Mayer': {
     uk: 'заслужений професор психології Каліфорнійського університету в Санта-Барбарі; автор когнітивної теорії мультимедійного навчання',
     en: 'Distinguished Professor of Psychology, University of California, Santa Barbara; author of cognitive theory of multimedia learning',

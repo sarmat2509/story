@@ -229,6 +229,478 @@ const UI_COPY: Record<PublicSeoLocale, {
 
 const ARTICLES: BlogArticleDefinition[] = [
   {
+    slug: 'ten-year-old-reading-comprehension',
+    heroImage: '/landing/blog/ten-year-old-reading-comprehension-scene-01.webp',
+    updatedAt: '2026-07-01',
+    category: l10n(
+      'Розуміння тексту',
+      'Reading comprehension',
+      'Понимание историй',
+      'Comprensión lectora',
+      'Textverständnis',
+      'Compréhension',
+      'Rozumienie tekstu'
+    ),
+    title: l10n(
+      'Як 10-річній дитині краще читати й розуміти історії',
+      'How a 10-year-old can improve reading and understanding stories',
+      'Как 10-летнему ребенку лучше читать и понимать истории',
+      'Cómo puede un niño de 10 años leer y entender mejor las historias',
+      'Wie ein 10-jähriges Kind Geschichten besser lesen und verstehen kann',
+      'Comment aider un enfant de 10 ans à mieux lire et comprendre les histoires',
+      'Jak 10-latek może lepiej czytać i rozumieć historie'
+    ),
+    description: l10n(
+      'Практичний план для батьків: як тренувати розуміння сюжету, мотивів, причин, нових слів і доказів у тексті без нудних перевірок.',
+      'A practical parent guide to building story comprehension: motives, causes, vocabulary, evidence, and summaries without turning reading into a school drill.',
+      'Практический план для родителей: как развивать понимание сюжета, мотивов, причин, новых слов и доказательств в тексте без скучных проверок.',
+      'Una guía práctica para familias: motivos, causas, vocabulario, evidencias y resúmenes sin convertir la lectura en una tarea escolar.',
+      'Ein praktischer Elternplan für Textverständnis: Motive, Ursachen, Wortschatz, Belege und Zusammenfassungen ohne Schulübungsgefühl.',
+      'Un guide pratique pour travailler motif, cause, vocabulaire, preuves et résumé sans transformer la lecture en contrôle scolaire.',
+      'Praktyczny plan dla rodziców: motywy, przyczyny, słownictwo, dowody i streszczenia bez zmieniania czytania w szkolny sprawdzian.'
+    ),
+    lead: l10n(
+      'У 10 років мета вже не лише переказати “що сталося”. Дитина вчиться пояснювати, чому це сталося, чого хотів герой і яка підказка в тексті це підтверджує.',
+      'At ten, the goal is no longer only retelling what happened. A child is learning to explain why it happened, what the hero wanted, and which text clue supports the answer.',
+      'В 10 лет цель уже не только пересказать, что произошло. Ребенок учится объяснять, почему это произошло, чего хотел герой и какая подсказка в тексте это подтверждает.',
+      'A los 10 años, el objetivo ya no es solo contar qué ocurrió. El niño aprende a explicar por qué ocurrió, qué quería el héroe y qué pista del texto lo demuestra.',
+      'Mit 10 geht es nicht mehr nur darum, nachzuerzählen, was passiert ist. Das Kind lernt zu erklären, warum es passiert ist, was die Figur wollte und welcher Hinweis im Text das stützt.',
+      'À 10 ans, il ne s’agit plus seulement de raconter ce qui s’est passé. L’enfant apprend à expliquer pourquoi, ce que voulait le héros et quel indice du texte l’appuie.',
+      'W wieku 10 lat celem nie jest już tylko opowiedzieć, co się stało. Dziecko uczy się wyjaśniać dlaczego, czego chciał bohater i jaka podpowiedź w tekście to potwierdza.'
+    ),
+    focus: {
+      uk: [
+        'У 10 років слабке розуміння часто виглядає оманливо: дитина читає плавно, але переказує лише події, пропускає мотиви, не помічає причини й наслідки або не може довести відповідь текстом. Це вже не проблема “читати більше”, а проблема “читати активніше”.',
+        'Батьківська мета — навчити дитину робити чотири маленькі дії під час історії: помітити, де стало незрозуміло; пояснити вибір героя; зв’язати подію з наслідком; коротко підсумувати головне своїми словами.',
+        'WonderTales корисний як середовище для цієї практики: історія дає сюжет, у вікторині після історії “Підказка в тексті” повертає до доказу, а “Поговоримо про цю історію?” залишає місце для думки без оцінки. Але головне — не кнопка, а звичка дитини зупинятися й перевіряти сенс.',
+      ],
+      en: [
+        'At age ten, weak comprehension can look misleading: the child reads fluently, but retells only events, skips motives, misses cause and effect, or cannot support an answer with the text. The issue is no longer simply “read more,” but “read more actively.”',
+        'The parent’s goal is to help the child practice four small moves during a story: notice where meaning breaks; explain a character’s choice; connect an event to a consequence; and summarize the important idea in their own words.',
+        'WonderTales is useful as a practice space: the story gives the plot, “Text clue” in the after-story quiz brings the child back to evidence, and “Talk about this story?” leaves room for ungraded thinking. But the real skill is the habit of pausing to check meaning.',
+      ],
+      ru: [
+        'В 10 лет слабое понимание часто выглядит обманчиво: ребенок читает бегло, но пересказывает только события, пропускает мотивы, не видит причинно-следственные связи или не может подтвердить ответ текстом. Это уже не задача “читать больше”, а задача “читать активнее”.',
+        'Цель родителя — тренировать четыре маленьких действия во время истории: заметить, где смысл сломался; объяснить выбор героя; связать событие с последствием; коротко сформулировать главное своими словами.',
+        'WonderTales здесь полезен как среда для практики: история дает сюжет, в викторине после истории “Подсказка в тексте” возвращает к доказательству, а “Поговорим об этой истории?” оставляет место для мысли без оценки. Но главный навык — привычка ребенка останавливаться и проверять смысл.',
+      ],
+      es: [
+        'A los 10 años, una comprensión débil puede engañar: el niño lee con fluidez, pero cuenta solo hechos, salta motivos, pierde causa y consecuencia o no sabe apoyar una respuesta con el texto. Ya no se trata solo de “leer más”, sino de leer más activamente.',
+        'La meta familiar es practicar cuatro movimientos pequeños: notar dónde se rompe el sentido; explicar la decisión de un personaje; unir un hecho con su consecuencia; y resumir la idea importante con palabras propias.',
+        'WonderTales sirve como espacio de práctica: la historia aporta la trama, “Pista en el texto” en el quiz después de la historia vuelve a la evidencia y “¿Hablamos de esta historia?” deja pensamiento sin nota. Pero la habilidad principal es pausar para comprobar el sentido.',
+      ],
+      de: [
+        'Mit 10 kann schwaches Verstehen trügerisch aussehen: Das Kind liest flüssig, erzählt aber nur Ereignisse nach, übersieht Motive, Ursache und Wirkung oder kann eine Antwort nicht am Text belegen. Es geht nicht mehr nur um “mehr lesen”, sondern um aktiveres Lesen.',
+        'Eltern helfen am meisten mit vier kleinen Handlungen: bemerken, wo Sinn verloren geht; die Entscheidung einer Figur erklären; Ereignis und Folge verbinden; und den wichtigsten Gedanken in eigenen Worten zusammenfassen.',
+        'WonderTales ist dafür ein Übungsraum: Die Geschichte liefert Handlung, “Hinweis im Text” im Quiz nach der Geschichte führt zum Beleg zurück und “Sprechen wir über diese Geschichte?” lässt unbewertetes Denken zu. Die eigentliche Fähigkeit ist aber das Innehalten und Prüfen von Bedeutung.',
+      ],
+      fr: [
+        'À 10 ans, une compréhension fragile peut être trompeuse : l’enfant lit avec fluidité, mais raconte seulement les faits, oublie les motifs, perd les causes ou ne peut pas appuyer sa réponse sur le texte. Il ne s’agit plus seulement de lire plus, mais de lire plus activement.',
+        'Le rôle du parent est de faire pratiquer quatre petits gestes : repérer où le sens se brouille; expliquer le choix d’un personnage; relier un événement à sa conséquence; résumer l’idée importante avec ses propres mots.',
+        'WonderTales sert de terrain d’entraînement : l’histoire donne l’intrigue, “Indice dans le texte” dans le quiz après l’histoire ramène à la preuve et “On parle de cette histoire ?” laisse une pensée non notée. Mais la vraie compétence est de s’arrêter pour vérifier le sens.',
+      ],
+      pl: [
+        'U 10-latka słabe rozumienie bywa mylące: dziecko czyta płynnie, ale opowiada tylko wydarzenia, pomija motywy, gubi przyczynę i skutek albo nie umie poprzeć odpowiedzi tekstem. To nie jest już tylko “czytaj więcej”, lecz “czytaj aktywniej”.',
+        'Rodzic pomaga, ćwicząc cztery małe ruchy: zauważyć, gdzie znika sens; wyjaśnić wybór bohatera; połączyć wydarzenie ze skutkiem; streścić główną myśl własnymi słowami.',
+        'WonderTales może być miejscem takiej praktyki: historia daje fabułę, “Podpowiedź w tekście” w quizie po historii wraca do dowodu, a “Porozmawiamy o tej historii?” daje miejsce na myślenie bez oceny. Najważniejszy jest jednak nawyk zatrzymania się i sprawdzenia sensu.',
+      ],
+    },
+    research: {
+      uk: [
+        'Практичний посібник What Works Clearinghouse від Institute of Education Sciences для старших читачів рекомендує прямо вчити стратегіям розуміння: підсумовувати, ставити питання, контролювати, чи є сенс, і повертатися до текстових доказів. Це не “додатковий тест”, а спосіб показати дитині, як думає сильний читач.',
+        'National Reading Panel також виділяє не одну магічну вправу, а поєднання стратегій: самоконтроль розуміння, відповіді на питання, створення власних питань, переказ, візуальні схеми й обговорення. Для 10-річної дитини це краще давати маленькими порціями: сьогодні причинний ланцюжок, завтра мотив героя, післязавтра короткий підсумок.',
+        'Reading Rockets радить навчати дитину передбачати, уточнювати незрозуміле, ставити питання й підсумовувати. У сімейному читанні це означає менше “ну що там було?” і більше “де ти заплутався?”, “яке слово змінило сцену?”, “який рядок доводить твою думку?”.',
+      ],
+      en: [
+        'The What Works Clearinghouse practice guide from the Institute of Education Sciences for older readers recommends direct comprehension strategy instruction: summarizing, asking questions, monitoring whether the text makes sense, and returning to textual evidence. This is not “more testing”; it is showing a child how a strong reader thinks.',
+        'The National Reading Panel likewise points to a combination of strategies rather than one magic exercise: comprehension monitoring, question answering, question generation, summarizing, visual organizers, and discussion. For a 10-year-old, use small doses: cause chain today, character motive tomorrow, short summary the next day.',
+        'Reading Rockets translates the same idea into parent language: predict, clarify confusing parts, ask questions, and summarize. At home, that means less “so what happened?” and more “where did you get confused?”, “which word changed the scene?”, “which line proves your idea?”',
+      ],
+      ru: [
+        'Практическое руководство What Works Clearinghouse от Institute of Education Sciences для старших читателей рекомендует прямо учить стратегиям понимания: подводить итог, задавать вопросы, отслеживать, есть ли смысл, и возвращаться к доказательствам в тексте. Это не “еще одна проверка”, а показ того, как думает сильный читатель.',
+        'National Reading Panel тоже выделяет не одно волшебное упражнение, а сочетание стратегий: самоконтроль понимания, ответы на вопросы, собственные вопросы, пересказ, визуальные схемы и обсуждение. Для 10-летнего ребенка это лучше давать маленькими порциями: сегодня цепочка причин, завтра мотив героя, потом короткий итог.',
+        'Reading Rockets переводит это на язык семьи: предсказывать, прояснять непонятное, задавать вопросы и подводить итог. Дома это значит меньше “ну что там было?” и больше “где ты запутался?”, “какое слово изменило сцену?”, “какая строка доказывает твою мысль?”.',
+      ],
+      es: [
+        'La guía de What Works Clearinghouse del Institute of Education Sciences para lectores mayores recomienda enseñar estrategias de comprensión de forma directa: resumir, preguntar, vigilar si el texto tiene sentido y volver a la evidencia textual. No es más examen; es mostrar cómo piensa un buen lector.',
+        'El National Reading Panel también señala una combinación de estrategias: comprobar la comprensión, responder preguntas, crear preguntas propias, resumir, usar organizadores visuales y conversar. Para un niño de 10 años convienen dosis pequeñas: hoy cadena de causas, mañana motivo del personaje, otro día resumen breve.',
+        'Reading Rockets lo traduce al lenguaje familiar: predecir, aclarar partes confusas, hacer preguntas y resumir. En casa eso significa menos “¿qué pasó?” y más “¿dónde te perdiste?”, “¿qué palabra cambió la escena?”, “¿qué línea demuestra tu idea?”.',
+      ],
+      de: [
+        'Der What-Works-Clearinghouse-Leitfaden des Institute of Education Sciences für ältere Leser empfiehlt direkte Strategievermittlung: zusammenfassen, Fragen stellen, prüfen, ob der Text Sinn ergibt, und zu Textbelegen zurückkehren. Das ist keine zusätzliche Prüfung, sondern ein Modell dafür, wie gute Leser denken.',
+        'Auch das National Reading Panel beschreibt keine Einzelübung, sondern eine Kombination: Verstehen überwachen, Fragen beantworten, eigene Fragen bilden, zusammenfassen, visuelle Ordnungen nutzen und sprechen. Für 10-Jährige helfen kleine Portionen: heute Ursachenkette, morgen Figurenmotiv, danach kurze Zusammenfassung.',
+        'Reading Rockets übersetzt das in Familiensprache: vorhersagen, Unklares klären, Fragen stellen und zusammenfassen. Zuhause heißt das weniger “was ist passiert?” und mehr “wo war es unklar?”, “welches Wort änderte die Szene?”, “welche Zeile belegt deine Idee?”.',
+      ],
+      fr: [
+        'Le guide What Works Clearinghouse de l’Institute of Education Sciences pour lecteurs plus âgés recommande un enseignement direct des stratégies : résumer, questionner, vérifier si le texte a du sens et revenir aux preuves. Ce n’est pas un contrôle de plus, mais un modèle de pensée de lecteur.',
+        'Le National Reading Panel insiste aussi sur une combinaison : surveiller sa compréhension, répondre à des questions, créer ses propres questions, résumer, utiliser des schémas et discuter. Pour un enfant de 10 ans, mieux vaut de petites doses : chaîne de causes aujourd’hui, motif du héros demain, résumé court ensuite.',
+        'Reading Rockets le traduit pour la maison : prédire, clarifier, poser des questions et résumer. En famille, cela veut dire moins “qu’est-ce qui s’est passé ?” et plus “où t’es-tu perdu ?”, “quel mot change la scène ?”, “quelle ligne prouve ton idée ?”.',
+      ],
+      pl: [
+        'Przewodnik What Works Clearinghouse przy Institute of Education Sciences dla starszych czytelników zaleca bezpośrednie uczenie strategii: streszczania, zadawania pytań, sprawdzania sensu i wracania do dowodów z tekstu. To nie kolejny sprawdzian, lecz pokazanie, jak myśli mocny czytelnik.',
+        'National Reading Panel wskazuje nie jedno magiczne ćwiczenie, ale zestaw strategii: monitorowanie rozumienia, odpowiedzi na pytania, własne pytania, streszczanie, schematy wizualne i rozmowę. Dla 10-latka lepsze są małe porcje: dziś łańcuch przyczyn, jutro motyw bohatera, potem krótki skrót.',
+        'Reading Rockets przekłada to na język domu: przewidywać, wyjaśniać niejasności, zadawać pytania i streszczać. W rodzinie oznacza to mniej “co tam było?”, a więcej “gdzie się zgubiłeś?”, “które słowo zmieniło scenę?”, “który fragment dowodzi twojej myśli?”.',
+      ],
+    },
+    storyUse: {
+      uk: [
+        'Перед стартом дайте дитині одну читацьку роль, не п’ять. Наприклад: сьогодні ти детектив причин, мисливець за новими словами або адвокат героя. У WonderTales це легко прив’язати до конкретної історії: оберіть сюжет із загадкою, вибором або персонажем, який змінює думку.',
+        'Під час читання зробіть одну коротку паузу в середині. Не пояснюйте все самі. Запитайте: “Що ти вже знаєш?”, “Що ще незрозуміло?”, “Яке слово або дія може бути підказкою?” Якщо дитина губиться, хай не переказує сторінку, а знайде один рядок або сцену, на яку спирається.',
+        'Після історії використайте “Завдання після історії” як готовий привід для повернення до тексту, але не проходьте все механічно. Виберіть одне завдання на доказ і одне питання з “Поговоримо про цю історію?”. Завершіть формулою з трьох речень: герой хотів..., йому завадило..., він зрозумів або змінив...',
+      ],
+      en: [
+        'Before starting, give the child one reader role, not five. For example: cause detective, new-word hunter, or hero’s lawyer. In WonderTales, tie that role to a specific story by choosing a plot with a mystery, a decision, or a character whose thinking changes.',
+        'During reading, make one short pause in the middle. Do not explain everything yourself. Ask: “What do you know so far?”, “What is still unclear?”, “Which word or action might be a clue?” If the child gets lost, do not ask for a full page retell; ask for one line or scene they can lean on.',
+        'After the story, use Activities after the story as a ready-made reason to return to the text, but do not complete everything mechanically. Choose one evidence activity and one “Talk about this story?” prompt. Finish with a three-sentence frame: the hero wanted..., the problem was..., the hero learned or changed...',
+      ],
+      ru: [
+        'Перед стартом дайте ребенку одну читательскую роль, а не пять. Например: детектив причин, охотник за новыми словами или адвокат героя. В WonderTales это легко привязать к конкретной истории: выберите сюжет с загадкой, выбором или героем, который меняет мнение.',
+        'Во время чтения сделайте одну короткую паузу в середине. Не объясняйте все сами. Спросите: “Что ты уже знаешь?”, “Что пока непонятно?”, “Какое слово или действие может быть подсказкой?” Если ребенок потерялся, не просите пересказать страницу целиком; попросите найти одну строку или сцену, на которую он опирается.',
+        'После истории используйте “Задания после истории” как готовый повод вернуться к тексту, но не проходите всё механически. Выберите одно задание на доказательство и один вопрос из “Поговорим об этой истории?”. Завершите формулой из трех предложений: герой хотел..., ему помешало..., он понял или изменил...',
+      ],
+      es: [
+        'Antes de empezar, dale un solo papel lector, no cinco. Puede ser detective de causas, cazador de palabras nuevas o abogado del héroe. En WonderTales, une ese papel a una historia concreta: misterio, elección o personaje que cambia de opinión.',
+        'Durante la lectura, haz una pausa breve a mitad. No expliques todo tú. Pregunta: “¿Qué sabes hasta ahora?”, “¿Qué sigue confuso?”, “¿Qué palabra o acción puede ser pista?” Si se pierde, no pidas repetir toda la página; pide una línea o escena en la que apoyarse.',
+        'Después, usa “Actividades después de la historia” como motivo para volver al texto, pero no lo hagas mecánico. Elige una actividad con evidencia y una pregunta de “¿Hablamos de esta historia?”. Cierra con tres frases: el héroe quería..., el problema fue..., el héroe aprendió o cambió...',
+      ],
+      de: [
+        'Gib vor dem Start eine einzige Leserrolle, nicht fünf: Ursachendetektiv, Wortjäger oder Anwalt der Figur. In WonderTales lässt sich das an eine konkrete Geschichte binden: Rätsel, Entscheidung oder Figur, die ihre Meinung ändert.',
+        'Mach beim Lesen eine kurze Pause in der Mitte. Erkläre nicht alles selbst. Frage: “Was weißt du bisher?”, “Was ist noch unklar?”, “Welches Wort oder welche Handlung könnte ein Hinweis sein?” Wenn das Kind den Faden verliert, bitte nicht um eine ganze Nacherzählung, sondern um eine Zeile oder Szene als Stütze.',
+        'Nach der Geschichte können “Aufgaben nach der Geschichte” ein Anlass sein, zum Text zurückzukehren. Arbeite aber nicht alles mechanisch ab. Wähle eine Beleg-Aufgabe und eine Frage aus “Sprechen wir über diese Geschichte?”. Schließe mit drei Sätzen: Die Figur wollte..., das Problem war..., die Figur lernte oder änderte...',
+      ],
+      fr: [
+        'Avant de commencer, donnez un seul rôle de lecteur : détective des causes, chasseur de mots nouveaux ou avocat du héros. Dans WonderTales, liez ce rôle à une histoire précise : mystère, choix ou personnage qui change d’avis.',
+        'Pendant la lecture, faites une courte pause au milieu. N’expliquez pas tout vous-même. Demandez : “Que sais-tu déjà ?”, “Qu’est-ce qui reste confus ?”, “Quel mot ou geste peut servir d’indice ?” Si l’enfant se perd, ne demandez pas toute la page; demandez une ligne ou une scène d’appui.',
+        'Après l’histoire, “Activités après l’histoire” donne une bonne raison de revenir au texte, sans tout faire mécaniquement. Choisissez une activité avec preuve et une question de “On parle de cette histoire ?”. Terminez par trois phrases : le héros voulait..., le problème était..., le héros a compris ou changé...',
+      ],
+      pl: [
+        'Przed startem daj dziecku jedną rolę czytelnika, nie pięć: detektyw przyczyn, łowca nowych słów albo adwokat bohatera. W WonderTales łatwo połączyć to z konkretną historią: zagadką, wyborem albo postacią, która zmienia zdanie.',
+        'W trakcie czytania zrób jedną krótką pauzę w środku. Nie wyjaśniaj wszystkiego samodzielnie. Zapytaj: “Co już wiesz?”, “Co nadal jest niejasne?”, “Które słowo albo działanie może być wskazówką?” Gdy dziecko się gubi, poproś o jedną scenę albo linijkę, nie o całą stronę.',
+        'Po historii użyj “Zadania po historii” jako powodu do powrotu do tekstu, ale nie rób wszystkiego mechanicznie. Wybierz jedno zadanie z dowodem i jedno pytanie z “Porozmawiamy o tej historii?”. Zakończ trzema zdaniami: bohater chciał..., przeszkodą było..., bohater zrozumiał albo zmienił...',
+      ],
+    },
+    adjustment: {
+      uk: [
+        'Якщо дитина легко відповідає на “хто?” і “де?”, але слабко відповідає на “чому?”, не ускладнюйте текст одразу. Тренуйте причинні зв’язки: “через це сталося...”, “якби герой зробив інакше...”, “наслідок цього рішення...”.',
+        'Якщо дитина не розуміє слова, не починайте з довгого словникового пояснення. Попросіть подивитися на речення до і після, знайти дію поруч зі словом і здогадатися про значення. Після цього дайте коротке доросле уточнення.',
+        'Якщо читання викликає втому або злість, зменште навантаження: коротша сцена, більший “Розмір тексту”, аудіо або “Історія + комікс” як місток. Якщо дитина постійно губить рядок, уникає читання або різко відстає від шкільного рівня, краще поговорити з учителем або фахівцем з читання.',
+      ],
+      en: [
+        'If the child answers “who?” and “where?” easily but struggles with “why?”, do not immediately make the text harder. Practice cause links: “because of this...”, “if the hero had done something else...”, “the consequence of that choice was...”.',
+        'If the child does not understand a word, do not start with a long dictionary explanation. Ask them to look at the sentence before and after, find the nearby action, and infer the meaning. Then give one short adult clarification.',
+        'If reading brings fatigue or anger, lower the load: shorter scene, larger Story text size, audio, or Story + comic as a bridge. If the child often loses the line, avoids reading, or is far behind school expectations, talk with a teacher or reading specialist.',
+      ],
+      ru: [
+        'Если ребенок легко отвечает на “кто?” и “где?”, но слабо отвечает на “почему?”, не усложняйте текст сразу. Тренируйте причинные связи: “из-за этого случилось...”, “если бы герой сделал иначе...”, “последствие этого выбора...”.',
+        'Если ребенок не понимает слово, не начинайте с длинного словарного объяснения. Попросите посмотреть на предложение до и после, найти действие рядом со словом и предположить значение. Потом дайте короткое взрослое уточнение.',
+        'Если чтение вызывает усталость или злость, снизьте нагрузку: более короткая сцена, больший “Размер текста”, аудио или “История + комикс” как мостик. Если ребенок постоянно теряет строку, избегает чтения или сильно отстает от школьных ожиданий, лучше обсудить это с учителем или специалистом по чтению.',
+      ],
+      es: [
+        'Si responde bien a “quién” y “dónde”, pero falla en “por qué”, no hagas el texto más difícil de inmediato. Practica enlaces causales: “por eso ocurrió...”, “si el héroe hubiera hecho otra cosa...”, “la consecuencia de esa elección fue...”.',
+        'Si no entiende una palabra, no empieces con una explicación larga de diccionario. Pídele mirar la frase anterior y posterior, encontrar la acción cercana e inferir el significado. Luego añade una aclaración breve.',
+        'Si la lectura trae cansancio o enfado, baja la carga: escena más corta, mayor “Tamaño del texto”, audio o “Historia + cómic” como puente. Si pierde la línea a menudo, evita leer o queda muy por debajo de lo esperado en la escuela, conviene hablar con el docente o un especialista en lectura.',
+      ],
+      de: [
+        'Wenn das Kind “wer?” und “wo?” leicht beantwortet, aber bei “warum?” stolpert, mache den Text nicht sofort schwerer. Übe Ursachenketten: “deshalb geschah...”, “wenn die Figur anders gehandelt hätte...”, “die Folge dieser Entscheidung war...”.',
+        'Wenn ein Wort unklar ist, beginne nicht mit einer langen Wörterbucherklärung. Bitte das Kind, den Satz davor und danach anzusehen, die nahe Handlung zu finden und die Bedeutung zu vermuten. Danach reicht eine kurze Erwachsenenklärung.',
+        'Wenn Lesen müde oder wütend macht, senke die Last: kürzere Szene, größere “Textgröße”, Audio oder “Geschichte + Comic” als Brücke. Wenn das Kind oft die Zeile verliert, Lesen vermeidet oder deutlich hinter schulischen Erwartungen liegt, sprich mit Lehrkraft oder Lesefachperson.',
+      ],
+      fr: [
+        'Si l’enfant répond facilement à “qui ?” et “où ?”, mais bloque sur “pourquoi ?”, ne durcissez pas le texte tout de suite. Travaillez les liens de cause : “à cause de cela...”, “si le héros avait fait autrement...”, “la conséquence de ce choix...”.',
+        'Si un mot bloque, ne commencez pas par une longue définition. Demandez de regarder la phrase avant et après, de trouver l’action proche et d’inférer le sens. Ajoutez ensuite une brève précision adulte.',
+        'Si la lecture fatigue ou énerve, réduisez la charge : scène plus courte, “Taille du texte” plus grande, audio ou “Histoire + BD” comme pont. Si l’enfant perd souvent la ligne, évite la lecture ou reste loin des attentes scolaires, parlez-en avec l’enseignant ou un spécialiste de la lecture.',
+      ],
+      pl: [
+        'Jeśli dziecko łatwo odpowiada na “kto?” i “gdzie?”, ale słabo na “dlaczego?”, nie utrudniaj od razu tekstu. Ćwicz związki przyczynowe: “przez to stało się...”, “gdyby bohater zrobił inaczej...”, “skutek tej decyzji...”.',
+        'Jeśli dziecko nie rozumie słowa, nie zaczynaj od długiej definicji. Poproś, aby spojrzało na zdanie przed i po, znalazło pobliskie działanie i zgadło znaczenie. Potem dodaj krótkie wyjaśnienie dorosłego.',
+        'Jeśli czytanie męczy albo złości, zmniejsz obciążenie: krótsza scena, większy “Rozmiar tekstu”, audio albo “Historia + komiks” jako pomost. Jeśli dziecko często gubi linijkę, unika czytania albo mocno odstaje od szkolnych oczekiwań, warto porozmawiać z nauczycielem lub specjalistą czytania.',
+      ],
+    },
+    checklist: {
+      uk: [
+        'Дайте одну роль читача: причини, слова, мотиви або докази.',
+        'Зробіть одну паузу в середині історії, не після кожного абзацу.',
+        'Попросіть доказ: рядок, сцену або деталь, а не просто “правильну” відповідь.',
+        'Завершіть трьома реченнями: хотів, завадило, змінилося.',
+      ],
+      en: [
+        'Give one reader role: causes, words, motives, or evidence.',
+        'Pause once in the middle of the story, not after every paragraph.',
+        'Ask for evidence: a line, scene, or detail, not just a “right” answer.',
+        'End with three sentences: wanted, obstacle, changed.',
+      ],
+      ru: [
+        'Дайте одну роль читателя: причины, слова, мотивы или доказательства.',
+        'Сделайте одну паузу в середине истории, не после каждого абзаца.',
+        'Попросите доказательство: строку, сцену или деталь, а не просто “правильный” ответ.',
+        'Закончите тремя предложениями: хотел, помешало, изменилось.',
+      ],
+      es: [
+        'Da un papel lector: causas, palabras, motivos o evidencias.',
+        'Haz una pausa en medio de la historia, no después de cada párrafo.',
+        'Pide evidencia: una línea, escena o detalle, no solo una respuesta “correcta”.',
+        'Termina con tres frases: quería, obstáculo, cambió.',
+      ],
+      de: [
+        'Gib eine Leserrolle: Ursachen, Wörter, Motive oder Belege.',
+        'Pausiere einmal in der Mitte, nicht nach jedem Absatz.',
+        'Bitte um einen Beleg: Zeile, Szene oder Detail, nicht nur eine “richtige” Antwort.',
+        'Schließe mit drei Sätzen: wollte, Hindernis, änderte sich.',
+      ],
+      fr: [
+        'Donnez un rôle de lecteur : causes, mots, motifs ou preuves.',
+        'Faites une seule pause au milieu, pas après chaque paragraphe.',
+        'Demandez une preuve : ligne, scène ou détail, pas seulement une réponse “juste”.',
+        'Finissez par trois phrases : voulait, obstacle, a changé.',
+      ],
+      pl: [
+        'Daj jedną rolę czytelnika: przyczyny, słowa, motywy albo dowody.',
+        'Zrób jedną pauzę w środku historii, nie po każdym akapicie.',
+        'Poproś o dowód: linijkę, scenę albo szczegół, nie tylko “dobrą” odpowiedź.',
+        'Zakończ trzema zdaniami: chciał, przeszkoda, zmieniło się.',
+      ],
+    },
+    quote: {
+      text: l10n(
+        'Давайте пряме й чітке навчання стратегій розуміння тексту.',
+        'Provide direct and explicit comprehension strategy instruction.',
+        'Давайте прямое и понятное обучение стратегиям понимания текста.',
+        'Ofrece enseñanza directa y explícita de estrategias de comprensión.',
+        'Vermittle Strategien für Textverständnis direkt und ausdrücklich.',
+        'Enseignez directement et explicitement les stratégies de compréhension.',
+        'Ucz strategii rozumienia tekstu wprost i jasno.'
+      ),
+      attribution: 'IES Practice Guide Panel',
+      sourceLabel: l10n(
+        'What Works Clearinghouse, Improving Adolescent Literacy',
+        'What Works Clearinghouse, Improving Adolescent Literacy',
+        'What Works Clearinghouse, Improving Adolescent Literacy',
+        'What Works Clearinghouse, Improving Adolescent Literacy',
+        'What Works Clearinghouse, Improving Adolescent Literacy',
+        'What Works Clearinghouse, Improving Adolescent Literacy',
+        'What Works Clearinghouse, Improving Adolescent Literacy'
+      ),
+      sourceUrl: 'https://ies.ed.gov/ncee/wwc/PracticeGuide/8',
+    },
+    sources: [
+      { label: 'IES WWC: Improving Adolescent Literacy practice guide', url: 'https://ies.ed.gov/ncee/wwc/PracticeGuide/8' },
+      { label: 'IES PDF: Improving Adolescent Literacy', url: 'https://ies.ed.gov/ncee/wwc/Docs/PracticeGuide/adlit_pg_082608.pdf' },
+      { label: 'Reading Rockets: Seven Strategies to Teach Students Text Comprehension', url: 'https://www.readingrockets.org/topics/comprehension/articles/seven-strategies-teach-students-text-comprehension' },
+      { label: 'Reading Rockets: Findings of the National Reading Panel', url: 'https://www.readingrockets.org/topics/curriculum-and-instruction/articles/findings-national-reading-panel' },
+    ],
+    visualDirection: 'A 10-year-old and parent use a tablet story with glowing clue tokens, cause-and-effect paths, and gentle after-story activity cues.',
+    relatedSlugs: ['rewarded-story-quizzes', 'text-display-reading-comfort'],
+    insightCards: {
+      uk: [
+        { eyebrow: 'Причини', title: 'Будуйте ланцюжок “бо — тому”', body: 'Після важливої сцени попросіть не переказ, а зв’язок: герой зробив це, бо..., тому сталося.... Так дитина тренує сюжетну логіку.' },
+        { eyebrow: 'Слова', title: 'Спершу контекст, потім пояснення', body: 'Нове слово краще не виривати з речення. Подивіться на дію поруч, на емоцію героя й на наступну фразу, а вже потім уточніть значення.' },
+        { eyebrow: 'Доказ', title: 'Відповідь має мати опору', body: 'Питання “де ти це побачив?” корисніше за “ти впевнений?”. Воно переводить дитину від вгадування до текстового доказу.' },
+      ],
+      en: [
+        { eyebrow: 'Causes', title: 'Build a “because, so” chain', body: 'After an important scene, ask for a connection, not a retell: the hero did this because..., so.... That trains story logic.' },
+        { eyebrow: 'Words', title: 'Use context before explaining', body: 'Do not pull a new word out of the sentence too fast. Look at the nearby action, the character’s feeling, and the next line, then clarify.' },
+        { eyebrow: 'Evidence', title: 'Answers need an anchor', body: '“Where did you see that?” is more useful than “are you sure?” It moves the child from guessing toward text evidence.' },
+      ],
+      ru: [
+        { eyebrow: 'Причины', title: 'Стройте цепочку “потому что — поэтому”', body: 'После важной сцены просите не пересказ, а связь: герой сделал это, потому что..., поэтому случилось.... Так тренируется логика сюжета.' },
+        { eyebrow: 'Слова', title: 'Сначала контекст, потом объяснение', body: 'Новое слово не стоит сразу вырывать из предложения. Посмотрите на действие рядом, чувство героя и следующую фразу, а потом уточните значение.' },
+        { eyebrow: 'Доказательство', title: 'Ответу нужна опора', body: 'Вопрос “где ты это увидел?” полезнее, чем “ты уверен?”. Он переводит ребенка от угадывания к доказательству в тексте.' },
+      ],
+      es: [
+        { eyebrow: 'Causas', title: 'Construye una cadena “porque — entonces”', body: 'Tras una escena importante, pide conexión, no recitado: el héroe hizo esto porque..., entonces ocurrió.... Así se entrena la lógica narrativa.' },
+        { eyebrow: 'Palabras', title: 'Contexto antes de explicar', body: 'No saques una palabra nueva demasiado rápido de la frase. Miren la acción cercana, la emoción del personaje y la línea siguiente, luego aclara.' },
+        { eyebrow: 'Evidencia', title: 'La respuesta necesita apoyo', body: '“¿Dónde lo viste?” ayuda más que “¿estás seguro?”. Lleva al niño de adivinar a buscar evidencia textual.' },
+      ],
+      de: [
+        { eyebrow: 'Ursachen', title: 'Eine “weil — deshalb”-Kette bauen', body: 'Nach einer wichtigen Szene nicht nacherzählen lassen, sondern verbinden: Die Figur tat das, weil..., deshalb geschah.... So übt das Kind Handlungslogik.' },
+        { eyebrow: 'Wörter', title: 'Erst Kontext, dann Erklärung', body: 'Ein neues Wort nicht sofort aus dem Satz herauslösen. Seht auf die Handlung daneben, das Gefühl der Figur und den nächsten Satz, dann kläre kurz.' },
+        { eyebrow: 'Beleg', title: 'Antworten brauchen Anker', body: '“Wo hast du das gesehen?” hilft mehr als “bist du sicher?”. Es führt vom Raten zum Textbeleg.' },
+      ],
+      fr: [
+        { eyebrow: 'Causes', title: 'Construire une chaîne “parce que — donc”', body: 'Après une scène importante, demandez un lien plutôt qu’un récit : le héros a fait cela parce que..., donc.... Cela entraîne la logique de l’histoire.' },
+        { eyebrow: 'Mots', title: 'Le contexte avant l’explication', body: 'Ne sortez pas trop vite le mot nouveau de la phrase. Regardez l’action proche, l’émotion du personnage et la phrase suivante, puis clarifiez.' },
+        { eyebrow: 'Preuve', title: 'Une réponse a besoin d’appui', body: '“Où l’as-tu vu ?” aide plus que “tu es sûr ?”. Cela fait passer de la devinette à la preuve textuelle.' },
+      ],
+      pl: [
+        { eyebrow: 'Przyczyny', title: 'Buduj łańcuch “bo — więc”', body: 'Po ważnej scenie poproś nie o streszczenie, lecz o związek: bohater zrobił to, bo..., więc stało się.... To ćwiczy logikę fabuły.' },
+        { eyebrow: 'Słowa', title: 'Najpierw kontekst, potem wyjaśnienie', body: 'Nie wyrywaj nowego słowa od razu ze zdania. Spójrzcie na pobliskie działanie, emocję bohatera i następne zdanie, dopiero potem doprecyzuj.' },
+        { eyebrow: 'Dowód', title: 'Odpowiedź potrzebuje oparcia', body: '“Gdzie to zobaczyłeś?” pomaga bardziej niż “jesteś pewien?”. Przenosi dziecko od zgadywania do dowodu w tekście.' },
+      ],
+    },
+    decisionTable: {
+      uk: {
+        heading: 'Як зрозуміти, що саме тренувати',
+        intro: 'У 10 років “не зрозумів історію” може означати різні речі. Вибирайте один навик на вечір, інакше читання швидко стане допитом.',
+        columns: ['Що ви бачите', 'Який навик тренувати', 'Фраза дорослого'],
+        rows: [
+          ['Переказує факти, але не сенс', 'Причина й наслідок', 'Що сталося через цей вибір героя?'],
+          ['Не розуміє важливе слово', 'Здогадка з контексту', 'Подивись на речення до і після. Що це слово робить у сцені?'],
+          ['Відповідає навмання', 'Доказ у тексті', 'Покажи рядок або сцену, яка підказала відповідь.'],
+          ['Не може коротко підсумувати', 'Стиснення головного', 'Скажи трьома частинами: хотів, завадило, змінилося.'],
+          ['Не хоче говорити після читання', 'Вибір і автономія', 'Обери: питання про героя, слово або найважливішу сцену.'],
+        ],
+      },
+      en: {
+        heading: 'How to identify what to practice',
+        intro: 'At ten, “did not understand the story” can mean several different things. Choose one skill for the evening, or reading starts to feel like interrogation.',
+        columns: ['What you see', 'Skill to practice', 'Parent phrase'],
+        rows: [
+          ['Retells facts but not meaning', 'Cause and effect', 'What changed because of the hero’s choice?'],
+          ['Misses an important word', 'Context inference', 'Look at the sentence before and after. What is this word doing in the scene?'],
+          ['Answers by guessing', 'Text evidence', 'Show the line or scene that gave you the answer.'],
+          ['Cannot summarize briefly', 'Compressing the main idea', 'Say it in three parts: wanted, obstacle, changed.'],
+          ['Does not want to talk after reading', 'Choice and autonomy', 'Choose one: hero question, word question, or most important scene.'],
+        ],
+      },
+      ru: {
+        heading: 'Как понять, что именно тренировать',
+        intro: 'В 10 лет “не понял историю” может означать разные вещи. Выбирайте один навык на вечер, иначе чтение быстро станет допросом.',
+        columns: ['Что вы видите', 'Какой навык тренировать', 'Фраза взрослого'],
+        rows: [
+          ['Пересказывает факты, но не смысл', 'Причина и следствие', 'Что изменилось из-за выбора героя?'],
+          ['Не понимает важное слово', 'Догадка по контексту', 'Посмотри на предложение до и после. Что это слово делает в сцене?'],
+          ['Отвечает наугад', 'Доказательство в тексте', 'Покажи строку или сцену, которая подсказала ответ.'],
+          ['Не может кратко подытожить', 'Сжатие главного', 'Скажи тремя частями: хотел, помешало, изменилось.'],
+          ['Не хочет обсуждать после чтения', 'Выбор и автономия', 'Выбери: вопрос про героя, слово или самую важную сцену.'],
+        ],
+      },
+      es: {
+        heading: 'Cómo saber qué practicar',
+        intro: 'A los 10 años, “no entendió la historia” puede significar varias cosas. Elige una habilidad por noche para que la lectura no parezca interrogatorio.',
+        columns: ['Qué ves', 'Qué entrenar', 'Frase adulta'],
+        rows: [
+          ['Cuenta hechos, pero no sentido', 'Causa y consecuencia', '¿Qué cambió por la elección del héroe?'],
+          ['No entiende una palabra clave', 'Inferir por contexto', 'Mira la frase anterior y posterior. ¿Qué hace esa palabra en la escena?'],
+          ['Responde al azar', 'Evidencia textual', 'Muéstrame la línea o escena que te dio la respuesta.'],
+          ['No resume en breve', 'Comprimir lo importante', 'Dilo en tres partes: quería, obstáculo, cambió.'],
+          ['No quiere hablar después', 'Elección y autonomía', 'Elige: pregunta sobre el héroe, una palabra o la escena más importante.'],
+        ],
+      },
+      de: {
+        heading: 'Woran du erkennst, was zu üben ist',
+        intro: 'Mit 10 kann “nicht verstanden” Verschiedenes bedeuten. Wähle eine Fähigkeit pro Abend, sonst fühlt sich Lesen schnell wie ein Verhör an.',
+        columns: ['Was du siehst', 'Was üben', 'Elternsatz'],
+        rows: [
+          ['Erzählt Fakten, aber keinen Sinn', 'Ursache und Wirkung', 'Was änderte sich durch die Entscheidung der Figur?'],
+          ['Versteht ein Schlüsselwort nicht', 'Aus Kontext schließen', 'Schau auf den Satz davor und danach. Was tut dieses Wort in der Szene?'],
+          ['Rät Antworten', 'Textbeleg', 'Zeig mir die Zeile oder Szene, die dir die Antwort gab.'],
+          ['Kann nicht kurz zusammenfassen', 'Hauptidee verdichten', 'Sag es in drei Teilen: wollte, Hindernis, änderte sich.'],
+          ['Will nach dem Lesen nicht reden', 'Wahl und Autonomie', 'Wähle: Frage zur Figur, zum Wort oder zur wichtigsten Szene.'],
+        ],
+      },
+      fr: {
+        heading: 'Comment savoir quoi travailler',
+        intro: 'À 10 ans, “il n’a pas compris” peut vouloir dire plusieurs choses. Choisissez une compétence par soir pour éviter l’interrogatoire.',
+        columns: ['Ce que vous voyez', 'Compétence', 'Phrase adulte'],
+        rows: [
+          ['Raconte les faits, pas le sens', 'Cause et conséquence', 'Qu’est-ce qui a changé à cause du choix du héros ?'],
+          ['Ne comprend pas un mot clé', 'Inférer par contexte', 'Regarde la phrase avant et après. Que fait ce mot dans la scène ?'],
+          ['Répond au hasard', 'Preuve textuelle', 'Montre la ligne ou la scène qui t’a donné la réponse.'],
+          ['Ne résume pas brièvement', 'Condensation de l’idée', 'Dis-le en trois parties : voulait, obstacle, a changé.'],
+          ['Ne veut pas discuter après', 'Choix et autonomie', 'Choisis : question sur le héros, un mot ou la scène la plus importante.'],
+        ],
+      },
+      pl: {
+        heading: 'Jak rozpoznać, co ćwiczyć',
+        intro: 'U 10-latka “nie zrozumiał” może znaczyć różne rzeczy. Wybierz jedną umiejętność na wieczór, inaczej czytanie stanie się przesłuchaniem.',
+        columns: ['Co widzisz', 'Co ćwiczyć', 'Zdanie dorosłego'],
+        rows: [
+          ['Opowiada fakty, ale nie sens', 'Przyczyna i skutek', 'Co zmieniło się przez wybór bohatera?'],
+          ['Nie rozumie ważnego słowa', 'Wnioskowanie z kontekstu', 'Spójrz na zdanie przed i po. Co to słowo robi w scenie?'],
+          ['Odpowiada na chybił trafił', 'Dowód w tekście', 'Pokaż linijkę albo scenę, która podsunęła odpowiedź.'],
+          ['Nie umie krótko streścić', 'Ściskanie głównej myśli', 'Powiedz w trzech częściach: chciał, przeszkoda, zmieniło się.'],
+          ['Nie chce rozmawiać po czytaniu', 'Wybór i autonomia', 'Wybierz: pytanie o bohatera, słowo albo najważniejszą scenę.'],
+        ],
+      },
+    },
+    stepBlock: {
+      uk: {
+        eyebrow: 'Маршрут читання',
+        heading: '20 хвилин, які тренують розуміння',
+        intro: 'Це не урок. Це короткий повторюваний ритм: мета, читання, одна пауза, доказ і підсумок.',
+        steps: [
+          { title: '2 хвилини: мета', body: 'Оберіть один фокус: мотив героя, причинний ланцюжок, нове слово або доказ у тексті.' },
+          { title: '10 хвилин: читання', body: 'Читайте без постійних зупинок. У середині зробіть одну паузу: що вже зрозуміло, а що ще треба перевірити?' },
+          { title: '3 хвилини: доказ', body: 'Попросіть знайти один рядок, сцену або деталь, яка підтримує відповідь. Після відповіді у вікторині WonderTales для цього зручно використати “Підказка в тексті”.' },
+          { title: '3 хвилини: підсумок', body: 'Дитина формулює: герой хотів..., завадило..., тому він.... Не виправляйте стиль, слухайте логіку.' },
+          { title: '2 хвилини: перенесення', body: 'Запитайте: де ще в житті буває такий вибір, помилка або сміливість? Це переводить сюжет у розуміння теми.' },
+        ],
+      },
+      en: {
+        eyebrow: 'Reading route',
+        heading: '20 minutes that build understanding',
+        intro: 'This is not a lesson. It is a short repeatable rhythm: goal, reading, one pause, evidence, and summary.',
+        steps: [
+          { title: '2 minutes: goal', body: 'Choose one focus: character motive, cause chain, new word, or text evidence.' },
+          { title: '10 minutes: reading', body: 'Read without constant stopping. Pause once in the middle: what is clear already, and what still needs checking?' },
+          { title: '3 minutes: evidence', body: 'Ask for one line, scene, or detail that supports the answer. After a quiz answer, WonderTales “Text clue” is useful here.' },
+          { title: '3 minutes: summary', body: 'The child says: the hero wanted..., the obstacle was..., so the hero.... Do not polish style; listen for logic.' },
+          { title: '2 minutes: transfer', body: 'Ask where a similar choice, mistake, or courage appears in real life. This turns plot into theme.' },
+        ],
+      },
+      ru: {
+        eyebrow: 'Маршрут чтения',
+        heading: '20 минут, которые тренируют понимание',
+        intro: 'Это не урок. Это короткий повторяемый ритм: цель, чтение, одна пауза, доказательство и итог.',
+        steps: [
+          { title: '2 минуты: цель', body: 'Выберите один фокус: мотив героя, цепочка причин, новое слово или доказательство в тексте.' },
+          { title: '10 минут: чтение', body: 'Читайте без постоянных остановок. В середине сделайте одну паузу: что уже понятно, а что еще нужно проверить?' },
+          { title: '3 минуты: доказательство', body: 'Попросите найти одну строку, сцену или деталь, которая поддерживает ответ. После ответа в викторине WonderTales здесь удобно использовать “Подсказка в тексте”.' },
+          { title: '3 минуты: итог', body: 'Ребенок формулирует: герой хотел..., помешало..., поэтому он.... Не правьте стиль, слушайте логику.' },
+          { title: '2 минуты: перенос', body: 'Спросите, где в жизни бывает похожий выбор, ошибка или смелость. Так сюжет превращается в понимание темы.' },
+        ],
+      },
+      es: {
+        eyebrow: 'Ruta de lectura',
+        heading: '20 minutos que construyen comprensión',
+        intro: 'No es una clase. Es un ritmo breve y repetible: meta, lectura, una pausa, evidencia y resumen.',
+        steps: [
+          { title: '2 minutos: meta', body: 'Elige un foco: motivo del personaje, cadena de causas, palabra nueva o evidencia textual.' },
+          { title: '10 minutos: lectura', body: 'Lean sin parar constantemente. A mitad, una pausa: ¿qué está claro y qué falta comprobar?' },
+          { title: '3 minutos: evidencia', body: 'Pide una línea, escena o detalle que sostenga la respuesta. Después de una respuesta del quiz, “Pista en el texto” en WonderTales sirve aquí.' },
+          { title: '3 minutos: resumen', body: 'El niño dice: el héroe quería..., el obstáculo fue..., entonces.... No pulas estilo; escucha la lógica.' },
+          { title: '2 minutos: transferencia', body: 'Pregunta dónde aparece una elección, error o valentía parecida en la vida real. Así la trama se vuelve tema.' },
+        ],
+      },
+      de: {
+        eyebrow: 'Leseroute',
+        heading: '20 Minuten, die Verstehen aufbauen',
+        intro: 'Das ist keine Unterrichtsstunde. Es ist ein kurzer wiederholbarer Rhythmus: Ziel, Lesen, eine Pause, Beleg und Zusammenfassung.',
+        steps: [
+          { title: '2 Minuten: Ziel', body: 'Wähle einen Fokus: Figurenmotiv, Ursachenkette, neues Wort oder Textbeleg.' },
+          { title: '10 Minuten: Lesen', body: 'Lest ohne ständige Stopps. In der Mitte eine Pause: Was ist klar, was muss noch geprüft werden?' },
+          { title: '3 Minuten: Beleg', body: 'Bitte um eine Zeile, Szene oder ein Detail, das die Antwort stützt. Nach einer Quizantwort hilft in WonderTales “Hinweis im Text”.' },
+          { title: '3 Minuten: Zusammenfassung', body: 'Das Kind sagt: Die Figur wollte..., das Hindernis war..., deshalb.... Korrigiere nicht den Stil, höre auf die Logik.' },
+          { title: '2 Minuten: Übertragung', body: 'Frage, wo es im Leben eine ähnliche Wahl, einen Fehler oder Mut gibt. So wird Handlung zum Thema.' },
+        ],
+      },
+      fr: {
+        eyebrow: 'Trajet de lecture',
+        heading: '20 minutes qui construisent la compréhension',
+        intro: 'Ce n’est pas une leçon. C’est un rythme court et répétable : objectif, lecture, pause, preuve et résumé.',
+        steps: [
+          { title: '2 minutes : objectif', body: 'Choisissez un axe : motif du personnage, chaîne de causes, mot nouveau ou preuve textuelle.' },
+          { title: '10 minutes : lecture', body: 'Lisez sans arrêt permanent. Au milieu, une pause : qu’est-ce qui est clair, que faut-il vérifier ?' },
+          { title: '3 minutes : preuve', body: 'Demandez une ligne, une scène ou un détail qui soutient la réponse. Après une réponse au quiz, “Indice dans le texte” dans WonderTales aide ici.' },
+          { title: '3 minutes : résumé', body: 'L’enfant dit : le héros voulait..., l’obstacle était..., donc.... Ne corrigez pas le style; écoutez la logique.' },
+          { title: '2 minutes : transfert', body: 'Demandez où l’on retrouve un choix, une erreur ou un courage semblable dans la vie. L’intrigue devient un thème.' },
+        ],
+      },
+      pl: {
+        eyebrow: 'Trasa czytania',
+        heading: '20 minut, które buduje rozumienie',
+        intro: 'To nie lekcja. To krótki powtarzalny rytm: cel, czytanie, jedna pauza, dowód i streszczenie.',
+        steps: [
+          { title: '2 minuty: cel', body: 'Wybierz jeden fokus: motyw bohatera, łańcuch przyczyn, nowe słowo albo dowód z tekstu.' },
+          { title: '10 minut: czytanie', body: 'Czytajcie bez ciągłego zatrzymywania. W połowie jedna pauza: co jest jasne, a co trzeba sprawdzić?' },
+          { title: '3 minuty: dowód', body: 'Poproś o jedną linijkę, scenę albo szczegół wspierający odpowiedź. Po odpowiedzi w quizie WonderTales pomaga tu “Podpowiedź w tekście”.' },
+          { title: '3 minuty: streszczenie', body: 'Dziecko mówi: bohater chciał..., przeszkodą było..., więc.... Nie poprawiaj stylu, słuchaj logiki.' },
+          { title: '2 minuty: przeniesienie', body: 'Zapytaj, gdzie w życiu pojawia się podobny wybór, błąd albo odwaga. Fabuła zamienia się w temat.' },
+        ],
+      },
+    },
+  },
+  {
     slug: 'adhd-story-attention',
     heroImage: '/landing/blog/adhd-story-attention-tablet-attention-hero.webp',
     updatedAt: '2026-06-17',
@@ -6044,7 +6516,7 @@ const ARTICLES: BlogArticleDefinition[] = [
   },
 ];
 
-const PUBLISHED_ARTICLE_LIMIT = 13;
+const PUBLISHED_ARTICLE_LIMIT = 14;
 const PUBLISHED_ARTICLES = ARTICLES.slice(0, PUBLISHED_ARTICLE_LIMIT)
   .map((article, index) => ({ article, index }))
   .sort((a, b) => b.article.updatedAt.localeCompare(a.article.updatedAt) || a.index - b.index)

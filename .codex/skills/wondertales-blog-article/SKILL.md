@@ -47,6 +47,14 @@ Each article should include:
 - Optional `insightCards`, `decisionTable`, and `stepBlock` when they add concrete guidance.
 - Specialist names must include affiliation or institutional context on first mention: university, research center, professional organization, or company. Translate institution names and specialist roles into the target locale in localized article text and quote-card bios. Avoid raw English academic terms such as `retrieval practice`, `feedback`, or `graphic novels` in non-English locales; translate the concept and add the English term only when it is necessary for source traceability.
 
+Feature-first framing:
+
+- Do not structure the article as a generic parent checklist that starts with “try doing 1, 2, 3.” Lead with the parenting problem, the specialist view, and how WonderTales already handles the pattern through shipped product behavior.
+- Prefer this flow: “WonderTales does X, which helps with Y and Z; parents can then use it by doing 1, 2, 3 around the story.” Parent actions should feel like ways to use the product well, not standalone advice that could appear in any parenting blog.
+- In `storyUse`, `checklist`, `decisionTable`, and `stepBlock`, name the WonderTales mechanism first when possible: story format, child profile, character setup, text size, audio, quizzes, rewards, sharing, or another verified UX element. Then describe the parent’s light-touch role.
+- When using an exact UI label, name the surface or moment where it appears, especially if the label is generic out of context. For example, write “in the after-story quiz, ‘Text clue’...” rather than only “‘Text clue’...”.
+- Feature-first does not mean product-heavy. The article must still teach the parenting or learning principle in concrete terms; WonderTales should appear as the practical place where the principle becomes easier to use, not as repeated marketing copy.
+
 Tone rules:
 
 - Write for parents, not for academics.
