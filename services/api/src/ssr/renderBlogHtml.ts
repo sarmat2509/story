@@ -250,6 +250,15 @@ const QUOTE_AUTHOR_BIOS: Partial<Record<string, Record<PublicSeoLocale, string>>
     fr: 'chercheuse sur la motivation en lecture, professeure de littératie et autrice sur l’engagement lecteur',
     pl: 'badaczka motywacji czytelniczej, profesorka alfabetyzacji i autorka o zaangażowaniu czytelników',
   },
+  'British Dyslexia Association': {
+    uk: 'британська професійна організація, що публікує поради з доступної подачі тексту',
+    en: 'UK professional organization publishing guidance on accessible text presentation',
+    ru: 'британская профессиональная организация, публикующая рекомендации по доступной подаче текста',
+    es: 'organización profesional británica que publica guías sobre presentación accesible del texto',
+    de: 'britische Fachorganisation mit Leitlinien zu zugänglicher Textgestaltung',
+    fr: 'organisation professionnelle britannique publiant des conseils sur la présentation accessible du texte',
+    pl: 'brytyjska organizacja specjalistyczna publikująca wskazówki o dostępnej prezentacji tekstu',
+  },
   'Roediger & Karpicke': {
     uk: 'Henry L. Roediger III — Вашингтонський університет у Сент-Луїсі; Jeffrey D. Karpicke — Університет Пердью; дослідники пам’яті та ефекту перевірки',
     en: 'Henry L. Roediger III, Washington University in St. Louis; Jeffrey D. Karpicke, Purdue University; memory researchers known for the testing effect',
@@ -686,7 +695,7 @@ export function renderBlogIndexHtml(options: { locale?: string | null } = {}): s
         '@type': 'ItemList',
         '@id': `${url}#itemlist`,
         name: copy.h1,
-        itemListOrder: 'https://schema.org/ItemListOrderAscending',
+        itemListOrder: 'https://schema.org/ItemListOrderDescending',
         numberOfItems: articles.length,
         itemListElement: articles.map((article, index) => ({
           '@type': 'ListItem',

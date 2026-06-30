@@ -87,12 +87,20 @@ assert.match(
 );
 assert.match(safeScaryHtml, /Створити страшну історію/);
 
-assert.equal(getBlogSlugs().length, 12);
-assert.deepEqual(getBlogSlugs().slice(10), [
+const blogSlugs = getBlogSlugs();
+assert.equal(blogSlugs.length, 13);
+assert.deepEqual(blogSlugs.slice(0, 3), [
+  'text-display-reading-comfort',
   'rewarded-story-quizzes',
   'comic-stories-reading-bridge',
 ]);
-for (const slug of ['rewarded-story-quizzes', 'comic-stories-reading-bridge']) {
+const blogDates = blogSlugs.map((slug) => getBlogArticle(slug, 'en')!.updatedAt);
+assert.deepEqual(
+  blogDates,
+  [...blogDates].sort((a, b) => b.localeCompare(a)),
+  'blog articles should be ordered from newest to oldest'
+);
+for (const slug of ['rewarded-story-quizzes', 'comic-stories-reading-bridge', 'text-display-reading-comfort']) {
   for (const locale of PUBLIC_SEO_LOCALES) {
     const articleHtml = renderBlogArticleHtml({ locale, slug });
     assert.ok(articleHtml, `${slug} should render for ${locale}`);
@@ -101,7 +109,7 @@ for (const slug of ['rewarded-story-quizzes', 'comic-stories-reading-bridge']) {
     assert.match(articleHtml, /class="step-block"/, `${slug} should render step block for ${locale}`);
   }
 }
-for (const slug of getBlogSlugs()) {
+for (const slug of blogSlugs) {
   const englishArticle = getBlogArticle(slug, 'en');
   assert.ok(englishArticle, `english article data should exist for ${slug}`);
   for (const locale of PUBLIC_SEO_LOCALES) {

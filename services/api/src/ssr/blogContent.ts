@@ -5317,6 +5317,438 @@ const ARTICLES: BlogArticleDefinition[] = [
     },
   },
   {
+    slug: 'text-display-reading-comfort',
+    heroImage: '/landing/blog/text-display-reading-comfort-scene-01.webp',
+    updatedAt: '2026-06-30',
+    category: l10n(
+      'Читання й текст',
+      'Reading and text',
+      'Чтение и текст',
+      'Lectura y texto',
+      'Lesen und Text',
+      'Lecture et texte',
+      'Czytanie i tekst'
+    ),
+    title: l10n(
+      'Як налаштувати подачу тексту в дитячій історії',
+      'How to tune text presentation in a child’s story',
+      'Как настроить подачу текста в детской истории',
+      'Cómo ajustar la presentación del texto en una historia infantil',
+      'Textdarstellung in Kindergeschichten richtig einstellen',
+      'Comment régler l’affichage du texte dans une histoire pour enfant',
+      'Jak ustawić prezentację tekstu w historii dla dziecka'
+    ),
+    description: l10n(
+      'Практичний гід для батьків: розмір шрифту за віком, звичайний регістр замість капсу, інтервали, довжина рядків і налаштування під навичку читання.',
+      'A practical parent guide to font size by age, regular case instead of all caps, spacing, line length, and tuning text to reading skill.',
+      'Практический гид для родителей: размер шрифта по возрасту, обычный регистр вместо капса, интервалы, длина строк и настройка под навык чтения.',
+      'Guía práctica para familias: tamaño según edad, minúsculas y mayúsculas normales, espaciado, longitud de línea y ajuste al nivel lector.',
+      'Ein praktischer Elternleitfaden zu Schriftgröße nach Alter, normaler Groß- und Kleinschreibung, Abständen, Zeilenlänge und Leseniveau.',
+      'Un guide pratique pour les parents : taille selon l’âge, casse normale plutôt que majuscules, espacements, longueur de ligne et niveau de lecture.',
+      'Praktyczny przewodnik dla rodziców: rozmiar pisma według wieku, zwykła pisownia zamiast wersalików, odstępy, długość wiersza i dopasowanie do umiejętności.'
+    ),
+    lead: l10n(
+      'Коли дитина втомлюється від історії, проблема не завжди в темі. Іноді текст просто виглядає занадто дрібним, щільним або довгим для її очей і навички читання.',
+      'When a child tires during a story, the topic is not always the problem. Sometimes the text simply looks too small, dense, or long for their eyes and current reading skill.',
+      'Когда ребенок устает от истории, дело не всегда в теме. Иногда текст просто выглядит слишком мелким, плотным или длинным для его глаз и текущего навыка чтения.',
+      'Cuando un niño se cansa durante una historia, no siempre falla el tema. A veces el texto se ve demasiado pequeño, denso o largo para sus ojos y su habilidad lectora actual.',
+      'Wenn ein Kind bei einer Geschichte ermüdet, liegt es nicht immer am Thema. Manchmal wirkt der Text einfach zu klein, zu dicht oder zu lang für Augen und Lesefähigkeit.',
+      'Quand un enfant se fatigue pendant une histoire, le sujet n’est pas toujours en cause. Parfois le texte paraît trop petit, trop dense ou trop long pour ses yeux et son niveau.',
+      'Gdy dziecko męczy się podczas historii, temat nie zawsze jest problemem. Czasem tekst jest po prostu za mały, zbyt gęsty albo za długi dla oczu i obecnej umiejętności czytania.'
+    ),
+    focus: {
+      uk: [
+        'Подача тексту — це не косметика. Для дитини, яка ще вчиться читати, розмір літер, пробіли, довжина рядка і регістр змінюють відчуття завдання: “я можу рухатися рядком” або “переді мною стіна”.',
+        'WonderTales уже бере вік читача за основу: молодшим дітям текст показується більшим, старшим — компактнішим. Але найкращий вигляд залежить не лише від віку. Двоє дітей 7 років можуть читати зовсім по-різному: одна вже біжить очима по абзацу, інша губить місце в рядку.',
+        'Тому подачу тексту варто перевіряти разом із форматом історії: звичайний текст, комікс або змішаний формат. Це не про “правильне налаштування”, а про комфорт: дитина має бачити слова так, щоб їй хотілося рухатися далі по сцені.'
+      ],
+      en: [
+        'Text presentation is not decoration. For a child who is still learning to read, letter size, spacing, line length, and case change the task from “I can move through this line” to “this is a wall.”',
+        'WonderTales already uses the reader’s age as the starting point: younger children see larger text, while older children get a more compact view. But the best presentation depends on more than age. Two seven-year-olds may read very differently: one moves through a paragraph, another loses their place in the line.',
+        'So check text presentation together with the story format: Story, Comic, or Story + comic. This is not about a “correct setting”; it is about comfort: the child should see words in a way that makes them want to keep moving through the scene.'
+      ],
+      ru: [
+        'Подача текста — не украшение. Для ребенка, который еще учится читать, размер букв, интервалы, длина строки и регистр меняют ощущение задачи: “я могу вести взгляд по строке” или “передо мной стена”.',
+        'WonderTales уже берет возраст читателя за основу: младшим детям текст показывается крупнее, старшим — компактнее. Но лучший вид зависит не только от возраста. Двое семилеток могут читать очень по-разному: один уже проходит абзац глазами, другой теряет место в строке.',
+        'Поэтому подачу текста лучше проверять вместе с форматом истории: История, Комикс или История + комикс. Это не про “правильную настройку”, а про комфорт: ребенку должно быть видно слова так, чтобы хотелось двигаться дальше по сцене.'
+      ],
+      es: [
+        'La presentación del texto no es adorno. Para un niño que aún aprende a leer, tamaño, espaciado, longitud de línea y uso de mayúsculas cambian la tarea: “puedo seguir esta línea” o “esto es un muro”.',
+        'WonderTales ya parte de la edad del lector: los niños más pequeños ven texto más grande y los mayores una vista más compacta. Pero la mejor presentación no depende solo de la edad. Dos niños de siete años pueden leer de forma muy distinta: uno avanza por el párrafo, otro pierde el lugar.',
+        'Por eso conviene mirar la presentación junto con el formato: Historia, Cómic o Historia + cómic. No se trata de encontrar un ajuste “correcto”, sino cómodo: las palabras deben invitar a seguir la escena.'
+      ],
+      de: [
+        'Textdarstellung ist keine Dekoration. Für ein Kind, das Lesen noch lernt, verändern Schriftgröße, Abstände, Zeilenlänge und Großschreibung die Aufgabe: “Ich komme durch diese Zeile” oder “Das ist eine Wand.”',
+        'WonderTales nimmt das Alter des lesenden Kindes bereits als Ausgangspunkt: jüngere Kinder sehen größere Schrift, ältere eine kompaktere Ansicht. Die beste Darstellung hängt aber nicht nur vom Alter ab. Zwei Siebenjährige können sehr unterschiedlich lesen: eines gleitet durch den Absatz, ein anderes verliert die Zeile.',
+        'Deshalb lohnt sich ein Blick auf Textdarstellung und Format zusammen: Geschichte, Comic oder Geschichte + Comic. Es geht nicht um eine “richtige Einstellung”, sondern um Komfort: Wörter sollen so sichtbar sein, dass das Kind gern in der Szene weiterliest.'
+      ],
+      fr: [
+        'La présentation du texte n’est pas décorative. Pour un enfant qui apprend encore à lire, taille, espacements, longueur de ligne et majuscules changent la tâche : “je peux suivre cette ligne” ou “c’est un mur”.',
+        'WonderTales part déjà de l’âge du lecteur : les plus jeunes voient un texte plus grand, les plus grands une vue plus compacte. Mais le bon affichage ne dépend pas seulement de l’âge. Deux enfants de sept ans peuvent lire très différemment : l’un avance dans le paragraphe, l’autre perd sa ligne.',
+        'Il est donc utile d’observer l’affichage avec le format choisi : Histoire, BD ou Histoire + BD. Il ne s’agit pas d’un réglage “correct”, mais de confort : les mots doivent donner envie d’avancer dans la scène.'
+      ],
+      pl: [
+        'Prezentacja tekstu nie jest ozdobą. Dla dziecka, które wciąż uczy się czytać, rozmiar liter, odstępy, długość wiersza i wielkie litery zmieniają zadanie: “prowadzę wzrok po linijce” albo “to ściana tekstu”.',
+        'WonderTales już bierze wiek czytelnika jako punkt wyjścia: młodsze dzieci widzą większy tekst, starsze bardziej zwarty widok. Najlepsza prezentacja zależy jednak nie tylko od wieku. Dwoje siedmiolatków może czytać zupełnie inaczej: jedno płynnie idzie przez akapit, drugie gubi miejsce.',
+        'Dlatego warto obserwować tekst razem z formatem historii: Historia, Komiks albo Historia + komiks. To nie “właściwe ustawienie”, lecz komfort: słowa mają być pokazane tak, aby dziecko chciało iść dalej przez scenę.'
+      ],
+    },
+    research: {
+      uk: [
+        'Reading Rockets описує друковану обізнаність як розуміння того, як працює текст: напрямок читання, слова, пробіли, великі й малі літери. Саме тому дітям важливо бачити нормальні форми слів, а не довгі фрази капсом: капс прибирає знайомий силует слова.',
+        'British Dyslexia Association радить просту доступну подачу: зрозумілий sans-serif, достатній розмір, вирівнювання ліворуч, без вирівнювання по ширині, комфортний міжрядковий інтервал і рядки приблизно 60-70 символів. WCAG також нагадує: текст має витримувати збільшені інтервали без втрати змісту.',
+        'Дослідження Katzir та колег у PLOS ONE показало, що для учнів другого класу менший шрифт і довші рядки можуть шкодити розумінню; у п’ятому класі ефект був іншим. Wilkins та колеги також знаходили, що більша x-height допомагала дітям 7-9 років читати швидше. Nielsen Norman Group окремо нагадує: дітей не варто проєктувати як одну групу 3-12 років. Висновок обережний: не існує одного “ідеального” масштабу для всіх.'
+      ],
+      en: [
+        'Reading Rockets describes print awareness as understanding how print works: reading direction, words, spaces, uppercase and lowercase forms. That is why children need to see normal word shapes, not long all-caps phrases: all caps removes the familiar outline of a word.',
+        'The British Dyslexia Association recommends accessible presentation: a clear sans-serif font, sufficient size, left alignment, no justified text, comfortable line spacing, and lines around 60-70 characters. WCAG also reminds designers that text should survive spacing adjustments without losing content.',
+        'Katzir and colleagues in PLOS ONE found that smaller font and longer lines could hurt comprehension for second graders; by fifth grade, the pattern was different. Wilkins and colleagues also found that larger x-height helped children aged 7-9 read faster. Nielsen Norman Group also warns against designing for children as one broad 3-12 group. The careful takeaway: there is no single “perfect” scale for every child.'
+      ],
+      ru: [
+        'Reading Rockets описывает знание о печатном тексте как понимание того, как он работает: направление чтения, слова, пробелы, прописные и строчные формы. Поэтому детям важно видеть обычный силуэт слов, а не длинные фразы капсом: капс убирает привычную форму слова.',
+        'British Dyslexia Association рекомендует доступную подачу: понятный шрифт без засечек, достаточный размер, выравнивание влево, без выравнивания по ширине, комфортный межстрочный интервал и строки около 60-70 символов. WCAG также напоминает: текст должен выдерживать увеличение интервалов без потери смысла.',
+        'Исследование Katzir и коллег в PLOS ONE показало, что у второклассников меньший шрифт и длинные строки могут ухудшать понимание; к пятому классу картина была другой. Wilkins и коллеги также находили, что большая x-height помогала детям 7-9 лет читать быстрее. Nielsen Norman Group отдельно предупреждает: детей не стоит проектировать как одну широкую группу 3-12 лет. Осторожный вывод: одного “идеального” масштаба для всех нет.'
+      ],
+      es: [
+        'Reading Rockets define la conciencia de lo impreso como entender cómo funciona el texto: dirección de lectura, palabras, espacios, mayúsculas y minúsculas. Por eso conviene mostrar formas normales de palabra, no frases largas en mayúsculas: las mayúsculas eliminan el contorno familiar.',
+        'La British Dyslexia Association recomienda presentación accesible: sans-serif claro, tamaño suficiente, alineación a la izquierda, sin justificar, interlineado cómodo y líneas de unas 60-70 letras. WCAG recuerda además que el texto debe resistir ajustes de espaciado sin perder contenido.',
+        'Katzir y colegas, en PLOS ONE, hallaron que una letra menor y líneas más largas podían perjudicar la comprensión en segundo grado; en quinto grado el patrón fue distinto. Wilkins y colegas también vieron que una x-height mayor ayudaba a niños de 7-9 años a leer más rápido. Nielsen Norman Group advierte que no conviene diseñar para niños como un único grupo de 3-12 años. Conclusión prudente: no hay una escala “perfecta” para todos.'
+      ],
+      de: [
+        'Reading Rockets beschreibt Druckbewusstsein als Verständnis dafür, wie Text funktioniert: Leserichtung, Wörter, Abstände, Groß- und Kleinbuchstaben. Kinder brauchen daher normale Wortformen statt langer Versalsätze: Großbuchstaben nehmen dem Wort die vertraute Silhouette.',
+        'Die British Dyslexia Association empfiehlt zugängliche Darstellung: klare serifenlose Schrift, ausreichende Größe, linksbündig, kein Blocksatz, angenehmer Zeilenabstand und Zeilen mit etwa 60-70 Zeichen. WCAG erinnert außerdem daran, dass Text veränderte Abstände ohne Inhaltsverlust aushalten soll.',
+        'Katzir und Kolleginnen zeigten in PLOS ONE, dass kleinere Schrift und längere Zeilen bei Zweitklässlern das Verständnis beeinträchtigen können; in der fünften Klasse war das Muster anders. Wilkins und Kollegen fanden zudem, dass größere x-Höhe Kindern von 7-9 Jahren schnelleres Lesen erleichterte. Die Nielsen Norman Group warnt außerdem davor, Kinder als eine einzige Gruppe von 3-12 Jahren zu behandeln. Vorsichtiger Schluss: Es gibt keine eine perfekte Skalierung für alle.'
+      ],
+      fr: [
+        'Reading Rockets décrit la conscience de l’écrit comme la compréhension du fonctionnement du texte : sens de lecture, mots, espaces, majuscules et minuscules. Les enfants ont donc besoin de formes de mots normales, pas de longues phrases en capitales : les capitales effacent la silhouette familière.',
+        'La British Dyslexia Association conseille une présentation accessible : police sans sérif claire, taille suffisante, alignement à gauche, pas de justification, interligne confortable et lignes d’environ 60-70 caractères. Les WCAG rappellent aussi que le texte doit supporter les réglages d’espacement sans perte de contenu.',
+        'Katzir et ses collègues, dans PLOS ONE, ont montré qu’une police plus petite et des lignes plus longues pouvaient nuire à la compréhension en deuxième année; en cinquième année, l’effet changeait. Wilkins et ses collègues ont aussi observé qu’une x-height plus grande aidait les 7-9 ans à lire plus vite. Nielsen Norman Group rappelle aussi qu’il ne faut pas concevoir pour les enfants comme un seul groupe de 3-12 ans. Conclusion prudente : il n’existe pas une échelle parfaite pour tous.'
+      ],
+      pl: [
+        'Reading Rockets opisuje świadomość druku jako rozumienie, jak działa tekst: kierunek czytania, słowa, odstępy, wielkie i małe litery. Dlatego dzieci powinny widzieć zwykłe kształty słów, nie długie frazy wersalikami: wersaliki zabierają znajomy kontur wyrazu.',
+        'British Dyslexia Association zaleca dostępną prezentację: czytelny krój bezszeryfowy, wystarczający rozmiar, wyrównanie do lewej, bez justowania, wygodny interliniaż i wiersze około 60-70 znaków. WCAG przypomina też, że tekst powinien wytrzymywać zmiany odstępów bez utraty treści.',
+        'Katzir i współautorzy w PLOS ONE pokazali, że u drugoklasistów mniejszy font i dłuższe linie mogą szkodzić rozumieniu; w piątej klasie wzorzec był inny. Wilkins i współautorzy zauważyli też, że większa x-height pomagała dzieciom 7-9 lat czytać szybciej. Nielsen Norman Group przypomina także, by nie projektować dla dzieci jak dla jednej grupy 3-12 lat. Ostrożny wniosek: nie ma jednej idealnej skali dla wszystkich.'
+      ],
+    },
+    storyUse: {
+      uk: [
+        'Почніть із віку й навички. WonderTales орієнтується приблизно на 26px для дітей до 5 років, 24px у 5 років, 22px у 6-7 років, 20px у 8-9 років і 18px у 10-12 років. Для раннього читання можна трохи збільшити текст; для впевненого читача — залишити звичайний або трохи компактніший вигляд.',
+        'Не використовуйте довгий капс для реплік, назв предметів або підказок. Окреме слово великими літерами може показати вигук, але цілий абзац капсом читається важче. У WonderTales краще тримати звичайний регістр і давати емоцію через сюжет, ілюстрацію або коротку репліку.',
+        'Якщо дитина читає сама, змінюйте вигляд тексту поступово: спочатку трохи більший, а не одразу максимально великий. Якщо дорослий читає вголос, а дитина стежить очима, іноді достатньо звичайного вигляду й коротшої історії.'
+      ],
+      en: [
+        'Start with age and skill. WonderTales uses roughly 26px for children under 5, 24px at age 5, 22px at 6-7, 20px at 8-9, and 18px at 10-12. For early reading, a slightly larger view may help; for a confident reader, regular or slightly more compact text can be comfortable.',
+        'Avoid long all-caps lines for dialogue, object names, or hints. One uppercase word can show a shout, but a whole paragraph in caps is harder to read. In WonderTales, keep regular case and carry emotion through plot, illustration, or a short line.',
+        'If the child reads independently, change text presentation gradually: try slightly larger text before jumping to the largest option. If an adult reads aloud while the child follows visually, a regular view plus a shorter story may be enough.'
+      ],
+      ru: [
+        'Начните с возраста и навыка. WonderTales ориентируется примерно на 26px для детей младше 5 лет, 24px в 5 лет, 22px в 6-7 лет, 20px в 8-9 лет и 18px в 10-12 лет. Для раннего чтения можно чуть увеличить текст; для уверенного читателя — оставить обычный или немного более компактный вид.',
+        'Не используйте длинный капс для реплик, названий предметов или подсказок. Одно слово заглавными может показать крик, но целый абзац капсом читается тяжелее. В WonderTales лучше оставить обычный регистр, а эмоцию передавать сюжетом, иллюстрацией или короткой репликой.',
+        'Если ребенок читает сам, меняйте вид текста постепенно: сначала чуть крупнее, а не сразу максимально крупно. Если взрослый читает вслух, а ребенок следит глазами, иногда достаточно обычного вида и более короткой истории.'
+      ],
+      es: [
+        'Empieza por edad y habilidad. WonderTales usa aproximadamente 26px para menores de 5 años, 24px a los 5, 22px a los 6-7, 20px a los 8-9 y 18px a los 10-12. En lectura inicial, un texto algo mayor puede ayudar; para un lector seguro, la vista normal o un poco más compacta puede ser cómoda.',
+        'Evita líneas largas en mayúsculas para diálogos, objetos o pistas. Una palabra en mayúsculas puede marcar un grito, pero un párrafo entero cuesta más. En WonderTales, mantén la escritura normal y lleva la emoción con trama, ilustración o una frase breve.',
+        'Si lee de forma independiente, cambia la presentación poco a poco: prueba texto algo mayor antes de ir al tamaño más grande. Si un adulto lee en voz alta y el niño sigue con la vista, una vista normal y una historia más corta pueden bastar.'
+      ],
+      de: [
+        'Beginne mit Alter und Fähigkeit. WonderTales nutzt ungefähr 26px für Kinder unter 5 Jahren, 24px mit 5, 22px mit 6-7, 20px mit 8-9 und 18px mit 10-12. Beim Leseanfang kann etwas größere Schrift helfen; für sichere Leser passt oft die normale oder etwas kompaktere Ansicht.',
+        'Vermeide lange Versalzeilen für Dialoge, Gegenstände oder Hinweise. Ein Wort in Großbuchstaben kann einen Ruf zeigen, ein ganzer Absatz wird schwerer lesbar. In WonderTales bleibt normale Schreibweise besser; Gefühl kommt über Handlung, Bild oder kurze Rede.',
+        'Wenn das Kind allein liest, ändere die Textdarstellung schrittweise: erst etwas größer, nicht sofort maximal groß. Wenn ein Erwachsener vorliest und das Kind mit den Augen folgt, reichen oft normale Ansicht und eine kürzere Geschichte.'
+      ],
+      fr: [
+        'Commencez par l’âge et l’aisance. WonderTales utilise environ 26px avant 5 ans, 24px à 5 ans, 22px à 6-7 ans, 20px à 8-9 ans et 18px à 10-12 ans. Pour les débuts de lecture, un texte un peu plus grand peut aider; pour un lecteur sûr, la vue normale ou un peu plus compacte peut convenir.',
+        'Évitez les longues lignes en capitales pour dialogues, objets ou indices. Un mot en capitales peut signaler un cri, mais tout un paragraphe devient plus difficile. Dans WonderTales, gardez la casse normale et portez l’émotion par l’intrigue, l’image ou une phrase courte.',
+        'Si l’enfant lit seul, changez l’affichage progressivement : essayez un texte un peu plus grand avant de choisir le plus grand. Si l’adulte lit à voix haute pendant que l’enfant suit des yeux, une vue normale et une histoire plus courte peuvent suffire.'
+      ],
+      pl: [
+        'Zacznij od wieku i umiejętności. WonderTales przyjmuje około 26px dla dzieci poniżej 5 lat, 24px w wieku 5 lat, 22px w wieku 6-7 lat, 20px w wieku 8-9 lat i 18px w wieku 10-12 lat. Przy wczesnym czytaniu może pomóc nieco większy tekst; pewnemu czytelnikowi często pasuje widok normalny albo trochę bardziej zwarty.',
+        'Unikaj długich wersalików w dialogach, nazwach przedmiotów i podpowiedziach. Jedno słowo wielkimi literami może oznaczyć okrzyk, ale cały akapit czyta się trudniej. W WonderTales lepiej trzymać zwykłą pisownię, a emocję pokazać fabułą, ilustracją albo krótką kwestią.',
+        'Jeśli dziecko czyta samodzielnie, zmieniaj prezentację stopniowo: najpierw trochę większy tekst, nie od razu największy. Jeśli dorosły czyta na głos, a dziecko śledzi wzrokiem, często wystarczy normalny widok i krótsza historia.'
+      ],
+    },
+    adjustment: {
+      uk: [
+        'Якщо дитина мружиться, наближає планшет або пропускає короткі слова, спробуйте трохи більший текст на кілька історій. Якщо рядки стають занадто довгими й дитина губить початок наступного рядка, краще не тільки збільшувати текст, а й обрати коротший формат або комікс.',
+        'Якщо дитина читає повільно, але розуміє зміст, не поспішайте зменшувати шрифт “бо вже доросла”. Навичка може рости нерівно: сьогодні потрібен великий текст, завтра — звичайний, а після втомленого дня знову трохи більший.',
+        'Якщо дитина постійно скаржиться на головний біль, швидко виснажується, губить рядок у різних текстах або сильно соромиться читання, не вирішуйте це лише масштабом. Поговоріть з учителем або фахівцем з читання: налаштування допомагає комфорту, але не ставить діагнозів.'
+      ],
+      en: [
+        'If the child squints, brings the tablet closer, or skips small words, try slightly larger text for a few stories. If lines become too long and the child loses the start of the next line, do not only enlarge text; choose a shorter format or comic.',
+        'If the child reads slowly but understands, do not rush to shrink the font “because they are older now.” Reading skill can grow unevenly: today larger text helps, tomorrow regular works, and after a tired day slightly larger helps again.',
+        'If the child often reports headaches, tires suddenly, loses lines across different texts, or feels strong shame around reading, do not solve it only with scale. Talk with a teacher or reading specialist: presentation supports comfort, but it does not diagnose.'
+      ],
+      ru: [
+        'Если ребенок щурится, подносит планшет ближе или пропускает короткие слова, попробуйте чуть более крупный текст на несколько историй. Если строки становятся слишком длинными и ребенок теряет начало следующей строки, не только увеличивайте текст: выберите более короткий формат или комикс.',
+        'Если ребенок читает медленно, но понимает смысл, не спешите уменьшать шрифт “потому что уже большой”. Навык растет неровно: сегодня нужен крупный текст, завтра подходит обычный, а после утомительного дня снова помогает чуть более крупный.',
+        'Если ребенок часто жалуется на головную боль, быстро утомляется, теряет строки в разных текстах или сильно стыдится чтения, не решайте это только масштабом. Поговорите с учителем или специалистом по чтению: настройка поддерживает комфорт, но не ставит диагнозов.'
+      ],
+      es: [
+        'Si entrecierra los ojos, acerca la tableta o salta palabras pequeñas, prueba texto un poco mayor durante algunas historias. Si las líneas se vuelven demasiado largas y pierde el inicio de la siguiente, no solo agrandes: elige formato más corto o cómic.',
+        'Si lee despacio pero entiende, no reduzcas la letra “porque ya es mayor”. La habilidad lectora crece de forma irregular: hoy ayuda texto grande, mañana vista normal, y tras un día cansado vuelve a ayudar algo mayor.',
+        'Si habla a menudo de dolor de cabeza, se agota rápido, pierde líneas en textos distintos o siente mucha vergüenza al leer, no lo resuelvas solo con escala. Habla con su docente o un especialista en lectura: la presentación ayuda al confort, no diagnostica.'
+      ],
+      de: [
+        'Wenn das Kind blinzelt, das Tablet näher holt oder kleine Wörter auslässt, versuche für einige Geschichten etwas größere Schrift. Werden Zeilen dadurch zu lang und verliert es den Anfang der nächsten Zeile, vergrößere nicht nur: Wähle ein kürzeres Format oder Comic.',
+        'Wenn das Kind langsam liest, aber versteht, verkleinere die Schrift nicht hastig “weil es älter ist”. Lesefähigkeit wächst ungleichmäßig: Heute hilft größere Schrift, morgen normale Ansicht, nach einem müden Tag wieder etwas größer.',
+        'Wenn das Kind oft Kopfschmerzen nennt, plötzlich ermüdet, in verschiedenen Texten Zeilen verliert oder sich stark fürs Lesen schämt, löse es nicht nur über Skalierung. Sprich mit Lehrkraft oder Lesefachkraft: Darstellung unterstützt Komfort, stellt aber keine Diagnose.'
+      ],
+      fr: [
+        'Si l’enfant plisse les yeux, rapproche la tablette ou saute de petits mots, essayez un texte un peu plus grand sur quelques histoires. Si les lignes deviennent trop longues et qu’il perd le début de la suivante, n’agrandissez pas seulement : choisissez un format plus court ou BD.',
+        'S’il lit lentement mais comprend, ne réduisez pas la police “parce qu’il est plus grand”. La lecture progresse de façon irrégulière : aujourd’hui le grand texte aide, demain la vue normale suffit, après une journée fatigante un texte un peu plus grand aide encore.',
+        'S’il parle souvent de maux de tête, se fatigue vite, perd sa ligne dans plusieurs textes ou a très honte de lire, ne réglez pas tout par l’échelle. Parlez avec l’enseignant ou un spécialiste de la lecture : l’affichage soutient le confort, il ne diagnostique pas.'
+      ],
+      pl: [
+        'Jeśli dziecko mruży oczy, przysuwa tablet albo pomija krótkie słowa, spróbuj trochę większego tekstu przez kilka historii. Jeśli linie robią się za długie i gubi początek następnej, nie tylko powiększaj tekst: wybierz krótszy format albo komiks.',
+        'Jeśli dziecko czyta wolno, ale rozumie, nie zmniejszaj fontu “bo jest starsze”. Umiejętność rośnie nierówno: dziś pomaga większy tekst, jutro zwykły widok, a po męczącym dniu znów trochę większy.',
+        'Jeśli dziecko często mówi o bólu głowy, szybko się wyczerpuje, gubi linie w różnych tekstach albo bardzo wstydzi się czytania, nie rozwiązuj tego samą skalą. Porozmawiaj z nauczycielem lub specjalistą od czytania: ustawienie wspiera komfort, ale nie diagnozuje.'
+      ],
+    },
+    checklist: {
+      uk: ['Почніть зі звичайного вигляду й змінюйте лише одну річ.', 'Для раннього читання частіше пробуйте трохи більший текст.', 'Уникайте довгого капсу.', 'Не використовуйте вирівнювання по ширині в дитячому тексті.', 'Оцінюйте реакцію після 2-3 історій, а не після одного рядка.'],
+      en: ['Start with the regular view and change only one thing.', 'For early reading, try slightly larger text more often.', 'Avoid long all-caps text.', 'Do not justify children’s reading text.', 'Judge the reaction after 2-3 stories, not one line.'],
+      ru: ['Начните с обычного вида и меняйте только одну вещь.', 'Для раннего чтения чаще пробуйте чуть более крупный текст.', 'Избегайте длинного капса.', 'Не выравнивайте детский текст по ширине.', 'Оценивайте реакцию после 2-3 историй, а не по одной строке.'],
+      es: ['Empieza con la vista normal y cambia solo una cosa.', 'Para lectura inicial, prueba texto algo mayor con más frecuencia.', 'Evita texto largo en mayúsculas.', 'No justifiques el texto de lectura infantil.', 'Valora la reacción tras 2-3 historias, no una línea.'],
+      de: ['Mit der normalen Ansicht starten und nur eine Sache ändern.', 'Bei Leseanfang öfter etwas größere Schrift versuchen.', 'Lange Versalsätze vermeiden.', 'Kindlichen Lesetext nicht im Blocksatz setzen.', 'Reaktion nach 2-3 Geschichten beurteilen, nicht nach einer Zeile.'],
+      fr: ['Commencer par la vue normale et ne changer qu’une chose.', 'Pour les débuts de lecture, essayer plus souvent un texte un peu plus grand.', 'Éviter les longs textes en capitales.', 'Ne pas justifier le texte de lecture enfant.', 'Observer après 2-3 histoires, pas une seule ligne.'],
+      pl: ['Zacznij od zwykłego widoku i zmieniaj tylko jedną rzecz.', 'Przy wczesnym czytaniu częściej próbuj trochę większego tekstu.', 'Unikaj długich wersalików.', 'Nie justuj tekstu do czytania dla dzieci.', 'Oceniaj reakcję po 2-3 historiach, nie po jednej linijce.'],
+    },
+    quote: {
+      text: l10n(
+        'Підхід, зручний для читачів із дислексією, часто робить текст легшим для очей усіх.',
+        'Designing for dyslexic readers often makes text easier on the eye for everyone.',
+        'Подход, удобный для читателей с дислексией, часто делает текст легче для глаз всех читателей.',
+        'Diseñar pensando en lectores con dislexia suele hacer el texto más cómodo para todos.',
+        'Gestaltung für lesende Menschen mit Dyslexie macht Text oft für alle angenehmer fürs Auge.',
+        'Concevoir pour les lecteurs dyslexiques rend souvent le texte plus confortable pour tous.',
+        'Projektowanie z myślą o czytelnikach z dysleksją często ułatwia tekst oczom wszystkich.'
+      ),
+      attribution: 'British Dyslexia Association',
+      sourceLabel: l10n(
+        'Посібник із доступного стилю',
+        'Dyslexia Style Guide',
+        'Руководство по доступному стилю',
+        'Guía de estilo para dislexia',
+        'Leitfaden für dyslexiefreundlichen Stil',
+        'Guide de style pour la dyslexie',
+        'Przewodnik stylu przyjaznego dysleksji'
+      ),
+      sourceUrl: 'https://cdn.bdadyslexia.org.uk/uploads/documents/Advice/style-guide/BDA-Style-Guide-2023.pdf',
+    },
+    sources: [
+      { label: 'Reading Rockets: Print Awareness', url: 'https://www.readingrockets.org/reading-101/reading-and-writing-basics/print-awareness' },
+      { label: 'British Dyslexia Association: Style Guide 2023', url: 'https://cdn.bdadyslexia.org.uk/uploads/documents/Advice/style-guide/BDA-Style-Guide-2023.pdf' },
+      { label: 'Katzir et al. 2013: Size Matters in E-Books', url: 'https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0074061' },
+      { label: 'Wilkins et al.: Typography for children may be inappropriately designed', url: 'https://visualstress.info/2009-185.pdf' },
+      { label: 'WCAG 2.1 Understanding Text Spacing', url: 'https://www.w3.org/WAI/WCAG21/Understanding/text-spacing' },
+      { label: 'Nielsen Norman Group: Children’s Websites', url: 'https://www.nngroup.com/articles/childrens-websites-usability-issues/' },
+    ],
+    visualDirection: 'A parent and child adjust a gentle text-size slider on a tablet while a story scene glows behind readable lines.',
+    relatedSlugs: ['reading-without-pressure', 'age-appropriate-story-complexity'],
+    insightCards: {
+      uk: [
+        { eyebrow: 'Один крок', title: 'Маленька зміна легше перевіряється', body: 'Після вікового базового розміру пробуйте лише трохи більший або трохи менший текст, щоб бачити реакцію дитини.' },
+        { eyebrow: 'Не капс', title: 'Силует слова має значення', body: 'Звичайний регістр допомагає впізнавати форми слів; капс лишайте для короткого вигуку.' },
+        { eyebrow: 'Навичка', title: 'Вік не все пояснює', body: 'Налаштування має йти за тим, як дитина читає сьогодні: впевнено, повільно, втомлено або з дорослим.' },
+      ],
+      en: [
+        { eyebrow: 'One step', title: 'Small changes are easier to test', body: 'After the age-based starting size, try only slightly larger or slightly smaller text so the child’s reaction is easy to see.' },
+        { eyebrow: 'Not caps', title: 'Word shape matters', body: 'Regular case helps children recognize word forms; save all caps for a short shout.' },
+        { eyebrow: 'Skill', title: 'Age does not explain everything', body: 'The setting should follow how the child reads today: confidently, slowly, tired, or with an adult.' },
+      ],
+      ru: [
+        { eyebrow: 'Один шаг', title: 'Маленькое изменение проще проверить', body: 'После возрастного базового размера пробуйте только чуть крупнее или чуть меньше, чтобы видеть реакцию ребенка.' },
+        { eyebrow: 'Не капс', title: 'Силуэт слова важен', body: 'Обычный регистр помогает узнавать форму слов; капс оставьте для короткого возгласа.' },
+        { eyebrow: 'Навык', title: 'Возраст объясняет не все', body: 'Настройка должна идти за тем, как ребенок читает сегодня: уверенно, медленно, устало или со взрослым.' },
+      ],
+      es: [
+        { eyebrow: 'Un paso', title: 'Los cambios pequeños se prueban mejor', body: 'Tras el tamaño inicial por edad, prueba solo un poco más grande o más pequeño para ver clara la reacción.' },
+        { eyebrow: 'No mayúsculas', title: 'La forma de la palabra importa', body: 'La escritura normal ayuda a reconocer palabras; reserva mayúsculas para un grito breve.' },
+        { eyebrow: 'Habilidad', title: 'La edad no lo explica todo', body: 'El ajuste sigue cómo lee hoy: con seguridad, despacio, cansado o junto a un adulto.' },
+      ],
+      de: [
+        { eyebrow: 'Eine Stufe', title: 'Kleine Änderungen lassen sich besser prüfen', body: 'Nach der altersbasierten Startgröße nur etwas größer oder kleiner probieren, damit die Reaktion erkennbar bleibt.' },
+        { eyebrow: 'Keine Versalien', title: 'Wortform zählt', body: 'Normale Schreibweise hilft beim Wiedererkennen; Großbuchstaben bleiben für kurze Rufe.' },
+        { eyebrow: 'Fähigkeit', title: 'Alter erklärt nicht alles', body: 'Die Einstellung folgt dem heutigen Lesen: sicher, langsam, müde oder mit Erwachsenen.' },
+      ],
+      fr: [
+        { eyebrow: 'Un cran', title: 'Les petits changements se testent mieux', body: 'Après la taille de départ liée à l’âge, essayez seulement un peu plus grand ou plus petit pour observer clairement la réaction.' },
+        { eyebrow: 'Pas de capitales', title: 'La forme du mot compte', body: 'La casse normale aide à reconnaître les mots; gardez les capitales pour un cri bref.' },
+        { eyebrow: 'Aisance', title: 'L’âge n’explique pas tout', body: 'Le réglage suit la lecture du jour : sûre, lente, fatiguée ou accompagnée.' },
+      ],
+      pl: [
+        { eyebrow: 'Jeden krok', title: 'Małą zmianę łatwiej sprawdzić', body: 'Po wieku bazowym próbuj tylko trochę większego albo trochę mniejszego tekstu, aby łatwo zobaczyć reakcję dziecka.' },
+        { eyebrow: 'Nie wersaliki', title: 'Kształt słowa ma znaczenie', body: 'Zwykła pisownia pomaga rozpoznawać wyrazy; wielkie litery zostaw na krótki okrzyk.' },
+        { eyebrow: 'Umiejętność', title: 'Wiek nie wyjaśnia wszystkiego', body: 'Ustawienie idzie za dzisiejszym czytaniem: pewnym, wolnym, zmęczonym albo z dorosłym.' },
+      ],
+    },
+    decisionTable: {
+      uk: {
+        heading: 'Який розмір побачить дитина',
+        intro: 'WonderTales починає з вікового розміру, а батьки можуть трохи збільшити або зменшити текст під конкретного читача.',
+        columns: ['Вік або ситуація', 'Базовий орієнтир', 'Коли змінити'],
+        rows: [
+          ['До 5 років', 'Близько 26px, найбільший комфортний текст', 'Зменшуйте лише якщо дитині тісно на екрані'],
+          ['5 років', 'Близько 24px, короткі рядки й багато повітря', 'Трохи збільшіть, якщо дитина мружиться або губить слова'],
+          ['6-7 років', 'Близько 22px для перших самостійних історій', 'Трохи збільшіть, якщо дитина губить рядок'],
+          ['8-9 років', 'Близько 20px для більш упевненого читання', 'Зменшуйте обережно, якщо дитина хоче більше тексту на екрані'],
+          ['10-12 років', 'Близько 18px для компактнішого читання', 'Збільшіть після втомленого дня або якщо з’являється напруга'],
+        ],
+      },
+      en: {
+        heading: 'What size the child will see',
+        intro: 'WonderTales starts from an age-based text size, and parents can nudge it slightly larger or smaller for the individual reader.',
+        columns: ['Age or situation', 'Starting point', 'When to adjust'],
+        rows: [
+          ['Under 5', 'About 26px, the largest comfortable text', 'Make it smaller only if the screen feels crowded'],
+          ['Age 5', 'About 24px, short lines and plenty of air', 'Make it slightly larger if the child squints or loses words'],
+          ['Ages 6-7', 'About 22px for first independent stories', 'Make it slightly larger if the child loses the line'],
+          ['Ages 8-9', 'About 20px for more confident reading', 'Make it smaller carefully if the child wants more text on screen'],
+          ['Ages 10-12', 'About 18px for a more compact read', 'Make it larger after a tiring day or when strain appears'],
+        ],
+      },
+      ru: {
+        heading: 'Какой размер увидит ребенок',
+        intro: 'WonderTales начинает с возрастного размера текста, а родители могут немного увеличить или уменьшить его под конкретного читателя.',
+        columns: ['Возраст или ситуация', 'Базовый ориентир', 'Когда изменить'],
+        rows: [
+          ['До 5 лет', 'Около 26px, самый крупный комфортный текст', 'Уменьшайте только если экран кажется перегруженным'],
+          ['5 лет', 'Около 24px, короткие строки и много воздуха', 'Чуть увеличьте, если ребенок щурится или теряет слова'],
+          ['6-7 лет', 'Около 22px для первых самостоятельных историй', 'Чуть увеличьте, если ребенок теряет строку'],
+          ['8-9 лет', 'Около 20px для более уверенного чтения', 'Уменьшайте осторожно, если ребенок хочет больше текста на экране'],
+          ['10-12 лет', 'Около 18px для более компактного чтения', 'Увеличьте после утомительного дня или если появляется напряжение'],
+        ],
+      },
+      es: {
+        heading: 'Qué tamaño verá el niño',
+        intro: 'WonderTales empieza con un tamaño según la edad, y la familia puede subirlo o bajarlo un poco para ese lector concreto.',
+        columns: ['Edad o situación', 'Punto de partida', 'Cuándo cambiar'],
+        rows: [
+          ['Menos de 5 años', 'Unos 26px, el texto cómodo más grande', 'Reduce solo si la pantalla se ve demasiado llena'],
+          ['5 años', 'Unos 24px, líneas cortas y mucho aire', 'Aumenta un poco si entrecierra los ojos o pierde palabras'],
+          ['6-7 años', 'Unos 22px para primeras historias solo', 'Aumenta un poco si pierde la línea'],
+          ['8-9 años', 'Unos 20px para lectura más segura', 'Reduce con cuidado si quiere más texto en pantalla'],
+          ['10-12 años', 'Unos 18px para una lectura más compacta', 'Aumenta tras un día cansado o si aparece tensión'],
+        ],
+      },
+      de: {
+        heading: 'Welche Größe das Kind sieht',
+        intro: 'WonderTales startet mit einer altersbasierten Textgröße. Eltern können sie für das einzelne Kind etwas größer oder kleiner machen.',
+        columns: ['Alter oder Situation', 'Ausgangspunkt', 'Wann anpassen'],
+        rows: [
+          ['Unter 5 Jahren', 'Etwa 26px, die größte komfortable Schrift', 'Nur kleiner machen, wenn der Bildschirm überfüllt wirkt'],
+          ['5 Jahre', 'Etwa 24px, kurze Zeilen und viel Luft', 'Etwas größer machen, wenn das Kind blinzelt oder Wörter verliert'],
+          ['6-7 Jahre', 'Etwa 22px für erste eigene Geschichten', 'Etwas größer machen, wenn das Kind die Zeile verliert'],
+          ['8-9 Jahre', 'Etwa 20px für sichereres Lesen', 'Vorsichtig kleiner machen, wenn das Kind mehr Text sehen möchte'],
+          ['10-12 Jahre', 'Etwa 18px für kompakteres Lesen', 'Nach einem müden Tag oder bei Anspannung größer machen'],
+        ],
+      },
+      fr: {
+        heading: 'Quelle taille l’enfant verra',
+        intro: 'WonderTales commence avec une taille liée à l’âge, puis les parents peuvent l’augmenter ou la réduire légèrement pour ce lecteur.',
+        columns: ['Âge ou situation', 'Point de départ', 'Quand ajuster'],
+        rows: [
+          ['Moins de 5 ans', 'Environ 26px, le texte confortable le plus grand', 'Réduire seulement si l’écran paraît trop chargé'],
+          ['5 ans', 'Environ 24px, lignes courtes et beaucoup d’air', 'Agrandir un peu si l’enfant plisse les yeux ou perd des mots'],
+          ['6-7 ans', 'Environ 22px pour les premières histoires seul', 'Agrandir un peu si l’enfant perd sa ligne'],
+          ['8-9 ans', 'Environ 20px pour une lecture plus sûre', 'Réduire prudemment s’il veut plus de texte à l’écran'],
+          ['10-12 ans', 'Environ 18px pour une lecture plus compacte', 'Agrandir après une journée fatigante ou en cas de tension'],
+        ],
+      },
+      pl: {
+        heading: 'Jaki rozmiar zobaczy dziecko',
+        intro: 'WonderTales zaczyna od rozmiaru dobranego do wieku, a rodzice mogą lekko go zwiększyć lub zmniejszyć pod konkretnego czytelnika.',
+        columns: ['Wiek lub sytuacja', 'Punkt wyjścia', 'Kiedy zmienić'],
+        rows: [
+          ['Poniżej 5 lat', 'Około 26px, największy komfortowy tekst', 'Zmniejszaj tylko, gdy ekran wygląda na przepełniony'],
+          ['5 lat', 'Około 24px, krótkie linie i dużo powietrza', 'Lekko zwiększ, gdy dziecko mruży oczy lub gubi słowa'],
+          ['6-7 lat', 'Około 22px dla pierwszych samodzielnych historii', 'Lekko zwiększ, gdy dziecko gubi linijkę'],
+          ['8-9 lat', 'Około 20px dla pewniejszego czytania', 'Zmniejszaj ostrożnie, gdy dziecko chce więcej tekstu na ekranie'],
+          ['10-12 lat', 'Około 18px dla bardziej zwartego czytania', 'Zwiększ po męczącym dniu albo gdy pojawia się napięcie'],
+        ],
+      },
+    },
+    stepBlock: {
+      uk: {
+        eyebrow: 'Налаштування',
+        heading: 'П’ять кроків без метушні',
+        intro: 'Мета — знайти комфорт, а не зробити текст максимально великим.',
+        steps: [
+          { title: 'Почніть із вікового розміру', body: 'Подивіться першу сцену так, як її показує WonderTales для віку дитини.' },
+          { title: 'Змініть лише трохи', body: 'Якщо є напруга, спробуйте трохи більший текст; якщо впевненому читачеві все здається завеликим, трохи зменшіть.' },
+          { title: 'Не змішуйте все одразу', body: 'Не міняйте одночасно формат, довжину історії, розмір тексту і тему, інакше важко зрозуміти, що допомогло.' },
+          { title: 'Поверніться через кілька історій', body: 'Навичка росте. Те, що потрібно цього місяця, може змінитися після практики або канікул.' },
+        ],
+      },
+      en: {
+        eyebrow: 'Setup',
+        heading: 'Five steps without fuss',
+        intro: 'The goal is comfort, not making text as large as possible.',
+        steps: [
+          { title: 'Start with the age-based size', body: 'Look at the first scene as WonderTales presents it for the child’s age.' },
+          { title: 'Change only a little', body: 'If there is strain, try slightly larger text; if everything feels too big for a confident reader, make it slightly smaller.' },
+          { title: 'Do not mix everything', body: 'Do not change format, story length, text size, and theme at the same time, or you will not know what helped.' },
+          { title: 'Return after a few stories', body: 'Skill grows. What helps this month may change after practice or a holiday break.' },
+        ],
+      },
+      ru: {
+        eyebrow: 'Настройка',
+        heading: 'Пять шагов без суеты',
+        intro: 'Цель — найти комфорт, а не сделать текст максимально большим.',
+        steps: [
+          { title: 'Начните с возрастного размера', body: 'Посмотрите первую сцену так, как WonderTales показывает ее для возраста ребенка.' },
+          { title: 'Меняйте совсем немного', body: 'Если есть напряжение, попробуйте чуть более крупный текст; если уверенному читателю все кажется слишком большим, немного уменьшите.' },
+          { title: 'Не смешивайте все сразу', body: 'Не меняйте одновременно формат, длину истории, размер текста и тему, иначе трудно понять, что помогло.' },
+          { title: 'Вернитесь через несколько историй', body: 'Навык растет. То, что помогает в этом месяце, может измениться после практики или каникул.' },
+        ],
+      },
+      es: {
+        eyebrow: 'Ajuste',
+        heading: 'Cinco pasos sin lío',
+        intro: 'La meta es comodidad, no hacer el texto lo más grande posible.',
+        steps: [
+          { title: 'Empieza con el tamaño por edad', body: 'Mira la primera escena tal como WonderTales la presenta para la edad del niño.' },
+          { title: 'Cambia solo un poco', body: 'Si hay tensión, prueba texto algo mayor; si todo se ve demasiado grande para un lector seguro, bájalo un poco.' },
+          { title: 'No mezcles todo', body: 'No cambies formato, duración, tamaño del texto y tema a la vez, o no sabrás qué ayudó.' },
+          { title: 'Vuelve tras varias historias', body: 'La habilidad crece. Lo que ayuda este mes puede cambiar tras práctica o vacaciones.' },
+        ],
+      },
+      de: {
+        eyebrow: 'Einstellung',
+        heading: 'Fünf Stufen ohne Aufwand',
+        intro: 'Ziel ist Komfort, nicht maximal große Schrift.',
+        steps: [
+          { title: 'Mit der Altersgröße starten', body: 'Schau dir die erste Szene so an, wie WonderTales sie für das Alter des Kindes zeigt.' },
+          { title: 'Nur wenig ändern', body: 'Bei Anspannung etwas größere Schrift versuchen; wirkt alles für ein sicheres Kind zu groß, etwas kleiner machen.' },
+          { title: 'Nicht alles mischen', body: 'Format, Länge, Textgröße und Thema nicht gleichzeitig ändern, sonst weißt du nicht, was half.' },
+          { title: 'Nach einigen Geschichten zurückkehren', body: 'Fähigkeit wächst. Was diesen Monat hilft, kann nach Übung oder Ferien anders sein.' },
+        ],
+      },
+      fr: {
+        eyebrow: 'Réglage',
+        heading: 'Cinq crans sans agitation',
+        intro: 'Le but est le confort, pas le texte le plus grand possible.',
+        steps: [
+          { title: 'Commencer par la taille liée à l’âge', body: 'Observez la première scène telle que WonderTales la présente pour l’âge de l’enfant.' },
+          { title: 'Changer très peu', body: 'S’il y a tension, essayez un texte un peu plus grand; si c’est trop grand pour un lecteur sûr, réduisez légèrement.' },
+          { title: 'Ne pas tout mélanger', body: 'Ne changez pas format, longueur, taille du texte et thème à la fois, sinon l’effet sera flou.' },
+          { title: 'Revenir après quelques histoires', body: 'L’aisance grandit. Ce qui aide ce mois-ci peut changer après de la pratique ou des vacances.' },
+        ],
+      },
+      pl: {
+        eyebrow: 'Ustawienie',
+        heading: 'Pięć kroków bez zamieszania',
+        intro: 'Celem jest komfort, nie największy możliwy tekst.',
+        steps: [
+          { title: 'Zacznij od rozmiaru według wieku', body: 'Zobacz pierwszą scenę tak, jak WonderTales pokazuje ją dla wieku dziecka.' },
+          { title: 'Zmień tylko trochę', body: 'Gdy jest napięcie, spróbuj trochę większego tekstu; gdy wszystko jest za duże dla pewnego czytelnika, lekko zmniejsz.' },
+          { title: 'Nie mieszaj wszystkiego', body: 'Nie zmieniaj naraz formatu, długości, rozmiaru tekstu i tematu, bo trudno będzie poznać, co pomogło.' },
+          { title: 'Wróć po kilku historiach', body: 'Umiejętność rośnie. To, co pomaga w tym miesiącu, może zmienić się po ćwiczeniu albo wakacjach.' },
+        ],
+      },
+    },
+  },
+  {
     slug: 'siblings-shared-stories',
     heroImage: '/landing/optimized/multiple-child-profiles-960.webp',
     updatedAt: '2026-06-17',
@@ -5612,7 +6044,11 @@ const ARTICLES: BlogArticleDefinition[] = [
   },
 ];
 
-const PUBLISHED_ARTICLES = ARTICLES.slice(0, 12);
+const PUBLISHED_ARTICLE_LIMIT = 13;
+const PUBLISHED_ARTICLES = ARTICLES.slice(0, PUBLISHED_ARTICLE_LIMIT)
+  .map((article, index) => ({ article, index }))
+  .sort((a, b) => b.article.updatedAt.localeCompare(a.article.updatedAt) || a.index - b.index)
+  .map(({ article }) => article);
 const ARTICLE_BY_SLUG = new Map(PUBLISHED_ARTICLES.map((article) => [article.slug, article]));
 
 export function getBlogSlugs(): string[] {
