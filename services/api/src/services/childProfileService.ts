@@ -83,6 +83,7 @@ export function buildDeletedChildProfileTombstone(): Partial<Omit<NewChildProfil
     name: 'Deleted child profile',
     birthDate: '1970-01-01',
     storyCreationMode: 'instant',
+    storyTextSizeMultiplier: 1,
     languages: [],
     referencePhotos: null,
     appearanceTraits: null,

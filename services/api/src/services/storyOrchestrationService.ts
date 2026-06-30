@@ -13,7 +13,11 @@ import {
 import {
   DEFAULT_LOCALE,
   LOCALE_IDS,
+  getBaseStoryTextSizePxForAgeGroup,
+  getBaseStoryTextSizePxForAgeYears,
+  getStoryTextSizePx,
   isValidLocale,
+  normalizeStoryTextSizeMultiplier,
   stripCharacterIdFromName,
   type CreateStoryRequestInput,
   type Locale,
@@ -6163,6 +6167,20 @@ function buildManifestSceneRowsFromStoryJson(story: {
     .filter((scene): scene is ManifestSceneRow => Boolean(scene));
 }
 
+function getAgeYearsFromBirthDateForReadingSettings(birthDate: Date | string | null): number | null {
+  if (!birthDate) return null;
+  const birth = birthDate instanceof Date ? birthDate : new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) return null;
+
+  const now = new Date();
+  let ageYears = now.getFullYear() - birth.getFullYear();
+  const birthdayThisYear = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
+  if (birthdayThisYear > now) {
+    ageYears -= 1;
+  }
+  return Math.max(0, ageYears);
+}
+
 export async function getStoryManifest(storyId: string) {
   const story = await getStoryRepository().findById(storyId);
 
@@ -6264,6 +6282,26 @@ export async function getStoryManifest(storyId: string) {
     }
   }
 
+  const readingProfileId = story.childProfileId ?? story.createdByChildProfileId ?? null;
+  const readingProfile = readingProfileId
+    ? await getChildProfileRepository().findById(readingProfileId, story.userId)
+    : null;
+  const readingProfileAgeYears = readingProfile
+    ? getAgeYearsFromBirthDateForReadingSettings(readingProfile.birthDate)
+    : null;
+  const baseTextSizePx =
+    readingProfileAgeYears !== null
+      ? getBaseStoryTextSizePxForAgeYears(readingProfileAgeYears)
+      : getBaseStoryTextSizePxForAgeGroup(story.ageGroup);
+  const textSizeMultiplier = normalizeStoryTextSizeMultiplier(
+    readingProfile?.storyTextSizeMultiplier
+  );
+  const readingSettings = {
+    baseTextSizePx,
+    textSizeMultiplier,
+    textSizePx: getStoryTextSizePx(baseTextSizePx, textSizeMultiplier),
+  };
+
   // Build manifest
   const manifest = {
     storyId: story.id,
@@ -6283,6 +6321,7 @@ export async function getStoryManifest(storyId: string) {
     createdByMode: story.createdByMode,
     createdByChildProfileId: story.createdByChildProfileId ?? null,
     parentReviewStatus: story.parentReviewStatus,
+    readingSettings,
     closingArtifact: closingArtifactPayload,
     fullText: stripAllTags(story.fullText || ''),
     audioMetadata,

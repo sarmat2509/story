@@ -12,6 +12,7 @@ import {
   boolean,
   date,
   decimal,
+  real,
   primaryKey,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
@@ -475,6 +476,7 @@ export const childProfiles = pgTable(
     name: varchar('name', { length: 100 }).notNull(),
     birthDate: date('birth_date').notNull(),
     storyCreationMode: varchar('story_creation_mode', { length: 20 }).notNull().default('instant'),
+    storyTextSizeMultiplier: real('story_text_size_multiplier').notNull().default(1),
     languages: jsonb('languages').notNull(), // array of language codes
     referencePhotos: jsonb('reference_photos'), // array of photo objects
     appearanceTraits: jsonb('appearance_traits'), // structured appearance data

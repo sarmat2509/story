@@ -20,9 +20,15 @@ import { useCreateChild, useUpdateChild, useAnalyzeChild } from '@/api/children'
 import {
   CreateChildProfileSchema,
   DEFAULT_LOCALE,
+  DEFAULT_STORY_TEXT_SIZE_MULTIPLIER,
   UpdateChildProfileSchema,
   LOCALE_IDS,
   ReferencePhoto,
+  STORY_TEXT_SIZE_MULTIPLIER_STEPS,
+  type StoryTextSizeMultiplier,
+  getBaseStoryTextSizePxForAgeYears,
+  getStoryTextSizePx,
+  normalizeStoryTextSizeMultiplier,
 } from '@wondertales/shared';
 import { UploadPhotoResult } from '@/utils/uploadPhoto';
 import { formatAssetUrl, isServerAssetUrl } from '@/utils/assetUrl';
@@ -56,6 +62,17 @@ function toAbsoluteAssetUrl(url: string): string {
       ? `/api/v1/assets/${withoutQuery.slice(1)}`
       : `/api/v1/assets/${withoutQuery}`;
   return `${base}${assetPath}`;
+}
+
+function getFullAgeYears(date: Date): number | null {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  const now = new Date();
+  let ageYears = now.getFullYear() - date.getFullYear();
+  const birthdayThisYear = new Date(now.getFullYear(), date.getMonth(), date.getDate());
+  if (birthdayThisYear > now) {
+    ageYears -= 1;
+  }
+  return Math.max(0, ageYears);
 }
 
 import { storage } from '@/utils/storage';
@@ -102,6 +119,7 @@ export interface ChildFormInitialData {
   turnaroundSheet?: { url: string; frontUrl?: string; generatedAt: string };
   authorPseudonym?: string | null;
   authorAboutMe?: string | null;
+  storyTextSizeMultiplier?: number | string | null;
 }
 
 interface Props {
@@ -150,6 +168,8 @@ export function ChildFormContent({
   const [descriptionLanguage, setDescriptionLanguage] = useState<string | undefined>(undefined);
   const [authorPseudonym, setAuthorPseudonym] = useState('');
   const [authorAboutMe, setAuthorAboutMe] = useState('');
+  const [storyTextSizeMultiplier, setStoryTextSizeMultiplier] =
+    useState<StoryTextSizeMultiplier>(DEFAULT_STORY_TEXT_SIZE_MULTIPLIER);
   const [childDataConsentAccepted, setChildDataConsentAccepted] = useState(false);
 
   const [appearance, setAppearance] = useState({
@@ -187,6 +207,13 @@ export function ChildFormContent({
   const profileLanguages = initialData?.languages?.length
     ? initialData.languages
     : [toBaseLocale(i18n.language)];
+  const storyTextAgeYears = getFullAgeYears(birthDate);
+  const baseStoryTextSizePx = getBaseStoryTextSizePxForAgeYears(storyTextAgeYears);
+  const effectiveStoryTextSizePx = getStoryTextSizePx(
+    baseStoryTextSizePx,
+    storyTextSizeMultiplier
+  );
+  const storyTextPreviewLineHeight = Math.round(effectiveStoryTextSizePx * 1.45);
 
   useEffect(() => {
     if (!createChild.isPending) {
@@ -221,6 +248,9 @@ export function ChildFormContent({
       setDescriptionLanguage(initialData.descriptionLanguage || undefined);
       setAuthorPseudonym(initialData.authorPseudonym || '');
       setAuthorAboutMe(initialData.authorAboutMe || '');
+      setStoryTextSizeMultiplier(
+        normalizeStoryTextSizeMultiplier(initialData.storyTextSizeMultiplier)
+      );
       setChildDataConsentAccepted(!!childId);
       if (initialData.appearanceTraits) {
         setAppearance({
@@ -275,6 +305,7 @@ export function ChildFormContent({
       setDescriptionLanguage(undefined);
       setAuthorPseudonym('');
       setAuthorAboutMe('');
+      setStoryTextSizeMultiplier(DEFAULT_STORY_TEXT_SIZE_MULTIPLIER);
       setChildDataConsentAccepted(false);
       setAppearance({
         hairColor: undefined,
@@ -431,6 +462,7 @@ export function ChildFormContent({
           familyCast: Object.keys(familyCast).length > 0 ? familyCast : undefined,
           authorPseudonym: authorPseudonym.trim() || null,
           authorAboutMe: authorAboutMe.trim() || null,
+          storyTextSizeMultiplier,
         };
         const result = UpdateChildProfileSchema.safeParse(updateData);
         if (!result.success) {
@@ -464,6 +496,7 @@ export function ChildFormContent({
           familyCast: Object.keys(familyCast).length > 0 ? familyCast : undefined,
           authorPseudonym: authorPseudonym.trim() || null,
           authorAboutMe: authorAboutMe.trim() || null,
+          storyTextSizeMultiplier,
         };
         const result = CreateChildProfileSchema.safeParse(data);
         if (!result.success) {
@@ -676,6 +709,70 @@ export function ChildFormContent({
                 </View>
               </View>
             ) : null}
+
+            {showStoryAuthorFields && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>
+                  {t('child_form.story_text_size_section_title')}
+                </Text>
+                <View style={styles.textSizeHeader}>
+                  <Text style={[styles.label, styles.textSizeLabel]}>
+                    {t('child_form.story_text_size_label')}
+                  </Text>
+                  <Text style={styles.textSizeValue}>
+                    {t('child_form.story_text_size_current', {
+                      size: effectiveStoryTextSizePx,
+                    })}
+                  </Text>
+                </View>
+                <View style={styles.textSizeControl}>
+                  <Ionicons
+                    name="text-outline"
+                    size={18}
+                    color={theme.colors.text.tertiary}
+                  />
+                  <View style={styles.textSizeSteps}>
+                    <View style={styles.textSizeTrack} />
+                    {STORY_TEXT_SIZE_MULTIPLIER_STEPS.map((step) => {
+                      const selected = step === storyTextSizeMultiplier;
+                      return (
+                        <TouchableOpacity
+                          key={step}
+                          style={styles.textSizeStep}
+                          activeOpacity={0.8}
+                          onPress={() => setStoryTextSizeMultiplier(step)}
+                        >
+                          <View
+                            style={[styles.textSizeDot, selected && styles.textSizeDotSelected]}
+                          />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <Ionicons
+                    name="text-outline"
+                    size={26}
+                    color={theme.colors.text.tertiary}
+                  />
+                </View>
+                <View style={styles.textSizePreviewCard}>
+                  <Text style={styles.textSizePreviewLabel}>
+                    {t('child_form.story_text_size_preview_label')}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.textSizePreviewText,
+                      {
+                        fontSize: effectiveStoryTextSizePx,
+                        lineHeight: storyTextPreviewLineHeight,
+                      },
+                    ]}
+                  >
+                    {t('child_form.story_text_size_preview_text')}
+                  </Text>
+                </View>
+              </View>
+            )}
 
             {showStoryAuthorFields && (
               <View style={styles.section}>
@@ -1238,6 +1335,85 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     marginTop: theme.spacing[2],
     fontStyle: 'italic',
+  },
+  textSizeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing[3],
+    marginBottom: theme.spacing[3],
+  },
+  textSizeLabel: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  textSizeValue: {
+    flexShrink: 0,
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.interactive.primary,
+  },
+  textSizeControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
+  },
+  textSizeSteps: {
+    flex: 1,
+    minHeight: 44,
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    position: 'relative',
+  },
+  textSizeTrack: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 19,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.border.light,
+  },
+  textSizeStep: {
+    width: 46,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  textSizeDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: theme.colors.border.medium,
+    backgroundColor: theme.colors.background.primary,
+  },
+  textSizeDotSelected: {
+    borderColor: theme.colors.interactive.primary,
+    backgroundColor: theme.colors.interactive.primary,
+  },
+  textSizePreviewCard: {
+    marginTop: theme.spacing[3],
+    padding: theme.spacing[4],
+    borderWidth: theme.borders.width.thin,
+    borderColor: theme.colors.border.light,
+    borderRadius: theme.borders.radius.md,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  textSizePreviewLabel: {
+    marginBottom: theme.spacing[2],
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.text.tertiary,
+    textTransform: 'uppercase',
+  },
+  textSizePreviewText: {
+    color: theme.colors.text.primary,
+    fontWeight: theme.typography.fontWeight.regular,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

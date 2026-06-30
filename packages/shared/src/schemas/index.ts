@@ -2,6 +2,10 @@ import { z } from 'zod';
 import { LOCALE_IDS } from '../config/languages';
 import { CHARACTER_TYPES, PERSON_SUBTYPES, ANIMAL_SUBTYPES, IMAGINARY_SUBTYPES } from '../constants/characterTypes';
 import { IMAGE_STYLES } from '../constants/imageStyles';
+import {
+  isStoryTextSizeMultiplierStep,
+  normalizeStoryTextSizeMultiplier,
+} from '../utils/storyTextPresentation';
 
 // ==========================================
 // Schemas
@@ -169,6 +173,12 @@ const BaseChildProfileSchema = z.object({
 
   // Default story creation experience for this child profile
   storyCreationMode: z.enum(['instant', 'artisan']).optional(),
+
+  // Relative adjustment for story body text in the reader.
+  storyTextSizeMultiplier: z.preprocess(
+    (value) => (value === undefined ? undefined : normalizeStoryTextSizeMultiplier(value)),
+    z.number().refine(isStoryTextSizeMultiplierStep, 'Invalid story text size multiplier')
+  ).optional(),
   
   // Reference photos (optional)
   referencePhotos: z.array(z.object({

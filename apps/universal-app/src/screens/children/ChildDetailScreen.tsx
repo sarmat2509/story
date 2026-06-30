@@ -70,6 +70,8 @@ function mapChildToInitialData(child: Record<string, unknown>): ChildFormInitial
       | undefined,
     authorPseudonym: (child.authorPseudonym ?? child.authorpseudonym) as string | null | undefined,
     authorAboutMe: (child.authorAboutMe ?? child.authoraboutme) as string | null | undefined,
+    storyTextSizeMultiplier: (child.storyTextSizeMultiplier ??
+      child.storytextsizemultiplier) as number | string | null | undefined,
   };
 }
 

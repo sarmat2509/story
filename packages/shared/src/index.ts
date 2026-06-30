@@ -12,6 +12,7 @@ export * from './constants/humanTraits';
 export * from './constants/imaginaryTraits';
 export * from './utils/policyHelpers';
 export * from './utils/readingTime';
+export * from './utils/storyTextPresentation';
 export * from './utils/ratingEmojis';
 export * from './utils/planPresentation';
 export * from './utils/stripCharacterId';

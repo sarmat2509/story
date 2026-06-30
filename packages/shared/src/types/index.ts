@@ -584,6 +584,7 @@ export interface UserStoryLanguagesResponse {
 /** Story manifest from GET /api/v1/me/stories/:id - full viewer payload */
 export interface StoryManifestApi extends StoryApi {
   storyId: string;
+  ageGroup: AgeGroup;
   isPublished: boolean;
   shareUrl: string | null;
   visibility: 'public' | 'unlisted' | null;
@@ -609,6 +610,11 @@ export interface StoryManifestApi extends StoryApi {
   failedScenes?: Array<{ sceneId: number; errorMessage: string }>;
   seriesId?: string | null;
   partNumber?: number | null;
+  readingSettings?: {
+    baseTextSizePx: number;
+    textSizeMultiplier: number;
+    textSizePx: number;
+  };
 }
 
 export type StoryQuizAgeBucket = '1y' | '2-3' | '4-5' | '6-8' | '9-12';

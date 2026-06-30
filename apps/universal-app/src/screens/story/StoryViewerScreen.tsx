@@ -76,7 +76,12 @@ import { StoryReflectionSection } from '@/components/StoryReflectionSection';
 import { StoryCharactersSection, type StoryCharacter } from '@/components/StoryCharactersSection';
 import { FloatingActionButton } from '@/components/FloatingActionButton';
 import { StoryViewerSkeleton } from '@/components/StoryViewerSkeleton';
-import { getReadingTimeMinutes, stripMarkdownStyleEmphasis } from '@wondertales/shared';
+import {
+  getBaseStoryTextSizePxForAgeGroup,
+  getReadingTimeMinutes,
+  getStoryTextSizePx,
+  stripMarkdownStyleEmphasis,
+} from '@wondertales/shared';
 import { getAnalytics } from '@/services/analytics';
 import { storage } from '@/utils/storage';
 import { assignWebLocation } from '@/utils/webRuntime';
@@ -276,6 +281,24 @@ export default function StoryViewerScreen() {
   const isGraphicNovel = storyMetadata.storyFormat === 'graphic_novel';
   const isMixedStory = storyMetadata.storyFormat === 'mixed_story';
   const hasGraphicNovelPages = isGraphicNovel || isMixedStory;
+  const proseTextSizePx = useMemo(() => {
+    const manifestTextSize = story?.readingSettings?.textSizePx;
+    if (typeof manifestTextSize === 'number' && Number.isFinite(manifestTextSize)) {
+      return manifestTextSize;
+    }
+    const baseTextSizePx = getBaseStoryTextSizePxForAgeGroup(story?.ageGroup);
+    return getStoryTextSizePx(baseTextSizePx, story?.readingSettings?.textSizeMultiplier);
+  }, [story?.ageGroup, story?.readingSettings?.textSizeMultiplier, story?.readingSettings?.textSizePx]);
+  const sceneTextStyle = useMemo(
+    () => [
+      styles.sceneText,
+      {
+        fontSize: proseTextSizePx,
+        lineHeight: Math.round(proseTextSizePx * 1.6),
+      },
+    ],
+    [proseTextSizePx]
+  );
 
   // Use lightweight status polling for image generation
   const { data: generationStatus } = useStoryGenerationStatus(
@@ -2368,7 +2391,7 @@ export default function StoryViewerScreen() {
 
     if (!effectiveHighlightEnabled) {
       return (
-        <Text style={styles.sceneText}>
+        <Text style={sceneTextStyle}>
           {renderArtifactAwareSceneText(scene, cleanedSceneText)}
         </Text>
       );
@@ -2378,10 +2401,10 @@ export default function StoryViewerScreen() {
       preserveTrailingSpaces: true,
     });
     if (!renderedText) {
-      return <Text style={styles.sceneText}>{cleanedSceneText}</Text>;
+      return <Text style={sceneTextStyle}>{cleanedSceneText}</Text>;
     }
 
-    return <Text style={styles.sceneText}>{renderedText}</Text>;
+    return <Text style={sceneTextStyle}>{renderedText}</Text>;
   };
 
   // M6: Render story scenes with optional highlighting
