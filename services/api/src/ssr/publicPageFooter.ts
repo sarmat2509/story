@@ -36,7 +36,7 @@ export const PUBLIC_HEADER_STYLES = `
 .site-header.site-header-scrolled{border-bottom-color:rgba(148,163,184,.28);background:rgba(255,255,255,.7);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 10px 30px rgba(15,23,42,.06)}
 .site-header-inner{width:min(100%,1180px);margin:0 auto;padding:14px clamp(16px,4vw,24px);display:flex;align-items:center;justify-content:space-between;gap:20px}
 .site-header-brand{display:inline-flex;align-items:center;gap:10px;color:#172033;text-decoration:none;font-size:18px;font-weight:900;line-height:1}
-.site-header-brand img{width:40px;height:40px;border-radius:12px;display:block;object-fit:cover;box-shadow:0 12px 24px rgba(18,27,44,.14)}
+.site-header-brand img{width:46px;height:46px;border-radius:14px;display:block;object-fit:cover;box-shadow:0 14px 28px rgba(18,27,44,.15)}
 .site-header-menu-toggle{display:none}
 .site-header-nav{display:flex;align-items:center;justify-content:flex-end;gap:18px;color:#475569;font-size:14px;font-weight:750}
 .site-header-nav a{color:inherit;text-decoration:none;border-radius:999px;padding:7px 10px;margin:-7px -10px}
@@ -189,7 +189,7 @@ export function renderPublicPageHeader(
     <header class="site-header" data-site-header>
       <div class="site-header-inner">
         <a class="site-header-brand" href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicLandingPath(normalizedLocale)))}" aria-label="WonderTales">
-          <img src="/icon-192.png" alt="" width="40" height="40" />
+          <img src="/icon-192.png" alt="" width="46" height="46" />
           <span>WonderTales</span>
         </a>
         <button class="site-header-menu-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-header-mobile-nav" data-site-header-menu-toggle>
