@@ -39,7 +39,7 @@ export const PUBLIC_HEADER_STYLES = `
 .site-header-brand img{width:46px;height:46px;border-radius:14px;display:block;object-fit:cover;box-shadow:0 14px 28px rgba(18,27,44,.15)}
 .site-header-menu-toggle{display:none}
 .site-header-nav{display:flex;align-items:center;justify-content:flex-end;gap:18px;color:#475569;font-size:14px;font-weight:750}
-.site-header-nav a{color:inherit;text-decoration:none;border-radius:999px;padding:7px 10px;margin:-7px -10px}
+.site-header-nav a{color:inherit;text-decoration:none;border-radius:999px;padding:12px 18px;margin:-12px -18px}
 .site-header-nav a:hover{color:#6d5bd0;text-decoration:underline;text-underline-offset:4px}
 .site-header-nav a.active{color:#6d5bd0;background:rgba(109,91,208,.10);text-decoration:none}
 .site-header-mobile-nav{display:none}
