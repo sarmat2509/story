@@ -16,12 +16,13 @@ import {
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import {
   PUBLIC_FOOTER_STYLES,
+  PUBLIC_HEADER_STYLES,
   buildPublicFooterLanguageLinks,
+  renderPublicPageHeader,
   renderPublicPageFooter,
 } from './publicPageFooter';
 import { renderPricingStructuredData } from './publicStructuredData';
 import {
-  buildPublicLandingPath,
   buildPublicAppEntryPath,
   buildPublicPricingPath,
   buildPricingFaqItems,
@@ -36,13 +37,10 @@ import {
 
 const PRICING_STYLES = `
 *{box-sizing:border-box}
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#f5e6f0;color:#1e293b;line-height:1.6;overflow-x:hidden}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fffdfa;color:#1e293b;line-height:1.6;overflow-x:hidden}
 a{text-decoration:none}
-.page{min-height:100vh;background-color:#f5e6f0;background-image:url('/sparkles-overlay.webp');background-repeat:repeat;background-size:contain}
-.wrap{width:min(100%,1200px);margin:0 auto;padding:0 clamp(16px,4vw,24px) 72px}
-.nav{position:relative;display:flex;align-items:center;justify-content:center;gap:16px;padding:20px 0 24px}
-.brand{display:inline-flex;align-items:center;justify-content:center;color:#1e293b}
-.brand img{width:clamp(170px,22vw,250px);height:auto;display:block}
+.page{min-height:100vh;background-color:#fbf8ff;background-image:radial-gradient(circle at 8% 12%,rgba(255,121,82,.10),transparent 26%),radial-gradient(circle at 92% 8%,rgba(126,103,210,.13),transparent 28%),linear-gradient(180deg,#fffdfa 0%,#fbf8ff 100%);background-position:top center,top center,top center;background-size:100% 100vh,100% 100vh,100% 100vh;background-repeat:no-repeat,no-repeat,no-repeat}
+.wrap{width:min(100%,1200px);margin:0 auto;padding:32px clamp(16px,4vw,24px) 72px}
 .hero{text-align:center;margin:0 auto 36px;max-width:760px;padding:4px 0 0}
 .hero h1{margin:0 0 14px;font-size:clamp(32px,5vw,52px);font-weight:700;line-height:1.12;letter-spacing:0;color:#1e293b;text-wrap:balance}
 .hero p{margin:0 auto;font-size:clamp(16px,2.1vw,18px);line-height:1.6;color:#475569;max-width:680px;text-wrap:balance}
@@ -66,8 +64,8 @@ a{text-decoration:none}
 .feature-icon-disabled{background:#e2e8f0;color:#94a3b8}
 .feature-text{font-size:15px;line-height:1.55;color:#334155}
 .feature-text.disabled{color:#94a3b8}
-.btn{display:flex;align-items:center;justify-content:center;min-height:46px;margin-top:24px;padding:0 18px;border-radius:999px;background:#8b7cb8;color:#fff;font-size:15px;font-weight:700;box-shadow:0 8px 20px rgba(139,124,184,.22)}
-.btn:hover{background:#7a6ba8}
+.btn{display:flex;align-items:center;justify-content:center;min-height:46px;margin-top:24px;padding:0 18px;border-radius:999px;background:#8b7cb8;color:#fff;font-size:15px;font-weight:700;box-shadow:0 8px 20px rgba(139,124,184,.22);transition:transform .18s ease,background .18s ease,box-shadow .18s ease}
+.btn:hover{background:#7a6ba8;transform:translateY(-1px);box-shadow:0 12px 26px rgba(139,124,184,.26)}
 .btn-disabled{display:flex;align-items:center;justify-content:center;min-height:46px;margin-top:24px;padding:0 18px;border-radius:999px;background:rgba(255,255,255,.62);border:1px solid rgba(148,163,184,.36);color:#64748b;font-size:15px;font-weight:700}
 .pricing-faq{max-width:920px;margin:36px auto 0;display:grid;gap:12px}
 .pricing-faq h2{margin:0 0 4px;text-align:center;font-size:22px;line-height:1.2;color:#1e293b;letter-spacing:0}
@@ -79,7 +77,8 @@ a{text-decoration:none}
 .pricing-faq summary:focus-visible{outline:3px solid rgba(139,124,184,.35);outline-offset:3px;border-radius:10px}
 .pricing-faq p{margin:0;padding:0 18px 16px;font-size:15px;line-height:1.6;color:#475569}
 @media (max-width: 1180px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width: 760px){.wrap{padding:0 16px 56px}.nav{justify-content:center;padding:14px 0 20px}.currency-toggle{width:100%;max-width:280px}.currency-toggle a{flex:1;min-width:0}.grid{grid-template-columns:1fr;gap:16px}.card{padding:20px;border-radius:12px}.desc{min-height:0}}
+@media (max-width: 760px){.wrap{padding:28px 16px 56px}.currency-toggle{width:100%;max-width:280px}.currency-toggle a{flex:1;min-width:0}.grid{grid-template-columns:1fr;gap:16px}.card{padding:20px;border-radius:12px}.desc{min-height:0}}
+${PUBLIC_HEADER_STYLES}
 ${PUBLIC_FOOTER_STYLES}
 `;
 
@@ -99,12 +98,6 @@ function getPricingPath(locale?: string | null): string {
 function getPricingUrl(webAppUrl: string, locale?: string | null): string {
   const base = webAppUrl.replace(/\/$/, '');
   const path = getPricingPath(locale);
-  return base ? `${base}${path}` : path;
-}
-
-function getLandingUrl(webAppUrl: string, locale?: string | null): string {
-  const base = webAppUrl.replace(/\/$/, '');
-  const path = buildPublicLandingPath(locale);
   return base ? `${base}${path}` : path;
 }
 
@@ -328,12 +321,8 @@ export function renderPricingHtml(params: {
 </head>
 <body>
   <div class="page">
+    ${renderPublicPageHeader(webAppUrl, locale, 'pricing')}
     <div class="wrap">
-      <nav class="nav">
-        <a class="brand" href="${escapeHtml(getLandingUrl(webAppUrl, locale))}" aria-label="WonderTales">
-          <img src="/logo.webp" alt="WonderTales" width="220" height="44" />
-        </a>
-      </nav>
       <header class="hero">
         <h1>${escapeHtml(title)}</h1>
         <p>${escapeHtml(subtitle)}</p>
@@ -381,7 +370,7 @@ export function renderPricingHtml(params: {
         </details>`).join('')}
       </section>
     </div>
-    ${renderPublicPageFooter(webAppUrl, locale, buildPublicFooterLanguageLinks(webAppUrl, buildPublicPricingPath))}
+    ${renderPublicPageFooter(webAppUrl, locale, buildPublicFooterLanguageLinks(webAppUrl, buildPublicPricingPath), 'pricing')}
   </div>
 </body>
 </html>`;

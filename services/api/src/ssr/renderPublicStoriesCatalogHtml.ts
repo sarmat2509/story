@@ -2,8 +2,6 @@ import { escapeHtml, getReadingTimeMinutes } from '@wondertales/shared';
 import {
   PUBLIC_SEO_LOCALES,
   buildAbsoluteRouteUrl,
-  buildPublicLandingPath,
-  buildPublicPricingPath,
   buildPublicStoriesPath,
   normalizePublicSeoLocale,
   type PublicSeoLocale,
@@ -14,7 +12,9 @@ import { formatLandingAgeGroup, formatLandingDuration } from './landingContent';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import {
   PUBLIC_FOOTER_STYLES,
+  PUBLIC_HEADER_STYLES,
   buildPublicFooterLanguageLinks,
+  renderPublicPageHeader,
   renderPublicPageFooter,
 } from './publicPageFooter';
 import { getVersionedWebBundleUrl } from './webBundleUrl';
@@ -156,9 +156,6 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,
 #root{min-height:100vh;display:flex;flex-direction:column}
 a{color:inherit;text-decoration:none}
 .page{width:100%;max-width:1180px;margin:0 auto;padding:28px 20px 56px;flex:1 0 auto}
-.topnav{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:36px}
-.brand{font-weight:800;color:#6d5bd0;font-size:19px}
-.navlinks{display:flex;gap:18px;color:#475569;font-weight:600;font-size:14px}
 .hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;margin-bottom:28px}
 .eyebrow{margin:0 0 8px;color:#6d5bd0;font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
 h1{font-size:42px;line-height:1.08;margin:0 0 14px;letter-spacing:0}
@@ -178,11 +175,13 @@ h1{font-size:42px;line-height:1.08;margin:0 0 14px;letter-spacing:0}
 .author{margin:0;color:#475569;font-size:14px}
 .author a{text-decoration:underline;text-underline-offset:3px}
 .excerpt{margin:0;color:#475569;font-size:14px;line-height:1.6}
-.read{margin-top:auto;color:#5b4bc4;font-weight:800;font-size:14px}
+.read{display:inline-flex;margin-top:auto;color:#5b4bc4;font-weight:800;font-size:14px;transition:transform .18s ease,color .18s ease}
+.read:hover{color:#463bb1;transform:translateY(-1px)}
 .empty{background:#fff;border:1px solid #dbe3ef;border-radius:8px;padding:30px;text-align:center;color:#475569}
 .empty h2{margin:0 0 8px;color:#172033}
 @media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}h1{font-size:34px}.hero{grid-template-columns:1fr}.count{justify-self:start}}
-@media(max-width:560px){.page{padding:22px 16px 44px}.grid{grid-template-columns:1fr}.topnav{align-items:flex-start}.navlinks{flex-direction:column;gap:8px}h1{font-size:30px}}
+@media(max-width:560px){.page{padding:22px 16px 44px}.grid{grid-template-columns:1fr}h1{font-size:30px}}
+${PUBLIC_HEADER_STYLES}
 ${PUBLIC_FOOTER_STYLES}
 `;
 
@@ -308,8 +307,6 @@ export function renderPublicStoriesCatalogHtml(params: {
   const fullWebBundleUrl = webBundleUrl.startsWith('http')
     ? webBundleUrl
     : `${webAppUrl}${webBundleUrl.startsWith('/') ? '' : '/'}${webBundleUrl}`;
-  const landingUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicLandingPath(locale));
-  const pricingUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicPricingPath(locale));
   const initialCatalogJson = JSON.stringify({
     stories: buildInitialCatalogStories(params.stories),
     pagination: { limit: params.stories.length, offset: 0, total: params.total },
@@ -345,14 +342,8 @@ export function renderPublicStoriesCatalogHtml(params: {
 </head>
 <body>
   <div id="root">
+    ${renderPublicPageHeader(webAppUrl, locale, 'stories')}
     <main class="page">
-      <nav class="topnav" aria-label="WonderTales">
-        <a class="brand" href="${escapeHtml(landingUrl)}">WonderTales</a>
-        <div class="navlinks">
-          <a href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath(locale)))}">${escapeHtml(copy.navStories)}</a>
-          <a href="${escapeHtml(pricingUrl)}">${escapeHtml(copy.navPricing)}</a>
-        </div>
-      </nav>
       <section class="hero">
         <div>
           <p class="eyebrow">${escapeHtml(copy.eyebrow)}</p>
@@ -367,7 +358,7 @@ export function renderPublicStoriesCatalogHtml(params: {
           : `<section class="empty"><h2>${escapeHtml(copy.emptyTitle)}</h2><p>${escapeHtml(copy.emptyBody)}</p></section>`
       }
     </main>
-    ${renderPublicPageFooter(webAppUrl, locale, buildPublicFooterLanguageLinks(webAppUrl, buildPublicStoriesPath))}
+    ${renderPublicPageFooter(webAppUrl, locale, buildPublicFooterLanguageLinks(webAppUrl, buildPublicStoriesPath), 'stories')}
   </div>
   <script>window.__INITIAL_STORIES__ = ${initialCatalogJson};</script>
   <script src="${escapeHtml(fullWebBundleUrl)}" defer></script>

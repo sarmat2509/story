@@ -37,6 +37,8 @@ assert.match(ukHtml, /<link rel="manifest" href="\/manifest\.json">/);
 assert.match(ukHtml, /href="https:\/\/app\.wondertales\.com\/stories\/moonlit-garden"/);
 assert.match(ukHtml, /href="https:\/\/app\.wondertales\.com\/authors\/11111111-1111-4111-8111-111111111111"/);
 assert.match(ukHtml, /class="site-footer-language"/);
+assert.match(ukHtml, /\.read\{[^}]*transition:transform \.18s ease/);
+assert.match(ukHtml, /\.read:hover\{[^}]*transform:translateY\(-1px\)/);
 assert.match(ukHtml, /<option value="https:\/\/app\.wondertales\.com\/stories">English<\/option>/);
 assert.match(ukHtml, /<option value="https:\/\/app\.wondertales\.com\/uk\/stories" selected>Українська<\/option>/);
 assert.match(ukHtml, /window\.__INITIAL_STORIES__/);

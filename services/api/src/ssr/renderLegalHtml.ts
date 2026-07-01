@@ -9,7 +9,6 @@ import { marked } from 'marked';
 import {
   buildAbsoluteRouteUrl,
   DEFAULT_PUBLIC_SEO_LOCALE,
-  buildPublicLandingPath,
   buildPublicLegalPath,
   PUBLIC_SEO_LOCALES,
   type PublicSeoLocale,
@@ -18,7 +17,9 @@ import { config } from '../config';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import {
   PUBLIC_FOOTER_STYLES,
+  PUBLIC_HEADER_STYLES,
   buildPublicFooterLanguageLinks,
+  renderPublicPageHeader,
   renderPublicPageFooter,
 } from './publicPageFooter';
 
@@ -37,12 +38,6 @@ const LEGAL_STYLES = `
 *{box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;margin:0;padding:0;line-height:1.6;color:#1e293b;background:#f8fafc}
 .legal-wrapper{min-height:100vh;display:flex;flex-direction:column}
-.legal-header{background:#fff;border-bottom:1px solid #e2e8f0;padding:16px 24px}
-.legal-header-inner{max-width:800px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
-.legal-brand{font-size:18px;font-weight:600;color:#1e293b;text-decoration:none}
-.legal-brand:hover{color:#0ea5e9}
-.legal-back{font-size:14px;color:#64748b;text-decoration:none}
-.legal-back:hover{color:#0ea5e9}
 .legal-content{flex:1;max-width:800px;margin:0 auto;padding:32px 24px 64px;width:100%}
 .legal-content h1{font-size:28px;font-weight:700;color:#1e293b;margin:0 0 24px}
 .legal-content h2{font-size:20px;font-weight:600;color:#1e293b;margin:32px 0 16px}
@@ -51,6 +46,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .legal-content li{margin-bottom:8px}
 .legal-content a{color:#0ea5e9;text-decoration:none}
 .legal-content a:hover{text-decoration:underline}
+${PUBLIC_HEADER_STYLES}
 ${PUBLIC_FOOTER_STYLES}
 `;
 
@@ -165,11 +161,11 @@ export async function renderLegalHtml(options: RenderLegalOptions): Promise<stri
   const resolvedLocale = resolveLegalLocale(locale);
   const copy = LEGAL_COPY[resolvedLocale];
   const webAppUrl = (config.web?.webAppUrl || '').replace(/\/$/, '') || '';
-  const landingUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicLandingPath(resolvedLocale));
   const legalUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath(doc, resolvedLocale));
 
   const markdown = await loadMarkdown(doc, resolvedLocale);
   const bodyHtml = (await marked.parse(markdown)) as string;
+  const currentPage = doc === 'terms' ? 'terms' : 'privacy';
 
   const title = doc === 'terms' ? copy.termsTitle : copy.privacyTitle;
   const description = doc === 'terms' ? copy.termsDescription : copy.privacyDescription;
@@ -189,19 +185,15 @@ export async function renderLegalHtml(options: RenderLegalOptions): Promise<stri
 </head>
 <body>
   <div class="legal-wrapper">
-    <header class="legal-header">
-      <div class="legal-header-inner">
-        <a href="${escapeHtml(landingUrl)}" class="legal-brand">WonderTales</a>
-        <a href="${escapeHtml(landingUrl)}" class="legal-back">${escapeHtml(copy.backToSite)}</a>
-      </div>
-    </header>
+    ${renderPublicPageHeader(webAppUrl, resolvedLocale, currentPage)}
     <main class="legal-content">
       ${bodyHtml}
     </main>
     ${renderPublicPageFooter(
       webAppUrl,
       resolvedLocale,
-      buildLegalFooterLanguageLinks(webAppUrl, doc)
+      buildLegalFooterLanguageLinks(webAppUrl, doc),
+      currentPage
     )}
   </div>
 </body>

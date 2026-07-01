@@ -7,8 +7,6 @@ import {
   buildPublicBlogArticlePath,
   buildPublicBlogIndexPath,
   buildPublicLandingPath,
-  buildPublicPricingPath,
-  buildPublicStoriesPath,
   escapeHtml,
   normalizePublicSeoLocale,
   type PublicSeoLocale,
@@ -17,7 +15,9 @@ import { config } from '../config';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import {
   PUBLIC_FOOTER_STYLES,
+  PUBLIC_HEADER_STYLES,
   buildPublicFooterLanguageLinks,
+  renderPublicPageHeader,
   renderPublicPageFooter,
 } from './publicPageFooter';
 import {
@@ -29,7 +29,6 @@ import {
   type BlogArticleView,
 } from './blogContent';
 
-const BLOG_BRAND_ICON_PATH = '/icon-192.png';
 const BLOG_STRUCTURED_DATA_LOGO_PATH = '/icon-512.png';
 
 const BLOG_INDEX_COPY: Record<PublicSeoLocale, {
@@ -348,14 +347,8 @@ const BLOG_STYLES = `
 html,body{min-height:100%}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#fffdfa;color:#17122d;line-height:1.55}
 a{color:inherit}
-.blog-page{min-height:100vh;display:flex;flex-direction:column;background:radial-gradient(circle at 8% 12%,rgba(255,121,82,.10),transparent 26%),radial-gradient(circle at 92% 8%,rgba(126,103,210,.13),transparent 28%),linear-gradient(180deg,#fffdfa 0%,#fbf8ff 100%)}
+.blog-page{min-height:100vh;display:flex;flex-direction:column;background-color:#fbf8ff;background-image:radial-gradient(circle at 8% 12%,rgba(255,121,82,.10),transparent 26%),radial-gradient(circle at 92% 8%,rgba(126,103,210,.13),transparent 28%),linear-gradient(180deg,#fffdfa 0%,#fbf8ff 100%);background-position:top center,top center,top center;background-size:100% 100vh,100% 100vh,100% 100vh;background-repeat:no-repeat,no-repeat,no-repeat}
 .blog-wrap{width:100%;max-width:1180px;margin:0 auto;padding:28px 24px 72px;flex:1}
-.blog-nav{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:34px}
-.blog-brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none;font-size:20px;font-weight:900;color:#17122d}
-.blog-brand-mark{width:40px;height:40px;border-radius:14px;display:block;object-fit:cover;box-shadow:0 14px 28px rgba(7,26,53,.24)}
-.blog-nav-links{display:flex;align-items:center;gap:18px;color:#5e577a;font-size:14px;font-weight:750}
-.blog-nav-links a{text-decoration:none}
-.blog-nav-links a:hover{color:#7d67d2}
 .blog-hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(320px,.95fr);gap:34px;align-items:center;margin:12px 0 44px}
 .blog-hero-copy{padding:34px 0}
 .eyebrow{display:inline-flex;align-items:center;gap:8px;margin:0 0 16px;padding:8px 12px;border-radius:999px;background:#f3eefc;color:#6c57c7;font-size:13px;font-weight:850}
@@ -374,7 +367,8 @@ h1{margin:0 0 18px;font-size:58px;line-height:1.02;letter-spacing:0;color:#17122
 .article-read-time svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .article-card h2{margin:0;color:#17122d;font-size:24px;line-height:1.16;letter-spacing:0}
 .article-card p{margin:0;color:#655f7d;font-size:15px;line-height:1.6}
-.article-read{margin-top:auto;color:#d96445;font-weight:850}
+.article-read{display:inline-flex;margin-top:auto;color:#d96445;font-weight:850;transition:transform .18s ease,color .18s ease}
+.article-card:hover .article-read{transform:translateY(-1px);color:#c55338}
 .post-shell{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:36px;align-items:start}
 .post-main{min-width:0}
 .post-card{background:#fff;border-radius:34px;padding:38px;box-shadow:0 26px 70px rgba(31,24,67,.10);border:1px solid rgba(125,103,210,.12)}
@@ -422,8 +416,8 @@ h1{margin:0 0 18px;font-size:58px;line-height:1.02;letter-spacing:0;color:#17122
 .checklist h2 a{color:inherit;text-decoration:none}
 .checklist h2 a:hover{color:#6c57c7}
 .checklist ul{margin:0;padding-left:22px}
-.checklist-cta{display:inline-flex;align-items:center;justify-content:center;margin-top:20px;padding:12px 18px;border-radius:999px;background:#7d67d2;color:#fff;text-decoration:none;font-weight:850;box-shadow:0 16px 32px rgba(125,103,210,.22)}
-.checklist-cta:hover{background:#6c57c7}
+.checklist-cta{display:inline-flex;align-items:center;justify-content:center;margin-top:20px;padding:12px 18px;border-radius:999px;background:#7d67d2;color:#fff;text-decoration:none;font-weight:850;box-shadow:0 16px 32px rgba(125,103,210,.22);transition:transform .18s ease,background .18s ease,box-shadow .18s ease}
+.checklist-cta:hover{background:#6c57c7;transform:translateY(-1px);box-shadow:0 20px 38px rgba(125,103,210,.26)}
 .post-aside{position:sticky;top:28px;background:#fff;border-radius:30px;padding:24px;box-shadow:0 22px 56px rgba(31,24,67,.10);border:1px solid rgba(125,103,210,.14)}
 .post-aside h2{margin:0 0 14px;font-size:22px}
 .post-aside p{margin:0 0 18px;color:#5e577a}
@@ -432,7 +426,8 @@ h1{margin:0 0 18px;font-size:58px;line-height:1.02;letter-spacing:0;color:#17122
 .aside-link strong{display:block;font-size:14px;line-height:1.25}
 .back-link{display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;text-decoration:none;color:#6c57c7;font-weight:850}
 @media(max-width:980px){h1{font-size:44px}.blog-hero,.post-shell{grid-template-columns:1fr}.post-aside{position:static}.article-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.insight-grid{grid-template-columns:1fr}.step-list{grid-template-columns:1fr}}
-@media(max-width:620px){.blog-wrap{padding:22px 16px 52px}.blog-nav{align-items:flex-start}.blog-nav-links{flex-direction:column;align-items:flex-end;gap:8px}h1{font-size:36px}.lead{font-size:18px}.article-grid{grid-template-columns:1fr}.post-card{padding:24px;border-radius:26px}.post-hero{margin:24px 0;border-radius:24px}.post-inline-image{margin:32px 0 28px}.post-inline-image img{border-radius:22px}.post-inline-image figcaption{margin:14px 0 0}.post-section h2,.decision-card h2{font-size:25px}.post-section p,.post-card li{font-size:16px}.quote-card{margin:30px -24px;padding:28px 24px 28px 72px}.quote-card:before{left:18px;top:10px;font-size:78px}.quote-card blockquote{font-size:23px}.step-block{padding:24px;border-radius:26px}.step-block h2{font-size:28px}.decision-card{padding:22px}}
+@media(max-width:620px){.blog-wrap{padding:22px 16px 52px}h1{font-size:36px}.lead{font-size:18px}.article-grid{grid-template-columns:1fr}.post-card{padding:24px;border-radius:26px}.post-hero{margin:24px 0;border-radius:24px}.post-inline-image{margin:32px 0 28px}.post-inline-image img{border-radius:22px}.post-inline-image figcaption{margin:14px 0 0}.post-section h2,.decision-card h2{font-size:25px}.post-section p,.post-card li{font-size:16px}.quote-card{margin:30px -24px;padding:28px 24px 28px 72px}.quote-card:before{left:18px;top:10px;font-size:78px}.quote-card blockquote{font-size:23px}.step-block{padding:24px;border-radius:26px}.step-block h2{font-size:28px}.decision-card{padding:22px}}
+${PUBLIC_HEADER_STYLES}
 ${PUBLIC_FOOTER_STYLES}
 `;
 
@@ -505,19 +500,6 @@ function estimateWordCount(article: BlogArticleView): number {
     article.quote.text,
   ].join(' ');
   return text.trim().split(/\s+/).filter(Boolean).length;
-}
-
-function renderTopNav(webAppUrl: string, locale: PublicSeoLocale, nav: { navStories: string; navPricing: string }): string {
-  return `<nav class="blog-nav" aria-label="Blog navigation">
-    <a class="blog-brand" href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicLandingPath(locale)))}">
-      <img class="blog-brand-mark" src="${escapeHtml(BLOG_BRAND_ICON_PATH)}" alt="" width="40" height="40" />
-      <span>WonderTales</span>
-    </a>
-    <div class="blog-nav-links">
-      <a href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath(locale)))}">${escapeHtml(nav.navStories)}</a>
-      <a href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicPricingPath(locale)))}">${escapeHtml(nav.navPricing)}</a>
-    </div>
-  </nav>`;
 }
 
 function renderAlternateLinks(webAppUrl: string, currentLocale: PublicSeoLocale, buildPath: (locale: PublicSeoLocale) => string): string {
@@ -755,8 +737,8 @@ export function renderBlogIndexHtml(options: { locale?: string | null } = {}): s
 </head>
 <body>
   <div class="blog-page">
+    ${renderPublicPageHeader(webAppUrl, locale, 'blog')}
     <main class="blog-wrap">
-      ${renderTopNav(webAppUrl, locale, copy)}
       <section class="blog-hero">
         <div class="blog-hero-copy">
           <p class="eyebrow">${escapeHtml(copy.eyebrow)}</p>
@@ -771,7 +753,7 @@ export function renderBlogIndexHtml(options: { locale?: string | null } = {}): s
         ${articles.map((article) => renderArticleCard(article, webAppUrl, copy.readMore)).join('')}
       </section>
     </main>
-    ${renderPublicPageFooter(webAppUrl, locale, buildPublicFooterLanguageLinks(webAppUrl, buildPublicBlogIndexPath))}
+    ${renderPublicPageFooter(webAppUrl, locale, buildPublicFooterLanguageLinks(webAppUrl, buildPublicBlogIndexPath), 'blog')}
   </div>
 </body>
 </html>`;
@@ -914,8 +896,8 @@ export function renderBlogArticleHtml(options: { slug: string; locale?: string |
 </head>
 <body>
   <div class="blog-page">
+    ${renderPublicPageHeader(webAppUrl, locale, 'blog')}
     <main class="blog-wrap">
-      ${renderTopNav(webAppUrl, locale, copy)}
       <a class="back-link" href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicBlogIndexPath(locale)))}">← ${escapeHtml(copy.backToBlog)}</a>
       <div class="post-shell">
         <article class="post-main post-card">
@@ -941,7 +923,7 @@ export function renderBlogArticleHtml(options: { slug: string; locale?: string |
         ${renderRelatedArticles(article, webAppUrl, copy)}
       </div>
     </main>
-    ${renderPublicPageFooter(webAppUrl, locale, buildPublicFooterLanguageLinks(webAppUrl, (altLocale) => buildPublicBlogArticlePath(article.slug, altLocale)))}
+    ${renderPublicPageFooter(webAppUrl, locale, buildPublicFooterLanguageLinks(webAppUrl, (altLocale) => buildPublicBlogArticlePath(article.slug, altLocale)), 'blog')}
   </div>
 </body>
 </html>`;

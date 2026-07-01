@@ -43,6 +43,10 @@ for (const locale of PUBLIC_SEO_LOCALES) {
   assert.match(indexHtml, /class="article-read-time"/);
   assert.match(indexHtml, />7 min<\/span>/);
   assert.match(indexHtml, /hreflang="x-default"/);
+  assert.match(indexHtml, /background-size:100% 100vh,100% 100vh,100% 100vh/);
+  assert.match(indexHtml, /background-repeat:no-repeat,no-repeat,no-repeat/);
+  assert.match(indexHtml, /\.article-read\{[^}]*transition:transform \.18s ease/);
+  assert.match(indexHtml, /\.article-card:hover \.article-read\{[^}]*transform:translateY\(-1px\)/);
 
   const articleHtml = renderBlogArticleHtml({ locale, slug: 'adhd-story-attention' });
   const article = getBlogArticle('adhd-story-attention', locale);
@@ -78,6 +82,8 @@ for (const locale of PUBLIC_SEO_LOCALES) {
   assert.match(articleHtml, hrefForPath(buildPublicBlogArticlePath('adhd-story-attention', locale)));
   assert.match(articleHtml, hrefForPath(buildPublicAppEntryPath(APP_ROUTE_PATHS.wizard, locale)));
   assert.match(articleHtml, /hreflang="x-default"/);
+  assert.match(articleHtml, /\.checklist-cta\{[^}]*transition:transform \.18s ease/);
+  assert.match(articleHtml, /\.checklist-cta:hover\{[^}]*transform:translateY\(-1px\)/);
 }
 
 const safeScaryHtml = renderBlogArticleHtml({ locale: 'uk', slug: 'safe-scary-stories' });

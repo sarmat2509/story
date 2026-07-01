@@ -1,7 +1,5 @@
 import {
   buildAbsoluteRouteUrl,
-  buildPublicLandingPath,
-  buildPublicPricingPath,
   buildPublicSupportPath,
   normalizePublicSeoLocale,
   type PublicSeoLocale,
@@ -10,7 +8,9 @@ import { config } from '../config';
 import { PUBLIC_HEAD_ASSET_LINKS } from './publicHeadAssets';
 import {
   PUBLIC_FOOTER_STYLES,
+  PUBLIC_HEADER_STYLES,
   buildPublicFooterLanguageLinks,
+  renderPublicPageHeader,
   renderPublicPageFooter,
 } from './publicPageFooter';
 
@@ -19,19 +19,16 @@ const SUPPORT_STYLES = `
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#f8fafc;color:#1e293b;line-height:1.6}
 .support-page{min-height:100vh;display:flex;flex-direction:column}
 .support-wrap{width:100%;max-width:820px;margin:0 auto;padding:32px 24px 56px;flex:1}
-.support-nav{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:48px}
-.support-brand{font-size:20px;font-weight:800;color:#111827;text-decoration:none}
-.support-nav a{color:#64748b;text-decoration:none;font-size:14px;font-weight:600}
-.support-nav a:hover{color:#0ea5e9;text-decoration:underline}
 .support-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:32px;box-shadow:0 18px 40px rgba(15,23,42,.06)}
 .support-card h1{margin:0 0 12px;font-size:36px;line-height:1.1;color:#0f172a}
 .support-card p{margin:0 0 18px;color:#475569}
 .support-card h2{margin:32px 0 12px;font-size:20px;color:#0f172a}
 .support-list{margin:0 0 24px;padding-left:22px;color:#475569}
 .support-list li{margin-bottom:8px}
-.support-email{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 18px;border-radius:999px;background:#111827;color:#fff;text-decoration:none;font-weight:700}
-.support-email:hover{opacity:.92}
+.support-email{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 18px;border-radius:999px;background:#111827;color:#fff;text-decoration:none;font-weight:700;box-shadow:0 10px 24px rgba(15,23,42,.16);transition:transform .18s ease,opacity .18s ease,box-shadow .18s ease}
+.support-email:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 14px 30px rgba(15,23,42,.20)}
 .support-small{font-size:14px;color:#64748b}
+${PUBLIC_HEADER_STYLES}
 ${PUBLIC_FOOTER_STYLES}
 `;
 
@@ -232,11 +229,8 @@ export function renderSupportHtml(options: RenderSupportHtmlOptions = {}): strin
 </head>
 <body>
   <div class="support-page">
+    ${renderPublicPageHeader(webAppUrl, resolvedLocale, 'support')}
     <main class="support-wrap">
-      <nav class="support-nav" aria-label="Support navigation">
-        <a class="support-brand" href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicLandingPath(resolvedLocale)))}">WonderTales</a>
-        <a href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicPricingPath(resolvedLocale)))}">${escapeHtml(copy.pricingLabel)}</a>
-      </nav>
       <section class="support-card">
         <h1>${escapeHtml(copy.h1)}</h1>
         <p>${escapeHtml(copy.intro)}</p>
@@ -262,7 +256,8 @@ export function renderSupportHtml(options: RenderSupportHtmlOptions = {}): strin
     ${renderPublicPageFooter(
       webAppUrl,
       resolvedLocale,
-      languageLinks
+      languageLinks,
+      'support'
     )}
   </div>
 </body>

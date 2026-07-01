@@ -13,6 +13,8 @@ for (const locale of PUBLIC_TRANSLATION_LOCALES) {
 }
 assert.match(enHtml, /hreflang="x-default" href="https:\/\/app\.wondertales\.com\/support"/);
 assert.match(enHtml, /Contact WonderTales support/);
+assert.match(enHtml, /\.support-email\{[^}]*transition:transform \.18s ease/);
+assert.match(enHtml, /\.support-email:hover\{[^}]*transform:translateY\(-1px\)/);
 assert.match(enHtml, /<option value="https:\/\/app\.wondertales\.com\/support" selected>English<\/option>/);
 assert.match(enHtml, /<option value="https:\/\/app\.wondertales\.com\/de\/support">Deutsch<\/option>/);
 

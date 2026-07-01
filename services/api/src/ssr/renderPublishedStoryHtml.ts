@@ -36,8 +36,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 /* meta.marginBottom(16) + header.marginBottom(24) from React = 40px total */
 .meta{font-size:14px;color:#64748b;margin-bottom:40px}
 .author-link{color:#475569;text-decoration:underline;text-underline-offset:3px}
-.report-action{display:inline-flex;align-items:center;margin:-24px 0 24px;padding:8px 12px;border:1px solid #fecaca;border-radius:999px;background:#fff1f2;color:#be123c;font-size:13px;font-weight:700;text-decoration:none}
-.report-action:hover{background:#ffe4e6}
+.report-action{display:inline-flex;align-items:center;margin:-24px 0 24px;padding:8px 12px;border:1px solid #fecaca;border-radius:999px;background:#fff1f2;color:#be123c;font-size:13px;font-weight:700;text-decoration:none;transition:transform .18s ease,background .18s ease,border-color .18s ease}
+.report-action:hover{background:#ffe4e6;transform:translateY(-1px)}
 
 /* ── Scenes ── */
 .scene{margin-bottom:24px}

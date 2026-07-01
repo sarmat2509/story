@@ -30,8 +30,19 @@ void (async function main() {
     /<meta name="robots" content="index,follow">/,
     'published story SSR remains indexable by default'
   );
+  const staticHtml = renderPublishedStoryHtml({ story, useStaticBody: true });
   assert.match(
-    renderPublishedStoryHtml({ story, useStaticBody: true }),
+    staticHtml,
+    /\.report-action\{[^}]*transition:transform \.18s ease/,
+    'report action should transition the hover lift'
+  );
+  assert.match(
+    staticHtml,
+    /\.report-action:hover\{[^}]*transform:translateY\(-1px\)/,
+    'report action should use the shared hover lift'
+  );
+  assert.match(
+    staticHtml,
     /href="[^"]+\/authors\/author-1"/,
     'published story SSR links public author pages when author id is present'
   );

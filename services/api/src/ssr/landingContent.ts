@@ -135,7 +135,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       subheadline:
         'Створюйте персоналізовані історії з красивими ілюстраціями, озвученням і текстом для читання — за хвилини, безпечно, з урахуванням віку.',
       imageAlt: 'Малюнок дитини перетворюється на ілюстрацію до казки',
-      cta: 'Створити першу історію →',
+      cta: 'Створити першу історію безкоштовно →',
     },
     trustChips: {
       safe: 'Безпечно для дітей',
@@ -391,7 +391,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       subheadline:
         'Создавайте персонализированные истории с красивыми иллюстрациями, озвучкой и текстом для чтения — за минуты, безопасно и с учетом возраста.',
       imageAlt: 'Рисунок ребенка превращается в иллюстрацию к сказке',
-      cta: 'Создать первую историю →',
+      cta: 'Создать первую историю бесплатно →',
     },
     trustChips: {
       safe: 'Безопасно для детей',
@@ -645,7 +645,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       subheadline:
         'Create personalized stories with beautiful illustrations, voice narration, and read-along text in minutes — safely and with age in mind.',
       imageAlt: 'A child’s drawing transforms into a story illustration',
-      cta: 'Create your first story →',
+      cta: 'Create your first story for free →',
     },
     trustChips: {
       safe: 'Safe for children',
@@ -899,7 +899,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       subheadline:
         'Crea historias personalizadas con ilustraciones preciosas, narración en voz y texto para seguir leyendo en pocos minutos, de forma segura y adaptada a la edad.',
       imageAlt: 'Un dibujo infantil se transforma en una ilustración de cuento',
-      cta: 'Crear la primera historia →',
+      cta: 'Crear la primera historia gratis →',
     },
     trustChips: {
       safe: 'Seguro para niños',
@@ -1153,7 +1153,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       subheadline:
         'Erstelle personalisierte Geschichten mit wunderschönen Illustrationen, Erzählstimme und Mitlesetext in wenigen Minuten — sicher und altersgerecht.',
       imageAlt: 'Eine Kinderzeichnung verwandelt sich in eine Märchenillustration',
-      cta: 'Erste Geschichte erstellen →',
+      cta: 'Erste Geschichte kostenlos erstellen →',
     },
     trustChips: {
       safe: 'Sicher für Kinder',
@@ -1407,7 +1407,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       subheadline:
         'Créez en quelques minutes des histoires personnalisées avec de belles illustrations, une narration audio et un texte à suivre, en toute sécurité et selon l’âge.',
       imageAlt: 'Un dessin d’enfant se transforme en illustration de conte',
-      cta: 'Créer la première histoire →',
+      cta: 'Créer la première histoire gratuitement →',
     },
     trustChips: {
       safe: 'Sûr pour les enfants',
@@ -1661,7 +1661,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
       subheadline:
         'Twórz spersonalizowane historie z pięknymi ilustracjami, narracją głosową i tekstem do wspólnego czytania w kilka minut — bezpiecznie i z uwzględnieniem wieku dziecka.',
       imageAlt: 'Rysunek dziecka zamienia się w ilustrację do bajki',
-      cta: 'Stwórz pierwszą historię →',
+      cta: 'Stwórz pierwszą historię za darmo →',
     },
     trustChips: {
       safe: 'Bezpieczne dla dzieci',

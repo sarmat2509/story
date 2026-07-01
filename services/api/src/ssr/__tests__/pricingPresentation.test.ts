@@ -118,6 +118,13 @@ void (async function main() {
   assert.doesNotMatch(html, /Story from drawing/);
   assert.doesNotMatch(html, /Image quality/);
   assert.match(html, /Pricing, plans &amp; bundles/);
+  assert.match(html, /background:#fffdfa/);
+  assert.match(html, /radial-gradient\(circle at 8% 12%,rgba\(255,121,82,.10\),transparent 26%\)/);
+  assert.match(html, /background-size:100% 100vh,100% 100vh,100% 100vh/);
+  assert.match(html, /background-repeat:no-repeat,no-repeat,no-repeat/);
+  assert.match(html, /\.btn\{[^}]*transition:transform \.18s ease/);
+  assert.match(html, /\.btn:hover\{[^}]*transform:translateY\(-1px\)/);
+  assert.doesNotMatch(html, /sparkles-overlay\.webp/);
   assert.doesNotMatch(html, /Billing details/);
   assert.match(html, /Bundles are available with an active paid subscription/);
   assert.match(html, /Can I buy more than one bundle/);
