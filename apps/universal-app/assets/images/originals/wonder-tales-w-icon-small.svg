@@ -48,6 +48,7 @@
   <g transform="translate(0 7)" fill="#21103F" stroke="#21103F" stroke-linejoin="round" opacity="0.62">
     <use href="#tracedPageLine" stroke-width="34"/>
     <use href="#tracedBookBase" stroke-width="38"/>
+    <use href="#smallDiamondStar" stroke-width="12"/>
   </g>
   <g fill="url(#markFill)" stroke="url(#markFill)" stroke-linejoin="round">
     <use href="#tracedPageLine" stroke-width="22"/>
