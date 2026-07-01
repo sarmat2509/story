@@ -56,8 +56,7 @@ a{text-decoration:none}
 .price{font-size:clamp(34px,4vw,40px);font-weight:800;line-height:1;letter-spacing:0;color:#1e293b}
 .period{font-size:15px;color:#64748b;padding-bottom:4px}
 .highlights{display:grid;gap:10px;margin-top:18px}
-.highlight{display:flex;align-items:center;gap:10px;padding:13px 15px;border-radius:12px;background:rgba(139,124,184,.12);border:1px solid rgba(139,124,184,.16);color:#5f4f94;font-size:14px;font-weight:700}
-.dot{width:9px;height:9px;border-radius:50%;background:#8b7cb8;flex:0 0 auto}
+.highlight{display:flex;align-items:center;justify-content:center;text-align:center;padding:13px 15px;border-radius:12px;background:rgba(139,124,184,.12);border:1px solid rgba(139,124,184,.16);color:#5f4f94;font-size:14px;font-weight:700}
 .features{display:grid;gap:12px;margin-top:22px;flex:1}
 .feature{display:flex;align-items:flex-start;gap:10px}
 .feature-icon{display:inline-flex;align-items:center;justify-content:center;width:20px;min-width:20px;height:20px;margin-top:1px;border-radius:50%;font-size:12px;line-height:1;color:#fff;background:#8b7cb8}
@@ -354,7 +353,7 @@ export function renderPricingHtml(params: {
               <div class="price">${escapeHtml(formatPricingPrice(locale, plan.priceMonthly, plan.pricingCurrency, plansI18n.free))}</div>
               ${plan.priceMonthly > 0 ? `<div class="period">/${escapeHtml(plansI18n.per_month)}</div>` : ''}
             </div>
-            ${usageHighlight ? `<div class="highlights"><div class="highlight"><span class="dot"></span><span>${escapeHtml(usageHighlight)}</span></div></div>` : ''}
+            ${usageHighlight ? `<div class="highlights"><div class="highlight"><span>${escapeHtml(usageHighlight)}</span></div></div>` : ''}
             <div class="features">${featureRows}</div>
             ${action}
           </article>`;
