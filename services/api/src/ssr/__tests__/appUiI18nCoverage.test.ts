@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
-import { APP_UI_LOCALES } from '@wondertales/shared';
+import { APP_UI_LOCALES, LOCALE_IDS } from '@wondertales/shared';
 import uk from '@wondertales/shared/i18n/uk.json';
 import en from '@wondertales/shared/i18n/en.json';
 import ru from '@wondertales/shared/i18n/ru.json';
+import es from '@wondertales/shared/i18n/es.json';
+import de from '@wondertales/shared/i18n/de.json';
+import fr from '@wondertales/shared/i18n/fr.json';
 import pl from '@wondertales/shared/i18n/pl.json';
 
 type TranslationTree = Record<string, unknown>;
 
-const resources: Record<string, TranslationTree> = { uk, en, ru, pl };
+const resources: Record<string, TranslationTree> = { uk, ru, en, es, de, fr, pl };
 
 function flattenKeys(value: unknown, prefix = '', output = new Set<string>()): Set<string> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -38,8 +41,8 @@ function valueAtPath(value: TranslationTree, keyPath: string): unknown {
 
 assert.deepEqual(
   [...APP_UI_LOCALES],
-  ['uk', 'en', 'ru', 'pl'],
-  'launch app UI locales should stay limited to locales with complete app translation coverage'
+  [...LOCALE_IDS],
+  'app UI locales should use the same locale list as the rest of the site'
 );
 
 const allKeys = new Set<string>();

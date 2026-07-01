@@ -1,6 +1,7 @@
 import {
   APP_UI_LOCALES,
   DEFAULT_LOCALE,
+  DEFAULT_PUBLIC_SEO_LOCALE,
   LOCALE_IDS,
   buildAbsoluteRouteUrl,
   buildPublicLegalPath,
@@ -33,7 +34,7 @@ function isLocalWebOrigin(origin: string): boolean {
 
 function buildSsrLegalPath(doc: PublicLegalDoc, locale?: string | null): string {
   const normalizedLocale = normalizePublicSeoLocale(locale);
-  return normalizedLocale === 'uk'
+  return normalizedLocale === DEFAULT_PUBLIC_SEO_LOCALE
     ? `/ssr/legal/${doc}`
     : `/ssr/legal/${doc}/${normalizedLocale}`;
 }

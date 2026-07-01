@@ -1,14 +1,14 @@
-import { DEFAULT_LOCALE } from '../config/languages';
+import { DEFAULT_LOCALE, LOCALE_IDS } from '../config/languages';
 
 export const DEFAULT_PUBLIC_SEO_LOCALE = 'en' as const;
 
-export const PUBLIC_TRANSLATION_LOCALES = ['en', 'uk', 'ru', 'es', 'de', 'fr', 'pl'] as const;
+export const PUBLIC_TRANSLATION_LOCALES = LOCALE_IDS;
 export type PublicSeoLocale = typeof PUBLIC_TRANSLATION_LOCALES[number];
 
-export const PUBLIC_SEO_LOCALES = ['en', 'uk'] as const satisfies readonly PublicSeoLocale[];
+export const PUBLIC_SEO_LOCALES = PUBLIC_TRANSLATION_LOCALES;
 export type IndexedPublicSeoLocale = typeof PUBLIC_SEO_LOCALES[number];
 
-export const APP_SUPPORTED_LOCALES = ['uk', 'ru', 'en', 'es', 'de', 'fr', 'pl'] as const;
+export const APP_SUPPORTED_LOCALES = PUBLIC_TRANSLATION_LOCALES;
 export type AppSupportedLocale = typeof APP_SUPPORTED_LOCALES[number];
 
 export type RouteOwner = 'api-ssr' | 'spa' | 'api';

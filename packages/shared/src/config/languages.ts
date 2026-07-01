@@ -61,12 +61,11 @@ export type Locale = keyof typeof SUPPORTED_LANGUAGES;
 export const LOCALE_IDS = Object.keys(SUPPORTED_LANGUAGES) as Locale[];
 
 /**
- * Launch-ready interface locales.
- *
- * Story/content generation can support every locale in LOCALE_IDS, but the
- * app UI should only expose locales with complete launch translation coverage.
+ * App/site interface locales. Keep this tied to LOCALE_IDS so public SEO pages,
+ * app routes, the language selector, and persisted preferences expose the same
+ * language set.
  */
-export const APP_UI_LOCALES = ['uk', 'en', 'ru', 'pl'] as const satisfies readonly Locale[];
+export const APP_UI_LOCALES = LOCALE_IDS;
 
 export type AppUiLocale = typeof APP_UI_LOCALES[number];
 

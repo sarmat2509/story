@@ -11,7 +11,10 @@ assert.equal(getPublicSeoLocaleOverrideFromPath('/blog/adhd-story-attention'), '
 assert.equal(getPublicSeoLocaleOverrideFromPath('/support'), 'en');
 assert.equal(getPublicSeoLocaleOverrideFromPath('/uk/'), 'uk');
 assert.equal(getPublicSeoLocaleOverrideFromPath('/uk/pricing'), 'uk');
-assert.equal(getPublicSeoLocaleOverrideFromPath('/ru/pricing'), null);
+assert.equal(getPublicSeoLocaleOverrideFromPath('/ru/pricing'), 'ru');
+assert.equal(getPublicSeoLocaleOverrideFromPath('/es/pricing'), 'es');
+assert.equal(getPublicSeoLocaleOverrideFromPath('/de/blog/adhd-story-attention'), 'de');
+assert.equal(getPublicSeoLocaleOverrideFromPath('/es/wizard'), null);
 assert.equal(getPublicSeoLocaleOverrideFromPath('/wizard'), null);
 assert.equal(getPublicSeoLocaleOverrideFromSearch('?locale=en'), 'en');
 assert.equal(getPublicSeoLocaleOverrideFromSearch('locale=uk'), 'uk');

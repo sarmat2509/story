@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { buildLandingAlternateLinks, PUBLIC_SEO_LOCALES } from '../landingContent';
 import { renderPricingHtml } from '../renderPricingHtml';
-import { buildPublicPricingPath } from '@wondertales/shared';
+import { PUBLIC_TRANSLATION_LOCALES, buildPublicPricingPath } from '@wondertales/shared';
 import { resolveLandingRouteLocale } from '../../routes/ssrLanding';
 import { resolvePricingRouteLocale } from '../../routes/ssrPricing';
 import { resolveLegalRouteLocale } from '../../routes/ssrLegal';
@@ -9,8 +9,8 @@ import { resolveSupportRouteLocale } from '../../routes/ssrSupport';
 
 assert.deepEqual(
   [...PUBLIC_SEO_LOCALES],
-  ['en', 'uk'],
-  'public SEO locales should cover the indexed English and Ukrainian surfaces'
+  [...PUBLIC_TRANSLATION_LOCALES],
+  'public SEO locales should cover every translated public surface'
 );
 
 const landingAlternates = buildLandingAlternateLinks('https://wondertales.art');
@@ -30,15 +30,11 @@ assert.equal(resolveLandingRouteLocale(undefined), 'en');
 assert.equal(resolvePricingRouteLocale(undefined), 'en');
 assert.equal(resolveLegalRouteLocale(undefined), 'en');
 assert.equal(resolveSupportRouteLocale(undefined), 'en');
-assert.equal(resolveLandingRouteLocale('en'), 'en');
-assert.equal(resolvePricingRouteLocale('en'), 'en');
-assert.equal(resolveLegalRouteLocale('en'), 'en');
-assert.equal(resolveSupportRouteLocale('en'), 'en');
-for (const locale of ['ru', 'es', 'de', 'fr', 'pl']) {
-  assert.equal(resolveLandingRouteLocale(locale), 'en');
-  assert.equal(resolvePricingRouteLocale(locale), 'en');
-  assert.equal(resolveLegalRouteLocale(locale), 'en');
-  assert.equal(resolveSupportRouteLocale(locale), 'en');
+for (const locale of PUBLIC_SEO_LOCALES) {
+  assert.equal(resolveLandingRouteLocale(locale), locale);
+  assert.equal(resolvePricingRouteLocale(locale), locale);
+  assert.equal(resolveLegalRouteLocale(locale), locale);
+  assert.equal(resolveSupportRouteLocale(locale), locale);
 }
 
 console.log('publicSeoLocales tests passed');

@@ -27,16 +27,21 @@ function normalizePath(pathname: string): string {
   return path.replace(/\/+$/, '') || '/';
 }
 
+function isDefaultPublicSeoPath(pathname: string): boolean {
+  return DEFAULT_PUBLIC_SEO_PATHS.has(pathname) ||
+    DEFAULT_PUBLIC_SEO_PREFIXES.some((pattern) => pattern.test(pathname));
+}
+
 export function getPublicSeoLocaleOverrideFromPath(pathname: string): PublicSeoLocale | null {
   const normalizedPath = normalizePath(pathname);
   const firstSegment = normalizedPath.split('/').filter(Boolean)[0]?.toLowerCase();
 
   if (isPublicSeoLocale(firstSegment)) {
-    return firstSegment;
+    const strippedPath = normalizedPath.replace(new RegExp(`^/${firstSegment}(?=/|$)`), '') || '/';
+    return isDefaultPublicSeoPath(strippedPath) ? firstSegment : null;
   }
 
-  return DEFAULT_PUBLIC_SEO_PATHS.has(normalizedPath) ||
-    DEFAULT_PUBLIC_SEO_PREFIXES.some((pattern) => pattern.test(normalizedPath))
+  return isDefaultPublicSeoPath(normalizedPath)
     ? DEFAULT_PUBLIC_SEO_LOCALE
     : null;
 }
