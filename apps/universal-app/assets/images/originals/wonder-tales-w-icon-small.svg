@@ -1,0 +1,71 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">WonderTales small app icon</title>
+  <desc id="desc">A small-size optimized WonderTales icon with a bright gradient background and a simplified thick book-shaped W mark.</desc>
+  <defs>
+    <linearGradient id="background" x1="178" y1="88" x2="846" y2="944" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6D5BD0"/>
+      <stop offset="0.48" stop-color="#B46AA8"/>
+      <stop offset="1" stop-color="#E15F4E"/>
+    </linearGradient>
+    <radialGradient id="backgroundGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(282 238) rotate(38) scale(560 408)">
+      <stop stop-color="#FFF7E8" stop-opacity="0.44"/>
+      <stop offset="0.58" stop-color="#FFE3D2" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#FFE3D2" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="backgroundViolet" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(796 236) rotate(132) scale(440 354)">
+      <stop stop-color="#EEEAF8" stop-opacity="0.30"/>
+      <stop offset="0.66" stop-color="#EEEAF8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="markStroke" x1="512" y1="184" x2="512" y2="842" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.42" stop-color="#FFF6D7"/>
+      <stop offset="0.75" stop-color="#FFD67E"/>
+      <stop offset="1" stop-color="#FFF2CA"/>
+    </linearGradient>
+    <linearGradient id="starFill" x1="512" y1="172" x2="512" y2="344" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.54" stop-color="#FFE89B"/>
+      <stop offset="1" stop-color="#FFB84C"/>
+    </linearGradient>
+    <filter id="iconShadow" x="12" y="12" width="1000" height="1000" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="24" stdDeviation="24" flood-color="#00040D" flood-opacity="0.24"/>
+    </filter>
+    <clipPath id="clip">
+      <rect x="52" y="52" width="920" height="920" rx="184"/>
+    </clipPath>
+  </defs>
+
+  <g filter="url(#iconShadow)">
+    <rect x="52" y="52" width="920" height="920" rx="184" fill="url(#background)"/>
+  </g>
+  <g clip-path="url(#clip)">
+    <rect x="52" y="52" width="920" height="920" rx="184" fill="url(#backgroundGlow)"/>
+    <rect x="52" y="52" width="920" height="920" rx="184" fill="url(#backgroundViolet)"/>
+  </g>
+
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <g opacity="0.52" transform="translate(0 10)" stroke="#1C0B3F" stroke-width="84">
+      <path d="M184 354 C234 348 272 374 298 430 C326 490 356 622 394 824"/>
+      <path d="M840 354 C790 348 752 374 726 430 C698 490 668 622 630 824"/>
+      <path d="M398 812 C438 744 476 682 512 634 C548 682 586 744 626 812"/>
+      <path d="M424 714 L512 432 L600 714"/>
+    </g>
+
+    <g stroke="#482252" stroke-opacity="0.70" stroke-width="70">
+      <path d="M184 354 C234 348 272 374 298 430 C326 490 356 622 394 824"/>
+      <path d="M840 354 C790 348 752 374 726 430 C698 490 668 622 630 824"/>
+      <path d="M398 812 C438 744 476 682 512 634 C548 682 586 744 626 812"/>
+      <path d="M424 714 L512 432 L600 714"/>
+    </g>
+
+    <g stroke="url(#markStroke)" stroke-width="54">
+      <path d="M184 354 C234 348 272 374 298 430 C326 490 356 622 394 824"/>
+      <path d="M840 354 C790 348 752 374 726 430 C698 490 668 622 630 824"/>
+      <path d="M398 812 C438 744 476 682 512 634 C548 682 586 744 626 812"/>
+      <path d="M424 714 L512 432 L600 714"/>
+    </g>
+  </g>
+
+  <path d="M512 178 C526 226 550 250 598 264 C550 278 526 302 512 350 C498 302 474 278 426 264 C474 250 498 226 512 178Z" fill="#1C0B3F" fill-opacity="0.62" transform="translate(0 9)"/>
+  <path d="M512 178 C526 226 550 250 598 264 C550 278 526 302 512 350 C498 302 474 278 426 264 C474 250 498 226 512 178Z" fill="url(#starFill)" stroke="#FFF8DE" stroke-width="8" stroke-linejoin="round"/>
+</svg>
