@@ -12,12 +12,15 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
+import { stripCharacterIdFromName, type CharacterNameTranslations } from '@wondertales/shared';
 
 interface Character {
   id: string;
   name: string;
+  nameTranslations?: CharacterNameTranslations;
   type: string;
   referencePhotos?: Array<{ url: string }>;
   turnaroundSheet?: { url: string; frontUrl?: string };
@@ -44,11 +47,25 @@ const getCharacterIcon = (type: string): string => {
 
 const CHARACTER_IMAGE_MATTE = '#FFFFFF';
 
+function normalizeLocale(locale?: string | null): string | null {
+  return locale?.split('-')[0]?.toLowerCase() || null;
+}
+
+function getCharacterDisplayName(character: Character, locale?: string | null): string {
+  const normalizedLocale = normalizeLocale(locale);
+  const translatedName = normalizedLocale ? character.nameTranslations?.[normalizedLocale] : null;
+  const candidate = translatedName || character.name;
+  const displayName = stripCharacterIdFromName(candidate).trim();
+  return displayName || stripCharacterIdFromName(character.name).trim() || character.name;
+}
+
 export function CharacterCard({ character, onPress, onDelete }: Props) {
+  const { i18n } = useTranslation();
   const avatarUrl =
     character.turnaroundSheet?.frontUrl ??
     character.turnaroundSheet?.url ??
     character.referencePhotos?.[0]?.url;
+  const displayName = getCharacterDisplayName(character, i18n.language);
   const imageContainerWebStyle =
     Platform.OS === 'web' ? ({ filter: 'contrast(1.05)' } as any) : null;
 
@@ -69,7 +86,7 @@ export function CharacterCard({ character, onPress, onDelete }: Props) {
           )}
         </View>
         <Text style={styles.name} numberOfLines={2}>
-          {character.name}
+          {displayName}
         </Text>
       </TouchableOpacity>
 
@@ -79,7 +96,7 @@ export function CharacterCard({ character, onPress, onDelete }: Props) {
             styles.deleteButton,
             state.pressed && styles.deleteButtonPressed,
           ]}
-          onPress={() => onDelete(character.id, character.name)}
+          onPress={() => onDelete(character.id, displayName)}
         >
           <Ionicons name="trash-outline" size={18} color="#fff" />
         </Pressable>

@@ -267,6 +267,8 @@ export interface ImaginaryPersonality {
 
 export type PersonalityTraits = PetPersonality | HumanPersonality | ImaginaryPersonality;
 
+export type CharacterNameTranslations = Partial<Record<string, string | null>>;
+
 // Turnaround Sheet
 export interface TurnaroundSheet {
   url: string;
@@ -282,6 +284,7 @@ export interface Character {
   userId: string;
   childProfileId?: string | null;
   name: string;
+  nameTranslations?: CharacterNameTranslations;
   type: CharacterType; // 'person' | 'animal' | 'imaginary'
   subtype?: CharacterSubtype; // 'mother', 'dog', 'dragon', etc.
   referencePhotos?: ReferencePhoto[];
@@ -308,6 +311,7 @@ export interface CharacterListItem {
   id: string;
   childProfileId?: string | null;
   name: string;
+  nameTranslations?: CharacterNameTranslations;
   type: CharacterType;
   subtype?: CharacterSubtype;
   referencePhotos?: ReferencePhoto[];

@@ -1,4 +1,4 @@
-import { getCharacterRepository } from '../repositories';
+import { getCharacterRepository, getDictionaryRepository } from '../repositories';
 import type { Character, NewCharacter } from '../db/schema';
 import { logger } from '../utils/logger';
 import { recordUsage } from './aiUsageService';
@@ -7,10 +7,11 @@ import { GeminiTextProvider } from '../providers/text/gemini/GeminiTextProvider'
 import { config } from '../config';
 import { collectEntityAssetPaths, deleteEntityAssets } from './entityAssetCleanupService';
 import { localizeCharacterNames, translateCharacterDescription } from './translationService';
-import type { CharacterType } from '@wondertales/shared';
+import { stripCharacterIdFromName, type CharacterType } from '@wondertales/shared';
 
 // Re-export CharacterType for use in routes
 export type { CharacterType };
+type CharacterNameTranslations = Partial<Record<string, string | null>>;
 
 // Initialize character analysis service (lazy)
 let characterAnalysisService: CharacterAnalysisService | null = null;
@@ -140,6 +141,39 @@ function triggerNameLocalization(character: Character): void {
   });
 }
 
+export type CharacterWithNameTranslations = Character & {
+  nameTranslations?: CharacterNameTranslations;
+};
+
+async function attachNameTranslations(
+  characters: Character[]
+): Promise<CharacterWithNameTranslations[]> {
+  const ids = characters.map((character) => character.id).filter(Boolean);
+  if (ids.length === 0) return characters;
+
+  const translations = await getDictionaryRepository().findTranslationsForEntities(
+    'character',
+    ids,
+    'name'
+  );
+  if (translations.length === 0) return characters;
+
+  const translationsByCharacterId = new Map<string, CharacterNameTranslations>();
+  for (const translation of translations) {
+    const value = stripCharacterIdFromName(translation.value).trim();
+    if (!value) continue;
+
+    const existing = translationsByCharacterId.get(translation.entityId) ?? {};
+    existing[translation.locale] = value;
+    translationsByCharacterId.set(translation.entityId, existing);
+  }
+
+  return characters.map((character) => {
+    const nameTranslations = translationsByCharacterId.get(character.id);
+    return nameTranslations ? { ...character, nameTranslations } : character;
+  });
+}
+
 // Character CRUD
 export async function createCharacter(
   userId: string,
@@ -177,7 +211,7 @@ export async function getCharacters(
     total: results.length,
     visible: visible.length
   }, 'Fetched characters');
-  return visible;
+  return attachNameTranslations(visible);
 }
 
 /**
@@ -207,7 +241,11 @@ export async function getCharacterById(
   userId: string,
   options: { childProfileId?: string; accessibleByChildProfileId?: string } = {}
 ): Promise<Character | null> {
-  return getCharacterRepository().findById(id, userId, options);
+  const character = await getCharacterRepository().findById(id, userId, options);
+  if (!character) return null;
+
+  const [withTranslations] = await attachNameTranslations([character]);
+  return withTranslations;
 }
 
 export async function updateCharacter(
