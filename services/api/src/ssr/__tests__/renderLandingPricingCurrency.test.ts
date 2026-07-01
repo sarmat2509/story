@@ -19,6 +19,8 @@ assert.match(eurHtml, /class="parent-trust-section"/);
 assert.match(eurHtml, /class="parent-trust-inner"/);
 assert.match(eurHtml, /\.parent-trust-section\{[^}]*linear-gradient\(135deg,#8068d8 0%,#a86aa6 48%,#d86559 100%\)/);
 assert.match(eurHtml, /value-card--wide \.value-card-image img\{object-fit:cover\}/);
+assert.match(eurHtml, /value-card--wide \.value-card-image\{width:calc\(100% \+ 36px\);max-width:none\}/);
+assert.match(eurHtml, /value-card--wide h3\{font-size:18px\}/);
 assert.doesNotMatch(eurHtml, /value-card--wide \.value-card-image\{height:auto;aspect-ratio:960 \/ 644\}/);
 assert.match(eurHtml, /\.feature-sticky-titles\{display:none\}/);
 assert.match(eurHtml, /\.cta-purple\{[^}]*transition:transform \.18s ease/);
