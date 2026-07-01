@@ -8,6 +8,7 @@ import { getStoryRepository } from '../repositories';
 import { createContinuationRequest } from '../services/storyOrchestrationService';
 import { getOrCreateSeries } from '../services/seriesService';
 import { isStoryQuotaError, releaseStoryQuotaReservationForRequest } from '../services/storyQuotaService';
+import { getOpsRuntimeStatus } from '../services/opsRuntimeService';
 import { textQueue } from './storyJobProcessor';
 
 const CADENCE_DAYS: Record<string, number> = {
@@ -20,6 +21,15 @@ const CADENCE_DAYS: Record<string, number> = {
 let schedulerIntervalId: NodeJS.Timeout | null = null;
 
 export async function runScheduledContinuationScheduler(): Promise<void> {
+  const opsStatus = await getOpsRuntimeStatus();
+  if (opsStatus.active) {
+    logger.info(
+      { mode: opsStatus.mode, endsAt: opsStatus.endsAt },
+      'Scheduled continuation scheduler skipped while generation is paused'
+    );
+    return;
+  }
+
   const now = new Date();
   const due = await getStoryRepository().findDueSeriesSchedules(now);
 
@@ -69,7 +79,7 @@ export async function runScheduledContinuationScheduler(): Promise<void> {
         scheduleId: schedule.id,
       });
 
-      textQueue.addJob({
+      await textQueue.addJob({
         type: 'text_generation',
         requestId,
         isContinuation: true,

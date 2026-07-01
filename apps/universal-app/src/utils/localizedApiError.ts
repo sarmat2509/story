@@ -47,6 +47,7 @@ const API_ERROR_KEY_BY_CODE: Record<string, string> = {
   PHOTO_PATH_INVALID: 'photo_input_invalid',
   PHOTO_TYPE_NOT_ALLOWED: 'photo_input_invalid',
   PHOTO_OWNER_MISMATCH: 'photo_owner_mismatch',
+  MAINTENANCE_MODE: 'maintenance_mode',
 };
 
 export function getApiErrorCode(error: unknown): string | null {

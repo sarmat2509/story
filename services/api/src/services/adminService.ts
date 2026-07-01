@@ -14,7 +14,7 @@ import {
   getUserRepository,
   getVoiceRepository,
 } from '../repositories';
-import { textQueue, imageQueue, audioQueue, storyJobQueue } from '../jobs/storyJobProcessor';
+import { textQueue, imageQueue, audioQueue, instantQueue, storyJobQueue } from '../jobs/storyJobProcessor';
 import type { AdminConfigResource } from '../repositories/AdminConfigRepository';
 import { config } from '../config';
 import { classifyQueueStatus, normalizeCostControlThresholds } from './costControlService';
@@ -27,6 +27,7 @@ import {
 import { getStoryCacheStats, getStoryCost, getStoryCostBreakdown } from './aiUsageService';
 import { normalizeOutfitPlateCharacterKey } from './outfitPlateService';
 import { incrementLandingRenderVersion } from '../ssr/storyCache';
+import { incrementPublicPageRenderVersion } from '../ssr/publicPageCache';
 import { getUserSubscription } from './planService';
 import { getUsageForPeriod } from './usageEventsService';
 import { readVendorStylePromptEnFromGenerationParams } from './ttsProsodyTaggingService';
@@ -37,6 +38,22 @@ import { clearStoryAudioData, type ClearStoryAudioResult } from './storyAudioCle
 import { MAP_TILE_MASK_VARIANTS } from '../domain/story/mapTileMasks';
 import { computeValidationScore } from './storyOrchestrationService';
 import { logger } from '../utils/logger';
+
+const PUBLIC_PRICING_CONFIG_RESOURCES = new Set<AdminConfigResource>([
+  'plans',
+  'features',
+  'planFeatures',
+  'translations',
+]);
+
+async function invalidatePublicPricingPages(resource: AdminConfigResource): Promise<void> {
+  if (!PUBLIC_PRICING_CONFIG_RESOURCES.has(resource)) return;
+
+  await Promise.all([
+    incrementPublicPageRenderVersion('pricing'),
+    incrementLandingRenderVersion(),
+  ]);
+}
 
 function isStoredImageValidationResult(value: unknown): value is ImageValidationResult {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -223,14 +240,22 @@ async function loadAdminGraphicNovelPages(storyId: string, storyFormat: string |
 export async function getAdminDashboard(days: number) {
   const dashboard = await getAdminDashboardRepository().getDashboard(days);
   const thresholds = normalizeCostControlThresholds(config.costControls);
-  const queueStats = [
+  const [textStats, imageStats, audioStats, instantStats, legacyStats] = await Promise.all([
     textQueue.getStats(),
     imageQueue.getStats(),
     audioQueue.getStats(),
+    instantQueue.getStats(),
+    storyJobQueue.getStats(),
+  ]);
+  const queueStats = [
+    textStats,
+    imageStats,
+    audioStats,
+    instantStats,
     {
       name: 'legacy',
       maxConcurrency: 1,
-      ...storyJobQueue.getStats(),
+      ...legacyStats,
     },
   ];
   const totalQueued = queueStats.reduce((sum, item) => sum + item.queued, 0);
@@ -1031,31 +1056,48 @@ export async function updateAdminConfigItem(
   patch: Record<string, unknown>
 ) {
   const repo = getAdminConfigRepository();
+  let item: Record<string, unknown> | null = null;
 
   switch (resource) {
     case 'plans':
-      return repo.updatePlan(id, patch);
+      item = await repo.updatePlan(id, patch);
+      break;
     case 'features':
-      return repo.updateFeature(id, patch);
+      item = await repo.updateFeature(id, patch);
+      break;
     case 'planFeatures':
-      return repo.updatePlanFeature(id, patch);
+      item = await repo.updatePlanFeature(id, patch);
+      break;
     case 'translations':
-      return repo.updateTranslation(id, patch);
+      item = await repo.updateTranslation(id, patch);
+      break;
     case 'storyGoals':
-      return repo.updateStoryGoal(id, patch);
+      item = await repo.updateStoryGoal(id, patch);
+      break;
     case 'contentPolicyRules':
-      return repo.updateContentPolicyRule(id, patch);
+      item = await repo.updateContentPolicyRule(id, patch);
+      break;
     case 'ageEngineRules':
-      return repo.updateAgeEngineRule(id, patch);
+      item = await repo.updateAgeEngineRule(id, patch);
+      break;
     case 'scenarioCards':
-      return repo.updateScenarioCard(id, patch);
+      item = await repo.updateScenarioCard(id, patch);
+      break;
     case 'scenarioPlotExamples':
-      return repo.updateScenarioPlotExample(id, patch);
+      item = await repo.updateScenarioPlotExample(id, patch);
+      break;
     case 'scenarioWorldRules':
-      return repo.updateScenarioWorldRule(id, patch);
+      item = await repo.updateScenarioWorldRule(id, patch);
+      break;
     default:
-      return null;
+      item = null;
   }
+
+  if (item) {
+    await invalidatePublicPricingPages(resource);
+  }
+
+  return item;
 }
 
 export async function createAdminConfigItem(
@@ -1100,36 +1142,57 @@ export async function createAdminConfigItem(
       item = null;
   }
 
+  if (item) {
+    await invalidatePublicPricingPages(resource);
+  }
+
   return item ? serializeAdminConfigItem(resource, item) : null;
 }
 
 export async function deleteAdminConfigItem(resource: AdminConfigResource, id: string) {
   const repo = getAdminConfigRepository();
+  let item: Record<string, unknown> | null = null;
 
   switch (resource) {
     case 'plans':
-      return repo.deletePlan(id);
+      item = await repo.deletePlan(id);
+      break;
     case 'features':
-      return repo.deleteFeature(id);
+      item = await repo.deleteFeature(id);
+      break;
     case 'planFeatures':
-      return repo.deletePlanFeature(id);
+      item = await repo.deletePlanFeature(id);
+      break;
     case 'translations':
-      return repo.deleteTranslation(id);
+      item = await repo.deleteTranslation(id);
+      break;
     case 'storyGoals':
-      return repo.deleteStoryGoal(id);
+      item = await repo.deleteStoryGoal(id);
+      break;
     case 'contentPolicyRules':
-      return repo.deleteContentPolicyRule(id);
+      item = await repo.deleteContentPolicyRule(id);
+      break;
     case 'ageEngineRules':
-      return repo.deleteAgeEngineRule(id);
+      item = await repo.deleteAgeEngineRule(id);
+      break;
     case 'scenarioCards':
-      return repo.deleteScenarioCard(id);
+      item = await repo.deleteScenarioCard(id);
+      break;
     case 'scenarioPlotExamples':
-      return repo.deleteScenarioPlotExample(id);
+      item = await repo.deleteScenarioPlotExample(id);
+      break;
     case 'scenarioWorldRules':
-      return repo.deleteScenarioWorldRule(id);
+      item = await repo.deleteScenarioWorldRule(id);
+      break;
     default:
-      return null;
+      item = null;
   }
+
+  if (item) {
+    await invalidatePublicPricingPages(resource);
+  }
+
+  return item;
 }
 
 export type AdminResetStoryAudioResult = {

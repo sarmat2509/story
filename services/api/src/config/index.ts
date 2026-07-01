@@ -566,6 +566,8 @@ export const config = {
     audioConcurrency: parseInt(process.env.AUDIO_QUEUE_CONCURRENCY || '2', 10),
     instantConcurrency: parseInt(process.env.INSTANT_QUEUE_CONCURRENCY || '3', 10),
     pollIntervalMs: parseInt(process.env.QUEUE_POLL_INTERVAL_MS || '1000', 10),
+    runWorkers: process.env.RUN_JOB_WORKERS !== 'false',
+    runHttpServer: process.env.RUN_HTTP_SERVER !== 'false',
   },
 
   costControls: {

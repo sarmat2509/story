@@ -41,6 +41,7 @@ import assetsRoutes from './routes/assets';
 import voicesRoutes from './routes/voices';
 import uploadRoutes from './routes/upload';
 import feedbackRoutes from './routes/feedback';
+import opsRoutes from './routes/ops';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import {
   globalLimiter,
@@ -205,6 +206,7 @@ app.use('/api/v1/me/stories', apiLimiter, meStoriesRoutes);
 app.use('/api/v1/me/artifacts', apiLimiter, meArtifactsRoutes);
 app.use('/api/v1/me/map-tiles', apiLimiter, meMapTilesRoutes);
 app.use('/api/v1/plans', plansRoutes); // Public
+app.use('/api/v1/ops', apiLimiter, opsRoutes); // Public operational status
 app.use('/api/v1/entitlements', apiLimiter, entitlementsRoutes);
 app.use('/api/v1/dictionaries', dictionariesRoutes); // Public
 app.use('/api/v1/children', apiLimiter, childrenRoutes);
@@ -246,34 +248,46 @@ app.use(errorHandler);
 // Start server
 const PORT = config.port;
 
-const server = app.listen(PORT, async () => {
-  logger.info({ port: PORT, env: config.nodeEnv }, 'WonderTales API server started');
-  logger.info({ url: `http://localhost:${PORT}/health` }, 'Health check available');
-  
-  // Check database connection
-  const dbHealthy = await checkDatabaseHealth();
-  if (dbHealthy) {
-    logger.info('Database connection established');
-  } else {
-    logger.error('Database connection failed');
-  }
-  
-  // Start session cleanup job
-  startSessionCleanupJob();
-  
-  // Start all job queues (text, image, audio + legacy)
-  startAllQueues();
-  logger.info('All job queues started');
+const server = config.queue.runHttpServer
+  ? app.listen(PORT, async () => {
+      logger.info({ port: PORT, env: config.nodeEnv }, 'WonderTales API server started');
+      logger.info({ url: `http://localhost:${PORT}/health` }, 'Health check available');
 
-  // Start batch image worker for scheduled continuations
-  startBatchImageWorker();
+      // Check database connection
+      const dbHealthy = await checkDatabaseHealth();
+      if (dbHealthy) {
+        logger.info('Database connection established');
+      } else {
+        logger.error('Database connection failed');
+      }
 
-  // Start scheduled continuation scheduler (hourly)
-  startScheduledContinuationScheduler();
+      // Start session cleanup job
+      startSessionCleanupJob();
 
-  // Start orphan storage cleanup scheduler when explicitly enabled
-  startOrphanStorageCleanupScheduler();
-});
+      if (config.queue.runWorkers) {
+        // Start all job queues (text, image, audio + legacy)
+        startAllQueues();
+        logger.info('All job queues started');
+      } else {
+        logger.info('API job workers disabled by RUN_JOB_WORKERS=false');
+      }
+
+      if (config.queue.runWorkers) {
+        // Start batch image worker for scheduled continuations
+        startBatchImageWorker();
+
+        // Start scheduled continuation scheduler (hourly)
+        startScheduledContinuationScheduler();
+
+        // Start orphan storage cleanup scheduler when explicitly enabled
+        startOrphanStorageCleanupScheduler();
+      }
+    })
+  : null;
+
+if (!config.queue.runHttpServer) {
+  logger.info('HTTP server disabled by RUN_HTTP_SERVER=false');
+}
 
 /**
  * Close the HTTP server gracefully (stops accepting new connections).

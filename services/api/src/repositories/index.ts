@@ -44,6 +44,8 @@ import { CollectedMapTileRepository } from './CollectedMapTileRepository';
 import { StoryQuizRepository } from './StoryQuizRepository';
 import { StoryQuizProgressRepository } from './StoryQuizProgressRepository';
 import { GraphicNovelRepository } from './GraphicNovelRepository';
+import { OpsRuntimeRepository } from './OpsRuntimeRepository';
+import { GenerationJobRepository } from './GenerationJobRepository';
 
 // Re-export classes for type usage
 export { UserRepository } from './UserRepository';
@@ -83,6 +85,8 @@ export { CollectedMapTileRepository } from './CollectedMapTileRepository';
 export { StoryQuizRepository } from './StoryQuizRepository';
 export { StoryQuizProgressRepository } from './StoryQuizProgressRepository';
 export { GraphicNovelRepository } from './GraphicNovelRepository';
+export { OpsRuntimeRepository } from './OpsRuntimeRepository';
+export { GenerationJobRepository } from './GenerationJobRepository';
 
 // Singleton instances
 let userRepo: UserRepository;
@@ -122,6 +126,8 @@ let collectedMapTileRepo: CollectedMapTileRepository;
 let storyQuizRepo: StoryQuizRepository;
 let storyQuizProgressRepo: StoryQuizProgressRepository;
 let graphicNovelRepo: GraphicNovelRepository;
+let opsRuntimeRepo: OpsRuntimeRepository;
+let generationJobRepo: GenerationJobRepository;
 
 export function getUserRepository(): UserRepository {
   if (!userRepo) userRepo = new UserRepository(db);
@@ -310,4 +316,14 @@ export function getStoryQuizRepository(): StoryQuizRepository {
 export function getStoryQuizProgressRepository(): StoryQuizProgressRepository {
   if (!storyQuizProgressRepo) storyQuizProgressRepo = new StoryQuizProgressRepository(db);
   return storyQuizProgressRepo;
+}
+
+export function getOpsRuntimeRepository(): OpsRuntimeRepository {
+  if (!opsRuntimeRepo) opsRuntimeRepo = new OpsRuntimeRepository(db);
+  return opsRuntimeRepo;
+}
+
+export function getGenerationJobRepository(): GenerationJobRepository {
+  if (!generationJobRepo) generationJobRepo = new GenerationJobRepository(db);
+  return generationJobRepo;
 }

@@ -23,6 +23,7 @@ import { APP_CONFIG } from '@/config/constants';
 import { GenerationProgressModal } from '@/components/GenerationProgressModal';
 import { AppButton } from '@/components/AppButton';
 import i18n from '@/config/i18n';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 
 interface SeriesInfo {
   totalParts: number;
@@ -89,7 +90,7 @@ export function ContinueSeriesSection({
     } catch (error: unknown) {
       toastService.error(
         t('story_viewer.continuation_error'),
-        (error as Error)?.message || t('story_viewer.audio_error_default')
+        getLocalizedApiError(t, error, 'story_viewer.audio_error_default')
       );
     }
   }, [storyId, generateContinuation, t]);
@@ -165,8 +166,7 @@ export function ContinueSeriesSection({
                     unscheduleContinuation.mutate(storyId, {
                       onError: (err: unknown) =>
                         toastService.error(
-                          (err as { response?: { data?: { message?: string } } })?.response?.data
-                            ?.message || t('story_viewer.audio_error_default')
+                          getLocalizedApiError(t, err, 'story_viewer.audio_error_default')
                         ),
                     })
                   }
@@ -237,8 +237,7 @@ export function ContinueSeriesSection({
                         {
                           onError: (err: unknown) =>
                             toastService.error(
-                              (err as { response?: { data?: { message?: string } } })?.response
-                                ?.data?.message || t('story_viewer.audio_error_default')
+                              getLocalizedApiError(t, err, 'story_viewer.audio_error_default')
                             ),
                         }
                       )

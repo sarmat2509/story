@@ -18,6 +18,7 @@ import type {
 import { useGenerateStoryQuiz, useSaveStoryQuizAnswer, useStoryQuiz } from '@/api/stories';
 import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 
 type AnswerState = {
   selectedIds: string[];
@@ -830,9 +831,7 @@ export function StoryReflectionSection({
         </View>
         {generateQuiz.error ? (
           <Text style={styles.errorText}>
-            {t('story_quiz.error', {
-              defaultValue: 'Не получилось подготовить задания. Попробуйте ещё раз.',
-            })}
+            {getLocalizedApiError(t, generateQuiz.error, 'story_quiz.error')}
           </Text>
         ) : null}
       </View>

@@ -51,6 +51,15 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${DROPLET_USER}@${DROPLET_IP} << 'EOF'
             cd /var/www/kazka
             git pull origin main
+            echo "Pausing new generation requests..."
+            if docker exec wondertales-api-prod sh -lc 'cd /app/services/api && npx tsx src/scripts/setOpsMode.ts draining "WonderTales is being updated. New generations are paused for a few minutes."'; then
+              docker exec wondertales-api-prod sh -lc 'cd /app/services/api && npx tsx src/scripts/waitForGenerationDrain.ts --timeout-ms=900000 --poll-ms=5000' || {
+                echo "Generation jobs did not drain before deploy"
+                exit 1
+              }
+            else
+              echo "Could not enable drain mode; continuing for first deploy that introduces ops tooling"
+            fi
             docker compose -f docker-compose.prod.yml build api
             docker compose -f docker-compose.prod.yml up -d api
             echo "Syncing localized voice samples..."
@@ -74,6 +83,8 @@ jobs:
             rm -f /tmp/wondertales-voice-samples.tar.gz
             echo "Running database migrations..."
             docker exec wondertales-api-prod sh -c 'cd /app/services/api && npx tsx src/scripts/runAllMigrations.ts'
+            docker compose -f docker-compose.prod.yml up -d worker
+            docker exec wondertales-api-prod sh -lc 'cd /app/services/api && npx tsx src/scripts/setOpsMode.ts normal' || true
             echo "Deployment completed!"
           EOF
       

@@ -34,6 +34,7 @@ services:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RUN_JOB_WORKERS: "false"
     env_file:
       - .env.production
     depends_on:
@@ -44,6 +45,34 @@ services:
       - ./image-prompt-debug:/app/image-prompt-debug
       - api_logs:/app/services/api/logs
       - ./secrets:/app/secrets:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  worker:
+    image: kazka-api:latest
+    container_name: wondertales-worker-prod
+    restart: always
+    command: ["pnpm", "start:worker"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RUN_HTTP_SERVER: "false"
+      RUN_JOB_WORKERS: "true"
+    env_file:
+      - .env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - api_uploads:/app/services/api/uploads
+      - ./image-prompt-debug:/app/image-prompt-debug
+      - api_logs:/app/services/api/logs
+      - ./secrets:/app/secrets:ro
+    stop_grace_period: 15m
 
   nginx:
     image: nginx:alpine
@@ -59,7 +88,8 @@ services:
       - ./certbot/conf:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
   webapp:
     image: nginx:alpine

@@ -18,7 +18,8 @@ import {
   isGraphicNovelStyleGenerationKind,
 } from '../services/generationKindRouting';
 import { recordUsage } from '../services/aiUsageService';
-import { ConcurrentJobQueue, type BaseJob } from './ConcurrentJobQueue';
+import type { BaseJob } from './ConcurrentJobQueue';
+import { DurableJobQueue } from './DurableJobQueue';
 import { config } from '../config';
 import { assertUserPhotoInputs } from '../services/photoInputSafetyService';
 import { assertStoryFromDrawingAccessForPhotos } from '../services/storyFromDrawingAccessService';
@@ -288,7 +289,7 @@ async function markImageRequestAfterPermanentFailure(job: ImageGenerationJob, er
  * Text generation queue
  * Concurrency from text rate limiter (default: 3)
  */
-export const textQueue = new ConcurrentJobQueue<TextGenerationJob>({
+export const textQueue = new DurableJobQueue<TextGenerationJob>({
   name: 'text',
   maxConcurrency: () => config.queue.textConcurrency,
   processor: processTextGeneration,
@@ -302,7 +303,7 @@ export const textQueue = new ConcurrentJobQueue<TextGenerationJob>({
  * Concurrency from image rate limiter (default: 10)
  * Group ordering by storyId ensures per-story sequential, cross-story parallel
  */
-export const imageQueue = new ConcurrentJobQueue<ImageGenerationJob>({
+export const imageQueue = new DurableJobQueue<ImageGenerationJob>({
   name: 'image',
   maxConcurrency: () => config.queue.imageConcurrency,
   processor: processImageGeneration,
@@ -314,7 +315,7 @@ export const imageQueue = new ConcurrentJobQueue<ImageGenerationJob>({
 /**
  * Enqueue image batch job directly (e.g. for retry-images after IMAGE_OTHER failure).
  */
-export function enqueueImageBatch(requestId: string, storyId: string, isContinuation = false): string {
+export function enqueueImageBatch(requestId: string, storyId: string, isContinuation = false): Promise<string> {
   return imageQueue.addJob({
     type: 'image_batch',
     requestId,
@@ -327,7 +328,7 @@ export function enqueueImageBatch(requestId: string, storyId: string, isContinua
  * Audio generation queue
  * Concurrency from audio rate limiter (default: 2)
  */
-export const audioQueue = new ConcurrentJobQueue<AudioGenerationJob>({
+export const audioQueue = new DurableJobQueue<AudioGenerationJob>({
   name: 'audio',
   maxConcurrency: () => config.queue.audioConcurrency,
   processor: processAudioGeneration,
@@ -355,7 +356,7 @@ export const audioQueue = new ConcurrentJobQueue<AudioGenerationJob>({
  * For photo analysis, character creation, and turnaround generation in instant mode
  * Concurrency controlled by config (default: 3)
  */
-export const instantQueue = new ConcurrentJobQueue<InstantCharacterSetupJob>({
+export const instantQueue = new DurableJobQueue<InstantCharacterSetupJob>({
   name: 'instant-character-setup',
   maxConcurrency: () => config.queue.instantConcurrency || 3,
   processor: processInstantCharacterSetup,
@@ -387,7 +388,7 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
         : await processGraphicNovelRequest(job.requestId);
     storyId = result.storyId;
 
-    imageQueue.addJob({
+    await imageQueue.addJob({
       type: 'graphic_novel_pages',
       requestId: job.requestId,
       storyId,
@@ -420,7 +421,7 @@ async function processTextGeneration(job: TextGenerationJob): Promise<void> {
 
   // Enqueue image batch job to run in imageQueue (releases text slot)
   try {
-    imageQueue.addJob({
+      await imageQueue.addJob({
       type: 'image_batch',
       requestId: job.requestId,
       storyId,
@@ -1037,26 +1038,32 @@ async function processInstantCharacterSetup(job: InstantCharacterSetupJob): Prom
   }
 }
 
-// ── Legacy StoryJobQueue (for scene image regeneration only) ──
+const legacyRegenerationQueue = new DurableJobQueue<LegacyJob>({
+  name: 'legacy-regeneration',
+  maxConcurrency: 1,
+  processor: async (job) => {
+    if (job.type === 'regenerate_scene_image') {
+      await processRegenerateSceneImageLegacy(job as RegenerateSceneImageJob);
+      return;
+    }
+    if (job.type === 'regenerate_graphic_novel_page_image') {
+      await processRegenerateGraphicNovelPageImageLegacy(job as RegenerateGraphicNovelPageImageJob);
+      return;
+    }
+    throw new Error(`Unsupported legacy regeneration job type: ${job.type}`);
+  },
+  pollIntervalMs: 2000,
+});
+
+// ── Legacy StoryJobQueue facade (keeps route/service API stable) ──
 
 class StoryJobQueue {
-  private queue: Map<string, LegacyJob> = new Map();
-  private processing = false;
-  private intervalId: NodeJS.Timeout | null = null;
-  private readonly MAX_RETRIES = 2;
-  private readonly POLL_INTERVAL_MS = 2000;
-
   start() {
-    if (this.intervalId) return;
-    logger.info({ pollInterval: this.POLL_INTERVAL_MS }, 'Starting legacy job queue (regeneration only)');
-    this.intervalId = setInterval(() => this.processNext(), this.POLL_INTERVAL_MS);
+    legacyRegenerationQueue.start();
   }
 
   stop() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
+    legacyRegenerationQueue.stop();
   }
 
   async addJob(
@@ -1066,8 +1073,6 @@ class StoryJobQueue {
       | RegenerateSceneImageInput
       | RegenerateGraphicNovelPageImageInput
   ): Promise<string> {
-    let job: LegacyJob;
-
     if (typeof requestIdOrJobData === 'string') {
       // Story generation -- redirect to appropriate queue based on request type
       // Check if this is instant mode or continuation by reading intermediateData from DB
@@ -1076,7 +1081,7 @@ class StoryJobQueue {
       
       // Check if instant mode
       if (intermediateData?.instantMode === true) {
-        const actualJobId = instantQueue.addJob({
+        const actualJobId = await instantQueue.addJob({
           type: 'instant_character_setup',
           requestId: requestIdOrJobData,
         });
@@ -1086,7 +1091,7 @@ class StoryJobQueue {
       // Check if continuation
       const isContinuation = !!intermediateData?.isContinuation;
 
-      const actualJobId = textQueue.addJob({
+      const actualJobId = await textQueue.addJob({
         type: 'text_generation',
         requestId: requestIdOrJobData,
         isContinuation,
@@ -1128,7 +1133,7 @@ class StoryJobQueue {
         logger.warn({ err, storyId: requestIdOrJobData.storyId }, 'Failed to estimate audio time, using default');
       }
 
-      const actualJobId = audioQueue.addJob({
+      const actualJobId = await audioQueue.addJob({
         type: 'audio_generation',
         storyId: requestIdOrJobData.storyId,
         userId: requestIdOrJobData.userId,
@@ -1137,78 +1142,34 @@ class StoryJobQueue {
       });
       return actualJobId;
     } else {
-      // Regenerate scene image -- handle via legacy queue
-      const legacyJobId = `job_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      job = {
-        ...requestIdOrJobData,
-        id: legacyJobId,
-        status: 'queued' as const,
-        retries: 0,
-        createdAt: new Date(),
-      };
-      this.queue.set(legacyJobId, job);
-      logger.info({ jobId: legacyJobId, type: job.type, queueSize: this.queue.size }, 'Job added to legacy queue');
-      return legacyJobId;
+      const actualJobId = await legacyRegenerationQueue.addJob(requestIdOrJobData as any);
+      logger.info({ jobId: actualJobId, type: requestIdOrJobData.type }, 'Legacy regeneration job queued durably');
+      return actualJobId;
     }
   }
 
-  private async processNext() {
-    if (this.processing) return;
-
-    const job = Array.from(this.queue.values()).find(j => j.status === 'queued');
-    if (!job) return;
-
-    this.processing = true;
-    job.status = 'processing';
-
-    try {
-      if (job.type === 'regenerate_scene_image') {
-        await processRegenerateSceneImageLegacy(job as RegenerateSceneImageJob);
-      } else if (job.type === 'regenerate_graphic_novel_page_image') {
-        await processRegenerateGraphicNovelPageImageLegacy(job as RegenerateGraphicNovelPageImageJob);
-      }
-      job.status = 'completed';
-      setTimeout(() => this.queue.delete(job.id), 60000);
-    } catch (error) {
-      job.retries++;
-      if (job.retries < this.MAX_RETRIES) {
-        job.status = 'queued';
-      } else {
-        job.status = 'failed';
-        job.error = error instanceof Error ? error.message : 'Unknown error';
-        setTimeout(() => this.queue.delete(job.id), 300000);
-      }
-    } finally {
-      this.processing = false;
-    }
-  }
-
-  getJobStatus(jobId: string): LegacyJob | null {
-    return this.queue.get(jobId) || null;
+  getJobStatus(jobId: string): Promise<LegacyJob | null> {
+    return legacyRegenerationQueue.getJobStatus(jobId);
   }
 
   getStats() {
-    const stats = { total: this.queue.size, queued: 0, processing: 0, completed: 0, failed: 0 };
-    for (const job of this.queue.values()) {
-      stats[job.status]++;
-    }
-    return stats;
+    return legacyRegenerationQueue.getStats();
   }
 
   /**
    * Get audio job status -- delegates to audioQueue
    */
-  getAudioJobStatus(storyId: string): 'queued' | 'processing' | null {
-    const info = audioQueue.getQueueInfo(j => j.storyId === storyId);
+  async getAudioJobStatus(storyId: string): Promise<'queued' | 'processing' | null> {
+    const info = await audioQueue.getQueueInfo(j => j.storyId === storyId);
     return info.jobStatus;
   }
 
-  hasAudioJobForStory(storyId: string): boolean {
-    return this.getAudioJobStatus(storyId) !== null;
+  async hasAudioJobForStory(storyId: string): Promise<boolean> {
+    return (await this.getAudioJobStatus(storyId)) !== null;
   }
 
   clear() {
-    this.queue.clear();
+    logger.warn('storyJobQueue.clear() is a no-op for durable queues');
   }
 }
 
@@ -1249,6 +1210,7 @@ export function startAllQueues(): void {
   textQueue.start();
   imageQueue.start();
   audioQueue.start();
+  instantQueue.start();
   storyJobQueue.start();
   logger.info('All job queues started');
 }
@@ -1260,6 +1222,7 @@ export function stopAllQueues(): void {
   textQueue.stop();
   imageQueue.stop();
   audioQueue.stop();
+  instantQueue.stop();
   storyJobQueue.stop();
   logger.info('All job queues stopped');
 }

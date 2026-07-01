@@ -35,6 +35,7 @@ import { getWebSearch } from '@/utils/webRuntime';
 import type { MainDrawerParamList } from '@/types/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { useChildren } from '@/api/children';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from '@/components/AppLinearGradient';
 import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
@@ -233,7 +234,10 @@ export default function InstantWizardScreen() {
       if (status === 429) {
         setShowPaywall(true);
       } else {
-        Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
+        Alert.alert(
+          t('common.error') || 'Error',
+          getLocalizedApiError(t, error, 'wizard.create_error')
+        );
       }
     }
   };
@@ -249,7 +253,10 @@ export default function InstantWizardScreen() {
         await retryStoryImages.mutateAsync(requestId);
       } catch (error) {
         console.error('Retry failed:', error);
-        Alert.alert(t('common.error') || 'Error', t('wizard.retry_error'));
+        Alert.alert(
+          t('common.error') || 'Error',
+          getLocalizedApiError(t, error, 'wizard.retry_error')
+        );
         setIsGenerating(false);
       }
     }

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { CreateStoryRequestSchema } from '@wondertales/shared';
 import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import { expensiveGenerationLimiter } from '../middleware/rateLimiter';
+import { requireGenerationAvailable } from '../middleware/maintenanceMiddleware';
 import { storyJobQueue } from '../jobs/storyJobProcessor';
 import {
   createGraphicNovelRequest,
@@ -99,6 +100,7 @@ router.post(
   '/',
   requireAuth,
   requireParentSession,
+  requireGenerationAvailable,
   expensiveGenerationLimiter,
   async (req: Request, res: Response) => {
     let requestId: string | undefined;

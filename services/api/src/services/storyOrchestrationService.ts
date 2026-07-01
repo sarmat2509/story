@@ -5455,7 +5455,7 @@ export async function retryStoryImages(
     errorMessage: null,
     updatedAt: new Date(),
   });
-  enqueueImageBatch(requestId, storyId, isContinuation);
+  await enqueueImageBatch(requestId, storyId, isContinuation);
   logger.info({ requestId, storyId, userId }, 'Retry images enqueued');
   return { id: requestId, status: 'processing' };
 }

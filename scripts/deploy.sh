@@ -21,6 +21,7 @@ API_IMAGE="kazka-api"
 API_TAG="latest"
 API_PRELOAD_MIN_FREE_KB=2097152
 API_POST_DEPLOY_CLEANUP_MIN_FREE_KB=1048576
+DEPLOY_DRAIN_TIMEOUT_MS="${DEPLOY_DRAIN_TIMEOUT_MS:-900000}"
 
 # SSH multiplexing: single connection + passphrase prompt for the whole script
 SSH_CONTROL_PATH="/tmp/deploy-ssh-ctl-$$"
@@ -404,10 +405,47 @@ run_migrations() {
   echo "✅ Migrations done"
 }
 
+set_remote_ops_mode() {
+  local mode="$1"
+  local message="${2:-}"
+  local ends_at="${3:-}"
+
+  ssh_droplet "cd ${DROPLET_PATH} && if docker ps --filter name=wondertales-api-prod --filter status=running --format '{{.Names}}' | grep -q wondertales-api-prod; then docker exec wondertales-api-prod sh -lc 'cd /app/services/api && npx tsx src/scripts/setOpsMode.ts \"${mode}\" \"${message}\" \"${ends_at}\"'; else echo 'API container is not running; cannot set ops mode'; exit 2; fi"
+}
+
+wait_for_generation_drain() {
+  print_step "Draining active generation jobs before API deploy"
+
+  if [[ "${SKIP_DEPLOY_DRAIN:-false}" == "true" ]]; then
+    echo "⚠️  SKIP_DEPLOY_DRAIN=true, skipping generation drain"
+    print_step_done
+    return 0
+  fi
+
+  local maintenance_end
+  maintenance_end="$(date -u -v+15M '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '+15 minutes' '+%Y-%m-%dT%H:%M:%SZ')"
+
+  if ! set_remote_ops_mode "draining" "WonderTales is being updated. New generations are paused for a few minutes." "${maintenance_end}"; then
+    echo "⚠️  Could not set draining mode. This is expected on the first deploy that introduces ops mode."
+    print_step_done
+    return 0
+  fi
+
+  if ! ssh_droplet "cd ${DROPLET_PATH} && docker exec wondertales-api-prod sh -lc 'cd /app/services/api && npx tsx src/scripts/waitForGenerationDrain.ts --timeout-ms=${DEPLOY_DRAIN_TIMEOUT_MS} --poll-ms=5000'"; then
+    echo "❌ Active generation jobs did not drain within ${DEPLOY_DRAIN_TIMEOUT_MS}ms"
+    echo "   Re-run with SKIP_DEPLOY_DRAIN=true only if you intentionally accept recovery/retry behavior."
+    exit 1
+  fi
+
+  print_step_done
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 2: Build and deploy API
 # ─────────────────────────────────────────────────────────────────────────────
 deploy_api() {
+  wait_for_generation_drain
+
   print_step "Building API image locally (linux/amd64)..."
   docker build --platform linux/amd64 -t ${API_IMAGE}:${API_TAG} \
     -f services/api/Dockerfile \
@@ -431,6 +469,10 @@ deploy_api() {
 
   prepare_disk_for_api_deploy
 
+  print_step "Uploading production compose file..."
+  scp -o ControlPath=${SSH_CONTROL_PATH} docker-compose.prod.yml ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/docker-compose.prod.yml
+  print_step_done
+
   print_step "Loading API image and restarting on droplet..."
   ssh_droplet << EOF
 cd ${DROPLET_PATH}
@@ -438,7 +480,7 @@ echo "Starting docker load at \$(date '+%H:%M:%S')"
 docker load < ${API_IMAGE}.tar.gz
 echo "Finished docker load at \$(date '+%H:%M:%S')"
 rm -f ${API_IMAGE}.tar.gz
-echo "Starting docker compose up at \$(date '+%H:%M:%S')"
+echo "Starting docker compose up api at \$(date '+%H:%M:%S')"
 docker compose -f docker-compose.prod.yml up -d api
 echo "Finished docker compose up at \$(date '+%H:%M:%S')"
 EOF
@@ -478,6 +520,19 @@ run_migrations_post_deploy() {
   fi
 
   run_migrations_in_container
+
+  print_step "Starting worker container..."
+  ssh_droplet "cd ${DROPLET_PATH} && docker compose -f docker-compose.prod.yml up -d worker"
+  print_step_done
+
+  print_step "Restoring normal ops mode..."
+  if set_remote_ops_mode "normal" "" ""; then
+    echo "   Ops mode is normal"
+  else
+    echo "⚠️  Failed to restore normal ops mode automatically; check /api/v1/ops/status"
+  fi
+  print_step_done
+
   echo "✅ Migrations done"
 }
 

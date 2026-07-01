@@ -817,6 +817,60 @@ export const storyRequests = pgTable(
   }
 );
 
+export const opsRuntimeState = pgTable('ops_runtime_state', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  mode: varchar('mode', { length: 24 }).notNull().default('normal'),
+  message: text('message'),
+  startsAt: timestamp('starts_at'),
+  endsAt: timestamp('ends_at'),
+  updatedByUserId: uuid('updated_by_user_id').references(() => users.id, {
+    onDelete: 'set null',
+  }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const generationJobs = pgTable(
+  'generation_jobs',
+  {
+    id: varchar('id', { length: 120 }).primaryKey(),
+    queueName: varchar('queue_name', { length: 64 }).notNull(),
+    jobType: varchar('job_type', { length: 80 }).notNull(),
+    payload: jsonb('payload').notNull(),
+    groupKey: varchar('group_key', { length: 255 }),
+    status: varchar('status', { length: 24 }).notNull().default('queued'),
+    retries: integer('retries').notNull().default(0),
+    maxRetries: integer('max_retries').notNull().default(2),
+    runAfter: timestamp('run_after').defaultNow().notNull(),
+    lockedBy: varchar('locked_by', { length: 120 }),
+    lockedAt: timestamp('locked_at'),
+    lockExpiresAt: timestamp('lock_expires_at'),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+    failedAt: timestamp('failed_at'),
+    estimatedTotalMs: integer('estimated_total_ms'),
+    actualDurationMs: integer('actual_duration_ms'),
+    error: text('error'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    queueStatusIdx: index('generation_jobs_queue_status_idx').on(
+      table.queueName,
+      table.status,
+      table.runAfter,
+      table.createdAt
+    ),
+    lockExpiresIdx: index('generation_jobs_lock_expires_idx').on(
+      table.queueName,
+      table.status,
+      table.lockExpiresAt
+    ),
+    groupIdx: index('generation_jobs_group_idx').on(table.queueName, table.groupKey, table.status),
+    createdAtIdx: index('generation_jobs_created_at_idx').on(table.createdAt),
+  })
+);
+
 // Story Series table (M8)
 export const storySeries = pgTable(
   'story_series',
@@ -1259,6 +1313,12 @@ export type NewTranslation = typeof translations.$inferInsert;
 
 export type StoryRequest = typeof storyRequests.$inferSelect;
 export type NewStoryRequest = typeof storyRequests.$inferInsert;
+
+export type OpsRuntimeState = typeof opsRuntimeState.$inferSelect;
+export type NewOpsRuntimeState = typeof opsRuntimeState.$inferInsert;
+
+export type GenerationJob = typeof generationJobs.$inferSelect;
+export type NewGenerationJob = typeof generationJobs.$inferInsert;
 
 export type StorySeries = typeof storySeries.$inferSelect;
 export type NewStorySeries = typeof storySeries.$inferInsert;

@@ -82,11 +82,14 @@ router.get('/detailed', requireAuth, requireAdmin, async (req: Request, res: Res
  */
 router.get('/queues', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { textQueue, imageQueue, audioQueue, storyJobQueue } = await import('../jobs/storyJobProcessor');
-    const textStats = textQueue.getStats();
-    const imageStats = imageQueue.getStats();
-    const audioStats = audioQueue.getStats();
-    const legacyStats = storyJobQueue.getStats();
+    const { textQueue, imageQueue, audioQueue, instantQueue, storyJobQueue } = await import('../jobs/storyJobProcessor');
+    const [textStats, imageStats, audioStats, instantStats, legacyStats] = await Promise.all([
+      textQueue.getStats(),
+      imageQueue.getStats(),
+      audioQueue.getStats(),
+      instantQueue.getStats(),
+      storyJobQueue.getStats(),
+    ]);
 
     res.json({
       timestamp: new Date().toISOString(),
@@ -94,6 +97,7 @@ router.get('/queues', requireAuth, requireAdmin, async (req: Request, res: Respo
         text: textStats,
         image: imageStats,
         audio: audioStats,
+        instant: instantStats,
         legacy: legacyStats,
       },
     });

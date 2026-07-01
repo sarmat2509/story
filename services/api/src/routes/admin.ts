@@ -33,6 +33,7 @@ import {
   updateAdminDataPrivacyRequest,
 } from '../services/dataPrivacyRequestService';
 import { listAdminModerationDecisionEvents } from '../services/moderationDecisionService';
+import { getOpsRuntimeStatus, setOpsRuntimeMode } from '../services/opsRuntimeService';
 import { MAP_TILE_MASK_VARIANTS } from '../domain/story/mapTileMasks';
 import { logger } from '../utils/logger';
 
@@ -109,6 +110,19 @@ const UpdateAdminVoiceBodySchema = z
     isActive: z.boolean(),
   })
   .strict();
+
+const OpsRuntimePatchSchema = z
+  .object({
+    mode: z.enum(['normal', 'draining', 'maintenance']),
+    message: z.string().trim().max(1000).nullable().optional(),
+    startsAt: z.coerce.date().nullable().optional(),
+    endsAt: z.coerce.date().nullable().optional(),
+  })
+  .strict()
+  .refine(
+    (value) => !value.startsAt || !value.endsAt || value.endsAt > value.startsAt,
+    { message: 'endsAt must be after startsAt', path: ['endsAt'] }
+  );
 
 const ValidationIdParamsSchema = z.object({
   id: z.string().uuid(),
@@ -510,6 +524,54 @@ router.get('/dashboard', async (req: Request, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to load dashboard',
+    });
+  }
+});
+
+router.get('/ops/runtime', async (_req: Request, res: Response) => {
+  try {
+    const ops = await getOpsRuntimeStatus();
+    return res.json({
+      status: 'success',
+      ops,
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Admin ops runtime fetch failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to load ops runtime status',
+    });
+  }
+});
+
+router.patch('/ops/runtime', async (req: Request, res: Response) => {
+  try {
+    const parsed = OpsRuntimePatchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid body',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const ops = await setOpsRuntimeMode({
+      mode: parsed.data.mode,
+      message: parsed.data.message,
+      startsAt: parsed.data.startsAt,
+      endsAt: parsed.data.endsAt,
+      updatedByUserId: req.user?.id ?? null,
+    });
+
+    return res.json({
+      status: 'success',
+      ops,
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id }, 'Admin ops runtime update failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to update ops runtime status',
     });
   }
 });

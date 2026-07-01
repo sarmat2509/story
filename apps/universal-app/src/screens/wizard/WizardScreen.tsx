@@ -52,6 +52,7 @@ import { getWebSearch } from '@/utils/webRuntime';
 import { modernColors, modernGradients, modernShadows } from '@/theme/modernTheme';
 import { IMAGE_STYLE_METADATA, type ImageStyle } from '@wondertales/shared';
 import { getWizardScenarioPreset } from './wizardRouteParams';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 
 type StoryFormat = 'story' | 'comic' | 'mixed';
 
@@ -438,7 +439,10 @@ export default function WizardScreen() {
         setPaywallKind('stories');
         setShowPaywall(true);
       } else {
-        Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
+        Alert.alert(
+          t('common.error') || 'Error',
+          getLocalizedApiError(t, error, 'wizard.create_error')
+        );
       }
     }
   };
@@ -456,7 +460,10 @@ export default function WizardScreen() {
       } catch (error) {
         console.error('Retry images failed:', error);
         setIsGenerating(false);
-        Alert.alert(t('common.error') || 'Error', t('wizard.retry_error'));
+        Alert.alert(
+          t('common.error') || 'Error',
+          getLocalizedApiError(t, error, 'wizard.retry_error')
+        );
       }
     } else {
       setRequestId(null);
