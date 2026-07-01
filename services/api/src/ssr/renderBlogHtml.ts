@@ -20,6 +20,7 @@ import {
   renderPublicPageHeader,
   renderPublicPageFooter,
 } from './publicPageFooter';
+import { versionPublicIconAsset } from './publicAssetUrls';
 import {
   getBlogArticle,
   listBlogArticles,
@@ -29,7 +30,7 @@ import {
   type BlogArticleView,
 } from './blogContent';
 
-const BLOG_STRUCTURED_DATA_LOGO_PATH = '/icon-512.png';
+const BLOG_STRUCTURED_DATA_LOGO_PATH = versionPublicIconAsset('/icon-512.png');
 
 const BLOG_INDEX_COPY: Record<PublicSeoLocale, {
   title: string;

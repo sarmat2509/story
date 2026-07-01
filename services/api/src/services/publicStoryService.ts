@@ -15,6 +15,7 @@ import { getAssetStorageService } from './assetStorageService';
 import { logger } from '../utils/logger';
 import { stripAllTags } from '../utils/audioTags';
 import { config } from '../config';
+import { versionPublicIconAsset } from '../ssr/publicAssetUrls';
 import { getReadingTimeMinutes } from '@wondertales/shared';
 import { normalizeAssetStoragePath } from './entityAssetCleanupService';
 import {
@@ -115,7 +116,7 @@ function getOgImageUrl(story: any, apiBase: string, slugOrToken: string, isUnlis
   if (hasCoverImage || hasSceneImage) {
     return `${webAppUrl}/share-card/${isUnlisted ? `u/${slugOrToken}` : slugOrToken}`;
   }
-  return `${webAppUrl}/favicon.png`;
+  return `${webAppUrl}${versionPublicIconAsset('/favicon.png')}`;
 }
 
 function appendUnlistedShareToken(url: string | null, shareToken?: string): string | null {

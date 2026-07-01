@@ -17,6 +17,7 @@ import frTranslations from '@wondertales/shared/i18n/fr.json';
 import plTranslations from '@wondertales/shared/i18n/pl.json';
 import ruTranslations from '@wondertales/shared/i18n/ru.json';
 import ukTranslations from '@wondertales/shared/i18n/uk.json';
+import { versionPublicIconAsset } from './publicAssetUrls';
 
 export const PUBLIC_FOOTER_STYLES = `
 .site-footer{border-top:1px solid rgba(148,163,184,.35);padding:28px 24px;text-align:center;color:#64748b;background:rgba(255,255,255,.88)}
@@ -189,7 +190,7 @@ export function renderPublicPageHeader(
     <header class="site-header" data-site-header>
       <div class="site-header-inner">
         <a class="site-header-brand" href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicLandingPath(normalizedLocale)))}" aria-label="WonderTales">
-          <img src="/icon-192.png" alt="" width="46" height="46" />
+          <img src="${escapeHtml(versionPublicIconAsset('/icon-192.png'))}" alt="" width="46" height="46" />
           <span>WonderTales</span>
         </a>
         <button class="site-header-menu-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-header-mobile-nav" data-site-header-menu-toggle>
