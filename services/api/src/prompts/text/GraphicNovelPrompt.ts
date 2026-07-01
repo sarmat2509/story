@@ -1,6 +1,20 @@
 import type { StorySpec } from '../../ai/types';
 import type { JsonSchema } from '../../providers/base/JsonSchema';
-import { getContentPolicy } from '../contentPolicy';
+import {
+  formatContinuationLocationMemory,
+  formatContinuationOutfitMemory,
+  formatContinuationStoryContext,
+  formatContentPolicySection,
+  formatReferenceGroundedCharacterRules,
+  formatStoryTitleSection,
+  formatStructuredEnvironmentRules,
+  formatStructuredOutfitRules,
+  formatStructuredSpeakerNameRules,
+  formatStructuredStoryInputSection,
+  formatWriterCharacterName,
+  type ContinuationCharacter,
+  type ContinuationPromptContext,
+} from '../helpers';
 
 export const GRAPHIC_NOVEL_LINE_MAX_CHARS = 110;
 export const GRAPHIC_NOVEL_CAPTION_MAX_CHARS = 90;
@@ -72,15 +86,87 @@ export function characterList(spec: StorySpec): string {
     .map((character) => {
       const characterType = writerCharacterType(character.type);
       const role = character.role ? `, role: ${character.role}` : '';
-      const hasVisualReference = !!(character as any).turnaroundSheet?.url
-        || !!(character as any).turnaroundSheet?.frontUrl
-        || ((character.referencePhotos?.length || 0) > 0);
-      const referenceFlag = hasVisualReference ? ', visual reference: yes' : ', visual reference: no';
+      const hasVisualReference =
+        !!(character as any).turnaroundSheet?.url ||
+        !!(character as any).turnaroundSheet?.frontUrl ||
+        (character.referencePhotos?.length || 0) > 0;
+      const referenceFlag = hasVisualReference
+        ? ', visual reference: yes'
+        : ', visual reference: no';
       const personality = character.personality || (character as any).traits || '';
       const personalityText = personality ? ` Story voice/personality: ${personality}` : '';
       return `- ${character.name} (${characterType}${role}${referenceFlag}): use this exact story name.${personalityText}`;
     })
     .join('\n');
+}
+
+function hasGraphicVisualReference(
+  character: NonNullable<StorySpec['characters']>[number] | undefined
+): boolean {
+  return !!(
+    character &&
+    ((character as any).turnaroundSheet?.url ||
+      (character as any).turnaroundSheet?.frontUrl ||
+      (character.referencePhotos?.length || 0) > 0)
+  );
+}
+
+function findSpecCharacterByContinuationName(spec: StorySpec, name: string) {
+  const cleanName = formatWriterCharacterName(name);
+  return spec.characters?.find(
+    (character) => formatWriterCharacterName(character.name) === cleanName
+  );
+}
+
+function formatGraphicContinuationCharacterLine(
+  spec: StorySpec,
+  character: ContinuationCharacter
+): string {
+  const source = findSpecCharacterByContinuationName(spec, character.name);
+  const cleanName = formatWriterCharacterName(character.name);
+  const characterType = writerCharacterType(source?.type || character.type);
+  const role = character.role || source?.role;
+  const roleText = role ? `, role: ${role}` : '';
+  const referenceFlag = hasGraphicVisualReference(source)
+    ? ', visual reference: yes'
+    : ', visual reference: no';
+  const personality = source?.personality || (source as any)?.traits || '';
+  const personalityText = personality ? ` Story voice/personality: ${personality}` : '';
+  const continuityText =
+    character.description && character.description !== 'undefined'
+      ? ` Continuity note: ${character.description}`
+      : '';
+
+  return `- ${cleanName} (${characterType}${roleText}${referenceFlag}): use this exact story name.${personalityText}${continuityText}`;
+}
+
+export function graphicNovelCharacterList(
+  spec: StorySpec,
+  continuationContext?: ContinuationPromptContext
+): string {
+  if (!continuationContext) return characterList(spec);
+
+  const required = continuationContext.requiredCharacters || [];
+  const optional = continuationContext.optionalCharacters || [];
+  if (required.length === 0 && optional.length === 0) return characterList(spec);
+
+  const sections: string[] = [];
+  if (required.length > 0) {
+    sections.push(
+      'REQUIRED CHARACTERS (MUST USE):',
+      ...required.map((character) => formatGraphicContinuationCharacterLine(spec, character))
+    );
+  }
+
+  if (optional.length > 0) {
+    if (sections.length > 0) sections.push('');
+    sections.push(
+      'OPTIONAL CHARACTERS (MAY USE):',
+      ...optional.map((character) => formatGraphicContinuationCharacterLine(spec, character))
+    );
+  }
+
+  return sections.join('\n');
 }
 
 function safetyFallbackCharacterList(spec: StorySpec): string {
@@ -248,8 +334,20 @@ export function closingArtifactRules(spec: StorySpec): string {
 export function buildGraphicNovelPrompt(params: {
   spec: StorySpec;
   pageCount: number;
+  isContinuation?: boolean;
+  continuationContext?: ContinuationPromptContext;
 }): string {
-  const { spec, pageCount } = params;
+  const { spec, pageCount, isContinuation, continuationContext } = params;
+  const continuationSections =
+    isContinuation && continuationContext
+      ? [
+          formatContinuationStoryContext({ context: continuationContext, mode: 'graphic_novel' }),
+          formatContinuationLocationMemory(continuationContext.previousEnvironments),
+          formatContinuationOutfitMemory(continuationContext.previousOutfits),
+        ]
+          .filter(Boolean)
+          .join('\n\n')
+      : '';
   return `Create a structured, age-appropriate graphic novel script as JSON.
 
 ROLE BOUNDARY:
@@ -270,18 +368,13 @@ OUTPUT:
 - The final page must resolve positively and clearly for the age.
 - Create environments[] once for persistent locations. Reuse environmentId on panels instead of repeating the whole environment.
 
-STORY INPUT:
-- Language: ${spec.language}
-- Age group: ${spec.ageGroup}
-- Theme / goal: ${spec.goalName || spec.goal || 'open-ended'}
-- Scenario: ${spec.scenarioCard?.name || spec.scenarioCard?.id || 'none'}
-- Scenario plot guidance: ${spec.scenarioGuidance || spec.scenarioCard?.promptGuidance || 'none'}
-- World rule: ${spec.worldRule ? `${spec.worldRule.name}: ${spec.worldRule.description}` : 'none'}
-- User notes: ${(spec as any).userNotes || 'none'}
-- Illustration style: ${(spec as any).imageStyle || 'soft_watercolor'}
+${formatStructuredStoryInputSection(spec, { includeIllustrationStyle: true })}
 
-CONTENT POLICY:
-${getContentPolicy({ policyProfile: spec.policyProfile, scenarioCardId: spec.scenarioCard?.id }).textPromptSection}
+${formatStoryTitleSection({ isContinuation })}
+
+${formatContentPolicySection(spec)}
+
+${continuationSections}
 
 CLOSING ARTIFACT:
 ${closingArtifactRules(spec)}
@@ -316,39 +409,18 @@ THOUGHT BUBBLE LOGIC:
 ${thoughtBubbleRules(spec.ageGroup, pageCount)}
 
 CHARACTERS:
-${characterList(spec)}
+${graphicNovelCharacterList(spec, isContinuation ? continuationContext : undefined)}
 
-OUTFITS:
-- Return a top-level outfits[] array. Each row has id, characterName, description.
-- outfits[].description is WARDROBE ONLY IN ENGLISH: garments, shoes, worn hats/helmets/hoods, bags, jewelry, glasses, swimwear, rain/snow gear, costumes.
-- Do not put face, hair, body, age, species, expression, personality, pose, or identity details in outfits[].description.
-- Every visual.sceneVisual.cameraComposition.characters[] row MUST include outfitId referencing one outfits[].id.
-- Include one outfit row for every outfitId used by a physically present character. Creatures/animals may use description exactly "natural appearance"; still set outfitId.
-- Reuse the same outfitId while the character keeps the same clothes. Create a new outfitId the moment clothes change, even within the same page.
-- Match outfit to the panel action and environment: swimming/bathing/water play -> age-appropriate swimwear and no jacket/coat; rain -> raincoat/boots; snow -> coat/boots; sleep -> pajamas; formal scene -> formal outfit.
-- If a character changes clothes between panels, the first panel after the change must use the new outfitId, and later panels keep it until changed again.
+${formatStructuredOutfitRules({ includeChangeRules: true })}
 
-SPEAKER NAME RULES:
-- dialogue[].speaker and thoughts[].speaker must use exact character names from CHARACTERS when that character speaks.
-- If the story introduces a new creature or helper, choose one name once and reuse the exact same spelling in every speaker field.
-- Do not mix alphabets inside a speaker name. For Ukrainian/Russian names, keep all letters Cyrillic; never write Latin lookalikes such as r, i, o, e inside a Cyrillic name.
-- Speaker names are used for audio, quiz, indexing, and bubble tails, so a one-letter spelling drift is a data bug.
+${formatStructuredSpeakerNameRules({
+  helperKind: 'creature_or_helper',
+  includeAudioContext: true,
+})}
 
-REFERENCE-GROUNDED CHARACTER RULES:
-- Characters marked "visual reference: yes" have image references downstream. Their visual identity comes from the reference image, not from this JSON.
-- For reference-grounded characters, visual.sceneVisual.cameraComposition.characters[].description must be reference-safe: placement, pose, action, emotion, gaze direction, gesture, and interaction only.
-- position is semantic staging only; it must never describe or replace character identity.
-- Do NOT describe stable identity details for reference-grounded characters: appearance, outfit, permanent markings, species design, default clothes, or exact colors.
-- If a reference-grounded character's normal look/clothes are needed, write "default reference appearance" or "natural appearance" instead of inventing details.
-- Scene-authorized temporary states are allowed when visual and important: wet, glowing, transparent, dusty, worried expression, raised hand, pointing finger, looking left/right.
-- Good reference-safe staging: "walking slowly, looking toward the helper, one hand lifted in warning".
-- Good reference-safe staging: "hovering beside Emilia, tilted with a curious expression".
+${formatReferenceGroundedCharacterRules({ includeGraphicDetails: true })}
 
-ENVIRONMENTS:
-- Return 1-3 environments in environments[] before pages.
-- Each environment description must be in English and describe reusable static layout: fixed objects, relative positions, materials, colors, time/weather if important.
-- Panels reference environmentId. Do not repeat the whole environment in panel visual.sceneVisual.setting.
-- visual.sceneVisual.setting describes only what is new or changed in that panel.
+${formatStructuredEnvironmentRules({ target: 'pages', includePanelDeltaRule: true })}
 
 PAGE ROLES:
 - Page 1: opening
@@ -381,8 +453,20 @@ PANEL REQUIREMENTS:
 export function buildGraphicNovelSafetyFallbackPrompt(params: {
   spec: StorySpec;
   pageCount: number;
+  isContinuation?: boolean;
+  continuationContext?: ContinuationPromptContext;
 }): string {
-  const { spec, pageCount } = params;
+  const { spec, pageCount, isContinuation, continuationContext } = params;
+  const continuationSections =
+    isContinuation && continuationContext
+      ? [
+          formatContinuationStoryContext({ context: continuationContext, mode: 'graphic_novel' }),
+          formatContinuationLocationMemory(continuationContext.previousEnvironments),
+          formatContinuationOutfitMemory(continuationContext.previousOutfits),
+        ]
+          .filter(Boolean)
+          .join('\n\n')
+      : '';
   return `Create a structured illustrated dialogue story as JSON.
 
 SAFETY AND TONE:
@@ -399,17 +483,13 @@ OUTPUT:
 - Create environments[] once for persistent locations and reuse environmentId on panels.
 - The final page resolves warmly and clearly.
 
-STORY INPUT:
-- Language: ${spec.language}
-- Age group: ${spec.ageGroup}
-- Theme / goal: ${spec.goalName || spec.goal || 'open-ended'}
-- Scenario: ${spec.scenarioCard?.name || spec.scenarioCard?.id || 'none'}
-- Scenario plot guidance: ${spec.scenarioGuidance || spec.scenarioCard?.promptGuidance || 'none'}
-- World rule: ${spec.worldRule ? `${spec.worldRule.name}: ${spec.worldRule.description}` : 'none'}
-- User notes: ${(spec as any).userNotes || 'none'}
+${formatStructuredStoryInputSection(spec)}
 
-CONTENT POLICY:
-${getContentPolicy({ policyProfile: spec.policyProfile, scenarioCardId: spec.scenarioCard?.id }).textPromptSection}
+${formatStoryTitleSection({ isContinuation })}
+
+${formatContentPolicySection(spec)}
+
+${continuationSections}
 
 CLOSING ARTIFACT:
 ${closingArtifactRules(spec)}
@@ -426,23 +506,17 @@ ${thoughtBubbleRules(spec.ageGroup, pageCount)}
 - For panels with 2 dialogue lines, use 2 different speakers and make the lines answer each other directly.
 
 CHARACTERS:
-${safetyFallbackCharacterList(spec)}
+${
+  isContinuation && continuationContext
+    ? graphicNovelCharacterList(spec, continuationContext)
+    : safetyFallbackCharacterList(spec)
+}
 
-OUTFITS:
-- Return top-level outfits[] with id, characterName, description.
-- Every visual.sceneVisual.cameraComposition.characters[] row must include outfitId referencing outfits[].id.
-- Use wardrobe-only English descriptions. Humans change clothes when the action requires it, including swimwear for swimming/bathing/water play. Animals/creatures may use "natural appearance".
-- Reuse outfitId until clothes change; create a new outfitId when clothes change, even within one page.
+${formatStructuredOutfitRules({ includeChangeRules: true })}
 
-SPEAKER NAME RULES:
-- dialogue[].speaker and thoughts[].speaker must use exact names from CHARACTERS.
-- If adding a friendly helper, choose one name once and reuse the exact spelling.
-- Do not mix alphabets inside a speaker name.
+${formatStructuredSpeakerNameRules()}
 
-ENVIRONMENTS:
-- Return 1-3 environments in environments[] before pages.
-- Each environment description must be in English and describe reusable static layout.
-- Panels reference environmentId. visual.sceneVisual.setting describes only what is new in that panel.
+${formatStructuredEnvironmentRules({ target: 'pages', includePanelDeltaRule: true })}
 
 PANEL VISUAL RULES:
 - panelId must be stable and unique, like "p1-1".
@@ -489,7 +563,8 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
           id: {
             type: 'string',
             minLength: 1,
-            description: 'Short unique wardrobe id referenced by panel cameraComposition characters',
+            description:
+              'Short unique wardrobe id referenced by panel cameraComposition characters',
           },
           characterName: {
             type: 'string',
@@ -515,7 +590,15 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
           pageNumber: { type: 'integer', minimum: 1 },
           pageRole: {
             type: 'string',
-            enum: ['opening', 'setup', 'conversation', 'action', 'reveal', 'reflection', 'resolution'],
+            enum: [
+              'opening',
+              'setup',
+              'conversation',
+              'action',
+              'reveal',
+              'reflection',
+              'resolution',
+            ],
           },
           panels: {
             type: 'array',
@@ -529,8 +612,16 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                   items: {
                     type: 'object',
                     properties: {
-                      speaker: { type: 'string', minLength: 1, maxLength: GRAPHIC_NOVEL_SPEAKER_MAX_CHARS },
-                      text: { type: 'string', minLength: 1, maxLength: GRAPHIC_NOVEL_LINE_MAX_CHARS },
+                      speaker: {
+                        type: 'string',
+                        minLength: 1,
+                        maxLength: GRAPHIC_NOVEL_SPEAKER_MAX_CHARS,
+                      },
+                      text: {
+                        type: 'string',
+                        minLength: 1,
+                        maxLength: GRAPHIC_NOVEL_LINE_MAX_CHARS,
+                      },
                       emotion: { type: 'string' },
                     },
                     required: ['speaker', 'text'],
@@ -541,8 +632,16 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                   items: {
                     type: 'object',
                     properties: {
-                      speaker: { type: 'string', minLength: 1, maxLength: GRAPHIC_NOVEL_SPEAKER_MAX_CHARS },
-                      text: { type: 'string', minLength: 1, maxLength: GRAPHIC_NOVEL_LINE_MAX_CHARS },
+                      speaker: {
+                        type: 'string',
+                        minLength: 1,
+                        maxLength: GRAPHIC_NOVEL_SPEAKER_MAX_CHARS,
+                      },
+                      text: {
+                        type: 'string',
+                        minLength: 1,
+                        maxLength: GRAPHIC_NOVEL_LINE_MAX_CHARS,
+                      },
                       emotion: { type: 'string' },
                     },
                     required: ['speaker', 'text'],
@@ -553,23 +652,26 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                   type: 'object',
                   properties: {
                     environmentId: { type: 'string' },
-	                    primaryRead: {
-	                      type: 'string',
-	                      description:
-	                        'Short English focus phrase, 3-10 words, naming what the viewer understands first. For action panels, name the affected object/result, not only the team activity.',
-	                    },
+                    primaryRead: {
+                      type: 'string',
+                      description:
+                        'Short English focus phrase, 3-10 words, naming what the viewer understands first. For action panels, name the affected object/result, not only the team activity.',
+                    },
                     sceneVisual: {
                       type: 'object',
                       properties: {
-	                        setting: {
-	                          type: 'string',
-	                          description:
-	                            'Scene-specific additions IN ENGLISH. Describe what is new/changed in this panel, not the whole environment. For action/tool/magic panels, include visible cause/effect: what object is touched, moved, opened, lifted, blocked, or changed.',
-	                        },
+                        setting: {
+                          type: 'string',
+                          description:
+                            'Scene-specific additions IN ENGLISH. Describe what is new/changed in this panel, not the whole environment. For action/tool/magic panels, include visible cause/effect: what object is touched, moved, opened, lifted, blocked, or changed.',
+                        },
                         cameraComposition: {
                           type: 'object',
                           properties: {
-                            shot: { type: 'string', description: 'Shot type and camera angle in English' },
+                            shot: {
+                              type: 'string',
+                              description: 'Shot type and camera angle in English',
+                            },
                             characters: {
                               type: 'array',
                               items: {
@@ -581,11 +683,11 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                                     description:
                                       'Semantic panel blocking, e.g. left_foreground, right_midground, center_background, upper_left_hovering.',
                                   },
-	                                  description: {
-	                                    type: 'string',
-	                                    description:
-	                                      'Placement, pose, expression, gaze, gesture, and interaction for this exact panel. For action/mechanism panels, include contact point and affected object. For reference-grounded characters, do not override stable identity/reference appearance.',
-	                                  },
+                                  description: {
+                                    type: 'string',
+                                    description:
+                                      'Placement, pose, expression, gaze, gesture, and interaction for this exact panel. For action/mechanism panels, include contact point and affected object. For reference-grounded characters, do not override stable identity/reference appearance.',
+                                  },
                                   outfitId: {
                                     type: 'string',
                                     minLength: 1,
@@ -607,12 +709,7 @@ export const GRAPHIC_NOVEL_SCRIPT_SCHEMA: JsonSchema = {
                   required: ['environmentId', 'primaryRead', 'sceneVisual'],
                 },
               },
-              required: [
-                'panelId',
-                'dialogue',
-                'thoughts',
-                'visual',
-              ],
+              required: ['panelId', 'dialogue', 'thoughts', 'visual'],
             },
           },
         },

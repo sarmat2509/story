@@ -11,6 +11,7 @@ import {
   GRAPHIC_NOVEL_LINE_MAX_CHARS,
   GRAPHIC_NOVEL_SPEAKER_MAX_CHARS,
 } from '../../prompts/text';
+import type { ContinuationPromptContext } from '../../prompts/helpers';
 import type {
   GraphicNovelLine,
   GraphicNovelPageRole,
@@ -110,14 +111,19 @@ function normalizeOutfits(script: MixedStoryScript): Map<string, StoryOutfitRow>
 }
 
 function outfitKeyForCharacter(characterName: string, kind: OutfitKind): string {
-  const hex = Buffer.from(characterName.trim() || 'character', 'utf8').toString('hex').slice(0, 10);
+  const hex = Buffer.from(characterName.trim() || 'character', 'utf8')
+    .toString('hex')
+    .slice(0, 10);
   return `o_${hex}_${kind}`;
 }
 
 function isHumanStoryCharacter(spec: StorySpec, characterName: string): boolean {
   const lower = characterName.trim().toLowerCase();
-  const match = (spec.characters || []).find((character) =>
-    String(character.name || '').trim().toLowerCase() === lower
+  const match = (spec.characters || []).find(
+    (character) =>
+      String(character.name || '')
+        .trim()
+        .toLowerCase() === lower
   );
   const type = String(match?.type || '').toLowerCase();
   return ['child', 'person', 'human', 'adult', 'parent'].includes(type);
@@ -133,12 +139,19 @@ function isSwimmingPanel(panel: GraphicNovelPanelScript): boolean {
     ...(panel.dialogue || []).map((line) => line.text),
     ...(panel.thoughts || []).map((line) => line.text),
     panel.caption,
-  ].filter(Boolean).join(' ').toLowerCase();
-  return /(swim|swimming|swimsuit|bathing|pool|water play|плав|купа|пірна|басейн|озер|вод[аиіою])/iu.test(text);
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return /(swim|swimming|swimsuit|bathing|pool|water play|плав|купа|пірна|басейн|озер|вод[аиіою])/iu.test(
+    text
+  );
 }
 
 function isSwimwearDescription(description: string): boolean {
-  return /(swimwear|swimsuit|swimming trunks|bathing suit|rash guard|wetsuit|купальн|плавки|купальник)/iu.test(description);
+  return /(swimwear|swimsuit|swimming trunks|bathing suit|rash guard|wetsuit|купальн|плавки|купальник)/iu.test(
+    description
+  );
 }
 
 function ensureOutfit(
@@ -182,13 +195,15 @@ function legacyCharacters(panel: GraphicNovelPanelScript): CameraCharacterCompos
     }));
   }
 
-  return (Array.isArray(panel.charactersPresent) ? panel.charactersPresent : []).map((name, index) => ({
-    name,
-    description:
-      index === 0
-        ? 'foreground left, readable expression, looking toward the panel action'
-        : 'foreground right, readable expression, responding to the other character',
-  }));
+  return (Array.isArray(panel.charactersPresent) ? panel.charactersPresent : []).map(
+    (name, index) => ({
+      name,
+      description:
+        index === 0
+          ? 'foreground left, readable expression, looking toward the panel action'
+          : 'foreground right, readable expression, responding to the other character',
+    })
+  );
 }
 
 function withRequiredPanelCharacters(
@@ -231,7 +246,10 @@ function withOutfitIds(
     const kind: OutfitKind = isHuman ? (swimmingPanel ? 'swimwear' : 'everyday') : 'natural';
     const existing = character.outfitId?.trim();
     const existingOutfit = existing ? outfits.get(existing) : undefined;
-    if (existingOutfit && (kind !== 'swimwear' || isSwimwearDescription(existingOutfit.description))) {
+    if (
+      existingOutfit &&
+      (kind !== 'swimwear' || isSwimwearDescription(existingOutfit.description))
+    ) {
       return character;
     }
     return {
@@ -277,9 +295,7 @@ function isGenericPlaceholderSpeaker(speaker: string, spec: StorySpec): boolean 
 
 function isGenericPlaceholderVisualRead(value: string): boolean {
   const normalized = normalizeName(value);
-  return GENERIC_PLACEHOLDER_VISUAL_READS.some((placeholder) =>
-    normalized.includes(placeholder)
-  );
+  return GENERIC_PLACEHOLDER_VISUAL_READS.some((placeholder) => normalized.includes(placeholder));
 }
 
 function languageLetterStats(value: string): {
@@ -304,7 +320,13 @@ function textMatchesExpectedLanguage(value: string, language: string): boolean {
   if (language === 'uk' || language === 'ru') {
     return stats.cyrillic / stats.totalLetters >= 0.65;
   }
-  if (language === 'en' || language === 'es' || language === 'de' || language === 'fr' || language === 'pl') {
+  if (
+    language === 'en' ||
+    language === 'es' ||
+    language === 'de' ||
+    language === 'fr' ||
+    language === 'pl'
+  ) {
     return stats.cyrillic === 0 || stats.latin / stats.totalLetters >= 0.65;
   }
   return true;
@@ -337,13 +359,22 @@ function validateProseText(params: {
     return null;
   }
   if (hasExcessiveWhitespace(rawText)) {
-    issues.push({ path, message: 'Prose block contains excessive whitespace or embedded blank lines.' });
+    issues.push({
+      path,
+      message: 'Prose block contains excessive whitespace or embedded blank lines.',
+    });
   }
   if (!textMatchesExpectedLanguage(normalized, spec.language)) {
-    issues.push({ path, message: `Prose block text does not match requested language ${spec.language}.` });
+    issues.push({
+      path,
+      message: `Prose block text does not match requested language ${spec.language}.`,
+    });
   }
   if (hasOffTopicProseContamination(normalized)) {
-    issues.push({ path, message: 'Prose block contains off-topic external-document contamination.' });
+    issues.push({
+      path,
+      message: 'Prose block contains off-topic external-document contamination.',
+    });
   }
   return normalized;
 }
@@ -358,26 +389,43 @@ function repairLine(
   const rawSpeaker = String(line?.speaker || '').trim();
   const textSource = String(line?.text || '').trim();
   if (!rawSpeaker) {
-    issues.push({ path: `${path}.speaker`, message: 'Comic dialogue/thought line is missing a speaker.' });
+    issues.push({
+      path: `${path}.speaker`,
+      message: 'Comic dialogue/thought line is missing a speaker.',
+    });
     return null;
   }
   if (isGenericPlaceholderSpeaker(rawSpeaker, spec)) {
-    issues.push({ path: `${path}.speaker`, message: `Comic line uses generic placeholder speaker "${rawSpeaker}".` });
+    issues.push({
+      path: `${path}.speaker`,
+      message: `Comic line uses generic placeholder speaker "${rawSpeaker}".`,
+    });
   }
   if (!textSource) {
     issues.push({ path: `${path}.text`, message: 'Comic dialogue/thought line is missing text.' });
     return null;
   }
   if (!textMatchesExpectedLanguage(textSource, spec.language)) {
-    issues.push({ path: `${path}.text`, message: `Comic bubble text does not match requested language ${spec.language}.` });
+    issues.push({
+      path: `${path}.text`,
+      message: `Comic bubble text does not match requested language ${spec.language}.`,
+    });
   }
   const speaker = trimToLimit(rawSpeaker, GRAPHIC_NOVEL_SPEAKER_MAX_CHARS);
   const text = trimToLimit(textSource, GRAPHIC_NOVEL_LINE_MAX_CHARS);
   if (speaker !== rawSpeaker) {
-    repairs.push({ path: `${path}.speaker`, message: 'Speaker exceeded comic limit and was repaired.', repaired: true });
+    repairs.push({
+      path: `${path}.speaker`,
+      message: 'Speaker exceeded comic limit and was repaired.',
+      repaired: true,
+    });
   }
   if (text !== textSource.replace(/\s+/g, ' ').trim()) {
-    repairs.push({ path: `${path}.text`, message: 'Bubble text exceeded comic limit and was repaired.', repaired: true });
+    repairs.push({
+      path: `${path}.text`,
+      message: 'Bubble text exceeded comic limit and was repaired.',
+      repaired: true,
+    });
   }
   return {
     speaker,
@@ -397,9 +445,10 @@ function normalizePanelVisual(params: {
   const environmentIds = new Set(environments.map((environment) => environment.id));
   const fallbackEnvId = environments[0]?.id || FALLBACK_ENVIRONMENT_ID;
   const source = panel.visual;
-  const environmentId = source?.environmentId && environmentIds.has(source.environmentId)
-    ? source.environmentId
-    : fallbackEnvId;
+  const environmentId =
+    source?.environmentId && environmentIds.has(source.environmentId)
+      ? source.environmentId
+      : fallbackEnvId;
   const cameraComposition = source?.sceneVisual?.cameraComposition;
   const characters = withOutfitIds(
     panel,
@@ -441,7 +490,8 @@ function normalizePanel(params: {
   repairs: MixedStoryComicAgeConstraintViolation[];
   issues: MixedStoryScriptValidationIssue[];
 }): GraphicNovelPanelScript {
-  const { panel, comicPageNumber, panelIndex, environments, spec, outfits, repairs, issues } = params;
+  const { panel, comicPageNumber, panelIndex, environments, spec, outfits, repairs, issues } =
+    params;
   const path = `readingBlocks[comic:${comicPageNumber}].panels[${panelIndex - 1}]`;
   const dialogue = (Array.isArray(panel.dialogue) ? panel.dialogue : [])
     .map((line, index) => repairLine(line, `${path}.dialogue[${index}]`, spec, repairs, issues))
@@ -452,29 +502,54 @@ function normalizePanel(params: {
   const rawCaption = typeof panel.caption === 'string' ? panel.caption.trim() : '';
   const caption = rawCaption ? trimToLimit(rawCaption, GRAPHIC_NOVEL_CAPTION_MAX_CHARS) : undefined;
   if (rawCaption && !textMatchesExpectedLanguage(rawCaption, spec.language)) {
-    issues.push({ path: `${path}.caption`, message: `Comic caption does not match requested language ${spec.language}.` });
+    issues.push({
+      path: `${path}.caption`,
+      message: `Comic caption does not match requested language ${spec.language}.`,
+    });
   }
   if (rawCaption && caption !== rawCaption.replace(/\s+/g, ' ').trim()) {
-    repairs.push({ path: `${path}.caption`, message: 'Caption exceeded comic limit and was repaired.', repaired: true });
+    repairs.push({
+      path: `${path}.caption`,
+      message: 'Caption exceeded comic limit and was repaired.',
+      repaired: true,
+    });
   }
   if (dialogue.length === 0 && thoughts.length === 0 && !caption) {
-    issues.push({ path, message: 'Comic panel has no dialogue, thought, or caption text for reading/audio.' });
+    issues.push({
+      path,
+      message: 'Comic panel has no dialogue, thought, or caption text for reading/audio.',
+    });
   }
   if (!panel.visual?.primaryRead && !panel.visualAction && !panel.artPrompt) {
-    issues.push({ path: `${path}.visual.primaryRead`, message: 'Comic panel is missing a concrete visual primary read.' });
+    issues.push({
+      path: `${path}.visual.primaryRead`,
+      message: 'Comic panel is missing a concrete visual primary read.',
+    });
   }
   if (isGenericPlaceholderVisualRead(String(panel.visual?.primaryRead || ''))) {
-    issues.push({ path: `${path}.visual.primaryRead`, message: 'Comic panel uses a generic placeholder visual read.' });
+    issues.push({
+      path: `${path}.visual.primaryRead`,
+      message: 'Comic panel uses a generic placeholder visual read.',
+    });
   }
   if (!panel.visual?.sceneVisual?.setting) {
-    issues.push({ path: `${path}.visual.sceneVisual.setting`, message: 'Comic panel is missing scene visual setting.' });
+    issues.push({
+      path: `${path}.visual.sceneVisual.setting`,
+      message: 'Comic panel is missing scene visual setting.',
+    });
   }
   if (!panel.visual?.sceneVisual?.lighting) {
-    issues.push({ path: `${path}.visual.sceneVisual.lighting`, message: 'Comic panel is missing scene visual lighting.' });
+    issues.push({
+      path: `${path}.visual.sceneVisual.lighting`,
+      message: 'Comic panel is missing scene visual lighting.',
+    });
   }
   const cameraComposition = panel.visual?.sceneVisual?.cameraComposition;
   if (!cameraComposition || typeof cameraComposition === 'string') {
-    issues.push({ path: `${path}.visual.sceneVisual.cameraComposition`, message: 'Comic panel is missing structured camera composition.' });
+    issues.push({
+      path: `${path}.visual.sceneVisual.cameraComposition`,
+      message: 'Comic panel is missing structured camera composition.',
+    });
   }
 
   return {
@@ -489,7 +564,9 @@ function normalizePanel(params: {
 }
 
 function blockKey(block: MixedStoryReadingBlock): number {
-  return Number.isFinite(Number(block.screenOrder)) ? Number(block.screenOrder) : Number.MAX_SAFE_INTEGER;
+  return Number.isFinite(Number(block.screenOrder))
+    ? Number(block.screenOrder)
+    : Number.MAX_SAFE_INTEGER;
 }
 
 function proseTextFromSource(
@@ -498,18 +575,23 @@ function proseTextFromSource(
   sceneIds: number[]
 ): string | null {
   const overlapping = sourceBlocks
-    .filter((block): block is Extract<MixedStoryReadingBlock, { kind: 'prose' }> => block.kind === 'prose')
-    .filter((block) =>
-      sceneIds.length > 0 &&
-      Array.isArray(block.sceneIds) &&
-      block.sceneIds.some((sceneId) => sceneIds.includes(Number(sceneId)))
+    .filter(
+      (block): block is Extract<MixedStoryReadingBlock, { kind: 'prose' }> => block.kind === 'prose'
+    )
+    .filter(
+      (block) =>
+        sceneIds.length > 0 &&
+        Array.isArray(block.sceneIds) &&
+        block.sceneIds.some((sceneId) => sceneIds.includes(Number(sceneId)))
     )
     .map((block) => String(block.text || '').trim())
     .filter(Boolean);
   if (overlapping.length > 0) return overlapping.join('\n\n');
 
   const proseBlocks = sourceBlocks
-    .filter((block): block is Extract<MixedStoryReadingBlock, { kind: 'prose' }> => block.kind === 'prose')
+    .filter(
+      (block): block is Extract<MixedStoryReadingBlock, { kind: 'prose' }> => block.kind === 'prose'
+    )
     .sort((a, b) => blockKey(a) - blockKey(b));
   const fallback = proseBlocks[proseIndex]?.text;
   const text = String(fallback || '').trim();
@@ -573,7 +655,8 @@ function validateRawBlockShape(params: {
     if (comicText) {
       issues.push({
         path: `${path}.text`,
-        message: 'Comic block contains prose text. Comic narration must be expressed as panel dialogue, thoughts, or captions.',
+        message:
+          'Comic block contains prose text. Comic narration must be expressed as panel dialogue, thoughts, or captions.',
       });
     }
     if (!Array.isArray(block.panels) || block.panels.length === 0) {
@@ -636,9 +719,11 @@ function validateNormalizedMixedStoryScript(params: {
   if (densityRequirement && comicBlocks.length > 0) {
     const densePages = comicBlocks.filter((block) => {
       const panelCount = block.panels.length;
-      return panelCount >= densityRequirement.denseMinPanels &&
+      return (
+        panelCount >= densityRequirement.denseMinPanels &&
         (densityRequirement.denseMaxPanels === undefined ||
-          panelCount <= densityRequirement.denseMaxPanels);
+          panelCount <= densityRequirement.denseMaxPanels)
+      );
     });
     if (densePages.length < densityRequirement.minimumDensePages) {
       issues.push({
@@ -654,13 +739,13 @@ function validateNormalizedMixedStoryScript(params: {
       if (threePanelPages.length > densityRequirement.maximumThreePanelPages) {
         issues.push({
           path: 'readingBlocks',
-          message:
-            `Age ${spec.ageGroup} allows at most ${densityRequirement.maximumThreePanelPages} three-panel comic pages.`,
+          message: `Age ${spec.ageGroup} allows at most ${densityRequirement.maximumThreePanelPages} three-panel comic pages.`,
         });
       }
     }
     if (spec.ageGroup === '6-8') {
-      const openingPage = comicBlocks.find((block) => block.comicPageNumber === 1) ?? comicBlocks[0];
+      const openingPage =
+        comicBlocks.find((block) => block.comicPageNumber === 1) ?? comicBlocks[0];
       if (
         openingPage &&
         (openingPage.panels.length < densityRequirement.denseMinPanels ||
@@ -669,7 +754,8 @@ function validateNormalizedMixedStoryScript(params: {
       ) {
         issues.push({
           path: 'readingBlocks[comic:1].panels',
-          message: `Age 6-8 opening comic page must have ${densityRequirement.denseMinPanels}` +
+          message:
+            `Age 6-8 opening comic page must have ${densityRequirement.denseMinPanels}` +
             `${densityRequirement.denseMaxPanels ? `-${densityRequirement.denseMaxPanels}` : '+'} panels.`,
         });
       }
@@ -738,7 +824,9 @@ export function normalizeMixedStoryScript(params: {
   }
   sourceBlocks.forEach((block, index) => validateRawBlockShape({ block, index, spec, issues }));
   const comicBlocks = sourceBlocks
-    .filter((block): block is Extract<MixedStoryReadingBlock, { kind: 'comic' }> => block.kind === 'comic')
+    .filter(
+      (block): block is Extract<MixedStoryReadingBlock, { kind: 'comic' }> => block.kind === 'comic'
+    )
     .sort((a, b) => {
       const pageA = Number(a.comicPageNumber || 0);
       const pageB = Number(b.comicPageNumber || 0);
@@ -787,9 +875,10 @@ export function normalizeMixedStoryScript(params: {
       continue;
     }
     const panelRange = graphicNovelPanelCountRange(spec.ageGroup);
-    const sourcePanels = Array.isArray(source.panels) && source.panels.length > 0
-      ? source.panels.slice(0, panelRange.max)
-      : [];
+    const sourcePanels =
+      Array.isArray(source.panels) && source.panels.length > 0
+        ? source.panels.slice(0, panelRange.max)
+        : [];
     if (sourcePanels.length === 0) {
       issues.push({
         path: `readingBlocks[comic:${comicPageNumber}].panels`,
@@ -854,7 +943,9 @@ export function normalizeMixedStoryScript(params: {
 
 export function mixedStoryComicPages(script: MixedStoryScript) {
   return script.readingBlocks
-    .filter((block): block is Extract<MixedStoryReadingBlock, { kind: 'comic' }> => block.kind === 'comic')
+    .filter(
+      (block): block is Extract<MixedStoryReadingBlock, { kind: 'comic' }> => block.kind === 'comic'
+    )
     .map((block) => ({
       pageNumber: block.comicPageNumber,
       pageRole: roleForComicBlock(
@@ -873,6 +964,8 @@ export class MixedStoryDomainService {
     sceneCount: number;
     comicSceneIds: number[];
     comicBlockCount: number;
+    isContinuation?: boolean;
+    continuationContext?: ContinuationPromptContext;
     onUsage?: (usage: UsageMetadata) => void;
   }): Promise<{
     script: MixedStoryScript;
@@ -904,7 +997,9 @@ export class MixedStoryDomainService {
           {
             title: normalized.script.title,
             attempt,
-            comicBlockCount: normalized.script.readingBlocks.filter((block) => block.kind === 'comic').length,
+            comicBlockCount: normalized.script.readingBlocks.filter(
+              (block) => block.kind === 'comic'
+            ).length,
             blockCount: normalized.script.readingBlocks.length,
             repairedComicTextViolations: normalized.repairs.length,
           },
@@ -913,7 +1008,10 @@ export class MixedStoryDomainService {
         return normalized;
       } catch (error) {
         lastError = error;
-        if (!(error instanceof MixedStoryScriptValidationError) || attempt >= MIXED_STORY_SCRIPT_ATTEMPTS) {
+        if (
+          !(error instanceof MixedStoryScriptValidationError) ||
+          attempt >= MIXED_STORY_SCRIPT_ATTEMPTS
+        ) {
           throw error;
         }
         validationFeedback = error.issues
@@ -930,6 +1028,8 @@ export class MixedStoryDomainService {
       }
     }
 
-    throw lastError instanceof Error ? lastError : new Error('Mixed story script generation failed validation');
+    throw lastError instanceof Error
+      ? lastError
+      : new Error('Mixed story script generation failed validation');
   }
 }

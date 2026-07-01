@@ -7,6 +7,7 @@ import {
   buildGraphicNovelSafetyFallbackPrompt,
   GRAPHIC_NOVEL_SCRIPT_SCHEMA,
 } from '../../prompts/text';
+import type { ContinuationPromptContext } from '../../prompts/helpers';
 import type {
   GraphicNovelPageRole,
   GraphicNovelPanelVisual,
@@ -75,14 +76,19 @@ function normalizeOutfits(script: GraphicNovelScript): Map<string, StoryOutfitRo
 }
 
 function outfitKeyForCharacter(characterName: string, kind: OutfitKind): string {
-  const hex = Buffer.from(characterName.trim() || 'character', 'utf8').toString('hex').slice(0, 10);
+  const hex = Buffer.from(characterName.trim() || 'character', 'utf8')
+    .toString('hex')
+    .slice(0, 10);
   return `o_${hex}_${kind}`;
 }
 
 function isHumanStoryCharacter(spec: StorySpec, characterName: string): boolean {
   const lower = characterName.trim().toLowerCase();
-  const match = (spec.characters || []).find((character) =>
-    String(character.name || '').trim().toLowerCase() === lower
+  const match = (spec.characters || []).find(
+    (character) =>
+      String(character.name || '')
+        .trim()
+        .toLowerCase() === lower
   );
   const type = String(match?.type || '').toLowerCase();
   return ['child', 'person', 'human', 'adult', 'parent'].includes(type);
@@ -101,12 +107,19 @@ function isSwimmingPanel(panel: GraphicNovelPanelScript): boolean {
     panel.visualAction,
     panel.setting,
     panel.artPrompt,
-  ].filter(Boolean).join(' ').toLowerCase();
-  return /(swim|swimming|swimsuit|bathing|pool|water play|плав|купа|пірна|басейн|озер|вод[аиіою])/iu.test(text);
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return /(swim|swimming|swimsuit|bathing|pool|water play|плав|купа|пірна|басейн|озер|вод[аиіою])/iu.test(
+    text
+  );
 }
 
 function isSwimwearDescription(description: string): boolean {
-  return /(swimwear|swimsuit|swimming trunks|bathing suit|rash guard|wetsuit|купальн|плавки|купальник)/iu.test(description);
+  return /(swimwear|swimsuit|swimming trunks|bathing suit|rash guard|wetsuit|купальн|плавки|купальник)/iu.test(
+    description
+  );
 }
 
 function ensureOutfit(
@@ -126,7 +139,7 @@ function ensureOutfit(
           ? 'age-appropriate child swimwear suitable for swimming, bare feet, no jacket or coat'
           : params.kind === 'everyday'
             ? 'age-appropriate everyday clothes suitable for the current scene'
-          : 'natural appearance',
+            : 'natural appearance',
     });
   }
   return id;
@@ -177,12 +190,13 @@ function withOutfitIds(
   const swimmingPanel = isSwimmingPanel(panel);
   return characters.map((character) => {
     const isHuman = isHumanStoryCharacter(spec, character.name);
-    const kind: OutfitKind = isHuman
-      ? (swimmingPanel ? 'swimwear' : 'everyday')
-      : 'natural';
+    const kind: OutfitKind = isHuman ? (swimmingPanel ? 'swimwear' : 'everyday') : 'natural';
     const existing = character.outfitId?.trim();
     const existingOutfit = existing ? outfits.get(existing) : undefined;
-    if (existingOutfit && (kind !== 'swimwear' || isSwimwearDescription(existingOutfit.description))) {
+    if (
+      existingOutfit &&
+      (kind !== 'swimwear' || isSwimwearDescription(existingOutfit.description))
+    ) {
       return character;
     }
     return {
@@ -205,10 +219,15 @@ function legacyPrimaryRead(panel: GraphicNovelPanelScript, panelIndex: number): 
 
 function legacyCharacters(panel: GraphicNovelPanelScript): CameraCharacterComposition[] {
   const sceneCharacters = panel.visual?.sceneVisual?.cameraComposition;
-  if (sceneCharacters && typeof sceneCharacters !== 'string' && Array.isArray(sceneCharacters.characters)) {
+  if (
+    sceneCharacters &&
+    typeof sceneCharacters !== 'string' &&
+    Array.isArray(sceneCharacters.characters)
+  ) {
     return sceneCharacters.characters.map((character) => ({
       name: character.name,
-      description: character.description || 'visible in the panel with readable expression and pose',
+      description:
+        character.description || 'visible in the panel with readable expression and pose',
       position: character.position,
       outfitId: character.outfitId,
     }));
@@ -219,24 +238,29 @@ function legacyCharacters(panel: GraphicNovelPanelScript): CameraCharacterCompos
   if (Array.isArray(oldCharacters)) {
     return oldCharacters.map((character: any) => ({
       name: character.name || 'Character',
-      description: [
-        character.placement,
-        character.pose,
-        character.facialExpression ? `expression: ${character.facialExpression}` : null,
-        character.gaze ? `gaze: ${character.gaze}` : null,
-        character.gesture ? `gesture: ${character.gesture}` : null,
-        character.interaction ? `interaction: ${character.interaction}` : null,
-      ].filter(Boolean).join('; ') || 'visible in the panel with readable expression and pose',
+      description:
+        [
+          character.placement,
+          character.pose,
+          character.facialExpression ? `expression: ${character.facialExpression}` : null,
+          character.gaze ? `gaze: ${character.gaze}` : null,
+          character.gesture ? `gesture: ${character.gesture}` : null,
+          character.interaction ? `interaction: ${character.interaction}` : null,
+        ]
+          .filter(Boolean)
+          .join('; ') || 'visible in the panel with readable expression and pose',
     }));
   }
 
-  return (Array.isArray(panel.charactersPresent) ? panel.charactersPresent : []).map((name, index) => ({
-    name,
-    description:
-      index === 0
-        ? 'foreground left, readable expression, looking toward the panel action'
-        : 'foreground right, readable expression, responding to the other character',
-  }));
+  return (Array.isArray(panel.charactersPresent) ? panel.charactersPresent : []).map(
+    (name, index) => ({
+      name,
+      description:
+        index === 0
+          ? 'foreground left, readable expression, looking toward the panel action'
+          : 'foreground right, readable expression, responding to the other character',
+    })
+  );
 }
 
 function normalizePanelVisual(
@@ -250,9 +274,10 @@ function normalizePanelVisual(
   const fallbackEnvId = environments[0]?.id || FALLBACK_ENVIRONMENT_ID;
   const oldPanelVisual = panel.panelVisual as any;
   const source = panel.visual;
-  const environmentId = source?.environmentId && environmentIds.has(source.environmentId)
-    ? source.environmentId
-    : fallbackEnvId;
+  const environmentId =
+    source?.environmentId && environmentIds.has(source.environmentId)
+      ? source.environmentId
+      : fallbackEnvId;
   const cameraComposition = source?.sceneVisual?.cameraComposition;
   const oldComposition = oldPanelVisual?.cameraComposition;
 
@@ -288,15 +313,19 @@ function normalizePanelVisual(
 }
 
 function fallbackPanel(pageNumber: number, panelIndex: number): GraphicNovelPanelScript {
-  const visualAction = panelIndex === 1
-    ? 'The characters notice something new with clear curious expressions.'
-    : 'The characters respond warmly and take the next small step.';
+  const visualAction =
+    panelIndex === 1
+      ? 'The characters notice something new with clear curious expressions.'
+      : 'The characters respond warmly and take the next small step.';
   const setting = 'A child-friendly story setting matching the selected theme.';
 
   return {
     panelId: `p${pageNumber}-${panelIndex}`,
     beatType: panelIndex === 1 ? 'setup' : 'response',
-    dialogue: panelIndex === 1 ? [{ speaker: 'Hero', text: 'Look!' }] : [{ speaker: 'Hero', text: 'I can try.' }],
+    dialogue:
+      panelIndex === 1
+        ? [{ speaker: 'Hero', text: 'Look!' }]
+        : [{ speaker: 'Hero', text: 'I can try.' }],
     thoughts: [],
     visual: {
       environmentId: FALLBACK_ENVIRONMENT_ID,
@@ -313,7 +342,11 @@ function fallbackPanel(pageNumber: number, panelIndex: number): GraphicNovelPane
   };
 }
 
-function normalizeScript(script: GraphicNovelScript, spec: StorySpec, pageCount: number): GraphicNovelScript {
+function normalizeScript(
+  script: GraphicNovelScript,
+  spec: StorySpec,
+  pageCount: number
+): GraphicNovelScript {
   const environments = normalizeEnvironments(script, spec);
   const outfits = normalizeOutfits(script);
   const sourcePages = Array.isArray(script.pages) ? script.pages : [];
@@ -323,9 +356,10 @@ function normalizeScript(script: GraphicNovelScript, spec: StorySpec, pageCount:
     const panels = source?.panels?.length
       ? source.panels
       : [fallbackPanel(pageNumber, 1), fallbackPanel(pageNumber, 2)];
-    const normalizedPanels = panels.length >= 2
-      ? panels
-      : [panels[0] ?? fallbackPanel(pageNumber, 1), fallbackPanel(pageNumber, 2)];
+    const normalizedPanels =
+      panels.length >= 2
+        ? panels
+        : [panels[0] ?? fallbackPanel(pageNumber, 1), fallbackPanel(pageNumber, 2)];
 
     return {
       pageNumber,
@@ -340,7 +374,9 @@ function normalizeScript(script: GraphicNovelScript, spec: StorySpec, pageCount:
           beatType: panel.beatType,
           visualAction: panel.visualAction,
           setting: panel.setting,
-          charactersPresent: Array.isArray(panel.charactersPresent) ? panel.charactersPresent : undefined,
+          charactersPresent: Array.isArray(panel.charactersPresent)
+            ? panel.charactersPresent
+            : undefined,
           emotion: panel.emotion,
           artPrompt: panel.artPrompt,
         };
@@ -365,6 +401,8 @@ export class GraphicNovelDomainService {
   async generateScript(params: {
     spec: StorySpec;
     pageCount: number;
+    isContinuation?: boolean;
+    continuationContext?: ContinuationPromptContext;
     onUsage?: (usage: UsageMetadata) => void;
   }): Promise<GraphicNovelScript> {
     const attempts = [
@@ -434,10 +472,7 @@ export class GraphicNovelDomainService {
     return normalized;
   }
 
-  planLayouts(params: {
-    spec: StorySpec;
-    script: GraphicNovelScript;
-  }) {
+  planLayouts(params: { spec: StorySpec; script: GraphicNovelScript }) {
     return planGraphicNovelLayouts({
       ageGroup: params.spec.ageGroup,
       pages: params.script.pages,

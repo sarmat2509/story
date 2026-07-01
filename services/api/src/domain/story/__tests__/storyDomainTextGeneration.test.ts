@@ -4,7 +4,10 @@
 import assert from 'node:assert';
 import type { StorySpec } from '../../../ai/types';
 import type { ITextProvider } from '../../../providers/base/ITextProvider';
-import type { GenerateStructuredRequest, GenerateTextRequest } from '../../../providers/base/JsonSchema';
+import type {
+  GenerateStructuredRequest,
+  GenerateTextRequest,
+} from '../../../providers/base/JsonSchema';
 import { StoryDomainService } from '../StoryDomainService';
 
 const STATIC_POLICY = {
@@ -12,7 +15,11 @@ const STATIC_POLICY = {
   language: 'en' as const,
   allowedConflicts: [] as string[],
   constraints: { mustHaveHappyEnding: true, noShamingLanguage: true },
-  readability: { maxSentenceLen: 18, targetWordsRange: [500, 800] as [number, number], dialogRatio: 0.5 },
+  readability: {
+    maxSentenceLen: 18,
+    targetWordsRange: [500, 800] as [number, number],
+    dialogRatio: 0.5,
+  },
   promptGuidelines: '',
 };
 
@@ -24,7 +31,10 @@ const STATIC_STORY_SPEC: StorySpec = {
   policyProfile: STATIC_POLICY,
   goalName: 'Kindness',
   goalGuidance: 'Show small acts of kindness between friends.',
-  worldRule: { name: 'Gentle magic', description: 'Magic only appears as soft light when someone shares.' },
+  worldRule: {
+    name: 'Gentle magic',
+    description: 'Magic only appears as soft light when someone shares.',
+  },
 };
 
 const PLAIN_LLM_FIXTURE = `title: The Tiny Light
@@ -60,7 +70,7 @@ async function testGenerateTextPlainUsesDomainAndParsesScenes() {
   assert.strictEqual(
     result.description,
     'A short bedtime tale about a glowworm who shares her glow.',
-    'description line parsed from fixture',
+    'description line parsed from fixture'
   );
   assert.strictEqual(result.scenes.length, 2, 'two --- blocks → two scenes');
   assert.ok(result.scenes[0].text.includes('glowworm'), 'first scene body preserved');
@@ -73,23 +83,27 @@ async function testGenerateTextPlainUsesDomainAndParsesScenes() {
   assert.ok(stub.lastGenerateTextRequest, 'provider received a request');
   assert.ok(
     (stub.lastGenerateTextRequest!.prompt?.length ?? 0) > 500,
-    'prompt is built (child profile, rules, plain output contract)',
+    'prompt is built (child profile, rules, plain output contract)'
   );
   assert.ok(
-    stub.lastGenerateTextRequest!.prompt.includes('Role boundary: you are the Story Writer, not the Visual Director.'),
-    'Writer prompt keeps visual metadata in the Director step',
+    stub.lastGenerateTextRequest!.prompt.includes(
+      'Role boundary: you are the Story Writer, not the Visual Director.'
+    ),
+    'Writer prompt keeps visual metadata in the Director step'
   );
   assert.ok(
-    stub.lastGenerateTextRequest!.prompt.includes('WORLD RULE DRAMATURGY (author-only constraint):'),
-    'world rules are treated as hidden dramaturgy, not exposition',
+    stub.lastGenerateTextRequest!.prompt.includes(
+      'WORLD RULE DRAMATURGY (author-only constraint):'
+    ),
+    'world rules are treated as hidden dramaturgy, not exposition'
   );
   assert.ok(
     !stub.lastGenerateTextRequest!.prompt.includes('Introduce this rule in Scene'),
-    'prompt must not ask Writer to explicitly introduce a world rule',
+    'prompt must not ask Writer to explicitly introduce a world rule'
   );
   assert.ok(
     !stub.lastGenerateTextRequest!.prompt.includes('OUTPUT FORMAT (JSON)'),
-    'plain Writer prompt must not include the old structured JSON contract',
+    'plain Writer prompt must not include the old structured JSON contract'
   );
   assert.strictEqual(stub.lastGenerateTextRequest!.operation, 'text_plain');
 }
@@ -103,8 +117,16 @@ async function testGenerateTextCompatibilityUsesPlainWriter() {
   assert.strictEqual(result.title, 'The Tiny Light');
   assert.strictEqual(result.language, 'en');
   assert.strictEqual(result.scenes.length, 2);
-  assert.deepStrictEqual(result.characters, [], 'plain Writer does not create a JSON character roster');
-  assert.deepStrictEqual(result.environments, [], 'visual environments belong to Director, not Writer');
+  assert.deepStrictEqual(
+    result.characters,
+    [],
+    'plain Writer does not create a JSON character roster'
+  );
+  assert.deepStrictEqual(
+    result.environments,
+    [],
+    'visual environments belong to Director, not Writer'
+  );
   assert.deepStrictEqual(result.outfits, [], 'outfits belong to Director, not Writer');
   assert.ok(stub.lastGenerateTextRequest, 'provider received a plain text request');
   assert.strictEqual(stub.lastGenerateTextRequest!.operation, 'text_plain');
@@ -129,15 +151,17 @@ async function testWriterPromptDoesNotExposeCharacterIds() {
   assert.ok(stub.lastGenerateTextRequest, 'provider received a request');
   assert.ok(
     stub.lastGenerateTextRequest!.prompt.includes('1. Емілія'),
-    'Writer prompt lists the localized story name',
+    'Writer prompt lists the localized story name'
   );
   assert.ok(
-    stub.lastGenerateTextRequest!.prompt.includes('Do not translate, rename, or append bracket metadata'),
-    'Writer prompt instructs prose names to stay clean',
+    stub.lastGenerateTextRequest!.prompt.includes(
+      'Do not translate, rename, or append bracket metadata'
+    ),
+    'Writer prompt instructs prose names to stay clean'
   );
   assert.ok(
     !stub.lastGenerateTextRequest!.prompt.includes('[ID:'),
-    'Writer prompt must not expose technical character IDs',
+    'Writer prompt must not expose technical character IDs'
   );
 }
 
@@ -183,10 +207,26 @@ async function testContinuationWriterPromptDoesNotExposeIds() {
   });
 
   assert.ok(stub.lastGenerateTextRequest, 'provider received a continuation request');
-  assert.ok(stub.lastGenerateTextRequest!.prompt.includes('Snow Spirit (imaginary)'), 'character name is clean');
-  assert.ok(!stub.lastGenerateTextRequest!.prompt.includes('[ID:'), 'continuation prompt must not expose IDs');
-  assert.ok(!stub.lastGenerateTextRequest!.prompt.includes('env_forest_001'), 'environment IDs stay out of Writer prompt');
-  assert.ok(!stub.lastGenerateTextRequest!.prompt.includes('outfit_snow_001'), 'outfit IDs stay out of Writer prompt');
+  assert.ok(
+    stub.lastGenerateTextRequest!.prompt.includes('Snow Spirit (imaginary)'),
+    'character name is clean'
+  );
+  assert.ok(
+    !stub.lastGenerateTextRequest!.prompt.includes('Friends help each other.'),
+    'previous moral must not be carried into continuation prompt'
+  );
+  assert.ok(
+    !stub.lastGenerateTextRequest!.prompt.includes('[ID:'),
+    'continuation prompt must not expose IDs'
+  );
+  assert.ok(
+    !stub.lastGenerateTextRequest!.prompt.includes('env_forest_001'),
+    'environment IDs stay out of Writer prompt'
+  );
+  assert.ok(
+    !stub.lastGenerateTextRequest!.prompt.includes('outfit_snow_001'),
+    'outfit IDs stay out of Writer prompt'
+  );
 }
 
 class BlockedValidationStubTextProvider implements ITextProvider {
@@ -212,7 +252,7 @@ async function testValidateSceneFailsClosedWhenProviderBlocksValidation() {
       text: 'The scene needs validation.',
     } as any,
     STATIC_POLICY,
-    false,
+    false
   );
 
   assert.strictEqual(result.isValid, false, 'blocked validation must not auto-pass as safe');
@@ -227,19 +267,22 @@ async function testValidateScenesBatchFailsClosedWhenProviderBlocksValidation() 
   const domain = new StoryDomainService(stub, stub, stub);
 
   const result = await domain.validateScenesBatch(
-    [
-      { sceneId: 1, text: 'First scene.' } as any,
-      { sceneId: 2, text: 'Second scene.' } as any,
-    ],
-    STATIC_POLICY,
+    [{ sceneId: 1, text: 'First scene.' } as any, { sceneId: 2, text: 'Second scene.' } as any],
+    STATIC_POLICY
   );
 
-  assert.strictEqual(result.failedScenes.length, 2, 'all scenes fail closed when batch validation is blocked');
+  assert.strictEqual(
+    result.failedScenes.length,
+    2,
+    'all scenes fail closed when batch validation is blocked'
+  );
   assert.deepStrictEqual(
     result.failedScenes.map((scene) => scene.sceneId),
-    [1, 2],
+    [1, 2]
   );
-  assert.ok(result.failedScenes.every((scene) => scene.violations[0]?.category === 'content_policy'));
+  assert.ok(
+    result.failedScenes.every((scene) => scene.violations[0]?.category === 'content_policy')
+  );
 }
 
 void (async () => {

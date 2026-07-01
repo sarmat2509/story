@@ -1,12 +1,24 @@
 import type { StorySpec } from '../../ai/types';
 import type { JsonSchema } from '../../providers/base/JsonSchema';
-import { getContentPolicy } from '../contentPolicy';
 import {
-  characterList,
+  formatContinuationLocationMemory,
+  formatContinuationOutfitMemory,
+  formatContinuationStoryContext,
+  formatContentPolicySection,
+  formatReferenceGroundedCharacterRules,
+  formatStoryTitleSection,
+  formatStructuredEnvironmentRules,
+  formatStructuredOutfitRules,
+  formatStructuredSpeakerNameRules,
+  formatStructuredStoryInputSection,
+  type ContinuationPromptContext,
+} from '../helpers';
+import {
   closingArtifactRules,
   dialogueRhythmRules,
   ageRules,
   graphicNovelPanelCountRange,
+  graphicNovelCharacterList,
   panelDensityRules,
   GRAPHIC_NOVEL_CAPTION_MAX_CHARS,
   GRAPHIC_NOVEL_LINE_MAX_CHARS,
@@ -27,9 +39,22 @@ export function buildMixedStoryPrompt(params: {
   comicSceneIds: number[];
   comicBlockCount: number;
   validationFeedback?: string[];
+  isContinuation?: boolean;
+  continuationContext?: ContinuationPromptContext;
 }): string {
-  const { spec, sceneCount, comicSceneIds, comicBlockCount } = params;
+  const { spec, sceneCount, comicSceneIds, comicBlockCount, isContinuation, continuationContext } =
+    params;
   const expectedReadingBlockCount = sceneCount;
+  const continuationSections =
+    isContinuation && continuationContext
+      ? [
+          formatContinuationStoryContext({ context: continuationContext, mode: 'mixed_story' }),
+          formatContinuationLocationMemory(continuationContext.previousEnvironments),
+          formatContinuationOutfitMemory(continuationContext.previousOutfits),
+        ]
+          .filter(Boolean)
+          .join('\n\n')
+      : '';
   const comicPageBySceneId = new Map<number, number>();
   comicSceneIds.slice(0, comicBlockCount).forEach((sceneId, index) => {
     comicPageBySceneId.set(sceneId, index + 1);
@@ -82,6 +107,8 @@ OUTPUT:
 - Do not include unrelated informational text, external documents, policy summaries, climate reports, military/security planning text, or any text outside the requested story.
 ${validationFeedback}
 
+${formatStoryTitleSection({ isContinuation })}
+
 REQUIRED READING BLOCK PLAN:
 Follow this plan exactly. Do not merge, omit, add, or reorder blocks.
 ${blockPlanLines.join('\n')}
@@ -95,18 +122,11 @@ CONTINUITY:
 - Comic dialogue must be spoken by the same story characters and refer to the same current situation, not a disconnected episode.
 - Prose after a comic page should narrate the result or next consequence of what was shown in the panels, not summarize the page as if it never happened.
 
-STORY INPUT:
-- Language: ${spec.language}
-- Age group: ${spec.ageGroup}
-- Theme / goal: ${spec.goalName || spec.goal || 'open-ended'}
-- Scenario: ${spec.scenarioCard?.name || spec.scenarioCard?.id || 'none'}
-- Scenario plot guidance: ${spec.scenarioGuidance || spec.scenarioCard?.promptGuidance || 'none'}
-- World rule: ${spec.worldRule ? `${spec.worldRule.name}: ${spec.worldRule.description}` : 'none'}
-- User notes: ${(spec as any).userNotes || 'none'}
-- Illustration style: ${(spec as any).imageStyle || 'soft_watercolor'}
+${formatStructuredStoryInputSection(spec, { includeIllustrationStyle: true })}
 
-CONTENT POLICY:
-${getContentPolicy({ policyProfile: spec.policyProfile, scenarioCardId: spec.scenarioCard?.id }).textPromptSection}
+${formatContentPolicySection(spec)}
+
+${continuationSections}
 
 CLOSING ARTIFACT:
 ${closingArtifactRules(spec)}
@@ -147,29 +167,15 @@ PROSE TEXT:
 - The final prose block or final comic block must resolve positively and clearly for the age.
 
 CHARACTERS:
-${characterList(spec)}
+${graphicNovelCharacterList(spec, isContinuation ? continuationContext : undefined)}
 
-OUTFITS:
-- Return a top-level outfits[] array. Each row has id, characterName, description.
-- outfits[].description is WARDROBE ONLY IN ENGLISH: garments, shoes, worn hats/helmets/hoods, bags, jewelry, glasses, swimwear, rain/snow gear, costumes.
-- Do not put face, hair, body, age, species, expression, personality, pose, or identity details in outfits[].description.
-- Every visual.sceneVisual.cameraComposition.characters[] row MUST include outfitId referencing one outfits[].id.
-- Include one outfit row for every outfitId used by a physically present character. Creatures/animals may use description exactly "natural appearance"; still set outfitId.
+${formatStructuredOutfitRules()}
 
-SPEAKER NAME RULES:
-- dialogue[].speaker and thoughts[].speaker must use exact character names from CHARACTERS when that character speaks.
-- If the story introduces a new helper, choose one name once and reuse the exact same spelling.
-- Do not mix alphabets inside a speaker name.
+${formatStructuredSpeakerNameRules()}
 
-REFERENCE-GROUNDED CHARACTER RULES:
-- Characters marked "visual reference: yes" have image references downstream. Their visual identity comes from the reference image, not from this JSON.
-- For reference-grounded characters, visual.sceneVisual.cameraComposition.characters[].description must be reference-safe: placement, pose, action, emotion, gaze direction, gesture, and interaction only.
-- Do NOT describe stable identity details for reference-grounded characters: appearance, outfit, permanent markings, species design, default clothes, or exact colors.
+${formatReferenceGroundedCharacterRules()}
 
-ENVIRONMENTS:
-- Return 1-3 environments in environments[] before readingBlocks.
-- Each environment description must be in English and describe reusable static layout.
-- Comic panels reference environmentId. Prose blocks do not need visual fields.
+${formatStructuredEnvironmentRules({ target: 'readingBlocks' })}
 `;
 }
 
@@ -317,29 +323,32 @@ const BASE_MIXED_STORY_SCRIPT_SCHEMA: JsonSchema = {
   required: ['title', 'description', 'language', 'environments', 'outfits', 'readingBlocks'],
 };
 
-export function buildMixedStoryScriptSchema(params: {
-  readingBlockCount?: number;
-  comicPanelRange?: { min: number; max: number };
-} = {}): JsonSchema {
+export function buildMixedStoryScriptSchema(
+  params: {
+    readingBlockCount?: number;
+    comicPanelRange?: { min: number; max: number };
+  } = {}
+): JsonSchema {
   const readingBlocks = BASE_MIXED_STORY_SCRIPT_SCHEMA.properties?.readingBlocks;
   if (!readingBlocks || (!params.readingBlockCount && !params.comicPanelRange)) {
     return BASE_MIXED_STORY_SCRIPT_SCHEMA;
   }
   const readingBlockItems = readingBlocks.items!;
   const panels = readingBlockItems?.properties?.panels;
-  const itemSchema = panels && params.comicPanelRange
-    ? {
-        ...readingBlockItems,
-        properties: {
-          ...readingBlockItems.properties,
-          panels: {
-            ...panels,
-            minItems: params.comicPanelRange.min,
-            maxItems: params.comicPanelRange.max,
+  const itemSchema =
+    panels && params.comicPanelRange
+      ? {
+          ...readingBlockItems,
+          properties: {
+            ...readingBlockItems.properties,
+            panels: {
+              ...panels,
+              minItems: params.comicPanelRange.min,
+              maxItems: params.comicPanelRange.max,
+            },
           },
-        },
-      }
-    : readingBlockItems;
+        }
+      : readingBlockItems;
 
   return {
     ...BASE_MIXED_STORY_SCRIPT_SCHEMA,

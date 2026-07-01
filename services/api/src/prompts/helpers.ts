@@ -1,7 +1,7 @@
 /**
  * Prompt Helper Functions
  * Reusable utilities for building prompts
- * 
+ *
  * These are pure functions that format story parameters, child profiles,
  * safety policies, etc. They are used by all prompt builders.
  */
@@ -24,6 +24,268 @@ export function formatWriterCharacterName(name: string): string {
   return stripCharacterIdFromName(name).trim() || name;
 }
 
+export function formatStoryTitleRules(options: { isContinuation?: boolean } = {}): string {
+  return [
+    '- Reflect the essence of this specific story: the main event, conflict, choice, transformation, unusual object, or memorable place.',
+    '- Be creative and imaginative; avoid generic adventure-title templates.',
+    '- Keep the title short, natural, and story-specific; usually 2-7 words.',
+    '- Spark curiosity through one concrete story detail rather than an abstract label.',
+    options.isContinuation
+      ? '- For continuations: do not use episode labels; give this episode its own unique title.'
+      : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+export function formatStoryTitleSection(options: { isContinuation?: boolean } = {}): string {
+  return `TITLE:\n${formatStoryTitleRules(options)}`;
+}
+
+export interface ContinuationCharacter {
+  name: string;
+  type: string;
+  description?: string;
+  role?: string;
+}
+
+export interface ContinuationPromptContext {
+  previousOutlines?: Array<{
+    title: string;
+    moral?: string;
+    scenes: Array<{ setting: string; goal: string }>;
+  }>;
+  requiredCharacters?: ContinuationCharacter[];
+  optionalCharacters?: ContinuationCharacter[];
+  usedPlots?: string[];
+  previousEnvironments?: Array<{
+    id: string;
+    name: string;
+    description: string;
+    characterOutfits?: string;
+  }>;
+  previousOutfits?: Array<{ id: string; characterName: string; description: string }>;
+}
+
+export function formatPreviousEpisodesSummary(
+  previousOutlines?: ContinuationPromptContext['previousOutlines']
+): string {
+  const validOutlines = (previousOutlines || []).filter((outline) => outline?.title);
+  if (validOutlines.length === 0) return '';
+
+  const text = validOutlines
+    .map((outline, i) => {
+      const validScenes = (outline.scenes || [])
+        .map((s) => s.goal)
+        .filter((goal) => goal && goal.trim().length > 0);
+      let episodeText = `Episode ${i + 1}: "${outline.title}"`;
+      if (validScenes.length > 0) episodeText += `\n- Key Scenes: ${validScenes.join('; ')}`;
+      return episodeText;
+    })
+    .join('\n\n');
+
+  return `PREVIOUS EPISODES SUMMARY:\n${text}`;
+}
+
+export function formatContinuationStoryContext(params: {
+  context?: ContinuationPromptContext;
+  mode: 'plain_text' | 'graphic_novel' | 'mixed_story';
+}): string {
+  const context = params.context;
+  const previousOutlines = context?.previousOutlines || [];
+  if (previousOutlines.length === 0) return '';
+
+  const partNumber = previousOutlines.length + 1;
+  const requiredCount = context?.requiredCharacters?.length || 0;
+  const optionalCount = context?.optionalCharacters?.length || 0;
+  const usedPlots = (context?.usedPlots || []).filter((plot) => plot && plot.trim().length > 0);
+  const formatLabel =
+    params.mode === 'graphic_novel'
+      ? 'graphic novel script'
+      : params.mode === 'mixed_story'
+        ? 'mixed prose/comic script'
+        : 'plain text story';
+
+  const lines = [
+    formatPreviousEpisodesSummary(previousOutlines),
+    '',
+    'STORY CONTINUATION:',
+    `- This is Part ${partNumber} of the series in ${formatLabel} format.`,
+    `- Connect to Part ${partNumber - 1} through concrete events, character choices, or outcomes already shown.`,
+    '- Use the current STORY INPUT Theme / goal as the only moral guidance for this episode; previous episode morals are not carried forward.',
+    requiredCount > 0 ? '- Feature all REQUIRED characters listed in CHARACTERS.' : null,
+    optionalCount > 0
+      ? '- OPTIONAL characters may appear only when they naturally fit this episode.'
+      : null,
+    '- Create fresh events and challenges while keeping the episode understandable on its own.',
+    usedPlots.length > 0
+      ? `- Choose plot beats that differ from already-used plot elements: ${usedPlots.join(', ')}`
+      : null,
+    '- Maintain the same tone and age-appropriateness.',
+    '- Resolve this episode warmly and clearly.',
+  ].filter(Boolean);
+
+  return lines.join('\n');
+}
+
+export function formatContinuationLocationMemory(
+  previousEnvironments?: ContinuationPromptContext['previousEnvironments']
+): string {
+  const valid = (previousEnvironments || []).filter((env) => env?.name && env?.description);
+  if (valid.length === 0) return '';
+
+  return [
+    'LOCATION CONTINUITY:',
+    '- When this episode returns to the same place as an earlier part, reuse the same location name and recurring cues.',
+    '- For genuinely new places, establish a distinct name and setting.',
+    ...valid.map(
+      (env) =>
+        `- ${env.name}: ${env.description.slice(0, 120)}${env.description.length > 120 ? '...' : ''}`
+    ),
+  ].join('\n');
+}
+
+export function formatContinuationOutfitMemory(
+  previousOutfits?: ContinuationPromptContext['previousOutfits']
+): string {
+  const valid = (previousOutfits || []).filter(
+    (outfit) => outfit?.characterName && outfit?.description
+  );
+  if (valid.length === 0) return '';
+
+  return [
+    'WARDROBE CONTINUITY:',
+    '- Use these prior wardrobe facts only when continuity, weather, disguise, pajamas, costume, or safety gear matters naturally.',
+    ...valid.map(
+      (outfit) =>
+        `- ${formatWriterCharacterName(outfit.characterName)}: ${outfit.description.slice(0, 100)}${outfit.description.length > 100 ? '...' : ''}`
+    ),
+  ].join('\n');
+}
+
+export function formatContentPolicySection(spec: StorySpec): string {
+  return `CONTENT POLICY:
+${
+  getContentPolicy({
+    policyProfile: spec.policyProfile,
+    scenarioCardId: spec.scenarioCard?.id,
+  }).textPromptSection
+}`;
+}
+
+export function formatStructuredStoryInputSection(
+  spec: StorySpec,
+  options: { includeIllustrationStyle?: boolean } = {}
+): string {
+  const lines = [
+    'STORY INPUT:',
+    `- Language: ${spec.language}`,
+    `- Age group: ${spec.ageGroup}`,
+    `- Theme / goal: ${spec.goalName || spec.goal || 'open-ended'}`,
+    `- Scenario: ${spec.scenarioCard?.name || spec.scenarioCard?.id || 'none'}`,
+    `- Scenario plot guidance: ${spec.scenarioGuidance || spec.scenarioCard?.promptGuidance || 'none'}`,
+    `- World rule: ${spec.worldRule ? `${spec.worldRule.name}: ${spec.worldRule.description}` : 'none'}`,
+    `- User notes: ${(spec as any).userNotes || 'none'}`,
+  ];
+
+  if (options.includeIllustrationStyle) {
+    lines.push(`- Illustration style: ${(spec as any).imageStyle || 'soft_watercolor'}`);
+  }
+
+  return lines.join('\n');
+}
+
+export function formatStructuredOutfitRules(
+  options: { includeChangeRules?: boolean } = {}
+): string {
+  const rules = [
+    'OUTFITS:',
+    '- Return a top-level outfits[] array. Each row has id, characterName, description.',
+    '- outfits[].description is WARDROBE ONLY IN ENGLISH: garments, shoes, worn hats/helmets/hoods, bags, jewelry, glasses, swimwear, rain/snow gear, costumes.',
+    '- Do not put face, hair, body, age, species, expression, personality, pose, or identity details in outfits[].description.',
+    '- Every visual.sceneVisual.cameraComposition.characters[] row MUST include outfitId referencing one outfits[].id.',
+    '- Include one outfit row for every outfitId used by a physically present character. Creatures/animals may use description exactly "natural appearance"; still set outfitId.',
+  ];
+
+  if (options.includeChangeRules) {
+    rules.push(
+      '- Reuse the same outfitId while the character keeps the same clothes. Create a new outfitId the moment clothes change, even within the same page.',
+      '- Match outfit to the panel action and environment: swimming/bathing/water play -> age-appropriate swimwear and no jacket/coat; rain -> raincoat/boots; snow -> coat/boots; sleep -> pajamas; formal scene -> formal outfit.',
+      '- If a character changes clothes between panels, the first panel after the change must use the new outfitId, and later panels keep it until changed again.'
+    );
+  }
+
+  return rules.join('\n');
+}
+
+export function formatStructuredSpeakerNameRules(
+  options: { includeAudioContext?: boolean; helperKind?: 'helper' | 'creature_or_helper' } = {}
+): string {
+  const helperLabel = options.helperKind === 'creature_or_helper' ? 'creature or helper' : 'helper';
+  const rules = [
+    'SPEAKER NAME RULES:',
+    '- dialogue[].speaker and thoughts[].speaker must use exact character names from CHARACTERS when that character speaks.',
+    `- If the story introduces a new ${helperLabel}, choose one name once and reuse the exact same spelling in every speaker field.`,
+    '- Do not mix alphabets inside a speaker name. For Ukrainian/Russian names, keep all letters Cyrillic; never write Latin lookalikes inside a Cyrillic name.',
+  ];
+
+  if (options.includeAudioContext) {
+    rules.push(
+      '- Speaker names are used for audio, quiz, indexing, and bubble tails, so a one-letter spelling drift is a data bug.'
+    );
+  }
+
+  return rules.join('\n');
+}
+
+export function formatReferenceGroundedCharacterRules(
+  options: { includeGraphicDetails?: boolean } = {}
+): string {
+  const rules = [
+    'REFERENCE-GROUNDED CHARACTER RULES:',
+    '- Characters marked "visual reference: yes" have image references downstream. Their visual identity comes from the reference image, not from this JSON.',
+    '- For reference-grounded characters, visual.sceneVisual.cameraComposition.characters[].description must be reference-safe: placement, pose, action, emotion, gaze direction, gesture, and interaction only.',
+    '- Do NOT describe stable identity details for reference-grounded characters: appearance, outfit, permanent markings, species design, default clothes, or exact colors.',
+  ];
+
+  if (options.includeGraphicDetails) {
+    rules.splice(
+      2,
+      0,
+      '- position is semantic staging only; it must never describe or replace character identity.'
+    );
+    rules.push(
+      '- If a reference-grounded character\'s normal look/clothes are needed, write "default reference appearance" or "natural appearance" instead of inventing details.',
+      '- Scene-authorized temporary states are allowed when visual and important: wet, glowing, transparent, dusty, worried expression, raised hand, pointing finger, looking left/right.',
+      '- Good reference-safe staging: "walking slowly, looking toward the helper, one hand lifted in warning".',
+      '- Good reference-safe staging: "hovering beside Emilia, tilted with a curious expression".'
+    );
+  }
+
+  return rules.join('\n');
+}
+
+export function formatStructuredEnvironmentRules(
+  options: { target: 'pages' | 'readingBlocks'; includePanelDeltaRule?: boolean } = {
+    target: 'pages',
+  }
+): string {
+  const rules = [
+    'ENVIRONMENTS:',
+    `- Return 1-3 environments in environments[] before ${options.target}.`,
+    '- Each environment description must be in English and describe reusable static layout.',
+    options.target === 'pages'
+      ? '- Panels reference environmentId. Do not repeat the whole environment in panel visual.sceneVisual.setting.'
+      : '- Comic panels reference environmentId. Prose blocks do not need visual fields.',
+  ];
+
+  if (options.includePanelDeltaRule) {
+    rules.push('- visual.sceneVisual.setting describes only what is new or changed in that panel.');
+  }
+
+  return rules.join('\n');
+}
+
 /**
  * Format child profile section for prompts
  * @param spec - Story specification
@@ -31,62 +293,62 @@ export function formatWriterCharacterName(name: string): string {
  */
 export function formatChildProfile(spec: StorySpec): string {
   // Check if child is selected as a character (in spec.characters array)
-  const childIsCharacter = spec.characters?.some(c => c.type === 'child' && c.name === spec.childName);
-  
+  const childIsCharacter = spec.characters?.some(
+    (c) => c.type === 'child' && c.name === spec.childName
+  );
+
   // If no child profile, return empty
   if (!spec.childProfile) {
     return '';
   }
-  
+
   // If child is NOT selected as character, show only preferences/context
   if (!childIsCharacter && spec.childName !== spec.childProfile.name) {
-    const parts = [
-      'TARGET AUDIENCE PROFILE:',
-      `Age group: ${spec.ageGroup}`
-    ];
-    
+    const parts = ['TARGET AUDIENCE PROFILE:', `Age group: ${spec.ageGroup}`];
+
     // Add interests if available
     if (spec.childProfile?.interests && spec.childProfile.interests.length > 0) {
-      parts.push(`Child's interests (use for inspiration): ${spec.childProfile.interests.join(', ')}`);
+      parts.push(
+        `Child's interests (use for inspiration): ${spec.childProfile.interests.join(', ')}`
+      );
     }
-    
+
     // Add fears/sensitivities if available
     if (spec.childProfile?.fears && spec.childProfile.fears.length > 0) {
       parts.push(`Avoid these topics (child's fears): ${spec.childProfile.fears.join(', ')}`);
     }
-    
+
     // Add user notes if available
     if (spec.userNotes) {
       parts.push(`Parent notes: ${spec.userNotes}`);
     }
-    
+
     parts.push('');
-    parts.push('Note: Create appropriate protagonist(s) for the story. The child profile above is for context only.');
-    
+    parts.push(
+      'Note: Create appropriate protagonist(s) for the story. The child profile above is for context only.'
+    );
+
     return parts.join('\n');
   }
-  
+
   // If child IS selected as character, show profile focusing on personality, interests, fears
-  const parts = [
-    `Main Character: ${spec.childName}`,
-    `Age group: ${spec.ageGroup}`
-  ];
-  
+  const parts = [`Main Character: ${spec.childName}`, `Age group: ${spec.ageGroup}`];
+
   // Add interests if available
   if (spec.childProfile?.interests && spec.childProfile.interests.length > 0) {
     parts.push(`Interests: ${spec.childProfile.interests.join(', ')}`);
   }
-  
+
   // Add fears/sensitivities if available
   if (spec.childProfile?.fears && spec.childProfile.fears.length > 0) {
     parts.push(`Fears: ${spec.childProfile.fears.join(', ')}`);
   }
-  
+
   // Add personality if available
   if (spec.childProfile?.personality) {
     parts.push(`Personality: ${spec.childProfile.personality}`);
   }
-  
+
   // Add user notes if available
   if (spec.userNotes) {
     parts.push(`Parent notes: ${spec.userNotes}`);
@@ -112,17 +374,17 @@ Characters should enhance the story and support the narrative goals.`;
     'SUPPORTING CHARACTERS:',
     'IMPORTANT: Include ALL these characters in the story. They should participate in scenes, interact with the main character, and be part of the plot.',
     'Use the exact story names listed here. Do not translate, rename, or append bracket metadata to character names.',
-    ''
+    '',
   ];
 
   spec.characters.forEach((char, index) => {
     const charParts = [`${index + 1}. ${formatWriterCharacterName(char.name)}`];
-    
+
     // Add type
     if (char.type) {
       charParts.push(`(${char.type})`);
     }
-    
+
     // Add character description — prefer English translation for better LLM visual output
     if ((char as any).descriptionEn) {
       charParts.push(`- Description: ${(char as any).descriptionEn}`);
@@ -131,43 +393,37 @@ Characters should enhance the story and support the narrative goals.`;
     } else if (char.description) {
       charParts.push(`- Description: ${char.description}`);
     }
-    
+
     // Add appearance traits if available
     if (char.appearanceTraits) {
       const traits = char.appearanceTraits;
       const traitsParts: string[] = [];
-      
+
       if (traits.hairColor) traitsParts.push(`hair: ${traits.hairColor}`);
       if (traits.hairStyle) traitsParts.push(`style: ${traits.hairStyle}`);
       if (traits.eyeColor) traitsParts.push(`eyes: ${traits.eyeColor}`);
       if (traits.skinTone) traitsParts.push(`skin: ${traits.skinTone}`);
-      
+
       if (traitsParts.length > 0) {
         charParts.push(`- Appearance: ${traitsParts.join(', ')}`);
       }
     }
-    
+
     // Add role if specified
     if (char.role) {
       charParts.push(`- Role: ${char.role}`);
     }
-    
+
     parts.push(charParts.join(' '));
   });
-  
+
   parts.push('');
   parts.push('Make sure each character has meaningful interactions and contributes to the story.');
-  parts.push('You may add additional characters if needed for the plot, but these MUST be included.');
+  parts.push(
+    'You may add additional characters if needed for the plot, but these MUST be included.'
+  );
 
   return parts.join('\n');
-}
-
-/** Character with minimal fields for continuation prompt */
-export interface ContinuationCharacter {
-  name: string;
-  type: string;
-  description: string;
-  role?: string;
 }
 
 /**
@@ -198,7 +454,8 @@ Create diverse, interesting characters appropriate for the age group and scenari
       'REQUIRED CHARACTERS (MUST USE):',
       'These characters MUST appear in the story:',
       ...validRequired.map(
-        (c) => `- ${formatWriterCharacterName(c.name)} (${c.type}): ${c.description}\n  Role: ${c.role || 'character'}`
+        (c) =>
+          `- ${formatWriterCharacterName(c.name)} (${c.type}): ${c.description}\n  Role: ${c.role || 'character'}`
       ),
       ''
     );
@@ -209,13 +466,16 @@ Create diverse, interesting characters appropriate for the age group and scenari
       'OPTIONAL CHARACTERS (MAY USE):',
       'You MAY feature these if relevant to the plot, but it is NOT required:',
       ...validOptional.map(
-        (c) => `- ${formatWriterCharacterName(c.name)} (${c.type}): ${c.description}\n  Role: ${c.role || 'character'}`
+        (c) =>
+          `- ${formatWriterCharacterName(c.name)} (${c.type}): ${c.description}\n  Role: ${c.role || 'character'}`
       ),
       ''
     );
   }
 
-  parts.push('Make sure required characters have meaningful interactions. You may add additional characters if needed.');
+  parts.push(
+    'Make sure required characters have meaningful interactions. You may add additional characters if needed.'
+  );
 
   return parts.join('\n');
 }
@@ -224,11 +484,11 @@ Create diverse, interesting characters appropriate for the age group and scenari
  * Format user characters with IDs for Director prompt (same format as main flow)
  * Used so Director can output "Name [ID: uuid]" for reliable matching.
  */
-export function formatUserCharactersWithIds(characters: Array<{ id?: string; name: string }>): string {
+export function formatUserCharactersWithIds(
+  characters: Array<{ id?: string; name: string }>
+): string {
   if (!characters?.length) return '';
-  return characters
-    .map((c) => (c.id ? `${c.name} [ID: ${c.id}]` : c.name))
-    .join(', ');
+  return characters.map((c) => (c.id ? `${c.name} [ID: ${c.id}]` : c.name)).join(', ');
 }
 
 /**
@@ -247,15 +507,17 @@ export function formatStoryRequirements(params: {
   targetWordCountScope?: 'audio_tags_in_manuscript' | 'prose_only';
 }): string {
   const parts = [];
-  
+
   // Add scenario/theme with detailed guidance
   if (params.spec.scenarioCard) {
-    parts.push(`- Theme/Scenario: ${params.spec.scenarioCard.name} - ${params.spec.scenarioCard.description}`);
+    parts.push(
+      `- Theme/Scenario: ${params.spec.scenarioCard.name} - ${params.spec.scenarioCard.description}`
+    );
     if (params.spec.scenarioGuidance) {
       parts.push(`  Setting & Premise: ${params.spec.scenarioGuidance}`);
     }
   }
-  
+
   // Add goal/moral with detailed guidance (omit entirely when no goal — avoids empty filler)
   if (params.spec.goal) {
     const goalDisplay = params.spec.goalName || params.spec.goal; // Use translated name or fallback to slug
@@ -263,17 +525,18 @@ export function formatStoryRequirements(params: {
     if (params.spec.goalGuidance) {
       parts.push(`  Guidance: ${params.spec.goalGuidance}`);
     }
-    const goalSafetyText = [
-      params.spec.goal,
-      params.spec.goalName,
-      params.spec.goalGuidance,
-    ].filter(Boolean).join(' ').toLowerCase();
-    if (/(stranger|незнайом|незнаком|чуж|desconoc|extrañ|fremd|inconnu|nieznaj)/i.test(goalSafetyText)) {
+    const goalSafetyText = [params.spec.goal, params.spec.goalName, params.spec.goalGuidance]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    if (
+      /(stranger|незнайом|незнаком|чуж|desconoc|extrañ|fremd|inconnu|nieznaj)/i.test(goalSafetyText)
+    ) {
       parts.push(
-        '  Stranger-safety handling: show the child making a safe choice: short refusal, create distance, move toward a trusted adult or safe group, and tell the adult clearly. Do not have the child chase, trap, restrain, fight, punish, or negotiate with the stranger; adults handle the situation after the child alerts them. For ages under 6, keep the stranger at a distance or mostly offscreen, with no grabbing, pursuit, threats, candy/gift/treasure bribes, or detailed luring.',
+        '  Stranger-safety handling: show the child making a safe choice: short refusal, create distance, move toward a trusted adult or safe group, and tell the adult clearly. Do not have the child chase, trap, restrain, fight, punish, or negotiate with the stranger; adults handle the situation after the child alerts them. For ages under 6, keep the stranger at a distance or mostly offscreen, with no grabbing, pursuit, threats, candy/gift/treasure bribes, or detailed luring.'
       );
       parts.push(
-        '  Forbidden stranger-safety wording/moves: do not write "remembered the safety rule", "the main rule", "safety rules", "learned the lesson", "did the right thing", "good/correct behavior", or equivalents in the story language. Avoid Ukrainian/Russian-style phrases such as "добре вчинила", "правильно зробила", "вчинила правильно", "згадала правило". Do not give the stranger a tempting box, candy, treasure, toy, prize, or secret reward. If the stranger speaks, keep it brief and neutral, then shift focus to the child moving away and telling a trusted adult.',
+        '  Forbidden stranger-safety wording/moves: do not write "remembered the safety rule", "the main rule", "safety rules", "learned the lesson", "did the right thing", "good/correct behavior", or equivalents in the story language. Avoid Ukrainian/Russian-style phrases such as "добре вчинила", "правильно зробила", "вчинила правильно", "згадала правило". Do not give the stranger a tempting box, candy, treasure, toy, prize, or secret reward. If the stranger speaks, keep it brief and neutral, then shift focus to the child moving away and telling a trusted adult.'
       );
     }
   }
@@ -289,7 +552,7 @@ export function formatStoryRequirements(params: {
 
   if (params.targetWordCount) {
     parts.push(
-      `- Target word count: ${params.targetWordCount[0]}-${params.targetWordCount[1]} words${wordCountScope}`,
+      `- Target word count: ${params.targetWordCount[0]}-${params.targetWordCount[1]} words${wordCountScope}`
     );
   } else if (params.spec.policyProfile?.readability?.targetWordsRange) {
     const range = params.spec.policyProfile.readability.targetWordsRange;
@@ -317,7 +580,7 @@ export function formatAgeRequirements(ageGroup: string): string {
       '- Structure: Simple subject-verb patterns, present tense only',
       '- Use rhyme, rhythm, and sound words (woof-woof, meow, splash)',
       '- No conflicts or problems - only joyful exploration',
-      '- Focus on basic emotions: happy, excited, surprised'
+      '- Focus on basic emotions: happy, excited, surprised',
     ],
     '1y': [
       'TEXT COMPLEXITY (Lexile: 0L-100L):',
@@ -328,7 +591,7 @@ export function formatAgeRequirements(ageGroup: string): string {
       '- Use predictable patterns and repeated phrases',
       '- Onomatopoeia and sound effects for engagement',
       '- Very simple cause-effect (push button, toy beeps)',
-      '- Bright, cheerful atmosphere throughout'
+      '- Bright, cheerful atmosphere throughout',
     ],
     '2-3': [
       'TEXT COMPLEXITY (Lexile: 100L-200L):',
@@ -339,7 +602,7 @@ export function formatAgeRequirements(ageGroup: string): string {
       '- Dialogue: 30% of text should be character speech',
       '- Use predictable story patterns (problem -> simple solution)',
       '- Small challenges that resolve within same scene',
-      '- Focus on family, friendship, daily routines'
+      '- Focus on family, friendship, daily routines',
     ],
     '4-5': [
       'TEXT COMPLEXITY (Lexile: 200L-500L):',
@@ -351,7 +614,7 @@ export function formatAgeRequirements(ageGroup: string): string {
       '- Vary sentence beginnings (Once, Then, Suddenly, After)',
       '- Mild suspense that resolves in same or next scene',
       '- Use basic comparisons (as big as, like a)',
-      '- Themes: helping others, being brave, solving problems together'
+      '- Themes: helping others, being brave, solving problems together',
     ],
     '6-8': [
       'TEXT COMPLEXITY (Lexile: 500L-700L):',
@@ -363,7 +626,7 @@ export function formatAgeRequirements(ageGroup: string): string {
       '- Use varied sentence structures: questions, exclamations, short impactful sentences',
       '- Literary devices: Similes, basic metaphors, sensory details, foreshadowing',
       '- Expected reading speed: 90-115 words per minute',
-      '- Themes: Courage, responsibility, empathy, facing fears, problem-solving'
+      '- Themes: Courage, responsibility, empathy, facing fears, problem-solving',
     ],
     '9-12': [
       'TEXT COMPLEXITY (Lexile: 700L-1000L):',
@@ -375,8 +638,8 @@ export function formatAgeRequirements(ageGroup: string): string {
       '- Use sophisticated transitions, varied paragraph lengths, intentional pacing',
       '- Literary devices: Metaphors, symbolism, irony, multiple perspectives, flashbacks',
       '- Expected reading speed: 115-140 words per minute',
-      '- Themes: Identity, moral complexity, justice, personal growth, relationships, consequences'
-    ]
+      '- Themes: Identity, moral complexity, justice, personal growth, relationships, consequences',
+    ],
   };
 
   // Map age groups to requirements
@@ -396,15 +659,15 @@ export function formatWritingStyle(spec: StorySpec, _vocabLevel: string): string
 
   if (YOUNG_AGE_GROUPS.includes(spec.ageGroup)) {
     sections.push(
-      '- MUST use rhythm and repetition: repeat phrases, gentle refrains, and predictable patterns so very young listeners can anticipate and join in.',
+      '- MUST use rhythm and repetition: repeat phrases, gentle refrains, and predictable patterns so very young listeners can anticipate and join in.'
     );
   }
 
   sections.push(
     '- Include sensory details (sounds, colors, feelings)',
-    '- Show don\'t tell emotions',
+    "- Show don't tell emotions",
     '- Include dialog for character connection',
-    '- Build to satisfying, safe conclusion',
+    '- Build to satisfying, safe conclusion'
   );
 
   return sections.join('\n');
@@ -532,7 +795,7 @@ export function formatNarrativeContinuityRules(): string {
 export function formatDirectorCostumeContinuityRules(): string {
   return [
     'COSTUME AND APPEARANCE CONTINUITY:',
-    '- Use the full story text up to and including the anchor scene moment (all prior blocks + context scenes in the current block) to determine each character\'s current wardrobe, hair, face visibility, and any disguise.',
+    "- Use the full story text up to and including the anchor scene moment (all prior blocks + context scenes in the current block) to determine each character's current wardrobe, hair, face visibility, and any disguise.",
     '- First decide whether the character\'s default/reference clothes already fit this scene. If yes, reuse that look and set outfits[].description to exactly "natural appearance". Only define a new explicit wardrobe description when the scene truly needs different clothes (weather, uniform, sleepwear, costume, disguise, celebration wear, protective gear, etc.).',
     '- If the text explicitly describes a change (change of clothes, new day and dressing, return to a previous outfit, removing a disguise), add or reuse an entry in the "outfits" array (wardrobe-only descriptions) and set each illustration\'s sceneVisual.cameraComposition.characters[].outfitId to the correct outfits[].id per character; align character lines (pose, hair, face).',
     '- outfits[].description: WARDROBE ONLY — garments, footwear, and worn accessories (hats, scarves, belts, bags carried/worn, helmets, glasses as worn items). Do NOT put face, eyes, skin, age, body shape, hair, hairstyle, beard, makeup, or expression in outfit descriptions.',
@@ -540,7 +803,7 @@ export function formatDirectorCostumeContinuityRules(): string {
     '- Wardrobe must match stated weather, season, and indoor/outdoor context of the anchor scene and its environment (rain, snow, heat, cold — appropriate layers, footwear, outerwear).',
     'TURNAROUND / USER-SELECTED REFERENCE CHARACTERS:',
     '- The reference image establishes identity, not a permanent costume. Preserve recognizability: face, age, body proportions, silhouette, skin tone, distinctive marks (freckles, glasses if the story keeps them), and hairstyle unless the story explicitly changes hair.',
-    '- Clothing and accessories must follow the story for that scene. If the text describes a new outfit, disguise, uniform, or sleepwear, define it in outfits[] and set each character row\'s outfitId in cameraComposition.characters; describe pose, gaze, expression, and temporary visibility in that row\'s description. Do not restate stable identity traits from the reference sheet there. Do not keep the reference sheet\'s default clothes when the story has moved on. The illustration must read as the same person, different clothes.',
+    "- Clothing and accessories must follow the story for that scene. If the text describes a new outfit, disguise, uniform, or sleepwear, define it in outfits[] and set each character row's outfitId in cameraComposition.characters; describe pose, gaze, expression, and temporary visibility in that row's description. Do not restate stable identity traits from the reference sheet there. Do not keep the reference sheet's default clothes when the story has moved on. The illustration must read as the same person, different clothes.",
   ].join('\n');
 }
 
@@ -645,7 +908,7 @@ export function formatDirectorFunctionalDeviceCompositionRules(): string {
     '',
     'Specify all of the following when relevant:',
     '- which end or side of the object the character is using',
-    '- where the character\'s eye, hands, or body are placed relative to the object',
+    "- where the character's eye, hands, or body are placed relative to the object",
     '- what direction the object is aimed toward',
     '- what fixed environmental element the object is aligned with, if any',
     '',
@@ -670,7 +933,7 @@ export function formatDirectorImagePromptRules(): string {
     'Write for an image generation system, not for a chat conversation. Be concise, visual, concrete, and structured.',
     '',
     'CHARACTER DNA:',
-    '- In characters[].description, establish each character\'s stable visual identity first: who they are, 2-3 memorable visible traits, and recognizable clothing or accessories when supported by the story.',
+    "- In characters[].description, establish each character's stable visual identity first: who they are, 2-3 memorable visible traits, and recognizable clothing or accessories when supported by the story.",
     '- Prioritize visible identity over inner world. Do NOT replace appearance with personality, backstory, or abstract traits.',
     '- Keep designs simple and memorable. Prefer 2-3 strong distinguishing features over long overloaded lists of minor details.',
     '',
@@ -801,7 +1064,7 @@ export function formatDirectorWardrobeContract(params: { imagesPerStory: number 
     '- WORK ORDER (for EACH illustration):',
     '  1) List who is in the shot in sceneVisual.cameraComposition.characters (name + description for pose/action).',
     '  2) Ensure outfits[] has a row { id, characterName, description } for every outfitId you will cite.',
-    '  3) On EACH character row, set outfitId = EXACT outfits[].id for this anchor moment (same spelling as in outfits[].characterName for that row\'s name).',
+    "  3) On EACH character row, set outfitId = EXACT outfits[].id for this anchor moment (same spelling as in outfits[].characterName for that row's name).",
     '- Humans: if default/reference clothes still fit the scene, outfits[].description may be exactly "natural appearance". Otherwise use detailed wardrobe-only English. Creatures/animals: outfits[].description "natural appearance" — still set outfitId on every character row.',
     '- outfits[].description is GARMENTS ONLY. Never mention mannequins, dolls, wooden bodies, articulated limbs, hinge joints, peg joints, seam segmentation, blank heads, or display-figure anatomy.',
     '- Reuse the same outfitId across illustrations when the story keeps the same look; new id when clothes change.',
@@ -902,22 +1165,26 @@ export function formatEnvironmentRules(): string {
 }
 
 /** Universal rule: avoid ambiguous "at" when standing near furniture (image models may read as "on"). */
-const SPATIAL_POSITION_RULE = 'Position near furniture: use beside, next to, behind, in front of — avoid "at" when standing (read as "on").';
+const SPATIAL_POSITION_RULE =
+  'Position near furniture: use beside, next to, behind, in front of — avoid "at" when standing (read as "on").';
 
 /**
  * Scene visual description rules (setting + cameraComposition + lighting).
  * Full version includes synchronization rules and good/bad examples.
  * Compact version (for RegenerationPrompt) has only field descriptions.
  */
-export function formatSceneVisualRules(opts?: { compact?: boolean; imageStyle?: string | null }): string {
+export function formatSceneVisualRules(opts?: {
+  compact?: boolean;
+  imageStyle?: string | null;
+}): string {
   const styleGuidance = getTextStyleGuidance(opts?.imageStyle);
-  
+
   // Helper to add style hint to field description
   const withStyleHint = (baseDesc: string, styleDesc?: string) => {
     if (!styleDesc) return baseDesc;
     return `${baseDesc} [STYLE: ${styleDesc}]`;
   };
-  
+
   if (opts?.compact) {
     return [
       'CRITICAL - sceneVisual:',
@@ -1016,18 +1283,19 @@ export function formatTextVisualConsistencyRules(): string {
     '- The setting in "sceneVisual.setting" must match the location described in the text.',
     '- sceneVisual.setting must be SELF-CONTAINED — never use "the same X" or reference other scenes.',
     '- INTERNAL CONSISTENCY: setting, cameraComposition.shot, cameraComposition.characters, and lighting must ALL describe the SAME location and moment. If shot says "inside the car", setting must describe the car interior — never mix locations. Before outputting, verify: could a single photograph capture everything described?',
-    '- Story-significant props and held items in sceneVisual (objects a character holds, wears as a plot item, or that drive the beat) must be supported by that scene\'s text for that moment. Do not add major props or costume pieces in sceneVisual that the text does not establish for that scene (generic background and atmosphere are fine).',
+    "- Story-significant props and held items in sceneVisual (objects a character holds, wears as a plot item, or that drive the beat) must be supported by that scene's text for that moment. Do not add major props or costume pieces in sceneVisual that the text does not establish for that scene (generic background and atmosphere are fine).",
     '- Think of it as: text = the full story of the scene, sceneVisual = a single illustration capturing the key moment of that text.',
     '- outfits[].description is WARDROBE ONLY. Hair, expression, pose, and how the face reads belong in sceneVisual.cameraComposition.characters[].description (and must match the same story moment as the text).',
   ].join('\n');
 }
 
-
 /**
  * Scene text boundary rules — sentences must not split across scenes.
  * @param context - structured: JSON scene "text" field; plain: prose blocks between --- delimiters
  */
-export function formatSceneTextBoundaryRules(context: 'structured' | 'plain' = 'structured'): string {
+export function formatSceneTextBoundaryRules(
+  context: 'structured' | 'plain' = 'structured'
+): string {
   const subject =
     context === 'plain'
       ? 'Each scene block (the narrative prose between --- delimiters)'
@@ -1095,12 +1363,13 @@ export function formatVisualStoryRules(opts?: {
     readability: { maxSentenceLen: 18, targetWordsRange: [500, 800], dialogRatio: 0.5 },
     promptGuidelines: '',
   };
-  const audioTagsRules = opts?.includeAudioTagsRules === false
-    ? null
-    : getContentPolicy({
-        policyProfile,
-        scenarioCardId: opts?.scenarioCardId,
-      }).audioTagsRules;
+  const audioTagsRules =
+    opts?.includeAudioTagsRules === false
+      ? null
+      : getContentPolicy({
+          policyProfile,
+          scenarioCardId: opts?.scenarioCardId,
+        }).audioTagsRules;
 
   const parts = [
     formatCharacterOutfitsMandatory(),
@@ -1123,7 +1392,7 @@ export function formatVisualStoryRules(opts?: {
  */
 export function cleanTemplate(strings: TemplateStringsArray, ...values: any[]): string {
   let result = '';
-  
+
   for (let i = 0; i < strings.length; i++) {
     result += strings[i];
     if (i < values.length) {
@@ -1134,13 +1403,13 @@ export function cleanTemplate(strings: TemplateStringsArray, ...values: any[]): 
   // Trim leading/trailing whitespace from each line
   // Remove empty lines at start/end
   const lines = result.split('\n');
-  const trimmedLines = lines.map(line => line.trimEnd());
-  
+  const trimmedLines = lines.map((line) => line.trimEnd());
+
   // Remove leading empty lines
   while (trimmedLines.length > 0 && trimmedLines[0] === '') {
     trimmedLines.shift();
   }
-  
+
   // Remove trailing empty lines
   while (trimmedLines.length > 0 && trimmedLines[trimmedLines.length - 1] === '') {
     trimmedLines.pop();

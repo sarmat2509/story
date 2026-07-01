@@ -32,6 +32,7 @@ import {
   buildStorySpec,
   computeValidationScore,
   createStoryRequest,
+  type ContinuationContext,
 } from './storyOrchestrationService';
 import { createStoryStub } from './storyOrchestration/storyRecords';
 import { getStoryCreationAttributionInputFromRequest } from './storyCreationAttributionService';
@@ -72,10 +73,7 @@ import {
 } from '../domain/graphicNovel';
 import { graphicNovelPanelCountRange } from '../prompts/text';
 import type { Rect } from '../domain/graphicNovel/types';
-import {
-  mixedStoryComicPages,
-  type MixedStoryScript,
-} from '../domain/mixedStory';
+import { mixedStoryComicPages, type MixedStoryScript } from '../domain/mixedStory';
 import type { ImageValidationResult } from '../ai/types';
 import type { CharacterData, SceneVisual } from './types';
 import type { ReferenceImage } from '../providers/base/IImageProvider';
@@ -175,6 +173,43 @@ type GraphicNovelCoverPanelSelection = {
   panelIndex: number;
   source: GraphicNovelCoverSource;
 };
+
+function getContinuationDataFromRequest(request: { id: string; intermediateData?: unknown }): {
+  intermediateData: Record<string, any>;
+  isContinuation: boolean;
+  isScheduledContinuation: boolean;
+  seriesId?: string;
+  partNumber?: number;
+  continuationContext?: ContinuationContext;
+} {
+  const intermediateData =
+    request.intermediateData && typeof request.intermediateData === 'object'
+      ? (request.intermediateData as Record<string, any>)
+      : {};
+  const isContinuation = !!intermediateData.isContinuation;
+  const seriesId =
+    typeof intermediateData.seriesId === 'string' ? intermediateData.seriesId : undefined;
+  const partNumber =
+    typeof intermediateData.partNumber === 'number' ? intermediateData.partNumber : undefined;
+  const continuationContext = intermediateData.continuationContext as
+    | ContinuationContext
+    | undefined;
+
+  if (isContinuation && (!seriesId || !partNumber || !continuationContext)) {
+    throw new Error(
+      `Invalid graphic novel continuation request ${request.id}: missing series context`
+    );
+  }
+
+  return {
+    intermediateData,
+    isContinuation,
+    isScheduledContinuation: !!intermediateData.isScheduledContinuation,
+    seriesId,
+    partNumber,
+    continuationContext: isContinuation ? continuationContext : undefined,
+  };
+}
 
 function isGraphicNovelCoverSource(value: unknown): value is GraphicNovelCoverSource {
   return value === 'full_width_panel' || value === 'widest_first_page_panel';
@@ -317,7 +352,10 @@ export function buildMixedStoryTextManifest(params: {
     if (block.kind === 'comic') {
       const page = pageByNumber.get(block.comicPageNumber);
       const orderedItems = [...(page?.items || [])].sort((a, b) => a.readingOrder - b.readingOrder);
-      const text = orderedItems.map((item) => item.audioText).filter(Boolean).join('\n');
+      const text = orderedItems
+        .map((item) => item.audioText)
+        .filter(Boolean)
+        .join('\n');
       const textSegmentIds = orderedItems.map((item) => item.segmentId);
       scenes.push({
         sceneId: block.screenOrder,
@@ -492,7 +530,9 @@ function coverFocusRectsFromVision(
   analysis: GraphicNovelBubbleVisionAnalysis | null | undefined,
   panelIndex: number
 ): { body: Rect | null; head: Rect | null; action: Rect | null } {
-  const panelAnalysis = analysis?.panels?.find((panel) => Number(panel.panelIndex) === panelIndex + 1);
+  const panelAnalysis = analysis?.panels?.find(
+    (panel) => Number(panel.panelIndex) === panelIndex + 1
+  );
   if (!panelAnalysis) return { body: null, head: null, action: null };
 
   const characterRects =
@@ -508,13 +548,12 @@ function coverFocusRectsFromVision(
       .filter((rect): rect is Rect => !!rect) ?? [];
 
   const detectedHeadRects =
-    panelAnalysis.detectedCharacters
-      ?.flatMap((character) =>
-        [character.faceCenter, character.headCenter]
-          .filter((point): point is { x: number; y: number } => !!point)
-          .map((point) => tinyRectAroundVisionPoint(point, { width: 0.18, height: 0.16 }))
-          .filter((rect): rect is Rect => !!rect)
-      ) ?? [];
+    panelAnalysis.detectedCharacters?.flatMap((character) =>
+      [character.faceCenter, character.headCenter]
+        .filter((point): point is { x: number; y: number } => !!point)
+        .map((point) => tinyRectAroundVisionPoint(point, { width: 0.18, height: 0.16 }))
+        .filter((rect): rect is Rect => !!rect)
+    ) ?? [];
 
   const inferredHeadRects =
     explicitHeadRects.length === 0 && detectedHeadRects.length === 0
@@ -601,7 +640,10 @@ function panelCropRect(
   };
 }
 
-function focusRectToPixelBounds(rect: Rect, panelRect: PixelCropRect): {
+function focusRectToPixelBounds(
+  rect: Rect,
+  panelRect: PixelCropRect
+): {
   left: number;
   top: number;
   right: number;
@@ -1630,9 +1672,11 @@ async function validateGraphicNovelRenderedPage(params: {
         );
         if (templateColorResidueCheck.hasResidue) {
           validation.hasTemplateColorResidue = true;
-          (validation as ImageValidationResult & {
-            templateColorResidueDetails?: typeof templateColorResidueCheck;
-          }).templateColorResidueDetails = templateColorResidueCheck;
+          (
+            validation as ImageValidationResult & {
+              templateColorResidueDetails?: typeof templateColorResidueCheck;
+            }
+          ).templateColorResidueDetails = templateColorResidueCheck;
           const residueSummary = templateColorResidueCheck.panels
             .filter((panel) => panel.matchedPixels > 0)
             .map(
@@ -1864,6 +1908,7 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
   }
 
   let storyId: string | undefined;
+  const continuationData = getContinuationDataFromRequest(request);
 
   try {
     await getStoryRepository().updateRequest(requestId, {
@@ -1873,13 +1918,20 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
     });
 
     const pageCount = GRAPHIC_NOVEL_DEFAULT_PAGE_COUNT;
-    const specData = await buildStorySpec({
-      ...request,
-      selectedCharacters: Array.isArray(request.selectedCharacters)
-        ? request.selectedCharacters
-        : [],
-      selectedChildren: Array.isArray(request.selectedChildren) ? request.selectedChildren : [],
-    } as any);
+    const specData = await buildStorySpec(
+      {
+        ...request,
+        selectedCharacters: Array.isArray(request.selectedCharacters)
+          ? request.selectedCharacters
+          : [],
+        selectedChildren: Array.isArray(request.selectedChildren) ? request.selectedChildren : [],
+      } as any,
+      continuationData.isContinuation
+        ? {
+            continuationContext: continuationData.continuationContext,
+          }
+        : undefined
+    );
     const spec = specData.spec;
 
     await setPlannedTasks(requestId, [
@@ -1894,10 +1946,19 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
       childProfileId: request.childProfileId,
       ...getStoryCreationAttributionInputFromRequest(request),
       spec,
+      ...(continuationData.isContinuation &&
+        continuationData.seriesId &&
+        continuationData.partNumber && {
+          seriesData: {
+            seriesId: continuationData.seriesId,
+            partNumber: continuationData.partNumber,
+          },
+        }),
+      isScheduledContinuation: continuationData.isScheduledContinuation,
     });
     await getStoryRepository().updateRequest(requestId, {
       intermediateData: {
-        ...(request.intermediateData as Record<string, unknown> | null),
+        ...continuationData.intermediateData,
         generationKind: GRAPHIC_NOVEL_KIND,
         storyId,
         graphicNovelProgressStages: [...GRAPHIC_NOVEL_PROGRESS_STAGES],
@@ -1911,6 +1972,11 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
     const script = await graphicNovelDomain.generateScript({
       spec,
       pageCount,
+      ...(continuationData.isContinuation &&
+        continuationData.continuationContext && {
+          isContinuation: true,
+          continuationContext: continuationData.continuationContext,
+        }),
       onUsage: (usage) => recordUsage(usage, { userId: request.userId, storyId: storyId! }),
     });
 
@@ -2056,6 +2122,7 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
     await getStoryRepository().updateRequest(requestId, {
       errorMessage: null,
       intermediateData: {
+        ...continuationData.intermediateData,
         generationKind: GRAPHIC_NOVEL_KIND,
         storyId,
         projectId: project.id,
@@ -2068,6 +2135,26 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
       { requestId, storyId, projectId: project.id, pageCount },
       'Graphic novel script/layout saved'
     );
+    if (
+      continuationData.isContinuation &&
+      continuationData.seriesId &&
+      continuationData.partNumber
+    ) {
+      const createdStory = await getStoryRepository().findById(storyId);
+      if (createdStory) {
+        const { addContinuationToSeries } = await import('./seriesService');
+        await addContinuationToSeries(continuationData.seriesId, storyId, createdStory);
+        logger.info(
+          {
+            requestId,
+            storyId,
+            seriesId: continuationData.seriesId,
+            partNumber: continuationData.partNumber,
+          },
+          'Added graphic novel continuation to series'
+        );
+      }
+    }
     return { storyId };
   } catch (error) {
     logger.error(
@@ -2109,6 +2196,7 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
   }
 
   let storyId: string | undefined;
+  const continuationData = getContinuationDataFromRequest(request);
 
   try {
     await getStoryRepository().updateRequest(requestId, {
@@ -2117,13 +2205,20 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
       updatedAt: new Date(),
     });
 
-    const specData = await buildStorySpec({
-      ...request,
-      selectedCharacters: Array.isArray(request.selectedCharacters)
-        ? request.selectedCharacters
-        : [],
-      selectedChildren: Array.isArray(request.selectedChildren) ? request.selectedChildren : [],
-    } as any);
+    const specData = await buildStorySpec(
+      {
+        ...request,
+        selectedCharacters: Array.isArray(request.selectedCharacters)
+          ? request.selectedCharacters
+          : [],
+        selectedChildren: Array.isArray(request.selectedChildren) ? request.selectedChildren : [],
+      } as any,
+      continuationData.isContinuation
+        ? {
+            continuationContext: continuationData.continuationContext,
+          }
+        : undefined
+    );
     const spec = specData.spec;
     const userPlan = await getPlanFeatures(request.userId);
     const comicBlockCount = Number(userPlan.imagesPerStory || 0);
@@ -2146,10 +2241,19 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
       childProfileId: request.childProfileId,
       ...getStoryCreationAttributionInputFromRequest(request),
       spec,
+      ...(continuationData.isContinuation &&
+        continuationData.seriesId &&
+        continuationData.partNumber && {
+          seriesData: {
+            seriesId: continuationData.seriesId,
+            partNumber: continuationData.partNumber,
+          },
+        }),
+      isScheduledContinuation: continuationData.isScheduledContinuation,
     });
     await getStoryRepository().updateRequest(requestId, {
       intermediateData: {
-        ...(request.intermediateData as Record<string, unknown> | null),
+        ...continuationData.intermediateData,
         generationKind: MIXED_STORY_KIND,
         storyId,
         mixedStoryComicBlockCount: comicBlockCount,
@@ -2168,6 +2272,11 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
       sceneCount,
       comicSceneIds,
       comicBlockCount,
+      ...(continuationData.isContinuation &&
+        continuationData.continuationContext && {
+          isContinuation: true,
+          continuationContext: continuationData.continuationContext,
+        }),
       onUsage: (usage) => recordUsage(usage, { userId: request.userId, storyId: storyId! }),
     });
 
@@ -2367,6 +2476,7 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
     await getStoryRepository().updateRequest(requestId, {
       errorMessage: null,
       intermediateData: {
+        ...continuationData.intermediateData,
         generationKind: MIXED_STORY_KIND,
         storyId,
         projectId: project.id,
@@ -2382,6 +2492,26 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
       { requestId, storyId, projectId: project.id, comicBlockCount, sceneCount },
       'Mixed story script/layout saved'
     );
+    if (
+      continuationData.isContinuation &&
+      continuationData.seriesId &&
+      continuationData.partNumber
+    ) {
+      const createdStory = await getStoryRepository().findById(storyId);
+      if (createdStory) {
+        const { addContinuationToSeries } = await import('./seriesService');
+        await addContinuationToSeries(continuationData.seriesId, storyId, createdStory);
+        logger.info(
+          {
+            requestId,
+            storyId,
+            seriesId: continuationData.seriesId,
+            partNumber: continuationData.partNumber,
+          },
+          'Added mixed story continuation to series'
+        );
+      }
+    }
     return { storyId };
   } catch (error) {
     logger.error(
@@ -3025,7 +3155,10 @@ export async function regenerateGraphicNovelPageImage(params: {
   }
 
   const storyMetadata = (story.metadata as Record<string, unknown> | null) || {};
-  if (storyMetadata.storyFormat !== GRAPHIC_NOVEL_KIND && storyMetadata.storyFormat !== MIXED_STORY_KIND) {
+  if (
+    storyMetadata.storyFormat !== GRAPHIC_NOVEL_KIND &&
+    storyMetadata.storyFormat !== MIXED_STORY_KIND
+  ) {
     throw new Error(`Story ${params.storyId} is not a graphic novel or mixed story`);
   }
 
@@ -3206,15 +3339,12 @@ export async function processGraphicNovelPages(
   const story = await getStoryRepository().findById(project.storyId);
   const storyMetadata = (story?.metadata as Record<string, unknown> | null) || {};
   const generationKind =
-    ((request.intermediateData as Record<string, unknown> | null | undefined)?.generationKind ===
-    MIXED_STORY_KIND)
+    (request.intermediateData as Record<string, unknown> | null | undefined)?.generationKind ===
+    MIXED_STORY_KIND
       ? MIXED_STORY_KIND
       : GRAPHIC_NOVEL_KIND;
   let firstPageReady = storyMetadata.firstPageReady === true || request.status === 'completed';
-  let hasGraphicNovelCover = await hasReusableGraphicNovelCover(
-    storyMetadata,
-    story?.coverAssetId
-  );
+  let hasGraphicNovelCover = await hasReusableGraphicNovelCover(storyMetadata, story?.coverAssetId);
 
   if (!firstPageReady) {
     await setGraphicNovelProgressStage(requestId, 'generating_first_page', generationKind);

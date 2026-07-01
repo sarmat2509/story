@@ -5,9 +5,15 @@
 
 import { logger } from '../utils/logger';
 import { getStoryRepository } from '../repositories';
-import { createContinuationRequest } from '../services/storyOrchestrationService';
+import {
+  createContinuationRequest,
+  resolveContinuationGenerationKind,
+} from '../services/storyOrchestrationService';
 import { getOrCreateSeries } from '../services/seriesService';
-import { isStoryQuotaError, releaseStoryQuotaReservationForRequest } from '../services/storyQuotaService';
+import {
+  isStoryQuotaError,
+  releaseStoryQuotaReservationForRequest,
+} from '../services/storyQuotaService';
 import { getOpsRuntimeStatus } from '../services/opsRuntimeService';
 import { textQueue } from './storyJobProcessor';
 
@@ -45,7 +51,10 @@ export async function runScheduledContinuationScheduler(): Promise<void> {
     try {
       const series = await getStoryRepository().findSeriesById(schedule.seriesId);
       if (!series || !series.storyIds?.length) {
-        logger.warn({ scheduleId: schedule.id, seriesId: schedule.seriesId }, 'Series not found or empty');
+        logger.warn(
+          { scheduleId: schedule.id, seriesId: schedule.seriesId },
+          'Series not found or empty'
+        );
         continue;
       }
 
@@ -61,13 +70,19 @@ export async function runScheduledContinuationScheduler(): Promise<void> {
       const originalRequest = story.storyRequestId
         ? await getStoryRepository().findRequestById(story.storyRequestId)
         : null;
+      const generationKind = resolveContinuationGenerationKind({
+        storyMetadata: story.metadata,
+        requestIntermediateData: originalRequest?.intermediateData,
+      });
 
       requestId = await createContinuationRequest(schedule.userId, {
         language: story.language,
         ageGroup: story.ageGroup,
         childProfileId: story.childProfileId,
         imageStyle: (story.metadata as any)?.imageStyle || 'watercolor',
-        moralTheme: story.moralTheme,
+        moralTheme: null,
+        excludedMoralTheme: story.moralTheme,
+        generationKind,
         scenarioCardId: originalRequest?.scenarioCardId || null,
         selectedCharacters: originalRequest?.selectedCharacters || null,
         selectedChildren: originalRequest?.selectedChildren || null,
@@ -92,7 +107,10 @@ export async function runScheduledContinuationScheduler(): Promise<void> {
 
       await getStoryRepository().updateScheduleNextRunAt(schedule.id, nextRun);
 
-      logger.info({ scheduleId: schedule.id, requestId, nextRun: nextRun.toISOString() }, 'Scheduled continuation created');
+      logger.info(
+        { scheduleId: schedule.id, requestId, nextRun: nextRun.toISOString() },
+        'Scheduled continuation created'
+      );
     } catch (err) {
       if (requestId && !queued) {
         try {
@@ -124,7 +142,10 @@ export async function runScheduledContinuationScheduler(): Promise<void> {
 export function startScheduledContinuationScheduler(): void {
   if (schedulerIntervalId) clearInterval(schedulerIntervalId);
   schedulerIntervalId = setInterval(
-    () => runScheduledContinuationScheduler().catch((err) => logger.error({ err }, 'Scheduled continuation scheduler error')),
+    () =>
+      runScheduledContinuationScheduler().catch((err) =>
+        logger.error({ err }, 'Scheduled continuation scheduler error')
+      ),
     60 * 60 * 1000
   );
   logger.info('Scheduled continuation scheduler started (hourly)');

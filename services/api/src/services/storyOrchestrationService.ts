@@ -113,6 +113,10 @@ import {
   type ReferencePhoto,
   type AppearanceTraits,
 } from './types';
+import {
+  isGraphicNovelStyleGenerationKind,
+  type StoryGenerationKind,
+} from './generationKindRouting';
 import type { BuiltScenePromptPayload } from '../domain/image/ImageDomainService';
 // NEW M9: Character-based reference tracking
 import {
@@ -339,6 +343,90 @@ function calculateAgeGroup(birthDate: Date): string {
   return '9-12';
 }
 
+const RANDOM_MISSING_GOAL_PROBABILITY = 0.5;
+
+function normalizeRequestGoal(goal: string | null | undefined): string | null {
+  const trimmed = goal?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function lowerBoundAgeFromGroup(ageGroup: string | null | undefined): number | null {
+  if (!ageGroup) return null;
+  if (ageGroup === '1y') return 1;
+  const match = ageGroup.match(/^(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+
+export async function resolveStoryRequestGoal(
+  explicitGoal: string | null | undefined,
+  options: {
+    source: string;
+    ageGroup?: string | null;
+    excludedGoal?: string | null;
+  }
+): Promise<string | null> {
+  const normalizedGoal = normalizeRequestGoal(explicitGoal);
+  if (normalizedGoal) return normalizedGoal;
+
+  if (Math.random() >= RANDOM_MISSING_GOAL_PROBABILITY) {
+    logger.info({ source: options.source }, 'No explicit story goal; keeping story open-ended');
+    return null;
+  }
+
+  try {
+    const goals = await getDictionaryRepository().findAllGoals();
+    const ageLowerBound = lowerBoundAgeFromGroup(options.ageGroup);
+    const ageEligibleGoals =
+      ageLowerBound === null ? goals : goals.filter((goal) => goal.minAge <= ageLowerBound);
+    const eligibleGoals = ageEligibleGoals.length > 0 ? ageEligibleGoals : goals;
+    const excludedGoal = normalizeRequestGoal(options.excludedGoal);
+    const nonExcludedGoals =
+      excludedGoal && eligibleGoals.length > 1
+        ? eligibleGoals.filter((goal) => goal.slug !== excludedGoal)
+        : eligibleGoals;
+    const randomGoals = nonExcludedGoals.length > 0 ? nonExcludedGoals : eligibleGoals;
+    const pickedGoal = randomGoals[Math.floor(Math.random() * randomGoals.length)];
+
+    if (!pickedGoal) {
+      logger.warn({ source: options.source }, 'No story goals available; keeping story open-ended');
+      return null;
+    }
+
+    logger.info(
+      { source: options.source, goal: pickedGoal.slug, excludedGoal },
+      'No explicit story goal; selected random goal'
+    );
+    return pickedGoal.slug;
+  } catch (error) {
+    logger.warn(
+      { err: error, source: options.source },
+      'Failed to select random story goal; keeping story open-ended'
+    );
+    return null;
+  }
+}
+
+export function resolveContinuationGenerationKind(input: {
+  storyMetadata?: unknown;
+  requestIntermediateData?: unknown;
+}): StoryGenerationKind {
+  const requestData =
+    input.requestIntermediateData && typeof input.requestIntermediateData === 'object'
+      ? (input.requestIntermediateData as Record<string, unknown>)
+      : {};
+  const storyMetadata =
+    input.storyMetadata && typeof input.storyMetadata === 'object'
+      ? (input.storyMetadata as Record<string, unknown>)
+      : {};
+  const requestKind =
+    typeof requestData.generationKind === 'string' ? requestData.generationKind : undefined;
+  const metadataKind =
+    typeof storyMetadata.storyFormat === 'string' ? storyMetadata.storyFormat : undefined;
+  const generationKind = requestKind || metadataKind;
+
+  return isGraphicNovelStyleGenerationKind(generationKind) ? generationKind : undefined;
+}
+
 /**
  * Create a new story request
  * Validates limits and creates pending request
@@ -381,6 +469,10 @@ export async function createStoryRequest(
       fallbackChildProfileId: input.childProfileId,
       parentReviewRequired: options?.parentReviewRequired,
     });
+    const resolvedGoal = await resolveStoryRequestGoal(input.goal, {
+      source: options?.quotaSource ?? 'wizard',
+      ageGroup: (input as any).ageGroup,
+    });
 
     const requestData = {
       userId,
@@ -390,7 +482,7 @@ export async function createStoryRequest(
       parentReviewRequired: attribution.parentReviewRequired,
       uiLocale: input.uiLocale,
       storyLanguage: input.storyLanguage,
-      goal: input.goal,
+      goal: resolvedGoal,
       scenarioCardId: input.scenarioCardId,
       imageStyle: (input as any).imageStyle || null, // Image art style
       userNotes: input.userNotes,
@@ -429,7 +521,9 @@ export async function createContinuationRequest(
     ageGroup: string;
     childProfileId: string | null;
     imageStyle: string;
-    moralTheme: string | null;
+    moralTheme?: string | null;
+    excludedMoralTheme?: string | null;
+    generationKind?: StoryGenerationKind;
     // Preserved from original request
     scenarioCardId: string | null;
     selectedCharacters: any;
@@ -460,12 +554,18 @@ export async function createContinuationRequest(
       notesSource: 'story_continuation_notes',
     });
 
+    const resolvedGoal = await resolveStoryRequestGoal(input.moralTheme, {
+      source: input.isScheduledContinuation ? 'scheduled_continuation' : 'continuation',
+      ageGroup: input.ageGroup,
+      excludedGoal: input.excludedMoralTheme,
+    });
+
     const requestData = {
       userId,
       childProfileId: input.childProfileId,
       uiLocale: 'uk', // Use default, doesn't affect story
       storyLanguage: input.language,
-      goal: input.moralTheme, // Use moral theme from original story (can be null)
+      goal: resolvedGoal,
       scenarioCardId: input.scenarioCardId, // Preserve from original
       imageStyle: input.imageStyle,
       userNotes: input.userNotes, // Preserve from original
@@ -479,6 +579,9 @@ export async function createContinuationRequest(
         seriesId: input.seriesId,
         partNumber: input.partNumber,
         continuationContext: input.continuationContext,
+        ...(input.generationKind && {
+          generationKind: input.generationKind,
+        }),
         ...(input.isScheduledContinuation && {
           isScheduledContinuation: true,
           scheduleId: input.scheduleId,
@@ -6174,7 +6277,9 @@ function buildManifestSceneRowsFromStoryJson(story: {
     .filter((scene): scene is ManifestSceneRow => Boolean(scene));
 }
 
-function getAgeYearsFromBirthDateForReadingSettings(birthDate: Date | string | null): number | null {
+function getAgeYearsFromBirthDateForReadingSettings(
+  birthDate: Date | string | null
+): number | null {
   if (!birthDate) return null;
   const birth = birthDate instanceof Date ? birthDate : new Date(birthDate);
   if (Number.isNaN(birth.getTime())) return null;

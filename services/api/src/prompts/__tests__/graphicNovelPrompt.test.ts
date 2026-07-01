@@ -65,12 +65,15 @@ assert.match(prompt, /Every page MUST have at least 2 panels/);
 assert.match(prompt, /Do not write prose paragraphs/);
 assert.match(prompt, /mostly dialogue and first-person thoughts/);
 assert.match(prompt, /dialogue\/thoughts\/caption and visual/);
-assert.match(prompt, /Use 4-5 panels per page/);
-assert.match(prompt, new RegExp(`text must be ${GRAPHIC_NOVEL_LINE_MAX_CHARS} characters or fewer`));
+assert.match(prompt, /Use 4-6 panels per page/);
+assert.match(
+  prompt,
+  new RegExp(`text must be ${GRAPHIC_NOVEL_LINE_MAX_CHARS} characters or fewer`)
+);
 assert.match(prompt, /Do not depend on server shortening text/);
-assert.match(prompt, /at least 6 pages must have 4 or 5 panels/);
+assert.match(prompt, /at least 6 pages must have 4, 5, or 6 panels/);
 assert.match(prompt, /Use 3-panel pages at most 2 time\(s\)/);
-assert.match(prompt, /Page 1\/opening must have 4 or 5 panels/);
+assert.match(prompt, /Page 1\/opening must have 4, 5, or 6 panels/);
 assert.match(prompt, /Do not create 2-panel pages for age 6-8/);
 assert.match(prompt, /Most panels must be dialogue exchange panels: at least 60% of all panels/);
 assert.match(prompt, /never fewer than 20 panels for this 8-page story/);
@@ -82,9 +85,15 @@ assert.match(prompt, /Spread exchange panels across every page/);
 assert.match(prompt, /5-panel pages should usually have at least 3 exchange panels/);
 assert.match(prompt, /single-speaker, thought-only, caption-only, or silent panels sparingly/);
 assert.match(prompt, /Most dialogue and thought lines should be 40-65 characters/);
-assert.match(prompt, /At least half of all dialogue\/thought lines across the story should be 45 characters or longer/);
+assert.match(
+  prompt,
+  /At least half of all dialogue\/thought lines across the story should be 45 characters or longer/
+);
 assert.match(prompt, /at least 8 dialogue\/thought lines of 55-75 characters/);
-assert.match(prompt, /For two-speaker exchange panels, each of the 2 lines should usually be 35-65 characters/);
+assert.match(
+  prompt,
+  /For two-speaker exchange panels, each of the 2 lines should usually be 35-65 characters/
+);
 assert.match(prompt, /Keep spoken dialogue dominant for age 6-8/);
 assert.match(prompt, /THOUGHT BUBBLE LOGIC/);
 assert.match(prompt, /Include 4-6 thought bubbles across the story/);
@@ -93,7 +102,10 @@ assert.match(prompt, /Thought bubbles should reveal inner voice/);
 assert.match(prompt, /not already two-speaker exchange panels/);
 assert.match(prompt, /spoken two-character dialogue as the dominant mode/);
 assert.match(prompt, /Do not combine a caption with dialogue\/thought in the same panel/);
-assert.match(prompt, /Short exclamations under 35 characters are allowed only as occasional reaction beats/);
+assert.match(
+  prompt,
+  /Short exclamations under 35 characters are allowed only as occasional reaction beats/
+);
 assert.match(prompt, /A panel may contain 2 dialogue lines/);
 assert.match(prompt, /SPEAKER NAME RULES/);
 assert.match(prompt, /must use exact character names from CHARACTERS/);
@@ -134,17 +146,35 @@ assert.match(prompt, /new reaction, choice, joke, emotional shift, or visible co
 assert.match(prompt, /VISUAL ACTION LOGIC/);
 assert.match(prompt, /exact visible cause-and-effect mechanism/);
 assert.match(prompt, /visual\.primaryRead should name the affected story object or result/);
-assert.match(prompt, /what the rope, vine, lever, bridge, key, light, spell, water, or object is attached to/);
-assert.match(prompt, /A viewer should understand the physical or magical logic without reading the dialogue/);
-assert.match(prompt, /same rope\/vine\/lever\/path\/light links the characters to the affected object/);
+assert.match(
+  prompt,
+  /what the rope, vine, lever, bridge, key, light, spell, water, or object is attached to/
+);
+assert.match(
+  prompt,
+  /A viewer should understand the physical or magical logic without reading the dialogue/
+);
+assert.match(
+  prompt,
+  /same rope\/vine\/lever\/path\/light links the characters to the affected object/
+);
 assert.match(prompt, /Do not write full dialogue or thought lines in ALL CAPS/);
 
 assert.match(fallbackPrompt, /SAFETY AND TONE/);
 assert.match(fallbackPrompt, /Create exactly 8 pages/);
 assert.match(fallbackPrompt, /Every page must have at least 2 panels/);
-assert.match(fallbackPrompt, /dialogue\[\]\.text and thoughts\[\]\.text must be 110 characters or fewer/);
-assert.match(fallbackPrompt, /For reference-grounded characters, describe only temporary pose\/action\/emotion\/staging/);
-assert.match(fallbackPrompt, /visible cause\/effect for action, puzzle, rescue, tool-use, or magic-effect panels/);
+assert.match(
+  fallbackPrompt,
+  /dialogue\[\]\.text and thoughts\[\]\.text must be 110 characters or fewer/
+);
+assert.match(
+  fallbackPrompt,
+  /For reference-grounded characters, describe only temporary pose\/action\/emotion\/staging/
+);
+assert.match(
+  fallbackPrompt,
+  /visible cause\/effect for action, puzzle, rescue, tool-use, or magic-effect panels/
+);
 assert.match(fallbackPrompt, /contact point and the object being affected/);
 assert.match(fallbackPrompt, /Mira \(person, role: hero\)/);
 assert.doesNotMatch(fallbackPrompt, /\(child[,)]/);
@@ -173,6 +203,34 @@ assert.match(promptWithArtifact, /do not force Title Case/);
 assert.match(promptWithArtifact, /\{star key\}/);
 assert.match(promptWithArtifact, /dialogue\[\]\.text, thoughts\[\]\.text, or caption only/);
 
+const continuationPrompt = buildGraphicNovelPrompt({
+  spec,
+  pageCount: 8,
+  isContinuation: true,
+  continuationContext: {
+    previousOutlines: [
+      {
+        title: 'First Mission',
+        moral: 'Friends help each other.',
+        scenes: [{ setting: 'orbit', goal: 'Mira helped the comet find its path.' }],
+      },
+    ],
+    requiredCharacters: [
+      {
+        name: 'Mira',
+        type: 'child',
+        description: 'Curious child with bright red glasses.',
+        role: 'hero',
+      },
+    ],
+    optionalCharacters: [],
+    usedPlots: [],
+  },
+});
+assert.match(continuationPrompt, /STORY CONTINUATION/);
+assert.match(continuationPrompt, /graphic novel script format/);
+assert.doesNotMatch(continuationPrompt, /Friends help each other\./);
+
 const pageSchema = (GRAPHIC_NOVEL_SCRIPT_SCHEMA.properties.pages as any).items;
 const panelSchema = pageSchema.properties.panels;
 const dialogueLineSchema = panelSchema.items.properties.dialogue.items.properties;
@@ -191,31 +249,52 @@ assert.ok(visualSchema.required.includes('environmentId'));
 assert.ok(visualSchema.required.includes('primaryRead'));
 assert.ok(visualSchema.required.includes('sceneVisual'));
 assert.ok(visualSchema.properties.sceneVisual.required.includes('cameraComposition'));
-assert.ok(visualSchema.properties.sceneVisual.properties.cameraComposition.required.includes('characters'));
 assert.ok(
-  visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items.required.includes('description')
+  visualSchema.properties.sceneVisual.properties.cameraComposition.required.includes('characters')
 );
 assert.ok(
-  visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items.required.includes('position')
+  visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items.required.includes(
+    'description'
+  )
 );
-assert.ok(!visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items.required.includes('anchor'));
-assert.ok(!visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items.required.includes('speechTarget'));
+assert.ok(
+  visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items.required.includes(
+    'position'
+  )
+);
+assert.ok(
+  !visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items.required.includes(
+    'anchor'
+  )
+);
+assert.ok(
+  !visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items.required.includes(
+    'speechTarget'
+  )
+);
 assert.equal(
-  visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items.properties.anchor,
+  visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items
+    .properties.anchor,
   undefined
 );
 assert.equal(
-  visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items.properties.speechTarget,
+  visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items
+    .properties.speechTarget,
   undefined
 );
 assert.match(
-  visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items.properties.description.description,
+  visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items
+    .properties.description.description,
   /do not override stable identity/
 );
 assert.match(visualSchema.properties.primaryRead.description, /affected object\/result/);
-assert.match(visualSchema.properties.sceneVisual.properties.setting.description, /visible cause\/effect/);
 assert.match(
-  visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items.properties.description.description,
+  visualSchema.properties.sceneVisual.properties.setting.description,
+  /visible cause\/effect/
+);
+assert.match(
+  visualSchema.properties.sceneVisual.properties.cameraComposition.properties.characters.items
+    .properties.description.description,
   /contact point and affected object/
 );
 assert.equal(GRAPHIC_NOVEL_LINE_MAX_CHARS, 110);
