@@ -85,6 +85,29 @@ export type AdminDataPrivacyExportPayload = {
   export: Record<string, unknown>;
 };
 
+export type AdminJobStatusPayload = {
+  job: {
+    id: string;
+    type: string;
+    status: 'queued' | 'processing' | 'completed' | 'failed';
+    retries: number;
+    createdAt: string;
+    startedAt: number | null;
+    actualDurationMs: number | null;
+    error: string | null;
+  };
+  queue: {
+    jobStatus: 'queued' | 'processing' | null;
+    queuePosition: number | null;
+    activeJobsCount: number;
+    maxConcurrency: number;
+    totalWaiting: number;
+    estimatedWaitMs: number | null;
+    processingStartedAt: number | null;
+    estimatedProcessingMs: number | null;
+  };
+};
+
 export type AdminImageValidationItem = {
   id: string;
   storyId: string;
@@ -374,6 +397,24 @@ export function useAdminDashboard(days: number) {
         }
       );
       return response.data.data;
+    },
+  });
+}
+
+export function useAdminJobStatus(jobId?: string | null) {
+  return useQuery({
+    queryKey: ['admin', 'job-status', jobId],
+    enabled: !!jobId,
+    queryFn: async () => {
+      const response = await apiClient.get<{
+        status: string;
+        data: AdminJobStatusPayload;
+      }>(`/api/v1/admin/jobs/${encodeURIComponent(jobId ?? '')}`);
+      return response.data.data;
+    },
+    refetchInterval: (query) => {
+      const status = query.state.data?.job.status;
+      return status === 'queued' || status === 'processing' ? 2000 : false;
     },
   });
 }

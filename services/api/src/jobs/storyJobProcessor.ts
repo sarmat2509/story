@@ -138,6 +138,9 @@ interface LegacyBaseJob {
   status: 'queued' | 'processing' | 'completed' | 'failed';
   retries: number;
   createdAt: Date;
+  startedAt?: number;
+  estimatedTotalMs?: number;
+  actualDurationMs?: number;
   error?: string;
 }
 
@@ -1150,6 +1153,10 @@ class StoryJobQueue {
 
   getJobStatus(jobId: string): Promise<LegacyJob | null> {
     return legacyRegenerationQueue.getJobStatus(jobId);
+  }
+
+  getJobQueueInfo(jobId: string) {
+    return legacyRegenerationQueue.getQueueInfo((job) => job.id === jobId);
   }
 
   getStats() {

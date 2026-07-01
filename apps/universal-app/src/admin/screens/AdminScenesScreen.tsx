@@ -1,4 +1,4 @@
-import React, { createElement, useEffect, useMemo, useState } from 'react';
+import React, { createElement, useEffect, useMemo, useRef, useState } from 'react';
 import { NavigationProp, useNavigation, useRoute } from '@react-navigation/native';
 import {
   Alert,
@@ -15,6 +15,7 @@ import { stripCharacterIdFromName } from '@wondertales/shared';
 import {
   type AdminMapTileAssetPayload,
   useAdminDirectorScenes,
+  useAdminJobStatus,
   useAdminRegenerateGraphicNovelPageImage,
   useAdminRegenerateSceneImage,
   useAdminResetStoryAudio,
@@ -51,6 +52,20 @@ function formatDurationMs(ms: number | null | undefined): string {
     return `${Math.round(ms)} ms`;
   }
   return `${Math.round(ms)} ms (${(ms / 1000).toFixed(1)} s)`;
+}
+
+function formatCompactDurationMs(ms: number | null | undefined): string | null {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) {
+    return null;
+  }
+  if (ms < 60_000) {
+    return `${Math.max(1, Math.round(ms / 1000))}s`;
+  }
+  return `${Math.round(ms / 60_000)}m`;
+}
+
+function shortJobId(jobId: string): string {
+  return jobId.slice(-7);
 }
 
 function formatValidationScore(score: number | null, status: string): string {
@@ -559,6 +574,96 @@ function renderMapTile(
   );
 }
 
+type RegenerationJobEntry = {
+  jobId: string;
+};
+
+function getSceneRegenerationJobKey(storyId: string, sceneId: number): string {
+  return `${storyId}:scene:${sceneId}`;
+}
+
+function getGraphicPageRegenerationJobKey(storyId: string, pageNumber: number): string {
+  return `${storyId}:graphic-page:${pageNumber}`;
+}
+
+function RegenerationJobStatus({
+  jobId,
+  onTerminal,
+}: {
+  jobId: string;
+  onTerminal: () => void;
+}) {
+  const query = useAdminJobStatus(jobId);
+  const notifiedTerminalRef = useRef(false);
+  const status = query.data?.job.status;
+
+  useEffect(() => {
+    notifiedTerminalRef.current = false;
+  }, [jobId]);
+
+  useEffect(() => {
+    if (!status || (status !== 'completed' && status !== 'failed')) {
+      return;
+    }
+    if (notifiedTerminalRef.current) {
+      return;
+    }
+    notifiedTerminalRef.current = true;
+    onTerminal();
+  }, [onTerminal, status]);
+
+  if (query.isLoading) {
+    return (
+      <Text style={styles.regenerationStatus}>Checking job {shortJobId(jobId)}...</Text>
+    );
+  }
+
+  if (query.error) {
+    return (
+      <Text style={[styles.regenerationStatus, styles.regenerationStatusError]}>
+        Status unavailable · {shortJobId(jobId)}
+      </Text>
+    );
+  }
+
+  const job = query.data?.job;
+  const queue = query.data?.queue;
+  if (!job) {
+    return null;
+  }
+
+  if (job.status === 'queued') {
+    const wait = formatCompactDurationMs(queue?.estimatedWaitMs);
+    return (
+      <Text style={styles.regenerationStatus}>
+        Queued{queue?.queuePosition ? ` #${queue.queuePosition}` : ''}
+        {wait ? ` · ~${wait}` : ''} · {shortJobId(job.id)}
+      </Text>
+    );
+  }
+
+  if (job.status === 'processing') {
+    return (
+      <Text style={styles.regenerationStatus}>Processing · {shortJobId(job.id)}</Text>
+    );
+  }
+
+  if (job.status === 'completed') {
+    const took = formatCompactDurationMs(job.actualDurationMs);
+    return (
+      <Text style={[styles.regenerationStatus, styles.regenerationStatusSuccess]}>
+        Completed{took ? ` · ${took}` : ''} · {shortJobId(job.id)}
+      </Text>
+    );
+  }
+
+  return (
+    <Text style={[styles.regenerationStatus, styles.regenerationStatusError]}>
+      Failed{job.error ? `: ${job.error}` : ''} · {shortJobId(job.id)}
+    </Text>
+  );
+}
+
 export default function AdminScenesScreen() {
   const navigation = useNavigation<NavigationProp<AdminStackParamList>>();
   const route = useRoute<any>();
@@ -569,10 +674,14 @@ export default function AdminScenesScreen() {
   const resetAudioMutation = useAdminResetStoryAudio();
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string | null>(null);
   const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null);
+  const [regenerationJobs, setRegenerationJobs] = useState<Record<string, RegenerationJobEntry>>(
+    {}
+  );
 
   useEffect(() => {
     setSelectedEnvironmentId(null);
     setSelectedOutfitId(null);
+    setRegenerationJobs({});
   }, [routeStoryId]);
   const storyScenes = useMemo(
     () => scenesQuery.data?.storyScenes ?? [],
@@ -641,49 +750,115 @@ export default function AdminScenesScreen() {
 
     if (imageTargetKind === 'graphic_novel_page') {
       const pageNumber = item.graphicNovelPageNumber ?? item.sceneIndex;
+      const jobKey = getGraphicPageRegenerationJobKey(routeStoryId, pageNumber);
+      const job = regenerationJobs[jobKey];
       const isPending =
         regenerateGraphicNovelPageMutation.isPending &&
         regenerateGraphicNovelPageMutation.variables?.storyId === routeStoryId &&
         regenerateGraphicNovelPageMutation.variables?.pageNumber === pageNumber;
+      const mutationError =
+        regenerateGraphicNovelPageMutation.error &&
+        regenerateGraphicNovelPageMutation.variables?.storyId === routeStoryId &&
+        regenerateGraphicNovelPageMutation.variables?.pageNumber === pageNumber
+          ? regenerateGraphicNovelPageMutation.error
+          : null;
 
       return (
-        <TouchableOpacity
-          style={styles.sceneActionButton}
-          disabled={isPending}
-          onPress={() => {
-            regenerateGraphicNovelPageMutation.mutate({
-              storyId: routeStoryId,
-              pageNumber,
-            });
-          }}
-        >
-          <Text style={styles.sceneActionButtonText}>
-            {isPending ? 'Queueing...' : 'Regenerate page image'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.regenerationActionGroup}>
+          <TouchableOpacity
+            style={styles.sceneActionButton}
+            disabled={isPending}
+            onPress={() => {
+              regenerateGraphicNovelPageMutation.mutate(
+                {
+                  storyId: routeStoryId,
+                  pageNumber,
+                },
+                {
+                  onSuccess: (data) => {
+                    setRegenerationJobs((current) => ({
+                      ...current,
+                      [jobKey]: { jobId: data.jobId },
+                    }));
+                  },
+                }
+              );
+            }}
+          >
+            <Text style={styles.sceneActionButtonText}>
+              {isPending ? 'Queueing...' : 'Regenerate page image'}
+            </Text>
+          </TouchableOpacity>
+          {job ? (
+            <RegenerationJobStatus
+              jobId={job.jobId}
+              onTerminal={() => {
+                void scenesQuery.refetch();
+              }}
+            />
+          ) : null}
+          {mutationError ? (
+            <Text style={[styles.regenerationStatus, styles.regenerationStatusError]}>
+              Queue failed: {(mutationError as Error).message}
+            </Text>
+          ) : null}
+        </View>
       );
     }
 
+    const jobKey = getSceneRegenerationJobKey(routeStoryId, item.sceneIndex);
+    const job = regenerationJobs[jobKey];
     const isPending =
       regenerateMutation.isPending &&
       regenerateMutation.variables?.storyId === routeStoryId &&
       regenerateMutation.variables?.sceneId === item.sceneIndex;
+    const mutationError =
+      regenerateMutation.error &&
+      regenerateMutation.variables?.storyId === routeStoryId &&
+      regenerateMutation.variables?.sceneId === item.sceneIndex
+        ? regenerateMutation.error
+        : null;
 
     return (
-      <TouchableOpacity
-        style={styles.sceneActionButton}
-        disabled={isPending}
-        onPress={() => {
-          regenerateMutation.mutate({
-            storyId: routeStoryId,
-            sceneId: item.sceneIndex,
-          });
-        }}
-      >
-        <Text style={styles.sceneActionButtonText}>
-          {isPending ? 'Queueing...' : 'Regenerate image'}
-        </Text>
-      </TouchableOpacity>
+      <View style={styles.regenerationActionGroup}>
+        <TouchableOpacity
+          style={styles.sceneActionButton}
+          disabled={isPending}
+          onPress={() => {
+            regenerateMutation.mutate(
+              {
+                storyId: routeStoryId,
+                sceneId: item.sceneIndex,
+              },
+              {
+                onSuccess: (data) => {
+                  setRegenerationJobs((current) => ({
+                    ...current,
+                    [jobKey]: { jobId: data.jobId },
+                  }));
+                },
+              }
+            );
+          }}
+        >
+          <Text style={styles.sceneActionButtonText}>
+            {isPending ? 'Queueing...' : 'Regenerate image'}
+          </Text>
+        </TouchableOpacity>
+        {job ? (
+          <RegenerationJobStatus
+            jobId={job.jobId}
+            onTerminal={() => {
+              void scenesQuery.refetch();
+            }}
+          />
+        ) : null}
+        {mutationError ? (
+          <Text style={[styles.regenerationStatus, styles.regenerationStatusError]}>
+            Queue failed: {(mutationError as Error).message}
+          </Text>
+        ) : null}
+      </View>
     );
   };
 
@@ -1227,6 +1402,10 @@ const styles = StyleSheet.create({
     gap: 12,
     flexWrap: 'wrap',
   },
+  regenerationActionGroup: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
   sceneActionButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -1237,6 +1416,25 @@ const styles = StyleSheet.create({
     color: theme.colors.text.inverse,
     fontWeight: '700',
     fontSize: 13,
+  },
+  regenerationStatus: {
+    maxWidth: 260,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: theme.colors.primary[50],
+    color: theme.colors.interactive.primary,
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+  regenerationStatusSuccess: {
+    backgroundColor: theme.colors.status.success + '20',
+    color: theme.colors.status.success,
+  },
+  regenerationStatusError: {
+    backgroundColor: theme.colors.status.error + '20',
+    color: theme.colors.status.error,
   },
   sceneCardTitle: {
     fontSize: 22,

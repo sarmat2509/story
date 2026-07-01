@@ -81,6 +81,10 @@ const StoryIdParamsSchema = z.object({
   storyId: z.string().uuid(),
 });
 
+const AdminJobParamsSchema = z.object({
+  jobId: z.string().trim().min(1).max(180).regex(/^[A-Za-z0-9_-]+$/),
+});
+
 const MapTileMaskImageParamsSchema = z.object({
   maskId: z.string().trim().min(1).max(180).regex(/^[a-z0-9-]+$/),
 });
@@ -572,6 +576,55 @@ router.patch('/ops/runtime', async (req: Request, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: 'Failed to update ops runtime status',
+    });
+  }
+});
+
+router.get('/jobs/:jobId', async (req: Request, res: Response) => {
+  try {
+    const parsedParams = AdminJobParamsSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid params',
+        details: parsedParams.error.flatten(),
+      });
+    }
+
+    const { jobId } = parsedParams.data;
+    const [job, queueInfo] = await Promise.all([
+      storyJobQueue.getJobStatus(jobId),
+      storyJobQueue.getJobQueueInfo(jobId),
+    ]);
+
+    if (!job) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Job not found',
+      });
+    }
+
+    return res.json({
+      status: 'success',
+      data: {
+        job: {
+          id: job.id,
+          type: job.type,
+          status: job.status,
+          retries: job.retries,
+          createdAt: job.createdAt.toISOString(),
+          startedAt: job.startedAt ?? null,
+          actualDurationMs: job.actualDurationMs ?? null,
+          error: job.error ?? null,
+        },
+        queue: queueInfo,
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error, userId: req.user?.id, jobId: req.params.jobId }, 'Admin job status fetch failed');
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch job status',
     });
   }
 });
