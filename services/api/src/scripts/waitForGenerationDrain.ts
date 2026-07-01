@@ -5,6 +5,7 @@ import db from '../db';
 type DrainCounts = {
   activeRequests: number;
   activeJobs: number;
+  staleActiveRequests: number;
 };
 
 function getArg(name: string, fallback: string): string {
@@ -13,14 +14,21 @@ function getArg(name: string, fallback: string): string {
   return match ? match.slice(prefix.length) : fallback;
 }
 
-async function getDrainCounts(): Promise<DrainCounts> {
+async function getDrainCounts(activeRequestWindowMs: number): Promise<DrainCounts> {
   const result = await db.execute(sql`
     SELECT
       (
         SELECT COUNT(*)::int
         FROM story_requests
         WHERE status IN ('pending', 'processing')
+          AND updated_at >= NOW() - (${activeRequestWindowMs} || ' milliseconds')::interval
       ) AS active_requests,
+      (
+        SELECT COUNT(*)::int
+        FROM story_requests
+        WHERE status IN ('pending', 'processing')
+          AND updated_at < NOW() - (${activeRequestWindowMs} || ' milliseconds')::interval
+      ) AS stale_active_requests,
       CASE
         WHEN to_regclass('public.generation_jobs') IS NULL THEN 0
         ELSE (
@@ -34,16 +42,18 @@ async function getDrainCounts(): Promise<DrainCounts> {
   return {
     activeRequests: Number(row.active_requests ?? row.activeRequests ?? 0),
     activeJobs: Number(row.active_jobs ?? row.activeJobs ?? 0),
+    staleActiveRequests: Number(row.stale_active_requests ?? row.staleActiveRequests ?? 0),
   };
 }
 
 async function main() {
   const timeoutMs = Number.parseInt(getArg('timeout-ms', '900000'), 10);
   const pollMs = Number.parseInt(getArg('poll-ms', '5000'), 10);
+  const activeRequestWindowMs = Number.parseInt(getArg('active-request-window-ms', '600000'), 10);
   const startedAt = Date.now();
 
   while (true) {
-    const counts = await getDrainCounts();
+    const counts = await getDrainCounts(activeRequestWindowMs);
     console.log(
       JSON.stringify({
         timestamp: new Date().toISOString(),

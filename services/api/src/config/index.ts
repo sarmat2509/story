@@ -570,6 +570,11 @@ export const config = {
     runHttpServer: process.env.RUN_HTTP_SERVER !== 'false',
   },
 
+  generation: {
+    activeRequestTtlMs: parseInt(process.env.GENERATION_ACTIVE_REQUEST_TTL_MS || '600000', 10),
+    staleRequestCleanupLimit: parseInt(process.env.GENERATION_STALE_REQUEST_CLEANUP_LIMIT || '100', 10),
+  },
+
   costControls: {
     storyWarnUsd: parseFloat(process.env.COST_CONTROL_STORY_WARN_USD || '1.25'),
     dailyWarnUsd: parseFloat(process.env.COST_CONTROL_DAILY_WARN_USD || '25'),

@@ -22,6 +22,7 @@ API_TAG="latest"
 API_PRELOAD_MIN_FREE_KB=2097152
 API_POST_DEPLOY_CLEANUP_MIN_FREE_KB=1048576
 DEPLOY_DRAIN_TIMEOUT_MS="${DEPLOY_DRAIN_TIMEOUT_MS:-900000}"
+DEPLOY_ACTIVE_REQUEST_TTL_MS="${DEPLOY_ACTIVE_REQUEST_TTL_MS:-600000}"
 
 # SSH multiplexing: single connection + passphrase prompt for the whole script
 SSH_CONTROL_PATH="/tmp/deploy-ssh-ctl-$$"
@@ -416,14 +417,15 @@ set_remote_ops_mode() {
 wait_for_generation_drain() {
   print_step "Draining active generation jobs before API deploy"
 
+  local maintenance_end
+  maintenance_end="$(date -u -v+15M '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '+15 minutes' '+%Y-%m-%dT%H:%M:%SZ')"
+
   if [[ "${SKIP_DEPLOY_DRAIN:-false}" == "true" ]]; then
     echo "⚠️  SKIP_DEPLOY_DRAIN=true, skipping generation drain"
+    set_remote_ops_mode "draining" "WonderTales is being updated. New generations are paused for a few minutes." "${maintenance_end}" || true
     print_step_done
     return 0
   fi
-
-  local maintenance_end
-  maintenance_end="$(date -u -v+15M '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '+15 minutes' '+%Y-%m-%dT%H:%M:%SZ')"
 
   if ! set_remote_ops_mode "draining" "WonderTales is being updated. New generations are paused for a few minutes." "${maintenance_end}"; then
     echo "⚠️  Could not set draining mode. This is expected on the first deploy that introduces ops mode."
@@ -431,7 +433,9 @@ wait_for_generation_drain() {
     return 0
   fi
 
-  if ! ssh_droplet "cd ${DROPLET_PATH} && docker exec wondertales-api-prod sh -lc 'cd /app/services/api && node dist/scripts/waitForGenerationDrain.js --timeout-ms=${DEPLOY_DRAIN_TIMEOUT_MS} --poll-ms=5000'"; then
+  ssh_droplet "cd ${DROPLET_PATH} && docker exec wondertales-api-prod sh -lc 'cd /app/services/api && if [ -f dist/scripts/expireStaleStoryRequests.js ]; then node dist/scripts/expireStaleStoryRequests.js --ttl-ms=${DEPLOY_ACTIVE_REQUEST_TTL_MS}; else echo \"expireStaleStoryRequests.js is not present yet; skipping stale cleanup\"; fi'"
+
+  if ! ssh_droplet "cd ${DROPLET_PATH} && docker exec wondertales-api-prod sh -lc 'cd /app/services/api && node dist/scripts/waitForGenerationDrain.js --timeout-ms=${DEPLOY_DRAIN_TIMEOUT_MS} --poll-ms=5000 --active-request-window-ms=${DEPLOY_ACTIVE_REQUEST_TTL_MS}'"; then
     echo "❌ Active generation jobs did not drain within ${DEPLOY_DRAIN_TIMEOUT_MS}ms"
     echo "   Re-run with SKIP_DEPLOY_DRAIN=true only if you intentionally accept recovery/retry behavior."
     exit 1

@@ -5402,12 +5402,16 @@ async function saveStory(
 
 const MAX_CONCURRENT_STORY_REQUESTS_PER_USER = 3;
 
+function getActiveStoryRequestCutoff(): Date {
+  return new Date(Date.now() - config.generation.activeRequestTtlMs);
+}
+
 /**
  * Check if user has too many active story requests (pending/processing).
  * Returns the count. Callers should reject if count >= threshold.
  */
 export async function getUserActiveRequestCount(userId: string): Promise<number> {
-  return getStoryRepository().countActiveRequestsByUser(userId);
+  return getStoryRepository().countActiveRequestsByUser(userId, getActiveStoryRequestCutoff());
 }
 
 /**
@@ -5419,7 +5423,10 @@ export async function getUserActiveRequestCount(userId: string): Promise<number>
  * same user are serialized at the DB level.
  */
 export async function enforceUserJobLimit(userId: string): Promise<void> {
-  const activeCount = await getStoryRepository().countActiveRequestsForUpdate(userId);
+  const activeCount = await getStoryRepository().countActiveRequestsForUpdate(
+    userId,
+    getActiveStoryRequestCutoff()
+  );
   if (activeCount >= MAX_CONCURRENT_STORY_REQUESTS_PER_USER) {
     throw new Error(
       `Too many active story requests (${activeCount}/${MAX_CONCURRENT_STORY_REQUESTS_PER_USER}). Please wait for current stories to complete.`

@@ -677,16 +677,18 @@ export class StoryRepository {
    * Lock and count active requests for a user (for concurrency limits).
    * Uses a subquery to avoid FOR UPDATE with aggregates.
    */
-  async countActiveRequestsByUser(userId: string): Promise<number> {
+  async countActiveRequestsByUser(userId: string, activeSince?: Date): Promise<number> {
+    const conditions = [
+      eq(schema.storyRequests.userId, userId),
+      inArray(schema.storyRequests.status, ['pending', 'processing']),
+    ];
+    if (activeSince) {
+      conditions.push(gte(schema.storyRequests.updatedAt, activeSince));
+    }
     const result = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.storyRequests)
-      .where(
-        and(
-          eq(schema.storyRequests.userId, userId),
-          inArray(schema.storyRequests.status, ['pending', 'processing'])
-        )
-      );
+      .where(and(...conditions));
     return Number(result[0]?.count ?? 0);
   }
 
@@ -711,7 +713,7 @@ export class StoryRepository {
    * Lock and count active requests for a user (for concurrency limits).
    * Uses a subquery to avoid FOR UPDATE with aggregates.
    */
-  async countActiveRequestsForUpdate(userId: string): Promise<number> {
+  async countActiveRequestsForUpdate(userId: string, activeSince?: Date): Promise<number> {
     const result = await this.db.execute(sql`
       SELECT COUNT(*)::int AS active_count
       FROM (
@@ -719,6 +721,7 @@ export class StoryRepository {
         FROM ${schema.storyRequests}
         WHERE user_id = ${userId}
           AND status IN ('pending', 'processing')
+          ${activeSince ? sql`AND updated_at >= ${activeSince}` : sql``}
         FOR UPDATE
       ) locked_rows
     `);

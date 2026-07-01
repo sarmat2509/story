@@ -53,7 +53,8 @@ jobs:
             git pull origin main
             echo "Pausing new generation requests..."
             if docker exec wondertales-api-prod sh -lc 'cd /app/services/api && node dist/scripts/setOpsMode.js draining "WonderTales is being updated. New generations are paused for a few minutes."'; then
-              docker exec wondertales-api-prod sh -lc 'cd /app/services/api && node dist/scripts/waitForGenerationDrain.js --timeout-ms=900000 --poll-ms=5000' || {
+              docker exec wondertales-api-prod sh -lc 'cd /app/services/api && if [ -f dist/scripts/expireStaleStoryRequests.js ]; then node dist/scripts/expireStaleStoryRequests.js --ttl-ms=600000; else echo "expireStaleStoryRequests.js is not present yet; skipping stale cleanup"; fi'
+              docker exec wondertales-api-prod sh -lc 'cd /app/services/api && node dist/scripts/waitForGenerationDrain.js --timeout-ms=900000 --poll-ms=5000 --active-request-window-ms=600000' || {
                 echo "Generation jobs did not drain before deploy"
                 exit 1
               }

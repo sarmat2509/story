@@ -2,6 +2,7 @@ export type QuotaReservationReleaseReason =
   | 'queue_enqueue_failed'
   | 'generation_failed'
   | 'instant_setup_failed'
+  | 'generation_expired'
   | 'audio_generation_failed';
 
 export function getQuotaReservationReleaseQuantity(netReserved: number): -1 | 0 {
