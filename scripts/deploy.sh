@@ -410,7 +410,7 @@ set_remote_ops_mode() {
   local message="${2:-}"
   local ends_at="${3:-}"
 
-  ssh_droplet "cd ${DROPLET_PATH} && if docker ps --filter name=wondertales-api-prod --filter status=running --format '{{.Names}}' | grep -q wondertales-api-prod; then docker exec wondertales-api-prod sh -lc 'cd /app/services/api && npx tsx src/scripts/setOpsMode.ts \"${mode}\" \"${message}\" \"${ends_at}\"'; else echo 'API container is not running; cannot set ops mode'; exit 2; fi"
+  ssh_droplet "cd ${DROPLET_PATH} && if docker ps --filter name=wondertales-api-prod --filter status=running --format '{{.Names}}' | grep -q wondertales-api-prod; then docker exec wondertales-api-prod sh -lc 'cd /app/services/api && node dist/scripts/setOpsMode.js \"${mode}\" \"${message}\" \"${ends_at}\"'; else echo 'API container is not running; cannot set ops mode'; exit 2; fi"
 }
 
 wait_for_generation_drain() {
@@ -431,7 +431,7 @@ wait_for_generation_drain() {
     return 0
   fi
 
-  if ! ssh_droplet "cd ${DROPLET_PATH} && docker exec wondertales-api-prod sh -lc 'cd /app/services/api && npx tsx src/scripts/waitForGenerationDrain.ts --timeout-ms=${DEPLOY_DRAIN_TIMEOUT_MS} --poll-ms=5000'"; then
+  if ! ssh_droplet "cd ${DROPLET_PATH} && docker exec wondertales-api-prod sh -lc 'cd /app/services/api && node dist/scripts/waitForGenerationDrain.js --timeout-ms=${DEPLOY_DRAIN_TIMEOUT_MS} --poll-ms=5000'"; then
     echo "❌ Active generation jobs did not drain within ${DEPLOY_DRAIN_TIMEOUT_MS}ms"
     echo "   Re-run with SKIP_DEPLOY_DRAIN=true only if you intentionally accept recovery/retry behavior."
     exit 1
