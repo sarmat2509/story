@@ -1,9 +1,12 @@
 import { DEFAULT_LOCALE } from '../config/languages';
 
-export const DEFAULT_PUBLIC_SEO_LOCALE = 'uk' as const;
+export const DEFAULT_PUBLIC_SEO_LOCALE = 'en' as const;
 
-export const PUBLIC_SEO_LOCALES = ['uk', 'en', 'ru', 'es', 'de', 'fr', 'pl'] as const;
-export type PublicSeoLocale = typeof PUBLIC_SEO_LOCALES[number];
+export const PUBLIC_TRANSLATION_LOCALES = ['en', 'uk', 'ru', 'es', 'de', 'fr', 'pl'] as const;
+export type PublicSeoLocale = typeof PUBLIC_TRANSLATION_LOCALES[number];
+
+export const PUBLIC_SEO_LOCALES = ['en', 'uk'] as const satisfies readonly PublicSeoLocale[];
+export type IndexedPublicSeoLocale = typeof PUBLIC_SEO_LOCALES[number];
 
 export const APP_SUPPORTED_LOCALES = ['uk', 'ru', 'en', 'es', 'de', 'fr', 'pl'] as const;
 export type AppSupportedLocale = typeof APP_SUPPORTED_LOCALES[number];
@@ -66,6 +69,13 @@ export const PUBLIC_STATIC_ROUTE_CONTRACTS = [
     owner: 'api-ssr',
     robots: 'index,follow',
     sitemap: false,
+  },
+  {
+    id: 'support',
+    path: '/support',
+    owner: 'api-ssr',
+    robots: 'index,follow',
+    sitemap: true,
   },
 ] as const satisfies readonly RouteContract[];
 
@@ -167,15 +177,15 @@ export const APP_ONLY_NOINDEX_ROUTE_PREFIXES = [
   '/register',
 ] as const;
 
-export function normalizePublicSeoLocale(locale?: string | null): PublicSeoLocale {
+export function normalizePublicSeoLocale(locale?: string | null): IndexedPublicSeoLocale {
   const normalized = locale?.slice(0, 2).toLowerCase();
-  return PUBLIC_SEO_LOCALES.includes(normalized as PublicSeoLocale)
-    ? (normalized as PublicSeoLocale)
+  return (PUBLIC_SEO_LOCALES as readonly string[]).includes(normalized ?? '')
+    ? (normalized as IndexedPublicSeoLocale)
     : DEFAULT_PUBLIC_SEO_LOCALE;
 }
 
-export function isPublicSeoLocale(locale?: string | null): locale is PublicSeoLocale {
-  return PUBLIC_SEO_LOCALES.includes(locale as PublicSeoLocale);
+export function isPublicSeoLocale(locale?: string | null): locale is IndexedPublicSeoLocale {
+  return (PUBLIC_SEO_LOCALES as readonly string[]).includes(locale ?? '');
 }
 
 export function normalizeAppSupportedLocale(locale?: string | null): AppSupportedLocale {
@@ -214,6 +224,49 @@ export function buildLocalizedAppPath(path: string, locale?: string | null): str
   }
 
   return `/${normalizedLocale}${stripped}`;
+}
+
+function setQueryParam(path: string, key: string, value: string): string {
+  const hashIndex = path.indexOf('#');
+  const pathAndSearch = hashIndex >= 0 ? path.slice(0, hashIndex) : path;
+  const hash = hashIndex >= 0 ? path.slice(hashIndex) : '';
+  const queryIndex = pathAndSearch.indexOf('?');
+  const pathname = queryIndex >= 0 ? pathAndSearch.slice(0, queryIndex) : pathAndSearch;
+  const search = queryIndex >= 0 ? pathAndSearch.slice(queryIndex + 1) : '';
+  const params = new URLSearchParams(search);
+  params.set(key, value);
+  const nextSearch = params.toString();
+  return `${pathname}${nextSearch ? `?${nextSearch}` : ''}${hash}`;
+}
+
+function prefixPath(path: string, locale: string): string {
+  const hashIndex = path.indexOf('#');
+  const pathAndSearch = hashIndex >= 0 ? path.slice(0, hashIndex) : path;
+  const hash = hashIndex >= 0 ? path.slice(hashIndex) : '';
+  const queryIndex = pathAndSearch.indexOf('?');
+  const pathname = queryIndex >= 0 ? pathAndSearch.slice(0, queryIndex) : pathAndSearch;
+  const search = queryIndex >= 0 ? pathAndSearch.slice(queryIndex) : '';
+  const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`;
+
+  if (normalizedPath === '/') {
+    return `/${locale}${search}${hash}`;
+  }
+
+  return `/${locale}${normalizedPath}${search}${hash}`;
+}
+
+export function buildPublicAppEntryPath(path: string, locale?: string | null): string {
+  const requestedLocale = locale?.slice(0, 2).toLowerCase();
+  const normalizedLocale = APP_SUPPORTED_LOCALES.includes(requestedLocale as AppSupportedLocale)
+    ? (requestedLocale as AppSupportedLocale)
+    : DEFAULT_PUBLIC_SEO_LOCALE;
+  const stripped = stripAppLocalePrefix(path);
+
+  if (normalizedLocale === DEFAULT_PUBLIC_SEO_LOCALE) {
+    return setQueryParam(stripped, 'locale', normalizedLocale);
+  }
+
+  return prefixPath(stripped, normalizedLocale);
 }
 
 export function buildPublicLandingPath(locale?: string | null): string {
@@ -261,7 +314,7 @@ export function buildAbsoluteRouteUrl(baseUrl: string, path: string): string {
 }
 
 export function buildPublicSeoSitemapStaticRoutes(): Array<{
-  id: 'landing' | 'pricing' | 'stories-catalog' | 'blog-index';
+  id: 'landing' | 'pricing' | 'stories-catalog' | 'blog-index' | 'support';
   path: string;
   locale: PublicSeoLocale;
   changefreq: 'weekly';
@@ -295,6 +348,13 @@ export function buildPublicSeoSitemapStaticRoutes(): Array<{
       locale,
       changefreq: 'weekly' as const,
       priority: locale === DEFAULT_PUBLIC_SEO_LOCALE ? '0.82' : '0.72',
+    },
+    {
+      id: 'support' as const,
+      path: buildPublicSupportPath(locale),
+      locale,
+      changefreq: 'weekly' as const,
+      priority: locale === DEFAULT_PUBLIC_SEO_LOCALE ? '0.55' : '0.45',
     },
   ]));
 }

@@ -1,8 +1,9 @@
 import {
+  DEFAULT_PUBLIC_SEO_LOCALE,
   PUBLIC_SEO_LOCALES,
   APP_ROUTE_PATHS,
   buildAbsoluteRouteUrl,
-  buildLocalizedAppPath,
+  buildPublicAppEntryPath,
   buildPublicBlogArticlePath,
   buildPublicBlogIndexPath,
   buildPublicLandingPath,
@@ -527,7 +528,7 @@ function renderAlternateLinks(webAppUrl: string, currentLocale: PublicSeoLocale,
   return [
     `<link rel="canonical" href="${escapeHtml(canonical)}">`,
     ...alternates,
-    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPath('uk')))}">`,
+    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPath(DEFAULT_PUBLIC_SEO_LOCALE)))}">`,
   ].join('\n  ');
 }
 
@@ -813,7 +814,7 @@ export function renderBlogArticleHtml(options: { slug: string; locale?: string |
   const webAppUrl = getWebAppUrl();
   const url = buildAbsoluteRouteUrl(webAppUrl, buildPublicBlogArticlePath(article.slug, locale));
   const createStoryPath = appendQueryParams(
-    buildLocalizedAppPath(APP_ROUTE_PATHS.wizard, locale),
+    buildPublicAppEntryPath(APP_ROUTE_PATHS.wizard, locale),
     article.createStoryParams
   );
   const createStoryUrl = buildAbsoluteRouteUrl(webAppUrl, createStoryPath);

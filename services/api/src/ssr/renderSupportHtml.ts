@@ -204,7 +204,7 @@ function buildSupportAlternateLinks(webAppUrl: string): string {
   return buildPublicFooterLanguageLinks(webAppUrl, buildPublicSupportPath)
     .map((link) => `<link rel="alternate" hreflang="${link.locale}" href="${escapeHtml(link.href)}">`)
     .concat(
-      `<link rel="alternate" hreflang="x-default" href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicSupportPath('uk')))}">`
+      `<link rel="alternate" hreflang="x-default" href="${escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicSupportPath()))}">`
     )
     .join('\n  ');
 }
@@ -222,7 +222,7 @@ export function renderSupportHtml(options: RenderSupportHtmlOptions = {}): strin
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="robots" content="noindex,follow">
+  <meta name="robots" content="index,follow">
   <title>${escapeHtml(copy.title)}</title>
   <meta name="description" content="${escapeHtml(copy.description)}">
   ${PUBLIC_HEAD_ASSET_LINKS}

@@ -49,19 +49,13 @@ assert.match(xml, /<loc>https:\/\/wondertales\.art\/stories\/public-one<\/loc>/)
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/stories\/public-two<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/stories<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/blog<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/support<\/loc>/);
 assert.match(xml, /<loc>https:\/\/wondertales\.art\/blog\/adhd-story-attention<\/loc>/);
-assert.match(xml, /<loc>https:\/\/wondertales\.art\/en\/stories<\/loc>/);
-assert.match(xml, /<loc>https:\/\/wondertales\.art\/en\/blog\/adhd-story-attention<\/loc>/);
-assert.match(xml, /<loc>https:\/\/wondertales\.art\/ru\/stories<\/loc>/);
-assert.match(xml, /<loc>https:\/\/wondertales\.art\/ru\/blog\/adhd-story-attention<\/loc>/);
-assert.match(xml, /<loc>https:\/\/wondertales\.art\/es\/stories<\/loc>/);
-assert.match(xml, /<loc>https:\/\/wondertales\.art\/es\/blog\/adhd-story-attention<\/loc>/);
-assert.match(xml, /<loc>https:\/\/wondertales\.art\/de\/stories<\/loc>/);
-assert.match(xml, /<loc>https:\/\/wondertales\.art\/de\/blog\/adhd-story-attention<\/loc>/);
-assert.match(xml, /<loc>https:\/\/wondertales\.art\/fr\/stories<\/loc>/);
-assert.match(xml, /<loc>https:\/\/wondertales\.art\/fr\/blog\/adhd-story-attention<\/loc>/);
-assert.match(xml, /<loc>https:\/\/wondertales\.art\/pl\/stories<\/loc>/);
-assert.match(xml, /<loc>https:\/\/wondertales\.art\/pl\/blog\/adhd-story-attention<\/loc>/);
+assert.doesNotMatch(xml, /<loc>https:\/\/wondertales\.art\/en\//);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/uk\/stories<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/uk\/support<\/loc>/);
+assert.match(xml, /<loc>https:\/\/wondertales\.art\/uk\/blog\/adhd-story-attention<\/loc>/);
+assert.doesNotMatch(xml, /<loc>https:\/\/wondertales\.art\/(?:ru|es|de|fr|pl)\//);
 
 for (const locale of PUBLIC_SEO_LOCALES) {
   const indexUrl = `https://wondertales.art${buildPublicBlogIndexPath(locale)}`;

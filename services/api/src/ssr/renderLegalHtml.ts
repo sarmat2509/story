@@ -8,6 +8,7 @@ import { join } from 'path';
 import { marked } from 'marked';
 import {
   buildAbsoluteRouteUrl,
+  DEFAULT_PUBLIC_SEO_LOCALE,
   buildPublicLandingPath,
   buildPublicLegalPath,
   PUBLIC_SEO_LOCALES,
@@ -122,10 +123,10 @@ const LEGAL_COPY: Record<PublicLegalLocale, {
 export function resolveLegalLocale(locale?: string | null): PublicLegalLocale {
   const normalized = locale?.slice(0, 2).toLowerCase();
   if (!normalized) {
-    return 'uk';
+    return DEFAULT_PUBLIC_SEO_LOCALE;
   }
 
-  return PUBLIC_LEGAL_LOCALES.includes(normalized as PublicLegalLocale)
+  return (PUBLIC_LEGAL_LOCALES as readonly string[]).includes(normalized)
     ? (normalized as PublicLegalLocale)
     : 'en';
 }
@@ -150,7 +151,7 @@ async function loadMarkdown(doc: 'terms' | 'privacy', locale: string): Promise<s
 }
 
 function buildLegalAlternateLinks(webAppUrl: string, doc: 'terms' | 'privacy'): string {
-  const defaultUrl = escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath(doc, 'uk')));
+  const defaultUrl = escapeHtml(buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath(doc)));
   const alternates = PUBLIC_LEGAL_LOCALES.map((locale) => {
     const href = buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath(doc, locale));
     return `<link rel="alternate" hreflang="${locale}" href="${escapeHtml(href)}">`;

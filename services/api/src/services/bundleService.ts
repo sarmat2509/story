@@ -20,6 +20,18 @@ export function bundlePriceConfigKey(bundleSlug: string, planSlug: string): stri
   return `${bundleSlug}:${planSlug}`;
 }
 
+export function calculateBundleGraphicNovelBonus(params: {
+  extraStories: number;
+  storiesPlanLimit: number;
+  graphicNovelsPlanLimit: number;
+}): number {
+  const { extraStories, storiesPlanLimit, graphicNovelsPlanLimit } = params;
+  if (extraStories <= 0 || storiesPlanLimit <= 0 || graphicNovelsPlanLimit <= 0) {
+    return 0;
+  }
+  return Math.floor((extraStories * graphicNovelsPlanLimit) / storiesPlanLimit);
+}
+
 /**
  * Stripe Price ID for a bundle on a plan: DB `plan_bundle_prices.stripe_price_id` wins, else env map.
  */

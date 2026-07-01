@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PUBLIC_SEO_LOCALES } from '@wondertales/shared';
+import { PUBLIC_TRANSLATION_LOCALES } from '@wondertales/shared';
 import { ELEVENLABS_VOICE_CATALOG } from '../../providers/audio/elevenlabs/voices';
 import { GOOGLE_TTS_VOICE_CATALOG } from '../../providers/audio/google/voices';
 import { getLocalizedVoiceDisplayName, getVoiceSamplePath } from '../voicePresentation';
@@ -31,7 +31,7 @@ for (const voice of landingVoices) {
     assert.equal(getVoiceSamplePath(voice.providerVoiceId, 'es'), expectedSpanish.samplePath);
   }
 
-  for (const locale of PUBLIC_SEO_LOCALES) {
+  for (const locale of PUBLIC_TRANSLATION_LOCALES) {
     const displayName = getLocalizedVoiceDisplayName(voice.name, locale, voice.displayName);
     assert.ok(displayName.trim(), `missing localized display name for ${voice.name} in ${locale}`);
 

@@ -25,10 +25,13 @@ import { configureRevenueCat } from '@/services/revenueCatService';
 import { getAnalytics } from '@/services/analytics';
 import RootNavigator from '@/navigation/RootNavigator';
 import OAuthCallbackScreen from '@/screens/auth/OAuthCallbackScreen';
-import { getPublicSeoLocaleOverrideFromPath } from '@/utils/publicSeoLocale';
-import { getWebPathname } from '@/utils/webRuntime';
+import {
+  getPublicSeoLocaleOverrideFromPath,
+  getPublicSeoLocaleOverrideFromSearch,
+} from '@/utils/publicSeoLocale';
+import { getWebPathname, getWebSearch } from '@/utils/webRuntime';
 import type { MainTabParamList } from '@/types/navigation';
-import { APP_ROUTE_PATHS, isValidLocale } from '@wondertales/shared';
+import { APP_ROUTE_PATHS, buildPublicAppEntryPath, isValidLocale } from '@wondertales/shared';
 
 // Suppress deprecation warnings from React Navigation / RN (library code, not ours)
 // pointerEvents: PR closed - style.pointerEvents breaks react-native-web
@@ -220,29 +223,22 @@ function getPreferredWebLocale(): string | null {
     }
   }
 
+  const localeFromSearch = getPublicSeoLocaleOverrideFromSearch(getWebSearch());
+  if (localeFromSearch) {
+    return localeFromSearch;
+  }
+
   const i18nLocale = i18n.language?.split('-')[0]?.toLowerCase();
   return i18nLocale && isValidLocale(i18nLocale) ? i18nLocale : null;
 }
 
 function addLocalePrefix(path: string): string {
   const locale = getPreferredWebLocale();
-  if (!locale || locale === 'uk') {
+  if (!locale) {
     return path;
   }
 
-  if (!path.startsWith('/')) {
-    return `/${locale}/${path}`;
-  }
-
-  if (path === '/') {
-    return `/${locale}`;
-  }
-
-  if (path === '') {
-    return `/${locale}`;
-  }
-
-  return path.startsWith(`/${locale}/`) || path === `/${locale}` ? path : `/${locale}${path}`;
+  return buildPublicAppEntryPath(path, locale);
 }
 
 function isWebOAuthCallbackPath(): boolean {
@@ -370,7 +366,10 @@ export default function App() {
         return;
       }
 
-      const locale = getPublicSeoLocaleOverrideFromPath(pathname) || getLocaleFromWebPath(pathname);
+      const locale =
+        getPublicSeoLocaleOverrideFromPath(pathname) ||
+        getLocaleFromWebPath(pathname) ||
+        getPublicSeoLocaleOverrideFromSearch(getWebSearch());
       if (!locale || i18n.language === locale) {
         return;
       }

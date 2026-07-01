@@ -1,6 +1,6 @@
 import { getPlanRepository } from '../repositories';
 import type { PlanFeatureWithDetails } from '../repositories/PlanRepository';
-import { getBundleBonusForPeriod } from './bundleService';
+import { calculateBundleGraphicNovelBonus, getBundleBonusForPeriod } from './bundleService';
 import type {
   Plan,
   Feature,
@@ -357,10 +357,24 @@ export async function checkUsageLimit(
   const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
 
   let bundleBonus = 0;
-  if (featureSlug === 'stories_per_month' || featureSlug === 'audio_stories_per_month') {
+  if (
+    featureSlug === 'stories_per_month' ||
+    featureSlug === 'audio_stories_per_month' ||
+    featureSlug === 'graphic_novels_per_month'
+  ) {
     const bonus = await getBundleBonusForPeriod(userId, periodStart, periodEnd);
-    bundleBonus =
-      featureSlug === 'stories_per_month' ? bonus.extraStories : bonus.extraAudio;
+    if (featureSlug === 'stories_per_month') {
+      bundleBonus = bonus.extraStories;
+    } else if (featureSlug === 'audio_stories_per_month') {
+      bundleBonus = bonus.extraAudio;
+    } else {
+      const storiesPlanLimit = await getFeatureLimit(userId, 'stories_per_month');
+      bundleBonus = calculateBundleGraphicNovelBonus({
+        extraStories: bonus.extraStories,
+        storiesPlanLimit: storiesPlanLimit ?? 0,
+        graphicNovelsPlanLimit: limit,
+      });
+    }
   }
 
   const effectiveLimit = limit + bundleBonus;

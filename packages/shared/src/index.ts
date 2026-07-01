@@ -15,6 +15,7 @@ export * from './utils/readingTime';
 export * from './utils/storyTextPresentation';
 export * from './utils/ratingEmojis';
 export * from './utils/planPresentation';
+export * from './utils/pricingFaq';
 export * from './utils/stripCharacterId';
 export * from './utils/stripMarkdownEmphasis';
 export * from './utils/routeOwnership';

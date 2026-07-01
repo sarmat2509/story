@@ -22,8 +22,16 @@ import {
   buildPlansWithFeatures,
 } from '../services/planPresentationService';
 import { getVoiceRepository } from '../repositories';
+import { getLandingRenderVersion } from '../ssr/storyCache';
+import {
+  PUBLIC_PAGE_CACHE_TTL_SECONDS,
+  buildPublicPageCacheKey,
+  getCachedPublicPageHtml,
+  setCachedPublicPageHtml,
+} from '../ssr/publicPageCache';
 
 const router = Router();
+const LANDING_FALLBACK_CACHE_TTL_SECONDS = 60;
 
 type LandingVoices = Awaited<
   ReturnType<ReturnType<typeof getVoiceRepository>['findActiveByLanguage']>
@@ -59,6 +67,21 @@ function resolveLocale(req: Request): string {
   return normalizeLandingLocale(resolveLandingRouteLocale(routeLocale));
 }
 
+function sendLandingHtml(req: Request, res: Response, html: string) {
+  const etag = buildLandingEtag(html);
+  if (req.headers['if-none-match'] === etag) {
+    res.status(304);
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'public, no-cache, must-revalidate');
+    return res.end();
+  }
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('ETag', etag);
+  res.setHeader('Cache-Control', 'public, no-cache, must-revalidate');
+  return res.send(html);
+}
+
 /**
  * GET /ssr/landing
  * Returns full static HTML for the landing page.
@@ -66,10 +89,23 @@ function resolveLocale(req: Request): string {
  */
 async function handleLanding(req: Request, res: Response) {
   const locale = resolveLocale(req);
+  const renderVersion = await getLandingRenderVersion();
+  const cacheKey = buildPublicPageCacheKey('landing', { locale, renderVersion });
+  const cachedHtml = await getCachedPublicPageHtml(cacheKey, {
+    page: 'landing',
+    locale,
+    renderVersion,
+  });
+
+  if (cachedHtml) {
+    return sendLandingHtml(req, res, cachedHtml);
+  }
+
   let exampleStories: Array<{ age: string; title: string; time: string; slug: string; thumbnailUrl: string | null }> = [];
 
   let plans: Awaited<ReturnType<typeof buildPlansWithFeatures>> = [];
   let voices: LandingVoices = [];
+  let cacheTtlSeconds = PUBLIC_PAGE_CACHE_TTL_SECONDS;
   try {
     const { items } = await listPublicStories({
       limit: 6,
@@ -89,32 +125,30 @@ async function handleLanding(req: Request, res: Response) {
         null,
     }));
   } catch {
+    cacheTtlSeconds = LANDING_FALLBACK_CACHE_TTL_SECONDS;
     // Fallback to empty — renderLandingHtml will use hardcoded examples
   }
   try {
     plans = await buildPlansWithFeatures({ locale });
   } catch {
+    cacheTtlSeconds = LANDING_FALLBACK_CACHE_TTL_SECONDS;
     // Fallback to empty — renderLandingHtml will use hardcoded plans
   }
   try {
     voices = await getVoiceRepository().findActiveByLanguage(locale);
   } catch {
+    cacheTtlSeconds = LANDING_FALLBACK_CACHE_TTL_SECONDS;
     // Fallback to empty — renderLandingHtml will use hardcoded voices
   }
 
   const html = renderLandingHtml({ locale, exampleStories, plans, voices });
-  const etag = buildLandingEtag(html);
-  if (req.headers['if-none-match'] === etag) {
-    res.status(304);
-    res.setHeader('ETag', etag);
-    res.setHeader('Cache-Control', 'public, no-cache, must-revalidate');
-    return res.end();
-  }
+  await setCachedPublicPageHtml(cacheKey, html, cacheTtlSeconds, {
+    page: 'landing',
+    locale,
+    renderVersion,
+  });
 
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('ETag', etag);
-  res.setHeader('Cache-Control', 'public, no-cache, must-revalidate');
-  res.send(html);
+  return sendLandingHtml(req, res, html);
 }
 
 router.get('/', handleLanding);

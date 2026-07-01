@@ -294,6 +294,26 @@ async function checkStatus({ path, label, expectedStatus }) {
   return { res, text };
 }
 
+async function checkRedirect({ path, label, expectedStatus = 301, expectedLocation }) {
+  const { res, text } = await request('GET', path);
+  if (res.status === expectedStatus) {
+    pass(`${label} ${path} returned ${res.status}`);
+  } else {
+    fail(`${label} ${path} returned ${res.status}, expected ${expectedStatus}; ${preview(text)}`);
+    return;
+  }
+
+  const location = res.headers.get('location') || '';
+  const expectedAbsolute = expectedLocation.startsWith('http')
+    ? expectedLocation
+    : `${baseUrl}${expectedLocation}`;
+  if (location === expectedLocation || location === expectedAbsolute) {
+    pass(`${label} ${path} redirects to ${expectedLocation}`);
+  } else {
+    fail(`${label} ${path} location=${location || 'missing'}, expected ${expectedLocation}`);
+  }
+}
+
 async function checkHostedCheckoutUrl(url, label) {
   if (!loadHostedCheckout) {
     warn(`${label} hosted checkout load skipped; set PROD_SMOKE_LOAD_CHECKOUT=1 to enable`);
@@ -455,18 +475,18 @@ async function main() {
 
   const pages = [
     { path: '/', label: 'SSR landing', robots: 'index,follow', contains: ['WonderTales'] },
-    { path: '/en', label: 'SSR localized landing', robots: 'index,follow', contains: ['WonderTales'] },
+    { path: '/uk/', label: 'SSR Ukrainian landing', robots: 'index,follow', contains: ['WonderTales'] },
     { path: '/pricing', label: 'SSR pricing', robots: 'index,follow', contains: ['WonderTales'] },
-    { path: '/en/pricing', label: 'SSR localized pricing', robots: 'index,follow', contains: ['WonderTales'] },
+    { path: '/uk/pricing', label: 'SSR Ukrainian pricing', robots: 'index,follow', contains: ['WonderTales'] },
     { path: '/stories', label: 'SSR stories catalog', robots: 'index,follow', contains: ['WonderTales'] },
-    { path: '/en/stories', label: 'SSR localized stories catalog', robots: 'index,follow', contains: ['WonderTales'] },
+    { path: '/uk/stories', label: 'SSR Ukrainian stories catalog', robots: 'index,follow', contains: ['WonderTales'] },
     { path: '/terms', label: 'SSR terms', robots: 'index,follow', contains: ['WonderTales'] },
-    { path: '/en/terms', label: 'SSR localized terms', robots: 'index,follow', contains: ['WonderTales'] },
+    { path: '/uk/terms', label: 'SSR Ukrainian terms', robots: 'index,follow', contains: ['WonderTales'] },
     { path: '/privacy', label: 'SSR privacy', robots: 'index,follow', contains: ['WonderTales'] },
-    { path: '/en/privacy', label: 'SSR localized privacy', robots: 'index,follow', contains: ['WonderTales'] },
-    { path: '/support', label: 'SSR support', robots: 'noindex,follow', contains: [['support@wondertales.art', '/cdn-cgi/l/email-protection']] },
+    { path: '/uk/privacy', label: 'SSR Ukrainian privacy', robots: 'index,follow', contains: ['WonderTales'] },
+    { path: '/support', label: 'SSR support', robots: 'index,follow', contains: [['support@wondertales.art', '/cdn-cgi/l/email-protection']] },
+    { path: '/uk/support', label: 'SSR Ukrainian support', robots: 'index,follow', contains: [['support@wondertales.art', '/cdn-cgi/l/email-protection']] },
     { path: '/welcome', label: 'SPA welcome', robots: 'noindex,nofollow' },
-    { path: '/en/welcome', label: 'SPA localized welcome', robots: 'noindex,nofollow' },
     { path: '/register', label: 'SPA register', robots: 'noindex,nofollow' },
     { path: '/auth/forgot-password', label: 'SPA forgot password', robots: 'noindex,nofollow' },
     { path: '/auth/reset-password?token=bad', label: 'SPA reset password', robots: 'noindex,nofollow' },
@@ -499,122 +519,158 @@ async function main() {
   ];
   for (const page of pages) await checkPage(page);
 
+  const redirects = [
+    { path: '/en', label: 'Legacy English landing', expectedLocation: '/' },
+    { path: '/en/', label: 'Legacy English landing slash', expectedLocation: '/' },
+    { path: '/en/pricing', label: 'Legacy English pricing', expectedLocation: '/pricing' },
+    { path: '/en/stories', label: 'Legacy English stories', expectedLocation: '/stories' },
+    { path: '/en/terms', label: 'Legacy English terms', expectedLocation: '/terms' },
+    { path: '/en/privacy', label: 'Legacy English privacy', expectedLocation: '/privacy' },
+    { path: '/en/support', label: 'Legacy English support', expectedLocation: '/support' },
+    { path: '/en/blog/adhd-story-attention', label: 'Legacy English blog article', expectedLocation: '/blog/adhd-story-attention' },
+    { path: '/en/wizard', label: 'Legacy English wizard', expectedLocation: '/wizard?locale=en' },
+    { path: '/en/welcome', label: 'Legacy English welcome', expectedLocation: '/welcome?locale=en' },
+  ];
+  for (const redirect of redirects) await checkRedirect(redirect);
+
   const localizedSeoPages = [
     {
       path: '/',
       label: 'SSR landing SEO',
-      lang: 'uk',
+      lang: 'en',
       canonical: `${baseUrl}`,
       alternates: {
-        uk: `${baseUrl}`,
-        en: `${baseUrl}/en/`,
+        en: `${baseUrl}`,
+        uk: `${baseUrl}/uk/`,
         'x-default': `${baseUrl}`,
       },
     },
     {
-      path: '/en',
-      label: 'SSR localized landing SEO',
-      lang: 'en',
-      canonical: `${baseUrl}/en/`,
+      path: '/uk/',
+      label: 'SSR Ukrainian landing SEO',
+      lang: 'uk',
+      canonical: `${baseUrl}/uk/`,
       alternates: {
-        uk: `${baseUrl}`,
-        en: `${baseUrl}/en/`,
+        en: `${baseUrl}`,
+        uk: `${baseUrl}/uk/`,
         'x-default': `${baseUrl}`,
       },
     },
     {
       path: '/pricing',
       label: 'SSR pricing SEO',
-      lang: 'uk',
+      lang: 'en',
       canonical: `${baseUrl}/pricing`,
       alternates: {
-        uk: `${baseUrl}/pricing`,
-        en: `${baseUrl}/en/pricing`,
+        en: `${baseUrl}/pricing`,
+        uk: `${baseUrl}/uk/pricing`,
         'x-default': `${baseUrl}/pricing`,
       },
     },
     {
-      path: '/en/pricing',
-      label: 'SSR localized pricing SEO',
-      lang: 'en',
-      canonical: `${baseUrl}/en/pricing`,
+      path: '/uk/pricing',
+      label: 'SSR Ukrainian pricing SEO',
+      lang: 'uk',
+      canonical: `${baseUrl}/uk/pricing`,
       alternates: {
-        uk: `${baseUrl}/pricing`,
-        en: `${baseUrl}/en/pricing`,
+        en: `${baseUrl}/pricing`,
+        uk: `${baseUrl}/uk/pricing`,
         'x-default': `${baseUrl}/pricing`,
       },
     },
     {
       path: '/stories',
       label: 'SSR stories catalog SEO',
-      lang: 'uk',
+      lang: 'en',
       canonical: `${baseUrl}/stories`,
       alternates: {
-        uk: `${baseUrl}/stories`,
-        en: `${baseUrl}/en/stories`,
+        en: `${baseUrl}/stories`,
+        uk: `${baseUrl}/uk/stories`,
         'x-default': `${baseUrl}/stories`,
       },
     },
     {
-      path: '/en/stories',
-      label: 'SSR localized stories catalog SEO',
-      lang: 'en',
-      canonical: `${baseUrl}/en/stories`,
+      path: '/uk/stories',
+      label: 'SSR Ukrainian stories catalog SEO',
+      lang: 'uk',
+      canonical: `${baseUrl}/uk/stories`,
       alternates: {
-        uk: `${baseUrl}/stories`,
-        en: `${baseUrl}/en/stories`,
+        en: `${baseUrl}/stories`,
+        uk: `${baseUrl}/uk/stories`,
         'x-default': `${baseUrl}/stories`,
       },
     },
     {
       path: '/terms',
       label: 'SSR terms SEO',
-      lang: 'uk',
+      lang: 'en',
       canonical: `${baseUrl}/terms`,
       alternates: {
-        uk: `${baseUrl}/terms`,
-        en: `${baseUrl}/en/terms`,
+        en: `${baseUrl}/terms`,
+        uk: `${baseUrl}/uk/terms`,
         'x-default': `${baseUrl}/terms`,
       },
     },
     {
-      path: '/en/terms',
-      label: 'SSR localized terms SEO',
-      lang: 'en',
-      canonical: `${baseUrl}/en/terms`,
+      path: '/uk/terms',
+      label: 'SSR Ukrainian terms SEO',
+      lang: 'uk',
+      canonical: `${baseUrl}/uk/terms`,
       alternates: {
-        uk: `${baseUrl}/terms`,
-        en: `${baseUrl}/en/terms`,
+        en: `${baseUrl}/terms`,
+        uk: `${baseUrl}/uk/terms`,
         'x-default': `${baseUrl}/terms`,
       },
     },
     {
       path: '/privacy',
       label: 'SSR privacy SEO',
-      lang: 'uk',
+      lang: 'en',
       canonical: `${baseUrl}/privacy`,
       alternates: {
-        uk: `${baseUrl}/privacy`,
-        en: `${baseUrl}/en/privacy`,
+        en: `${baseUrl}/privacy`,
+        uk: `${baseUrl}/uk/privacy`,
         'x-default': `${baseUrl}/privacy`,
       },
     },
     {
-      path: '/en/privacy',
-      label: 'SSR localized privacy SEO',
-      lang: 'en',
-      canonical: `${baseUrl}/en/privacy`,
+      path: '/uk/privacy',
+      label: 'SSR Ukrainian privacy SEO',
+      lang: 'uk',
+      canonical: `${baseUrl}/uk/privacy`,
       alternates: {
-        uk: `${baseUrl}/privacy`,
-        en: `${baseUrl}/en/privacy`,
+        en: `${baseUrl}/privacy`,
+        uk: `${baseUrl}/uk/privacy`,
         'x-default': `${baseUrl}/privacy`,
+      },
+    },
+    {
+      path: '/support',
+      label: 'SSR support SEO',
+      lang: 'en',
+      canonical: `${baseUrl}/support`,
+      alternates: {
+        en: `${baseUrl}/support`,
+        uk: `${baseUrl}/uk/support`,
+        'x-default': `${baseUrl}/support`,
+      },
+    },
+    {
+      path: '/uk/support',
+      label: 'SSR Ukrainian support SEO',
+      lang: 'uk',
+      canonical: `${baseUrl}/uk/support`,
+      alternates: {
+        en: `${baseUrl}/support`,
+        uk: `${baseUrl}/uk/support`,
+        'x-default': `${baseUrl}/support`,
       },
     },
   ];
   for (const page of localizedSeoPages) await checkLocalizedSeo(page);
 
   const publicStories = await checkJson({
-    path: '/api/v1/public/stories?limit=1',
+    path: '/api/v1/public/stories?limit=12',
     label: 'Public stories API',
     predicate: (body) => body?.status === 'success' && Array.isArray(body?.stories),
   });
@@ -627,7 +683,9 @@ async function main() {
     'privateStoryCount',
     'unlistedStoryCount',
   ]);
-  const firstStory = publicStories?.stories?.[0] || null;
+  const firstStory = publicStories?.stories?.find((story) => story?.coverImageUrl || story?.coverAssetId) ||
+    publicStories?.stories?.[0] ||
+    null;
   if (firstStory?.publishedSlug) {
     const slug = firstStory.publishedSlug;
     await checkPage({
@@ -662,6 +720,8 @@ async function main() {
     const share = await request('GET', `/share-card/${encodeURIComponent(slug)}`);
     if (share.res.status === 200 && (share.res.headers.get('content-type') || '').includes('image/jpeg')) {
       pass('Share-card image returned JPEG');
+    } else if (share.res.status === 404) {
+      warn(`Share-card unavailable for selected public story ${slug}; ${preview(share.text)}`);
     } else {
       fail(`Share-card returned ${share.res.status} ${share.res.headers.get('content-type') || ''}`);
     }

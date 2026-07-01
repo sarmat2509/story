@@ -119,20 +119,22 @@ void (async function main() {
   assert.doesNotMatch(html, /Image quality/);
   assert.match(html, /Pricing, plans &amp; bundles/);
   assert.doesNotMatch(html, /Billing details/);
+  assert.match(html, /Bundles are available with an active paid subscription/);
+  assert.match(html, /Can I buy more than one bundle/);
   assert.match(html, /Paid subscriptions renew monthly until canceled/);
-  assert.match(html, /Unused bundle credits expire at period end and do not roll over/);
+  assert.match(html, /They apply until the end of your current billing period and do not roll over/);
   assert.match(html, /<select aria-label="Language"/);
-  assert.match(html, /<option value="https:\/\/app\.wondertales\.com\/pricing">Українська<\/option>/);
-  assert.match(html, /<option value="https:\/\/app\.wondertales\.com\/en\/pricing" selected>English<\/option>/);
+  assert.match(html, /<option value="https:\/\/app\.wondertales\.com\/pricing" selected>English<\/option>/);
+  assert.match(html, /<option value="https:\/\/app\.wondertales\.com\/uk\/pricing">Українська<\/option>/);
   assert.doesNotMatch(html, /onchange=/);
-  assert.ok(html.includes('href="https://app.wondertales.com/en/wizard"'));
+  assert.ok(html.includes('href="https://app.wondertales.com/wizard?locale=en"'));
   assert.doesNotMatch(html, /href="[^"]*\/welcome"/);
 
   const pricingJsonLd = extractJsonLd(html);
   const product = pricingJsonLd.find((entry) => entry['@type'] === 'Product');
   assert.ok(product, 'pricing page should expose Product structured data');
   assert.strictEqual(product.name, 'WonderTales');
-  assert.strictEqual(product.url, 'https://app.wondertales.com/en/pricing');
+  assert.strictEqual(product.url, 'https://app.wondertales.com/pricing');
   assert.strictEqual(product.offers['@type'], 'OfferCatalog');
   assert.strictEqual(product.offers.itemListElement[0].name, 'Family');
   assert.strictEqual(product.offers.itemListElement[0].price, '5.00');

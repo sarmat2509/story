@@ -7,7 +7,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { normalizePublicSeoLocale } from '@wondertales/shared';
-import { getPublicStoryBySlug, listPublicStories } from '../services/publicStoryService';
+import { getPublicStoryBySlug, listPublicStoriesForLocaleCatalog } from '../services/publicStoryService';
 import { getCachedHtml, setCachedHtml } from '../ssr/storyCache';
 import { renderPublishedStoryHtml } from '../ssr/renderPublishedStoryHtml';
 import { renderPublicStoriesCatalogHtml } from '../ssr/renderPublicStoriesCatalogHtml';
@@ -23,8 +23,11 @@ async function handleStoriesCatalog(req: Request, res: Response) {
   const locale = normalizePublicSeoLocale(req.params.locale);
 
   try {
-    const { items, total } = await listPublicStories({ limit: 24, offset: 0 });
-    const html = renderPublicStoriesCatalogHtml({ locale, stories: items, total });
+    const { items, total, fallbackStartIndex } = await listPublicStoriesForLocaleCatalog({
+      locale,
+      limit: 24,
+    });
+    const html = renderPublicStoriesCatalogHtml({ locale, stories: items, total, fallbackStartIndex });
     const etag = buildStoriesCatalogEtag(html);
 
     if (req.headers['if-none-match'] === etag) {

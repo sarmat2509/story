@@ -219,7 +219,9 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
   try {
     const { getPlanFeatures, getUserSubscription } = await import('../services/planService');
     const { getUsageForPeriod } = await import('../services/usageEventsService');
-    const { getBundleBonusForPeriod } = await import('../services/bundleService');
+    const { calculateBundleGraphicNovelBonus, getBundleBonusForPeriod } = await import(
+      '../services/bundleService'
+    );
     const { getGraphicNovelUsageForPeriod } = await import('../services/graphicNovelQuotaService');
     const usageOwnerId = req.parentUserId || req.user!.id;
     const childSafe = req.sessionMode === 'child';
@@ -255,8 +257,13 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
     const storiesPlanLimit = features.storiesPerMonth;
     const graphicNovelsPlanLimit = features.graphicNovelsPerMonth;
     const audioPlanLimit = features.audioStoriesPerMonth;
+    const graphicNovelsBundleBonus = calculateBundleGraphicNovelBonus({
+      extraStories: bundleBonus.extraStories,
+      storiesPlanLimit,
+      graphicNovelsPlanLimit,
+    });
     const storiesLimit = storiesPlanLimit + bundleBonus.extraStories;
-    const graphicNovelsLimit = graphicNovelsPlanLimit;
+    const graphicNovelsLimit = graphicNovelsPlanLimit + graphicNovelsBundleBonus;
     const audioLimit = audioPlanLimit + bundleBonus.extraAudio;
 
     const { default: config } = await import('../config');
@@ -274,6 +281,7 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
         limit: graphicNovelsLimit,
         remaining: graphicNovelsLimit < 0 ? -1 : Math.max(0, graphicNovelsLimit - graphicNovelsUsed),
         plan_limit: graphicNovelsPlanLimit,
+        bundle_bonus: graphicNovelsBundleBonus,
       },
       audio: {
         used: audioUsed,

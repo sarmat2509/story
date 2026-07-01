@@ -31,14 +31,14 @@ const story: PublicStoryListItem = {
 const ukHtml = renderPublicStoriesCatalogHtml({ locale: 'uk', stories: [story], total: 1 });
 assert.match(ukHtml, /<html lang="uk">/);
 assert.match(ukHtml, /<meta name="robots" content="index,follow">/);
-assert.match(ukHtml, /<link rel="canonical" href="https:\/\/app\.wondertales\.com\/stories">/);
-assert.match(ukHtml, /hreflang="en" href="https:\/\/app\.wondertales\.com\/en\/stories"/);
+assert.match(ukHtml, /<link rel="canonical" href="https:\/\/app\.wondertales\.com\/uk\/stories">/);
+assert.match(ukHtml, /hreflang="en" href="https:\/\/app\.wondertales\.com\/stories"/);
 assert.match(ukHtml, /<link rel="manifest" href="\/manifest\.json">/);
 assert.match(ukHtml, /href="https:\/\/app\.wondertales\.com\/stories\/moonlit-garden"/);
 assert.match(ukHtml, /href="https:\/\/app\.wondertales\.com\/authors\/11111111-1111-4111-8111-111111111111"/);
 assert.match(ukHtml, /class="site-footer-language"/);
-assert.match(ukHtml, /<option value="https:\/\/app\.wondertales\.com\/stories" selected>Українська<\/option>/);
-assert.match(ukHtml, /<option value="https:\/\/app\.wondertales\.com\/en\/stories">English<\/option>/);
+assert.match(ukHtml, /<option value="https:\/\/app\.wondertales\.com\/stories">English<\/option>/);
+assert.match(ukHtml, /<option value="https:\/\/app\.wondertales\.com\/uk\/stories" selected>Українська<\/option>/);
 assert.match(ukHtml, /window\.__INITIAL_STORIES__/);
 assert.match(ukHtml, /A small child found a lantern in the moonlit garden\./);
 assert.doesNotMatch(
@@ -55,11 +55,20 @@ assert.doesNotMatch(ukHtml, /noindex/);
 
 const enHtml = renderPublicStoriesCatalogHtml({ locale: 'en', stories: [story], total: 1 });
 assert.match(enHtml, /<html lang="en">/);
-assert.match(enHtml, /<link rel="canonical" href="https:\/\/app\.wondertales\.com\/en\/stories">/);
+assert.match(enHtml, /<link rel="canonical" href="https:\/\/app\.wondertales\.com\/stories">/);
 assert.match(enHtml, /Published WonderTales stories/);
 assert.match(enHtml, /<select aria-label="Language"/);
-assert.match(enHtml, /<option value="https:\/\/app\.wondertales\.com\/stories">Українська<\/option>/);
-assert.match(enHtml, /<option value="https:\/\/app\.wondertales\.com\/en\/stories" selected>English<\/option>/);
+assert.match(enHtml, /<option value="https:\/\/app\.wondertales\.com\/stories" selected>English<\/option>/);
+assert.match(enHtml, /<option value="https:\/\/app\.wondertales\.com\/uk\/stories">Українська<\/option>/);
 assert.doesNotMatch(enHtml, /onchange=/);
+
+const fallbackHtml = renderPublicStoriesCatalogHtml({
+  locale: 'en',
+  stories: [story],
+  total: 3,
+  fallbackStartIndex: 0,
+});
+assert.match(fallbackHtml, /More stories in other languages/);
+assert.match(fallbackHtml, /Stories in English appear first/);
 
 console.log('renderPublicStoriesCatalogHtml tests passed');

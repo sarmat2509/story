@@ -5,13 +5,13 @@ assert.deepEqual(
   resolveBillingEntryTarget({
     isAuthenticated: false,
     platformOs: 'web',
-    pathname: '/en/welcome',
+    pathname: '/welcome',
     locale: 'en',
     preferPublicPricingForGuests: true,
   }),
   {
     kind: 'public-web-pricing',
-    href: '/en/pricing',
+    href: '/pricing',
   }
 );
 

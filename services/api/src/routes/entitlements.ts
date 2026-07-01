@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { requireAuth, requireParentSession } from '../middleware/authMiddleware';
 import * as planService from '../services/planService';
-import { getBundleBonusForPeriod } from '../services/bundleService';
+import {
+  calculateBundleGraphicNovelBonus,
+  getBundleBonusForPeriod,
+} from '../services/bundleService';
 import { getUsageForPeriod } from '../services/usageEventsService';
 import type { UsageEventType } from '../services/usageEventsService';
 import { logger } from '../utils/logger';
@@ -57,6 +60,18 @@ router.get('/', requireAuth, requireParentSession, async (req, res) => {
     const periodEnd = subscription.currentPeriodEnd ?? subscription.resetAt ?? new Date();
 
     const bundleBonus = await getBundleBonusForPeriod(userId, periodStart, periodEnd);
+    const featureLimits = new Map<string, number>();
+    for (const pf of allFeatures) {
+      const featureValue = pf.value as FeatureValue;
+      if ('limit' in featureValue) {
+        featureLimits.set(pf.slug, featureValue.limit);
+      }
+    }
+    const graphicNovelsBundleBonus = calculateBundleGraphicNovelBonus({
+      extraStories: bundleBonus.extraStories,
+      storiesPlanLimit: featureLimits.get('stories_per_month') ?? 0,
+      graphicNovelsPlanLimit: featureLimits.get('graphic_novels_per_month') ?? 0,
+    });
 
     // Build features object with usage data from usage_events
     const features: Record<string, FeatureOutput> = {};
@@ -71,6 +86,8 @@ router.get('/', requireAuth, requireParentSession, async (req, res) => {
           bundleBonusQty = bundleBonus.extraStories;
         } else if (slug === 'audio_stories_per_month') {
           bundleBonusQty = bundleBonus.extraAudio;
+        } else if (slug === 'graphic_novels_per_month') {
+          bundleBonusQty = graphicNovelsBundleBonus;
         }
         const effectiveLimit = planLimit + bundleBonusQty;
         let used = 0;

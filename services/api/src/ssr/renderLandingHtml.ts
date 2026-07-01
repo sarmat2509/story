@@ -6,9 +6,10 @@
 import { config } from '../config';
 import {
   buildAbsoluteRouteUrl,
-  buildLocalizedAppPath,
+  buildPublicAppEntryPath,
   buildPublicLegalPath,
   buildPublicPricingPath,
+  buildPublicSupportPath,
   buildPublicStoriesPath,
   normalizePublicSeoLocale,
   type PublicSeoLocale,
@@ -300,7 +301,7 @@ body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica
 .hero .cta-purple::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:2px;background:linear-gradient(135deg,#8068d8 0%,#a86aa6 48%,#d86559 100%);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask-composite:exclude;pointer-events:none}
 .hero .cta-purple:hover{background:transparent;color:var(--wt-lavender-dark);-webkit-text-fill-color:currentColor;box-shadow:none}
 .hero .microcopy{font-size:14px;color:#64748b;margin-top:16px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
-.hero-mockup{margin:-210px clamp(-200px,-12vw,-72px) -28px;position:relative;z-index:1}
+.hero-mockup{margin:-190px auto -28px;position:relative;z-index:1;width:min(1600px,100%);max-width:100%}
 .hero-mockup picture{display:block;width:100%}
 .hero-mockup img{display:block;width:100%;height:auto;transform:none;filter:none;-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 15%,#000 100%);mask-image:linear-gradient(180deg,transparent 0%,#000 15%,#000 100%)}
 .section{margin-bottom:clamp(48px,7vw,64px);padding-top:16px}
@@ -444,13 +445,13 @@ body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica
 .final-cta .cta-purple-outline:hover{background:rgba(255,255,255,0.28)}
 .final-cta .trust-line{font-size:14px;color:rgba(255,255,255,0.72);margin-top:24px}
 .cta-block{text-align:center;margin-top:32px}
-@media(max-width:1100px){.hero h1{font-size:42px;max-width:760px}.hero .subheadline{font-size:17px}.hero-mockup{margin:-168px -96px -12px}.hero-mockup img{transform:none}}
+@media(max-width:1100px){.hero h1{font-size:42px;max-width:760px}.hero .subheadline{font-size:17px}.hero-mockup{margin:-150px auto -12px;width:100%}.hero-mockup img{transform:none}}
 @media(min-width:701px) and (max-width:1100px){.hero{--tablet-page-pad:clamp(16px,4vw,24px);margin-left:calc(-1 * var(--tablet-page-pad));margin-right:calc(-1 * var(--tablet-page-pad));padding-left:var(--tablet-page-pad);padding-right:var(--tablet-page-pad)}}
-@media(min-width:701px) and (max-width:1100px) and (max-height:820px){.brand{margin-bottom:10px}.brand .brand-mark{width:40px;height:40px}.hero{padding-top:12px}.hero h1{font-size:36px;line-height:1.1;margin-bottom:10px}.hero .subheadline{font-size:16px;line-height:1.45;margin-bottom:18px}.hero-mockup{margin:-154px calc(-1 * var(--tablet-page-pad)) -12px}.hero-mockup img{transform:none}}
+@media(min-width:701px) and (max-width:1100px) and (max-height:820px){.brand{margin-bottom:10px}.brand .brand-mark{width:40px;height:40px}.hero{padding-top:12px}.hero h1{font-size:36px;line-height:1.1;margin-bottom:10px}.hero .subheadline{font-size:16px;line-height:1.45;margin-bottom:18px}.hero-mockup{margin:-138px auto -12px}.hero-mockup img{transform:none}}
 @media(max-width:900px){.landing{padding-bottom:72px}.hero{padding-top:16px}.hero h1{font-size:40px;max-width:660px}.hero .subheadline{max-width:600px;margin-bottom:24px}.value-cards,.benefit-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.flow-steps{grid-template-columns:repeat(2,minmax(0,1fr))}.plans-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.parent-trust-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.story-cards,.testimonial-cards{grid-template-columns:1fr}.voice-cards{position:static;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:0}.voice-card{position:static;width:100%;left:auto;top:auto;margin:0}.feature-sticky{grid-template-columns:1fr;gap:24px}.feature-sticky-titles{position:static;display:flex;gap:10px;overflow-x:auto;padding:0 2px 10px;scroll-snap-type:x proximity}.feature-sticky-title-item{flex:0 0 min(260px,80vw);padding:12px 14px;border:1px solid rgba(116,102,166,0.24);border-radius:9999px;background:rgba(255,255,255,0.72);scroll-snap-align:start}.feature-sticky-title-item:first-child{padding-top:12px}.feature-sticky-title-item.active{background:#fff;box-shadow:0 2px 10px rgba(15,23,42,0.08)}.feature-sticky-title-item h3{font-size:15px}.feature-sticky-card-inner .feature-item-image{aspect-ratio:16/9;max-height:360px}}
 @media(min-width:701px) and (max-width:900px){.value-cards{grid-auto-rows:auto}.value-card--featured{grid-column:1 / -1;grid-row:auto;min-height:0;position:relative;justify-content:flex-start;padding:24px;background:rgba(255,255,255,0.94);color:var(--wt-ink)}.value-card--featured .value-card-image{position:relative;inset:auto;height:260px;margin:-24px -24px 22px;background:linear-gradient(135deg,#e8e4f3,#f5e6f0)}.value-card--featured .value-card-image::after{content:none}.value-card--featured h3{position:static;z-index:auto;font-size:22px;color:var(--wt-ink);max-width:none;text-shadow:none}.value-card--featured p{position:static;z-index:auto;color:var(--wt-muted);max-width:none}.value-card--wide{grid-column:auto;grid-row:auto;display:flex;min-height:0}.value-card--wide .value-card-image{grid-column:auto;grid-row:auto;height:auto;aspect-ratio:960 / 644;min-height:0;margin:-24px -24px 16px;align-self:auto;border-radius:0}.value-card--wide .value-card-image img{object-fit:contain}.value-card--wide h3,.value-card--wide p{grid-column:auto;align-self:auto}.flow-step{min-height:304px}}
-@media(max-width:700px){.landing{padding:0 16px 64px}.brand{margin-bottom:12px}.hero{--mobile-page-pad:16px;margin-left:calc(-1 * var(--mobile-page-pad));margin-right:calc(-1 * var(--mobile-page-pad));padding:14px var(--mobile-page-pad) 44px}.hero h1{font-size:31px;line-height:1.12;max-width:362px;margin-bottom:12px}.hero .subheadline{font-size:16px;line-height:1.48;margin-bottom:22px}.hero-mockup{margin:-10px calc(-1 * var(--mobile-page-pad)) 10px;width:auto;overflow:visible}.hero-mockup picture{height:auto}.hero-mockup img{width:100%;height:auto;min-height:0;transform:none;filter:none}.actions{gap:10px}.cta-purple,.cta-purple-outline{padding:13px 20px;font-size:15px}.section{padding-top:8px;margin-bottom:48px}.section h2{font-size:26px}.section .section-subtitle{font-size:15px;margin-bottom:24px}.landing-currency-toggle-wrap{margin-top:-6px}.landing-currency-toggle{width:100%;max-width:280px}.landing-currency-toggle button{flex:1;min-width:0}.value-cards,.benefit-cards,.flow-steps,.safety-points,.parent-trust-grid,.plans-grid,.story-cards,.testimonial-cards{grid-template-columns:1fr;gap:16px}.value-card,.benefit-card,.plan-card,.testimonial-card{padding:18px;border-radius:8px}.value-card .value-card-image,.benefit-card .benefit-card-image{height:170px;margin:-18px -18px 14px}.story-card{border-radius:8px}.story-card .story-illustration{height:190px}.story-card .story-info{padding:18px}.story-card .story-meta-badges{gap:6px}.story-card .story-badge{padding:5px 8px;font-size:11px}.feature-sticky-cards{gap:20px}.feature-sticky-card-inner .feature-item-image{aspect-ratio:16/10;max-height:260px}.feature-sticky-card-inner .feature-item-content{padding:16px 18px}.safety-point{align-items:flex-start}.voice-cards{grid-template-columns:1fr;gap:12px}.voice-card{padding:14px 16px;border-radius:8px}.final-cta{margin-top:40px;margin-bottom:-64px;padding:58px 16px 66px}.final-cta h2{font-size:28px}.final-cta .final-subheadline{font-size:16px}.announcement-bar{flex-direction:column;gap:12px}}
-@media(max-width:420px){.landing{padding-left:14px;padding-right:14px}.hero{--mobile-page-pad:14px}.hero h1{font-size:30px}.hero-mockup{margin-top:-4px;width:calc(100% + 28px)}.hero .microcopy{gap:8px;font-size:12px}.story-card .story-meta-badges{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.story-card .story-badge{justify-content:center}}
+@media(max-width:700px){.landing{padding:0 16px 64px}.brand{margin-bottom:12px}.hero{--mobile-page-pad:16px;margin-left:calc(-1 * var(--mobile-page-pad));margin-right:calc(-1 * var(--mobile-page-pad));padding:14px var(--mobile-page-pad) 44px}.hero h1{font-size:31px;line-height:1.12;max-width:362px;margin-bottom:12px}.hero .subheadline{font-size:16px;line-height:1.48;margin-bottom:22px}.hero-mockup{margin:-10px 0 10px;width:100%;overflow:visible}.hero-mockup picture{height:auto}.hero-mockup img{width:100%;height:auto;min-height:0;transform:none;filter:none}.actions{gap:10px}.cta-purple,.cta-purple-outline{padding:13px 20px;font-size:15px}.section{padding-top:8px;margin-bottom:48px}.section h2{font-size:26px}.section .section-subtitle{font-size:15px;margin-bottom:24px}.landing-currency-toggle-wrap{margin-top:-6px}.landing-currency-toggle{width:100%;max-width:280px}.landing-currency-toggle button{flex:1;min-width:0}.value-cards,.benefit-cards,.flow-steps,.safety-points,.parent-trust-grid,.plans-grid,.story-cards,.testimonial-cards{grid-template-columns:1fr;gap:16px}.value-card,.benefit-card,.plan-card,.testimonial-card{padding:18px;border-radius:8px}.value-card .value-card-image,.benefit-card .benefit-card-image{height:170px;margin:-18px -18px 14px}.story-card{border-radius:8px}.story-card .story-illustration{height:190px}.story-card .story-info{padding:18px}.story-card .story-meta-badges{gap:6px}.story-card .story-badge{padding:5px 8px;font-size:11px}.feature-sticky-cards{gap:20px}.feature-sticky-card-inner .feature-item-image{aspect-ratio:16/10;max-height:260px}.feature-sticky-card-inner .feature-item-content{padding:16px 18px}.safety-point{align-items:flex-start}.voice-cards{grid-template-columns:1fr;gap:12px}.voice-card{padding:14px 16px;border-radius:8px}.final-cta{margin-top:40px;margin-bottom:-64px;padding:58px 16px 66px}.final-cta h2{font-size:28px}.final-cta .final-subheadline{font-size:16px}.announcement-bar{flex-direction:column;gap:12px}}
+@media(max-width:420px){.landing{padding-left:14px;padding-right:14px}.hero{--mobile-page-pad:14px}.hero h1{font-size:30px}.hero-mockup{margin-top:-4px;width:100%}.hero .microcopy{gap:8px;font-size:12px}.story-card .story-meta-badges{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.story-card .story-badge{justify-content:center}}
 @media(max-width:700px){.hero-mockup img{-webkit-mask-image:none;mask-image:none}.value-cards{grid-auto-rows:auto}.value-card,.benefit-card,.flow-step,.story-card,.plan-card,.testimonial-card{border-radius:24px}.value-card--featured,.value-card--wide{grid-column:auto;grid-row:auto;min-height:0;display:flex;position:relative;justify-content:flex-start;background:rgba(255,255,255,0.92);color:var(--wt-ink)}.value-card--featured .value-card-image,.value-card--wide .value-card-image{position:relative;inset:auto;grid-column:auto;grid-row:auto;height:170px;aspect-ratio:auto;min-height:0;margin:-18px -18px 14px;align-self:auto;border-radius:0;background:linear-gradient(135deg,#e8e4f3,#f5e6f0)}.value-card--featured .value-card-image::after{content:none}.value-card--wide .value-card-image{height:auto;aspect-ratio:960 / 644}.value-card--wide .value-card-image img{object-fit:contain}.value-card--featured h3,.value-card--wide h3{position:static;z-index:auto;grid-column:auto;align-self:auto;font-size:19px;line-height:1.32;color:var(--wt-ink);max-width:none;text-shadow:none}.value-card--featured p,.value-card--wide p{position:static;z-index:auto;grid-column:auto;align-self:auto;color:var(--wt-muted);max-width:none}.flow-step{min-height:0;padding:22px 18px}.flow-step h3{min-height:0}.voice-card{border-radius:24px}}
 @media(prefers-reduced-motion:reduce){.faq-accordion-item summary::before{transition:none}}
 ${PUBLIC_FOOTER_STYLES}
@@ -522,7 +523,7 @@ function renderResponsiveImage(src: string, alt: string, options: ResponsiveImag
 }
 
 function getLocalizedWizardUrl(webAppUrl: string, locale?: string | null): string {
-  return buildAbsoluteRouteUrl(webAppUrl, buildLocalizedAppPath('/wizard', locale));
+  return buildAbsoluteRouteUrl(webAppUrl, buildPublicAppEntryPath('/wizard', locale));
 }
 
 function getLocalizedPricingUrl(webAppUrl: string, locale?: string | null): string {
@@ -561,18 +562,6 @@ function getPlanPriceForCurrency(plan: PresentedPlan, billingCurrency: BillingCu
 
 function getLocalizedStoriesUrl(webAppUrl: string, locale?: string | null): string {
   return buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath(locale));
-}
-
-function renderAnnouncementBar(webAppUrl: string, locale?: string): string {
-  return `
-  <div class="announcement-bar">
-    
-    <div class="nav-links">
-      <a href="${escapeHtml(webAppUrl)}/stories">Приклади історій</a>
-      <a href="${escapeHtml(getLocalizedPricingUrl(webAppUrl, locale))}">Тарифи</a>
-      <a href="${escapeHtml(getLocalizedWizardUrl(webAppUrl, locale))}" class="cta-purple">Реєстрація →</a>
-    </div>
-  </div>`;
 }
 
 function renderHero(webAppUrl: string, content: LandingContent, locale?: string): string {
@@ -888,7 +877,7 @@ function renderParentTrust(webAppUrl: string, locale?: string): string {
   const seoLocale = normalizePublicSeoLocale(locale);
   const copy = PARENT_TRUST_COPY[seoLocale];
   const privacyUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicLegalPath('privacy', seoLocale));
-  const supportUrl = buildAbsoluteRouteUrl(webAppUrl, '/support');
+  const supportUrl = buildAbsoluteRouteUrl(webAppUrl, buildPublicSupportPath(seoLocale));
   const cards = copy.cards.map((card, index) => {
     const href = card.href || (index === 1 ? privacyUrl : index === 3 ? supportUrl : undefined);
     return `
@@ -1197,7 +1186,7 @@ export function renderLandingHtml(params?: {
   voices?: Array<{ id: string; name: string; displayName: string; sampleAudioUrl: string | null }>;
   billingCurrency?: string | null;
 }): string {
-  const locale = params?.locale;
+  const locale = normalizePublicSeoLocale(params?.locale);
   const billingCurrency = normalizeBillingCurrency(params?.billingCurrency ?? DEFAULT_BILLING_CURRENCY);
   const webAppUrl = config.web?.webAppUrl?.replace(/\/$/, '') || '';
   const landingUrl = getLandingUrl(webAppUrl, locale);
@@ -1259,7 +1248,7 @@ export function renderLandingHtml(params?: {
       ${renderParentTrust(webAppUrl, locale)}
       ${renderVoicesSection(webAppUrl, voices, content)}
       ${renderMultilingual(webAppUrl, content)}
-      ${renderPricing(webAppUrl, plans, content, locale || 'uk', billingCurrency)}
+      ${renderPricing(webAppUrl, plans, content, normalizeLandingLocale(locale), billingCurrency)}
       ${renderFaq(webAppUrl, content, locale)}
       ${renderFinalCta(webAppUrl, content, locale)}
     </div>

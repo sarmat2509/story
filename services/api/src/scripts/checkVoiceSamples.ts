@@ -3,7 +3,7 @@ import { ttsVoices } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { access, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { PUBLIC_SEO_LOCALES } from '@wondertales/shared';
+import { PUBLIC_TRANSLATION_LOCALES } from '@wondertales/shared';
 import { getLocalizedVoiceDisplayName, getVoiceSamplePath } from '../utils/voicePresentation';
 
 const uploadsRoot = path.resolve(__dirname, '../..', 'uploads');
@@ -26,7 +26,7 @@ async function checkVoiceSamples() {
   console.log('\n=== Voice Samples Status ===');
   console.log(`Uploads root: ${uploadsRoot}\n`);
 
-  for (const locale of PUBLIC_SEO_LOCALES) {
+  for (const locale of PUBLIC_TRANSLATION_LOCALES) {
     console.log(`-- ${locale} --`);
 
     for (const voice of voices) {
@@ -47,7 +47,7 @@ async function checkVoiceSamples() {
     console.log('');
   }
 
-  const total = voices.length * PUBLIC_SEO_LOCALES.length;
+  const total = voices.length * PUBLIC_TRANSLATION_LOCALES.length;
   const present = total - missing.length;
   console.log(`Total expected: ${total}, present: ${present}, missing: ${missing.length}`);
 

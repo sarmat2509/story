@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: theme.spacing[4],
-    paddingTop: theme.spacing[1],
+    paddingTop: theme.spacing[3],
     borderTopWidth: theme.borders.width.thin,
     borderTopColor: modernColors.border,
   },

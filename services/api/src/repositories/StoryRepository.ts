@@ -1,5 +1,5 @@
 import type { StoryAudioMetadata } from '@wondertales/shared';
-import { eq, and, desc, asc, sql, isNotNull, inArray, gte, lte, ilike, or } from 'drizzle-orm';
+import { eq, ne, and, desc, asc, sql, isNotNull, inArray, gte, lte, ilike, or } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 import {
@@ -109,6 +109,7 @@ export class StoryRepository {
     hasAudio?: boolean;
     scenarioCardId?: string;
     language?: string;
+    excludeLanguage?: string;
     ageGroup?: string;
     readingTimeMin?: number;
     readingTimeMax?: number;
@@ -121,6 +122,7 @@ export class StoryRepository {
       hasAudio,
       scenarioCardId,
       language,
+      excludeLanguage,
       ageGroup,
       readingTimeMin,
       readingTimeMax,
@@ -136,6 +138,9 @@ export class StoryRepository {
     }
     if (language) {
       conditions.push(eq(schema.stories.language, language));
+    }
+    if (excludeLanguage) {
+      conditions.push(ne(schema.stories.language, excludeLanguage));
     }
     if (ageGroup) {
       conditions.push(eq(schema.stories.ageGroup, ageGroup));
@@ -176,13 +181,14 @@ export class StoryRepository {
     hasAudio?: boolean;
     scenarioCardId?: string;
     language?: string;
+    excludeLanguage?: string;
     ageGroup?: string;
     readingTimeMin?: number;
     readingTimeMax?: number;
     authorId?: string;
     showOnHomePage?: boolean;
   } = {}): Promise<number> {
-    const { hasAudio, scenarioCardId, language, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage } = options;
+    const { hasAudio, scenarioCardId, language, excludeLanguage, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage } = options;
     const conditions = publicCatalogStorySqlConditions();
     if (showOnHomePage) {
       conditions.push(eq(schema.stories.showOnHomePage, true));
@@ -192,6 +198,9 @@ export class StoryRepository {
     }
     if (language) {
       conditions.push(eq(schema.stories.language, language));
+    }
+    if (excludeLanguage) {
+      conditions.push(ne(schema.stories.language, excludeLanguage));
     }
     if (ageGroup) {
       conditions.push(eq(schema.stories.ageGroup, ageGroup));

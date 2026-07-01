@@ -150,42 +150,48 @@ export const StoryBottomSheet = forwardRef<BottomSheet, StoryBottomSheetProps>(
                         : t('story_viewer.publication_badge_catalog')}
                     </Text>
                   </View>
-                  {onShare && (
-                    <AppButton
-                      label={t('story_viewer.share_title')}
-                      onPress={onShare}
-                      variant="secondary"
-                      leading={
-                        <Ionicons
-                          name="share-social-outline"
-                          size={20}
-                          color={theme.colors.text.primary}
-                        />
-                      }
-                      style={styles.publicationAction}
-                    />
-                  )}
-                  {onPublish && (
-                    <AppButton
-                      label={t('story_viewer.update_publication')}
-                      onPress={onPublish}
-                      disabled={isPublishPending}
-                      variant="secondary"
-                      leading={
-                        <Ionicons name="create-outline" size={20} color={theme.colors.text.primary} />
-                      }
-                      style={styles.publicationAction}
-                    />
-                  )}
-                  {onUnpublish && (
-                    <AppButton
-                      label={t('story_viewer.unpublish')}
-                      onPress={onUnpublish}
-                      variant="dangerSecondary"
-                      size="sm"
-                      style={styles.unpublishAction}
-                    />
-                  )}
+                  <View style={styles.publicationActionsStack}>
+                    {onShare && (
+                      <AppButton
+                        label={t('story_viewer.share_title')}
+                        onPress={onShare}
+                        variant="secondary"
+                        leading={
+                          <Ionicons
+                            name="share-social-outline"
+                            size={20}
+                            color={theme.colors.text.primary}
+                          />
+                        }
+                        style={styles.publicationAction}
+                      />
+                    )}
+                    {onPublish && (
+                      <AppButton
+                        label={t('story_viewer.update_publication')}
+                        onPress={onPublish}
+                        disabled={isPublishPending}
+                        variant="secondary"
+                        leading={
+                          <Ionicons
+                            name="create-outline"
+                            size={20}
+                            color={theme.colors.text.primary}
+                          />
+                        }
+                        style={styles.publicationAction}
+                      />
+                    )}
+                    {onUnpublish && (
+                      <AppButton
+                        label={t('story_viewer.unpublish')}
+                        onPress={onUnpublish}
+                        variant="dangerSecondary"
+                        size="sm"
+                        style={styles.unpublishAction}
+                      />
+                    )}
+                  </View>
                 </>
               )}
             </View>
@@ -242,9 +248,12 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing[4],
   },
   publicationAction: {
-    marginTop: theme.spacing[4],
+    alignSelf: 'stretch',
   },
   publicationSection: {
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.lg,
+    padding: theme.spacing[4],
     marginBottom: theme.spacing[6],
   },
   publicationBadge: {
@@ -253,7 +262,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing[2],
     paddingVertical: theme.spacing[2],
     paddingHorizontal: theme.spacing[3],
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: theme.colors.background.primary,
     borderRadius: theme.borders.radius.md,
     marginBottom: theme.spacing[4],
     alignSelf: 'flex-start',
@@ -262,12 +271,14 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
   },
+  publicationActionsStack: {
+    gap: theme.spacing[3],
+  },
   unpublishAction: {
-    marginTop: theme.spacing[2],
-    alignSelf: 'flex-start',
+    alignSelf: 'stretch',
   },
   sheetAction: {
-    marginTop: theme.spacing[4],
+    alignSelf: 'stretch',
   },
   reportProblemAction: {
     marginTop: theme.spacing[2],

@@ -6,13 +6,14 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { normalizePublicSeoLocale } from '@wondertales/shared';
 import { renderLegalHtml } from '../ssr/renderLegalHtml';
 import { logger } from '../utils/logger';
 
 const router = Router();
 
 export function resolveLegalRouteLocale(locale?: string | null): string {
-  return locale?.slice(0, 2).toLowerCase() || 'uk';
+  return normalizePublicSeoLocale(locale);
 }
 
 function renderLegalRoute(doc: 'terms' | 'privacy') {

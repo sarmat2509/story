@@ -9,8 +9,8 @@ import { resolveSupportRouteLocale } from '../../routes/ssrSupport';
 
 assert.deepEqual(
   [...PUBLIC_SEO_LOCALES],
-  ['uk', 'en', 'ru', 'es', 'de', 'fr', 'pl'],
-  'public SEO locales should cover every launch-ready public marketing locale'
+  ['en', 'uk'],
+  'public SEO locales should cover the indexed English and Ukrainian surfaces'
 );
 
 const landingAlternates = buildLandingAlternateLinks('https://wondertales.art');
@@ -26,17 +26,19 @@ for (const locale of PUBLIC_SEO_LOCALES) {
 }
 assert.match(pricingHtml, /hreflang="x-default"/);
 
-assert.equal(resolveLandingRouteLocale(undefined), 'uk');
-assert.equal(resolvePricingRouteLocale(undefined), 'uk');
+assert.equal(resolveLandingRouteLocale(undefined), 'en');
+assert.equal(resolvePricingRouteLocale(undefined), 'en');
+assert.equal(resolveLegalRouteLocale(undefined), 'en');
+assert.equal(resolveSupportRouteLocale(undefined), 'en');
 assert.equal(resolveLandingRouteLocale('en'), 'en');
 assert.equal(resolvePricingRouteLocale('en'), 'en');
 assert.equal(resolveLegalRouteLocale('en'), 'en');
 assert.equal(resolveSupportRouteLocale('en'), 'en');
 for (const locale of ['ru', 'es', 'de', 'fr', 'pl']) {
-  assert.equal(resolveLandingRouteLocale(locale), locale);
-  assert.equal(resolvePricingRouteLocale(locale), locale);
-  assert.equal(resolveLegalRouteLocale(locale), locale);
-  assert.equal(resolveSupportRouteLocale(locale), locale);
+  assert.equal(resolveLandingRouteLocale(locale), 'en');
+  assert.equal(resolvePricingRouteLocale(locale), 'en');
+  assert.equal(resolveLegalRouteLocale(locale), 'en');
+  assert.equal(resolveSupportRouteLocale(locale), 'en');
 }
 
 console.log('publicSeoLocales tests passed');

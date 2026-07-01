@@ -7,9 +7,12 @@ import { initReactI18next } from 'react-i18next';
 import { isAppUiLocale } from '@wondertales/shared';
 import { storage } from '@/utils/storage';
 import { APP_CONFIG } from '@/config/constants';
-import { getPublicSeoLocaleOverrideFromPath } from '@/utils/publicSeoLocale';
+import {
+  getPublicSeoLocaleOverrideFromPath,
+  getPublicSeoLocaleOverrideFromSearch,
+} from '@/utils/publicSeoLocale';
 import { syncWebDocumentLocale } from '@/utils/documentLocale';
-import { getWebPathname } from '@/utils/webRuntime';
+import { getWebPathname, getWebSearch } from '@/utils/webRuntime';
 
 // Import translations from shared package
 import ukTranslations from '@wondertales/shared/i18n/uk.json';
@@ -48,8 +51,12 @@ function getLocaleFromUrl(): string | null {
   }
 
   const firstSegment = pathname.split('/').filter(Boolean)[0]?.toLowerCase();
+  const pathLocale = firstSegment && isAppUiLocale(firstSegment) ? firstSegment : null;
+  if (pathLocale) {
+    return pathLocale;
+  }
 
-  return firstSegment && isAppUiLocale(firstSegment) ? firstSegment : null;
+  return getPublicSeoLocaleOverrideFromSearch(getWebSearch());
 }
 
 function normalizeUiLanguage(language?: string | null): string | null {
@@ -58,8 +65,8 @@ function normalizeUiLanguage(language?: string | null): string | null {
 }
 
 export async function initI18n() {
-  // On web, locale in the URL should win over saved preference so public routes
-  // like /en/welcome can be rendered in the requested language before login.
+  // On web, locale in the URL should win over saved preference so public/app
+  // entry routes like /wizard?locale=en render in the requested language.
   const savedLanguage = normalizeUiLanguage(await storage.getLanguage());
   const urlLanguage = getLocaleFromUrl();
   const initialLanguage = urlLanguage || savedLanguage || APP_CONFIG.defaultLanguage;

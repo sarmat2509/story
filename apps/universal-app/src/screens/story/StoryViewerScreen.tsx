@@ -64,6 +64,7 @@ import { theme } from '@/theme';
 import { formatAssetUrl } from '@/utils/assetUrl';
 import { getOrdinal } from '@/utils/ordinal';
 import { formatSubscriptionPeriodEnd } from '@/utils/formatSubscriptionPeriodEnd';
+import { getLocalizedApiError } from '@/utils/localizedApiError';
 import type { MainDrawerParamList } from '@/types/navigation';
 import AudioPlayer from '@/components/AudioPlayer';
 import VoiceSelector from '@/components/VoiceSelector';
@@ -1128,7 +1129,7 @@ export default function StoryViewerScreen() {
         setMapTileModalVisible(true);
       }
     } catch (error) {
-      toastService.error(t('story_viewer.map_tile_generate_error'));
+      toastService.error(getLocalizedApiError(t, error, 'story_viewer.map_tile_generate_error'));
     }
   }, [generateMapTile, queryClient, storyId, storyMapTileStatus, t]);
 
@@ -1703,7 +1704,10 @@ export default function StoryViewerScreen() {
           story_id: storyId,
           voice_id: selectedVoiceId,
         });
-        toastService.error(t('toast.audio_error_title'), 'Не вдалося створити аудіосказку');
+        toastService.error(
+          t('toast.audio_error_title'),
+          getLocalizedApiError(t, error, 'story_viewer.audio_error_default')
+        );
       }
     }
   };
@@ -2973,7 +2977,7 @@ export default function StoryViewerScreen() {
                               : t('story_viewer.publication_badge_catalog')}
                           </Text>
                         </View>
-                        <View style={styles.publicationButtonsRow}>
+                        <View style={styles.publicationButtonsStack}>
                           <AppButton
                             label={t('story_viewer.share_title')}
                             onPress={handleShare}
@@ -2998,14 +3002,14 @@ export default function StoryViewerScreen() {
                             }
                             style={styles.publicationButtonFlex}
                           />
+                          <AppButton
+                            label={t('story_viewer.unpublish')}
+                            onPress={handleUnpublish}
+                            variant="dangerSecondary"
+                            size="sm"
+                            style={styles.unpublishAction}
+                          />
                         </View>
-                        <AppButton
-                          label={t('story_viewer.unpublish')}
-                          onPress={handleUnpublish}
-                          variant="dangerSecondary"
-                          size="sm"
-                          style={styles.unpublishAction}
-                        />
                       </>
                     )}
                   </View>
@@ -3272,6 +3276,9 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
   },
   publicationSection: {
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borders.radius.lg,
+    padding: theme.spacing[4],
     marginBottom: theme.spacing[4],
   },
   parentReviewPanel: {
@@ -3351,7 +3358,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing[2],
     paddingVertical: theme.spacing[2],
     paddingHorizontal: theme.spacing[3],
-    backgroundColor: theme.colors.background.secondary,
+    backgroundColor: theme.colors.background.primary,
     borderRadius: theme.borders.radius.md,
     marginBottom: theme.spacing[4],
     alignSelf: 'flex-start',
@@ -3360,16 +3367,15 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
   },
-  publicationButtonsRow: {
-    flexDirection: 'row',
+  publicationButtonsStack: {
+    flexDirection: 'column',
     gap: theme.spacing[3],
-    marginBottom: theme.spacing[2],
   },
   publicationButtonFlex: {
-    flex: 1,
+    alignSelf: 'stretch',
   },
   unpublishAction: {
-    alignSelf: 'flex-start',
+    alignSelf: 'stretch',
   },
   publicationAction: {
     alignSelf: 'stretch',

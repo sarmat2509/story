@@ -15,7 +15,6 @@ function renderSupportRoute(req: Request, res: Response) {
     const html = renderSupportHtml({ locale });
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.setHeader('X-Robots-Tag', 'noindex,follow');
     res.send(html);
   } catch (error) {
     logger.error({ err: error }, 'Error rendering support page');

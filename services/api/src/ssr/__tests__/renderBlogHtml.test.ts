@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {
   PUBLIC_SEO_LOCALES,
   APP_ROUTE_PATHS,
-  buildLocalizedAppPath,
+  buildPublicAppEntryPath,
   buildPublicBlogArticlePath,
   buildPublicBlogIndexPath,
   escapeHtml,
@@ -11,7 +11,8 @@ import { getBlogArticle, getBlogSlugs } from '../blogContent';
 import { renderBlogArticleHtml, renderBlogIndexHtml } from '../renderBlogHtml';
 
 function hrefForPath(path: string): RegExp {
-  return new RegExp(`href="https://[^"]+${path.replace(/\//g, '\\/')}"`);
+  const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\//g, '\\/');
+  return new RegExp(`href="https://[^"]+${escapedPath}"`);
 }
 
 function structuredDataTypes(html: string): string[] {
@@ -75,7 +76,7 @@ for (const locale of PUBLIC_SEO_LOCALES) {
     `blog article should include complete schema graph for ${locale}`
   );
   assert.match(articleHtml, hrefForPath(buildPublicBlogArticlePath('adhd-story-attention', locale)));
-  assert.match(articleHtml, hrefForPath(buildLocalizedAppPath(APP_ROUTE_PATHS.wizard, locale)));
+  assert.match(articleHtml, hrefForPath(buildPublicAppEntryPath(APP_ROUTE_PATHS.wizard, locale)));
   assert.match(articleHtml, /hreflang="x-default"/);
 }
 
@@ -83,7 +84,7 @@ const safeScaryHtml = renderBlogArticleHtml({ locale: 'uk', slug: 'safe-scary-st
 assert.ok(safeScaryHtml, 'safe scary article should render');
 assert.match(
   safeScaryHtml,
-  /href="https:\/\/[^"]+\/wizard\?theme=scary_stories"/
+  /href="https:\/\/[^"]+\/uk\/wizard\?theme=scary_stories"/
 );
 assert.match(safeScaryHtml, /Створити страшну історію/);
 

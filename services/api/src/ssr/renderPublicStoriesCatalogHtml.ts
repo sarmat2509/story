@@ -32,6 +32,8 @@ const CATALOG_COPY: Record<PublicSeoLocale, {
   authorLabel: string;
   emptyTitle: string;
   emptyBody: string;
+  fallbackTitle: string;
+  fallbackBody: string;
 }> = {
   uk: {
     title: 'Опубліковані історії для дітей - WonderTales',
@@ -46,6 +48,8 @@ const CATALOG_COPY: Record<PublicSeoLocale, {
     authorLabel: 'Автор',
     emptyTitle: 'Публічних історій поки немає',
     emptyBody: 'Коли родини опублікують історії для каталогу, вони зʼявляться тут.',
+    fallbackTitle: 'Більше історій іншими мовами',
+    fallbackBody: 'Спершу показуємо історії українською. Нижче — свіжі публічні історії іншими мовами.',
   },
   en: {
     title: 'Published children stories - WonderTales',
@@ -60,6 +64,8 @@ const CATALOG_COPY: Record<PublicSeoLocale, {
     authorLabel: 'Author',
     emptyTitle: 'No public stories yet',
     emptyBody: 'Stories will appear here after families publish them to the public catalog.',
+    fallbackTitle: 'More stories in other languages',
+    fallbackBody: 'Stories in English appear first. Below are recent public stories in other languages.',
   },
   ru: {
     title: 'Опубликованные детские истории - WonderTales',
@@ -74,6 +80,8 @@ const CATALOG_COPY: Record<PublicSeoLocale, {
     authorLabel: 'Автор',
     emptyTitle: 'Публичных историй пока нет',
     emptyBody: 'Истории появятся здесь, когда семьи опубликуют их в публичном каталоге.',
+    fallbackTitle: 'Еще истории на других языках',
+    fallbackBody: 'Сначала показаны истории на русском. Ниже — свежие публичные истории на других языках.',
   },
   es: {
     title: 'Cuentos infantiles publicados - WonderTales',
@@ -88,6 +96,8 @@ const CATALOG_COPY: Record<PublicSeoLocale, {
     authorLabel: 'Autor',
     emptyTitle: 'Aún no hay cuentos públicos',
     emptyBody: 'Los cuentos aparecerán aquí cuando las familias los publiquen en el catálogo público.',
+    fallbackTitle: 'Más cuentos en otros idiomas',
+    fallbackBody: 'Primero mostramos cuentos en español. Abajo encontrarás cuentos públicos recientes en otros idiomas.',
   },
   de: {
     title: 'Veröffentlichte Kindergeschichten - WonderTales',
@@ -102,6 +112,8 @@ const CATALOG_COPY: Record<PublicSeoLocale, {
     authorLabel: 'Autor',
     emptyTitle: 'Noch keine öffentlichen Geschichten',
     emptyBody: 'Geschichten erscheinen hier, sobald Familien sie im öffentlichen Katalog veröffentlichen.',
+    fallbackTitle: 'Mehr Geschichten in anderen Sprachen',
+    fallbackBody: 'Zuerst zeigen wir deutsche Geschichten. Danach folgen aktuelle öffentliche Geschichten in anderen Sprachen.',
   },
   fr: {
     title: 'Histoires pour enfants publiées - WonderTales',
@@ -116,6 +128,8 @@ const CATALOG_COPY: Record<PublicSeoLocale, {
     authorLabel: 'Auteur',
     emptyTitle: 'Aucune histoire publique pour le moment',
     emptyBody: 'Les histoires apparaîtront ici lorsque les familles les publieront dans le catalogue public.',
+    fallbackTitle: 'Plus d’histoires dans d’autres langues',
+    fallbackBody: 'Les histoires en français apparaissent d’abord. Ensuite, vous trouverez des histoires publiques récentes dans d’autres langues.',
   },
   pl: {
     title: 'Opublikowane historie dla dzieci - WonderTales',
@@ -130,17 +144,18 @@ const CATALOG_COPY: Record<PublicSeoLocale, {
     authorLabel: 'Autor',
     emptyTitle: 'Nie ma jeszcze publicznych historii',
     emptyBody: 'Historie pojawią się tutaj, gdy rodziny opublikują je w publicznym katalogu.',
+    fallbackTitle: 'Więcej historii w innych językach',
+    fallbackBody: 'Najpierw pokazujemy historie po polsku. Niżej znajdziesz najnowsze publiczne historie w innych językach.',
   },
 };
 
 const CATALOG_STYLES = `
 *{box-sizing:border-box}
-html,body{min-height:100%;height:100%}
+html,body{min-height:100%}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#f8fafc;color:#172033}
-#root{min-height:100%;height:100%;display:flex;flex-direction:column}
-#root>*{flex:1 1 auto;min-height:0}
+#root{min-height:100vh;display:flex;flex-direction:column}
 a{color:inherit;text-decoration:none}
-.page{max-width:1180px;margin:0 auto;padding:28px 20px 56px}
+.page{width:100%;max-width:1180px;margin:0 auto;padding:28px 20px 56px;flex:1 0 auto}
 .topnav{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:36px}
 .brand{font-weight:800;color:#6d5bd0;font-size:19px}
 .navlinks{display:flex;gap:18px;color:#475569;font-weight:600;font-size:14px}
@@ -150,6 +165,9 @@ h1{font-size:42px;line-height:1.08;margin:0 0 14px;letter-spacing:0}
 .intro{max-width:720px;margin:0;color:#475569;font-size:17px;line-height:1.65}
 .count{margin:0;padding:10px 14px;border:1px solid #dbe3ef;border-radius:999px;background:#fff;color:#334155;font-size:14px;font-weight:700;white-space:nowrap}
 .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.fallback-note{grid-column:1/-1;padding:18px 20px;border:1px solid #dbe3ef;border-radius:8px;background:#fff;color:#475569}
+.fallback-note h2{margin:0 0 6px;font-size:20px;line-height:1.25;color:#172033}
+.fallback-note p{margin:0;font-size:14px;line-height:1.6}
 .card{background:#fff;border:1px solid #dbe3ef;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-height:100%;box-shadow:0 10px 24px rgba(15,23,42,.06)}
 .thumb{aspect-ratio:16/9;width:100%;object-fit:cover;background:#e2e8f0;display:block}
 .thumb-placeholder{aspect-ratio:16/9;background:linear-gradient(135deg,#e0f2fe,#fef3c7);display:flex;align-items:center;justify-content:center;color:#334155;font-weight:800}
@@ -207,7 +225,7 @@ function renderAlternateLinks(webAppUrl: string, locale: PublicSeoLocale): strin
     const href = buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath(altLocale));
     return `<link rel="alternate" hreflang="${altLocale}" href="${escapeHtml(href)}">`;
   });
-  const xDefault = buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath('uk'));
+  const xDefault = buildAbsoluteRouteUrl(webAppUrl, buildPublicStoriesPath());
   return [
     `<link rel="canonical" href="${escapeHtml(canonical)}">`,
     ...alternates,
@@ -280,6 +298,7 @@ export function renderPublicStoriesCatalogHtml(params: {
   locale?: string | null;
   stories: PublicStoryListItem[];
   total: number;
+  fallbackStartIndex?: number | null;
 }): string {
   const locale = normalizePublicSeoLocale(params.locale);
   const copy = CATALOG_COPY[locale];
@@ -295,6 +314,18 @@ export function renderPublicStoriesCatalogHtml(params: {
     stories: buildInitialCatalogStories(params.stories),
     pagination: { limit: params.stories.length, offset: 0, total: params.total },
   }).replace(/</g, '\\u003c');
+  const fallbackStartIndex =
+    typeof params.fallbackStartIndex === 'number' &&
+    params.fallbackStartIndex >= 0 &&
+    params.fallbackStartIndex < params.stories.length
+      ? params.fallbackStartIndex
+      : null;
+  const storyCards = params.stories.map((story, index) => {
+    const fallbackNote = fallbackStartIndex === index
+      ? `<div class="fallback-note"><h2>${escapeHtml(copy.fallbackTitle)}</h2><p>${escapeHtml(copy.fallbackBody)}</p></div>`
+      : '';
+    return `${fallbackNote}${renderStoryCard(story, locale, webAppUrl, apiBase, copy)}`;
+  }).join('\n');
 
   return `<!DOCTYPE html>
 <html lang="${escapeHtml(locale)}">
@@ -332,7 +363,7 @@ export function renderPublicStoriesCatalogHtml(params: {
       </section>
       ${
         params.stories.length > 0
-          ? `<section class="grid">${params.stories.map((story) => renderStoryCard(story, locale, webAppUrl, apiBase, copy)).join('\n')}</section>`
+          ? `<section class="grid">${storyCards}</section>`
           : `<section class="empty"><h2>${escapeHtml(copy.emptyTitle)}</h2><p>${escapeHtml(copy.emptyBody)}</p></section>`
       }
     </main>

@@ -52,6 +52,7 @@ import {
 } from '@/services/revenueCatService';
 import {
   formatPricingPrice,
+  buildPricingFaqItems,
   getCombinedPricingUsageHighlight,
   getPricingFeatureLabel,
   isPricingFeatureAvailable,
@@ -64,6 +65,16 @@ const cardDelay = (i: number) => Math.min(120 + i * 120, 420);
 
 const BUNDLE_CARD_WIDTH = 276;
 const BILLING_CURRENCY_OPTIONS: BillingCurrency[] = ['EUR', 'USD'];
+
+function getPlanFeatureLimit(
+  features: Record<string, any> | undefined,
+  slug: string
+): number | null {
+  const value = features?.[slug]?.value;
+  const limit =
+    value && typeof value === 'object' && 'limit' in value ? Number(value.limit) : null;
+  return typeof limit === 'number' && Number.isFinite(limit) && limit > 0 ? limit : null;
+}
 
 export default function PlansScreen() {
   const { t, i18n } = useTranslation();
@@ -160,10 +171,21 @@ export default function PlansScreen() {
 
     return unlockMap;
   }, [plans]);
-  const currentPlanSlug = useMemo(() => {
+  const currentPlan = useMemo(() => {
     if (!effectiveIsAuthenticated || !Array.isArray(plans)) return null;
-    return (plans.find((plan: any) => 'isCurrent' in plan && plan.isCurrent) as any)?.slug ?? null;
+    return (
+      (plans.find((plan: any) => 'isCurrent' in plan && plan.isCurrent) as
+        | { slug: string; name: string; features?: Record<string, any> }
+        | undefined) ?? null
+    );
   }, [effectiveIsAuthenticated, plans]);
+  const currentPlanSlug = currentPlan?.slug ?? null;
+  const currentPlanName = currentPlan?.name ?? null;
+  const currentPlanBundleComicRatio = useMemo(() => {
+    const storiesLimit = getPlanFeatureLimit(currentPlan?.features, 'stories_per_month');
+    const comicsLimit = getPlanFeatureLimit(currentPlan?.features, 'graphic_novels_per_month');
+    return storiesLimit && comicsLimit ? comicsLimit / storiesLimit : 0;
+  }, [currentPlan?.features]);
   const bundlesQuery = useBundles(effectiveIsAuthenticated, currentPlanSlug, billingCurrency);
   const sortedBundles = useMemo(() => {
     const rows = bundlesQuery.data;
@@ -239,6 +261,10 @@ export default function PlansScreen() {
       String(t(`plans.${key}` as never, { ...(params ?? {}), defaultValue } as never)),
     [t]
   );
+  const pricingFaqItems = useMemo(
+    () => buildPricingFaqItems({ translate: translatePricing, periodEnd: periodEndFormatted }),
+    [periodEndFormatted, translatePricing]
+  );
 
   // Helper to format price
   const formatPrice = useCallback(
@@ -278,6 +304,7 @@ export default function PlansScreen() {
       sortedBundles.map((b, idx) => {
         const canBuy = enableRealPayments && isWeb;
         const featured = sortedBundles.length >= 3 && idx === Math.floor(sortedBundles.length / 2);
+        const extraComics = Math.floor(b.extraStories * currentPlanBundleComicRatio);
         return (
           <View
             key={b.slug}
@@ -299,11 +326,27 @@ export default function PlansScreen() {
               </Text>
               <Text style={styles.bundleStoriesHero}>+{b.extraStories}</Text>
               <Text style={styles.bundleStoriesHint}>{t('plans.bundles.stories_word')}</Text>
-              <View style={styles.bundleMetaRow}>
-                <Ionicons name="headset-outline" size={15} color={theme.colors.text.tertiary} />
-                <Text style={styles.bundleMetaText}>
-                  {t('plans.bundles.plus_audio', { count: b.extraAudio })}
-                </Text>
+              <View style={styles.bundleMetaList}>
+                <View style={styles.bundleMetaRow}>
+                  <Ionicons name="headset-outline" size={15} color={theme.colors.text.tertiary} />
+                  <Text style={styles.bundleMetaText}>
+                    {t('plans.bundles.audio_within_stories', {
+                      audio: b.extraAudio,
+                      stories: b.extraStories,
+                    })}
+                  </Text>
+                </View>
+                {extraComics > 0 ? (
+                  <View style={styles.bundleMetaRow}>
+                    <Ionicons name="book-outline" size={15} color={theme.colors.text.tertiary} />
+                    <Text style={styles.bundleMetaText}>
+                      {t('plans.bundles.comics_within_stories', {
+                        comics: extraComics,
+                        stories: b.extraStories,
+                      })}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
               <Text style={styles.bundlePrice}>{formatPrice(b.priceMinor, b.pricingCurrency)}</Text>
               <AppButton
@@ -327,6 +370,7 @@ export default function PlansScreen() {
       handleBundlePurchase,
       createBundleCheckout.isPending,
       billingCurrency,
+      currentPlanBundleComicRatio,
     ]
   );
 
@@ -590,6 +634,11 @@ export default function PlansScreen() {
               <View style={styles.bundleShell}>
                 <View style={styles.bundleHeaderBlock}>
                   <Text style={styles.bundleSectionTitle}>{t('plans.bundles.section_title')}</Text>
+                  {currentPlanName ? (
+                    <Text style={styles.bundlePlanContext}>
+                      {t('plans.bundles.plan_context', { planName: currentPlanName })}
+                    </Text>
+                  ) : null}
                   <Text style={styles.bundleSectionSubtitle}>
                     {periodEndFormatted
                       ? t('plans.bundles.section_subtitle', { periodEnd: periodEndFormatted })
@@ -619,74 +668,51 @@ export default function PlansScreen() {
                 ) : (
                   <Text style={styles.bundleEmpty}>{t('plans.bundles.empty')}</Text>
                 )}
-
-                {!bundlesQuery.isLoading && (
-                  <View style={styles.bundleFaqSection}>
-                    <Text style={styles.bundleFaqSectionTitle}>{t('plans.bundles.faq_title')}</Text>
-                    {!enableRealPayments ? (
-                      <Text style={styles.bundleFaqAnswer}>
-                        {t('plans.payments_disabled_notice', {
-                          defaultValue:
-                            'Paid checkout is not enabled yet. Free access remains available while we finish billing verification.',
-                        })}
-                      </Text>
-                    ) : null}
-                    {nativeBillingUnavailable ? (
-                      <Text style={styles.bundleFaqAnswer}>
-                        {t('plans.revenuecat_not_configured')}
-                      </Text>
-                    ) : null}
-                    <ExpandableCard title={t('plans.bundles.faq_1_q')} icon="layers-outline">
-                      <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_1_a')}</Text>
-                    </ExpandableCard>
-                    <ExpandableCard title={t('plans.bundles.faq_2_q')} icon="calendar-outline">
-                      <Text style={styles.bundleFaqAnswer}>
-                        {periodEndFormatted
-                          ? t('plans.bundles.faq_2_a', { periodEnd: periodEndFormatted })
-                          : t('plans.bundles.faq_2_a_no_date')}
-                      </Text>
-                    </ExpandableCard>
-                    <ExpandableCard title={t('plans.bundles.faq_3_q')} icon="add-circle-outline">
-                      <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_3_a')}</Text>
-                    </ExpandableCard>
-                    <ExpandableCard title={t('plans.bundles.faq_4_q')} icon="pricetag-outline">
-                      <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_4_a')}</Text>
-                    </ExpandableCard>
-                    <ExpandableCard title={t('plans.bundles.faq_5_q')} icon="card-outline">
-                      <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_5_a')}</Text>
-                    </ExpandableCard>
-                    <ExpandableCard title={t('plans.bundles.faq_6_q')} icon="image-outline">
-                      <Text style={styles.bundleFaqAnswer}>{t('plans.bundles.faq_6_a')}</Text>
-                    </ExpandableCard>
-                    <ExpandableCard title={t('plans.faq_renewal_q')} icon="refresh-outline">
-                      <Text style={styles.bundleFaqAnswer}>{t('plans.faq_renewal_a')}</Text>
-                    </ExpandableCard>
-                    <ExpandableCard title={t('plans.faq_refunds_q')} icon="card-outline">
-                      <Text style={styles.bundleFaqAnswer}>{t('plans.faq_refunds_a')}</Text>
-                    </ExpandableCard>
-                    {useRevenueCatFlow ? (
-                      <AppButton
-                        label={
-                          nativeBillingPending ? t('plans.restoring') : t('plans.restore_purchases')
-                        }
-                        onPress={handleRestorePurchases}
-                        disabled={nativeBillingPending}
-                        loading={nativeBillingPending}
-                        variant="secondary"
-                        size="md"
-                        style={styles.restorePurchasesAction}
-                        leading={
-                          <Ionicons
-                            name="refresh-outline"
-                            size={16}
-                            color={theme.colors.text.primary}
-                          />
-                        }
-                      />
-                    ) : null}
-                  </View>
-                )}
               </View>
+
+              {!bundlesQuery.isLoading && (
+                <View style={styles.bundleFaqSection}>
+                  <Text style={styles.bundleFaqSectionTitle}>{t('plans.bundles.faq_title')}</Text>
+                  {!enableRealPayments ? (
+                    <Text style={styles.bundleFaqAnswer}>
+                      {t('plans.payments_disabled_notice', {
+                        defaultValue:
+                          'Paid checkout is not enabled yet. Free access remains available while we finish billing verification.',
+                      })}
+                    </Text>
+                  ) : null}
+                  {nativeBillingUnavailable ? (
+                    <Text style={styles.bundleFaqAnswer}>
+                      {t('plans.revenuecat_not_configured')}
+                    </Text>
+                  ) : null}
+                  {pricingFaqItems.map((item) => (
+                    <ExpandableCard key={item.id} title={item.title} icon={item.icon}>
+                      <Text style={styles.bundleFaqAnswer}>{item.answer}</Text>
+                    </ExpandableCard>
+                  ))}
+                  {useRevenueCatFlow ? (
+                    <AppButton
+                      label={
+                        nativeBillingPending ? t('plans.restoring') : t('plans.restore_purchases')
+                      }
+                      onPress={handleRestorePurchases}
+                      disabled={nativeBillingPending}
+                      loading={nativeBillingPending}
+                      variant="secondary"
+                      size="md"
+                      style={styles.restorePurchasesAction}
+                      leading={
+                        <Ionicons
+                          name="refresh-outline"
+                          size={16}
+                          color={theme.colors.text.primary}
+                        />
+                      }
+                    />
+                  ) : null}
+                </View>
+              )}
             </View>
           </AnimatedSection>
         )}
@@ -1110,6 +1136,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     alignSelf: 'stretch',
   },
+  bundlePlanContext: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: theme.colors.interactive.primary,
+    textAlign: 'center',
+    marginBottom: theme.spacing[1],
+  },
   bundleSectionSubtitle: {
     fontSize: theme.typography.fontSize.sm,
     color: theme.colors.text.secondary,
@@ -1202,11 +1235,14 @@ const styles = StyleSheet.create({
     marginTop: -theme.spacing[1],
     marginBottom: theme.spacing[2],
   },
+  bundleMetaList: {
+    gap: theme.spacing[1],
+    marginBottom: theme.spacing[3],
+  },
   bundleMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing[2],
-    marginBottom: theme.spacing[3],
   },
   bundleMetaText: {
     fontSize: theme.typography.fontSize.sm,
@@ -1221,7 +1257,9 @@ const styles = StyleSheet.create({
   bundleBuyAction: {},
   bundleFaqSection: {
     marginTop: theme.spacing[6],
-    alignSelf: 'stretch',
+    width: '100%',
+    maxWidth: 980,
+    alignSelf: 'center',
   },
   bundleFaqSectionTitle: {
     fontSize: theme.typography.fontSize.lg,

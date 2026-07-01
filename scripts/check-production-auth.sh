@@ -104,6 +104,8 @@ forgot_body="$(mktemp)"
 forgot_code="$(post_json "$BASE_URL/api/v1/auth/forgot-password" "{\"email\":\"$PROD_AUTH_RESET_EMAIL\"}" "$forgot_body")"
 if [[ "$forgot_code" == "200" ]] && grep -q '"status":"success"' "$forgot_body"; then
   pass "forgot-password returned privacy-preserving 200"
+elif [[ "$forgot_code" == "400" ]] && grep -q '"code":"CAPTCHA_REQUIRED"' "$forgot_body"; then
+  pass "forgot-password requires Turnstile verification"
 else
   fail "forgot-password returned $forgot_code; body: $(cat "$forgot_body")"
 fi

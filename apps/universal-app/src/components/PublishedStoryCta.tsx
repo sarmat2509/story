@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Linking } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import { buildLocalizedAppPath } from '@wondertales/shared';
+import { buildPublicAppEntryPath } from '@wondertales/shared';
 import { AppButton } from '@/components/AppButton';
 import { theme } from '@/theme';
 
@@ -29,7 +29,7 @@ export function PublishedStoryCta({
   }
 
   const locale = i18n.language?.split('-')[0]?.toLowerCase();
-  const wizardUrl = buildLocalizedAppPath('/wizard', locale);
+  const wizardUrl = buildPublicAppEntryPath('/wizard', locale);
 
   const handlePress = () => {
     Linking.openURL(wizardUrl);

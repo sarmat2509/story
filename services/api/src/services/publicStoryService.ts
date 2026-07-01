@@ -302,15 +302,16 @@ export async function listPublicStories(options: {
   hasAudio?: boolean;
   scenarioCardId?: string;
   language?: string;
+  excludeLanguage?: string;
   ageGroup?: string;
   readingTimeMin?: number;
   readingTimeMax?: number;
   authorId?: string;
   showOnHomePage?: boolean;
 }): Promise<{ items: PublicStoryListItem[]; total: number }> {
-  const { limit = 20, offset = 0, hasAudio, scenarioCardId, language, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage } = options;
+  const { limit = 20, offset = 0, hasAudio, scenarioCardId, language, excludeLanguage, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage } = options;
   const storyRepo = getStoryRepository();
-  const filterOpts = { hasAudio, scenarioCardId, language, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage };
+  const filterOpts = { hasAudio, scenarioCardId, language, excludeLanguage, ageGroup, readingTimeMin, readingTimeMax, authorId, showOnHomePage };
   const [stories, total] = await Promise.all([
     storyRepo.listPublished({ limit, offset, ...filterOpts }),
     storyRepo.countPublished(filterOpts),
@@ -388,6 +389,31 @@ export async function listPublicStories(options: {
     });
 
   return { items, total };
+}
+
+export async function listPublicStoriesForLocaleCatalog(options: {
+  locale: string;
+  limit?: number;
+}): Promise<{
+  items: PublicStoryListItem[];
+  total: number;
+  fallbackStartIndex: number | null;
+}> {
+  const limit = options.limit ?? 24;
+  const locale = options.locale.slice(0, 2).toLowerCase();
+  const primary = await listPublicStories({ limit, offset: 0, language: locale });
+  const remaining = Math.max(0, limit - primary.items.length);
+  const fallback = await listPublicStories({
+    limit: remaining,
+    offset: 0,
+    excludeLanguage: locale,
+  });
+
+  return {
+    items: [...primary.items, ...fallback.items],
+    total: primary.total + fallback.total,
+    fallbackStartIndex: fallback.items.length > 0 ? primary.items.length : null,
+  };
 }
 
 export async function getPublicAuthorById(authorId: string): Promise<PublicAuthorView | null> {

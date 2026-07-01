@@ -22,8 +22,9 @@ import {
 import { renderPricingStructuredData } from './publicStructuredData';
 import {
   buildPublicLandingPath,
+  buildPublicAppEntryPath,
   buildPublicPricingPath,
-  buildLocalizedAppPath,
+  buildPricingFaqItems,
   formatPricingPrice,
   getCombinedPricingUsageHighlight,
   getPricingFeatureLabel,
@@ -71,7 +72,11 @@ a{text-decoration:none}
 .pricing-faq{max-width:920px;margin:36px auto 0;display:grid;gap:12px}
 .pricing-faq h2{margin:0 0 4px;text-align:center;font-size:22px;line-height:1.2;color:#1e293b;letter-spacing:0}
 .pricing-faq details{border:1px solid rgba(139,124,184,.18);border-radius:12px;background:rgba(255,255,255,.88);box-shadow:0 12px 28px rgba(15,23,42,.045)}
-.pricing-faq summary{cursor:pointer;padding:16px 18px;font-size:15px;font-weight:800;color:#1e293b}
+.pricing-faq summary{position:relative;cursor:pointer;padding:16px 46px 16px 18px;font-size:15px;font-weight:800;color:#1e293b;list-style:none}
+.pricing-faq summary::-webkit-details-marker{display:none}
+.pricing-faq summary::after{content:"+";position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:22px;line-height:1;color:#8b7cb8}
+.pricing-faq details[open] summary::after{content:"-"}
+.pricing-faq summary:focus-visible{outline:3px solid rgba(139,124,184,.35);outline-offset:3px;border-radius:10px}
 .pricing-faq p{margin:0;padding:0 18px 16px;font-size:15px;line-height:1.6;color:#475569}
 @media (max-width: 1180px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width: 760px){.wrap{padding:0 16px 56px}.nav{justify-content:center;padding:14px 0 20px}.currency-toggle{width:100%;max-width:280px}.currency-toggle a{flex:1;min-width:0}.grid{grid-template-columns:1fr;gap:16px}.card{padding:20px;border-radius:12px}.desc{min-height:0}}
@@ -104,7 +109,7 @@ function getLandingUrl(webAppUrl: string, locale?: string | null): string {
 }
 
 function getWizardPath(locale?: string | null): string {
-  return buildLocalizedAppPath('/wizard', normalizeLandingLocale(locale));
+  return buildPublicAppEntryPath('/wizard', normalizeLandingLocale(locale));
 }
 
 function getWizardUrl(webAppUrl: string, locale?: string | null): string {
@@ -114,7 +119,7 @@ function getWizardUrl(webAppUrl: string, locale?: string | null): string {
 }
 
 function buildPricingAlternateLinks(webAppUrl: string): string {
-  const defaultUrl = escapeHtml(getPricingUrl(webAppUrl, 'uk'));
+  const defaultUrl = escapeHtml(getPricingUrl(webAppUrl));
   const alternates = PUBLIC_SEO_LOCALES.map((locale) => (
     `<link rel="alternate" hreflang="${locale}" href="${escapeHtml(getPricingUrl(webAppUrl, locale))}">`
   ));
@@ -284,6 +289,7 @@ export function renderPricingHtml(params: {
   const title = plansI18n.title || 'Pricing Plans';
   const subtitle = plansI18n.subtitle || '';
   const faqTitle = plansI18n.bundles?.faq_title || plansI18n.faq_title || 'FAQ';
+  const faqItems = buildPricingFaqItems({ translate: translatePricing });
   const alternateLinks = buildPricingAlternateLinks(webAppUrl);
   const paymentsEnabled = params.paymentsEnabled ?? true;
 
@@ -368,18 +374,11 @@ export function renderPricingHtml(params: {
       <section class="pricing-faq" aria-label="${escapeHtml(faqTitle)}">
         <h2>${escapeHtml(faqTitle)}</h2>
         ${!paymentsEnabled ? `<details open><summary>${escapeHtml(plansI18n.payments_disabled_button || 'Payments coming soon')}</summary><p>${escapeHtml(plansI18n.payments_disabled_notice || 'Paid checkout is not enabled yet. Free access remains available.')}</p></details>` : ''}
+        ${faqItems.map((item) => `
         <details>
-          <summary>${escapeHtml(plansI18n.faq_renewal_q || 'How do subscriptions renew?')}</summary>
-          <p>${escapeHtml(plansI18n.faq_renewal_a || plansI18n.billing_note_renewal || 'Paid subscriptions renew monthly until canceled. You can manage or cancel billing in the billing portal where available.')}</p>
-        </details>
-        <details>
-          <summary>${escapeHtml(plansI18n.faq_bundles_q || 'How do story bundles work?')}</summary>
-          <p>${escapeHtml(plansI18n.faq_bundles_a || plansI18n.billing_note_bundles || 'Bundles are one-time add-ons for the current billing period. Unused bundle credits expire at period end and do not roll over.')}</p>
-        </details>
-        <details>
-          <summary>${escapeHtml(plansI18n.faq_refunds_q || 'How do refunds work?')}</summary>
-          <p>${escapeHtml(plansI18n.faq_refunds_a || plansI18n.billing_note_refunds || 'Refund requests are reviewed through support and do not happen automatically when a subscription is canceled.')}</p>
-        </details>
+          <summary>${escapeHtml(item.title)}</summary>
+          <p>${escapeHtml(item.answer)}</p>
+        </details>`).join('')}
       </section>
     </div>
     ${renderPublicPageFooter(webAppUrl, locale, buildPublicFooterLanguageLinks(webAppUrl, buildPublicPricingPath))}

@@ -2,6 +2,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { getPlanRepository, getStoryRepository } from '../repositories';
 import * as schema from '../db/schema';
 import { getPlanFeatures } from './planService';
+import { calculateBundleGraphicNovelBonus, getBundleBonusForPeriod } from './bundleService';
 import { resolveActiveSubscriptionPeriod } from './subscriptionPeriodService';
 import { getUsageForPeriod } from './usageEventsService';
 import {
@@ -71,8 +72,8 @@ export async function getGraphicNovelUsageForPeriod(params: {
 
 export async function assertGraphicNovelQuotaAvailable(userId: string): Promise<void> {
   const features = await getPlanFeatures(userId);
-  const limit = features.graphicNovelsPerMonth;
-  if (limit < 0) {
+  const planLimit = features.graphicNovelsPerMonth;
+  if (planLimit < 0) {
     return;
   }
 
@@ -90,6 +91,17 @@ export async function assertGraphicNovelQuotaAvailable(userId: string): Promise<
     periodStart: period.periodStart,
     periodEnd: period.periodEnd,
   });
+  const periodBundleBonus = subscription
+    ? await getBundleBonusForPeriod(userId, period.periodStart, period.periodEnd)
+    : null;
+  const bundleBonus = periodBundleBonus
+    ? calculateBundleGraphicNovelBonus({
+        extraStories: periodBundleBonus.extraStories,
+        storiesPlanLimit: features.storiesPerMonth,
+        graphicNovelsPlanLimit: planLimit,
+      })
+    : 0;
+  const limit = planLimit + bundleBonus;
   const quota = calculateGraphicNovelQuota({ limit, used });
 
   if (!quota.allowed) {
