@@ -450,6 +450,10 @@ wait_for_generation_drain() {
 deploy_api() {
   wait_for_generation_drain
 
+  local existing_web_build_id local_web_build_id
+  existing_web_build_id=$(ssh_droplet "if [ -f '${DROPLET_PATH}/.env.production' ]; then grep -E '^WEB_BUILD_ID=' '${DROPLET_PATH}/.env.production' | tail -n 1 | cut -d= -f2-; fi" || true)
+  local_web_build_id=$(read_env_var "${PROJECT_ROOT}/.env.production" "WEB_BUILD_ID" || true)
+
   print_step "Building API image locally (linux/amd64)..."
   docker build --platform linux/amd64 -t ${API_IMAGE}:${API_TAG} \
     -f services/api/Dockerfile \
@@ -467,6 +471,10 @@ deploy_api() {
 
   print_step "Uploading .env.production..."
   scp -o ControlPath=${SSH_CONTROL_PATH} .env.production ${DROPLET_USER}@${DROPLET_IP}:${DROPLET_PATH}/
+  if [[ -z "${local_web_build_id}" && -n "${existing_web_build_id}" ]]; then
+    upsert_remote_env_var "${DROPLET_PATH}/.env.production" "WEB_BUILD_ID" "${existing_web_build_id}"
+    echo "   ✓ Preserved WEB_BUILD_ID=${existing_web_build_id}"
+  fi
   print_step_done
 
   upload_google_credentials
