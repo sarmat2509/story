@@ -6,6 +6,7 @@ import {
   getCharacterRepository,
   getDictionaryRepository,
   getEnvironmentImageCacheRepository,
+  getImageValidationRepository,
   getOutfitPlateCacheRepository,
   getStoryEnvironmentCacheRepository,
   getStoryOutfitPlateCacheRepository,
@@ -3884,6 +3885,9 @@ const GENERATION_RETRY_DELAY_MS = 2000;
 
 type SceneImageDomainService = ReturnType<typeof getImageDomainService>;
 type SceneImageRoute = 'simple' | 'complex';
+type SceneGeneratedImage = Awaited<
+  ReturnType<SceneImageDomainService['generateSceneWithReference']>
+>;
 
 /**
  * Check if an error is a retryable generation failure (IMAGE_OTHER, content blocked).
@@ -4265,7 +4269,7 @@ type EditRepairReferenceImage = {
   base64Data?: string;
   fileUri?: string;
   mimeType?: string;
-  instructionText?: string;
+  instructionText: string;
   characterName?: string;
   source?: string;
   referenceKind?: 'character' | 'object';
@@ -4275,6 +4279,15 @@ type TargetedEditRepairPlan = {
   mode: ImageEditRepairManifest['referenceMode'];
   references?: EditRepairReferenceImage[];
   manifest: ImageEditRepairManifest;
+};
+
+type InitialSceneEditRepair = {
+  originalImage: Buffer;
+  originalMimeType: string;
+  validation: ImageValidationResult;
+  validationScore: number | null;
+  previousAttempt: number;
+  sourceImageStoragePath?: string;
 };
 
 export type GeneratedImageSafetyDecision =
@@ -4507,6 +4520,122 @@ function buildTargetedEditRepairPlan(
   };
 }
 
+async function editSceneImageUsingValidationFeedback(params: {
+  storyId: string;
+  storyRequestId?: string;
+  userId?: string;
+  scene: SceneData;
+  imageDomain: SceneImageDomainService;
+  imageRoute: SceneImageRoute;
+  originalImage: Buffer;
+  originalMimeType: string;
+  validation: ImageValidationResult;
+  validationScore: number | null;
+  referenceImagesArray?: EditRepairReferenceImage[];
+  previousAttempt: number;
+  repairAttempt: number;
+  reason: 'validation_failed' | 'manual_regenerate';
+  sourceImageStoragePath?: string;
+  previousInteractionId?: string;
+}): Promise<SceneGeneratedImage> {
+  const repairStartedAt = new Date();
+  const repairPlan = buildTargetedEditRepairPlan(
+    params.referenceImagesArray,
+    params.validation
+  );
+
+  logger.info(
+    {
+      storyId: params.storyId,
+      sceneId: params.scene.sceneId,
+      previousAttempt: params.previousAttempt,
+      repairAttempt: params.repairAttempt,
+      reason: params.reason,
+      imageRoute: params.imageRoute,
+      feedback: params.validation.overallFeedback,
+      score: params.validationScore,
+      repairMode: repairPlan.mode,
+      repairManifest: repairPlan.manifest,
+      selectedReferenceCount: repairPlan.references?.length ?? 0,
+      selectedReferences: repairPlan.references?.map((ref) => ({
+        characterName: ref.characterName,
+        source: ref.source,
+        referenceKind: ref.referenceKind,
+        instructionText: ref.instructionText,
+      })),
+      sourceImageStoragePath: params.sourceImageStoragePath,
+    },
+    'Editing scene image using validator feedback'
+  );
+
+  try {
+    const image = await params.imageDomain.editSceneImage({
+      originalImage: params.originalImage,
+      originalMimeType: params.originalMimeType,
+      validationResult: params.validation,
+      aspectRatio: '16:9',
+      referenceImages: repairPlan.references,
+      targetedRepairManifest: repairPlan.manifest,
+      previousInteractionId: params.previousInteractionId,
+      systemInstruction: buildImageEditSystemInstruction(),
+      personGeneration: 'allow_all',
+      onUsage: (u) => recordUsage(u, { userId: params.userId ?? null, storyId: params.storyId }),
+    });
+
+    await recordStageTiming({
+      storyId: params.storyId,
+      storyRequestId: params.storyRequestId,
+      userId: params.userId,
+      generationKind: 'story',
+      pipelinePhase: 'asset_generation',
+      operation: 'scene_image_edit_repair',
+      targetType: 'scene',
+      targetKey: String(params.scene.sceneId),
+      sceneIndex: params.scene.sceneId,
+      attempt: params.repairAttempt,
+      startedAt: repairStartedAt,
+      completedAt: new Date(),
+      metadata: {
+        previousAttempt: params.previousAttempt,
+        reason: params.reason,
+        validationScore: params.validationScore,
+        repairMode: repairPlan.mode,
+        selectedReferenceCount: repairPlan.references?.length ?? 0,
+        imageRoute: params.imageRoute,
+        sourceImageStoragePath: params.sourceImageStoragePath ?? null,
+      },
+    });
+
+    return image;
+  } catch (editError) {
+    await recordStageTiming({
+      storyId: params.storyId,
+      storyRequestId: params.storyRequestId,
+      userId: params.userId,
+      generationKind: 'story',
+      pipelinePhase: 'asset_generation',
+      operation: 'scene_image_edit_repair',
+      targetType: 'scene',
+      targetKey: String(params.scene.sceneId),
+      sceneIndex: params.scene.sceneId,
+      attempt: params.repairAttempt,
+      status: 'failed',
+      startedAt: repairStartedAt,
+      completedAt: new Date(),
+      metadata: {
+        previousAttempt: params.previousAttempt,
+        reason: params.reason,
+        validationScore: params.validationScore,
+        imageRoute: params.imageRoute,
+        sourceImageStoragePath: params.sourceImageStoragePath ?? null,
+        errorMessage: editError instanceof Error ? editError.message : String(editError),
+      },
+    });
+
+    throw editError;
+  }
+}
+
 /**
  * Save a rejected (validation-failed) image to disk for debugging.
  * Layout under uploads: {env}/{userId}/{storyId}/rejected/scene{sceneId}_attempt{attempt}.ext
@@ -4571,6 +4700,139 @@ async function saveRejectedImage(params: {
       'Failed to save rejected image (non-fatal)'
     );
     return null;
+  }
+}
+
+function isPersistedImageValidationResult(value: unknown): value is ImageValidationResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const row = value as Partial<ImageValidationResult>;
+  return (
+    typeof row.characterCount === 'number' &&
+    typeof row.expectedCharacterCount === 'number' &&
+    Array.isArray(row.characters) &&
+    typeof row.hasUnexpectedCharacters === 'boolean' &&
+    typeof row.hasTextOrLetters === 'boolean' &&
+    typeof row.hasRenderingArtifacts === 'boolean'
+  );
+}
+
+function selectCurrentSceneImageAsset(
+  sceneImageUrl: string | null | undefined,
+  assets: Array<{
+    storagePath: string;
+    storageUrl: string | null;
+    mimeType: string;
+    status: string;
+    createdAt: Date;
+  }>
+): {
+  storagePath: string;
+  storageUrl: string | null;
+  mimeType: string;
+  status: string;
+  createdAt: Date;
+} | null {
+  const completed = assets
+    .filter((asset) => asset.status === 'completed' && asset.storagePath)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  if (completed.length === 0) return null;
+
+  const currentStoragePath =
+    typeof sceneImageUrl === 'string' && sceneImageUrl.trim()
+      ? extractStoragePath(sceneImageUrl)
+      : null;
+  if (!currentStoragePath) return completed[0] ?? null;
+
+  return (
+    completed.find(
+      (asset) =>
+        asset.storagePath === currentStoragePath ||
+        (asset.storageUrl ? extractStoragePath(asset.storageUrl) === currentStoragePath : false)
+    ) ??
+    completed[0] ??
+    null
+  );
+}
+
+async function buildInitialEditRepairFromCurrentSceneImage(params: {
+  storyId: string;
+  sceneId: number;
+  sceneImageUrl?: string | null;
+  assets: Array<{
+    storagePath: string;
+    storageUrl: string | null;
+    mimeType: string;
+    status: string;
+    createdAt: Date;
+  }>;
+  assetStorage: ReturnType<typeof getAssetStorageService>;
+}): Promise<InitialSceneEditRepair | undefined> {
+  const currentAsset = selectCurrentSceneImageAsset(params.sceneImageUrl, params.assets);
+  if (!currentAsset) {
+    logger.info(
+      { storyId: params.storyId, sceneId: params.sceneId },
+      'Manual regenerate edit repair skipped: no current completed image asset'
+    );
+    return undefined;
+  }
+
+  const validationRows = await getImageValidationRepository().listByStoragePaths([
+    currentAsset.storagePath,
+  ]);
+  const latestValidationRow = validationRows
+    .filter((row) => isPersistedImageValidationResult(row.result))
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+
+  if (!latestValidationRow || !isPersistedImageValidationResult(latestValidationRow.result)) {
+    logger.info(
+      {
+        storyId: params.storyId,
+        sceneId: params.sceneId,
+        storagePath: currentAsset.storagePath,
+      },
+      'Manual regenerate edit repair skipped: no validation result for current image asset'
+    );
+    return undefined;
+  }
+
+  try {
+    const originalImage = await params.assetStorage.getAssetByPath(currentAsset.storagePath);
+    let validationScore = latestValidationRow.validationScore;
+    if (validationScore == null) {
+      try {
+        validationScore = computeValidationScore(latestValidationRow.result);
+      } catch (scoreError) {
+        logger.warn(
+          {
+            err: scoreError,
+            storyId: params.storyId,
+            sceneId: params.sceneId,
+            validationId: latestValidationRow.id,
+          },
+          'Failed to compute validation score for manual regenerate edit repair'
+        );
+      }
+    }
+
+    return {
+      originalImage,
+      originalMimeType: currentAsset.mimeType,
+      validation: latestValidationRow.result,
+      validationScore,
+      previousAttempt: latestValidationRow.attempt,
+      sourceImageStoragePath: currentAsset.storagePath,
+    };
+  } catch (error) {
+    logger.warn(
+      {
+        err: error,
+        storyId: params.storyId,
+        sceneId: params.sceneId,
+        storagePath: currentAsset.storagePath,
+      },
+      'Manual regenerate edit repair skipped: failed to read current image asset'
+    );
+    return undefined;
   }
 }
 
@@ -4676,6 +4938,7 @@ async function generateSceneImageWithReference(
     onValidationRetry?: () => Promise<void>;
     complexImageDomain?: SceneImageDomainService;
     initialImageRoute?: SceneImageRoute;
+    initialEditRepair?: InitialSceneEditRepair;
   }
 ): Promise<{ imageUrl: string; assetId: string }> {
   const startTime = Date.now();
@@ -4935,18 +5198,66 @@ async function generateSceneImageWithReference(
       context.initialImageRoute === 'complex' && context.complexImageDomain ? 'complex' : 'simple';
     const initialImageDomain =
       initialImageRoute === 'complex' ? context.complexImageDomain! : context.imageDomain;
-    const useEditRepair =
-      config.image.validationUseEditRepair && validationRetryImageRoute !== 'complex';
+    const useEditRepair = config.image.validationUseEditRepair;
 
     let imageRoute: SceneImageRoute = initialImageRoute;
-    let image = await generateWithRetry(initialImageDomain, generateRequest, {
-      storyId,
-      sceneId: scene.sceneId,
-      userId: context.userId,
-      nextPromptAttemptId,
-      validationAttempt: 1,
-      imageRoute,
-    });
+    let image: SceneGeneratedImage;
+    if (context.initialEditRepair) {
+      try {
+        image = await editSceneImageUsingValidationFeedback({
+          storyId,
+          storyRequestId: context.requestId,
+          userId: context.userId,
+          scene,
+          imageDomain: initialImageDomain,
+          imageRoute,
+          originalImage: context.initialEditRepair.originalImage,
+          originalMimeType: context.initialEditRepair.originalMimeType,
+          validation: context.initialEditRepair.validation,
+          validationScore: context.initialEditRepair.validationScore,
+          referenceImagesArray,
+          previousAttempt: context.initialEditRepair.previousAttempt,
+          repairAttempt: context.initialEditRepair.previousAttempt + 1,
+          reason: 'manual_regenerate',
+          sourceImageStoragePath: context.initialEditRepair.sourceImageStoragePath,
+        });
+      } catch (editError) {
+        logger.warn(
+          {
+            err:
+              editError instanceof Error
+                ? {
+                    message: editError.message,
+                    name: editError.name,
+                    stack: editError.stack,
+                  }
+                : String(editError),
+            storyId,
+            sceneId: scene.sceneId,
+            imageRoute,
+            sourceImageStoragePath: context.initialEditRepair.sourceImageStoragePath,
+          },
+          'Initial validation edit repair failed — falling back to full scene image generation'
+        );
+        image = await generateWithRetry(initialImageDomain, generateRequest, {
+          storyId,
+          sceneId: scene.sceneId,
+          userId: context.userId,
+          nextPromptAttemptId,
+          validationAttempt: 1,
+          imageRoute,
+        });
+      }
+    } else {
+      image = await generateWithRetry(initialImageDomain, generateRequest, {
+        storyId,
+        sceneId: scene.sceneId,
+        userId: context.userId,
+        nextPromptAttemptId,
+        validationAttempt: 1,
+        imageRoute,
+      });
+    }
     let lastValidation: ImageValidationResult | null = null;
     const outfitByCharacter = omitOutfitProseForNonHumanCharacters(
       resolveCharacterOutfits(scene, context),
@@ -5206,92 +5517,26 @@ async function generateSceneImageWithReference(
           if (attempt < maxAttempts) {
             await context.onValidationRetry?.();
             if (useEditRepair) {
-              const repairStartedAt = new Date();
               try {
-                logger.info(
-                  {
-                    storyId,
-                    sceneId: scene.sceneId,
-                    attempt,
-                    feedback: validation.overallFeedback,
-                    score,
-                  },
-                  'Validation failed — editing scene image using validator feedback'
-                );
-
-                const repairPlan = buildTargetedEditRepairPlan(referenceImagesArray, validation);
-                logger.info(
-                  {
-                    storyId,
-                    sceneId: scene.sceneId,
-                    attempt,
-                    repairMode: repairPlan.mode,
-                    repairManifest: repairPlan.manifest,
-                    selectedReferenceCount: repairPlan.references?.length ?? 0,
-                    selectedReferences: repairPlan.references?.map((ref) => ({
-                      characterName: ref.characterName,
-                      source: ref.source,
-                      referenceKind: ref.referenceKind,
-                      instructionText: ref.instructionText,
-                    })),
-                  },
-                  'Selected targeted image edit repair references'
-                );
-
-                image = await context.imageDomain.editSceneImage({
+                image = await editSceneImageUsingValidationFeedback({
+                  storyId,
+                  storyRequestId: context.requestId,
+                  userId: context.userId,
+                  scene,
+                  imageDomain: validationRetryImageDomain,
+                  imageRoute: validationRetryImageRoute,
                   originalImage: Buffer.from(image.imageData),
                   originalMimeType: image.mimeType,
-                  validationResult: validation,
-                  aspectRatio: '16:9',
-                  referenceImages: repairPlan.references,
-                  targetedRepairManifest: repairPlan.manifest,
+                  validation,
+                  validationScore: score,
+                  referenceImagesArray,
+                  previousAttempt: attempt,
+                  repairAttempt: attempt + 1,
+                  reason: 'validation_failed',
                   previousInteractionId: image.providerInteractionId,
-                  systemInstruction: buildImageEditSystemInstruction(),
-                  personGeneration: 'allow_all',
-                  onUsage: (u) => recordUsage(u, { userId: context.userId ?? null, storyId }),
                 });
-                await recordStageTiming({
-                  storyId,
-                  storyRequestId: context.requestId,
-                  userId: context.userId,
-                  generationKind: 'story',
-                  pipelinePhase: 'asset_generation',
-                  operation: 'scene_image_edit_repair',
-                  targetType: 'scene',
-                  targetKey: String(scene.sceneId),
-                  sceneIndex: scene.sceneId,
-                  attempt: attempt + 1,
-                  startedAt: repairStartedAt,
-                  completedAt: new Date(),
-                  metadata: {
-                    previousAttempt: attempt,
-                    validationScore: score,
-                    repairMode: repairPlan.mode,
-                    selectedReferenceCount: repairPlan.references?.length ?? 0,
-                  },
-                });
+                imageRoute = validationRetryImageRoute;
               } catch (editError) {
-                await recordStageTiming({
-                  storyId,
-                  storyRequestId: context.requestId,
-                  userId: context.userId,
-                  generationKind: 'story',
-                  pipelinePhase: 'asset_generation',
-                  operation: 'scene_image_edit_repair',
-                  targetType: 'scene',
-                  targetKey: String(scene.sceneId),
-                  sceneIndex: scene.sceneId,
-                  attempt: attempt + 1,
-                  status: 'failed',
-                  startedAt: repairStartedAt,
-                  completedAt: new Date(),
-                  metadata: {
-                    previousAttempt: attempt,
-                    validationScore: score,
-                    errorMessage:
-                      editError instanceof Error ? editError.message : String(editError),
-                  },
-                });
                 logger.warn(
                   {
                     err:
@@ -7361,6 +7606,13 @@ export async function regenerateSceneImage(
   const oldAssets = await getAssetRepository().findBySceneId(scene.id, 'image');
 
   const assetStorage = getAssetStorageService();
+  const initialEditRepair = await buildInitialEditRepairFromCurrentSceneImage({
+    storyId,
+    sceneId,
+    sceneImageUrl: scene.imageUrl,
+    assets: oldAssets,
+    assetStorage,
+  });
 
   // Get characters from story metadata
   const metadata = story.metadata as any;
@@ -7700,6 +7952,7 @@ export async function regenerateSceneImage(
     currentEnvironmentId,
     currentEnvironment,
     initialImageRoute: 'complex',
+    initialEditRepair,
   });
 
   if (imageResult.imageUrl) {
