@@ -40,6 +40,10 @@ function isChildProfileCharacter(character: Character): boolean {
   return character.type === 'child' || character.subtype === 'child';
 }
 
+function getCharacterSortRank(character: Character): number {
+  return character.type === 'person' || isChildProfileCharacter(character) ? 0 : 1;
+}
+
 export function CharactersForm({
   characters = [],
   selectedCharacters,
@@ -89,18 +93,23 @@ export function CharactersForm({
     }
   };
 
-  const allItems: DisplayItem[] = characters.map((c) => {
-    const displayType = isChildProfileCharacter(c) ? 'child' : c.type;
-    return {
-      id: c.id,
-      name: c.name,
-      type: c.type,
-      icon: getCharacterIcon(displayType),
-      badge: getCharacterTypeName(displayType),
-      avatarUrl:
-        c.turnaroundSheet?.frontUrl ?? c.turnaroundSheet?.url ?? c.referencePhotos?.[0]?.url,
-    };
-  });
+  const allItems: DisplayItem[] = characters
+    .map((c, index) => {
+      const displayType = isChildProfileCharacter(c) ? 'child' : c.type;
+      return {
+        id: c.id,
+        name: c.name,
+        type: c.type,
+        icon: getCharacterIcon(displayType),
+        badge: getCharacterTypeName(displayType),
+        avatarUrl:
+          c.turnaroundSheet?.frontUrl ?? c.turnaroundSheet?.url ?? c.referencePhotos?.[0]?.url,
+        sortRank: getCharacterSortRank(c),
+        originalIndex: index,
+      };
+    })
+    .sort((a, b) => a.sortRank - b.sortRank || a.originalIndex - b.originalIndex)
+    .map(({ sortRank: _sortRank, originalIndex: _originalIndex, ...item }) => item);
 
   const totalSelected = selectedCharacters.length;
   const hasAnyItems = characters.length > 0;
