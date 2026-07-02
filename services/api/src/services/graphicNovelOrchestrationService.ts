@@ -15,6 +15,7 @@ import { getAssetStorageService } from './assetStorageService';
 import {
   getComplexImageDomainService,
   getGraphicNovelDomainService,
+  getImageDomainService,
   getMixedStoryDomainService,
   getValidationTextProvider,
 } from './aiService';
@@ -160,6 +161,7 @@ type GraphicNovelReferenceImage = ReferenceImage & {
   source?: string;
   type?: string;
   isTurnaround?: boolean;
+  identitySource?: 'turnaround' | 'reference_photo';
   environmentId?: string;
 };
 
@@ -1727,6 +1729,7 @@ async function validateGraphicNovelRenderedPage(params: {
         fileUri: ref.fileUri,
         mimeType: ref.mimeType || 'image/png',
         referenceKind: 'identity' as const,
+        identitySource: ref.isTurnaround ? ('turnaround' as const) : ('reference_photo' as const),
       }));
     const layoutTemplateReferenceImage = params.templateBuffer
       ? [
@@ -2817,7 +2820,12 @@ async function renderAndStorePage(params: {
   const pageStartedAt = new Date();
   const plannedPage = params.page.layoutJson as PlannedGraphicNovelPage;
   const templateBuffer = await renderGraphicNovelPageTemplate(plannedPage);
-  const imageDomain = getComplexImageDomainService();
+  const simpleImageDomain = getImageDomainService();
+  const complexImageDomain = getComplexImageDomainService();
+  const simpleImageProvider = config.image.simpleProvider || 'nanobananapro';
+  const simpleImageModel = config.image.simpleModel || 'gemini-3.1-flash-lite-image';
+  const complexImageProvider = config.image.complexProvider || 'nanobananapro';
+  const complexImageModel = config.image.complexModel || 'gemini-3.1-flash-image';
   const environmentsById = environmentMapForPage(plannedPage, params.environments);
   const environmentReferenceImages = await buildPageEnvironmentReferenceImages({
     storyId: params.storyId,
@@ -2830,7 +2838,7 @@ async function renderAndStorePage(params: {
   const characterReferenceImages = await buildPageCharacterReferenceImages({
     page: plannedPage,
     characters: params.characters,
-    imageDomain,
+    imageDomain: simpleImageDomain,
   });
   const referenceImages = prepareGraphicNovelPageReferences({
     storyId: params.storyId,
@@ -2860,7 +2868,7 @@ async function renderAndStorePage(params: {
         },
       }
     : await editGraphicNovelPage({
-        imageDomain,
+        imageDomain: simpleImageDomain,
         page: plannedPage,
         templateBuffer,
         style: params.style,
@@ -2876,13 +2884,27 @@ async function renderAndStorePage(params: {
           });
         },
       });
+  if (!config.image.skipGeneration) {
+    rendered = {
+      ...rendered,
+      generationParams: {
+        ...rendered.generationParams,
+        initialImageProviderRoute: 'simple',
+        initialImageProvider: simpleImageProvider,
+        initialImageModel: simpleImageModel,
+        finalArtProviderRoute: 'simple',
+        finalArtProvider: simpleImageProvider,
+        finalArtModel: simpleImageModel,
+      },
+    };
+  }
   await saveGraphicNovelDebugImage({
     pageNumber: params.page.pageNumber,
     label: 'art-only',
     imageData: Buffer.from(rendered.imageData),
   });
   const firstArtValidationResult = await validateGraphicNovelRenderedPage({
-    imageDomain,
+    imageDomain: simpleImageDomain,
     imageData: Buffer.from(rendered.imageData),
     mimeType: rendered.mimeType,
     page: plannedPage,
@@ -2937,7 +2959,7 @@ async function renderAndStorePage(params: {
         'Graphic novel art validation failed threshold; editing page art with validator feedback'
       );
       const repaired = await repairGraphicNovelArtWithValidationFeedback({
-        imageDomain,
+        imageDomain: complexImageDomain,
         page: plannedPage,
         imageData: Buffer.from(rendered.imageData),
         mimeType: rendered.mimeType,
@@ -2960,7 +2982,7 @@ async function renderAndStorePage(params: {
         imageData: repaired.imageData,
       });
       repairArtValidationResult = await validateGraphicNovelRenderedPage({
-        imageDomain,
+        imageDomain: complexImageDomain,
         imageData: repaired.imageData,
         mimeType: repaired.mimeType,
         page: plannedPage,
@@ -2995,6 +3017,12 @@ async function renderAndStorePage(params: {
             ...rendered.generationParams,
             validationRepairProviderInteractionId: repaired.providerInteractionId ?? null,
             validationRepairMode: 'edit',
+            validationRepairProviderRoute: 'complex',
+            validationRepairProvider: complexImageProvider,
+            validationRepairModel: complexImageModel,
+            finalArtProviderRoute: 'complex',
+            finalArtProvider: complexImageProvider,
+            finalArtModel: complexImageModel,
           },
         }
       );
@@ -3049,7 +3077,7 @@ async function renderAndStorePage(params: {
   const layoutValidation = selectedArtValidationResult?.validation ?? null;
   const layoutValidationScore = selectedArtValidationResult?.score ?? null;
   const layoutValidationAttempt = selectedArtValidationResult?.attempt ?? 1;
-  const generationParams = {
+  const generationParams: Record<string, unknown> = {
     ...rendered.generationParams,
     bubblePlacement: bubbleVision.placementSummary,
     bubbleVisionAnalysis: bubbleVision.analysis,
@@ -3210,6 +3238,12 @@ async function renderAndStorePage(params: {
     targetKey: String(params.page.pageNumber),
     pageNumber: params.page.pageNumber,
     assetId: asset.id,
+    provider:
+      typeof generationParams.finalArtProvider === 'string'
+        ? generationParams.finalArtProvider
+        : null,
+    model:
+      typeof generationParams.finalArtModel === 'string' ? generationParams.finalArtModel : null,
     startedAt: pageStartedAt,
     completedAt: new Date(),
     metadata: {
@@ -3453,7 +3487,8 @@ export async function regenerateGraphicNovelPageImage(params: {
       requestId: project.storyRequestId || `admin-regenerate-${params.storyId}`,
       storyId: params.storyId,
       userId: story.userId,
-      generationKind: storyMetadata.storyFormat === MIXED_STORY_KIND ? MIXED_STORY_KIND : GRAPHIC_NOVEL_KIND,
+      generationKind:
+        storyMetadata.storyFormat === MIXED_STORY_KIND ? MIXED_STORY_KIND : GRAPHIC_NOVEL_KIND,
       page: pageForRender,
       style: params.style || (storyMetadata.imageStyle as string | undefined) || 'soft_watercolor',
       ageGroup,
@@ -3544,7 +3579,9 @@ export async function processGraphicNovelPages(
   if (!request) {
     throw new Error(`Graphic novel request ${requestId} not found for page generation`);
   }
-  const requestCreatedAt = request.createdAt ? new Date(request.createdAt as Date) : pageBatchStartedAt;
+  const requestCreatedAt = request.createdAt
+    ? new Date(request.createdAt as Date)
+    : pageBatchStartedAt;
   const storyReadyStartedAt = Number.isNaN(requestCreatedAt.getTime())
     ? pageBatchStartedAt
     : requestCreatedAt;

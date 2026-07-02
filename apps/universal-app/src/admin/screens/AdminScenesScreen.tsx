@@ -722,14 +722,7 @@ export default function AdminScenesScreen() {
   );
   const validationsBySceneIndex = useMemo(() => {
     const map = new Map<number, typeof validations>();
-    const currentImageStoragePathBySceneIndex = new Map(
-      scenes.map((scene) => [scene.sceneIndex, scene.imageStoragePath ?? null])
-    );
     for (const item of validations) {
-      const currentImageStoragePath = currentImageStoragePathBySceneIndex.get(item.sceneIndex);
-      if (!currentImageStoragePath || item.imageStoragePath !== currentImageStoragePath) {
-        continue;
-      }
       const list = map.get(item.sceneIndex) ?? [];
       list.push(item);
       map.set(item.sceneIndex, list);
@@ -742,7 +735,7 @@ export default function AdminScenesScreen() {
       );
     }
     return map;
-  }, [scenes, validations]);
+  }, [validations]);
   const cost = scenesQuery.data?.cost;
   const environments = useMemo(
     () => scenesQuery.data?.environments ?? [],

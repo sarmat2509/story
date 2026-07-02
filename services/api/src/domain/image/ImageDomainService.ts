@@ -601,6 +601,7 @@ export class ImageDomainService {
       fileUri?: string; // Files API URI — when present, used instead of inline data
       mimeType: string;
       referenceKind?: 'identity' | 'outfit_plate' | 'layout_template';
+      identitySource?: 'turnaround' | 'reference_photo';
     }>;
     logContext?: { storyId?: string; sceneId?: number; attempt?: number };
     onUsage?: (usage: UsageMetadata) => void;

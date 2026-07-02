@@ -235,10 +235,7 @@ async function testLayoutTemplateReferenceIsAttachedForValidation() {
   assert.match(primary.calls[0].prompt, /Image 2: exact page layout template/);
   assert.match(primary.calls[0].prompt, /"Lera" -> Image 3 \[HUMAN; IDENTITY\]/);
   assert.ok(!primary.calls[0].prompt.includes('"Graphic novel page 3 layout template" ->'));
-  assert.match(
-    primary.calls[0].imageData?.[1]?.instructionText ?? '',
-    /LAYOUT TEMPLATE reference/
-  );
+  assert.match(primary.calls[0].imageData?.[1]?.instructionText ?? '', /LAYOUT TEMPLATE reference/);
   const manifest = result.requestManifest as {
     imageOrder: string[];
     references: Array<{ referenceKind: string; imageIndex: number }>;
@@ -306,12 +303,55 @@ async function testUnreferencedCharacterKeepsDescriptionAndClearsReferenceFields
   assert.strictEqual(druzhok.sameOverallDesignRead, true);
 }
 
+async function testTurnaroundReferenceIsTracedInPromptAndManifest() {
+  const primary = new MockTextProvider([validResult()]);
+
+  const result = await runProductImageValidation(
+    primary,
+    {
+      ...validationInput,
+      referenceImages: [
+        {
+          characterName: 'Lera',
+          imageData: TINY_PNG.toString('base64'),
+          mimeType: 'image/png',
+          referenceKind: 'identity',
+          identitySource: 'turnaround',
+        },
+      ],
+    },
+    {
+      visionModel: 'gemini-test',
+    }
+  );
+
+  assert.strictEqual(primary.calls.length, 1);
+  assert.match(primary.calls[0].prompt, /"Lera" -> Image 2 \[HUMAN; IDENTITY_TURNAROUND\]/);
+  assert.match(
+    primary.calls[0].imageData?.[1]?.instructionText ?? '',
+    /IDENTITY TURNAROUND model sheet/
+  );
+
+  const manifest = result.requestManifest as {
+    imageOrder: string[];
+    references: Array<{ referenceKind: string; identitySource?: string; imageIndex: number }>;
+  };
+  assert.deepStrictEqual(manifest.imageOrder, [
+    '1_generated_illustration',
+    '2_identity_turnaround_Lera',
+  ]);
+  assert.strictEqual(manifest.references[0].referenceKind, 'identity');
+  assert.strictEqual(manifest.references[0].identitySource, 'turnaround');
+  assert.strictEqual(manifest.references[0].imageIndex, 2);
+}
+
 async function main() {
   await testFallbackAfterPrimaryBlocked();
   await testAllBlockedReturnsProviderBlocked();
   await testLayoutChecksSchemaAndPromptAreFlagged();
   await testLayoutTemplateReferenceIsAttachedForValidation();
   await testUnreferencedCharacterKeepsDescriptionAndClearsReferenceFields();
+  await testTurnaroundReferenceIsTracedInPromptAndManifest();
   console.log('imageValidationRun tests passed');
 }
 

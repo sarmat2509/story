@@ -14,6 +14,7 @@ import {
   buildImageValidationRuntimePrompt,
   getImageValidationCachedPrefix,
   type ImageValidationCharacterKind,
+  type ImageValidationIdentitySource,
   type ImageValidationReferenceKind,
 } from '../../prompts/image/ImageValidationPrompt';
 import { buildImageValidationSchema } from '../story/schemas';
@@ -42,6 +43,7 @@ export type ProductImageValidationInput = {
     fileUri?: string;
     mimeType: string;
     referenceKind?: ImageValidationReferenceKind;
+    identitySource?: ImageValidationIdentitySource;
   }>;
   /** Optional ids for structured logs (what we send to the vision model). */
   logContext?: { storyId?: string; sceneId?: number; attempt?: number };
@@ -212,6 +214,7 @@ function buildValidationImageInstruction(params: {
   imageIndex: number;
   characterName?: string;
   referenceKind?: ImageValidationReferenceKind;
+  identitySource?: ImageValidationIdentitySource;
 }): string {
   if (params.imageIndex === 1) {
     return 'Image 1: GENERATED ILLUSTRATION to inspect. Validate this image against the expected roster and references that follow.';
@@ -224,6 +227,10 @@ function buildValidationImageInstruction(params: {
 
   if (params.referenceKind === 'layout_template') {
     return `Image ${params.imageIndex}: LAYOUT TEMPLATE reference. Use this as the exact page geometry for the generated graphic novel page: outer page aspect, panel rectangles, black frames, gutters, row/column splits, and color guide areas that should be fully covered by final art.`;
+  }
+
+  if (params.identitySource === 'turnaround') {
+    return `Image ${params.imageIndex}: IDENTITY TURNAROUND model sheet for "${name}". This is strict multi-view identity ground truth for face/head read, hairstyle, hair color zones, age read, body proportions, silhouette, palette, stable markings, and default clothing only when no outfit plate or scene wardrobe text exists.`;
   }
 
   return `Image ${params.imageIndex}: IDENTITY reference for "${name}". Use this for face, hair, age read, body proportions, silhouette, palette, stable markings, and default clothing only when no outfit plate or scene wardrobe text exists.`;
@@ -308,6 +315,7 @@ export function charHasIdentityReference(
         imageData?: string;
         fileUri?: string;
         referenceKind?: ImageValidationReferenceKind;
+        identitySource?: ImageValidationIdentitySource;
       }>
     | undefined
 ): boolean {
@@ -504,6 +512,7 @@ export async function runProductImageValidation(
     preparedReferenceImages?.map((r) => ({
       characterName: r.characterName,
       referenceKind: r.referenceKind ?? 'identity',
+      identitySource: r.identitySource,
       mimeType: r.mimeType,
       delivery: r.fileUri ? ('file_uri' as const) : ('inline_base64' as const),
     })) ?? [];
@@ -534,7 +543,8 @@ export async function runProductImageValidation(
       imageOrderToModel: [
         '1_generated_illustration',
         ...(preparedReferenceImages ?? []).map(
-          (r, i) => `${i + 2}_${r.referenceKind ?? 'identity'}_${r.characterName}`
+          (r, i) =>
+            `${i + 2}_${r.identitySource === 'turnaround' ? 'identity_turnaround' : (r.referenceKind ?? 'identity')}_${r.characterName}`
         ),
       ],
       totalAttachmentCount: 1 + refMeta.length,
@@ -565,6 +575,7 @@ export async function runProductImageValidation(
           imageIndex: imageDataArray.length + 1,
           characterName: ref.characterName,
           referenceKind: ref.referenceKind ?? 'identity',
+          identitySource: ref.identitySource,
         }),
       });
     }
@@ -577,7 +588,8 @@ export async function runProductImageValidation(
   const imageOrder = [
     '1_generated_illustration',
     ...(preparedReferenceImages ?? []).map(
-      (r, i) => `${i + 2}_${r.referenceKind ?? 'identity'}_${r.characterName}`
+      (r, i) =>
+        `${i + 2}_${r.identitySource === 'turnaround' ? 'identity_turnaround' : (r.referenceKind ?? 'identity')}_${r.characterName}`
     ),
   ];
   const requestManifest: Record<string, unknown> = {
@@ -602,6 +614,7 @@ export async function runProductImageValidation(
       imageIndex: i + 2,
       characterName: r.characterName,
       referenceKind: r.referenceKind ?? 'identity',
+      identitySource: r.identitySource,
       mimeType: r.mimeType,
       delivery: r.fileUri ? 'file_uri' : 'inline_base64',
       sha256: r.imageData ? sha256Short(Buffer.from(r.imageData, 'base64')) : undefined,

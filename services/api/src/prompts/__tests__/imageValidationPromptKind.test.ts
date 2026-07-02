@@ -14,7 +14,7 @@ import {
 } from '../image/ImageValidationPrompt';
 
 function testCacheKeysBumped() {
-  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_FULL, 'image_validation_rules_full_v10');
+  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_FULL, 'image_validation_rules_full_v11');
   assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_LITE, 'image_validation_rules_lite_v4');
 
   const full = getImageValidationCachedPrefix(true);
@@ -65,6 +65,10 @@ function testCacheKeysBumped() {
   assert.ok(
     full.content.includes('without its own IDENTITY mapping'),
     'Full prompt should forbid reference-match fields for unreferenced characters'
+  );
+  assert.ok(
+    full.content.includes('Turnaround identity references are strict multi-view model sheets'),
+    'Full prompt should treat turnaround sheets as strict identity ground truth'
   );
 }
 
@@ -183,6 +187,24 @@ function testLayoutTemplateReferenceIsNotCharacterMapping() {
   assert.ok(!runtime.includes('hasArtworkOverSpeechBubbles=true'));
 }
 
+function testTurnaroundIdentityReferenceIsExplicit() {
+  const runtime = buildImageValidationRuntimePrompt({
+    expectedCharacters: [{ name: 'Mia', characterKind: 'human' }],
+    referenceImages: [
+      {
+        characterName: 'Mia',
+        mimeType: 'image/png',
+        referenceKind: 'identity',
+        identitySource: 'turnaround',
+      },
+    ],
+  });
+
+  assert.ok(runtime.includes('Image 2: turnaround identity reference for "Mia"'));
+  assert.ok(runtime.includes('"Mia" -> Image 2 [HUMAN; IDENTITY_TURNAROUND]'));
+  assert.ok(runtime.includes('strict multi-view model sheet'));
+}
+
 testCacheKeysBumped();
 testKindRendering();
 testSubtypeOnlyWhenProvided();
@@ -190,4 +212,5 @@ testValidationMappingFallback();
 testNfcNameMatchingBetweenRosterAndRefs();
 testLayoutChecksAreFlaggedRuntimeOnly();
 testLayoutTemplateReferenceIsNotCharacterMapping();
+testTurnaroundIdentityReferenceIsExplicit();
 console.log('imageValidationPromptKind tests passed');

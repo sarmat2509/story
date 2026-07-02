@@ -8,6 +8,7 @@ import { stripCharacterIdFromName } from '@wondertales/shared';
 
 export type ImageValidationCharacterKind = 'human' | 'animal' | 'imaginary';
 export type ImageValidationReferenceKind = 'identity' | 'outfit_plate' | 'layout_template';
+export type ImageValidationIdentitySource = 'turnaround' | 'reference_photo';
 
 export interface ImageValidationPromptParams {
   expectedCharacters: Array<{
@@ -25,6 +26,7 @@ export interface ImageValidationPromptParams {
     fileUri?: string;
     mimeType: string;
     referenceKind?: ImageValidationReferenceKind;
+    identitySource?: ImageValidationIdentitySource;
   }>;
   /**
    * Enables extra layout QA fields for prepared graphic-novel pages:
@@ -38,7 +40,7 @@ export interface ImageValidationPromptParams {
   includeBubbleChecks?: boolean;
 }
 
-export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v10';
+export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v11';
 export const IMAGE_VALIDATION_CACHE_KEY_LITE = 'image_validation_rules_lite_v4';
 
 function promptKindLabel(kind: ImageValidationCharacterKind): string {
@@ -67,7 +69,12 @@ function validationRefLabel(
   if (ref.referenceKind === 'layout_template') {
     return `Image ${imageIndex}: layout template reference for the generated graphic novel page`;
   }
-  const role = ref.referenceKind === 'outfit_plate' ? 'outfit plate' : 'identity reference';
+  const role =
+    ref.referenceKind === 'outfit_plate'
+      ? 'outfit plate'
+      : ref.identitySource === 'turnaround'
+        ? 'turnaround identity reference'
+        : 'identity reference';
   return `Image ${imageIndex}: ${role} for "${ref.characterName}"`;
 }
 
@@ -106,6 +113,7 @@ Output JSON rules:
 
 Ground truth:
 - Identity reference images are the ground truth for face, hair, body proportions, silhouette, species/body type, stable markings, and default clothing when no separate clothing ground truth is supplied. If scene wardrobe text or an outfit plate is supplied, do not use identity-reference clothing as wardrobe ground truth for that character.
+- Turnaround identity references are strict multi-view model sheets, not loose inspiration. Use all visible views to lock stable identity traits: face/head read, hairstyle silhouette, braid/ponytail/bun placement, distinctive hair color zones, proportions, body silhouette, and stable markings.
 - Outfit plates are clothing-only references. They never replace or weaken identity requirements from the identity reference image: face, age read, hairstyle, hair silhouette, body proportions, and stable marks still come from the identity reference.
 - The authoritative designer scene brief is the ground truth for what is happening in THIS scene: expression, pose, action, emotion, temporary magical effects, transparency/opacity, glow, motion, and scene-specific presentation.
 - Scene context and "Expected outfit for THIS scene" are wardrobe ground truth only when supplied.
@@ -114,6 +122,7 @@ Ground truth:
 
 Identity rules:
 - HUMAN: highest-weight checks are face structure, age read, visible hairstyle, then proportions/silhouette, then stable colors/markings.
+- When a named HUMAN has an identity reference, found=true means the named character is visibly present, not merely that some generic human occupies the slot. If the generated person has a clearly different stable identity (for example wrong age read, missing distinctive hairstyle/color zones, or generic substitute face/head), set found=false when the named character is not identifiable; otherwise set recognizableScore <= 0.5 and mark the relevant identity booleans false.
 - HUMAN face must be evaluated as its own identity slot, separate from hairstyle, clothing, pose, and temporary expression. Set faceMatchesReference=false when the underlying face/head identity differs: face/head shape, eye shape/spacing, nose, mouth, cheeks, jaw/chin, freckles/glasses/stable marks. Do not make faceMatchesReference=false only because the hairstyle is wrong or because the character has a scene-driven expression/gaze.
 - HUMAN hairstyle must be compared structurally and by color zoning, not by broad hair color alone: hairline/parting, bangs/front locks, number and placement of braids/ponytails/buns, braid thickness, loose-vs-tied sections, length, side placement, natural/base-color regions, dyed/accent-color regions, and distinctive colored streak placement all matter. If the identity reference has multiple/front braids or a high ponytail but the generated image has one thick braid, a single side braid, or a simplified braid silhouette, set hairMatchesReference=false and mention that concrete drift. If the generated image spreads accent colors into natural/base hair regions, removes accent colors from dyed/accent regions, or places color streaks in the wrong hair sections, set hairMatchesReference=false and mention hair color placement drift.
 - HUMAN face and hair booleans must be independent: if the face matches but hair is structurally wrong, set faceMatchesReference=true and hairMatchesReference=false; if hair matches but the face/head identity drifts, set hairMatchesReference=true and faceMatchesReference=false.
@@ -201,7 +210,12 @@ export function buildImageValidationRuntimePrompt(params: ImageValidationPromptP
           .map(({ ref, imageIndex }) => {
             const row = expectedRowForRefName(ref.characterName, expectedCharacters);
             const kind = row ? promptKindLabel(row.characterKind) : 'CHARACTER';
-            const role = ref.referenceKind === 'outfit_plate' ? 'OUTFIT_PLATE' : 'IDENTITY';
+            const role =
+              ref.referenceKind === 'outfit_plate'
+                ? 'OUTFIT_PLATE'
+                : ref.identitySource === 'turnaround'
+                  ? 'IDENTITY_TURNAROUND'
+                  : 'IDENTITY';
             return `"${ref.characterName}" -> Image ${imageIndex} [${kind}; ${role}]`;
           })
           .join('\n')
@@ -254,6 +268,7 @@ export function buildImageValidationRuntimePrompt(params: ImageValidationPromptP
   return [
     'Validate Image 1 against the expected character roster and return JSON only.',
     'For IDENTITY references: use them for identity and default clothing when no separate outfit ground truth exists.',
+    'For IDENTITY_TURNAROUND references: treat the image as a strict multi-view model sheet. A generic substitute with different stable face/head/hair/proportions is not the named character.',
     'AUTHORITATIVE PRIORITY: if the designer scene brief describes a temporary scene-specific state, that brief overrides the neutral/default state shown in identity references.',
     `EXPECTED CHARACTERS (${expectedCharacters.length}):`,
     characterList,
