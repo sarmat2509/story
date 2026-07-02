@@ -130,9 +130,9 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
   },
   saveCharacterAction: {
-    alignSelf: 'flex-start',
+    alignSelf: 'stretch',
     marginTop: theme.spacing[2],
-    marginLeft: CHARACTER_IMAGE_BOX + theme.spacing[3],
+    width: '100%',
   },
   avatarWithPreview: {
     position: 'relative',
