@@ -15,7 +15,6 @@ import { getAssetStorageService } from './assetStorageService';
 import {
   getComplexImageDomainService,
   getGraphicNovelDomainService,
-  getImageDomainService,
   getMixedStoryDomainService,
   getValidationTextProvider,
 } from './aiService';
@@ -2820,10 +2819,7 @@ async function renderAndStorePage(params: {
   const pageStartedAt = new Date();
   const plannedPage = params.page.layoutJson as PlannedGraphicNovelPage;
   const templateBuffer = await renderGraphicNovelPageTemplate(plannedPage);
-  const simpleImageDomain = getImageDomainService();
   const complexImageDomain = getComplexImageDomainService();
-  const simpleImageProvider = config.image.simpleProvider || 'nanobananapro';
-  const simpleImageModel = config.image.simpleModel || 'gemini-3.1-flash-lite-image';
   const complexImageProvider = config.image.complexProvider || 'nanobananapro';
   const complexImageModel = config.image.complexModel || 'gemini-3.1-flash-image';
   const environmentsById = environmentMapForPage(plannedPage, params.environments);
@@ -2838,7 +2834,7 @@ async function renderAndStorePage(params: {
   const characterReferenceImages = await buildPageCharacterReferenceImages({
     page: plannedPage,
     characters: params.characters,
-    imageDomain: simpleImageDomain,
+    imageDomain: complexImageDomain,
   });
   const referenceImages = prepareGraphicNovelPageReferences({
     storyId: params.storyId,
@@ -2868,7 +2864,7 @@ async function renderAndStorePage(params: {
         },
       }
     : await editGraphicNovelPage({
-        imageDomain: simpleImageDomain,
+        imageDomain: complexImageDomain,
         page: plannedPage,
         templateBuffer,
         style: params.style,
@@ -2889,12 +2885,12 @@ async function renderAndStorePage(params: {
       ...rendered,
       generationParams: {
         ...rendered.generationParams,
-        initialImageProviderRoute: 'simple',
-        initialImageProvider: simpleImageProvider,
-        initialImageModel: simpleImageModel,
-        finalArtProviderRoute: 'simple',
-        finalArtProvider: simpleImageProvider,
-        finalArtModel: simpleImageModel,
+        initialImageProviderRoute: 'complex',
+        initialImageProvider: complexImageProvider,
+        initialImageModel: complexImageModel,
+        finalArtProviderRoute: 'complex',
+        finalArtProvider: complexImageProvider,
+        finalArtModel: complexImageModel,
       },
     };
   }
@@ -2904,7 +2900,7 @@ async function renderAndStorePage(params: {
     imageData: Buffer.from(rendered.imageData),
   });
   const firstArtValidationResult = await validateGraphicNovelRenderedPage({
-    imageDomain: simpleImageDomain,
+    imageDomain: complexImageDomain,
     imageData: Buffer.from(rendered.imageData),
     mimeType: rendered.mimeType,
     page: plannedPage,
