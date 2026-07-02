@@ -5187,7 +5187,10 @@ async function generateSceneImageWithReference(
       return imagePromptAttemptCounter;
     };
 
-    const maxAttempts = config.image.enableValidation
+    const isInitialEditRepair = !!context.initialEditRepair;
+    const maxAttempts = isInitialEditRepair
+      ? 1
+      : config.image.enableValidation
       ? Math.min(config.image.validationMaxRetries + 1, 2)
       : 1;
     const validationRetryImageDomain = context.complexImageDomain ?? context.imageDomain;
@@ -5225,7 +5228,7 @@ async function generateSceneImageWithReference(
           sourceImageStoragePath: context.initialEditRepair.sourceImageStoragePath,
         });
       } catch (editError) {
-        logger.warn(
+        logger.error(
           {
             err:
               editError instanceof Error
@@ -5240,16 +5243,9 @@ async function generateSceneImageWithReference(
             imageRoute,
             sourceImageStoragePath: context.initialEditRepair.sourceImageStoragePath,
           },
-          'Initial validation edit repair failed — falling back to full scene image generation'
+          'Initial validation edit repair failed'
         );
-        image = await generateWithRetry(initialImageDomain, generateRequest, {
-          storyId,
-          sceneId: scene.sceneId,
-          userId: context.userId,
-          nextPromptAttemptId,
-          validationAttempt: firstValidationAttempt,
-          imageRoute,
-        });
+        throw editError;
       }
     } else {
       image = await generateWithRetry(initialImageDomain, generateRequest, {
@@ -7779,18 +7775,20 @@ export async function regenerateSceneImage(
     }
   }
 
-  const envReferencePromise = prepareSceneEnvironmentReference({
-    storyId,
-    storyRequestId: story.storyRequestId ?? undefined,
-    userId: story.userId,
-    storyEnvironmentId: currentEnvironmentId,
-    environment: currentEnvironment,
-    assetStorage,
-    imageDomain,
-    scenarioCardId,
-    ...(previousStoryIds.length > 0 ? { previousStoryIds } : {}),
-    reuseExistingOnly: true,
-  });
+  const envReferencePromise = initialEditRepair
+    ? Promise.resolve<EnvImageData | null>(null)
+    : prepareSceneEnvironmentReference({
+        storyId,
+        storyRequestId: story.storyRequestId ?? undefined,
+        userId: story.userId,
+        storyEnvironmentId: currentEnvironmentId,
+        environment: currentEnvironment,
+        assetStorage,
+        imageDomain,
+        scenarioCardId,
+        ...(previousStoryIds.length > 0 ? { previousStoryIds } : {}),
+        reuseExistingOnly: true,
+      });
 
   const characterReferencesPromise = (async () => {
     await ensureLlmTurnaroundsForSceneCharacters({
@@ -7825,27 +7823,33 @@ export async function regenerateSceneImage(
     string,
     Promise<Awaited<ReturnType<typeof getOrCreateOutfitPlateImage>> | null>
   >();
-  const outfitPlateRefsPromise = characterReferencesPromise.then((characterReferenceData) =>
-    prepareSceneOutfitPlateReferences({
-      storyId,
-      storyRequestId: story.storyRequestId ?? undefined,
-      userId: story.userId,
-      normalizedCharacters,
-      characterDescriptionMap,
-      characterReferenceData,
-      scene: sceneData,
-      currentEnvironmentId,
-      currentEnvironment,
-      storyOutfits: storyOutfitsRegen.length > 0 ? storyOutfitsRegen : undefined,
-      imageStyle: metadata?.imageStyle,
-      ageGroup: story.ageGroup,
-      scenarioCardId,
-      assetStorage,
-      imageDomain,
-      outfitPlatePending: outfitPlatePendingRegen,
-      reuseExistingOnly: true,
-    })
-  );
+  const initialRepairNeedsOutfitReferences = initialEditRepair
+    ? initialEditRepair.validation.characters.some(validationCharacterNeedsOutfitRepair)
+    : true;
+  const outfitPlateRefsPromise =
+    initialEditRepair && !initialRepairNeedsOutfitReferences
+      ? Promise.resolve([])
+      : characterReferencesPromise.then((characterReferenceData) =>
+          prepareSceneOutfitPlateReferences({
+            storyId,
+            storyRequestId: story.storyRequestId ?? undefined,
+            userId: story.userId,
+            normalizedCharacters,
+            characterDescriptionMap,
+            characterReferenceData,
+            scene: sceneData,
+            currentEnvironmentId,
+            currentEnvironment,
+            storyOutfits: storyOutfitsRegen.length > 0 ? storyOutfitsRegen : undefined,
+            imageStyle: metadata?.imageStyle,
+            ageGroup: story.ageGroup,
+            scenarioCardId,
+            assetStorage,
+            imageDomain,
+            outfitPlatePending: outfitPlatePendingRegen,
+            reuseExistingOnly: true,
+          })
+        );
 
   const [envImageData, characterReferenceData, outfitPlateRefs] = await Promise.all([
     envReferencePromise,

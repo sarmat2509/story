@@ -665,7 +665,7 @@ export default function AdminValidationDetailScreen() {
                     }
                   />
                   <InfoPill label="Status" value={item.validationStatus ?? 'n/a'} />
-                  <InfoPill label="Vision model" value={item.visionModel ?? 'n/a'} />
+                  <InfoPill label="Validation model" value={item.visionModel ?? 'n/a'} />
                   <InfoPill label="Created" value={new Date(item.createdAt).toLocaleString()} />
                 </View>
 

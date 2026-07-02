@@ -52,7 +52,7 @@ export default function AdminValidationsScreen() {
               'Attempt',
               'Score',
               'Status',
-              'Vision model',
+              'Validation model',
               'Created',
               'View',
             ]}

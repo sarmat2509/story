@@ -1189,7 +1189,7 @@ export default function AdminScenesScreen() {
                                     {validation.validationStatus}
                                   </Text>
                                   <Text style={styles.validationMetaText}>
-                                    {validation.visionModel ?? 'n/a'}
+                                    Validator: {validation.visionModel ?? 'n/a'}
                                   </Text>
                                   <Text style={styles.validationMetaText}>
                                     {new Date(validation.createdAt).toLocaleString()}
