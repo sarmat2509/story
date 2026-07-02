@@ -9,7 +9,9 @@ import {
   type AdminDashboardImageBucket,
   type AdminDashboardOperationBreakdown,
   type AdminDashboardQualityReview,
+  type AdminDashboardReadinessHistogramPoint,
   type AdminDashboardStatus,
+  type AdminDashboardTimingPercentile,
 } from '@/admin/api/admin';
 import { AdminLayout } from '@/admin/components/AdminLayout';
 import { AdminErrorState, AdminLoadingState } from '@/admin/components/AdminState';
@@ -54,6 +56,23 @@ function formatDuration(valueMs: number) {
     return `${(totalMinutes / 60).toFixed(1)}h`;
   }
   return `${totalMinutes.toFixed(1)}m`;
+}
+
+function formatDurationPrecise(valueMs: number) {
+  if (!valueMs || valueMs <= 0) return '0s';
+  if (valueMs < 1000) return `${Math.round(valueMs)}ms`;
+  if (valueMs < 60000) return `${(valueMs / 1000).toFixed(1)}s`;
+  return formatDuration(valueMs);
+}
+
+function formatMinuteMark(valueMs: number) {
+  const minutes = valueMs / 60000;
+  return `${Number.isInteger(minutes) ? minutes.toFixed(0) : minutes.toFixed(1)}m`;
+}
+
+function formatMinuteRange(startMs: number, endMs: number | null) {
+  if (endMs === null) return `${formatMinuteMark(startMs)}+`;
+  return `${formatMinuteMark(startMs)}-${formatMinuteMark(endMs)}`;
 }
 
 function formatDateLabel(value: string) {
@@ -360,6 +379,108 @@ function buildOperationBars(items: AdminDashboardOperationBreakdown[]) {
   }));
 }
 
+function TimingPercentileList({ items }: { items: AdminDashboardTimingPercentile[] }) {
+  if (items.length === 0) {
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyStateText}>No generation timing events yet.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.timingList}>
+      {items.slice(0, 12).map((item) => (
+        <View
+          key={`${item.generationKind}-${item.pipelinePhase}-${item.operation}`}
+          style={styles.timingRow}
+        >
+          <View style={styles.timingTitleRow}>
+            <Text style={styles.timingOperation}>{prettifyOperation(item.operation)}</Text>
+            <Text style={styles.timingMeta}>
+              {prettifyBreakdownValue(item.generationKind)} •{' '}
+              {prettifyBreakdownValue(item.pipelinePhase)}
+            </Text>
+          </View>
+          <View style={styles.timingMetricRow}>
+            <View style={styles.timingMetric}>
+              <Text style={styles.timingMetricLabel}>p50</Text>
+              <Text style={styles.timingMetricValue}>
+                {formatDurationPrecise(item.p50DurationMs)}
+              </Text>
+            </View>
+            <View style={styles.timingMetric}>
+              <Text style={styles.timingMetricLabel}>p90</Text>
+              <Text style={styles.timingMetricValue}>
+                {formatDurationPrecise(item.p90DurationMs)}
+              </Text>
+            </View>
+            <View style={styles.timingMetric}>
+              <Text style={styles.timingMetricLabel}>p95</Text>
+              <Text style={styles.timingMetricValue}>
+                {formatDurationPrecise(item.p95DurationMs)}
+              </Text>
+            </View>
+            <View style={styles.timingMetric}>
+              <Text style={styles.timingMetricLabel}>p99</Text>
+              <Text style={styles.timingMetricValue}>
+                {formatDurationPrecise(item.p99DurationMs)}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.timingHelper}>
+            {formatNumber(item.storyCount)} stories • {formatNumber(item.eventCount)} events
+            {item.failedEventCount > 0 ? ` • ${formatNumber(item.failedEventCount)} failed` : ''}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function StoryReadinessHistogram({ items }: { items: AdminDashboardReadinessHistogramPoint[] }) {
+  if (items.length === 0) {
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyStateText}>No story readiness timing events yet.</Text>
+      </View>
+    );
+  }
+
+  const groups = Array.from(
+    items.reduce((map, item) => {
+      const list = map.get(item.generationKind) || [];
+      list.push(item);
+      map.set(item.generationKind, list);
+      return map;
+    }, new Map<string, AdminDashboardReadinessHistogramPoint[]>())
+  ).sort(([a], [b]) => a.localeCompare(b));
+
+  return (
+    <View style={styles.histogramList}>
+      {groups.map(([generationKind, groupItems]) => (
+        <View key={generationKind} style={styles.histogramGroup}>
+          <Text style={styles.histogramGroupTitle}>
+            {prettifyBreakdownValue(generationKind)}
+          </Text>
+          <VerticalBarChart
+            items={groupItems
+              .slice()
+              .sort((a, b) => a.bucketStartMs - b.bucketStartMs)
+              .map((item) => ({
+                label: formatMinuteRange(item.bucketStartMs, item.bucketEndMs),
+                value: item.storyCount,
+                helper: `avg ${formatDurationPrecise(item.avgDurationMs)} • ${formatNumber(item.eventCount)} events`,
+              }))}
+            color={theme.colors.success[500]}
+            valueFormatter={formatNumber}
+          />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function buildQueueBars(
   queues: Array<{
     name: string;
@@ -543,6 +664,22 @@ export default function AdminDashboardScreen() {
                 labelFormatter={prettifyBreakdownValue}
                 valueFormatter={formatNumber}
               />
+            </SectionCard>
+          </View>
+
+          <View style={styles.sectionGrid}>
+            <SectionCard
+              title="Generation timing percentiles"
+              subtitle="p50, p90, p95 and p99 by format, phase, and operation"
+            >
+              <TimingPercentileList items={data.timingByOperation} />
+            </SectionCard>
+
+            <SectionCard
+              title="Story readiness histogram"
+              subtitle="30-second bins from request creation to user-ready story; long tail is grouped as 20m+"
+            >
+              <StoryReadinessHistogram items={data.storyReadinessHistogram} />
             </SectionCard>
           </View>
 
@@ -970,6 +1107,77 @@ const styles = StyleSheet.create({
   },
   highlightValue: {
     fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  emptyState: {
+    borderWidth: 1,
+    borderColor: theme.colors.border.light,
+    borderRadius: 10,
+    padding: 12,
+    backgroundColor: theme.colors.background.primary,
+  },
+  emptyStateText: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+  },
+  timingList: {
+    gap: 12,
+  },
+  timingRow: {
+    gap: 10,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border.light,
+  },
+  timingTitleRow: {
+    gap: 2,
+  },
+  timingOperation: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  timingMeta: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+  },
+  timingMetricRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  timingMetric: {
+    minWidth: 72,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: theme.colors.background.primary,
+  },
+  timingMetricLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    color: theme.colors.text.tertiary,
+  },
+  timingMetricValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  timingHelper: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: theme.colors.text.secondary,
+  },
+  histogramList: {
+    gap: 18,
+  },
+  histogramGroup: {
+    gap: 10,
+  },
+  histogramGroupTitle: {
+    fontSize: 13,
     fontWeight: '700',
     color: theme.colors.text.primary,
   },

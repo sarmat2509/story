@@ -18,6 +18,7 @@ import {
   isGraphicNovelStyleGenerationKind,
 } from '../services/generationKindRouting';
 import { recordUsage } from '../services/aiUsageService';
+import { recordStageTiming } from '../services/generationStageTimingService';
 import type { BaseJob } from './ConcurrentJobQueue';
 import { DurableJobQueue } from './DurableJobQueue';
 import { config } from '../config';
@@ -528,6 +529,13 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
   if (!story) {
     throw new Error('Story not found');
   }
+  const storyMetadata = (story.metadata as Record<string, unknown> | null) || {};
+  const generationKind: 'story' | 'graphic_novel' | 'mixed_story' =
+    storyMetadata.storyFormat === 'graphic_novel'
+      ? 'graphic_novel'
+      : storyMetadata.storyFormat === 'mixed_story'
+        ? 'mixed_story'
+        : 'story';
 
   // Load scenes ordered by sceneId; strip character IDs but keep allowed audio tags
   const { stripForAudio } = await import('../utils/audioTags');
@@ -619,6 +627,30 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
 
     const audioGenerationTimeMs = Date.now() - audioGenStart;
     const fullTextLength = scenesForAudio.reduce((sum, s) => sum + s.text.length, 0);
+    await recordStageTiming({
+      storyId: job.storyId,
+      storyRequestId: story.storyRequestId ?? null,
+      userId: job.userId,
+      generationKind,
+      pipelinePhase: 'audio',
+      operation: 'audio_total',
+      targetType: 'story',
+      targetKey: job.storyId,
+      provider: voiceRow?.provider ?? null,
+      model: voiceRow?.providerVoiceId ?? null,
+      startedAt: new Date(audioGenStart),
+      completedAt: new Date(),
+      durationMs: audioGenerationTimeMs,
+      metadata: {
+        voiceId: result.voiceId,
+        voiceName: result.voiceName,
+        planType,
+        totalDurationSeconds: result.duration,
+        numChunks: result.numTtsChunks ?? sceneGroups.length,
+        concurrencyLimit,
+        fullTextLength,
+      },
+    });
 
     // Merge: synthesizeSceneGroups already wrote timing + sceneGroupAssetIds to audio_metadata
     const freshAfterSynth = await getStoryRepository().findById(job.storyId);
@@ -743,6 +775,27 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
         error: true,
         errorMessage: 'Audio generation failed. Please try again.',
         failedAt: new Date().toISOString(),
+      },
+    });
+    await recordStageTiming({
+      storyId: job.storyId,
+      storyRequestId: story.storyRequestId ?? null,
+      userId: job.userId,
+      generationKind,
+      pipelinePhase: 'audio',
+      operation: 'audio_total',
+      targetType: 'story',
+      targetKey: job.storyId,
+      status: 'failed',
+      provider: voiceRow?.provider ?? null,
+      model: voiceRow?.providerVoiceId ?? null,
+      startedAt: new Date(audioGenStart),
+      completedAt: new Date(),
+      metadata: {
+        planType,
+        numChunks: sceneGroups.length,
+        concurrencyLimit,
+        errorMessage: error instanceof Error ? error.message : String(error),
       },
     });
 

@@ -1234,6 +1234,55 @@ export const aiUsageEvents = pgTable(
   }
 );
 
+// Generation stage timing events for admin analytics and percentiles.
+export const storyGenerationStageEvents = pgTable(
+  'story_generation_stage_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    storyId: uuid('story_id').references(() => stories.id, { onDelete: 'set null' }),
+    storyRequestId: uuid('story_request_id').references(() => storyRequests.id, {
+      onDelete: 'set null',
+    }),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    parentEventId: uuid('parent_event_id'),
+    generationKind: varchar('generation_kind', { length: 40 }).notNull().default('story'),
+    pipelinePhase: varchar('pipeline_phase', { length: 80 }).notNull(),
+    operation: varchar('operation', { length: 100 }).notNull(),
+    targetType: varchar('target_type', { length: 80 }),
+    targetKey: text('target_key'),
+    sceneIndex: integer('scene_index'),
+    pageNumber: integer('page_number'),
+    assetId: uuid('asset_id').references(() => assets.id, { onDelete: 'set null' }),
+    status: varchar('status', { length: 20 }).notNull().default('completed'),
+    attempt: integer('attempt').notNull().default(1),
+    cacheStatus: varchar('cache_status', { length: 20 }),
+    provider: varchar('provider', { length: 50 }),
+    model: varchar('model', { length: 100 }),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }).notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    metadata: jsonb('metadata').default({}).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    storyIdx: index('story_generation_stage_events_story_idx').on(table.storyId),
+    requestIdx: index('story_generation_stage_events_request_idx').on(table.storyRequestId),
+    createdAtIdx: index('story_generation_stage_events_created_at_idx').on(table.createdAt),
+    kindOperationCreatedIdx: index('story_generation_stage_events_kind_operation_created_idx').on(
+      table.generationKind,
+      table.operation,
+      table.createdAt
+    ),
+    phaseOperationCreatedIdx: index(
+      'story_generation_stage_events_phase_operation_created_idx'
+    ).on(table.pipelinePhase, table.operation, table.createdAt),
+    statusCreatedIdx: index('story_generation_stage_events_status_created_idx').on(
+      table.status,
+      table.createdAt
+    ),
+  })
+);
+
 /** Vision model validation per image attempt (analytics; image_storage_path matches asset path convention). */
 export const imageValidationResults = pgTable(
   'image_validation_results',
@@ -1476,6 +1525,8 @@ export type NewBatchImageJob = typeof batchImageJobs.$inferInsert;
 
 export type AiUsageEvent = typeof aiUsageEvents.$inferSelect;
 export type NewAiUsageEvent = typeof aiUsageEvents.$inferInsert;
+export type StoryGenerationStageEvent = typeof storyGenerationStageEvents.$inferSelect;
+export type NewStoryGenerationStageEvent = typeof storyGenerationStageEvents.$inferInsert;
 
 export type ImageValidationResultRow = typeof imageValidationResults.$inferSelect;
 export type NewImageValidationResultRow = typeof imageValidationResults.$inferInsert;

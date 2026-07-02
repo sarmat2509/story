@@ -88,6 +88,7 @@ import {
 } from '../utils/audioTags';
 import { getPlanFeatures } from './planService';
 import { getIllustrationBlockStartSceneIds } from './storyOrchestration/utilities';
+import { recordStageTiming, withStageTiming } from './generationStageTimingService';
 import { logger } from '../utils/logger';
 
 export const GRAPHIC_NOVEL_KIND = 'graphic_novel';
@@ -1161,22 +1162,67 @@ function environmentMapForPage(
 
 async function ensureGraphicNovelEnvironmentImages(params: {
   storyId: string;
+  storyRequestId?: string;
   userId: string;
   environments: StoryEnvironment[];
   scenarioCardId?: string;
+  generationKind?: typeof GRAPHIC_NOVEL_KIND | typeof MIXED_STORY_KIND;
 }): Promise<Array<{ environmentId: string; storagePath: string; mimeType: string }>> {
   const assetStorage = getAssetStorageService();
   const results: Array<{ environmentId: string; storagePath: string; mimeType: string }> = [];
 
   for (const environment of params.environments) {
-    const image = await getOrCreateEnvironmentImage({
-      storyId: params.storyId,
-      userId: params.userId,
-      storyEnvironmentId: environment.id,
-      environment,
-      assetStorage,
-      scenarioCardId: params.scenarioCardId,
-    });
+    const startedAt = new Date();
+    let image: Awaited<ReturnType<typeof getOrCreateEnvironmentImage>> | null = null;
+    try {
+      image = await getOrCreateEnvironmentImage({
+        storyId: params.storyId,
+        userId: params.userId,
+        storyEnvironmentId: environment.id,
+        environment,
+        assetStorage,
+        scenarioCardId: params.scenarioCardId,
+      });
+      await recordStageTiming({
+        storyId: params.storyId,
+        storyRequestId: params.storyRequestId,
+        userId: params.userId,
+        generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
+        pipelinePhase: 'asset_generation',
+        operation: 'environment_image',
+        targetType: 'environment',
+        targetKey: environment.id,
+        status: image ? 'completed' : 'skipped',
+        startedAt,
+        completedAt: new Date(),
+        metadata: {
+          source: 'graphic_novel_preload',
+          environmentName: environment.name,
+          scenarioCardId: params.scenarioCardId,
+          hasImage: !!image,
+        },
+      });
+    } catch (error) {
+      await recordStageTiming({
+        storyId: params.storyId,
+        storyRequestId: params.storyRequestId,
+        userId: params.userId,
+        generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
+        pipelinePhase: 'asset_generation',
+        operation: 'environment_image',
+        targetType: 'environment',
+        targetKey: environment.id,
+        status: 'failed',
+        startedAt,
+        completedAt: new Date(),
+        metadata: {
+          source: 'graphic_novel_preload',
+          environmentName: environment.name,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
+      throw error;
+    }
     if (image) {
       results.push({
         environmentId: environment.id,
@@ -1191,9 +1237,11 @@ async function ensureGraphicNovelEnvironmentImages(params: {
 
 async function buildPageEnvironmentReferenceImages(params: {
   storyId: string;
+  storyRequestId?: string;
   userId: string;
   page: PlannedGraphicNovelPage;
   environments: StoryEnvironment[];
+  generationKind?: typeof GRAPHIC_NOVEL_KIND | typeof MIXED_STORY_KIND;
 }): Promise<GraphicNovelReferenceImage[]> {
   const pageEnvironmentMap = environmentMapForPage(params.page, params.environments);
   if (pageEnvironmentMap.size === 0) return [];
@@ -1201,13 +1249,57 @@ async function buildPageEnvironmentReferenceImages(params: {
   const assetStorage = getAssetStorageService();
   const references: GraphicNovelReferenceImage[] = [];
   for (const environment of pageEnvironmentMap.values()) {
-    const image = await getOrCreateEnvironmentImage({
-      storyId: params.storyId,
-      userId: params.userId,
-      storyEnvironmentId: environment.id,
-      environment,
-      assetStorage,
-    });
+    const startedAt = new Date();
+    let image: Awaited<ReturnType<typeof getOrCreateEnvironmentImage>> | null = null;
+    try {
+      image = await getOrCreateEnvironmentImage({
+        storyId: params.storyId,
+        userId: params.userId,
+        storyEnvironmentId: environment.id,
+        environment,
+        assetStorage,
+      });
+      await recordStageTiming({
+        storyId: params.storyId,
+        storyRequestId: params.storyRequestId,
+        userId: params.userId,
+        generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
+        pipelinePhase: 'asset_generation',
+        operation: 'environment_image',
+        targetType: 'environment',
+        targetKey: environment.id,
+        pageNumber: params.page.pageNumber,
+        status: image ? 'completed' : 'skipped',
+        startedAt,
+        completedAt: new Date(),
+        metadata: {
+          source: 'graphic_novel_page_reference',
+          environmentName: environment.name,
+          hasImage: !!image,
+        },
+      });
+    } catch (error) {
+      await recordStageTiming({
+        storyId: params.storyId,
+        storyRequestId: params.storyRequestId,
+        userId: params.userId,
+        generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
+        pipelinePhase: 'asset_generation',
+        operation: 'environment_image',
+        targetType: 'environment',
+        targetKey: environment.id,
+        pageNumber: params.page.pageNumber,
+        status: 'failed',
+        startedAt,
+        completedAt: new Date(),
+        metadata: {
+          source: 'graphic_novel_page_reference',
+          environmentName: environment.name,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      });
+      throw error;
+    }
     if (!image) continue;
 
     references.push({
@@ -1960,16 +2052,39 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
     const graphicNovelDomain = getGraphicNovelDomainService();
     await setGraphicNovelProgressStage(requestId, 'generating_script');
     await startTask(requestId, STORY_TASKS.GENERATING_TEXT, { estimatedMs: 45_000 });
-    const script = await graphicNovelDomain.generateScript({
-      spec,
-      pageCount,
-      ...(continuationData.isContinuation &&
-        continuationData.continuationContext && {
-          isContinuation: true,
-          continuationContext: continuationData.continuationContext,
+    const script = await withStageTiming(
+      {
+        storyId,
+        storyRequestId: requestId,
+        userId: request.userId,
+        generationKind: GRAPHIC_NOVEL_KIND,
+        pipelinePhase: 'text',
+        operation: 'graphic_novel_script',
+        targetType: 'story',
+        metadata: {
+          pageCount,
+          isContinuation: continuationData.isContinuation,
+          language: spec.language,
+          ageGroup: spec.ageGroup,
+        },
+        successMetadata: (result) => ({
+          environmentCount: result.environments?.length ?? 0,
+          pageCount: result.pages?.length ?? pageCount,
+          outfitCount: result.outfits?.length ?? 0,
         }),
-      onUsage: (usage) => recordUsage(usage, { userId: request.userId, storyId: storyId! }),
-    });
+      },
+      () =>
+        graphicNovelDomain.generateScript({
+          spec,
+          pageCount,
+          ...(continuationData.isContinuation &&
+            continuationData.continuationContext && {
+              isContinuation: true,
+              continuationContext: continuationData.continuationContext,
+            }),
+          onUsage: (usage) => recordUsage(usage, { userId: request.userId, storyId: storyId! }),
+        })
+    );
 
     await transitionTask(requestId, STORY_TASKS.GENERATING_TEXT, STORY_TASKS.PRODUCING_VISUALS, {
       estimatedMs: 20_000,
@@ -1977,17 +2092,41 @@ export async function processGraphicNovelRequest(requestId: string): Promise<{ s
     await setGraphicNovelProgressStage(requestId, 'planning_pages');
     const graphicNovelEnvironmentImages = await ensureGraphicNovelEnvironmentImages({
       storyId,
+      storyRequestId: requestId,
       userId: request.userId,
       environments: script.environments,
       scenarioCardId: spec.scenarioCard?.id,
+      generationKind: GRAPHIC_NOVEL_KIND,
     });
-    const characterManifest = await buildGraphicNovelCharacterManifest(
-      (spec.characters || []) as CharacterData[]
+    const { characterManifest, plannedPages } = await withStageTiming(
+      {
+        storyId,
+        storyRequestId: requestId,
+        userId: request.userId,
+        generationKind: GRAPHIC_NOVEL_KIND,
+        pipelinePhase: 'visual_planning',
+        operation: 'graphic_novel_layout',
+        targetType: 'story',
+        metadata: {
+          pageCount,
+          environmentCount: script.environments.length,
+        },
+        successMetadata: (result) => ({
+          plannedPageCount: result.plannedPages.length,
+          characterCount: result.characterManifest.length,
+        }),
+      },
+      async () => {
+        const manifest = await buildGraphicNovelCharacterManifest(
+          (spec.characters || []) as CharacterData[]
+        );
+        const aliases = buildGraphicNovelCharacterAliasMap(manifest);
+        const pages = graphicNovelDomain
+          .planLayouts({ spec, script })
+          .map((page) => ({ ...page, characterAliases: aliases }));
+        return { characterManifest: manifest, plannedPages: pages };
+      }
     );
-    const characterAliases = buildGraphicNovelCharacterAliasMap(characterManifest);
-    const plannedPages = graphicNovelDomain
-      .planLayouts({ spec, script })
-      .map((page) => ({ ...page, characterAliases }));
     await setGraphicNovelProgressStage(requestId, 'placing_bubbles');
     await completeTask(requestId, STORY_TASKS.PRODUCING_VISUALS);
 
@@ -2258,18 +2397,43 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
     const mixedStoryDomain = getMixedStoryDomainService();
     await setGraphicNovelProgressStage(requestId, 'generating_script', MIXED_STORY_KIND);
     await startTask(requestId, STORY_TASKS.GENERATING_TEXT, { estimatedMs: 45_000 });
-    const { script, repairs } = await mixedStoryDomain.generateScript({
-      spec,
-      sceneCount,
-      comicSceneIds,
-      comicBlockCount,
-      ...(continuationData.isContinuation &&
-        continuationData.continuationContext && {
-          isContinuation: true,
-          continuationContext: continuationData.continuationContext,
+    const { script, repairs } = await withStageTiming(
+      {
+        storyId,
+        storyRequestId: requestId,
+        userId: request.userId,
+        generationKind: MIXED_STORY_KIND,
+        pipelinePhase: 'text',
+        operation: 'mixed_story_script',
+        targetType: 'story',
+        metadata: {
+          sceneCount,
+          comicBlockCount,
+          isContinuation: continuationData.isContinuation,
+          language: spec.language,
+          ageGroup: spec.ageGroup,
+        },
+        successMetadata: (result) => ({
+          environmentCount: result.script.environments?.length ?? 0,
+          readingBlockCount: result.script.readingBlocks?.length ?? 0,
+          repairCount: result.repairs?.length ?? 0,
+          outfitCount: result.script.outfits?.length ?? 0,
         }),
-      onUsage: (usage) => recordUsage(usage, { userId: request.userId, storyId: storyId! }),
-    });
+      },
+      () =>
+        mixedStoryDomain.generateScript({
+          spec,
+          sceneCount,
+          comicSceneIds,
+          comicBlockCount,
+          ...(continuationData.isContinuation &&
+            continuationData.continuationContext && {
+              isContinuation: true,
+              continuationContext: continuationData.continuationContext,
+            }),
+          onUsage: (usage) => recordUsage(usage, { userId: request.userId, storyId: storyId! }),
+        })
+    );
 
     await transitionTask(requestId, STORY_TASKS.GENERATING_TEXT, STORY_TASKS.PRODUCING_VISUALS, {
       estimatedMs: 15_000,
@@ -2277,19 +2441,44 @@ export async function processMixedStoryRequest(requestId: string): Promise<{ sto
     await setGraphicNovelProgressStage(requestId, 'planning_pages', MIXED_STORY_KIND);
     const graphicNovelEnvironmentImages = await ensureGraphicNovelEnvironmentImages({
       storyId,
+      storyRequestId: requestId,
       userId: request.userId,
       environments: script.environments,
       scenarioCardId: spec.scenarioCard?.id,
+      generationKind: MIXED_STORY_KIND,
     });
-    const characterManifest = await buildGraphicNovelCharacterManifest(
-      (spec.characters || []) as CharacterData[]
+    const { characterManifest, plannedPages } = await withStageTiming(
+      {
+        storyId,
+        storyRequestId: requestId,
+        userId: request.userId,
+        generationKind: MIXED_STORY_KIND,
+        pipelinePhase: 'visual_planning',
+        operation: 'mixed_story_layout',
+        targetType: 'story',
+        metadata: {
+          sceneCount,
+          comicBlockCount,
+          environmentCount: script.environments.length,
+        },
+        successMetadata: (result) => ({
+          plannedPageCount: result.plannedPages.length,
+          characterCount: result.characterManifest.length,
+        }),
+      },
+      async () => {
+        const manifest = await buildGraphicNovelCharacterManifest(
+          (spec.characters || []) as CharacterData[]
+        );
+        const aliases = buildGraphicNovelCharacterAliasMap(manifest);
+        const pages = planGraphicNovelLayouts({
+          ageGroup: spec.ageGroup,
+          pages: mixedStoryComicPages(script),
+          outfits: script.outfits,
+        }).map((page) => ({ ...page, characterAliases: aliases }));
+        return { characterManifest: manifest, plannedPages: pages };
+      }
     );
-    const characterAliases = buildGraphicNovelCharacterAliasMap(characterManifest);
-    const plannedPages = planGraphicNovelLayouts({
-      ageGroup: spec.ageGroup,
-      pages: mixedStoryComicPages(script),
-      outfits: script.outfits,
-    }).map((page) => ({ ...page, characterAliases }));
     const comicPanelRange = graphicNovelPanelCountRange(spec.ageGroup);
     await setGraphicNovelProgressStage(requestId, 'placing_bubbles', MIXED_STORY_KIND);
     await completeTask(requestId, STORY_TASKS.PRODUCING_VISUALS);
@@ -2617,6 +2806,7 @@ async function renderAndStorePage(params: {
   requestId: string;
   storyId: string;
   userId: string;
+  generationKind?: typeof GRAPHIC_NOVEL_KIND | typeof MIXED_STORY_KIND;
   page: any;
   style: string;
   ageGroup: string;
@@ -2624,15 +2814,18 @@ async function renderAndStorePage(params: {
   characters: GraphicNovelCharacterManifest;
   createCoverCandidate?: boolean;
 }): Promise<RenderedGraphicNovelPageAssets> {
+  const pageStartedAt = new Date();
   const plannedPage = params.page.layoutJson as PlannedGraphicNovelPage;
   const templateBuffer = await renderGraphicNovelPageTemplate(plannedPage);
   const imageDomain = getComplexImageDomainService();
   const environmentsById = environmentMapForPage(plannedPage, params.environments);
   const environmentReferenceImages = await buildPageEnvironmentReferenceImages({
     storyId: params.storyId,
+    storyRequestId: params.requestId,
     userId: params.userId,
     page: plannedPage,
     environments: params.environments,
+    generationKind: params.generationKind,
   });
   const characterReferenceImages = await buildPageCharacterReferenceImages({
     page: plannedPage,
@@ -2897,8 +3090,9 @@ async function renderAndStorePage(params: {
       kind: 'graphic_novel_page',
       pageNumber: params.page.pageNumber,
       requestId: params.requestId,
+      storyFormat: params.generationKind ?? GRAPHIC_NOVEL_KIND,
     },
-    generationTimeMs: null,
+    generationTimeMs: Date.now() - pageStartedAt.getTime(),
     status: 'completed',
   });
 
@@ -3004,6 +3198,37 @@ async function renderAndStorePage(params: {
       );
     }
   }
+
+  await recordStageTiming({
+    storyId: params.storyId,
+    storyRequestId: params.requestId,
+    userId: params.userId,
+    generationKind: params.generationKind ?? GRAPHIC_NOVEL_KIND,
+    pipelinePhase: 'asset_generation',
+    operation: 'comic_page_image',
+    targetType: 'comic_page',
+    targetKey: String(params.page.pageNumber),
+    pageNumber: params.page.pageNumber,
+    assetId: asset.id,
+    startedAt: pageStartedAt,
+    completedAt: new Date(),
+    metadata: {
+      templateId: plannedPage.template.id,
+      pageRole: plannedPage.pageRole,
+      panelCount: plannedPage.panels.length,
+      referenceCount: referenceImages.length,
+      environmentReferenceCount: environmentReferenceImages.length,
+      characterReferenceCount: characterReferenceImages.length,
+      bubblePlacementMode:
+        typeof bubbleVision.placementSummary.mode === 'string'
+          ? bubbleVision.placementSummary.mode
+          : null,
+      validationScore: layoutValidationScore,
+      validationAttempt: layoutValidationAttempt,
+      createCoverCandidate: params.createCoverCandidate === true,
+      coverAssetId: coverAssetId ?? null,
+    },
+  });
 
   return {
     pageAssetId: asset.id,
@@ -3228,6 +3453,7 @@ export async function regenerateGraphicNovelPageImage(params: {
       requestId: project.storyRequestId || `admin-regenerate-${params.storyId}`,
       storyId: params.storyId,
       userId: story.userId,
+      generationKind: storyMetadata.storyFormat === MIXED_STORY_KIND ? MIXED_STORY_KIND : GRAPHIC_NOVEL_KIND,
       page: pageForRender,
       style: params.style || (storyMetadata.imageStyle as string | undefined) || 'soft_watercolor',
       ageGroup,
@@ -3313,10 +3539,15 @@ export async function processGraphicNovelPages(
   requestId: string,
   options: { stopAfterFirstPage?: boolean } = {}
 ): Promise<void> {
+  const pageBatchStartedAt = new Date();
   const request = await getStoryRepository().findRequestById(requestId);
   if (!request) {
     throw new Error(`Graphic novel request ${requestId} not found for page generation`);
   }
+  const requestCreatedAt = request.createdAt ? new Date(request.createdAt as Date) : pageBatchStartedAt;
+  const storyReadyStartedAt = Number.isNaN(requestCreatedAt.getTime())
+    ? pageBatchStartedAt
+    : requestCreatedAt;
 
   const project = await getGraphicNovelRepository().findProjectByRequestId(requestId);
   if (!project) {
@@ -3349,12 +3580,14 @@ export async function processGraphicNovelPages(
       continue;
     }
 
+    const pageStartedAt = new Date();
     try {
       await getGraphicNovelRepository().updatePage(page.id, { status: 'generating' });
       const renderedAssets = await renderAndStorePage({
         requestId,
         storyId: project.storyId,
         userId: request.userId,
+        generationKind,
         page,
         style: (storyMetadata.imageStyle as string | undefined) || 'soft_watercolor',
         ageGroup: project.ageGroup || story?.ageGroup || '6-8',
@@ -3401,6 +3634,44 @@ export async function processGraphicNovelPages(
           storyId: project.storyId,
           updatedAt: new Date(),
         });
+        const firstPageCompletedAt = new Date();
+        await recordStageTiming({
+          storyId: project.storyId,
+          storyRequestId: requestId,
+          userId: request.userId,
+          generationKind,
+          pipelinePhase: 'asset_generation',
+          operation: 'first_page_ready',
+          targetType: 'comic_page',
+          targetKey: String(page.pageNumber),
+          pageNumber: page.pageNumber,
+          assetId: renderedAssets.pageAssetId,
+          startedAt: pageBatchStartedAt,
+          completedAt: firstPageCompletedAt,
+          metadata: {
+            pageCount: pages.length,
+            stopAfterFirstPage: options.stopAfterFirstPage === true,
+            coverAssetId: renderedAssets.coverAssetId ?? null,
+          },
+        });
+        await recordStageTiming({
+          storyId: project.storyId,
+          storyRequestId: requestId,
+          userId: request.userId,
+          generationKind,
+          pipelinePhase: 'postprocess',
+          operation: 'story_ready',
+          targetType: 'story',
+          targetKey: project.storyId,
+          startedAt: storyReadyStartedAt,
+          completedAt: firstPageCompletedAt,
+          metadata: {
+            readyReason: 'first_comic_page',
+            pageCount: pages.length,
+            firstPageNumber: page.pageNumber,
+            stopAfterFirstPage: options.stopAfterFirstPage === true,
+          },
+        });
         logger.info({ requestId, storyId: project.storyId }, 'Graphic novel first page ready');
         if (options.stopAfterFirstPage) {
           break;
@@ -3412,9 +3683,46 @@ export async function processGraphicNovelPages(
         status: 'failed',
         errorMessage: message,
       });
+      await recordStageTiming({
+        storyId: project.storyId,
+        storyRequestId: requestId,
+        userId: request.userId,
+        generationKind,
+        pipelinePhase: 'asset_generation',
+        operation: 'comic_page_image',
+        targetType: 'comic_page',
+        targetKey: String(page.pageNumber),
+        pageNumber: page.pageNumber,
+        status: 'failed',
+        startedAt: pageStartedAt,
+        completedAt: new Date(),
+        metadata: {
+          pageCount: pages.length,
+          errorMessage: message,
+        },
+      });
       failedPages.push({ pageNumber: page.pageNumber, errorMessage: message });
 
       if (page.pageNumber === 1 && !firstPageReady) {
+        await recordStageTiming({
+          storyId: project.storyId,
+          storyRequestId: requestId,
+          userId: request.userId,
+          generationKind,
+          pipelinePhase: 'asset_generation',
+          operation: 'comic_page_batch',
+          targetType: 'story',
+          targetKey: project.storyId,
+          status: 'failed',
+          startedAt: pageBatchStartedAt,
+          completedAt: new Date(),
+          metadata: {
+            pageCount: pages.length,
+            failedPageCount: failedPages.length,
+            stopAfterFirstPage: options.stopAfterFirstPage === true,
+            errorMessage: message,
+          },
+        });
         throw error;
       }
       logger.warn(
@@ -3442,6 +3750,24 @@ export async function processGraphicNovelPages(
       firstPageReady: true,
       graphicNovelGenerationComplete: generationComplete,
       ...(failedPages.length > 0 && { failedGraphicNovelPages: failedPages }),
+    },
+  });
+  await recordStageTiming({
+    storyId: project.storyId,
+    storyRequestId: requestId,
+    userId: request.userId,
+    generationKind,
+    pipelinePhase: 'asset_generation',
+    operation: 'comic_page_batch',
+    targetType: 'story',
+    targetKey: project.storyId,
+    startedAt: pageBatchStartedAt,
+    completedAt: new Date(),
+    metadata: {
+      pageCount: pages.length,
+      failedPageCount: failedPages.length,
+      generationComplete,
+      stopAfterFirstPage: options.stopAfterFirstPage === true,
     },
   });
 }

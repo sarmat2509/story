@@ -61,6 +61,30 @@ export type AdminDashboardCostOperation = {
   totalCostUsd: number;
 };
 
+export type AdminDashboardTimingPercentile = {
+  generationKind: string;
+  pipelinePhase: string;
+  operation: string;
+  eventCount: number;
+  storyCount: number;
+  failedEventCount: number;
+  avgDurationMs: number;
+  p50DurationMs: number;
+  p75DurationMs: number;
+  p90DurationMs: number;
+  p95DurationMs: number;
+  p99DurationMs: number;
+};
+
+export type AdminDashboardReadinessHistogramPoint = {
+  generationKind: string;
+  eventCount: number;
+  storyCount: number;
+  bucketStartMs: number;
+  bucketEndMs: number | null;
+  avgDurationMs: number;
+};
+
 export type AdminDashboardBreakdownItem = {
   value: string;
   storyCount: number;
@@ -94,6 +118,8 @@ export type AdminDashboardData = {
   daily: AdminDashboardDailyPoint[];
   costByImageCount: AdminDashboardImageBucket[];
   costByOperation: AdminDashboardCostOperation[];
+  timingByOperation: AdminDashboardTimingPercentile[];
+  storyReadinessHistogram: AdminDashboardReadinessHistogramPoint[];
   languages: AdminDashboardBreakdownItem[];
   imageStyles: AdminDashboardBreakdownItem[];
 };
@@ -124,6 +150,8 @@ export class AdminDashboardRepository {
     const requestWhereClause = this.buildRequestWhereClause(days);
     const unpricedAiUsageWhereClause = this.buildUnpricedAiUsageWhereClause(days);
     const thresholds = normalizeCostControlThresholds(config.costControls);
+    const readinessHistogramBucketMs = 30_000;
+    const readinessHistogramMaxMs = 20 * 60_000;
 
     const overviewResult = await this.db.execute(sql`
       WITH story_base AS (
@@ -348,6 +376,87 @@ export class AdminDashboardRepository {
       LIMIT 8
     `);
 
+    const timingByOperationResult = await this.db.execute(sql`
+      SELECT
+        generation_kind,
+        pipeline_phase,
+        operation,
+        COUNT(*)::int AS event_count,
+        COUNT(DISTINCT story_id)::int AS story_count,
+        COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_event_count,
+        COALESCE(AVG(duration_ms), 0)::numeric AS avg_duration_ms,
+        COALESCE(
+          percentile_cont(0.50) WITHIN GROUP (ORDER BY duration_ms),
+          0
+        )::numeric AS p50_duration_ms,
+        COALESCE(
+          percentile_cont(0.75) WITHIN GROUP (ORDER BY duration_ms),
+          0
+        )::numeric AS p75_duration_ms,
+        COALESCE(
+          percentile_cont(0.90) WITHIN GROUP (ORDER BY duration_ms),
+          0
+        )::numeric AS p90_duration_ms,
+        COALESCE(
+          percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms),
+          0
+        )::numeric AS p95_duration_ms,
+        COALESCE(
+          percentile_cont(0.99) WITHIN GROUP (ORDER BY duration_ms),
+          0
+        )::numeric AS p99_duration_ms
+      FROM story_generation_stage_events
+      WHERE duration_ms >= 0
+        AND status <> 'skipped'
+        AND (${days} <= 0 OR created_at >= NOW() - (${days} * INTERVAL '1 day'))
+      GROUP BY generation_kind, pipeline_phase, operation
+      ORDER BY p95_duration_ms DESC, event_count DESC
+      LIMIT 32
+    `);
+
+    const storyReadinessHistogramResult = await this.db.execute(sql`
+      WITH ready_events AS (
+        SELECT
+          generation_kind,
+          story_id,
+          duration_ms
+        FROM story_generation_stage_events
+        WHERE operation = 'story_ready'
+          AND status = 'completed'
+          AND duration_ms >= 0
+          AND (${days} <= 0 OR created_at >= NOW() - (${days} * INTERVAL '1 day'))
+      ),
+      bucketed AS (
+        SELECT
+          generation_kind,
+          story_id,
+          (
+            CASE
+            WHEN duration_ms >= ${readinessHistogramMaxMs} THEN ${readinessHistogramMaxMs}
+            ELSE (FLOOR(duration_ms::numeric / ${readinessHistogramBucketMs}) * ${readinessHistogramBucketMs})::int
+            END
+          )::int AS bucket_start_ms,
+          (
+            CASE
+            WHEN duration_ms >= ${readinessHistogramMaxMs} THEN NULL
+            ELSE ((FLOOR(duration_ms::numeric / ${readinessHistogramBucketMs}) + 1) * ${readinessHistogramBucketMs})::int
+            END
+          )::int AS bucket_end_ms,
+          duration_ms
+        FROM ready_events
+      )
+      SELECT
+        generation_kind,
+        bucket_start_ms,
+        bucket_end_ms,
+        COUNT(*)::int AS event_count,
+        COUNT(DISTINCT story_id)::int AS story_count,
+        COALESCE(AVG(duration_ms), 0)::numeric AS avg_duration_ms
+      FROM bucketed
+      GROUP BY generation_kind, bucket_start_ms, bucket_end_ms
+      ORDER BY generation_kind ASC, bucket_start_ms ASC
+    `);
+
     const languagesResult = await this.db.execute(sql`
       WITH story_base AS (
         SELECT
@@ -523,6 +632,12 @@ export class AdminDashboardRepository {
     const dailyRows = (dailyResult.rows ?? []) as Array<Record<string, unknown>>;
     const costByImageCountRows = (costByImageCountResult.rows ?? []) as Array<Record<string, unknown>>;
     const costByOperationRows = (costByOperationResult.rows ?? []) as Array<Record<string, unknown>>;
+    const timingByOperationRows = (timingByOperationResult.rows ?? []) as Array<
+      Record<string, unknown>
+    >;
+    const storyReadinessHistogramRows = (storyReadinessHistogramResult.rows ?? []) as Array<
+      Record<string, unknown>
+    >;
     const languageRows = (languagesResult.rows ?? []) as Array<Record<string, unknown>>;
     const imageStyleRows = (imageStylesResult.rows ?? []) as Array<Record<string, unknown>>;
     const costControlRows = (costControlResult.rows ?? []) as Array<Record<string, unknown>>;
@@ -580,6 +695,30 @@ export class AdminDashboardRepository {
       eventCount: Number(row.event_count ?? 0),
       storyCount: Number(row.story_count ?? 0),
       totalCostUsd: Number(row.total_cost_usd ?? 0),
+    }));
+
+    const timingByOperation = timingByOperationRows.map((row) => ({
+      generationKind: String(row.generation_kind),
+      pipelinePhase: String(row.pipeline_phase),
+      operation: String(row.operation),
+      eventCount: Number(row.event_count ?? 0),
+      storyCount: Number(row.story_count ?? 0),
+      failedEventCount: Number(row.failed_event_count ?? 0),
+      avgDurationMs: Number(row.avg_duration_ms ?? 0),
+      p50DurationMs: Number(row.p50_duration_ms ?? 0),
+      p75DurationMs: Number(row.p75_duration_ms ?? 0),
+      p90DurationMs: Number(row.p90_duration_ms ?? 0),
+      p95DurationMs: Number(row.p95_duration_ms ?? 0),
+      p99DurationMs: Number(row.p99_duration_ms ?? 0),
+    }));
+
+    const storyReadinessHistogram = storyReadinessHistogramRows.map((row) => ({
+      generationKind: String(row.generation_kind),
+      eventCount: Number(row.event_count ?? 0),
+      storyCount: Number(row.story_count ?? 0),
+      bucketStartMs: Number(row.bucket_start_ms ?? 0),
+      bucketEndMs: row.bucket_end_ms === null ? null : Number(row.bucket_end_ms ?? 0),
+      avgDurationMs: Number(row.avg_duration_ms ?? 0),
     }));
 
     const dailyAverageDenominator = days > 0 ? Math.max(days, 1) : Math.max(dailyRows.length, 1);
@@ -649,6 +788,8 @@ export class AdminDashboardRepository {
       daily,
       costByImageCount,
       costByOperation,
+      timingByOperation,
+      storyReadinessHistogram,
       languages: toBreakdown(languageRows),
       imageStyles: toBreakdown(imageStyleRows),
     };

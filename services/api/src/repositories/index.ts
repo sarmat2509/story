@@ -46,6 +46,7 @@ import { StoryQuizProgressRepository } from './StoryQuizProgressRepository';
 import { GraphicNovelRepository } from './GraphicNovelRepository';
 import { OpsRuntimeRepository } from './OpsRuntimeRepository';
 import { GenerationJobRepository } from './GenerationJobRepository';
+import { StoryGenerationStageEventRepository } from './StoryGenerationStageEventRepository';
 
 // Re-export classes for type usage
 export { UserRepository } from './UserRepository';
@@ -87,6 +88,7 @@ export { StoryQuizProgressRepository } from './StoryQuizProgressRepository';
 export { GraphicNovelRepository } from './GraphicNovelRepository';
 export { OpsRuntimeRepository } from './OpsRuntimeRepository';
 export { GenerationJobRepository } from './GenerationJobRepository';
+export { StoryGenerationStageEventRepository } from './StoryGenerationStageEventRepository';
 
 // Singleton instances
 let userRepo: UserRepository;
@@ -128,6 +130,7 @@ let storyQuizProgressRepo: StoryQuizProgressRepository;
 let graphicNovelRepo: GraphicNovelRepository;
 let opsRuntimeRepo: OpsRuntimeRepository;
 let generationJobRepo: GenerationJobRepository;
+let storyGenerationStageEventRepo: StoryGenerationStageEventRepository;
 
 export function getUserRepository(): UserRepository {
   if (!userRepo) userRepo = new UserRepository(db);
@@ -326,4 +329,10 @@ export function getOpsRuntimeRepository(): OpsRuntimeRepository {
 export function getGenerationJobRepository(): GenerationJobRepository {
   if (!generationJobRepo) generationJobRepo = new GenerationJobRepository(db);
   return generationJobRepo;
+}
+
+export function getStoryGenerationStageEventRepository(): StoryGenerationStageEventRepository {
+  if (!storyGenerationStageEventRepo)
+    storyGenerationStageEventRepo = new StoryGenerationStageEventRepository(db);
+  return storyGenerationStageEventRepo;
 }

@@ -318,6 +318,30 @@ export type AdminDashboardOperationBreakdown = {
   totalCostUsd: number;
 };
 
+export type AdminDashboardTimingPercentile = {
+  generationKind: string;
+  pipelinePhase: string;
+  operation: string;
+  eventCount: number;
+  storyCount: number;
+  failedEventCount: number;
+  avgDurationMs: number;
+  p50DurationMs: number;
+  p75DurationMs: number;
+  p90DurationMs: number;
+  p95DurationMs: number;
+  p99DurationMs: number;
+};
+
+export type AdminDashboardReadinessHistogramPoint = {
+  generationKind: string;
+  eventCount: number;
+  storyCount: number;
+  bucketStartMs: number;
+  bucketEndMs: number | null;
+  avgDurationMs: number;
+};
+
 export type AdminDashboardBreakdownItem = {
   value: string;
   storyCount: number;
@@ -335,6 +359,8 @@ export type AdminDashboardData = {
   daily: AdminDashboardDailyPoint[];
   costByImageCount: AdminDashboardImageBucket[];
   costByOperation: AdminDashboardOperationBreakdown[];
+  timingByOperation: AdminDashboardTimingPercentile[];
+  storyReadinessHistogram: AdminDashboardReadinessHistogramPoint[];
   languages: AdminDashboardBreakdownItem[];
   imageStyles: AdminDashboardBreakdownItem[];
 };

@@ -25,6 +25,7 @@ import {
 import {
   getStoryDomainService,
   getImageDomainService,
+  getComplexImageDomainService,
   getAudioDomainService,
   getEnvironmentImageProvider,
 } from './aiService';
@@ -158,6 +159,7 @@ import {
   type StoryQuotaReservationSource,
 } from './storyQuotaService';
 import { assertStoryPromptSafety, isPromptSafetyError } from './promptSafetyService';
+import { recordStageTiming, withStageTiming } from './generationStageTimingService';
 import { assertVoiceAccessForUser } from './voiceAccessService';
 import { assertSceneImageGenerationAccessForStory } from './imageStoryLimitService';
 import { localizeCharacterNames } from './translationService';
@@ -756,7 +758,27 @@ export async function processStoryRequest(requestId: string): Promise<{
           }),
       };
 
-      const plainText = await storyDomain.generateTextPlain(spec, textGenOptions);
+      const plainText = await withStageTiming(
+        {
+          storyId,
+          storyRequestId: requestId,
+          userId: request.userId,
+          generationKind: 'story',
+          pipelinePhase: 'text',
+          operation: 'writer_text',
+          targetType: 'story',
+          metadata: {
+            isContinuation,
+            language: spec.language,
+            ageGroup: spec.ageGroup,
+          },
+          successMetadata: (result) => ({
+            sceneCount: Array.isArray(result.scenes) ? result.scenes.length : 0,
+            wordCount: result.wordCount ?? 0,
+          }),
+        },
+        () => storyDomain.generateTextPlain(spec, textGenOptions)
+      );
       textGenerationTimeMs = Date.now() - textGenStart;
       const imagesPerStory = userPlan.imagesPerStory || 0;
       if (imagesPerStory > 0) {
@@ -770,14 +792,38 @@ export async function processStoryRequest(requestId: string): Promise<{
             estimatedMs: estimateProducerMs(blocks.length),
           }
         );
-        const directorResult = await storyDomain.callDirector(
+        const directorResult = await withStageTiming(
           {
-            blocks,
-            imagesPerStory,
-            spec,
-            userCharacters,
+            storyId,
+            storyRequestId: requestId,
+            userId: request.userId,
+            generationKind: 'story',
+            pipelinePhase: 'visual_planning',
+            operation: 'director_scenes',
+            targetType: 'story',
+            metadata: {
+              imagesPerStory,
+              blockCount: blocks.length,
+              userCharacterCount: userCharacters.length,
+            },
+            successMetadata: (result) => ({
+              illustrationCount: Array.isArray(result.illustrations)
+                ? result.illustrations.length
+                : 0,
+              environmentCount: Array.isArray(result.environments) ? result.environments.length : 0,
+              outfitCount: Array.isArray(result.outfits) ? result.outfits.length : 0,
+            }),
           },
-          { onUsage: (u) => recordUsage(u, usageContext) }
+          () =>
+            storyDomain.callDirector(
+              {
+                blocks,
+                imagesPerStory,
+                spec,
+                userCharacters,
+              },
+              { onUsage: (u) => recordUsage(u, usageContext) }
+            )
         );
         await completeTask(requestId, STORY_TASKS.PRODUCING_VISUALS);
         text = mergeDirectorIntoText(plainText, directorResult, imagesPerStory);
@@ -963,6 +1009,23 @@ export async function processStoryRequest(requestId: string): Promise<{
       });
       text = validationResult.validatedText;
       validationTimeMs = validationResult.validationTimeMs;
+      const validationCompletedAt = new Date();
+      await recordStageTiming({
+        storyId,
+        storyRequestId: requestId,
+        userId: request.userId,
+        generationKind: 'story',
+        pipelinePhase: 'validation',
+        operation: 'text_validation',
+        targetType: 'story',
+        startedAt: new Date(validationCompletedAt.getTime() - (validationTimeMs ?? 0)),
+        completedAt: validationCompletedAt,
+        durationMs: validationTimeMs ?? 0,
+        metadata: {
+          maxRetries: 2,
+          sceneCount: Array.isArray(text?.scenes) ? text.scenes.length : 0,
+        },
+      });
 
       // Save validation checkpoint (preserve storyId, text, spec, mergedCharacters)
       const specForValidation = { ...spec, policyProfile: undefined };
@@ -1363,6 +1426,7 @@ async function ensureLlmTurnaroundsForSceneCharacters(params: {
   normalizedCharacters: string[];
   characterDescriptionMap: Map<string, CharacterData>;
   storyId: string;
+  storyRequestId?: string;
   userId: string;
   imageStyle?: string;
   imageDomain: ReturnType<typeof getImageDomainService>;
@@ -1374,6 +1438,7 @@ async function ensureLlmTurnaroundsForSceneCharacters(params: {
     normalizedCharacters,
     characterDescriptionMap,
     storyId,
+    storyRequestId,
     userId,
     imageStyle,
     imageDomain,
@@ -1392,6 +1457,7 @@ async function ensureLlmTurnaroundsForSceneCharacters(params: {
     let flight = inFlight.get(charId);
     if (!flight) {
       flight = (async () => {
+        const turnaroundStartedAt = new Date();
         try {
           const result = await generateLlmCharacterTurnaround({
             characterId: charId,
@@ -1400,6 +1466,24 @@ async function ensureLlmTurnaroundsForSceneCharacters(params: {
             characterDescription: charData.appearance || charData.description || charData.name,
             imageStyle,
             storyId,
+          });
+          await recordStageTiming({
+            storyId,
+            storyRequestId,
+            userId,
+            generationKind: 'story',
+            pipelinePhase: 'asset_generation',
+            operation: 'character_turnaround',
+            targetType: 'character',
+            targetKey: charId,
+            startedAt: turnaroundStartedAt,
+            completedAt: new Date(),
+            cacheStatus: result.sourcePhotoUrl === 'cache' ? 'hit' : 'miss',
+            metadata: {
+              characterName: charData.name,
+              sourcePhotoUrl: result.sourcePhotoUrl,
+              imageStyle,
+            },
           });
           const sheet = {
             url: result.url,
@@ -1440,6 +1524,24 @@ async function ensureLlmTurnaroundsForSceneCharacters(params: {
             { err, characterId: charId, name: charData.name },
             'Failed to generate lazy LLM turnaround'
           );
+          await recordStageTiming({
+            storyId,
+            storyRequestId,
+            userId,
+            generationKind: 'story',
+            pipelinePhase: 'asset_generation',
+            operation: 'character_turnaround',
+            targetType: 'character',
+            targetKey: charId,
+            status: 'failed',
+            startedAt: turnaroundStartedAt,
+            completedAt: new Date(),
+            metadata: {
+              characterName: charData.name,
+              imageStyle,
+              errorMessage: err instanceof Error ? err.message : String(err),
+            },
+          });
         }
       })();
       inFlight.set(charId, flight);
@@ -1755,6 +1857,7 @@ function buildCharacterReferencePathMetadataMap(
 
 async function prepareSceneEnvironmentReference(params: {
   storyId: string;
+  storyRequestId?: string;
   userId: string;
   storyEnvironmentId?: string;
   environment?: StoryEnvironment;
@@ -1765,6 +1868,7 @@ async function prepareSceneEnvironmentReference(params: {
 }): Promise<EnvImageData | null> {
   const {
     storyId,
+    storyRequestId,
     userId,
     storyEnvironmentId,
     environment,
@@ -1773,43 +1877,105 @@ async function prepareSceneEnvironmentReference(params: {
     scenarioCardId,
     previousStoryIds,
   } = params;
+  const startedAt = new Date();
 
   if (!config.image.enableEnvironmentReference || !storyEnvironmentId || !environment) {
+    await recordStageTiming({
+      storyId,
+      storyRequestId,
+      userId,
+      generationKind: 'story',
+      pipelinePhase: 'asset_generation',
+      operation: 'environment_image',
+      targetType: 'environment',
+      targetKey: storyEnvironmentId ?? null,
+      status: 'skipped',
+      startedAt,
+      completedAt: new Date(),
+      metadata: {
+        reason: !config.image.enableEnvironmentReference
+          ? 'environment_references_disabled'
+          : 'missing_environment',
+      },
+    });
     return null;
   }
 
-  let envImageData = await getOrCreateEnvironmentImage({
-    storyId,
-    userId,
-    storyEnvironmentId,
-    environment,
-    assetStorage,
-    scenarioCardId,
-    ...(previousStoryIds && previousStoryIds.length > 0 ? { previousStoryIds } : {}),
-  });
+  try {
+    let envImageData = await getOrCreateEnvironmentImage({
+      storyId,
+      userId,
+      storyEnvironmentId,
+      environment,
+      assetStorage,
+      scenarioCardId,
+      ...(previousStoryIds && previousStoryIds.length > 0 ? { previousStoryIds } : {}),
+    });
 
-  if (envImageData && config.nanoBanana?.enableFilesApi === true) {
-    try {
-      const buffer = Buffer.from(envImageData.base64, 'base64');
-      const uploaded = await imageDomain.uploadReferenceFile(
-        buffer,
-        envImageData.mimeType,
-        `env_${storyEnvironmentId}`,
-        envImageData.storagePath
-      );
-      if (uploaded) {
-        envImageData = { ...envImageData, fileUri: uploaded.uri };
+    if (envImageData && config.nanoBanana?.enableFilesApi === true) {
+      try {
+        const buffer = Buffer.from(envImageData.base64, 'base64');
+        const uploaded = await imageDomain.uploadReferenceFile(
+          buffer,
+          envImageData.mimeType,
+          `env_${storyEnvironmentId}`,
+          envImageData.storagePath
+        );
+        if (uploaded) {
+          envImageData = { ...envImageData, fileUri: uploaded.uri };
+        }
+      } catch (err) {
+        logger.warn({ err, storyEnvironmentId }, 'Failed to upload env image to Files API');
       }
-    } catch (err) {
-      logger.warn({ err, storyEnvironmentId }, 'Failed to upload env image to Files API');
     }
-  }
 
-  return envImageData;
+    await recordStageTiming({
+      storyId,
+      storyRequestId,
+      userId,
+      generationKind: 'story',
+      pipelinePhase: 'asset_generation',
+      operation: 'environment_image',
+      targetType: 'environment',
+      targetKey: storyEnvironmentId,
+      status: envImageData ? 'completed' : 'skipped',
+      startedAt,
+      completedAt: new Date(),
+      metadata: {
+        environmentName: environment.name,
+        hasImage: !!envImageData,
+        hasFilesApiUpload: !!envImageData?.fileUri,
+        previousStoryCount: previousStoryIds?.length ?? 0,
+        scenarioCardId,
+      },
+    });
+
+    return envImageData;
+  } catch (error) {
+    await recordStageTiming({
+      storyId,
+      storyRequestId,
+      userId,
+      generationKind: 'story',
+      pipelinePhase: 'asset_generation',
+      operation: 'environment_image',
+      targetType: 'environment',
+      targetKey: storyEnvironmentId,
+      status: 'failed',
+      startedAt,
+      completedAt: new Date(),
+      metadata: {
+        environmentName: environment.name,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      },
+    });
+    throw error;
+  }
 }
 
 async function prepareSceneOutfitPlateReferences(params: {
   storyId: string;
+  storyRequestId?: string;
   userId: string;
   normalizedCharacters: string[];
   characterDescriptionMap: Map<string, CharacterData>;
@@ -1839,6 +2005,7 @@ async function prepareSceneOutfitPlateReferences(params: {
 > {
   const {
     storyId,
+    storyRequestId,
     userId,
     normalizedCharacters,
     characterDescriptionMap,
@@ -1897,9 +2064,10 @@ async function prepareSceneOutfitPlateReferences(params: {
       const outfitId = lookupOutfitIdForCharacterName(displayName, scene.characterOutfitIds);
       let outfitPromise = outfitPlatePending.get(outfitPendingKey);
       if (!outfitPromise) {
+        const outfitStartedAt = new Date();
         outfitPromise = (async () => {
           try {
-            return await getOrCreateOutfitPlateImage({
+            const plate = await getOrCreateOutfitPlateImage({
               storyId,
               userId,
               storyEnvironmentId: currentEnvironmentId,
@@ -1911,6 +2079,49 @@ async function prepareSceneOutfitPlateReferences(params: {
               scenarioCardId,
               assetStorage,
             });
+            await recordStageTiming({
+              storyId,
+              storyRequestId,
+              userId,
+              generationKind: 'story',
+              pipelinePhase: 'asset_generation',
+              operation: 'outfit_plate_image',
+              targetType: 'outfit_plate',
+              targetKey: `${currentEnvironmentId}:${normalizeOutfitPlateCharacterKey(displayName)}:${outfitId ?? ''}`,
+              status: plate ? 'completed' : 'skipped',
+              startedAt: outfitStartedAt,
+              completedAt: new Date(),
+              metadata: {
+                characterName: displayName,
+                storyEnvironmentId: currentEnvironmentId,
+                outfitId: outfitId ?? null,
+                imageStyle: imageStyle || 'soft_watercolor',
+                scenarioCardId,
+              },
+            });
+            return plate;
+          } catch (error) {
+            await recordStageTiming({
+              storyId,
+              storyRequestId,
+              userId,
+              generationKind: 'story',
+              pipelinePhase: 'asset_generation',
+              operation: 'outfit_plate_image',
+              targetType: 'outfit_plate',
+              targetKey: `${currentEnvironmentId}:${normalizeOutfitPlateCharacterKey(displayName)}:${outfitId ?? ''}`,
+              status: 'failed',
+              startedAt: outfitStartedAt,
+              completedAt: new Date(),
+              metadata: {
+                characterName: displayName,
+                storyEnvironmentId: currentEnvironmentId,
+                outfitId: outfitId ?? null,
+                imageStyle: imageStyle || 'soft_watercolor',
+                errorMessage: error instanceof Error ? error.message : String(error),
+              },
+            });
+            throw error;
           } finally {
             outfitPlatePending.delete(outfitPendingKey);
           }
@@ -1971,6 +2182,14 @@ export async function processStoryImages(
   options: { takingLongerThanExpected?: boolean } = {}
 ): Promise<void> {
   const startTime = Date.now();
+  const batchStartedAt = new Date(startTime);
+  let timingStoryId: string | undefined;
+  let timingUserId: string | undefined;
+  let timingRequestCreatedAt: Date | undefined;
+  let timingImagesPerStory = 0;
+  let timingSelectedSceneCount = 0;
+  let timingTotalScenes = 0;
+  let timingFailedSceneCount = 0;
 
   try {
     // Load request with intermediate data
@@ -1985,6 +2204,12 @@ export async function processStoryImages(
     const text = checkpoints.validatedText || checkpoints.text;
     const spec = checkpoints.spec;
     const mergedCharacters = checkpoints.mergedCharacters || [];
+    timingStoryId = storyId;
+    timingUserId = request.userId;
+    timingRequestCreatedAt = request.createdAt ? new Date(request.createdAt as Date) : batchStartedAt;
+    if (Number.isNaN(timingRequestCreatedAt.getTime())) {
+      timingRequestCreatedAt = batchStartedAt;
+    }
 
     if (!storyId || !text) {
       throw new Error(`Missing storyId or text in intermediateData for request ${requestId}`);
@@ -1992,6 +2217,7 @@ export async function processStoryImages(
 
     // Get services
     const imageDomain = getImageDomainService();
+    const complexImageDomain = getComplexImageDomainService();
     const assetStorage = getAssetStorageService();
     const coefficients = await getGenerationCoefficients();
     const userPlan = await getPlanFeatures(request.userId);
@@ -2004,6 +2230,9 @@ export async function processStoryImages(
       .map((id) => text.scenes.find((s: any) => s.sceneId === id))
       .filter(Boolean);
     const trackedImageTarget = Math.min(2, scenesToGenerate.length);
+    timingImagesPerStory = imagesPerStory;
+    timingSelectedSceneCount = scenesToGenerate.length;
+    timingTotalScenes = totalScenes;
 
     // Task: Generate Scene Images (Sequential for character-aware reference tracking - M9)
     // Progress budget is bound to the foreground UX completion threshold, not background renders.
@@ -2179,6 +2408,92 @@ export async function processStoryImages(
         const failedScenes: Array<{ sceneId: number; errorMessage: string }> = [];
         let requestMarkedCompleted = false;
         let readyImagesCount = 0; // Generated or already-existing images that count toward UX completion
+        let firstImageReadyRecorded = false;
+        let foregroundImagesReadyRecorded = false;
+
+        const recordFirstImageReady = async (
+          sceneId: number,
+          sceneIndex: number,
+          status: 'completed' | 'cached' = 'completed'
+        ) => {
+          if (firstImageReadyRecorded) {
+            return;
+          }
+          firstImageReadyRecorded = true;
+          await recordStageTiming({
+            storyId,
+            storyRequestId: requestId,
+            userId: request.userId,
+            generationKind: 'story',
+            pipelinePhase: 'asset_generation',
+            operation: 'first_image_ready',
+            targetType: 'scene',
+            targetKey: String(sceneId),
+            sceneIndex,
+            status,
+            startedAt: batchStartedAt,
+            completedAt: new Date(),
+            metadata: {
+              selectedSceneCount: scenesToGenerate.length,
+              trackedImageTarget,
+              from: 'image_batch_start',
+            },
+          });
+        };
+
+        const recordForegroundImagesReady = async (
+          sceneId: number,
+          readyReason: 'foreground_threshold' | 'skip_generation' | 'no_scenes'
+        ) => {
+          if (foregroundImagesReadyRecorded) {
+            return;
+          }
+          foregroundImagesReadyRecorded = true;
+          const completedAt = new Date();
+          await recordStageTiming({
+            storyId,
+            storyRequestId: requestId,
+            userId: request.userId,
+            generationKind: 'story',
+            pipelinePhase: 'asset_generation',
+            operation: 'foreground_images_ready',
+            targetType: 'story',
+            targetKey: storyId,
+            status:
+              readyReason === 'skip_generation' || readyReason === 'no_scenes'
+                ? 'skipped'
+                : 'completed',
+            startedAt: batchStartedAt,
+            completedAt,
+            metadata: {
+              sceneId,
+              readyImagesCount,
+              trackedImageTarget,
+              selectedSceneCount: scenesToGenerate.length,
+              readyReason,
+            },
+          });
+          await recordStageTiming({
+            storyId,
+            storyRequestId: requestId,
+            userId: request.userId,
+            generationKind: 'story',
+            pipelinePhase: 'postprocess',
+            operation: 'story_ready',
+            targetType: 'story',
+            targetKey: storyId,
+            startedAt: timingRequestCreatedAt ?? batchStartedAt,
+            completedAt,
+            metadata: {
+              readyReason,
+              readyImagesCount,
+              trackedImageTarget,
+              selectedSceneCount: scenesToGenerate.length,
+              totalScenes,
+              imagesPerStory,
+            },
+          });
+        };
 
         const syncForegroundImageProgress = async (details?: Record<string, unknown>) => {
           if (requestMarkedCompleted) {
@@ -2206,6 +2521,7 @@ export async function processStoryImages(
             status: 'completed',
             storyId,
           });
+          await recordForegroundImagesReady(sceneId, 'foreground_threshold');
           logger.info(
             { requestId, storyId, sceneId, readyImagesCount, trackedImageTarget },
             'Foreground image threshold reached — request marked completed, continuing in background'
@@ -2222,6 +2538,7 @@ export async function processStoryImages(
               'Skipping scene — image already exists'
             );
             readyImagesCount++;
+            await recordFirstImageReady(scene.sceneId, sceneIndex, 'cached');
             await syncForegroundImageProgress();
             if (!requestMarkedCompleted && readyImagesCount >= trackedImageTarget) {
               await markRequestCompletedForUx(scene.sceneId);
@@ -2265,6 +2582,7 @@ export async function processStoryImages(
             if (!pending) {
               pending = prepareSceneEnvironmentReference({
                 storyId,
+                storyRequestId: requestId,
                 userId: request.userId,
                 storyEnvironmentId: currentEnvironmentId,
                 environment: currentEnvironment,
@@ -2289,6 +2607,7 @@ export async function processStoryImages(
               normalizedCharacters,
               characterDescriptionMap,
               storyId,
+              storyRequestId: requestId,
               userId: request.userId,
               imageStyle: (spec as any).imageStyle,
               imageDomain,
@@ -2315,6 +2634,7 @@ export async function processStoryImages(
           const outfitPlateRefsPromise = characterReferencesPromise.then((characterReferenceData) =>
             prepareSceneOutfitPlateReferences({
               storyId,
+              storyRequestId: requestId,
               userId: request.userId,
               normalizedCharacters,
               characterDescriptionMap,
@@ -2427,28 +2747,90 @@ export async function processStoryImages(
             });
             const enrichedScene: SceneData = { ...scene, sceneVisual: composedSceneVisual };
 
-            const imageResult = await generateSceneImageWithReference(storyId, enrichedScene, {
-              sceneDbId: existingScenesBySceneId.get(scene.sceneId)?.id,
-              childProfile: spec.childProfile,
-              characters: sceneCharacterDescriptions,
-              userStyle: (spec as any).imageStyle,
-              ageGroup: spec.ageGroup,
-              scenarioCardId: spec.scenarioCard?.id,
-              storyOutfits: storyOutfitsList.length > 0 ? storyOutfitsList : undefined,
-              userPlan,
-              userId: request.userId,
-              assetStorage,
-              imageDomain,
-              referenceImageDataArray,
-              imageSystemInstruction,
-              imageIndexMap,
-              currentEnvironmentId,
-              currentEnvironment,
-              requestId,
-              onValidationRetry: async () => {
-                await syncForegroundImageProgress({ takingLongerThanExpected: true });
-              },
-            });
+            const sceneImageStartedAt = new Date();
+            let imageResult: { imageUrl: string; assetId: string };
+            try {
+              imageResult = await generateSceneImageWithReference(storyId, enrichedScene, {
+                sceneDbId: existingScenesBySceneId.get(scene.sceneId)?.id,
+                childProfile: spec.childProfile,
+                characters: sceneCharacterDescriptions,
+                userStyle: (spec as any).imageStyle,
+                ageGroup: spec.ageGroup,
+                scenarioCardId: spec.scenarioCard?.id,
+                storyOutfits: storyOutfitsList.length > 0 ? storyOutfitsList : undefined,
+                userPlan,
+                userId: request.userId,
+                assetStorage,
+                imageDomain,
+                complexImageDomain,
+                referenceImageDataArray,
+                imageSystemInstruction,
+                imageIndexMap,
+                currentEnvironmentId,
+                currentEnvironment,
+                requestId,
+                onValidationRetry: async () => {
+                  await syncForegroundImageProgress({ takingLongerThanExpected: true });
+                },
+              });
+              await recordStageTiming({
+                storyId,
+                storyRequestId: requestId,
+                userId: request.userId,
+                generationKind: 'story',
+                pipelinePhase: 'asset_generation',
+                operation: 'scene_image',
+                targetType: 'scene',
+                targetKey: String(scene.sceneId),
+                sceneIndex,
+                assetId: imageResult.assetId,
+                startedAt: sceneImageStartedAt,
+                completedAt: new Date(),
+                metadata: {
+                  referenceCount: referenceImageDataArray.length,
+                  characterReferenceCount: referenceImageDataArray.filter(
+                    (ref) =>
+                      ref.source === 'imaginary_friend' ||
+                      ref.source === 'child_reference' ||
+                      ref.source === 'character_reference'
+                  ).length,
+                  objectReferenceCount: referenceImageDataArray.filter(
+                    (ref) => ref.source === 'environment' || ref.source === 'outfit_plate'
+                  ).length,
+                  hasEnvironmentImageRef: !!envImageData,
+                  outfitPlateRefsCount: outfitPlateRefs.length,
+                  currentEnvironmentId,
+                  index: i + 1,
+                  total: scenesToGenerate.length,
+                },
+              });
+            } catch (imageError) {
+              await recordStageTiming({
+                storyId,
+                storyRequestId: requestId,
+                userId: request.userId,
+                generationKind: 'story',
+                pipelinePhase: 'asset_generation',
+                operation: 'scene_image',
+                targetType: 'scene',
+                targetKey: String(scene.sceneId),
+                sceneIndex,
+                status: 'failed',
+                startedAt: sceneImageStartedAt,
+                completedAt: new Date(),
+                metadata: {
+                  referenceCount: referenceImageDataArray.length,
+                  hasEnvironmentImageRef: !!envImageData,
+                  outfitPlateRefsCount: outfitPlateRefs.length,
+                  currentEnvironmentId,
+                  index: i + 1,
+                  total: scenesToGenerate.length,
+                  errorMessage:
+                    imageError instanceof Error ? imageError.message : String(imageError),
+                },
+              });
+              throw imageError;
+            }
 
             const preloadedSceneRecord = existingScenesBySceneId.get(scene.sceneId);
             if (preloadedSceneRecord && imageResult.imageUrl) {
@@ -2462,6 +2844,7 @@ export async function processStoryImages(
 
             // Count completed images toward both UX threshold and background bookkeeping
             readyImagesCount++;
+            await recordFirstImageReady(scene.sceneId, sceneIndex, 'completed');
 
             if (!requestMarkedCompleted) {
               await syncForegroundImageProgress();
@@ -2486,6 +2869,7 @@ export async function processStoryImages(
         });
 
         await ensureStoryDefaultCoverAssetId(storyId);
+        timingFailedSceneCount = failedScenes.length;
 
         // 5. Mark image generation complete, persist failed scenes
         const finalMetadata = (await getStoryRepository().findById(storyId))?.metadata as Record<
@@ -2514,6 +2898,45 @@ export async function processStoryImages(
     if (config.image.skipGeneration || scenesToGenerate.length === 0) {
       await completeTask(requestId, STORY_TASKS.GENERATING_IMAGES);
       await getStoryRepository().updateRequest(requestId, { status: 'completed', storyId });
+      const readyCompletedAt = new Date();
+      const readyReason = config.image.skipGeneration ? 'skip_generation' : 'no_scenes';
+      await recordStageTiming({
+        storyId,
+        storyRequestId: requestId,
+        userId: request.userId,
+        generationKind: 'story',
+        pipelinePhase: 'asset_generation',
+        operation: 'foreground_images_ready',
+        targetType: 'story',
+        targetKey: storyId,
+        status: 'skipped',
+        startedAt: batchStartedAt,
+        completedAt: readyCompletedAt,
+        metadata: {
+          readyReason,
+          selectedSceneCount: scenesToGenerate.length,
+          totalScenes,
+          imagesPerStory,
+        },
+      });
+      await recordStageTiming({
+        storyId,
+        storyRequestId: requestId,
+        userId: request.userId,
+        generationKind: 'story',
+        pipelinePhase: 'postprocess',
+        operation: 'story_ready',
+        targetType: 'story',
+        targetKey: storyId,
+        startedAt: timingRequestCreatedAt ?? batchStartedAt,
+        completedAt: readyCompletedAt,
+        metadata: {
+          readyReason,
+          selectedSceneCount: scenesToGenerate.length,
+          totalScenes,
+          imagesPerStory,
+        },
+      });
 
       // Mark image generation as complete even when skipped/no scenes
       const finalMetadata = (await getStoryRepository().findById(storyId))?.metadata as Record<
@@ -2528,6 +2951,28 @@ export async function processStoryImages(
       });
       await ensureStoryDefaultCoverAssetId(storyId);
     }
+
+    await recordStageTiming({
+      storyId,
+      storyRequestId: requestId,
+      userId: request.userId,
+      generationKind: 'story',
+      pipelinePhase: 'asset_generation',
+      operation: 'image_batch',
+      targetType: 'story',
+      targetKey: storyId,
+      status:
+        config.image.skipGeneration || scenesToGenerate.length === 0 ? 'skipped' : 'completed',
+      startedAt: batchStartedAt,
+      completedAt: new Date(),
+      metadata: {
+        selectedSceneCount: scenesToGenerate.length,
+        failedSceneCount: timingFailedSceneCount,
+        totalScenes,
+        imagesPerStory,
+        skipGeneration: config.image.skipGeneration,
+      },
+    });
 
     // Clear intermediate data now that all images are generated (or skipped)
     await getStoryRepository().updateRequest(requestId, {
@@ -2548,6 +2993,26 @@ export async function processStoryImages(
       },
       'Story image generation failed'
     );
+    await recordStageTiming({
+      storyId: timingStoryId ?? null,
+      storyRequestId: requestId,
+      userId: timingUserId ?? null,
+      generationKind: 'story',
+      pipelinePhase: 'asset_generation',
+      operation: 'image_batch',
+      targetType: 'story',
+      targetKey: timingStoryId ?? null,
+      status: 'failed',
+      startedAt: batchStartedAt,
+      completedAt: new Date(),
+      metadata: {
+        selectedSceneCount: timingSelectedSceneCount,
+        failedSceneCount: timingFailedSceneCount,
+        totalScenes: timingTotalScenes,
+        imagesPerStory: timingImagesPerStory,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      },
+    });
 
     throw error;
   }
@@ -3338,6 +3803,9 @@ const MAX_GENERATION_RETRIES = 2;
  */
 const GENERATION_RETRY_DELAY_MS = 2000;
 
+type SceneImageDomainService = ReturnType<typeof getImageDomainService>;
+type SceneImageRoute = 'simple' | 'complex';
+
 /**
  * Check if an error is a retryable generation failure (IMAGE_OTHER, content blocked).
  * These are transient failures where the model refused to generate but might succeed on retry.
@@ -3360,18 +3828,17 @@ function isRetryableGenerationError(error: unknown): boolean {
  * Returns the generated image or throws after all retries are exhausted.
  */
 async function generateWithRetry(
-  imageDomain: ReturnType<typeof getImageDomainService>,
-  generateRequest: Parameters<
-    ReturnType<typeof getImageDomainService>['generateSceneWithReference']
-  >[0],
+  imageDomain: SceneImageDomainService,
+  generateRequest: Parameters<SceneImageDomainService['generateSceneWithReference']>[0],
   context: {
     storyId: string;
     sceneId: number;
     userId?: string;
     nextPromptAttemptId?: () => number;
     validationAttempt?: number;
+    imageRoute?: SceneImageRoute;
   }
-): Promise<ReturnType<ReturnType<typeof getImageDomainService>['generateSceneWithReference']>> {
+): Promise<ReturnType<SceneImageDomainService['generateSceneWithReference']>> {
   const usageContext = { userId: context.userId ?? null, storyId: context.storyId };
   const onUsage = (u: UsageMetadata) => recordUsage(u, usageContext);
   let lastError: unknown;
@@ -3387,6 +3854,7 @@ async function generateWithRetry(
             attemptId: promptAttemptId,
             providerRetry: retry + 1,
             validationAttempt: context.validationAttempt,
+            imageRoute: context.imageRoute,
             payload,
           });
         },
@@ -3399,6 +3867,7 @@ async function generateWithRetry(
             storyId: context.storyId,
             sceneId: context.sceneId,
             promptAttemptId,
+            imageRoute: context.imageRoute,
             retry: retry + 1,
             maxRetries: MAX_GENERATION_RETRIES,
             error: error instanceof Error ? error.message : String(error),
@@ -4437,17 +4906,68 @@ async function generateSceneImageWithReference(
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           const imgUsageContext = { userId: context.userId, storyId };
-          const validation = await context.imageDomain.validateGeneratedImage({
-            imageData: image.imageData,
-            mimeType: image.mimeType,
-            expectedCharacters,
-            sceneVisual: scene.sceneVisual || migrateVisualPrompt(scene),
-            sceneCharacterOutfitsText,
-            referenceImages:
-              validationReferenceImages.length > 0 ? validationReferenceImages : undefined,
-            logContext: { storyId, sceneId: scene.sceneId, attempt },
-            onUsage: (u) => recordUsage(u, imgUsageContext),
-          });
+          const validationStartedAt = new Date();
+          let validation: ImageValidationResult;
+          try {
+            validation = await context.imageDomain.validateGeneratedImage({
+              imageData: image.imageData,
+              mimeType: image.mimeType,
+              expectedCharacters,
+              sceneVisual: scene.sceneVisual || migrateVisualPrompt(scene),
+              sceneCharacterOutfitsText,
+              referenceImages:
+                validationReferenceImages.length > 0 ? validationReferenceImages : undefined,
+              logContext: { storyId, sceneId: scene.sceneId, attempt },
+              onUsage: (u) => recordUsage(u, imgUsageContext),
+            });
+            await recordStageTiming({
+              storyId,
+              storyRequestId: context.requestId,
+              userId: context.userId,
+              generationKind: 'story',
+              pipelinePhase: 'validation',
+              operation: 'scene_image_validation',
+              targetType: 'scene',
+              targetKey: String(scene.sceneId),
+              sceneIndex: scene.sceneId,
+              attempt,
+              model: config.ai.validationModel || config.ai.geminiVisionModel,
+              startedAt: validationStartedAt,
+              completedAt: new Date(),
+              metadata: {
+                validationStatus: validation.validationStatus,
+                validationAttemptKind: validation.validationAttemptKind,
+                expectedCharacterCount: validation.expectedCharacterCount,
+                detectedCharacterCount: validation.characterCount,
+                referenceImageCount: validationReferenceImages.length,
+              },
+            });
+          } catch (validationCallError) {
+            await recordStageTiming({
+              storyId,
+              storyRequestId: context.requestId,
+              userId: context.userId,
+              generationKind: 'story',
+              pipelinePhase: 'validation',
+              operation: 'scene_image_validation',
+              targetType: 'scene',
+              targetKey: String(scene.sceneId),
+              sceneIndex: scene.sceneId,
+              attempt,
+              status: 'failed',
+              model: config.ai.validationModel || config.ai.geminiVisionModel,
+              startedAt: validationStartedAt,
+              completedAt: new Date(),
+              metadata: {
+                referenceImageCount: validationReferenceImages.length,
+                errorMessage:
+                  validationCallError instanceof Error
+                    ? validationCallError.message
+                    : String(validationCallError),
+              },
+            });
+            throw validationCallError;
+          }
 
           lastValidation = validation;
 
@@ -4587,6 +5107,7 @@ async function generateSceneImageWithReference(
           if (attempt < maxAttempts) {
             await context.onValidationRetry?.();
             if (useEditRepair) {
+              const repairStartedAt = new Date();
               try {
                 logger.info(
                   {
@@ -4630,7 +5151,48 @@ async function generateSceneImageWithReference(
                   personGeneration: 'allow_all',
                   onUsage: (u) => recordUsage(u, { userId: context.userId ?? null, storyId }),
                 });
+                await recordStageTiming({
+                  storyId,
+                  storyRequestId: context.requestId,
+                  userId: context.userId,
+                  generationKind: 'story',
+                  pipelinePhase: 'asset_generation',
+                  operation: 'scene_image_edit_repair',
+                  targetType: 'scene',
+                  targetKey: String(scene.sceneId),
+                  sceneIndex: scene.sceneId,
+                  attempt: attempt + 1,
+                  startedAt: repairStartedAt,
+                  completedAt: new Date(),
+                  metadata: {
+                    previousAttempt: attempt,
+                    validationScore: score,
+                    repairMode: repairPlan.mode,
+                    selectedReferenceCount: repairPlan.references?.length ?? 0,
+                  },
+                });
               } catch (editError) {
+                await recordStageTiming({
+                  storyId,
+                  storyRequestId: context.requestId,
+                  userId: context.userId,
+                  generationKind: 'story',
+                  pipelinePhase: 'asset_generation',
+                  operation: 'scene_image_edit_repair',
+                  targetType: 'scene',
+                  targetKey: String(scene.sceneId),
+                  sceneIndex: scene.sceneId,
+                  attempt: attempt + 1,
+                  status: 'failed',
+                  startedAt: repairStartedAt,
+                  completedAt: new Date(),
+                  metadata: {
+                    previousAttempt: attempt,
+                    validationScore: score,
+                    errorMessage:
+                      editError instanceof Error ? editError.message : String(editError),
+                  },
+                });
                 logger.warn(
                   {
                     err:
@@ -4648,12 +5210,32 @@ async function generateSceneImageWithReference(
                   'Validation edit repair failed — falling back to full regeneration'
                 );
 
+                const regenerationStartedAt = new Date();
                 image = await generateWithRetry(context.imageDomain, generateRequest, {
                   storyId,
                   sceneId: scene.sceneId,
                   userId: context.userId,
                   nextPromptAttemptId,
                   validationAttempt: attempt + 1,
+                });
+                await recordStageTiming({
+                  storyId,
+                  storyRequestId: context.requestId,
+                  userId: context.userId,
+                  generationKind: 'story',
+                  pipelinePhase: 'asset_generation',
+                  operation: 'scene_image_regeneration',
+                  targetType: 'scene',
+                  targetKey: String(scene.sceneId),
+                  sceneIndex: scene.sceneId,
+                  attempt: attempt + 1,
+                  startedAt: regenerationStartedAt,
+                  completedAt: new Date(),
+                  metadata: {
+                    previousAttempt: attempt,
+                    reason: 'edit_repair_failed',
+                    validationScore: score,
+                  },
                 });
               }
             } else {
@@ -4667,12 +5249,32 @@ async function generateSceneImageWithReference(
                 'Validation failed — regenerating scene image from scratch'
               );
 
+              const regenerationStartedAt = new Date();
               image = await generateWithRetry(context.imageDomain, generateRequest, {
                 storyId,
                 sceneId: scene.sceneId,
                 userId: context.userId,
                 nextPromptAttemptId,
                 validationAttempt: attempt + 1,
+              });
+              await recordStageTiming({
+                storyId,
+                storyRequestId: context.requestId,
+                userId: context.userId,
+                generationKind: 'story',
+                pipelinePhase: 'asset_generation',
+                operation: 'scene_image_regeneration',
+                targetType: 'scene',
+                targetKey: String(scene.sceneId),
+                sceneIndex: scene.sceneId,
+                attempt: attempt + 1,
+                startedAt: regenerationStartedAt,
+                completedAt: new Date(),
+                metadata: {
+                  previousAttempt: attempt,
+                  reason: 'validation_failed',
+                  validationScore: score,
+                },
               });
             }
           }
@@ -6700,6 +7302,7 @@ export async function regenerateSceneImage(
   }
 
   const imageDomain = getImageDomainService();
+  const complexImageDomain = getComplexImageDomainService();
   let scenarioCardId: string | undefined = metadata?.scenarioCardId;
   if (!scenarioCardId && story.storyRequestId) {
     const sr = await getStoryRepository().findRequestById(story.storyRequestId);
@@ -6809,6 +7412,7 @@ export async function regenerateSceneImage(
 
   const envReferencePromise = prepareSceneEnvironmentReference({
     storyId,
+    storyRequestId: story.storyRequestId ?? undefined,
     userId: story.userId,
     storyEnvironmentId: currentEnvironmentId,
     environment: currentEnvironment,
@@ -6823,6 +7427,7 @@ export async function regenerateSceneImage(
       normalizedCharacters,
       characterDescriptionMap,
       storyId,
+      storyRequestId: story.storyRequestId ?? undefined,
       userId: story.userId,
       imageStyle: metadata?.imageStyle,
       imageDomain,
@@ -6853,6 +7458,7 @@ export async function regenerateSceneImage(
   const outfitPlateRefsPromise = characterReferencesPromise.then((characterReferenceData) =>
     prepareSceneOutfitPlateReferences({
       storyId,
+      storyRequestId: story.storyRequestId ?? undefined,
       userId: story.userId,
       normalizedCharacters,
       characterDescriptionMap,
@@ -6972,6 +7578,7 @@ export async function regenerateSceneImage(
     userId: story.userId,
     assetStorage,
     imageDomain,
+    complexImageDomain,
     referenceImageDataArray,
     imageSystemInstruction,
     imageIndexMap,
