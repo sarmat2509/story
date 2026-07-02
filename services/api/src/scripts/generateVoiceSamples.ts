@@ -83,8 +83,13 @@ interface VoiceRecord {
   name: string;
   displayName: string;
   language: string;
+  supportedLanguages: string[] | null;
   provider: string;
   sampleAudioUrl: string | null;
+}
+
+function getVoiceSupportedLanguages(voice: VoiceRecord): string[] {
+  return voice.supportedLanguages?.length ? voice.supportedLanguages : [voice.language];
 }
 
 async function generateVoiceSamples() {
@@ -102,6 +107,7 @@ async function generateVoiceSamples() {
       name: ttsVoices.name,
       displayName: ttsVoices.displayName,
       language: ttsVoices.language,
+      supportedLanguages: ttsVoices.supportedLanguages,
       provider: ttsVoices.provider,
       sampleAudioUrl: ttsVoices.sampleAudioUrl,
     })
@@ -122,8 +128,18 @@ async function generateVoiceSamples() {
   
   for (const voice of voices) {
     const audioProvider = getAudioProviderByName(voice.provider);
+    const supportedLanguages = getVoiceSupportedLanguages(voice);
 
     for (const language of targetLanguages) {
+      if (!supportedLanguages.includes(language)) {
+        logger.info(
+          { voiceId: voice.id, name: voice.name, language, supportedLanguages },
+          'Skipping sample for unsupported voice language'
+        );
+        skipCount++;
+        continue;
+      }
+
       if (voice.provider === 'grok' && language === 'uk') {
         logger.info(
           { voiceId: voice.id, name: voice.name, provider: voice.provider },

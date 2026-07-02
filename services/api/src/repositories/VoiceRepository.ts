@@ -3,6 +3,15 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '../db/schema';
 import { getLocalizedVoiceDisplayName, getVoiceSamplePath } from '../utils/voicePresentation';
 
+function normalizeVoiceLanguage(language: string | null | undefined): string {
+  return language?.slice(0, 2).toLowerCase() || 'uk';
+}
+
+function supportsVoiceLanguage(language: string): SQL {
+  const normalizedLanguage = normalizeVoiceLanguage(language);
+  return sql`${normalizedLanguage} = ANY(COALESCE(${schema.ttsVoices.supportedLanguages}, ARRAY[${schema.ttsVoices.language}]))`;
+}
+
 export class VoiceRepository {
   constructor(private db: NodePgDatabase<typeof schema>) {}
 
@@ -18,7 +27,11 @@ export class VoiceRepository {
     isPremium: boolean;
     provider: string;
   }>> {
-    const baseFilters = eq(schema.ttsVoices.isActive, true);
+    const normalizedLanguage = normalizeVoiceLanguage(language);
+    const baseFilters = and(
+      eq(schema.ttsVoices.isActive, true),
+      supportsVoiceLanguage(normalizedLanguage)
+    );
 
     const voices = await this.db
       .select({
@@ -39,8 +52,8 @@ export class VoiceRepository {
 
     return voices.map((voice) => ({
       ...voice,
-      displayName: getLocalizedVoiceDisplayName(voice.name, language, voice.displayName),
-      sampleAudioUrl: getVoiceSamplePath(voice.providerVoiceId, language),
+      displayName: getLocalizedVoiceDisplayName(voice.name, normalizedLanguage, voice.displayName),
+      sampleAudioUrl: getVoiceSamplePath(voice.providerVoiceId, normalizedLanguage),
     }));
   }
 
@@ -98,8 +111,10 @@ export class VoiceRepository {
     isPremium: boolean;
     roleType: string | null;
   }>> {
+    const normalizedLanguage = normalizeVoiceLanguage(params.language);
     const filters: any[] = [
       eq(schema.ttsVoices.isActive, true),
+      supportsVoiceLanguage(normalizedLanguage),
       or(
         eq(schema.ttsVoices.roleType, params.role),
         eq(schema.ttsVoices.roleType, 'both')
@@ -139,12 +154,17 @@ export class VoiceRepository {
   }
 
   async findFallbackByLanguage(language: string): Promise<schema.TtsVoice | null> {
-    const whereClause = eq(schema.ttsVoices.isActive, true);
+    const normalizedLanguage = normalizeVoiceLanguage(language);
+    const whereClause = and(
+      eq(schema.ttsVoices.isActive, true),
+      supportsVoiceLanguage(normalizedLanguage)
+    );
 
     const [voice] = await this.db
       .select()
       .from(schema.ttsVoices)
       .where(whereClause)
+      .orderBy(schema.ttsVoices.isPremium, schema.ttsVoices.name)
       .limit(1);
     return voice || null;
   }

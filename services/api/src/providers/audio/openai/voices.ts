@@ -1,5 +1,7 @@
 import { VoiceCatalogEntry } from '../../base/IAudioProvider';
 
+const MULTILINGUAL_STORY_LANGUAGES = ['uk', 'ru', 'en', 'es', 'de', 'fr', 'pl'];
+
 /**
  * OpenAI TTS Voice Catalog
  * Documentation: https://platform.openai.com/docs/guides/text-to-speech
@@ -18,6 +20,7 @@ export const OPENAI_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'marin',
     displayName: 'Марін',
     language: 'uk',
+    supportedLanguages: MULTILINGUAL_STORY_LANGUAGES,
     gender: 'female',
     ageCategory: 'young_adult',
     roleType: 'both',
@@ -31,6 +34,7 @@ export const OPENAI_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'cedar',
     displayName: 'Седар',
     language: 'uk',
+    supportedLanguages: MULTILINGUAL_STORY_LANGUAGES,
     gender: 'male',
     ageCategory: 'adult',
     roleType: 'both',
@@ -46,6 +50,7 @@ export const OPENAI_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'coral',
     displayName: 'Корал',
     language: 'uk',
+    supportedLanguages: MULTILINGUAL_STORY_LANGUAGES,
     gender: 'female',
     ageCategory: 'young_adult',
     roleType: 'both',
@@ -59,6 +64,7 @@ export const OPENAI_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'ballad',
     displayName: 'Балада',
     language: 'uk',
+    supportedLanguages: MULTILINGUAL_STORY_LANGUAGES,
     gender: 'female',
     ageCategory: 'young_adult',
     roleType: 'both',
@@ -72,6 +78,7 @@ export const OPENAI_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'alloy',
     displayName: 'Алой',
     language: 'uk',
+    supportedLanguages: MULTILINGUAL_STORY_LANGUAGES,
     gender: 'neutral',
     ageCategory: 'young_adult',
     roleType: 'both',

@@ -1,5 +1,7 @@
 import { VoiceCatalogEntry } from '../../base/IAudioProvider';
 
+const GROK_STORY_LANGUAGES = ['en', 'ru', 'es', 'de', 'fr', 'pl'];
+
 /**
  * xAI Grok TTS voice catalog
  * API: https://docs.x.ai/developers/model-capabilities/audio/text-to-speech
@@ -16,6 +18,7 @@ export const GROK_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'sirius',
     displayName: 'Sirius',
     language: 'en',
+    supportedLanguages: GROK_STORY_LANGUAGES,
     gender: 'female',
     ageCategory: 'young_adult',
     roleType: 'both',
@@ -29,6 +32,7 @@ export const GROK_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'capella',
     displayName: 'Capella',
     language: 'en',
+    supportedLanguages: GROK_STORY_LANGUAGES,
     gender: 'female',
     ageCategory: 'adult',
     roleType: 'both',
@@ -42,6 +46,7 @@ export const GROK_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'rigel',
     displayName: 'Rigel',
     language: 'en',
+    supportedLanguages: GROK_STORY_LANGUAGES,
     gender: 'male',
     ageCategory: 'adult',
     roleType: 'both',
@@ -55,6 +60,7 @@ export const GROK_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'atlas',
     displayName: 'Atlas',
     language: 'en',
+    supportedLanguages: GROK_STORY_LANGUAGES,
     gender: 'male',
     ageCategory: 'adult',
     roleType: 'both',
@@ -68,6 +74,7 @@ export const GROK_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'antares',
     displayName: 'Antares',
     language: 'en',
+    supportedLanguages: GROK_STORY_LANGUAGES,
     gender: 'male',
     ageCategory: 'adult',
     roleType: 'narrator',

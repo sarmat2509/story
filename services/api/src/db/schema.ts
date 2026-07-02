@@ -1872,6 +1872,7 @@ export const ttsVoices = pgTable(
     name: varchar('name', { length: 100 }).notNull(),
     displayName: varchar('display_name', { length: 100 }).notNull(),
     language: varchar('language', { length: 10 }).notNull(),
+    supportedLanguages: varchar('supported_languages', { length: 10 }).array(),
     gender: varchar('gender', { length: 20 }), // 'male' | 'female' | 'neutral'
     ageCategory: varchar('age_category', { length: 20 }), // 'child' | 'young_adult' | 'adult' | 'senior'
     description: text('description'),

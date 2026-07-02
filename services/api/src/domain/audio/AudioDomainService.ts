@@ -1294,10 +1294,23 @@ export class AudioDomainService {
       const dbVoice = await getVoiceRepository().findById(explicitVoiceId);
       
       if (dbVoice) {
+        const storyLanguage = story.language.slice(0, 2).toLowerCase();
+        const supportedLanguages = dbVoice.supportedLanguages?.length
+          ? dbVoice.supportedLanguages
+          : [dbVoice.language];
+        const supportsStoryLanguage = supportedLanguages
+          .map((language) => language.slice(0, 2).toLowerCase())
+          .includes(storyLanguage);
+
         if (!dbVoice.isActive) {
           logger.warn(
             { voiceId: explicitVoiceId, provider: dbVoice.provider },
             'Explicit voice is inactive; using automatic selection'
+          );
+        } else if (!supportsStoryLanguage) {
+          logger.warn(
+            { voiceId: explicitVoiceId, supportedLanguages, storyLanguage: story.language },
+            'Explicit voice language does not match story language; using automatic selection'
           );
         } else if (dbVoice.provider === 'grok' && isGrokBlockedForStoryLanguage(story.language)) {
           logger.warn(

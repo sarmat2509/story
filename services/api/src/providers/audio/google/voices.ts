@@ -1,5 +1,7 @@
 import { VoiceCatalogEntry } from '../../base/IAudioProvider';
 
+const MULTILINGUAL_STORY_LANGUAGES = ['uk', 'ru', 'en', 'es', 'de', 'fr', 'pl'];
+
 /**
  * Google Cloud TTS Voice Catalog (Gemini 2.5 Flash TTS)
  * Voices from: https://cloud.google.com/text-to-speech/docs/gemini-tts
@@ -17,6 +19,7 @@ export const GOOGLE_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'lyra',
     displayName: 'Ліра',
     language: 'uk',
+    supportedLanguages: MULTILINGUAL_STORY_LANGUAGES,
     gender: 'female',
     ageCategory: 'young_adult',
     roleType: 'both',
@@ -30,6 +33,7 @@ export const GOOGLE_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'hydra',
     displayName: 'Гідра',
     language: 'uk',
+    supportedLanguages: MULTILINGUAL_STORY_LANGUAGES,
     gender: 'female',
     ageCategory: 'adult',
     roleType: 'narrator',
@@ -45,6 +49,7 @@ export const GOOGLE_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'phoenix',
     displayName: 'Феникс',
     language: 'uk',
+    supportedLanguages: MULTILINGUAL_STORY_LANGUAGES,
     gender: 'male',
     ageCategory: 'adult',
     roleType: 'both',
@@ -58,6 +63,7 @@ export const GOOGLE_TTS_VOICE_CATALOG: VoiceCatalogEntry[] = [
     name: 'centaurus',
     displayName: 'Кентавр',
     language: 'uk',
+    supportedLanguages: MULTILINGUAL_STORY_LANGUAGES,
     gender: 'male',
     ageCategory: 'young_adult',
     roleType: 'both',

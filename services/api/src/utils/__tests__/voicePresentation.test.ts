@@ -14,7 +14,26 @@ const uploadsRoot = resolve(apiRoot, 'uploads');
 const landingVoices = [
   ...GOOGLE_TTS_VOICE_CATALOG,
   ...ELEVENLABS_VOICE_CATALOG,
-];
+].filter((voice) => voice.language === 'uk');
+
+const ukrainianOrion = ELEVENLABS_VOICE_CATALOG.find(
+  (voice) => voice.name === 'orion' && voice.language === 'uk'
+);
+const englishOrion = ELEVENLABS_VOICE_CATALOG.find(
+  (voice) => voice.name === 'orion' && voice.language === 'en'
+);
+const ukrainianPerseus = ELEVENLABS_VOICE_CATALOG.find(
+  (voice) => voice.name === 'perseus' && voice.language === 'uk'
+);
+const englishPerseus = ELEVENLABS_VOICE_CATALOG.find(
+  (voice) => voice.name === 'perseus' && voice.language === 'en'
+);
+const ukrainianAndromeda = ELEVENLABS_VOICE_CATALOG.find(
+  (voice) => voice.name === 'andromeda' && voice.language === 'uk'
+);
+const englishAndromeda = ELEVENLABS_VOICE_CATALOG.find(
+  (voice) => voice.name === 'andromeda' && voice.language === 'en'
+);
 
 const expectedSpanishSamples = new Map([
   ['lyra', { displayName: 'Lira', samplePath: 'voice-samples/es/Aoede.mp3' }],
@@ -22,7 +41,32 @@ const expectedSpanishSamples = new Map([
   ['perseus', { displayName: 'Perseo', samplePath: 'voice-samples/es/Ntd0iVwICtUtA6Fvx27M.mp3' }],
 ]);
 
-assert.equal(landingVoices.length, 8, 'landing voice sample coverage should include 4 standard and 4 premium voices');
+assert.ok(ukrainianOrion, 'missing Ukrainian Orion catalog voice');
+assert.ok(englishOrion, 'missing English Orion catalog voice');
+assert.ok(ukrainianPerseus, 'missing Ukrainian Perseus catalog voice');
+assert.ok(englishPerseus, 'missing English Perseus catalog voice');
+assert.ok(ukrainianAndromeda, 'missing Ukrainian Andromeda catalog voice');
+assert.ok(englishAndromeda, 'missing English Andromeda catalog voice');
+assert.equal(ukrainianOrion.providerVoiceId, 'eLDtXX7z65CuLasDRxrP');
+assert.equal(englishOrion.providerVoiceId, 'cCYjmrGZaI86GUJ7F2Nn');
+assert.notEqual(englishOrion.providerVoiceId, ukrainianOrion.providerVoiceId);
+assert.deepEqual(englishOrion.supportedLanguages, ['en']);
+assert.ok(!ukrainianOrion.supportedLanguages?.includes('en'), 'Ukrainian Orion should not support English stories');
+assert.equal(getVoiceSamplePath(englishOrion.providerVoiceId, 'en'), 'voice-samples/en/cCYjmrGZaI86GUJ7F2Nn.mp3');
+assert.equal(ukrainianPerseus.providerVoiceId, 'Ntd0iVwICtUtA6Fvx27M');
+assert.equal(englishPerseus.providerVoiceId, 'kqVT88a5QfII1HNAEPTJ');
+assert.notEqual(englishPerseus.providerVoiceId, ukrainianPerseus.providerVoiceId);
+assert.deepEqual(englishPerseus.supportedLanguages, ['en']);
+assert.ok(!ukrainianPerseus.supportedLanguages?.includes('en'), 'Ukrainian Perseus should not support English stories');
+assert.equal(getVoiceSamplePath(englishPerseus.providerVoiceId, 'en'), 'voice-samples/en/kqVT88a5QfII1HNAEPTJ.mp3');
+assert.equal(ukrainianAndromeda.providerVoiceId, 'ARxhnQPZCfSLpMBASSii');
+assert.equal(englishAndromeda.providerVoiceId, 'eUdJpUEN3EslrgE24PKx');
+assert.notEqual(englishAndromeda.providerVoiceId, ukrainianAndromeda.providerVoiceId);
+assert.deepEqual(englishAndromeda.supportedLanguages, ['en']);
+assert.ok(!ukrainianAndromeda.supportedLanguages?.includes('en'), 'Ukrainian Andromeda should not support English stories');
+assert.equal(getVoiceSamplePath(englishAndromeda.providerVoiceId, 'en'), 'voice-samples/en/eUdJpUEN3EslrgE24PKx.mp3');
+
+assert.equal(landingVoices.length, 8, 'landing voice sample coverage should include 4 standard and 4 Ukrainian premium voices');
 
 for (const voice of landingVoices) {
   const expectedSpanish = expectedSpanishSamples.get(voice.name);
@@ -31,7 +75,9 @@ for (const voice of landingVoices) {
     assert.equal(getVoiceSamplePath(voice.providerVoiceId, 'es'), expectedSpanish.samplePath);
   }
 
-  for (const locale of PUBLIC_TRANSLATION_LOCALES) {
+  const sampleLocales = voice.supportedLanguages?.length ? voice.supportedLanguages : PUBLIC_TRANSLATION_LOCALES;
+
+  for (const locale of sampleLocales) {
     const displayName = getLocalizedVoiceDisplayName(voice.name, locale, voice.displayName);
     assert.ok(displayName.trim(), `missing localized display name for ${voice.name} in ${locale}`);
 
