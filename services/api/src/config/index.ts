@@ -291,7 +291,7 @@ export const config = {
     // Environment image reference (Gemini 2.5 Flash Image via API key)
     enableEnvironmentReference: process.env.ENABLE_ENVIRONMENT_REFERENCE === 'true',
     environmentEmbeddingSimilarityThreshold: parseFloat(
-      process.env.ENVIRONMENT_EMBEDDING_SIMILARITY_THRESHOLD || '0.95'
+      process.env.ENVIRONMENT_EMBEDDING_SIMILARITY_THRESHOLD || '0.9'
     ),
     llmTurnaroundEmbeddingSimilarityThreshold: parseFloat(
       process.env.LLM_TURNAROUND_EMBEDDING_SIMILARITY_THRESHOLD || '0.95'
