@@ -14,8 +14,8 @@ import {
 } from '../image/ImageValidationPrompt';
 
 function testCacheKeysBumped() {
-  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_FULL, 'image_validation_rules_full_v9');
-  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_LITE, 'image_validation_rules_lite_v3');
+  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_FULL, 'image_validation_rules_full_v10');
+  assert.strictEqual(IMAGE_VALIDATION_CACHE_KEY_LITE, 'image_validation_rules_lite_v4');
 
   const full = getImageValidationCachedPrefix(true);
   const lite = getImageValidationCachedPrefix(false);
@@ -61,6 +61,10 @@ function testCacheKeysBumped() {
   assert.ok(
     full.content.includes('Outfit plates are clothing-only references'),
     'Full prompt should keep outfit plates from weakening identity checks'
+  );
+  assert.ok(
+    full.content.includes('without its own IDENTITY mapping'),
+    'Full prompt should forbid reference-match fields for unreferenced characters'
   );
 }
 

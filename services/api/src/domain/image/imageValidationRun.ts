@@ -132,7 +132,7 @@ function extractObservableHints(text: string | undefined): string[] {
 
 function buildExpectedCharactersForPrompt(
   expectedCharacters: ProductImageValidationInput['expectedCharacters'],
-  hasReferenceImages: boolean,
+  referenceImages: ProductImageValidationInput['referenceImages'] | undefined,
   mode: ValidationPromptMode
 ): ProductImageValidationInput['expectedCharacters'] {
   return expectedCharacters.map((c) => ({
@@ -140,8 +140,11 @@ function buildExpectedCharactersForPrompt(
     characterKind: c.characterKind,
     speciesSubtype: c.speciesSubtype,
     // With references, the images are the primary identity ground truth. Keep verbose
-    // prose only in text-only validation or in the first compact pass when no refs exist.
-    description: hasReferenceImages || mode === 'reduced' ? undefined : c.description,
+    // prose only for characters that do not have their own identity reference.
+    description:
+      mode === 'reduced' || charHasIdentityReference(c.name, referenceImages)
+        ? undefined
+        : c.description,
     expectedOutfitForScene: mode === 'reduced' ? undefined : c.expectedOutfitForScene,
   }));
 }
@@ -310,8 +313,23 @@ export function charHasIdentityReference(
 ): boolean {
   if (!refs?.length) return false;
   return refs.some(
-    (r) => r.referenceKind !== 'layout_template' && validationNamesMatch(r.characterName, charName)
+    (r) =>
+      (r.referenceKind == null || r.referenceKind === 'identity') &&
+      validationNamesMatch(r.characterName, charName)
   );
+}
+
+function resetReferenceOnlyFieldsForUnreferencedCharacter(
+  c: ImageValidationResult['characters'][0]
+): void {
+  c.faceMatchesReference = null;
+  c.hairMatchesReference = null;
+  c.ageReadMatchesReference = null;
+  c.proportionsMatchReference = null;
+  delete c.sameOverallDesignRead;
+  delete c.silhouetteDriftSeverity;
+  c.identityComparisonSummary =
+    'No identity reference was provided for this character; reference comparison fields are not applicable.';
 }
 
 /**
@@ -345,6 +363,10 @@ export function normalizeImageValidationResult(
   for (const c of out.characters) {
     const exp = findExpectedForValidationChar(c.name, expectedCharacters);
     const expectedKind = exp?.characterKind ?? null;
+    const hasIdentityReference = charHasIdentityReference(c.name, referenceImages);
+    if (!hasIdentityReference) {
+      resetReferenceOnlyFieldsForUnreferencedCharacter(c);
+    }
     if (expectedKind && c.characterKind !== expectedKind) {
       logger.warn(
         { name: c.name, expectedKind, got: c.characterKind },
@@ -621,7 +643,7 @@ export async function runProductImageValidation(
     const promptMode = attemptSpec.promptMode;
     const expectedCharactersForPrompt = buildExpectedCharactersForPrompt(
       input.expectedCharacters,
-      hasReferenceImages,
+      preparedReferenceImages,
       promptMode
     );
     const sceneContext = buildCompactValidationSceneManifest(

@@ -38,8 +38,8 @@ export interface ImageValidationPromptParams {
   includeBubbleChecks?: boolean;
 }
 
-export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v9';
-export const IMAGE_VALIDATION_CACHE_KEY_LITE = 'image_validation_rules_lite_v3';
+export const IMAGE_VALIDATION_CACHE_KEY_FULL = 'image_validation_rules_full_v10';
+export const IMAGE_VALIDATION_CACHE_KEY_LITE = 'image_validation_rules_lite_v4';
 
 function promptKindLabel(kind: ImageValidationCharacterKind): string {
   if (kind === 'animal') return 'ANIMAL';
@@ -93,7 +93,7 @@ Without reference images:
 
 Output JSON rules:
 - characterKind must be exactly "human", "animal", or "imaginary" and MUST match the KIND listed for that name in the expected roster. Do not reinterpret an animal as human.
-- For each character, fill required booleans and scores conservatively. Identity-vs-reference booleans (face/hair/ageRead/proportions) may be null for animal/imaginary when no reference is available.
+- Because this run has no reference images, set faceMatchesReference, hairMatchesReference, ageReadMatchesReference, and proportionsMatchReference to null; omit sameOverallDesignRead and silhouetteDriftSeverity. Evaluate roster-description fidelity through found, recognizableScore, matchesColors, matchesOutfit, and issue.
 - issue should list concrete observed problems separated by semicolons when needed.
 - Report observable checks only. No aggregate pass/fail field. Return JSON only.`,
     };
@@ -146,6 +146,7 @@ Validation rules:
 Output JSON rules:
 - characterKind must be exactly "human", "animal", or "imaginary" and MUST match the KIND listed for that name in the expected roster. Do not answer "human" for a character listed as ANIMAL just because they appear small or cute.
 - For HUMAN with an identity reference: faceMatchesReference, hairMatchesReference, ageReadMatchesReference, proportionsMatchReference are expected booleans.
+- For any character without its own IDENTITY mapping in VALIDATION MAPPING, do not claim a reference match: set faceMatchesReference, hairMatchesReference, ageReadMatchesReference, and proportionsMatchReference to null; omit sameOverallDesignRead and silhouetteDriftSeverity unless a true identity reference exists. Evaluate that character against the roster description and scene brief through found, recognizableScore, matchesColors, matchesOutfit, and issue.
 - For HUMAN faceMatchesReference, evaluate the whole face/head identity from the identity reference, not isolated features, clothing, or hairstyle.
 - For HUMAN hairMatchesReference, evaluate hairstyle structure and hair color zoning against the identity reference even when an outfit plate is present. A matching outfit, broad hair color, or overall palette must not turn a structurally different hairstyle or wrong hair color placement into hairMatchesReference=true.
 - For ANIMAL / IMAGINARY_CREATURE: leave faceMatchesReference, hairMatchesReference, and ageReadMatchesReference as null (they are human identity slots). Use sameOverallDesignRead, silhouetteDriftSeverity, and proportionsMatchReference to express identity drift.

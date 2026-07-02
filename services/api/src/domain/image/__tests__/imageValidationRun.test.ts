@@ -253,11 +253,65 @@ async function testLayoutTemplateReferenceIsAttachedForValidation() {
   assert.strictEqual(manifest.references[0].imageIndex, 2);
 }
 
+async function testUnreferencedCharacterKeepsDescriptionAndClearsReferenceFields() {
+  const primary = new MockTextProvider([validResult()]);
+
+  const result = await runProductImageValidation(
+    primary,
+    {
+      ...validationInput,
+      referenceImages: [
+        {
+          characterName: 'Lera',
+          imageData: TINY_PNG.toString('base64'),
+          mimeType: 'image/png',
+          referenceKind: 'outfit_plate',
+        },
+        {
+          characterName: 'Druzhok',
+          imageData: TINY_PNG.toString('base64'),
+          mimeType: 'image/png',
+        },
+      ],
+    },
+    {
+      visionModel: 'gemini-test',
+    }
+  );
+
+  assert.strictEqual(primary.calls.length, 1);
+  assert.match(
+    primary.calls[0].prompt,
+    /"Lera" \| KIND=HUMAN \| Young girl beside the starry chest\./
+  );
+  assert.match(primary.calls[0].prompt, /"Lera" -> Image 2 \[HUMAN; OUTFIT_PLATE\]/);
+  assert.doesNotMatch(
+    primary.calls[0].prompt,
+    /"Druzhok" \| KIND=IMAGINARY_CREATURE \| Small robo-dog/
+  );
+
+  const lera = result.characters.find((c) => c.name === 'Lera');
+  assert.ok(lera, 'Lera validation row should be present');
+  assert.strictEqual(lera.faceMatchesReference, null);
+  assert.strictEqual(lera.hairMatchesReference, null);
+  assert.strictEqual(lera.ageReadMatchesReference, null);
+  assert.strictEqual(lera.proportionsMatchReference, null);
+  assert.strictEqual(lera.sameOverallDesignRead, undefined);
+  assert.strictEqual(lera.silhouetteDriftSeverity, undefined);
+  assert.match(lera.identityComparisonSummary, /No identity reference was provided/);
+
+  const druzhok = result.characters.find((c) => c.name === 'Druzhok');
+  assert.ok(druzhok, 'Druzhok validation row should be present');
+  assert.strictEqual(druzhok.proportionsMatchReference, true);
+  assert.strictEqual(druzhok.sameOverallDesignRead, true);
+}
+
 async function main() {
   await testFallbackAfterPrimaryBlocked();
   await testAllBlockedReturnsProviderBlocked();
   await testLayoutChecksSchemaAndPromptAreFlagged();
   await testLayoutTemplateReferenceIsAttachedForValidation();
+  await testUnreferencedCharacterKeepsDescriptionAndClearsReferenceFields();
   console.log('imageValidationRun tests passed');
 }
 
