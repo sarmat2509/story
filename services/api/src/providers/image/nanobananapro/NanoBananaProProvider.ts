@@ -258,8 +258,22 @@ export class NanoBananaProProvider implements IImageProvider {
       operation: op,
     } = params;
 
+    const providerRequestId = `gemini-img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const requestDiagnostics = this.buildRequestDiagnostics({
+      providerRequestId,
+      parts,
+      aspectRatio,
+      systemInstruction,
+      personGeneration,
+      promptLength,
+      referenceCount,
+      operationType,
+      previousInteractionId,
+    });
+
     // Log full request structure (untruncated for debugging)
     logger.info({
+      providerRequestId,
       partsCount: parts.length,
       hasSystemInstruction: !!systemInstruction,
       systemInstructionLength: systemInstruction?.length || 0,
@@ -293,6 +307,7 @@ export class NanoBananaProProvider implements IImageProvider {
       operationType,
       hasPreviousInteractionId: !!previousInteractionId,
       previousInteractionId: previousInteractionId ?? null,
+      diagnostics: requestDiagnostics,
     }, `Calling Gemini API for image ${operationType}`);
 
     // Count tokens before generation (optional but helpful for diagnostics)
@@ -308,6 +323,7 @@ export class NanoBananaProProvider implements IImageProvider {
         maxInputTokens: 32768,
         tokenUtilization: `${(((tokenCountResult.totalTokens || 0) / 32768) * 100).toFixed(1)}%`,
         operationType,
+        providerRequestId,
       }, `Token count for image ${operationType}`);
 
       if ((tokenCountResult.totalTokens || 0) > 30000) {
@@ -315,14 +331,19 @@ export class NanoBananaProProvider implements IImageProvider {
           totalTokens: tokenCountResult.totalTokens,
           limit: 32768,
           excess: (tokenCountResult.totalTokens || 0) - 30000,
+          providerRequestId,
         }, 'Prompt approaching token limit (>90%)');
       }
     } catch (tokenError) {
-      logger.debug({ error: tokenError }, 'Could not count tokens (non-critical)');
+      logger.debug({
+        providerRequestId,
+        errorDiagnostics: this.extractApiErrorDiagnostics(tokenError),
+      }, 'Could not count tokens (non-critical)');
     }
 
     try {
       return await this.callGeminiInteractionsImageAPI({
+        providerRequestId,
         parts,
         aspectRatio,
         systemInstruction,
@@ -335,9 +356,9 @@ export class NanoBananaProProvider implements IImageProvider {
       });
     } catch (interactionError) {
       logger.warn({
-        err: interactionError instanceof Error
-          ? { message: interactionError.message, name: interactionError.name, stack: interactionError.stack }
-          : String(interactionError),
+        providerRequestId,
+        errorDiagnostics: this.extractApiErrorDiagnostics(interactionError),
+        requestDiagnostics,
         model: this.model,
         operationType,
         hasPreviousInteractionId: !!previousInteractionId,
@@ -345,24 +366,40 @@ export class NanoBananaProProvider implements IImageProvider {
       }, 'Gemini Interactions image call failed — falling back to generateContent');
     }
 
-    const response = await this.client.models.generateContent({
-      model: this.model,
-      contents: [{ role: 'user', parts }],
-      config: {
-        ...(systemInstruction && { systemInstruction }),
-        responseModalities: [Modality.IMAGE, Modality.TEXT],
-        imageConfig: {
-          ...(aspectRatio && { aspectRatio }),
-          imageSize: config.nanoBanana?.imageSize || '1K',
-          ...(personGeneration && this.supportsPersonGeneration() && {
-            personGeneration: this.mapPersonGeneration(personGeneration),
-          }),
-        },
+    const generateContentConfig = {
+      ...(systemInstruction && { systemInstruction }),
+      responseModalities: [Modality.IMAGE, Modality.TEXT],
+      imageConfig: {
+        ...(aspectRatio && { aspectRatio }),
+        imageSize: config.nanoBanana?.imageSize || '1K',
+        ...(personGeneration && this.supportsPersonGeneration() && {
+          personGeneration: this.mapPersonGeneration(personGeneration),
+        }),
       },
-    });
+    };
+
+    let response: Awaited<ReturnType<typeof this.client.models.generateContent>>;
+    try {
+      response = await this.client.models.generateContent({
+        model: this.model,
+        contents: [{ role: 'user', parts }],
+        config: generateContentConfig,
+      });
+    } catch (generateContentError) {
+      logger.error({
+        providerRequestId,
+        model: this.model,
+        operationType,
+        errorDiagnostics: this.extractApiErrorDiagnostics(generateContentError),
+        requestDiagnostics,
+        generateContentConfig: this.sanitizeForLog(generateContentConfig),
+      }, 'Gemini generateContent image call failed');
+      throw generateContentError;
+    }
 
     // Log complete response structure
     logger.info({
+      providerRequestId,
       hasCandidates: !!response.candidates,
       candidateCount: response.candidates?.length || 0,
       hasPromptFeedback: !!response.promptFeedback,
@@ -558,6 +595,7 @@ export class NanoBananaProProvider implements IImageProvider {
    * the previous id adds provider-side continuity for image repair.
    */
   private async callGeminiInteractionsImageAPI(params: {
+    providerRequestId: string;
     parts: any[];
     aspectRatio?: string;
     systemInstruction?: string;
@@ -569,6 +607,7 @@ export class NanoBananaProProvider implements IImageProvider {
     operation?: string;
   }): Promise<GeneratedImage> {
     const {
+      providerRequestId,
       parts,
       aspectRatio,
       systemInstruction,
@@ -588,6 +627,19 @@ export class NanoBananaProProvider implements IImageProvider {
       image_size: config.nanoBanana?.imageSize || '1K',
     };
 
+    logger.info({
+      providerRequestId,
+      model: this.model,
+      operationType,
+      inputCount: interactionInput.length,
+      inputSummary: this.summarizeInteractionInput(interactionInput),
+      responseFormat,
+      hasSystemInstruction: !!systemInstruction,
+      systemInstructionLength: systemInstruction?.length ?? 0,
+      hasPreviousInteractionId: !!previousInteractionId,
+      previousInteractionId: previousInteractionId ?? null,
+    }, 'Calling Gemini Interactions image API');
+
     const interaction = await (this.client as unknown as {
       interactions: {
         create: (params: Record<string, unknown>) => Promise<Record<string, any>>;
@@ -603,6 +655,7 @@ export class NanoBananaProProvider implements IImageProvider {
     });
 
     logger.info({
+      providerRequestId,
       interactionId: interaction.id,
       previousInteractionId: previousInteractionId ?? null,
       status: interaction.status,
@@ -691,6 +744,221 @@ export class NanoBananaProProvider implements IImageProvider {
       format,
       providerInteractionId: typeof interaction.id === 'string' ? interaction.id : undefined,
     };
+  }
+
+  private buildRequestDiagnostics(params: {
+    providerRequestId: string;
+    parts: any[];
+    aspectRatio?: string;
+    systemInstruction?: string;
+    personGeneration?: string;
+    promptLength: number;
+    referenceCount: number;
+    operationType: 'generate' | 'edit';
+    previousInteractionId?: string;
+  }): Record<string, unknown> {
+    const { parts } = params;
+    const fileUriParts = parts.filter((part) => part?.fileData);
+    const inlineImageParts = parts.filter((part) => part?.inlineData);
+    const textParts = parts.filter((part) => typeof part?.text === 'string');
+    const unsupportedPartIndexes = parts
+      .map((part, index) =>
+        part?.text || part?.inlineData || part?.fileData ? null : { index, keys: Object.keys(part ?? {}) }
+      )
+      .filter(Boolean);
+    const maybePersonGenerationSent = !!(params.personGeneration && this.supportsPersonGeneration());
+
+    return {
+      providerRequestId: params.providerRequestId,
+      model: this.model,
+      operationType: params.operationType,
+      endpointPlan: 'interactions first, generateContent fallback',
+      promptLength: params.promptLength,
+      referenceCount: params.referenceCount,
+      partsCount: parts.length,
+      textPartsCount: textParts.length,
+      fileUriPartsCount: fileUriParts.length,
+      inlineImagePartsCount: inlineImageParts.length,
+      unsupportedPartIndexes,
+      fileUriParts: fileUriParts.map((part, index) => ({
+        index,
+        mimeType: part.fileData?.mimeType ?? null,
+        fileUriSummary: this.summarizeUri(part.fileData?.fileUri),
+      })),
+      inlineImageParts: inlineImageParts.map((part, index) => ({
+        index,
+        mimeType: part.inlineData?.mimeType ?? null,
+        dataLength: typeof part.inlineData?.data === 'string' ? part.inlineData.data.length : null,
+      })),
+      textParts: textParts.map((part, index) => ({
+        index,
+        textLength: part.text.length,
+        textPreview: part.text.slice(0, 240),
+      })),
+      aspectRatio: params.aspectRatio ?? null,
+      imageSize: config.nanoBanana?.imageSize || '1K',
+      hasSystemInstruction: !!params.systemInstruction,
+      systemInstructionLength: params.systemInstruction?.length ?? 0,
+      personGenerationRequested: params.personGeneration ?? null,
+      personGenerationSent: maybePersonGenerationSent
+        ? this.mapPersonGeneration(params.personGeneration!)
+        : null,
+      hasPreviousInteractionId: !!params.previousInteractionId,
+      previousInteractionId: params.previousInteractionId ?? null,
+      invalidArgumentHints: this.inferInvalidArgumentHints({
+        referenceCount: params.referenceCount,
+        fileUriPartsCount: fileUriParts.length,
+        inlineImagePartsCount: inlineImageParts.length,
+        unsupportedPartCount: unsupportedPartIndexes.length,
+        aspectRatio: params.aspectRatio,
+        personGenerationSent: maybePersonGenerationSent,
+      }),
+    };
+  }
+
+  private summarizeInteractionInput(input: any[]): Array<Record<string, unknown>> {
+    return input.map((part, index) => {
+      if (part?.type === 'text') {
+        return {
+          index,
+          type: 'text',
+          textLength: typeof part.text === 'string' ? part.text.length : null,
+          textPreview: typeof part.text === 'string' ? part.text.slice(0, 160) : null,
+        };
+      }
+      if (part?.type === 'image') {
+        return {
+          index,
+          type: 'image',
+          mimeType: part.mime_type ?? null,
+          hasUri: typeof part.uri === 'string',
+          uriSummary: this.summarizeUri(part.uri),
+          hasInlineData: typeof part.data === 'string',
+          inlineDataLength: typeof part.data === 'string' ? part.data.length : null,
+        };
+      }
+      return { index, type: part?.type ?? 'unknown', keys: Object.keys(part ?? {}) };
+    });
+  }
+
+  private inferInvalidArgumentHints(params: {
+    referenceCount: number;
+    fileUriPartsCount: number;
+    inlineImagePartsCount: number;
+    unsupportedPartCount: number;
+    aspectRatio?: string;
+    personGenerationSent: boolean;
+  }): string[] {
+    const hints: string[] = [];
+    const supportedAspectRatios = new Set([
+      '1:1', '1:4', '1:8', '2:3', '3:2', '3:4', '4:1', '4:3', '4:5',
+      '5:4', '8:1', '9:16', '16:9', '21:9',
+    ]);
+
+    if (this.model.includes('lite') && params.referenceCount >= 4) {
+      hints.push('Lite image model may reject heavy multi-reference scene requests; try complex image route/model.');
+    }
+    if (params.fileUriPartsCount > 0) {
+      hints.push('Request uses Files API file URIs; verify the endpoint/model accepts fileData/file URIs for image generation.');
+    }
+    if (params.inlineImagePartsCount > 0) {
+      hints.push('Request includes inline images; verify payload size and MIME types if Google does not return field-level details.');
+    }
+    if (params.unsupportedPartCount > 0) {
+      hints.push('Request contains unsupported part shapes before SDK call.');
+    }
+    if (params.aspectRatio && !supportedAspectRatios.has(params.aspectRatio)) {
+      hints.push(`Unsupported aspect ratio for Gemini image request: ${params.aspectRatio}.`);
+    }
+    if (params.personGenerationSent) {
+      hints.push('personGeneration was sent; some Gemini image models reject this config.');
+    }
+
+    return hints;
+  }
+
+  private extractApiErrorDiagnostics(error: unknown): Record<string, unknown> {
+    const err = error as Record<string, any> | null | undefined;
+    const message = error instanceof Error ? error.message : typeof error === 'string' ? error : undefined;
+
+    return {
+      type: err?.constructor?.name ?? typeof error,
+      name: err?.name ?? null,
+      message: message ?? null,
+      parsedMessage: this.tryParseJsonObject(message),
+      status: err?.status ?? err?.statusCode ?? null,
+      code: err?.code ?? null,
+      details: this.sanitizeForLog(err?.details ?? null),
+      keys: err && typeof err === 'object' ? Object.keys(err) : [],
+      error: this.sanitizeForLog(err?.error ?? null),
+      response: this.sanitizeForLog(err?.response ?? null),
+      body: this.sanitizeForLog(err?.body ?? null),
+      data: this.sanitizeForLog(err?.data ?? null),
+      cause: this.sanitizeForLog(err?.cause ?? null),
+      stack: error instanceof Error ? error.stack : null,
+    };
+  }
+
+  private tryParseJsonObject(value?: string): unknown {
+    if (!value) return null;
+    const trimmed = value.trim();
+    const firstBrace = trimmed.indexOf('{');
+    if (firstBrace === -1) return null;
+
+    try {
+      return JSON.parse(trimmed.slice(firstBrace));
+    } catch {
+      return null;
+    }
+  }
+
+  private sanitizeForLog(value: unknown, depth = 0): unknown {
+    if (value === null || value === undefined) return value ?? null;
+    if (depth > 4) return '[MaxDepth]';
+    if (Buffer.isBuffer(value)) return `[Buffer ${value.length} bytes]`;
+    if (typeof value === 'string') {
+      return value.length > 2000 ? `${value.slice(0, 2000)}...[truncated ${value.length}]` : value;
+    }
+    if (typeof value !== 'object') return value;
+    if (Array.isArray(value)) {
+      return value.slice(0, 40).map((item) => this.sanitizeForLog(item, depth + 1));
+    }
+
+    const result: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      const normalizedKey = key.toLowerCase();
+      if (
+        normalizedKey.includes('apikey') ||
+        normalizedKey.includes('api_key') ||
+        normalizedKey.includes('authorization') ||
+        normalizedKey.includes('token')
+      ) {
+        result[key] = '[redacted]';
+        continue;
+      }
+      if ((normalizedKey === 'data' || normalizedKey.includes('base64')) && typeof item === 'string') {
+        result[key] = `[base64/string ${item.length} chars]`;
+        continue;
+      }
+      result[key] = this.sanitizeForLog(item, depth + 1);
+    }
+    return result;
+  }
+
+  private summarizeUri(uri: unknown): Record<string, unknown> | null {
+    if (typeof uri !== 'string') return null;
+    try {
+      const parsed = new URL(uri);
+      return {
+        protocol: parsed.protocol,
+        host: parsed.host,
+        pathPreview: parsed.pathname.slice(0, 120),
+      };
+    } catch {
+      return {
+        rawPreview: uri.slice(0, 160),
+      };
+    }
   }
 
   private convertPartsToInteractionInput(parts: any[]): any[] {

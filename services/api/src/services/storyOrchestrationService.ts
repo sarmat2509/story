@@ -5140,14 +5140,48 @@ async function generateSceneImageWithReference(
         throw editError;
       }
     } else {
-      image = await generateWithRetry(initialImageDomain, generateRequest, {
-        storyId,
-        sceneId: scene.sceneId,
-        userId: context.userId,
-        nextPromptAttemptId,
-        validationAttempt: firstValidationAttempt,
-        imageRoute,
-      });
+      try {
+        image = await generateWithRetry(initialImageDomain, generateRequest, {
+          storyId,
+          sceneId: scene.sceneId,
+          userId: context.userId,
+          nextPromptAttemptId,
+          validationAttempt: firstValidationAttempt,
+          imageRoute,
+        });
+      } catch (initialGenerationError) {
+        if (initialImageRoute !== 'simple' || !context.complexImageDomain) {
+          throw initialGenerationError;
+        }
+
+        logger.warn(
+          {
+            err:
+              initialGenerationError instanceof Error
+                ? {
+                    message: initialGenerationError.message,
+                    name: initialGenerationError.name,
+                    stack: initialGenerationError.stack,
+                  }
+                : String(initialGenerationError),
+            storyId,
+            sceneId: scene.sceneId,
+            referenceCount: referenceImagesArray?.length ?? 0,
+            retryImageRoute: validationRetryImageRoute,
+          },
+          'Initial simple scene image generation failed — falling back to complex route'
+        );
+
+        imageRoute = validationRetryImageRoute;
+        image = await generateWithRetry(validationRetryImageDomain, generateRequest, {
+          storyId,
+          sceneId: scene.sceneId,
+          userId: context.userId,
+          nextPromptAttemptId,
+          validationAttempt: firstValidationAttempt,
+          imageRoute,
+        });
+      }
     }
     let lastValidation: ImageValidationResult | null = null;
     const outfitByCharacter = omitOutfitProseForNonHumanCharacters(
