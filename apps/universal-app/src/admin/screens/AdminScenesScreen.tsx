@@ -706,6 +706,9 @@ export default function AdminScenesScreen() {
           mixedStoryScreenOrder: scene.mixedStoryScreenOrder,
           graphicNovelPageNumber: scene.graphicNovelPageNumber,
           imageTargetKind: scene.imageTargetKind,
+          hasImage: scene.hasImage,
+          imageUrl: scene.imageUrl,
+          imageStoragePath: scene.imageStoragePath,
           directorScene,
         };
       }),
@@ -746,6 +749,9 @@ export default function AdminScenesScreen() {
       item.imageTargetKind ?? (isGraphicPageStory ? 'graphic_novel_page' : 'scene');
     if (imageTargetKind === 'none') {
       return <Text style={styles.metaText}>no image</Text>;
+    }
+    if (!item.hasImage) {
+      return null;
     }
 
     if (imageTargetKind === 'graphic_novel_page') {

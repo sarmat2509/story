@@ -286,7 +286,7 @@ function createImageDomainService(
 
 /**
  * Get simple image provider instance (private).
- * Used for ordinary story illustrations and other light visuals.
+ * Used for first-pass story illustrations and other light visuals.
  */
 function getImageProvider(): IImageProvider {
   if (!imageProvider) {
@@ -302,7 +302,7 @@ function getImageProvider(): IImageProvider {
 
 /**
  * Get complex image provider instance (private).
- * Used for full comic pages where Seedream currently underperforms.
+ * Used for full comic pages and second-pass story illustrations after validation failure.
  */
 function getComplexImageProvider(): IImageProvider {
   if (!complexImageProvider) {

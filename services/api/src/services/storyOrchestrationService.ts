@@ -3891,6 +3891,7 @@ async function saveImagePromptDebugArtifact(params: {
   attemptId: number;
   providerRetry: number;
   validationAttempt?: number;
+  imageRoute?: SceneImageRoute;
   payload: BuiltScenePromptPayload;
 }): Promise<void> {
   try {
@@ -3905,6 +3906,7 @@ async function saveImagePromptDebugArtifact(params: {
       attemptId: params.attemptId,
       providerRetry: params.providerRetry,
       validationAttempt: params.validationAttempt ?? null,
+      imageRoute: params.imageRoute ?? null,
       savedAt: new Date().toISOString(),
       primaryRead: params.payload.primaryRead ?? null,
       prompt: params.payload.prompt,
@@ -4170,12 +4172,14 @@ interface ScoredAttempt {
   score: number;
   validation: ImageValidationResult;
   attempt: number;
+  imageRoute: SceneImageRoute;
 }
 
 type FinalValidationMeta = {
   validation: ImageValidationResult;
   score: number | null;
   attempt: number;
+  imageRoute: SceneImageRoute;
 };
 
 type EditRepairReferenceImage = {
@@ -4591,6 +4595,7 @@ async function generateSceneImageWithReference(
     currentEnvironment?: StoryEnvironment;
     requestId?: string;
     onValidationRetry?: () => Promise<void>;
+    complexImageDomain?: SceneImageDomainService;
   }
 ): Promise<{ imageUrl: string; assetId: string }> {
   const startTime = Date.now();
@@ -4840,14 +4845,21 @@ async function generateSceneImageWithReference(
     const maxAttempts = config.image.enableValidation
       ? Math.min(config.image.validationMaxRetries + 1, 2)
       : 1;
-    const useEditRepair = config.image.validationUseEditRepair;
+    const validationRetryImageDomain = context.complexImageDomain ?? context.imageDomain;
+    const validationRetryImageRoute: SceneImageRoute = context.complexImageDomain
+      ? 'complex'
+      : 'simple';
+    const useEditRepair =
+      config.image.validationUseEditRepair && validationRetryImageRoute !== 'complex';
 
+    let imageRoute: SceneImageRoute = 'simple';
     let image = await generateWithRetry(context.imageDomain, generateRequest, {
       storyId,
       sceneId: scene.sceneId,
       userId: context.userId,
       nextPromptAttemptId,
       validationAttempt: 1,
+      imageRoute,
     });
     let lastValidation: ImageValidationResult | null = null;
     const outfitByCharacter = omitOutfitProseForNonHumanCharacters(
@@ -4972,7 +4984,7 @@ async function generateSceneImageWithReference(
           lastValidation = validation;
 
           if (validation.validationStatus === 'provider_blocked') {
-            finalValidationMeta = { validation, score: null, attempt };
+            finalValidationMeta = { validation, score: null, attempt, imageRoute };
             logger.warn(
               {
                 storyId,
@@ -5003,9 +5015,10 @@ async function generateSceneImageWithReference(
             score,
             validation,
             attempt,
+            imageRoute,
           });
 
-          finalValidationMeta = { validation, score, attempt };
+          finalValidationMeta = { validation, score, attempt, imageRoute };
 
           logger.info(
             {
@@ -5211,13 +5224,15 @@ async function generateSceneImageWithReference(
                 );
 
                 const regenerationStartedAt = new Date();
-                image = await generateWithRetry(context.imageDomain, generateRequest, {
+                image = await generateWithRetry(validationRetryImageDomain, generateRequest, {
                   storyId,
                   sceneId: scene.sceneId,
                   userId: context.userId,
                   nextPromptAttemptId,
                   validationAttempt: attempt + 1,
+                  imageRoute: validationRetryImageRoute,
                 });
+                imageRoute = validationRetryImageRoute;
                 await recordStageTiming({
                   storyId,
                   storyRequestId: context.requestId,
@@ -5235,6 +5250,7 @@ async function generateSceneImageWithReference(
                     previousAttempt: attempt,
                     reason: 'edit_repair_failed',
                     validationScore: score,
+                    imageRoute,
                   },
                 });
               }
@@ -5244,19 +5260,22 @@ async function generateSceneImageWithReference(
                   storyId,
                   sceneId: scene.sceneId,
                   attempt,
+                  nextImageRoute: validationRetryImageRoute,
                   feedback: validation.overallFeedback,
                 },
                 'Validation failed — regenerating scene image from scratch'
               );
 
               const regenerationStartedAt = new Date();
-              image = await generateWithRetry(context.imageDomain, generateRequest, {
+              image = await generateWithRetry(validationRetryImageDomain, generateRequest, {
                 storyId,
                 sceneId: scene.sceneId,
                 userId: context.userId,
                 nextPromptAttemptId,
                 validationAttempt: attempt + 1,
+                imageRoute: validationRetryImageRoute,
               });
+              imageRoute = validationRetryImageRoute;
               await recordStageTiming({
                 storyId,
                 storyRequestId: context.requestId,
@@ -5274,6 +5293,7 @@ async function generateSceneImageWithReference(
                   previousAttempt: attempt,
                   reason: 'validation_failed',
                   validationScore: score,
+                  imageRoute,
                 },
               });
             }
@@ -5319,11 +5339,13 @@ async function generateSceneImageWithReference(
             providerInteractionId: best.providerInteractionId,
           };
         }
+        imageRoute = best.imageRoute;
 
         finalValidationMeta = {
           validation: best.validation,
           score: best.score,
           attempt: best.attempt,
+          imageRoute: best.imageRoute,
         };
 
         logger.warn(
@@ -5336,6 +5358,7 @@ async function generateSceneImageWithReference(
             allScores: scoredAttempts.map((a) => ({
               attempt: a.attempt,
               score: a.score,
+              imageRoute: a.imageRoute,
               characters: a.validation.characters.map((c) => ({
                 name: c.name,
                 found: c.found,
@@ -5421,6 +5444,10 @@ async function generateSceneImageWithReference(
             : 'regenerate'
           : 'disabled',
         providerInteractionId: image.providerInteractionId,
+        imageRoute: finalValidationMeta?.imageRoute ?? imageRoute,
+        initialImageRoute: 'simple',
+        validationFallbackImageRoute:
+          config.image.enableValidation && maxAttempts > 1 ? validationRetryImageRoute : null,
         maxValidationAttempts: maxAttempts,
         style: context.userStyle,
         hasSceneVisual: !!scene.sceneVisual,

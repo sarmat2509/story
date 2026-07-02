@@ -690,6 +690,7 @@ export async function listAdminDirectorScenes(storyId: string) {
     typeof metadata.mapTileAssetId === 'string' && metadata.mapTileAssetId.trim()
       ? metadata.mapTileAssetId
       : null;
+  const assetRepo = getAssetRepository();
   const [
     items,
     storyEnvironmentMappings,
@@ -701,6 +702,7 @@ export async function listAdminDirectorScenes(storyId: string) {
     finalAudio,
     mapTileAssetById,
     latestMapTileAsset,
+    completedSceneImages,
   ] = await Promise.all([
     getStoryDirectorSceneRepository().listByStoryId(storyId),
     getStoryEnvironmentCacheRepository().listByStoryId(storyId),
@@ -709,9 +711,10 @@ export async function listAdminDirectorScenes(storyId: string) {
     getStoryCost(storyId),
     getStoryCostBreakdown(storyId),
     getStoryCacheStats(storyId),
-    getAssetRepository().findFinalCompletedAudioByStoryId(storyId),
-    mapTileAssetId ? getAssetRepository().findById(mapTileAssetId) : Promise.resolve(null),
-    getAssetRepository().findLatestCompletedMapTileByStoryId(storyId),
+    assetRepo.findFinalCompletedAudioByStoryId(storyId),
+    mapTileAssetId ? assetRepo.findById(mapTileAssetId) : Promise.resolve(null),
+    assetRepo.findLatestCompletedMapTileByStoryId(storyId),
+    assetRepo.findCompletedSceneImagesByStoryId(storyId),
   ]);
   const mapTileAsset =
     mapTileAssetById?.storyId === storyId ? mapTileAssetById : latestMapTileAsset;
@@ -744,11 +747,18 @@ export async function listAdminDirectorScenes(storyId: string) {
     storyScenes,
     pages: graphicNovelPages,
   });
+  const sceneImageBySceneIndex = new Map<number, (typeof completedSceneImages)[number]>();
+  for (const image of completedSceneImages) {
+    if (image.sceneNumber == null || sceneImageBySceneIndex.has(image.sceneNumber)) continue;
+    sceneImageBySceneIndex.set(image.sceneNumber, image);
+  }
+  const graphicNovelPageByNumber = new Map(
+    graphicNovelPages.map((page) => [page.pageNumber, page])
+  );
 
   const gp = finalAudio?.asset?.generationParams as Record<string, unknown> | undefined;
   const am = (story.audioMetadata ?? {}) as StoryAudioMetadata;
   const sceneGroupAssetIds = Array.isArray(am.sceneGroupAssetIds) ? am.sceneGroupAssetIds : [];
-  const assetRepo = getAssetRepository();
   const chunkRows = await Promise.all(
     sceneGroupAssetIds.map(async (id, slotIndex) => {
       if (!id) {
@@ -910,6 +920,17 @@ export async function listAdminDirectorScenes(storyId: string) {
         const sceneIndex = numberOrNull(item.sceneId)!;
         const imageTargetKind = adminSceneImageTargetKind(storyFormat, item);
         const graphicNovelPageNumber = numberOrNull(item.graphicNovelPageNumber);
+        const sceneImage =
+          imageTargetKind === 'scene' ? sceneImageBySceneIndex.get(sceneIndex) : null;
+        const graphicNovelPage =
+          imageTargetKind === 'graphic_novel_page' && graphicNovelPageNumber != null
+            ? graphicNovelPageByNumber.get(graphicNovelPageNumber)
+            : null;
+        const imageStoragePath =
+          sceneImage?.storagePath ?? normalizeAssetPath(graphicNovelPage?.imageUrl);
+        const imageUrl = sceneImage
+          ? `/api/v1/assets/${sceneImage.storagePath}`
+          : stringOrNull(graphicNovelPage?.imageUrl);
         return {
           sceneIndex,
           storyText: typeof item.text === 'string' ? item.text : '',
@@ -918,6 +939,9 @@ export async function listAdminDirectorScenes(storyId: string) {
           mixedStoryScreenOrder: numberOrNull(item.mixedStoryScreenOrder),
           graphicNovelPageNumber,
           imageTargetKind,
+          hasImage: !!imageUrl,
+          imageUrl,
+          imageStoragePath,
         };
       }),
     items: items.map((item) => ({

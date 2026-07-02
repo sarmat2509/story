@@ -166,6 +166,9 @@ export type AdminStorySceneItem = {
   mixedStoryScreenOrder?: number | null;
   graphicNovelPageNumber?: number | null;
   imageTargetKind?: 'scene' | 'graphic_novel_page' | 'none';
+  hasImage: boolean;
+  imageUrl: string | null;
+  imageStoragePath: string | null;
 };
 
 export type AdminStoryValidationItem = {
