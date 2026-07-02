@@ -36,10 +36,7 @@ import {
 import type { ImageValidationResult } from '../../ai/types';
 import { type SceneVisual } from '../../services/types';
 import config from '../../config';
-import {
-  runProductImageValidation,
-  runSegmentedProductImageValidation,
-} from './imageValidationRun';
+import { runSegmentedProductImageValidation } from './imageValidationRun';
 import { inferReferenceKind } from '../../utils/referenceImageKind';
 
 export interface BuiltScenePromptPayload {
@@ -572,16 +569,6 @@ export class ImageDomainService {
     }
   }
 
-  /**
-   * Validate a generated image using Gemini Vision.
-   * Checks for character hallucinations, duplicates, missing/extra characters,
-   * reference-image fidelity (colors, outfit, recognizability), and unwanted text.
-   *
-   * Validation is reference-based: the generated image is compared against
-   * compact identity reference images for scene characters (prefer front-view sheets,
-   * otherwise reference photos / turnaround fallback). References are passed as
-   * base64 or fileUri (Files API). Requires textProvider (ENABLE_IMAGE_VALIDATION).
-   */
   async validateGeneratedImage(params: {
     imageData: Buffer;
     mimeType: string;
@@ -611,17 +598,9 @@ export class ImageDomainService {
     includeLayoutChecks?: boolean;
     includeBubbleChecks?: boolean;
   }): Promise<ImageValidationResult> {
-    if (!this.textProvider) {
-      throw new Error('Image validation requires textProvider (ENABLE_IMAGE_VALIDATION=true)');
-    }
-
-    return runProductImageValidation(this.textProvider, params, {
-      visionModel:
-        config.ai?.validationModel || config.ai?.geminiVisionModel || 'gemini-3.1-flash-lite',
-      fallbackTextProvider: this.fallbackTextProvider,
-      fallbackVisionModel: config.ai?.openaiValidationModel || 'gpt-4o',
-      operation: 'image_validation',
-    });
+    // Legacy method name kept for callers, but the old single-pass validator is disabled.
+    // All production validation now runs as segmented layout + per-character passes.
+    return this.validateGeneratedImageSegmented(params);
   }
 
   async validateGeneratedImageSegmented(params: {

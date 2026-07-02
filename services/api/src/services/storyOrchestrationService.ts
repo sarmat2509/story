@@ -5244,7 +5244,7 @@ async function generateSceneImageWithReference(
           const validationStartedAt = new Date();
           let validation: ImageValidationResult;
           try {
-            validation = await context.imageDomain.validateGeneratedImage({
+            validation = await context.imageDomain.validateGeneratedImageSegmented({
               imageData: image.imageData,
               mimeType: image.mimeType,
               expectedCharacters,
@@ -5261,7 +5261,7 @@ async function generateSceneImageWithReference(
               userId: context.userId,
               generationKind: 'story',
               pipelinePhase: 'validation',
-              operation: 'scene_image_validation',
+              operation: 'scene_image_validation_segmented',
               targetType: 'scene',
               targetKey: String(scene.sceneId),
               sceneIndex: scene.sceneId,
@@ -5284,7 +5284,7 @@ async function generateSceneImageWithReference(
               userId: context.userId,
               generationKind: 'story',
               pipelinePhase: 'validation',
-              operation: 'scene_image_validation',
+              operation: 'scene_image_validation_segmented',
               targetType: 'scene',
               targetKey: String(scene.sceneId),
               sceneIndex: scene.sceneId,
