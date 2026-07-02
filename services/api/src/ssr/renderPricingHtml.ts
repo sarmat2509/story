@@ -9,6 +9,7 @@ import { getPlansI18n } from '../utils/i18nLoader';
 import {
   PUBLIC_SEO_LOCALES,
   buildPlanDescription,
+  getLandingContent,
   getPlanDisplayName,
   normalizeLandingLocale,
   type LandingLocale,
@@ -50,6 +51,7 @@ a{text-decoration:none}
 .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;align-items:start}
 .card{position:relative;display:flex;flex-direction:column;min-height:100%;background:rgba(255,255,255,.88);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(139,124,184,.2);border-radius:16px;padding:24px;box-shadow:0 12px 30px rgba(15,23,42,.07)}
 .card-featured{border-color:rgba(139,124,184,.56);box-shadow:0 18px 42px rgba(139,124,184,.18)}
+.plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);display:inline-flex;align-items:center;justify-content:center;max-width:calc(100% - 32px);min-height:24px;padding:4px 12px;border-radius:999px;background:#8b7cb8;color:#fff;font-size:12px;line-height:1.2;font-weight:800;white-space:nowrap;box-shadow:0 8px 18px rgba(139,124,184,.22)}
 .name{font-size:clamp(24px,2.8vw,28px);font-weight:700;line-height:1.12;letter-spacing:0;color:#1e293b}
 .desc{margin-top:10px;min-height:48px;font-size:15px;line-height:1.6;color:#64748b}
 .price-row{display:flex;align-items:flex-end;gap:8px;margin-top:18px}
@@ -196,6 +198,11 @@ function buildFallbackFeatures(input: typeof FALLBACK_PLAN_LIMITS[number]): Pres
     stories_per_month: { name: 'Stories Per Month', value: { limit: input.stories }, category: 'stories' },
     audio_stories_per_month: { name: 'Audio Stories Per Month', value: { limit: input.audio }, category: 'media' },
     graphic_novels_per_month: { name: 'Graphic Novels Per Month', value: { limit: input.comics }, category: 'media' },
+    mixed_stories_per_month: {
+      name: 'Story + Comic Per Month',
+      value: { limit: input.slug === 'golden' || input.slug === 'fairyworld' ? input.stories : 0 },
+      category: 'media',
+    },
     images_per_story: { name: 'Images Per Story', value: { limit: input.images }, category: 'media' },
     child_profiles_limit: { name: 'Child Profiles Limit', value: { limit: input.children }, category: 'premium' },
     premium_voices: { name: 'Premium Voice Selection', value: { enabled: input.premiumVoices }, category: 'media' },
@@ -229,7 +236,7 @@ export function buildFallbackPricingPlans(
     id: `fallback-${plan.slug}`,
     slug: plan.slug,
     name: getPlanDisplayName(locale, plan.slug, plan.slug),
-    description: buildPlanDescription(locale, plan.slug, plan.stories, plan.audio, plan.images),
+    description: buildPlanDescription(locale, plan.slug, plan.stories, plan.audio, plan.images, plan.comics),
     priceMonthly:
       billingCurrency === 'USD'
         ? plan.slug === 'silver'
@@ -281,6 +288,7 @@ export function renderPricingHtml(params: {
   const title = plansI18n.title || 'Pricing Plans';
   const subtitle = plansI18n.subtitle || '';
   const faqTitle = plansI18n.bundles?.faq_title || plansI18n.faq_title || 'FAQ';
+  const popularBadge = getLandingContent(locale).pricing.popularBadge;
   const faqItems = buildPricingFaqItems({ translate: translatePricing });
   const alternateLinks = buildPricingAlternateLinks(webAppUrl);
   const paymentsEnabled = params.paymentsEnabled ?? true;
@@ -345,8 +353,11 @@ export function renderPricingHtml(params: {
             ? `<span class="btn-disabled">${escapeHtml(plansI18n.payments_disabled_button || 'Payments coming soon')}</span>`
             : `<a class="btn" href="${escapeHtml(getWizardUrl(webAppUrl, locale))}">${escapeHtml(plansI18n.subscribe_button)}</a>`;
 
+          const featured = plan.slug === 'golden';
+
           return `
-          <article class="card${plan.slug === 'golden' ? ' card-featured' : ''}">
+          <article class="card${featured ? ' card-featured' : ''}">
+            ${featured ? `<span class="plan-badge">${escapeHtml(popularBadge)}</span>` : ''}
             <div class="name">${escapeHtml(plan.name)}</div>
             ${plan.description ? `<div class="desc">${escapeHtml(plan.description)}</div>` : ''}
             <div class="price-row">

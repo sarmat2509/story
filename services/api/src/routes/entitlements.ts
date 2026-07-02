@@ -28,6 +28,7 @@ type FeatureOutput = FeatureWithUsage | BooleanFeatureValue | EnumFeatureValue;
 // Map feature slug to usage_events eventType
 const FEATURE_SLUG_TO_EVENT_TYPE: Record<string, UsageEventType> = {
   stories_per_month: 'story_created',
+  mixed_stories_per_month: 'story_created',
   graphic_novels_per_month: 'graphic_novel_created',
   audio_stories_per_month: 'audio_synthesized',
 };
@@ -84,6 +85,8 @@ router.get('/', requireAuth, requireParentSession, async (req, res) => {
         let bundleBonusQty = 0;
         if (slug === 'stories_per_month') {
           bundleBonusQty = bundleBonus.extraStories;
+        } else if (slug === 'mixed_stories_per_month') {
+          bundleBonusQty = planLimit > 0 ? bundleBonus.extraStories : 0;
         } else if (slug === 'audio_stories_per_month') {
           bundleBonusQty = bundleBonus.extraAudio;
         } else if (slug === 'graphic_novels_per_month') {
@@ -102,6 +105,7 @@ router.get('/', requireAuth, requireParentSession, async (req, res) => {
         };
         if (
           slug === 'stories_per_month' ||
+          slug === 'mixed_stories_per_month' ||
           slug === 'audio_stories_per_month' ||
           slug === 'graphic_novels_per_month'
         ) {

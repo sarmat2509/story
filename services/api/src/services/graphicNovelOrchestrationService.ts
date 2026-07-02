@@ -40,6 +40,7 @@ import {
   GRAPHIC_NOVEL_USAGE_EVENT,
   assertGraphicNovelQuotaAvailable,
 } from './graphicNovelQuotaService';
+import { assertMixedStoryAccessAvailable } from './mixedStoryAccessService';
 import { recordUsageEvent } from './usageEventsService';
 import { persistImageValidationResult } from './imageValidationPersistenceService';
 import {
@@ -1852,7 +1853,7 @@ export async function createMixedStoryRequest(
   userId: string,
   input: CreateStoryRequestInput
 ): Promise<string> {
-  await assertGraphicNovelQuotaAvailable(userId);
+  await assertMixedStoryAccessAvailable(userId);
   const requestId = await createStoryRequest(userId, input, {
     quotaSource: 'mixed_story',
   });
@@ -1862,16 +1863,6 @@ export async function createMixedStoryRequest(
       generationKind: MIXED_STORY_KIND,
       graphicNovelProgressStages: [...GRAPHIC_NOVEL_PROGRESS_STAGES],
       graphicNovelProgressStage: 'generating_script',
-    },
-  });
-  await recordUsageEvent(userId, GRAPHIC_NOVEL_USAGE_EVENT, 1, {
-    childProfileId: input.childProfileId ?? null,
-    metadata: {
-      requestId,
-      quotaReservation: true,
-      reservationSource: MIXED_STORY_KIND,
-      reservedAt: new Date().toISOString(),
-      reservationBehavior: 'consumed_on_queue_acceptance',
     },
   });
 

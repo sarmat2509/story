@@ -15,6 +15,13 @@ const usage: SubscriptionUsageView = {
     remaining: 3,
     plan_limit: 4,
   },
+  mixedStories: {
+    used: 2,
+    limit: 8,
+    remaining: 6,
+    plan_limit: 3,
+    bundle_bonus: 5,
+  },
   audio: {
     used: 1,
     limit: 3,
@@ -43,6 +50,11 @@ assert.deepEqual(childSafe, {
     limit: 4,
     remaining: 3,
   },
+  mixedStories: {
+    used: 2,
+    limit: 8,
+    remaining: 6,
+  },
   audio: {
     used: 1,
     limit: 3,
@@ -60,6 +72,8 @@ assert.equal('plan_limit' in childSafe.stories, false);
 assert.equal('bundle_bonus' in childSafe.stories, false);
 assert.equal('plan_limit' in childSafe.graphicNovels, false);
 assert.equal('bundle_bonus' in childSafe.graphicNovels, false);
+assert.equal('plan_limit' in childSafe.mixedStories, false);
+assert.equal('bundle_bonus' in childSafe.mixedStories, false);
 assert.equal('plan_limit' in childSafe.audio, false);
 assert.equal('bundle_bonus' in childSafe.audio, false);
 

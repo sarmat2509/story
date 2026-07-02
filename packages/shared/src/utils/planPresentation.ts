@@ -4,6 +4,7 @@ export const PRICING_FEATURE_ORDER = [
   'stories_per_day',
   'images_per_story',
   'graphic_novels_per_month',
+  'mixed_stories_per_month',
   'premium_voices',
   'follow_narrator',
   'child_profiles_limit',
@@ -191,6 +192,10 @@ export function getPricingFeatureLabel(
 
   if (slug === 'graphic_novels_per_month' && typeof value?.limit === 'number' && value.limit <= 0) {
     return translate('features.graphic_novels_locked', undefined, feature.name ?? slug);
+  }
+
+  if (slug === 'mixed_stories_per_month' && typeof value?.limit === 'number' && value.limit <= 0) {
+    return translate('features.mixed_stories_locked', undefined, feature.name ?? slug);
   }
 
   return translate(`features.${slug}`, {

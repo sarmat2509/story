@@ -9,6 +9,7 @@ export type UsageBucketView = {
 export type SubscriptionUsageView = {
   stories: UsageBucketView;
   graphicNovels: UsageBucketView;
+  mixedStories: UsageBucketView;
   audio: UsageBucketView;
   resetsAt: Date | null;
   currentPeriodEnd: Date | null;
@@ -30,6 +31,7 @@ export function toChildSafeSubscriptionUsageView(data: SubscriptionUsageView): S
   return {
     stories: childSafeBucket(data.stories),
     graphicNovels: childSafeBucket(data.graphicNovels),
+    mixedStories: childSafeBucket(data.mixedStories),
     audio: childSafeBucket(data.audio),
     resetsAt: data.resetsAt,
     currentPeriodEnd: data.currentPeriodEnd,

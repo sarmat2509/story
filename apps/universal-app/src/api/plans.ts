@@ -81,6 +81,13 @@ export interface SubscriptionUsageData {
     planLimit?: number;
     bundleBonus?: number;
   };
+  mixedStories?: {
+    used: number;
+    limit: number;
+    remaining: number;
+    planLimit?: number;
+    bundleBonus?: number;
+  };
   audio: {
     used: number;
     limit: number;
@@ -118,6 +125,14 @@ type SubscriptionUsageApiData = SubscriptionUsageData & {
     plan_limit?: number;
     bundle_bonus?: number;
   };
+  mixedStories?: SubscriptionUsageData['stories'] & {
+    plan_limit?: number;
+    bundle_bonus?: number;
+  };
+  mixed_stories?: SubscriptionUsageData['stories'] & {
+    plan_limit?: number;
+    bundle_bonus?: number;
+  };
 };
 
 function normalizeUsageBucket(
@@ -139,6 +154,11 @@ function normalizeSubscriptionUsage(data: SubscriptionUsageApiData): Subscriptio
       ? normalizeUsageBucket(data.graphicNovels)
       : data.graphic_novels
         ? normalizeUsageBucket(data.graphic_novels)
+        : undefined,
+    mixedStories: data.mixedStories
+      ? normalizeUsageBucket(data.mixedStories)
+      : data.mixed_stories
+        ? normalizeUsageBucket(data.mixed_stories)
         : undefined,
     audio: normalizeUsageBucket(data.audio),
     resetsAt: data.resetsAt,

@@ -282,7 +282,7 @@ const VALUE_CARD_IMAGE = {
 
 const LANDING_STYLES = `
 *{box-sizing:border-box}
-:root{--wt-ink:#121b2c;--wt-text:#354154;--wt-muted:#687386;--wt-lavender:#7466a6;--wt-lavender-dark:#554a82;--wt-lavender-soft:#eeeaf8;--wt-gold:#c4933f;--wt-page-bg:#fffdfa;--wt-surface:#ffffff;--wt-border:rgba(18,27,44,0.1);--wt-card-shadow:0 18px 42px rgba(18,27,44,0.08);--wt-radius-card:32px;--wt-radius-soft:26px;--wt-header-overlap:65px}
+:root{--wt-ink:#121b2c;--wt-text:#354154;--wt-muted:#687386;--wt-lavender:#7466a6;--wt-lavender-dark:#554a82;--wt-lavender-soft:#eeeaf8;--wt-gold:#c4933f;--wt-page-bg:#fffdfa;--wt-surface:#ffffff;--wt-border:rgba(18,27,44,0.1);--wt-card-shadow:0 18px 42px rgba(18,27,44,0.08);--wt-radius-card:32px;--wt-radius-soft:26px;--wt-header-overlap:65px;--wt-feature-sticky-offset:calc(var(--wt-header-overlap) + 24px)}
 body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;margin:0;padding:0;line-height:1.6;color:var(--wt-ink);overflow-x:hidden;background:var(--wt-page-bg);font-synthesis-weight:none;text-rendering:optimizeLegibility}
 .landing-wrapper{min-height:100vh;background-color:#fbf8ff;background-image:radial-gradient(circle at 8% 12%,rgba(255,121,82,.10),transparent 26%),radial-gradient(circle at 92% 8%,rgba(126,103,210,.13),transparent 28%),linear-gradient(180deg,#fffdfa 0%,#fbf8ff 100%);background-position:top center,top center,top center;background-size:100% 100vh,100% 100vh,100% 100vh;background-repeat:no-repeat,no-repeat,no-repeat;overflow:visible}
 .landing{width:min(100%,1200px);margin:calc(-1 * var(--wt-header-overlap)) auto 0;padding:0 clamp(16px,4vw,24px) 80px}
@@ -365,14 +365,14 @@ body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica
 .benefit-card p{font-size:14px;color:var(--wt-muted);margin:0;line-height:1.6}
 .benefit-card .benefit-placeholder{height:120px;background:linear-gradient(135deg,#e8e4f3,#f5e6f0);border-radius:8px;margin-bottom:16px;display:flex;align-items:center;justify-content:center;color:#8b7cb8;font-size:12px}
 .feature-sticky{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:48px;align-items:start;margin-bottom:32px}
-.feature-sticky-titles{position:sticky;top:24px;align-self:start}
+.feature-sticky-titles{position:sticky;top:var(--wt-feature-sticky-offset);align-self:start}
 .feature-sticky-title-item{padding:20px 0;border-bottom:1px solid #cdcdcd;cursor:pointer;transition:color 0.2s}
 .feature-sticky-title-item:first-child{padding-top:0}
 .feature-sticky-title-item:hover{color:#8b7cb8}
 .feature-sticky-title-item.active{color:#8b7cb8;font-weight:600}
 .feature-sticky-title-item h3{font-size:18px;font-weight:600;color:inherit;margin:0}
 .feature-sticky-cards{display:flex;flex-direction:column;gap:32px}
-.feature-sticky-card{scroll-margin-top:24px}
+.feature-sticky-card{scroll-margin-top:var(--wt-feature-sticky-offset)}
 .feature-sticky-card-inner{background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);border-radius:var(--wt-radius-card);box-shadow:0 2px 12px rgba(0,0,0,0.05);overflow:hidden}
 .feature-sticky-card-inner .feature-item-image{width:100%;aspect-ratio:4/3;max-height:420px;overflow:hidden;background:linear-gradient(135deg,#e8e4f3,#f5e6f0)}
 .feature-sticky-card-inner .feature-item-image picture{display:block;width:100%;height:100%}
@@ -386,7 +386,7 @@ body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica
 .parent-trust-section{margin:clamp(56px,7vw,76px) calc(50% - 50vw);padding:clamp(64px,8vw,92px) max(20px,calc((100vw - 1200px) / 2 + 24px));background:linear-gradient(180deg,rgba(255,255,255,0.16) 0%,rgba(255,255,255,0) 62%),radial-gradient(circle at 12% 18%,rgba(255,227,210,0.34),transparent 30%),linear-gradient(135deg,#8068d8 0%,#a86aa6 48%,#d86559 100%);box-shadow:none;overflow:hidden}
 .parent-trust-inner{width:min(100%,1120px);margin:0 auto}
 .parent-trust-section h2{font-size:clamp(28px,4.2vw,42px);font-weight:800;color:#fff;max-width:880px;margin:0 auto 14px;text-align:center;line-height:1.14;text-wrap:balance}
-.parent-trust-section .section-subtitle{color:rgba(255,255,255,0.86);max-width:700px;margin:0 auto 34px}
+.parent-trust-section .section-subtitle{color:rgba(255,255,255,0.86);text-align:center;max-width:700px;margin:0 auto 34px}
 .parent-trust-grid{margin:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
 .parent-trust-card{background:rgba(255,255,255,0.92);border:1px solid rgba(255,255,255,0.46);border-radius:var(--wt-radius-soft);padding:20px;box-shadow:0 18px 42px rgba(39,28,74,0.18)}
 .parent-trust-card h3{font-size:17px;line-height:1.35;color:#1e293b;margin:0 0 10px}
@@ -912,6 +912,7 @@ interface LandingVoice {
   name: string;
   displayName: string;
   sampleAudioUrl: string | null;
+  isPremium?: boolean;
 }
 
 /** Voice name -> avatar index (fair skin, by gender). See apps/universal-app/scripts/slice-voice-avatars.js */
@@ -921,14 +922,26 @@ const VOICE_AVATAR_MAP: Record<string, number> = {
 };
 
 const PREMIUM_VOICE_NAMES = new Set([
+  'perseus',
   'orion',
   'andromeda',
   'cassiopeia',
+  'персей',
   'оріон',
   'андромеда',
   'кассіопея',
   'орион',
   'кассиопея',
+  'perseo',
+  'orión',
+  'andrómeda',
+  'casiopea',
+  'persée',
+  'andromède',
+  'cassiopée',
+  'perseusz',
+  'kasjopeja',
+  'kassiopeia',
 ]);
 
 const PREMIUM_VOICE_CROWN_ICON = '<svg class="voice-premium-crown-svg" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M4.2 8.1 8.9 12l3.1-6.2 3.1 6.2 4.7-3.9-1.5 9.3H5.7L4.2 8.1Z" fill="currentColor" opacity="0.18"/><path d="M4.2 8.1 8.9 12l3.1-6.2 3.1 6.2 4.7-3.9-1.5 9.3H5.7L4.2 8.1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M6.2 20h11.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
@@ -941,6 +954,10 @@ function getVoiceAvatarPath(voiceName: string): string {
 }
 
 function isPremiumVoice(voice: LandingVoice): boolean {
+  if (voice.isPremium) {
+    return true;
+  }
+
   return [voice.name, voice.displayName]
     .map((value) => value.trim().toLowerCase())
     .some((value) => PREMIUM_VOICE_NAMES.has(value));
@@ -1076,7 +1093,8 @@ function renderPricing(
         p.slug,
         readPlanFeatureLimit(p, 'stories_per_month', 3),
         readPlanFeatureLimit(p, 'audio_stories_per_month', 1),
-        readPlanFeatureLimit(p, 'images_per_story', 1)
+        readPlanFeatureLimit(p, 'images_per_story', 1),
+        readPlanFeatureLimit(p, 'graphic_novels_per_month', 0)
       ),
       featured: p.slug === 'golden',
     };

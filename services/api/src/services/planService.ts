@@ -25,6 +25,7 @@ export interface PlanWithLimits extends Plan {
   audioStoriesPerMonth: number;
   imagesPerStory: number;
   graphicNovelsPerMonth: number;
+  mixedStoriesPerMonth: number;
 }
 
 export async function getPlansWithLimits(): Promise<PlanWithLimits[]> {
@@ -44,6 +45,7 @@ export async function getPlansWithLimits(): Promise<PlanWithLimits[]> {
         audioStoriesPerMonth: getLimit('audio_stories_per_month', 1),
         imagesPerStory: getLimit('images_per_story', 3),
         graphicNovelsPerMonth: getLimit('graphic_novels_per_month', 0),
+        mixedStoriesPerMonth: getLimit('mixed_stories_per_month', 0),
       };
     })
   );
@@ -174,6 +176,7 @@ export async function hasFeature(userId: string, featureSlug: string): Promise<b
 export interface PlanFeatures {
   imagesPerStory: number;
   graphicNovelsPerMonth: number;
+  mixedStoriesPerMonth: number;
   imageQuality: string;
   imageRegenerationPerDay: number;
   allowReferencePhotos: boolean;
@@ -197,6 +200,7 @@ export async function getPlanFeatures(userId: string): Promise<PlanFeatures> {
     const defaultFeatures: PlanFeatures = {
       imagesPerStory: 3,
       graphicNovelsPerMonth: 0,
+      mixedStoriesPerMonth: 0,
       imageQuality: 'low',
       imageRegenerationPerDay: 0,
       allowReferencePhotos: false,
@@ -218,6 +222,7 @@ export async function getPlanFeatures(userId: string): Promise<PlanFeatures> {
   const result: PlanFeatures = {
     imagesPerStory: getNumericFeature(featureMap, 'images_per_story', 3),
     graphicNovelsPerMonth: getNumericFeature(featureMap, 'graphic_novels_per_month', 0),
+    mixedStoriesPerMonth: getNumericFeature(featureMap, 'mixed_stories_per_month', 0),
     imageQuality: getEnumFeature(featureMap, 'image_quality', 'low'),
     imageRegenerationPerDay: getNumericFeature(featureMap, 'image_regeneration_per_day', 0),
     allowReferencePhotos: getBooleanFeature(
@@ -335,6 +340,7 @@ const FEATURE_SLUG_TO_EVENT_TYPE: Record<string, UsageEventType> = {
   audio_stories_per_month: 'audio_synthesized',
   audio_minutes_per_month: 'audio_synthesized', // legacy slug, same as audio stories
   graphic_novels_per_month: 'graphic_novel_created',
+  mixed_stories_per_month: 'story_created',
 };
 
 export async function checkUsageLimit(
@@ -359,12 +365,15 @@ export async function checkUsageLimit(
   let bundleBonus = 0;
   if (
     featureSlug === 'stories_per_month' ||
+    featureSlug === 'mixed_stories_per_month' ||
     featureSlug === 'audio_stories_per_month' ||
     featureSlug === 'graphic_novels_per_month'
   ) {
     const bonus = await getBundleBonusForPeriod(userId, periodStart, periodEnd);
     if (featureSlug === 'stories_per_month') {
       bundleBonus = bonus.extraStories;
+    } else if (featureSlug === 'mixed_stories_per_month') {
+      bundleBonus = limit > 0 ? bonus.extraStories : 0;
     } else if (featureSlug === 'audio_stories_per_month') {
       bundleBonus = bonus.extraAudio;
     } else {

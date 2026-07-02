@@ -19,6 +19,8 @@ const translate: PricingTranslate = (key, params = {}, defaultValue = '') => {
     'features.monthly_usage_with_comics_and_audio': '{{stories}}, including up to {{comics}} comics, and {{audio}} per month',
     'features.graphic_novels_per_month': 'Up to {{value}} comics within the story limit',
     'features.graphic_novels_locked': 'Comics',
+    'features.mixed_stories_per_month': 'Story + comic for all {{value}} monthly stories',
+    'features.mixed_stories_locked': 'Story + comic',
     'features.images_per_story_one': '{{value}} illustration in story',
     'features.images_per_story_other': '{{value}} illustrations in story',
     'features.images_per_story': '{{value}} illustrations in story',
@@ -35,6 +37,7 @@ const features = {
   stories_per_month: { name: 'Stories per month', value: { limit: 10 }, category: 'usage' },
   audio_stories_per_month: { name: 'Audio per month', value: { limit: 2 }, category: 'usage' },
   graphic_novels_per_month: { name: 'Comics per month', value: { limit: 5 }, category: 'usage' },
+  mixed_stories_per_month: { name: 'Story + comic', value: { limit: 10 }, category: 'usage' },
   story_from_drawing: { name: 'Story from drawing', value: { enabled: true }, category: 'creation' },
   image_quality: { name: 'Image quality', value: { selected: 'standard' }, category: 'media' },
   images_per_story: { name: 'Images per story', value: { limit: 3 }, category: 'usage' },
@@ -75,6 +78,7 @@ void (async function main() {
     [
       'images_per_story',
       'graphic_novels_per_month',
+      'mixed_stories_per_month',
       'child_profiles_limit',
       'premium_voices',
     ],
@@ -89,9 +93,14 @@ void (async function main() {
         value: { limit: 0 },
         category: 'usage',
       },
+      mixed_stories_per_month: {
+        name: 'Story + comic',
+        value: { limit: 0 },
+        category: 'usage',
+      },
     }).map(([slug]) => slug),
-    ['images_per_story', 'child_profiles_limit', 'graphic_novels_per_month', 'premium_voices'],
-    'comic access should remain visible as a locked feature on plans without comic access'
+    ['images_per_story', 'child_profiles_limit', 'graphic_novels_per_month', 'mixed_stories_per_month', 'premium_voices'],
+    'comic and mixed access should remain visible as locked features on plans without access'
   );
 
   const html = renderPricingHtml({
@@ -113,6 +122,7 @@ void (async function main() {
   assert.match(html, /10 stories, including up to 5 comics, and 2 audio stories per month/);
   assert.match(html, /3 personalized illustrations per story/);
   assert.match(html, /Up to 5 comics within the story limit/);
+  assert.match(html, /Story \+ comic for all 10 monthly stories/);
   assert.doesNotMatch(html, /pages per comic/);
   assert.match(html, /Unlimited child profiles/);
   assert.doesNotMatch(html, /Story from drawing/);
@@ -210,10 +220,17 @@ void (async function main() {
   assert.strictEqual(fallbackPlans[0].features.export_video, undefined);
 
   const fallbackHtml = renderPricingHtml({ locale: 'en', plans: [] });
+  const goldenCardStart = fallbackHtml.indexOf('<article class="card card-featured">');
+  const goldenCard = fallbackHtml.slice(goldenCardStart, fallbackHtml.indexOf('</article>', goldenCardStart));
   assert.match(fallbackHtml, /<div class="name">Free<\/div>/);
   assert.match(fallbackHtml, /<div class="name">Silver Dreams<\/div>/);
   assert.match(fallbackHtml, /<div class="name">Golden Stars<\/div>/);
   assert.match(fallbackHtml, /<div class="name">Fairy World<\/div>/);
+  assert.match(goldenCard, /<span class="plan-badge">Most popular<\/span>/);
+  assert.match(fallbackHtml, /Up to 5 comics within the story limit/);
+  assert.match(fallbackHtml, /Up to 15 comics within the story limit/);
+  assert.match(fallbackHtml, /Story \+ comic for all 20 monthly stories/);
+  assert.match(fallbackHtml, /Story \+ comic for all 30 monthly stories/);
   assert.match(fallbackHtml, /3 stories and 1 audio story per month/);
   assert.match(fallbackHtml, /30 stories, including up to 15 comics, and 15 audio stories per month/);
 

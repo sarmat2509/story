@@ -65,6 +65,7 @@ const cardDelay = (i: number) => Math.min(120 + i * 120, 420);
 
 const BUNDLE_CARD_WIDTH = 276;
 const BILLING_CURRENCY_OPTIONS: BillingCurrency[] = ['EUR', 'USD'];
+const textWrapBalanceStyle = Platform.OS === 'web' ? ({ textWrap: 'balance' } as any) : null;
 
 function getPlanFeatureLimit(
   features: Record<string, any> | undefined,
@@ -74,6 +75,23 @@ function getPlanFeatureLimit(
   const limit =
     value && typeof value === 'object' && 'limit' in value ? Number(value.limit) : null;
   return typeof limit === 'number' && Number.isFinite(limit) && limit > 0 ? limit : null;
+}
+
+function formatZeroPlanPrice(locale: string, currency: string) {
+  const normalizedCurrency = currency.toUpperCase();
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: normalizedCurrency,
+      currencyDisplay: 'narrowSymbol',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(0);
+  } catch {
+    if (normalizedCurrency === 'USD') return '$0';
+    if (normalizedCurrency === 'EUR') return '0 €';
+    return `0 ${normalizedCurrency}`;
+  }
 }
 
 export default function PlansScreen() {
@@ -155,22 +173,6 @@ export default function PlansScreen() {
       ? authData.plans
       : authData
     : publicPlansQuery.data?.plans;
-  const featureUnlockPlanNames = useMemo(() => {
-    const unlockMap: Record<string, string> = {};
-    const sortedPlans = [...(plans ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
-
-    for (const plan of sortedPlans) {
-      for (const [slug, feature] of sortPricingFeatureEntries(
-        plan.features as Record<string, any>
-      )) {
-        if (!unlockMap[slug] && isPricingFeatureAvailable(feature)) {
-          unlockMap[slug] = plan.name;
-        }
-      }
-    }
-
-    return unlockMap;
-  }, [plans]);
   const currentPlan = useMemo(() => {
     if (!effectiveIsAuthenticated || !Array.isArray(plans)) return null;
     return (
@@ -272,6 +274,11 @@ export default function PlansScreen() {
       return formatPricingPrice(pricingLocale, priceMonthly, currency, t('plans.free'));
     },
     [pricingLocale, t]
+  );
+  const formatPlanPrice = useCallback(
+    (priceMonthly: number, currency: string) =>
+      priceMonthly === 0 ? formatZeroPlanPrice(pricingLocale, currency) : formatPrice(priceMonthly, currency),
+    [formatPrice, pricingLocale]
   );
 
   const handleBundlePurchase = useCallback(
@@ -532,7 +539,7 @@ export default function PlansScreen() {
 
                 <View style={styles.priceContainer}>
                   <Text style={styles.price}>
-                    {formatPrice(plan.priceMonthly, plan.pricingCurrency)}
+                    {formatPlanPrice(plan.priceMonthly, plan.pricingCurrency)}
                   </Text>
                   {plan.priceMonthly > 0 && (
                     <Text style={styles.pricePeriod}>/{t('plans.per_month')}</Text>
@@ -542,7 +549,9 @@ export default function PlansScreen() {
                 {usageHighlight && (
                   <View style={styles.highlightFeature}>
                     <Ionicons name="sparkles" size={20} color={theme.colors.interactive.primary} />
-                    <Text style={styles.highlightFeatureText}>{usageHighlight}</Text>
+                    <Text style={[styles.highlightFeatureText, textWrapBalanceStyle]}>
+                      {usageHighlight}
+                    </Text>
                   </View>
                 )}
 
@@ -551,7 +560,6 @@ export default function PlansScreen() {
                   {sortPricingFeatureEntries(plan.features as Record<string, any>).map(
                     ([slug, feature]: [string, any]) => {
                       const available = isPricingFeatureAvailable(feature);
-                      const unlockPlanName = !available ? featureUnlockPlanNames[slug] : null;
 
                       return (
                         <View key={slug} style={styles.featureRow}>
@@ -564,7 +572,11 @@ export default function PlansScreen() {
                           />
                           <View style={styles.featureCopy}>
                             <Text
-                              style={[styles.featureText, !available && styles.featureTextDisabled]}
+                              style={[
+                                styles.featureText,
+                                textWrapBalanceStyle,
+                                !available && styles.featureTextDisabled,
+                              ]}
                             >
                               {getPricingFeatureLabel(
                                 pricingLocale,
@@ -573,11 +585,6 @@ export default function PlansScreen() {
                                 feature
                               )}
                             </Text>
-                            {unlockPlanName ? (
-                              <Text style={styles.featureLockedReason}>
-                                {t('plans.feature_unlocked_on', { planName: unlockPlanName })}
-                              </Text>
-                            ) : null}
                           </View>
                         </View>
                       );
@@ -770,7 +777,7 @@ export default function PlansScreen() {
                                 size={16}
                                 color={theme.colors.status.success}
                               />
-                              <Text style={styles.featureText}>
+                              <Text style={[styles.featureText, textWrapBalanceStyle]}>
                                 {getPricingFeatureLabel(
                                   pricingLocale,
                                   translatePricing,
@@ -896,6 +903,8 @@ const styles = StyleSheet.create({
     borderWidth: theme.borders.width.medium,
     borderColor: modernColors.border,
     position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
     ...modernShadows.card,
   },
   planCardNative: {
@@ -966,6 +975,7 @@ const styles = StyleSheet.create({
     color: theme.colors.interactive.primary,
   },
   featuresContainer: {
+    flex: 1,
     marginBottom: theme.spacing[6],
     gap: theme.spacing[3],
   },
@@ -987,17 +997,20 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     textDecorationLine: 'line-through',
   },
-  featureLockedReason: {
-    marginTop: 2,
-    fontSize: theme.typography.fontSize.xs,
-    color: theme.colors.text.tertiary,
+  planAction: {
+    alignSelf: 'stretch',
   },
-  planAction: {},
   currentPlanButton: {
-    backgroundColor: theme.colors.background.tertiary,
+    minHeight: 56,
     paddingVertical: theme.spacing[3],
-    borderRadius: theme.borders.radius.md,
+    paddingHorizontal: theme.spacing[6],
+    backgroundColor: modernColors.surfaceMuted,
+    borderWidth: theme.borders.width.thin,
+    borderColor: hexAlpha(theme.colors.primary[200], 0.16),
+    borderRadius: theme.borders.radius.full,
     alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
   },
   currentPlanButtonText: {
     color: theme.colors.text.secondary,
@@ -1009,6 +1022,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing[3],
     borderRadius: theme.borders.radius.md,
     alignItems: 'center',
+    alignSelf: 'stretch',
   },
   unavailablePlanButtonText: {
     color: theme.colors.text.tertiary,

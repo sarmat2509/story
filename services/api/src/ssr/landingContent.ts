@@ -290,7 +290,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     voices: {
       title: 'Голоси для озвучення',
       subtitle:
-        'Обирайте голос для казки — жіночий чи чоловічий. Передслухайте перед створенням історії. Безкоштовні голоси для всіх. Преміум-голоси (Оріон, Андромеда, Кассіопея) — для тарифу Казковий світ.',
+        'Обирайте голос для казки — жіночий чи чоловічий. Передслухайте перед створенням історії. Безкоштовні голоси для всіх. Преміум-голоси (Персей, Оріон, Андромеда, Кассіопея) — для тарифу Казковий світ.',
       previewAria: 'Передслухати',
       noSampleAria: 'Немає зразка',
       fallbackVoices: [
@@ -312,7 +312,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     },
     pricing: {
       title: 'Оберіть тариф для вашої сім’ї',
-      subtitle: 'Почніть безкоштовно, потім відкрийте більше історій, озвучення, ілюстрацій і способів поділитися.',
+      subtitle: 'Почніть безкоштовно, потім відкрийте більше історій, озвучення, ілюстрацій, коміксів і способів поділитися.',
       reassurance: 'Підвищуйте тариф будь-коли, коли сім’я більше читає, слухає і створює.',
       cta: 'Тарифи та можливості',
       popularBadge: 'Найпопулярніший',
@@ -544,7 +544,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     voices: {
       title: 'Голоса для озвучки',
       subtitle:
-        'Выбирайте голос для сказки — женский или мужской. Прослушайте перед созданием истории. Базовые голоса доступны всем. Премиум-голоса (Орион, Андромеда, Кассиопея) — для плана Fairy World.',
+        'Выбирайте голос для сказки — женский или мужской. Прослушайте перед созданием истории. Базовые голоса доступны всем. Премиум-голоса (Персей, Орион, Андромеда, Кассиопея) — для плана Fairy World.',
       previewAria: 'Прослушать',
       noSampleAria: 'Нет примера',
       fallbackVoices: [
@@ -566,7 +566,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     },
     pricing: {
       title: 'Выберите план для вашей семьи',
-      subtitle: 'Начните бесплатно, а потом откройте больше историй, озвучки, иллюстраций и способов делиться.',
+      subtitle: 'Начните бесплатно, а потом откройте больше историй, озвучки, иллюстраций, комиксов и способов делиться.',
       reassurance: 'Переходите на более высокий план в любой момент, когда семья больше читает, слушает и создает.',
       cta: 'Планы и возможности',
       popularBadge: 'Самый популярный',
@@ -798,7 +798,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     voices: {
       title: 'Narration voices',
       subtitle:
-        'Choose a voice for the story — female or male. Preview it before you create. Standard voices are available to everyone. Premium voices (Orion, Andromeda, Cassiopeia) come with the Fairy World plan.',
+        'Choose a voice for the story — female or male. Preview it before you create. Standard voices are available to everyone. Premium voices (Perseus, Orion, Andromeda, Cassiopeia) come with the Fairy World plan.',
       previewAria: 'Preview voice',
       noSampleAria: 'No sample available',
       fallbackVoices: [
@@ -820,7 +820,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     },
     pricing: {
       title: 'Choose the right plan for your family',
-      subtitle: 'Start for free, then unlock more stories, narration, illustrations, and sharing options as you grow.',
+      subtitle: 'Start for free, then unlock more stories, narration, illustrations, comics, and sharing options as you grow.',
       reassurance: 'Upgrade anytime when your family wants to read, listen, and create more.',
       cta: 'Plans and features',
       popularBadge: 'Most popular',
@@ -1052,7 +1052,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     voices: {
       title: 'Voces de narración',
       subtitle:
-        'Elige una voz para el cuento, femenina o masculina. Puedes escucharla antes de crear la historia. Las voces estándar están disponibles para todos. Las voces premium (Orion, Andromeda, Cassiopeia) forman parte del plan Fairy World.',
+        'Elige una voz para el cuento, femenina o masculina. Puedes escucharla antes de crear la historia. Las voces estándar están disponibles para todos. Las voces premium (Perseo, Orión, Andrómeda, Casiopea) forman parte del plan Fairy World.',
       previewAria: 'Escuchar muestra',
       noSampleAria: 'Sin muestra disponible',
       fallbackVoices: [
@@ -1074,7 +1074,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     },
     pricing: {
       title: 'Elige el plan ideal para tu familia',
-      subtitle: 'Empieza gratis y desbloquea más historias, narración, ilustraciones y opciones para compartir a medida que creces.',
+      subtitle: 'Empieza gratis y desbloquea más historias, narración, ilustraciones, cómics y opciones para compartir a medida que creces.',
       reassurance: 'Cambia de plan cuando tu familia quiera leer, escuchar y crear más.',
       cta: 'Planes y funciones',
       popularBadge: 'Más popular',
@@ -1306,7 +1306,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     voices: {
       title: 'Erzählstimmen',
       subtitle:
-        'Wähle eine Stimme für die Geschichte — weiblich oder männlich. Du kannst sie vorab anhören. Standardstimmen stehen allen zur Verfügung. Premium-Stimmen (Orion, Andromeda, Cassiopeia) gehören zum Fairy-World-Tarif.',
+        'Wähle eine Stimme für die Geschichte — weiblich oder männlich. Du kannst sie vorab anhören. Standardstimmen stehen allen zur Verfügung. Premium-Stimmen (Perseus, Orion, Andromeda, Kassiopeia) gehören zum Fairy-World-Tarif.',
       previewAria: 'Stimme anhören',
       noSampleAria: 'Keine Hörprobe verfügbar',
       fallbackVoices: [
@@ -1328,7 +1328,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     },
     pricing: {
       title: 'Wähle den passenden Tarif für deine Familie',
-      subtitle: 'Starte kostenlos und schalte später mehr Geschichten, Stimmen, Illustrationen und Freigabeoptionen frei.',
+      subtitle: 'Starte kostenlos und schalte später mehr Geschichten, Stimmen, Illustrationen, Comics und Freigabeoptionen frei.',
       reassurance: 'Wechsle jederzeit zu einem größeren Tarif, wenn deine Familie mehr lesen, hören und erstellen möchte.',
       cta: 'Tarife und Funktionen',
       popularBadge: 'Am beliebtesten',
@@ -1560,7 +1560,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     voices: {
       title: 'Voix de narration',
       subtitle:
-        'Choisissez une voix pour l’histoire, féminine ou masculine. Vous pouvez l’écouter avant de créer. Les voix standard sont accessibles à tous. Les voix premium (Orion, Andromeda, Cassiopeia) font partie du plan Fairy World.',
+        'Choisissez une voix pour l’histoire, féminine ou masculine. Vous pouvez l’écouter avant de créer. Les voix standard sont accessibles à tous. Les voix premium (Persée, Orion, Andromède, Cassiopée) font partie du plan Fairy World.',
       previewAria: 'Écouter un extrait',
       noSampleAria: 'Aucun extrait disponible',
       fallbackVoices: [
@@ -1582,7 +1582,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     },
     pricing: {
       title: 'Choisissez l’offre adaptée à votre famille',
-      subtitle: 'Commencez gratuitement, puis débloquez plus d’histoires, de narration, d’illustrations et d’options de partage.',
+      subtitle: 'Commencez gratuitement, puis débloquez plus d’histoires, de narration, d’illustrations, de BD et d’options de partage.',
       reassurance: 'Passez à une offre supérieure quand votre famille veut lire, écouter et créer davantage.',
       cta: 'Offres et fonctionnalités',
       popularBadge: 'Le plus populaire',
@@ -1814,7 +1814,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     voices: {
       title: 'Głosy narratora',
       subtitle:
-        'Wybierz głos do historii — kobiecy lub męski. Możesz go odsłuchać przed utworzeniem opowieści. Głosy standardowe są dostępne dla wszystkich. Głosy premium (Orion, Andromeda, Cassiopeia) należą do planu Fairy World.',
+        'Wybierz głos do historii — kobiecy lub męski. Możesz go odsłuchać przed utworzeniem opowieści. Głosy standardowe są dostępne dla wszystkich. Głosy premium (Perseusz, Orion, Andromeda, Kasjopeja) należą do planu Fairy World.',
       previewAria: 'Odsłuchaj próbkę',
       noSampleAria: 'Brak próbki',
       fallbackVoices: [
@@ -1836,7 +1836,7 @@ const landingContent: Record<LandingLocale, LandingContent> = {
     },
     pricing: {
       title: 'Wybierz plan odpowiedni dla swojej rodziny',
-      subtitle: 'Zacznij za darmo, a potem odblokuj więcej historii, narracji, ilustracji i opcji udostępniania.',
+      subtitle: 'Zacznij za darmo, a potem odblokuj więcej historii, narracji, ilustracji, komiksów i opcji udostępniania.',
       reassurance: 'Zmieniaj plan, kiedy Twoja rodzina chce czytać, słuchać i tworzyć więcej.',
       cta: 'Plany i funkcje',
       popularBadge: 'Najpopularniejszy',
@@ -2050,7 +2050,8 @@ export function buildPlanDescription(
   slug: string,
   storiesPerMonth: number,
   audioStoriesPerMonth: number,
-  imagesPerStory: number
+  imagesPerStory: number,
+  comicsPerMonth = 0
 ): string {
   const normalizedLocale = normalizeLandingLocale(locale);
   const stories = formatCountLabel(normalizedLocale, storiesPerMonth, {
@@ -2080,54 +2081,74 @@ export function buildPlanDescription(
     fr: ['illustration', 'illustrations'],
     pl: ['ilustracja', 'ilustracje', 'ilustracji'],
   });
+  const comics = formatCountLabel(normalizedLocale, comicsPerMonth, {
+    uk: ['комікс', 'комікси', 'коміксів'],
+    ru: ['комикс', 'комикса', 'комиксов'],
+    en: ['comic', 'comics'],
+    es: ['cómic', 'cómics'],
+    de: ['Comic', 'Comics'],
+    fr: ['BD', 'BD'],
+    pl: ['komiks', 'komiksy', 'komiksów'],
+  });
+  const comicAllowance = comicsPerMonth > 0
+    ? ({
+      uk: `До ${comics} у межах ліміту історій.`,
+      ru: `До ${comics} в рамках лимита историй.`,
+      en: `Up to ${comics} within the story limit.`,
+      es: `Hasta ${comics} dentro del límite de historias.`,
+      de: `Bis zu ${comics} innerhalb des Geschichtenlimits.`,
+      fr: `Jusqu’à ${comics} dans la limite d’histoires.`,
+      pl: `Do ${comics} w limicie historii.`,
+    } satisfies Record<LandingLocale, string>)[normalizedLocale]
+    : '';
 
   const byLocale: Record<LandingLocale, Record<PlanSlug, string>> = {
     uk: {
-      free: `${stories} на місяць, ${audio}. ${illustrations} на історію. Спробуйте WonderTales і подивіться, як це працює.`,
-      silver: `${stories} на місяць, ${audio}. ${illustrations} на історію. Ідеально для однієї дитини.`,
-      golden: `${stories} на місяць, ${audio}. ${illustrations} на історію. Більше щоденних історій і кілька дитячих профілів.`,
-      fairyworld: `${stories} на місяць, ${audio}. ${illustrations} на історію. Преміум-голоси, більше профілів і розширені можливості.`,
+      free: `${stories} на місяць, ${audio}. ${illustrations} на історію. ${comicAllowance} Спробуйте WonderTales і подивіться, як це працює.`,
+      silver: `${stories} на місяць, ${audio}. ${illustrations} на історію. ${comicAllowance} Ідеально для однієї дитини.`,
+      golden: `${stories} на місяць, ${audio}. ${illustrations} на історію. ${comicAllowance} Більше щоденних історій і кілька дитячих профілів.`,
+      fairyworld: `${stories} на місяць, ${audio}. ${illustrations} на історію. ${comicAllowance} Преміум-голоси, більше профілів і розширені можливості.`,
     },
     ru: {
-      free: `${stories} в месяц, ${audio}. ${illustrations} на историю. Попробуйте WonderTales и посмотрите, как это работает.`,
-      silver: `${stories} в месяц, ${audio}. ${illustrations} на историю. Отлично подходит для одного ребенка.`,
-      golden: `${stories} в месяц, ${audio}. ${illustrations} на историю. Больше ежедневных историй и несколько детских профилей.`,
-      fairyworld: `${stories} в месяц, ${audio}. ${illustrations} на историю. Премиум-голоса, больше профилей и расширенные возможности.`,
+      free: `${stories} в месяц, ${audio}. ${illustrations} на историю. ${comicAllowance} Попробуйте WonderTales и посмотрите, как это работает.`,
+      silver: `${stories} в месяц, ${audio}. ${illustrations} на историю. ${comicAllowance} Отлично подходит для одного ребенка.`,
+      golden: `${stories} в месяц, ${audio}. ${illustrations} на историю. ${comicAllowance} Больше ежедневных историй и несколько детских профилей.`,
+      fairyworld: `${stories} в месяц, ${audio}. ${illustrations} на историю. ${comicAllowance} Премиум-голоса, больше профилей и расширенные возможности.`,
     },
     en: {
-      free: `${stories} per month, ${audio}. ${illustrations} per story. Try WonderTales and see how it feels.`,
-      silver: `${stories} per month, ${audio}. ${illustrations} per story. Great for one child.`,
-      golden: `${stories} per month, ${audio}. ${illustrations} per story. More daily stories and multiple child profiles.`,
-      fairyworld: `${stories} per month, ${audio}. ${illustrations} per story. Premium voices, more profiles, and expanded options.`,
+      free: `${stories} per month, ${audio}. ${illustrations} per story. ${comicAllowance} Try WonderTales and see how it feels.`,
+      silver: `${stories} per month, ${audio}. ${illustrations} per story. ${comicAllowance} Great for one child.`,
+      golden: `${stories} per month, ${audio}. ${illustrations} per story. ${comicAllowance} More daily stories and multiple child profiles.`,
+      fairyworld: `${stories} per month, ${audio}. ${illustrations} per story. ${comicAllowance} Premium voices, more profiles, and expanded options.`,
     },
     es: {
-      free: `${stories} al mes, ${audio}. ${illustrations} por historia. Prueba WonderTales y descubre cómo funciona.`,
-      silver: `${stories} al mes, ${audio}. ${illustrations} por historia. Ideal para un niño.`,
-      golden: `${stories} al mes, ${audio}. ${illustrations} por historia. Más historias diarias y varios perfiles infantiles.`,
-      fairyworld: `${stories} al mes, ${audio}. ${illustrations} por historia. Voces premium, más perfiles y funciones ampliadas.`,
+      free: `${stories} al mes, ${audio}. ${illustrations} por historia. ${comicAllowance} Prueba WonderTales y descubre cómo funciona.`,
+      silver: `${stories} al mes, ${audio}. ${illustrations} por historia. ${comicAllowance} Ideal para un niño.`,
+      golden: `${stories} al mes, ${audio}. ${illustrations} por historia. ${comicAllowance} Más historias diarias y varios perfiles infantiles.`,
+      fairyworld: `${stories} al mes, ${audio}. ${illustrations} por historia. ${comicAllowance} Voces premium, más perfiles y funciones ampliadas.`,
     },
     de: {
-      free: `${stories} pro Monat, ${audio}. ${illustrations} pro Geschichte. Probiere WonderTales aus und erlebe, wie es funktioniert.`,
-      silver: `${stories} pro Monat, ${audio}. ${illustrations} pro Geschichte. Ideal für ein Kind.`,
-      golden: `${stories} pro Monat, ${audio}. ${illustrations} pro Geschichte. Mehr tägliche Geschichten und mehrere Kinderprofile.`,
-      fairyworld: `${stories} pro Monat, ${audio}. ${illustrations} pro Geschichte. Premium-Stimmen, mehr Profile und erweiterte Möglichkeiten.`,
+      free: `${stories} pro Monat, ${audio}. ${illustrations} pro Geschichte. ${comicAllowance} Probiere WonderTales aus und erlebe, wie es funktioniert.`,
+      silver: `${stories} pro Monat, ${audio}. ${illustrations} pro Geschichte. ${comicAllowance} Ideal für ein Kind.`,
+      golden: `${stories} pro Monat, ${audio}. ${illustrations} pro Geschichte. ${comicAllowance} Mehr tägliche Geschichten und mehrere Kinderprofile.`,
+      fairyworld: `${stories} pro Monat, ${audio}. ${illustrations} pro Geschichte. ${comicAllowance} Premium-Stimmen, mehr Profile und erweiterte Möglichkeiten.`,
     },
     fr: {
-      free: `${stories} par mois, ${audio}. ${illustrations} par histoire. Essayez WonderTales et découvrez comment cela fonctionne.`,
-      silver: `${stories} par mois, ${audio}. ${illustrations} par histoire. Idéal pour un enfant.`,
-      golden: `${stories} par mois, ${audio}. ${illustrations} par histoire. Plus d’histoires au quotidien et plusieurs profils enfants.`,
-      fairyworld: `${stories} par mois, ${audio}. ${illustrations} par histoire. Voix premium, plus de profils et davantage d’options.`,
+      free: `${stories} par mois, ${audio}. ${illustrations} par histoire. ${comicAllowance} Essayez WonderTales et découvrez comment cela fonctionne.`,
+      silver: `${stories} par mois, ${audio}. ${illustrations} par histoire. ${comicAllowance} Idéal pour un enfant.`,
+      golden: `${stories} par mois, ${audio}. ${illustrations} par histoire. ${comicAllowance} Plus d’histoires au quotidien et plusieurs profils enfants.`,
+      fairyworld: `${stories} par mois, ${audio}. ${illustrations} par histoire. ${comicAllowance} Voix premium, plus de profils et davantage d’options.`,
     },
     pl: {
-      free: `${stories} miesięcznie, ${audio}. ${illustrations} na historię. Wypróbuj WonderTales i zobacz, jak to działa.`,
-      silver: `${stories} miesięcznie, ${audio}. ${illustrations} na historię. Idealne dla jednego dziecka.`,
-      golden: `${stories} miesięcznie, ${audio}. ${illustrations} na historię. Więcej codziennych historii i kilka profili dzieci.`,
-      fairyworld: `${stories} miesięcznie, ${audio}. ${illustrations} na historię. Głosy premium, więcej profili i rozszerzone możliwości.`,
+      free: `${stories} miesięcznie, ${audio}. ${illustrations} na historię. ${comicAllowance} Wypróbuj WonderTales i zobacz, jak to działa.`,
+      silver: `${stories} miesięcznie, ${audio}. ${illustrations} na historię. ${comicAllowance} Idealne dla jednego dziecka.`,
+      golden: `${stories} miesięcznie, ${audio}. ${illustrations} na historię. ${comicAllowance} Więcej codziennych historii i kilka profili dzieci.`,
+      fairyworld: `${stories} miesięcznie, ${audio}. ${illustrations} na historię. ${comicAllowance} Głosy premium, więcej profili i rozszerzone możliwości.`,
     },
   };
 
   const planKey = (slug in byLocale[normalizedLocale] ? slug : 'free') as PlanSlug;
-  return byLocale[normalizedLocale][planKey];
+  return byLocale[normalizedLocale][planKey].replace(/\s+/g, ' ').trim();
 }
 
 export function formatPlanPrice(locale: string, priceMonthly: number, currency: string): string {

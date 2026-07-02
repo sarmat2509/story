@@ -256,6 +256,7 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
     ]);
     const storiesPlanLimit = features.storiesPerMonth;
     const graphicNovelsPlanLimit = features.graphicNovelsPerMonth;
+    const mixedStoriesPlanLimit = features.mixedStoriesPerMonth;
     const audioPlanLimit = features.audioStoriesPerMonth;
     const graphicNovelsBundleBonus = calculateBundleGraphicNovelBonus({
       extraStories: bundleBonus.extraStories,
@@ -263,6 +264,8 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
       graphicNovelsPlanLimit,
     });
     const storiesLimit = storiesPlanLimit + bundleBonus.extraStories;
+    const mixedStoriesLimit =
+      mixedStoriesPlanLimit > 0 ? mixedStoriesPlanLimit + bundleBonus.extraStories : 0;
     const graphicNovelsLimit = graphicNovelsPlanLimit + graphicNovelsBundleBonus;
     const audioLimit = audioPlanLimit + bundleBonus.extraAudio;
 
@@ -282,6 +285,13 @@ router.get('/subscription-usage', requireAuth, async (req: Request, res: Respons
         remaining: graphicNovelsLimit < 0 ? -1 : Math.max(0, graphicNovelsLimit - graphicNovelsUsed),
         plan_limit: graphicNovelsPlanLimit,
         bundle_bonus: graphicNovelsBundleBonus,
+      },
+      mixedStories: {
+        used: storiesUsed,
+        limit: mixedStoriesLimit,
+        remaining: mixedStoriesLimit < 0 ? -1 : Math.max(0, mixedStoriesLimit - storiesUsed),
+        plan_limit: mixedStoriesPlanLimit,
+        bundle_bonus: mixedStoriesPlanLimit > 0 ? bundleBonus.extraStories : 0,
       },
       audio: {
         used: audioUsed,

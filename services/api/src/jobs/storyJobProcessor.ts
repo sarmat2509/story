@@ -68,6 +68,21 @@ function estimateProducerMs(illustrationCount: number): number {
   return Math.max(15000, illustrationCount * 15000);
 }
 
+function voiceSupportsStoryLanguage(
+  voice: { language?: string | null; supportedLanguages?: string[] | null },
+  storyLanguage: string
+): boolean {
+  const normalizedStoryLanguage = storyLanguage.slice(0, 2).toLowerCase();
+  const supportedLanguages = voice.supportedLanguages?.length
+    ? voice.supportedLanguages
+    : voice.language
+      ? [voice.language]
+      : [];
+  return supportedLanguages
+    .map((language) => language.slice(0, 2).toLowerCase())
+    .includes(normalizedStoryLanguage);
+}
+
 async function warmStoryQuizGeneration(storyId: string, requestId: string): Promise<void> {
   try {
     const story = await getStoryRepository().findById(storyId);
@@ -242,7 +257,7 @@ async function releaseQuotaAfterTextPermanentFailure(
   const request = await getStoryRepository().findRequestById(requestId);
   const generationKind = (request?.intermediateData as Record<string, unknown> | null | undefined)
     ?.generationKind;
-  if (!isGraphicNovelStyleGenerationKind(generationKind as any)) {
+  if (generationKind !== 'graphic_novel') {
     return;
   }
 
@@ -541,6 +556,19 @@ async function processAudioGeneration(job: AudioGenerationJob): Promise<void> {
     logger.warn(
       { voiceId, storyId: job.storyId },
       'Job voiceId points to inactive catalog row; using fallback for chunk limits'
+    );
+    voiceRow = null;
+  }
+  if (voiceRow && !voiceSupportsStoryLanguage(voiceRow, story.language)) {
+    logger.warn(
+      {
+        voiceId,
+        storyId: job.storyId,
+        voiceLanguage: voiceRow.language,
+        supportedLanguages: voiceRow.supportedLanguages,
+        storyLanguage: story.language,
+      },
+      'Job voiceId points to a different story language; using fallback for chunk limits'
     );
     voiceRow = null;
   }
@@ -1116,6 +1144,9 @@ class StoryJobQueue {
           const voiceId = requestIdOrJobData.voiceParams?.voiceId;
           let voiceRow = voiceId ? await getVoiceRepository().findById(voiceId) : null;
           if (voiceRow && !voiceRow.isActive) {
+            voiceRow = null;
+          }
+          if (voiceRow && !voiceSupportsStoryLanguage(voiceRow, story.language)) {
             voiceRow = null;
           }
           if (voiceRow?.provider === 'grok' && isGrokBlockedForStoryLanguage(story.language)) {

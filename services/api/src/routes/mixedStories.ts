@@ -11,10 +11,7 @@ import {
   releaseStoryQuotaReservationForRequest,
 } from '../services/storyQuotaService';
 import { isPromptSafetyError } from '../services/promptSafetyService';
-import {
-  isGraphicNovelQuotaError,
-  releaseGraphicNovelQuotaReservationForRequest,
-} from '../services/graphicNovelQuotaService';
+import { isMixedStoryAccessError } from '../services/mixedStoryAccessService';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -31,24 +28,6 @@ async function releaseStoryQuotaReservationOnCreateFailure(
     });
   } catch (releaseError) {
     logger.error({ err: releaseError, requestId }, 'Failed to release story quota after mixed story create failure');
-  }
-}
-
-async function releaseGraphicNovelQuotaReservationOnCreateFailure(
-  requestId: string | undefined,
-  error: unknown
-): Promise<void> {
-  if (!requestId) return;
-  try {
-    await releaseGraphicNovelQuotaReservationForRequest(requestId, {
-      reason: 'queue_enqueue_failed',
-      errorMessage: error instanceof Error ? error.message : String(error),
-    });
-  } catch (releaseError) {
-    logger.error(
-      { err: releaseError, requestId },
-      'Failed to release graphic novel quota after mixed story create failure'
-    );
   }
 }
 
@@ -79,15 +58,14 @@ function sendStoryQuotaError(res: Response, error: unknown): boolean {
   return true;
 }
 
-function sendGraphicNovelQuotaError(res: Response, error: unknown): boolean {
-  if (!isGraphicNovelQuotaError(error)) return false;
+function sendMixedStoryAccessError(res: Response, error: unknown): boolean {
+  if (!isMixedStoryAccessError(error)) return false;
   res.status(error.statusCode).json({
     status: 'error',
     code: error.code,
     message: error.message,
-    featureSlug: 'graphic_novels_per_month',
-    limit: error.details.limit,
-    used: error.details.used,
+    featureSlug: error.featureSlug,
+    limit: error.limit,
   });
   return true;
 }
@@ -139,14 +117,11 @@ router.post(
       });
     } catch (error) {
       if (!queued) {
-        await Promise.all([
-          releaseStoryQuotaReservationOnCreateFailure(requestId, error),
-          releaseGraphicNovelQuotaReservationOnCreateFailure(requestId, error),
-        ]);
+        await releaseStoryQuotaReservationOnCreateFailure(requestId, error);
       }
       if (sendPromptSafetyError(res, error)) return;
       if (sendStoryQuotaError(res, error)) return;
-      if (sendGraphicNovelQuotaError(res, error)) return;
+      if (sendMixedStoryAccessError(res, error)) return;
 
       logger.error({ err: error, userId: req.user?.id }, 'Create mixed story request failed');
 
