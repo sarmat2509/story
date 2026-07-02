@@ -67,6 +67,14 @@ export const AI_COST_CONFIG = {
       inputPer1M: 0.5,
       thinkingRatePer1M: 3,
     } as ImageTokenCostConfig,
+    // Gemini 3.1 Flash Lite Image (Nano Banana Lite) — low-cost utility image path.
+    // Standard: Input $0.25/1M (text/image/video), Output $30/1M (1K=1120 tokens=$0.0336)
+    'gemini-3.1-flash-lite-image': {
+      imageTokensPer1K: 1120,
+      imageRatePer1M: 30,
+      inputPer1M: 0.25,
+      thinkingRatePer1M: 1.5,
+    } as ImageTokenCostConfig,
     'openai-gpt-image': 0.08 as number,
   } as Record<string, number | ImageTokenCostConfig>,
 

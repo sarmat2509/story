@@ -359,7 +359,7 @@ function createConfiguredImageProvider(params: {
 }
 
 /**
- * Environment reference images — Gemini 2.5 Flash Image (API key), not Vertex Imagen.
+ * Environment reference images — Gemini Flash Lite Image (API key), not Vertex Imagen.
  */
 export function getEnvironmentImageProvider(): IImageProvider {
   if (!environmentImageProvider) {

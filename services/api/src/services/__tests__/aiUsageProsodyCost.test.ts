@@ -5,6 +5,7 @@ import {
   USAGE_OP_GRAPHIC_NOVEL_PAGE_EDIT,
   USAGE_OP_GRAPHIC_NOVEL_PAGE_VALIDATION_REPAIR_EDIT,
   USAGE_OP_GRAPHIC_NOVEL_PANEL_ART_GENERATE,
+  USAGE_OP_IMAGE_ENVIRONMENT,
   USAGE_OP_TTS_PROSODY_TAGS,
 } from '../aiUsageService';
 
@@ -141,11 +142,27 @@ function testStoredUsageUsesEffectiveUnitsAndImageMetadata() {
   assert.ok(Math.abs(cost! - 0.373) < 0.0001, String(cost));
 }
 
+function testEnvironmentImageUsesFlashLiteImagePricing() {
+  const cost = estimateStoredUsageCostUsd({
+    provider: 'gemini',
+    operation: USAGE_OP_IMAGE_ENVIRONMENT,
+    model: 'gemini-3.1-flash-lite-image',
+    inputUnits: 1_000,
+    outputUnits: 0,
+    metadata: { imageTokens: 1120, thoughtTokens: 0 },
+  });
+
+  assert.ok(cost != null, 'expected environment image usage cost');
+  // 0.00025 input + 0.0336 image output.
+  assert.ok(Math.abs(cost! - 0.03385) < 0.00001, String(cost));
+}
+
 void (async () => {
   testProsodyTagsPricedLikeTextGemini();
   testProsodyTagsUnknownModelFallsBackLikeText();
   testHistoricalUnpricedOperationsArePriced();
   testStoredUsageUsesEffectiveUnitsAndImageMetadata();
+  testEnvironmentImageUsesFlashLiteImagePricing();
   console.log('aiUsageProsodyCost tests OK');
 })().catch((e) => {
   console.error(e);

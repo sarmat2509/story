@@ -201,7 +201,7 @@ export const config = {
       (process.env.COMPLEX_IMAGE_MODEL || process.env.GRAPHIC_NOVEL_IMAGE_MODEL || '').trim() ||
       'gemini-3.1-flash-image',
     /** Cheap image path: env images, legacy IMAGE_PROVIDER=gemini, LLM text-only turnaround */
-    flashImageModel: process.env.GEMINI_FLASH_IMAGE_MODEL || 'gemini-2.5-flash-image',
+    flashImageModel: process.env.GEMINI_FLASH_IMAGE_MODEL || 'gemini-3.1-flash-lite-image',
     /** Optional override for reward map tile images only. Falls back to Nano Banana model. */
     mapTileModel: (process.env.MAP_TILE_IMAGE_MODEL || '').trim(),
     gemini: {
