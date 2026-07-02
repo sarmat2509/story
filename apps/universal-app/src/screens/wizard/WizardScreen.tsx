@@ -55,7 +55,13 @@ import { IMAGE_STYLE_METADATA, type ImageStyle } from '@wondertales/shared';
 import { getWizardScenarioPreset } from './wizardRouteParams';
 import { getLocalizedApiError } from '@/utils/localizedApiError';
 
+const MAX_STORY_CHARACTER_SELECTIONS = 5;
+
 type StoryFormat = 'story' | 'comic' | 'mixed';
+
+function isChildProfileCharacter(character: { type?: string; subtype?: string | null }): boolean {
+  return character.type === 'child' || character.subtype === 'child';
+}
 
 export default function WizardScreen() {
   const { t } = useTranslation();
@@ -90,7 +96,6 @@ export default function WizardScreen() {
   const [imageStyle, setImageStyle] = useState<ImageStyle | undefined>(undefined);
   const [userNotes, setUserNotes] = useState('');
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
-  const [selectedChildren, setSelectedChildren] = useState<string[]>([]); // NEW: Selected child profiles
   const [activeStep, setActiveStep] = useState(0);
   const activeStepScrollRef = React.useRef(activeStep);
   const [isAiNoticeExpanded, setIsAiNoticeExpanded] = useState(false);
@@ -192,7 +197,6 @@ export default function WizardScreen() {
   useEffect(() => {
     if (!isChildSession || !activeChild?.id) return;
     setChildProfileId(activeChild.id);
-    setSelectedChildren([activeChild.id]);
   }, [activeChild?.id, isChildSession]);
 
   useEffect(() => {
@@ -213,7 +217,6 @@ export default function WizardScreen() {
   useEffect(() => {
     if (isChildSession || !route.params?.childId) return;
     setChildProfileId(route.params.childId);
-    setSelectedChildren([route.params.childId]);
   }, [isChildSession, route.params?.childId]);
 
   useEffect(() => {
@@ -248,8 +251,32 @@ export default function WizardScreen() {
     const allCharacters = characters ?? [];
     const allowed = childModeSettings?.allowedCharacterIds ?? [];
     if (!isChildSession || allowed.length === 0) return allCharacters;
-    return allCharacters.filter((character) => allowed.includes(character.id));
-  }, [characters, childModeSettings?.allowedCharacterIds, isChildSession]);
+    return allCharacters.filter(
+      (character) =>
+        allowed.includes(character.id) ||
+        (childProfileId &&
+          (character as { childProfileId?: string | null }).childProfileId === childProfileId &&
+          isChildProfileCharacter(character))
+    );
+  }, [characters, childModeSettings?.allowedCharacterIds, childProfileId, isChildSession]);
+
+  useEffect(() => {
+    if (!childProfileId) return;
+    if (!isChildSession && route.params?.childId !== childProfileId) return;
+
+    const childCharacter = availableCharacters.find(
+      (character) =>
+        (character as { childProfileId?: string | null }).childProfileId === childProfileId &&
+        isChildProfileCharacter(character)
+    );
+    if (!childCharacter) return;
+
+    setSelectedCharacters((current) => {
+      if (current.includes(childCharacter.id)) return current;
+      if (current.length >= MAX_STORY_CHARACTER_SELECTIONS) return current;
+      return [...current, childCharacter.id];
+    });
+  }, [availableCharacters, childProfileId, isChildSession, route.params?.childId]);
 
   const scenarioOptions = useMemo(() => {
     const freeThemeCard = {
@@ -278,9 +305,6 @@ export default function WizardScreen() {
     .filter((goal) => selectedGoals.includes(goal.slug))
     .map((goal) => goal.name);
   const selectedCharacterNames = [
-    ...children
-      .filter((child) => selectedChildren.includes(child.id) && child.id !== childProfileId)
-      .map((child) => child.name),
     ...availableCharacters
       .filter((character) => selectedCharacters.includes(character.id))
       .map((character) => character.name),
@@ -469,13 +493,11 @@ export default function WizardScreen() {
         story_format: storyFormatAnalytics,
         scenario_card_id: scenarioCardId ?? undefined,
         has_characters: selectedCharacters.length > 0,
-        has_children: selectedChildren.length > 0,
         has_goal: selectedGoals.length > 0,
         has_image_style: !!imageStyle,
         has_user_notes: userNotes.trim().length > 0,
         has_child_profile: !!childProfileId,
         character_count: selectedCharacters.length,
-        children_count: selectedChildren.length,
       });
 
       const payload = {
@@ -487,7 +509,6 @@ export default function WizardScreen() {
         ...(imageStyle && { imageStyle }),
         ...(notesEnabled && userNotes && { userNotes }),
         ...(selectedCharacters.length > 0 && { selectedCharacters }),
-        ...(selectedChildren.length > 0 && { selectedChildren }), // NEW: Selected children as characters
       };
 
       const createMutation =
@@ -887,10 +908,6 @@ export default function WizardScreen() {
                       characters={availableCharacters}
                       selectedCharacters={selectedCharacters}
                       onCharactersChange={setSelectedCharacters}
-                      children={children}
-                      selectedChildren={selectedChildren}
-                      onChildrenChange={setSelectedChildren}
-                      showChildren={!isChildSession}
                       onAddCharacter={() => setIsCharacterModalVisible(true)}
                       onAddChild={
                         canCreateMoreChildren ? () => setIsChildModalVisible(true) : undefined

@@ -8,6 +8,7 @@ import { config } from '../config';
 import { collectEntityAssetPaths, deleteEntityAssets } from './entityAssetCleanupService';
 import { localizeCharacterNames, translateCharacterDescription } from './translationService';
 import { stripCharacterIdFromName, type CharacterType } from '@wondertales/shared';
+import { syncChildProfileCharactersForUser } from './childProfileService';
 
 // Re-export CharacterType for use in routes
 export type { CharacterType };
@@ -200,6 +201,10 @@ export async function getCharacters(
   type?: CharacterType,
   options: { childProfileId?: string; accessibleByChildProfileId?: string } = {}
 ): Promise<Character[]> {
+  if (!type || type === 'person') {
+    await syncChildProfileCharactersForUser(userId);
+  }
+
   const results = await getCharacterRepository().findByUserId(userId, type, options);
   // Filter out hidden LLM-generated characters from the user-facing list
   const visible = results.filter(c => !c.isHidden);

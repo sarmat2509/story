@@ -161,6 +161,7 @@ import {
   isStoryQuotaError,
   type StoryQuotaReservationSource,
 } from './storyQuotaService';
+import { syncChildProfileCharacter } from './childProfileService';
 import { assertStoryPromptSafety, isPromptSafetyError } from './promptSafetyService';
 import { recordStageTiming, withStageTiming } from './generationStageTimingService';
 import { assertVoiceAccessForUser } from './voiceAccessService';
@@ -1370,6 +1371,31 @@ function buildEnvironmentMapFromText(
   return environmentMap;
 }
 
+function extractCharacterIdMarkerFromName(name: string): { name: string; id?: string } {
+  const match = name.match(/^(.+?)\s*\[ID:\s*([a-f0-9-]{36})\]\s*$/i);
+  if (!match) return { name };
+  return {
+    name: match[1].trim(),
+    id: match[2].trim(),
+  };
+}
+
+function normalizeStoredLlmCharactersForImageFlow(rawCharacters: any[]): any[] {
+  return rawCharacters
+    .filter((char) => char && typeof char.name === 'string' && char.name.trim())
+    .map((char) => {
+      const extracted = extractCharacterIdMarkerFromName(char.name);
+      const description = char.description || char.appearance || char.aiGeneratedDescription;
+      return {
+        ...char,
+        name: extracted.name,
+        originalCharacterId: char.originalCharacterId || extracted.id,
+        appearance: char.appearance || description,
+        description,
+      };
+    });
+}
+
 /**
  * Extract storage path from URL.
  */
@@ -1378,6 +1404,11 @@ function extractStoragePath(url: string): string {
   const urlWithoutQuery = url.split('?')[0];
   const urlWithoutProtocol = urlWithoutQuery.replace(/^https?:\/\/[^/]+/, '');
   return urlWithoutProtocol.replace(/^\/api\/v1\/assets\//, '');
+}
+
+function isChildBackedCharacter(char: unknown): boolean {
+  const row = (char ?? {}) as Record<string, unknown>;
+  return row.type === 'child' || row.subtype === 'child';
 }
 
 /**
@@ -1602,7 +1633,7 @@ function getSceneCharacterReferencePaths(
   for (const mapKey of normalizedCharacters) {
     const char = characterDescriptionMap.get(mapKey);
     if (!char?.name) continue;
-    const bucket = (char as any).type === 'child' ? childPaths : otherPaths;
+    const bucket = isChildBackedCharacter(char) ? childPaths : otherPaths;
     pushPaths(bucket, char);
   }
 
@@ -1827,7 +1858,7 @@ function buildCharacterReferencePathMetadataMap(
   >();
 
   for (const char of characterDescriptionMap.values()) {
-    const isChild = (char as any)?.type === 'child';
+    const isChild = isChildBackedCharacter(char);
     const source = isChild ? 'child_reference' : 'character_reference';
     const type = isChild ? 'child_reference' : 'character_reference';
     const turnaround = (char as any).turnaroundSheet as { url?: string } | null | undefined;
@@ -3218,11 +3249,20 @@ export async function buildStorySpec(
           ? getChildProfileRepository().findByIds(request.userId, request.selectedChildren)
           : Promise.resolve([]);
 
-      const [userCharacters, profile, childProfilesToInclude] = await Promise.all([
+      const [loadedUserCharacters, profile, childProfilesToInclude] = await Promise.all([
         selectedCharactersPromise,
         childProfilePromise,
         selectedChildrenPromise,
       ]);
+      const childProfileCharacters =
+        childProfilesToInclude.length > 0
+          ? await Promise.all(childProfilesToInclude.map((child) => syncChildProfileCharacter(child)))
+          : [];
+      const characterRowsById = new Map<string, (typeof loadedUserCharacters)[number]>();
+      for (const character of [...loadedUserCharacters, ...childProfileCharacters]) {
+        characterRowsById.set(character.id, character);
+      }
+      const userCharacters = Array.from(characterRowsById.values());
 
       // Standard mode: load selected characters from request
       if (userCharacters.length > 0) {
@@ -3270,6 +3310,8 @@ export async function buildStorySpec(
             name: characterNameTranslations.get(c.id) || stripCharacterIdFromName(c.name) || c.name,
             canonicalName: c.name,
             type: c.type,
+            subtype: (c as any).subtype || undefined,
+            childProfileId: (c as any).childProfileId || undefined,
             traits: c.personality || undefined,
             referencePhotos: c.referencePhotos as ReferencePhoto[] | undefined,
             appearanceTraits: c.appearanceTraits as AppearanceTraits | undefined,
@@ -3287,6 +3329,7 @@ export async function buildStorySpec(
             requestId: request.id,
             userId: request.userId,
             selectedCharacterIds: request.selectedCharacters,
+            selectedChildProfileIds: request.selectedChildren,
             loadedCharactersCount: selectedCharacters.length,
             charactersWithReferences: selectedCharacters
               .filter((c) => c.referencePhotos && c.referencePhotos.length > 0)
@@ -3317,26 +3360,11 @@ export async function buildStorySpec(
         );
       }
 
-      // Load selected children if provided (to include as characters in story)
-      selectedChildrenData = childProfilesToInclude
-        .filter((c) => c.name)
-        .map((c) => ({
-          id: c.id,
-          name: c.name,
-          type: 'child', // Special type for children
-          referencePhotos: c.referencePhotos as ReferencePhoto[] | undefined,
-          appearanceTraits: c.appearanceTraits as AppearanceTraits | undefined,
-          personality: c.personality || undefined,
-          traits: c.personality || undefined,
-          description: undefined,
-          role: undefined,
-          appearance: undefined,
-          turnaroundSheet: (c as any).turnaroundSheet || undefined,
-          descriptionEn: (c as any).descriptionEn || undefined,
-          aiGeneratedDescription: c.aiGeneratedDescription || undefined,
-          clothing: (c as any).clothing || undefined,
-          distinctiveFeatures: (c as any).distinctiveFeatures || undefined,
-        }));
+      const selectedChildProfileIdSet = new Set(childProfilesToInclude.map((child) => child.id));
+      selectedChildrenData = selectedCharacters.filter(
+        (character: any) =>
+          character.childProfileId && selectedChildProfileIdSet.has(character.childProfileId)
+      );
 
       logger.info(
         {
@@ -3344,10 +3372,10 @@ export async function buildStorySpec(
           selectedChildrenCount: selectedChildrenData.length,
           childNames: selectedChildrenData.map((c) => c.name),
         },
-        'Loaded selected children as characters'
+        'Resolved selected child profiles to mirror characters'
       );
 
-      allCharacters = [...selectedCharacters, ...selectedChildrenData];
+      allCharacters = selectedCharacters;
     }
 
     allCharacters = await attachCharacterNameAliases(allCharacters);
@@ -3363,7 +3391,7 @@ export async function buildStorySpec(
     // Set childName ONLY if child profile is included as a character in the story
     if (childProfile && request.childProfileId) {
       const isChildInStory = allCharacters.some(
-        (c) => c.type === 'child' && c.id === request.childProfileId
+        (c: any) => isChildBackedCharacter(c) && c.childProfileId === request.childProfileId
       );
 
       childName = isChildInStory ? childProfile.name : undefined;
@@ -3597,7 +3625,7 @@ export async function buildStorySpec(
       goalName: goalWithGuidance?.name, // NEW: Translated goal name for prompts
       goalGuidance: goalWithGuidance?.promptGuidance, // NEW: Detailed goal guidance
       imageStyle: (request as any).imageStyle || undefined, // Image art style
-      characters: allCharacters as any, // Merged: user characters + selected children
+      characters: allCharacters as any,
       userNotes: request.userNotes || undefined,
       policyProfile,
       scenarioCard, // NEW: Add scenario card to spec
@@ -4970,7 +4998,9 @@ async function generateSceneImageWithReference(
     // Add child profile as character ONLY if child is included in story characters
     // Check if child profile is in the characters array (would have type: 'child')
     const childIsCharacter = context.characters.some(
-      (c) => c.type === 'child' && c.id === context.childProfile?.id
+      (c: any) =>
+        isChildBackedCharacter(c) &&
+        (c.childProfileId === context.childProfile?.id || c.id === context.childProfile?.id)
     );
 
     if (context.childProfile && childIsCharacter) {
@@ -6624,7 +6654,8 @@ export async function getStoryRequestStatus(
 async function fetchStoryChildren(
   storyRequestId: string | null,
   childProfileId: string | null,
-  userId: string
+  userId: string,
+  options: { excludeChildProfileIds?: Set<string> } = {}
 ): Promise<
   Array<{
     id: string;
@@ -6650,6 +6681,10 @@ async function fetchStoryChildren(
     childIds.push(childProfileId);
   }
 
+  if (childIds.length === 0) return [];
+
+  const excluded = options.excludeChildProfileIds ?? new Set<string>();
+  childIds = childIds.filter((id) => !excluded.has(id));
   if (childIds.length === 0) return [];
 
   const childProfiles = await getChildProfileRepository().findByIdsIncludingInactive(
@@ -6843,7 +6878,14 @@ export async function getStory(storyId: string, userId: string) {
   const childCharacters = await fetchStoryChildren(
     story.storyRequestId,
     story.childProfileId,
-    userId
+    userId,
+    {
+      excludeChildProfileIds: new Set(
+        linkedCharactersRaw
+          .filter((char: any) => char.subtype === 'child' && typeof char.childProfileId === 'string')
+          .map((char: any) => char.childProfileId as string)
+      ),
+    }
   );
   const metadata =
     story.metadata && typeof story.metadata === 'object'
@@ -7488,7 +7530,13 @@ export async function getStoryManifest(storyId: string) {
     metadata: story.metadata,
     createdAt: story.createdAt,
     characters: [
-      ...(await fetchStoryChildren(story.storyRequestId, story.childProfileId, story.userId)),
+      ...(await fetchStoryChildren(story.storyRequestId, story.childProfileId, story.userId, {
+        excludeChildProfileIds: new Set(
+          linkedCharactersRaw
+            .filter((char: any) => char.subtype === 'child' && typeof char.childProfileId === 'string')
+            .map((char: any) => char.childProfileId as string)
+        ),
+      })),
       ...(await Promise.all(
         linkedCharactersRaw.map(async (char) => {
           let referencePhotoUrl: string | null = null;
@@ -7616,7 +7664,9 @@ export async function regenerateSceneImage(
 
   // Get characters from story metadata
   const metadata = story.metadata as any;
-  const llmCharacters = metadata?.llmGeneratedCharacters || [];
+  const llmCharacters = normalizeStoredLlmCharactersForImageFlow(
+    Array.isArray(metadata?.llmGeneratedCharacters) ? metadata.llmGeneratedCharacters : []
+  );
 
   // Get user characters
   const linkedChars = await getStoryRepository().findLinkedCharactersByStoryId(storyId);
@@ -7639,31 +7689,53 @@ export async function regenerateSceneImage(
     };
   }>;
 
-  const mergedCharacters = mergeCharacters(
-    userCharacters
-      .filter((uc) => uc.characters && uc.characters.name)
-      .map((uc) => ({
-        id: uc.characters.id,
-        name: uc.characters.name,
-        type: uc.characters.type,
-        referencePhotos: uc.characters.referencePhotos as ReferencePhoto[] | undefined,
-        appearanceTraits: uc.characters.appearanceTraits as AppearanceTraits | undefined,
-        description: uc.characters.description || undefined,
-        role: undefined,
-        appearance: undefined,
-        personality: uc.characters.personality || undefined,
-        turnaroundSheet: (uc.characters as any).turnaroundSheet || undefined,
-        descriptionEn: (uc.characters as any).descriptionEn || undefined,
-        aiGeneratedDescription: (uc.characters as any).aiGeneratedDescription || undefined,
-      })),
-    llmCharacters
-  );
+  const userCharacterData: CharacterData[] = userCharacters
+    .filter((uc) => uc.characters && uc.characters.name)
+    .map((uc) => ({
+      id: uc.characters.id,
+      name: uc.characters.name,
+      type: uc.characters.type,
+      subtype: (uc.characters as any).subtype || undefined,
+      childProfileId: (uc.characters as any).childProfileId || undefined,
+      referencePhotos: uc.characters.referencePhotos as ReferencePhoto[] | undefined,
+      appearanceTraits: uc.characters.appearanceTraits as AppearanceTraits | undefined,
+      description: uc.characters.description || undefined,
+      role: undefined,
+      appearance: undefined,
+      personality: uc.characters.personality || undefined,
+      turnaroundSheet: (uc.characters as any).turnaroundSheet || undefined,
+      descriptionEn: (uc.characters as any).descriptionEn || undefined,
+      aiGeneratedDescription: (uc.characters as any).aiGeneratedDescription || undefined,
+    }));
+  let mergedCharacters = mergeCharacters(userCharacterData, llmCharacters);
 
   // Get child profile
   let childProfile: ChildProfileData | undefined = undefined;
   if (story.childProfileId) {
     const profile = await getChildProfileRepository().findById(story.childProfileId, story.userId);
     childProfile = profile ? (profile as ChildProfileData) : undefined;
+    if (profile) {
+      const childCharacter = await syncChildProfileCharacter(profile);
+      if (!userCharacterData.some((character) => character.id === childCharacter.id)) {
+        userCharacterData.push({
+          id: childCharacter.id,
+          name: childCharacter.name,
+          type: childCharacter.type,
+          subtype: (childCharacter as any).subtype || undefined,
+          childProfileId: (childCharacter as any).childProfileId || undefined,
+          referencePhotos: childCharacter.referencePhotos as ReferencePhoto[] | undefined,
+          appearanceTraits: childCharacter.appearanceTraits as AppearanceTraits | undefined,
+          description: childCharacter.description || undefined,
+          role: undefined,
+          appearance: undefined,
+          personality: childCharacter.personality || undefined,
+          turnaroundSheet: (childCharacter as any).turnaroundSheet || undefined,
+          descriptionEn: (childCharacter as any).descriptionEn || undefined,
+          aiGeneratedDescription: (childCharacter as any).aiGeneratedDescription || undefined,
+        } as CharacterData);
+        mergedCharacters = mergeCharacters(userCharacterData, llmCharacters);
+      }
+    }
   }
 
   const imageDomain = getImageDomainService();

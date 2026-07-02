@@ -151,6 +151,7 @@ export const useCreateChild = () => {
     onSuccess: () => {
       // Invalidate children list to trigger refetch
       queryClient.invalidateQueries({ queryKey: ['children'] });
+      queryClient.invalidateQueries({ queryKey: ['characters'] });
     },
   });
 };
@@ -169,6 +170,7 @@ export const useUpdateChild = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['children'] });
+      queryClient.invalidateQueries({ queryKey: ['characters'] });
     },
   });
 };
@@ -261,6 +263,7 @@ export const useDeleteChild = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['children'] });
+      queryClient.invalidateQueries({ queryKey: ['characters'] });
     },
   });
 };

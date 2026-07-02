@@ -183,7 +183,10 @@ export async function generateTurnaroundSheetFromReference(
   if (targetType === 'character') {
     await getCharacterRepository().updateTurnaroundSheet(targetId, turnaroundSheet);
   } else {
-    await getChildProfileRepository().updateTurnaroundSheet(targetId, turnaroundSheet);
+    await Promise.all([
+      getChildProfileRepository().updateTurnaroundSheet(targetId, turnaroundSheet),
+      getCharacterRepository().updateTurnaroundSheetByChildProfileId(targetId, turnaroundSheet),
+    ]);
   }
 
   logger.info({
@@ -257,7 +260,10 @@ export async function generateTurnaroundSheetFromDescription(
     sourcePhotoUrl: 'text-description',
   };
 
-  await getChildProfileRepository().updateTurnaroundSheet(targetId, turnaroundSheet);
+  await Promise.all([
+    getChildProfileRepository().updateTurnaroundSheet(targetId, turnaroundSheet),
+    getCharacterRepository().updateTurnaroundSheetByChildProfileId(targetId, turnaroundSheet),
+  ]);
 
   logger.info({
     childId: targetId,

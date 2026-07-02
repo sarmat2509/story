@@ -568,6 +568,9 @@ export const characters = pgTable(
     return {
       userIdIdx: index('characters_user_id_idx').on(table.userId),
       childProfileIdIdx: index('characters_child_profile_id_idx').on(table.childProfileId),
+      childProfileMirrorUniqueIdx: uniqueIndex('characters_child_profile_mirror_unique_idx')
+        .on(table.userId, table.childProfileId)
+        .where(sql`${table.childProfileId} IS NOT NULL AND ${table.type} = 'person' AND ${table.subtype} = 'child'`),
       typeIdx: index('characters_type_idx').on(table.type),
       createdByModeIdx: index('characters_created_by_mode_idx').on(table.createdByMode),
       createdByChildProfileIdIdx: index('characters_created_by_child_profile_id_idx').on(

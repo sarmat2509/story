@@ -5,6 +5,7 @@ import {
   type ChildModeSettings,
 } from './childModeControlsService';
 import { getUsageForPeriod } from './usageEventsService';
+import { syncChildProfileCharacter } from './childProfileService';
 
 export class ChildModePolicyError extends Error {
   constructor(
@@ -68,6 +69,7 @@ export function assertChildStoryRequestControls(params: {
   settings: ChildModeSettings;
   dailyCreatedCount: number;
   monthlyCreatedCount: number;
+  selfCharacterIds?: string[];
 }): ChildStoryPolicyDecision {
   const { input, settings, sessionChildProfileId } = params;
 
@@ -118,9 +120,13 @@ export function assertChildStoryRequestControls(params: {
     );
   }
 
+  const selfCharacterIds = new Set(params.selfCharacterIds ?? []);
   if (
     settings.allowedCharacterIds.length > 0 &&
-    getSelectedCharacters(input).some((characterId) => !settings.allowedCharacterIds.includes(characterId))
+    getSelectedCharacters(input).some(
+      (characterId) =>
+        !settings.allowedCharacterIds.includes(characterId) && !selfCharacterIds.has(characterId)
+    )
   ) {
     throw new ChildModePolicyError(
       'This character is not allowed in Child Mode',
@@ -194,6 +200,8 @@ export async function assertChildStoryRequestAllowed(params: {
 
   const now = params.now ?? new Date();
   const selectedCharacterIds = [...new Set(getSelectedCharacters(params.input))];
+  const selfCharacter =
+    selectedCharacterIds.length > 0 ? await syncChildProfileCharacter(profile) : null;
   const [dailyCreatedCount, monthlyCreatedCount] = await Promise.all([
     getStoryRepository().countChildCreatedRequestsSince(
       params.parentUserId,
@@ -228,6 +236,7 @@ export async function assertChildStoryRequestAllowed(params: {
     settings: controls.childModeSettings,
     dailyCreatedCount,
     monthlyCreatedCount,
+    selfCharacterIds: selfCharacter ? [selfCharacter.id] : [],
   });
 }
 

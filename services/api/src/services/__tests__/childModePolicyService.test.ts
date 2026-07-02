@@ -89,6 +89,22 @@ void (async function main() {
     'CHILD_CHARACTER_NOT_ALLOWED'
   );
 
+  assert.deepStrictEqual(
+    assertChildStoryRequestControls({
+      sessionChildProfileId: 'child-1',
+      input: { ...baseInput, selectedCharacters: ['self-character'] },
+      settings: { ...DEFAULT_CHILD_MODE_SETTINGS, allowedCharacterIds: ['character-1'] },
+      dailyCreatedCount: 0,
+      monthlyCreatedCount: 0,
+      selfCharacterIds: ['self-character'],
+    }),
+    {
+      parentReviewRequired: false,
+      settings: { ...DEFAULT_CHILD_MODE_SETTINGS, allowedCharacterIds: ['character-1'] },
+    },
+    'child mode whitelist allows the active child mirror character'
+  );
+
   assertPolicyError(
     () => assertChildStoryRequestControls({
       sessionChildProfileId: 'child-1',

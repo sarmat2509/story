@@ -844,6 +844,8 @@ export class StoryRepository {
     id: string;
     name: string;
     type: string;
+    subtype: string | null;
+    childProfileId: string | null;
     role: string | null;
     isHidden: boolean;
     description: string | null;
@@ -855,6 +857,8 @@ export class StoryRepository {
         id: schema.characters.id,
         name: schema.characters.name,
         type: schema.characters.type,
+        subtype: schema.characters.subtype,
+        childProfileId: schema.characters.childProfileId,
         role: schema.storyCharacters.role,
         isHidden: schema.characters.isHidden,
         description: schema.characters.description,

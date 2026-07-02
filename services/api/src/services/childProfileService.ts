@@ -1,7 +1,12 @@
 import { and, count, eq, sql } from 'drizzle-orm';
-import { getChildProfileRepository, getSessionRepository, getStoryRepository } from '../repositories';
+import {
+  getCharacterRepository,
+  getChildProfileRepository,
+  getSessionRepository,
+  getStoryRepository,
+} from '../repositories';
 import * as schema from '../db/schema';
-import type { ChildProfile, NewChildProfile } from '../db/schema';
+import type { Character, ChildProfile, NewCharacter, NewChildProfile } from '../db/schema';
 import { logger } from '../utils/logger';
 import { recordUsage } from './aiUsageService';
 import * as planService from './planService';
@@ -122,6 +127,122 @@ function triggerDescriptionTranslation(profile: ChildProfile): void {
   });
 }
 
+function childProfileToCharacterData(profile: ChildProfile): Omit<NewCharacter, 'id'> {
+  const description = profile.aiGeneratedDescription || profile.descriptionEn || null;
+  return {
+    userId: profile.userId,
+    childProfileId: profile.id,
+    name: profile.name,
+    type: 'person',
+    subtype: 'child',
+    referencePhotos: profile.referencePhotos,
+    appearanceTraits: profile.appearanceTraits,
+    personality: profile.personality,
+    description,
+    aiGeneratedDescription: profile.aiGeneratedDescription,
+    clothing: profile.clothing,
+    distinctiveFeatures: profile.distinctiveFeatures,
+    turnaroundSheet: profile.turnaroundSheet,
+    descriptionEn: profile.descriptionEn,
+    descriptionLanguage: profile.descriptionLanguage,
+    isHidden: false,
+    createdByMode: 'parent',
+    createdByChildProfileId: null,
+    isActive: profile.isActive,
+  } as Omit<NewCharacter, 'id'>;
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: string }).code === '23505';
+}
+
+export async function syncChildProfileCharacter(profile: ChildProfile): Promise<Character> {
+  const characterRepo = getCharacterRepository();
+  const existing = await characterRepo.findByChildProfileId(profile.userId, profile.id, {
+    includeInactive: true,
+  });
+  const data = childProfileToCharacterData(profile);
+
+  if (existing) {
+    const { userId: _userId, ...updateData } = data;
+    const updated = await characterRepo.update(existing.id, profile.userId, updateData);
+    logger.info(
+      {
+        userId: profile.userId,
+        profileId: profile.id,
+        characterId: updated.id,
+      },
+      'Synced child profile mirror character'
+    );
+    return updated;
+  }
+
+  let created: Character;
+  try {
+    created = await characterRepo.create(data);
+  } catch (error) {
+    if (!isUniqueViolation(error)) {
+      throw error;
+    }
+    const racedCharacter = await characterRepo.findByChildProfileId(profile.userId, profile.id, {
+      includeInactive: true,
+    });
+    if (!racedCharacter) {
+      throw error;
+    }
+    const { userId: _userId, ...updateData } = data;
+    created = await characterRepo.update(racedCharacter.id, profile.userId, updateData);
+  }
+  logger.info(
+    {
+      userId: profile.userId,
+      profileId: profile.id,
+      characterId: created.id,
+    },
+    'Created child profile mirror character'
+  );
+  return created;
+}
+
+export async function syncChildProfileCharactersForUser(userId: string): Promise<Character[]> {
+  const profiles = await getChildProfileRepository().findByUserId(userId);
+  const synced: Character[] = [];
+  for (const profile of profiles) {
+    synced.push(await syncChildProfileCharacter(profile));
+  }
+  return synced;
+}
+
+async function deactivateChildProfileCharacter(
+  profile: ChildProfile,
+  options: { hardDeleteWhenUnused?: boolean } = {}
+): Promise<void> {
+  const characterRepo = getCharacterRepository();
+  const character = await characterRepo.findByChildProfileId(profile.userId, profile.id, {
+    includeInactive: true,
+  });
+  if (!character) return;
+
+  const usageCount =
+    (await characterRepo.countStoriesUsingCharacter(character.id)) +
+    (await characterRepo.countStoryRequestsUsingCharacter(character.id, profile.userId));
+
+  if (options.hardDeleteWhenUnused && usageCount === 0) {
+    await characterRepo.hardDelete(character.id, profile.userId);
+    logger.info(
+      { userId: profile.userId, profileId: profile.id, characterId: character.id },
+      'Hard-deleted unused child profile mirror character'
+    );
+    return;
+  }
+
+  await characterRepo.softDelete(character.id, profile.userId);
+  logger.info(
+    { userId: profile.userId, profileId: profile.id, characterId: character.id, usageCount },
+    'Soft-deleted child profile mirror character'
+  );
+}
+
 // Child profile CRUD
 export async function createChildProfile(
   userId: string,
@@ -201,6 +322,8 @@ export async function createChildProfile(
   });
   
   logger.info({ userId, profileId: profile.id, name: profile.name }, 'Created child profile');
+
+  await syncChildProfileCharacter(profile);
   
   // Trigger async translation of description to English
   triggerDescriptionTranslation(profile);
@@ -241,6 +364,8 @@ export async function updateChildProfile(
   }
   
   logger.info({ userId, profileId: id }, 'Updated child profile');
+
+  await syncChildProfileCharacter(updated);
   
   // Re-translate description if it changed
   if (data.aiGeneratedDescription) {
@@ -266,6 +391,7 @@ export async function deleteChildProfile(id: string, userId: string): Promise<vo
   });
 
   if (usageCount > 0) {
+    await deactivateChildProfileCharacter(existing);
     await deleteEntityAssets(assetPaths);
     const revokedSessionCount = await getSessionRepository().deleteByChildProfileId(id);
     await childProfileRepo.anonymizeAndSoftDelete(id, userId, buildDeletedChildProfileTombstone());
@@ -276,6 +402,7 @@ export async function deleteChildProfile(id: string, userId: string): Promise<vo
     return;
   }
 
+  await deactivateChildProfileCharacter(existing, { hardDeleteWhenUnused: true });
   await deleteEntityAssets(assetPaths);
   await childProfileRepo.hardDelete(id, userId);
 

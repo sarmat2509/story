@@ -10,13 +10,8 @@ interface Character {
   id: string;
   name: string;
   type: string;
-  turnaroundSheet?: { url: string; frontUrl?: string };
-  referencePhotos?: Array<{ url: string }>;
-}
-
-interface ChildProfile {
-  id: string;
-  name: string;
+  subtype?: string | null;
+  childProfileId?: string | null;
   turnaroundSheet?: { url: string; frontUrl?: string };
   referencePhotos?: Array<{ url: string }>;
 }
@@ -27,7 +22,6 @@ interface DisplayItem {
   type: string;
   icon: string;
   badge: string;
-  isChild: boolean;
   avatarUrl?: string;
 }
 
@@ -36,52 +30,31 @@ interface Props {
   selectedCharacters: string[];
   onCharactersChange: (ids: string[]) => void;
 
-  children?: ChildProfile[];
-  selectedChildren: string[];
-  onChildrenChange: (ids: string[]) => void;
-  showChildren?: boolean;
-
   onAddCharacter?: () => void;
   onAddChild?: () => void;
 }
 
 const MAX_STORY_CHARACTER_SELECTIONS = 5;
 
+function isChildProfileCharacter(character: Character): boolean {
+  return character.type === 'child' || character.subtype === 'child';
+}
+
 export function CharactersForm({
   characters = [],
   selectedCharacters,
   onCharactersChange,
-  children = [],
-  selectedChildren,
-  onChildrenChange,
-  showChildren = true,
   onAddCharacter,
   onAddChild,
 }: Props) {
   const { t } = useTranslation();
 
   const toggleItem = (item: DisplayItem) => {
-    if (item.isChild) {
-      // Toggle child
-      if (selectedChildren.includes(item.id)) {
-        onChildrenChange(selectedChildren.filter((id) => id !== item.id));
-      } else {
-        // Check total limit
-        const totalSelected = selectedChildren.length + selectedCharacters.length;
-        if (totalSelected < MAX_STORY_CHARACTER_SELECTIONS) {
-          onChildrenChange([...selectedChildren, item.id]);
-        }
-      }
+    if (selectedCharacters.includes(item.id)) {
+      onCharactersChange(selectedCharacters.filter((id) => id !== item.id));
     } else {
-      // Toggle character
-      if (selectedCharacters.includes(item.id)) {
-        onCharactersChange(selectedCharacters.filter((id) => id !== item.id));
-      } else {
-        // Check total limit
-        const totalSelected = selectedChildren.length + selectedCharacters.length;
-        if (totalSelected < MAX_STORY_CHARACTER_SELECTIONS) {
-          onCharactersChange([...selectedCharacters, item.id]);
-        }
+      if (selectedCharacters.length < MAX_STORY_CHARACTER_SELECTIONS) {
+        onCharactersChange([...selectedCharacters, item.id]);
       }
     }
   };
@@ -116,40 +89,27 @@ export function CharactersForm({
     }
   };
 
-  // Merge children and characters into unified list
-  const allItems: DisplayItem[] = [
-    ...(showChildren
-      ? children.map((c) => ({
-          id: c.id,
-          name: c.name,
-          type: 'child',
-          icon: getCharacterIcon('child'),
-          badge: getCharacterTypeName('child'),
-          isChild: true,
-          avatarUrl:
-            c.turnaroundSheet?.frontUrl ?? c.turnaroundSheet?.url ?? c.referencePhotos?.[0]?.url,
-        }))
-      : []),
-    ...characters.map((c) => ({
+  const allItems: DisplayItem[] = characters.map((c) => {
+    const displayType = isChildProfileCharacter(c) ? 'child' : c.type;
+    return {
       id: c.id,
       name: c.name,
       type: c.type,
-      icon: getCharacterIcon(c.type),
-      badge: getCharacterTypeName(c.type),
-      isChild: false,
+      icon: getCharacterIcon(displayType),
+      badge: getCharacterTypeName(displayType),
       avatarUrl:
         c.turnaroundSheet?.frontUrl ?? c.turnaroundSheet?.url ?? c.referencePhotos?.[0]?.url,
-    })),
-  ];
+    };
+  });
 
-  const totalSelected = selectedChildren.length + selectedCharacters.length;
-  const hasAnyItems = (showChildren && children.length > 0) || characters.length > 0;
+  const totalSelected = selectedCharacters.length;
+  const hasAnyItems = characters.length > 0;
 
   return (
     <View style={styles.container}>
       {/* Characters and Children List */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>{t('characters.select_children_and_characters')}</Text>
+        <Text style={styles.sectionLabel}>{t('characters.select_characters')}</Text>
 
         {!hasAnyItems ? (
           <View style={styles.emptyState}>
@@ -183,9 +143,7 @@ export function CharactersForm({
         ) : (
           <View style={styles.charactersList}>
             {allItems.map((item) => {
-              const isSelected = item.isChild
-                ? selectedChildren.includes(item.id)
-                : selectedCharacters.includes(item.id);
+              const isSelected = selectedCharacters.includes(item.id);
               const isDisabled = !isSelected && totalSelected >= MAX_STORY_CHARACTER_SELECTIONS;
 
               return (

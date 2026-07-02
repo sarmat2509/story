@@ -405,7 +405,10 @@ export async function translateChildDescription(childProfile: ChildProfile, opti
       { childId: childProfile.id, descriptionLanguage },
       'Child description already in English — saving as descriptionEn directly',
     );
-    await getChildProfileRepository().updateDescriptionEn(childProfile.id, description);
+    await Promise.all([
+      getChildProfileRepository().updateDescriptionEn(childProfile.id, description),
+      getCharacterRepository().updateDescriptionEnByChildProfileId(childProfile.id, description),
+    ]);
     return;
   }
 
@@ -434,7 +437,10 @@ export async function translateChildDescription(childProfile: ChildProfile, opti
       return;
     }
 
-    await getChildProfileRepository().updateDescriptionEn(childProfile.id, trimmed);
+    await Promise.all([
+      getChildProfileRepository().updateDescriptionEn(childProfile.id, trimmed),
+      getCharacterRepository().updateDescriptionEnByChildProfileId(childProfile.id, trimmed),
+    ]);
 
     logger.info(
       { childId: childProfile.id, translatedLength: trimmed.length },

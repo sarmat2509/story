@@ -72,6 +72,28 @@ export class CharacterRepository {
     return character || null;
   }
 
+  async findByChildProfileId(
+    userId: string,
+    childProfileId: string,
+    options: { includeInactive?: boolean } = {}
+  ): Promise<schema.Character | null> {
+    const conditions = [
+      eq(schema.characters.userId, userId),
+      eq(schema.characters.childProfileId, childProfileId),
+      eq(schema.characters.type, 'person'),
+      eq(schema.characters.subtype, 'child'),
+    ];
+    if (!options.includeInactive) {
+      conditions.push(eq(schema.characters.isActive, true));
+    }
+    const [character] = await this.db
+      .select()
+      .from(schema.characters)
+      .where(and(...conditions))
+      .limit(1);
+    return character || null;
+  }
+
   async findByIds(userId: string, ids: string[], options: CharacterScopeOptions = {}): Promise<schema.Character[]> {
     if (ids.length === 0) return [];
     const conditions = [
@@ -177,6 +199,40 @@ export class CharacterRepository {
       .update(schema.characters)
       .set({ descriptionEn } as any)
       .where(eq(schema.characters.id, characterId));
+  }
+
+  async updateDescriptionEnByChildProfileId(
+    childProfileId: string,
+    descriptionEn: string,
+  ): Promise<void> {
+    await this.db
+      .update(schema.characters)
+      .set({ descriptionEn } as any)
+      .where(and(
+        eq(schema.characters.childProfileId, childProfileId),
+        eq(schema.characters.type, 'person'),
+        eq(schema.characters.subtype, 'child')
+      ));
+  }
+
+  async updateTurnaroundSheetByChildProfileId(
+    childProfileId: string,
+    turnaroundSheet: {
+      url: string;
+      frontUrl?: string;
+      frontThumbnailUrl?: string;
+      generatedAt: string;
+      sourcePhotoUrl: string;
+    },
+  ): Promise<void> {
+    await this.db
+      .update(schema.characters)
+      .set({ turnaroundSheet } as any)
+      .where(and(
+        eq(schema.characters.childProfileId, childProfileId),
+        eq(schema.characters.type, 'person'),
+        eq(schema.characters.subtype, 'child')
+      ));
   }
 
   async findHiddenByUser(userId: string): Promise<schema.Character[]> {

@@ -87,6 +87,8 @@ export interface CharacterData {
   canonicalName?: string;
   nameAliases?: string[];
   type: string;
+  subtype?: string | null;
+  childProfileId?: string | null;
   referencePhotos?: ReferencePhoto[];
   appearanceTraits?: any; // Flexible - can be BasicAppearanceTraits or full union type
   description?: string;
