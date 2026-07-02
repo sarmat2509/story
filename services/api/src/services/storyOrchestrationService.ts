@@ -30,9 +30,8 @@ import {
   getImageDomainService,
   getComplexImageDomainService,
   getAudioDomainService,
-  getEnvironmentImageProvider,
 } from './aiService';
-import { recordUsage, USAGE_OP_IMAGE_ENVIRONMENT } from './aiUsageService';
+import { recordUsage } from './aiUsageService';
 import { getAssetStorageService } from './assetStorageService';
 import { getPlanFeatures } from './planService';
 import {
@@ -84,11 +83,7 @@ import {
 } from './outfitPlateService';
 import type { CharacterReference } from '../prompts/image';
 import {
-  ENVIRONMENT_REFERENCE_CACHE_PREFIX,
-  buildEnvironmentImageCacheDescription,
   buildImageSystemInstruction,
-  buildEnvironmentImagePrompt,
-  isCurrentEnvironmentImageCacheDescription,
 } from '../prompts/image';
 import {
   buildImageEditSystemInstruction,
@@ -99,7 +94,6 @@ import {
 import type { UploadedFile } from '../providers/base/IFileManager';
 import type { UsageMetadata } from '../providers/base/UsageMetadata';
 import { validate as isUUID } from 'uuid';
-import crypto from 'crypto';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { config } from '../config';
@@ -132,8 +126,11 @@ import {
   type NormalizedCharacter,
 } from '../utils/characterNormalization';
 import { loadReferenceImageData } from './referenceImageTracker';
-import { generateEmbedding } from './embeddingService';
 import { generateLlmCharacterTurnaround } from './turnaroundSheetService';
+import {
+  getOrCreateEnvironmentImage,
+  type EnvImageData,
+} from './environmentReferenceImageService';
 import {
   createStoryStub,
   enrichStoryRecord,
@@ -3671,141 +3668,6 @@ export async function buildStorySpec(
 function normalizeStoryLocale(language?: string | null): Locale {
   const normalized = language?.slice(0, 2).toLowerCase() || DEFAULT_LOCALE;
   return isValidLocale(normalized) ? normalized : DEFAULT_LOCALE;
-}
-
-export interface EnvImageData {
-  base64: string;
-  mimeType: string;
-  fileUri?: string;
-  storagePath: string;
-}
-
-/**
- * Get or create environment image (on-demand, with cache and story mapping).
- * Uses embedding similarity for global reuse; story_environment_cache for continuation.
- */
-async function getOrCreateEnvironmentImage(params: {
-  storyId: string;
-  userId?: string;
-  storyEnvironmentId: string;
-  environment: StoryEnvironment;
-  assetStorage: ReturnType<typeof getAssetStorageService>;
-  scenarioCardId?: string;
-  /** For continuation: check previous parts in series for cached env image */
-  previousStoryIds?: string[];
-}): Promise<EnvImageData | null> {
-  if (!config.image.enableEnvironmentReference) return null;
-
-  const {
-    storyId,
-    userId,
-    storyEnvironmentId,
-    environment,
-    assetStorage,
-    scenarioCardId,
-    previousStoryIds,
-  } = params;
-  const envCacheRepo = getEnvironmentImageCacheRepository();
-  const storyEnvRepo = getStoryEnvironmentCacheRepository();
-  const threshold = config.image.environmentEmbeddingSimilarityThreshold;
-  const cacheDescription = buildEnvironmentImageCacheDescription(environment.description);
-
-  // 1. Check story_environment_cache (current story)
-  const existing = await storyEnvRepo.getByStoryAndEnvId(storyId, storyEnvironmentId);
-  if (existing) {
-    const cached = await envCacheRepo.getById(existing.cacheId);
-    if (cached && isCurrentEnvironmentImageCacheDescription(cached.description)) {
-      const buffer = await assetStorage.getAssetByPath(cached.storagePath);
-      return {
-        base64: buffer.toString('base64'),
-        mimeType: 'image/png',
-        storagePath: cached.storagePath,
-      };
-    }
-  }
-
-  // 1.5. For continuation: check previous parts in series for cached env image
-  if (previousStoryIds && previousStoryIds.length > 0) {
-    for (const prevStoryId of previousStoryIds) {
-      const prevExisting = await storyEnvRepo.getByStoryAndEnvId(prevStoryId, storyEnvironmentId);
-      if (prevExisting) {
-        const cached = await envCacheRepo.getById(prevExisting.cacheId);
-        if (cached && isCurrentEnvironmentImageCacheDescription(cached.description)) {
-          const buffer = await assetStorage.getAssetByPath(cached.storagePath);
-          await storyEnvRepo.upsert(storyId, storyEnvironmentId, prevExisting.cacheId);
-          logger.info(
-            { storyId, storyEnvironmentId, prevStoryId, cacheId: prevExisting.cacheId },
-            'Reused environment image from previous part in series'
-          );
-          return {
-            base64: buffer.toString('base64'),
-            mimeType: 'image/png',
-            storagePath: cached.storagePath,
-          };
-        }
-      }
-    }
-  }
-
-  // 2. Embedding search
-  const embedding = await generateEmbedding(cacheDescription);
-  const similar = await envCacheRepo.findSimilar(embedding, threshold, {
-    descriptionPrefix: ENVIRONMENT_REFERENCE_CACHE_PREFIX,
-  });
-  if (similar) {
-    const buffer = await assetStorage.getAssetByPath(similar.storagePath);
-    await storyEnvRepo.upsert(storyId, storyEnvironmentId, similar.id);
-    return {
-      base64: buffer.toString('base64'),
-      mimeType: 'image/png',
-      storagePath: similar.storagePath,
-    };
-  }
-
-  // 3. Generate with Gemini Flash Image (env provider)
-  try {
-    const envProvider = getEnvironmentImageProvider();
-    const prompt = buildEnvironmentImagePrompt({ environment, scenarioCardId });
-    const usageContext = { userId: userId ?? null, storyId };
-    const result = await envProvider.generateImage({
-      prompt,
-      aspectRatio: '16:9',
-      onUsage: (u) => recordUsage(u, usageContext),
-      operation: USAGE_OP_IMAGE_ENVIRONMENT,
-    });
-
-    const buffer = Buffer.isBuffer(result.imageData)
-      ? result.imageData
-      : Buffer.from(result.imageData as string, 'base64');
-    const cacheId = crypto.randomUUID();
-    const { storagePath } = await assetStorage.saveEnvironmentCacheImage(
-      cacheId,
-      buffer,
-      result.mimeType
-    );
-
-    await envCacheRepo.create({
-      id: cacheId,
-      description: cacheDescription,
-      descriptionEmbedding: embedding,
-      storagePath,
-      storageUrl: `/api/v1/assets/${storagePath}`,
-    });
-
-    await storyEnvRepo.upsert(storyId, storyEnvironmentId, cacheId);
-
-    return {
-      base64: buffer.toString('base64'),
-      mimeType: result.mimeType,
-      storagePath,
-    };
-  } catch (err) {
-    logger.warn(
-      { err, storyEnvironmentId },
-      'Environment image generation failed, falling back to text'
-    );
-    return null;
-  }
 }
 
 /**

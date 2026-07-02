@@ -24,7 +24,7 @@ export interface EnvImageData {
   storagePath: string;
 }
 
-export async function getOrCreateEnvironmentImage(params: {
+export interface EnvironmentImageRequest {
   storyId: string;
   userId?: string;
   storyEnvironmentId: string;
@@ -32,8 +32,23 @@ export async function getOrCreateEnvironmentImage(params: {
   assetStorage: ReturnType<typeof getAssetStorageService>;
   scenarioCardId?: string;
   previousStoryIds?: string[];
-}): Promise<EnvImageData | null> {
-  if (!config.image.enableEnvironmentReference) return null;
+}
+
+interface EnvironmentImageDependencies {
+  enabled: boolean;
+  similarityThreshold: number;
+  envCacheRepo: ReturnType<typeof getEnvironmentImageCacheRepository>;
+  storyEnvRepo: ReturnType<typeof getStoryEnvironmentCacheRepository>;
+  generateEmbedding: typeof generateEmbedding;
+  getEnvironmentImageProvider: typeof getEnvironmentImageProvider;
+  recordUsage: typeof recordUsage;
+}
+
+export async function getOrCreateEnvironmentImageCore(
+  params: EnvironmentImageRequest,
+  deps: EnvironmentImageDependencies
+): Promise<EnvImageData | null> {
+  if (!deps.enabled) return null;
 
   const {
     storyId,
@@ -44,9 +59,7 @@ export async function getOrCreateEnvironmentImage(params: {
     scenarioCardId,
     previousStoryIds,
   } = params;
-  const envCacheRepo = getEnvironmentImageCacheRepository();
-  const storyEnvRepo = getStoryEnvironmentCacheRepository();
-  const threshold = config.image.environmentEmbeddingSimilarityThreshold;
+  const { envCacheRepo, storyEnvRepo } = deps;
   const cacheDescription = buildEnvironmentImageCacheDescription(environment.description);
 
   const existing = await storyEnvRepo.getByStoryAndEnvId(storyId, storyEnvironmentId);
@@ -81,8 +94,8 @@ export async function getOrCreateEnvironmentImage(params: {
     };
   }
 
-  const embedding = await generateEmbedding(cacheDescription);
-  const similar = await envCacheRepo.findSimilar(embedding, threshold, {
+  const embedding = await deps.generateEmbedding(cacheDescription);
+  const similar = await envCacheRepo.findSimilar(embedding, deps.similarityThreshold, {
     descriptionPrefix: ENVIRONMENT_REFERENCE_CACHE_PREFIX,
   });
   if (similar) {
@@ -96,12 +109,12 @@ export async function getOrCreateEnvironmentImage(params: {
   }
 
   try {
-    const provider = getEnvironmentImageProvider();
+    const provider = deps.getEnvironmentImageProvider();
     const prompt = buildEnvironmentImagePrompt({ environment, scenarioCardId });
     const result = await provider.generateImage({
       prompt,
       aspectRatio: '16:9',
-      onUsage: (usage) => recordUsage(usage, { userId: userId ?? null, storyId }),
+      onUsage: (usage) => deps.recordUsage(usage, { userId: userId ?? null, storyId }),
       operation: USAGE_OP_IMAGE_ENVIRONMENT,
     });
 
@@ -134,4 +147,18 @@ export async function getOrCreateEnvironmentImage(params: {
     logger.warn({ err: error, storyEnvironmentId }, 'Environment image generation failed');
     return null;
   }
+}
+
+export async function getOrCreateEnvironmentImage(
+  params: EnvironmentImageRequest
+): Promise<EnvImageData | null> {
+  return getOrCreateEnvironmentImageCore(params, {
+    enabled: config.image.enableEnvironmentReference,
+    similarityThreshold: config.image.environmentEmbeddingSimilarityThreshold,
+    envCacheRepo: getEnvironmentImageCacheRepository(),
+    storyEnvRepo: getStoryEnvironmentCacheRepository(),
+    generateEmbedding,
+    getEnvironmentImageProvider,
+    recordUsage,
+  });
 }
