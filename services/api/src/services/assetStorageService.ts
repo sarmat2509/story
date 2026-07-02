@@ -770,8 +770,8 @@ export class AssetStorageService {
     const safeSceneId = sceneId ? this.sanitizePath(sceneId) : crypto.randomUUID();
     const safeAssetType = this.sanitizePath(assetType);
     
-    const filename = sceneId 
-      ? `${safeSceneId}${extension}`
+    const filename = sceneId
+      ? `${safeSceneId}-${crypto.randomUUID()}${extension}`
       : `${crypto.randomUUID()}${extension}`;
     
     const env = config.nodeEnv;

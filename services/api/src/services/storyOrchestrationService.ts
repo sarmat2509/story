@@ -5200,6 +5200,9 @@ async function generateSceneImageWithReference(
       initialImageRoute === 'complex' ? context.complexImageDomain! : context.imageDomain;
     const useEditRepair = config.image.validationUseEditRepair;
 
+    const validationAttemptOffset = context.initialEditRepair?.previousAttempt ?? 0;
+    const firstValidationAttempt = validationAttemptOffset + 1;
+
     let imageRoute: SceneImageRoute = initialImageRoute;
     let image: SceneGeneratedImage;
     if (context.initialEditRepair) {
@@ -5244,7 +5247,7 @@ async function generateSceneImageWithReference(
           sceneId: scene.sceneId,
           userId: context.userId,
           nextPromptAttemptId,
-          validationAttempt: 1,
+          validationAttempt: firstValidationAttempt,
           imageRoute,
         });
       }
@@ -5254,7 +5257,7 @@ async function generateSceneImageWithReference(
         sceneId: scene.sceneId,
         userId: context.userId,
         nextPromptAttemptId,
-        validationAttempt: 1,
+        validationAttempt: firstValidationAttempt,
         imageRoute,
       });
     }
@@ -5312,7 +5315,8 @@ async function generateSceneImageWithReference(
     /** Meta for the image buffer we upload (accepted, best-of, or provider-blocked); persisted after upload. */
     let finalValidationMeta: FinalValidationMeta | null = null;
     if (config.image.enableValidation) {
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      for (let attemptIndex = 1; attemptIndex <= maxAttempts; attemptIndex++) {
+        const attempt = validationAttemptOffset + attemptIndex;
         try {
           const imgUsageContext = { userId: context.userId, storyId };
           const validationStartedAt = new Date();
@@ -5514,7 +5518,7 @@ async function generateSceneImageWithReference(
             }
           );
 
-          if (attempt < maxAttempts) {
+          if (attemptIndex < maxAttempts) {
             await context.onValidationRetry?.();
             if (useEditRepair) {
               try {
