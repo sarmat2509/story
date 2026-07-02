@@ -4675,6 +4675,7 @@ async function generateSceneImageWithReference(
     requestId?: string;
     onValidationRetry?: () => Promise<void>;
     complexImageDomain?: SceneImageDomainService;
+    initialImageRoute?: SceneImageRoute;
   }
 ): Promise<{ imageUrl: string; assetId: string }> {
   const startTime = Date.now();
@@ -4930,11 +4931,15 @@ async function generateSceneImageWithReference(
     const validationRetryImageRoute: SceneImageRoute = context.complexImageDomain
       ? 'complex'
       : 'simple';
+    const initialImageRoute: SceneImageRoute =
+      context.initialImageRoute === 'complex' && context.complexImageDomain ? 'complex' : 'simple';
+    const initialImageDomain =
+      initialImageRoute === 'complex' ? context.complexImageDomain! : context.imageDomain;
     const useEditRepair =
       config.image.validationUseEditRepair && validationRetryImageRoute !== 'complex';
 
-    let imageRoute: SceneImageRoute = 'simple';
-    let image = await generateWithRetry(context.imageDomain, generateRequest, {
+    let imageRoute: SceneImageRoute = initialImageRoute;
+    let image = await generateWithRetry(initialImageDomain, generateRequest, {
       storyId,
       sceneId: scene.sceneId,
       userId: context.userId,
@@ -5526,7 +5531,7 @@ async function generateSceneImageWithReference(
           : 'disabled',
         providerInteractionId: image.providerInteractionId,
         imageRoute: finalValidationMeta?.imageRoute ?? imageRoute,
-        initialImageRoute: 'simple',
+        initialImageRoute,
         validationFallbackImageRoute:
           config.image.enableValidation && maxAttempts > 1 ? validationRetryImageRoute : null,
         maxValidationAttempts: maxAttempts,
@@ -7694,6 +7699,7 @@ export async function regenerateSceneImage(
     imageIndexMap,
     currentEnvironmentId,
     currentEnvironment,
+    initialImageRoute: 'complex',
   });
 
   if (imageResult.imageUrl) {
