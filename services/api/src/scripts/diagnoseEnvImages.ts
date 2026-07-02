@@ -126,7 +126,7 @@ async function diagnose() {
   console.log('\n--- Config ---');
   console.log('ENABLE_ENVIRONMENT_REFERENCE:', config.image.enableEnvironmentReference);
   console.log('GOOGLE_API_KEY:', config.google.apiKey ? 'set' : 'MISSING');
-  console.log('GEMINI_FLASH_IMAGE_MODEL:', config.image.flashImageModel);
+  console.log('SIMPLE_IMAGE_MODEL:', config.image.simpleModel);
   console.log('ENVIRONMENT_EMBEDDING_SIMILARITY_THRESHOLD:', config.image.environmentEmbeddingSimilarityThreshold);
 
   // 7. environment_image_cache count

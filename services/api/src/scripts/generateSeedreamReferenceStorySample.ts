@@ -1,6 +1,6 @@
 /**
  * One-off Seedream smoke run:
- * - load local env and require IMAGE_PROVIDER=seedream
+ * - load local env and require SIMPLE_IMAGE_PROVIDER=seedream
  * - generate a short story with named characters via StoryDomainService
  * - generate character reference images
  * - generate scene images through ImageDomainService.generateSceneWithReference
@@ -57,9 +57,9 @@ function parseArgs(): CliArgs {
 }
 
 function ensureRunnable(): void {
-  if (config.image.provider !== 'seedream') {
+  if (config.image.simpleProvider !== 'seedream') {
     throw new Error(
-      `IMAGE_PROVIDER must be seedream for this script. Current value: ${config.image.provider || '(empty)'}`
+      `SIMPLE_IMAGE_PROVIDER must be seedream for this script. Current value: ${config.image.simpleProvider || '(empty)'}`
     );
   }
   if (!config.seedream.apiKey?.trim()) {
@@ -323,7 +323,7 @@ async function main(): Promise<void> {
   const onUsage = (usage: unknown) => usageEvents.push(usage);
 
   console.log('Seedream reference-story run');
-  console.log(`provider=${config.image.provider} model=${config.seedream.model}`);
+  console.log(`provider=${config.image.simpleProvider} model=${config.seedream.model}`);
   console.log(`out=${args.outDir}`);
 
   logger.info({ outDir: args.outDir }, 'Generating Seedream reference story sample');
@@ -453,7 +453,7 @@ async function main(): Promise<void> {
   }
 
   const runSummary = {
-    provider: config.image.provider,
+    provider: config.image.simpleProvider,
     model: config.seedream.model,
     storyTitle: story.title,
     outDir: args.outDir,

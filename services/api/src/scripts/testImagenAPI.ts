@@ -16,7 +16,7 @@ async function testFlashImageApi() {
 
   logger.info(
     {
-      model: config.image.flashImageModel,
+      model: config.image.simpleModel,
       hasApiKey: !!config.google.apiKey,
     },
     'Configuration check',
@@ -30,7 +30,7 @@ async function testFlashImageApi() {
   try {
     const provider = new NanoBananaProProvider(
       config.google.apiKey,
-      config.image.flashImageModel,
+      config.image.simpleModel,
     );
 
     logger.info('=== Test 1: Basic text-to-image ===');

@@ -31,6 +31,20 @@ function parseStripePriceIds(raw: string | undefined): Record<string, string> {
     }, {});
 }
 
+function firstEnvValue(...names: string[]): string {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+const SIMPLE_IMAGE_MODEL =
+  firstEnvValue('SIMPLE_IMAGE_MODEL', 'NANO_BANANA_MODEL') || 'gemini-3.1-flash-lite-image';
+const COMPLEX_IMAGE_MODEL =
+  firstEnvValue('COMPLEX_IMAGE_MODEL', 'GRAPHIC_NOVEL_IMAGE_MODEL', 'NANO_BANANA_MODEL') ||
+  'gemini-3.1-flash-image';
+
 /**
  * When `.env.local` reuses Docker's `GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/foo.json`
  * but the API runs on the host, map to `./secrets/foo.json` at repo root (same layout as compose).
@@ -188,20 +202,12 @@ export const config = {
   image: {
     skipGeneration: process.env.SKIP_IMAGE_GENERATION === 'true',
     /** Simple visual path: ordinary story illustrations. */
-    provider: process.env.IMAGE_PROVIDER || 'nanobananapro', // Default to Nano Banana Pro
+    simpleProvider: firstEnvValue('SIMPLE_IMAGE_PROVIDER', 'IMAGE_PROVIDER') || 'nanobananapro',
+    simpleModel: SIMPLE_IMAGE_MODEL,
     /** Complex visual path: graphic-novel and mixed-story comic pages. */
     complexProvider:
-      (
-        process.env.COMPLEX_IMAGE_PROVIDER ||
-        process.env.GRAPHIC_NOVEL_IMAGE_PROVIDER ||
-        ''
-      ).trim() ||
-      'nanobananapro',
-    complexModel:
-      (process.env.COMPLEX_IMAGE_MODEL || process.env.GRAPHIC_NOVEL_IMAGE_MODEL || '').trim() ||
-      'gemini-3.1-flash-image',
-    /** Cheap image path: env images, legacy IMAGE_PROVIDER=gemini, LLM text-only turnaround */
-    flashImageModel: process.env.GEMINI_FLASH_IMAGE_MODEL || 'gemini-3.1-flash-lite-image',
+      firstEnvValue('COMPLEX_IMAGE_PROVIDER', 'GRAPHIC_NOVEL_IMAGE_PROVIDER') || 'nanobananapro',
+    complexModel: COMPLEX_IMAGE_MODEL,
     /** Optional override for reward map tile images only. Falls back to Nano Banana model. */
     mapTileModel: (process.env.MAP_TILE_IMAGE_MODEL || '').trim(),
     gemini: {
@@ -303,9 +309,9 @@ export const config = {
     quality: process.env.OPENAI_IMAGE_QUALITY || 'medium', // low | medium | high | auto
   },
 
-  // Nano Banana (Gemini 3.1 Flash Image) - for cartoon/illustration with character consistency
+  // Nano Banana image provider defaults to the simple image route.
   nanoBanana: {
-    model: process.env.NANO_BANANA_MODEL || 'gemini-3.1-flash-image',
+    model: SIMPLE_IMAGE_MODEL,
     aspectRatio: process.env.NANO_BANANA_ASPECT_RATIO || '16:9',
     imageSize: process.env.NANO_BANANA_IMAGE_SIZE || '1K', // Output resolution: 1K | 2K | 4K
     enableReferenceImages: process.env.ENABLE_FIRST_IMAGE_REFERENCE !== 'false', // Enabled by default

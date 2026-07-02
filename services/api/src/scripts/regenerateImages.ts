@@ -54,7 +54,7 @@ async function regenerateImages() {
     // Initialize services
     const imageProvider = new NanoBananaProProvider(
       config.google.apiKey,
-      config.image.flashImageModel,
+      config.image.simpleModel,
     );
     const imageDomain = new ImageDomainService(imageProvider);
     const assetStorage = new AssetStorageService();

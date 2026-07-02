@@ -287,8 +287,8 @@ async function runGenerations(options: {
   console.log(`Attempt source: ${pack.metadata.attemptId}`);
   console.log(`Primary read: ${pack.metadata.primaryRead || '(none)'}`);
   console.log(`NODE_ENV: ${config.nodeEnv}`);
-  console.log(`Provider: ${config.image.provider}`);
-  console.log(`Resolved model: ${options.modelOverride || config.nanoBanana.model}`);
+  console.log(`Provider: ${config.image.simpleProvider}`);
+  console.log(`Resolved model: ${options.modelOverride || config.image.simpleModel}`);
   console.log(`Aspect ratio: ${pack.aspectRatio}`);
   console.log(`References: ${pack.referenceImages.length}`);
   console.log(`Runs: ${options.runs}`);

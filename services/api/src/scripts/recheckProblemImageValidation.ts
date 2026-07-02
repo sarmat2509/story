@@ -831,7 +831,7 @@ async function main() {
           },
           editRepair: args.editRepair
             ? {
-                imageProvider: config.image.provider,
+                imageProvider: config.image.simpleProvider,
                 identityRefMode: args.identityRefMode,
                 replaceHeadForHair: args.replaceHeadForHair,
                 forceHeadRepair: args.forceHeadRepair,
@@ -967,7 +967,7 @@ async function main() {
         editedImagePath,
       },
       editRepair: {
-        imageProvider: config.image.provider,
+        imageProvider: config.image.simpleProvider,
         identityRefMode: args.identityRefMode,
         style,
         ageGroup: storyRow.age_group,

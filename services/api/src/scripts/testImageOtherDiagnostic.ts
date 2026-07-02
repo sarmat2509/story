@@ -26,7 +26,7 @@ const USER_ID = '23a825d6-d750-4297-bf17-5e2452d112aa';
 const UPLOADS_BASE = path.resolve(__dirname, '../../uploads/development', USER_ID, 'photos');
 const OUTPUT_BASE = path.resolve(__dirname, '../../test-output/image-other-diagnostic');
 
-const MODEL = config.nanoBanana?.model || 'gemini-2.5-flash-image';
+const MODEL = config.image.simpleModel || 'gemini-3.1-flash-lite-image';
 const ASPECT_RATIO = '16:9';
 
 // Latest turnaround sheets (from Feb 16 generation)

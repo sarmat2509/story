@@ -20,7 +20,7 @@ import { Pool } from 'pg';
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 const CONCURRENCY = parseInt(process.argv[2] || '8', 10);
-const MODEL = process.env.NANO_BANANA_MODEL || 'gemini-3-pro-image-preview';
+const MODEL = process.env.SIMPLE_IMAGE_MODEL || process.env.NANO_BANANA_MODEL || 'gemini-3-pro-image-preview';
 const USER_ID = '23a825d6-d750-4297-bf17-5e2452d112aa';
 const UPLOADS_BASE = path.resolve(__dirname, '../../uploads/development');
 const OUTPUT_DIR = path.resolve(__dirname, '../../test-output/concurrency-test');

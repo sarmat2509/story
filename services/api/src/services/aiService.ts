@@ -130,7 +130,7 @@ export function getMixedStoryDomainService(): MixedStoryDomainService {
  */
 export function getMapTileImageDomainService(): ImageDomainService {
   if (!mapTileImageDomainService) {
-    const model = config.image.mapTileModel || config.nanoBanana?.model || 'gemini-3.1-flash-image';
+    const model = config.image.mapTileModel || config.image.simpleModel || 'gemini-3.1-flash-lite-image';
     logger.info({ model }, 'Initializing map tile image provider');
     mapTileImageDomainService = new ImageDomainService(
       new NanoBananaProProvider(config.google.apiKey, model),
@@ -291,7 +291,8 @@ function createImageDomainService(
 function getImageProvider(): IImageProvider {
   if (!imageProvider) {
     imageProvider = createConfiguredImageProvider({
-      provider: config.image.provider || 'nanobananapro',
+      provider: config.image.simpleProvider || 'nanobananapro',
+      modelOverride: config.image.simpleModel || 'gemini-3.1-flash-lite-image',
       role: 'simple',
     });
   }
@@ -320,7 +321,7 @@ function getComplexImageProvider(): IImageProvider {
  * - 'nanobananapro': Gemini Flash/Pro Image (for cartoon/illustration with character consistency)
  * - 'openai': GPT Image via Responses API (for character consistency with input_fidelity)
  * - 'seedream': BytePlus ModelArk Seedream image generation with references
- * - 'gemini': Gemini Flash Image stack with explicit model override or cheap flash fallback
+ * - 'gemini': Gemini Image stack with explicit route model or simple-route fallback
  */
 function createConfiguredImageProvider(params: {
   provider: string;
@@ -347,7 +348,7 @@ function createConfiguredImageProvider(params: {
     case 'gemini':
       return new NanoBananaProProvider(
         config.google.apiKey,
-        params.modelOverride || config.image.flashImageModel
+        params.modelOverride || config.image.simpleModel
       );
     default:
       logger.warn(
@@ -359,17 +360,17 @@ function createConfiguredImageProvider(params: {
 }
 
 /**
- * Environment reference images — Gemini Flash Lite Image (API key), not Vertex Imagen.
+ * Environment and outfit reference images use the simple image route.
  */
 export function getEnvironmentImageProvider(): IImageProvider {
   if (!environmentImageProvider) {
     logger.info(
-      { model: config.image.flashImageModel },
-      'Initializing environment image provider (Gemini Flash Image)',
+      { model: config.image.simpleModel },
+      'Initializing environment image provider',
     );
     environmentImageProvider = new NanoBananaProProvider(
       config.google.apiKey,
-      config.image.flashImageModel,
+      config.image.simpleModel,
     );
   }
   return environmentImageProvider;

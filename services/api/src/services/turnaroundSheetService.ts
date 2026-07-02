@@ -34,8 +34,8 @@ function getTurnaroundImageDomain(): ImageDomainService {
 
 function getLlmTurnaroundImageDomain(): ImageDomainService {
   if (!llmTurnaroundImageDomain) {
-    const model = config.image.flashImageModel;
-    logger.info({ model }, 'Initializing LLM turnaround image provider (Gemini Flash Image)');
+    const model = config.image.simpleModel;
+    logger.info({ model }, 'Initializing LLM turnaround image provider');
     const provider = new NanoBananaProProvider(config.google.apiKey, model);
     llmTurnaroundImageDomain = new ImageDomainService(provider);
   }

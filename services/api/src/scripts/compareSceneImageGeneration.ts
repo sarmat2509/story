@@ -613,7 +613,7 @@ async function main(): Promise<void> {
   await writeJson(path.join(outDir, 'request.json'), {
     storyId: args.storyId,
     sceneId: args.sceneId,
-    model: args.model || config.nanoBanana.model,
+    model: args.model || config.image.simpleModel,
     style,
     ageGroup,
     existingImage,

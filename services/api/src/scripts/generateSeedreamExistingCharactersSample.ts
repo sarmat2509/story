@@ -41,8 +41,10 @@ function stamp(): string {
 }
 
 function ensureRunnable(): void {
-  if (config.image.provider !== 'seedream') {
-    throw new Error(`IMAGE_PROVIDER must be seedream. Current value: ${config.image.provider || '(empty)'}`);
+  if (config.image.simpleProvider !== 'seedream') {
+    throw new Error(
+      `SIMPLE_IMAGE_PROVIDER must be seedream. Current value: ${config.image.simpleProvider || '(empty)'}`
+    );
   }
   if (!config.seedream.apiKey?.trim()) {
     throw new Error('SEEDREAM_API_KEY is required.');
@@ -373,7 +375,7 @@ async function main(): Promise<void> {
         });
 
   const summary = {
-    provider: config.image.provider,
+    provider: config.image.simpleProvider,
     model: config.seedream.model,
     outDir,
     environmentPath,

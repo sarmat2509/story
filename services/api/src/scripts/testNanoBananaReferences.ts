@@ -110,7 +110,7 @@ async function callGeminiImageAPI(parts: any[], label: string): Promise<Buffer> 
   }
   
   const ai = new GoogleGenAI({ apiKey });
-  const modelName = MODEL_OVERRIDE || config.nanoBanana?.model || 'gemini-2.5-flash-image';
+  const modelName = MODEL_OVERRIDE || config.image.simpleModel || 'gemini-3.1-flash-lite-image';
   
   logger.info({
     label,
@@ -236,9 +236,9 @@ async function runExperiment3(refs: Array<{ name: string; base64: string; mimeTy
   const { NanoBananaProProvider } = await import('../providers/image/nanobananapro/NanoBananaProProvider');
   
   // Override model in config if --model was provided so the provider uses it
-  const originalModel = config.nanoBanana?.model;
-  if (MODEL_OVERRIDE && config.nanoBanana) {
-    (config.nanoBanana as any).model = MODEL_OVERRIDE;
+  const originalModel = config.image.simpleModel;
+  if (MODEL_OVERRIDE) {
+    (config.image as any).simpleModel = MODEL_OVERRIDE;
   }
   
   // Wrap provider to intercept and dump the actual request
@@ -332,8 +332,8 @@ async function runExperiment3(refs: Array<{ name: string; base64: string; mimeTy
   saveImage(result.imageData, 'exp3-production.png');
   
   // Restore original model in config
-  if (originalModel !== undefined && config.nanoBanana) {
-    (config.nanoBanana as any).model = originalModel;
+  if (originalModel !== undefined) {
+    (config.image as any).simpleModel = originalModel;
   }
   
   logger.info('Experiment 3 completed successfully');
@@ -360,7 +360,7 @@ async function main() {
     MODEL_OVERRIDE = modelArg;
   }
   
-  const activeModel = MODEL_OVERRIDE || config.nanoBanana?.model || 'gemini-2.5-flash-image';
+  const activeModel = MODEL_OVERRIDE || config.image.simpleModel || 'gemini-3.1-flash-lite-image';
   
   // Create model-specific output directory so different runs don't overwrite
   const modelSlug = activeModel.replace(/[^a-zA-Z0-9.-]/g, '_');

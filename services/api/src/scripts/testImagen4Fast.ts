@@ -1,5 +1,5 @@
 /**
- * Test environment image provider (Gemini 2.5 Flash Image via GOOGLE_API_KEY).
+ * Test environment image provider via SIMPLE_IMAGE_MODEL.
  * Run with: npx tsx src/scripts/testImagen4Fast.ts
  *
  * Requires: GOOGLE_API_KEY
@@ -18,7 +18,7 @@ async function testEnvironmentImageProvider() {
 
   logger.info(
     {
-      model: config.image.flashImageModel,
+      model: config.image.simpleModel,
       hasApiKey: !!config.google.apiKey,
     },
     'Configuration check',

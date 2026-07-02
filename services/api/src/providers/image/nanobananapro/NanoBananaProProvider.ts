@@ -31,7 +31,7 @@ export class NanoBananaProProvider implements IImageProvider {
     }
     
     this.client = new GoogleGenAI({ apiKey: key });
-    this.model = modelOverride || config.nanoBanana?.model || 'gemini-3.1-flash-image';
+    this.model = modelOverride || config.image?.simpleModel || 'gemini-3.1-flash-lite-image';
     
     logger.info({ 
       model: this.model 
@@ -781,6 +781,13 @@ export class NanoBananaProProvider implements IImageProvider {
       || output.inlineData?.mimeType
       || output.inline_data?.mime_type;
   }
+
+  private isGemini31FlashImageFamily(): boolean {
+    return (
+      this.model.includes('gemini-3.1-flash-image') ||
+      this.model.includes('gemini-3.1-flash-lite-image')
+    );
+  }
   
   /**
    * Estimate returned dimensions from Gemini image_size + aspect ratio.
@@ -790,7 +797,7 @@ export class NanoBananaProProvider implements IImageProvider {
     const normalizedAspectRatio = aspectRatio || '16:9';
     const imageSize = (config.nanoBanana?.imageSize || '1K').toUpperCase();
 
-    if (this.model.includes('gemini-3.1-flash-image')) {
+    if (this.isGemini31FlashImageFamily()) {
       const dimensionsByImageSize: Record<string, Record<string, { width: number; height: number }>> = {
         '512': {
           '1:1': { width: 512, height: 512 },
@@ -904,7 +911,7 @@ export class NanoBananaProProvider implements IImageProvider {
     }
 
     const imageSize = (config.nanoBanana?.imageSize || '1K').toUpperCase();
-    if (this.model.includes('gemini-3.1-flash-image')) {
+    if (this.isGemini31FlashImageFamily()) {
       if (imageSize === '0.5K' || imageSize === '512' || imageSize === '512PX') return 747;
       if (imageSize === '2K') return 1680;
       if (imageSize === '4K') return 2520;
@@ -927,6 +934,7 @@ export class NanoBananaProProvider implements IImageProvider {
     const unsupportedModels = [
       'gemini-3.1-flash-image-preview',
       'gemini-3.1-flash-image',
+      'gemini-3.1-flash-lite-image',
       'gemini-3.0-flash-image-preview',
       'gemini-3-flash-image-preview',
       'gemini-3-pro-image-preview',
