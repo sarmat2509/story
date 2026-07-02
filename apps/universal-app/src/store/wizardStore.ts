@@ -42,6 +42,8 @@ const initialState = {
   errors: {},
 };
 
+const MAX_SELECTED_CHARACTERS = 5;
+
 export const useWizardStore = create<WizardState>()(
   persist(
     (set, _get) => ({
@@ -72,7 +74,7 @@ export const useWizardStore = create<WizardState>()(
 
       addCharacter: (characterId) =>
         set((state) => {
-          if (state.selectedCharacters.length >= 5) return state;
+          if (state.selectedCharacters.length >= MAX_SELECTED_CHARACTERS) return state;
           if (state.selectedCharacters.includes(characterId)) return state;
           return {
             selectedCharacters: [...state.selectedCharacters, characterId],

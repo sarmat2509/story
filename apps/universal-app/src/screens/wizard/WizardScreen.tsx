@@ -43,6 +43,7 @@ import { PaywallModal } from '@/components/PaywallModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AppButton } from '@/components/AppButton';
+import { GenerationErrorModal } from '@/components/GenerationErrorModal';
 import { LinearGradient } from '@/components/AppLinearGradient';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
@@ -69,6 +70,7 @@ export default function WizardScreen() {
     [route.params]
   );
   const presetScenarioAppliedRef = React.useRef(false);
+  const wizardScrollRef = React.useRef<ScrollView | null>(null);
   const sessionMode = useAuthStore((state) => state.sessionMode);
   const activeChild = useAuthStore((state) => state.activeChild);
   const isChildSession = sessionMode === 'child';
@@ -90,12 +92,14 @@ export default function WizardScreen() {
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
   const [selectedChildren, setSelectedChildren] = useState<string[]>([]); // NEW: Selected child profiles
   const [activeStep, setActiveStep] = useState(0);
+  const activeStepScrollRef = React.useRef(activeStep);
   const [isAiNoticeExpanded, setIsAiNoticeExpanded] = useState(false);
 
   // Modal state
   const [isChildModalVisible, setIsChildModalVisible] = useState(false);
   const [isCharacterModalVisible, setIsCharacterModalVisible] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [generationErrorMessage, setGenerationErrorMessage] = useState<string | null>(null);
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -125,7 +129,9 @@ export default function WizardScreen() {
   const { data: storyStatus } = useStoryStatus(requestId || '', !!requestId);
   const { data: usage } = useSubscriptionUsage();
   const [showPaywall, setShowPaywall] = useState(false);
-  const [paywallKind, setPaywallKind] = useState<'stories' | 'graphicNovels'>('stories');
+  const [paywallKind, setPaywallKind] = useState<'stories' | 'graphicNovels' | 'mixedStories'>(
+    'stories'
+  );
   const periodEndFormatted = useMemo(
     () => formatSubscriptionPeriodEnd(usage?.currentPeriodEnd ?? usage?.resetsAt, i18n.language),
     [usage?.currentPeriodEnd, usage?.resetsAt, i18n.language]
@@ -134,7 +140,13 @@ export default function WizardScreen() {
   const graphicNovelAccessLocked =
     typeof graphicNovelLimit === 'number' && graphicNovelLimit >= 0 && graphicNovelLimit <= 0;
   const isGraphicNovelUpgradePaywall = paywallKind === 'graphicNovels' && graphicNovelAccessLocked;
-  const usesGraphicQuota = storyFormat === 'comic' || storyFormat === 'mixed';
+  const mixedStoryLimit = usage?.mixedStories?.limit;
+  const mixedStoryAccessLocked =
+    typeof mixedStoryLimit === 'number' && mixedStoryLimit >= 0 && mixedStoryLimit <= 0;
+  const isMixedStoryUpgradePaywall = paywallKind === 'mixedStories' && mixedStoryAccessLocked;
+  const usesGraphicQuota = storyFormat === 'comic';
+  const usesMixedStoryQuota = storyFormat === 'mixed';
+  const usesEnhancedStoryFormat = storyFormat === 'comic' || storyFormat === 'mixed';
   const storyFormatAnalytics =
     storyFormat === 'comic'
       ? 'graphic_novel'
@@ -147,9 +159,18 @@ export default function WizardScreen() {
     setShowPaywall(true);
   };
 
+  const openMixedStoryPaywall = () => {
+    setPaywallKind('mixedStories');
+    setShowPaywall(true);
+  };
+
   const handleStoryFormatSelect = (nextFormat: StoryFormat) => {
-    if ((nextFormat === 'comic' || nextFormat === 'mixed') && graphicNovelAccessLocked) {
+    if (nextFormat === 'comic' && graphicNovelAccessLocked) {
       openGraphicNovelPaywall();
+      return;
+    }
+    if (nextFormat === 'mixed' && mixedStoryAccessLocked) {
+      openMixedStoryPaywall();
       return;
     }
     setStoryFormat(nextFormat);
@@ -175,22 +196,46 @@ export default function WizardScreen() {
   }, [activeChild?.id, isChildSession]);
 
   useEffect(() => {
-    if (isChildSession && usesGraphicQuota) {
+    if (isChildSession && usesEnhancedStoryFormat) {
       setStoryFormat('story');
     }
-  }, [isChildSession, storyFormat, usesGraphicQuota]);
+  }, [isChildSession, storyFormat, usesEnhancedStoryFormat]);
 
   useEffect(() => {
-    if (usesGraphicQuota && graphicNovelAccessLocked) {
+    if (
+      (storyFormat === 'comic' && graphicNovelAccessLocked) ||
+      (storyFormat === 'mixed' && mixedStoryAccessLocked)
+    ) {
       setStoryFormat('story');
     }
-  }, [graphicNovelAccessLocked, storyFormat, usesGraphicQuota]);
+  }, [graphicNovelAccessLocked, mixedStoryAccessLocked, storyFormat]);
 
   useEffect(() => {
     if (isChildSession || !route.params?.childId) return;
     setChildProfileId(route.params.childId);
     setSelectedChildren([route.params.childId]);
   }, [isChildSession, route.params?.childId]);
+
+  useEffect(() => {
+    if (isChildSession || childrenLoading) return;
+
+    if (children.length === 0) {
+      if (childProfileId) {
+        setChildProfileId(undefined);
+      }
+      return;
+    }
+
+    const selectedProfileExists = childProfileId
+      ? children.some((child) => child.id === childProfileId)
+      : false;
+    if (selectedProfileExists) return;
+
+    const routeChild = route.params?.childId
+      ? children.find((child) => child.id === route.params?.childId)
+      : undefined;
+    setChildProfileId((routeChild ?? children[0]).id);
+  }, [childProfileId, children, childrenLoading, isChildSession, route.params?.childId]);
 
   const availableGoals = useMemo(() => {
     const goals = themesData?.goals || [];
@@ -323,6 +368,21 @@ export default function WizardScreen() {
         });
 
   useEffect(() => {
+    if (activeStepScrollRef.current === activeStep) return;
+    activeStepScrollRef.current = activeStep;
+
+    const scrollToTop = () => {
+      wizardScrollRef.current?.scrollTo({ y: 0, animated: true });
+    };
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(scrollToTop);
+    } else {
+      setTimeout(scrollToTop, 0);
+    }
+  }, [activeStep]);
+
+  useEffect(() => {
     const allowedIds = new Set(availableCharacters.map((character) => character.id));
     setSelectedCharacters((current) => current.filter((id) => allowedIds.has(id)));
   }, [availableCharacters]);
@@ -348,13 +408,18 @@ export default function WizardScreen() {
       return;
     }
 
-    if (usesGraphicQuota && isChildSession) {
+    if (usesEnhancedStoryFormat && isChildSession) {
       Alert.alert(t('common.error') || 'Error', t('wizard.create_error'));
       return;
     }
 
     if (!storyLanguage) {
       Alert.alert(t('common.error') || 'Error', t('wizard.language_required'));
+      return;
+    }
+
+    if (!isChildSession && !childProfileId) {
+      Alert.alert(t('common.error') || 'Error', t('wizard.child_profile_required'));
       return;
     }
 
@@ -369,6 +434,11 @@ export default function WizardScreen() {
       return;
     }
 
+    if (usesMixedStoryQuota && mixedStoryAccessLocked) {
+      openMixedStoryPaywall();
+      return;
+    }
+
     if (
       usesGraphicQuota &&
       usage?.graphicNovels &&
@@ -376,6 +446,17 @@ export default function WizardScreen() {
       usage.graphicNovels.remaining <= 0
     ) {
       setPaywallKind('graphicNovels');
+      setShowPaywall(true);
+      return;
+    }
+
+    if (
+      usesMixedStoryQuota &&
+      usage?.mixedStories &&
+      usage.mixedStories.limit >= 0 &&
+      usage.mixedStories.remaining <= 0
+    ) {
+      setPaywallKind('mixedStories');
       setShowPaywall(true);
       return;
     }
@@ -435,13 +516,18 @@ export default function WizardScreen() {
           featureSlug === 'graphic_novels_per_month')
       ) {
         openGraphicNovelPaywall();
+      } else if (
+        status === 403 &&
+        (errorCode === 'MIXED_STORY_NOT_AVAILABLE' ||
+          featureSlug === 'mixed_stories_per_month')
+      ) {
+        openMixedStoryPaywall();
       } else if (status === 429) {
         setPaywallKind('stories');
         setShowPaywall(true);
       } else {
-        Alert.alert(
-          t('common.error') || 'Error',
-          getLocalizedApiError(t, error, 'wizard.create_error')
+        setGenerationErrorMessage(
+          getLocalizedApiError(t, error, 'wizard.generation_error_message')
         );
       }
     }
@@ -493,6 +579,58 @@ export default function WizardScreen() {
     }
   };
 
+  const paywallTitle =
+    paywallKind === 'graphicNovels'
+      ? isGraphicNovelUpgradePaywall
+        ? t('paywall.graphic_novels_upgrade_title', {
+            defaultValue: 'Comics are available on paid plans',
+          })
+        : t('paywall.graphic_novels_limit_title', {
+            defaultValue: 'Comic limit reached',
+          })
+      : paywallKind === 'mixedStories'
+        ? isMixedStoryUpgradePaywall
+          ? t('paywall.mixed_stories_upgrade_title', {
+              defaultValue: 'Story + comic is available from Golden Stars',
+            })
+          : t('paywall.mixed_stories_limit_title', {
+              defaultValue: 'Story + comic limit reached',
+            })
+        : undefined;
+  const paywallMessage =
+    paywallKind === 'graphicNovels' && isGraphicNovelUpgradePaywall
+      ? t('paywall.graphic_novels_upgrade_message', {
+          defaultValue:
+            'Upgrade your plan to create comics. They also count as stories in your monthly story limit.',
+        })
+      : paywallKind === 'graphicNovels' && usage?.graphicNovels
+        ? t('paywall.graphic_novels_limit_message', {
+            used: usage.graphicNovels.used,
+            limit: usage.graphicNovels.limit,
+            defaultValue: 'You have used {{used}} of {{limit}} comics for this billing period.',
+          })
+        : paywallKind === 'mixedStories' && isMixedStoryUpgradePaywall
+          ? t('paywall.mixed_stories_upgrade_message', {
+              defaultValue:
+                'Upgrade to Golden Stars or higher to create Story + comic. It uses the same monthly story credits as regular stories.',
+            })
+          : paywallKind === 'mixedStories' && usage?.mixedStories
+            ? t('paywall.mixed_stories_limit_message', {
+                used: usage.mixedStories.used,
+                limit: usage.mixedStories.limit,
+                defaultValue:
+                  'You have used {{used}} of {{limit}} Story + comic stories for this billing period.',
+              })
+            : undefined;
+  const paywallLimitInfo =
+    usage && !isGraphicNovelUpgradePaywall && !isMixedStoryUpgradePaywall
+      ? paywallKind === 'graphicNovels' && usage.graphicNovels
+        ? { used: usage.graphicNovels.used, limit: usage.graphicNovels.limit }
+        : paywallKind === 'mixedStories' && usage.mixedStories
+          ? { used: usage.mixedStories.used, limit: usage.mixedStories.limit }
+          : { used: usage.stories.used, limit: usage.stories.limit }
+      : undefined;
+
   if (themesLoading || (!isChildSession && childrenLoading) || charactersLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -505,7 +643,7 @@ export default function WizardScreen() {
   return (
     <>
       <LinearGradient colors={modernGradients.page} style={styles.page}>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView ref={wizardScrollRef} contentContainerStyle={styles.content}>
           <AnimatedSection delay={0} trigger={enterKey}>
             <View style={styles.heroPanel}>
               <View style={styles.heroIcon}>
@@ -540,41 +678,51 @@ export default function WizardScreen() {
                       const isActive = activeStep === index;
                       const isComplete = activeStep > index;
                       return (
-                        <TouchableOpacity
-                          key={step.key}
-                          style={[
-                            styles.stepButton,
-                            isActive && styles.stepButtonActive,
-                            isComplete && styles.stepButtonComplete,
-                          ]}
-                          onPress={() => setActiveStep(index)}
-                          activeOpacity={0.8}
-                        >
-                          <View
+                        <React.Fragment key={step.key}>
+                          <TouchableOpacity
                             style={[
-                              styles.stepIcon,
-                              (isActive || isComplete) && styles.stepIconActive,
+                              styles.stepButton,
+                              isActive && styles.stepButtonActive,
+                              isComplete && styles.stepButtonComplete,
                             ]}
+                            onPress={() => setActiveStep(index)}
+                            activeOpacity={0.8}
                           >
-                            <Ionicons
-                              name={isComplete ? 'checkmark' : step.icon}
-                              size={16}
-                              color={
-                                isActive || isComplete
-                                  ? theme.colors.text.inverse
-                                  : theme.colors.text.secondary
-                              }
-                            />
-                          </View>
-                          <Text
-                            style={[
-                              styles.stepLabel,
-                              (isActive || isComplete) && styles.stepLabelActive,
-                            ]}
-                          >
-                            {step.label}
-                          </Text>
-                        </TouchableOpacity>
+                            <View
+                              style={[
+                                styles.stepIcon,
+                                (isActive || isComplete) && styles.stepIconActive,
+                              ]}
+                            >
+                              <Ionicons
+                                name={isComplete ? 'checkmark' : step.icon}
+                                size={16}
+                                color={
+                                  isActive || isComplete
+                                    ? theme.colors.text.inverse
+                                    : theme.colors.text.secondary
+                                }
+                              />
+                            </View>
+                            <Text
+                              style={[
+                                styles.stepLabel,
+                                (isActive || isComplete) && styles.stepLabelActive,
+                              ]}
+                            >
+                              {step.label}
+                            </Text>
+                          </TouchableOpacity>
+                          {index < steps.length - 1 ? (
+                            <View style={styles.stepSequenceArrow} pointerEvents="none">
+                              <Ionicons
+                                name="chevron-forward"
+                                size={15}
+                                color={theme.colors.text.tertiary}
+                              />
+                            </View>
+                          ) : null}
+                        </React.Fragment>
                       );
                     })}
                   </View>
@@ -618,8 +766,11 @@ export default function WizardScreen() {
                           ].map((option) => {
                             const selected = storyFormat === option.value;
                             const locked =
-                              (option.value === 'comic' || option.value === 'mixed') &&
-                              graphicNovelAccessLocked;
+                              option.value === 'comic'
+                                ? graphicNovelAccessLocked
+                                : option.value === 'mixed'
+                                  ? mixedStoryAccessLocked
+                                  : false;
                             return (
                               <TouchableOpacity
                                 key={option.value}
@@ -786,6 +937,14 @@ export default function WizardScreen() {
                         {formatUsageLimitLabel(usage.graphicNovels)}
                       </Text>
                     ) : null}
+                    {usesMixedStoryQuota && usage.mixedStories ? (
+                      <Text style={styles.summaryLimit}>
+                        {t('usage_summary.mixed_stories_in_story_limit', {
+                          defaultValue: 'Story + comic within stories',
+                        })}:{' '}
+                        {formatUsageLimitLabel(usage.mixedStories)}
+                      </Text>
+                    ) : null}
                   </View>
                 ) : null}
                 <View style={styles.aiGenerationNotice}>
@@ -846,7 +1005,10 @@ export default function WizardScreen() {
                     size="md"
                     disabled={
                       isLastStep
-                        ? !storyLanguage || isGenerating || !canGenerateStories
+                        ? !storyLanguage ||
+                          (!isChildSession && !childProfileId) ||
+                          isGenerating ||
+                          !canGenerateStories
                         : isGenerating
                     }
                     loading={isLastStep && isGenerating}
@@ -900,39 +1062,16 @@ export default function WizardScreen() {
       <PaywallModal
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
-        title={
-          paywallKind === 'graphicNovels'
-            ? isGraphicNovelUpgradePaywall
-              ? t('paywall.graphic_novels_upgrade_title', {
-                  defaultValue: 'Comics are available on paid plans',
-                })
-              : t('paywall.graphic_novels_limit_title', {
-                  defaultValue: 'Comic limit reached',
-                })
-            : undefined
-        }
-        message={
-          paywallKind === 'graphicNovels' && isGraphicNovelUpgradePaywall
-            ? t('paywall.graphic_novels_upgrade_message', {
-                defaultValue:
-                  'Upgrade your plan to create comics. They also count as stories in your monthly story limit.',
-              })
-            : paywallKind === 'graphicNovels' && usage?.graphicNovels
-            ? t('paywall.graphic_novels_limit_message', {
-                used: usage.graphicNovels.used,
-                limit: usage.graphicNovels.limit,
-                defaultValue: 'You have used {{used}} of {{limit}} comics for this billing period.',
-              })
-            : undefined
-        }
-        limitInfo={
-          usage && !isGraphicNovelUpgradePaywall
-            ? paywallKind === 'graphicNovels' && usage.graphicNovels
-              ? { used: usage.graphicNovels.used, limit: usage.graphicNovels.limit }
-              : { used: usage.stories.used, limit: usage.stories.limit }
-            : undefined
-        }
+        title={paywallTitle}
+        message={paywallMessage}
+        limitInfo={paywallLimitInfo}
         periodEndFormatted={periodEndFormatted}
+      />
+
+      <GenerationErrorModal
+        visible={generationErrorMessage !== null}
+        message={generationErrorMessage}
+        onClose={() => setGenerationErrorMessage(null)}
       />
 
       <FeedbackModal
@@ -1031,7 +1170,14 @@ const styles = StyleSheet.create({
   stepper: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'center',
     gap: theme.spacing[2],
+  },
+  stepSequenceArrow: {
+    width: 16,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stepButton: {
     flexDirection: 'row',

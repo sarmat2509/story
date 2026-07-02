@@ -17,7 +17,7 @@ interface ChildProfile {
 
 interface Props {
   childProfileId?: string;
-  onChildProfileChange: (id: string | undefined) => void;
+  onChildProfileChange: (id: string) => void;
   children?: ChildProfile[];
   onAddChild?: () => void;
   showChildProfileSelector?: boolean;
@@ -71,24 +71,14 @@ export function AdvancedSettingsForm({
       {/* Child Profile Selector */}
       {showChildProfileSelector && (
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>{t('wizard.story_for')}</Text>
-            {onAddChild && (
-              <TouchableOpacity onPress={onAddChild} style={styles.addButton}>
-                <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
-              </TouchableOpacity>
-            )}
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.chipsContainer}>
-              <TouchableOpacity
-                style={[styles.chip, !childProfileId && styles.chipSelected]}
-                onPress={() => onChildProfileChange(undefined)}
-              >
-                <Text style={[styles.chipText, !childProfileId && styles.chipTextSelected]}>
-                  {t('wizard.no_profile')}
-                </Text>
-              </TouchableOpacity>
+          <Text style={styles.sectionLabel}>{t('wizard.story_for')}</Text>
+          <View style={styles.profileSelectorRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.profileChipsScroll}
+              contentContainerStyle={styles.profileChipsContent}
+            >
               {children.map((child) => (
                 <TouchableOpacity
                   key={child.id}
@@ -105,8 +95,16 @@ export function AdvancedSettingsForm({
                   </Text>
                 </TouchableOpacity>
               ))}
-            </View>
-          </ScrollView>
+            </ScrollView>
+            {onAddChild && (
+              <TouchableOpacity onPress={onAddChild} style={[styles.chip, styles.addProfileChip]}>
+                <Ionicons name="add-circle" size={20} color={theme.colors.interactive.primary} />
+                <Text style={[styles.chipText, styles.addProfileChipText]}>
+                  {t('wizard.create_child_profile')}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       )}
 
@@ -185,10 +183,20 @@ const styles = StyleSheet.create({
     gap: theme.spacing[4],
     paddingBottom: theme.spacing[2],
   },
-  sectionHeader: {
+  profileSelectorRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: theme.spacing[3],
+  },
+  profileChipsScroll: {
+    flex: 1,
+    minWidth: 0,
+  },
+  profileChipsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[3],
+    paddingRight: theme.spacing[1],
   },
   sectionLabel: {
     fontSize: theme.typography.fontSize.base,
@@ -200,16 +208,6 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     marginTop: -theme.spacing[3],
     lineHeight: 20,
-  },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: theme.borders.radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: theme.borders.width.thin,
-    borderColor: theme.colors.border.medium,
-    backgroundColor: theme.colors.background.primary,
   },
   chipsContainer: {
     flexDirection: 'row',
@@ -227,6 +225,14 @@ const styles = StyleSheet.create({
     borderWidth: theme.borders.width.thin,
     borderColor: theme.colors.border.medium,
     gap: theme.spacing[2],
+  },
+  addProfileChip: {
+    flexShrink: 0,
+    borderColor: theme.colors.interactive.primary,
+  },
+  addProfileChipText: {
+    color: theme.colors.interactive.primary,
+    flexShrink: 0,
   },
   chipSelected: {
     backgroundColor: theme.colors.interactive.primary,

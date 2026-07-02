@@ -45,6 +45,8 @@ interface Props {
   onAddChild?: () => void;
 }
 
+const MAX_STORY_CHARACTER_SELECTIONS = 5;
+
 export function CharactersForm({
   characters = [],
   selectedCharacters,
@@ -66,7 +68,7 @@ export function CharactersForm({
       } else {
         // Check total limit
         const totalSelected = selectedChildren.length + selectedCharacters.length;
-        if (totalSelected < 5) {
+        if (totalSelected < MAX_STORY_CHARACTER_SELECTIONS) {
           onChildrenChange([...selectedChildren, item.id]);
         }
       }
@@ -77,7 +79,7 @@ export function CharactersForm({
       } else {
         // Check total limit
         const totalSelected = selectedChildren.length + selectedCharacters.length;
-        if (totalSelected < 5) {
+        if (totalSelected < MAX_STORY_CHARACTER_SELECTIONS) {
           onCharactersChange([...selectedCharacters, item.id]);
         }
       }
@@ -184,7 +186,7 @@ export function CharactersForm({
               const isSelected = item.isChild
                 ? selectedChildren.includes(item.id)
                 : selectedCharacters.includes(item.id);
-              const isDisabled = !isSelected && totalSelected >= 5;
+              const isDisabled = !isSelected && totalSelected >= MAX_STORY_CHARACTER_SELECTIONS;
 
               return (
                 <TouchableOpacity

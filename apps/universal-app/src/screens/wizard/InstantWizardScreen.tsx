@@ -27,6 +27,7 @@ import { PaywallModal } from '@/components/PaywallModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { FeedbackHeaderButton } from '@/components/FeedbackHeaderButton';
 import { AppButton } from '@/components/AppButton';
+import { GenerationErrorModal } from '@/components/GenerationErrorModal';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useScreenEnter } from '@/hooks/useScreenEnter';
 import { getAnalytics } from '@/services/analytics';
@@ -117,6 +118,7 @@ export default function InstantWizardScreen() {
   const [requestId, setRequestId] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [generationErrorMessage, setGenerationErrorMessage] = useState<string | null>(null);
 
   // API hooks
   const { data: themesData, isLoading: themesLoading } = useStoryThemes();
@@ -234,9 +236,8 @@ export default function InstantWizardScreen() {
       if (status === 429) {
         setShowPaywall(true);
       } else {
-        Alert.alert(
-          t('common.error') || 'Error',
-          getLocalizedApiError(t, error, 'wizard.create_error')
+        setGenerationErrorMessage(
+          getLocalizedApiError(t, error, 'wizard.generation_error_message')
         );
       }
     }
@@ -455,6 +456,11 @@ export default function InstantWizardScreen() {
         onClose={() => setShowPaywall(false)}
         limitInfo={usage ? { used: usage.stories.used, limit: usage.stories.limit } : undefined}
         periodEndFormatted={periodEndFormatted}
+      />
+      <GenerationErrorModal
+        visible={generationErrorMessage !== null}
+        message={generationErrorMessage}
+        onClose={() => setGenerationErrorMessage(null)}
       />
       </ScrollView>
     </LinearGradient>
