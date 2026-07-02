@@ -6,6 +6,7 @@
  *   pnpm exec tsx src/scripts/recheckGraphicNovelValidationVariance.ts --validation-id 44cdace0-2131-44bb-b84d-ec00f173d7c8 --provider openai --model gpt-5.4-nano
  *   pnpm exec tsx src/scripts/recheckGraphicNovelValidationVariance.ts --validation-id 44cdace0-2131-44bb-b84d-ec00f173d7c8 --dump-prompt-file /tmp/validation-prompt.txt
  *   pnpm exec tsx src/scripts/recheckGraphicNovelValidationVariance.ts --validation-id 44cdace0-2131-44bb-b84d-ec00f173d7c8 --mode presence-first --model gemini-3.1-flash-lite
+ *   pnpm exec tsx src/scripts/recheckGraphicNovelValidationVariance.ts --validation-id 44cdace0-2131-44bb-b84d-ec00f173d7c8 --mode segmented --model gemini-3.1-flash-lite
  */
 
 import './loadEnvForScripts';
@@ -18,10 +19,12 @@ import config from '../config';
 import {
   IMAGE_VALIDATION_SYSTEM_INSTRUCTION,
   runProductImageValidation,
+  runSegmentedProductImageValidation,
 } from '../domain/image/imageValidationRun';
 import { computeValidationScore } from '../services/storyOrchestrationService';
 import type { ImageData, JsonSchema } from '../providers/base/JsonSchema';
 import type { ITextProvider } from '../providers/base/ITextProvider';
+import type { UsageMetadata } from '../providers/base/UsageMetadata';
 import { GeminiTextProvider } from '../providers/text/gemini';
 import { OpenAITextProvider } from '../providers/text/openai';
 import { getImageValidationCachedPrefix } from '../prompts/image/ImageValidationPrompt';
@@ -42,7 +45,7 @@ type Args = {
   runs: number;
   provider: 'gemini' | 'openai';
   model?: string;
-  mode: 'full' | 'presence-first';
+  mode: 'full' | 'presence-first' | 'segmented';
   dumpPromptFile?: string;
 };
 
@@ -93,8 +96,8 @@ function parseArgs(): Args {
       model = argv[++i].trim();
     } else if (arg === '--mode' && argv[i + 1]) {
       const value = argv[++i].trim().toLowerCase();
-      if (value !== 'full' && value !== 'presence-first') {
-        throw new Error('--mode must be "full" or "presence-first"');
+      if (value !== 'full' && value !== 'presence-first' && value !== 'segmented') {
+        throw new Error('--mode must be "full", "presence-first", or "segmented"');
       }
       mode = value;
     } else if (arg === '--dump-prompt-file' && argv[i + 1]) {
@@ -614,6 +617,139 @@ async function runPresenceFirstValidation(params: {
   );
 }
 
+function summarizeUsage(usages: UsageMetadata[]) {
+  const totals = usages.reduce(
+    (acc, usage) => {
+      acc.inputUnits += usage.inputUnits ?? 0;
+      acc.effectiveInputUnits += usage.effectiveInputUnits ?? usage.inputUnits ?? 0;
+      acc.outputUnits += usage.outputUnits ?? 0;
+      acc.cachedInputUnits += usage.cachedInputUnits ?? 0;
+      acc.imageTokens += usage.imageTokens ?? 0;
+      acc.durationMs += usage.durationMs ?? (usage.durationSeconds ?? 0) * 1000;
+      return acc;
+    },
+    {
+      inputUnits: 0,
+      effectiveInputUnits: 0,
+      outputUnits: 0,
+      cachedInputUnits: 0,
+      imageTokens: 0,
+      durationMs: 0,
+    }
+  );
+  return {
+    calls: usages.length,
+    totals,
+    byOperation: usages.map((usage) => ({
+      provider: usage.provider,
+      model: usage.model,
+      operation: usage.operation,
+      inputUnits: usage.inputUnits,
+      effectiveInputUnits: usage.effectiveInputUnits ?? null,
+      outputUnits: usage.outputUnits ?? null,
+      cachedInputUnits: usage.cachedInputUnits ?? null,
+      imageTokens: usage.imageTokens ?? null,
+      durationMs:
+        usage.durationMs ?? (usage.durationSeconds != null ? usage.durationSeconds * 1000 : null),
+    })),
+  };
+}
+
+async function runSegmentedValidation(params: {
+  args: Args;
+  primary: ReturnType<typeof buildPrimaryProvider>;
+  image: { buffer: Buffer; mimeType: ValidationReferenceImage['mimeType'] };
+  page: PlannedGraphicNovelPage;
+  storyId: string;
+  pageNumber: number;
+  originalAttempt: number;
+  expectedCharacters: ReturnType<typeof buildExpectedCharacters>;
+  sceneVisual: SceneVisual;
+  referenceImages: ValidationReferenceImage[];
+}): Promise<void> {
+  const summaries: Array<Record<string, unknown>> = [];
+  for (let index = 1; index <= params.args.runs; index++) {
+    const usages: UsageMetadata[] = [];
+    const validation = await runSegmentedProductImageValidation(
+      params.primary.provider,
+      {
+        imageData: params.image.buffer,
+        mimeType: params.image.mimeType,
+        expectedCharacters: params.expectedCharacters,
+        sceneVisual: params.sceneVisual,
+        referenceImages: params.referenceImages,
+        logContext: {
+          storyId: params.storyId,
+          sceneId: params.pageNumber,
+          attempt: params.originalAttempt,
+        },
+        includeLayoutChecks: true,
+        includeBubbleChecks: false,
+        onUsage: (usage) => {
+          usages.push(usage);
+        },
+      },
+      {
+        visionModel: params.primary.model,
+        fallbackTextProvider: params.primary.fallback,
+        fallbackVisionModel: params.primary.fallbackModel,
+        operation: 'image_validation_graphic_novel_segmented_recheck',
+        recordModeration: false,
+      }
+    );
+    const residue = await detectGraphicNovelTemplateColorResidue(params.image.buffer, params.page);
+    applyTemplateResidueCheck(validation, residue);
+    const referenceNamesNormalized = new Set(
+      params.referenceImages
+        .filter((ref) => ref.referenceKind === 'identity')
+        .map((ref) => normalizeName(ref.characterName))
+    );
+    const score =
+      validation.validationStatus === 'provider_blocked'
+        ? null
+        : computeValidationScore(validation, {
+            referenceNamesNormalized,
+            expectedCharacters: params.expectedCharacters,
+            sceneVisual: params.sceneVisual,
+            validationReferenceImages: params.referenceImages,
+          });
+    const summary = {
+      run: index,
+      score,
+      validationStatus: validation.validationStatus ?? 'completed',
+      validationModelUsed: validation.validationModelUsed ?? null,
+      validationAttemptKind: validation.validationAttemptKind ?? null,
+      passCount: Array.isArray(validation.requestManifest?.passes)
+        ? validation.requestManifest.passes.length
+        : null,
+      hasTemplateColorResidue: validation.hasTemplateColorResidue ?? false,
+      layoutFeedback: validation.layoutFeedback ?? null,
+      emilia: summarizeCharacter(validation, 'Емілія'),
+      flash: summarizeCharacter(validation, 'Флеш'),
+      syiavyk: summarizeCharacter(validation, 'Сяйвик'),
+      usage: summarizeUsage(usages),
+    };
+    summaries.push(summary);
+    console.log(`\n--- Segmented Run ${index} ---`);
+    console.log(JSON.stringify(summary, null, 2));
+  }
+
+  console.log('\n--- Segmented Summary ---');
+  console.log(
+    JSON.stringify(
+      summaries.map((summary) => ({
+        run: summary.run,
+        score: summary.score,
+        passCount: summary.passCount,
+        emilia: summary.emilia,
+        usage: summary.usage,
+      })),
+      null,
+      2
+    )
+  );
+}
+
 async function main(): Promise<void> {
   const args = parseArgs();
   const pool = new Pool({
@@ -722,8 +858,25 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (args.mode === 'segmented') {
+      await runSegmentedValidation({
+        args,
+        primary,
+        image,
+        page,
+        storyId: validationRow.story_id,
+        pageNumber: validationRow.scene_index,
+        originalAttempt: validationRow.attempt,
+        expectedCharacters,
+        sceneVisual,
+        referenceImages,
+      });
+      return;
+    }
+
     const summaries: Array<Record<string, unknown>> = [];
     for (let index = 1; index <= args.runs; index++) {
+      const usages: UsageMetadata[] = [];
       const validation = await runProductImageValidation(
         primary.provider,
         {
@@ -739,6 +892,9 @@ async function main(): Promise<void> {
           },
           includeLayoutChecks: true,
           includeBubbleChecks: false,
+          onUsage: (usage) => {
+            usages.push(usage);
+          },
         },
         {
           visionModel: primary.model,
@@ -772,6 +928,7 @@ async function main(): Promise<void> {
         emilia: summarizeCharacter(validation, 'Емілія'),
         flash: summarizeCharacter(validation, 'Флеш'),
         syiavyk: summarizeCharacter(validation, 'Сяйвик'),
+        usage: summarizeUsage(usages),
       };
       summaries.push(summary);
       if (index === 1 && args.dumpPromptFile) {
@@ -805,6 +962,7 @@ async function main(): Promise<void> {
           run: summary.run,
           score: summary.score,
           emilia: summary.emilia,
+          usage: summary.usage,
         })),
         null,
         2

@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { stripCharacterIdFromName } from '@wondertales/shared';
 import sharp from 'sharp';
 import type { ITextProvider } from '../../providers/base/ITextProvider';
+import type { ImageData, JsonSchema } from '../../providers/base/JsonSchema';
 import type { UsageMetadata } from '../../providers/base/UsageMetadata';
 import type { ImageValidationResult } from '../../ai/types';
 import config from '../../config';
@@ -82,6 +83,31 @@ type PreparedValidationImage = {
 
 type ValidationPromptMode = 'compact' | 'reduced';
 type ValidationProviderRole = 'primary' | 'fallback';
+type SegmentedValidationPassKind = 'layout' | 'character_identity';
+
+type PreparedValidationReferenceImage = NonNullable<
+  ProductImageValidationInput['referenceImages']
+>[number] & {
+  mimeType: SupportedVisionMimeType;
+};
+
+type SegmentedCharacterValidationResult = {
+  character: ImageValidationResult['characters'][0];
+  hasUnexpectedCharacters?: boolean;
+  hasRenderingArtifacts?: boolean;
+  notes?: string;
+};
+
+type SegmentedLayoutValidationResult = {
+  hasArtworkOutsidePanelBounds: boolean;
+  hasArtworkOverSpeechBubbles?: boolean;
+  hasExtraPanelStructure: boolean;
+  hasTemplateColorResidue: boolean;
+  hasTextOrLetters: boolean;
+  hasRenderingArtifacts: boolean;
+  layoutFeedback: string;
+  overallFeedback: string;
+};
 
 export const IMAGE_VALIDATION_SYSTEM_INSTRUCTION = [
   "You are an image quality assurance inspector for a safe children's book illustration app.",
@@ -469,6 +495,698 @@ function summarizeValidationIssues(
   }
   if (parts.length === 0) return null;
   return `${c.name}: ${parts.join(',')}${c.issue ? ` — ${c.issue}` : ''}`;
+}
+
+function buildSegmentedCharacterSchema(): JsonSchema {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['character', 'hasUnexpectedCharacters', 'hasRenderingArtifacts', 'notes'],
+    properties: {
+      character: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'name',
+          'characterKind',
+          'found',
+          'duplicated',
+          'recognizableScore',
+          'faceMatchesReference',
+          'hairMatchesReference',
+          'ageReadMatchesReference',
+          'proportionsMatchReference',
+          'matchesColors',
+          'matchesOutfit',
+          'sameOverallDesignRead',
+          'silhouetteDriftSeverity',
+          'identityComparisonSummary',
+          'issue',
+        ],
+        properties: {
+          name: { type: 'string' },
+          characterKind: { type: 'string', enum: ['human', 'animal', 'imaginary'] },
+          found: { type: 'boolean' },
+          duplicated: { type: 'boolean' },
+          recognizableScore: { type: 'number', minimum: 0, maximum: 1 },
+          faceMatchesReference: { type: ['boolean', 'null'] },
+          hairMatchesReference: { type: ['boolean', 'null'] },
+          ageReadMatchesReference: { type: ['boolean', 'null'] },
+          proportionsMatchReference: { type: ['boolean', 'null'] },
+          matchesColors: { type: 'boolean' },
+          matchesOutfit: { type: 'boolean' },
+          sameOverallDesignRead: { type: ['boolean', 'null'] },
+          silhouetteDriftSeverity: {
+            type: ['string', 'null'],
+            enum: ['none', 'mild', 'moderate', 'severe', null],
+          },
+          identityComparisonSummary: { type: 'string' },
+          issue: { type: ['string', 'null'] },
+        },
+      },
+      hasUnexpectedCharacters: { type: 'boolean' },
+      hasRenderingArtifacts: { type: 'boolean' },
+      notes: { type: ['string', 'null'] },
+    },
+  };
+}
+
+function buildSegmentedLayoutSchema(includeBubbleChecks: boolean): JsonSchema {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+      'hasArtworkOutsidePanelBounds',
+      'hasArtworkOverSpeechBubbles',
+      'hasExtraPanelStructure',
+      'hasTemplateColorResidue',
+      'hasTextOrLetters',
+      'hasRenderingArtifacts',
+      'layoutFeedback',
+      'overallFeedback',
+    ],
+    properties: {
+      hasArtworkOutsidePanelBounds: { type: 'boolean' },
+      hasArtworkOverSpeechBubbles: includeBubbleChecks
+        ? { type: 'boolean' }
+        : { type: ['boolean', 'null'] },
+      hasExtraPanelStructure: { type: 'boolean' },
+      hasTemplateColorResidue: { type: 'boolean' },
+      hasTextOrLetters: { type: 'boolean' },
+      hasRenderingArtifacts: { type: 'boolean' },
+      layoutFeedback: { type: 'string' },
+      overallFeedback: { type: 'string' },
+    },
+  };
+}
+
+function buildSegmentedCharacterPrompt(params: {
+  character: ProductImageValidationInput['expectedCharacters'][number];
+  identityReference?: PreparedValidationReferenceImage;
+  outfitReference?: PreparedValidationReferenceImage;
+  sceneOutfitText?: string;
+}): string {
+  const { character } = params;
+  const lines = [
+    'Task: validate exactly ONE expected character in Image 1.',
+    'Image 1 is the generated illustration or graphic novel page.',
+    params.identityReference
+      ? 'Image 2 is this character identity reference. If it is a turnaround/model sheet, treat it as strict stable identity ground truth.'
+      : 'No identity reference is attached; use only the expected character description and visible scene evidence.',
+    params.outfitReference
+      ? `Image ${params.identityReference ? 3 : 2} is the outfit plate. Use it only for clothing/wardrobe.`
+      : '',
+    'Ignore page layout, panel geometry, bubbles, template residue, story pacing, and all other named characters except for duplicates of this same character.',
+    'For comics/graphic novel pages, the same character may appear in multiple separate panels as normal sequential storytelling; do not mark duplicated=true for that. duplicated=true only means an unintended extra clone/copy in the same panel or same story moment.',
+    'Decision order:',
+    '1. Search all of Image 1 for a candidate matching this exact named character.',
+    '2. If an identity reference exists, first decide whether the same stable design is present. Generic substitutes or different stable designs are not the named character.',
+    '3. Then compare identity details: for humans use face/head read, age read, hairstyle structure, hair color zoning, body proportions, silhouette, and stable marks. For animals/imaginary creatures use body type, species/subtype read, silhouette, proportions, stable colors/markings.',
+    '4. Finally evaluate outfit only against the outfit plate, scene outfit text, or identity/default outfit when no stronger wardrobe ground truth exists.',
+    'If the same stable character design is absent, set found=false and recognizableScore <= 0.4 even if a similar role/slot is occupied.',
+    'If the same character is present but hair/outfit/details drift, keep found=true and mark the specific fields false.',
+    'Return one JSON object for this character only.',
+    '',
+    `EXPECTED CHARACTER: "${character.name}"`,
+    `KIND: ${character.characterKind}`,
+    character.speciesSubtype?.trim() ? `SUBTYPE: ${character.speciesSubtype.trim()}` : '',
+    character.description?.trim() ? `DESCRIPTION: ${character.description.trim()}` : '',
+    character.expectedOutfitForScene?.trim()
+      ? `EXPECTED OUTFIT FOR THIS SCENE: ${character.expectedOutfitForScene.trim()}`
+      : '',
+    params.sceneOutfitText?.trim() ? `SCENE OUTFIT TEXT: ${params.sceneOutfitText.trim()}` : '',
+    '',
+    'Output field rules:',
+    '- name must equal the expected character name.',
+    '- characterKind must equal the expected KIND.',
+    '- duplicated=false when the character appears once per panel across multiple comic panels; duplicated=true only for unintended clones inside the same panel/story moment.',
+    '- For humans with identity reference, faceMatchesReference/hairMatchesReference/ageReadMatchesReference/proportionsMatchReference must be booleans.',
+    '- For animals and imaginary creatures, set faceMatchesReference/hairMatchesReference/ageReadMatchesReference to null; use sameOverallDesignRead, silhouetteDriftSeverity, and proportionsMatchReference for identity.',
+    '- sameOverallDesignRead is true only when first-glance stable design read is unchanged; use null when no identity reference exists.',
+    '- issue should be null when there is no concrete problem; otherwise list concise observed problems.',
+    '- identityComparisonSummary must separately say what matches, what differs, and whether the first-glance design read drifted.',
+  ];
+
+  return lines.filter(Boolean).join('\n');
+}
+
+function buildSegmentedLayoutPrompt(params: {
+  sceneVisual: SceneVisual;
+  includeBubbleChecks: boolean;
+  hasLayoutTemplate: boolean;
+}): string {
+  const visual = params.sceneVisual;
+  const shot =
+    typeof visual.cameraComposition === 'string'
+      ? visual.cameraComposition
+      : visual.cameraComposition.shot;
+  return [
+    'Task: validate layout/artifact quality for Image 1 only.',
+    'Do not validate character identity, outfit, pose, or story semantics in this pass.',
+    params.hasLayoutTemplate
+      ? 'Image 2 is the exact layout template. Compare page aspect, panel rectangles, black frames, gutters, row/column splits, and leftover color guide residue.'
+      : 'No layout template image is attached; use only the page brief below.',
+    'Set hasExtraPanelStructure=true for missing panels, extra panels, merged/split planned panels, fake dividers, inset panels, or one planned panel split into multiple story beats.',
+    'Set hasArtworkOutsidePanelBounds=true when artwork spills into gutters/margins or crosses intended panel boxes.',
+    params.includeBubbleChecks
+      ? 'Set hasArtworkOverSpeechBubbles=true when art covers, touches confusingly, or reduces readability of speech/thought/caption bubbles, bubble tails, outlines, or bubble text.'
+      : 'This is an art-only page before server-rendered bubbles; set hasArtworkOverSpeechBubbles=false unless a real rendered text bubble is already present and visibly covered.',
+    'Set hasTemplateColorResidue=true when guide colors remain visible: sky-blue, peach, mint-green, lavender, butter-yellow, rose-pink, or similar flat template patches.',
+    'Set hasTextOrLetters=true for unwanted visible text/letters inside the artwork.',
+    'Set hasRenderingArtifacts=true for broken anatomy, malformed objects, corrupted rendering, or severe incoherent artifacts. Do not use it for ordinary style choices.',
+    '',
+    `PAGE BRIEF: ${visual.setting}`,
+    `LIGHTING: ${visual.lighting}`,
+    `COMPOSITION: ${shot}`,
+    'Return JSON only.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function imageDataForGenerated(
+  preparedGeneratedImage: PreparedValidationImage,
+  instructionText: string
+): ImageData {
+  return {
+    mimeType: preparedGeneratedImage.mimeType,
+    data: preparedGeneratedImage.buffer.toString('base64'),
+    instructionText,
+  };
+}
+
+function imageDataForReference(
+  ref: PreparedValidationReferenceImage,
+  imageIndex: number
+): ImageData {
+  return {
+    mimeType: normalizeVisionMimeType(ref.mimeType),
+    data: ref.imageData || '',
+    fileUri: ref.fileUri,
+    instructionText: buildValidationImageInstruction({
+      imageIndex,
+      characterName: ref.characterName,
+      referenceKind: ref.referenceKind ?? 'identity',
+      identitySource: ref.identitySource,
+    }),
+  };
+}
+
+function findReferenceForCharacter(
+  characterName: string,
+  refs: PreparedValidationReferenceImage[] | undefined,
+  referenceKind: ImageValidationReferenceKind
+): PreparedValidationReferenceImage | undefined {
+  return refs?.find(
+    (ref) =>
+      (ref.referenceKind ?? 'identity') === referenceKind &&
+      validationNamesMatch(ref.characterName, characterName)
+  );
+}
+
+function compactSegmentedCharacterResult(
+  raw: SegmentedCharacterValidationResult,
+  expectedCharacter: ProductImageValidationInput['expectedCharacters'][number],
+  references: ProductImageValidationInput['referenceImages']
+): ImageValidationResult['characters'][0] {
+  const character = {
+    ...raw.character,
+    name: expectedCharacter.name,
+    characterKind: expectedCharacter.characterKind,
+    issue: raw.character.issue ?? undefined,
+  };
+  if (character.sameOverallDesignRead == null) {
+    delete character.sameOverallDesignRead;
+  }
+  if (character.silhouetteDriftSeverity == null) {
+    delete character.silhouetteDriftSeverity;
+  }
+  const normalized = normalizeImageValidationResult(
+    {
+      characterCount: character.found ? 1 : 0,
+      expectedCharacterCount: 1,
+      characters: [character],
+      hasUnexpectedCharacters: raw.hasUnexpectedCharacters ?? false,
+      hasTextOrLetters: false,
+      hasRenderingArtifacts: raw.hasRenderingArtifacts ?? false,
+      overallFeedback: raw.notes || character.identityComparisonSummary,
+    },
+    [expectedCharacter],
+    references
+  );
+  return normalized.characters[0];
+}
+
+async function runSegmentedStructuredPass<T>(params: {
+  textProvider: ITextProvider;
+  fallbackTextProvider?: ITextProvider;
+  model?: string;
+  fallbackModel?: string;
+  passKind: SegmentedValidationPassKind;
+  passId: string;
+  prompt: string;
+  schema: JsonSchema;
+  imageData: ImageData[];
+  input: ProductImageValidationInput;
+  operation: string;
+  manifestPasses: Array<Record<string, unknown>>;
+  recordModeration?: boolean;
+}): Promise<{
+  result: T | null;
+  providerBlocked: boolean;
+  providerError?: string;
+  modelUsed?: string;
+  attemptKind?: string;
+}> {
+  const attempts: Array<{
+    providerRole: ValidationProviderRole;
+    provider: ITextProvider;
+    model?: string;
+  }> = [{ providerRole: 'primary', provider: params.textProvider, model: params.model }];
+  if (params.fallbackTextProvider) {
+    attempts.push({
+      providerRole: 'fallback',
+      provider: params.fallbackTextProvider,
+      model: params.fallbackModel,
+    });
+  }
+
+  let lastBlockedError = '';
+  let lastBlockedAttemptKind = '';
+  for (const attempt of attempts) {
+    const attemptKind = `${params.passKind}_${params.passId}_${attempt.providerRole}`;
+    const passManifest: Record<string, unknown> = {
+      passKind: params.passKind,
+      passId: params.passId,
+      attemptKind,
+      providerRole: attempt.providerRole,
+      model: attempt.model,
+      promptChars: params.prompt.length,
+      attachmentCount: params.imageData.length,
+      imageOrder: params.imageData.map((image, index) => ({
+        imageIndex: index + 1,
+        mimeType: image.mimeType,
+        hasFileUri: !!image.fileUri,
+        inlineBase64Chars: image.fileUri ? 0 : image.data.length,
+        instructionText: image.instructionText,
+      })),
+    };
+    params.manifestPasses.push(passManifest);
+
+    try {
+      const startedAt = Date.now();
+      const result = await attempt.provider.generateStructured<T>({
+        model: attempt.model,
+        systemInstruction: IMAGE_VALIDATION_SYSTEM_INSTRUCTION,
+        prompt: params.prompt,
+        imageData: params.imageData,
+        schema: params.schema,
+        temperature: 0.1,
+        relaxedSafety: true,
+        onUsage: params.input.onUsage,
+        operation:
+          params.passKind === 'layout'
+            ? `${params.operation}_layout`
+            : `${params.operation}_character_identity`,
+      });
+      passManifest.outcome = 'completed';
+      passManifest.durationMs = Date.now() - startedAt;
+      return {
+        result,
+        providerBlocked: false,
+        modelUsed: attempt.model,
+        attemptKind,
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      passManifest.error = errorMsg;
+      if (isProviderBlockedError(errorMsg)) {
+        passManifest.outcome = 'provider_blocked';
+        lastBlockedError = errorMsg;
+        lastBlockedAttemptKind = attemptKind;
+        if (params.recordModeration !== false) {
+          void recordModerationDecision({
+            storyId: params.input.logContext?.storyId,
+            stage: 'generated_image_validation',
+            source: 'image_validation_provider',
+            subjectType: 'scene_image',
+            subjectRefHash: hashModerationSubject(
+              `${params.input.logContext?.storyId ?? 'story'}:${params.input.logContext?.sceneId ?? 'scene'}:${params.input.logContext?.attempt ?? 'attempt'}:${attemptKind}`
+            ),
+            decision: 'blocked',
+            code: 'IMAGE_VALIDATION_PROVIDER_BLOCKED',
+            category: 'provider_safety_filter',
+            metadata: {
+              sceneId: params.input.logContext?.sceneId,
+              attempt: params.input.logContext?.attempt,
+              validationAttemptKind: attemptKind,
+              passKind: params.passKind,
+              passId: params.passId,
+            },
+          });
+        }
+        logger.warn(
+          { ...params.input.logContext, attemptKind, error: errorMsg },
+          'Segmented image validation provider blocked request; trying fallback if available'
+        );
+        continue;
+      }
+
+      passManifest.outcome = 'failed';
+      if (params.recordModeration !== false) {
+        void recordModerationDecision({
+          storyId: params.input.logContext?.storyId,
+          stage: 'generated_image_validation',
+          source: 'image_validation_provider',
+          subjectType: 'scene_image',
+          subjectRefHash: hashModerationSubject(
+            `${params.input.logContext?.storyId ?? 'story'}:${params.input.logContext?.sceneId ?? 'scene'}:${params.input.logContext?.attempt ?? 'attempt'}:${attemptKind}`
+          ),
+          decision: 'failed',
+          code: 'IMAGE_VALIDATION_FAILED',
+          metadata: {
+            sceneId: params.input.logContext?.sceneId,
+            attempt: params.input.logContext?.attempt,
+            validationAttemptKind: attemptKind,
+            passKind: params.passKind,
+            passId: params.passId,
+            errorName: error instanceof Error ? error.name : typeof error,
+          },
+        });
+      }
+      logger.error(
+        {
+          ...params.input.logContext,
+          attemptKind,
+          err:
+            error instanceof Error
+              ? { message: error.message, name: error.name, stack: error.stack }
+              : String(error),
+        },
+        'Segmented image validation failed'
+      );
+      throw new Error(`Segmented image validation failed: ${errorMsg}`);
+    }
+  }
+
+  return {
+    result: null,
+    providerBlocked: true,
+    providerError: lastBlockedError || 'All segmented validation provider attempts were blocked',
+    attemptKind: lastBlockedAttemptKind || `${params.passKind}_${params.passId}_all_blocked`,
+  };
+}
+
+function buildProviderBlockedCharacterResult(
+  character: ProductImageValidationInput['expectedCharacters'][number],
+  error: string | undefined
+): ImageValidationResult['characters'][0] {
+  return {
+    name: character.name,
+    characterKind: character.characterKind,
+    found: true,
+    duplicated: false,
+    recognizableScore: 1,
+    faceMatchesReference: character.characterKind === 'human' ? null : null,
+    hairMatchesReference: character.characterKind === 'human' ? null : null,
+    ageReadMatchesReference: character.characterKind === 'human' ? null : null,
+    proportionsMatchReference: null,
+    matchesColors: true,
+    matchesOutfit: true,
+    identityComparisonSummary:
+      'Provider blocked segmented character validation; no visual verdict.',
+    issue: error
+      ? `provider_blocked_no_visual_verdict: ${error}`
+      : 'provider_blocked_no_visual_verdict',
+  };
+}
+
+export async function runSegmentedProductImageValidation(
+  textProvider: ITextProvider,
+  input: ProductImageValidationInput,
+  options: ProductImageValidationOptions = {}
+): Promise<ImageValidationResult> {
+  const visionModel = options.visionModel;
+  const operation = options.operation ?? 'image_validation_segmented';
+
+  const preparedGeneratedImage = await prepareImageForValidation(
+    input.imageData,
+    input.mimeType,
+    config.image.validationSceneMaxSide
+  );
+
+  const preparedReferenceImages =
+    input.referenceImages && input.referenceImages.length > 0
+      ? await Promise.all(
+          input.referenceImages.map(async (ref) => {
+            if (!ref.imageData) {
+              return {
+                ...ref,
+                mimeType: normalizeVisionMimeType(ref.mimeType),
+              } as PreparedValidationReferenceImage;
+            }
+            const prepared = await prepareImageForValidation(
+              Buffer.from(ref.imageData, 'base64'),
+              ref.mimeType,
+              config.image.validationReferenceMaxSide
+            );
+            return {
+              ...ref,
+              imageData: prepared.buffer.toString('base64'),
+              mimeType: prepared.mimeType,
+            } as PreparedValidationReferenceImage;
+          })
+        )
+      : undefined;
+
+  const layoutTemplateReference = preparedReferenceImages?.find(
+    (ref) => ref.referenceKind === 'layout_template'
+  );
+  const characterReferences =
+    preparedReferenceImages?.filter((ref) => ref.referenceKind !== 'layout_template') ?? [];
+  const sceneOutfitText = input.sceneCharacterOutfitsText?.trim();
+  const includeBubbleChecks = input.includeBubbleChecks !== false;
+  const passesManifest: Array<Record<string, unknown>> = [];
+  const imageOrder = [
+    '1_generated_illustration',
+    ...(preparedReferenceImages ?? []).map(
+      (r, i) =>
+        `${i + 2}_${r.identitySource === 'turnaround' ? 'identity_turnaround' : (r.referenceKind ?? 'identity')}_${r.characterName}`
+    ),
+  ];
+  const requestManifest: Record<string, unknown> = {
+    version: 1,
+    validationSystemInstruction: 'image_validation_segmented_v1',
+    operation,
+    mode: 'segmented_parallel_layout_plus_character_identity',
+    includeLayoutChecks: input.includeLayoutChecks === true,
+    includeBubbleChecks,
+    imageOrder,
+    generatedImage: {
+      role: 'generated_scene',
+      mimeType: preparedGeneratedImage.mimeType,
+      width: preparedGeneratedImage.width,
+      height: preparedGeneratedImage.height,
+      originalWidth: preparedGeneratedImage.originalWidth,
+      originalHeight: preparedGeneratedImage.originalHeight,
+      resized: preparedGeneratedImage.resized,
+      sha256: sha256Short(preparedGeneratedImage.buffer),
+    },
+    references: (preparedReferenceImages ?? []).map((r, i) => ({
+      imageIndex: i + 2,
+      characterName: r.characterName,
+      referenceKind: r.referenceKind ?? 'identity',
+      identitySource: r.identitySource,
+      mimeType: r.mimeType,
+      delivery: r.fileUri ? 'file_uri' : 'inline_base64',
+      sha256: r.imageData ? sha256Short(Buffer.from(r.imageData, 'base64')) : undefined,
+    })),
+    passes: passesManifest,
+  };
+
+  logger.info(
+    {
+      ...input.logContext,
+      mode: 'segmented_parallel',
+      expectedCharacterCount: input.expectedCharacters.length,
+      expectedRoster: input.expectedCharacters.map((c) => ({
+        name: c.name,
+        characterKind: c.characterKind,
+        speciesSubtype: c.speciesSubtype,
+      })),
+      generatedImage: {
+        mimeType: preparedGeneratedImage.mimeType,
+        sizeBytes: preparedGeneratedImage.buffer.length,
+        originalSizeBytes: input.imageData.length,
+        width: preparedGeneratedImage.width,
+        height: preparedGeneratedImage.height,
+        originalWidth: preparedGeneratedImage.originalWidth,
+        originalHeight: preparedGeneratedImage.originalHeight,
+        resized: preparedGeneratedImage.resized,
+        role: 'image_1_generated_scene',
+      },
+      passCount: input.expectedCharacters.length + (input.includeLayoutChecks ? 1 : 0),
+      referenceCount: preparedReferenceImages?.length ?? 0,
+      imageOrderToModel: imageOrder,
+    },
+    'Segmented image validation: sending layout and per-character passes to Vision model'
+  );
+
+  const layoutPromise = input.includeLayoutChecks
+    ? runSegmentedStructuredPass<SegmentedLayoutValidationResult>({
+        textProvider,
+        fallbackTextProvider: options.fallbackTextProvider,
+        model: visionModel,
+        fallbackModel: options.fallbackVisionModel,
+        passKind: 'layout',
+        passId: 'layout',
+        prompt: buildSegmentedLayoutPrompt({
+          sceneVisual: input.sceneVisual,
+          includeBubbleChecks,
+          hasLayoutTemplate: !!layoutTemplateReference,
+        }),
+        schema: buildSegmentedLayoutSchema(includeBubbleChecks),
+        imageData: [
+          imageDataForGenerated(
+            preparedGeneratedImage,
+            'Image 1: GENERATED PAGE. Validate layout/artifact quality only.'
+          ),
+          ...(layoutTemplateReference ? [imageDataForReference(layoutTemplateReference, 2)] : []),
+        ],
+        input,
+        operation,
+        manifestPasses: passesManifest,
+        recordModeration: options.recordModeration,
+      })
+    : Promise.resolve(null);
+
+  const characterPromises = input.expectedCharacters.map(async (character) => {
+    const identityReference = findReferenceForCharacter(
+      character.name,
+      characterReferences,
+      'identity'
+    );
+    const outfitReference = findReferenceForCharacter(
+      character.name,
+      characterReferences,
+      'outfit_plate'
+    );
+    const imageData: ImageData[] = [
+      imageDataForGenerated(
+        preparedGeneratedImage,
+        `Image 1: GENERATED PAGE. Search all panels for "${character.name}" and validate only this character.`
+      ),
+    ];
+    if (identityReference)
+      imageData.push(imageDataForReference(identityReference, imageData.length + 1));
+    if (outfitReference)
+      imageData.push(imageDataForReference(outfitReference, imageData.length + 1));
+
+    const pass = await runSegmentedStructuredPass<SegmentedCharacterValidationResult>({
+      textProvider,
+      fallbackTextProvider: options.fallbackTextProvider,
+      model: visionModel,
+      fallbackModel: options.fallbackVisionModel,
+      passKind: 'character_identity',
+      passId: character.name,
+      prompt: buildSegmentedCharacterPrompt({
+        character,
+        identityReference,
+        outfitReference,
+        sceneOutfitText,
+      }),
+      schema: buildSegmentedCharacterSchema(),
+      imageData,
+      input,
+      operation,
+      manifestPasses: passesManifest,
+      recordModeration: options.recordModeration,
+    });
+
+    if (!pass.result) {
+      return {
+        character: buildProviderBlockedCharacterResult(character, pass.providerError),
+        pass,
+      };
+    }
+
+    return {
+      character: compactSegmentedCharacterResult(
+        pass.result,
+        character,
+        [identityReference, outfitReference].filter(
+          (ref): ref is PreparedValidationReferenceImage => !!ref
+        )
+      ),
+      pass,
+      raw: pass.result,
+    };
+  });
+
+  const [layoutPass, characterPasses] = await Promise.all([
+    layoutPromise,
+    Promise.all(characterPromises),
+  ]);
+
+  const layout = layoutPass?.result;
+  const layoutProviderBlocked = layoutPass?.providerBlocked === true;
+  const characters = characterPasses.map((pass) => pass.character);
+  const issueSummaries = characters
+    .map((c) => summarizeValidationIssues(c, input.expectedCharacters, characterReferences))
+    .filter((s): s is string => s != null);
+  const overallParts = [
+    layout?.overallFeedback,
+    ...characters
+      .filter((character) => !character.found || character.issue)
+      .map(
+        (character) =>
+          `${character.name}: ${character.issue || character.identityComparisonSummary}`
+      ),
+  ].filter((value): value is string => !!value?.trim());
+
+  const validation: ImageValidationResult = {
+    validationStatus: 'completed',
+    validationAttemptKind: 'segmented_parallel',
+    validationModelUsed: visionModel,
+    requestManifest,
+    characterCount: characters.filter((character) => character.found).length,
+    expectedCharacterCount: input.expectedCharacters.length,
+    characters,
+    hasUnexpectedCharacters: characterPasses.some((pass) => pass.raw?.hasUnexpectedCharacters),
+    hasTextOrLetters: layout?.hasTextOrLetters ?? false,
+    hasRenderingArtifacts:
+      (layout?.hasRenderingArtifacts ?? false) ||
+      characterPasses.some((pass) => pass.raw?.hasRenderingArtifacts),
+    overallFeedback:
+      overallParts.length > 0 ? overallParts.join(' ') : 'Segmented validation completed.',
+  };
+
+  if (input.includeLayoutChecks) {
+    validation.hasArtworkOutsidePanelBounds = layout?.hasArtworkOutsidePanelBounds ?? false;
+    validation.hasArtworkOverSpeechBubbles =
+      layout?.hasArtworkOverSpeechBubbles ?? (includeBubbleChecks ? false : undefined);
+    validation.hasExtraPanelStructure = layout?.hasExtraPanelStructure ?? false;
+    validation.hasTemplateColorResidue = layout?.hasTemplateColorResidue ?? false;
+    validation.layoutFeedback = layoutProviderBlocked
+      ? `provider-blocked: ${layoutPass?.providerError || 'no layout verdict'}`
+      : layout?.layoutFeedback || 'ok';
+  }
+
+  logger.info(
+    {
+      ...input.logContext,
+      attemptKind: validation.validationAttemptKind,
+      characterCount: validation.characterCount,
+      expectedCharacterCount: validation.expectedCharacterCount,
+      hasUnexpected: validation.hasUnexpectedCharacters,
+      hasText: validation.hasTextOrLetters,
+      passCount: passesManifest.length,
+      issues: issueSummaries,
+    },
+    'Segmented image validation result'
+  );
+
+  return validation;
 }
 
 /**

@@ -36,7 +36,10 @@ import {
 import type { ImageValidationResult } from '../../ai/types';
 import { type SceneVisual } from '../../services/types';
 import config from '../../config';
-import { runProductImageValidation } from './imageValidationRun';
+import {
+  runProductImageValidation,
+  runSegmentedProductImageValidation,
+} from './imageValidationRun';
 import { inferReferenceKind } from '../../utils/referenceImageKind';
 
 export interface BuiltScenePromptPayload {
@@ -618,6 +621,44 @@ export class ImageDomainService {
       fallbackTextProvider: this.fallbackTextProvider,
       fallbackVisionModel: config.ai?.openaiValidationModel || 'gpt-4o',
       operation: 'image_validation',
+    });
+  }
+
+  async validateGeneratedImageSegmented(params: {
+    imageData: Buffer;
+    mimeType: string;
+    expectedCharacters: Array<{
+      name: string;
+      characterKind: 'human' | 'animal' | 'imaginary';
+      speciesSubtype?: string;
+      description?: string;
+      expectedOutfitForScene?: string;
+    }>;
+    sceneVisual: SceneVisual;
+    sceneCharacterOutfitsText?: string;
+    referenceImages?: Array<{
+      characterName: string;
+      imageData?: string;
+      fileUri?: string;
+      mimeType: string;
+      referenceKind?: 'identity' | 'outfit_plate' | 'layout_template';
+      identitySource?: 'turnaround' | 'reference_photo';
+    }>;
+    logContext?: { storyId?: string; sceneId?: number; attempt?: number };
+    onUsage?: (usage: UsageMetadata) => void;
+    includeLayoutChecks?: boolean;
+    includeBubbleChecks?: boolean;
+  }): Promise<ImageValidationResult> {
+    if (!this.textProvider) {
+      throw new Error('Image validation requires textProvider (ENABLE_IMAGE_VALIDATION=true)');
+    }
+
+    return runSegmentedProductImageValidation(this.textProvider, params, {
+      visionModel:
+        config.ai?.validationModel || config.ai?.geminiVisionModel || 'gemini-3.1-flash-lite',
+      fallbackTextProvider: this.fallbackTextProvider,
+      fallbackVisionModel: config.ai?.openaiValidationModel || 'gpt-4o',
+      operation: 'image_validation_segmented',
     });
   }
 

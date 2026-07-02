@@ -11,7 +11,10 @@ import type {
   GenerateStructuredRequest,
   GenerateTextRequest,
 } from '../../../providers/base/JsonSchema';
-import { runProductImageValidation } from '../imageValidationRun';
+import {
+  runProductImageValidation,
+  runSegmentedProductImageValidation,
+} from '../imageValidationRun';
 
 const TINY_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
@@ -86,6 +89,30 @@ function validLayoutResult(): ImageValidationResult {
     hasExtraPanelStructure: false,
     hasTemplateColorResidue: false,
     layoutFeedback: 'ok',
+  };
+}
+
+function segmentedLayoutResult() {
+  return {
+    hasArtworkOutsidePanelBounds: false,
+    hasArtworkOverSpeechBubbles: false,
+    hasExtraPanelStructure: true,
+    hasTemplateColorResidue: false,
+    hasTextOrLetters: false,
+    hasRenderingArtifacts: false,
+    layoutFeedback: 'one planned panel is visually split',
+    overallFeedback: 'Layout has an extra split panel.',
+  };
+}
+
+function segmentedCharacterResult(
+  character: ImageValidationResult['characters'][number]
+): Record<string, unknown> {
+  return {
+    character,
+    hasUnexpectedCharacters: false,
+    hasRenderingArtifacts: false,
+    notes: character.issue || character.identityComparisonSummary,
   };
 }
 
@@ -345,6 +372,106 @@ async function testTurnaroundReferenceIsTracedInPromptAndManifest() {
   assert.strictEqual(manifest.references[0].imageIndex, 2);
 }
 
+async function testSegmentedValidationRunsLayoutAndPerCharacterPasses() {
+  const primary = new MockTextProvider([
+    segmentedLayoutResult(),
+    segmentedCharacterResult({
+      name: 'Lera',
+      characterKind: 'human',
+      found: false,
+      duplicated: false,
+      recognizableScore: 0.3,
+      faceMatchesReference: false,
+      hairMatchesReference: false,
+      ageReadMatchesReference: true,
+      proportionsMatchReference: true,
+      matchesColors: false,
+      matchesOutfit: false,
+      sameOverallDesignRead: false,
+      silhouetteDriftSeverity: 'severe',
+      identityComparisonSummary:
+        'Matches: child age read. Differs: wrong face and hair. First-glance design drifted.',
+      issue: 'different child design',
+    }),
+    segmentedCharacterResult({
+      name: 'Druzhok',
+      characterKind: 'imaginary',
+      found: true,
+      duplicated: false,
+      recognizableScore: 1,
+      faceMatchesReference: null,
+      hairMatchesReference: null,
+      ageReadMatchesReference: null,
+      proportionsMatchReference: true,
+      matchesColors: true,
+      matchesOutfit: true,
+      sameOverallDesignRead: true,
+      silhouetteDriftSeverity: 'none',
+      identityComparisonSummary: 'Matches the reference creature.',
+      issue: null as unknown as string | undefined,
+    }),
+  ]);
+
+  const result = await runSegmentedProductImageValidation(
+    primary,
+    {
+      ...validationInput,
+      includeLayoutChecks: true,
+      includeBubbleChecks: false,
+      referenceImages: [
+        {
+          characterName: 'Graphic novel page 3 layout template',
+          imageData: TINY_PNG.toString('base64'),
+          mimeType: 'image/png',
+          referenceKind: 'layout_template',
+        },
+        {
+          characterName: 'Lera',
+          imageData: TINY_PNG.toString('base64'),
+          mimeType: 'image/png',
+          referenceKind: 'identity',
+          identitySource: 'turnaround',
+        },
+        {
+          characterName: 'Druzhok',
+          imageData: TINY_PNG.toString('base64'),
+          mimeType: 'image/png',
+          referenceKind: 'identity',
+          identitySource: 'turnaround',
+        },
+      ],
+    },
+    { visionModel: 'gemini-test' }
+  );
+
+  assert.strictEqual(result.validationAttemptKind, 'segmented_parallel');
+  assert.strictEqual(result.validationModelUsed, 'gemini-test');
+  assert.strictEqual(result.characterCount, 1);
+  assert.strictEqual(result.expectedCharacterCount, 2);
+  assert.strictEqual(result.hasExtraPanelStructure, true);
+  assert.match(result.layoutFeedback ?? '', /visually split/);
+  assert.strictEqual(result.characters.find((c) => c.name === 'Lera')?.found, false);
+  assert.strictEqual(result.characters.find((c) => c.name === 'Druzhok')?.found, true);
+
+  assert.strictEqual(primary.calls.length, 3);
+  const layoutCall = primary.calls.find((call) => call.prompt.includes('layout/artifact quality'));
+  const leraCall = primary.calls.find((call) => call.prompt.includes('EXPECTED CHARACTER: "Lera"'));
+  assert.ok(layoutCall, 'layout pass should run');
+  assert.ok(leraCall, 'Lera character pass should run');
+  assert.match(leraCall.prompt, /validate exactly ONE expected character/);
+  assert.doesNotMatch(leraCall.prompt, /GRAPHIC NOVEL LAYOUT CHECKS/);
+  assert.doesNotMatch(leraCall.prompt, /EXPECTED CHARACTER: "Druzhok"/);
+  assert.strictEqual(leraCall.imageData?.length, 2);
+
+  const manifest = result.requestManifest as { mode: string; passes: Array<{ passKind: string }> };
+  assert.strictEqual(manifest.mode, 'segmented_parallel_layout_plus_character_identity');
+  assert.deepStrictEqual(manifest.passes.map((pass) => pass.passKind).sort(), [
+    'character_identity',
+    'character_identity',
+    'layout',
+  ]);
+}
+
 async function main() {
   await testFallbackAfterPrimaryBlocked();
   await testAllBlockedReturnsProviderBlocked();
@@ -352,6 +479,7 @@ async function main() {
   await testLayoutTemplateReferenceIsAttachedForValidation();
   await testUnreferencedCharacterKeepsDescriptionAndClearsReferenceFields();
   await testTurnaroundReferenceIsTracedInPromptAndManifest();
+  await testSegmentedValidationRunsLayoutAndPerCharacterPasses();
   console.log('imageValidationRun tests passed');
 }
 

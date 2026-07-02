@@ -1745,7 +1745,7 @@ async function validateGraphicNovelRenderedPage(params: {
       ...layoutTemplateReferenceImage,
       ...(characterValidationReferenceImages ?? []),
     ];
-    const validation = await params.imageDomain.validateGeneratedImage({
+    const validation = await params.imageDomain.validateGeneratedImageSegmented({
       imageData: params.imageData,
       mimeType: params.mimeType,
       expectedCharacters,
