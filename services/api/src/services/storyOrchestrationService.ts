@@ -6,7 +6,9 @@ import {
   getCharacterRepository,
   getDictionaryRepository,
   getEnvironmentImageCacheRepository,
+  getOutfitPlateCacheRepository,
   getStoryEnvironmentCacheRepository,
+  getStoryOutfitPlateCacheRepository,
   getAlignmentRepository,
   getStoryArtifactRepository,
 } from '../repositories';
@@ -1855,6 +1857,27 @@ function buildCharacterReferencePathMetadataMap(
   return byPath;
 }
 
+async function loadExistingEnvironmentReferenceImage(params: {
+  storyId: string;
+  storyEnvironmentId: string;
+  assetStorage: ReturnType<typeof getAssetStorageService>;
+}): Promise<EnvImageData | null> {
+  const storyEnvRepo = getStoryEnvironmentCacheRepository();
+  const envCacheRepo = getEnvironmentImageCacheRepository();
+  const existing = await storyEnvRepo.getByStoryAndEnvId(params.storyId, params.storyEnvironmentId);
+  if (!existing) return null;
+
+  const cached = await envCacheRepo.getById(existing.cacheId);
+  if (!cached) return null;
+
+  const buffer = await params.assetStorage.getAssetByPath(cached.storagePath);
+  return {
+    base64: buffer.toString('base64'),
+    mimeType: 'image/png',
+    storagePath: cached.storagePath,
+  };
+}
+
 async function prepareSceneEnvironmentReference(params: {
   storyId: string;
   storyRequestId?: string;
@@ -1865,6 +1888,7 @@ async function prepareSceneEnvironmentReference(params: {
   imageDomain: ReturnType<typeof getImageDomainService>;
   scenarioCardId?: string;
   previousStoryIds?: string[];
+  reuseExistingOnly?: boolean;
 }): Promise<EnvImageData | null> {
   const {
     storyId,
@@ -1876,6 +1900,7 @@ async function prepareSceneEnvironmentReference(params: {
     imageDomain,
     scenarioCardId,
     previousStoryIds,
+    reuseExistingOnly,
   } = params;
   const startedAt = new Date();
 
@@ -1902,15 +1927,21 @@ async function prepareSceneEnvironmentReference(params: {
   }
 
   try {
-    let envImageData = await getOrCreateEnvironmentImage({
-      storyId,
-      userId,
-      storyEnvironmentId,
-      environment,
-      assetStorage,
-      scenarioCardId,
-      ...(previousStoryIds && previousStoryIds.length > 0 ? { previousStoryIds } : {}),
-    });
+    let envImageData = reuseExistingOnly
+      ? await loadExistingEnvironmentReferenceImage({
+          storyId,
+          storyEnvironmentId,
+          assetStorage,
+        })
+      : await getOrCreateEnvironmentImage({
+          storyId,
+          userId,
+          storyEnvironmentId,
+          environment,
+          assetStorage,
+          scenarioCardId,
+          ...(previousStoryIds && previousStoryIds.length > 0 ? { previousStoryIds } : {}),
+        });
 
     if (envImageData && config.nanoBanana?.enableFilesApi === true) {
       try {
@@ -1947,6 +1978,8 @@ async function prepareSceneEnvironmentReference(params: {
         hasFilesApiUpload: !!envImageData?.fileUri,
         previousStoryCount: previousStoryIds?.length ?? 0,
         scenarioCardId,
+        reuseExistingOnly: !!reuseExistingOnly,
+        cacheStatus: reuseExistingOnly ? (envImageData ? 'hit' : 'miss') : undefined,
       },
     });
 
@@ -1973,6 +2006,39 @@ async function prepareSceneEnvironmentReference(params: {
   }
 }
 
+type OutfitPlateImageData = NonNullable<Awaited<ReturnType<typeof getOrCreateOutfitPlateImage>>>;
+
+function buildStoryOutfitPlateCacheKey(characterName: string, outfitId?: string | null): string {
+  const characterKey = normalizeOutfitPlateCharacterKey(characterName);
+  return outfitId?.trim() ? `${characterKey}::${outfitId.trim()}` : characterKey;
+}
+
+async function loadExistingOutfitPlateImage(params: {
+  storyId: string;
+  storyEnvironmentId: string;
+  characterName: string;
+  outfitId?: string | null;
+  assetStorage: ReturnType<typeof getAssetStorageService>;
+}): Promise<OutfitPlateImageData | null> {
+  const storyPlateKey = buildStoryOutfitPlateCacheKey(params.characterName, params.outfitId);
+  const mapping = await getStoryOutfitPlateCacheRepository().getByStoryEnvAndCharacter(
+    params.storyId,
+    params.storyEnvironmentId,
+    storyPlateKey
+  );
+  if (!mapping) return null;
+
+  const cached = await getOutfitPlateCacheRepository().getById(mapping.cacheId);
+  if (!cached) return null;
+
+  const buffer = await params.assetStorage.getAssetByPath(cached.storagePath);
+  return {
+    base64: buffer.toString('base64'),
+    mimeType: 'image/png',
+    storagePath: cached.storagePath,
+  };
+}
+
 async function prepareSceneOutfitPlateReferences(params: {
   storyId: string;
   storyRequestId?: string;
@@ -1993,6 +2059,7 @@ async function prepareSceneOutfitPlateReferences(params: {
     string,
     Promise<Awaited<ReturnType<typeof getOrCreateOutfitPlateImage>> | null>
   >;
+  reuseExistingOnly?: boolean;
 }): Promise<
   Array<{
     base64: string;
@@ -2020,6 +2087,7 @@ async function prepareSceneOutfitPlateReferences(params: {
     assetStorage,
     imageDomain,
     outfitPlatePending,
+    reuseExistingOnly,
   } = params;
 
   if (!config.image.enableOutfitPlate || !currentEnvironmentId || !currentEnvironment) {
@@ -2047,9 +2115,10 @@ async function prepareSceneOutfitPlateReferences(params: {
     if (!outfitText?.trim()) continue;
     if (isNaturalAppearanceOutfit(outfitText)) continue;
     const outfitId = lookupOutfitIdForCharacterName(displayName, scene.characterOutfitIds);
+    const storyPlateKey = buildStoryOutfitPlateCacheKey(displayName, outfitId);
     candidates.push({
       displayName,
-      outfitPendingKey: `${storyId}\x1f${currentEnvironmentId}\x1f${normalizeOutfitPlateCharacterKey(displayName)}\x1f${outfitId ?? ''}`,
+      outfitPendingKey: `${storyId}\x1f${currentEnvironmentId}\x1f${storyPlateKey}`,
     });
   }
 
@@ -2067,18 +2136,26 @@ async function prepareSceneOutfitPlateReferences(params: {
         const outfitStartedAt = new Date();
         outfitPromise = (async () => {
           try {
-            const plate = await getOrCreateOutfitPlateImage({
-              storyId,
-              userId,
-              storyEnvironmentId: currentEnvironmentId,
-              characterName: displayName,
-              outfitTextRaw: outfitText || '',
-              outfitId: outfitId ?? undefined,
-              imageStyle: imageStyle || 'soft_watercolor',
-              ageGroup,
-              scenarioCardId,
-              assetStorage,
-            });
+            const plate = reuseExistingOnly
+              ? await loadExistingOutfitPlateImage({
+                  storyId,
+                  storyEnvironmentId: currentEnvironmentId,
+                  characterName: displayName,
+                  outfitId: outfitId ?? undefined,
+                  assetStorage,
+                })
+              : await getOrCreateOutfitPlateImage({
+                  storyId,
+                  userId,
+                  storyEnvironmentId: currentEnvironmentId,
+                  characterName: displayName,
+                  outfitTextRaw: outfitText || '',
+                  outfitId: outfitId ?? undefined,
+                  imageStyle: imageStyle || 'soft_watercolor',
+                  ageGroup,
+                  scenarioCardId,
+                  assetStorage,
+                });
             await recordStageTiming({
               storyId,
               storyRequestId,
@@ -2097,6 +2174,8 @@ async function prepareSceneOutfitPlateReferences(params: {
                 outfitId: outfitId ?? null,
                 imageStyle: imageStyle || 'soft_watercolor',
                 scenarioCardId,
+                reuseExistingOnly: !!reuseExistingOnly,
+                cacheStatus: reuseExistingOnly ? (plate ? 'hit' : 'miss') : undefined,
               },
             });
             return plate;
@@ -4803,6 +4882,8 @@ async function generateSceneImageWithReference(
       }));
 
     // Generate scene image with optional validation + one repair/regeneration pass.
+    // Reference images are prepared before this function; validation retries rerender only the
+    // final scene image and reuse the same environment/outfit references.
     const hasEnvironmentImageRef =
       context.referenceImageDataArray?.some((r: any) => r.source === 'environment') ?? false;
 
@@ -7447,6 +7528,7 @@ export async function regenerateSceneImage(
     imageDomain,
     scenarioCardId,
     ...(previousStoryIds.length > 0 ? { previousStoryIds } : {}),
+    reuseExistingOnly: true,
   });
 
   const characterReferencesPromise = (async () => {
@@ -7500,6 +7582,7 @@ export async function regenerateSceneImage(
       assetStorage,
       imageDomain,
       outfitPlatePending: outfitPlatePendingRegen,
+      reuseExistingOnly: true,
     })
   );
 
