@@ -4,6 +4,8 @@
  * Usage from services/api:
  *   pnpm exec tsx src/scripts/recheckGraphicNovelValidationVariance.ts --validation-id 44cdace0-2131-44bb-b84d-ec00f173d7c8 --runs 3
  *   pnpm exec tsx src/scripts/recheckGraphicNovelValidationVariance.ts --validation-id 44cdace0-2131-44bb-b84d-ec00f173d7c8 --provider openai --model gpt-5.4-nano
+ *   pnpm exec tsx src/scripts/recheckGraphicNovelValidationVariance.ts --validation-id 44cdace0-2131-44bb-b84d-ec00f173d7c8 --dump-prompt-file /tmp/validation-prompt.txt
+ *   pnpm exec tsx src/scripts/recheckGraphicNovelValidationVariance.ts --validation-id 44cdace0-2131-44bb-b84d-ec00f173d7c8 --mode presence-first --model gemini-3.1-flash-lite
  */
 
 import './loadEnvForScripts';
@@ -13,11 +15,16 @@ import path from 'node:path';
 import { Pool } from 'pg';
 import { stripCharacterIdFromName } from '@wondertales/shared';
 import config from '../config';
-import { runProductImageValidation } from '../domain/image/imageValidationRun';
+import {
+  IMAGE_VALIDATION_SYSTEM_INSTRUCTION,
+  runProductImageValidation,
+} from '../domain/image/imageValidationRun';
 import { computeValidationScore } from '../services/storyOrchestrationService';
+import type { ImageData, JsonSchema } from '../providers/base/JsonSchema';
 import type { ITextProvider } from '../providers/base/ITextProvider';
 import { GeminiTextProvider } from '../providers/text/gemini';
 import { OpenAITextProvider } from '../providers/text/openai';
+import { getImageValidationCachedPrefix } from '../prompts/image/ImageValidationPrompt';
 import {
   detectGraphicNovelTemplateColorResidue,
   renderGraphicNovelPageTemplate,
@@ -35,6 +42,8 @@ type Args = {
   runs: number;
   provider: 'gemini' | 'openai';
   model?: string;
+  mode: 'full' | 'presence-first';
+  dumpPromptFile?: string;
 };
 
 type GraphicNovelCharacterManifest = Array<{
@@ -65,6 +74,8 @@ function parseArgs(): Args {
   let runs = 3;
   let provider: Args['provider'] = 'gemini';
   let model: string | undefined;
+  let mode: Args['mode'] = 'full';
+  let dumpPromptFile: string | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -80,6 +91,14 @@ function parseArgs(): Args {
       provider = value;
     } else if (arg === '--model' && argv[i + 1]) {
       model = argv[++i].trim();
+    } else if (arg === '--mode' && argv[i + 1]) {
+      const value = argv[++i].trim().toLowerCase();
+      if (value !== 'full' && value !== 'presence-first') {
+        throw new Error('--mode must be "full" or "presence-first"');
+      }
+      mode = value;
+    } else if (arg === '--dump-prompt-file' && argv[i + 1]) {
+      dumpPromptFile = argv[++i].trim();
     }
   }
 
@@ -90,7 +109,7 @@ function parseArgs(): Args {
     throw new Error('--runs must be an integer from 1 to 10');
   }
 
-  return { validationId, runs, provider, model: model || undefined };
+  return { validationId, runs, provider, model: model || undefined, mode, dumpPromptFile };
 }
 
 function buildPrimaryProvider(args: Args): {
@@ -136,6 +155,10 @@ function mimeFromPath(filePath: string): 'image/jpeg' | 'image/png' | 'image/web
 
 function localUploadPath(storagePath: string): string {
   return path.isAbsolute(storagePath) ? storagePath : path.join(UPLOADS_ROOT, storagePath);
+}
+
+function resolveOutputPath(filePath: string): string {
+  return path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
 }
 
 async function readUploadImage(storagePath: string): Promise<{
@@ -330,6 +353,267 @@ function summarizeCharacter(result: ImageValidationResult, name: string) {
   };
 }
 
+type PresenceFirstResult = {
+  characters: Array<{
+    name: string;
+    referenceImageIndex: number;
+    sameCharacterPresent: boolean;
+    confidence: number;
+    decisionEvidence: string;
+    mainDifferences: string;
+  }>;
+  overallNotes: string;
+};
+
+function buildPresenceFirstSchema(): JsonSchema {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['characters', 'overallNotes'],
+    properties: {
+      characters: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: [
+            'name',
+            'referenceImageIndex',
+            'sameCharacterPresent',
+            'confidence',
+            'decisionEvidence',
+            'mainDifferences',
+          ],
+          properties: {
+            name: { type: 'string' },
+            referenceImageIndex: { type: 'integer' },
+            sameCharacterPresent: { type: 'boolean' },
+            confidence: { type: 'number', minimum: 0, maximum: 1 },
+            decisionEvidence: { type: 'string' },
+            mainDifferences: { type: 'string' },
+          },
+        },
+      },
+      overallNotes: { type: 'string' },
+    },
+  };
+}
+
+function buildPresenceFirstPrompt(
+  expectedCharacters: ReturnType<typeof buildExpectedCharacters>,
+  referenceImages: ValidationReferenceImage[]
+): string {
+  const identityRefs = referenceImages.filter((ref) => ref.referenceKind === 'identity');
+  const roster = expectedCharacters
+    .map((character) => `- "${character.name}" (${character.characterKind})`)
+    .join('\n');
+  const refs = identityRefs
+    .map(
+      (ref, index) =>
+        `- Image ${index + 2}: TURNAROUND identity reference for "${ref.characterName}"`
+    )
+    .join('\n');
+
+  return [
+    'Task: presence-first identity check.',
+    'Image 1 is the generated graphic novel page. The following images are turnaround identity references only.',
+    'Do not evaluate layout, bubbles, panel geometry, story text, outfit correctness, pose, facial expression, or temporary scene action.',
+    'For each reference character, answer only this first-stage question: is the SAME stable character design from the turnaround visibly present anywhere in Image 1?',
+    'Decision order for every character:',
+    '1. Search all panels of Image 1 for a candidate that could be this exact referenced character.',
+    '2. Compare stable identity only: human face/head read, age read, hairstyle structure, hair color zoning, body proportions, silhouette; for creatures compare body type, subtype/species read, silhouette, proportions, and stable markings/colors.',
+    '3. If the image contains only a generic substitute or a different stable design, set sameCharacterPresent=false even if the role/name/slot seems similar.',
+    '4. Only after deciding presence, briefly list the strongest matching evidence and the strongest differences.',
+    'Be strict for turnaround references, but keep the task simple: first decide presence of the same model-sheet character, then explain.',
+    '',
+    `EXPECTED ROSTER:\n${roster}`,
+    '',
+    `REFERENCE IMAGE ORDER:\n${refs}`,
+    '',
+    'Return JSON only.',
+  ].join('\n');
+}
+
+function buildPresenceFirstImageData(
+  image: { buffer: Buffer; mimeType: ValidationReferenceImage['mimeType'] },
+  referenceImages: ValidationReferenceImage[]
+): ImageData[] {
+  const imageData: ImageData[] = [
+    {
+      mimeType: image.mimeType,
+      data: image.buffer.toString('base64'),
+      instructionText:
+        'Image 1: GENERATED GRAPHIC NOVEL PAGE. Search this image for the exact characters from the turnaround references.',
+    },
+  ];
+
+  for (const ref of referenceImages.filter((item) => item.referenceKind === 'identity')) {
+    imageData.push({
+      mimeType: ref.mimeType,
+      data: ref.imageData || '',
+      instructionText: `Image ${imageData.length + 1}: TURNAROUND identity reference for "${ref.characterName}". Use as strict stable identity ground truth.`,
+    });
+  }
+
+  return imageData;
+}
+
+function fullValidationAttachmentInstruction(params: {
+  imageIndex: number;
+  characterName?: string;
+  referenceKind?: ValidationReferenceImage['referenceKind'];
+  identitySource?: ValidationReferenceImage['identitySource'];
+}): string {
+  if (params.imageIndex === 1) {
+    return 'Image 1: GENERATED ILLUSTRATION to inspect. Validate this image against the expected roster and references that follow.';
+  }
+  const name = params.characterName || 'unknown';
+  if (params.referenceKind === 'layout_template') {
+    return `Image ${params.imageIndex}: LAYOUT TEMPLATE reference. Use this as the exact page geometry for the generated graphic novel page: outer page aspect, panel rectangles, black frames, gutters, row/column splits, and color guide areas that should be fully covered by final art.`;
+  }
+  if (params.referenceKind === 'outfit_plate') {
+    return `Image ${params.imageIndex}: OUTFIT PLATE for "${name}". Clothing only. Use this as the strongest wardrobe ground truth for this character in the generated illustration.`;
+  }
+  if (params.identitySource === 'turnaround') {
+    return `Image ${params.imageIndex}: IDENTITY TURNAROUND model sheet for "${name}". This is strict multi-view identity ground truth for face/head read, hairstyle, hair color zones, age read, body proportions, silhouette, palette, stable markings, and default clothing only when no outfit plate or scene wardrobe text exists.`;
+  }
+  return `Image ${params.imageIndex}: IDENTITY reference for "${name}". Use this for face, hair, age read, body proportions, silhouette, palette, stable markings, and default clothing only when no outfit plate or scene wardrobe text exists.`;
+}
+
+function buildFullValidationImageData(
+  image: { buffer: Buffer; mimeType: ValidationReferenceImage['mimeType'] },
+  referenceImages: ValidationReferenceImage[]
+): ImageData[] {
+  const imageData: ImageData[] = [
+    {
+      mimeType: image.mimeType,
+      data: image.buffer.toString('base64'),
+      instructionText: fullValidationAttachmentInstruction({ imageIndex: 1 }),
+    },
+  ];
+
+  for (const ref of referenceImages) {
+    imageData.push({
+      mimeType: ref.mimeType,
+      data: ref.imageData || '',
+      instructionText: fullValidationAttachmentInstruction({
+        imageIndex: imageData.length + 1,
+        characterName: ref.characterName,
+        referenceKind: ref.referenceKind,
+        identitySource: ref.identitySource,
+      }),
+    });
+  }
+
+  return imageData;
+}
+
+async function writePromptDump(params: {
+  filePath: string;
+  provider: string;
+  model: string;
+  systemInstruction: string;
+  cachedPrefix?: { key: string; content: string };
+  runtimePrompt: string;
+  imageData: ImageData[];
+  requestManifest?: unknown;
+}): Promise<void> {
+  const outputPath = resolveOutputPath(params.filePath);
+  const attachmentText = params.imageData
+    .map((image, index) =>
+      [
+        `Image ${index + 1}:`,
+        `  mimeType: ${image.mimeType}`,
+        image.fileUri ? `  fileUri: ${image.fileUri}` : `  inlineBase64Bytes: ${image.data.length}`,
+        image.instructionText ? `  instructionText: ${image.instructionText}` : undefined,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    )
+    .join('\n\n');
+  const content = [
+    `PROVIDER: ${params.provider}`,
+    `MODEL: ${params.model}`,
+    '',
+    '=== SYSTEM INSTRUCTION ===',
+    params.systemInstruction,
+    '',
+    params.cachedPrefix
+      ? `=== CACHED PREFIX (${params.cachedPrefix.key}) ===\n${params.cachedPrefix.content}`
+      : '=== CACHED PREFIX ===\nnone',
+    '',
+    '=== RUNTIME PROMPT ===',
+    params.runtimePrompt,
+    '',
+    '=== IMAGE ATTACHMENTS ===',
+    attachmentText,
+    '',
+    params.requestManifest
+      ? `=== REQUEST MANIFEST ===\n${JSON.stringify(params.requestManifest, null, 2)}`
+      : undefined,
+  ]
+    .filter((section): section is string => section != null)
+    .join('\n');
+
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  await fs.writeFile(outputPath, content, 'utf8');
+  console.log(`Prompt dump written to ${outputPath}`);
+}
+
+async function runPresenceFirstValidation(params: {
+  args: Args;
+  primary: ReturnType<typeof buildPrimaryProvider>;
+  image: { buffer: Buffer; mimeType: ValidationReferenceImage['mimeType'] };
+  expectedCharacters: ReturnType<typeof buildExpectedCharacters>;
+  referenceImages: ValidationReferenceImage[];
+}): Promise<void> {
+  const prompt = buildPresenceFirstPrompt(params.expectedCharacters, params.referenceImages);
+  const imageData = buildPresenceFirstImageData(params.image, params.referenceImages);
+  if (params.args.dumpPromptFile) {
+    await writePromptDump({
+      filePath: params.args.dumpPromptFile,
+      provider: params.args.provider,
+      model: params.primary.model,
+      systemInstruction:
+        'You are a visual identity QA inspector. Inspect only observable visual identity and return JSON.',
+      runtimePrompt: prompt,
+      imageData,
+    });
+  }
+
+  const summaries: PresenceFirstResult[] = [];
+  for (let index = 1; index <= params.args.runs; index++) {
+    const result = await params.primary.provider.generateStructured<PresenceFirstResult>({
+      model: params.primary.model,
+      systemInstruction:
+        'You are a visual identity QA inspector. Inspect only observable visual identity and return JSON.',
+      prompt,
+      schema: buildPresenceFirstSchema(),
+      imageData,
+      temperature: 0.1,
+      relaxedSafety: true,
+      operation: 'image_validation_presence_first_recheck',
+    });
+    summaries.push(result);
+    console.log(`\n--- Presence Run ${index} ---`);
+    console.log(JSON.stringify(result, null, 2));
+  }
+
+  console.log('\n--- Presence Summary ---');
+  console.log(
+    JSON.stringify(
+      summaries.map((summary, index) => ({
+        run: index + 1,
+        emilia: summary.characters.find(
+          (character) => normalizeName(character.name) === normalizeName('Емілія')
+        ),
+      })),
+      null,
+      2
+    )
+  );
+}
+
 async function main(): Promise<void> {
   const args = parseArgs();
   const pool = new Pool({
@@ -412,6 +696,7 @@ async function main(): Promise<void> {
           originalVisionModel: validationRow.vision_model,
           provider: args.provider,
           model: primary.model,
+          mode: args.mode,
           runs: args.runs,
           expectedCharacters,
           references: referenceImages.map((ref, index) => ({
@@ -425,6 +710,17 @@ async function main(): Promise<void> {
         2
       )
     );
+
+    if (args.mode === 'presence-first') {
+      await runPresenceFirstValidation({
+        args,
+        primary,
+        image,
+        expectedCharacters,
+        referenceImages,
+      });
+      return;
+    }
 
     const summaries: Array<Record<string, unknown>> = [];
     for (let index = 1; index <= args.runs; index++) {
@@ -478,6 +774,26 @@ async function main(): Promise<void> {
         syiavyk: summarizeCharacter(validation, 'Сяйвик'),
       };
       summaries.push(summary);
+      if (index === 1 && args.dumpPromptFile) {
+        const requestManifest = validation.requestManifest as
+          | { attempts?: Array<{ runtimePrompt?: string; cacheKey?: string }> }
+          | undefined;
+        const runtimePrompt = requestManifest?.attempts?.[0]?.runtimePrompt;
+        if (!runtimePrompt) {
+          throw new Error('Validation result did not include runtimePrompt in requestManifest');
+        }
+        const cachedPrefix = getImageValidationCachedPrefix(referenceImages.length > 0);
+        await writePromptDump({
+          filePath: args.dumpPromptFile,
+          provider: args.provider,
+          model: primary.model,
+          systemInstruction: IMAGE_VALIDATION_SYSTEM_INSTRUCTION,
+          cachedPrefix,
+          runtimePrompt,
+          imageData: buildFullValidationImageData(image, referenceImages),
+          requestManifest: validation.requestManifest,
+        });
+      }
       console.log(`\n--- Run ${index} ---`);
       console.log(JSON.stringify(summary, null, 2));
     }

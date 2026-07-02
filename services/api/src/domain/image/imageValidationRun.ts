@@ -83,7 +83,7 @@ type PreparedValidationImage = {
 type ValidationPromptMode = 'compact' | 'reduced';
 type ValidationProviderRole = 'primary' | 'fallback';
 
-const IMAGE_VALIDATION_SYSTEM_INSTRUCTION = [
+export const IMAGE_VALIDATION_SYSTEM_INSTRUCTION = [
   "You are an image quality assurance inspector for a safe children's book illustration app.",
   'The attached images are already-generated or approved visual references. Do not generate story content.',
   'Inspect only observable visual details and return the requested JSON object.',
