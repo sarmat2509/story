@@ -3,6 +3,7 @@
  *
  * Usage from services/api:
  *   pnpm exec tsx src/scripts/recheckGraphicNovelValidationVariance.ts --validation-id 44cdace0-2131-44bb-b84d-ec00f173d7c8 --runs 3
+ *   pnpm exec tsx src/scripts/recheckGraphicNovelValidationVariance.ts --validation-id 44cdace0-2131-44bb-b84d-ec00f173d7c8 --provider openai --model gpt-5.4-nano
  */
 
 import './loadEnvForScripts';
@@ -14,6 +15,7 @@ import { stripCharacterIdFromName } from '@wondertales/shared';
 import config from '../config';
 import { runProductImageValidation } from '../domain/image/imageValidationRun';
 import { computeValidationScore } from '../services/storyOrchestrationService';
+import type { ITextProvider } from '../providers/base/ITextProvider';
 import { GeminiTextProvider } from '../providers/text/gemini';
 import { OpenAITextProvider } from '../providers/text/openai';
 import {
@@ -31,6 +33,8 @@ const UPLOADS_ROOT = path.join(API_ROOT, 'uploads');
 type Args = {
   validationId: string;
   runs: number;
+  provider: 'gemini' | 'openai';
+  model?: string;
 };
 
 type GraphicNovelCharacterManifest = Array<{
@@ -59,6 +63,8 @@ function parseArgs(): Args {
   const argv = process.argv.slice(2);
   let validationId = '';
   let runs = 3;
+  let provider: Args['provider'] = 'gemini';
+  let model: string | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -66,6 +72,14 @@ function parseArgs(): Args {
       validationId = argv[++i];
     } else if (arg === '--runs' && argv[i + 1]) {
       runs = Number(argv[++i]);
+    } else if (arg === '--provider' && argv[i + 1]) {
+      const value = argv[++i].trim().toLowerCase();
+      if (value !== 'gemini' && value !== 'openai') {
+        throw new Error('--provider must be "gemini" or "openai"');
+      }
+      provider = value;
+    } else if (arg === '--model' && argv[i + 1]) {
+      model = argv[++i].trim();
     }
   }
 
@@ -76,7 +90,36 @@ function parseArgs(): Args {
     throw new Error('--runs must be an integer from 1 to 10');
   }
 
-  return { validationId, runs };
+  return { validationId, runs, provider, model: model || undefined };
+}
+
+function buildPrimaryProvider(args: Args): {
+  provider: ITextProvider;
+  model: string;
+  fallback?: ITextProvider;
+  fallbackModel?: string;
+} {
+  if (args.provider === 'openai') {
+    const model = args.model || config.ai.openaiValidationModel;
+    if (!config.ai.openaiApiKey?.trim()) {
+      throw new Error('OPENAI_API_KEY is required for --provider openai');
+    }
+    return {
+      provider: new OpenAITextProvider(config.ai.openaiApiKey, model),
+      model,
+    };
+  }
+
+  const model = args.model || config.ai.validationModel;
+  const fallback = config.ai.openaiApiKey?.trim()
+    ? new OpenAITextProvider(config.ai.openaiApiKey, config.ai.openaiValidationModel)
+    : undefined;
+  return {
+    provider: new GeminiTextProvider(config.ai.geminiApiKey, model),
+    model,
+    fallback,
+    fallbackModel: fallback ? config.ai.openaiValidationModel : undefined,
+  };
 }
 
 function normalizeName(value: string): string {
@@ -357,10 +400,7 @@ async function main(): Promise<void> {
     });
     const image = await readUploadImage(validationRow.image_storage_path);
 
-    const primary = new GeminiTextProvider(config.ai.geminiApiKey, config.ai.validationModel);
-    const fallback = config.ai.openaiApiKey?.trim()
-      ? new OpenAITextProvider(config.ai.openaiApiKey, config.ai.openaiValidationModel)
-      : undefined;
+    const primary = buildPrimaryProvider(args);
 
     console.log(
       JSON.stringify(
@@ -370,6 +410,8 @@ async function main(): Promise<void> {
           pageNumber: validationRow.scene_index,
           originalScore: validationRow.validation_score,
           originalVisionModel: validationRow.vision_model,
+          provider: args.provider,
+          model: primary.model,
           runs: args.runs,
           expectedCharacters,
           references: referenceImages.map((ref, index) => ({
@@ -387,7 +429,7 @@ async function main(): Promise<void> {
     const summaries: Array<Record<string, unknown>> = [];
     for (let index = 1; index <= args.runs; index++) {
       const validation = await runProductImageValidation(
-        primary,
+        primary.provider,
         {
           imageData: image.buffer,
           mimeType: image.mimeType,
@@ -403,9 +445,9 @@ async function main(): Promise<void> {
           includeBubbleChecks: false,
         },
         {
-          visionModel: config.ai.validationModel,
-          fallbackTextProvider: fallback,
-          fallbackVisionModel: config.ai.openaiValidationModel,
+          visionModel: primary.model,
+          fallbackTextProvider: primary.fallback,
+          fallbackVisionModel: primary.fallbackModel,
           operation: 'image_validation_graphic_novel_recheck',
           recordModeration: false,
         }
