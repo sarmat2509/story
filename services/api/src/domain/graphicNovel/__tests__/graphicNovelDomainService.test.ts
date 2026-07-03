@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { GraphicNovelDomainService } from '../GraphicNovelDomainService';
 import type { StorySpec } from '../../../ai/types';
 import type { ITextProvider } from '../../../providers/base/ITextProvider';
-import type { GenerateStructuredRequest, GenerateTextRequest } from '../../../providers/base/JsonSchema';
+import type {
+  GenerateStructuredRequest,
+  GenerateTextRequest,
+} from '../../../providers/base/JsonSchema';
 
 const SPEC: StorySpec = {
   language: 'uk',
@@ -58,7 +61,8 @@ const SCRIPT_FIXTURE = {
     {
       id: 'env_hall',
       name: 'Great Hall',
-      description: 'A bright stone hall with a long tapestry on the back wall and open floor space.',
+      description:
+        'A bright stone hall with a long tapestry on the back wall and open floor space.',
     },
   ],
   outfits: [
@@ -92,7 +96,8 @@ const SCRIPT_FIXTURE = {
                   {
                     name: 'Емілія',
                     position: 'left_foreground',
-                    description: 'standing left, pointing gently, curious expression, looking at the tapestry',
+                    description:
+                      'standing left, pointing gently, curious expression, looking at the tapestry',
                   },
                   {
                     name: 'Флеш',
@@ -115,7 +120,8 @@ const SCRIPT_FIXTURE = {
             environmentId: 'env_hall',
             primaryRead: 'Emilia swims across shallow water',
             sceneVisual: {
-              setting: 'A shallow magical pool appears on the floor for a gentle swimming crossing.',
+              setting:
+                'A shallow magical pool appears on the floor for a gentle swimming crossing.',
               lighting: 'soft golden light',
               cameraComposition: {
                 shot: 'wide shot, eye level',
@@ -146,7 +152,9 @@ class BlockThenSucceedProvider implements ITextProvider {
   async generateStructured<T>(request: GenerateStructuredRequest<T>): Promise<T> {
     this.requests.push(request);
     if (this.requests.length === 1) {
-      throw new Error('Gemini structured generation failed: Content blocked by Gemini: PROHIBITED_CONTENT. Details: none');
+      throw new Error(
+        'Gemini structured generation failed: Content blocked by Gemini: PROHIBITED_CONTENT. Details: none'
+      );
     }
     return SCRIPT_FIXTURE as T;
   }
@@ -180,12 +188,19 @@ async function testGraphicNovelScriptUsesSafetyFallbackAfterProviderBlock() {
   if (typeof panelTwoCharacters !== 'string') {
     const emilia = panelTwoCharacters.characters.find((character) => character.name === 'Емілія');
     const flash = panelTwoCharacters.characters.find((character) => character.name === 'Флеш');
-    assert.ok(emilia?.outfitId, 'human swimmer gets an outfitId');
-    assert.ok(flash?.outfitId, 'missing speaking character is added to visual characters with outfitId');
+    assert.ok(emilia?.outfitId, 'human character keeps an outfitId');
+    assert.ok(
+      flash?.outfitId,
+      'missing speaking character is added to visual characters with outfitId'
+    );
     const emiliaOutfit = script.outfits?.find((outfit) => outfit.id === emilia.outfitId);
     const flashOutfit = script.outfits?.find((outfit) => outfit.id === flash.outfitId);
-    assert.notEqual(emilia.outfitId, 'o_emilia_jacket', 'swimming human panel overrides stale non-swim outfit');
-    assert.match(emiliaOutfit?.description || '', /swimwear/i);
+    assert.equal(
+      emilia.outfitId,
+      'o_emilia_jacket',
+      'normalization preserves explicit LLM outfitId'
+    );
+    assert.equal(emiliaOutfit?.description, 'denim jacket, black shirt, patterned pants, sneakers');
     assert.equal(flashOutfit?.description, 'natural appearance');
   }
 }

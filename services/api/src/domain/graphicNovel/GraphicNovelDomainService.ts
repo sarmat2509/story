@@ -127,20 +127,14 @@ function ensureOutfit(
   outfits: Map<string, StoryOutfitRow>,
   params: {
     characterName: string;
-    kind: OutfitKind;
   }
 ): string {
-  const id = outfitKeyForCharacter(params.characterName, params.kind);
+  const id = outfitKeyForCharacter(params.characterName, 'natural');
   if (!outfits.has(id)) {
     outfits.set(id, {
       id,
       characterName: params.characterName,
-      description:
-        params.kind === 'swimwear'
-          ? 'age-appropriate child swimwear suitable for swimming, bare feet, no jacket or coat'
-          : params.kind === 'everyday'
-            ? 'age-appropriate everyday clothes suitable for the current scene'
-            : 'natural appearance',
+      description: 'natural appearance',
     });
   }
   return id;
@@ -188,21 +182,17 @@ function withOutfitIds(
   outfits: Map<string, StoryOutfitRow>,
   characters: CameraCharacterComposition[]
 ): CameraCharacterComposition[] {
-  const swimmingPanel = isSwimmingPanel(panel);
+  void panel;
+  void spec;
   return characters.map((character) => {
-    const isHuman = isHumanStoryCharacter(spec, character.name);
-    const kind: OutfitKind = isHuman ? (swimmingPanel ? 'swimwear' : 'everyday') : 'natural';
     const existing = character.outfitId?.trim();
     const existingOutfit = existing ? outfits.get(existing) : undefined;
-    if (
-      existingOutfit &&
-      (kind !== 'swimwear' || isSwimwearDescription(existingOutfit.description))
-    ) {
+    if (existingOutfit) {
       return character;
     }
     return {
       ...character,
-      outfitId: ensureOutfit(outfits, { characterName: character.name, kind }),
+      outfitId: ensureOutfit(outfits, { characterName: character.name }),
     };
   });
 }

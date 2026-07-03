@@ -209,9 +209,9 @@ export function formatStructuredOutfitRules(
 
   if (options.includeChangeRules) {
     rules.push(
-      '- Reuse the same outfitId while the character keeps the same clothes. Create a new outfitId the moment clothes change, even within the same page.',
-      '- Match outfit to the panel action and environment: swimming/bathing/water play -> age-appropriate swimwear and no jacket/coat; rain -> raincoat/boots; snow -> coat/boots; sleep -> pajamas; formal scene -> formal outfit.',
-      '- If a character changes clothes between panels, the first panel after the change must use the new outfitId, and later panels keep it until changed again.'
+      '- Reuse the same outfitId while the character keeps the same clothes; do not create per-panel outfitIds for pose, emotion, camera, or location changes.',
+      '- Create a new outfitId only when the story explicitly changes clothes, adds a disguise/uniform/protective gear, or the scene clearly requires special wardrobe for safety/weather.',
+      '- If the default/reference clothes still fit, use an outfit row with description exactly "natural appearance" instead of inventing wardrobe details.'
     );
   }
 
